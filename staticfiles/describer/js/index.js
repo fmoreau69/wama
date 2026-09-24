@@ -112,8 +112,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Bind events for existing cards
     document.querySelectorAll('.wama-card').forEach(bindCardEvents);
 
-    // Resume polling for cards already in RUNNING state (e.g. after page reload)
-    document.querySelectorAll('.wama-card.processing').forEach(card => {
+    // Reprise du suivi des cards DÉJÀ en cours à l'ouverture de la page. Lu sur `data-status` :
+    // la classe `.processing` a été retirée des cards le 2026-09-18 (le CSS lit l'attribut), et
+    // ce sélecteur ne trouvait plus rien — une card en cours au chargement restait figée, même
+    // passée en échec (vu par le geste `describer.worker_death`, 2026-09-24).
+    document.querySelectorAll('.wama-card[data-status="RUNNING"], .wama-card[data-status="AWAITING_RESOURCES"]').forEach(card => {
         startPolling(card.dataset.id);
     });
 

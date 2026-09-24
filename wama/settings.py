@@ -522,6 +522,8 @@ TEMPLATES = [
                 # Avatar de l'assistant sur TOUTE page (conteneur dans base.html) : préférence
                 # durable lue ici, rendue en data-* — cf. common/_assistant_avatar.html.
                 'wama.common.context_processors.assistant_avatar',
+                # Badge des notifications DANS WAMA (en-tête) — WAMA_COLLABORATION §2.3.
+                'wama.common.context_processors.unread_notifications',
             ],
         },
     },

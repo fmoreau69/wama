@@ -181,3 +181,67 @@ class TaskLostAfterHostCrashTest(TestCase):
     def test_known_nodes_ignore_bindings_written_under_another_separator(self):
         nodes = process_control._known_worker_nodes(_FakeClient(pidbox=NODES), ':')
         self.assertEqual({'gpu@host', 'default@host'}, nodes)
+
+
+class _StartedMeta:
+    """`AsyncResult` stand-in: a task STARTED by (`pid`, `hostname`)."""
+    meta = {}
+    state = 'STARTED'
+
+    def __init__(self, task_id, app=None):
+        self.task_id = task_id
+
+    @property
+    def result(self):
+        return dict(self.meta)
+
+
+class DeadWorkerProcessTest(TestCase):
+    """A restarted worker settles its dead predecessor's tasks (2026-09-24).
+
+    The proof is POSITIVE: the task STARTED on this worker name, in a process that no longer
+    exists on this machine. No `inspect()` involved — the solo gpu worker never answers while
+    busy (the inverted signal of 25/07)."""
+
+    NODE = 'gpu@test-host'
+
+    def setUp(self):
+        self.user = User.objects.create_user('dead_worker_test', 'd@test.local', 'x')
+        from wama.converter.models import ConversionBatch, ConversionJob
+        lot = ConversionBatch.objects.create(user=self.user, total=1, media_type='image')
+        self.job = ConversionJob.objects.create(
+            user=self.user, media_type='image', batch=lot, batch_row_index=0,
+            status='RUNNING', task_id='task-on-a-dead-process')
+
+    def _settle(self, pid, hostname=NODE, alive=False):
+        _StartedMeta.meta = {'pid': pid, 'hostname': hostname}
+        with patch('celery.result.AsyncResult', _StartedMeta),              patch.object(process_control, '_pid_alive', return_value=alive),              patch.object(process_control, '_tache_reussie', return_value=False):
+            return process_control.reconcile_dead_worker_tasks(self.NODE)
+
+    def _status(self):
+        from wama.converter.models import ConversionJob
+        return ConversionJob.objects.get(pk=self.job.pk)
+
+    def test_a_task_started_by_a_dead_process_of_this_worker_fails_relaunchably(self):
+        done = self._settle(pid=424242)
+        self.assertIn(('converter', 'ConversionJob', self.job.pk), done)
+        fresh = self._status()
+        self.assertEqual('FAILURE', fresh.status)
+        self.assertIn('worker', (fresh.error_message or '').lower())
+
+    def test_a_live_process_is_never_settled(self):
+        self.assertEqual([], self._settle(pid=424242, alive=True))
+        self.assertEqual('RUNNING', self._status().status)
+
+    def test_another_worker_name_is_not_this_workers_business(self):
+        self.assertEqual([], self._settle(pid=424242, hostname='default@test-host'))
+        self.assertEqual('RUNNING', self._status().status)
+
+    def test_settling_twice_changes_nothing_the_second_time(self):
+        self.assertEqual(1, len(self._settle(pid=424242)))
+        self.assertEqual([], self._settle(pid=424242))
+
+    def test_every_wama_work_model_is_swept_by_its_shape(self):
+        names = {m.__name__ for m in process_control.work_models()}
+        self.assertIn('ConversionJob', names)
+        self.assertGreaterEqual(len(names), 10, f'only {sorted(names)} — sweep too narrow')

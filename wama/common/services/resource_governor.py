@@ -1033,11 +1033,28 @@ TASK_MAX_MINUTES = {
 }
 #: Réglage utilisateur (brique `user_settings`, app `common`) : 0 / absent = le défaut de l'app.
 USER_SETTING_MAX_TASK_MINUTES = 'max_task_minutes'
+#: Réglage PAR MODÈLE (2026-09-24, demande de Fabien : « 30 min, un peu léger pour une vidéo —
+#: un réglage depuis WAMA, depuis le model manager ») : clé d'`AIModel.extra_info`, écrite par
+#: l'inspecteur du model manager (`api_model_task_limit`), à côté de `vram_measured` et `eta`.
+MODEL_INFO_MAX_TASK_MINUTES = 'max_task_minutes'
 
 
-def task_time_limit_s(app_id: str, user=None) -> float:
+def model_task_minutes(model_key: str | None) -> int:
+    """Durée max déclarée pour un modèle au catalogue (minutes), 0 si aucune."""
+    if not model_key:
+        return 0
+    try:
+        from wama.model_manager.models import AIModel
+        info = AIModel.objects.filter(model_key=model_key).values_list(
+            'extra_info', flat=True).first() or {}
+        return max(0, int(info.get(MODEL_INFO_MAX_TASK_MINUTES) or 0))
+    except Exception:
+        return 0
+
+
+def task_time_limit_s(app_id: str, user=None, model_key: str | None = None) -> float:
     """Plafond de durée d'UN traitement, en secondes : le réglage de l'utilisateur s'il en a posé
-    un, sinon le défaut de l'app, sinon `_default`."""
+    un, sinon celui du MODÈLE au catalogue, sinon le défaut de l'app, sinon `_default`."""
     minutes = 0
     if user is not None and getattr(user, 'pk', None):
         try:
@@ -1045,6 +1062,8 @@ def task_time_limit_s(app_id: str, user=None) -> float:
             minutes = int(get_user_app_setting(user, 'common', USER_SETTING_MAX_TASK_MINUTES) or 0)
         except Exception:
             minutes = 0
+    if minutes <= 0:
+        minutes = model_task_minutes(model_key)
     if minutes <= 0:
         minutes = int(TASK_MAX_MINUTES.get(app_id) or TASK_MAX_MINUTES['_default'])
     return float(minutes * 60)

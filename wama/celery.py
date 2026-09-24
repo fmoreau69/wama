@@ -71,6 +71,41 @@ def _wama_configure_worker_resources(**_kwargs):
     except Exception:
         pass
 
+
+# ---------------------------------------------------------------------------
+# Un worker qui DÉMARRE solde les tâches de son prédécesseur mort (2026-09-24)
+# ---------------------------------------------------------------------------
+# Un worker tué en pleine tâche laissait ses éléments RUNNING à vie : la réconciliation
+# commune ne tournait qu'au CHARGEMENT d'une page d'app, et seulement si le worker répondait à
+# `inspect()`. Le worker relancé — par la surveillance, le script de démarrage ou à la main —
+# détient la preuve positive : son nom, et les processus de SA machine. `worker_ready` est émis
+# une fois, dans le processus principal. Les cards le voient à leur prochain rafraîchissement.
+from celery.signals import worker_ready  # noqa: E402
+
+
+@worker_ready.connect
+def _wama_settle_dead_predecessor(sender=None, **_kwargs):
+    try:
+        from wama.common.utils.process_control import reconcile_dead_worker_tasks
+        hostname = getattr(sender, 'hostname', '') or ''
+        done = reconcile_dead_worker_tasks(hostname)
+    except Exception:
+        return                          # jamais bloquant pour le démarrage d'un worker
+    if not done:
+        return
+    try:
+        from wama.common.utils.notifications import notify_admins
+        items = ', '.join(f"{label} #{pk}" for label, _model, pk in done[:20])
+        more = f" (+{len(done) - 20})" if len(done) > 20 else ''
+        notify_admins(
+            'worker_tasks_interrupted',
+            f"{len(done)} traitement(s) interrompu(s) par l'arrêt du worker {hostname}",
+            f"Le worker {hostname} s'était arrêté pendant ces traitements : {items}{more}.\n"
+            "Ils sont passés en échec relançable ; les relancer depuis leur card.")
+    except Exception:
+        pass
+
+
 @app.task(bind=True)
 def debug_task(self):
     print(f'Request: {self.request!r}')

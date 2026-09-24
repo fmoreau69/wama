@@ -323,11 +323,12 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
     # qui la tire de l'item (le champ varie — `model`, `ai_model`, `backend`, `tts_model` : la
     # convention n'existe pas, on ne la devine donc pas). Placé APRÈS `progress(0)` : la tâche
     # est réellement partie, l'attente qu'on annonce commence maintenant.
+    resolved_key = None
     if model_key is not None:
         try:
-            cle = model_key(item) if callable(model_key) else str(model_key)
+            resolved_key = model_key(item) if callable(model_key) else str(model_key)
             from wama.common.utils.model_readiness import warn_if_weights_missing
-            warn_if_weights_missing(cle, console=ctx.console)
+            warn_if_weights_missing(resolved_key, console=ctx.console)
         except Exception as exc:      # prévenir est un confort, jamais une condition
             logger.debug('[%s] annonce de téléchargement impossible : %s', app_id, exc)
 
@@ -343,7 +344,9 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
     # tourne » ne se lisait que dans les statuts RUNNING des tables d'app — invisible du
     # gouverneur, donc de l'attente des autres. La ligne expire avec la durée max du traitement.
     from wama.common.services import resource_governor as gov
-    limit_s = gov.task_time_limit_s(app_id, getattr(item, 'user', None))
+    # Le MODÈLE peut porter sa durée max (réglée au model manager, 2026-09-24) : une vidéo longue
+    # dépasse légitimement le défaut de 30 min.
+    limit_s = gov.task_time_limit_s(app_id, getattr(item, 'user', None), model_key=resolved_key)
     token = gov.task_started(app_id, item_id, besoin or 0.0, max_s=limit_s)
     try:
         with _time_guard(limit_s):

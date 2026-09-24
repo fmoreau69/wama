@@ -485,6 +485,34 @@ class UserAppSetting(models.Model):
         return f'{self.user} · {self.app}.{self.name}'
 
 
+class Notification(models.Model):
+    """Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
+    d'événement, lien vers l'élément, lu / non lu ; un badge dans l'en-tête et une page.
+
+    Premier morceau posé le 2026-09-24, pour un premier type d'événement : la mort d'un worker
+    Celery (demande de Fabien : « il me faudrait aussi une notification dans wama lui-même »).
+    Les préférences type × canal (§5.2) restent la marche 5 : aujourd'hui l'appelant choisit
+    ses canaux (`utils/notifications.py`).
+    """
+    recipient = models.ForeignKey('auth.User', on_delete=models.CASCADE,
+                                  related_name='notifications')
+    kind = models.CharField(max_length=64, db_index=True)
+    title = models.CharField(max_length=255)
+    body = models.TextField(blank=True, default='')
+    url = models.CharField(max_length=500, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['recipient', 'read_at'])]
+        verbose_name = "Notification"
+        verbose_name_plural = "Notifications"
+
+    def __str__(self):
+        return f'{self.recipient} · {self.kind} · {self.title}'
+
+
 class ScopedVisibility(models.Model):
     """Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
     - `unit` + `scope_org_unit` : partagé avec l'unité ET ses sous-unités (labo→équipes) ;

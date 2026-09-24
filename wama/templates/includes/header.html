@@ -179,6 +179,19 @@
                 </li>
                 <!-- Bouton Compte / Login -->
                 {% if user.is_authenticated and user.username != 'anonymous' %}
+                {% comment %}Notifications DANS WAMA (WAMA_COLLABORATION §2.3) : badge des non
+                lues, compte fourni par `context_processors.unread_notifications`.{% endcomment %}
+                <li class="nav-item">
+                    <a class="nav-link position-relative" href="{% url 'common:notifications' %}"
+                       id="wamaNotificationsLink"
+                       title="Notifications{% if unread_notifications %} — {{ unread_notifications }} non lue{{ unread_notifications|pluralize }}{% endif %}">
+                        <i class="fas fa-bell"></i>
+                        {% if unread_notifications %}
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                              style="font-size:.6rem;">{{ unread_notifications }}</span>
+                        {% endif %}
+                    </a>
+                </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="fas fa-user me-1"></i>

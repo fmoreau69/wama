@@ -19,6 +19,10 @@ done
 # ------------------------------------------------------
 echo "=== Stopping old processes if any ==="
 pkill -f "gunicorn wama.wsgi" || true
+# La SURVEILLANCE des workers d'abord (scripts/worker_watchdog.sh) : laissée en vie, elle
+# relancerait les workers que la ligne suivante arrête. Crochets : le motif ne se trouve pas
+# lui-même.
+pkill -f "scripts/[w]orker_watchdog.sh" || true
 pkill -f "celery" || true
 # Graceful stop: SIGTERM first, then wait, then SIGKILL
 if pkill -f "uvicorn tts_service" 2>/dev/null; then
@@ -47,18 +51,10 @@ DJANGO_PORT=8000
 GUNICORN_WORKERS=4
 LOG_DIR=$PROJECT_DIR/logs
 
-# Ollama runs on Windows — WSL2 cannot reach 127.0.0.1:11434 directly.
-# The Windows host IP is resolved at startup; override with OLLAMA_HOST env var if needed.
-export OLLAMA_HOST=${OLLAMA_HOST:-http://$(ip route show | awk '/^default/{print $3; exit}'):11434}
-
-# Timezone : Paris — aligne les timestamps des logs Python/Celery sur l'heure locale.
-# WSL2 hérite souvent UTC du noyau ; forcer TZ ici évite les logs décalés.
-export TZ=Europe/Paris
-
-# Backup distant des modèles (model_manager/remote_backup.py). Point de MONTAGE WSL,
-# pas le chemin UNC : monter \\vrlescot\SAVES sur /mnt/shares/SAVES (drvfs ou /etc/fstab).
-# Sûr même si non monté : is_available() voit que le dossier n'existe pas → backup désactivé proprement.
-export WAMA_MODEL_BACKUP_PATH=${WAMA_MODEL_BACKUP_PATH:-/mnt/shares/SAVES/DEEP_LEARNING/MODELS}
+# Environnement d'exécution et lancement des workers : UNE définition, partagée avec la
+# surveillance des workers (scripts/wama_services.sh — OLLAMA_HOST, TZ, sauvegarde distante).
+source $PROJECT_DIR/scripts/wama_services.sh
+wama_runtime_env
 
 # ------------------------------------------------------
 # SUDO : `-n` en non-interactif, interactif quand il y a un TERMINAL
@@ -352,90 +348,39 @@ sudo -n prlimit --nofile=65536:65536 --pid $$ 2>/dev/null \
     || true
 echo "File descriptor limit: $(ulimit -n)"
 
-# Environment variables for AI models
-export COQUI_TOS_AGREED=1
-export TTS_HOME=$PROJECT_DIR/AI-models/synthesizer/tts
-export CUDA_LAUNCH_BLOCKING=0
-# WAMA est 100% PyTorch : on EMPÊCHE transformers d'importer TensorFlow/Flax. TF (installé mais inutile
-# ici) saisirait un contexte CUDA parallèle → "CUDA error: unknown error" (cudaErrorUnknown) en WSL2.
-export USE_TF=0
-export USE_FLAX=0
-# expandable_segments : mémoire virtuelle CUDA (cuMemMap), instable sous WSL2 → assert
-# "!handles_.at(i)" (CUDACachingAllocator) qui fait planter les grosses générations (VibeVoice ASR).
-# On le DÉSACTIVE en WSL, on le GARDE sur Linux natif (anti-fragmentation des gros modèles).
-if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
-    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False
-else
-    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-fi
+# Environnement des workers (modèles d'IA) — défini dans scripts/wama_services.sh, partagé
+# avec la surveillance qui relance un worker mort : une relance reproduit le démarrage.
+wama_worker_env
 
-# Suppress noisy but harmless framework warnings
-export TF_CPP_MIN_LOG_LEVEL=2          # Suppress TensorFlow C++ INFO/WARNING messages
-export PYTHONWARNINGS="ignore::FutureWarning:keras,ignore::DeprecationWarning:keras"  # Keras np.object FutureWarning
-
-# GPU Worker: handles all GPU-intensive AI tasks (1 task at a time)
-# Queue: gpu (anonymizer, imager, enhancer, synthesizer, transcriber, describer)
-if ! pgrep -f "celery.*gpu@" > /dev/null; then
-    echo "=== Starting Celery GPU Worker (solo) ==="
-    celery -A wama worker \
-        --pool=solo \
-        --queues=gpu \
-        --hostname=gpu@%h \
-        --prefetch-multiplier=1 \
-        --statedb=$LOG_DIR/celery-gpu.state \
-        --loglevel=INFO \
-        --detach \
-        --logfile $LOG_DIR/celery-gpu.log
-else
-    echo "Celery GPU worker is already running."
-fi
-
-# Default Worker: handles light tasks (model_manager, periodic tasks)
-# Elastic: starts with 1 process, scales up to 4 based on load
-if ! pgrep -f "celery.*default@" > /dev/null; then
-    echo "=== Starting Celery Default Worker (autoscale 1-4) ==="
-    celery -A wama worker \
-        --pool=prefork \
-        --queues=default,celery \
-        --hostname=default@%h \
-        --autoscale=4,1 \
-        --statedb=$LOG_DIR/celery-default.state \
-        --loglevel=INFO \
-        --detach \
-        --logfile $LOG_DIR/celery-default.log
-else
-    echo "Celery Default worker is already running."
-fi
-
-# Studio Worker: ORCHESTRATEUR de pipelines (run_pipeline_task retient le worker pendant
-# toute la durée du run — boucle de poll). File DÉDIÉE : sur une file partagée, N runs
-# studio simultanés peuvent occuper tous les slots et affamer la tâche d'app qu'ils
-# attendent (deadlock observé en dev/solo, smoke 03/08).
-if ! pgrep -f "celery.*studio@" > /dev/null; then
-    echo "=== Starting Celery Studio Worker (solo) ==="
-    celery -A wama worker \
-        --pool=solo \
-        --queues=studio \
-        --hostname=studio@%h \
-        --statedb=$LOG_DIR/celery-studio.state \
-        --loglevel=INFO \
-        --detach \
-        --logfile $LOG_DIR/celery-studio.log
-else
-    echo "Celery Studio worker is already running."
-fi
+# Workers Celery (gpu, default, studio) et Celery Beat — lancements dans scripts/wama_services.sh
+# (commentaires de chaque worker là-bas : pool, files, préchargement).
+for w in $WAMA_CELERY_WORKERS; do
+    if ! celery_worker_alive "$w"; then
+        echo "=== Starting Celery $w ==="
+        start_celery_worker "$w"
+    else
+        echo "Celery $w is already running."
+    fi
+done
 
 # ------------------------------------------------------
-# CELERY BEAT (optionnel)
+# SURVEILLANCE DES WORKERS (2026-09-24)
 # ------------------------------------------------------
-if ! pgrep -f "celery.*beat" > /dev/null; then
-    echo "=== Starting Celery Beat ==="
-    celery -A wama beat \
-        --loglevel=INFO \
-        --detach \
-        --logfile $LOG_DIR/celery-beat.log
+# Un worker mort n'était relancé par personne : le 24/09, le worker gpu est tombé à 13:35
+# (dump WSL après un OOM vidéo) et toute la file gpu a attendu des heures. La surveillance
+# vérifie toutes les 30 s que chaque process vit (`pgrep`, jamais `inspect ping` : le worker
+# gpu, en pool solo, ne répond pas pendant une tâche) ; mort → relance par la MÊME fonction
+# que ci-dessus, budget de 3 relances en 30 min, puis `manage.py worker_died` (traitements
+# interrompus soldés, administrateurs prévenus dans WAMA et par e-mail).
+# Pause pour une maintenance : `touch logs/worker_watchdog.pause` (supprimer pour reprendre).
+if ! pgrep -f "scripts/[w]orker_watchdog.sh" > /dev/null; then
+    echo "=== Starting worker watchdog ==="
+    nohup bash $PROJECT_DIR/scripts/worker_watchdog.sh >> $LOG_DIR/worker-watchdog.log 2>&1 &
+    WATCHDOG_PID=$!
+    disown $WATCHDOG_PID
+    echo "  Worker watchdog started (PID $WATCHDOG_PID) → $LOG_DIR/worker-watchdog.log"
 else
-    echo "Celery Beat is already running."
+    echo "Worker watchdog is already running."
 fi
 
 # ------------------------------------------------------

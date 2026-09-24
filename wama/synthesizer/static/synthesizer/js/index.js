@@ -337,7 +337,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Auto-refresh progress
     setInterval(async () => {
-        const runningCards = document.querySelectorAll('.synthesis-card.processing');
+        // Lu sur `data-status` : la classe `.processing` a été retirée des cards le 2026-09-18
+        // (le CSS lit l'attribut) — ce sélecteur ne trouvait plus rien, aucune card en cours
+        // n'était suivie (vu par le geste `synthesizer.worker_death`, 2026-09-24).
+        const runningCards = document.querySelectorAll(
+            '.synthesis-card[data-status="RUNNING"], .synthesis-card[data-status="AWAITING_RESOURCES"]');
 
         for (const card of runningCards) {
             const id = card.dataset.id;

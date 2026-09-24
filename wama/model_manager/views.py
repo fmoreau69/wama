@@ -1946,6 +1946,40 @@ def api_model_uninstall(request):
 
 
 @login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
+def api_model_task_limit(request):
+    """Durée max d'UN traitement pour ce modèle, en minutes (0 = défaut de l'app) — lue par le
+    garde-temps du squelette commun (`resource_governor.task_time_limit_s`). Demande de Fabien
+    (2026-09-24) : le défaut de 30 min est court pour une vidéo, et se règle depuis WAMA."""
+    from .models import AIModel
+    from wama.common.services.resource_governor import MODEL_INFO_MAX_TASK_MINUTES
+    try:
+        data = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    try:
+        minutes = int(data.get('minutes'))
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'minutes: entier attendu'}, status=400)
+    if minutes < 0 or minutes > 24 * 60:
+        return JsonResponse({'success': False, 'error': 'minutes: entre 0 et 1440'}, status=400)
+    ident = str(data.get('model_id') or '')
+    model = (AIModel.objects.filter(pk=int(ident)).first() if ident.isdigit()
+             else AIModel.objects.filter(model_key=ident).first())
+    if model is None:
+        return JsonResponse({'success': False, 'error': 'modèle introuvable'}, status=404)
+    info = dict(model.extra_info or {})
+    if minutes:
+        info[MODEL_INFO_MAX_TASK_MINUTES] = minutes
+    else:
+        info.pop(MODEL_INFO_MAX_TASK_MINUTES, None)
+    model.extra_info = info
+    model.save(update_fields=['extra_info'])
+    return JsonResponse({'success': True, 'minutes': minutes, 'model_key': model.model_key})
+
+
+@login_required
 def function_catalog(request):
     """Catalogue des FONCTIONS de traitement WAMA Data (card-style, tri/filtre côté client).
     Lit `FUNCTION_CATALOG` (fonctions pures + app-bound déclarées par capacités)."""

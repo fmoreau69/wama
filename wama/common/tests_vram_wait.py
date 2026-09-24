@@ -227,3 +227,36 @@ class TaskTimeLimitSettingTest(TestCase):
         with mock.patch.dict(gov.TASK_MAX_MINUTES, {'composer': 45}):
             self.assertEqual(gov.task_time_limit_s('composer', None), 2700)
             self.assertEqual(gov.task_time_limit_s('composer', u), 5400)
+
+    def test_a_model_can_carry_its_own_limit_set_in_the_model_manager(self):
+        """2026-09-24 (Fabien: « 30 min, un peu léger pour une génération de vidéo »): the
+        catalogue entry of a model carries its limit; the user's own setting still wins."""
+        from wama.common.utils.user_settings import save_user_app_settings
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='enhancer:slow-video-test', name='slow', source='enhancer',
+                               extra_info={gov.MODEL_INFO_MAX_TASK_MINUTES: 120})
+        self.assertEqual(gov.task_time_limit_s('enhancer', None, model_key='enhancer:slow-video-test'), 7200)
+        self.assertEqual(gov.task_time_limit_s('enhancer', None, model_key='enhancer:unknown'), 1800)
+        u = get_user_model().objects.create_user('b1_limit_model', password='x')
+        save_user_app_settings(u, 'common', {gov.USER_SETTING_MAX_TASK_MINUTES: 45})
+        self.assertEqual(gov.task_time_limit_s('enhancer', u, model_key='enhancer:slow-video-test'), 2700)
+
+    def test_the_model_manager_writes_and_clears_the_limit(self):
+        from django.urls import reverse
+        from wama.model_manager.models import AIModel
+        m = AIModel.objects.create(model_key='enhancer:limit-api-test', name='l', source='enhancer')
+        admin = get_user_model().objects.create_superuser('b1_limit_admin', password='x')
+        self.client.force_login(admin)
+        url = reverse('model_manager:api_model_task_limit')
+        r = self.client.post(url, data=f'{{"model_id": {m.pk}, "minutes": 90}}',
+                             content_type='application/json')
+        self.assertEqual(200, r.status_code, r.content)
+        m.refresh_from_db()
+        self.assertEqual(90, m.extra_info[gov.MODEL_INFO_MAX_TASK_MINUTES])
+        self.client.post(url, data=f'{{"model_id": {m.pk}, "minutes": 0}}',
+                         content_type='application/json')
+        m.refresh_from_db()
+        self.assertNotIn(gov.MODEL_INFO_MAX_TASK_MINUTES, m.extra_info)
+        r = self.client.post(url, data=f'{{"model_id": {m.pk}, "minutes": -5}}',
+                             content_type='application/json')
+        self.assertEqual(400, r.status_code)

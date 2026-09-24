@@ -6,7 +6,8 @@ fille de batch) ET par la vue card_html (remplacement in-place à la complétion
 Contexte : elem (décorée .chips), card_label = nom de SORTIE (.wav) — le libellé
 principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
 
-⚠ Contrats JS (index.js) : .synthesis-card.processing = sélection du polling (:483),
+⚠ Contrats JS (index.js) : .synthesis-card[data-status="RUNNING"] = sélection du polling
+  (la classe .processing n'existe plus depuis le 2026-09-18),
   .wama-card[data-id][data-status], .settings-btn + data-* , .delete-btn[data-id],
   .preview-text-btn[data-id], .duplicate-btn[data-duplicate-url],
   .wama-progress-fill (:492), .progress-text (:493), .wama-eta (:499).

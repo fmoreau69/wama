@@ -1533,6 +1533,13 @@ document.addEventListener('DOMContentLoaded', function() {
             } },
             { k: 'RAM', field: 'ram_gb', suffix: ' Go' },
             { k: 'Disque', field: 'disk_gb', suffix: ' Go' },
+            { k: "Durée max d'un traitement", get: function (m) {
+                // Garde-temps du squelette commun (2026-09-24) : réglé ici par modèle, sinon le
+                // défaut de l'app (30 min). Action « Durée max… » ci-dessous.
+                if (m.is_proposed) return '';
+                const v = (m.extra_info || {}).max_task_minutes;
+                return v ? v + ' min (réglée pour ce modèle)' : 'défaut de l\'app (30 min)';
+            } },
         ] },
         { section: 'Identité', rows: [
             { k: 'Type', field: 'type' },
@@ -1574,6 +1581,9 @@ document.addEventListener('DOMContentLoaded', function() {
           cls: 'btn btn-sm btn-outline-info',
           when: function (m) { return !m.is_proposed && !!m.platform_url; },
           href: function (m) { return m.platform_url; } },
+        { label: 'Durée max…', icon: 'fas fa-hourglass-half', cls: 'btn btn-sm btn-outline-secondary',
+          when: function (m) { return !m.is_proposed; },
+          onClick: function (m) { mmSetTaskLimit(m); } },
         { label: 'Décharger', icon: 'fas fa-eject', cls: 'btn btn-sm btn-outline-danger',
           when: function (m) { return !m.is_proposed && !!m.is_loaded; },
           onClick: function (m) { mmUnloadModel(m); } },
@@ -1654,6 +1664,29 @@ document.addEventListener('DOMContentLoaded', function() {
             } else { alert('Échec : ' + (data.error || 'inconnu')); }
         } catch (err) { alert('Erreur : ' + err.message); }
         finally { hideLoading(); }
+    }
+    // Durée max d'UN traitement pour ce modèle (garde-temps du squelette commun, 2026-09-24).
+    async function mmSetTaskLimit(m) {
+        const current = (m.extra_info || {}).max_task_minutes || '';
+        const answer = prompt(`Durée max d'un traitement avec « ${m.name} », en minutes.\n\n`
+            + 'Au-delà, le traitement est arrêté proprement et l\'élément passe en échec '
+            + 'relançable. Vide ou 0 = défaut de l\'app (30 min).', current);
+        if (answer === null) return;
+        const minutes = parseInt(answer || '0', 10);
+        if (isNaN(minutes) || minutes < 0) { alert('Nombre de minutes attendu.'); return; }
+        try {
+            const r = await fetch('{% url "model_manager:api_model_task_limit" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ model_id: m.id, minutes: minutes })
+            });
+            const data = await r.json();
+            if (data.success) {
+                loadModels();
+                showToastOrAlert(minutes ? `« ${m.name} » : ${minutes} min max par traitement.`
+                                         : `« ${m.name} » : durée max de l'app.`);
+            } else { alert('Échec : ' + (data.error || 'inconnu')); }
+        } catch (err) { alert('Erreur : ' + err.message); }
     }
     // Toast si la brique commune est là, alert sinon (page chargée sans wama-app-base).
     function showToastOrAlert(msg) {
