@@ -63,6 +63,16 @@ def _result_reference_url(surface):
     return reverse('common:api_result_reference', args=[surface, 'element', 0])
 
 
+def _result_import_url(surface):
+    """Route commune du résultat existant pour une surface qui le REPREND, None sinon (pk 0)."""
+    from django.urls import reverse
+    from wama.common.services.result_evaluation import evaluation_spec
+    spec = evaluation_spec(surface)
+    if spec is None or spec.import_result is None:
+        return None
+    return reverse('common:api_result_import', args=[surface, 0])
+
+
 def _result_reference_accept(surface):
     """Les extensions que l'app sait LIRE comme référence (sa déclaration), pour le sélecteur."""
     from wama.common.services.result_evaluation import evaluation_spec
@@ -122,6 +132,8 @@ def queue_dnd_attrs(app, domain=None):
         # lit. L'URL est celle d'un ÉLÉMENT au pk 0 ; la brique y substitue nature et pk.
         ('data-result-reference-url', _result_reference_url(app)),
         ('data-result-reference-accept', _result_reference_accept(app)),
+        # « Résultat existant… » (port `work_result`) : seulement si l'app sait le reprendre.
+        ('data-result-import-url', _result_import_url(app)),
     ]
     presents = [(k, v) for k, v in paires if v]
     if not presents:

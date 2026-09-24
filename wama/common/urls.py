@@ -86,6 +86,9 @@ urlpatterns = [
     # ou un lot, une route pour toutes les surfaces qui DÉCLARENT leur évaluation.
     path('api/result-reference/<str:surface>/<str:nature>/<int:pk>/',
          views.api_result_reference, name='api_result_reference'),
+    # RÉSULTAT EXISTANT (port `work_result`) — un élément seulement.
+    path('api/result-import/<str:surface>/<int:pk>/', views.api_result_import,
+         name='api_result_import'),
     # L'INVERSE : de quel élément un fichier de l'arbre est-il la SORTIE ? Rend les coordonnées
     # `(surface, pk)` — celles qu'une card porte — pour que l'arbre offre les MÊMES gestes
     # d'élément que le menu « … » (partager, médiathèque, RAG), par les MÊMES endpoints (2026-09-18).

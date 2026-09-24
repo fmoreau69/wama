@@ -54,10 +54,11 @@ class TranscriberEvaluationTest(TestCase):
         self.client.force_login(self.user)
 
     def _transcript(self, text='le chat dort sur le tapis oui je crois', **kw):
-        return Transcript.objects.create(
-            user=self.user, audio='users/0/transcriber/input/fictif.wav', status='SUCCESS',
-            used_backend='whisper', model_key='transcriber:whisper', text=text,
-            segments_json=[{'text': text, 'start_time': 0.0, 'end_time': 4.0}], **kw)
+        fields = {'audio': 'users/0/transcriber/input/fictif.wav', 'status': 'SUCCESS',
+                  'used_backend': 'whisper', 'model_key': 'transcriber:whisper', 'text': text,
+                  'segments_json': [{'text': text, 'start_time': 0.0, 'end_time': 4.0}]}
+        fields.update(kw)
+        return Transcript.objects.create(user=self.user, **fields)
 
     def _attach(self, item, content=SRT_REFERENCE, name='reference.srt'):
         return self.client.post(f'/common/api/result-reference/transcriber/element/{item.pk}/',
@@ -115,6 +116,67 @@ class TranscriberEvaluationTest(TestCase):
         view = item_evaluation('transcriber', item)
         self.assertTrue(view['pending'], 'the reference waits for the new result')
         self.assertEqual('', item.model_key)
+
+    def _import(self, item, content, name):
+        return self.client.post(f'/common/api/result-import/transcriber/{item.pk}/',
+                                {'file': SimpleUploadedFile(name, content)}).json()
+
+    def test_an_existing_timed_result_becomes_the_card_result_and_is_compared(self):
+        """The other tool's transcription is measured like a model — the comparison the lab needs."""
+        from wama.common.services.result_evaluation import batch_evaluation
+        from wama.transcriber.models import TranscriptSegment
+        whisper = self._transcript()
+        external = self._transcript(text='', status='PENDING')
+        answer = self._import(external, SRT_REFERENCE.encode(), 'autre_outil.srt')
+        self.assertTrue(answer['ok'], answer)
+        external.refresh_from_db()
+        self.assertEqual(('SUCCESS', 'external:autre_outil', 'externe'),
+                         (external.status, external.model_key, external.used_backend))
+        self.assertEqual(2, TranscriptSegment.objects.filter(transcript=external).count(),
+                         'a timed document is written like an ASR output (rows, hence SRT)')
+        reference = SimpleUploadedFile('ref.srt', SRT_REFERENCE.encode())
+        from wama.common.services.result_evaluation import attach_reference
+        attach_reference('transcriber', [whisper, external], reference)
+        summary = batch_evaluation('transcriber', [whisper, external])
+        self.assertEqual(['external:autre_outil', 'transcriber:whisper'],
+                         [m['model_key'] for m in summary['models']],
+                         'identical to the reference: the external result ranks first')
+        self.assertTrue(summary['comparable'])
+
+    def test_an_untimed_result_invents_no_time(self):
+        from wama.transcriber.models import TranscriptSegment
+        item = self._transcript(text='', status='PENDING')
+        answer = self._import(item, 'Titre\nSpeaker 0:\nBonjour à tous.\n'.encode(), 'outil.txt')
+        self.assertTrue(answer['ok'], answer)
+        item.refresh_from_db()
+        self.assertEqual([{'speaker_id': 'SPEAKER_00', 'start_time': None, 'end_time': None,
+                           'text': 'Bonjour à tous.'}], item.segments_json)
+        self.assertFalse(TranscriptSegment.objects.filter(transcript=item).exists())
+
+    def test_a_document_without_speech_is_refused_and_left_nowhere(self):
+        item = self._transcript()
+        answer = self.client.post(f'/common/api/result-import/transcriber/{item.pk}/',
+                                  {'file': SimpleUploadedFile('vide.srt', b'WEBVTT\n')})
+        self.assertEqual(400, answer.status_code)
+        self.assertIn('aucune parole', answer.json()['reason'])
+        item.refresh_from_db()
+        self.assertFalse(item.work_result.name)
+
+    def test_relaunching_a_card_with_an_existing_result_REIMPORTS_it(self):
+        from wama.transcriber.views import _task_for
+        from wama.transcriber.workers import (import_existing_result_task,
+                                              transcribe_without_preprocessing)
+        item = self._transcript()
+        self.assertIs(transcribe_without_preprocessing, _task_for(item))
+        self._import(item, SRT_REFERENCE.encode(), 'autre.srt')
+        item.refresh_from_db()
+        self.assertIs(import_existing_result_task, _task_for(item),
+                      '▶ must not run the ASR in place of the existing result')
+        # The task opens with `close_old_connections()` (Celery hygiene) — it would close the
+        # TEST connection; the gesture under test is the re-import, not the hygiene.
+        from unittest.mock import patch
+        with patch('wama.transcriber.workers.close_old_connections'):
+            self.assertEqual({'ok': True}, import_existing_result_task(item.pk))
 
     def test_the_transcriber_declares_the_capability_that_opens_the_port(self):
         from wama.common.app_registry import studio_node_ports

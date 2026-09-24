@@ -70,6 +70,10 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # Posée par le geste commun (card ou lot), jamais lue par le moteur.
     reference_result = models.FileField(upload_to=upload_to_user_input('transcriber'),
                                         blank=True, null=True)
+    # Port `work_result` (capacité `has_result_import`) : une transcription produite AILLEURS qui
+    # TIENT LIEU de transcription (`workers.import_existing_result`) — ▶ la ré-importe, sans ASR.
+    work_result = models.FileField(upload_to=upload_to_user_input('transcriber'),
+                                   blank=True, null=True)
 
     # Optional LLM summary (generated after transcription if requested)
     generate_summary = models.BooleanField(default=False)

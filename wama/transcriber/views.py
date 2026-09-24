@@ -89,7 +89,7 @@ SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'enable_diarizatio
 #: suppression d'un lot) ET par `delete`/`clear_all`. Ces deux vues écrivaient `'audio'` en dur :
 #: le contrat générique de suppression (`tests_queue_delete_contract`) l'a montré dès l'ajout de
 #: `reference_result`, resté sur le disque après la card.
-CARD_FILE_FIELDS = ('audio', 'reference_result')
+CARD_FILE_FIELDS = ('audio', 'reference_result', 'work_result')
 
 
 def _delete_card_files(t):
@@ -103,7 +103,13 @@ def _get_user(request):
 
 
 def _task_for(t):
-    from .workers import transcribe, transcribe_without_preprocessing
+    """LA tâche d'un transcript — unique source pour la fabrique de lots, `start` et `start_all`
+    (qui recopiaient chacun le choix pré-traitement, jusqu'au 2026-09-23). Une card qui porte un
+    RÉSULTAT EXISTANT (port `work_result`) le ré-importe : il tient lieu de transcription."""
+    from .workers import (import_existing_result_task, transcribe,
+                          transcribe_without_preprocessing)
+    if t.work_result:
+        return import_existing_result_task
     return transcribe if t.preprocess_audio else transcribe_without_preprocessing
 
 
@@ -555,12 +561,7 @@ def start(request, pk: int):
 
     cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
 
-    # Use the transcript's own preprocess_audio setting
-    from .workers import transcribe, transcribe_without_preprocessing
-    if t.preprocess_audio:
-        task = transcribe.delay(t.id)
-    else:
-        task = transcribe_without_preprocessing.delay(t.id)
+    task = _task_for(t).delay(t.id)
 
     t.task_id = task.id
     t.save(update_fields=['task_id'])
@@ -1306,9 +1307,8 @@ def console_content(request):
 def start_all(request):
     """
     Démarre toutes les transcriptions non terminées.
-    Respecte les paramètres individuels de chaque transcript.
+    Respecte les paramètres individuels de chaque transcript (la tâche : `_task_for`).
     """
-    from .workers import transcribe, transcribe_without_preprocessing
     from wama.common.utils.process_control import begin_processing
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -1321,11 +1321,7 @@ def start_all(request):
             continue
         cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
 
-        # Use transcript's own preprocess setting
-        if t.preprocess_audio:
-            task = transcribe.delay(t.id)
-        else:
-            task = transcribe_without_preprocessing.delay(t.id)
+        task = _task_for(t).delay(t.id)
 
         t.task_id = task.id
         t.save(update_fields=['task_id'])

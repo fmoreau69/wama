@@ -261,3 +261,10 @@ class CapabilityAndDeclarationGoTogetherTest(TestCase):
         declared = {a for a, c in APP_CATALOG.items() if c.get('has_reference_result')}
         registered = set(evaluation.evaluable_surfaces()) & set(APP_CATALOG)
         self.assertEqual(declared, registered)
+
+    def test_every_app_declaring_the_result_import_can_import(self):
+        from wama.common.app_registry import APP_CATALOG
+        declared = {a for a, c in APP_CATALOG.items() if c.get('has_result_import')}
+        importing = {s for s in evaluation.evaluable_surfaces()
+                     if evaluation.evaluation_spec(s).import_result is not None} & set(APP_CATALOG)
+        self.assertEqual(declared, importing)
