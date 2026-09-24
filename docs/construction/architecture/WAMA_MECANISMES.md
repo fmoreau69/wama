@@ -251,6 +251,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Shuttle J/K/L** | État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app fournit apply(speed) — la commande est commune, l'application au lecteur reste locale | `wama/common/static/common/js/wama-shuttle.js` | — | 3 |
 | **Signalement au gestionnaire de fichiers** | Noms d'événements centralisés (media:uploaded/processed/deleted) — l'arborescence du filemanager se rafraîchit sans que chaque app invente son event | `wama/common/static/common/js/wama-fm-notify.js` | — | 17 |
 | **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` | 73 |
+| **Suivre la tête de lecture (traitement au fil de la lecture)** | Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, modèle gardé chargé, et s'arrête d'elle-même (arrêt demandé, 90 s d'inactivité, traitement prioritaire à laisser passer). Verrou de lancement, verrou vivant, refroidissement : chacun a son cas vécu. L'app fournit le chargement, la tranche et la question « dois-je céder ? » — jamais la mécanique. Extrait du mode Live du cam_analyzer quand le transcriber en est devenu le 2ᵉ utilisateur ; première forme du curseur de session | `wama/common/services/playhead_follow.py` | `docs/construction/mondes/WAMA_DATA_WORLD.md §5` | 4 |
 | **Sélecteur de médiathèque** | Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta | `wama/common/static/common/js/media-picker.js` | — | 15 |
 | **Vocabulaire des capacités** | Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI | `wama/common/utils/model_capabilities.py` | `docs/construction/ui/INPUT_MODEL_MATCHING.md` | 38 |
 | **Voie d'import (front)** | Envoi d'un fichier vers l'endpoint upload de l'app (dépôt, clic — la médiathèque y ARRIVE par la card d'entrée, qui injecte le fichier dans le même input), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension) | `wama/common/static/common/js/wama-import.js` | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` | 42 |
@@ -349,6 +350,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | `model_declarations` — Passe-plat des déclarations de modèle | **1** app(s) : imager | `wama/common/utils/model_declarations.py` |
 | `resource_governor` — Gouverneur de ressources | **1** app(s) : avatarizer | `wama/common/services/resource_governor.py` |
 | `result_evaluation` — Évaluation d'un résultat contre sa référence | **1** app(s) : transcriber | `wama/common/services/result_evaluation.py` |
+| `playhead_follow` — Suivre la tête de lecture (traitement au fil de la lecture) | **1** app(s) : transcriber | `wama/common/services/playhead_follow.py` |
 | `run_outcome` — Signaux d'exécution | **1** app(s) : transcriber | `wama/common/services/run_outcome.py` |
 
 </details>

@@ -479,7 +479,7 @@ Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique,
 ### Barre d'outils générale (registre + profils)
 ### Ancrage d'un texte sans temps sur des mots horodatés
 
-Étage A de l'alignement forcé, SANS modèle : un texte fait ailleurs (export Sonal, texte) retrouve l'heure de chacun de ses mots parmi ceux d'une sortie ASR de la même audio — plus longue sous-suite commune des mots (RapidFuzz `Indel`, jamais Levenshtein, qui substitue aux ex-aequo et décale la suite). Chaque mot dit la qualité de son temps : `exact`, `estimated` (dans la durée réelle des mots corrigés), `interpolated` (rien en face). Étage B (`refine_turns`) : un aligneur ACOUSTIQUE (contrat `ForcedAlignmentBackend`, choisi au catalogue par sa tâche `alignment` et sa langue) reprend les seuls mots estimés, par fenêtres que tiennent leurs voisins sûrs, coupées entre deux mots au-delà de sa capacité ; ils deviennent `aligned`. Le module ne charge aucun modèle : il reçoit le geste d'alignement. Bornes (`move_boundary`, `split_turn`) : déplacer la jonction de deux tours ou couper un tour, toujours ENTRE deux mots et sans en perdre un — un texte corrigé se réancre d'abord sur la référence ASR
+Étage A de l'alignement forcé, SANS modèle : un texte fait ailleurs (export Sonal, texte) retrouve l'heure de chacun de ses mots parmi ceux d'une sortie ASR de la même audio — plus longue sous-suite commune des mots (RapidFuzz `Indel`, jamais Levenshtein, qui substitue aux ex-aequo et décale la suite). Chaque mot dit la qualité de son temps : `exact`, `estimated` (dans la durée réelle des mots corrigés), `interpolated` (rien en face). Étage B (`refine_turns`) : un aligneur ACOUSTIQUE (contrat `ForcedAlignmentBackend`, choisi au catalogue par sa tâche `alignment` et sa langue) reprend les seuls mots estimés, par fenêtres que tiennent leurs voisins sûrs, coupées entre deux mots au-delà de sa capacité ; ils deviennent `aligned`. Le module ne charge aucun modèle : il reçoit le geste d'alignement. Bornes (`move_boundary`, `split_turn`) : déplacer la jonction de deux tours ou couper un tour, toujours ENTRE deux mots et sans en perdre un — un texte corrigé se réancre d'abord sur la référence ASR. Plage (`replace_span`) : une plage retranscrite remplace les mots qui s'y disaient, ou remplit un blanc d'un tour neuf
 
 - **Domicile** : `wama/common/services/word_anchoring.py` · **doc** : [wama/transcriber/TRANSCRIBER_CORRECTION.md §10.5](../../wama/transcriber/TRANSCRIBER_CORRECTION.md)
 - **Module** : Ancrage d'un texte SANS TEMPS sur des mots HORODATÉS — l'étage A de l'alignement forcé.
@@ -491,6 +491,7 @@ Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique,
   - `turn_words(turn: dict, reference: Optional[List[dict]]=None) -> Optional[List[dict]]` — Les mots horodatés d'un tour, COHÉRENTS avec son texte — ou None si le tour n'a pas de temps.
   - `move_boundary(left: dict, right: dict, at: float, reference: Optional[List[dict]]=None) -> Optional[Tuple[dict, dict]]` — Déplace la jonction entre deux tours CONSÉCUTIFS vers `at` : les mots passent d'un côté à
   - `split_turn(turn: dict, at: float, reference: Optional[List[dict]]=None) -> Optional[Tuple[dict, dict]]` — Coupe un tour en deux à `at`, entre deux mots : les mots d'avant restent, ceux d'après
+  - `replace_span(turns: List[dict], start: float, end: float, words: List[dict], reference: Optional[List[dict]]=None, new_turn: Optional[dict]=None) -> List[dict]` — Remplace les mots de `turns` dont le MILIEU tombe dans [start, end] par `words` (horodatés).
 
 
 UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire des outils, elle ne les énumère pas — ajouter un outil à toutes les files est UNE clé, plus jamais douze gabarits (demande Fabien 2026-09-08 : « de façon globale, pas par app »). Les deux barres historiques SURVIVENT en façades vers `_toolbar.html`, ce qui laisse les 27 pages appelantes inchangées ; les deux ENVELOPPES sont conservées telles quelles (les fondre aurait changé les deux apparences). Chaque outil est un partial sous `common/toolbar/`
@@ -1659,6 +1660,17 @@ Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vi
 ### Sélecteur de médiathèque
 
 Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta
+
+### Suivre la tête de lecture (traitement au fil de la lecture)
+
+Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, modèle gardé chargé, et s'arrête d'elle-même (arrêt demandé, 90 s d'inactivité, traitement prioritaire à laisser passer). Verrou de lancement, verrou vivant, refroidissement : chacun a son cas vécu. L'app fournit le chargement, la tranche et la question « dois-je céder ? » — jamais la mécanique. Extrait du mode Live du cam_analyzer quand le transcriber en est devenu le 2ᵉ utilisateur ; première forme du curseur de session
+
+- **Domicile** : `wama/common/services/playhead_follow.py` · **doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §5](../construction/mondes/WAMA_DATA_WORLD.md)
+- **Module** : Suivre la tête de lecture — la boucle « au fil de la lecture » COMMUNE.
+- **API publique** (3) :
+  - `class Channel` — Un canal de suivi : un préfixe par app, un identifiant par objet suivi.
+  - `post_cursor(channel: Channel, cursor: Optional[dict], spawn: Callable[[], None]) -> dict` — Pose le curseur envoyé par le navigateur, et lance la boucle si aucune ne tourne.
+  - `follow(channel: Channel, owner: str, step: Callable[[dict], bool], *, on_start: Optional[Callable[[], None]]=None, should_yield: Optional[Callable[[], bool]]=N…` — La boucle : suit le curseur du canal jusqu'à ce qu'une raison de s'arrêter survienne.
 
 - **Domicile** : `wama/common/static/common/js/media-picker.js`
 
