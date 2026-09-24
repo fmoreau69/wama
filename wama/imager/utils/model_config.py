@@ -223,6 +223,11 @@ LTX_MODELS = {
         # 257 images (≈ 10,7 s) : la longueur maximale recommandée par Lightricks pour un seul
         # passage ; au-delà, prolongation par segments (le modèle fait aussi image→vidéo).
         'max_frames': 257,
+        # CONTINUATION (2026-09-23, décision de Fabien) : au-delà d'un passage, le segment
+        # suivant est conditionné par les 25 DERNIÈRES images du précédent (`LTXVideoCondition`
+        # vidéo, frame_index 0) — il voit le mouvement, pas une photo figée. 25 = 3×8+1 (la
+        # contrainte du VAE temporel de LTX), ≈ 1 s à 24 i/s.
+        'continuation_frames': 25,
         'resolution': '1216x704',
         'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V',
         'description_long': "LTX-Video 13B Distilled (Lightricks) : génération vidéo rapide, en "
@@ -243,6 +248,7 @@ LTX_MODELS = {
         # pilote — la tâche le bornait déjà en dur). Une borne de MACHINE, déclarée ici pour que
         # l'écran la connaisse.
         'max_frames': 161,
+        'continuation_frames': 25,       # même mécanique que la version pleine
         'resolution': '1216x704',
         'quantization': 'fp8',
         # MÊME dépôt, donc MÊME anatomie que la version pleine ci-dessus : la quantisation fp8

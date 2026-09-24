@@ -455,7 +455,7 @@
     _bindConditional(container);
     _bindModelHelp(container, schema, ctx);
     _bindCapFrom(container, schema, ctx);
-    _bindOptionSources(container, schema, ctx);
+    _bindOptionSources(container, schema, ctx, null, values);
     _avertirSourcesNonResolues(container, params, ctx);
   }
 
@@ -513,7 +513,7 @@
   // ⚠ Jusqu'au 2026-09-23 cette ligne justifiait le filtre autrement : « les voix du volet
   // restent rendues SERVEUR, les remplacer casserait le clonage ». C'était la phrase du
   // schéma synthesizer, recopiée — elle est fausse depuis que ce volet génère son champ.
-  function _bindOptionSources(container, schema, ctx, only) {
+  function _bindOptionSources(container, schema, ctx, only, values) {
     (schema || []).forEach(function (p) {
       if (only && !only(p)) return;
       if (!typeSupports(p.type, 'optionSources') || !p.options_source) return;
@@ -553,6 +553,16 @@
       var sid = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
       var sel = document.getElementById(sid);
       if (!sel) return;
+      // The value ASKED FOR at render (2026-09-24). When the options arrive asynchronously, the
+      // asked value is usually not an option yet at render time: the select falls back to its
+      // first option, and restoring only the CURRENT value (below) then lost the stored one.
+      // Measured on the avatarizer's generated item modal: stored 'synthesizer:coqui-xtts',
+      // shown 'auto' — saving would have overwritten the chosen engine, silently. The static
+      // modals it replaced never showed it: they were filled at page load, valued at open.
+      // Applied on the FIRST fill only; afterwards the user's own choice prevails.
+      var wanted = (values && p.name in values && values[p.name] !== null
+                    && values[p.name] !== undefined && values[p.name] !== '')
+        ? String(values[p.name]) : null;
       var fill = function (d) {
         var cur = sel.value;
         // Même rendu d'option que le chemin synchrone (`optionHtml`/`groupHtml`, ci-dessus).
@@ -560,7 +570,12 @@
           var opts = (g.options || []).map(function (o) { return optionHtml(o, g.attributes); }).join('');
           return g.group ? groupHtml(g, opts) : opts;
         }).join('');
-        if (cur) sel.value = cur;
+        if (wanted !== null && Array.prototype.some.call(sel.options, function (o) { return o.value === wanted; })) {
+          sel.value = wanted;
+        } else if (cur) {
+          sel.value = cur;
+        }
+        wanted = null;
         _bindAutoPreview(sel, d.auto_preview);
         // « Options prêtes » (2026-09-22) : les options de CE select viennent d'être REMPLACÉES.
         // Le `change` ci-dessous ne suffisait pas : les filtres de WamaModelCaps ne se rejouent
@@ -752,16 +767,29 @@
       return;
     }
     var pct = Math.max(0, Math.min(100, (Number(cap) - min) / ((max - min) || 1) * 100));
+    // DEUX natures d'au-delà, déclarées par le modèle (`duration_extension`) : la CONTINUATION
+    // (le passage suivant reprend les dernières images — mouvement continu, zone ORANGE) et le
+    // départ d'UNE image (extrapolé, transitions visibles — zone ROUGE).
+    var continuation = ext === 'continuation';
     el.classList.add('wama-range-capped');
+    el.classList.toggle('wama-range-capped--continuation', continuation);
     el.style.setProperty('--wama-cap-pct', pct + '%');
     var beyond = Number(el.value) > Number(cap);
-    if (row) row.classList.toggle('is-extrapolated', beyond);
-    note.classList.toggle('is-extrapolated', beyond);
+    var level = continuation ? 'is-continued' : 'is-extrapolated';
+    ['is-extrapolated', 'is-continued'].forEach(function (c) {
+      if (row) row.classList.toggle(c, beyond && c === level);
+      note.classList.toggle(c, beyond && c === level);
+    });
+    var limit = esc(_fmtNum(cap) + unit);
     note.innerHTML = beyond
-      ? '<i class="fas fa-triangle-exclamation me-1"></i>Au-delà de ' + esc(_fmtNum(cap) + unit) +
-        ' : prolongé par segments — fonctionnement extrapolé, continuité non garantie'
-      : 'Natif jusqu\'à ' + esc(_fmtNum(cap) + unit) +
-        ' · au-delà (zone rouge) : prolongé, extrapolé';
+      ? (continuation
+          ? '<i class="fas fa-link me-1"></i>Au-delà de ' + limit + ' : continué par segments ' +
+            'qui reprennent les dernières images — mouvement continu, dérive possible sur la durée'
+          : '<i class="fas fa-triangle-exclamation me-1"></i>Au-delà de ' + limit +
+            ' : prolongé par segments — fonctionnement extrapolé, continuité non garantie')
+      : 'Natif jusqu\'à ' + limit + (continuation
+          ? ' · au-delà (zone orange) : continué'
+          : ' · au-delà (zone rouge) : prolongé, extrapolé');
   }
 
   function _bindCapFrom(container, schema, ctx) {

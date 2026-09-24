@@ -42,7 +42,8 @@
     const out = [];
     if (caps.max_duration_s) {
       out.push('natif ≤ ' + String(Math.round(caps.max_duration_s * 10) / 10).replace('.', ',') + ' s'
-               + (caps.duration_extension ? ' (prolongeable)' : ''));
+               + (caps.duration_extension === 'continuation' ? ' (continuable)'
+                  : caps.duration_extension ? ' (prolongeable, extrapolé)' : ''));
     }
     if (caps.fps) out.push(caps.fps + ' i/s');
     if (caps.native_resolution) out.push(String(caps.native_resolution).replace('x', '×'));

@@ -58,6 +58,10 @@ class LTXVideoParams:
     seed: Optional[int] = None
     fps: int = 24
     reference_image: Optional[str] = None  # Path to image for I2V mode
+    #: CONTINUATION (2026-09-23) : les dernières images d'un passage précédent (PIL, 8k+1), qui
+    #: conditionnent le début de celui-ci — le modèle voit le MOUVEMENT, pas une image figée.
+    #: Prime sur `reference_image`. Rempli par la tâche imager (`_extend_by_segments`).
+    reference_frames: Optional[list] = None
 
 
 # Canonical model registry — mirrors LTX_MODELS in model_config.py
@@ -429,9 +433,13 @@ class LTXVideoBackend(ImageGenerationBackend):
                     progress_callback(progress)
                 return callback_kwargs
 
-            # Build conditions for I2V
+            # Build conditions : CONTINUATION (plusieurs images) sinon I2V (une image)
             conditions = None
-            if params.reference_image:
+            if params.reference_frames:
+                conditions = self._build_continuation_conditions(
+                    params.reference_frames, width, height
+                )
+            elif params.reference_image:
                 conditions = self._build_i2v_conditions(
                     params.reference_image, width, height
                 )
@@ -472,6 +480,18 @@ class LTXVideoBackend(ImageGenerationBackend):
             logger.error(f"[LTX-Video] Generation failed: {e}")
             logger.error(traceback.format_exc())
             return GenerationResult(success=False, error=str(e))
+
+    def _build_continuation_conditions(self, frames: list, width: int, height: int):
+        """Condition VIDÉO à l'image 0 : les dernières images du passage précédent, que le
+        pipeline encode et recopie en tête du nouveau (`LTXConditionPipeline.prepare_latents`,
+        `frame_index == 0`). Leur nombre doit être 8k+1 (VAE temporel) — la déclaration du
+        modèle (`continuation_frames`) le garantit ; on retombe au 8k+1 inférieur sinon."""
+        from diffusers.pipelines.ltx.pipeline_ltx_condition import LTXVideoCondition
+        frames = [f.convert('RGB').resize((width, height)) for f in frames]
+        usable = ((len(frames) - 1) // 8) * 8 + 1
+        frames = frames[-usable:]
+        logger.info(f"[LTX-Video] Continuation : {len(frames)} image(s) de conditionnement")
+        return [LTXVideoCondition(video=frames, frame_index=0)]
 
     def _build_i2v_conditions(self, image_path: str, width: int, height: int):
         """Build LTXVideoCondition list from a reference image path."""

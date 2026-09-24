@@ -1862,3 +1862,14 @@ ajouter les pics VRAM d'un candidat depuis les sources »* ; tri des modèles.
   cascade commune — tri et ligne « VRAM exigée » de l'inspecteur.
 - Tests : `RejudgeOnNewFactsTest` (6) ; tri exercé sous V8 (nombres, absents en dernier dans les
   deux sens, accents).
+
+### 2026-09-23 (nuit) — les paliers HÉBERGÉS ne s'apparient plus aux poids ouverts
+
+`Lightricks/LTX-2.3` et `-2.5` portaient l'Elo de « LTX-2.3 **Pro** » / « LTX-2.5 **Pro** » —
+les paliers de l'API de l'éditeur. `benchmark_sync.HOSTED_TIERS` (`pro`, `max`, `ultra`, `plus`,
+`premium`, liste FERMÉE à dessein : des niveaux de service, pas des qualificatifs de variante) :
+un palier que le nom local ne porte pas refuse l'appariement, dans TOUTES les catégories.
+Mesuré au dry-run : 47 appariés avant et après, aucune perte ; LTX-2.3 → « LTX-2.3 Fast »
+(1147), LTX-2.5 → « LTX-2.5 Fast » (1214) — toujours des versions hébergées (AA ne classe pas les
+poids ouverts d'LTX-2), à lire comme un PLAFOND. `LTX Video v0.9.7 13B` (1030) est au classement ;
+notre 0.9.8 ne s'y apparie pas (version différente) — par décision.

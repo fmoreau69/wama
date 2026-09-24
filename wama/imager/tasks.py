@@ -409,13 +409,15 @@ def generate_image_task(self, generation_id):
         return {'error': error_msg}
 
 
-def _segment_count(wanted_frames: int, segment_frames: int) -> int:
+def _segment_count(wanted_frames: int, segment_frames: int, overlap: int = 1) -> int:
     """Passages nécessaires pour `wanted_frames` quand chacun en produit `segment_frames` —
-    la première image d'un segment prolongé REPREND la dernière du précédent, elle ne compte
-    donc pas : chaque prolongation n'apporte que `segment_frames - 1` images neuves."""
-    if wanted_frames <= segment_frames or segment_frames < 2:
+    les `overlap` premières images d'un segment prolongé REPRENNENT la fin du précédent (1 pour
+    un départ d'image, `continuation_frames` pour une continuation) : elles ne comptent pas,
+    chaque prolongation n'apporte que `segment_frames - overlap` images neuves."""
+    fresh = segment_frames - max(1, int(overlap))
+    if wanted_frames <= segment_frames or fresh < 1:
         return 1
-    return 1 + -(-(wanted_frames - segment_frames) // (segment_frames - 1))
+    return 1 + -(-(wanted_frames - segment_frames) // fresh)
 
 
 def _frame_to_pil(frame):
@@ -432,7 +434,7 @@ def _frame_to_pil(frame):
 
 
 def _extend_by_segments(run, params, first_frames, wanted_frames, seed, work_dir,
-                        on_segment=None):
+                        on_segment=None, overlap: int = 1):
     """PROLONGE une vidéo au-delà du plafond d'UN passage du modèle (2026-09-23, décision de
     Fabien : « dépasser 5 s en informant l'utilisateur que c'est extrapolé »).
 
@@ -444,15 +446,22 @@ def _extend_by_segments(run, params, first_frames, wanted_frames, seed, work_dir
     `run(params, callback)` exécute un passage (le moteur de la tâche). Un segment en échec
     ARRÊTE la prolongation en gardant ce qui est fait : une vidéo plus courte vaut mieux
     qu'aucune. Rend la liste d'images, tronquée à `wanted_frames`.
+
+    `overlap > 1` = CONTINUATION (2026-09-23) : le segment suivant est conditionné par les
+    `overlap` DERNIÈRES images (`params.reference_frames`, LTX) — il voit le mouvement, et ses
+    `overlap` premières images, qui les reprennent, sont retirées à la jointure.
     """
     import dataclasses
     frames = list(first_frames)
     index = 0
     while len(frames) < wanted_frames:
         index += 1
+        continuation = overlap > 1 and hasattr(params, 'reference_frames')
         ref_path = os.path.join(work_dir, f'.segment_{index}_start.png')
         _frame_to_pil(frames[-1]).save(ref_path)
         changes = {'reference_image': ref_path}
+        if continuation:
+            changes['reference_frames'] = [_frame_to_pil(f) for f in frames[-overlap:]]
         if hasattr(params, 'generation_mode'):
             changes['generation_mode'] = 'img2vid'
         if seed is not None and hasattr(params, 'seed'):
@@ -469,12 +478,12 @@ def _extend_by_segments(run, params, first_frames, wanted_frames, seed, work_dir
             logger.warning(f"[Imager Video] segment {index} en échec ({result.error}) — "
                            f"prolongation arrêtée à {len(frames)} images")
             break
-        frames.extend(list(result.video_frames)[1:])
+        frames.extend(list(result.video_frames)[overlap if continuation else 1:])
     return frames[:wanted_frames]
 
 
 def _report_effective_video_settings(user_id, generation, backend, params, export_fps,
-                                     total_frames=None):
+                                     total_frames=None, overlap: int = 1):
     """Dit à l'utilisateur ce qui sera RÉELLEMENT généré, et chaque réglage que le modèle ignore.
 
     Relevé le 2026-09-23 (génération #48, FastWan) : la console annonçait « 241 frames, 15.1 s
@@ -490,11 +499,18 @@ def _report_effective_video_settings(user_id, generation, backend, params, expor
         _console(user_id, f"[Imager Video] Effectif : {total} images à {export_fps} i/s "
                           f"= {effective_s:.1f} s, {params.width}×{params.height}")
         if total > params.num_frames:
-            n = _segment_count(total, params.num_frames)
-            _console(user_id, f"[Imager Video] ⚠ Au-delà de {params.num_frames / float(export_fps):.1f} s "
-                              f"(un passage du modèle), la vidéo est PROLONGÉE en {n} segments, "
-                              f"chacun repartant de la dernière image : fonctionnement EXTRAPOLÉ, "
-                              f"continuité non garantie", level='warning')
+            n = _segment_count(total, params.num_frames, overlap)
+            limit_s = params.num_frames / float(export_fps)
+            if overlap > 1:
+                _console(user_id, f"[Imager Video] Au-delà de {limit_s:.1f} s (un passage du "
+                                  f"modèle), la vidéo est CONTINUÉE en {n} segments : chacun "
+                                  f"reprend les {overlap} dernières images du précédent "
+                                  f"(mouvement continu, dérive possible sur la durée)")
+            else:
+                _console(user_id, f"[Imager Video] ⚠ Au-delà de {limit_s:.1f} s (un passage du "
+                                  f"modèle), la vidéo est PROLONGÉE en {n} segments, chacun "
+                                  f"repartant de la dernière image : fonctionnement EXTRAPOLÉ, "
+                                  f"continuité non garantie", level='warning')
         if requested_s and abs(effective_s - requested_s) >= 0.5:
             _console(user_id, f"[Imager Video] ⚠ Durée : {effective_s:.1f} s au lieu des "
                               f"{requested_s:.0f} s demandées — limite du modèle "
@@ -887,12 +903,17 @@ def generate_video_task(self, generation_id):
         extend = False
         if native_max and wanted_frames > native_max:
             params.num_frames = int(native_max)
-            extend = (vcaps.get('duration_extension') == 'segments'
+            extend = (vcaps.get('duration_extension') in ('segments', 'continuation')
                       and hasattr(params, 'reference_image'))
             if not extend:
                 wanted_frames = params.num_frames
+        # Continuation : les dernières images conditionnent le passage suivant ; départ d'image :
+        # une seule. Le nombre vient de la DÉCLARATION du modèle (`continuation_frames`).
+        overlap = (int(vcaps.get('continuation_frames') or 1)
+                   if vcaps.get('duration_extension') == 'continuation'
+                   and hasattr(params, 'reference_frames') else 1)
         _report_effective_video_settings(user_id, generation, backend, params, export_fps,
-                                         total_frames=wanted_frames)
+                                         total_frames=wanted_frames, overlap=overlap)
 
         last_progress_log = 0
 
@@ -923,7 +944,7 @@ def generate_video_task(self, generation_id):
                 return backend.generate(run_params, callback)       # .generate()
             return backend.generate_video(run_params, callback)     # Wan : .generate_video()
 
-        n_segments = _segment_count(wanted_frames, params.num_frames) if extend else 1
+        n_segments = _segment_count(wanted_frames, params.num_frames, overlap) if extend else 1
 
         def _segment_progress(index):
             return lambda p: progress_callback(int((index * 100 + p) / n_segments))
@@ -933,12 +954,13 @@ def generate_video_task(self, generation_id):
         seed_used = result.seed_used
         if result.success and extend:
             def _on_segment(index):
-                _console(user_id, f"[Imager Video] ↪ Segment {index + 1}/{n_segments} "
-                                  f"(repart de la dernière image — extrapolé)")
+                how = (f"reprend les {overlap} dernières images" if overlap > 1
+                       else "repart de la dernière image — extrapolé")
+                _console(user_id, f"[Imager Video] ↪ Segment {index + 1}/{n_segments} ({how})")
                 return _segment_progress(index)
             video_frames = _extend_by_segments(
                 _run, params, video_frames, wanted_frames, seed_used, output_dir,
-                on_segment=_on_segment)
+                on_segment=_on_segment, overlap=overlap)
 
         generation_time = time.time() - generation_start
 
