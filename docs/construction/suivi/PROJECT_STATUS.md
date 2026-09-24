@@ -16810,3 +16810,15 @@ par `gateway/tests.py` (WIP d'une autre session), pas par ce palier.
 🔚 **Suivant, même recette** : describer et converter (rouges sur `settings_modal_cycle`, hors
 WIP d'autrui) ; avatarizer après l'`init` idempotent de `WamaInputMatch` ; puis le vrai chantier
 (`backend_routes` + `task_skeleton`, marche B1/A2a) app par app.
+
+**Suite immédiate (même session) — describer porté, 7/10.** Même recette (`WamaParams.settingsModal`,
+gearValues, pied greffé, `onSaved` → `refreshCard` + démarrage) ; sa repeinte MANUELLE de la card
+après ⚙ (`updateCardSettings` + deux dictionnaires de libellés) part : le serveur re-rend la card.
+Geste `describer.settings` + `inspector_actions` ✓ après `kill -HUP`. **Converter : PAS un quick
+win** — sa modale charge ses valeurs par la vue `status`, patche l'aide moteur par type de média,
+désactive « Appliquer » sur un job RUNNING, et « Sauver comme profil » / « Par défaut » lisent le
+corps de la modale (`readModalViaSchema`) : portable par `fetchUrl` + `decorate` + pied à
+`left_html`, mais en une passe dédiée, mesurée (l'app est à 98 %, le profil est une vraie
+fonctionnalité). ⚠ Baseline : `converter.inspector_actions` sort en ERREUR AVANT toute modification
+(« Execution context was destroyed, most likely because of a navigation ») — à élucider, pas de ce
+palier.

@@ -597,9 +597,10 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
    les spécificités d'app restant des hooks. Le gabarit HTML prévu ici datait du 1ᵉʳ avril 2026,
    AVANT l'existence de `WamaParams` : à l'époque les modales étaient 100 % manuelles, donc les
    factoriser voulait dire un partial. Adoptée par anonymizer + imager, puis enhancer (21/09), reader,
-   synthesizer et composer (24/09) — **6/10 mesuré** (`settings_modal_cycle`) ; restent converter,
-   describer, transcriber et avatarizer (ce dernier câble des briques d'appariement DANS sa modale :
-   question de brique avant portage, `ROUTE §F3`).
+   synthesizer, composer et describer (24/09) — **7/10 mesuré** (`settings_modal_cycle`) ; restent
+   converter (modale à valeurs chargées par `status`, profils, reset : une passe dédiée),
+   transcriber et avatarizer (ce dernier câble des briques d'appariement DANS sa modale : question
+   de brique avant portage, `ROUTE §F3`).
 
 ### Pipeline de prompts commune
 
@@ -824,8 +825,8 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > PARTIEL pour les huit autres par une vue restée locale et ASSUMÉE (`batch_download`
 > multi-format §9.10, ou `batch_update` à logique propre) — un partiel n'est plus un reste de
 > portage, c'est une spécificité déclarée (`ROUTE §11 #36`).
-> ⚠ **Remesuré le 2026-09-24 : 879/933** — `settings_modal_cycle` 6/10 (reader, synthesizer,
-> composer ralliés ; restent avatarizer, converter, describer, transcriber) et `recursive_import`
+> ⚠ **Remesuré le 2026-09-24 : 880/933** — `settings_modal_cycle` 7/10 (reader, synthesizer,
+> composer, describer ralliés ; restent avatarizer, converter, transcriber) et `recursive_import`
 > NON APPLICABLE aux cards en mode ATTACHE (`depot_cree=False` : avatarizer, imager, comme le
 > composer par ses `input_types`) — suivre l'ancien partiel à la lettre faisait passer le geste
 > `avatarizer.folder_import` de SKIP à ÉCHEC sur une affordance MORTE (933 et non 935).
