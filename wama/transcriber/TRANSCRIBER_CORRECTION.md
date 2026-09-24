@@ -281,6 +281,24 @@ affiche « À jour » quand c'est fait, et le texte téléchargeable suit la cor
 fusionne les segments consécutifs d'un même locuteur. **Terminer la correction** marque la
 transcription comme corrigée et reconstruit ses sous-titres.
 
+### 9.3bis Évaluer une transcription contre une référence
+
+Si vous disposez d'une transcription juste — corrigée à la main, par exemple un export Sonal —,
+WAMA peut mesurer l'écart entre elle et la transcription automatique. Dans le menu d'une card
+(bouton « … » ou clic droit), **Résultat de référence… → Joindre…** : choisissez le fichier
+(SRT, VTT, TXT, DOCX, PDF ou Markdown). Seul le texte placé sous un locuteur (`Speaker 1 :`…) est
+comparé ; titres, en-têtes et notes sont écartés.
+
+L'onglet **Évaluation** de la card affiche alors le taux d'erreur par mot (WER) et par caractère
+(CER), avec le détail : mots remplacés, oubliés, ajoutés. Les hésitations (« euh ») comptent : ce
+sont des paroles. La casse et la ponctuation ne comptent pas.
+
+Pour **comparer plusieurs moteurs** sur le même audio : dupliquez la card dans son lot (« Dupliquer
+dans le batch »), choisissez un autre moteur sur le double, relancez, puis posez la référence sur
+le lot entier (menu de la card du lot : **Référence du lot…**). Une ligne sous la card du lot
+classe les moteurs, le meilleur en tête. Une transcription faite par un autre outil se compare de
+la même façon : sur un double de la card, **Résultat existant… → Reprendre un fichier…**.
+
 ### 9.4 Le guidage de nettoyage
 <!-- WAMA:SECTION(audience=utilisateur; type=guide; nature=intention; etat=⏳; porte=apps/transcriber) -->
 
@@ -313,8 +331,31 @@ deviennent des FENÊTRES grossières, pas des temps de segments — ils serviron
 Labels reconnus, volontairement étroits : `Speaker N :`, `SPEAKER_NN:`, `Locuteur N :`,
 `Intervenant N :`, `[Nom]  0:12—0:40` (exports WAMA). Tests : `tests_transcript_documents` (12,
 contenus inventés — le dépôt est public).
-⚠ **À confirmer par Fabien** : dans un export Sonal, la ligne entre l'en-tête d'extrait et le
-premier locuteur (« Quelle est… ? ») est traitée comme le TITRE de l'extrait, donc hors parole.
-Si c'est une question réellement prononcée, elle doit compter.
+✅ **Confirmé par Fabien (2026-09-23)** : dans un export Sonal, la ligne entre l'en-tête d'extrait
+et le premier locuteur est un ajout d'édition de l'utilisateur, pas de la transcription — hors
+parole, comme la règle le traite. Toute la parole est un paragraphe introduit par `Speaker x :`.
 
-**10.2 Mesure ⏳** · **10.3 Lot d'évaluation ⏳** · **10.4 Résultat existant (sans ASR) ⏳**.
+**10.2 Mesure ✅ (2026-09-23)** — brique COMMUNE `common/services/result_evaluation.py` (le
+transcriber n'a écrit que sa DÉCLARATION, `apps.py:register_evaluation`) : WER et CER
+(`text_metrics`, casse et ponctuation ignorées, hésitations COMPTÉES — verbatim), conservés par
+élément dans la table commune `ResultEvaluation` (décision Q2 de Fabien : une table commune, pour
+que l'indice interne des modèles l'agrège). **On mesure la sortie ASR (`segments_json`), jamais la
+correction humaine** qui écrase `text`. Mesure en fin de traitement si une référence est posée ;
+une relance efface la mesure, garde la référence. Le modèle mesuré est la clé CATALOGUE exacte
+(`Transcript.model_key`, posée par le worker avant `unload()` — `catalogue_key_for` tranche entre
+les variantes d'un moteur).
+
+**10.3 Lot d'évaluation ✅ (avec référence)** — la référence se pose sur la card OU sur le lot (menu
+« … » / clic droit : « Résultat de référence… », « Référence du lot… » ; un seul fichier, partagé).
+Onglet **« Évaluation »** de la card (taux, substitutions / suppressions / insertions, longueurs, ce
+que la lecture a écarté) ; **ligne fine sur la card mère** : modèles classés par taux de CORPUS
+(Σ erreurs / Σ mots de référence), le meilleur marqué — sauf si les références diffèrent, ce qui
+est DIT. ⏳ **Lot SANS référence** (accord de Fabien) : comparaison des moteurs entre eux par la
+divergence M1 — à faire.
+
+**10.4 Résultat existant ✅** — « Résultat existant… » sur une card : la transcription faite
+AILLEURS devient son résultat (`external:<nom>`), mesurée comme un modèle. Geste type pour comparer
+un outil externe : dupliquer la card audio dans le lot, reprendre le fichier sur le double. ▶ la
+RÉ-importe (jamais d'ASR à sa place). Un document horodaté (SRT, VTT) s'écrit comme une sortie ASR ;
+**sans temps** (Sonal, texte), aucun temps n'est inventé : l'édition synchronisée de ce texte attend
+l'**alignement forcé** (chantier suivant, qui sert aussi VibeVoice et Qwen).

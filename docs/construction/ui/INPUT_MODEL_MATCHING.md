@@ -236,9 +236,12 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
   `studio_node_ports` (modèles déclarants, repli) ; la card v4 (`input_slots`) lit son obligation.
 - **Manifeste** : capacités exportées seulement si déclarées, et projetées en retour
   (`RESULT_CAPABILITY_FIELDS`).
-- **Aucune app ne les déclare encore** : une capacité se déclare au palier où l'app sait TRAITER
-  l'entrée, jamais avant (sinon le port promet ce que rien ne lit). Le premier adoptant visé est
-  le transcriber (évaluation des modèles ASR, `WAMA_QUALITE` Q6).
+- **Une capacité se déclare au palier où l'app sait TRAITER l'entrée**, jamais avant (sinon le
+  port promet ce que rien ne lit). ✅ **Premier adoptant : le transcriber (2026-09-23)**, les deux
+  capacités, avec leur lecteur — `register_evaluation` (brique `result_evaluation`) ; un contrôle
+  refuse une capacité déclarée sans sa déclaration d'évaluation, et l'inverse
+  (`tests_result_evaluation.CapabilityAndDeclarationGoTogetherTest`). Détail :
+  `TRANSCRIBER_CORRECTION §10`.
 - Tests : `tests_catalogues.ResultPortsComeFromAppCapabilitiesTest` (6).
   Sous la règle d'union il DISPARAÎT, au profit de la chaîne synthesizer → avatarizer — et il
   reviendra de lui-même le jour où un modèle déclarera le couple. Position Fabien 10/09.

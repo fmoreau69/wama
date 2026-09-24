@@ -44,6 +44,24 @@ affiche « À jour » quand c'est fait, et le texte téléchargeable suit la cor
 fusionne les segments consécutifs d'un même locuteur. **Terminer la correction** marque la
 transcription comme corrigée et reconstruit ses sous-titres.
 
+### Évaluer une transcription contre une référence
+
+Si vous disposez d'une transcription juste — corrigée à la main, par exemple un export Sonal —,
+WAMA peut mesurer l'écart entre elle et la transcription automatique. Dans le menu d'une card
+(bouton « … » ou clic droit), **Résultat de référence… → Joindre…** : choisissez le fichier
+(SRT, VTT, TXT, DOCX, PDF ou Markdown). Seul le texte placé sous un locuteur (`Speaker 1 :`…) est
+comparé ; titres, en-têtes et notes sont écartés.
+
+L'onglet **Évaluation** de la card affiche alors le taux d'erreur par mot (WER) et par caractère
+(CER), avec le détail : mots remplacés, oubliés, ajoutés. Les hésitations (« euh ») comptent : ce
+sont des paroles. La casse et la ponctuation ne comptent pas.
+
+Pour **comparer plusieurs moteurs** sur le même audio : dupliquez la card dans son lot (« Dupliquer
+dans le batch »), choisissez un autre moteur sur le double, relancez, puis posez la référence sur
+le lot entier (menu de la card du lot : **Référence du lot…**). Une ligne sous la card du lot
+classe les moteurs, le meilleur en tête. Une transcription faite par un autre outil se compare de
+la même façon : sur un double de la card, **Résultat existant… → Reprendre un fichier…**.
+
 <!-- WAMA:PORTE-FERMEE(wama/transcriber/TRANSCRIBER_CORRECTION.md — 9.4 Le guidage de nettoyage) : intention ⏳ — n'arrive chez l'utilisateur qu'une fois implémentée -->
 
 *Source : [wama/transcriber/TRANSCRIBER_CORRECTION.md — 9. Corriger une transcription — le guide](../../wama/transcriber/TRANSCRIBER_CORRECTION.md#9-corriger-une-transcription--le-guide)*
