@@ -351,12 +351,16 @@
         return base.replace(/element\/0\/$/, target.nature + '/' + target.pk + '/');
     }
 
+    /** « WER 12.3 % » — la mesure principale d'un élément, ou '' s'il n'y en a pas encore. */
+    function measureSaid(item) {
+        var primary = item && item.metrics && item.metrics[0];
+        return (primary && primary.value != null)
+            ? primary.metric.toUpperCase() + ' ' + (primary.value * 100).toFixed(1) + ' %' : '';
+    }
+
     function referenceSaid(res) {
-        var primary = res && res.item && res.item.metrics && res.item.metrics[0];
-        if (primary && primary.value != null) {
-            return 'Référence posée · ' + primary.metric.toUpperCase() + ' '
-                + (primary.value * 100).toFixed(1) + ' %';
-        }
+        var measure = measureSaid(res && res.item);
+        if (measure) return 'Référence posée · ' + measure;
         if (res && res.batch) {
             return 'Référence posée sur ' + res.targets + ' élément' + (res.targets > 1 ? 's' : '')
                 + ' · ' + res.measured + ' mesuré' + (res.measured > 1 ? 's' : '');
@@ -407,6 +411,50 @@
                   agir: function () { chooseReference(card, d); } },
                 { icone: 'fas fa-xmark', libelle: 'Retirer', danger: true,
                   agir: function () { removeReference(card, d); } },
+            ],
+        };
+    }
+
+    function importUrl(base, pk) {
+        return base.replace(/\/0\/$/, '/' + pk + '/');
+    }
+
+    function chooseResult(card, d) {
+        var input = document.createElement('input');
+        input.type = 'file';
+        if (d.resultReferenceAccept) input.accept = d.resultReferenceAccept;
+        input.addEventListener('change', function () {
+            if (!input.files || !input.files[0]) return;
+            poster(importUrl(d.resultImportUrl, card.dataset.id), { file: input.files[0] })
+                .then(function (res) {
+                    if (!res || res.ok === false) {
+                        dire('Résultat refusé — ' + ((res && (res.reason || res.error)) || 'échec'),
+                             'error');
+                        return;
+                    }
+                    var measure = measureSaid(res.item);
+                    dire('Résultat existant repris' + (measure ? ' · ' + measure : ''), 'ok');
+                    setTimeout(function () { location.reload(); }, 900);
+                });
+        });
+        input.click();
+    }
+
+    function importEntry(card, d) {
+        return {
+            icone: 'fas fa-file-circle-check', libelle: 'Résultat existant…',
+            sous: [
+                { icone: 'fas fa-file-import', libelle: 'Reprendre un fichier…',
+                  agir: function () { chooseResult(card, d); } },
+                { icone: 'fas fa-xmark', libelle: 'Retirer le fichier', danger: true,
+                  agir: function () {
+                      poster(importUrl(d.resultImportUrl, card.dataset.id), { action: 'remove' })
+                          .then(function (res) {
+                              dire(res && res.removed ? 'Fichier retiré — le résultat reste jusqu’à la relance'
+                                                      : 'Aucun résultat existant à retirer',
+                                   res && res.removed ? 'ok' : 'info');
+                          });
+                  } },
             ],
         };
     }
@@ -525,6 +573,11 @@
         // au LOT (le serveur la pose sur chacun de ses éléments, un seul fichier).
         if (d.resultReferenceUrl && cibles.length === 1) {
             entrees.push(referenceEntry(card, d));
+        }
+        // RÉSULTAT EXISTANT — le port `work_result` : un résultat produit ailleurs tient lieu de
+        // traitement. Un ÉLÉMENT seulement (un résultat appartient à une entrée).
+        if (d.resultImportUrl && cibles.length === 1 && !estLot && card.dataset.id) {
+            entrees.push(importEntry(card, d));
         }
 
         // « Ajouter à un lot » — n'a de sens que s'il EXISTE un lot d'accueil autre que le sien.

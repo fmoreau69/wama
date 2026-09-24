@@ -100,12 +100,19 @@ class TranscriberConfig(AppConfig):
                               'timed': doc.is_timed, 'windows': len(doc.windows),
                               'outside_speech': len(doc.outside_speech)}
 
+        def _import_existing_result(item):
+            from .workers import import_existing_result
+            import_existing_result(item)
+
         register_evaluation(EvaluationSpec(
             surface='transcriber', reference_field='reference_result',
             result_text=_asr_text, read_reference=_read_reference,
             model_key=lambda item: item.model_key or (
                 f'transcriber:{item.used_backend}' if item.used_backend else ''),
             reference_extensions=SUPPORTED_EXTENSIONS,
+            # Port `work_result` (capacité `has_result_import`) : une transcription faite ailleurs
+            # devient le résultat de la card — et se compare à la référence comme un modèle.
+            result_field='work_result', import_result=_import_existing_result,
         ))
 
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md).

@@ -704,6 +704,9 @@ if ENABLE_CELERY:
         'wama_lab.face_analyzer.tasks.*': {'queue': 'gpu', 'priority': _prio('face_analyzer')},
         'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu', 'priority': _prio('cam_analyzer')},
         'wama.converter.tasks.*': {'queue': 'default'},
+        # Reprise d'un résultat EXISTANT (lecture d'un document, aucun modèle) — déclarée plutôt
+        # que laissée au défaut, pour la même raison que `common.refresh_registry` plus bas.
+        'wama.transcriber.import_existing_result': {'queue': 'default'},
         'wama.model_manager.tasks.*': {'queue': 'default'},
         # Orchestrateur studio : file DÉDIÉE. run_pipeline_task retient son worker pendant
         # toute la durée du pipeline (boucle de poll) ; sur une file partagée avec les tâches

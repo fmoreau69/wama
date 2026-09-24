@@ -1168,6 +1168,9 @@ APP_CATALOG = {
         # Évaluation contre une transcription de référence (2026-09-23, INPUT_MODEL_MATCHING §6.7) :
         # va avec `register_evaluation` dans `transcriber/apps.py` — un test refuse l'un sans l'autre.
         'has_reference_result': True,
+        # Reprise d'une transcription faite ailleurs (port `work_result`) : `import_result` de la
+        # même déclaration — elle tient lieu de transcription et se compare comme un modèle.
+        'has_result_import': True,
         'output_types': ('txt', 'srt', 'vtt', 'json'),
         'conventions': _conv(
             settings_modal_item=True,

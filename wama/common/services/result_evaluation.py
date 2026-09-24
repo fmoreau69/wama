@@ -61,6 +61,11 @@ class EvaluationSpec:
     reference_extensions: Tuple[str, ...] = ()
     metrics: Tuple[str, ...] = ('wer', 'cer')
     protocol: str = TEXT_PROTOCOL
+    #: Port `work_result` (capacité `has_result_import`) — facultatif : le champ fichier qui porte
+    #: un résultat produit AILLEURS, et comment l'app en fait SON résultat (élément → None ; lève
+    #: si le fichier ne se lit pas). Ses extensions : celles de la référence, sauf mention.
+    result_field: str = ''
+    import_result: Optional[Callable[[object], None]] = None
 
 
 _REGISTRY: Dict[str, EvaluationSpec] = {}
@@ -314,6 +319,50 @@ def attach_reference(surface: str, targets: List, uploaded) -> dict:
     measured = sum(1 for t in targets if evaluate(surface, t))
     return {'reference_name': os.path.basename(stored), 'targets': len(targets),
             'measured': measured}
+
+
+def attach_result(surface: str, item, uploaded) -> dict:
+    """Pose un RÉSULTAT EXISTANT sur un élément (port `work_result`) : il tient lieu de traitement.
+
+    L'app en fait son résultat (`import_result`), puis l'élément est mesuré s'il porte une
+    référence. Un seul élément : un résultat appartient à UNE entrée — le poser sur un lot
+    n'aurait pas de sens. Un fichier illisible est refusé ET retiré.
+    """
+    spec = evaluation_spec(surface)
+    if spec is None or not spec.result_field or spec.import_result is None:
+        raise ReferenceRefused(f"{surface} ne sait pas reprendre un résultat existant")
+    ext = os.path.splitext(getattr(uploaded, 'name', '') or '')[1].lower()
+    if spec.reference_extensions and ext not in spec.reference_extensions:
+        raise ReferenceRefused(
+            f"format {ext or '(sans extension)'} non lu — formats acceptés : "
+            f"{', '.join(spec.reference_extensions)}")
+    detach_result(surface, item)
+    getattr(item, spec.result_field).save(os.path.basename(uploaded.name), uploaded, save=False)
+    item.save(update_fields=[spec.result_field])
+    try:
+        spec.import_result(item)
+    except Exception as exc:
+        detach_result(surface, item)
+        raise ReferenceRefused(f"résultat illisible : {exc}")
+    evaluate(surface, item)
+    return {'result_name': os.path.basename(getattr(item, spec.result_field).name)}
+
+
+def detach_result(surface: str, item) -> int:
+    """Retire le fichier du résultat existant. Le RÉSULTAT de l'élément reste tel quel jusqu'à
+    sa prochaine relance (on n'efface pas un texte sous les yeux de l'utilisateur)."""
+    import copy
+    from wama.common.utils.queue_duplication import safe_delete_file
+    spec = evaluation_spec(surface)
+    name = getattr(getattr(item, spec.result_field, None), 'name', '') if spec and spec.result_field else ''
+    if not name:
+        return 0
+    setattr(item, spec.result_field, None)
+    item.save(update_fields=[spec.result_field])
+    probe = copy.copy(item)
+    setattr(probe, spec.result_field, name)
+    safe_delete_file(probe, spec.result_field)
+    return 1
 
 
 def detach_reference(surface: str, targets: List) -> int:

@@ -1423,6 +1423,42 @@ def api_result_reference(request, surface: str, nature: str, pk: int):
 
 
 @login_required
+def api_result_import(request, surface: str, pk: int):
+    """RÉSULTAT EXISTANT d'un élément — le port `work_result` : un résultat produit AILLEURS
+    (autre outil, version antérieure) qui tient lieu de traitement.
+
+    POST `file` : l'app en fait le résultat de l'élément (`import_result` déclaré), puis il est
+    mesuré s'il porte une référence ; `action=remove` : retire le fichier (le résultat reste
+    jusqu'à la prochaine relance). Un ÉLÉMENT seulement — un résultat appartient à une entrée.
+    Même garde que `api_result_reference` : 404 hors surface qui le déclare, ou pk étranger.
+    """
+    from django.shortcuts import get_object_or_404
+    from wama.common.services import result_evaluation as evaluation
+    from wama.common.utils.preview_registry import PreviewRegistry
+
+    spec = evaluation.evaluation_spec(surface)
+    if spec is None or spec.import_result is None:
+        return JsonResponse({'error': f"{surface} ne reprend pas de résultat existant"}, status=404)
+    element_model = PreviewRegistry.get_model(surface)
+    if element_model is None:
+        return JsonResponse({'error': f"surface inconnue : {surface}"}, status=404)
+    item = get_object_or_404(element_model, pk=pk, user=request.user)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'méthode non autorisée'}, status=405)
+
+    if request.POST.get('action') == 'remove':
+        return JsonResponse({'ok': True, 'removed': evaluation.detach_result(surface, item)})
+    uploaded = request.FILES.get('file')
+    if uploaded is None:
+        return JsonResponse({'ok': False, 'reason': 'aucun fichier reçu'}, status=400)
+    try:
+        report = evaluation.attach_result(surface, item, uploaded)
+    except evaluation.ReferenceRefused as refusal:
+        return JsonResponse({'ok': False, 'reason': str(refusal)}, status=400)
+    return JsonResponse({'ok': True, **report, 'item': evaluation.item_evaluation(surface, item)})
+
+
+@login_required
 def api_item_for_path(request):
     """L'ÉLÉMENT dont un fichier de `media/` est la SORTIE — pour le menu de l'arbre (2026-09-18).
 

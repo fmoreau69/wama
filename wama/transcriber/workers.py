@@ -769,6 +769,72 @@ def enrich_transcript(self, transcript_id: int, summary_type: str = 'structured'
         return {'ok': False, 'error': str(exc)}
 
 
+def import_existing_result(t: Transcript) -> None:
+    """Fait d'une transcription produite AILLEURS (port `work_result`) le résultat de la card.
+
+    Déclaré à la brique commune (`register_evaluation(import_result=…)`) : c'est ce qu'elle appelle
+    quand on pose le fichier, et ce que relance ▶ (`import_existing_result_task`) — le résultat
+    existant TIENT LIEU de transcription, relancer ne doit donc pas lancer l'ASR à sa place.
+
+    Même écriture que le moteur : un document HORODATÉ (SRT, VTT) passe par `_save_segments`,
+    comme une sortie ASR (lignes de segments comprises, donc SRT et aperçus). Un document SANS
+    temps (Sonal, texte) n'en invente aucun : `segments_json` porte les tours avec des temps
+    nuls, et aucune ligne de segment n'est créée — ce sera l'affaire de l'alignement forcé.
+    La clé du « modèle » est `external:<nom du fichier>` : mesurable, jamais agrégée comme un
+    modèle du parc. Lève si le document ne contient aucune parole.
+    """
+    from django.utils import timezone
+    from wama.common.backends.speech_to_text_base import TranscriptionResult, TranscriptionSegment
+    from wama.common.services.result_evaluation import EXTERNAL_PREFIX
+    from .utils.transcript_documents import read_transcript_document
+
+    doc = read_transcript_document(t.work_result.path)
+    if not doc.segments:
+        raise ValueError("aucune parole lue dans ce document (aucun label de locuteur suivi de texte)")
+    t.text = doc.text
+    t.used_backend = 'externe'
+    t.model_key = EXTERNAL_PREFIX + os.path.splitext(os.path.basename(t.work_result.name))[0]
+    if doc.is_timed:
+        _save_segments(t, TranscriptionResult(success=True, text=doc.text, segments=[
+            TranscriptionSegment(speaker_id=s['speaker_id'], start_time=s['start_time'],
+                                 end_time=s['end_time'] if s['end_time'] is not None else s['start_time'],
+                                 text=s['text'])
+            for s in doc.segments]))
+    else:
+        TranscriptSegment.objects.filter(transcript=t).delete()
+        t.segments_json = [{k: s[k] for k in ('speaker_id', 'start_time', 'end_time', 'text')}
+                           for s in doc.segments]
+    t.progress = 100
+    t.status = 'SUCCESS'
+    t.error_message = ''
+    t.finished_at = timezone.now()
+    t.save(update_fields=['text', 'used_backend', 'model_key', 'segments_json', 'progress',
+                          'status', 'error_message', 'finished_at'])
+
+
+@shared_task(name='wama.transcriber.import_existing_result')
+def import_existing_result_task(transcript_id: int):
+    """▶ sur une card qui porte un résultat existant : il est RE-importé, jamais retranscrit.
+    Tâche nommée, routée sur `default` (settings) : c'est de la lecture de texte, pas du GPU."""
+    close_old_connections()
+    try:
+        t = Transcript.objects.get(pk=transcript_id)
+    except Transcript.DoesNotExist:
+        return {'ok': False, 'error': f'Transcript {transcript_id} introuvable'}
+    try:
+        import_existing_result(t)
+        from wama.common.services.result_evaluation import evaluate
+        evaluate('transcriber', t)
+        _console(t.user_id, f"Résultat existant repris ({os.path.basename(t.work_result.name)}) ✓")
+        return {'ok': True}
+    except Exception as exc:
+        t.status = 'FAILURE'
+        t.error_message = f"Résultat existant illisible : {exc}"
+        t.save(update_fields=['status', 'error_message'])
+        _console(t.user_id, t.error_message, level='error')
+        return {'ok': False, 'error': str(exc)}
+
+
 @shared_task(name='wama.transcriber.compute_waveform_peaks')
 def compute_waveform_peaks(transcript_id: int):
     """Calcule l'enveloppe de forme d'onde (peaks) UNE fois, en asynchrone.
