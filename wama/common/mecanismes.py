@@ -1276,6 +1276,17 @@ MECHANISMS = (
               "État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app "
               "fournit apply(speed) — la commande est commune, l'application au lecteur reste locale",
               'wama/common/static/common/js/wama-shuttle.js', ''),
+    Mechanism('playhead_follow', 'Suivre la tête de lecture (traitement au fil de la lecture)',
+              "Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, modèle "
+              "gardé chargé, et s'arrête d'elle-même (arrêt demandé, 90 s d'inactivité, traitement "
+              "prioritaire à laisser passer). Verrou de lancement, verrou vivant, refroidissement : "
+              "chacun a son cas vécu. L'app fournit le chargement, la tranche et la question « dois-je "
+              "céder ? » — jamais la mécanique. Extrait du mode Live du cam_analyzer quand le "
+              "transcriber en est devenu le 2ᵉ utilisateur ; première forme du curseur de session",
+              'wama/common/services/playhead_follow.py',
+              'docs/construction/mondes/WAMA_DATA_WORLD.md §5',
+              annexes=('wama/common/tests_playhead_follow.py',
+                       'wama_lab/cam_analyzer/tests_live_follow.py')),
     Mechanism('media_picker', 'Sélecteur de médiathèque',
               "Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue "
               "à l'appelant sous forme de File + méta",
