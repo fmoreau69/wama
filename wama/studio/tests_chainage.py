@@ -163,3 +163,25 @@ class DiagnosticDeChainageTest(SimpleTestCase):
         from wama.studio.services import launch
         self.assertNotIn('diagnostiquer_chainage', inspect.getsource(launch.launch_graph),
                          "le diagnostic est passé en application : trier les refus d'abord")
+
+
+class GenericRunnerOutputPathTest(SimpleTestCase):
+    """The file a node hands to the next one is a MEDIA path, never an encoded URL."""
+
+    def test_an_accented_file_name_reaches_the_next_node_decoded(self):
+        """Measured 2026-09-25, synthesizer → transcriber: `étudie` arrived as `%C3%A9tudie`,
+        and the transcriber answered « Fichier introuvable » for a file that existed."""
+        from types import SimpleNamespace
+        from unittest import mock
+        from wama.studio.services.generic_runner import build_generic_runner
+
+        item = SimpleNamespace(status='SUCCESS', progress=100, error_message='')
+        manager = mock.MagicMock()
+        manager.get.return_value = item
+        entry = {'model': SimpleNamespace(objects=manager),
+                 'adapter': lambda i: {'status': 'SUCCESS', 'result_file':
+                                       '/media/users/1/synthesizer/output/Le_%C3%A9t%C3%A9_voice.wav'}}
+        with mock.patch('wama.common.utils.detail_registry.DetailRegistry.get', return_value=entry):
+            out = build_generic_runner('synthesizer')['poll'](user=None, item_id=1)
+        self.assertEqual('users/1/synthesizer/output/Le_été_voice.wav', out['output'])
+        self.assertFalse(out['is_text'])
