@@ -102,6 +102,18 @@ def _donnees(manifest: dict) -> dict:
                         if str(f.get('class', '')).rsplit('.', 1)[-1] in ('FileField', 'ImageField')]
     d['name_field'] = ('input_filename' if 'input_filename' in champs
                        else 'input_name' if 'input_name' in champs else '')
+    # RÉSULTAT servi au téléchargement — la DÉCLARATION (`processing.backend_result`, lue au
+    # `RESULT` du paquet backends) que `tasks_gen` lit déjà pour PERSISTER (2026-09-24). Le
+    # gabarit ne connaissait que `output_file` : describer (`{'kind': 'text', 'field':
+    # 'result_text'}`) finissait en SUCCESS derrière un téléchargement 501, vu au geste
+    # `describer_01.processing`. Fichier → sa colonne ; texte → une pièce jointe `.txt`.
+    _res = proc.get('backend_result') or {}
+    _res_field = _res.get('field') or ''
+    d['out_file'] = ('output_file' if d['a_output']
+                     else _res_field if (_res.get('kind') or 'file') == 'file'
+                     and _res_field in d['file_fields'] else '')
+    d['out_text'] = (_res_field if not d['out_file'] and _res.get('kind') == 'text'
+                     and _res_field in champs else '')
 
     # Forme de file — la DÉCLARATION d'abord, la dérivation ensuite (2026-09-22).
     #   • LIAISON : `processing.model_spec.batch` la déclare (`link_name`, `link_item_field`,
@@ -136,9 +148,18 @@ def _donnees(manifest: dict) -> dict:
         if d['batch'] and 'batch_row_index' in champs:
             d['row_field'] = 'batch_row_index'
             d['form'] = 'direct'
-    d['batch_extra'] = ('media_type' if (d['batch'] and 'media_type' in champs
-                        and 'media_type' in {f['name'] for f in
-                                             data_models[d['batch']].get('fields') or []})
+    # Colonne de NATURE de l'élément — la DÉCLARATION d'abord (`processing.backend_nature_field`,
+    # lue au `NATURE_FIELD` du paquet backends), `media_type` en repli. C'est la MÊME règle que
+    # `tasks_gen` (2026-09-24) : les deux gabarits la devinaient chacun, et divergeaient —
+    # describer déclare `detected_type`, la tâche générée le lisait, la vue générée ne
+    # connaissait que `media_type` et ne l'écrivait donc jamais (« nature '' sans backend »).
+    # ⚠ Deux colonnes distinctes : l'ÉLÉMENT porte sa nature (`nature_field`), le LOT ne la
+    # porte que s'il a la même colonne (`batch_extra`) — describer : oui / non.
+    _declared = proc.get('backend_nature_field') or ''
+    d['nature_field'] = (_declared if _declared in champs
+                         else 'media_type' if 'media_type' in champs else '')
+    d['batch_extra'] = (d['nature_field'] if (d['batch'] and d['nature_field'] and d['nature_field'] in
+                        {f['name'] for f in data_models[d['batch']].get('fields') or []})
                         else '')
 
     # VOCABULAIRE D'ENTRÉE de l'app — LU au manifeste, jamais supposé. Il est déclaré DEUX fois
@@ -222,7 +243,7 @@ def render_views(manifest: dict) -> tuple:
     # glu, c'est un manque de gabarit. Ici les DEUX pièces existaient — le détecteur commun
     # `category_of_path` et le vocabulaire `body.ports.inputs[].types` — et le gabarit ne
     # lisait ni l'un ni l'autre : il déclarait le trou et rouvrait un arbitrage.
-    nature_champ = d['batch_extra']          # 'media_type' si l'app la porte, sinon ''
+    nature_champ = d['nature_field']         # colonne de nature de l'ÉLÉMENT, sinon ''
     types_entree = d['types_entree']
     bloc_nature = f'''
 
@@ -546,7 +567,8 @@ def batch_preview(request):
     UNE déclaration, DEUX consommateurs : `group_into_batches_by_nature` (import groupé) et
     `group_key` de la fabrique de manipulation de file (fusion par drag&drop)."""
     return {bc_nature}'''
-    bc_nature_kw = (f", **{{'{nature_champ}': nature}}" if nature_champ else "")
+    # Le LOT ne reçoit la nature que s'il porte la colonne (`batch_extra`) — describer : non.
+    bc_nature_kw = (f", **{{'{d['batch_extra']}': nature}}" if d['batch_extra'] else "")
     # Émis sous CHAQUE orthographe admise (`urls_gen.ROUTE_ALIASES` : composer dit
     # `import_batch`) — même doctrine que `stop`/`cancel` : le corps est la convention, le nom
     # est lu au manifeste. L'assemblage plus bas ne retient que le nom déclaré par l'app.
@@ -780,14 +802,37 @@ def _decorer(item):
     vues['progress'] = (f"def progress(request, pk):\n    user = _user(request)\n"
                         f"    item = get_object_or_404({item}, pk=pk, user=user)\n{corps_status}")
 
-    vues['download'] = (f'''def download(request, pk):
+    out_file, out_text = d['out_file'], d['out_text']
+    # Nom d'une sortie TEXTE : brique commune `compose_output_name` (souche de l'entrée + tag
+    # d'app + identifiant de card) — la règle du describer réel, pas un nom inventé ici.
+    text_name = ("compose_output_name(app='{app}', ext='.txt', item_id=item.pk,\n"
+                 "                              source_name=(Path(item.input_file.name).name\n"
+                 "                                           if getattr(item, 'input_file', None) else ''))"
+                 ).format(app=app)
+    if out_file:
+        vues['download'] = f'''def download(request, pk):
     user = _user(request)
     item = get_object_or_404({item}, pk=pk, user=user)
-    if not item.output_file:
+    if not item.{out_file}:
         return JsonResponse({{'error': 'Aucun résultat'}}, status=404)
-    return FileResponse(item.output_file.open('rb'), as_attachment=True,
-                        filename=Path(item.output_file.name).name)'''
-                        if d['a_output'] else stub('download', pk=True))
+    return FileResponse(item.{out_file}.open('rb'), as_attachment=True,
+                        filename=Path(item.{out_file}.name).name)'''
+    elif out_text:
+        vues['download'] = f'''def download(request, pk):
+    """Résultat TEXTE déclaré (`processing.backend_result`) servi en pièce jointe `.txt`."""
+    from django.utils.http import content_disposition_header
+    from wama.common.utils.output_naming import compose_output_name
+    user = _user(request)
+    item = get_object_or_404({item}, pk=pk, user=user)
+    text = getattr(item, '{out_text}', '') or ''
+    if item.status != 'SUCCESS' or not text:
+        return JsonResponse({{'error': 'Aucun résultat'}}, status=404)
+    name = {text_name}
+    resp = HttpResponse(text, content_type='text/plain; charset=utf-8')
+    resp['Content-Disposition'] = content_disposition_header(True, name)
+    return resp'''
+    else:
+        vues['download'] = stub('download', pk=True)
 
     vues['delete'] = f'''@require_POST
 def delete(request, pk):
@@ -849,16 +894,23 @@ def clear_all(request):
     {batch}.objects.filter(user=user, {items_related}__isnull=True).delete()
     return JsonResponse({{'cleared': n}})'''
 
-    vues['download_all'] = (f'''def download_all(request):
-    user = _user(request)
+    if out_file or out_text:
+        zip_entry = (f'''            if item.{out_file}:
+                z.writestr(Path(item.{out_file}.name).name, item.{out_file}.read())''' if out_file
+                      else f'''            if getattr(item, '{out_text}', ''):
+                z.writestr({text_name}, item.{out_text})''')
+        name_import = ('' if out_file else
+                      "    from wama.common.utils.output_naming import compose_output_name\n")
+        vues['download_all'] = f'''def download_all(request):
+{name_import}    user = _user(request)
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w') as z:
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         for item in {item}.objects.filter(user=user, status='SUCCESS'):
-            if item.output_file:
-                z.writestr(Path(item.output_file.name).name, item.output_file.read())
+{zip_entry}
     buf.seek(0)
     return FileResponse(buf, as_attachment=True, filename='{app}_outputs.zip')'''
-                            if d['a_output'] else stub('download_all'))
+    else:
+        vues['download_all'] = stub('download_all')
 
     # Contrat du COMPOSANT COMMUN (`wama-global-progress.js` lit total/done/overall_progress) —
     # l'émission précédente renvoyait {running, pending, percent} : la barre globale restait
@@ -932,6 +984,11 @@ def {nom}(request, pk):
     # est LU au manifeste (champs fichier de la facette data, params déclarés, schéma).
     form_kwargs = (f"item_model={link}, fk_name='{link_fk}'" if is_link
                    else f"batch_attr='{fk}', row_field='{row}'")
+    # Sortie servie par le ZIP de lot — le MÊME résultat déclaré que `download` (défaut de la
+    # brique : `output_file`, rien à émettre).
+    bv_output = (f"\n    output_text='{out_text}'," if out_text
+                 else f"\n    output_field='{out_file}'," if out_file and out_file != 'output_file'
+                 else '')
     bv_extra = (f"""
     batch_extra=lambda lot: {{'{d['batch_extra']}': lot.{d['batch_extra']}}},""" if d['batch_extra'] else '')
     fabrique_lot = f'''
@@ -943,7 +1000,7 @@ _bv = make_batch_views(
     file_fields={champs_fichiers!r}, output_fields={champs_sortie!r},
     params_fields={d['params_fields']!r}, schema=_SCHEMA,
     options_field={conteneur_options!r}, extra_names={hors_colonnes!r},
-    {form_kwargs}, items_related='{items_related}',{bv_extra}
+    {form_kwargs}, items_related='{items_related}',{bv_extra}{bv_output}
 )
 batch_start     = _bv['batch_start']
 batch_update    = _bv['batch_update']

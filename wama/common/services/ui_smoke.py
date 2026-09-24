@@ -5460,7 +5460,10 @@ def check_app_batch_processing(app: str, url_path: str):
         const m = groupe.querySelector('.wama-card.is-batch');
         if (!m) return null;
         const barre = m.querySelector('.wama-progress-fill');
-        const zip = groupe.querySelector('a[href*="download"]');
+        // Le ZIP de la card MÈRE (`[data-batch-zip]`, visible) — jamais le premier lien de
+        // téléchargement du groupe : c'était celui d'une FILLE dès que le ZIP manquait, et le
+        // verdict disait « NON-ZIP » d'un .txt (mesuré le 2026-09-24 sur describer_01).
+        const zip = m.querySelector('[data-batch-zip]:not([hidden]) a[href*="download"]');
         return {
             total: parseInt(m.dataset.batchTotal || '0', 10),
             succes: parseInt(m.dataset.batchSuccess || '0', 10),

@@ -884,3 +884,75 @@ class ItemEditRouteAliasTest(SimpleTestCase):
         src, why = render_views(manifest)
         self.assertTrue(src, why)
         self.assertNotIn('apply_item_settings(', _fonction(src, 'update_settings') or '')
+
+
+class NatureFieldAgreementTest(SimpleTestCase):
+    """The generated task READS the item's nature column; the generated upload must WRITE the
+    same one (2026-09-24).
+
+    Found by the `describer_01.processing` gesture: « nature '' sans backend déclaré ». The
+    describer declares `NATURE_FIELD = 'detected_type'` (manifest `backend_nature_field`);
+    `tasks_gen` read it, `views_gen` only knew `media_type`, so no upload ever set the column.
+    Measured on every real app that composes its task body, never on one in particular.
+    """
+
+    APPS = ItemEditRouteAliasTest.APPS
+
+    def test_upload_writes_the_nature_column_the_task_reads(self):
+        import re
+        from wama.common.manifests.ingest import extract
+        from wama.common.manifests.codegen.tasks_gen import render_tasks
+        checked = []
+        for app in self.APPS:
+            manifest = extract('app', app)
+            if not manifest:
+                continue
+            tasks_src, _why = render_tasks(manifest)
+            read = re.search(r"getattr\(item, '(\w+)', ''\)", tasks_src or '')
+            if not read:
+                continue          # no composed body: nothing is read
+            field = read.group(1)
+            views_src, why = render_views(manifest)
+            self.assertTrue(views_src, f'{app}: views not generated ({why})')
+            self.assertIn(f"kwargs['{field}'] = nature", _fonction(views_src, 'upload') or '',
+                          f'{app}: the task reads `{field}`, the upload never writes it')
+            checked.append(app)
+        self.assertIn('describer', checked, 'the case that revealed the defect must be covered')
+
+    def test_the_batch_gets_the_nature_only_if_it_has_the_column(self):
+        """Counter-check: `BatchDescription` has no `detected_type` — creating a batch with it
+        would raise TypeError at import time."""
+        from wama.common.manifests.ingest import extract
+        src, why = render_views(extract('app', 'describer'))
+        self.assertTrue(src, why)
+        self.assertIn('BatchDescription.objects.create(\n            user=user, total=total)', src)
+        self.assertNotIn('batch_extra=', src)
+
+
+class DeclaredResultDownloadTest(SimpleTestCase):
+    """The generated download serves the result the manifest DECLARES (`backend_result`), the
+    one the generated task persists (2026-09-24).
+
+    Found by the `describer_01.processing` gesture: element in SUCCESS, download 501 — the
+    template only knew `output_file`, the describer declares a TEXT result in `result_text`.
+    """
+
+    def test_every_declared_result_is_downloadable(self):
+        from wama.common.manifests.ingest import extract
+        checked = []
+        for app in ItemEditRouteAliasTest.APPS:
+            manifest = extract('app', app)
+            proc = ((manifest or {}).get('body') or {}).get('processing') or {}
+            res = proc.get('backend_result') or {}
+            if not res.get('field'):
+                continue
+            src, why = render_views(manifest)
+            self.assertTrue(src, f'{app}: views not generated ({why})')
+            body = _fonction(src, 'download') or ''
+            self.assertNotIn('status=501', body, f'{app}: declared result, download stubbed')
+            self.assertIn(res['field'] if res.get('kind') == 'text' else 'FileResponse', body)
+            if res.get('kind') == 'text':
+                self.assertIn(f"output_text='{res['field']}'", src,
+                              f'{app}: the batch ZIP must serve the same text result')
+            checked.append(app)
+        self.assertIn('describer', checked, 'the case that revealed the defect must be covered')

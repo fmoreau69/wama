@@ -322,10 +322,12 @@
         header.querySelectorAll('[data-batch-field="progress"]').forEach(function (el) {
             el.style.width = Math.round(100 * counts.success_count / total) + '%';
         });
-        // Plus aucune sortie : le ZIP du lot n'a plus rien à télécharger.
-        if (!batch.has_success) {
-            header.querySelectorAll('[data-batch-zip]').forEach(function (el) { el.remove(); });
-        }
+        // Le ZIP du lot suit les sorties : masqué sans sortie, montré dès la première (le gabarit
+        // le rend toujours quand l'app le déclare — 2026-09-24 ; il était RETIRÉ ici, donc
+        // jamais montré sans rechargement).
+        header.querySelectorAll('[data-batch-zip]').forEach(function (el) {
+            el.hidden = !batch.has_success;
+        });
         header.querySelectorAll('.wama-eta[data-eta-ids]').forEach(function (el) {
             el.dataset.etaIds = el.dataset.etaIds.split(',')
                 .filter(function (x) { return x.trim() && x.trim() !== String(removedId); })
@@ -654,6 +656,53 @@
     queueAction('data-queue-clear-url',
                  { confirmText: 'Effacer TOUS les éléments de la file ? Cette action est définitive.',
                    notifyFiles: true });
+
+    // Compteurs de la card mère TENUS À JOUR quand une fille change d'état (2026-09-24).
+    // `updateBatchHeader` n'était appelée qu'après un 🗑 : pendant un traitement, chaque app
+    // re-rend ses cards filles (`WamaApp.fetchCard`), mais la card mère gardait les compteurs
+    // du dernier rendu serveur — « 0 réussi » jusqu'au rechargement manuel, et le volet de lot
+    // de l'inspecteur (qui les lit) avec elle. Mesuré au geste `batch_processing` : describer ET
+    // describer_01 rouges (tâches terminées en 20 s au worker, card mère figée à 0 %), seul le
+    // converter vert — parce que ses jobs finissent AVANT le rechargement de « Démarrer tout ».
+    // Les compteurs se lisent sur les filles (`data-status`, attribut uniforme des 10 cards) ;
+    // si le DOM ne porte pas toutes les filles du lot, on ne devine rien.
+    function syncBatchFromCards(group) {
+        const header = group.querySelector('.batch-group-header');
+        if (!header) return;
+        const cards = group.querySelectorAll('.wama-card[data-id]');
+        const total = parseInt(header.dataset.batchTotal || '0', 10);
+        if (!cards.length || cards.length !== total) return;
+        let success = 0, running = 0, failure = 0;
+        cards.forEach(function (c) {
+            const st = (c.dataset.status || '').toUpperCase();
+            if (st === 'SUCCESS') success++;
+            else if (st === 'RUNNING') running++;
+            else if (st === 'FAILURE') failure++;
+        });
+        if (String(success) === header.dataset.batchSuccess
+                && String(running) === header.dataset.batchRunning
+                && String(failure) === header.dataset.batchFailure) return;
+        updateBatchHeader(group, { total: total, success_count: success, running_count: running,
+                                   failure_count: failure, has_success: success > 0 }, null);
+    }
+    if (window.MutationObserver) {
+        const pending = new Set();
+        let scheduled = false;
+        const flush = function () {
+            scheduled = false;
+            pending.forEach(syncBatchFromCards);
+            pending.clear();
+        };
+        new MutationObserver(function (muts) {
+            muts.forEach(function (m) {
+                const el = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+                const group = el && el.closest && el.closest('.batch-group');
+                if (group) pending.add(group);
+            });
+            if (pending.size && !scheduled) { scheduled = true; setTimeout(flush, 50); }
+        }).observe(document.documentElement, { subtree: true, childList: true,
+                                               attributes: true, attributeFilter: ['data-status'] });
+    }
 
     window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted,
                                 applyBatchState: applyBatchState,
