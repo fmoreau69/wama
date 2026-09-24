@@ -100,6 +100,12 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-09-24
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| *(ce commit — le mode Live sur la boucle COMMUNE)* | **La mécanique du mode Live sort du cam_analyzer vers `wama/common/services/playhead_follow.py`** : verrou de lancement, verrou d'exécution et son battement, ordre d'arrêt, refroidissement après cession, sortie après 90 s d'inactivité, cession à l'analyse batch. `live_analysis_task` et la vue `live_cursor` l'appellent ; **le corps de la tranche (YOLO track, yolopv2, voies, distances, couverture) est inchangé, déplacé de 4 espaces** ; les **clés de cache sont les mêmes** (`cam_live_<nature>_<session>`), donc un curseur posé par une page ouverte avant le redémarrage reste lu. Seule différence visible : la réponse de `live_cursor` à la désactivation porte aussi `started: false`. **Aucun changement de comportement attendu** — pas de flag ⚑, puisqu'il n'y a rien à comparer. | Le transcriber devient le 2ᵉ utilisateur de la boucle (modes d'écriture de l'éditeur de correction, demande de Fabien du 2026-09-24) : la doctrine impose la brique commune, et une brique posée À CÔTÉ de ce code aurait été un chemin parallèle. Chaque garde garde son cas vécu dans la brique (1 440 messages empilés le 2026-07-19 ; analyse batch coincée > 5 min le même jour). | `tests_playhead_follow` (commun, 10 tests : une tâche par fenêtre de lancement, arrêt immédiat, inactivité, cession + refroidissement, verrou libéré sur erreur, clés identiques) ; **`tests_live_follow.py` (3 tests, NEUF — aucun test n'exerçait le mode Live)** : la tâche tourne avec des doublures (YOLO, session), charge le modèle UNE fois le verrou pris, cède au batch en armant le refroidissement, sort sans rien charger pendant un refroidissement. ⚠ **Pas joué au GPU sur une vraie session** : à vérifier au prochain usage du mode Live (bouton Live, lecture, arrêt → « Analyse live terminée »). Annulation : `git revert` du commit (restart WSL2). |
+
 ## 2026-09-12
 
 | Commit | Quoi | Pourquoi | Validation/annulation |

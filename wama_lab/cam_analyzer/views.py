@@ -1089,30 +1089,24 @@ def live_cursor(request, session_id):
         # inaccessible — refus explicite (le client désactive le bouton).
         return JsonResponse({'success': False, 'running': False,
                              'error': 'analyse en cours'}, status=409)
-    cursor_key = f"cam_live_cursor_{session_id}"
-    lock_key = f"cam_live_lock_{session_id}"
+    # Curseur, arrêt explicite et verrou de lancement : brique COMMUNE `playhead_follow`
+    # (2026-09-24) — mêmes clés `cam_live_*`, même comportement. Le verrou de lancement y porte
+    # son cas vécu : 1 440 messages empilés en file le 2026-07-19 sans lui.
+    from wama.common.services.playhead_follow import Channel, post_cursor
+    from .tasks import live_analysis_task
+    channel = Channel('cam_live', session_id)
+    spawn = lambda: live_analysis_task.delay(str(session.id))  # noqa: E731
     if not body.get('enabled', True):
-        cache.delete(cursor_key)
         # Arrêt EXPLICITE : la tâche sort immédiatement (au lieu d'attendre le délai
         # d'inactivité) et enchaîne le tracking global si elle a produit.
-        if cache.get(lock_key):
-            cache.set(f"cam_live_stop_{session_id}", 'user', timeout=120)
-        return JsonResponse({'success': True, 'running': bool(cache.get(lock_key))})
+        return JsonResponse({'success': True, **post_cursor(channel, None, spawn)})
     try:
         t = max(0.0, float(body.get('t', 0.0)))
         lookahead = float(body.get('lookahead', 15.0))
     except (TypeError, ValueError):
         return JsonResponse({'success': False, 'error': 't invalide'}, status=400)
-    cache.set(cursor_key, {'t': t, 'lookahead': lookahead}, timeout=120)
-    started = False
-    if not cache.get(lock_key) and cache.add(f"cam_live_spawn_{session_id}", 1, timeout=15):
-        # cache.add = verrou de SPAWN atomique (15 s, levé par la tâche à son démarrage) :
-        # sans lui, chaque POST curseur pendant que la file est occupée empilait une
-        # tâche de plus — mesuré 1440 messages en file le 2026-07-19.
-        from .tasks import live_analysis_task
-        live_analysis_task.delay(str(session.id))
-        started = True
-    return JsonResponse({'success': True, 'running': True, 'started': started})
+    return JsonResponse({'success': True,
+                         **post_cursor(channel, {'t': t, 'lookahead': lookahead}, spawn)})
 
 
 @login_required

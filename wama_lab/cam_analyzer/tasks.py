@@ -1964,133 +1964,122 @@ def live_analysis_task(self, session_id: str):
     user_id = session.user_id
     if not profile:
         return {'error': 'no profile'}
-    lock_key = f"cam_live_lock_{session_id}"
-    cursor_key = f"cam_live_cursor_{session_id}"
-    cache.delete(f"cam_live_spawn_{session_id}")   # lève le verrou de spawn (voir live_cursor)
-    if cache.get(f"cam_live_cool_{session_id}"):
-        # Cooldown post-préemption : sortie SILENCIEUSE — indispensable pour drainer un
-        # éventuel arriéré de tâches empilées sans spam console ni churn de verrou.
-        return {'skipped': 'cooldown'}
-    if not cache.add(lock_key, self.request.id, timeout=30):
-        return {'skipped': 'already_running'}
+    # Mécanique de suivi (verrou de lancement, verrou vivant et son battement, arrêt demandé,
+    # refroidissement, inactivité 90 s, cession à l'analyse batch) : brique COMMUNE
+    # `wama/common/services/playhead_follow.py` depuis le 2026-09-24, quand le transcriber en est
+    # devenu le 2ᵉ utilisateur. Clés de cache INCHANGÉES (`cam_live_<nature>_<session>`) ; ce qui
+    # reste ici est propre au cam_analyzer : les modèles, la tranche, la couverture.
+    from wama.common.services.playhead_follow import Channel, follow
 
-    model = road_segmenter = None
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    state = {'model': None, 'road_segmenter': None}
     caps = {}
     slices_done = 0
-    try:
+    cams = []
+
+    def start():
         from ultralytics import YOLO
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model_path = profile.model_path
         if not os.path.isabs(model_path):
             model_path = os.path.join(settings.BASE_DIR, model_path)
-        model = YOLO(model_path)
+        state['model'] = YOLO(model_path)
         _road_raw = profile.road_model_path or ''
         if _road_raw and 'yolopv2' in os.path.basename(_road_raw).lower():
             try:
                 from .utils.yolopv2_segmenter import YOLOPv2RoadSegmenter
                 _rp = _road_raw if os.path.isabs(_road_raw) else os.path.join(settings.BASE_DIR, _road_raw)
-                road_segmenter = YOLOPv2RoadSegmenter(_rp, device=device)
+                state['road_segmenter'] = YOLOPv2RoadSegmenter(_rp, device=device)
             except Exception:
                 logger.warning('live: yolopv2 indisponible (analyse sans voies)', exc_info=True)
         _console(user_id, "Analyse live démarrée (suivra la lecture ; s'arrête après 90 s d'inactivité)")
+        cams.extend(c for c in session.cameras.all() if getattr(c, 'video_file', None))
 
-        cams = [c for c in session.cameras.all() if getattr(c, 'video_file', None)]
-        stop_key = f"cam_live_stop_{session_id}"
-        last_work = time.time()
-        _last_status_check = 0.0
-        _stop_reason = 'idle'
-        while True:
-            cache.set(lock_key, self.request.id, timeout=30)   # heartbeat du verrou
-            _stop_val = cache.get(stop_key)
-            if _stop_val:
-                cache.delete(stop_key)
-                _stop_reason = _stop_val if isinstance(_stop_val, str) else 'user'
-                break   # arrêt EXPLICITE — sortie immédiate
-            # Les tâches BATCH sont PRIORITAIRES (même slot worker GPU) : si une analyse
-            # est en attente/en cours, on rend le slot immédiatement — sinon elle restait
-            # coincée en file > 5 min et le watchdog la marquait « worker mort »
-            # (constat utilisateur 2026-07-19).
-            if time.time() - _last_status_check > 3.0:
-                _last_status_check = time.time()
-                _st = (AnalysisSession.objects.filter(pk=session_id)
-                       .values_list('status', flat=True).first())
-                if _st in (AnalysisSession.Status.PENDING, AnalysisSession.Status.PROCESSING):
-                    _console(user_id, "Analyse batch détectée — mode Live suspendu (slot GPU rendu)")
-                    cache.set(f"cam_live_cool_{session_id}", 1, timeout=30)
-                    _stop_reason = 'preempt'
-                    break
-            cur = cache.get(cursor_key)
-            if not cur:
-                if time.time() - last_work > 90:
-                    break
-                time.sleep(0.7)
+    def should_yield():
+        # Les tâches BATCH sont PRIORITAIRES (même slot worker GPU) : si une analyse
+        # est en attente/en cours, on rend le slot immédiatement — sinon elle restait
+        # coincée en file > 5 min et le watchdog la marquait « worker mort »
+        # (constat utilisateur 2026-07-19).
+        _st = (AnalysisSession.objects.filter(pk=session_id)
+               .values_list('status', flat=True).first())
+        if _st in (AnalysisSession.Status.PENDING, AnalysisSession.Status.PROCESSING):
+            _console(user_id, "Analyse batch détectée — mode Live suspendu (slot GPU rendu)")
+            return True
+        return False
+
+    def step(cur):
+        nonlocal slices_done
+        model, road_segmenter = state['model'], state['road_segmenter']
+        t0c = float(cur.get('t', 0.0))
+        lookahead = min(30.0, float(cur.get('lookahead', 15.0)))
+        scope = [[max(0.0, t0c - 1.0), t0c + lookahead]]
+        worked = False
+        for cam in cams:
+            pos = cam.position
+            fps_c = cam.fps or 12.0
+            miss = missing_ranges(session, pos, scope, min_len=0.3)
+            if not miss:
                 continue
-            t0c = float(cur.get('t', 0.0))
-            lookahead = min(30.0, float(cur.get('lookahead', 15.0)))
-            scope = [[max(0.0, t0c - 1.0), t0c + lookahead]]
-            worked = False
-            for cam in cams:
-                pos = cam.position
-                fps_c = cam.fps or 12.0
-                miss = missing_ranges(session, pos, scope, min_len=0.3)
-                if not miss:
-                    continue
-                a, b = miss[0]
-                b = min(b, a + 6.0)              # tranche bornée par itération (réactivité)
-                cap = caps.get(pos)
-                if cap is None:
-                    cap = cv2.VideoCapture(cam.video_file.path)
-                    caps[pos] = cap
-                total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or (cam.width or 384))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or (cam.height or 248))
-                f0, f1 = int(a * fps_c), min(int(b * fps_c), max(total - 1, 0))
-                if f1 < f0:
-                    continue
-                imgsz = ((max(width, height) + 31) // 32) * 32
-                fov_v = DEFAULT_FOV_V_DEG.get(pos, 60.0)
-                kin = TrackKinematics()
-                cap.set(cv2.CAP_PROP_POS_FRAMES, f0)
-                new_frames = []
-                for fi in range(f0, f1 + 1):
-                    ok, img = cap.read()
-                    if not ok:
-                        break
-                    res = model.track(
-                        img, persist=(fi > f0),   # reset tracker en début de tranche (comme le batch fenêtré)
-                        conf=0.10, iou=profile.iou_threshold, imgsz=imgsz,
-                        device=device, verbose=False,
-                    )[0]
-                    dets = _extract_detections(res, height)
-                    if road_segmenter is not None and pos == 'front':
-                        try:
-                            dets.extend(road_segmenter.segment_frame(img))
-                        except Exception:
-                            pass
-                    if (pos == 'front' and dets
-                            and any(d.get('class_name') == 'lane (yolopv2)' for d in dets)):
-                        from .utils.lane_partition import (annotate_detections_with_lane,
-                                                           find_shuttle_lane)
-                        lane_polys = [d['polygon'] for d in dets
-                                      if d.get('type') == 'road_mask'
-                                      and d.get('class_name') == 'lane (yolopv2)'
-                                      and isinstance(d.get('polygon'), list)]
-                        if lane_polys:
-                            annotate_detections_with_lane(
-                                dets, lane_polys, find_shuttle_lane(lane_polys, width, height))
-                    annotate_detections_with_distance(dets, height, fov_v, fi / fps_c, kin)
-                    new_frames.append(DetectionFrame(
-                        camera=cam, frame_number=fi,
-                        timestamp=round(fi / fps_c, 4), detections=dets))
-                if new_frames:
-                    DetectionFrame.objects.bulk_create(new_frames, ignore_conflicts=True)
-                    add_coverage(session, pos, [[f0 / fps_c, (f1 + 1) / fps_c]])
-                    slices_done += 1
-                    worked = True
-            if worked:
-                last_work = time.time()
-            else:
-                time.sleep(0.7)
+            a, b = miss[0]
+            b = min(b, a + 6.0)              # tranche bornée par itération (réactivité)
+            cap = caps.get(pos)
+            if cap is None:
+                cap = cv2.VideoCapture(cam.video_file.path)
+                caps[pos] = cap
+            total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or (cam.width or 384))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or (cam.height or 248))
+            f0, f1 = int(a * fps_c), min(int(b * fps_c), max(total - 1, 0))
+            if f1 < f0:
+                continue
+            imgsz = ((max(width, height) + 31) // 32) * 32
+            fov_v = DEFAULT_FOV_V_DEG.get(pos, 60.0)
+            kin = TrackKinematics()
+            cap.set(cv2.CAP_PROP_POS_FRAMES, f0)
+            new_frames = []
+            for fi in range(f0, f1 + 1):
+                ok, img = cap.read()
+                if not ok:
+                    break
+                res = model.track(
+                    img, persist=(fi > f0),   # reset tracker en début de tranche (comme le batch fenêtré)
+                    conf=0.10, iou=profile.iou_threshold, imgsz=imgsz,
+                    device=device, verbose=False,
+                )[0]
+                dets = _extract_detections(res, height)
+                if road_segmenter is not None and pos == 'front':
+                    try:
+                        dets.extend(road_segmenter.segment_frame(img))
+                    except Exception:
+                        pass
+                if (pos == 'front' and dets
+                        and any(d.get('class_name') == 'lane (yolopv2)' for d in dets)):
+                    from .utils.lane_partition import (annotate_detections_with_lane,
+                                                       find_shuttle_lane)
+                    lane_polys = [d['polygon'] for d in dets
+                                  if d.get('type') == 'road_mask'
+                                  and d.get('class_name') == 'lane (yolopv2)'
+                                  and isinstance(d.get('polygon'), list)]
+                    if lane_polys:
+                        annotate_detections_with_lane(
+                            dets, lane_polys, find_shuttle_lane(lane_polys, width, height))
+                annotate_detections_with_distance(dets, height, fov_v, fi / fps_c, kin)
+                new_frames.append(DetectionFrame(
+                    camera=cam, frame_number=fi,
+                    timestamp=round(fi / fps_c, 4), detections=dets))
+            if new_frames:
+                DetectionFrame.objects.bulk_create(new_frames, ignore_conflicts=True)
+                add_coverage(session, pos, [[f0 / fps_c, (f1 + 1) / fps_c]])
+                slices_done += 1
+                worked = True
+        return worked
+
+    try:
+        _stop_reason = follow(Channel('cam_live', session_id), self.request.id, step,
+                              on_start=start, should_yield=should_yield)
+        if _stop_reason in ('cooldown', 'already_running'):
+            # Cooldown post-préemption : sortie SILENCIEUSE — indispensable pour drainer un
+            # éventuel arriéré de tâches empilées sans spam console ni churn de verrou.
+            return {'skipped': _stop_reason}
         _console(user_id, f"Analyse live terminée ({slices_done} tranche(s) complétée(s))")
         # ── Enchaînement AUTO (validé utilisateur 2026-07-19) : si le live a produit,
         # relancer le TRACKING GLOBAL SEUL (gids + ancres + trajectoires lissées,
@@ -2104,7 +2093,7 @@ def live_analysis_task(self, session_id: str):
                 except Exception:
                     pass
             caps = {}
-            model = road_segmenter = None
+            state['model'] = state['road_segmenter'] = None
             try:
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
@@ -2120,13 +2109,12 @@ def live_analysis_task(self, session_id: str):
         logger.error(f"live_analysis_task failed: {e}", exc_info=True)
         return {'error': str(e), 'session_id': session_id}
     finally:
-        cache.delete(lock_key)
         for cap in caps.values():
             try:
                 cap.release()
             except Exception:
                 pass
-        del model, road_segmenter
+        state.clear()
         try:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
