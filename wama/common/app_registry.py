@@ -414,12 +414,18 @@ def app_input_ports(app_id, domain=None):
     jetons = [j for j in sorted(requis | optionnels,
                                 key=lambda j: (INPUT_TYPES.get(j, {}).get('port') != 'prompt', j))
               if j in INPUT_TYPES]
+    # Un jeton de RÉSULTAT (`work_result`, `reference_result`) a la nature de la SORTIE de
+    # l'app, quel que soit celui qui le déclare — la règle d'`app_result_ports`. Mesuré le
+    # 2026-09-24 : l'aligneur du transcriber déclare `work_result` (il date les mots d'un résultat
+    # repris) ; typé comme une ENTRÉE, le port « Résultat existant » acceptait de l'audio et
+    # refusait un .docx, et, second port « travail », il retirait la vidéo à `work_audio`.
+    resultats = {jeton for _cap, jeton in RESULT_CAPABILITY_TOKENS}
     # Un port de travail UNIQUE est l'entrée de l'app : il en prend toutes les natures. Ce
     # n'est que lorsqu'il y en a PLUSIEURS qu'ils se partagent les natures par leur `accept`.
     # Sans cette distinction, le transcriber passait de `['audio', 'video']` à `['audio']` sur
     # son unique jeton `work_audio` — or il accepte une vidéo et en extrait la bande son : le
     # RÔLE du port est bien l'audio, la NATURE reçue reste la vidéo aussi.
-    travaux = [j for j in jetons if INPUT_TYPES[j].get('port') == 'travail']
+    travaux = [j for j in jetons if INPUT_TYPES[j].get('port') == 'travail' and j not in resultats]
     partage = len(travaux) > 1
 
     ports = []
@@ -431,6 +437,8 @@ def app_input_ports(app_id, domain=None):
             # `['prompt']` et non `[]` : le studio TYPE ses liens, et c'est ce type qu'un nœud
             # source « Batch de prompts » présente à l'autre bout.
             types = ['prompt']
+        elif jeton in resultats:
+            types = _result_natures(app_id)
         elif groupe == 'reference':
             # Une référence est ce que son jeton dit : une image de style est une image, point.
             types = normalize_types([acc]) if acc else (natures_app or [])
@@ -449,6 +457,13 @@ def app_input_ports(app_id, domain=None):
             'description': spec.get('description', ''),
         })
     return ports
+
+
+def _result_natures(app_id):
+    """Natures d'un port de RÉSULTAT : celles de la SORTIE de l'app (une référence ou un résultat
+    repris se compare à ce que l'app produit). Seule source, lue par les deux moitiés des ports."""
+    cat = APP_CATALOG.get(app_id) or {}
+    return [c for c in normalize_types(cat.get('output_types', [])) if c != 'prompt']
 
 
 #: Capacité d'app → jeton d'entrée qu'elle ouvre. L'ordre est celui des onglets de la card.
@@ -483,7 +498,7 @@ def app_result_ports(app_id):
     from wama.common.utils.app_modes import INPUT_TYPES
 
     cat = APP_CATALOG.get(app_id) or {}
-    natures = [c for c in normalize_types(cat.get('output_types', [])) if c != 'prompt']
+    natures = _result_natures(app_id)
     ports = []
     for capability, token in RESULT_CAPABILITY_TOKENS:
         if not cat.get(capability):

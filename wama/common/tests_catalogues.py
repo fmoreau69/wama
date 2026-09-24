@@ -1277,6 +1277,27 @@ class ResultPortsComeFromAppCapabilitiesTest(TestCase):
             self.assertFalse(p['multi'])
             self.assertTrue(p['description'])
 
+    def test_a_MODEL_declaring_a_result_token_keeps_the_output_nature_and_the_work_natures(self):
+        """Measured 2026-09-24: the transcriber's aligner declares `work_result` (it dates the words
+        of an imported result). Typed as an INPUT, « Existing result » accepted audio and refused a
+        .docx, and — a second work port — it stripped the video from `work_audio`."""
+        from wama.common.app_registry import app_input_ports, studio_node_ports
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key=f'{self.APP}:asr', name='asr', source=self.APP,
+                               capabilities={'task': 'transcription', 'inputs_required': ['work_audio']})
+        AIModel.objects.create(model_key=f'{self.APP}:aligner', name='aligner', source=self.APP,
+                               capabilities={'task': 'alignment',
+                                             'inputs_required': ['work_audio', 'work_result']})
+        with self._catalog(has_result_import=True):
+            from unittest.mock import patch
+            from wama.common import app_registry
+            with patch.dict(app_registry.APP_CATALOG[self.APP], {'input_types': ('audio', 'video')}):
+                ports = {p['id']: p for p in app_input_ports(self.APP)}
+                node = {p['id']: p for p in studio_node_ports(self.APP)['inputs']}
+        self.assertEqual(['document'], ports['work_result']['types'])
+        self.assertEqual(['audio', 'video'], ports['work_audio']['types'])
+        self.assertEqual(['document'], node['work_result']['types'])
+
     def test_the_tokens_are_in_the_vocabulary_without_accept(self):
         """No `accept`: the nature is the app's output, not the token's."""
         from wama.common.utils.app_modes import INPUT_TYPES
