@@ -16925,3 +16925,9 @@ Grille **882/933** (converter 99 %) ; `settings_modal_cycle` **9/10** — seul l
 
 🔚 **Suivant** : alias `update_options` (et `update_settings`, `save_settings`) au générateur pour
 les jumelles, mesuré par `describer_01.settings` ; puis `backend_routes` + `task_skeleton` app par app.
+
+> **Traçabilité (2026-09-24)** — la correction de brique du palier précédent (`wama-params.js` et sa
+> copie servie : valeur demandée au rendu restaurée au remplissage asynchrone, `var wanted`) et ce
+> bloc de palier sont entrés dans HEAD par **`03d0814b`** (commit d'une autre instance, « la
+> CONTINUATION », qui a pris ces deux fichiers co-édités en entier pendant la préparation du mien) ;
+> le reste du palier est dans **`f6778e87`**. Contenu vérifié dans HEAD, rien recommité.
