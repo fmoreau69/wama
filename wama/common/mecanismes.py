@@ -504,9 +504,15 @@ MECHANISMS = (
               "audio — plus longue sous-suite commune des mots (RapidFuzz `Indel`, jamais "
               "Levenshtein, qui substitue aux ex-aequo et décale la suite). Chaque mot dit la "
               "qualité de son temps : `exact`, `estimated` (dans la durée réelle des mots corrigés), "
-              "`interpolated` (rien en face — là où l'aligneur acoustique affinera)",
+              "`interpolated` (rien en face). Étage B (`refine_turns`) : un aligneur ACOUSTIQUE "
+              "(contrat `ForcedAlignmentBackend`, choisi au catalogue par sa tâche `alignment` et sa "
+              "langue) reprend les seuls mots estimés, par fenêtres que tiennent leurs voisins sûrs, "
+              "coupées entre deux mots au-delà de sa capacité ; ils deviennent `aligned`. Le module "
+              "ne charge aucun modèle : il reçoit le geste d'alignement",
               'wama/common/services/word_anchoring.py', 'wama/transcriber/TRANSCRIBER_CORRECTION.md §10.5',
-              annexes=('wama/common/tests_word_anchoring.py',),
+              annexes=('wama/common/tests_word_anchoring.py',
+                       'wama/common/backends/forced_alignment_base.py',
+                       'wama/common/backends/wav2vec2_aligner_backend.py'),
               depends_on=('text_metrics',)),
     Mechanism('result_evaluation', 'Évaluation d\'un résultat contre sa référence',
               "Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référence, "

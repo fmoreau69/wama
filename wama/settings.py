@@ -91,6 +91,8 @@ MODEL_PATHS = {
         'vibevoice': AI_MODELS_DIR / "models" / "speech" / "vibevoice",
         'qwen_asr': AI_MODELS_DIR / "models" / "speech" / "qwen_asr",
         'diarization': AI_MODELS_DIR / "models" / "speech" / "diarization",
+        # Aligneurs acoustiques (alignement forcé, étage B — `Wav2Vec2AlignerBackend`).
+        'alignment': AI_MODELS_DIR / "models" / "speech" / "alignment",
         'resemble_enhance': AI_MODELS_DIR / "models" / "speech" / "resemble-enhance",
         'deepfilternet': AI_MODELS_DIR / "models" / "speech" / "deepfilternet",
         'kokoro': AI_MODELS_DIR / "models" / "speech" / "kokoro",

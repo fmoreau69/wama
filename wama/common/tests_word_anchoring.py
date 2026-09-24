@@ -62,3 +62,110 @@ class AnchorTurnsTest(SimpleTestCase):
     def test_nothing_to_anchor_on_gives_nothing(self):
         self.assertIsNone(anchor_turns([{'text': 'le chat'}], []))
         self.assertIsNone(anchor_turns([{'text': 'le chat'}], [{'word': 'x', 'start': None}]))
+
+
+class _FakeAligner:
+    """An aligner that 'hears' each word at a fixed absolute time, and records its windows."""
+
+    def __init__(self, heard, fail=False):
+        self.heard, self.fail, self.windows = heard, fail, []
+
+    def __call__(self, start, end, words):
+        from wama.common.backends.forced_alignment_base import AlignedWord
+        self.windows.append((start, end, list(words)))
+        if self.fail:
+            raise RuntimeError('boom')
+        out = []
+        for w in words:
+            if w not in self.heard:
+                out.append(None)
+                continue
+            s, e = self.heard[w]
+            out.append(AlignedWord(start=s - start, end=e - start, score=0.8))
+        return out
+
+
+class RefineTurnsTest(SimpleTestCase):
+    """Stage B: only the words no model heard are handed to the acoustic aligner."""
+
+    def _anchored(self, text):
+        return anchor_turns([{'text': text}], ASR)[0]
+
+    def test_only_unsure_words_are_realigned_and_guards_bound_the_window(self):
+        from wama.common.services.word_anchoring import refine_turns
+        aligner = _FakeAligner({'chat': (0.25, 0.55), 'le': (9, 9), 'dort': (9, 9)})
+        turns, report = refine_turns(self._anchored('le chat dort'), aligner, max_seconds=60)
+        words = turns[0]['words']
+        self.assertEqual((0.25, 0.55, 'aligned', 0.8),
+                         tuple(words[1][k] for k in ('start', 'end', 'timing', 'probability')))
+        self.assertEqual([(0.0, 0.2, 'exact'), (0.6, 1.0, 'exact')],
+                         [(w['start'], w['end'], w['timing']) for w in (words[0], words[2])],
+                         'a guard keeps its own time whatever the aligner says')
+        self.assertEqual([(0.0, 1.0, ['le', 'chat', 'dort'])], aligner.windows)
+        self.assertEqual({'unsure': 1, 'aligned': 1, 'windows': 1, 'failed': 0, 'too_long': 0},
+                         report)
+
+    def test_a_failing_window_keeps_the_stage_a_estimate(self):
+        from wama.common.services.word_anchoring import refine_turns
+        before = self._anchored('le chat dort')
+        turns, report = refine_turns(before, _FakeAligner({}, fail=True), max_seconds=60)
+        self.assertEqual(before[0]['words'], turns[0]['words'])
+        self.assertEqual(1, report['failed'])
+
+    def test_a_word_the_aligner_cannot_spell_sits_between_aligned_neighbours(self):
+        from wama.common.services.word_anchoring import refine_turns
+        anchored = self._anchored('le chat 12 dort')
+        turns, _ = refine_turns(anchored, _FakeAligner({'chat': (0.2, 0.4)}), max_seconds=60)
+        number = turns[0]['words'][2]
+        self.assertEqual('interpolated', number['timing'])
+        self.assertTrue(0.4 <= number['start'] <= number['end'] <= 0.6, number)
+
+    def test_a_run_longer_than_the_aligner_is_cut_between_words(self):
+        from wama.common.services.word_anchoring import refine_turns
+        asr = _words(('a', 0.0, 0.5), ('b', 100.0, 100.5))
+        text = 'a ' + ' '.join(f'w{i}' for i in range(40)) + ' b'
+        anchored = anchor_turns([{'text': text}], asr)[0]
+        aligner = _FakeAligner({})
+        refine_turns(anchored, aligner, max_seconds=20)
+        self.assertGreater(len(aligner.windows), 1)
+        for start, end, words in aligner.windows:
+            self.assertLessEqual(end - start, 20)
+        seen = {w for _, _, words in aligner.windows for w in words}
+        self.assertLessEqual({f'w{i}' for i in range(40)}, seen, 'no word is left out of a window')
+
+    def test_nothing_unsure_calls_nothing(self):
+        from wama.common.services.word_anchoring import refine_turns
+        aligner = _FakeAligner({})
+        _, report = refine_turns(self._anchored('le chien dort'), aligner, max_seconds=60)
+        self.assertEqual([], aligner.windows)
+        self.assertEqual(0, report['unsure'])
+
+
+class AlignEmissionTest(SimpleTestCase):
+    """The Viterbi core of the wav2vec2 aligner, on a hand-made emission (no network)."""
+
+    def setUp(self):
+        try:
+            import torchaudio.functional  # noqa: F401
+        except Exception:
+            self.skipTest('torchaudio absent from this venv')
+
+    def test_each_word_gets_the_frames_of_its_letters(self):
+        import torch
+        from wama.common.backends.wav2vec2_aligner_backend import align_emission
+        # alphabet: 0 = blank, 1 = 'a', 2 = 'b' ; 10 frames of 0.1 s
+        frames = [0, 1, 1, 0, 0, 0, 2, 2, 0, 0]
+        emission = torch.full((1, len(frames), 3), -10.0)
+        for t, k in enumerate(frames):
+            emission[0, t, k] = 0.0
+        out = align_emission(emission, [[1], [], [2]], blank=0, seconds_per_frame=0.1)
+        self.assertEqual((0.1, 0.3), (out[0].start, out[0].end))
+        self.assertIsNone(out[1], 'a word without letters is left to the caller')
+        self.assertEqual((0.6, 0.8), (out[2].start, out[2].end))
+        self.assertGreater(out[0].score, 0.9)
+
+    def test_too_short_a_window_is_refused(self):
+        import torch
+        from wama.common.backends.wav2vec2_aligner_backend import align_emission
+        with self.assertRaises(ValueError):
+            align_emission(torch.zeros((1, 2, 3)), [[1, 1, 2]], blank=0, seconds_per_frame=0.02)

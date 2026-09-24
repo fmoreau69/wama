@@ -261,3 +261,86 @@ class TranscriberEvaluationTest(TestCase):
         ports = {p['id']: p for p in studio_node_ports('transcriber')['inputs']}
         self.assertIn('reference_result', ports)
         self.assertEqual(['document'], ports['reference_result']['types'])
+
+    # ── Étage B : l'aligneur acoustique du catalogue reprend ce que l'étage A a estimé ─────────
+    def _aligner_in_catalogue(self, languages=('fr',)):
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.create(
+            model_key='transcriber:wav2vec2-fr-aligner', name='aligneur', source='transcriber',
+            hf_id='org/aligneur', capabilities={'task': 'alignment', 'languages': list(languages)},
+            composition={'runtime': {'engine': 'transformers'}})
+
+    def _anchored_import(self):
+        card = self._whisper_card()
+        card.language = 'fr'
+        card.save()
+        imported = self._transcript('', status='PENDING', audio=self.AUDIO, segments_json=None)
+        with self.captureOnCommitCallbacks() as scheduled:
+            self._import(imported, self.SONAL.encode(), 'export_sonal.txt')
+        imported.refresh_from_db()
+        return imported, scheduled
+
+    def _run_alignment(self, item, heard):
+        """Runs the stage-B task with a fake acoustic model that hears `heard` ({word: (s, e)})."""
+        from unittest.mock import patch
+        from wama.common.backends.forced_alignment_base import AlignedWord
+        from wama.transcriber.workers import align_existing_result
+
+        class FakeAligner:
+            sample_rate, max_audio_seconds = 16000, 60.0
+            loaded = None
+
+            def load(self, repo):
+                FakeAligner.loaded = repo
+                return True
+
+            def unload(self):
+                pass
+
+            def align(self, wave, words):
+                start = wave          # the fake decoder hands over the window START
+                return [AlignedWord(heard[w][0] - start, heard[w][1] - start, 0.7)
+                        if w in heard else None for w in words]
+
+        with patch('wama.transcriber.workers.close_old_connections'), \
+                patch('wama.common.backends.manager.backend_for_model', return_value=FakeAligner), \
+                patch('wama.common.utils.audio_decode.decode_window',
+                      side_effect=lambda path, sr, start, duration: (start, sr)), \
+                patch('wama.model_manager.services.select_model',
+                      side_effect=lambda **kw: __import__('wama.model_manager.models', fromlist=['x'])
+                      .AIModel.objects.filter(model_key__in=kw['candidates']).first()):
+            outcome = align_existing_result.run(item.pk)
+        item.refresh_from_db()
+        return outcome, FakeAligner.loaded
+
+    def test_an_anchored_import_schedules_the_acoustic_alignment_after_commit(self):
+        imported, scheduled = self._anchored_import()
+        self.assertEqual('fr', imported.language, 'the language heard by the sibling ASR')
+        self.assertEqual(1, len(scheduled), 'stage B is queued once the import is committed')
+
+    def test_a_timed_import_schedules_nothing(self):
+        item = self._transcript(text='', status='PENDING')
+        with self.captureOnCommitCallbacks() as scheduled:
+            self._import(item, SRT_REFERENCE.encode(), 'autre.srt')
+        self.assertEqual([], scheduled)
+
+    def test_only_estimated_words_are_realigned_by_the_catalogue_aligner(self):
+        self._aligner_in_catalogue()
+        imported, _ = self._anchored_import()
+        outcome, repo = self._run_alignment(imported, {'chat': (0.25, 0.55), 'euh': (2.3, 2.4)})
+        self.assertTrue(outcome['ok'], outcome)
+        self.assertEqual('org/aligneur', repo, 'the repository comes from the catalogue')
+        chat = imported.segments_json[0]['words'][1]
+        self.assertEqual((0.25, 0.55, 'aligned'), (chat['start'], chat['end'], chat['timing']))
+        le = imported.segments_json[0]['words'][0]
+        self.assertEqual((0.0, 0.2, 'exact'), (le['start'], le['end'], le['timing']))
+        self.assertEqual(2, outcome['aligned'])
+
+    def test_no_aligner_for_the_language_keeps_the_estimates(self):
+        self._aligner_in_catalogue(languages=('de',))
+        imported, _ = self._anchored_import()
+        before = imported.segments_json
+        outcome, repo = self._run_alignment(imported, {'chat': (0.25, 0.55)})
+        self.assertEqual('aucun aligneur', outcome.get('skipped'))
+        self.assertIsNone(repo)
+        self.assertEqual(before, imported.segments_json)
