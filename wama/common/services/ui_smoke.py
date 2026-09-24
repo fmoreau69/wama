@@ -2089,6 +2089,141 @@ def register_duplicate_delete_scenarios():
 # croire que le tour est joué. Enregistrer déclenche selon les apps une relance de traitement
 # (donc du GPU) : la seconde moitié se traitera avec les gestes 8-13, sur le converter en CPU
 # (WAMA_VERIFICATION §4). Un scénario qui promet plus qu'il ne mesure est pire qu'absent.
+# Modal behaviour checks, added 2026-09-24 to THIS gesture rather than a new scenario (one
+# gesture, one place) while every app's item modal moved onto the shared cycle
+# `WamaParams.settingsModal`, which destroys and rebuilds the modal on each open:
+#   a. FIDELITY — each modal field shows the value the card's ⚙ carries (the `data-*` derived
+#      from the schema by the `card_gear` brick): the modal tells what is stored;
+#   b. REOPEN on the same page — closing then reopening gives the same fields and values
+#      (listeners left by a destroyed modal would target the same-id fields of the new one);
+#   c. APP ACTIONS — each button in the footer's left zone (`left_html`: "Par défaut",
+#      "Sauver comme profil"…) has a visible effect on a PERTURBED form: a modal opens, or the
+#      perturbed fields change.
+_JS_MODAL_FORM = """() => {
+    const m = [...document.querySelectorAll('.modal.show')].pop();
+    if (!m) return null;
+    const out = {};
+    m.querySelectorAll('.modal-body [name], .modal-body [data-param]').forEach(el => {
+        const n = el.getAttribute('data-param') || el.getAttribute('name');
+        if (!n || el.type === 'hidden') return;
+        if (el.type === 'radio') { if (el.checked) out[n] = el.value; return; }
+        out[n] = el.type === 'checkbox' ? String(el.checked) : String(el.value);
+    });
+    return out;
+}"""
+_JS_GEAR_DATA = """(sel) => {
+    const b = [...document.querySelectorAll(sel)].find(x => x.offsetParent !== null);
+    if (!b) return null;
+    const out = {};
+    Object.keys(b.dataset).forEach(k => {
+        out[k.replace(/[A-Z]/g, c => '_' + c.toLowerCase())] = b.dataset[k];
+    });
+    return out;
+}"""
+_JS_FOOTER_EXTRA_ACTIONS = """() => {
+    const m = [...document.querySelectorAll('.modal.show')].pop();
+    const foot = m && m.querySelector('.modal-footer');
+    if (!foot) return [];
+    return [...foot.querySelectorAll('button')]
+        .filter(b => !b.matches('.btn-primary, .btn-success, [data-bs-dismiss]'))
+        .map(b => b.textContent.trim()).filter(Boolean);
+}"""
+_JS_PERTURB_FORM = """() => {
+    const m = [...document.querySelectorAll('.modal.show')].pop();
+    const touched = [];
+    m && m.querySelectorAll('.modal-body input[type=range], .modal-body input[type=number]').forEach(el => {
+        if (el.min === '' || el.offsetParent === null || String(el.value) === String(el.min)) return;
+        el.value = el.min;
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        el.dispatchEvent(new Event('change', {bubbles: true}));
+        touched.push(el.getAttribute('data-param') || el.getAttribute('name'));
+    });
+    return touched;
+}"""
+_JS_CLICK_FOOTER_ACTION = """(label) => {
+    const m = [...document.querySelectorAll('.modal.show')].pop();
+    const b = m && [...m.querySelectorAll('.modal-footer button')].find(x => x.textContent.trim() === label);
+    if (!b) return false; b.click(); return true;
+}"""
+_JS_HIDE_TOP_MODAL = """() => {
+    const m = [...document.querySelectorAll('.modal.show')].pop();
+    const i = m && bootstrap.Modal.getInstance(m); if (i) i.hide();
+}"""
+
+
+def _same_shown_value(shown, stored):
+    """Display equality: '1.0' and '1' are one number, 'True' and 'true' one boolean."""
+    a, b = str(shown), str(stored)
+    if a == b or a.lower() == b.lower():
+        return True
+    try:
+        return float(a) == float(b)
+    except ValueError:
+        return False
+
+
+def _modal_fidelity(page, gear_selector):
+    """(compared field count, mismatches) between the open modal and the ⚙ `data-*`."""
+    form = page.evaluate(_JS_MODAL_FORM) or {}
+    gear = page.evaluate(_JS_GEAR_DATA, gear_selector) or {}
+    compared = [n for n in form if n in gear and gear[n] not in ('', 'None')]
+    return len(compared), [f'{n}: shown {form[n]!r} ≠ stored {gear[n]!r}'
+                           for n in compared if not _same_shown_value(form[n], gear[n])]
+
+
+def _reopen_modal(page, gear_selector):
+    page.evaluate(_JS_HIDE_TOP_MODAL)
+    page.wait_for_selector('.modal.show', state='detached', timeout=8000)
+    page.wait_for_timeout(400)
+    page.locator(f'{gear_selector}:visible').first.click(timeout=15000)
+    page.wait_for_selector('.modal.show', timeout=8000)
+    page.wait_for_timeout(1500)   # catalogue options, capabilities (asynchronous)
+
+
+def _modal_behaviour(page, gear_selector):
+    """Checks a, b, c on the open modal. Returns (summary, failure message or None) and leaves
+    a FRESHLY reopened modal, so the save half of the gesture starts from an untouched form."""
+    page.wait_for_timeout(1500)
+    n_fields = len(page.evaluate(_JS_MODAL_FORM) or {})
+    n, gaps = _modal_fidelity(page, gear_selector)
+    if gaps:
+        return '', (f"the modal does NOT show what is stored ({len(gaps)} of {n} compared "
+                    f"field(s)): {gaps[:3]}")
+    _reopen_modal(page, gear_selector)
+    n2_fields = len(page.evaluate(_JS_MODAL_FORM) or {})
+    n2, gaps2 = _modal_fidelity(page, gear_selector)
+    if n2_fields != n_fields or gaps2:
+        return '', (f"reopened modal differs: {n_fields} → {n2_fields} field(s)"
+                    + (f", mismatches {gaps2[:3]}" if gaps2 else ''))
+    effects = []
+    for label in page.evaluate(_JS_FOOTER_EXTRA_ACTIONS):
+        touched = page.evaluate(_JS_PERTURB_FORM)
+        before = page.evaluate(_JS_MODAL_FORM) or {}
+        modals_before = page.evaluate("() => document.querySelectorAll('.modal.show').length")
+        toasts_before = page.evaluate("() => document.querySelectorAll('.wama-toast').length")
+        page.evaluate(_JS_CLICK_FOOTER_ACTION, label)
+        page.wait_for_timeout(800)
+        opened = page.evaluate("() => document.querySelectorAll('.modal.show').length") > modals_before
+        # A shared toast (`WamaApp.toast`) is a visible answer too — e.g. « Sauver comme profil »
+        # on an item without output format says why it cannot save.
+        toast = page.evaluate("(n) => { const t = [...document.querySelectorAll('.wama-toast')];"
+                              " return t.length > n ? t[t.length - 1].textContent.trim() : ''; }",
+                              toasts_before)
+        after = page.evaluate(_JS_MODAL_FORM) or {}
+        changed = [k for k in touched if before.get(k) != after.get(k)]
+        if not (opened or changed or toast):
+            return '', (f"footer action « {label} » has NO visible effect "
+                        f"({len(touched)} field(s) perturbed, no modal opened, no toast)")
+        effects.append(f"« {label} » → " + ('opens a modal' if opened else
+                       f'{len(changed)} field(s) reset' if changed else f'toast « {toast[:60]} »'))
+        if opened:
+            page.evaluate(_JS_HIDE_TOP_MODAL)
+            page.wait_for_timeout(600)
+    _reopen_modal(page, gear_selector)   # untouched form for the save half
+    return (f"; {n} field(s) faithful to the ⚙, reopened identical"
+            + (f", {', '.join(effects)}" if effects else '')), None
+
+
 def check_app_settings(app: str, url_path: str):
     """Le ⚙ d'un élément ouvre-t-il une modale de paramètres utilisable ? (ok, detail)."""
     from wama.common.services.nightly_tests import SkipScenario
@@ -2232,6 +2367,11 @@ def check_app_settings(app: str, url_path: str):
                     return False, (f"modale « {titre} » ouverte mais SANS aucun champ de saisie "
                                    "— l'ouverture réussit, le service rendu est nul")
 
+                # Modal behaviour: fidelity, same-page reopen, app footer actions (see above).
+                behaviour, broken = _modal_behaviour(page, SEL_GEAR)
+                if broken:
+                    return False, broken
+
                 # ══ SECONDE MOITIÉ DU GESTE 2 : modifier → enregistrer → relire ══════════
                 #
                 # ⚠ DÉBLOQUÉE LE 2026-09-06, et ce qui la bloquait était une SUPPOSITION.
@@ -2359,7 +2499,7 @@ def check_app_settings(app: str, url_path: str):
                                 demi += ", valeur d'origine rétablie"
 
                 detail = (f"⚙ cliqué → modale « {titre} » ouverte avec {champs} champ(s) ; "
-                          f"graphies : {graphies or '—'}" + demi)
+                          f"graphies : {graphies or '—'}" + behaviour + demi)
             finally:
                 navigateur.close()
     except SkipScenario:

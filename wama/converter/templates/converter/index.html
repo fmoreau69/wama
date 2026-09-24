@@ -140,25 +140,14 @@ Actions de l'inspecteur ne s'affichait jamais pour converter (aucune erreur cons
 
 {# ── Modals ──────────────────────────────────────────────────────────────── #}
 {% block extra_modals %}
-<!-- Modal paramètres item -->
-<div class="modal fade" id="jobSettingsModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content bg-dark text-light border-secondary">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title">
-                    <i class="fas fa-sliders-h" style="color:#20c997;"></i>
-                    Paramètres — <span id="jobSettingsFilename"></span>
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="jobSettingsBody">
-                <!-- Populated by JS -->
-            </div>
-            {# Pied de modale COMMUN (MODAL_ACTIONS_AUDIT §3) — ids conservés pour converter.js #}
-            {% include 'common/_settings_modal_footer.html' with save_id='jobSettingsApplyBtn' save_start_id='jobSettingsStartBtn' save_start_label='Appliquer & (Re)lancer' left_html='<button type="button" class="btn btn-sm btn-outline-secondary" id="jobSettingsResetBtn" title="Remet le formulaire aux défauts — Enregistrer écrit"><i class="fas fa-undo"></i> Par défaut</button> <button type="button" class="btn btn-sm btn-outline-info" id="jobSettingsSaveProfileBtn"><i class="fas fa-bookmark"></i> Sauver comme profil…</button>' %}
-        </div>
-    </div>
-</div>
+{% comment %}Item ⚙ modal: no markup here any more — GENERATED on each open by the shared cycle
+`WamaParams.settingsModal` (converter.js, ported 2026-09-24). Only the SHARED footer it grafts
+remains, with the classes it delegates (`save-settings-btn` / `save-and-restart-btn`) and the
+converter's own actions in the left zone, designated by CLASS (the modal is rebuilt on each open,
+so no id would survive).{% endcomment %}
+<template id="converterSettingsFooterTpl">
+    {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' save_start_label='Appliquer & (Re)lancer' left_html='<button type="button" class="btn btn-sm btn-outline-secondary converter-reset-btn" title="Remet le formulaire aux défauts — Enregistrer écrit"><i class="fas fa-undo"></i> Par défaut</button> <button type="button" class="btn btn-sm btn-outline-info jobSettingsSaveProfileBtn"><i class="fas fa-bookmark"></i> Sauver comme profil…</button>' %}
+</template>
 
 <!-- Modal "Sauver comme profil" -->
 <div class="modal fade" id="saveProfileModal" tabindex="-1">
