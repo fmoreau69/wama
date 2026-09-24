@@ -16986,3 +16986,43 @@ modèle DISTILLÉ (recommandé : ~8 pas, guidage 1 — le CFG double le calcul e
 
 🔚 Redémarrer workers + gunicorn ; rejouer en **ltx-video-13b-0.9.8-distilled-fp8**, 8 pas,
 guidage 1 ; puis 12-15 s pour voir la continuation.
+
+## §PALIER — 2026-09-24 (soir), « describer : le traitement générique de bout en bout (17/17 sur la jumelle) — et la card mère d'un lot figée partout » — ✅ LIVRÉ (`a3ae0653`)
+
+Suite du palier « describer_01 : le ⚙ » ci-dessus (son reste `describer_01.processing`).
+**D'abord l'infra** : le worker Celery `gpu` était MORT depuis 13:35:53 (dump WSL à la même
+seconde, après un OOM CUDA de la vidéo imager) et rien ne le relance — toute tâche de la file `gpu`
+attendait. Relancé SEUL, avec l'environnement de `start_wama_prod.sh` ; `describer.processing` vert.
+
+**Trois défauts, un commun** :
+- **Nature** — `tasks_gen` lisait la colonne DÉCLARÉE (`processing.backend_nature_field` ←
+  `NATURE_FIELD = 'detected_type'`), `views_gen` supposait `media_type` : l'upload généré n'écrivait
+  jamais la colonne que la tâche lisait (« nature '' sans backend déclaré »). `views_gen` lit
+  désormais la même déclaration ; le LOT ne reçoit la nature que s'il porte la colonne.
+- **Résultat** — le gabarit ne servait que `output_file` : SUCCESS puis téléchargement 501.
+  `views_gen` sert le résultat DÉCLARÉ (`backend_result`) : fichier → sa colonne, texte → `.txt`
+  nommé par `compose_output_name` ; `make_batch_views(output_text=…)` pour le ZIP de lot.
+- **COMMUN** — `batch_processing` était rouge sur describer RÉEL aussi (contre-épreuve) : la card
+  mère gardait les compteurs du dernier rendu serveur pendant le traitement ; seul le converter
+  passait, ses jobs finissant avant le rechargement de « Démarrer tout ». `queue-actions.js` les
+  recalcule depuis le `data-status` des filles ; le ZIP de lot est rendu dès que l'app le déclare,
+  masqué sans sortie (il était RETIRÉ, donc jamais montré sans rechargement). Profite aussi au
+  volet de lot de l'inspecteur, qui lit ces compteurs.
+- Instrument : la sonde ZIP prenait le 1ᵉʳ lien du groupe — celui d'une fille (« NON-ZIP » d'un .txt).
+
+Tests `NatureFieldAgreementTest`, `DeclaredResultDownloadTest` (10 apps). Gestes : `describer_01`
+17/17 ; `describer.batch_processing` vert ; contre-épreuves `converter.batch_processing`,
+`delete_from_batch` (converter, describer, reader) verts.
+
+**Question de Fabien — uniformiser le NOM de la route d'édition ?** La convention existe déjà :
+`WAMA_APP_CONVENTIONS §3.1` = `settings/<int:pk>/`, nom `update_settings`. Seul composer s'y
+conforme entièrement. Les corps diffèrent réellement (relevé des 10 vues) : lecture JSON/FormData
+(3 apps sur `read_settings_payload`), refus RUNNING (absent chez reader, transcriber, anonymizer),
+relance dans la vue (composer `restart` défaut 1, anonymizer défaut 0), forme de réponse (10
+formes), validations propres. ⚠ L'`update_settings` de l'anonymizer est une route GLOBALE sans pk,
+qui contredit la convention. Non renommé : décision et coordination (transcriber, imager en cours
+dans d'autres sessions).
+
+⚠ Budget de langue : `code` mesuré 2737 pour 2736 déclarés, `noms de méthodes de test` 1313 pour
+1312 — AUCUN apport de ce palier (relevé HEAD ↔ arbre sur tous les fichiers modifiés) : l'écart est
+déjà dans HEAD.
