@@ -371,3 +371,40 @@ un outil externe : dupliquer la card audio dans le lot, reprendre le fichier sur
 RÉ-importe (jamais d'ASR à sa place). Un document horodaté (SRT, VTT) s'écrit comme une sortie ASR ;
 **sans temps** (Sonal, texte), aucun temps n'est inventé : l'édition synchronisée de ce texte attend
 l'**alignement forcé** (chantier suivant, qui sert aussi VibeVoice et Qwen).
+
+**10.5 Alignement d'un texte sans temps — deux étages (plan acté par Fabien le 2026-09-23)**
+
+Le problème n'est pas le choix d'un modèle mais l'ÉCHELLE : un aligneur acoustique aligne un
+extrait court (Qwen3-ForcedAligner : 5 min par appel ; un aligneur CTC : une table temps × texte
+impossible sur 1 h). Il faut d'abord des ANCRES qui découpent le texte. Le découpage des audios
+longs EXISTE déjà (`workers._transcribe_maybe_chunked`, sous le contrat `max_audio_seconds` du
+commun) : l'aligneur sera un moteur de plus sous ce contrat, et c'est l'étage A qui dit à chaque
+morceau d'audio quels mots du texte lui reviennent.
+
+- **Étage A ✅ (2026-09-23) — ancrage sur les mots de l'ASR, sans modèle** (brique commune
+  `common/services/word_anchoring.py`) : chaque mot du texte retrouve l'heure du même mot entendu
+  par l'ASR (plus longue sous-suite commune des mots) ; un mot CORRIGÉ se place dans la durée réelle
+  des mots que l'ASR avait entendus à sa place (`estimated`) ; un mot que l'ASR n'a pas entendu
+  (« euh » souvent) se place entre ses voisins (`interpolated`). Branché sur l'import d'un
+  **résultat existant** sans temps (§10.4) : ancres = la sortie ASR de la card avant l'import, sinon
+  d'une card SŒUR sur le même audio (un double du lot) ; un texte ancré s'écrit comme une sortie
+  ASR (segments + lignes, donc éditeur, SRT, comparaison entre moteurs). Les extraits Sonal servent
+  de contrôle (tours ancrés hors de leur extrait = signalés en console). Au relancement, la card
+  garde ses ancres.
+  **Mesuré sur données réelles** (versions corrigées privées de leurs temps, ré-ancrées sur leur
+  ASR) : #172 et #173 100 % de mots retrouvés, écart nul au temps connu ; #135 (la seule vraie
+  correction du dépôt, 14 859 mots) 99,7 %, écart médian et p95 nuls, maximum 4,96 s — sur un
+  passage corrigé, où le temps ENREGISTRÉ vient peut-être du prorata de l'éditeur ; 1,4 s de calcul.
+- **Étage B ⏳ — aligneur acoustique** sous un contrat d'alignement au commun (à côté de
+  `speech_to_text_base`, `max_audio_seconds` hérité) ; premier moteur visé
+  `jonatasgrosman/wav2vec2-large-xlsr-53-french` (Apache-2.0, `transformers` + `torchaudio.
+  forced_align`, déjà dans le venv — aucune bibliothèque de plus). Il n'affine que les mots
+  `estimated`/`interpolated`, et sert quand aucune sortie ASR n'existe (Whisper fournit alors les
+  ancres). Le découpage existant apprendra à couper ENTRE deux mots, ce qui lèvera aussi sa limite
+  de coupe à intervalle fixe.
+- **Écartés, avec la raison (prospection du 2026-09-23)** : Qwen3-ForcedAligner-0.6B (Apache-2.0,
+  français) exige `qwen-asr` — simulation : `accelerate` 1.6 → 1.12, `nvidia-nccl-cu12` déplacé,
+  + DyNet/nagisa/soynlp — et sa variante `-hf` un transformers installé depuis les sources ;
+  MMS_FA (torchaudio) : licence CC-BY-NC 4.0.
+  ⚠ Relevé au passage : `nvidia-nccl-cu12` est en 2.30.4 dans `venv_linux` quand torch exige 2.27.5
+  — dérive préexistante, signalée, non corrigée.

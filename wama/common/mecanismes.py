@@ -498,6 +498,16 @@ MECHANISMS = (
               "(verbatim) ; une référence vide rend un taux INDÉFINI, jamais zéro",
               'wama/common/services/text_metrics.py', 'docs/construction/ia/WAMA_QUALITE.md',
               annexes=('wama/common/tests_text_metrics.py',)),
+    Mechanism('word_anchoring', 'Ancrage d\'un texte sans temps sur des mots horodatés',
+              "Étage A de l'alignement forcé, SANS modèle : un texte fait ailleurs (export Sonal, "
+              "texte) retrouve l'heure de chacun de ses mots parmi ceux d'une sortie ASR de la même "
+              "audio — plus longue sous-suite commune des mots (RapidFuzz `Indel`, jamais "
+              "Levenshtein, qui substitue aux ex-aequo et décale la suite). Chaque mot dit la "
+              "qualité de son temps : `exact`, `estimated` (dans la durée réelle des mots corrigés), "
+              "`interpolated` (rien en face — là où l'aligneur acoustique affinera)",
+              'wama/common/services/word_anchoring.py', 'wama/transcriber/TRANSCRIBER_CORRECTION.md §10.5',
+              annexes=('wama/common/tests_word_anchoring.py',),
+              depends_on=('text_metrics',)),
     Mechanism('result_evaluation', 'Évaluation d\'un résultat contre sa référence',
               "Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référence, "
               "lecture du résultat et de la référence, modèle, métriques) et la brique fait le "
