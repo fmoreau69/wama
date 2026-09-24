@@ -98,7 +98,11 @@ def render_index(manifest: dict) -> tuple:
     route_batch_preview = resolve_route('batch_preview', noms_routes) or 'batch_preview'
     route_batch_template = resolve_route('batch_template', noms_routes) or 'batch_template'
     route_global_progress = resolve_route('global_progress', noms_routes) or 'global_progress'
-    route_update = resolve_route('update', noms_routes)
+    # Item-edit route: an alias counts only if its declared pattern takes `<int:pk>`
+    # (`urls_gen.ITEM_ROUTES`, 2026-09-24) — without it no ⚙ opener is emitted.
+    motifs_routes = {str(e.get('name') or ''): str(e.get('pattern') or '')
+                     for e in (proc.get('extra_routes') or [])}
+    route_update = resolve_route('update', noms_routes, motifs_routes)
     champs_params = list(((proc.get('model_spec') or {}).get('item') or {})
                          .get('params_fields') or [])
 

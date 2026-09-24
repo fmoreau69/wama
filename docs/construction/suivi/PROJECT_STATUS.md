@@ -16931,3 +16931,36 @@ les jumelles, mesuré par `describer_01.settings` ; puis `backend_routes` + `tas
 > bloc de palier sont entrés dans HEAD par **`03d0814b`** (commit d'une autre instance, « la
 > CONTINUATION », qui a pris ces deux fichiers co-édités en entier pendant la préparation du mien) ;
 > le reste du palier est dans **`f6778e87`**. Contenu vérifié dans HEAD, rien recommité.
+
+## §PALIER — 2026-09-24, « describer_01 : le ⚙ ouvrait-il une modale masquée ? Non — aucun ouvreur. Corrigé au générateur » — ✅ LIVRÉ
+
+Fabien : *« pour describer, tu es sûr ? parfois la modale est simplement masquée. Si ça fonctionne
+sur le converter, pourquoi pas sur le describer ? »*. Mon diagnostic précédent venait d'une LECTURE
+du code ; mesuré cette fois au navigateur, sur les deux jumelles, élément monté par la voie
+générique : sur `converter_01` le clic crée et affiche `settingsModal<id>` ; sur `describer_01`
+AUCUNE modale n'est créée, même masquée, et la console dit « [queue-actions] ⚙ cliqué (#159) mais
+aucune app n'a déclaré d'ouvreur ». Et sa vue d'édition générée était un bouchon 501.
+
+**Cause** : la route d'édition d'un élément a QUATRE noms dans le parc (relevé des `urls.py`) —
+`update` (converter), `update_options` (describer, avatarizer, synthesizer), `update_settings`
+(composer, enhancer), `save_settings` (reader, transcriber). Le générateur ne connaissait que
+`update`/`update_job` : pas de route résolue ⇒ pas d'ouvreur émis (`templates_gen`) et un bouchon
+en guise de vue (`views_gen`). ⚠ `update_settings` est AUSSI la route GLOBALE de l'anonymizer,
+SANS pk : un alias par nom seul lui aurait donné un corps `(request, pk)` (500 au lieu du 501).
+**Correction, au propriétaire du vocabulaire** (`urls_gen`) : les trois alias + `ITEM_ROUTES` /
+`alias_fits` — un alias de route d'élément n'est retenu que si son MOTIF déclaré (le manifeste le
+porte) prend `<int:pk>`. Lu par le gabarit (ouvreur) et par les vues (corps, et la règle générale
+de copie sous alias). Test générique `ItemEditRouteAliasTest` (les 10 apps + contre-épreuve
+anonymizer), code et test en anglais.
+
+**Jumelle régénérée** (jamais corrigée à la main) : `views` puis `templates` — `describer_01.settings`
+vert (5 champs fidèles au ⚙, réouverture identique, enregistré, relu). Au passage, sa famille
+complète a montré `queue_dnd` rouge : ses `urls.py` dataient du 03/09, sans `merge`/`reorder_queue`
+que le générateur émet aujourd'hui — `urls` régénéré, vert. Reste `describer_01.processing`
+(échec puis erreur de navigation) : c'est la glu de tâche de la jumelle (marche B) ; le geste réel
+`describer.processing` est écarté par défaut du lanceur (GPU), donc non comparé dans ce passage —
+signalé, pas traité.
+
+🔚 **Suivant** : `backend_routes` + `task_skeleton` app par app (marche B1/A2a) ; `composer_01`
+reste à mesurer au ⚙ (file vide dans les gestes : sa voie de lot ne crée pas d'élément, écart déjà
+consigné le 23/09).

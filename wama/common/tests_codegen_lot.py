@@ -821,3 +821,66 @@ class LinkFormViewsTest(SimpleTestCase):
                 src, raison = render_views(extract('app', app))
                 self.assertIsNotNone(src, f'{app} : {raison}')
                 ast.parse(src)
+
+
+class ItemEditRouteAliasTest(SimpleTestCase):
+    """The item-edit route has four measured spellings (`update`, `update_options`,
+    `update_settings`, `save_settings`) and ONE generator rule (2026-09-24).
+
+    Found by the extended `<app>.settings` gesture on `describer_01`: its ⚙ did nothing
+    (« aucune app n'a déclaré d'ouvreur »), because the generated template emits the opener only
+    when it resolves this route, and only `update`/`update_job` were known. And the generated
+    edit view was a 501 stub. ⚠ `update_settings` is ALSO the anonymizer's GLOBAL settings route
+    (no pk): an alias of an item route counts only if its declared pattern takes `<int:pk>`.
+    Measured on every real app, never on one in particular.
+    """
+
+    APPS = ('anonymizer', 'avatarizer', 'composer', 'converter', 'describer', 'enhancer',
+            'imager', 'reader', 'synthesizer', 'transcriber')
+
+    def _manifest(self, app):
+        from wama.common.manifests.ingest import extract
+        return extract('app', app)
+
+    def _item_edit_route(self, manifest):
+        from wama.common.manifests.codegen.urls_gen import route_variants
+        proc = (manifest.get('body') or {}).get('processing') or {}
+        for e in proc.get('extra_routes') or []:
+            if e.get('name') in route_variants('update'):
+                return e
+        return None
+
+    def test_an_item_edit_route_with_pk_gets_the_opener_and_a_conventional_body(self):
+        from wama.common.manifests.codegen.templates_gen import render_index
+        checked = []
+        for app in self.APPS:
+            manifest = self._manifest(app)
+            route = manifest and self._item_edit_route(manifest)
+            if not route or '<int:pk>' not in str(route.get('pattern')):
+                continue
+            view = str(route.get('view') or '').split('.')[-1]
+            src, why = render_views(manifest)
+            self.assertTrue(src, f'{app}: views not generated ({why})')
+            body = _fonction(src, view) or ''
+            self.assertIn('apply_item_settings(', body,
+                          f'{app}: `{view}` should get the conventional edit body, not a stub')
+            files, why = render_index(manifest)
+            self.assertTrue(files, f'{app}: template not generated ({why})')
+            self.assertIn('WamaQueueActions.onSettings(', files['index.html'],
+                          f'{app}: no ⚙ opener emitted')
+            checked.append(app)
+        self.assertIn('describer', checked, 'the case that revealed the defect must be covered')
+
+    def test_a_global_settings_route_without_pk_is_never_taken_for_an_item_route(self):
+        """Counter-check: the anonymizer's `update_settings/` keeps its stub — a `(request, pk)`
+        body on a route without pk would raise TypeError, a 500 instead of the declared 501."""
+        from wama.common.manifests.codegen.urls_gen import alias_fits
+        self.assertFalse(alias_fits('update', 'update_settings', {'update_settings': 'update_settings/'}))
+        self.assertTrue(alias_fits('update', 'update_settings', {'update_settings': 'settings/<int:pk>/'}))
+        manifest = self._manifest('anonymizer')
+        route = self._item_edit_route(manifest)
+        self.assertIsNotNone(route)
+        self.assertNotIn('<int:pk>', route['pattern'])
+        src, why = render_views(manifest)
+        self.assertTrue(src, why)
+        self.assertNotIn('apply_item_settings(', _fonction(src, 'update_settings') or '')

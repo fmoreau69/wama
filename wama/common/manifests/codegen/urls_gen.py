@@ -70,7 +70,16 @@ ROUTE_TABLE = {
 # qu'on veut éviter.
 ROUTE_ALIASES = {
     'stop':   ('cancel',),        # converter : `<pk>/cancel/` → views.cancel
-    'update': ('update_job',),    # converter : route `update` → views.update_job
+    # converter : route `update` → views.update_job.
+    # Item-edit route, measured across the park on 2026-09-24 — `update_options` (describer,
+    # avatarizer, synthesizer), `update_settings` (composer, enhancer), `save_settings` (reader,
+    # transcriber). Without them the generated twin of such an app got NO ⚙ opener (the
+    # template only emits it when it finds this route) and a 501 stub as edit view: measured on
+    # `describer_01`, whose ⚙ did nothing (« aucune app n'a déclaré d'ouvreur »).
+    # ⚠ `update_settings` is ALSO the anonymizer's name for a GLOBAL settings route, without pk.
+    # Hence `ITEM_ROUTES` below: for these, an alias counts only if its declared pattern takes
+    # `<int:pk>` — the same trap as `clear_media` further down, closed by a rule, not by memory.
+    'update': ('update_job', 'update_options', 'update_settings', 'save_settings'),
     # Cadrage A0 : « status n'existe QUE chez converter ; la convention réelle est
     # progress » — même corps ({id, status, progress, …}), seul le nom change. Sans cet
     # alias, le polling généré se gâtait silencieusement sur le converter (mesuré 31/08 :
@@ -115,11 +124,26 @@ def route_variants(canonique: str) -> tuple:
     return (canonique,) + tuple(ROUTE_ALIASES.get(canonique, ()))
 
 
-def resolve_route(canonique: str, declarees) -> str:
+#: Conventional routes that act on ONE element. For them an alias is only an alias if its
+#: declared pattern takes `<int:pk>` (2026-09-24 — anonymizer's `update_settings` is global).
+ITEM_ROUTES = frozenset({'update'})
+
+
+def alias_fits(canonique: str, nom: str, patterns=None) -> bool:
+    """May the declared route `nom` stand for `canonique`? Always, except for an item route
+    whose declared pattern exists and takes no `<int:pk>`. No pattern known → accepted (the
+    previous behaviour: a name alone decided)."""
+    if canonique not in ITEM_ROUTES or not patterns or nom not in patterns:
+        return True
+    return '<int:pk>' in str(patterns[nom])
+
+
+def resolve_route(canonique: str, declarees, patterns=None) -> str:
     """Orthographe RÉELLEMENT déclarée par l'app pour cette route conventionnelle, '' si aucune.
-    `declarees` = noms de routes du manifeste (endpoints ∪ extra_routes)."""
+    `declarees` = noms de routes du manifeste (endpoints ∪ extra_routes) ; `patterns` (optional)
+    = {route name: declared pattern}, which lets `alias_fits` refuse an item route without pk."""
     for nom in route_variants(canonique):
-        if nom in declarees:
+        if nom in declarees and alias_fits(canonique, nom, patterns):
             return nom
     return ''
 
