@@ -363,3 +363,10 @@ vidéo au-delà d'un passage par segments image→vidéo enchaînés (`imager.ta
 Vérifié au navigateur le 2026-09-23 (volet vidéo, serveur de dev) : FastWan 12 s → zone rouge +
 avertissement ; 4 s → bleu ; Mochi → curseur borné à 2 s (« Limite du modèle : 2,8 s ») ; auto →
 curseur libre, cadence rendue à la valeur de l'utilisateur.
+
+**2026-09-23 (nuit) — deux natures d'au-delà.** `duration_extension` vaut `continuation` quand
+l'app déclare `continuation_frames` (LTX : 25 images, conditionnement VIDÉO du passage suivant —
+`LTXVideoBackend._build_continuation_conditions`) et `segments` pour un modèle qui ne sait
+repartir que d'UNE image (FastWan : transitions visibles, constat de Fabien sur 15 s). L'écran
+les distingue : zone **orange** « continué » contre **rouge** « extrapolé » ; l'aide du sélecteur
+dit « (continuable) » ou « (prolongeable, extrapolé) ».

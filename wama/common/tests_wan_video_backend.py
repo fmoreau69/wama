@@ -238,3 +238,19 @@ class SharedPipelineDtypeTest(SimpleTestCase):
             self.assertTrue(backend._load_i2v_pipeline('fastwan-2.2-ti2v-5b'))
         pipeline.from_pretrained.assert_not_called()
         self.assertIsNone(pipeline.from_pipe.call_args.kwargs['torch_dtype'])
+
+
+@skipUnless(HAS_DIFFUSERS, 'diffusers absent de ce venv')
+class LtxContinuationConditionTest(SimpleTestCase):
+    """The LTX continuation conditions on a VIDEO at frame 0, trimmed to 8k+1 frames (the
+    temporal VAE constraint `LTXConditionPipeline` enforces)."""
+
+    def test_the_condition_is_a_video_of_8k_plus_1_frames(self):
+        from PIL import Image
+        from wama.common.backends.ltx_video_backend import LTXVideoBackend
+        frames = [Image.new('RGB', (64, 64), (i, 0, 0)) for i in range(27)]
+        [condition] = LTXVideoBackend()._build_continuation_conditions(frames, 32, 32)
+        self.assertEqual(0, condition.frame_index)
+        self.assertEqual(25, len(condition.video))
+        self.assertEqual(2, condition.video[0].getpixel((0, 0))[0], 'the LAST 25 are kept')
+        self.assertEqual((32, 32), condition.video[0].size)

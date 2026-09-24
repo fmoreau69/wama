@@ -76,3 +76,18 @@ details.wama-param-group[open] > summary.wama-param-group-title::after { transfo
 .wama-param.is-extrapolated .wama-range-val { color: #ff8787 !important; font-weight: 700; }
 .wama-param.is-extrapolated .form-range::-webkit-slider-thumb { background-color: #e35d6a; }
 .wama-param.is-extrapolated .form-range::-moz-range-thumb { background-color: #e35d6a; }
+
+/* Continuation (le modèle reprend les dernières images) : zone ORANGE, entre le natif et
+   l'extrapolé — l'au-delà est cohérent, mais plus long que ce que le modèle a appris. */
+.wama-range-capped--continuation::-webkit-slider-runnable-track {
+    background: linear-gradient(to right,
+        #3d8bfd 0, #3d8bfd var(--wama-cap-pct, 100%),
+        #f0a13a var(--wama-cap-pct, 100%), #f0a13a 100%);
+}
+.wama-range-capped--continuation::-moz-range-track {
+    background: linear-gradient(to right,
+        #3d8bfd 0, #3d8bfd var(--wama-cap-pct, 100%),
+        #f0a13a var(--wama-cap-pct, 100%), #f0a13a 100%);
+}
+.wama-param .wama-cap-note.is-continued { color: #f5b95e; }
+.wama-param.is-continued .wama-range-val { color: #f5b95e !important; font-weight: 700; }

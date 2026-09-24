@@ -558,3 +558,48 @@ class RelocatedImageListTest(LotImagerMixin, TestCase):
                              gen.generated_images)
             self.assertEqual(0, realign_path_lists(root, apply=False, filtre='imager'),
                              'a second pass finds nothing left to do')
+
+
+class ContinuationTest(TestCase):
+    """LTX continues a video from its LAST FRAMES (2026-09-23): the chained segments of FastWan
+    started from a single image and showed their joints (Fabien, 15 s generation)."""
+
+    def test_ltx_continues_while_fastwan_only_restarts_from_an_image(self):
+        caps = VideoNativeLimitsTest._caps(None, 'ltx-video-13b-0.9.8-distilled')
+        self.assertEqual(('continuation', 25),
+                         (caps['duration_extension'], caps['continuation_frames']))
+        self.assertEqual('segments',
+                         VideoNativeLimitsTest._caps(None, 'fastwan-2.2-ti2v-5b')['duration_extension'])
+
+    def test_segment_count_with_a_continuation_overlap(self):
+        from wama.imager.tasks import _segment_count
+        self.assertEqual(2, _segment_count(257 + 232, 257, 25))   # 257 then 232 fresh frames
+        self.assertEqual(3, _segment_count(257 + 233, 257, 25))
+
+    def test_the_next_segment_receives_the_last_frames_and_drops_them_at_the_joint(self):
+        import tempfile
+        from dataclasses import dataclass
+        from types import SimpleNamespace
+
+        from PIL import Image
+        from wama.imager.tasks import _extend_by_segments
+
+        @dataclass
+        class Params:
+            num_frames: int = 9
+            reference_image: str = None
+            reference_frames: list = None
+
+        seen = []
+
+        def run(params, callback):
+            seen.append([f.getpixel((0, 0))[0] for f in params.reference_frames])
+            return SimpleNamespace(success=True, error=None, video_frames=[
+                Image.new('RGB', (2, 2), (100 + i, 0, 0)) for i in range(9)])
+
+        first = [Image.new('RGB', (2, 2), (i, 0, 0)) for i in range(9)]
+        with tempfile.TemporaryDirectory() as tmp:
+            frames = _extend_by_segments(run, Params(), first, 15, None, tmp, overlap=3)
+        self.assertEqual([[6, 7, 8]], seen, 'the 3 LAST frames condition the next pass')
+        self.assertEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 103, 104, 105, 106, 107, 108],
+                         [f.getpixel((0, 0))[0] for f in frames], 'the 3 repeated frames are dropped')

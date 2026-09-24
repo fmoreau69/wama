@@ -2086,6 +2086,19 @@ class FamilleSansConditionnementTest(TestCase):
         # Counter-test: a total size keeps precedence over the active one.
         self.assertEqual(_identity('qwen3-6-35b-a3b'), ('qwen', (3, 6), 35.0))
 
+    def test_a_hosted_tier_never_pairs_with_open_weights(self):
+        """`Lightricks/LTX-2.3` took the Elo of « LTX-2.3 Pro », the publisher's API tier
+        (2026-09-23). A tier the local name does not carry refuses the pairing."""
+        from .services.benchmark_sync import _compatible, _identity
+        local = _identity('LTX-2.3')
+        self.assertFalse(_compatible(local, _identity('LTX-2.3 Pro'), False,
+                                     'LTX-2.3', 'LTX-2.3 Pro'))
+        self.assertTrue(_compatible(local, _identity('LTX-2.3 Fast'), False,
+                                    'LTX-2.3', 'LTX-2.3 Fast'))
+        # Counter-test: a local model that IS the tier keeps its pairing.
+        self.assertTrue(_compatible(_identity('Foo-2 Pro'), _identity('Foo 2 Pro'), False,
+                                    'Foo-2 Pro', 'Foo 2 Pro'))
+
     def test_un_add_on_n_a_jamais_de_banc(self):
         """Une LoRA porte le nom de son modèle de base : rendue lisible, elle en prenait
         l'Elo (flux-lora-logo-design → 1083, mesuré le 02/09). Hors catégorie, par nature."""

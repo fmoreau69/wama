@@ -113,7 +113,9 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     #: Comment le modèle va AU-DELÀ de `max_duration_s` — absent = il ne va pas au-delà (la
     #: durée est bornée). 'segments' = passages image→vidéo enchaînés, chacun repartant de la
     #: dernière image du précédent : c'est une EXTRAPOLATION, la continuité n'est pas garantie.
-    "duration_extension":  "str — 'segments' (i2v enchaîné, extrapolé) ; absent = borné à max_duration_s",
+    "duration_extension":  "str — 'continuation' (le segment suivant reprend les dernières images : "
+                           "mouvement continu) | 'segments' (repart d'UNE image : extrapolé) ; absent = borné",
+    "continuation_frames": "int — images de la fin d'un passage qui conditionnent le suivant (continuation)",
 }
 
 
@@ -131,7 +133,12 @@ def video_caps_from_declaration(config: Dict[str, Any], tokens=()) -> Dict[str, 
         out["max_frames"] = int(max_frames)
     if fps and max_frames:
         out["max_duration_s"] = round(float(max_frames) / float(fps), 2)
-        if "i2v" in set(tokens or ()):
+        # La CONTINUATION prime : déclarée par l'app quand le moteur sait se conditionner sur
+        # plusieurs images (LTX). Sinon, un modèle image→vidéo peut repartir d'UNE image.
+        if config.get("continuation_frames"):
+            out["duration_extension"] = "continuation"
+            out["continuation_frames"] = int(config["continuation_frames"])
+        elif "i2v" in set(tokens or ()):
             out["duration_extension"] = "segments"
     res = config.get("resolution")
     if isinstance(res, str) and "x" in res:
@@ -150,7 +157,8 @@ def video_limits(caps: Dict[str, Any]) -> Dict[str, Any]:
     if max_s is None and fps and max_frames:
         max_s = round(float(max_frames) / float(fps), 2)
     return {"fps": fps, "max_frames": max_frames, "max_duration_s": max_s,
-            "extension": caps.get("duration_extension")}
+            "extension": caps.get("duration_extension"),
+            "continuation_frames": caps.get("continuation_frames")}
 
 # Clés LEGACY → remplacement canonique (pour normaliser les dicts existants).
 #   `multilingual`/`languages_count` = MORTES (aucun lecteur) → converties en `languages` si possible.

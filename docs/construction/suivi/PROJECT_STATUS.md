@@ -16859,3 +16859,69 @@ avatarizer, contrats, checker, modes nocturnes — OK hors budget des noms de te
 
 🔚 **Suivant** : la passe converter (modale à valeurs chargées par `status`, profils, reset) ; puis
 `backend_routes` + `task_skeleton` app par app.
+
+## §PALIER — 2026-09-24 (nuit), « CONTINUATION VIDÉO (LTX) + paliers hébergés hors appariement » — ✅ LIVRÉ
+
+**Décisions de Fabien** (« ok pour 1 et 2 ») après une vidéo FastWan de 15 s aux jointures
+visibles : ① la continuation par conditionnement VIDÉO avec LTX 0.9.8 ; ② ne plus apparier
+LTX-2.x aux versions « Pro » de l'API.
+- **Continuation** : capacité `duration_extension='continuation'` + `continuation_frames` (25,
+  déclaré sur les deux LTX) ; `LTXVideoParams.reference_frames` → `LTXVideoCondition(video=…,
+  frame_index=0)` (8k+1 garanti) ; `_extend_by_segments(overlap=)` passe les 25 dernières images
+  et retire les 25 reprises à la jointure ; console et écran (zone ORANGE) distinguent
+  continuation et départ d'image (ROUGE). Tests `ContinuationTest` (3), `LtxContinuationConditionTest`.
+- **Paliers hébergés** : `benchmark_sync.HOSTED_TIERS` — LTX-2.3/2.5 passent de « Pro » à « Fast »
+  (encore hébergé : un plafond). Détail : `PROSPECTION_PIPELINE §2026-09-23 (nuit)`.
+- ⚠ Le catalogue montrait `duration_extension='segments'` + `continuation_frames=25` sur LTX juste
+  après ma synchro : un beat `full_sync` du worker `default` (ANCIEN code) a réécrit la clé derrière
+  moi. Se résout au redémarrage des workers — *un worker sans autoreload est un second dépôt de code*.
+
+🔚 Redémarrer workers + gunicorn ; jouer LTX 0.9.8 **fp8** sur 12-15 s (continuation, 1216×704 ou
+720p) et regarder les jointures ; « Prospecter » pour rejuger LTX-2.x (confiance, concurrents vidéo).
+Non joué au GPU : la continuation.
+
+## §PALIER — 2026-09-24, « Converter : la modale ⚙ au cycle commun (9/10) — et le geste ⚙ étendu a trouvé une régression » — ✅ LIVRÉ
+
+Fabien, pendant la passe : *« tu peux aussi faire des tests en playwright pour les comportements de
+l'UI et les gestes utilisateurs »*, puis *« les tests d'usage sont génériques »*, *« ne réinvente
+rien, vérifie que les tests n'existent pas déjà »*, *« la langue doit être en anglais »*. Un premier
+jet de module de scénarios PROPRE au converter a été écrit puis SUPPRIMÉ : le geste générique
+`<app>.settings` (`ui_smoke.check_app_settings`) couvrait déjà ouvrir → modifier → enregistrer →
+recharger → relire. Il est ÉTENDU en place (code en anglais) de trois vérifications qui manquaient :
+**fidélité** (chaque champ montre ce que porte le ⚙), **réouverture** sur la même page, **actions
+d'app** du pied (effet visible : modale, champs remis ou toast, sur un formulaire perturbé).
+`WAMA_VERIFICATION §3` geste 2 à jour.
+
+**Ce que le geste étendu a trouvé au premier passage** :
+- 🔴 **régression de MON portage de l'avatarizer** (même journée) : moteur TTS enregistré
+  `synthesizer:coqui-xtts`, modale générée affichant `auto` — enregistrer aurait écrasé le moteur,
+  en silence. Cause À LA BRIQUE : au remplissage ASYNCHRONE d'un select (`options_source`),
+  `WamaParams` ne restaurait que la valeur courante, jamais la valeur demandée au rendu (absente des
+  options à ce moment-là). Les modales statiques, remplies au chargement et valorisées à
+  l'ouverture, ne vivaient pas ce décalage. Corrigé dans `wama-params.js` (valeur demandée
+  appliquée au premier remplissage, puis le choix de l'utilisateur prime) : toutes les apps en
+  profitent. Rejoué : `avatarizer.settings` vert, appariement 10/10.
+- **`describer_01`** (jumelle) : le ⚙ n'ouvre aucune modale — le générateur n'émet l'ouvreur que
+  s'il trouve une route d'édition d'élément (`templates_gen.py:224`), et `urls_gen.ROUTE_ALIASES`
+  ne connaît que `update`/`update_job` ; la route du describer s'appelle `update_options`. Défaut
+  ANTÉRIEUR, rendu visible. Non corrigé ici : ajouter un alias change aussi les vues générées de
+  toutes les jumelles — à faire au générateur, jamais dans la jumelle.
+
+**Converter** : `WamaParams.settingsModal`, valeurs lues par la vue `status` avant ouverture (les
+options vivent en colonnes que la card ne porte pas toutes), aide moteur par TYPE de média,
+`collect` → `output_format` + `options_json` par le lecteur SCHÉMA `readParamsFrom` (celui de
+l'inspecteur), `decorate` → garde RUNNING, libellé de relance, « Par défaut » et « Sauver comme
+profil » (désignés par CLASSE : la modale est reconstruite à chaque ouverture). Partent la modale
+statique, `applyCurrentModal` et trois handlers. Garde textuelle du profil ré-ancrée (même
+invariant : lecteur schéma). Mesuré sur gunicorn relancé : **famille converter 17/18** (le skip
+`url_import` est la garde de sortie qui refuse le bouclage, attendu, identique avant/après), geste
+⚙ étendu vert (9 champs fidèles, réouverture identique, « Par défaut » remet 4 champs, profil
+répond). Batterie `.settings` + `.voice_language_matching` + `.inspector_actions` sur tout le parc :
+seul rouge = `describer_01.settings` (ci-dessus).
+
+Grille **882/933** (converter 99 %) ; `settings_modal_cycle` **9/10** — seul le transcriber reste
+(autre session). Tests : converter, gardes, modes nocturnes — OK hors budget des noms de tests
+(`gateway/tests.py`, WIP d'autrui).
+
+🔚 **Suivant** : alias `update_options` (et `update_settings`, `save_settings`) au générateur pour
+les jumelles, mesuré par `describer_01.settings` ; puis `backend_routes` + `task_skeleton` app par app.

@@ -233,6 +233,12 @@ def _with_prefix(word: str, segments: list, i: int) -> str:
     return ''.join(words or [word])
 
 
+#: Paliers qui désignent la variante HÉBERGÉE d'un éditeur (API), jamais des poids qu'on installe.
+#: Liste FERMÉE à dessein, à l'inverse de `_words` : ce ne sont pas des qualificatifs de
+#: variante mais des niveaux de service. Un nom local qui les porte les garde compatibles.
+HOSTED_TIERS = frozenset({'pro', 'max', 'ultra', 'plus', 'premium'})
+
+
 def _words(text: str) -> set:
     """
     Jetons PUREMENT alphabétiques (≥ 2 lettres) d'un nom — les mots qui QUALIFIENT la variante.
@@ -365,6 +371,14 @@ def _compatible(a, b, size_required=False, local_name='', third_party_name=''):
     pas) : `taille_requise` est faux pour elles, rien de ce qui précède ne s'y applique.
     """
     if a is None or b is None or a[0] != b[0] or a[1] != b[1]:
+        return False
+    # Un palier COMMERCIAL côté tiers (« LTX-2.3 Pro », « … Max ») que le nom local ne porte
+    # pas désigne la variante hébergée par l'API de l'éditeur, pas nos poids ouverts — relevé le
+    # 2026-09-23 : `Lightricks/LTX-2.3` et `-2.5` prenaient l'Elo de leur version « Pro ». Même
+    # famille que la règle des mots étrangers des LLM ci-dessous, mais pour TOUTES les
+    # catégories et limitée à ces paliers : un média ne publie pas de taille, donc rien d'autre
+    # ne l'aurait écarté.
+    if (_words(third_party_name) & HOSTED_TIERS) - _words(local_name):
         return False
     if size_required:
         if (a[2] is None) != (b[2] is None):
