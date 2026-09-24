@@ -453,14 +453,53 @@
   function redo() { _hist.redo(); }
   function updateUndoButtons() { _hist.syncButtons(); }
 
-  function splitAt(i, off) {                          // Ctrl+Entrée
+  /* ── Mots horodatés : ne plus les perdre (2026-09-24) ──────────────────────────────────── */
+  // Scinder et fusionner JETAIENT les `words` des segments (`words: undefined`) : la correction
+  // perdait l'heure de chaque mot, et une scission tombait au prorata des caractères (écart médian
+  // mesuré 0,16 s, 13 % au-delà de 0,5 s). Ils se CONCATÈNENT à la fusion et se PARTAGENT à la
+  // scission. Un segment dont le texte a été corrigé depuis garde des mots qui ne le redisent plus :
+  // le serveur les réancre sur la sortie ASR quand l'outil Bornes en a besoin (`retime`).
+  function spokenText(words) {
+    return (words || []).map(function (w) { return w.word || ''; }).join('').trim();
+  }
+  function sameText(a, b) {
+    return (a || '').split(/\s+/).join(' ').trim() === (b || '').split(/\s+/).join(' ').trim();
+  }
+  function wordsSayText(s) {
+    return !!(s && s.words && s.words.length && sameText(spokenText(s.words), s.text));
+  }
+  function concatWords(list) {                        // tous en portent → concaténés, sinon aucun
+    if (!list.every(function (s) { return s.words && s.words.length; })) return undefined;
+    return [].concat.apply([], list.map(function (s) { return s.words; }));
+  }
+  // Scission au CURSEUR : les mots d'avant le curseur restent à gauche, et l'heure de la coupe
+  // tombe entre le dernier d'entre eux et le suivant — plus au prorata, dès que les mots existent.
+  function splitWordsAt(s, off) {
+    if (!wordsSayText(s)) return null;
+    const text = s.text || '';
+    let cursor = 0, k = 0;
+    for (; k < s.words.length; k++) {
+      const w = (s.words[k].word || '').trim();
+      const found = w ? text.indexOf(w, cursor) : cursor;
+      if (found < 0 || found >= off) break;
+      cursor = found + w.length;
+    }
+    if (k === 0 || k === s.words.length) return null;
+    const lo = s.words[k - 1].end, hi = Math.max(lo, s.words[k].start);
+    return { left: s.words.slice(0, k), right: s.words.slice(k), at: Math.round((lo + hi) * 500) / 1000 };
+  }
+
+  function splitAt(i, off) {                          // Ctrl+Entrée (en édition)
     pushHistory();
     const s = segments[i]; const text = s.text || '';
     off = Math.max(0, Math.min(text.length, off));
     const st = s.start_time || 0, en = s.end_time || st;
-    const mid = st + (en - st) * (text.length ? off / text.length : 0.5);
-    const seg1 = Object.assign({}, s, { text: text.slice(0, off).trim(), end_time: mid, words: undefined });
-    const seg2 = Object.assign({}, s, { text: text.slice(off).trim(), start_time: mid, words: undefined });
+    const byWords = splitWordsAt(s, off);
+    const mid = byWords ? byWords.at : st + (en - st) * (text.length ? off / text.length : 0.5);
+    const seg1 = Object.assign({}, s, { text: text.slice(0, off).trim(), end_time: mid,
+                                        words: byWords ? byWords.left : undefined });
+    const seg2 = Object.assign({}, s, { text: text.slice(off).trim(), start_time: mid,
+                                        words: byWords ? byWords.right : undefined });
     segments.splice(i, 1, seg1, seg2);
     refresh(); enterEditAt(i + 1, 0);                 // curseur au début de la 2e moitié
   }
@@ -468,8 +507,9 @@
     pushHistory();
     const a = segments[i], b = segments[j];
     const join = (a.text || '').trim().length + 1;    // position du curseur à la jonction
+    a.words = concatWords([a, b]);
     a.text = ((a.text || '').trim() + ' ' + (b.text || '').trim()).trim();
-    a.end_time = b.end_time; a.words = undefined;
+    a.end_time = b.end_time;
     segments.splice(j, 1);
     refresh(); enterEditAt(i, join);
   }
@@ -483,9 +523,9 @@
       const tx = (segments[k].text || '').trim();
       if (tx) parts.push(tx);
     }
+    first.words = concatWords(segments.slice(lo, hi + 1));
     first.text = parts.join(' ').trim();
     first.end_time = segments[hi].end_time;            // borne temporelle = fin du dernier
-    first.words = undefined;
     segments.splice(lo + 1, hi - lo);                  // retire les segments fusionnés
     refresh();
     selectSeg(lo);
@@ -497,8 +537,9 @@
       const last = out[out.length - 1];
       const sp = s.speaker_id || '';
       if (last && sp && (last.speaker_id || '') === sp) {
+        last.words = concatWords([last, s]);
         last.text = ((last.text || '').trim() + ' ' + (s.text || '').trim()).trim();
-        last.end_time = s.end_time; last.words = undefined;
+        last.end_time = s.end_time;
       } else { out.push(Object.assign({}, s)); }
     });
     segments.length = 0; Array.prototype.push.apply(segments, out);
@@ -698,9 +739,11 @@
     // Alt+L : (dé)verrouille le suivi de lecture (les deux modes).
     if (e.altKey && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); toggleFollowLock(); return; }
 
-    // Échap : en ÉDITION → sortir vers Navigation (l'audio se repilote au clavier).
+    // Échap : en ÉDITION → sortir vers Navigation (l'audio se repilote au clavier) ;
+    // en Navigation, outil Bornes actif → le quitter.
     if (e.key === 'Escape') {
       if (editing) { e.preventDefault(); document.activeElement.blur(); }
+      else if (boundaryTool) { e.preventDefault(); setBoundaryTool(false); }
       return;
     }
     // Alt+↑/↓ : segment précédent/suivant dans LES DEUX modes.
@@ -748,6 +791,13 @@
     // ── MODE NAVIGATION : transport audio + sélection de segment (sans focus). ──
     if (e.key === 'ArrowUp') { e.preventDefault(); selectSeg(selIndex < 0 ? 0 : selIndex - 1); return; }
     if (e.key === 'ArrowDown') { e.preventDefault(); selectSeg(selIndex < 0 ? 0 : selIndex + 1); return; }
+    // Ctrl+Entrée en Navigation : coupe la section à la TÊTE DE LECTURE (même geste que les
+    // ciseaux de l'outil Bornes) — en Édition, il coupe au curseur de texte (plus haut).
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      const a = audio(); if (a) splitAtTime(a.currentTime || 0);
+      return;
+    }
     if (e.key === 'Enter') { e.preventDefault(); enterEdit(selIndex); return; }
     if (e.key === 'ArrowLeft') { e.preventDefault(); skip(-5); return; }
     if (e.key === 'ArrowRight') { e.preventDefault(); skip(5); return; }
@@ -756,6 +806,10 @@
     if (k === 'j') { e.preventDefault(); shuttleReverse(); return; }
     if (k === 'k') { e.preventDefault(); shuttleStop(); return; }
     if (k === 'l') { e.preventDefault(); shuttleForward(); return; }
+    // C : outil Bornes (ne capte pas Ctrl+C / Alt+C)
+    if (k === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault(); setBoundaryTool(!boundaryTool); return;
+    }
   });
 
   /* ── Finaliser ──────────────────────────────────────────────────────── */
@@ -785,6 +839,90 @@
     if (s.confidence != null) t += ' · confiance ' + Number(s.confidence).toFixed(2);
     if (s.coh_note) t += '\n⚠ ' + s.coh_note;
     return t;
+  }
+
+  /* ── Outil « Bornes » : déplacer une jonction, couper une section (2026-09-24) ──────────── */
+  // Décision de Fabien (2026-09-23) : UNE borne par jonction (la fin d'une section est le début de
+  // la suivante), DEUX gestes (glisser une borne ; cliquer dans une section pour la couper), jamais
+  // un mot coupé ni perdu, un outil dédié (bouton ou C, Échap pour sortir). Le CALCUL est commun
+  // (`word_anchoring.move_boundary` / `split_turn`, par la vue `retime_segments`) ; ici, seulement
+  // le geste. Il reste dans le transcriber tant que le transport commun n'est pas conçu (consigne
+  // du 19/08 : ne pas lancer le portage avant) — cf. WAMA_DATA_WORLD §5.
+  let boundaryTool = false;
+  let boundaryDrag = null;          // {i, t} : jonction i (entre i-1 et i) en cours de glisser
+  let hoverT = null, hoverHandle = -1;
+  let retiming = false;
+  const HANDLE_PX = 6;              // distance (px) à laquelle le pointeur saisit une borne
+  const MIN_SECTION = 0.05;         // une borne glissée n'avale jamais sa section voisine
+  let hatch = null;
+  function hatchPattern(ctx) {
+    if (hatch) return hatch;
+    const c = document.createElement('canvas'); c.width = c.height = 6;
+    const g = c.getContext('2d');
+    g.strokeStyle = 'rgba(255,255,255,0.16)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, 6); g.lineTo(6, 0); g.stroke();
+    hatch = ctx.createPattern(c, 'repeat');
+    return hatch;
+  }
+  function gaps(D) {                // [début, fin] de l'audio qu'aucune section ne couvre
+    const out = [];
+    let covered = 0;
+    segments.forEach(function (s) {
+      const st = s.start_time || 0;
+      if (st - covered > MIN_SECTION) out.push([covered, st]);
+      covered = Math.max(covered, s.end_time || st);
+    });
+    if (D && D - covered > MIN_SECTION) out.push([covered, D]);
+    return out;
+  }
+  function handleAt(px, W) {        // la jonction la plus proche du pointeur, à HANDLE_PX près
+    let best = -1, bestD = HANDLE_PX + 1;
+    for (let i = 1; i < segments.length; i++) {
+      const d = Math.abs(((segments[i].start_time || 0) - viewStart) / viewDur * W - px);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  }
+  function setBoundaryTool(on) {
+    boundaryTool = !!on; boundaryDrag = null; hoverT = null; hoverHandle = -1;
+    const btn = document.getElementById('boundaryToolBtn');
+    if (btn) {
+      btn.classList.toggle('btn-warning', boundaryTool);
+      btn.classList.toggle('btn-outline-light', !boundaryTool);
+      btn.setAttribute('aria-pressed', boundaryTool ? 'true' : 'false');
+    }
+    const cv = document.getElementById('zoomWave');
+    if (cv) cv.style.cursor = boundaryTool ? 'crosshair' : '';
+    drawZoom();
+  }
+  // Remplace `count` sections à partir de `first` par celles que rend le serveur — après
+  // confirmation seulement : un refus (une section garderait zéro mot) ne touche à rien.
+  function retime(op, first, count, t) {
+    if (retiming || !CFG.retimeUrl) return;
+    retiming = true;
+    fetch(CFG.retimeUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
+      body: JSON.stringify({ op: op, time: t, segments: segments.slice(first, first + count) }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { if (window.WamaApp) WamaApp.toast(d.reason || 'Opération refusée', 'warning'); return; }
+        pushHistory();
+        Array.prototype.splice.apply(segments, [first, count].concat(d.segments));
+        refresh();
+        selectSeg(op === 'split' ? first + 1 : first);
+      })
+      .catch(function () { if (window.WamaApp) WamaApp.toast('Erreur réseau', 'danger'); })
+      .finally(function () { retiming = false; boundaryDrag = null; drawZoom(); });
+  }
+  function splitAtTime(t) {         // ciseaux : coupe la section qui contient t
+    const i = indexAt(t);
+    if (i < 0) {
+      if (window.WamaApp) WamaApp.toast('Aucune section à cet endroit (silence).', 'info');
+      return;
+    }
+    retime('split', i, 1, t);
   }
 
   /* ── Forme d'onde ZOOMABLE (Phase B) : peaks serveur + rendu fenêtré ─── */
@@ -838,13 +976,33 @@
       ctx.fillText(!peaksReady ? 'Calcul de la forme d’onde…'
                                : 'Zoomez pour afficher la forme d’onde', W / 2, mid + 4);
     }
-    // Ticks de segments dans la fenêtre
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1;
+    // Silences hachurés : l'audio qu'AUCUNE section ne couvre (avant la 1re, entre deux, après la
+    // dernière). Déplacer une borne referme le silence de sa jonction : une borne par jonction.
+    ctx.fillStyle = hatchPattern(ctx);
+    gaps(D).forEach(function (g) {
+      if (g[1] < viewStart || g[0] > viewStart + viewDur) return;
+      const x0 = Math.max(0, (g[0] - viewStart) / viewDur * W);
+      const x1 = Math.min(W, (g[1] - viewStart) / viewDur * W);
+      ctx.fillRect(x0, 0, Math.max(1, x1 - x0), H);
+    });
+    // Ticks de segments dans la fenêtre (= les jonctions ; poignées quand l'outil Bornes est actif)
+    ctx.strokeStyle = boundaryTool ? 'rgba(255,193,7,0.85)' : 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1;
     for (let i = 1; i < segments.length; i++) {
-      const t = segments[i].start_time || 0;
+      const t = (boundaryDrag && boundaryDrag.i === i) ? boundaryDrag.t : (segments[i].start_time || 0);
       if (t < viewStart || t > viewStart + viewDur) continue;
       const x = (t - viewStart) / viewDur * W;
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      if (boundaryTool) {                              // poignée : un petit triangle en haut
+        ctx.fillStyle = 'rgba(255,193,7,0.95)';
+        ctx.beginPath(); ctx.moveTo(x - 4, 0); ctx.lineTo(x + 4, 0); ctx.lineTo(x, 6); ctx.fill();
+      }
+    }
+    // Aperçu de la coupe (ciseaux) sous le pointeur, hors d'une poignée
+    if (boundaryTool && !boundaryDrag && hoverT != null && hoverHandle < 0) {
+      const x = (hoverT - viewStart) / viewDur * W;
+      ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = 'rgba(255,193,7,0.7)';
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); ctx.restore();
     }
     // Playhead
     const a = audio();
@@ -952,6 +1110,8 @@
     const cv = document.getElementById('zoomWave');
     const mini = document.getElementById('zoomMini');
     const zin = document.getElementById('zoomIn'), zout = document.getElementById('zoomOut');
+    const toolBtn = document.getElementById('boundaryToolBtn');
+    if (toolBtn) toolBtn.addEventListener('click', function () { setBoundaryTool(!boundaryTool); });
     if (zin) zin.addEventListener('click', function () { setZoom(viewDur * 0.6); });
     if (zout) zout.addEventListener('click', function () { setZoom(viewDur * 1.7); });
     // Aller à un timecode (bouton + Entrée dans le champ)
@@ -968,20 +1128,57 @@
         const ct = viewStart + (e.offsetX / W) * viewDur;
         setZoom(viewDur * (e.deltaY > 0 ? 1.25 : 0.8), ct);
       }, { passive: false });
-      let dragging = false, moved = false, lastX = 0;        // clic = seek ; glisser = déplacer
-      cv.addEventListener('mousedown', function (e) { dragging = true; moved = false; lastX = e.clientX; });
+      // clic = seek ; glisser = déplacer la vue. Outil Bornes : glisser une poignée = déplacer la
+      // borne ; clic ailleurs = couper la section (ciseaux) ; glisser ailleurs = déplacer la vue.
+      let dragging = false, moved = false, lastX = 0;
+      function timeAt(clientX) {
+        const rect = cv.getBoundingClientRect();
+        return viewStart + ((clientX - rect.left) / (cv.clientWidth || 600)) * viewDur;
+      }
+      cv.addEventListener('mousedown', function (e) {
+        if (boundaryTool && !retiming) {
+          const i = handleAt(e.offsetX, cv.clientWidth || 600);
+          if (i > 0) { e.preventDefault(); boundaryDrag = { i: i, t: segments[i].start_time || 0 }; return; }
+        }
+        dragging = true; moved = false; lastX = e.clientX;
+      });
+      cv.addEventListener('mousemove', function (e) {       // survol : poignée ou ciseaux
+        if (!boundaryTool || boundaryDrag || dragging) return;
+        hoverHandle = handleAt(e.offsetX, cv.clientWidth || 600);
+        hoverT = timeAt(e.clientX);
+        cv.style.cursor = hoverHandle > 0 ? 'ew-resize' : 'crosshair';
+        drawZoom();
+      });
+      cv.addEventListener('mouseleave', function () {
+        if (!boundaryTool || boundaryDrag) return;
+        hoverT = null; hoverHandle = -1; drawZoom();
+      });
       window.addEventListener('mousemove', function (e) {
+        if (boundaryDrag) {                                  // la borne suit le pointeur, bornée
+          const i = boundaryDrag.i;                          // par ses deux sections voisines
+          const lo = (segments[i - 1].start_time || 0) + MIN_SECTION;
+          const hi = (segments[i].end_time || 0) - MIN_SECTION;
+          boundaryDrag.t = Math.max(lo, Math.min(hi, timeAt(e.clientX)));
+          drawZoom();
+          return;
+        }
         if (!dragging) return;
         const W = cv.clientWidth || 600, dx = e.clientX - lastX; lastX = e.clientX;
         if (Math.abs(dx) > 1) moved = true;
         viewStart -= (dx / W) * viewDur; clampView(); redrawWindow();
       });
       window.addEventListener('mouseup', function (e) {
+        if (boundaryDrag) {
+          const d = boundaryDrag;
+          if (Math.abs(d.t - (segments[d.i].start_time || 0)) < 0.001) { boundaryDrag = null; drawZoom(); return; }
+          retime('move', d.i - 1, 2, d.t);
+          return;
+        }
         if (!dragging) return; dragging = false;
         if (!moved) {
-          const rect = cv.getBoundingClientRect();
-          const t = viewStart + ((e.clientX - rect.left) / (cv.clientWidth || 600)) * viewDur;
-          if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, Math.max(0, t), false);
+          const t = Math.max(0, timeAt(e.clientX));
+          if (boundaryTool) { splitAtTime(t); return; }
+          if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, t, false);
           redrawWindow();
         }
       });

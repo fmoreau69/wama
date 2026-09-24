@@ -298,3 +298,136 @@ def _interpolate(times, first: float, last: float) -> None:
         end = max(end, start)
         times[k] = (start, end)
         floor = start
+
+
+# ── Bornes d'un texte horodaté : déplacer une jonction, couper un tour (2026-09-24) ──────────────
+# Le geste de l'éditeur (Fabien, 2026-09-23) : UNE borne par jonction — la fin d'un tour EST le
+# début du suivant —, deux actions seulement (déplacer une borne, couper un tour), et jamais un mot
+# perdu ni coupé en deux. Commun, sans modèle : tout texte horodaté au mot (sous-titres, corpus de
+# parole) se découpe pareil ; l'éditeur du transcriber n'en est que le premier consommateur.
+
+#: Marge (s) autour d'un tour pour y chercher les mots de référence qui lui reviennent.
+REFERENCE_MARGIN = 0.5
+
+
+def spoken_text(words: List[dict]) -> str:
+    """Le texte que portent des mots au format Whisper (`''.join` des mots, sans bord blanc)."""
+    return ''.join((w.get('word') or '') for w in words or []).strip()
+
+
+def _same_text(a: str, b: str) -> bool:
+    return ' '.join((a or '').split()) == ' '.join((b or '').split())
+
+
+def _timed(w) -> bool:
+    return isinstance(w, dict) and isinstance(w.get('start'), (int, float)) \
+        and isinstance(w.get('end'), (int, float))
+
+
+def turn_words(turn: dict, reference: Optional[List[dict]] = None) -> Optional[List[dict]]:
+    """Les mots horodatés d'un tour, COHÉRENTS avec son texte — ou None si le tour n'a pas de temps.
+
+    Dans l'ordre : ses propres mots s'ils redisent son texte ; sinon son texte (corrigé depuis)
+    s'ANCRE sur les mots de `reference` (la sortie ASR) qui tombent dans son intervalle ; sinon ses
+    mots sont répartis au prorata des caractères dans son intervalle (`interpolated` : dit, jamais
+    caché). Les temps restent DANS l'intervalle du tour — ses bornes sont celles que l'utilisateur voit.
+    """
+    import copy
+
+    text = turn.get('text') or ''
+    start, end = turn.get('start_time'), turn.get('end_time')
+    if not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
+        return None
+    end = max(end, start)
+    own = [w for w in turn.get('words') or [] if isinstance(w, dict)]
+    if own and all(_timed(w) for w in own) and _same_text(spoken_text(own), text):
+        return copy.deepcopy(own)
+    if not text.split():
+        return []
+
+    nearby = [w for w in reference or [] if _timed(w)
+              and w['end'] >= start - REFERENCE_MARGIN and w['start'] <= end + REFERENCE_MARGIN]
+    anchored = anchor_turns([{'text': text}], nearby) if nearby else None
+    if anchored:
+        words = anchored[0][0].get('words') or []
+    else:
+        shown = text.split()
+        total = sum(len(w) for w in shown) or 1
+        words, cursor = [], start
+        for word in shown:
+            span = (end - start) * len(word) / total
+            words.append({'word': ' ' + word, 'start': cursor, 'end': cursor + span,
+                          'probability': None, 'timing': 'interpolated'})
+            cursor += span
+    floor = start
+    for w in words:                          # dans l'intervalle du tour, et dans l'ordre
+        w['start'] = round(min(max(w['start'], floor), end), 3)
+        w['end'] = round(min(max(w['end'], w['start']), end), 3)
+        floor = w['start']
+    return words
+
+
+def _cut(words: List[dict], at: float) -> Optional[Tuple[int, float]]:
+    """La coupe ENTRE deux mots la plus proche de `at` : `(index du 1er mot à droite, heure)`.
+
+    L'heure est `at` lui-même quand il tombe dans le silence entre deux mots, sinon le bord de
+    silence le plus proche — une borne ne tranche jamais un mot. On ne coupe pas devant une
+    ponctuation seule (« ! » irait ouvrir le tour suivant). None s'il n'y a aucune coupe possible.
+    """
+    from wama.common.services.text_metrics import comparable_words
+
+    best = None
+    for k in range(1, len(words)):
+        if not comparable_words(words[k].get('word') or ''):
+            continue
+        low = words[k - 1]['end']
+        high = max(low, words[k]['start'])
+        placed = min(max(at, low), high)
+        distance = abs(placed - at)
+        if best is None or distance < best[0]:
+            best = (distance, k, placed)
+    return (best[1], round(best[2], 3)) if best else None
+
+
+def _rebuilt(turn: dict, words: List[dict], start: float, end: float) -> dict:
+    out = dict(turn)
+    out.update(words=words, text=spoken_text(words), start_time=round(start, 3),
+               end_time=round(end, 3))
+    return out
+
+
+def move_boundary(left: dict, right: dict, at: float,
+                  reference: Optional[List[dict]] = None) -> Optional[Tuple[dict, dict]]:
+    """Déplace la jonction entre deux tours CONSÉCUTIFS vers `at` : les mots passent d'un côté à
+    l'autre selon leur heure, la borne se pose entre deux mots, et chaque tour garde au moins un mot.
+
+    Rend les deux tours réécrits (texte REFAIT depuis leurs mots : aucun mot perdu ni inventé ; les
+    autres clés — locuteur, confiance… — conservées), ou None si la borne ne peut pas se poser là.
+    """
+    left_words, right_words = turn_words(left, reference), turn_words(right, reference)
+    if left_words is None or right_words is None:
+        return None
+    words = left_words + right_words
+    cut = _cut(words, at)
+    if cut is None:
+        return None
+    k, placed = cut
+    placed = min(max(placed, left['start_time']), right['end_time'])
+    return (_rebuilt(left, words[:k], left['start_time'], placed),
+            _rebuilt(right, words[k:], placed, right['end_time']))
+
+
+def split_turn(turn: dict, at: float,
+               reference: Optional[List[dict]] = None) -> Optional[Tuple[dict, dict]]:
+    """Coupe un tour en deux à `at`, entre deux mots : les mots d'avant restent, ceux d'après
+    forment le nouveau tour (mêmes clés, même locuteur). None si aucune coupe n'est possible —
+    un tour d'un seul mot, par exemple."""
+    words = turn_words(turn, reference)
+    if not words:
+        return None
+    cut = _cut(words, at)
+    if cut is None:
+        return None
+    k, placed = cut
+    return (_rebuilt(turn, words[:k], turn['start_time'], placed),
+            _rebuilt(turn, words[k:], placed, turn['end_time']))

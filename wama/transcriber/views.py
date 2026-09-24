@@ -896,6 +896,43 @@ def save_meta(request, pk: int):
 
 
 @require_POST
+def retime_segments(request, pk: int):
+    """Outil « Bornes » de l'éditeur : déplace une jonction ou coupe une section, ENTRE deux mots.
+
+    Le calcul est la brique commune (`word_anchoring.move_boundary` / `split_turn`) ; cette vue ne
+    fournit que la RÉFÉRENCE — les mots de la sortie ASR (`segments_json`, immuable), sur lesquels
+    le texte d'une section corrigée se réancre avant la coupe. Rien n'est écrit ici : l'éditeur
+    remplace ses sections et son auto-save enregistre, comme pour toute autre modification.
+
+    Corps : `{op: 'move'|'split', segments: [gauche, droite] | [section], time: secondes}`.
+    """
+    import json as _json
+    from wama.common.services.word_anchoring import move_boundary, split_turn
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    try:
+        data = _json.loads(request.body or '{}')
+        op, segs, at = data.get('op'), data.get('segments') or [], float(data.get('time'))
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'reason': 'payload invalide'}, status=400)
+    if not all(isinstance(s, dict) for s in segs):
+        return JsonResponse({'ok': False, 'reason': 'payload invalide'}, status=400)
+    reference = [w for s in (t.segments_json or []) if isinstance(s, dict)
+                 for w in (s.get('words') or []) if isinstance(w, dict)]
+    if op == 'move' and len(segs) == 2:
+        result = move_boundary(segs[0], segs[1], at, reference)
+        refused = "la borne ne peut pas se poser là (chaque section garde au moins un mot)"
+    elif op == 'split' and len(segs) == 1:
+        result = split_turn(segs[0], at, reference)
+        refused = "impossible de couper ici (il faut au moins un mot de chaque côté)"
+    else:
+        return JsonResponse({'ok': False, 'reason': 'opération inconnue'}, status=400)
+    if result is None:
+        return JsonResponse({'ok': False, 'reason': refused})
+    return JsonResponse({'ok': True, 'segments': list(result)})
+
+
+@require_POST
 def save_correction(request, pk: int):
     """Auto-save de la correction (segments corrigés). status: draft | done."""
     import json as _json

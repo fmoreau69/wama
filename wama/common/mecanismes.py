@@ -508,7 +508,10 @@ MECHANISMS = (
               "(contrat `ForcedAlignmentBackend`, choisi au catalogue par sa tâche `alignment` et sa "
               "langue) reprend les seuls mots estimés, par fenêtres que tiennent leurs voisins sûrs, "
               "coupées entre deux mots au-delà de sa capacité ; ils deviennent `aligned`. Le module "
-              "ne charge aucun modèle : il reçoit le geste d'alignement",
+              "ne charge aucun modèle : il reçoit le geste d'alignement. Bornes "
+              "(`move_boundary`, `split_turn`) : déplacer la jonction de deux tours ou couper un "
+              "tour, toujours ENTRE deux mots et sans en perdre un — un texte corrigé se réancre "
+              "d'abord sur la référence ASR",
               'wama/common/services/word_anchoring.py', 'wama/transcriber/TRANSCRIBER_CORRECTION.md §10.5',
               annexes=('wama/common/tests_word_anchoring.py',
                        'wama/common/backends/forced_alignment_base.py',
