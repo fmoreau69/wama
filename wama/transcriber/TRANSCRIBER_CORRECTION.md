@@ -128,8 +128,20 @@ Clavier-first (Whispurge). Sauvegarde → texte/segments corrigés → ré-expor
    `edit.js` tant que le transport commun n'est pas conçu (`WAMA_DATA_WORLD §5`). Au passage, la
    scission et les fusions **gardent les mots horodatés** au lieu de les jeter (`words: undefined`)
    et une scission au curseur prend l'heure entre deux mots, plus au prorata des caractères.
-   ⏳ Non fait : les « modes d'écriture » en lecture (Write/Touch/Latch façon Pro Tools), discutés
-   le 2026-09-23, restent une idée.
+   **2d ✅ livrée (2026-09-24) — modes d'écriture** (demande de Fabien du 2026-09-23, calquée
+   sur les modes d'automation d'une station audio). Complément / Touch / Latch / Write
+   (guide §9.1ter) ; seul Complément écrit directement, les trois autres PROPOSENT (§4, guidage
+   non destructif). Mécanique = boucle COMMUNE `playhead_follow`, extraite pour l'occasion du mode
+   Live du cam_analyzer (qui la consomme désormais) ; l'application d'une plage =
+   `word_anchoring.replace_span` (commun). Le serveur dépose ses résultats en cache et n'écrit
+   jamais la correction : l'éditeur applique, son auto-save enregistre. Cède la place à toute
+   transcription `RUNNING`/`AWAITING_RESOURCES`. Au passage, le geste manquant de l'outil Bornes :
+   cliquer dans un silence crée un segment vide (proposé le 23/09).
+   ⚠ **Limites v1, assumées** : une plage retranscrite l'est SANS le contexte voisin (pas de
+   consigne au modèle — `whisper_backend` écarte `initial_prompt`, qui dégrade la ponctuation) ;
+   une plage enregistrée se referme toutes les 20 s et une tranche serveur fait au plus 30 s, donc
+   un mot à cheval sur une coupe peut être imparfait. Joué au navigateur avec résultats semés, et
+   Whisper réel sur une plage (CPU) ; la boucle complète dans celery reste à jouer après relance.
 3. **Confiance** (mot/segment) — déjà la source de la heatmap 2a.
 4. **Guidage** (slider rigueur + hésitations/silences/redondances) en suggestions accept/reject
    (règles FR + gaps de segments + LLM).
@@ -285,12 +297,34 @@ suivant. Les passages hachurés sont des silences qu'aucun segment ne couvre. Le
 
 - **glisser une borne** la déplace ; les mots passent d'un segment à l'autre selon leur heure ;
 - **cliquer dans un segment** le coupe en deux à cet endroit (ciseaux) ;
+- **cliquer dans un silence hachuré** crée un segment vide qui le couvre, prêt à recevoir le texte
+  manquant ;
 - glisser ailleurs que sur une borne déplace la vue, comme sans l'outil.
 
 Une borne se pose toujours **entre deux mots**, jamais au milieu d'un mot, et chaque segment garde
 au moins un mot : aucun mot n'est perdu. Si vous avez corrigé le texte d'un segment, ses mots
 sont d'abord recalés sur la transcription automatique. Chaque geste s'annule avec `Ctrl+Z`.
 `Échap` quitte l'outil.
+
+### 9.1ter Les modes d'écriture : la lecture transcrit
+
+Le menu **Lecture** de la barre audio choisit ce que fait la lecture. En mode Lecture, elle ne
+fait que jouer. Les autres modes font transcrire, pendant l'écoute, la plage qui est jouée :
+
+| mode | ce qui est transcrit | ce qui change dans le texte |
+|---|---|---|
+| **Complément** | les silences et les segments vides devant la tête de lecture | le texte entendu y est **écrit directement** : il comble un vide, il n'écrase rien |
+| **Touch** | la plage jouée tant que vous **maintenez** `R` | une **proposition** |
+| **Latch** | la plage jouée depuis un appui sur `R` jusqu'à l'arrêt de la lecture | une **proposition** |
+| **Write** | tout ce que la lecture parcourt | une **proposition** |
+
+Une proposition s'affiche sous la forme d'onde, qui la surligne en rouge pâle : ✓ remplace le texte
+de la plage, ✗ garde le texte actuel, et un clic sur la proposition la fait écouter. Pendant
+l'enregistrement, un voyant **● REC** s'allume. Chaque écriture s'annule avec `Ctrl+Z`.
+
+Le modèle de transcription reste chargé pendant l'écoute ; il est libéré une minute et demie
+après la dernière lecture. Si une transcription de la file doit démarrer, elle passe d'abord :
+l'écriture s'interrompt, relancez la lecture ensuite.
 
 ### 9.2 La bande de qualité
 

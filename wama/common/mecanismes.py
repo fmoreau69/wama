@@ -511,7 +511,8 @@ MECHANISMS = (
               "ne charge aucun modèle : il reçoit le geste d'alignement. Bornes "
               "(`move_boundary`, `split_turn`) : déplacer la jonction de deux tours ou couper un "
               "tour, toujours ENTRE deux mots et sans en perdre un — un texte corrigé se réancre "
-              "d'abord sur la référence ASR",
+              "d'abord sur la référence ASR. Plage (`replace_span`) : une plage retranscrite "
+              "remplace les mots qui s'y disaient, ou remplit un blanc d'un tour neuf",
               'wama/common/services/word_anchoring.py', 'wama/transcriber/TRANSCRIBER_CORRECTION.md §10.5',
               annexes=('wama/common/tests_word_anchoring.py',
                        'wama/common/backends/forced_alignment_base.py',

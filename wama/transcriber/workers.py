@@ -1038,6 +1038,134 @@ def align_existing_result(self, transcript_id: int):
         return {'ok': False, 'error': str(exc)}
 
 
+# ── Modes d'écriture de l'éditeur : transcrire AU FIL DE LA LECTURE (2026-09-24) ─────────────
+# Demande de Fabien (2026-09-23) : calquer les modes d'écriture d'une station audio (Pro Tools :
+# Write / Touch / Latch) sur la correction — le modèle reste chargé pendant l'édition, et la lecture
+# « écrit ». Mécanique = la boucle COMMUNE `playhead_follow` (née du mode Live du cam_analyzer) ;
+# ce qui est propre ici : le modèle (l'ASR de la card), la tranche (une plage d'audio transcrite),
+# et le rangement du résultat. ⚠ Le serveur N'ÉCRIT PAS la correction : il dépose ses résultats en
+# cache, l'éditeur les applique (Complément) ou les propose (Touch/Latch/Write) et son auto-save
+# enregistre — une seule main écrit la correction, comme pour l'outil Bornes.
+
+#: Les modes que l'éditeur peut demander (« Lecture » = aucun, la boucle ne tourne pas).
+WRITE_MODES = ('complement', 'touch', 'latch', 'write')
+#: Une tranche au plus par tour : la fenêtre native de Whisper.
+WRITE_SLICE_SECONDS = 30.0
+#: Durée de vie des résultats et du registre de ce qui est déjà transcrit.
+WRITE_TTL = 3600
+
+
+def write_channel(transcript_id):
+    from wama.common.services.playhead_follow import Channel
+    return Channel('transcriber_write', transcript_id)
+
+
+def _transcribe_span(backend, audio_path: str, start: float, end: float, language: str = None):
+    """Les mots horodatés (temps ABSOLUS) qu'entend `backend` dans [start, end] de l'audio."""
+    import tempfile
+    import soundfile as sf
+    from wama.common.utils.audio_decode import decode_window
+
+    wave, rate = decode_window(audio_path, 16000, start, end - start)
+    if not len(wave):
+        return []
+    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as handle:
+        path = handle.name
+    try:
+        sf.write(path, wave, rate)
+        kwargs = {'language': language} if language else {}
+        result = backend.transcribe(audio_path=path, **kwargs)
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    if not result.success:
+        raise RuntimeError(result.error or 'transcription de la plage échouée')
+    words = []
+    for seg in _offset_segments(result.segments, start):
+        for w in seg.words or []:
+            if isinstance(w, dict) and w.get('start') is not None and w.get('end') is not None \
+                    and start <= (w['start'] + w['end']) / 2 <= end:
+                words.append({'word': w.get('word') or '', 'start': round(w['start'], 3),
+                              'end': round(w['end'], 3), 'probability': w.get('probability')})
+    return words
+
+
+@shared_task(bind=True)
+def live_write_task(self, transcript_id: int):
+    """La boucle des modes d'écriture : suit le curseur de l'éditeur et transcrit les plages qu'il
+    demande (`wanted`) et qui ne l'ont pas encore été pour ce mode — la plus proche de la tête de
+    lecture d'abord, 30 s au plus par tour. Tâche du module `workers` : file GPU.
+
+    Cède la place dès qu'une transcription a la main (`RUNNING`, `AWAITING_RESOURCES`) : les
+    transcriptions de la file passent AVANT l'écoute d'un utilisateur.
+    """
+    from wama.common.models import JOB_AWAITING_RESOURCES, JOB_RUNNING
+    from wama.common.services.playhead_follow import follow
+    from wama.common.services.word_anchoring import spoken_text
+    from wama.common.utils.intervals import merge_intervals, subtract_intervals
+
+    close_old_connections()
+    try:
+        t = Transcript.objects.get(pk=transcript_id)
+    except Transcript.DoesNotExist:
+        return {'ok': False, 'error': f'Transcript {transcript_id} introuvable'}
+    channel = write_channel(t.pk)
+    state = {'backend': None}
+
+    def start():
+        name = t.backend if t.backend and t.backend != 'auto' else None
+        backend = get_backend(name)
+        if not backend.load():
+            raise RuntimeError(f"{backend.display_name} indisponible")
+        state['backend'] = backend
+        _console(t.user_id, f"Écriture au fil de la lecture : {backend.display_name} chargé "
+                            f"(libéré après 90 s sans lecture)")
+
+    def should_yield():
+        busy = (Transcript.objects.filter(status__in=(JOB_RUNNING, JOB_AWAITING_RESOURCES))
+                .exclude(pk=t.pk).exists())
+        if busy:
+            _console(t.user_id, "Une transcription attend : l'écriture au fil de la lecture "
+                                "s'interrompt (relancez la lecture ensuite)", level='warning')
+        return busy
+
+    def step(cursor):
+        mode = cursor.get('mode')
+        wanted = [[float(a), float(b)] for a, b in cursor.get('wanted') or [] if float(b) > float(a)]
+        done = cache.get(channel.key('done')) or {}
+        missing = subtract_intervals(wanted, done.get(mode) or [], min_len=0.5)
+        if not missing:
+            return False
+        at = float(cursor.get('t') or 0.0)
+        a, b = min(missing, key=lambda r: (r[1] < at, abs(r[0] - at)))   # devant d'abord
+        b = min(b, a + WRITE_SLICE_SECONDS)
+        words = _transcribe_span(state['backend'], t.audio.path, a, b, t.language or None)
+        results = cache.get(channel.key('results')) or []
+        results.append({'id': len(results), 'mode': mode, 'start': round(a, 3), 'end': round(b, 3),
+                        'words': words, 'text': spoken_text(words)})
+        cache.set(channel.key('results'), results, WRITE_TTL)
+        done[mode] = merge_intervals((done.get(mode) or []) + [[a, b]])
+        cache.set(channel.key('done'), done, WRITE_TTL)
+        return True
+
+    try:
+        reason = follow(channel, self.request.id, step, on_start=start, should_yield=should_yield)
+        if reason not in ('cooldown', 'already_running'):
+            _console(t.user_id, "Écriture au fil de la lecture arrêtée — modèle libéré")
+        return {'ok': True, 'reason': reason}
+    except Exception as exc:
+        _console(t.user_id, f"Écriture au fil de la lecture interrompue ({exc})", level='warning')
+        return {'ok': False, 'error': str(exc)}
+    finally:
+        if state['backend'] is not None:
+            try:
+                state['backend'].unload()
+            except Exception:
+                pass
+
+
 @shared_task(name='wama.transcriber.compute_waveform_peaks')
 def compute_waveform_peaks(transcript_id: int):
     """Calcule l'enveloppe de forme d'onde (peaks) UNE fois, en asynchrone.
