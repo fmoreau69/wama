@@ -256,7 +256,12 @@ def build_generic_runner(app_id):
         if is_text:
             result = texte
         else:
-            result = d.get('result_file') or ''
+            # `result_file` est une URL (`FieldFile.url`) : elle est ENCODÉE. Sans `unquote`, un
+            # nom accentué (`étudie` → `%C3%A9tudie`) arrivait au nœud suivant sous un chemin qui
+            # n'existe pas — mesuré le 2026-09-25 sur synthesizer → transcriber : « Fichier
+            # introuvable », alors que le fichier était bien produit.
+            from urllib.parse import unquote
+            result = unquote(d.get('result_file') or '')
             if result.startswith('/media/'):
                 result = result[len('/media/'):]
         return {
