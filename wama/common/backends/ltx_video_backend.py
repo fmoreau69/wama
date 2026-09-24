@@ -253,17 +253,18 @@ class LTXVideoBackend(ImageGenerationBackend):
                 logger.warning(
                     "[LTX-Video] Quantification ignorée — transformer bfloat16 ~25GB ne tient "
                     "pas sur 24GB VRAM. Utilisation de enable_sequential_cpu_offload() : "
-                    "inférence très lente (~10-30 min). Installer torchao pour accélérer."
+                    "inférence très lente (~10-30 min). Pour accélérer : choisir la variante "
+                    "FP8 du même modèle (quantifiée au chargement, torchao est installé)."
+                    # « Installer torchao » était écrit ici : torchao EST installé (0.16) ; la
+                    # lenteur vient du CHOIX de la variante pleine précision (#275, 21 min).
                 )
                 self._pipe.enable_sequential_cpu_offload()
                 _stage("✓ Offload séquentiel couche par couche appliqué (bfloat16 — lent)", 90)
 
-            # VAE tiling for large resolutions
-            try:
-                self._pipe.vae.enable_tiling()
-                logger.info("[LTX-Video] VAE tiling enabled")
-            except Exception as e:
-                logger.warning(f"[LTX-Video] VAE tiling failed (non-fatal): {e}")
+            # Décodage VAE découpé en ESPACE ET en TEMPS (brique commune) — le temporel manquait :
+            # OOM à 85 % de la génération #275 (233 images décodées d'un bloc, 24,6 Gio).
+            from .image_generation_base import enable_vae_memory_savings
+            enable_vae_memory_savings(self._pipe, "LTX-Video")
 
             vram_total = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3) if torch.cuda.is_available() else 0
             vram_used = torch.cuda.memory_allocated(0) / (1024 ** 3) if torch.cuda.is_available() else 0

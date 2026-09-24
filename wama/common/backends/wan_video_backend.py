@@ -438,12 +438,8 @@ class WanVideoBackend(ImageGenerationBackend):
             # partait en DEBUG. Mesuré le 2026-09-23 (génération #48, FastWan, 121 images en
             # 832×480) : 3 pas de débruitage en 2,5 min, puis 69 min de décodage VAE non tuilé
             # qui débordait de la VRAM. D'où un avertissement si le tuilage échoue.
-            try:
-                self._pipe_t2v.vae.enable_slicing()
-                self._pipe_t2v.vae.enable_tiling()
-                logger.info("[Wan] VAE slicing + tiling enabled (reduces memory during decode)")
-            except Exception as e:
-                logger.warning(f"[Wan] VAE tiling not available — décodage non tuilé : {e}")
+            from .image_generation_base import enable_vae_memory_savings
+            enable_vae_memory_savings(self._pipe_t2v, "Wan")
 
             # Enable attention slicing to reduce memory during inference
             try:
@@ -558,12 +554,8 @@ class WanVideoBackend(ImageGenerationBackend):
                     self._pipe_i2v = self._pipe_i2v.to(self._device)
 
             # Enable VAE tiling for I2V — sur le VAE lui-même (cf. le chargement T2V ci-dessus).
-            try:
-                self._pipe_i2v.vae.enable_slicing()
-                self._pipe_i2v.vae.enable_tiling()
-                logger.info("[Wan I2V] VAE slicing + tiling enabled")
-            except Exception as e:
-                logger.warning(f"[Wan I2V] VAE tiling not available — décodage non tuilé : {e}")
+            from .image_generation_base import enable_vae_memory_savings
+            enable_vae_memory_savings(self._pipe_i2v, "Wan I2V")
 
             self._hooks_owner = 'i2v'
             logger.info("[Wan I2V] ✓ I2V pipeline loaded successfully")

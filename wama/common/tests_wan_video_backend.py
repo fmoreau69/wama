@@ -254,3 +254,29 @@ class LtxContinuationConditionTest(SimpleTestCase):
         self.assertEqual(25, len(condition.video))
         self.assertEqual(2, condition.video[0].getpixel((0, 0))[0], 'the LAST 25 are kept')
         self.assertEqual((32, 32), condition.video[0].size)
+
+
+class VaeMemorySavingsTest(SimpleTestCase):
+    """The VAE decode is cut in SPACE and in TIME (2026-09-24): LTX tiled spatially only, and
+    generation #275 decoded its 233 frames in one block — 24.6 GiB requested, OOM at 85 %."""
+
+    def test_framewise_decoding_is_set_wherever_the_vae_knows_it(self):
+        from types import SimpleNamespace
+
+        from wama.common.backends.image_generation_base import enable_vae_memory_savings
+        calls = []
+        vae = SimpleNamespace(enable_tiling=lambda: calls.append('tiling'),
+                              enable_slicing=lambda: calls.append('slicing'),
+                              use_framewise_decoding=False, use_framewise_encoding=False)
+        done = enable_vae_memory_savings(SimpleNamespace(vae=vae), 'test')
+        self.assertEqual(['slicing', 'tiling'], calls)
+        self.assertTrue(vae.use_framewise_decoding and vae.use_framewise_encoding)
+        self.assertIn('framewise_decoding', done)
+
+    def test_a_vae_without_temporal_tiling_is_left_alone(self):
+        from types import SimpleNamespace
+
+        from wama.common.backends.image_generation_base import enable_vae_memory_savings
+        vae = SimpleNamespace(enable_tiling=lambda: None)
+        self.assertEqual(['tiling'], enable_vae_memory_savings(SimpleNamespace(vae=vae), 'test'))
+        self.assertFalse(hasattr(vae, 'use_framewise_decoding'))

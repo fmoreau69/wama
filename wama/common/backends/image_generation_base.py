@@ -15,6 +15,42 @@ from wama.common.backends.base import BaseModelBackend
 logger = logging.getLogger(__name__)
 
 
+def enable_vae_memory_savings(pipe, label: str = "VAE") -> list:
+    """Réduit le pic du DÉCODAGE VAE d'un pipeline diffusers — en ESPACE et en TEMPS. Rend la
+    liste des économies réellement posées.
+
+    UNE brique pour les backends image et vidéo (2026-09-24), après deux défauts du même geste
+    écrit à la main dans chaque backend :
+      • `pipe.enable_vae_tiling()` n'existe que sur les pipelines d'IMAGE : sur Wan et Mochi
+        l'appel levait en silence, et le décodage non tuilé de FastWan a pris 69 min ;
+      • LTX tuilait bien en ESPACE, mais pas en TEMPS : `use_framewise_decoding` vaut False par
+        défaut chez `AutoencoderKLLTXVideo`, et `enable_tiling()` ne le pose pas — les 233 images
+        de la génération #275 ont été décodées d'un bloc (24,6 Gio demandés, OOM à 85 %).
+    On agit donc sur le VAE LUI-MÊME, et le découpage temporel est posé partout où le VAE le
+    connaît (LTX, Mochi, HunyuanVideo, Cosmos…). Un échec se DIT (warning), jamais en debug.
+    """
+    vae = getattr(pipe, 'vae', None)
+    done = []
+    if vae is None:
+        return done
+    for method, name in (('enable_slicing', 'slicing'), ('enable_tiling', 'tiling')):
+        try:
+            if hasattr(vae, method):
+                getattr(vae, method)()
+                done.append(name)
+        except Exception as exc:
+            logger.warning(f"[{label}] {method} indisponible : {exc}")
+    for attr in ('use_framewise_decoding', 'use_framewise_encoding'):
+        if hasattr(vae, attr):
+            setattr(vae, attr, True)
+            done.append(attr.replace('use_', ''))
+    if 'tiling' not in done:
+        logger.warning(f"[{label}] décodage VAE NON tuilé — pic mémoire élevé attendu")
+    else:
+        logger.info(f"[{label}] économies VAE : {', '.join(done)}")
+    return done
+
+
 @dataclass
 class GenerationParams:
     """Parameters for image generation."""

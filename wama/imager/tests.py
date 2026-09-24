@@ -603,3 +603,24 @@ class ContinuationTest(TestCase):
         self.assertEqual([[6, 7, 8]], seen, 'the 3 LAST frames condition the next pass')
         self.assertEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 103, 104, 105, 106, 107, 108],
                          [f.getpixel((0, 0))[0] for f in frames], 'the 3 repeated frames are dropped')
+
+
+class RecommendedSamplingTest(TestCase):
+    """A distilled model is SAID to need few steps and no free guidance (LTX #275 ran at 30
+    steps / guidance 15, doubling the compute and degrading the image)."""
+
+    def test_the_catalog_receives_the_recommended_sampling(self):
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry()
+        registry._models = {}
+        registry._discover_imager_models()
+        caps = registry._models['imager:ltx-video-13b-0.9.8-distilled'].capabilities
+        self.assertEqual((8, 1.0), (caps['recommended_steps'], caps['recommended_guidance']))
+
+    def test_the_steps_and_guidance_fields_recall_it(self):
+        from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
+        for schema in (IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON):
+            by_name = {p['name']: p for p in schema}
+            self.assertEqual('recommended_steps', by_name['steps']['cap_from']['capability'])
+            self.assertEqual('recommended_guidance',
+                             by_name['guidance_scale']['cap_from']['capability'])

@@ -197,15 +197,9 @@ class MochiBackend(ImageGenerationBackend):
                 logger.warning("[Mochi] MemoryManager not available, using default CPU offload")
                 self._pipe.enable_model_cpu_offload()
 
-            # Enable VAE tiling for lower VRAM
-            # Sur le VAE lui-même : `MochiPipeline` n'hérite pas de `StableDiffusionMixin`, donc
-            # `pipe.enable_vae_tiling()` levait et l'échec partait en DEBUG (même défaut que Wan,
-            # relevé le 2026-09-23).
-            try:
-                self._pipe.vae.enable_tiling()
-                logger.info("[Mochi] VAE tiling enabled")
-            except Exception as e:
-                logger.warning(f"[Mochi] VAE tiling not available — décodage non tuilé : {e}")
+            # Décodage VAE découpé (brique commune — cf. `enable_vae_memory_savings`)
+            from .image_generation_base import enable_vae_memory_savings
+            enable_vae_memory_savings(self._pipe, "Mochi")
 
             self._current_model = model_name
             self._loaded = True

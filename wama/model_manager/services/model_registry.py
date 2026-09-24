@@ -650,7 +650,8 @@ class ModelRegistry:
                 # format HF + entrées consommées en ids d'`INPUT_TYPES`. Le `mode` du manifeste
                 # est un raccourci d'app ; il ne doit pas fuiter tel quel dans le catalogue.
                 from wama.common.utils.model_capabilities import (
-                    derive_inputs_from_tasks, video_caps_from_declaration)
+                    derive_inputs_from_tasks, sampling_caps_from_declaration,
+                    video_caps_from_declaration)
                 _derive = derive_inputs_from_tasks(_mode, is_video=_is_video)
                 _task = _derive['task']
                 _inputs_required = _derive['inputs_required']
@@ -730,6 +731,8 @@ class ModelRegistry:
                         # prolongation) — lues par l'écran (`cap_from`) et par la tâche.
                         **(video_caps_from_declaration(config, _derive['tokens'])
                            if _is_video else {}),
+                        # Réglages recommandés par l'éditeur (pas, guidage) — rappelés à l'écran.
+                        **sampling_caps_from_declaration(config),
                     },
                 )
         except ImportError as e:
