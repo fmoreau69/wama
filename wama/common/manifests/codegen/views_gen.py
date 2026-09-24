@@ -42,7 +42,7 @@ Jusqu'au 22/09 la seconde forme était un « trou déclaré » : `describer_01`,
 from __future__ import annotations
 
 from wama.common.app_registry import MEDIA_CATEGORIES
-from wama.common.manifests.codegen.urls_gen import ROUTE_ALIASES, route_variants
+from wama.common.manifests.codegen.urls_gen import ROUTE_ALIASES, alias_fits, route_variants
 
 
 def _donnees(manifest: dict) -> dict:
@@ -78,6 +78,9 @@ def _donnees(manifest: dict) -> dict:
     # compilait pas : la seule app à vues de classe (anonymizer) tombait à la première ligne.
     # Un nom qui n'est pas un identifiant n'est pas un callable à définir : on l'écarte.
     d['extras'], d['extra_classes'] = [], set()
+    # View name → declared pattern: an item-route alias gets the conventional `(request, pk)`
+    # body only if its pattern takes `<int:pk>` (`urls_gen.alias_fits`, 2026-09-24).
+    d['view_patterns'] = {}
     for e in (proc.get('extra_routes') or []):
         expr = str(e.get('view') or '')
         if not expr:
@@ -87,6 +90,7 @@ def _donnees(manifest: dict) -> dict:
         nom = base.split('.')[-1]
         if not nom.isidentifier():
             continue
+        d['view_patterns'][nom] = str(e.get('pattern') or '')
         d['extras'].append(nom)
         if is_cbv:
             d['extra_classes'].add(nom)
@@ -899,7 +903,8 @@ def {nom}(request, pk):
     return JsonResponse({{'success': True, 'id': item.id, 'updated': touches}})'''
 
     for _nom in route_variants('update'):
-        vues[_nom] = corps_update(_nom)
+        if alias_fits('update', _nom, d['view_patterns']):
+            vues[_nom] = corps_update(_nom)
 
     # Les SIX vues de lot viennent de la FABRIQUE COMMUNE `make_batch_views` (bloc `fabrique`
     # ci-dessous) — extraite de ce gabarit le 2026-09-22 (ROUTE §11 #36) : ce fichier n'émet plus
@@ -987,7 +992,7 @@ consolidate       = _qm['consolidate']'''
     for _canon, _alts in ROUTE_ALIASES.items():
         if _canon in vues:
             for _alt in _alts:
-                if _alt not in vues:
+                if _alt not in vues and alias_fits(_canon, _alt, d['view_patterns']):
                     vues[_alt] = vues[_canon].replace(f'def {_canon}(', f'def {_alt}(', 1)
 
     # ── Assemblage : UNE définition par callable exigé (conventionnel ou stub) ──
