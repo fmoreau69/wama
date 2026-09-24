@@ -806,10 +806,19 @@
     if (k === 'j') { e.preventDefault(); shuttleReverse(); return; }
     if (k === 'k') { e.preventDefault(); shuttleStop(); return; }
     if (k === 'l') { e.preventDefault(); shuttleForward(); return; }
+    // R : enregistrer (mode Touch : tant que la touche est MAINTENUE ; Latch : jusqu'à l'arrêt)
+    if (k === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey
+        && (writeMode === 'touch' || writeMode === 'latch')) {
+      e.preventDefault(); if (!e.repeat) arm(); return;
+    }
     // C : outil Bornes (ne capte pas Ctrl+C / Alt+C)
     if (k === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault(); setBoundaryTool(!boundaryTool); return;
     }
+  });
+
+  document.addEventListener('keyup', function (e) {    // Touch : relâcher R ferme la plage
+    if (writeMode === 'touch' && (e.key || '').toLowerCase() === 'r') disarm();
   });
 
   /* ── Finaliser ──────────────────────────────────────────────────────── */
@@ -918,11 +927,184 @@
   }
   function splitAtTime(t) {         // ciseaux : coupe la section qui contient t
     const i = indexAt(t);
-    if (i < 0) {
-      if (window.WamaApp) WamaApp.toast('Aucune section à cet endroit (silence).', 'info');
-      return;
-    }
+    if (i < 0) { createInGap(t); return; }
     retime('split', i, 1, t);
+  }
+  // Couper dans un BLANC crée une section vide qui le couvre (proposé le 2026-09-23 : c'est la
+  // porte d'entrée d'un texte manquant, à taper ou à laisser remplir par le mode Complément).
+  function createInGap(t) {
+    const g = gaps(fullDur()).filter(function (r) { return r[0] <= t && t <= r[1]; })[0];
+    if (!g) return;
+    let at = 0;
+    while (at < segments.length && (segments[at].start_time || 0) < g[0]) at++;
+    const prev = segments[at - 1];
+    pushHistory();
+    segments.splice(at, 0, { speaker_id: prev ? (prev.speaker_id || '') : '', text: '',
+                             start_time: Math.round(g[0] * 1000) / 1000,
+                             end_time: Math.round(g[1] * 1000) / 1000, words: [] });
+    refresh();
+    enterEdit(at);
+  }
+
+  /* ── Modes d'écriture : la lecture « écrit » (2026-09-24) ──────────────────────────────── */
+  // Demande de Fabien (2026-09-23), calquée sur les modes d'automation d'une station audio :
+  //   Complément — transcrit les blancs (et les sections vides) devant la tête de lecture, et les
+  //                REMPLIT directement : il n'écrase rien, il comble du vide ;
+  //   Touch      — transcrit la plage jouée pendant qu'on MAINTIENT R ;
+  //   Latch      — transcrit à partir d'un appui sur R, jusqu'à l'arrêt de la lecture ;
+  //   Write      — transcrit tout ce que la lecture parcourt.
+  // Touch/Latch/Write ne remplacent RIEN d'eux-mêmes : ils PROPOSENT (guidage non destructif,
+  // TRANSCRIBER_CORRECTION §4), à accepter ou refuser. Le modèle tourne côté serveur dans la
+  // boucle COMMUNE `playhead_follow` ; ce qui est ici n'est que le geste et l'application.
+  const WRITE_SLICE = 20;             // une plage enregistrée se referme toutes les 20 s
+  const COMPLEMENT_AHEAD = 20;        // Complément regarde 20 s devant la tête de lecture
+  let writeMode = '';                 // '' = Lecture
+  let armedAt = null;                 // début de la plage en cours d'enregistrement
+  let recorded = [];                  // plages enregistrées (fermées), envoyées au serveur
+  let resultsNext = -1;               // prochain résultat à lire (-1 : pas encore demandé)
+  let proposals = [];                 // propositions en attente {id, start, end, words, text}
+  let writeTimer = null;
+  let lastActivity = 0;               // dernière plage fermée ou dernier résultat reçu (ms)
+  const WAIT_RESULTS_MS = 60000;      // au-delà, une plage sans résultat n'est plus attendue
+
+  function isPlaying() { const a = audio(); return !!(a && !a.paused); }
+  function now() { const a = audio(); return a ? (a.currentTime || 0) : 0; }
+  function arm() { if (armedAt == null && isPlaying()) { armedAt = now(); renderRec(); } }
+  function disarm() {
+    if (armedAt == null) return;
+    const end = now();
+    if (end - armedAt >= 0.5) { recorded.push([armedAt, end]); lastActivity = Date.now(); }
+    armedAt = null; renderRec();
+  }
+  function renderRec() {
+    const b = document.getElementById('writeRec');
+    if (b) b.classList.toggle('d-none', armedAt == null);
+  }
+  function wantedRanges() {
+    if (writeMode === 'complement') {
+      const t = now(), lo = Math.max(0, t - 1), hi = t + COMPLEMENT_AHEAD;
+      const empty = segments.filter(function (s) { return !(s.text || '').trim(); })
+        .map(function (s) { return [s.start_time || 0, s.end_time || 0]; });
+      return gaps(fullDur()).concat(empty)
+        .map(function (r) { return [Math.max(r[0], lo), Math.min(r[1], hi)]; })
+        .filter(function (r) { return r[1] - r[0] >= 1; });
+    }
+    return recorded.slice(-50);
+  }
+  function postWriteCursor(enabled) {
+    if (!CFG.writeCursorUrl) return Promise.resolve();
+    const body = enabled ? { mode: writeMode, t: now(), wanted: wantedRanges() } : { enabled: false };
+    return fetch(CFG.writeCursorUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
+      body: JSON.stringify(body),
+    }).catch(function () {});
+  }
+  function pollWriteResults() {
+    if (!CFG.writeResultsUrl) return;
+    fetch(CFG.writeResultsUrl + '?since=' + resultsNext)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        const fresh = resultsNext < 0 ? [] : (d.results || []);
+        resultsNext = d.next || 0;
+        fresh.forEach(function (res) {
+          lastActivity = Date.now();
+          recorded = recorded.filter(function (r) {             // sa plage a sa réponse
+            return r[1] <= res.start || r[0] >= res.end;
+          });
+          if (!res.words || !res.words.length) return;          // rien entendu : rien à écrire
+          if (res.mode === 'complement') applySpan(res);         // comble du vide : direct
+          else { proposals.push(res); renderProposals(); drawZoom(); }
+        });
+      })
+      .catch(function () {});
+  }
+  function writeTick() {
+    if (!writeMode) return;
+    if (writeMode === 'write') { if (isPlaying()) arm(); else disarm(); }
+    if (armedAt != null && now() - armedAt >= WRITE_SLICE) { disarm(); arm(); }
+    // On pose le curseur tant que la lecture tourne ou qu'une plage attend son résultat ;
+    // sinon on se tait, et la boucle serveur libère le modèle d'elle-même.
+    const waiting = recorded.length && Date.now() - lastActivity < WAIT_RESULTS_MS;
+    if (isPlaying() || waiting) postWriteCursor(true);
+    pollWriteResults();
+  }
+  function setWriteMode(mode) {
+    if (armedAt != null) disarm();
+    const was = writeMode;
+    writeMode = mode || '';
+    if (writeMode && !writeTimer) writeTimer = setInterval(writeTick, 1000);
+    if (!writeMode) {
+      if (writeTimer) { clearInterval(writeTimer); writeTimer = null; }
+      recorded = [];
+      if (was) postWriteCursor(false);
+    }
+    if (resultsNext < 0) pollWriteResults();
+    const sel = document.getElementById('writeMode');
+    if (sel && sel.value !== writeMode) sel.value = writeMode;
+  }
+  // Applique une plage transcrite : les sections qu'elle touche passent par le calcul commun
+  // (`replace_span`), qui remplace leurs mots de la plage ou crée une section dans un blanc.
+  function applySpan(res) {
+    const lo = res.start - 0.05, hi = res.end + 0.05;
+    let first = -1, count = 0;
+    segments.forEach(function (s, i) {
+      if ((s.start_time || 0) <= hi && (s.end_time || 0) >= lo) { if (first < 0) first = i; count++; }
+    });
+    if (first < 0) {
+      first = 0;
+      while (first < segments.length && (segments[first].start_time || 0) < res.start) first++;
+    }
+    const neighbour = segments[first] || segments[first - 1];
+    return fetch(CFG.retimeUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
+      body: JSON.stringify({ op: 'replace', start: res.start, end: res.end, words: res.words,
+                             segments: segments.slice(first, first + count),
+                             speaker_id: neighbour ? (neighbour.speaker_id || '') : '' }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { if (window.WamaApp) WamaApp.toast(d.reason || 'Refusé', 'warning'); return false; }
+        pushHistory();
+        Array.prototype.splice.apply(segments, [first, count].concat(d.segments));
+        refresh();
+        return true;
+      });
+  }
+  function renderProposals() {
+    const host = document.getElementById('writeProposals');
+    if (!host) return;
+    host.classList.toggle('d-none', !proposals.length);
+    host.innerHTML = proposals.map(function (p) {
+      return '<div class="wp-item" data-id="' + p.id + '">' +
+        '<span class="wp-time">' + fmt(p.start) + '–' + fmt(p.end) + '</span>' +
+        '<span class="wp-text" title="' + esc(p.text) + '">' + esc(p.text) + '</span>' +
+        '<button class="btn btn-sm btn-success py-0 px-2 wp-accept" title="Remplacer le texte de cette plage">' +
+          '<i class="fas fa-check"></i></button>' +
+        '<button class="btn btn-sm btn-outline-secondary py-0 px-2 wp-reject" title="Garder le texte actuel">' +
+          '<i class="fas fa-xmark"></i></button></div>';
+    }).join('');
+  }
+  function dropProposal(id) {
+    proposals = proposals.filter(function (p) { return p.id !== id; });
+    renderProposals(); drawZoom();
+  }
+  function initWriteModes() {
+    const sel = document.getElementById('writeMode');
+    if (sel) sel.addEventListener('change', function () { setWriteMode(sel.value); sel.blur(); });
+    const host = document.getElementById('writeProposals');
+    if (host) host.addEventListener('click', function (e) {
+      const item = e.target.closest('.wp-item'); if (!item) return;
+      const id = parseInt(item.dataset.id, 10);
+      const p = proposals.filter(function (x) { return x.id === id; })[0]; if (!p) return;
+      if (e.target.closest('.wp-accept')) {
+        applySpan(p).then(function (ok) { if (ok) dropProposal(id); });
+      } else if (e.target.closest('.wp-reject')) dropProposal(id);
+      else if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, p.start, true);   // écouter
+    });
+    const a = audio();
+    if (a) a.addEventListener('pause', function () { disarm(); });   // l'arrêt referme la plage
   }
 
   /* ── Forme d'onde ZOOMABLE (Phase B) : peaks serveur + rendu fenêtré ─── */
@@ -985,6 +1167,15 @@
       const x1 = Math.min(W, (g[1] - viewStart) / viewDur * W);
       ctx.fillRect(x0, 0, Math.max(1, x1 - x0), H);
     });
+    // Modes d'écriture : propositions en attente (rouge pâle) et plage en cours d'enregistrement
+    const band = function (a, b, color) {
+      if (b < viewStart || a > viewStart + viewDur) return;
+      const x0 = Math.max(0, (a - viewStart) / viewDur * W);
+      const x1 = Math.min(W, (b - viewStart) / viewDur * W);
+      ctx.fillStyle = color; ctx.fillRect(x0, 0, Math.max(1, x1 - x0), H);
+    };
+    proposals.forEach(function (p) { band(p.start, p.end, 'rgba(239,68,68,0.16)'); });
+    if (armedAt != null) band(armedAt, now(), 'rgba(239,68,68,0.32)');
     // Ticks de segments dans la fenêtre (= les jonctions ; poignées quand l'outil Bornes est actif)
     ctx.strokeStyle = boundaryTool ? 'rgba(255,193,7,0.85)' : 'rgba(255,255,255,0.22)';
     ctx.lineWidth = 1;
@@ -1214,6 +1405,7 @@
     render();
     initTransport();
     initZoomUI();
+    initWriteModes();
     fetchPeaks();
     if (window.WamaAudioPlayer) {
       const a = WamaAudioPlayer.getAudio(playerId);

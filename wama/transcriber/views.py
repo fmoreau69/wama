@@ -904,21 +904,33 @@ def retime_segments(request, pk: int):
     le texte d'une section corrigée se réancre avant la coupe. Rien n'est écrit ici : l'éditeur
     remplace ses sections et son auto-save enregistre, comme pour toute autre modification.
 
-    Corps : `{op: 'move'|'split', segments: [gauche, droite] | [section], time: secondes}`.
+    Corps : `{op: 'move'|'split', segments: [gauche, droite] | [section], time: secondes}`, ou
+    `{op: 'replace', segments: [sections touchées], start, end, words, speaker_id}` — le geste des
+    modes d'écriture : la plage retranscrite remplace ce qui s'y disait, ou remplit un blanc
+    (`word_anchoring.replace_span`).
     """
     import json as _json
-    from wama.common.services.word_anchoring import move_boundary, split_turn
+    from wama.common.services.word_anchoring import move_boundary, replace_span, split_turn
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
     try:
         data = _json.loads(request.body or '{}')
-        op, segs, at = data.get('op'), data.get('segments') or [], float(data.get('time'))
+        op, segs = data.get('op'), data.get('segments') or []
+        if op == 'replace':
+            start, end = float(data.get('start')), float(data.get('end'))
+            words = [w for w in data.get('words') or [] if isinstance(w, dict)]
+        else:
+            at = float(data.get('time'))
     except (ValueError, TypeError):
         return JsonResponse({'ok': False, 'reason': 'payload invalide'}, status=400)
     if not all(isinstance(s, dict) for s in segs):
         return JsonResponse({'ok': False, 'reason': 'payload invalide'}, status=400)
     reference = [w for s in (t.segments_json or []) if isinstance(s, dict)
                  for w in (s.get('words') or []) if isinstance(w, dict)]
+    if op == 'replace':
+        return JsonResponse({'ok': True, 'segments': replace_span(
+            segs, start, end, words, reference,
+            new_turn={'speaker_id': str(data.get('speaker_id') or '')})})
     if op == 'move' and len(segs) == 2:
         result = move_boundary(segs[0], segs[1], at, reference)
         refused = "la borne ne peut pas se poser là (chaque section garde au moins un mot)"
@@ -930,6 +942,54 @@ def retime_segments(request, pk: int):
     if result is None:
         return JsonResponse({'ok': False, 'reason': refused})
     return JsonResponse({'ok': True, 'segments': list(result)})
+
+
+@require_POST
+def write_cursor(request, pk: int):
+    """Modes d'écriture de l'éditeur : pose le curseur (`{mode, t, wanted}`) que suit la boucle
+    commune, et la lance si besoin. `{enabled: false}` l'arrête et oublie ce qui a été transcrit
+    (un nouveau passage retranscrit). Rien n'est écrit sur la card."""
+    import json as _json
+    from wama.common.services.playhead_follow import post_cursor
+    from .workers import WRITE_MODES, WRITE_TTL, live_write_task, write_channel
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    try:
+        body = _json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({'ok': False, 'reason': 'payload invalide'}, status=400)
+    channel = write_channel(t.pk)
+    spawn = lambda: live_write_task.delay(t.pk)  # noqa: E731
+    if not body.get('enabled', True):
+        cache.delete(channel.key('done'))
+        return JsonResponse({'ok': True, **post_cursor(channel, None, spawn)})
+    mode = body.get('mode')
+    try:
+        at = max(0.0, float(body.get('t', 0.0)))
+        wanted = [[float(a), float(b)] for a, b in (body.get('wanted') or [])[:50]]
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'reason': 'payload invalide'}, status=400)
+    if mode not in WRITE_MODES:
+        return JsonResponse({'ok': False, 'reason': 'mode inconnu'}, status=400)
+    cache.touch(channel.key('results'), WRITE_TTL)
+    return JsonResponse({'ok': True, **post_cursor(
+        channel, {'mode': mode, 't': at, 'wanted': wanted}, spawn)})
+
+
+def write_results(request, pk: int):
+    """Résultats des modes d'écriture depuis l'index `since` (`since=-1` : seulement l'index
+    courant — une page qui s'ouvre ne rejoue pas les résultats d'une session précédente)."""
+    from .workers import write_channel
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    channel = write_channel(t.pk)
+    results = cache.get(channel.key('results')) or []
+    try:
+        since = int(request.GET.get('since', -1))
+    except ValueError:
+        since = -1
+    return JsonResponse({'next': len(results), 'running': channel.is_running(),
+                         'results': results[since:] if since >= 0 else []})
 
 
 @require_POST

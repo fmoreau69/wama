@@ -431,3 +431,53 @@ def split_turn(turn: dict, at: float,
     k, placed = cut
     return (_rebuilt(turn, words[:k], turn['start_time'], placed),
             _rebuilt(turn, words[k:], placed, turn['end_time']))
+
+
+def replace_span(turns: List[dict], start: float, end: float, words: List[dict],
+                 reference: Optional[List[dict]] = None,
+                 new_turn: Optional[dict] = None) -> List[dict]:
+    """Remplace les mots de `turns` dont le MILIEU tombe dans [start, end] par `words` (horodatés).
+
+    Le geste des modes d'écriture de l'éditeur : une plage retranscrite remplace ce qui s'y disait
+    (proposition acceptée), ou remplit ce qui n'y était pas (blanc, section vide). Chaque mot neuf
+    va au tour dont l'intervalle contient son milieu, à défaut au plus proche ; si AUCUN tour ne
+    touche la plage, un tour neuf est créé (`new_turn` en donne les clés, locuteur compris).
+    Un tour qui n'a plus aucun mot disparaît — ses mots ont été remplacés, c'était demandé.
+    Rend la liste des tours réécrits (textes refaits depuis leurs mots), dans l'ordre du temps.
+    """
+    def middle(w):
+        return (w['start'] + w['end']) / 2
+
+    fresh = sorted((w for w in words or [] if _timed(w)), key=middle)
+    out_turns, kept, bounds = [], [], []
+    for turn in turns:
+        own = turn_words(turn, reference)
+        if own is None:
+            continue                                # un tour sans temps ne se touche pas
+        out_turns.append(dict(turn))
+        kept.append([w for w in own if not start <= middle(w) <= end])
+        bounds.append([turn['start_time'], turn['end_time']])
+    touching = [i for i, (a, b) in enumerate(bounds) if a <= end and b >= start]
+
+    if fresh and not touching:
+        out_turns.append(dict(new_turn or {}, text='', words=[],
+                              start_time=start, end_time=end))
+        kept.append([])
+        bounds.append([start, end])
+    for w in fresh:
+        at = middle(w)
+        inside = [i for i, (a, b) in enumerate(bounds) if a <= at <= b]
+        i = inside[0] if inside else min(range(len(bounds)),
+                                         key=lambda k: min(abs(bounds[k][0] - at),
+                                                           abs(bounds[k][1] - at)))
+        kept[i].append(dict(w))
+        bounds[i] = [min(bounds[i][0], w['start']), max(bounds[i][1], w['end'])]
+
+    result = []
+    for turn, own, (a, b) in zip(out_turns, kept, bounds):
+        if not own and (turn.get('text') or '').strip():
+            continue                                # tous ses mots ont été remplacés
+        own.sort(key=lambda w: w['start'])
+        result.append(_rebuilt(turn, own, a, b))
+    result.sort(key=lambda t: t['start_time'])
+    return result

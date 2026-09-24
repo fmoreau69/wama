@@ -107,6 +107,13 @@
   .seg-row.seg-reviewed { opacity: .6; }
   .seg-row.seg-reviewed:hover, .seg-row.seg-reviewed.seg-active, .seg-row.seg-reviewed.seg-selected { opacity: 1; }
   .seg-row.seg-reviewed .seg-review { color: #22c55e; }
+  /* Modes d'écriture : propositions (Touch / Latch / Write) à accepter ou refuser */
+  .write-proposals { max-height: 110px; overflow-y: auto; margin-top: .35rem; }
+  .wp-item { display: flex; align-items: center; gap: .4rem; padding: .15rem .3rem; font-size: .78rem;
+    border-left: 3px solid #ef4444; background: rgba(239,68,68,0.07); margin-bottom: 2px; cursor: pointer; }
+  .wp-time { flex: 0 0 auto; color: #9ca3af; font-variant-numeric: tabular-nums; }
+  .wp-text { flex: 1 1 auto; min-width: 0; color: #e6edf3; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; }
   /* Barre de progression globale de relecture (volet droit) */
   .review-bar { height: 5px; background: #16161a; border-radius: 3px; overflow: hidden; }
   .review-bar > div { height: 100%; width: 0; background: #22c55e; transition: width .2s; }
@@ -186,7 +193,18 @@
                 title="Outil Bornes (C) — glisser une borne pour la déplacer · cliquer dans une section pour la couper · Échap pour sortir">
           <i class="fas fa-scissors"></i> Bornes
         </button>
+        <select id="writeMode" class="form-select form-select-sm ms-2" style="width:auto;"
+                title="Mode d'écriture — la lecture transcrit : Complément remplit les blancs ; Touch (R maintenu), Latch (R jusqu'à l'arrêt) et Write (toute la lecture) proposent un nouveau texte. Le modèle reste chargé pendant l'écoute.">
+          <option value="">Lecture</option>
+          <option value="complement">Complément</option>
+          <option value="touch">Touch (R maintenu)</option>
+          <option value="latch">Latch (R)</option>
+          <option value="write">Write</option>
+        </select>
+        <span id="writeRec" class="badge bg-danger d-none" title="Enregistrement : la plage jouée sera retranscrite">● REC</span>
       </div>
+      <!-- Modes d'écriture : propositions à accepter / refuser (Touch, Latch, Write) -->
+      <div id="writeProposals" class="write-proposals d-none"></div>
     </div>
   </div>
 </div>
@@ -199,6 +217,8 @@
     playerId: "{{ transcript.id }}",
     saveUrl: "{% url 'transcriber:save_correction' transcript.id %}",
     retimeUrl: "{% url 'transcriber:retime_segments' transcript.id %}",
+    writeCursorUrl: "{% url 'transcriber:write_cursor' transcript.id %}",
+    writeResultsUrl: "{% url 'transcriber:write_results' transcript.id %}",
     saveMetaUrl: "{% url 'transcriber:save_meta' transcript.id %}",
     suggestSpeakersUrl: "{% url 'transcriber:suggest_speakers' transcript.id %}",
     peaksUrl: "{% url 'transcriber:waveform_peaks' transcript.id %}",
@@ -290,7 +310,8 @@
       <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>choisir un segment (sans bouger l'audio)</td></tr>
       <tr><td><kbd>Entrée</kbd></td><td>éditer le segment</td></tr>
       <tr><td><kbd>Ctrl+Entrée</kbd></td><td>couper la section à la tête de lecture</td></tr>
-      <tr><td><kbd>C</kbd></td><td>outil Bornes : glisser une borne · cliquer pour couper (<kbd>Échap</kbd> pour sortir)</td></tr>
+      <tr><td><kbd>C</kbd></td><td>outil Bornes : glisser une borne · cliquer pour couper, ou dans un blanc pour créer une section (<kbd>Échap</kbd> pour sortir)</td></tr>
+      <tr><td><kbd>R</kbd></td><td>mode Touch : enregistre tant que la touche est maintenue · Latch : jusqu'à l'arrêt</td></tr>
       <tr class="kbd-head"><td colspan="2">✍️ Édition</td></tr>
       <tr><td><kbd>Tab</kbd> / <kbd>Maj+Tab</kbd></td><td>champ suivant / précédent</td></tr>
       <tr><td><kbd>Ctrl+Entrée</kbd></td><td>scinder au curseur</td></tr>

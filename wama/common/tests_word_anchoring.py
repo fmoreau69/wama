@@ -232,3 +232,47 @@ class BoundaryTest(SimpleTestCase):
         turn = {'text': 'oui ! non', 'start_time': 0.0, 'end_time': 3.0}
         first, second = split_turn(turn, at=1.0)
         self.assertEqual(('oui !', 'non'), (first['text'], second['text']))
+
+
+class ReplaceSpanTest(SimpleTestCase):
+    """The write modes' gesture: a re-transcribed span replaces what was said there, or fills a gap."""
+
+    def _turns(self):
+        return [{'speaker_id': 'SPEAKER_00', 'text': 'le chien dort', 'start_time': 0.0,
+                 'end_time': 1.0, 'words': ASR[:3]},
+                {'speaker_id': 'SPEAKER_01', 'text': 'sur le tapis', 'start_time': 3.0,
+                 'end_time': 3.8, 'words': _words(('sur', 3.0, 3.2), ('le', 3.2, 3.3),
+                                                  ('tapis', 3.3, 3.8))}]
+
+    def test_an_accepted_proposal_replaces_only_the_words_of_its_span(self):
+        from wama.common.services.word_anchoring import replace_span
+        out = replace_span(self._turns(), 0.2, 0.6, _words(('chat', 0.25, 0.55)))
+        self.assertEqual(['le chat dort', 'sur le tapis'], [t['text'] for t in out])
+        self.assertEqual('SPEAKER_00', out[0]['speaker_id'])
+
+    def test_words_heard_in_a_gap_become_a_new_turn(self):
+        from wama.common.services.word_anchoring import replace_span
+        out = replace_span(self._turns(), 1.2, 2.8, _words(('oui', 1.5, 1.8), ('bien', 1.9, 2.2)),
+                           new_turn={'speaker_id': ''})
+        self.assertEqual(['le chien dort', 'oui bien', 'sur le tapis'], [t['text'] for t in out])
+        self.assertEqual((1.2, 2.8), (out[1]['start_time'], out[1]['end_time']))
+
+    def test_an_empty_section_is_filled_where_it_stands(self):
+        from wama.common.services.word_anchoring import replace_span
+        turns = self._turns()
+        turns.insert(1, {'speaker_id': 'SPEAKER_00', 'text': '', 'start_time': 1.2,
+                         'end_time': 2.8, 'words': []})
+        out = replace_span(turns, 1.2, 2.8, _words(('oui', 1.5, 1.8)))
+        self.assertEqual(['le chien dort', 'oui', 'sur le tapis'], [t['text'] for t in out])
+        self.assertEqual('SPEAKER_00', out[1]['speaker_id'])
+
+    def test_nothing_heard_changes_nothing_and_an_empty_section_stays(self):
+        from wama.common.services.word_anchoring import replace_span
+        turns = self._turns() + [{'text': '', 'start_time': 5, 'end_time': 6, 'words': []}]
+        out = replace_span(turns, 5, 6, [])
+        self.assertEqual(['le chien dort', 'sur le tapis', ''], [t['text'] for t in out])
+
+    def test_a_whole_turn_can_be_rewritten(self):
+        from wama.common.services.word_anchoring import replace_span
+        out = replace_span(self._turns(), 2.9, 3.9, _words(('tapis', 3.4, 3.8)))
+        self.assertEqual(['le chien dort', 'tapis'], [t['text'] for t in out])
