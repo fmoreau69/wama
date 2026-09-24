@@ -520,14 +520,16 @@
     }
     APP.readParamsFrom = readParamsFrom;
 
-    function readModalViaSchema() {
-        return readParamsFrom(document.getElementById('jobSettingsBody'), currentModalMediaType);
-    }
-
-    let currentModalJobId = null;
-    let currentModalMediaType = null;
-
-    // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js), portage 2026-08-23.
+    // ⚙ item modal: the shared cycle `WamaParams.settingsModal` (ported 2026-09-24 — the static
+    // `#jobSettingsModal`, `applyCurrentModal` and the two footer handlers lived here). What stays
+    // the converter's own is DECLARED as hooks:
+    //   - values come from the `status` view (options live in columns the card does not all carry),
+    //     read before opening; the engine help is the one of the job's media TYPE;
+    //   - `collect` posts what the `update` view reads: `output_format` + `options_json`, built by
+    //     the SAME schema reader as the inspector (`readParamsFrom`, filtered by media type);
+    //   - `decorate` keeps the RUNNING guard, the relaunch label, « Par défaut » and
+    //     « Sauver comme profil » (footer left zone, classes — the modal is rebuilt on each open).
+    // ⚙ item — opener DECLARED to the shared brick (queue-actions.js), ported 2026-08-23.
     WamaQueueActions.onSettings(function (id) { openSettingsModal(id); });
 
     // 🗑 RÉSIDU de suppression — la brique retire la card, le lot vidé et signale au gestionnaire
@@ -535,142 +537,107 @@
     WamaQueueActions.onDeleted(function () { _empty.insertIfNeeded(); });
 
     async function openSettingsModal(jobId) {
-        currentModalJobId = jobId;
-        const filenameSpan = document.getElementById('jobSettingsFilename');
-        const body = document.getElementById('jobSettingsBody');
-
-        filenameSpan.textContent = `Job #${jobId}`;
-        body.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin"></i> Chargement…</div>';
-        const modalEl = document.getElementById('jobSettingsModal');
-        const modal = new bootstrap.Modal(modalEl);
-        modal.show();
-
+        let data;
         try {
             const resp = await fetch(urlFor(APP.urls.status, jobId));
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
-            currentModalMediaType = data.media_type;
-            filenameSpan.textContent = data.input_filename || `Job #${jobId}`;
-            // Modale schéma-driven : WamaParams rend les champs (show_if par media_type, format dynamique).
-            // Pont dom_id non requis ici car read/écriture passent aussi par WamaParams (readModalViaSchema).
-            if (window.WamaParams && APP.schema) {
-                const values = Object.assign(
-                    { media_type: data.media_type, output_format: data.output_format }, data.options || {});
-                // Descriptif moteur du TYPE du job (18/08) : le help_fallback statique par
-                // format donnait le texte d'une AUTRE famille pour les formats multi-famille
-                // (mp3/wav/ogg sortent aussi de la famille vidéo, gif de l'image…).
-                if (APP.engineHelp && APP.engineHelp[data.media_type]) {
-                    (APP.schema || []).forEach(function (p) {
-                        if (p.name !== 'output_format') return;
-                        const fb = {};
-                        (((FORMATS[data.media_type] || {}).output) || []).forEach(function (f) {
-                            fb[f] = APP.engineHelp[data.media_type];
-                        });
-                        p.help_fallback = fb;
-                    });
-                }
-                // `values` porte déjà media_type : le registre commun borne les formats à la
-                // nature de l'élément. Resolver maison RETIRÉ le 2026-09-01 (convergence P1).
-                WamaParams.render(body, APP.schema, {
-                    context: 'item',
-                    values: values,
-                    groups: APP.groups,
+            data = await resp.json();
+        } catch (err) {
+            WamaApp.toast('Erreur de chargement : ' + err.message, 'error');
+            return;
+        }
+        if (!window.WamaParams || !APP.schema) {
+            // Never a SILENT blank: this state means wama-params.js failed to load.
+            WamaApp.toast('Formulaire indisponible (WamaParams non chargé) — recharger la page.', 'error');
+            console.error('[converter] WamaParams absent — settings modal not rendered');
+            return;
+        }
+        const mediaType = data.media_type;
+        // Engine help of the job's TYPE (18/08): a static per-format fallback gave the text of
+        // ANOTHER family for multi-family formats (mp3/wav/ogg also come out of video…).
+        if (APP.engineHelp && APP.engineHelp[mediaType]) {
+            (APP.schema || []).forEach(function (p) {
+                if (p.name !== 'output_format') return;
+                const fb = {};
+                (((FORMATS[mediaType] || {}).output) || []).forEach(function (f) {
+                    fb[f] = APP.engineHelp[mediaType];
                 });
-            } else {
-                // Jamais un blanc MUET : cet état signifie que wama-params.js a échoué au chargement.
-                body.innerHTML = '<div class="alert alert-warning small">Formulaire indisponible (WamaParams non chargé) — recharger la page.</div>';
-                console.error('[converter] WamaParams absent — modale de réglages non rendue');
-            }
-
-            // Disable Apply/Start if job is RUNNING
-            const isRunning = data.status === 'RUNNING';
-            const applyBtn = document.getElementById('jobSettingsApplyBtn');
-            const startBtn = document.getElementById('jobSettingsStartBtn');
-            if (applyBtn) applyBtn.disabled = isRunning;
-            if (startBtn) {
-                startBtn.disabled = isRunning;
-                startBtn.innerHTML = data.status === 'SUCCESS'
-                    ? '<i class="fas fa-redo"></i> Appliquer & Recommencer'
-                    : '<i class="fas fa-play"></i> Appliquer & (Re)lancer';
-            }
-            if (isRunning) {
-                const warn = document.createElement('div');
-                warn.className = 'alert alert-warning small mt-2 mb-0';
-                warn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Conversion en cours — modification désactivée.';
-                body.appendChild(warn);
-            }
-        } catch (err) {
-            body.innerHTML = `<div class="alert alert-danger small">Erreur de chargement : ${err.message}</div>`;
+                p.help_fallback = fb;
+            });
         }
+        // `values` carries media_type: the shared registry bounds formats to the item's nature.
+        const values = Object.assign({ media_type: mediaType, output_format: data.output_format },
+                                     data.options || {});
+        const isRunning = data.status === 'RUNNING';
+        return WamaParams.settingsModal({
+            id: jobId,
+            title: 'Paramètres — ' + (data.input_filename || `Job #${jobId}`),
+            titleIcon: 'fa-sliders-h',
+            schema: APP.schema,
+            groups: APP.groups,
+            values: values,
+            formClass: 'converter-settings-form',
+            footerTplId: 'converterSettingsFooterTpl',
+            saveUrl: urlFor(APP.urls.update, jobId),
+            csrf: csrf,
+            decorate: function (host, _data, res) {
+                const modal = res.modal;
+                const apply = modal.querySelector('.save-settings-btn');
+                const start = modal.querySelector('.save-and-restart-btn');
+                if (apply) apply.disabled = isRunning;
+                if (start) {
+                    start.disabled = isRunning;
+                    start.innerHTML = data.status === 'SUCCESS'
+                        ? '<i class="fas fa-redo"></i> Appliquer & Recommencer'
+                        : '<i class="fas fa-play"></i> Appliquer & (Re)lancer';
+                }
+                if (isRunning) {
+                    const warn = document.createElement('div');
+                    warn.className = 'alert alert-warning small mt-2 mb-0';
+                    warn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Conversion en cours — modification désactivée.';
+                    host.appendChild(warn);
+                }
+                // « ↺ Par défaut » (shared applyDefaults — event model 02/09): fills the FORM with
+                // the schema defaults; saving is what writes.
+                modal.querySelector('.converter-reset-btn')?.addEventListener('click', function () {
+                    WamaParams.applyDefaults(host, APP.schema, 'item');
+                });
+                // « Sauver comme profil » reads the modal through the SCHEMA reader.
+                modal.querySelector('.jobSettingsSaveProfileBtn')?.addEventListener('click', function () {
+                    openSaveProfile(mediaType, readParamsFrom(host, mediaType));
+                });
+            },
+            collect: function (fd, host) {
+                const read = readParamsFrom(host, mediaType);
+                fd.set('output_format', read.output_format);
+                fd.set('options_json', JSON.stringify(read.options));
+            },
+            onSaved: function (id, restart) {
+                // Reflect the new settings in the queue card (server re-render), then relaunch.
+                refreshCard(id);
+                if (restart) startJob(id);
+            },
+        });
     }
 
-    /**
-     * POST update payload for the current modal job. Returns true on success.
-     */
-    async function applyCurrentModal() {
-        const { output_format, options } = readModalViaSchema();
-        if (!output_format) {
-            WamaApp.toast('Format de sortie requis.', 'warning');
-            return false;
-        }
-        const fd = new FormData();
-        fd.append('output_format', output_format);
-        fd.append('options_json', JSON.stringify(options));
-        try {
-            const resp = await csrfPost(urlFor(APP.urls.update, currentModalJobId), fd);
-            const data = await resp.json();
-            if (!resp.ok || data.error) {
-                WamaApp.toast('Erreur : ' + (data.error || resp.statusText), 'error');
-                return false;
-            }
-            // Reflect new format in the queue card immediately (re-rendu serveur)
-            refreshCard(currentModalJobId);
-            return true;
-        } catch (err) {
-            WamaApp.toast('Erreur réseau : ' + err.message, 'error');
-            return false;
-        }
-    }
-
-    // Apply (sans relancer)
-    document.getElementById('jobSettingsApplyBtn')?.addEventListener('click', async () => {
-        const ok = await applyCurrentModal();
-        if (ok) {
-            const modal = bootstrap.Modal.getInstance(document.getElementById('jobSettingsModal'));
-            if (modal) modal.hide();
-        }
-    });
-
-    // Apply & (Re)lancer
-    document.getElementById('jobSettingsStartBtn')?.addEventListener('click', async () => {
-        const ok = await applyCurrentModal();
-        if (!ok) return;
-        const modal = bootstrap.Modal.getInstance(document.getElementById('jobSettingsModal'));
-        if (modal) modal.hide();
-        startJob(currentModalJobId);
-    });
-
-    // ── Save current modal settings as a profile ──────────────────────────────
-
-    document.getElementById('jobSettingsSaveProfileBtn')?.addEventListener('click', () => {
-        // Voie schéma UNIQUE depuis le nettoyage du 31/08 — la voie legacy (cause du
-        // bug « Sauver comme profil ») est RETIRÉE, le fork n'existe plus.
-        const { output_format, options } = readModalViaSchema();
-        if (!output_format) {
+    // ── Save the modal's settings as a profile ────────────────────────────────
+    // Schema path ONLY since the 31/08 cleanup — the legacy reader (cause of the « Sauver comme
+    // profil » bug) is REMOVED. Called by the item modal with what `readParamsFrom` read.
+    function openSaveProfile(mediaType, read) {
+        if (!read.output_format) {
             WamaApp.toast('Format de sortie requis avant de sauver.', 'warning');
             return;
         }
         // Stash for confirm handler
         document.getElementById('saveProfileModal').dataset.pendingPayload = JSON.stringify({
-            media_type:    currentModalMediaType,
-            output_format,
-            options,
+            media_type:    mediaType,
+            output_format: read.output_format,
+            options:       read.options,
         });
         document.getElementById('saveProfileName').value = '';
         document.getElementById('saveProfileDesc').value = '';
-        const modal = new bootstrap.Modal(document.getElementById('saveProfileModal'));
-        modal.show();
-    });
+        new bootstrap.Modal(document.getElementById('saveProfileModal')).show();
+    }
 
     // 💾 du VOLET (02/09, constat Fabien : « Sauver comme profil » n'existait que dans la
     // modale d'un item — l'utilisateur qui COMPOSE au volet ne le rencontrait jamais). Même
@@ -695,10 +662,7 @@
     // « ↺ Par défaut » (brique commune applyDefaults — modèle événementiel 02/09) :
     // remplit le FORMULAIRE des défauts du schéma ; c'est Enregistrer/Appliquer qui écrit
     // (l'utilisateur VOIT l'effet réel avant d'écraser — l'item, OU toutes les filles du lot).
-    document.getElementById('jobSettingsResetBtn')?.addEventListener('click', () => {
-        const body = document.getElementById('jobSettingsBody');
-        if (body && window.WamaParams) WamaParams.applyDefaults(body, APP.schema, 'item');
-    });
+    // « ↺ Par défaut » of the BATCH modal (the item modal's lives in its `decorate`).
     document.getElementById('batchSettingsResetBtn')?.addEventListener('click', () => {
         const host = document.getElementById('converterBatchParams');
         if (host && window.WamaParams) WamaParams.applyDefaults(host, APP.schema, 'batch');
