@@ -62,6 +62,11 @@ le lot entier (menu de la card du lot : **Référence du lot…**). Une ligne so
 classe les moteurs, le meilleur en tête. Une transcription faite par un autre outil se compare de
 la même façon : sur un double de la card, **Résultat existant… → Reprendre un fichier…**.
 
+Sans référence, la même ligne indique l'**accord entre moteurs** : le pourcentage de désaccord de
+chacun avec les autres, sur le même audio. Il montre où regarder, pas qui a raison — aucun moteur
+n'y est déclaré meilleur. À partir de trois moteurs, celui qui s'écarte le plus est signalé en
+orange.
+
 <!-- WAMA:PORTE-FERMEE(wama/transcriber/TRANSCRIBER_CORRECTION.md — 9.4 Le guidage de nettoyage) : intention ⏳ — n'arrive chez l'utilisateur qu'une fois implémentée -->
 
 *Source : [wama/transcriber/TRANSCRIBER_CORRECTION.md — 9. Corriger une transcription — le guide](../../wama/transcriber/TRANSCRIBER_CORRECTION.md#9-corriger-une-transcription--le-guide)*

@@ -394,6 +394,16 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `install_library(key: str, apply: bool=False) -> dict` — Installe UNE librairie depuis son registre (`common.models.Library`) — la JONCTION
   - `install_requirements(app_key: str, apply: bool=False) -> dict` — Le MARCHEUR d'app (« application = modèles + librairies », reste ③ de la route
 
+### Mesure interne des modèles
+
+Étage 3 qualité : ce que WAMA a MESURÉ elle-même contre une référence humaine (`ResultEvaluation`), agrégé par modèle — taux de CORPUS, échelle nommée `internal_<métrique>_<protocole>`, sens, rang parmi les modèles mesurés sur les MÊMES références, accumulation dite. RABATTUE À LA LECTURE (jamais écrite au catalogue) : elle n'entre dans aucun tri tant que Q3 n'est pas tranchée, et `sync_benchmarks`, qui remplace `benchmark_meta`, ne peut pas l'effacer
+
+- **Domicile** : `wama/model_manager/services/internal_quality.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
+- **Module** : Étage 3 de l'échelle des signaux — la MESURE INTERNE d'un modèle (`WAMA_QUALITE.md §4.1`, ⑧).
+- **API publique** (2) :
+  - `scale_name(metric: str, protocol: str) -> str`
+  - `internal_scores(model_keys: Optional[Iterable[str]]=None) -> Dict[str, List[dict]]` — Les échelles internes de chaque modèle mesuré : `{model_key: [échelle, …]}`.
+
 ### Prospection de modèles
 
 Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)
@@ -900,6 +910,7 @@ Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référenc
   - `evaluate(surface: str, item) -> List` — Mesure le résultat COURANT de `item` contre sa référence ; rend les lignes écrites.
   - `item_evaluation(surface: str, item) -> Optional[dict]` — La mesure d'un élément, prête pour l'onglet « Évaluation » ; None s'il n'y en a pas.
   - `batch_evaluation(surface: str, items: Iterable) -> Optional[dict]` — Comparaison des modèles d'un lot — le résumé de la ligne de la card mère.
+  - `batch_agreement(surface: str, items: Iterable) -> Optional[dict]` — Le désaccord entre les moteurs d'un lot, SANS référence (`WAMA_QUALITE` M1, M6).
   - `class ReferenceRefused(ValueError)` — La référence ne peut pas être posée — le motif est DIT à l'utilisateur.
   - `attach_reference(surface: str, targets: List, uploaded) -> dict` — Pose UNE référence sur un ou plusieurs éléments (une card, ou toutes celles d'un lot).
   - `attach_result(surface: str, item, uploaded) -> dict` — Pose un RÉSULTAT EXISTANT sur un élément (port `work_result`) : il tient lieu de traitement.
