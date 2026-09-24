@@ -84,26 +84,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // === Queue Management ===
-
-    function getFormatLabel(format) {
-        const labels = {
-            'summary': 'Resume court',
-            'detailed': 'Description detaillee',
-            'scientific': 'Synthese scientifique',
-            'bullet_points': 'Points cles',
-            'meeting': 'Compte-rendu reunion'
-        };
-        return labels[format] || format;
-    }
-
-    function getLanguageLabel(lang) {
-        const labels = {
-            'fr': 'Francais',
-            'en': 'English',
-            'auto': 'Langue source'
-        };
-        return labels[lang] || lang;
-    }
+    // (getFormatLabel / getLanguageLabel RETIRÉS le 2026-09-24 : seuls consommateurs = la repeinte
+    // manuelle de la card après ⚙, remplacée par le re-rendu serveur `refreshCard`.)
 
     function bindCardEvents(card) {
         // Start button
@@ -136,15 +118,29 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // === Settings Modal ===
-    const settingsModal = document.getElementById('settingsModal');
-    const settingsModalInstance = settingsModal ? new bootstrap.Modal(settingsModal) : null;
-
-    // Update max length display in settings modal
-    const settingsMaxLength = document.getElementById('settingsMaxLength');
-    const settingsMaxLengthValue = document.getElementById('settingsMaxLengthValue');
-    if (settingsMaxLength && settingsMaxLengthValue) {
-        settingsMaxLength.addEventListener('input', function() {
-            settingsMaxLengthValue.textContent = this.value;
+    // ⚙ item : le CYCLE complet (rendre du schéma → greffer le pied → afficher → lire →
+    // enregistrer → enchaîner) est la brique commune `WamaParams.settingsModal` (portage
+    // 2026-09-24 — la modale statique `#settingsModal` du gabarit, `openSettings`/`saveSettings`
+    // et `updateCardSettings` (qui repeignait la card à la main) vivaient ici). Les VALEURS
+    // viennent des data-* du gear (brique `card_gear`), lues par LE lecteur unique
+    // `WamaInspector.gearValues` ; la card enregistrée est RE-RENDUE par le serveur (`refreshCard`).
+    function openSettings(id, btn) {
+        const schema = window.WAMA_DESCRIBER_SCHEMA || [];
+        const card = (btn && btn.closest('.wama-card')) || btn;
+        return WamaParams.settingsModal({
+            id: id,
+            title: 'Paramètres de description',
+            titleIcon: 'fa-cog',
+            schema: schema,
+            values: WamaInspector.gearValues(card, schema.map(function (p) { return p.name; })),
+            formClass: 'describer-settings-form',
+            footerTplId: 'describerSettingsFooterTpl',
+            saveUrl: config.urls.updateOptions.replace('/0/', `/${id}/`),
+            csrf: config.csrfToken,
+            onSaved: function (did, restart) {
+                refreshCard(did);
+                if (restart) startDescription(did);
+            },
         });
     }
 
@@ -207,140 +203,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('batchSaveStartBtn')
         ?.addEventListener('click', () => saveBatchSettings(true));
 
-    function openSettings(btn) {
-        const id = btn.dataset.id;
-        const outputStyle = btn.dataset.outputStyle;
-        const outputLanguage = btn.dataset.outputLanguage;
-        const maxLength = btn.dataset.maxLength;
-        const generateSummary = btn.dataset.generateSummary === 'true';
-        const verifyCoherence = btn.dataset.verifyCoherence === 'true';
-
-        // Populate modal fields — NULL-SAFE : les champs sont générés par WamaParams (context item).
-        // On dispatch input+change pour que WamaParams mette à jour son affichage (ex. valeur du slider).
-        // settingsMaxLengthValue (ancien span d'affichage) n'existe plus : WamaParams gère l'affichage.
-        const _set = function (elId, val) {
-            const el = document.getElementById(elId);
-            if (!el) return;
-            el.value = val;
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-        };
-        _set('settingsDescriptionId', id);
-        _set('settingsOutputFormat', outputStyle);
-        _set('settingsOutputLanguage', outputLanguage);
-        _set('settingsMaxLength', maxLength);
-
-        const genSumEl = document.getElementById('settingsGenerateSummary');
-        if (genSumEl) genSumEl.checked = generateSummary;
-
-        const vcEl = document.getElementById('settingsVerifyCoherence');
-        if (vcEl) vcEl.checked = verifyCoherence;
-
-        // Show modal
-        if (settingsModalInstance) {
-            settingsModalInstance.show();
-        }
-    }
-
     // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js). Une seule délégation pour
     // toute la file, y compris les cards rendues APRÈS le chargement : le bind par card de
     // `bindCardEvents` a été retiré dans le même geste (portage 2026-08-23).
-    WamaQueueActions.onSettings(function (id, btn) { openSettings(btn); });
-
-    async function saveSettings(startAfterSave = false) {
-        const descriptionId = document.getElementById('settingsDescriptionId').value;
-        const outputStyle = document.getElementById('settingsOutputFormat').value;
-        const outputLanguage = document.getElementById('settingsOutputLanguage').value;
-        const maxLength = document.getElementById('settingsMaxLength').value;
-        const generateSummary = document.getElementById('settingsGenerateSummary')?.checked || false;
-        const verifyCoherence = document.getElementById('settingsVerifyCoherence')?.checked || false;
-
-        const payload = {
-            output_style: outputStyle,
-            output_language: outputLanguage,
-            max_length: parseInt(maxLength),
-            generate_summary: generateSummary,
-            verify_coherence: verifyCoherence,
-        };
-
-        // (Mode batch : modale DÉDIÉE ci-dessus — saveBatchSettings ; plus de branche ici.)
-        try {
-            const response = await fetch(config.urls.updateOptions.replace('/0/', `/${descriptionId}/`), {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': config.csrfToken,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    output_style: outputStyle,
-                    output_language: outputLanguage,
-                    max_length: parseInt(maxLength),
-                    generate_summary: generateSummary,
-                    verify_coherence: verifyCoherence,
-                })
-            });
-
-            if (response.ok) {
-                // Close modal
-                if (settingsModalInstance) {
-                    settingsModalInstance.hide();
-                }
-
-                // Update card display
-                const card = document.querySelector(`.wama-card[data-id="${descriptionId}"]`);
-                if (card) {
-                    updateCardSettings(card, outputStyle, outputLanguage, maxLength, generateSummary, verifyCoherence);
-                }
-
-                if (startAfterSave) {
-                    startDescription(descriptionId);
-                } else {
-                    showToast('Parametres enregistres', 'success');
-                }
-            } else {
-                const data = await response.json();
-                showToast('Erreur: ' + (data.error || 'Erreur inconnue'), 'danger');
-            }
-        } catch (error) {
-            console.error('Save settings error:', error);
-            showToast('Erreur lors de la sauvegarde', 'danger');
-        }
-    }
-
-    function updateCardSettings(card, outputStyle, outputLanguage, maxLength, generateSummary, verifyCoherence) {
-        // Update the settings button data attributes
-        const settingsBtn = card.querySelector('.settings-btn');
-        if (settingsBtn) {
-            settingsBtn.dataset.outputStyle = outputStyle;
-            settingsBtn.dataset.outputLanguage = outputLanguage;
-            settingsBtn.dataset.maxLength = maxLength;
-            settingsBtn.dataset.generateSummary = generateSummary ? 'true' : 'false';
-            settingsBtn.dataset.verifyCoherence = verifyCoherence ? 'true' : 'false';
-        }
-
-        // Update the options display in the card
-        const optionsCol = card.querySelector('.col-md-2 small');
-        if (optionsCol && optionsCol.innerHTML.includes('fa-align-left')) {
-            let html = `
-                <i class="fas fa-align-left"></i> ${getFormatLabel(outputStyle)}<br>
-                <i class="fas fa-language"></i> ${getLanguageLabel(outputLanguage)}<br>
-                <i class="fas fa-text-width"></i> ${maxLength} mots`;
-            if (generateSummary) html += `<br><i class="fas fa-file-lines"></i> Résumé`;
-            if (verifyCoherence) html += `<br><i class="fas fa-spell-check"></i> Cohérence`;
-            optionsCol.innerHTML = html;
-        }
-    }
-
-    // Save settings buttons
-    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
-    if (saveSettingsBtn) {
-        saveSettingsBtn.addEventListener('click', () => saveSettings(false));
-    }
-
-    const saveAndStartBtn = document.getElementById('saveAndStartBtn');
-    if (saveAndStartBtn) {
-        saveAndStartBtn.addEventListener('click', () => saveSettings(true));
-    }
+    WamaQueueActions.onSettings(function (id, btn) { openSettings(id, btn); });
 
     // === Description Processing ===
 

@@ -105,28 +105,12 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
     </div>
 </div>
 
-<!-- Per-Description Settings Modal -->
-<div class="modal fade" id="settingsModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-cog"></i> Parametres de description
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="settingsForm">
-                    <input type="hidden" id="settingsDescriptionId" name="description_id">
-
-                    <div id="describerModalParams"></div>{# WamaParams context=item #}
-                </form>
-            </div>
-            {# Pied COMMUN (convention MODAL_ACTIONS_AUDIT §3) — mêmes IDs, handlers JS inchangés. #}
-            {% include 'common/_settings_modal_footer.html' with save_id='saveSettingsBtn' save_start_id='saveAndStartBtn' save_start_label='Enregistrer et démarrer' %}
-        </div>
-    </div>
-</div>
+{% comment %}Modale ⚙ d'ITEM : plus de markup ici — GÉNÉRÉE par le cycle commun
+`WamaParams.settingsModal` (index.js, portage 2026-09-24). Ne reste que le pied COMMUN qu'il
+greffe, avec les classes qu'il délègue (`save-settings-btn` / `save-and-restart-btn`).{% endcomment %}
+<template id="describerSettingsFooterTpl">
+    {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' save_start_label='Enregistrer et démarrer' %}
+</template>
 
 {% comment %}Modale BATCH DÉDIÉE (contrat reader, 17/08) — remplace le détournement de la modale
 item (_settingsBatchId + titre échangé). Corps GÉNÉRÉ du MÊME schéma (context 'batch').{% endcomment %}
@@ -206,8 +190,7 @@ ré-inclure : double BroadcastChannel → l'exclusivité audio fait taire son pr
   window.WAMA_DESCRIBER_SCHEMA = schema;   // réutilisé par l'inspecteur contextuel ci-dessous
   var ph = document.getElementById('describerPanelParams');
   if (ph) WamaParams.render(ph, schema, { context: 'panel', values: {} });
-  var mh = document.getElementById('describerModalParams');
-  if (mh) WamaParams.render(mh, schema, { context: 'item', values: {} });
+  // (La modale ⚙ d'ITEM n'est plus rendue ici : le cycle commun la génère à l'ouverture.)
   // Modale BATCH dédiée : mêmes params, contexte 'batch' (ids batchSettings* via dom_id).
   var bh = document.getElementById('describerBatchParams');
   if (bh) WamaParams.render(bh, schema, { context: 'batch', values: {} });
