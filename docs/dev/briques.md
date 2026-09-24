@@ -732,6 +732,18 @@ Souvenirs + fragments sur pgvector, scope hérité de ScopedVisibility ; 5 opér
   - `list_memories(user, *, en_attente=False)` — Les souvenirs à AFFICHER — matière de la page « Mes souvenirs » (jumelle de « Mon RAG »).
 
 ### Outils de DÉVELOPPEMENT (surface MCP « wama-dev »)
+### Métriques à vérité terrain (WER / CER)
+
+Distance d'une sortie texte à sa RÉFÉRENCE (port `reference_result`) : substitutions, suppressions, insertions rapportées à la longueur de la référence. Ne normalise que la casse et la ponctuation — les hésitations restent des données (verbatim) ; une référence vide rend un taux INDÉFINI, jamais zéro
+
+- **Domicile** : `wama/common/services/text_metrics.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
+- **Module** : Métriques de texte À VÉRITÉ TERRAIN — WER et CER (`WAMA_QUALITE.md` M3).
+- **API publique** (4) :
+  - `comparable_words(text: str) -> list` — Mots comparables : minuscules, sans ponctuation, **apostrophe traitée en séparateur**.
+  - `class ErrorRate` — Le compte d'une comparaison sortie ↔ référence, et son taux.
+  - `word_error_rate(reference: str, hypothesis: str) -> ErrorRate` — WER — taux d'erreur par MOT de `hypothesis` (la sortie) contre `reference`.
+  - `character_error_rate(reference: str, hypothesis: str) -> ErrorRate` — CER — taux d'erreur par CARACTÈRE, sur le même texte normalisé que le WER (mots séparés
+
 
 Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sable d'apps, exposés à un client MCP. ⚠ JAMAIS chargé dans le process de PRODUCTION (ROADMAP §16 : défense en profondeur > scope de jeton) — ni dans `TOOL_REGISTRY` ni importé par `tool_api` ; seul `run_mcp_server --surface dev` l'importe, et `tests_mcp_dev_tools` le garde. Les rôles écrivent une PROPOSITION dans `wama-dev-ai/outputs/` et n'appliquent rien
 
@@ -872,6 +884,28 @@ CVE des paquets INSTALLÉS du venv courant via l'API OSV.dev (pas les requiremen
   - `class Command(BaseCommand)`
 
 ## Contenu & prompts
+### Évaluation d'un résultat contre sa référence
+
+Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référence, lecture du résultat et de la référence, modèle, métriques) et la brique fait le reste : pose la référence sur un élément OU un lot (un seul fichier, partagé), mesure, conserve la mesure par élément (`ResultEvaluation` — modèle, échelle, sens, identité de la référence : ce que l'indice interne des modèles agrégera) et compare les modèles d'un lot (taux de CORPUS, et dit quand les références diffèrent). Va avec la capacité `has_reference_result` — un test refuse l'une sans l'autre
+
+- **Domicile** : `wama/common/services/result_evaluation.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
+- **Module** : Évaluation d'un résultat contre sa RÉFÉRENCE — la brique commune que chaque app adopte par une DÉCLARATION (`register_evaluation`), jamais par du code d'évaluation à elle.
+- **API publique** (14) :
+  - `class EvaluationSpec` — Ce qu'une surface déclare pour être évaluable. Voir l'en-tête du module.
+  - `register_evaluation(spec: EvaluationSpec) -> None` — Appelé depuis le `apps.py:ready()` de l'app — le registre ne connaît jamais ses apps.
+  - `evaluation_spec(surface: str) -> Optional[EvaluationSpec]`
+  - `evaluable_surfaces() -> List[str]`
+  - `evaluable_surface_of(element_model) -> Optional[str]` — La surface ÉVALUABLE dont `element_model` est le modèle d'élément, None sinon.
+  - `clear(surface: str, item) -> None` — Retire la mesure d'un élément (référence retirée, résultat disparu).
+  - `evaluate(surface: str, item) -> List` — Mesure le résultat COURANT de `item` contre sa référence ; rend les lignes écrites.
+  - `item_evaluation(surface: str, item) -> Optional[dict]` — La mesure d'un élément, prête pour l'onglet « Évaluation » ; None s'il n'y en a pas.
+  - `batch_evaluation(surface: str, items: Iterable) -> Optional[dict]` — Comparaison des modèles d'un lot — le résumé de la ligne de la card mère.
+  - `class ReferenceRefused(ValueError)` — La référence ne peut pas être posée — le motif est DIT à l'utilisateur.
+  - `attach_reference(surface: str, targets: List, uploaded) -> dict` — Pose UNE référence sur un ou plusieurs éléments (une card, ou toutes celles d'un lot).
+  - `attach_result(surface: str, item, uploaded) -> dict` — Pose un RÉSULTAT EXISTANT sur un élément (port `work_result`) : il tient lieu de traitement.
+  - `detach_result(surface: str, item) -> int` — Retire le fichier du résultat existant. Le RÉSULTAT de l'élément reste tel quel jusqu'à
+  - `detach_reference(surface: str, targets: List) -> int` — Retire la référence d'éléments ; le fichier n'est supprimé que s'il n'est plus désigné.
+
 
 ### Accès LLM
 
