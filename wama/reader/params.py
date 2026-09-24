@@ -1,6 +1,8 @@
 """
-Schéma de paramètres Reader — SOURCE UNIQUE pour l'inspecteur (context "panel") et la modale BATCH
-(context "batch"). Reader n'a pas de modale item → contexts = panel + batch.
+Schéma de paramètres Reader — SOURCE UNIQUE pour l'inspecteur (context "panel"), la modale BATCH
+(context "batch") et la modale ⚙ d'ITEM (context "item" — rendue par le cycle commun
+`WamaParams.settingsModal` depuis le 2026-09-24 ; « Reader n'a pas de modale item » était un
+constat périmé).
 
 Dérivé du modèle `ReadingItem` (backend/mode = TextChoices du modèle). Rendu par
 `WamaParams.render(container, PARAMS_JSON, {context})`. Les `dom_id` reprennent les IDs LEGACY de

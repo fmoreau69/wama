@@ -216,83 +216,30 @@
     // qui pose aussi le focus de la card dupliquée avant le reload.
 
     // ─── Settings modal ───────────────────────────────────────────────────────
-
-    function getOrCreateSettingsModal() {
-        let modal = document.getElementById('readerItemSettingsModal');
-        if (modal) return modal;
-
-        modal = document.createElement('div');
-        modal.id = 'readerItemSettingsModal';
-        modal.className = 'modal fade';
-        modal.tabIndex = -1;
-        modal.innerHTML = `
-<div class="modal-dialog modal-dialog-centered">
-  <div class="modal-content bg-dark border-secondary text-white">
-    <div class="modal-header border-secondary py-2">
-      <h6 class="modal-title"><i class="fas fa-cog text-secondary me-2"></i>Paramètres OCR</h6>
-      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="rSettings_id">
-      <div id="rSettingsParams"></div><!-- champs ITEM générés par WamaParams (context item, ids rSettings_*) -->
-
-    </div>
-    <div class="modal-footer border-secondary py-2">
-      <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
-      <button type="button" id="rSettings_saveBtn" class="btn btn-primary btn-sm">
-        <i class="fas fa-save me-1"></i>Enregistrer
-      </button>
-    </div>
-  </div>
-</div>`;
-        document.body.appendChild(modal);
-        // Champs ITEM générés par WamaParams (schéma exposé par le template) — ids legacy rSettings_*.
-        if (window.WamaParams && window.WAMA_READER_SCHEMA) {
-            const host = modal.querySelector('#rSettingsParams');
-            if (host) WamaParams.render(host, window.WAMA_READER_SCHEMA, { context: 'item', values: {} });
-        }
-        document.getElementById('rSettings_saveBtn').addEventListener('click', saveItemSettings);
-        return modal;
-    }
-
+    // ⚙ item : le CYCLE complet (rendre du schéma → greffer le pied → afficher → lire →
+    // enregistrer → enchaîner) est la brique commune `WamaParams.settingsModal` (portage
+    // 2026-09-24 — `getOrCreateSettingsModal` + `openItemSettings` + `saveItemSettings` le
+    // recopiaient ici, avec des ids `rSettings_*` et une liste de champs écrite à la main qui
+    // OUBLIAIT `output_format`, pourtant au schéma). Les VALEURS viennent des data-* du gear
+    // (brique `card_gear`), lues par LE lecteur unique `WamaInspector.gearValues` ; le POST est
+    // un FormData que la vue lit par `read_settings_payload` (JSON ou formulaire, coercé au
+    // schéma). La réponse est la card à jour (`_item_to_dict`) : `upsertCard` la reflète.
     function openItemSettings(btn) {
-        const modal = getOrCreateSettingsModal();
-        // NULL-SAFE : champs générés par WamaParams ; dispatch input+change pour ses affichages.
-        const _set = function (elId, val) {
-            const el = document.getElementById(elId);
-            if (!el) return;
-            el.value = val;
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-        };
-        _set('rSettings_id', btn.dataset.id);
-        _set('rSettings_backend', btn.dataset.backend || 'auto');
-        _set('rSettings_mode', btn.dataset.mode || 'auto');
-        _set('rSettings_language', btn.dataset.language || '');
-        bootstrap.Modal.getOrCreateInstance(modal).show();
-    }
-
-    async function saveItemSettings() {
-        const _val = function (elId) { const el = document.getElementById(elId); return el ? el.value : ''; };
-        const id = _val('rSettings_id');
-        const payload = {
-            backend:  _val('rSettings_backend'),
-            mode:     _val('rSettings_mode'),
-            language: _val('rSettings_language').trim(),
-        };
-        try {
-            const r = await csrfFetch(urlFor('saveSettings', id), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            const item = await r.json();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('readerItemSettingsModal'));
-            if (modal) modal.hide();
-            upsertCard(item);
-        } catch (e) {
-            console.error('[Reader] save_settings error:', e);
-        }
+        const schema = window.WAMA_READER_SCHEMA || [];
+        const card = (btn && btn.closest('.wama-card')) || btn;
+        const id = btn.dataset.id;
+        return WamaParams.settingsModal({
+            id: id,
+            title: 'Paramètres OCR',
+            titleIcon: 'fa-cog',
+            schema: schema,
+            values: WamaInspector.gearValues(card, schema.map(function (p) { return p.name; })),
+            formClass: 'reader-settings-form',
+            footerTplId: 'readerSettingsFooterTpl',
+            saveUrl: urlFor('saveSettings', id),
+            csrf: csrf,
+            onSaved: function (_id, _restart, resp) { if (resp && resp.id) upsertCard(resp); },
+        });
     }
 
     // Double-clic sur une preview de card → TEXTE INTÉGRAL (geste propre au reader), branché

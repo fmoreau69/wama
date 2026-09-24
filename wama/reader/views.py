@@ -659,10 +659,12 @@ def clear_all(request):
 def save_settings(request, pk: int):
     """Update per-item OCR settings (backend, mode, output_format, language)."""
     item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
-    try:
-        data = json.loads(request.body.decode('utf-8'))
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        data = {}
+    # JSON (inspecteur) OU FormData (modale ⚙ par le cycle commun `WamaParams.settingsModal`,
+    # portage 2026-09-24) : le lecteur COMMUN des réglages postés, coercé au schéma — `language`
+    # vide EST une valeur (auto-détection), comme pour la vue de lot.
+    from wama.common.utils.batch_views import read_settings_payload
+    data = read_settings_payload(request, _SCHEMA, [p['name'] for p in _SCHEMA],
+                                 empty_is_value=('language',))
 
     allowed_backends = [c[0] for c in ReadingItem.Backend.choices]
     allowed_modes    = [c[0] for c in ReadingItem.Mode.choices]
@@ -675,7 +677,7 @@ def save_settings(request, pk: int):
     if 'output_format' in data and data['output_format'] in allowed_formats:
         item.output_format = data['output_format']
     if 'language' in data:
-        item.language = data['language'].strip()[:16]
+        item.language = str(data['language'] or '').strip()[:16]
 
     item.save(update_fields=['backend', 'mode', 'output_format', 'language'])
     return JsonResponse(_item_to_dict(item))

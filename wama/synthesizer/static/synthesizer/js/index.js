@@ -140,84 +140,65 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Settings modal instance (used by delegation handler below)
-    const settingsModal = document.getElementById('settingsModal');
-    const settingsModalInstance = settingsModal ? new bootstrap.Modal(settingsModal) : null;
-
-    // Save settings button
-    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
-    if (saveSettingsBtn) {
-        saveSettingsBtn.addEventListener('click', async () => {
-            await saveSettings(false);
+    // ⚙ item : le CYCLE complet (rendre du schéma → greffer le pied → afficher → lire →
+    // enregistrer → enchaîner) est la brique commune `WamaParams.settingsModal` (portage
+    // 2026-09-24 — la modale statique `#settingsModal` du gabarit, `saveSettings` et sa liste de
+    // champs écrite à la main vivaient ici). Les VALEURS viennent des data-* du gear (brique
+    // `card_gear`), lues par LE lecteur unique `WamaInspector.gearValues` ; les spécificités de
+    // l'app restent des HOOKS : options des selects clonées du volet compose (`optionsResolver`),
+    // champs Higgs ajoutés au POST (`collect`), bouton « Ajouter une voix personnalisée » greffé
+    // dans la modale (`decorate`). ⚠ « Sauvegarder et démarrer » POSTe le démarrage : l'ancien
+    // cycle le faisait en GET, refusé par la vue (`@require_POST` depuis le 22/09).
+    function _panelOptionsResolver(param) {
+        const src = document.getElementById((param.dom_id && param.dom_id.panel) || param.name);
+        if (!src || src.tagName !== 'SELECT') return null;
+        return Array.from(src.options).map(function (o) {
+            const grp = o.parentElement && o.parentElement.tagName === 'OPTGROUP'
+                ? o.parentElement.label + ' — ' : '';
+            return { value: o.value, label: grp + o.textContent.trim() };
         });
     }
 
-    // Save and start button
-    const saveAndStartBtn = document.getElementById('saveAndStartBtn');
-    if (saveAndStartBtn) {
-        saveAndStartBtn.addEventListener('click', async () => {
-            await saveSettings(true);
+    function openSettingsModal(id, btn) {
+        const schema = window.SYNTH_PARAMS_SCHEMA || [];
+        const card = (btn && btn.closest('.wama-card')) || btn;
+        const values = Object.assign(
+            { quality_intent: '50', speed: '1.0', pitch: '1.0' },
+            WamaInspector.gearValues(card, schema.map(function (p) { return p.name; })));
+        return WamaParams.settingsModal({
+            id: id,
+            title: 'Paramètres de synthèse',
+            titleIcon: 'fa-cog',
+            schema: schema,
+            values: values,
+            formClass: 'synthesis-settings-form',
+            footerTplId: 'synthSettingsFooterTpl',
+            saveUrl: URLS.updateOptions + id + '/',
+            csrf: csrfToken,
+            optionsResolver: _panelOptionsResolver,
+            decorate: function (host) {
+                const add = document.createElement('button');
+                add.type = 'button';
+                add.className = 'btn btn-outline-secondary btn-sm w-100 mt-2 add-custom-voice-btn';
+                add.innerHTML = '<i class="fas fa-plus"></i> Ajouter une voix personnalisée';
+                add.addEventListener('click', function () { openCustomVoiceModal(id, btn); });
+                host.appendChild(add);
+            },
+            collect: function (fd) { appendHiggsFields(fd); },
+            onSaved: async function (sid, restart) {
+                if (restart) {
+                    try {
+                        const r = await fetch(URLS.start + sid + '/',
+                                              { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
+                        if (!r.ok) {
+                            const data = await r.json().catch(function () { return {}; });
+                            WamaApp.toast('Paramètres sauvegardés mais erreur au démarrage: ' + (data.error || 'Échec'), 'error');
+                        }
+                    } catch (error) { WamaApp.toast('Erreur: ' + error.message, 'error'); }
+                }
+                location.reload();
+            },
         });
-    }
-
-    // Save settings function
-    async function saveSettings(startAfterSave) {
-        const synthesisId = document.getElementById('settingsSynthesisId').value;
-        const formData = new FormData();
-
-        formData.append('tts_model', document.getElementById('settingsTtsModel').value);
-        var _qi = document.getElementById('settingsQualityIntent');
-        if (_qi) formData.append('quality_intent', _qi.value);
-        formData.append('language', document.getElementById('settingsLanguage').value);
-        formData.append('voice_preset', document.getElementById('settingsVoicePreset').value);
-        formData.append('speed', document.getElementById('settingsSpeed').value);
-        formData.append('pitch', document.getElementById('settingsPitch').value);
-        var _of = document.getElementById('settingsOutputFormat');
-        var _oq = document.getElementById('settingsOutputQuality');
-        if (_of) formData.append('output_format', _of.value);
-        if (_oq) formData.append('output_quality', _oq.value);
-        appendHiggsFields(formData);
-
-        try {
-            // Save settings
-            const response = await fetch(URLS.updateOptions + synthesisId + '/', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrfToken },
-                body: formData
-            });
-
-            if (response.ok) {
-                // Close modal
-                if (settingsModalInstance) {
-                    settingsModalInstance.hide();
-                }
-
-                if (startAfterSave) {
-                    // Start the synthesis
-                    const startResponse = await fetch(URLS.start + synthesisId + '/', {
-                        method: 'GET',
-                        headers: { 'X-CSRFToken': csrfToken }
-                    });
-
-                    if (startResponse.ok) {
-                        location.reload();
-                    } else {
-                        const data = await startResponse.json();
-                        WamaApp.toast('Paramètres sauvegardés mais erreur au démarrage: ' + (data.error || 'Échec'), 'error');
-                        location.reload();
-                    }
-                } else {
-                    // Just reload to show updated settings
-                    location.reload();
-                }
-            } else {
-                const data = await response.json();
-                WamaApp.toast('Erreur lors de la sauvegarde: ' + (data.error || 'Échec'), 'error');
-            }
-        } catch (error) {
-            console.error('Save settings error:', error);
-            WamaApp.toast('Erreur: ' + error.message, 'error');
-        }
     }
 
     // === Unified card button delegation ===
@@ -270,39 +251,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // délégation commune ferait partir CHAQUE clic deux fois.
     });
 
-    // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js).
-    WamaQueueActions.onSettings(function (id, settingsBtn) {
-        if (!settingsModalInstance) return;
-        const d = settingsBtn.dataset;
-        document.getElementById('settingsSynthesisId').value = id;
-
-        // Corps de modale GÉNÉRÉ depuis le schéma déclaratif (params.py, contexte
-        // item). Options des selects : clonées du volet compose (source serveur
-        // unique — optgroups voix aplatis avec préfixe de groupe).
-        const paramsBody = document.getElementById('settingsParamsBody');
-        if (window.WamaParams && window.SYNTH_PARAMS_SCHEMA && paramsBody) {
-            WamaParams.render(paramsBody, window.SYNTH_PARAMS_SCHEMA, {
-                context: 'item',
-                values: {
-                    tts_model: d.ttsModel, language: d.language,
-                    quality_intent: d.qualityIntent || '50',
-                    voice_preset: d.voicePreset,
-                    speed: d.speed || '1.0', pitch: d.pitch || '1.0',
-                    output_format: d.outputFormat || '', output_quality: d.outputQuality || '',
-                },
-                optionsResolver: function (param) {
-                    const src = document.getElementById((param.dom_id && param.dom_id.panel) || param.name);
-                    if (!src || src.tagName !== 'SELECT') return null;
-                    return Array.from(src.options).map(function (o) {
-                        const grp = o.parentElement && o.parentElement.tagName === 'OPTGROUP'
-                            ? o.parentElement.label + ' — ' : '';
-                        return { value: o.value, label: grp + o.textContent.trim() };
-                    });
-                },
-            });
-        }
-        settingsModalInstance.show();
-    });
+    // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js) ; le cycle est celui de
+    // `WamaParams.settingsModal` (openSettingsModal ci-dessus).
+    WamaQueueActions.onSettings(function (id, settingsBtn) { openSettingsModal(id, settingsBtn); });
 
     // Bulk actions
     const startAllBtn = document.getElementById('startAllBtn');
@@ -949,25 +900,27 @@ document.addEventListener('DOMContentLoaded', function() {
     let recordingStartTime = null;
     let recordingTimerInterval = null;
 
-    let reopenSettingsAfterCustomVoice = false;
+    // Modale ⚙ à ROUVRIR après l'ajout d'une voix (la modale est GÉNÉRÉE par le cycle commun :
+    // on retient l'élément et son gear, pas une instance Bootstrap statique).
+    let reopenSettingsFor = null;
 
-    function openCustomVoiceModal() {
+    function openCustomVoiceModal(fromSettingsId, fromSettingsBtn) {
         if (!customVoiceModalInstance) return;
         document.getElementById('customVoiceName').value = '';
         if (customVoiceAudioInput) customVoiceAudioInput.value = '';
         const resultDiv = document.getElementById('recordingResult');
         if (resultDiv) resultDiv.style.display = 'none';
 
-        // If settings modal is open, hide it first and flag for reopen
-        if (settingsModal && settingsModal.classList.contains('show')) {
-            reopenSettingsAfterCustomVoice = true;
-            settingsModalInstance.hide();
-            settingsModal.addEventListener('hidden.bs.modal', function showCustomVoice() {
-                settingsModal.removeEventListener('hidden.bs.modal', showCustomVoice);
+        // Ouvert DEPUIS la modale ⚙ : la fermer d'abord, la rouvrir à la fermeture de celle-ci.
+        const openSettings = fromSettingsId ? document.querySelector('.modal.show[data-wama-item-id]') : null;
+        if (openSettings) {
+            reopenSettingsFor = { id: fromSettingsId, btn: fromSettingsBtn };
+            openSettings.addEventListener('hidden.bs.modal', function () {
                 customVoiceModalInstance.show();
             }, { once: true });
+            bootstrap.Modal.getInstance(openSettings).hide();
         } else {
-            reopenSettingsAfterCustomVoice = false;
+            reopenSettingsFor = null;
             customVoiceModalInstance.show();
         }
     }
@@ -975,16 +928,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Reopen settings modal when custom voice modal closes
     if (customVoiceModal) {
         customVoiceModal.addEventListener('hidden.bs.modal', () => {
-            if (reopenSettingsAfterCustomVoice && settingsModalInstance) {
-                reopenSettingsAfterCustomVoice = false;
-                settingsModalInstance.show();
+            if (reopenSettingsFor) {
+                const pending = reopenSettingsFor;
+                reopenSettingsFor = null;
+                openSettingsModal(pending.id, pending.btn);
             }
         });
     }
 
-    // All "Ajouter une voix" buttons (panel + settings modal) use the same class
+    // « Ajouter une voix » du VOLET (celui de la modale ⚙ est greffé par `decorate`, avec
+    // l'élément à rouvrir).
     document.querySelectorAll('.add-custom-voice-btn').forEach(btn => {
-        btn.addEventListener('click', openCustomVoiceModal);
+        btn.addEventListener('click', function () { openCustomVoiceModal(); });
     });
 
     // Microphone recording inside the custom voice modal

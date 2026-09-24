@@ -263,33 +263,12 @@ startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit.{% endc
     </div>
 </div>
 
-<!-- Per-Media Settings Modal -->
-<div class="modal fade" id="settingsModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-cog"></i> Paramètres de synthèse
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="settingsForm">
-                    <input type="hidden" id="settingsSynthesisId" name="synthesis_id">
-                    {% comment %}Champs GÉNÉRÉS depuis le schéma déclaratif (params.py, contexte item)
-par WamaParams.render à l'ouverture — options des selects clonées
-depuis le volet compose (source serveur unique, optgroups aplatis).{% endcomment %}
-                    <div id="settingsParamsBody"></div>
-                    <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2 add-custom-voice-btn">
-                        <i class="fas fa-plus"></i> Ajouter une voix personnalisée
-                    </button>
-                </form>
-            </div>
-            {# Pied de modale COMMUN — ids conservés pour index.js #}
-            {% include 'common/_settings_modal_footer.html' with save_id='saveSettingsBtn' save_label='Sauvegarder' save_start_id='saveAndStartBtn' save_start_label='Sauvegarder et démarrer' %}
-        </div>
-    </div>
-</div>
+{% comment %}Modale ⚙ d'ITEM : plus de markup ici — elle est GÉNÉRÉE par le cycle commun
+`WamaParams.settingsModal` (index.js, portage 2026-09-24) ; ne reste que le pied COMMUN qu'il
+greffe, avec les classes qu'il délègue (`save-settings-btn` / `save-and-restart-btn`).{% endcomment %}
+<template id="synthSettingsFooterTpl">
+    {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_label='Sauvegarder' save_start_class='save-and-restart-btn' save_start_label='Sauvegarder et démarrer' %}
+</template>
 
 <!-- Batch Settings Modal -->
 <div class="modal fade" id="batchSettingsModal" tabindex="-1">
