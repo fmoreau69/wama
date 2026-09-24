@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% comment %}
+Notifications DANS WAMA — WAMA_COLLABORATION.md §2.3 et §5.3 : la liste, lu / non lu, ouverte
+depuis le badge de l'en-tête. Premier type d'événement (2026-09-24) : l'arrêt d'un worker Celery.
+Les préférences type × canal (§5.2) sont la marche 5, pas cette page.
+{% endcomment %}
+
+{% block title %}WAMA — Notifications{% endblock %}
+
+{% block extra_css %}
+<style>
+    .notif-page { padding: 2rem 0; }
+    .notif-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: .25rem; }
+    .notif-page .subtitle { color: #adb5bd; font-size: .9rem; margin-bottom: 1.5rem; }
+    .notif-item { background: #1a1a2e; border: 1px solid #2d2d4e; border-radius: .5rem;
+                  padding: .85rem 1rem; margin-bottom: .6rem; color: #dee2e6; }
+    .notif-item.unread { border-color: #0d6efd; background: #16213e; }
+    .notif-item .notif-title { font-weight: 600; color: #f8f9fa; }
+    .notif-item .notif-date { color: #adb5bd; font-size: .8rem; white-space: nowrap;
+                              font-variant-numeric: tabular-nums; }
+    .notif-item .notif-body { white-space: pre-line; font-size: .9rem; color: #ced4da;
+                              margin-top: .35rem; }
+    .notif-empty { color: #adb5bd; text-align: center; padding: 3rem 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container notif-page">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+      <h1>Notifications</h1>
+      <p class="subtitle">
+        {{ unread_count }} non lue{{ unread_count|pluralize }} sur {{ items|length }}.
+      </p>
+    </div>
+    {% if unread_count %}
+    <form method="post" action="{% url 'common:notifications_mark_read' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-info">
+        <i class="fas fa-check-double me-1"></i> Tout marquer comme lu
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% for n in items %}
+  <div class="notif-item{% if not n.read_at %} unread{% endif %}" data-kind="{{ n.kind }}">
+    <div class="d-flex justify-content-between gap-3">
+      <span class="notif-title">
+        {% if not n.read_at %}<i class="fas fa-circle text-info me-1" style="font-size:.5rem;vertical-align:middle;"></i>{% endif %}
+        {{ n.title }}
+      </span>
+      <span class="notif-date">{{ n.created_at|date:"d/m/Y H:i" }}</span>
+    </div>
+    {% if n.body %}<div class="notif-body">{{ n.body }}</div>{% endif %}
+    <div class="d-flex gap-2 mt-2">
+      {% if n.url %}<a class="btn btn-sm btn-outline-light" href="{{ n.url }}">Ouvrir</a>{% endif %}
+      {% if not n.read_at %}
+      <form method="post" action="{% url 'common:notifications_mark_read' %}">
+        {% csrf_token %}<input type="hidden" name="id" value="{{ n.pk }}">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Marquer comme lu</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <p class="notif-empty">Aucune notification.</p>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -43,9 +43,8 @@
      */
     function isProcessingActive() {
         return !!document.querySelector(
-            // Synthesizer, Transcriber, Describer: card with .processing class (Django template)
-            '.synthesis-card.processing, ' +
-            // Enhancer, Transcriber, Describer: row/card with data-status (Django template)
+            // Toute card en cours porte data-status (la classe .processing a été retirée des
+            // cards le 2026-09-18 : `.synthesis-card.processing` ne trouvait plus rien).
             '[data-status="RUNNING"], ' +
             // Anonymizer, Imager: body flag set by app JS
             '[data-wama-processing]'

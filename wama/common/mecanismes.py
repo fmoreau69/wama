@@ -160,8 +160,13 @@ MECHANISMS = (
               'wama/common/utils/task_progress.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md'),
     Mechanism('process_control', 'Gardes de process',
-              "Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines",
-              'wama/common/utils/process_control.py', 'docs/construction/suivi/PROJECT_STATUS.md §0'),
+              "Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ; "
+              "solde des tâches d'un worker MORT (preuve : processus disparu) au démarrage du "
+              "worker relancé (`worker_ready`) et par la surveillance des workers "
+              "(`scripts/worker_watchdog.sh` → `manage.py worker_died`)",
+              'wama/common/utils/process_control.py', 'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
+              annexes=('wama/celery.py', 'wama/common/management/commands/worker_died.py',
+                       'scripts/worker_watchdog.sh', 'scripts/wama_services.sh')),
     Mechanism('memory_manager', 'Mémoire GPU',
               "Garantit la VRAM avant un chargement, la reprend sur les autres modèles, "
               "et réessaie après libération sur erreur CUDA",
@@ -1146,9 +1151,13 @@ MECHANISMS = (
               "`CELERY_BROKER_URL`)",
               'wama/common/utils/console_utils.py', '',
               annexes=('wama/common/static/common/js/console.js',)),
-    Mechanism('notifications', 'Notifications de tâche',
-              "notify_job() — fin de traitement, succès comme échec",
-              'wama/common/utils/notifications.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md'),
+    Mechanism('notifications', 'Notifications',
+              "notify_job() — fin de traitement par e-mail, succès comme échec ; notify_in_app() "
+              "— DANS WAMA (badge de l'en-tête, page /common/notifications/, lu / non lu) ; "
+              "notify_admins() — les deux canaux vers les administrateurs (mort d'un worker)",
+              'wama/common/utils/notifications.py', 'docs/construction/exploitation/WAMA_COLLABORATION.md',
+              annexes=('wama/common/context_processors.py',
+                       'wama/common/templates/common/notifications.html')),
 
     )),
 

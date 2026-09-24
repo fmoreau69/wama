@@ -5671,3 +5671,133 @@ def register_batch_processing_scenarios():
             run=(lambda p=path, a=label: (lambda ctx: check_app_batch_processing(a, p)))(),
             timeout_s=360, vram_gb=vram,
         )
+
+
+def _in_plain_thread(fn, *args):
+    """Run an ORM call from a bare thread — `sync_playwright` forbids it in its own thread
+    (`SynchronousOnlyOperation`), the same way as `_test_account_id`."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _call():
+        from django.db import connections
+        try:
+            return fn(*args)
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=1) as ex:
+        return ex.submit(_call).result(timeout=60)
+
+
+def _start_on_a_dead_process(app: str, item_id) -> str:
+    """Put element `item_id` in the state a worker crash leaves: RUNNING, its task STARTED by a
+    process that no longer exists. The worker name is FICTITIOUS (`wama-smoke@<host>`): no live
+    worker answers for it, so the page's own reconciliation at load cannot settle it — only the
+    death of THAT process, proved by the restarted worker, may. Returns the worker name."""
+    import socket
+    import subprocess
+    import uuid
+
+    from celery import current_app
+    from wama.common.utils.preview_registry import PreviewRegistry
+    model = PreviewRegistry.get_model(app)
+    gone = subprocess.Popen(['true'])
+    gone.wait()                                   # a pid that WAS alive and is gone
+    node = f"wama-smoke@{socket.gethostname()}"
+    task_id = f"wama-smoke-{uuid.uuid4()}"
+    current_app.backend.store_result(task_id, {'pid': gone.pid, 'hostname': node}, 'STARTED')
+    model.objects.filter(pk=item_id).update(status='RUNNING', task_id=task_id)
+    return node
+
+
+def check_app_worker_death(app: str, url_path: str):
+    """A worker dies during a task: does the card turn to a relaunchable failure WITHOUT the
+    page being reloaded? (ok, detail) — demande de Fabien, 2026-09-24.
+
+    The element is mounted by the ordinary deposit, put in the state a crash leaves (RUNNING,
+    task STARTED by a dead process), and the page is opened; then the restarted worker's gesture
+    runs (`process_control.reconcile_dead_worker_tasks`, the brick `worker_ready` calls). A
+    marker in `window` must survive: a reload erases it. Nothing is started, no GPU is used."""
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.utils.preview_registry import PreviewRegistry
+    if PreviewRegistry.get_model(app) is None:
+        raise SkipScenario("aucun modèle d'élément déclaré (PreviewRegistry) — rien à mettre en cours")
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    token = _test_session_key(app)
+    if not token:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+
+    card_state = """(id) => {
+        const c = document.querySelector('.wama-card[data-id="' + id + '"]:not(.is-batch)');
+        return c ? (c.dataset.status || '') : null;
+    }"""
+    detail = ''
+    with _garde_de_montage(app, 'worker_death') as _nettoyes:
+      with sync_playwright() as p:
+        browser = p.chromium.launch()
+        try:
+            context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+            context.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': token,
+                                  'domain': '127.0.0.1', 'path': '/'}])
+            page = context.new_page()
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            wrong_page = _exiger_la_page(page, resp, url)
+            if wrong_page:
+                return wrong_page
+            page.wait_for_timeout(1200)
+            before = set(page.evaluate(IDS_CARDS_JS))
+            _monter_un_lot(page, app, n=2)
+            page.goto(url, wait_until='networkidle', timeout=45000)
+            new_ids = [i for i in page.evaluate(IDS_CARDS_JS) if i not in before]
+            if not new_ids:
+                raise SkipScenario("aucun élément créé par le montage — rien à mettre en cours")
+            ident = new_ids[0]
+
+            node = _in_plain_thread(_start_on_a_dead_process, app, ident)
+            page.goto(url, wait_until='networkidle', timeout=45000)
+            page.wait_for_timeout(1500)
+            if page.evaluate(card_state, ident) != 'RUNNING':
+                return False, (f"élément #{ident} mis en cours en base, mais sa card dit "
+                               f"« {page.evaluate(card_state, ident)} » au chargement")
+            page.evaluate("() => { window.__wamaWorkerDeath = 'same-page'; }")
+
+            settled = _in_plain_thread(
+                __import__('wama.common.utils.process_control', fromlist=['x'])
+                .reconcile_dead_worker_tasks, node)
+            if not any(str(pk) == str(ident) for _l, _m, pk in settled):
+                return False, f"la brique n'a pas soldé l'élément #{ident} ({settled})"
+            try:
+                page.wait_for_function(
+                    "(id) => { const c = document.querySelector('.wama-card[data-id=\"' + id + "
+                    "'\"]:not(.is-batch)'); return c && c.dataset.status === 'FAILURE'; }",
+                    arg=ident, timeout=25000)
+            except PlaywrightTimeout:
+                return False, (f"élément #{ident} passé en échec en base, mais sa card dit encore "
+                               f"« {page.evaluate(card_state, ident)} » après 25 s — le "
+                               "rafraîchissement de la card ne suit pas le statut")
+            if page.evaluate("() => window.__wamaWorkerDeath") != 'same-page':
+                return False, "la card est passée en échec, mais la page a été RECHARGÉE"
+            detail = (f"élément #{ident} : RUNNING → FAILURE sans rechargement de la page, "
+                      "après le solde du processus mort")
+        finally:
+            browser.close()
+    if _nettoyes:
+        detail += f" ; {_total_nettoye(_nettoyes)} objet(s) de montage nettoyé(s)"
+    return True, detail
+
+
+def register_worker_death_scenarios():
+    """Un scénario `<app>.worker_death` par app disposant d'une page d'index — aucun GPU."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.worker_death", app=label, stage="ui",
+            description=(f"File {label} : un worker meurt pendant un traitement — la card passe "
+                         "en échec relançable sans rechargement de la page"),
+            run=(lambda p=path, a=label: (lambda ctx: check_app_worker_death(a, p)))(),
+            timeout_s=240, vram_gb=0.0,
+        )

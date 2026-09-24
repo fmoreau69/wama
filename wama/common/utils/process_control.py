@@ -421,6 +421,91 @@ def reconcile_orphaned_running(instances, *, snapshot=None,
     return n
 
 
+def _pid_alive(pid) -> bool:
+    """Le processus `pid` existe-t-il sur CETTE machine ? En cas de doute (droits), oui."""
+    import os
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except (PermissionError, ValueError, TypeError, OSError):
+        return True
+    return True
+
+
+def is_task_on_dead_process(task_id: str, hostname: str) -> bool:
+    """PREUVE POSITIVE de mort (2026-09-24) : la tâche a démarré (`STARTED`) sur le worker
+    `hostname` — donc sur cette machine —, dans un processus qui n'existe plus.
+
+    C'est la preuve que le worker RELANCÉ détient à son démarrage : il sait son nom, il voit les
+    processus de la machine. Elle ne dépend d'aucun `inspect()` (le worker `gpu`, en pool `solo`,
+    ne répond pas pendant une tâche — le signal inversé du 25/07). Un pid RÉUTILISÉ par un autre
+    processus se lit « vivant » : on ne conclut pas, c'est le côté sûr de l'asymétrie.
+    """
+    if not task_id or not hostname:
+        return False
+    try:
+        import os
+        from celery import current_app
+        from celery.result import AsyncResult
+        res = AsyncResult(task_id, app=current_app)
+        if res.state != 'STARTED':
+            return False
+        meta = res.result
+    except Exception:
+        return False
+    if not isinstance(meta, dict) or meta.get('hostname') != hostname:
+        return False
+    pid = meta.get('pid')
+    if not pid or int(pid) == os.getpid():
+        return False
+    return not _pid_alive(pid)
+
+
+def work_models():
+    """Les modèles qu'un worker Celery peut traiter : ceux des apps WAMA qui portent la paire
+    conventionnelle `status` + `task_id` (les défauts de cette brique). Lue sur la FORME, pas
+    sur un registre : un worker exécute aussi les apps sans adaptateur d'aperçu (Lab, jumelles)."""
+    from django.apps import apps
+    found = []
+    for m in apps.get_models():
+        if m.__module__.split('.')[0] not in ('wama', 'wama_lab', 'wama_data'):
+            continue
+        names = {f.name for f in m._meta.get_fields()}
+        if {'status', 'task_id'} <= names:
+            found.append(m)
+    return found
+
+
+def reconcile_dead_worker_tasks(hostname: str, *,
+                                error_message: str = ("Traitement interrompu : le worker "
+                                                      "s'est arrêté. Relancer l'élément.")) -> list:
+    """Bascule en échec RELANÇABLE chaque élément RUNNING dont la tâche a démarré sur le worker
+    `hostname` dans un processus mort (`is_task_on_dead_process`). Rend [(app_label, modèle,
+    pk)]. Appelée au démarrage d'un worker (`wama/celery.py`, `worker_ready`) et par
+    `manage.py worker_died` ; idempotente. Mêmes gardes que `reconcile_orphaned_running` : un
+    succès n'est jamais écrasé, une ligne qui a bougé n'est pas réécrite. La card le voit à son
+    prochain rafraîchissement : son polling lit le statut, aucun rechargement de page."""
+    done = []
+    for model in work_models():
+        error_field = 'error_message' if any(
+            f.name == 'error_message' for f in model._meta.get_fields()) else None
+        try:
+            rows = list(model.objects.filter(status='RUNNING').exclude(task_id='')
+                        .exclude(task_id__isnull=True))
+        except Exception:
+            continue
+        for inst in rows:
+            tid = inst.task_id or ''
+            if not is_task_on_dead_process(tid, hostname):
+                continue
+            if _tache_reussie(tid) or not _statut_inchange(inst, 'status', 'RUNNING'):
+                continue
+            _mark_reconciled(inst, 'status', 'task_id', 'FAILURE', error_field, error_message)
+            done.append((model._meta.app_label, model.__name__, inst.pk))
+    return done
+
+
 def _tache_reussie(task_id: str) -> bool:
     """La tâche s'est-elle terminée en SUCCÈS ? (≠ « morte » — cf. `reconcile_orphaned_running`)"""
     try:

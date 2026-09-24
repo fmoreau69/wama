@@ -16,6 +16,20 @@ def volet_defaut(request):
     return {'volet': VOLET_DEFAUT}
 
 
+def unread_notifications(request):
+    """Nombre de notifications NON LUES du compte connecté — le badge de l'en-tête
+    (`WAMA_COLLABORATION.md §2.3`). Une requête indexée (`recipient`, `read_at`) ; fail-safe."""
+    user = getattr(request, 'user', None)
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'unread_notifications': 0}
+    try:
+        from wama.common.models import Notification
+        return {'unread_notifications': Notification.objects.filter(
+            recipient=user, read_at__isnull=True).count()}
+    except Exception:
+        return {'unread_notifications': 0}
+
+
 #: Ce que voit un visiteur sans compte : pas d'avatar (la vocalisation exige un compte).
 _AVATAR_ABSENT = {'available': False, 'enabled': False, 'collapsed': False, 'voice': False,
                   'compact_chat': False}

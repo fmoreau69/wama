@@ -36,6 +36,43 @@ def notify_user(user, subject, body, html=None):
     return notify_emails([getattr(user, 'email', '') or ''], subject, body, html)
 
 
+def notify_in_app(users, kind, title, body='', url=''):
+    """Crée une notification DANS WAMA pour chaque utilisateur (`common.Notification`, badge de
+    l'en-tête + page `/common/notifications/`). Fail-safe ; rend le nombre créé."""
+    try:
+        from wama.common.models import Notification
+        rows = [Notification(recipient=u, kind=kind, title=title[:255], body=body or '',
+                             url=url or '')
+                for u in (users or []) if getattr(u, 'pk', None)]
+        Notification.objects.bulk_create(rows)
+        return len(rows)
+    except Exception as e:  # pragma: no cover
+        logger.warning("notify_in_app a échoué : %s", e)
+        return 0
+
+
+def infrastructure_admins():
+    """Les comptes qui administrent l'infrastructure : ceux que la politique d'accès laisse
+    entrer au model manager (même point de décision que ses 52 vues, `accessible`)."""
+    from django.contrib.auth import get_user_model
+    from wama.accounts.permissions import accessible
+    return [u for u in get_user_model().objects.filter(is_active=True)
+            if accessible(u, 'app', 'model_manager')]
+
+
+def notify_admins(kind, subject, body, url=''):
+    """Prévient les administrateurs de l'infrastructure DANS WAMA et par e-mail. Fail-safe ;
+    rend (notifications créées, e-mail envoyé)."""
+    try:
+        admins = infrastructure_admins()
+    except Exception as e:  # pragma: no cover
+        logger.warning("notify_admins : destinataires illisibles (%s)", e)
+        return 0, False
+    created = notify_in_app(admins, kind, subject, body, url)
+    sent = notify_emails([a.email for a in admins], f"[WAMA] {subject}", body)
+    return created, sent
+
+
 def notify_job(user, app_label, item_name, success, detail='', url=''):
     """
     Notifie la fin (ou l'échec) d'un traitement, en respectant les préférences du profil.

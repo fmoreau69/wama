@@ -839,6 +839,36 @@ def journal_view(request):
     })
 
 
+@login_required
+def notifications_view(request):
+    """Les notifications DANS WAMA du compte connecté — `WAMA_COLLABORATION.md §2.3` et §5.3 :
+    la liste, lu / non lu, ouverte depuis le badge de l'en-tête. Premier type d'événement posé
+    le 2026-09-24 : l'arrêt d'un worker Celery et les traitements qu'il a interrompus."""
+    from .models import Notification
+    items = list(Notification.objects.filter(recipient=request.user)[:200])
+    return render(request, 'common/notifications.html', {
+        'items': items,
+        'unread_count': sum(1 for n in items if n.read_at is None),
+    })
+
+
+@login_required
+@require_POST
+def notifications_mark_read(request):
+    """Marque comme lues les notifications du compte (toutes, ou `id` si fourni), puis revient
+    à la page — formulaire simple, aucune brique JS propre à cette page."""
+    from django.shortcuts import redirect
+    from django.utils import timezone
+
+    from .models import Notification
+    qs = Notification.objects.filter(recipient=request.user, read_at__isnull=True)
+    ident = (request.POST.get('id') or '').strip()
+    if ident.isdigit():
+        qs = qs.filter(pk=int(ident))
+    qs.update(read_at=timezone.now())
+    return redirect('common:notifications')
+
+
 # ── RAG : les SURFACES du geste (jalon 14, WAMA_MEMORY.md §7ter) ─────────────────
 # Rappel de la décision qui commande tout ce bloc (objection de Fabien, 2026-08-21) :
 # l'entrée au RAG est un GESTE EXPLICITE de l'utilisateur, jamais un balayage. Le premier

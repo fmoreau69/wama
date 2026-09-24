@@ -414,7 +414,8 @@ try:
                                                register_settings_scenarios,
                                                register_ui_scenarios,
                                                register_url_import_scenarios,
-                                               register_volet_scenarios)
+                                               register_volet_scenarios,
+                                               register_worker_death_scenarios)
     from wama.common.services.ui_smoke_matching import (register_media_library_scenarios,
                                                         register_voice_language_scenarios)
     from wama.common.services.ui_smoke_menus import register_menu_scenarios
@@ -508,6 +509,10 @@ try:
     # sans fabriquer une entrée artificiellement lourde : il franchit des paliers (0 → 50 →
     # 100), là où un élément seul saute à 100 % en 0,2 s. Même régime GPU que `.processing`.
     register_batch_processing_scenarios()
+    # 2026-09-24 — un worker MEURT pendant un traitement : la card passe en échec relançable
+    # sans rechargement (demande de Fabien). Aucun GPU : l'état de crash est posé en base, puis la
+    # brique que le worker relancé appelle (`reconcile_dead_worker_tasks`) le solde.
+    register_worker_death_scenarios()
     # 2026-08-27 — geste 14 (moitié « fichier de lot »), enregistré À LA PLACE du geste 7 qui
     # devait suivre. Le geste 7 (« créer par le bouton primaire ») débloquait d'un coup
     # `inspector_actions` et `batch_actions` sur les trois apps dont la file reste vide — mais
