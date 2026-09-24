@@ -103,7 +103,7 @@
                 // FormData, PAS du JSON comme reader.
                 saveItem: function (id) {
                     return WamaApp.csrfFetch(
-                        WamaApp.getUrl(config.urls.saveSettings, id), config.csrfToken,
+                        WamaApp.getUrl(config.urls.updateSettings, id), config.csrfToken,
                         { method: 'POST', body: _panelFormData(ph) }
                     ).then(function (r) { if (r && r.ok && window.imagerRefreshCard) imagerRefreshCard(id); });
                 },

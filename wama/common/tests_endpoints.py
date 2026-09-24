@@ -242,3 +242,86 @@ class EveryEndpointAnswersTest(TestCase):
               f'{", ".join(self.no_witness) or "aucun"}]')
         self.assertEqual([], errors, f'{len(errors)} adresse(s) en erreur serveur : '
                                      + ' ; '.join(errors))
+
+
+class ItemEditRouteConventionTest(TestCase):
+    """The route that saves ONE element's settings follows `WAMA_APP_CONVENTIONS §3.1` :
+    `settings/<int:pk>/`, named `update_settings` (2026-09-24).
+
+    Measured that day: one gesture, four names across the park (`update`, `update_options`,
+    `update_settings`, `save_settings`) and five paths — the generator needed an alias table to
+    recognise them, and every twin inherited its source's spelling. Seven apps were aligned; the
+    rest are DECLARED below with their reason. Walks every app, names none in the rule itself.
+    """
+
+    CANONICAL_NAME = 'update_settings'
+    CANONICAL_PATH = 'settings/<int:pk>/'
+
+    #: Apps still on another name — each with its reason. An entry that has become conforming
+    #: fails the test: the exemption must go with the debt.
+    NAME_PENDING = {
+        'transcriber': "`save_settings` — l'app est en chantier dans une autre session (24/09)",
+        'anonymizer': "`save_media_settings/` SANS identifiant (le `media_id` est posté) — et son "
+                      "`update_settings` est une route GLOBALE sans pk, qui prendrait le nom "
+                      "canonique : la renommer d'abord (right_panel.js, update.js)",
+    }
+    #: Apps on the canonical name but another path — each with its reason.
+    PATH_EXCEPTIONS = {
+        'imager': "`settings/<int:generation_id>/` est la LECTURE des réglages (GET) : l'écriture "
+                  "garde son suffixe `save/` tant que les deux vues ne sont pas fusionnées",
+    }
+
+    def _item_edit_routes(self):
+        """{app: (name, route)} for every app declaring the item-edit gesture under one of its
+        measured names with an integer id. Sandbox twins (`<app>_NN`) are left out: generated
+        from their source's manifest, they follow it, and a fresh clone has none."""
+        from wama.common.manifests.codegen.urls_gen import route_variants
+        from wama.common.sandbox import LABEL_RE
+        labels = {label for label in _app_labels() if not LABEL_RE.match(label)}
+        names = set(route_variants('update'))
+        found = {}
+
+        def walk(resolver, path):
+            for p in resolver.url_patterns:
+                if isinstance(p, URLResolver):
+                    walk(p, path + [p.namespace] if p.namespace else path)
+                elif (isinstance(p, URLPattern) and path and path[-1] in labels
+                        and p.name in names and p.pattern.converters):
+                    found[path[-1]] = (p.name, str(p.pattern))
+        walk(get_resolver(), [])
+        return found
+
+    def test_the_item_settings_route_has_the_conventional_name_and_path(self):
+        routes = self._item_edit_routes()
+        wrong = []
+        for app, (name, route) in sorted(routes.items()):
+            if app in self.NAME_PENDING:
+                continue
+            if name != self.CANONICAL_NAME:
+                wrong.append(f'{app}: nom `{name}` (attendu `{self.CANONICAL_NAME}`)')
+            elif route != self.CANONICAL_PATH and app not in self.PATH_EXCEPTIONS:
+                wrong.append(f'{app}: chemin `{route}` (attendu `{self.CANONICAL_PATH}`)')
+        self.assertEqual([], wrong)
+        conforming = [a for a, (n, r) in routes.items() if n == self.CANONICAL_NAME]
+        self.assertGreaterEqual(len(conforming), 8, f'only {sorted(conforming)} — guard weakened')
+
+    def test_every_exemption_is_still_needed(self):
+        routes = self._item_edit_routes()
+        stale = [app for app in self.NAME_PENDING
+                 if routes.get(app, ('',))[0] == self.CANONICAL_NAME]
+        stale += [app for app in self.PATH_EXCEPTIONS
+                  if routes.get(app, ('', ''))[1] == self.CANONICAL_PATH]
+        self.assertEqual([], stale, 'these apps now conform: remove their exemption')
+
+    def test_the_grid_criterion_agrees_with_the_resolved_routes(self):
+        """`settings_route` (conformity grid) reads `urls.py` as text; this walk resolves the
+        URLconf. Two instruments on one rule must give the same verdict per app."""
+        from wama.common.services.conformity_checker import _AppFiles, _settings_route
+        disagree = []
+        for app, (name, route) in sorted(self._item_edit_routes().items()):
+            state, _proof = _settings_route(_AppFiles(app))
+            expected = (True if (name, route) == (self.CANONICAL_NAME, self.CANONICAL_PATH)
+                        else 'partial' if name == self.CANONICAL_NAME else False)
+            if state != expected:
+                disagree.append(f'{app}: grid {state!r}, walk {expected!r}')
+        self.assertEqual([], disagree)

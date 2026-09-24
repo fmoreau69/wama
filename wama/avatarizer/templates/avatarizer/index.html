@@ -292,7 +292,7 @@ window.AVATARIZER_CONFIG = {
         progress:      "/avatarizer/progress/",
         delete:        "/avatarizer/delete/",
         download:      "/avatarizer/download/",
-        updateOptions: "/avatarizer/update-options/",
+        updateSettings: "{% url 'avatarizer:update_settings' 0 %}",
         duplicate:     "/avatarizer/duplicate/",
         extractText:   "{% url 'avatarizer:extract_text' %}",
         startAll:      "{% url 'avatarizer:start_all' %}",
@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function () {
         saveBatch: function (bid) { return postPanel('/avatarizer/batch/' + bid + '/update/').then(function () { window.location.reload(); }); },
         // cardSettings DÉFAUT (dérivé du schéma) : lit les data-* du gear `.settings-btn`
         // (graphie commune depuis le 23/08) — émis par la brique card_gear ; custom supprimé le 18/08.
-        saveItem: function (id) { return postPanel('/avatarizer/update-options/' + id + '/').then(function () { window.location.reload(); }); },
+        saveItem: function (id) { return postPanel(window.AVATARIZER_CONFIG.urls.updateSettings.replace('/0/', '/' + id + '/')).then(function () { window.location.reload(); }); },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
                 '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);

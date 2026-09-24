@@ -226,7 +226,7 @@ VIDEO_PARAMS = derive_from_model(
 # consomme la brique à la place.
 # 17/08 (demande Fabien) : ① `group="sortie"` — sans groupe, les params sortaient HORS
 # sections, EN TÊTE du volet ; le format arrive maintenant EN DERNIER (ordre chronologique
-# du process). ② contexte "item" AJOUTÉ : l'ancienne réserve (« save_generation_settings ne
+# du process). ② contexte "item" AJOUTÉ : l'ancienne réserve (« update_settings ne
 # les traite pas ») est PÉRIMÉE — la sauvegarde est générique par schéma depuis
 # `coerce_schema_values` (views.py:1530), un champ du schéma présent au POST est appliqué.
 # Ids d'item DISTINCTS par domaine (les deux modales coexistent dans la page).

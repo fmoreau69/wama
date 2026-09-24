@@ -72,7 +72,7 @@ class PreregagesQualiteTest(TestCase):
         j = self._job()
         c = Client()
         c.force_login(j.user)
-        r = c.post(f'/converter/{j.id}/update/',
+        r = c.post(f'/converter/settings/{j.id}/',
                    {'options_json': _j.dumps({'quality_preset': 'web'})})
         self.assertEqual(r.status_code, 200, r.content)
         j.refresh_from_db()
@@ -86,7 +86,7 @@ class PreregagesQualiteTest(TestCase):
         j = self._job()
         c = Client()
         c.force_login(j.user)
-        r = c.post(f'/converter/{j.id}/update/',
+        r = c.post(f'/converter/settings/{j.id}/',
                    {'options_json': _j.dumps({'quality_preset': 'web', 'quality': 95})})
         self.assertEqual(r.status_code, 200, r.content)
         j.refresh_from_db()
@@ -167,12 +167,12 @@ class QualityIntentWritesTheColumnsTest(TestCase):
         j = self._job()
         c = Client()
         c.force_login(j.user)
-        r = c.post(f'/converter/{j.id}/update/', {'options_json': _j.dumps({'quality_intent': 85})})
+        r = c.post(f'/converter/settings/{j.id}/', {'options_json': _j.dumps({'quality_intent': 85})})
         self.assertEqual(r.status_code, 200, r.content)
         j.refresh_from_db()
         self.assertEqual((j.quality, j.quality_intent, j.quality_preset), (98, 85, 'max'))
         # Un réglage fin du MÊME envoi prime (le geste fin gagne, comme pour un preset).
-        c.post(f'/converter/{j.id}/update/', {'options_json': _j.dumps({'quality_intent': 15, 'quality': 77})})
+        c.post(f'/converter/settings/{j.id}/', {'options_json': _j.dumps({'quality_intent': 15, 'quality': 77})})
         j.refresh_from_db()
         self.assertEqual((j.quality, j.quality_intent, j.quality_preset), (77, 15, 'web'))
 
@@ -182,7 +182,7 @@ class QualityIntentWritesTheColumnsTest(TestCase):
         j = self._job()
         c = Client()
         c.force_login(j.user)
-        c.post(f'/converter/{j.id}/update/', {'options_json': _j.dumps({'quality_preset': 'balanced'})})
+        c.post(f'/converter/settings/{j.id}/', {'options_json': _j.dumps({'quality_preset': 'balanced'})})
         j.refresh_from_db()
         self.assertEqual((j.quality, j.quality_intent, j.quality_preset), (90, 50, 'balanced'))
 

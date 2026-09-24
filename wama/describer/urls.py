@@ -53,5 +53,5 @@ urlpatterns = [
     # Utilities
     path('console/', views.console_content, name='console'),
     path('global-progress/', views.global_progress, name='global_progress'),
-    path('update-options/<int:pk>/', views.update_options, name='update_options'),
+    path('settings/<int:pk>/', views.update_settings, name='update_settings'),
 ]

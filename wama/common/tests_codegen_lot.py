@@ -151,7 +151,8 @@ class CheminDeLotTest(SimpleTestCase):
         volet, pré-remplissage de modale).
         """
         src = self._src_avec_hors_colonnes()
-        corps = _fonction(src, 'update')
+        # The converter's item-edit route is `update_settings` since 2026-09-24 (CONVENTIONS §3.1).
+        corps = _fonction(src, 'update_settings')
         self.assertIsNotNone(corps)
         # Depuis le 22/09 le routage vit dans la brique `apply_item_settings` : la vue générée
         # lui PASSE le conteneur et les hors-colonnes (elle ne réécrit plus l'idiome).
@@ -165,7 +166,7 @@ class CheminDeLotTest(SimpleTestCase):
         # Le pendant, et la preuve que la bascule du converter a bien eu lieu : quand tous
         # les réglages sont des colonnes (son cas depuis le 2026-09-01), il n'y a plus rien
         # à router — émettre l'idiome quand même écrirait dans un conteneur pour rien.
-        corps = _fonction(self.src, 'update') or ''
+        corps = _fonction(self.src, 'update_settings') or ''
         self.assertIn('options_field=None', corps,
                       'le converter n’a plus de réglage hors colonne : aucun conteneur à viser')
 
@@ -405,8 +406,9 @@ class CheminDeLotTest(SimpleTestCase):
                                if f.get('name') != 'options']
         src, raison = render_views(manifest)
         self.assertIsNotNone(src, f'génération impossible : {raison}')
-        corps = _fonction(src, 'update')
-        self.assertNotIn('_extras', corps or '')
+        corps = _fonction(src, 'update_settings')
+        self.assertIsNotNone(corps, 'no edit view generated: this check would pass on nothing')
+        self.assertNotIn('_extras', corps)
 
     def test_une_url_n_est_pas_telechargee_dans_la_requete(self):
         """La source est ENREGISTRÉE ; `ensure_local_input` la résout en tête de tâche.

@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
             values: WamaInspector.gearValues(card, schema.map(function (p) { return p.name; })),
             formClass: 'describer-settings-form',
             footerTplId: 'describerSettingsFooterTpl',
-            saveUrl: config.urls.updateOptions.replace('/0/', `/${id}/`),
+            saveUrl: config.urls.updateSettings.replace('/0/', `/${id}/`),
             csrf: config.csrfToken,
             onSaved: function (did, restart) {
                 refreshCard(did);

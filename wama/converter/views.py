@@ -365,7 +365,7 @@ def status(request, pk):
         'media_type':      job.media_type,
         'output_format':   job.output_format,
         # Options moteur + cross-app FUSIONNÉES pour le préremplissage de la modale (le JS
-        # est générique, ids disjoints par construction) ; update_job re-scinde au save.
+        # est générique, ids disjoints par construction) ; update_settings re-scinde au save.
         'options':         {**(job.cross_app_options or {}), **(job.options or {})},
         # Temps réel persisté (ProcessingTimeMixin) — affiché sur la card terminée sans reload.
         'processing_display': job.processing_display,
@@ -423,7 +423,7 @@ def global_progress(request):
 
 @login_required
 @require_POST
-def update_job(request, pk):
+def update_settings(request, pk):
     """Update a job's output_format and options (only when not RUNNING)."""
     import json as _json
 

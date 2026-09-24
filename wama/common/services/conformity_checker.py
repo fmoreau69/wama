@@ -830,6 +830,42 @@ def _batch_views_common(f: _AppFiles):
     return None, 'aucune vue de lot'
 
 
+def _settings_route(f: _AppFiles):
+    """La route qui enregistre les réglages d'UN élément suit `WAMA_APP_CONVENTIONS §3.1` :
+    `settings/<int:pk>/`, nommée `update_settings` (2026-09-24).
+
+    Mesuré ce jour-là : un même geste sous quatre noms (`update`, `update_options`,
+    `update_settings`, `save_settings`) et cinq chemins — le générateur avait besoin d'une table
+    d'alias pour les reconnaître, et chaque jumelle héritait l'orthographe de sa source.
+    VRAI : nom et chemin conventionnels ; PARTIEL : nom conventionnel, autre chemin (imager :
+    `settings/<id>/` est la LECTURE) ; FAUX : autre nom, ou `update_settings` SANS identifiant
+    (anonymizer : route globale) ; N/A : aucune route d'édition d'élément.
+    Tenu aussi par `tests_endpoints.ItemEditRouteConventionTest`.
+    """
+    variants = ('update', 'update_job', 'update_options', 'update_settings', 'save_settings')
+    rx = re.compile(r"path\(\s*['\"](?P<route>[^'\"]*)['\"].*?name=['\"](?P<name>\w+)['\"]")
+    found = []
+    for n, line in enumerate(f.text(URLS).splitlines(), 1):
+        m = rx.search(line.split('#', 1)[0])
+        if m and m.group('name') in variants:
+            found.append((m.group('name'), m.group('route'), f'{f.app}/urls.py:{n}'))
+    item = [r for r in found if '<int:' in r[1]]
+    canonical = [r for r in item if r[0] == 'update_settings']
+    if any(r[1] == 'settings/<int:pk>/' for r in canonical):
+        return True, next(r[2] for r in canonical if r[1] == 'settings/<int:pk>/')
+    if canonical:
+        name, route, where = canonical[0]
+        return 'partial', f"{where} : nom conventionnel, chemin `{route}` (attendu `settings/<int:pk>/`)"
+    if item:
+        name, route, where = item[0]
+        return False, f"{where} : `{name}` (`{route}`) — attendu `update_settings` sur `settings/<int:pk>/`"
+    if found:
+        name, route, where = found[0]
+        return False, (f"{where} : `{name}` sans identifiant (`{route}`) — une route globale sous "
+                       "un nom de geste d'élément")
+    return None, "aucune route d'édition d'élément"
+
+
 def _output_naming(f: _AppFiles):
     """L'app nomme-t-elle ses sorties par la BRIQUE COMMUNE (`compose_output_name`) ?
 
@@ -1941,6 +1977,10 @@ CRITERIA: list[Criterion] = [
     # cinq comportements est vérifié.
     Criterion('settings_wiring', 'F5', 'Paramètres via la brique (bouton + ouvreur déclaré)',
               _settings_wiring, mechanism='queue_front'),
+    # 2026-09-24 — même geste, quatre noms de route : question de Fabien (« ne faut-il pas
+    # uniformiser le nom des réglages ? »), la convention §3.1 existait déjà.
+    Criterion('settings_route', 'F5', "Réglages d'un élément : route conventionnelle (settings/<int:pk>/, update_settings)",
+              _settings_route, mechanism='queue_front'),
     # 2026-09-15 — ce que `delete_wiring` laissait passer (il atteste le BOUTON, pas la RÉPONSE)
     # et les briques de la suppression d'une card de lot sans rechargement de la page
     # (`ROUTE §10.2`). Ajoutés à la demande de Fabien : « s'il manque des critères dans la

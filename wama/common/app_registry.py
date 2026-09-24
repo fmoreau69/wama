@@ -877,7 +877,7 @@ APP_CATALOG = {
                                      #   vidéo en conteneur streamable webm/mkv/ts (tasks.py:89-100 ;
                                      #   mp4/mov partiel structurellement illisible, moov en fin)
             cross_app_options=True,  # Phase 2 CÂBLÉE (18/08) : schéma dérivé de CROSS_APP_OPTIONS
-                                     #   (params.py), split options↔cross_app_options (views.update_job),
+                                     #   (params.py), split options↔cross_app_options (views.update_settings),
                                      #   application inline enhancer (utils/cross_app.py — image
                                      #   upscale/denoise, audio enhance, vidéo enhance de piste audio ;
                                      #   upscale vidéo DIFFÉRÉ, cf. format_router)

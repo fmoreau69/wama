@@ -339,7 +339,7 @@ POST /enhancer/start/<id>/          # Démarrer traitement
 GET  /enhancer/progress/<id>/       # Obtenir progression
 GET  /enhancer/download/<id>/       # Télécharger résultat
 POST /enhancer/delete/<id>/         # Supprimer
-POST /enhancer/update_settings/<id>/ # Modifier paramètres
+POST /enhancer/settings/<id>/ # Modifier paramètres
 POST /enhancer/start_all/           # Démarrer tous
 POST /enhancer/clear_all/           # Tout effacer
 GET  /enhancer/download_all/        # Télécharger tout (ZIP)

@@ -527,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // cardSettings DÉFAUT (dérivé du schéma) : le gear porte data-action="settings"
         // (sélecteur commun) + data-* émis par la brique card_gear ; custom supprimé le 18/08
         // (il ne lisait que 3 params sur 5 — output_format/quality manquaient).
-        saveItem: function (id, fd) { return postPanel('/enhancer/update_settings/' + id + '/', fd); },
+        saveItem: function (id, fd) { return postPanel(window.ENHANCER_APP.updateSettingsUrlTemplate.replace('/0/', '/' + id + '/'), fd); },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
                 '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);

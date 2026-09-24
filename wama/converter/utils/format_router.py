@@ -104,7 +104,7 @@ CROSS_APP_OPTIONS = {
 
 def cross_app_option_ids() -> set:
     """Ids de toutes les options cross-app déclarées — SOURCE UNIQUE du split
-    options ↔ cross_app_options (views.update_job), du préremplissage (views.status)
+    options ↔ cross_app_options (views.update_settings), du préremplissage (views.status)
     et du filtre d'application (utils/cross_app.py)."""
     return {opt['id'] for opts in CROSS_APP_OPTIONS.values() for opt in opts}
 

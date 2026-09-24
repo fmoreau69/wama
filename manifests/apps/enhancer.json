@@ -2475,7 +2475,7 @@
         },
         {
           "name": "update_settings",
-          "pattern": "update_settings/<int:pk>/",
+          "pattern": "settings/<int:pk>/",
           "view": "views.update_settings"
         },
         {

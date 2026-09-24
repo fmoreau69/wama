@@ -345,7 +345,7 @@ greffe, avec les classes qu'il délègue (`save-settings-btn` / `save-and-restar
             downloadAll: "{% url 'synthesizer:download_all' %}",
             clearAll: "{% url 'synthesizer:clear_all' %}",
             console: "{% url 'synthesizer:console' %}",
-            updateOptions: "/synthesizer/update-options/",
+            updateSettings: "{% url 'synthesizer:update_settings' 0 %}",
             customVoices: "{% url 'synthesizer:list_custom_voices' %}",
             uploadCustomVoice: "{% url 'synthesizer:upload_custom_voice' %}",
             deleteCustomVoice: "/synthesizer/custom-voices/delete/",
@@ -428,7 +428,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var el = ph.querySelector('[name="' + k + '"],[data-param="' + k + '"]');
             if (el) fd.append(k, el.value);
         });
-        return fetch((U.updateOptions || '/synthesizer/update-options/') + id + '/',
+        return fetch(U.updateSettings.replace('/0/', '/' + id + '/'),
             { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd });
     }
     window._synthInspector = WamaInspector.initFromSchema({
