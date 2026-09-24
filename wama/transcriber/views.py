@@ -55,7 +55,11 @@ def _reset_for_relaunch(t):
     TranscriptSegment.objects.filter(transcript=t).delete()
     t.progress = 0
     t.text = ''
-    t.segments_json = None
+    # Une card à RÉSULTAT EXISTANT garde ses segments : ce ne sont pas un résultat à recalculer
+    # mais les ANCRES horodatées sur lesquelles son texte se ré-ancre (`workers._anchor_words_for`)
+    # — les effacer rendrait sans temps un texte qui en avait.
+    if not t.work_result:
+        t.segments_json = None
     t.language = ''
     t.used_backend = ''
     t.model_key = ''

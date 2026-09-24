@@ -204,6 +204,58 @@ class TranscriberEvaluationTest(TestCase):
         self.assertIsNone(batch_agreement('transcriber', [whisper, self._transcript(
             audio='users/0/transcriber/input/autre.wav')]), 'different audios: nothing to compare')
 
+    # ── Étage A de l'alignement : un texte sans temps s'ancre sur les mots de l'ASR ──────────
+    AUDIO = 'users/0/transcriber/input/entretien_fictif.wav'
+    WORDS = [{'word': ' ' + w, 'start': s, 'end': e, 'probability': 0.9}
+             for w, s, e in (('le', 0.0, 0.2), ('chien', 0.2, 0.6), ('dort', 0.6, 1.0),
+                             ('oui', 2.0, 2.3), ('je', 2.3, 2.5), ('crois', 2.5, 3.0))]
+    SONAL = ('Entretien exporté depuis Sonal (v.2.1)\n1 - 00:00 > 00:05 [ Thème]\n'
+             'Titre ajouté par l’utilisateur\nSpeaker 1 :\nLe chat dort.\nSpeaker 2 :\n'
+             'Oui euh je crois.\n')
+
+    def _whisper_card(self):
+        return self._transcript('le chien dort oui je crois', audio=self.AUDIO,
+                                segments_json=[{'text': 'le chien dort oui je crois',
+                                                'start_time': 0.0, 'end_time': 3.0,
+                                                'words': self.WORDS}])
+
+    def test_an_untimed_existing_result_is_anchored_on_a_sibling_asr(self):
+        from wama.transcriber.models import TranscriptSegment
+        self._whisper_card()
+        imported = self._transcript('', status='PENDING', audio=self.AUDIO, segments_json=None)
+        answer = self._import(imported, self.SONAL.encode(), 'export_sonal.txt')
+        self.assertTrue(answer['ok'], answer)
+        imported.refresh_from_db()
+        first, second = imported.segments_json
+        self.assertEqual((0.0, 1.0), (first['start_time'], first['end_time']))
+        self.assertEqual('estimated', first['words'][1]['timing'], '« chat » where « chien » was heard')
+        self.assertEqual((2.0, 3.0), (second['start_time'], second['end_time']))
+        self.assertEqual('interpolated', second['words'][1]['timing'], '« euh » was not heard')
+        self.assertEqual(2, TranscriptSegment.objects.filter(transcript=imported).count(),
+                         'anchored = timed: written like an ASR output')
+
+    def test_a_card_anchors_on_its_OWN_asr_before_the_import_replaces_it(self):
+        card = self._whisper_card()
+        self._import(card, self.SONAL.encode(), 'export_sonal.txt')
+        card.refresh_from_db()
+        self.assertEqual(0.0, card.segments_json[0]['start_time'])
+        self.assertTrue(card.model_key.startswith('external:'))
+
+    def test_relaunching_keeps_the_anchors_and_reimports_with_times(self):
+        from unittest.mock import patch
+        from wama.transcriber.views import _reset_for_relaunch
+        from wama.transcriber.workers import import_existing_result_task
+        card = self._whisper_card()
+        self._import(card, self.SONAL.encode(), 'export_sonal.txt')
+        card.refresh_from_db()
+        _reset_for_relaunch(card)
+        card.save()
+        with patch('wama.transcriber.workers.close_old_connections'):
+            self.assertEqual({'ok': True}, import_existing_result_task(card.pk))
+        card.refresh_from_db()
+        self.assertEqual((2.0, 3.0), (card.segments_json[1]['start_time'],
+                                      card.segments_json[1]['end_time']))
+
     def test_the_transcriber_declares_the_capability_that_opens_the_port(self):
         from wama.common.app_registry import studio_node_ports
         ports = {p['id']: p for p in studio_node_ports('transcriber')['inputs']}

@@ -769,6 +769,57 @@ def enrich_transcript(self, transcript_id: int, summary_type: str = 'structured'
         return {'ok': False, 'error': str(exc)}
 
 
+def _anchor_words_for(t: Transcript):
+    """Les mots HORODATÉS d'une sortie ASR de la MÊME audio, et la clé du modèle qui les a produits.
+
+    Dans l'ordre : la card elle-même (son résultat avant l'import, ou les ancres d'un import
+    précédent — `_reset_for_relaunch` les garde pour une card à résultat existant), puis une card
+    SŒUR du même utilisateur sur le même fichier (les doubles d'un lot le partagent), la plus
+    récente d'abord. Jamais un résultat externe : il n'a pas entendu l'audio. `([], '')` sinon.
+    """
+    from wama.common.services.result_evaluation import EXTERNAL_PREFIX
+
+    def words_of(item):
+        return [w for s in (item.segments_json or []) if isinstance(s, dict)
+                for w in (s.get('words') or []) if isinstance(w, dict)]
+
+    # De la card elle-même, seuls les mots réellement ENTENDUS (sortie ASR, ou `exact` d'un
+    # ancrage précédent) — jamais des temps déjà estimés, qui s'ancreraient sur eux-mêmes.
+    own = [w for w in words_of(t) if w.get('timing') in (None, 'exact')]
+    if own:
+        return own, t.model_key or f'transcriber:{t.used_backend}'
+    siblings = (Transcript.objects.filter(user_id=t.user_id, audio=t.audio.name, status='SUCCESS')
+                .exclude(pk=t.pk).exclude(model_key__startswith=EXTERNAL_PREFIX)
+                .order_by('-finished_at'))
+    for sibling in siblings:
+        words = words_of(sibling)
+        if words:
+            return words, sibling.model_key or f'transcriber:{sibling.used_backend}'
+    return [], ''
+
+
+def _outside_windows(segments, doc, tolerance: float = 10.0) -> int:
+    """Tours ancrés HORS de la fenêtre que le document leur donnait (extraits Sonal) — le contrôle
+    de cohérence que ces fenêtres permettent, à la tolérance près."""
+    outside = 0
+    for s in segments:
+        window = doc.windows[s['window']] if s.get('window') is not None else None
+        if window and s.get('start_time') is not None and not (
+                window['start'] - tolerance <= s['start_time'] <= window['end'] + tolerance):
+            outside += 1
+    return outside
+
+
+def _anchoring_said(report: dict, source: str, outside: int) -> str:
+    said = (f"Texte ancré sur les mots de {source or 'la transcription'} : "
+            f"{report['exact_ratio']:.1%} de mots retrouvés à l'identique, "
+            f"{report['estimated']} estimé(s) dans la durée des mots corrigés, "
+            f"{report['interpolated']} placé(s) entre voisins")
+    if outside:
+        said += f" — ⚠ {outside} tour(s) hors de l'extrait que le document indiquait"
+    return said
+
+
 def import_existing_result(t: Transcript) -> None:
     """Fait d'une transcription produite AILLEURS (port `work_result`) le résultat de la card.
 
@@ -786,20 +837,32 @@ def import_existing_result(t: Transcript) -> None:
     from django.utils import timezone
     from wama.common.backends.speech_to_text_base import TranscriptionResult, TranscriptionSegment
     from wama.common.services.result_evaluation import EXTERNAL_PREFIX
+    from wama.common.services.word_anchoring import anchor_turns
     from .utils.transcript_documents import read_transcript_document
 
     doc = read_transcript_document(t.work_result.path)
     if not doc.segments:
         raise ValueError("aucune parole lue dans ce document (aucun label de locuteur suivi de texte)")
+    segments = doc.segments
+    timed = doc.is_timed
+    if not timed:
+        # ÉTAGE A de l'alignement : le texte sans temps s'ANCRE sur les mots d'une sortie ASR de
+        # la même audio (brique commune `word_anchoring`) — sans modèle, sans retranscrire.
+        words, source = _anchor_words_for(t)
+        anchored = anchor_turns(segments, words) if words else None
+        if anchored:
+            segments, report = anchored
+            timed = True
+            _console(t.user_id, _anchoring_said(report, source, _outside_windows(segments, doc)))
     t.text = doc.text
     t.used_backend = 'externe'
     t.model_key = EXTERNAL_PREFIX + os.path.splitext(os.path.basename(t.work_result.name))[0]
-    if doc.is_timed:
+    if timed:
         _save_segments(t, TranscriptionResult(success=True, text=doc.text, segments=[
             TranscriptionSegment(speaker_id=s['speaker_id'], start_time=s['start_time'],
                                  end_time=s['end_time'] if s['end_time'] is not None else s['start_time'],
-                                 text=s['text'])
-            for s in doc.segments]))
+                                 text=s['text'], words=s.get('words'))
+            for s in segments]))
     else:
         TranscriptSegment.objects.filter(transcript=t).delete()
         t.segments_json = [{k: s[k] for k in ('speaker_id', 'start_time', 'end_time', 'text')}
