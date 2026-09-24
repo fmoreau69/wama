@@ -233,7 +233,58 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
   (l'ASR par M3) pour attribuer la perte au premier.
 - **Ancrage** : sur l'entrée (le texte, le prompt) — réel mais indirect.
 - **Coût** : deux inférences par item.
-- **Code** : rien.
+- **Code** : rien de dédié. ✅ **Le transport existe** (vérifié le 2026-09-25) : le studio enchaîne
+  les apps (`studio/tasks.py::run_pipeline_task`, ordre topologique ; `generic_runner`, triade
+  create/start/poll), et `texte → synthesizer (audio) → transcriber (audio)` s'y câble — joué en
+  réel ce jour-là, il a révélé un défaut du runner commun (chemin passé en URL encodée, un nom
+  accentué perdu entre deux nœuds — corrigé `26fd7191`). ⏳ Manquent : la RÉFÉRENCE propagée
+  (l'entrée du nœud amont devient le `reference_result` du nœud aval, que `result_evaluation`
+  mesure déjà), et les jeux déclarés (chaînon ①).
+
+**M10 appliqué à la parole — analyse critique (2026-09-25, proposition de Fabien, orientation actée).**
+Deux boucles distinctes, qui n'ont PAS la même solidité :
+
+1. **Texte → synthèse → ASR, pour classer les ASR** (vérité = le texte source, exacte et gratuite).
+   ⚠ **Écart de domaine** : une voix de synthèse est propre, régulière, sans bruit, sans
+   hésitation ni chevauchement — l'inverse d'un entretien. Les ASR y saturent (Whisper rend une
+   phrase Kokoro mot pour mot, mesuré le 2026-09-24) : le classement discrimine peu et ne se
+   transpose pas à l'oral spontané. ⚠ Biais de FAMILLE (un ASR peut mieux reconnaître les artefacts
+   de son cousin TTS : Qwen3-ASR/Qwen3-TTS, VibeVoice). ⚠ Normalisation : un TTS lit « 12 » en
+   « douze » — textes sans chiffres ni abréviations, ou normalisation des deux côtés
+   (`comparable_words` ne traite pas les nombres).
+   **Son vrai rôle : banc de NON-RÉGRESSION et de tests CIBLÉS** — pannes grossières (bascule de
+   langue, hallucination sur silence, boucle de jetons, découpage des longs fichiers), **diarisation
+   à vérité exacte** (chaque tour lu par une voix différente), termes du labo (mots-clés), fichiers
+   longs, horodatage ; rapproché du terrain par **dégradation** (bruit, réverbération, chevauchements
+   ajoutés). Il ne devient JUGE de classement qu'après **calibration** : même classement sur le
+   corpus réel corrigé et sur le banc synthétique (corrélation de rangs) — sinon il reste un
+   détecteur de pannes.
+2. **Texte → TTS → ASR qualifié, pour juger les TTS** (le M10 de la matrice §3).
+   🔴 **Règle anti-circularité** : l'ASR juge se QUALIFIE SUR DE LA PAROLE HUMAINE (corpus corrigé,
+   M3), jamais sur de l'audio de synthèse — sinon il est choisi pour les voix qu'il jugera, et les
+   favorise. C'est le « second maillon déjà qualifié » ci-dessus. Au mieux, **deux ASR de familles
+   différentes**, et jamais de la famille du TTS jugé. Lecture **relative** (les erreurs propres de
+   l'ASR pèsent à peu près pareil sur tous les TTS — à peu près seulement).
+   ⚠ Le WER ne mesure que l'**intelligibilité** : une voix robotique bien articulée sort première,
+   et le modèle de langue de l'ASR RÉPARE une synthèse pâteuse (le CER est plus sévère). À compléter :
+   ressemblance de voix (clonage : empreinte vocale — le modèle d'empreinte de pyannote est déjà sur
+   le disque), naturel (M4, prédicteur de note sans référence), prosodie (M8).
+
+**Généralisation en pipelines d'évaluation** — même mécanique (deux nœuds + une évaluation dont la
+référence est l'entrée du premier), valeur très inégale : vérité EXACTE d'abord — `upscale` /
+`denoise` (dégrader un original → PSNR/SSIM), `ocr` (rendu → image → CER) ; puis TTS→ASR ; puis
+**imager → describer**, le plus fragile : le WER n'y a aucun sens (décomposer le prompt en
+questions vérifiables posées à un VLM), le juge hallucine (famille différente, calibré), et la
+référence est la demande de l'UTILISATEUR, pas le prompt enrichi par l'imager ; l'esthétique reste
+aux Elo tiers et à l'humain. Traduction aller-retour : faible (un aller-retour parfait n'atteste pas
+l'aller). Composer, avatarizer : quasi rien.
+
+**Ordre acté** : (1) qualifier les ASR sur le corpus réel corrigé ; (2) banc synthétique ASR en
+non-régression et tests ciblés, calibré avant d'être juge ; (3) TTS jugés par l'ASR qualifié (+ un
+second ASR, + ressemblance de voix) ; (4) boucles à vérité exacte (upscale, denoise, OCR) avant
+imager→describer. **Garde-fous** : jeux synthétiques DÉCLARÉS comme tels (A2) ; **interdiction
+d'entraîner** sur des sorties des modèles évalués (§4.3) ; textes du domaine du labo plutôt que
+génériques.
 
 ---
 
