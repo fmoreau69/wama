@@ -93,6 +93,10 @@ IMAGE_PARAMS = derive_from_model(
             group="qualite",
             help="Nombre d'étapes de diffusion.",
             chip=True, chip_label="steps",
+            # Pas RECOMMANDÉS par l'éditeur du modèle choisi (capacité `recommended_steps`) : un
+            # modèle distillé se dégrade avec les réglages d'un modèle plein (2026-09-24).
+            cap_from={"field": "model", "capability": "recommended_steps", "mode": "note",
+                      "unit": " pas", "label": "Recommandé pour ce modèle :"},
         ),
         "guidance_scale": dict(
             type="range", label="Guidance scale", icon="fa-sliders-h",
@@ -100,6 +104,8 @@ IMAGE_PARAMS = derive_from_model(
             min=1, max=20, step=0.5,
             group="qualite",
             help="À quel point suivre le prompt.",
+            cap_from={"field": "model", "capability": "recommended_guidance", "mode": "note",
+                      "label": "Guidage recommandé pour ce modèle :"},
         ),
         "seed": dict(
             type="number", label="Seed", icon="fa-dice",
@@ -189,6 +195,10 @@ VIDEO_PARAMS = derive_from_model(
             group="qualite",
             chip=True, chip_label="steps",
             help="Nombre d'étapes de diffusion.",
+            # Pas RECOMMANDÉS par l'éditeur du modèle choisi (capacité `recommended_steps`) : un
+            # modèle distillé se dégrade avec les réglages d'un modèle plein (2026-09-24).
+            cap_from={"field": "model", "capability": "recommended_steps", "mode": "note",
+                      "unit": " pas", "label": "Recommandé pour ce modèle :"},
         ),
         "guidance_scale": dict(
             type="range", label="Guidance scale", icon="fa-sliders-h",
@@ -196,6 +206,8 @@ VIDEO_PARAMS = derive_from_model(
             min=1, max=20, step=0.5,
             group="qualite",
             help="À quel point suivre le prompt.",
+            cap_from={"field": "model", "capability": "recommended_guidance", "mode": "note",
+                      "label": "Guidage recommandé pour ce modèle :"},
         ),
         "seed": dict(
             type="number", label="Seed", icon="fa-dice",

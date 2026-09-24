@@ -16964,3 +16964,25 @@ signalé, pas traité.
 🔚 **Suivant** : `backend_routes` + `task_skeleton` app par app (marche B1/A2a) ; `composer_01`
 reste à mesurer au ⚙ (file vide dans les gestes : sa voie de lot ne crée pas d'élément, écart déjà
 consigné le 23/09).
+
+## §PALIER — 2026-09-24, « #275 LTX : OOM au décodage (tuilage TEMPOREL absent) + réglages d'un modèle distillé » — ✅ LIVRÉ
+
+**Demande de Fabien** : la génération #275 (LTX 0.9.8 distillé, 10 s, 720p) ne passe pas.
+**Mesuré au journal** : chargement 111 s ; variante PLEINE précision → offload séquentiel couche par
+couche (21 min pour 30 pas) ; puis **OOM à 85 % au décodage VAE** (« Tried to allocate 24.57 GiB »,
+`autoencoder_kl_ltx.tiled_decode`). Le tuilage SPATIAL était posé, pas le TEMPOREL :
+`use_framewise_decoding` vaut False chez `AutoencoderKLLTXVideo` et `enable_tiling()` ne le pose
+pas — les 233 images étaient décodées d'un bloc. Réglages lancés : **30 pas, guidage 15** sur un
+modèle DISTILLÉ (recommandé : ~8 pas, guidage 1 — le CFG double le calcul et dégrade l'image).
+- **Brique commune** `image_generation_base.enable_vae_memory_savings(pipe)` : slicing + tiling
+  sur le VAE lui-même ET découpage temporel partout où le VAE le connaît ; échec DIT. Adoptée par
+  LTX, Mochi, CogVideoX, Wan (T2V + I2V) — cinq copies du geste, dont deux fausses, remplacées.
+- **Échantillonnage recommandé** : `default_steps`/`default_guidance_scale` déclarés sur les deux
+  LTX (8 / 1,0), capacités `recommended_steps`/`recommended_guidance` (toutes les déclarations
+  imager), rappelés sous les champs Steps et Guidance des deux schémas (`cap_from`, mode note).
+- Message de l'offload séquentiel corrigé : torchao EST installé ; la lenteur vient du choix de la
+  variante pleine précision — la variante FP8 est la voie rapide.
+- Tests `VaeMemorySavingsTest` (2), `RecommendedSamplingTest` (2).
+
+🔚 Redémarrer workers + gunicorn ; rejouer en **ltx-video-13b-0.9.8-distilled-fp8**, 8 pas,
+guidage 1 ; puis 12-15 s pour voir la continuation.

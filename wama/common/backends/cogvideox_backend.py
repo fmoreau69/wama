@@ -217,13 +217,9 @@ class CogVideoXBackend(ImageGenerationBackend):
                 logger.warning("[CogVideoX] MemoryManager not available, using default CPU offload")
                 self._pipe.enable_model_cpu_offload()
 
-            # Enable VAE optimizations
-            try:
-                self._pipe.vae.enable_tiling()
-                self._pipe.vae.enable_slicing()
-                logger.info("[CogVideoX] VAE tiling and slicing enabled")
-            except Exception as e:
-                logger.debug(f"[CogVideoX] VAE optimizations not available: {e}")
+            # Décodage VAE découpé (brique commune : espace, temps, échec DIT)
+            from .image_generation_base import enable_vae_memory_savings
+            enable_vae_memory_savings(self._pipe, "CogVideoX")
 
             self._current_model = model_name
             self._loaded = True

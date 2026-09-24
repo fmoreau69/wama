@@ -229,6 +229,11 @@ LTX_MODELS = {
         # contrainte du VAE temporel de LTX), ≈ 1 s à 24 i/s.
         'continuation_frames': 25,
         'resolution': '1216x704',
+        # Réglages d'un modèle DISTILLÉ (recommandation Lightricks pour les « distilled ») : ~8 pas
+        # SANS guidage libre. 30 pas et un guidage de 15 (génération #275, 2026-09-24) doublent
+        # le calcul (CFG) et dégradent l'image. Rappelés à l'écran par `recommended_*`.
+        'default_steps': 8,
+        'default_guidance_scale': 1.0,
         'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V',
         'description_long': "LTX-Video 13B Distilled (Lightricks) : génération vidéo rapide, en "
                             "texte-vers-vidéo comme en image-vers-vidéo. La distillation réduit "
@@ -250,6 +255,8 @@ LTX_MODELS = {
         'max_frames': 161,
         'continuation_frames': 25,       # même mécanique que la version pleine
         'resolution': '1216x704',
+        'default_steps': 8,              # distillé : cf. la version pleine
+        'default_guidance_scale': 1.0,
         'quantization': 'fp8',
         # MÊME dépôt, donc MÊME anatomie que la version pleine ci-dessus : la quantisation fp8
         # est faite AU CHARGEMENT (torchao), aucun fichier fp8 n'existe dans le dépôt (vérifié —

@@ -116,7 +116,24 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     "duration_extension":  "str — 'continuation' (le segment suivant reprend les dernières images : "
                            "mouvement continu) | 'segments' (repart d'UNE image : extrapolé) ; absent = borné",
     "continuation_frames": "int — images de la fin d'un passage qui conditionnent le suivant (continuation)",
+    #: Réglages d'ÉCHANTILLONNAGE recommandés par l'éditeur (2026-09-24) — un modèle DISTILLÉ se
+    #: dégrade avec les réglages d'un modèle plein (LTX distillé lancé à 30 pas / guidage 15).
+    #: Rappelés sous les champs (`cap_from`, mode note), pas imposés : c'est le rôle du backend
+    #: quand la distillation l'exige (FastWan DMD).
+    "recommended_steps":    "int — nombre de pas recommandé par l'éditeur",
+    "recommended_guidance": "float — guidage (CFG) recommandé ; 1.0 = sans guidage",
 }
+
+
+def sampling_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]:
+    """`recommended_steps` / `recommended_guidance` depuis `default_steps` /
+    `default_guidance_scale` d'une déclaration d'app (image comme vidéo)."""
+    out: Dict[str, Any] = {}
+    if config.get("default_steps"):
+        out["recommended_steps"] = int(config["default_steps"])
+    if config.get("default_guidance_scale") is not None:
+        out["recommended_guidance"] = float(config["default_guidance_scale"])
+    return out
 
 
 def video_caps_from_declaration(config: Dict[str, Any], tokens=()) -> Dict[str, Any]:
