@@ -328,6 +328,15 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
   (jumeau serveur de `WamaModelCaps.isClonedVoice`) le dit, dans les deux workers. Un moteur
   sans clonage ne peut donc plus être tiré pour une voix clonée. Attesté : tirage 2/2 en test,
   sondes navigateur 15/15 (synthesizer) et 11/11 (avatarizer).
+- ✅ **La modale de l'avatarizer est GÉNÉRÉE à l'ouverture depuis le 2026-09-24** (cycle commun
+  `WamaParams.settingsModal`, qui détruit et recrée la modale à chaque ⚙). L'appariement la suit :
+  il se branche sur les champs de CHAQUE modale ouverte (`avatarizer/js/index.js`,
+  `wireTtsMatching`), même configuration qu'avant. Deux conséquences tenues :
+  `WamaInputMatch.init` est devenu ré-initialisable (son écouteur ✕ est UNIQUE pour la page, une
+  instance dont le select a quitté la page se retire — il en posait un par appel, qui aurait visé
+  les champs homonymes de la modale suivante) ; et le geste `avatarizer.voice_language_matching`
+  ouvre désormais le ⚙ d'un élément témoin, le ferme, le rouvre et mesure sur la SECONDE modale
+  (10/10) — il lisait jusque-là une modale statique cachée, jamais ouverte.
 
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 

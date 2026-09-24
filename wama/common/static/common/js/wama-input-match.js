@@ -30,6 +30,27 @@
 (function (global) {
   'use strict';
 
+  // ── Le ✕ d'une chip : UN écouteur pour toute la page (2026-09-24) ─────────────────────
+  // Chaque `init` posait le sien sur `document`. Tant que les surfaces étaient STATIQUES (un
+  // init par page), c'était sans effet ; une modale GÉNÉRÉE à chaque ouverture (cycle commun
+  // `WamaParams.settingsModal`, qui détruit et recrée la modale) en accumulait un par ouverture,
+  // et les anciens, résolvant leurs slots PAR ID, visaient les champs de la NOUVELLE modale.
+  // Chaque instance s'inscrit ici ; celle dont le select a quitté la page se retire d'elle-même.
+  const instances = new Set();
+  let clearBound = false;
+  function bindClearOnce() {
+    if (clearBound) return;
+    clearBound = true;
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-wim-clear]');
+      if (!btn) return;
+      instances.forEach((inst) => {
+        if (!inst.select.isConnected) { instances.delete(inst); return; }
+        inst.clear(btn.getAttribute('data-wim-clear'));
+      });
+    });
+  }
+
   function init(cfg) {
     cfg = cfg || {};
     const select = document.getElementById(cfg.selectId);
@@ -187,13 +208,15 @@
       if (inp) inp.addEventListener('change', refresh);
     });
     select.addEventListener('change', refresh);
-    document.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-wim-clear]');
-      if (!btn) return;
-      const s = slots[btn.getAttribute('data-wim-clear')];
-      const inp = s && document.getElementById(s.inputId);
-      if (inp) { if (s.clear) s.clear(inp); else inp.value = ''; refresh(); }
+    instances.add({
+      select: select,
+      clear: (sid) => {
+        const s = slots[sid];
+        const inp = s && document.getElementById(s.inputId);
+        if (inp) { if (s.clear) s.clear(inp); else inp.value = ''; refresh(); }
+      },
     });
+    bindClearOnce();
 
     refresh();
     return { refresh: refresh, isLaunchable: () => refresh().launchable, provided: provided };

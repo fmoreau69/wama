@@ -67,6 +67,13 @@ def check_voice_language_matching(app: str, url_path: str, ids: dict):
     Une voix-témoin `ua_` est semée sur le compte de test (il n'en a pas) et retirée.
     Les deux apps ne servent pas la voix pareil (select serveur / modale WamaParams) : chacune
     DÉCLARE ses ids, le geste est le même.
+
+    `ids['open_item']` (2026-09-24) : les selects vivent dans la modale ⚙ d'un ÉLÉMENT, générée
+    à l'ouverture par le cycle commun (`WamaParams.settingsModal`) — ils n'existent pas au
+    chargement. Le geste monte alors un élément témoin (fabrique déclarée, compte de test,
+    retiré en sortie), ouvre son ⚙ par un vrai clic, et mesure DANS la modale ouverte. Avant le
+    portage, l'avatarizer servait une modale STATIQUE cachée : le geste lisait ses selects sans
+    l'ouvrir — il mesurait des champs que l'utilisateur ne voyait qu'après un clic.
     """
     from playwright.sync_api import sync_playwright
     from django.core.files.base import ContentFile
@@ -79,6 +86,8 @@ def check_voice_language_matching(app: str, url_path: str, ids: dict):
     M, V, L = ids['model'], ids['voice'], ids['language']
     temoin = UserAsset(user=get_test_user(), name='wama_temoin_voix_double_sens', asset_type='voice')
     temoin.file.save('wama_temoin_voix_double_sens.wav', ContentFile(_wav_silence()), save=True)
+    # Élément témoin dont on ouvrira le ⚙ — créé HORS du contexte Playwright (ORM synchrone).
+    element = ids['open_item'](get_test_user()) if ids.get('open_item') else None
     verdicts = []
     try:
         with sync_playwright() as p:
@@ -95,6 +104,22 @@ def check_voice_language_matching(app: str, url_path: str, ids: dict):
                 if v is not None:
                     return v
                 page.wait_for_timeout(1800)
+                if element is not None:
+                    # Le VRAI geste : clic sur le ⚙ de l'élément témoin, modale générée.
+                    gear = f'.settings-btn[data-id="{element.pk}"]'
+                    if not page.query_selector(gear):
+                        return False, f'⚙ de l’élément témoin #{element.pk} absent de la file'
+                    # Ouvrir, FERMER, rouvrir : la modale est détruite et recréée à chaque ouverture,
+                    # et c'est sur la SECONDE instance qu'on mesure — le cas où des écouteurs d'une
+                    # instance disparue viseraient les champs homonymes de la nouvelle.
+                    for tour in (1, 2):
+                        page.locator(gear).first.click(timeout=15000)
+                        page.wait_for_selector('.modal.show', timeout=8000)
+                        page.wait_for_timeout(1800)   # options du catalogue + capacités (asynchrones)
+                        if tour == 1:
+                            page.locator('.modal.show [data-bs-dismiss="modal"]').first.click()
+                            page.wait_for_selector('.modal.show', state='detached', timeout=8000)
+                            page.wait_for_timeout(500)
                 if not page.evaluate("([m, v]) => !!document.getElementById(m) && !!document.getElementById(v)", [M, V]):
                     return False, f'selects {M}/{V} absents de la page'
 
@@ -148,7 +173,17 @@ def check_voice_language_matching(app: str, url_path: str, ids: dict):
                 browser.close()
     finally:
         _retirer(temoin)
+        if element is not None:
+            type(element).objects.filter(pk=element.pk).delete()
     return _bilan(verdicts)
+
+
+def _avatarizer_pipeline_item(user):
+    """Un job avatarizer PIPELINE en attente (texte à dire : les champs TTS de la modale ne
+    s'affichent que pour lui, `show_if='text_content'`). Aucun fichier, rien ne démarre."""
+    from wama.avatarizer.models import AvatarJob
+    return AvatarJob.objects.create(user=user, mode='pipeline', status='PENDING',
+                                    text_content='wama témoin appariement voix/langue')
 
 
 def register_voice_language_scenarios():
@@ -156,7 +191,9 @@ def register_voice_language_scenarios():
     from wama.common.services.nightly_tests import register
     for app, ids in (('synthesizer', {'model': 'tts_model', 'voice': 'voice_preset', 'language': 'language'}),
                      ('avatarizer', {'model': 'settingsTtsModel', 'voice': 'settingsVoicePreset',
-                                     'language': 'settingsLanguage'})):
+                                     'language': 'settingsLanguage',
+                                     # modale ⚙ GÉNÉRÉE à l'ouverture (cycle commun, 24/09)
+                                     'open_item': _avatarizer_pipeline_item})):
         register(id=f'{app}.voice_language_matching', app=app, stage='ui',
                  description=f'{app} : voix ↔ langue ↔ moteur à DOUBLE SENS dans le navigateur '
                              '(grisé avec raison, jamais caché ; « auto » jamais grisé)',

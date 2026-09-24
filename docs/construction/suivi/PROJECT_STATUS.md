@@ -16822,3 +16822,40 @@ corps de la modale (`readModalViaSchema`) : portable par `fetchUrl` + `decorate`
 fonctionnalité). ⚠ Baseline : `converter.inspector_actions` sort en ERREUR AVANT toute modification
 (« Execution context was destroyed, most likely because of a navigation ») — à élucider, pas de ce
 palier.
+
+## §PALIER — 2026-09-24, « Avatarizer : la modale ⚙ au cycle commun, l'appariement voix/langue gardé » — ✅ LIVRÉ
+
+Fabien : *« conserver tous les comportements d'imports et de connexion propres, fonctionnels et
+alignés ; as-tu bien lu toute la doc ? s'aligner avec la card d'entrée v4 »*. Lu avant de toucher :
+`INPUT_MODEL_MATCHING.md` (entier), `MEDIA_STORAGE_TIERING §8` (voies d'import), `MODES_QUEUE_UX`,
+`CARD_DESIGN §11.8-11.11`. Alignement v4 : la modale est la surface où la v4 posera sa section
+ENTRÉE (exigence 8, remplacement des fichiers d'une card PENDING, §11.10 point 4) — une app sur le
+cycle commun est une app où cette bascule se fera en UN endroit, la brique. La modale n'importe
+aucun fichier : aucune voie d'import n'est touchée (gestes d'import rejoués quand même).
+
+**À la brique d'abord** : `WamaInputMatch.init` posait un écouteur `document` (✕ des chips) PAR
+appel — sans effet tant que les surfaces étaient statiques, fautif dès qu'une modale est générée à
+chaque ouverture (les anciens, résolvant par id, auraient visé les champs homonymes de la nouvelle).
+Écouteur UNIQUE pour la page, instances inscrites, une instance dont le select a quitté la page se
+retire. Aucun appelant ne change.
+
+**Avatarizer** : `WamaParams.settingsModal` (gearValues, pied greffé, voix per-user par
+`optionsResolver`, `onSaved` → card re-rendue + démarrage) ; l'appariement voix ↔ langue ↔ moteur
+se rebranche à CHAQUE ouverture (`decorate` → `wireTtsMatching`, même configuration). Partent : la
+modale statique `#jobSettingsModal`, son remplissage champ par champ, `saveJobSettings` et
+`buildParamsHtml` (repeinte de card en JS). Le gabarit expose schéma, voix et métadonnées
+d'appariement. **Instrument** : `avatarizer.voice_language_matching` lisait une modale STATIQUE
+cachée sans l'ouvrir ; il monte un job pipeline témoin, ouvre son ⚙, le ferme, le ROUVRE et mesure
+sur la seconde modale → **10/10**. Garde textuelle `PredicatDeVoixClonéeDéfiniUneFoisTest` : une
+page = gabarit + son JS d'app (même exigence : déclarer, jamais recopier ; briques chargées par le
+gabarit). Mesuré sur gunicorn relancé : famille avatarizer (appariement, ⚙ modifié-enregistré-relu,
+inspecteur, import de lot) et les 7 pages qui utilisent la brique d'appariement — **12/12**, zéro
+erreur console. ⚠ Honnêteté : la modale de l'avatarizer n'a pas de chip ✕ — le cas exact que
+corrige la brique n'est attesté que par lecture + parse V8, pas par un geste.
+
+Grille **881/933** (avatarizer 95 %) ; `settings_modal_cycle` **8/10**. Tests : garde d'appariement,
+avatarizer, contrats, checker, modes nocturnes — OK hors budget des noms de tests (1313 > 1312 :
+`gateway/tests.py`, WIP d'une autre session).
+
+🔚 **Suivant** : la passe converter (modale à valeurs chargées par `status`, profils, reset) ; puis
+`backend_routes` + `task_skeleton` app par app.
