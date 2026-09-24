@@ -49,9 +49,9 @@ class _WitnessSurface(TestCase):
                         else evaluation._REGISTRY.__setitem__(SURFACE, previous))
         self.user = User.objects.create_user('evaluation_witness', password='x')
 
-    def _item(self, prompt='le chat dort sur le tapis', model='musicgen-small'):
+    def _item(self, prompt='le chat dort sur le tapis', model='musicgen-small', **extra):
         from wama.composer.models import ComposerGeneration
-        return ComposerGeneration.objects.create(user=self.user, prompt=prompt, model=model)
+        return ComposerGeneration.objects.create(user=self.user, prompt=prompt, model=model, **extra)
 
     def _upload(self, text, name='reference.txt'):
         return SimpleUploadedFile(name, text.encode('utf-8'), content_type='text/plain')
@@ -250,6 +250,90 @@ class InterfaceTest(_WitnessSurface):
         self.assertIn('références différentes', html,
                       'a ranking across different references must say so')
         self.assertNotIn('is-best', html, 'no « best » crowned on an unfair comparison')
+
+
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+                                       'LOCATION': 'agreement-tests'}})
+class AgreementWithoutReferenceTest(_WitnessSurface):
+    """Lot SANS référence (M1/M6) : the witness compares prompts, one « input » per `duration`."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+        from wama.common.services.divergence import divergence_texte
+        cache.clear()
+        self.calls = 0
+
+        def disagreement(a, b):
+            self.calls += 1
+            return divergence_texte(a.prompt, b.prompt)
+
+        evaluation.register_evaluation(evaluation.EvaluationSpec(
+            surface=SURFACE, reference_field='melody_reference',
+            result_text=lambda item: item.prompt or None, read_reference=_read_reference,
+            model_key=lambda item: f'composer:{item.model}', reference_extensions=('.txt',),
+            input_identity=lambda item: f'input-{item.duration}', disagreement=disagreement))
+
+    def test_two_engines_on_one_input_share_one_disagreement_and_nobody_wins(self):
+        a = self._item('le chat dort sur le tapis', model='a')
+        b = self._item('le chien dort sur le tapis', model='b')
+        group = evaluation.batch_agreement(SURFACE, [a, b])['groups'][0]
+        self.assertEqual(1, len({e['isolation'] for e in group['engines']}))
+        self.assertIsNone(group['most_isolated'], 'two engines: no one can be « the odd one »')
+        self.assertEqual((1, 1), (group['pairs'], group['comparable_pairs']))
+
+    def test_from_three_engines_the_most_ISOLATED_is_signalled(self):
+        items = [self._item('le chat dort sur le tapis', model='a'),
+                 self._item('le chat dort sur le tapis rouge', model='b'),
+                 self._item('rien à voir du tout ici', model='c')]
+        group = evaluation.batch_agreement(SURFACE, items)['groups'][0]
+        self.assertEqual(items[2].pk, group['most_isolated'])
+        self.assertEqual('composer:c', group['engines'][-1]['model_key'], 'most isolated last')
+
+    def test_different_inputs_form_no_group_and_cost_nothing(self):
+        self.assertIsNone(evaluation.batch_agreement(SURFACE, [
+            self._item('a', model='a'), self._item('b', model='b', duration=99)]))
+
+    def test_the_agreement_is_cached_until_a_result_changes(self):
+        a, b = self._item('le chat dort', model='a'), self._item('le chien dort', model='b')
+        evaluation.batch_agreement(SURFACE, [a, b])
+        evaluation.batch_agreement(SURFACE, [a, b])
+        self.assertEqual(1, self.calls, 'second render must read the cache')
+        b.prompt = 'le chat dort'
+        b.save()
+        self.assertEqual(0.0, evaluation.batch_agreement(SURFACE, [a, b])['groups'][0]
+                         ['engines'][0]['isolation'])
+        self.assertEqual(2, self.calls, 'a changed result changes the fingerprint')
+
+    def test_the_queue_shows_the_agreement_only_without_a_reference(self):
+        from wama.common.utils.batch_common import build_batches_list
+        from wama.composer.models import ComposerBatch, ComposerBatchItem
+        batch = ComposerBatch.objects.create(user=self.user)
+        a, b = self._item('le chat dort', model='a'), self._item('le chien dort', model='b')
+        for row, item in enumerate((a, b)):
+            ComposerBatchItem.objects.create(batch=batch, generation=item, row_index=row)
+        row = build_batches_list(self.user, batch_model=ComposerBatch, work_attr='generation')[0]
+        self.assertIsNotNone(row['agreement'])
+        evaluation.attach_reference(SURFACE, [a, b], self._upload('le chat dort'))
+        row = build_batches_list(self.user, batch_model=ComposerBatch, work_attr='generation')[0]
+        self.assertIsNotNone(row['evaluation'])
+        self.assertIsNone(row['agreement'], 'with a reference, the measure speaks, not the agreement')
+
+    def test_a_failing_declaration_never_takes_the_queue_down(self):
+        from wama.common.utils.batch_common import build_batches_list
+        from wama.composer.models import ComposerBatch, ComposerBatchItem
+
+        def broken(item):
+            raise RuntimeError('declaration en panne')
+        evaluation.register_evaluation(evaluation.EvaluationSpec(
+            surface=SURFACE, reference_field='melody_reference', result_text=broken,
+            read_reference=_read_reference, model_key=str, input_identity=broken,
+            disagreement=lambda a, b: 0.0))
+        batch = ComposerBatch.objects.create(user=self.user)
+        ComposerBatchItem.objects.create(batch=batch, generation=self._item())
+        row = build_batches_list(self.user, batch_model=ComposerBatch, work_attr='generation')[0]
+        self.assertIsNone(row['agreement'])
+        self.assertIsNone(row['evaluation'])
 
 
 class CapabilityAndDeclarationGoTogetherTest(TestCase):

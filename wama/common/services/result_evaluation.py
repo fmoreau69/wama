@@ -66,6 +66,11 @@ class EvaluationSpec:
     #: si le fichier ne se lit pas). Ses extensions : celles de la référence, sauf mention.
     result_field: str = ''
     import_result: Optional[Callable[[object], None]] = None
+    #: Lot SANS référence (M1/M6) — facultatif : ce qui identifie l'ENTRÉE d'un élément (on ne
+    #: compare que des résultats d'une même entrée), et le DÉSACCORD entre deux résultats (0..1,
+    #: None = non comparables, ex. un résultat sans temps face à un résultat horodaté).
+    input_identity: Optional[Callable[[object], Optional[str]]] = None
+    disagreement: Optional[Callable[[object, object], Optional[float]]] = None
 
 
 _REGISTRY: Dict[str, EvaluationSpec] = {}
@@ -274,6 +279,92 @@ def batch_evaluation(surface: str, items: Iterable) -> Optional[dict]:
     return {'primary': primary, 'primary_label': labels[primary][0], 'models': models,
             'comparable': comparable, 'evaluated_items': len({r.object_id for r in rows}),
             'total_items': len(items)}
+
+
+# ── Lot SANS référence : l'accord entre moteurs (M1 deux à deux, M6 à partir de trois) ─────
+
+#: Un accord calculé reste valable tant qu'aucun résultat du groupe ne change (empreinte) ;
+#: la durée ne sert qu'à laisser le cache se vider de lui-même.
+AGREEMENT_CACHE_SECONDS = 24 * 3600
+
+
+def batch_agreement(surface: str, items: Iterable) -> Optional[dict]:
+    """Le désaccord entre les moteurs d'un lot, SANS référence (`WAMA_QUALITE` M1, M6).
+
+    On ne compare que des résultats d'une MÊME entrée (`input_identity`) : un lot ordinaire,
+    un fichier par card, ne forme aucun groupe et ne coûte rien. Par moteur : la MÉDIANE de ses
+    désaccords deux à deux — son taux d'isolement (M6). À partir de trois, le plus isolé est
+    SIGNALÉ ; il n'est jamais déclaré « le pire », ni un autre « le meilleur » : un modèle isolé
+    peut être le seul juste (M6, « jamais un tri seul »).
+
+    Calculé à l'affichage de la file, donc mis en CACHE sous l'empreinte des résultats : un
+    résultat qui change change l'empreinte, et l'accord est recalculé.
+    """
+    import hashlib
+    import statistics
+    from itertools import combinations
+    from django.core.cache import cache
+
+    spec = evaluation_spec(surface)
+    if spec is None or spec.input_identity is None or spec.disagreement is None:
+        return None
+    groups: Dict[str, list] = {}
+    for item in items:
+        if item is None:
+            continue
+        text = spec.result_text(item)
+        key = spec.input_identity(item)
+        if text is None or not key:
+            continue
+        groups.setdefault(key, []).append((item, text))
+    groups = {k: v for k, v in groups.items() if len(v) >= 2}
+    if not groups:
+        return None
+
+    fingerprint = hashlib.sha1(repr(sorted(
+        (key, item.pk, spec.model_key(item), hashlib.sha1(text.encode('utf-8')).hexdigest())
+        for key, members in groups.items() for item, text in members)).encode('utf-8')).hexdigest()
+    cache_key = f'wama:agreement:{surface}:{fingerprint}'
+    try:
+        cached = cache.get(cache_key)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return cached
+
+    out = []
+    for key, members in groups.items():
+        pairs = []
+        for (a, _), (b, _) in combinations(members, 2):
+            try:
+                value = spec.disagreement(a, b)
+            except Exception as exc:
+                logger.debug('[evaluation] désaccord %s#%s/%s impossible : %s', surface, a.pk, b.pk, exc)
+                value = None
+            pairs.append((a.pk, b.pk, value))
+        engines = []
+        for item, _ in members:
+            mine = [v for x, y, v in pairs if item.pk in (x, y) and v is not None]
+            engines.append({'pk': item.pk, 'model_key': spec.model_key(item),
+                            'model_label': _model_label(spec.model_key(item)),
+                            'isolation': round(statistics.median(mine), 4) if mine else None,
+                            'isolation_percent': (round(statistics.median(mine) * 100, 1)
+                                                  if mine else None),
+                            'compared': len(mine)})
+        engines.sort(key=lambda e: (e['isolation'] is None, e['isolation'] or 0))
+        measured = [e for e in engines if e['isolation'] is not None]
+        most_isolated = None
+        if len(measured) >= 3 and measured[-1]['isolation'] > measured[-2]['isolation']:
+            most_isolated = measured[-1]['pk']
+        out.append({'input': os.path.basename(key), 'engines': engines,
+                    'pairs': len(pairs), 'comparable_pairs': sum(1 for p in pairs if p[2] is not None),
+                    'most_isolated': most_isolated})
+    result = {'groups': out, 'method': 'M1/M6'}
+    try:
+        cache.set(cache_key, result, AGREEMENT_CACHE_SECONDS)
+    except Exception:
+        pass
+    return result
 
 
 # ── Attacher / retirer une référence ────────────────────────────────────────────────────────

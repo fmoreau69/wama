@@ -299,6 +299,11 @@ le lot entier (menu de la card du lot : **Référence du lot…**). Une ligne so
 classe les moteurs, le meilleur en tête. Une transcription faite par un autre outil se compare de
 la même façon : sur un double de la card, **Résultat existant… → Reprendre un fichier…**.
 
+Sans référence, la même ligne indique l'**accord entre moteurs** : le pourcentage de désaccord de
+chacun avec les autres, sur le même audio. Il montre où regarder, pas qui a raison — aucun moteur
+n'y est déclaré meilleur. À partir de trois moteurs, celui qui s'écarte le plus est signalé en
+orange.
+
 ### 9.4 Le guidage de nettoyage
 <!-- WAMA:SECTION(audience=utilisateur; type=guide; nature=intention; etat=⏳; porte=apps/transcriber) -->
 
@@ -350,8 +355,15 @@ les variantes d'un moteur).
 Onglet **« Évaluation »** de la card (taux, substitutions / suppressions / insertions, longueurs, ce
 que la lecture a écarté) ; **ligne fine sur la card mère** : modèles classés par taux de CORPUS
 (Σ erreurs / Σ mots de référence), le meilleur marqué — sauf si les références diffèrent, ce qui
-est DIT. ⏳ **Lot SANS référence** (accord de Fabien) : comparaison des moteurs entre eux par la
-divergence M1 — à faire.
+est DIT. **Lot SANS référence ✅ (2026-09-23)** : même ligne, « Accord entre moteurs » — pour les
+cards d'une MÊME entrée (même fichier audio : les doubles le partagent), le désaccord deux à deux
+M1 (`divergence_segments`, moyenné dans les deux sens) et, par moteur, la médiane de ses
+désaccords (M6). Jamais de « meilleur » : sans vérité, un désaccord ne dit pas qui se trompe ; à
+partir de trois moteurs, le plus ISOLÉ est signalé (ambre). Un résultat existant non horodaté est
+« non comparé » (M1 aligne sur le temps). Calculé à l'affichage, mis en cache par empreinte des
+résultats ; un lot ordinaire (un fichier par card) ne coûte rien. M1 est devenue linéaire en
+pratique à résultat IDENTIQUE (`tests_divergence`) : 1 h d'audio en 0,03 s au lieu d'un filtre
+quadratique.
 
 **10.4 Résultat existant ✅** — « Résultat existant… » sur une card : la transcription faite
 AILLEURS devient son résultat (`external:<nom>`), mesurée comme un modèle. Geste type pour comparer

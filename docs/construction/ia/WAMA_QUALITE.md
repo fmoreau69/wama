@@ -105,7 +105,9 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
 - **Coût** : nul (calcul pur) ; les deux passes ASR, elles, coûtent une inférence chacune.
 - **Code** : `wama/common/services/divergence.py` (`divergence_texte`, alignement, seuils
   indicatifs `SEUILS`), `manage.py divergence_asr`. Trois pièges mesurés et corrigés :
-  `TRANSCRIBER_CORRECTION.md §8.3`.
+  `TRANSCRIBER_CORRECTION.md §8.3`. Alignement rendu linéaire en pratique le 2026-09-23 (index des
+  segments en face, résultat identique attesté par `tests_divergence`) : 1 h d'audio en 0,03 s —
+  la condition pour l'utiliser à l'affichage (M6).
 - **Extension due** : texte **non horodaté** (OCR par page ou par boîte ; description, résumé,
   génération : alignement par document entier, similarité de séquence de mots). Pas écrite.
 
@@ -175,7 +177,12 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
   `wama/model_manager/services/vision_probe.py` (description d'image par VLM local, consommée par
   le banc de légendage et le triage du smoke).
 
-### M6 — Accord multi-modèles (consensus) ⏳
+### M6 — Accord multi-modèles (consensus) 🔄 (transcription livrée le 2026-09-23)
+- ✅ **Transcription** : `result_evaluation.batch_agreement` — cards d'une même entrée d'un lot,
+  M1 deux à deux (moyenné dans les deux sens), médiane par moteur, le plus isolé SIGNALÉ à partir
+  de trois, jamais un tri ; ligne « Accord entre moteurs » de la card mère quand le lot n'a pas de
+  référence. L'app déclare `input_identity` + `disagreement` (`TRANSCRIBER_CORRECTION §10.3`).
+  Calibration contre M3 : possible dès qu'un même lot porte une référence (les deux se lisent).
 - **Mesure** : sur N ≥ 3 sorties du même travail, la **médiane des divergences deux à deux** par
   modèle (M1 ou M2 selon la tâche) → un **taux d'isolement** : à quelle fréquence ce modèle diverge
   du groupe. Par item : le support de chaque élément produit.

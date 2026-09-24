@@ -1,0 +1,22 @@
+{% comment %}
+Ligne FINE de la card mère, lot SANS référence : le désaccord ENTRE les moteurs (WAMA_QUALITE M1/M6).
+
+Données : `batch_info.agreement` (`result_evaluation.batch_agreement`, posé par `build_batches_list`
+quand le lot n'a aucune mesure contre une référence). Un groupe = les résultats d'une MÊME entrée.
+Par moteur : la médiane de ses désaccords deux à deux. ⚠ Jamais de « meilleur » : sans vérité, un
+désaccord ne dit pas QUI se trompe. À partir de trois moteurs, le plus isolé est SIGNALÉ — un signal
+d'attention, pas un verdict (un modèle isolé peut être le seul juste).
+{% endcomment %}
+{% for g in batch_info.agreement.groups %}
+<div class="wama-batch-evaluation" title="Désaccord entre moteurs sur « {{ g.input }} », sans référence : il signale où regarder, il ne dit pas qui a raison. Posez une référence pour mesurer.">
+    <span class="wama-batch-evaluation-title"><i class="fas fa-code-compare"></i> Accord entre moteurs</span>
+    {% for e in g.engines %}
+    <span class="wama-batch-evaluation-model{% if e.pk == g.most_isolated %} is-isolated{% endif %}"
+          title="{{ e.model_label }} — médiane de ses désaccords avec les autres ({{ e.compared }} comparaison{{ e.compared|pluralize }}){% if e.pk == g.most_isolated %} — le plus ISOLÉ du groupe{% endif %}">
+        {{ e.model_label }}
+        <strong>{% if e.isolation_percent is not None %}{{ e.isolation_percent|floatformat:1 }} %{% else %}non comparé{% endif %}</strong>
+    </span>
+    {% endfor %}
+    <span class="wama-batch-evaluation-count">désaccord · {{ g.comparable_pairs }}/{{ g.pairs }} paire{{ g.pairs|pluralize }} comparée{{ g.comparable_pairs|pluralize }}</span>
+</div>
+{% endfor %}
