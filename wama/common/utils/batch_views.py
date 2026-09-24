@@ -122,7 +122,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                      zip_name=None, progress_of=None, item_label=None, on_delete=None,
                      empty_is_value=(), task_for=None, start_only_pending=False,
                      after_update=None, item_extra=None, read_lookup=None,
-                     output_name=None, start_reset_for=None, startable=None):
+                     output_name=None, start_reset_for=None, startable=None, output_text=None):
     """Retourne les six vues de lot : {'batch_start', 'batch_update', 'batch_delete',
     'batch_duplicate', 'batch_download', 'batch_status'} (vues Django, `pk` = id du lot).
 
@@ -174,6 +174,10 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         startable       : callable(élément)->bool — ce qu'un ▶ de lot SAUTE sans le compter
                           (converter : un job sans `output_format`, réglé plus tard par la modale
                           de lot) ; s'ajoute à `start_only_pending`, ne le remplace pas.
+        output_text     : champ TEXTE servi par `batch_download` quand le résultat déclaré est un
+                          texte (`RESULT = {'kind': 'text', 'field': …}`, describer généré) —
+                          une entrée `.txt` par élément, nommée par `compose_output_name` ;
+                          prime sur `output_field`.
     Chaque élément lu porte `batch_link` (posé par `batch_elements`) : la ligne de liaison en
     forme à liaison, l'élément lui-même en FK directe — `output_name`, `item_label`, `item_extra`
     peuvent donc nommer d'après la ligne (synthesizer : `s.batch_link.output_filename`).
@@ -290,12 +294,24 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     @require_GET
     def batch_download(request, pk):
         b = _batch_read(request, pk)
-        if not any(f.name == output_field for f in work_model._meta.get_fields()):
+        served = output_text or output_field
+        if not any(f.name == served for f in work_model._meta.get_fields()):
             return JsonResponse({'error': 'aucune sortie fichier pour ce lot'}, status=404)
         buf = io.BytesIO()
         # ZIP_DEFLATED : l'idiome des `batch_download` d'app (anonymizer, synthesizer, converter).
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
             for item in batch_elements(b, work_model):
+                if output_text:
+                    text = getattr(item, output_text, '') or ''
+                    if getattr(item, 'status', '') == 'SUCCESS' and text:
+                        from wama.common.utils.output_naming import compose_output_name
+                        src = getattr(item, 'input_file', None)
+                        name = (output_name(item) if output_name is not None else '') or \
+                            compose_output_name(app=work_model._meta.app_label, ext='.txt',
+                                                item_id=item.pk,
+                                                source_name=Path(src.name).name if src else '')
+                        z.writestr(name, text)
+                    continue
                 out = getattr(item, output_field, None)
                 if getattr(item, 'status', '') == 'SUCCESS' and out:
                     name = (output_name(item) if output_name is not None else '') or Path(out.name).name

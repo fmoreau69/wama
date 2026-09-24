@@ -123,8 +123,14 @@ connaître aucun sélecteur d'app (2026-08-23). Absent = app mono-domaine, rien 
                     <i class="fas {% if batch_info.has_success %}fa-rotate-right{% else %}fa-play{% endif %}"></i>
                 </button>
                 {% endif %}
-                {% if batch_info.has_success and download_menu_template %}
-                <div class="dropdown d-inline-block" data-batch-zip>
+                {% comment %}ZIP du lot RENDU dès que l'app le déclare, MASQUÉ tant qu'aucune sortie
+                n'existe (2026-09-24) : `queue-actions.js::updateBatchHeader` le montre quand une
+                fille réussit pendant que la page est ouverte. Rendu seulement « si réussite », il
+                n'apparaissait qu'au rechargement. L'enveloppe `span` porte le `hidden` : le
+                `d-inline-block` de Bootstrap (!important) l'emporterait sur l'attribut.{% endcomment %}
+                {% if download_menu_template %}
+                <span data-batch-zip{% if not batch_info.has_success %} hidden{% endif %}>
+                <div class="dropdown d-inline-block">
                     <button class="btn btn-sm btn-outline-info py-0 px-2 dropdown-toggle"
                             type="button" data-bs-toggle="dropdown" aria-expanded="false"
                             title="Télécharger toutes les sorties (ZIP)">
@@ -134,12 +140,15 @@ connaître aucun sélecteur d'app (2026-08-23). Absent = app mono-domaine, rien 
                         {% include download_menu_template %}
                     </ul>
                 </div>
-                {% elif batch_info.has_success and download_url %}
+                </span>
+                {% elif download_url %}
                 {# Variante mono-format (ex. composer : ZIP de WAV) — lien direct, pas de menu #}
-                <a class="btn btn-sm btn-outline-info py-0 px-2" href="{{ download_url }}" data-batch-zip
+                <span data-batch-zip{% if not batch_info.has_success %} hidden{% endif %}>
+                <a class="btn btn-sm btn-outline-info py-0 px-2" href="{{ download_url }}"
                    title="Télécharger toutes les sorties (ZIP)">
                     <i class="fas fa-download"></i> ZIP
                 </a>
+                </span>
                 {% endif %}
                 <button class="btn btn-sm btn-outline-warning batch-duplicate-btn py-0 px-2"
                         data-batch-id="{{ batch_info.obj.id }}"
