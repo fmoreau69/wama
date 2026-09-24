@@ -39,12 +39,34 @@ suivant. Les passages hachurés sont des silences qu'aucun segment ne couvre. Le
 
 - **glisser une borne** la déplace ; les mots passent d'un segment à l'autre selon leur heure ;
 - **cliquer dans un segment** le coupe en deux à cet endroit (ciseaux) ;
+- **cliquer dans un silence hachuré** crée un segment vide qui le couvre, prêt à recevoir le texte
+  manquant ;
 - glisser ailleurs que sur une borne déplace la vue, comme sans l'outil.
 
 Une borne se pose toujours **entre deux mots**, jamais au milieu d'un mot, et chaque segment garde
 au moins un mot : aucun mot n'est perdu. Si vous avez corrigé le texte d'un segment, ses mots
 sont d'abord recalés sur la transcription automatique. Chaque geste s'annule avec `Ctrl+Z`.
 `Échap` quitte l'outil.
+
+### Les modes d'écriture : la lecture transcrit
+
+Le menu **Lecture** de la barre audio choisit ce que fait la lecture. En mode Lecture, elle ne
+fait que jouer. Les autres modes font transcrire, pendant l'écoute, la plage qui est jouée :
+
+| mode | ce qui est transcrit | ce qui change dans le texte |
+|---|---|---|
+| **Complément** | les silences et les segments vides devant la tête de lecture | le texte entendu y est **écrit directement** : il comble un vide, il n'écrase rien |
+| **Touch** | la plage jouée tant que vous **maintenez** `R` | une **proposition** |
+| **Latch** | la plage jouée depuis un appui sur `R` jusqu'à l'arrêt de la lecture | une **proposition** |
+| **Write** | tout ce que la lecture parcourt | une **proposition** |
+
+Une proposition s'affiche sous la forme d'onde, qui la surligne en rouge pâle : ✓ remplace le texte
+de la plage, ✗ garde le texte actuel, et un clic sur la proposition la fait écouter. Pendant
+l'enregistrement, un voyant **● REC** s'allume. Chaque écriture s'annule avec `Ctrl+Z`.
+
+Le modèle de transcription reste chargé pendant l'écoute ; il est libéré une minute et demie
+après la dernière lecture. Si une transcription de la file doit démarrer, elle passe d'abord :
+l'écriture s'interrompt, relancez la lecture ensuite.
 
 ### La bande de qualité
 
