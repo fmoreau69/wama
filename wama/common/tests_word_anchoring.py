@@ -169,3 +169,66 @@ class AlignEmissionTest(SimpleTestCase):
         from wama.common.backends.wav2vec2_aligner_backend import align_emission
         with self.assertRaises(ValueError):
             align_emission(torch.zeros((1, 2, 3)), [[1, 1, 2]], blank=0, seconds_per_frame=0.02)
+
+
+class BoundaryTest(SimpleTestCase):
+    """One boundary per junction, two gestures (move, cut) — never a lost or halved word."""
+
+    def _turns(self):
+        return [{'speaker_id': 'SPEAKER_00', 'text': 'le chien dort', 'start_time': 0.0,
+                 'end_time': 1.0, 'words': ASR[:3], 'confidence': -0.2},
+                {'speaker_id': 'SPEAKER_01', 'text': 'sur le tapis', 'start_time': 1.0,
+                 'end_time': 1.8, 'words': ASR[3:]}]
+
+    def test_moving_a_boundary_carries_the_words_to_the_other_side(self):
+        from wama.common.services.word_anchoring import move_boundary
+        left, right = move_boundary(*self._turns(), at=0.25)
+        self.assertEqual(('le', 'chien dort sur le tapis'), (left['text'], right['text']))
+        self.assertEqual(left['end_time'], right['start_time'], 'one boundary per junction')
+        self.assertEqual(0.2, left['end_time'], 'the boundary lands between two words')
+        self.assertEqual(('SPEAKER_00', 'SPEAKER_01', -0.2),
+                         (left['speaker_id'], right['speaker_id'], left['confidence']))
+
+    def test_a_boundary_dropped_in_a_silence_stays_where_it_was_dropped(self):
+        from wama.common.services.word_anchoring import move_boundary
+        turns = self._turns()
+        turns[1]['words'] = _words(('sur', 1.4, 1.5), ('le', 1.5, 1.6), ('tapis', 1.6, 1.8))
+        left, right = move_boundary(*turns, at=1.2)
+        self.assertEqual((1.2, 'le chien dort'), (left['end_time'], left['text']))
+
+    def test_no_word_is_ever_lost_whatever_the_gesture(self):
+        from wama.common.services.word_anchoring import move_boundary, split_turn
+        before = ' '.join(t['text'] for t in self._turns())
+        for at in (-5, 0.0, 0.33, 0.9, 1.25, 1.79, 9):
+            pair = move_boundary(*self._turns(), at=at)
+            self.assertEqual(before, ' '.join(t['text'] for t in pair), at)
+            self.assertTrue(pair[0]['text'] and pair[1]['text'], 'each turn keeps a word')
+        halves = split_turn(self._turns()[0], at=0.4)
+        self.assertEqual(('le chien', 'dort'), (halves[0]['text'], halves[1]['text']))
+
+    def test_an_edited_text_is_re_anchored_on_the_asr_before_the_cut(self):
+        """The correction replaced « chien » by « chat » — its words no longer say its text."""
+        from wama.common.services.word_anchoring import split_turn
+        turn = dict(self._turns()[0], text='le chat dort')
+        first, second = split_turn(turn, at=0.62, reference=ASR)
+        self.assertEqual(('le chat', 'dort'), (first['text'], second['text']))
+        self.assertEqual(0.6, second['start_time'])
+        self.assertEqual('estimated', first['words'][1]['timing'])
+
+    def test_without_any_timed_word_the_cut_still_falls_between_words(self):
+        from wama.common.services.word_anchoring import split_turn
+        turn = {'text': 'un deux trois quatre', 'start_time': 10.0, 'end_time': 14.0}
+        first, second = split_turn(turn, at=11.5)
+        self.assertEqual(('un deux', 'trois quatre'), (first['text'], second['text']))
+        self.assertEqual('interpolated', second['words'][0]['timing'])
+
+    def test_a_single_word_or_a_turn_without_time_cannot_be_cut(self):
+        from wama.common.services.word_anchoring import split_turn
+        self.assertIsNone(split_turn({'text': 'oui', 'start_time': 0, 'end_time': 1}, at=0.5))
+        self.assertIsNone(split_turn({'text': 'oui non', 'start_time': None, 'end_time': None}, 0))
+
+    def test_punctuation_alone_never_opens_a_turn(self):
+        from wama.common.services.word_anchoring import split_turn
+        turn = {'text': 'oui ! non', 'start_time': 0.0, 'end_time': 3.0}
+        first, second = split_turn(turn, at=1.0)
+        self.assertEqual(('oui !', 'non'), (first['text'], second['text']))

@@ -182,6 +182,10 @@
         <span id="zoomLabel" class="badge bg-secondary" style="min-width:42px;">×1</span>
         <button class="btn btn-sm btn-outline-light" id="zoomIn" title="Zoomer"><i class="fas fa-plus"></i></button>
         <button class="btn btn-sm btn-outline-light ms-2" id="followLockBtn" title="Suivre la lecture — la liste suit l'audio même en édition (Alt+L)"><i class="fas fa-lock-open"></i></button>
+        <button class="btn btn-sm btn-outline-light ms-2" id="boundaryToolBtn" aria-pressed="false"
+                title="Outil Bornes (C) — glisser une borne pour la déplacer · cliquer dans une section pour la couper · Échap pour sortir">
+          <i class="fas fa-scissors"></i> Bornes
+        </button>
       </div>
     </div>
   </div>
@@ -194,6 +198,7 @@
     transcriptId: {{ transcript.id }},
     playerId: "{{ transcript.id }}",
     saveUrl: "{% url 'transcriber:save_correction' transcript.id %}",
+    retimeUrl: "{% url 'transcriber:retime_segments' transcript.id %}",
     saveMetaUrl: "{% url 'transcriber:save_meta' transcript.id %}",
     suggestSpeakersUrl: "{% url 'transcriber:suggest_speakers' transcript.id %}",
     peaksUrl: "{% url 'transcriber:waveform_peaks' transcript.id %}",
@@ -284,6 +289,8 @@
       <tr><td><kbd>Tab</kbd> / <kbd>Maj+Tab</kbd></td><td>segment audio suivant / précédent</td></tr>
       <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>choisir un segment (sans bouger l'audio)</td></tr>
       <tr><td><kbd>Entrée</kbd></td><td>éditer le segment</td></tr>
+      <tr><td><kbd>Ctrl+Entrée</kbd></td><td>couper la section à la tête de lecture</td></tr>
+      <tr><td><kbd>C</kbd></td><td>outil Bornes : glisser une borne · cliquer pour couper (<kbd>Échap</kbd> pour sortir)</td></tr>
       <tr class="kbd-head"><td colspan="2">✍️ Édition</td></tr>
       <tr><td><kbd>Tab</kbd> / <kbd>Maj+Tab</kbd></td><td>champ suivant / précédent</td></tr>
       <tr><td><kbd>Ctrl+Entrée</kbd></td><td>scinder au curseur</td></tr>

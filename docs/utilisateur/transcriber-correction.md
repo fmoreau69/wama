@@ -25,10 +25,26 @@ touches servent à taper ; `Échap` revient à la navigation.
 | `Tab` · `Maj+Tab` | la lecture saute au segment suivant · précédent | champ suivant · précédent |
 | `Alt+↑` · `Alt+↓` | segment précédent · suivant | segment précédent · suivant |
 | `Alt+L` | verrouille ou libère le suivi de lecture | idem |
-| `Ctrl+Entrée` | — | coupe le segment à l'endroit du curseur |
+| `Ctrl+Entrée` | coupe le segment à la tête de lecture | coupe le segment à l'endroit du curseur |
+| `C` | outil **Bornes** (voir ci-dessous) ; `Échap` pour le quitter | — |
 | `Suppr` en fin de texte | — | fusionne avec le segment suivant |
 | `Retour arrière` en début de texte | — | fusionne avec le segment précédent |
 | `Ctrl+Z` · `Ctrl+Maj+Z` | annule · rétablit | idem |
+
+### Déplacer une borne, couper un segment
+
+Sur la forme d'onde, un trait marque chaque **borne** : la fin d'un segment est le début du
+suivant. Les passages hachurés sont des silences qu'aucun segment ne couvre. Le bouton **Bornes**
+(ou la touche `C`) active l'outil :
+
+- **glisser une borne** la déplace ; les mots passent d'un segment à l'autre selon leur heure ;
+- **cliquer dans un segment** le coupe en deux à cet endroit (ciseaux) ;
+- glisser ailleurs que sur une borne déplace la vue, comme sans l'outil.
+
+Une borne se pose toujours **entre deux mots**, jamais au milieu d'un mot, et chaque segment garde
+au moins un mot : aucun mot n'est perdu. Si vous avez corrigé le texte d'un segment, ses mots
+sont d'abord recalés sur la transcription automatique. Chaque geste s'annule avec `Ctrl+Z`.
+`Échap` quitte l'outil.
 
 ### La bande de qualité
 

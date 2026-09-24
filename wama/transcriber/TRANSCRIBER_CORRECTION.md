@@ -121,6 +121,15 @@ Clavier-first (Whispurge). Sauvegarde → texte/segments corrigés → ré-expor
    worker (step 8b, si `verify_coherence`) → `coh_severity`/`coh_note` dans `segments_json` ;
    l'éditeur bascule la heatmap sur la cohérence (priorité sur la confiance), tooltip = note IA.
    + **Refresh des cards corrigé** (polling résilient + reload sur SUCCESS). **→ Phase 2 complète.**
+   **2c ✅ livrée (2026-09-24) — outil Bornes** (décisions de Fabien du 2026-09-23 : une borne
+   par jonction, deux gestes, jamais un mot coupé ni perdu, un outil dédié, pas de touches I/O).
+   Calcul COMMUN et sans modèle (`word_anchoring.move_boundary` / `split_turn`, vue
+   `retime_segments` qui fournit les mots ASR pour réancrer un texte corrigé) ; le geste reste dans
+   `edit.js` tant que le transport commun n'est pas conçu (`WAMA_DATA_WORLD §5`). Au passage, la
+   scission et les fusions **gardent les mots horodatés** au lieu de les jeter (`words: undefined`)
+   et une scission au curseur prend l'heure entre deux mots, plus au prorata des caractères.
+   ⏳ Non fait : les « modes d'écriture » en lecture (Write/Touch/Latch façon Pro Tools), discutés
+   le 2026-09-23, restent une idée.
 3. **Confiance** (mot/segment) — déjà la source de la heatmap 2a.
 4. **Guidage** (slider rigueur + hésitations/silences/redondances) en suggestions accept/reject
    (règles FR + gaps de segments + LLM).
@@ -262,10 +271,26 @@ touches servent à taper ; `Échap` revient à la navigation.
 | `Tab` · `Maj+Tab` | la lecture saute au segment suivant · précédent | champ suivant · précédent |
 | `Alt+↑` · `Alt+↓` | segment précédent · suivant | segment précédent · suivant |
 | `Alt+L` | verrouille ou libère le suivi de lecture | idem |
-| `Ctrl+Entrée` | — | coupe le segment à l'endroit du curseur |
+| `Ctrl+Entrée` | coupe le segment à la tête de lecture | coupe le segment à l'endroit du curseur |
+| `C` | outil **Bornes** (voir ci-dessous) ; `Échap` pour le quitter | — |
 | `Suppr` en fin de texte | — | fusionne avec le segment suivant |
 | `Retour arrière` en début de texte | — | fusionne avec le segment précédent |
 | `Ctrl+Z` · `Ctrl+Maj+Z` | annule · rétablit | idem |
+
+### 9.1bis Déplacer une borne, couper un segment
+
+Sur la forme d'onde, un trait marque chaque **borne** : la fin d'un segment est le début du
+suivant. Les passages hachurés sont des silences qu'aucun segment ne couvre. Le bouton **Bornes**
+(ou la touche `C`) active l'outil :
+
+- **glisser une borne** la déplace ; les mots passent d'un segment à l'autre selon leur heure ;
+- **cliquer dans un segment** le coupe en deux à cet endroit (ciseaux) ;
+- glisser ailleurs que sur une borne déplace la vue, comme sans l'outil.
+
+Une borne se pose toujours **entre deux mots**, jamais au milieu d'un mot, et chaque segment garde
+au moins un mot : aucun mot n'est perdu. Si vous avez corrigé le texte d'un segment, ses mots
+sont d'abord recalés sur la transcription automatique. Chaque geste s'annule avec `Ctrl+Z`.
+`Échap` quitte l'outil.
 
 ### 9.2 La bande de qualité
 
