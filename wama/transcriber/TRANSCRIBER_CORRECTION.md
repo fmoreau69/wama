@@ -369,8 +369,8 @@ quadratique.
 AILLEURS devient son résultat (`external:<nom>`), mesurée comme un modèle. Geste type pour comparer
 un outil externe : dupliquer la card audio dans le lot, reprendre le fichier sur le double. ▶ la
 RÉ-importe (jamais d'ASR à sa place). Un document horodaté (SRT, VTT) s'écrit comme une sortie ASR ;
-**sans temps** (Sonal, texte), aucun temps n'est inventé : l'édition synchronisée de ce texte attend
-l'**alignement forcé** (chantier suivant, qui sert aussi VibeVoice et Qwen).
+**sans temps** (Sonal, texte), aucun temps n'est inventé : le texte s'**aligne** sur l'audio
+(§10.5 — ancrage sur l'ASR, puis aligneur acoustique).
 
 **10.5 Alignement d'un texte sans temps — deux étages (plan acté par Fabien le 2026-09-23)**
 
@@ -395,13 +395,44 @@ morceau d'audio quels mots du texte lui reviennent.
   ASR) : #172 et #173 100 % de mots retrouvés, écart nul au temps connu ; #135 (la seule vraie
   correction du dépôt, 14 859 mots) 99,7 %, écart médian et p95 nuls, maximum 4,96 s — sur un
   passage corrigé, où le temps ENREGISTRÉ vient peut-être du prorata de l'éditeur ; 1,4 s de calcul.
-- **Étage B ⏳ — aligneur acoustique** sous un contrat d'alignement au commun (à côté de
-  `speech_to_text_base`, `max_audio_seconds` hérité) ; premier moteur visé
-  `jonatasgrosman/wav2vec2-large-xlsr-53-french` (Apache-2.0, `transformers` + `torchaudio.
-  forced_align`, déjà dans le venv — aucune bibliothèque de plus). Il n'affine que les mots
-  `estimated`/`interpolated`, et sert quand aucune sortie ASR n'existe (Whisper fournit alors les
-  ancres). Le découpage existant apprendra à couper ENTRE deux mots, ce qui lèvera aussi sa limite
-  de coupe à intervalle fixe.
+- **Étage B ✅ (2026-09-24) — aligneur acoustique.**
+  - **Contrat commun** `common/backends/forced_alignment_base.py::ForcedAlignmentBackend`, frère de
+    `speech_to_text_base` : `align(fenêtre audio, mots) → heure de chaque mot` (None pour un mot
+    sans lettre prononçable), `max_audio_seconds`, gouverneur VRAM hérité de `BaseModelBackend`.
+    La LANGUE n'y est pas : c'est le modèle qui la porte, au catalogue.
+  - **Premier moteur** `Wav2Vec2AlignerBackend` : Viterbi CTC (`torchaudio.functional.
+    forced_align`), lettres → trames → mots, fenêtre d'une minute au plus. Le cœur
+    (`align_emission`) se teste sans réseau, sur une émission fabriquée.
+  - **Au catalogue, piloté par métadonnée** : `transcriber:wav2vec2-fr-aligner`
+    (`jonatasgrosman/wav2vec2-large-xlsr-53-french`, Apache-2.0, ~1,3 Go,
+    `MODEL_PATHS['speech']['alignment']`). Tâche **`alignment`**, nouvelle au vocabulaire
+    (`ModelTask`, catégorie `speech`, entrées `work_audio` + `work_result`), donc absente des
+    sélecteurs d'ASR. L'aligneur se CHOISIT par tâche et par langue de l'audio
+    (`workers._aligner_model` → `select_model`) : un aligneur d'une autre langue s'ajoute dans
+    `model_config.ALIGNMENT_MODELS`, sans toucher au code.
+  - **Fenêtres** (`word_anchoring.refine_turns`, sans modèle) : chaque passage incertain est aligné
+    avec ses deux voisins pour GARDES — un voisin sûr borne la fenêtre à son propre mot. Un passage
+    plus long que la capacité se coupe ENTRE deux mots, aux heures estimées ; une fenêtre qui
+    échoue garde l'estimation de l'étage A. Les mots repris deviennent **`aligned`**, avec leur
+    confiance acoustique dans `probability`.
+  - **Déclenchement** : automatique, après l'import d'un résultat existant qui garde des mots
+    incertains (`transaction.on_commit` → `align_existing_result`, file GPU). Le résultat est
+    utilisable dès l'étage A ; l'étage B l'améliore ensuite. Sans aucune sortie ASR de l'audio,
+    Whisper transcrit d'abord pour fournir les ancres, et sa sortie ne sert qu'à ancrer.
+  - **Mesuré avec les vrais poids** (CPU, parole française INVENTÉE synthétisée par Kokoro, trois
+    phrases séparées par des silences connus) : bornes de phrase à ±0,06 s de la vérité ; une
+    phrase volontairement mal estimée (étalée sur 3,7 s de trop) est recalée à 3,29–4,93 s, pour
+    une vérité de 3,24–4,96 s.
+  - ⚠ **Écart au plan, assumé** : le découpage des audios longs de l'ASR
+    (`_split_audio_chunks`, coupes à intervalle fixe) n'a PAS été modifié. L'aligneur lit ses
+    fenêtres directement (`audio_decode.decode_window`), et les coupes « entre deux mots » se
+    décident dans `refine_turns`, où les mots sont connus. Couper l'audio d'un ASR entre deux mots
+    demanderait ces mots AVANT l'ASR (une détection de voix, par exemple) : c'est un autre chantier,
+    et ce chemin sert la production. La limite v1 du découpage de l'ASR reste donc ouverte.
+  - ⏳ **Pas de réglage utilisateur** pour l'instant : les modales du Transcriber sont encore
+    câblées à la main (`index.js`, et non `WamaParams.settingsModal`). Ajouter un interrupteur
+    obligerait à toucher 8 endroits du code de production. Il viendra par le schéma
+    (`params.py`), une fois la modale portée au cycle commun.
 - **Écartés, avec la raison (prospection du 2026-09-23)** : Qwen3-ForcedAligner-0.6B (Apache-2.0,
   français) exige `qwen-asr` — simulation : `accelerate` 1.6 → 1.12, `nvidia-nccl-cu12` déplacé,
   + DyNet/nagisa/soynlp — et sa variante `-hf` un transformers installé depuis les sources ;

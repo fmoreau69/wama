@@ -1188,7 +1188,7 @@ class ModelRegistry:
         """Discover Transcriber app models (Whisper, VibeVoice, Qwen3-ASR)."""
         try:
             from wama.transcriber.utils.model_config import (
-                TRANSCRIBER_MODELS, WHISPER_DIR, VIBEVOICE_DIR, QWEN_ASR_DIR,
+                TRANSCRIBER_MODELS, WHISPER_DIR, VIBEVOICE_DIR, QWEN_ASR_DIR, ALIGNMENT_DIR,
             )
             # Descriptions = SOURCE UNIQUE : les CLASSES backend (contrat BaseModelBackend,
             # attributs `description`/`description_long` — c'est ce que l'app AFFICHE via
@@ -1244,6 +1244,14 @@ class ModelRegistry:
                     name = "pyannote 3.1 (diarisation)"
                     fmt = 'pytorch'
                     extra = {'hf_id': hf_id, 'path': str(diarization_dir)}
+
+                elif config.get('type') == 'alignment':
+                    # Aligneur acoustique (étage B de l'alignement forcé) : même constat par le
+                    # helper commun, dans le dossier de la famille.
+                    is_downloaded = _check_hf_model_downloaded(Path(ALIGNMENT_DIR), hf_id)
+                    name = f"{hf_id.split('/')[-1]} (alignement)"
+                    fmt = 'safetensors'
+                    extra = {'hf_id': hf_id, 'path': str(ALIGNMENT_DIR)}
 
                 else:
                     # Whisper : plusieurs formats possibles sur disque. On CONSTATE le
@@ -1301,6 +1309,14 @@ class ModelRegistry:
                     # produit aucun texte. Le déclarer 'transcription' le ferait remonter dans
                     # les sélecteurs d'ASR — un modèle qui ment sur sa tâche est pire qu'absent.
                     caps.update({'task': 'diarization', 'supports_diarization': True})
+                elif config.get('type') == 'alignment':
+                    # Même raison : il ne produit AUCUN texte, il date les mots d'un texte donné.
+                    # Ses langues sont celles de son alphabet (déclarées par l'app) — c'est par
+                    # sa TÂCHE et ses langues que l'appelant le choisit (`select_model`).
+                    # Modalités et entrées : celles que la tâche implique (`TASK_DEFAULT_INPUTS`).
+                    from wama.model_manager.models import default_inputs_for
+                    caps.update({'task': 'alignment', 'languages': list(config['languages']),
+                                 **default_inputs_for('alignment')})
 
                 self._models[f"transcriber:{model_id}"] = ModelInfo(
                     id=f"transcriber:{model_id}",

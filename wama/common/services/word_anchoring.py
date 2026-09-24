@@ -20,13 +20,23 @@ ponctuation, apostrophe).
 CE QUE CE MODULE NE FAIT PAS : écouter. Il ne connaît que deux textes et des heures ; il ne sait
 ni quel modèle a produit les mots horodatés, ni d'où vient le texte. C'est pourquoi il est commun :
 tout texte à resynchroniser sur une sortie horodatée (sous-titres, correction) s'y ancre pareil.
+
+ÉTAGE B (`refine_turns`) : les passages `estimated`/`interpolated` sont confiés à un aligneur
+ACOUSTIQUE — mais ce module ne le charge pas davantage : il reçoit une fonction
+`align_window(début, fin, mots)` et la capacité de l'aligneur (`max_seconds`), et décide seul des
+FENÊTRES : chaque passage incertain est encadré par ses deux voisins sûrs, qui l'y tiennent
+(« gardes ») ; un passage plus long que la capacité se coupe ENTRE deux mots.
 """
 from __future__ import annotations
 
 from typing import List, Optional, Tuple
 
-#: Les trois qualités d'un temps, de la plus sûre à la moins sûre (ordre = gravité croissante).
-TIMINGS = ('exact', 'estimated', 'interpolated')
+#: Les qualités d'un temps, de la plus sûre à la moins sûre (ordre = gravité croissante).
+#: `aligned` = posé par un aligneur ACOUSTIQUE (étage B, `refine_turns`) : il a écouté le mot,
+#: mais sur une fenêtre bornée par ses voisins — moins sûr qu'un mot entendu tel quel par l'ASR.
+TIMINGS = ('exact', 'aligned', 'estimated', 'interpolated')
+#: Les temps que l'étage B reprend : ceux qu'aucun modèle n'a entendus.
+UNSURE_TIMINGS = ('estimated', 'interpolated')
 
 
 def timed_tokens(words: List[dict]) -> List[Tuple[str, float, float]]:
@@ -128,6 +138,139 @@ def anchor_turns(turns: List[dict], words: List[dict]) -> Optional[Tuple[List[di
               'reference_tokens': len(reference)}
     report['exact_ratio'] = round(report['exact'] / report['tokens'], 4) if target else None
     return anchored, report
+
+
+#: Marge (s) ajoutée au bord d'une fenêtre que ne tient aucun mot sûr (début ou fin du texte, garde
+#: elle-même estimée) : l'audio d'un mot mal estimé peut déborder de son estimation.
+WINDOW_PAD = 0.5
+
+
+def refine_turns(turns: List[dict], align_window, max_seconds: float, *,
+                 audio_end: Optional[float] = None) -> Tuple[List[dict], dict]:
+    """ÉTAGE B : reprend à l'oreille les mots `estimated`/`interpolated` de tours ANCRÉS.
+
+    `align_window(début, fin, mots) -> [AlignedWord | None]` est le geste de l'aligneur (décodage
+    de la fenêtre compris, heures RELATIVES à `début`) ; `max_seconds` sa capacité. Chaque passage
+    incertain est aligné avec ses deux voisins pour gardes — un voisin sûr borne la fenêtre à son
+    propre mot, et le passage ne peut pas déborder sur lui. Un passage plus long que la capacité
+    se coupe entre deux mots, aux heures estimées ; chaque morceau garde alors le mot voisin, même
+    estimé, et une marge.
+
+    Rend `(tours, rapport)` : tours COPIÉS, mots repris marqués `aligned` avec leur confiance
+    acoustique en `probability`. Une fenêtre qui échoue ou dépasse la capacité GARDE ses
+    estimations — l'étage B n'aggrave jamais l'étage A. Rapport : `unsure` (mots à reprendre),
+    `aligned`, `windows`, `failed`, `too_long`.
+    """
+    import copy
+    import logging
+
+    out = copy.deepcopy(turns)
+    flat = [w for turn in out for w in (turn.get('words') or [])]
+    report = {'unsure': 0, 'aligned': 0, 'windows': 0, 'failed': 0, 'too_long': 0}
+
+    runs, i = [], 0
+    while i < len(flat):
+        if flat[i].get('timing') not in UNSURE_TIMINGS:
+            i += 1
+            continue
+        j = i
+        while j < len(flat) and flat[j].get('timing') in UNSURE_TIMINGS:
+            j += 1
+        runs.append((i, j))
+        i = j
+    report['unsure'] = sum(j - i for i, j in runs)
+
+    orphans = set()                 # mots d'une fenêtre alignée que l'aligneur n'a pas su épeler
+    for i, j in runs:
+        for a, b in _split_run(flat, i, j, max_seconds):
+            outcome, unspelled = _align_chunk(flat, a, b, align_window, max_seconds, audio_end)
+            if outcome == 'aligned':
+                report['windows'] += 1
+                report['aligned'] += (b - a) - len(unspelled)
+                orphans.update(unspelled)
+            else:
+                report[outcome] += 1
+                if outcome == 'failed':
+                    logging.getLogger(__name__).info(
+                        "[word_anchoring] fenêtre non alignée (%d mots) : estimations gardées", b - a)
+
+    if orphans:
+        # Un mot sans lettre prononçable (chiffre, sigle ponctué) se replace entre ses voisins
+        # désormais alignés — ses anciennes heures étaient celles d'avant l'alignement.
+        times = [None if k in orphans else (w['start'], w['end']) for k, w in enumerate(flat)]
+        _interpolate(times, first=flat[0]['start'], last=flat[-1]['end'])
+        for k in orphans:
+            flat[k]['start'], flat[k]['end'] = round(times[k][0], 3), round(times[k][1], 3)
+            flat[k]['timing'] = 'interpolated'
+
+    floor = 0.0                     # l'ordre du texte reste l'ordre de la parole
+    for w in flat:
+        w['start'] = max(w['start'], floor)
+        w['end'] = max(w['end'], w['start'])
+        floor = w['start']
+    for turn in out:
+        words = turn.get('words') or []
+        if words:
+            turn['start_time'], turn['end_time'] = words[0]['start'], words[-1]['end']
+    return out, report
+
+
+def _window(flat, a: int, b: int, audio_end: Optional[float] = None):
+    """Fenêtre d'audio des mots [a, b) et de leurs gardes : `(début, fin, indices alignés)`."""
+    left = a - 1 if a > 0 else None
+    right = b if b < len(flat) else None
+    start = flat[left]['start'] if left is not None else flat[a]['start'] - WINDOW_PAD
+    if left is not None and flat[left].get('timing') in UNSURE_TIMINGS:
+        start -= WINDOW_PAD
+    end = flat[right]['end'] if right is not None else flat[b - 1]['end'] + WINDOW_PAD
+    if right is not None and flat[right].get('timing') in UNSURE_TIMINGS:
+        end += WINDOW_PAD
+    if audio_end is not None:
+        end = min(end, audio_end)
+    indexes = ([left] if left is not None else []) + list(range(a, b)) \
+        + ([right] if right is not None else [])
+    return max(0.0, start), end, indexes
+
+
+def _split_run(flat, i: int, j: int, max_seconds: float) -> List[Tuple[int, int]]:
+    """Coupe le passage [i, j) ENTRE deux mots, aux heures estimées, en morceaux dont la fenêtre
+    — gardes et marges comprises — tient dans la capacité de l'aligneur."""
+    chunks, a = [], i
+    while a < j:
+        b = a + 1
+        while b < j:
+            start, end, _ = _window(flat, a, b + 1)
+            if end - start > max_seconds:
+                break
+            b += 1
+        chunks.append((a, b))
+        a = b
+    return chunks
+
+
+def _align_chunk(flat, a: int, b: int, align_window, max_seconds: float,
+                 audio_end: Optional[float]):
+    """Aligne les mots [a, b) avec leurs voisins pour gardes. Rend `(issue, non épelés)`."""
+    start, end, indexes = _window(flat, a, b, audio_end)
+    if end - start > max_seconds:
+        return 'too_long', []
+    try:
+        placed = align_window(start, end, [(flat[k].get('word') or '').strip() for k in indexes])
+    except Exception:
+        return 'failed', []
+    if len(placed) != len(indexes):
+        return 'failed', []
+
+    unspelled = []
+    for k, found in zip(indexes, placed):
+        if not a <= k < b:
+            continue                            # une garde garde ses heures
+        if found is None:
+            unspelled.append(k)
+            continue
+        flat[k].update(start=round(start + found.start, 3), end=round(start + found.end, 3),
+                       probability=found.score, timing='aligned')
+    return 'aligned', unspelled
 
 
 def _interpolate(times, first: float, last: float) -> None:

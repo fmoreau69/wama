@@ -770,12 +770,13 @@ def enrich_transcript(self, transcript_id: int, summary_type: str = 'structured'
 
 
 def _anchor_words_for(t: Transcript):
-    """Les mots HORODATÉS d'une sortie ASR de la MÊME audio, et la clé du modèle qui les a produits.
+    """Les mots HORODATÉS d'une sortie ASR de la MÊME audio, la clé du modèle qui les a produits, et
+    la LANGUE qu'il a entendue — c'est par elle que l'étage B choisit son aligneur au catalogue.
 
     Dans l'ordre : la card elle-même (son résultat avant l'import, ou les ancres d'un import
     précédent — `_reset_for_relaunch` les garde pour une card à résultat existant), puis une card
     SŒUR du même utilisateur sur le même fichier (les doubles d'un lot le partagent), la plus
-    récente d'abord. Jamais un résultat externe : il n'a pas entendu l'audio. `([], '')` sinon.
+    récente d'abord. Jamais un résultat externe : il n'a pas entendu l'audio. `([], '', '')` sinon.
     """
     from wama.common.services.result_evaluation import EXTERNAL_PREFIX
 
@@ -787,15 +788,15 @@ def _anchor_words_for(t: Transcript):
     # ancrage précédent) — jamais des temps déjà estimés, qui s'ancreraient sur eux-mêmes.
     own = [w for w in words_of(t) if w.get('timing') in (None, 'exact')]
     if own:
-        return own, t.model_key or f'transcriber:{t.used_backend}'
+        return own, t.model_key or f'transcriber:{t.used_backend}', t.language
     siblings = (Transcript.objects.filter(user_id=t.user_id, audio=t.audio.name, status='SUCCESS')
                 .exclude(pk=t.pk).exclude(model_key__startswith=EXTERNAL_PREFIX)
                 .order_by('-finished_at'))
     for sibling in siblings:
         words = words_of(sibling)
         if words:
-            return words, sibling.model_key or f'transcriber:{sibling.used_backend}'
-    return [], ''
+            return words, sibling.model_key or f'transcriber:{sibling.used_backend}', sibling.language
+    return [], '', ''
 
 
 def _outside_windows(segments, doc, tolerance: float = 10.0) -> int:
@@ -834,8 +835,8 @@ def import_existing_result(t: Transcript) -> None:
     La clé du « modèle » est `external:<nom du fichier>` : mesurable, jamais agrégée comme un
     modèle du parc. Lève si le document ne contient aucune parole.
     """
+    from django.db import transaction
     from django.utils import timezone
-    from wama.common.backends.speech_to_text_base import TranscriptionResult, TranscriptionSegment
     from wama.common.services.result_evaluation import EXTERNAL_PREFIX
     from wama.common.services.word_anchoring import anchor_turns
     from .utils.transcript_documents import read_transcript_document
@@ -848,21 +849,18 @@ def import_existing_result(t: Transcript) -> None:
     if not timed:
         # ÉTAGE A de l'alignement : le texte sans temps s'ANCRE sur les mots d'une sortie ASR de
         # la même audio (brique commune `word_anchoring`) — sans modèle, sans retranscrire.
-        words, source = _anchor_words_for(t)
+        words, source, language = _anchor_words_for(t)
         anchored = anchor_turns(segments, words) if words else None
         if anchored:
             segments, report = anchored
             timed = True
+            t.language = t.language or language or ''
             _console(t.user_id, _anchoring_said(report, source, _outside_windows(segments, doc)))
     t.text = doc.text
     t.used_backend = 'externe'
     t.model_key = EXTERNAL_PREFIX + os.path.splitext(os.path.basename(t.work_result.name))[0]
     if timed:
-        _save_segments(t, TranscriptionResult(success=True, text=doc.text, segments=[
-            TranscriptionSegment(speaker_id=s['speaker_id'], start_time=s['start_time'],
-                                 end_time=s['end_time'] if s['end_time'] is not None else s['start_time'],
-                                 text=s['text'], words=s.get('words'))
-            for s in segments]))
+        _save_turns(t, segments)
     else:
         TranscriptSegment.objects.filter(transcript=t).delete()
         t.segments_json = [{k: s[k] for k in ('speaker_id', 'start_time', 'end_time', 'text')}
@@ -871,8 +869,36 @@ def import_existing_result(t: Transcript) -> None:
     t.status = 'SUCCESS'
     t.error_message = ''
     t.finished_at = timezone.now()
-    t.save(update_fields=['text', 'used_backend', 'model_key', 'segments_json', 'progress',
-                          'status', 'error_message', 'finished_at'])
+    t.save(update_fields=['text', 'language', 'used_backend', 'model_key', 'segments_json',
+                          'progress', 'status', 'error_message', 'finished_at'])
+    # ÉTAGE B, APRÈS la validation de la transaction : l'aligneur acoustique reprend ce que l'étage A
+    # n'a fait qu'estimer — sur la file GPU, jamais dans la requête. Le résultat est déjà utilisable.
+    if _needs_acoustic_alignment(t.segments_json):
+        transaction.on_commit(lambda: align_existing_result.delay(t.pk))
+
+
+def _save_turns(t: Transcript, turns) -> int:
+    """Écrit des tours horodatés (`{speaker_id, start_time, end_time, text, words}`) comme une
+    sortie ASR — lignes de segments comprises : éditeur, SRT et comparaison entre moteurs les lisent."""
+    from wama.common.backends.speech_to_text_base import TranscriptionResult, TranscriptionSegment
+    return _save_segments(t, TranscriptionResult(success=True, text=t.text, segments=[
+        TranscriptionSegment(speaker_id=s.get('speaker_id') or '', start_time=s['start_time'],
+                             end_time=s['end_time'] if s['end_time'] is not None else s['start_time'],
+                             text=s['text'], words=s.get('words'))
+        for s in turns]))
+
+
+def _needs_acoustic_alignment(segments) -> bool:
+    """Un tour sans heure, ou un mot dont l'heure n'a été qu'estimée : l'étage B a de quoi faire."""
+    from wama.common.services.word_anchoring import UNSURE_TIMINGS
+    for s in segments or []:
+        if not isinstance(s, dict):
+            continue
+        if s.get('start_time') is None:
+            return True
+        if any(isinstance(w, dict) and w.get('timing') in UNSURE_TIMINGS for w in s.get('words') or []):
+            return True
+    return False
 
 
 @shared_task(name='wama.transcriber.import_existing_result')
@@ -895,6 +921,120 @@ def import_existing_result_task(transcript_id: int):
         t.error_message = f"Résultat existant illisible : {exc}"
         t.save(update_fields=['status', 'error_message'])
         _console(t.user_id, t.error_message, level='error')
+        return {'ok': False, 'error': str(exc)}
+
+
+def _aligner_model(language: str):
+    """L'aligneur du CATALOGUE pour `language` : un modèle de tâche `alignment` dont les langues
+    couvrent celle de l'audio, départagé par la brique commune (`select_model` : VRAM, déjà chargé).
+    Aucun nom de modèle ici — un aligneur d'une autre langue se déclare dans `model_config`."""
+    from wama.common.utils.lang_routing import model_languages
+    from wama.model_manager.models import AIModel
+    from wama.model_manager.services import select_model
+
+    if not language:
+        return None
+    keys = [m.model_key for m in AIModel.objects.filter(source='transcriber')
+            if (m.capabilities or {}).get('task') == 'alignment'
+            and ({'*', language} & set(model_languages(m.capabilities)))]
+    # ⚠ `candidates=[]` ne filtre RIEN : sans candidat, on s'arrête ici.
+    # `downloaded_only=False` : le premier alignement télécharge le modèle, comme un premier ASR.
+    return select_model(source='transcriber', candidates=keys, downloaded_only=False) if keys else None
+
+
+def _alignment_said(report: dict, model_name: str) -> str:
+    said = (f"Alignement acoustique ({model_name}) : {report['aligned']} mot(s) recalé(s) sur "
+            f"{report['unsure']} estimé(s), en {report['windows']} fenêtre(s)")
+    kept = report['failed'] + report['too_long']
+    if kept:
+        said += f" — {kept} passage(s) gardent leur estimation"
+    return said
+
+
+@shared_task(bind=True)
+def align_existing_result(self, transcript_id: int):
+    """ÉTAGE B de l'alignement forcé — un résultat repris (port `work_result`) sans heures sûres.
+
+    1. Des ancres : les mots déjà `exact` de la card ; s'il n'y en a aucune (aucune sortie ASR de
+       cet audio), Whisper transcrit D'ABORD pour en fournir — sa sortie ne sert qu'à ancrer, le
+       texte de la card reste celui du document repris ;
+    2. l'aligneur acoustique du catalogue (tâche `alignment`, langue de l'audio) reprend les seuls
+       mots `estimated`/`interpolated`, par fenêtres que tiennent leurs voisins sûrs
+       (`word_anchoring.refine_turns`) ;
+    3. écrit comme une sortie ASR. Rien ne se perd : un échec garde l'étage A, déjà enregistré.
+
+    Tâche du module `workers` : file GPU (route `wama.transcriber.workers.*`), gouverneur VRAM par
+    le contrat commun des backends.
+    """
+    close_old_connections()
+    try:
+        t = Transcript.objects.get(pk=transcript_id)
+    except Transcript.DoesNotExist:
+        return {'ok': False, 'error': f'Transcript {transcript_id} introuvable'}
+    from wama.common.utils.process_control import refuse_crash_redelivery
+    if refuse_crash_redelivery(self, t):
+        return {'ok': False, 'error': 'reprise après crash refusée'}
+    if not _needs_acoustic_alignment(t.segments_json):
+        return {'ok': True, 'skipped': 'rien à aligner'}
+
+    from wama.common.backends.manager import backend_for_model
+    from wama.common.services.word_anchoring import anchor_turns, refine_turns
+    from wama.common.utils.audio_decode import decode_window
+
+    turns = [s for s in (t.segments_json or []) if isinstance(s, dict)]
+    audio_path = t.audio.path
+    try:
+        if any(s.get('start_time') is None for s in turns):
+            words, source, language = _anchor_words_for(t)
+            if not words:
+                _console(t.user_id, "Alignement : aucune transcription de cet audio — Whisper "
+                                    "transcrit d'abord pour fournir des repères…")
+                asr = get_backend('whisper')
+                if not asr.load():
+                    raise RuntimeError("Whisper indisponible")
+                try:
+                    heard = _transcribe_maybe_chunked(asr, audio_path, float(t.duration_seconds or 0), {})
+                finally:
+                    asr.unload()
+                if not heard.success:
+                    raise RuntimeError(heard.error or "transcription des repères échouée")
+                words = [w for s in heard.segments for w in (s.words or []) if isinstance(w, dict)]
+                source, language = 'Whisper', heard.language
+            anchored = anchor_turns(turns, words) if words else None
+            if not anchored:
+                raise RuntimeError("aucun mot horodaté sur lequel s'ancrer")
+            turns, report = anchored
+            t.language = t.language or language or ''
+            _console(t.user_id, _anchoring_said(report, source, 0))
+
+        model = _aligner_model(t.language)
+        if model is None:
+            _save_turns(t, turns)
+            t.save(update_fields=['language'])
+            _console(t.user_id, f"Alignement acoustique : aucun aligneur au catalogue pour la langue "
+                                f"« {t.language or '?'} » — les heures restent estimées.", level='warning')
+            return {'ok': True, 'skipped': 'aucun aligneur'}
+        aligner_class = backend_for_model(model)
+        if aligner_class is None:
+            raise RuntimeError(f"aucun moteur installé ne sert {model.name}")
+        aligner = aligner_class()
+        if not aligner.load(model.hf_id):
+            raise RuntimeError(f"{model.name} indisponible")
+        try:
+            def align_window(start, end, words):
+                wave, _ = decode_window(audio_path, aligner.sample_rate, start, end - start)
+                return aligner.align(wave, words)
+            turns, report = refine_turns(turns, align_window, aligner.max_audio_seconds,
+                                         audio_end=float(t.duration_seconds or 0) or None)
+        finally:
+            aligner.unload()
+        _save_turns(t, turns)
+        t.save(update_fields=['language'])
+        _console(t.user_id, _alignment_said(report, model.name))
+        return {'ok': True, **report}
+    except Exception as exc:
+        _console(t.user_id, f"Alignement acoustique non fait ({exc}) — les heures estimées restent.",
+                 level='warning')
         return {'ok': False, 'error': str(exc)}
 
 

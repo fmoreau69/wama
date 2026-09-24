@@ -32,10 +32,15 @@ VIBEVOICE_DIR = MODEL_PATHS.get('speech', {}).get('vibevoice',
 QWEN_ASR_DIR = MODEL_PATHS.get('speech', {}).get('qwen_asr',
     settings.AI_MODELS_DIR / "models" / "speech" / "qwen_asr")
 
+# Aligneurs acoustiques (alignement forcé d'un texte repris sur l'audio)
+ALIGNMENT_DIR = MODEL_PATHS.get('speech', {}).get('alignment',
+    settings.AI_MODELS_DIR / "models" / "speech" / "alignment")
+
 # Ensure directories exist
 WHISPER_DIR.mkdir(parents=True, exist_ok=True)
 VIBEVOICE_DIR.mkdir(parents=True, exist_ok=True)
 QWEN_ASR_DIR.mkdir(parents=True, exist_ok=True)
+Path(ALIGNMENT_DIR).mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
 # MODEL DEFINITIONS
@@ -146,12 +151,30 @@ DIARIZATION_MODELS = {
     },
 }
 
+# Alignement forcé (étage B, 2026-09-24) — un texte DÉJÀ écrit reçoit l'heure de ses mots. Ce
+# n'est pas un moteur de transcription : sa tâche est `alignment`, il ne remonte donc dans aucun
+# sélecteur d'ASR. Ses LANGUES sont celles de son alphabet — c'est par elles que l'appelant le
+# choisit au catalogue, avec sa tâche (`workers._aligner_model` → `select_model`) ;
+# un aligneur d'une autre langue s'ajoute ici, sans toucher au code qui les emploie.
+ALIGNMENT_MODELS = {
+    'wav2vec2-fr-aligner': {
+        'engine': 'transformers',
+        'model_id': 'jonatasgrosman/wav2vec2-large-xlsr-53-french',
+        'hf_model_id': 'jonatasgrosman/wav2vec2-large-xlsr-53-french',
+        'type': 'alignment',
+        'size_gb': 1.26,
+        'vram_gb': 2,
+        'languages': ['fr'],
+    },
+}
+
 # Combined models dictionary
 TRANSCRIBER_MODELS = {
     **TRANSCRIBER_MODELS,
     **VIBEVOICE_MODELS,
     **QWEN_ASR_MODELS,
     **DIARIZATION_MODELS,
+    **ALIGNMENT_MODELS,
 }
 
 # Default model

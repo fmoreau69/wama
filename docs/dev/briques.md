@@ -477,6 +477,17 @@ Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique,
 - **Domicile** : `wama/common/static/common/js/wama-inspector.js` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7ter](../construction/ia/WAMA_MEMORY.md)
 
 ### Barre d'outils générale (registre + profils)
+### Ancrage d'un texte sans temps sur des mots horodatés
+
+Étage A de l'alignement forcé, SANS modèle : un texte fait ailleurs (export Sonal, texte) retrouve l'heure de chacun de ses mots parmi ceux d'une sortie ASR de la même audio — plus longue sous-suite commune des mots (RapidFuzz `Indel`, jamais Levenshtein, qui substitue aux ex-aequo et décale la suite). Chaque mot dit la qualité de son temps : `exact`, `estimated` (dans la durée réelle des mots corrigés), `interpolated` (rien en face). Étage B (`refine_turns`) : un aligneur ACOUSTIQUE (contrat `ForcedAlignmentBackend`, choisi au catalogue par sa tâche `alignment` et sa langue) reprend les seuls mots estimés, par fenêtres que tiennent leurs voisins sûrs, coupées entre deux mots au-delà de sa capacité ; ils deviennent `aligned`. Le module ne charge aucun modèle : il reçoit le geste d'alignement
+
+- **Domicile** : `wama/common/services/word_anchoring.py` · **doc** : [wama/transcriber/TRANSCRIBER_CORRECTION.md §10.5](../../wama/transcriber/TRANSCRIBER_CORRECTION.md)
+- **Module** : Ancrage d'un texte SANS TEMPS sur des mots HORODATÉS — l'étage A de l'alignement forcé.
+- **API publique** (3) :
+  - `timed_tokens(words: List[dict]) -> List[Tuple[str, float, float]]` — Mots horodatés (`{word, start, end}`, forme Whisper) → jetons comparables horodatés.
+  - `anchor_turns(turns: List[dict], words: List[dict]) -> Optional[Tuple[List[dict], dict]]` — Donne des temps aux tours de parole `turns` (`{text, …}`) à partir des mots horodatés `words`.
+  - `refine_turns(turns: List[dict], align_window, max_seconds: float, *, audio_end: Optional[float]=None) -> Tuple[List[dict], dict]` — ÉTAGE B : reprend à l'oreille les mots `estimated`/`interpolated` de tours ANCRÉS.
+
 
 UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire des outils, elle ne les énumère pas — ajouter un outil à toutes les files est UNE clé, plus jamais douze gabarits (demande Fabien 2026-09-08 : « de façon globale, pas par app »). Les deux barres historiques SURVIVENT en façades vers `_toolbar.html`, ce qui laisse les 27 pages appelantes inchangées ; les deux ENVELOPPES sont conservées telles quelles (les fondre aurait changé les deux apparences). Chaque outil est un partial sous `common/toolbar/`
 

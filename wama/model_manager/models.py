@@ -66,6 +66,9 @@ class ModelTask(models.TextChoices):
     # audio / parole
     TRANSCRIPTION = 'transcription', 'Transcription'
     DIARIZATION = 'diarization', 'Diarisation'
+    # Alignement forcé (2026-09-24) : date les mots d'un texte DÉJÀ écrit sur son audio. Ni une
+    # transcription (il ne produit aucun texte) ni une diarisation (il ne dit pas qui parle).
+    ALIGNMENT = 'alignment', 'Alignement forcé'
     TEXT_TO_SPEECH = 'text-to-speech', 'Synthèse vocale'
     AUDIO_ENHANCE = 'audio-enhance', 'Débruitage audio'
     DENOISE = 'denoise', 'Débruitage'
@@ -138,6 +141,8 @@ TASK_TO_PLATFORM_TAGS = {
     ModelTask.IMAGE_TO_3D:        ('image-to-3d',                  None,        None,        None),
     ModelTask.TRANSCRIPTION:      ('automatic-speech-recognition', None,        None,        None),
     ModelTask.DIARIZATION:        (None,                           None,        None,        None),
+    # HuggingFace range les aligneurs CTC sous l'ASR (c'est leur entraînement, pas leur usage ici).
+    ModelTask.ALIGNMENT:          (None,                           None,        None,        None),
     ModelTask.TEXT_TO_SPEECH:     ('text-to-speech',               None,        None,        None),
     ModelTask.AUDIO_ENHANCE:      ('audio-to-audio',               None,        None,        None),
     ModelTask.DENOISE:            ('image-to-image',               None,        None,        None),
@@ -181,6 +186,7 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.OCR:                ModelType.OCR,
     ModelTask.TRANSCRIPTION:      ModelType.SPEECH,
     ModelTask.DIARIZATION:        ModelType.SPEECH,
+    ModelTask.ALIGNMENT:          ModelType.SPEECH,
     ModelTask.TEXT_TO_SPEECH:     ModelType.SPEECH,
     ModelTask.AUDIO_ENHANCE:      ModelType.SPEECH,
     ModelTask.UPSCALE:            ModelType.UPSCALING,
@@ -239,6 +245,7 @@ TASK_DEFAULT_INPUTS = {
     ModelTask.IMAGE_TO_3D:        (('image',),                     ('work_file',),            ()),
     ModelTask.TRANSCRIPTION:      (('audio',),                     ('work_audio',),           ()),
     ModelTask.DIARIZATION:        (('audio',),                     ('work_audio',),           ()),
+    ModelTask.ALIGNMENT:          (('audio', 'text'),              ('work_audio', 'work_result'), ()),
     ModelTask.TEXT_TO_SPEECH:     (('audio',),                     ('prompt',),               ()),
     ModelTask.AUDIO_ENHANCE:      (('audio',),                     ('work_audio',),           ()),
     ModelTask.DENOISE:            (('image', 'video'),             ('work_file',),            ()),
