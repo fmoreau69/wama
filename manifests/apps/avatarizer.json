@@ -1263,7 +1263,7 @@
         "start",
         "start_all",
         "stop",
-        "update_options"
+        "update_settings"
       ],
       "extra_routes": [
         {
@@ -1302,9 +1302,9 @@
           "view": "views.gallery_list"
         },
         {
-          "name": "update_options",
-          "pattern": "update-options/<int:pk>/",
-          "view": "views.update_options"
+          "name": "update_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.update_settings"
         },
         {
           "name": "duplicate",

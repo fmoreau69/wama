@@ -1100,7 +1100,7 @@ def global_progress(request):
 
 
 @require_POST
-def update_options(request, pk):
+def update_settings(request, pk):
     """Réglages d'UN élément — même lecture (coercition par le schéma) et même affectation que
     `batch_update` de la fabrique : `read_settings_payload` + `apply_item_settings`. L'ancien
     `_apply_description_options` typait à la main (`int`, `bool`) ce que le schéma déclare."""

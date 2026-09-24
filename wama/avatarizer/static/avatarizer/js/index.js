@@ -556,7 +556,7 @@
             values: WamaInspector.gearValues(card, schema.map(function (p) { return p.name; })),
             formClass: 'avatarizer-settings-form',
             footerTplId: 'avatarizerSettingsFooterTpl',
-            saveUrl: `${cfg.urls.updateOptions}${id}/`,
+            saveUrl: cfg.urls.updateSettings.replace('/0/', `/${id}/`),
             csrf: csrf,
             // Voix : groupes per-user injectés par la vue (brique commune get_voice_groups).
             optionsResolver: function (p) { return p.options_source === 'voices' ? voiceGroups : null; },

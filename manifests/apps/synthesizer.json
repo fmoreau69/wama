@@ -1556,7 +1556,7 @@
         "start_all",
         "stop",
         "text_preview",
-        "update_options",
+        "update_settings",
         "upload",
         "upload_custom_voice",
         "upload_text",
@@ -1625,9 +1625,9 @@
           "view": "views.duplicate"
         },
         {
-          "name": "update_options",
-          "pattern": "update-options/<int:pk>/",
-          "view": "views.update_options"
+          "name": "update_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.update_settings"
         },
         {
           "name": "list_custom_voices",

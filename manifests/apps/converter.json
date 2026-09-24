@@ -2145,7 +2145,7 @@
         "start",
         "start_all",
         "status",
-        "update",
+        "update_settings",
         "upload"
       ],
       "extra_routes": [
@@ -2165,9 +2165,9 @@
           "view": "views.cancel"
         },
         {
-          "name": "update",
-          "pattern": "<int:pk>/update/",
-          "view": "views.update_job"
+          "name": "update_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.update_settings"
         },
         {
           "name": "api_presets",

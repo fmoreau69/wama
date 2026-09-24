@@ -15,7 +15,7 @@ from django.urls import reverse
 
 
 class ItemSettingsViewTest(TestCase):
-    """`save_settings` lit les DEUX formes par le lecteur commun `read_settings_payload`."""
+    """`update_settings` lit les DEUX formes par le lecteur commun `read_settings_payload`."""
 
     def setUp(self):
         from django.contrib.auth.models import Group
@@ -29,7 +29,7 @@ class ItemSettingsViewTest(TestCase):
         self.client.force_login(self.user)
         self.item = ReadingItem.objects.create(user=self.user, original_filename='a.pdf',
                                                language='fr')
-        self.url = reverse('reader:save_settings', args=[self.item.id])
+        self.url = reverse('reader:update_settings', args=[self.item.id])
 
     def test_the_settings_modal_form_data_is_written_like_the_inspector_json(self):
         r = self.client.post(self.url, {'backend': 'doctr', 'mode': 'printed',

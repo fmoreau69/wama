@@ -236,7 +236,7 @@
             values: WamaInspector.gearValues(card, schema.map(function (p) { return p.name; })),
             formClass: 'reader-settings-form',
             footerTplId: 'readerSettingsFooterTpl',
-            saveUrl: urlFor('saveSettings', id),
+            saveUrl: urlFor('updateSettings', id),
             csrf: csrf,
             onSaved: function (_id, _restart, resp) { if (resp && resp.id) upsertCard(resp); },
         });
@@ -591,7 +591,7 @@
             itemLabel:  (id) => "l'élément #" + id,
             batchLabel: (id) => "le batch #" + id + " (tous les éléments)",
             saveItem: async (id) => {
-                const r = await csrfFetch(urlFor('saveSettings', id), {
+                const r = await csrfFetch(urlFor('updateSettings', id), {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(readPanel()),
                 });

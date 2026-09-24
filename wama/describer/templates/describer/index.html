@@ -158,7 +158,7 @@ item (_settingsBatchId + titre échangé). Corps GÉNÉRÉ du MÊME schéma (con
             downloadAll: "{% url 'describer:download_all' %}",
             clearAll: "{% url 'describer:clear_all' %}",
             console: "{% url 'describer:console' %}",
-            updateOptions: "{% url 'describer:update_options' pk=0 %}",
+            updateSettings: "{% url 'describer:update_settings' pk=0 %}",
             batchUpdate: "{% url 'describer:batch_update' pk=0 %}",
             batchPreview: "{% url 'describer:batch_preview' %}",
             batchImport: "{% url 'describer:batch_import' %}",
@@ -261,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function () {
         batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
         saveItem: function (id) {
             var vals = readPanel();
-            return post((U.updateOptions || '').replace('/0/', '/' + id + '/'), vals)
+            return post((U.updateSettings || '').replace('/0/', '/' + id + '/'), vals)
                 .then(function (r) { if (r && r.ok) syncCard(id, vals); });
         },
         saveBatch: function (bid) {

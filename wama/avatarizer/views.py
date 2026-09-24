@@ -364,7 +364,7 @@ def global_progress(request):
 
 
 @require_POST
-def update_options(request, pk):
+def update_settings(request, pk):
     """POST : Met à jour les paramètres d'un AvatarJob (avant relance)."""
     user = _get_user(request)
     job = get_object_or_404(AvatarJob, pk=pk, user=user)

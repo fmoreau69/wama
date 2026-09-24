@@ -1240,7 +1240,7 @@
         "start",
         "start_all",
         "stop",
-        "update_options",
+        "update_settings",
         "upload"
       ],
       "extra_routes": [
@@ -1300,9 +1300,9 @@
           "view": "views.global_progress"
         },
         {
-          "name": "update_options",
-          "pattern": "update-options/<int:pk>/",
-          "view": "views.update_options"
+          "name": "update_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.update_settings"
         }
       ],
       "ingest": {

@@ -173,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
             values: values,
             formClass: 'synthesis-settings-form',
             footerTplId: 'synthSettingsFooterTpl',
-            saveUrl: URLS.updateOptions + id + '/',
+            saveUrl: URLS.updateSettings.replace('/0/', '/' + id + '/'),
             csrf: csrfToken,
             optionsResolver: _panelOptionsResolver,
             decorate: function (host) {

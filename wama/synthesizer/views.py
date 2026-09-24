@@ -1083,7 +1083,7 @@ def download_all(request):
 
 
 @require_POST
-def update_options(request, pk: int):
+def update_settings(request, pk: int):
     """
     Met à jour les options d'une synthèse.
     """

@@ -1646,12 +1646,12 @@ def get_generation_settings(request, generation_id):
 
 
 @require_http_methods(["POST"])
-def save_generation_settings(request, generation_id):
+def update_settings(request, pk):
     """Save settings for a specific generation"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generation = owned_or_404(ImageGeneration, user, id=generation_id)   # MUTATION
+        generation = owned_or_404(ImageGeneration, user, id=pk)   # MUTATION
 
         # Don't allow editing while running
         if generation.status == 'RUNNING':

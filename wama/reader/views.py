@@ -656,7 +656,7 @@ def clear_all(request):
 
 
 @require_POST
-def save_settings(request, pk: int):
+def update_settings(request, pk: int):
     """Update per-item OCR settings (backend, mode, output_format, language)."""
     item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
     # JSON (inspecteur) OU FormData (modale ⚙ par le cycle commun `WamaParams.settingsModal`,

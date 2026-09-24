@@ -273,7 +273,7 @@ document.addEventListener('DOMContentLoaded', function () {
         schema: schema,
         itemLabel: function (id) { return "l'élément #" + id; },
         batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
-        saveItem: function (id) { return postPanel('/composer/settings/' + id + '/'); },
+        saveItem: function (id) { return postPanel(window.COMPOSER_APP.settingsUrlTemplate.replace('/0/', '/' + id + '/')); },
         saveBatch: function (bid) { return postPanel('/composer/batch/' + bid + '/update/'); },
         // Point 3 du portage : le volet HÉRITE des boutons d'action de la card / du batch —
         // cloneActions clone le conteneur .btn-group-actions (clics fonctionnels : la délégation

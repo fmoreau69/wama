@@ -1070,7 +1070,6 @@
         "remove_from_batch",
         "reorder",
         "reorder_queue",
-        "save_settings",
         "start",
         "start_all",
         "stop",
@@ -1094,9 +1093,9 @@
           "view": "views.analyze"
         },
         {
-          "name": "save_settings",
+          "name": "update_settings",
           "pattern": "settings/<int:pk>/",
-          "view": "views.save_settings"
+          "view": "views.update_settings"
         },
         {
           "name": "progress",
@@ -1130,6 +1129,7 @@
         },
         {
           "name": "clear_all",
+        "update_settings",
           "pattern": "clear_all/",
           "view": "views.clear_all"
         },

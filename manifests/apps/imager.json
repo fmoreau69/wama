@@ -2175,9 +2175,9 @@
         "reorder",
         "reorder_queue",
         "restart",
-        "save_settings",
         "start",
-        "start_all"
+        "start_all",
+        "update_settings"
       ],
       "extra_routes": [
         {
@@ -2256,9 +2256,9 @@
           "view": "views.get_generation_settings"
         },
         {
-          "name": "save_settings",
-          "pattern": "settings/<int:generation_id>/save/",
-          "view": "views.save_generation_settings"
+          "name": "update_settings",
+          "pattern": "settings/<int:pk>/save/",
+          "view": "views.update_settings"
         },
         {
           "name": "force_reset",

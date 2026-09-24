@@ -578,7 +578,7 @@
             values: values,
             formClass: 'converter-settings-form',
             footerTplId: 'converterSettingsFooterTpl',
-            saveUrl: urlFor(APP.urls.update, jobId),
+            saveUrl: urlFor(APP.urls.updateSettings, jobId),
             csrf: csrf,
             decorate: function (host, _data, res) {
                 const modal = res.modal;

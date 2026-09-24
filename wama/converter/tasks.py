@@ -96,7 +96,7 @@ def _convert(job, ctx):
 
     # ── MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09, ROADMAP §23.2quater) : la tâche lit LES
     # COLONNES, point. Le preset n'est PLUS un facteur au lancement — c'est un GESTE
-    # D'ÉCRITURE (choisir « web » écrit 80 dans la colonne au clic, `views.update_job` /
+    # D'ÉCRITURE (choisir « web » écrit 80 dans la colonne au clic, `views.update_settings` /
     # `batch_update` / `quick_convert` étalent `preset_values` à ce moment-là) ; la colonne
     # `quality_preset` n'est qu'une TRACE. Les défauts du schéma restent ici en REPLI SEUL
     # (jobs d'avant la bascule, ou nés incomplets) : ils ne peuvent plus rien écraser

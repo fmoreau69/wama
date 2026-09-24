@@ -43,7 +43,7 @@ urlpatterns = [
 
     # Individual generation settings
     path('settings/<int:generation_id>/', views.get_generation_settings, name='get_settings'),
-    path('settings/<int:generation_id>/save/', views.save_generation_settings, name='save_settings'),
+    path('settings/<int:pk>/save/', views.update_settings, name='update_settings'),
     path('force-reset/<int:generation_id>/', views.force_reset_generation, name='force_reset'),
 
     # Multi-modal generation endpoints

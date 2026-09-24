@@ -155,7 +155,7 @@
                     values: data,                       // déjà chargées (domaine à déterminer)
                     formClass: 'imager-settings-form',
                     footerTplId: 'imagerSettingsFooterTpl',
-                    saveUrl: WamaApp.getUrl(CFG().urls.saveSettings, id),
+                    saveUrl: WamaApp.getUrl(CFG().urls.updateSettings, id),
                     csrf: CFG().csrfToken,
                     decorate: function (host, d) {
                         fillModelChoices(host, domain, d.model);

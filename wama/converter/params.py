@@ -165,7 +165,7 @@ PARAMS = [
 # DÉRIVÉ du catalogue CROSS_APP_OPTIONS (format_router = source unique — ajouter une option
 # là-bas suffit, le schéma suit). Un id présent pour plusieurs media_types donne UN Param
 # avec show_if in=[...]. Valeurs stockées dans ConversionJob.cross_app_options (split dans
-# views.update_job), appliquées par utils/cross_app.py après la conversion.
+# views.update_settings), appliquées par utils/cross_app.py après la conversion.
 # contexts=ITEM_BATCH depuis le 02/09 (décision Fabien) : la garde v1 « pas de GPU en
 # masse » est LEVÉE — l'intention est « un lot = un seul chargement de modèle ».
 # ⚠ FAIT MESURÉ à la levée : ce chemin inline précis recharge encore sa session ONNX PAR
