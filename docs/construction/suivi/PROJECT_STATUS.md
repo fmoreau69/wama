@@ -16767,3 +16767,46 @@ du composer ← `max_duration`, déjà bornée côté serveur seulement).
 
 🔚 Redémarrer le **worker GPU** (mort) + gunicorn ; rejouer FastWan 15 s ; décider de la
 prospection « vidéo longue » (LTX-2, SkyReels-V2).
+
+## §PALIER — 2026-09-24, « Quick wins de portage : la modale ⚙ au cycle commun (reader, synthesizer, composer) » — ✅ LIVRÉ
+
+Fabien : *« des quick wins pour faire monter les apps en retard ? attention, imager corrigé et
+transcriber en cours ailleurs »*. Triage MESURÉ sur le rapport (pas de mémoire) : les vrais quick
+wins étaient `settings_modal_cycle` (le CONTENU de la modale est généré du schéma 10/10, seul le
+CYCLE ouvrir→rendre→enregistrer→fermer restait recopié) ; `backend_routes`/`task_skeleton` sont la
+marche B1/A2a (une session par app), `triad_specs` attend `tool_api.py` (WIP d'une autre session),
+`options_source: 'catalog'` du composer demande une source à deux groupes (décision du 02/07).
+
+**Reader, synthesizer, composer portés sur `WamaParams.settingsModal`** — recette de l'enhancer
+(21/09) : valeurs par `WamaInspector.gearValues` (le lecteur unique des data-* du gear), pied
+COMMUN greffé (`<template>` + classes `save-settings-btn`/`save-and-restart-btn`), spécificités en
+HOOKS (`decorate` : estimation du composer, bouton « voix personnalisée » du synthesizer ;
+`collect` : champs Higgs, drapeau `restart` ; `onSaved` : card re-rendue / relance / reload). Les
+modales STATIQUES des gabarits partent, avec les listes de champs écrites à la main (la reader
+oubliait `output_format`, pourtant au schéma). Reader : `save_settings` lit JSON (inspecteur) ET
+FormData (modale) par `read_settings_payload`, `language` vide = valeur ; 3 tests de vue
+(`wama/reader/tests.py`, le rôle `recherche` franchit le portier). Synthesizer : « Sauvegarder et
+démarrer » POSTe enfin le démarrage (l'ancien cycle le faisait en GET, refusé depuis le 22/09 —
+défaut muet, vu en portant). Chaque portage mesuré au geste RÉEL sur gunicorn relancé
+(`kill -HUP` avant de mesurer) : `reader.settings` + `inspector_actions` ✓, `synthesizer.*` ✓,
+`composer.settings` ✓ (élément monté pour le compte nocturne par script, puis retiré — le geste
+skippe sur une file vide, et composer/avatarizer n'ont pas de dépôt que le scénario sache faire).
+
+**Ce que le quick win « `folder_input_id` sur l'avatarizer » a révélé** : suivre le partiel de la
+grille à la lettre a fait passer `avatarizer.folder_import` de SKIP à **ÉCHEC** — card en mode
+ATTACHE (`depot_cree=False`), un dossier de N fichiers ne crée pas N éléments, l'input rendu est
+une affordance MORTE. Le partiel poussait vers un vert qui ne se joue pas. Déclaration retirée ;
+`_recursive_import` rend NON APPLICABLE une card en mode attache (par sa déclaration, comme le
+composer par ses `input_types`) : avatarizer et imager sortent du dénominateur (933, plus 935).
+**Avatarizer, modale** : pas un simple portage — sa modale câble `WamaModelCaps` + `WamaInputMatch`
+sur ses selects à l'ouverture, et `WamaInputMatch.init` pose un écouteur `document` à chaque
+appel : une modale générée à chaque ⚙ les accumulerait. Il faut un `init` idempotent à la brique.
+
+Grille **879/933** (reader 97 %, synthesizer 95 %, composer 94 %) ; `settings_modal_cycle` 6/10.
+Tests : reader 3, synthesizer 25, composer + avatarizer 12, checker 53 — OK ; V8 parse des 3 JS
+servis ; budget de langue recalé 2736. ⚠ Le budget des NOMS de tests est dépassé (1313 > 1312)
+par `gateway/tests.py` (WIP d'une autre session), pas par ce palier.
+
+🔚 **Suivant, même recette** : describer et converter (rouges sur `settings_modal_cycle`, hors
+WIP d'autrui) ; avatarizer après l'`init` idempotent de `WamaInputMatch` ; puis le vrai chantier
+(`backend_routes` + `task_skeleton`, marche B1/A2a) app par app.

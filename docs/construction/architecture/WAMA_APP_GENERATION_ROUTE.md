@@ -167,7 +167,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   | Surface | Mesure 31/08 | Le vrai déficit |
   |---|---|---|
   | déclencheur ⚙ commun (`WamaQueueActions.onSettings`) | **10/10** | — |
-  | **cycle complet** de modale item (`WamaParams.settingsModal`) | **2/10** (anonymizer, imager) | 8 apps réécrivent ouvrir→rendre→sauver→fermer à la main. ⚠ Ne pas confondre les deux lignes : c'est la confusion déclencheur/cycle qui a rendu toutes les tables précédentes fausses |
+  | **cycle complet** de modale item (`WamaParams.settingsModal`) | ~~2/10~~ **6/10 au 2026-09-24** (anonymizer, imager, enhancer 21/09, reader · synthesizer · composer 24/09) | 4 apps réécrivent encore ouvrir→rendre→sauver→fermer à la main : converter, describer (même recette, à suivre), transcriber (autre session) et **avatarizer** — pas un simple portage : sa modale câble `WamaModelCaps` + `WamaInputMatch` sur ses selects à l'ouverture, et `WamaInputMatch.init` pose un écouteur `document` à chaque appel (wama-input-match.js:190) → une modale GÉNÉRÉE à chaque ⚙ les accumulerait ; il faut d'abord un `init` idempotent (ou un `destroy`) à la brique. ⚠ Ne pas confondre les deux lignes : c'est la confusion déclencheur/cycle qui a rendu toutes les tables précédentes fausses |
   | rendu batch `context:'batch'` (WamaParams) | **10/10** | la coquille de modale reste à la main hors anonymizer/imager ; le GÉNÉRATEUR émet désormais l'ouvreur de lot complet (§S2ter) |
   | chips métadonnée (`card_chips`) | **10/10** (11 décorateurs, 6 noms — §S2ter) | l'assiette `values` (JSON) n'est passée que par converter |
   | `gear_data` (property modèle) | **10/10** | — |
@@ -3112,7 +3112,7 @@ possible **sans aucun process**.
 **Le portage des apps Médias continue EN PARALLÈLE** sur tout ce qui ne dépend pas de la façon dont
 une tâche s'exécute (classement des critères rouges de la grille au 15/09,
 `logs/conformity_report.json`, fonctions de `common/services/conformity_checker.py`) :
-- **à faire maintenant** : `card_refresh_common` (10 apps), `settings_modal_cycle` (8), rangée
+- **à faire maintenant** : ~~`card_refresh_common` (10 apps)~~ (10/10 le 22/09), `settings_modal_cycle` (~~8~~ 4 au 24/09), rangée
   d'actions commune (décision 6, avec l'adaptateur d'état du bouton de cycle), défauts du trou #29,
   `_app_scripts.html` (#25), code mort (#27), `model_caps_ui` (3), `model_options_catalog` (4),
   `recursive_import` (2), `user_settings` (2), `detail_spec` (7), lecture front de `during_preview`,

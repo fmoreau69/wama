@@ -1077,10 +1077,24 @@ def _recursive_import(f: _AppFiles):
     Vert = l'affordance de CLIC est offerte (c'est elle que le geste exige) ; partiel = le
     drop seul ; rouge = ni l'un ni l'autre. Le partiel nomme exactement la dette que le
     scénario nomme déjà : « `folder_input_id` non déclaré sur la card d'entrée commune ».
+
+    ⚠ MESURÉ le 2026-09-24 sur l'avatarizer : suivre ce partiel à la lettre (déclarer
+    `folder_input_id`) fait passer le geste `<app>.folder_import` de SKIP à ÉCHEC — la card est
+    en mode ATTACHE (`depot_cree=False` : un dépôt JOINT le fichier au port, c'est le bouton
+    primaire qui crée), donc un dossier de N fichiers ne peut pas créer N éléments, et l'input
+    rendu est une affordance MORTE (`WamaImport` attache le premier, refuse les autres). Le
+    scénario compte des ÉLÉMENTS créés (`crees == len(temoins)`) : sur une telle card il ne
+    peut pas passer. Le partiel poussait vers un vert qui ne se joue pas — l'inverse de ce que
+    ce critère avait corrigé le 08/09. Une card en mode attache est donc NON APPLICABLE ici,
+    par sa DÉCLARATION (`depot_cree=False`), comme le composer l'est par ses `input_types`.
     """
     clic = f.find(TEMPLATES + JS, r'webkitdirectory|folder_input_id|folderInputId')
     if clic:
         return True, clic
+    attache = f.find(TEMPLATES, r'depot_cree\s*=\s*False')
+    if attache:
+        return None, (f"card en mode ATTACHE ({attache}) : un dossier n'a pas d'objet sur un port "
+                      f"mono-fichier — le geste `{f.app}.folder_import` ne peut pas s'y jouer")
     drop = f.find_code(JS + TEMPLATES, r'WamaFolderImport|WamaImport\s*\(')
     from wama.common.app_registry import APP_CATALOG
     kinds = set((APP_CATALOG.get(f.app) or {}).get('input_types') or ())

@@ -155,6 +155,12 @@ window.WAMA_READER_SCHEMA = {{ params_json|safe }};  // exposé pour la modale I
 })();
 </script>
 <script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée repliable (auto-init) #}
+{% comment %}Pied de modale COMMUN (_settings_modal_footer), greffé par le cycle commun
+`WamaParams.settingsModal` (portage 2026-09-24) ; la classe `save-settings-btn` est celle que le
+cycle délègue. Pas de « Enregistrer & relancer » : la modale OCR n'en avait pas.{% endcomment %}
+<template id="readerSettingsFooterTpl">
+    {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_label='Enregistrer' %}
+</template>
 <script src="{% static_v 'reader/js/reader.js' %}"></script>
 <!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'reader:global_progress' %}";</script>

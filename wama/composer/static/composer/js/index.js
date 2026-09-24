@@ -99,29 +99,26 @@
         });
     }
 
-    // Settings modal estimate
-    const settingsDuration = document.getElementById('settingsDuration');
-    const settingsDurationVal = document.getElementById('settingsDurationVal');
-    const settingsEstimate = document.getElementById('settingsEstimate');
-    const settingsModel = document.getElementById('settingsModel');
-
-    function updateSettingsEstimate() {
-        if (!settingsEstimate || !settingsModel || !settingsDuration) return;
-        const est = estimateSeconds(settingsModel.value, parseFloat(settingsDuration.value));
-        settingsEstimate.textContent = formatDuration(est);
-    }
-
     // (Switch « Type » retiré — décision Fabien 2026-07-02 : le type est dérivé du modèle,
     //  la lisibilité vient des optgroups Musique/Bruitages du select.)
 
-    if (settingsDuration) {
-        settingsDuration.addEventListener('input', function () {
-            settingsDurationVal.textContent = _fmtDur(this.value);
-            updateSettingsEstimate();
-        });
-    }
-    if (settingsModel) {
-        settingsModel.addEventListener('change', updateSettingsEstimate);
+    // Estimation (~20s) DANS la modale ⚙ : greffée à côté de la valeur du slider Durée du
+    // formulaire GÉNÉRÉ (les champs n'existent qu'à l'ouverture — hook `decorate` du cycle commun).
+    function _wireSettingsEstimate(host) {
+        const model = host.querySelector('#settingsModel');
+        const duration = host.querySelector('#settingsDuration');
+        if (!model || !duration) return;
+        const est = document.createElement('span');
+        est.className = 'text-info small ms-2';
+        est.id = 'settingsEstimate';
+        const val = duration.closest('.wama-range') && duration.closest('.wama-range').querySelector('.wama-range-val');
+        (val || duration).insertAdjacentElement('afterend', est);
+        const refresh = function () {
+            est.textContent = formatDuration(estimateSeconds(model.value, parseFloat(duration.value)));
+        };
+        duration.addEventListener('input', refresh);
+        model.addEventListener('change', refresh);
+        refresh();
     }
 
 
@@ -160,23 +157,36 @@
     // SA modale. Remplace la branche `closest('.settings-btn')` du handler délégué local
     // (portage 2026-08-23, ATOMIQUE : la branche a été retirée dans le même geste, sinon le clic
     // partait deux fois).
+    // Le CYCLE complet (rendre du schéma → greffer le pied → afficher → lire → enregistrer →
+    // enchaîner) est la brique commune `WamaParams.settingsModal` (portage 2026-09-24 — la modale
+    // statique `#settingsModal` du gabarit, le remplissage par id et `_postSettings` vivaient ici).
+    // Les VALEURS viennent des data-* du gear (brique `card_gear`), lues par LE lecteur unique
+    // `WamaInspector.gearValues` ; l'app ne garde que ses hooks : l'estimation dans la modale
+    // (`decorate`), le drapeau `restart` que la vue lit (`collect`), la card re-rendue (`onSaved`).
     WamaQueueActions.onSettings(function (id, settingsBtn) {
-        document.getElementById('settingsGenId').value = id;
-        if (settingsModel) settingsModel.value = settingsBtn.dataset.model || 'musicgen-small';
-        if (settingsDuration) {
-            settingsDuration.value = settingsBtn.dataset.duration || 10;
-            settingsDurationVal.textContent = _fmtDur(settingsDuration.value);
-            settingsDuration.dispatchEvent(new Event("input"));   // sync .wama-range-val (champ généré)
-        }
-        // Modale complète (P1) : prompt + format/qualité de sortie.
-        const sp = document.getElementById('settingsPrompt');
-        if (sp) sp.value = settingsBtn.dataset.prompt || '';
-        const sof = document.getElementById('settingsOutputFormat');
-        if (sof && settingsBtn.dataset.outputFormat) sof.value = settingsBtn.dataset.outputFormat;
-        const soq = document.getElementById('settingsOutputQuality');
-        if (soq && settingsBtn.dataset.outputQuality) soq.value = settingsBtn.dataset.outputQuality;
-        updateSettingsEstimate();
-        new bootstrap.Modal(document.getElementById('settingsModal')).show();
+        const schema = window.COMPOSER_PARAMS_SCHEMA || [];
+        const card = (settingsBtn && settingsBtn.closest('.wama-card')) || settingsBtn;
+        WamaParams.settingsModal({
+            id: id,
+            title: 'Paramètres de génération',
+            titleIcon: 'fa-cog',
+            schema: schema,
+            values: WamaInspector.gearValues(card, schema.map(function (p) { return p.name; })),
+            formClass: 'composer-settings-form',
+            footerTplId: 'composerSettingsFooterTpl',
+            saveUrl: WamaApp.getUrl(APP.settingsUrlTemplate, id),
+            csrf: CSRF,
+            decorate: function (host) { _wireSettingsEstimate(host); },
+            collect: function (fd, host, data, restart) { fd.append('restart', restart ? '1' : '0'); },
+            errorOf: function (resp) { return resp && resp.success ? null : ((resp && resp.error) || 'inconnue'); },
+            onSaved: function (gid, restart, resp) {
+                // Re-rend la card serveur (SOURCE UNIQUE du markup) → data-* frais : modale ET
+                // inspecteur relisent les valeurs ENREGISTRÉES ; le statut réel vient du rendu.
+                if (window.WamaEta && resp.restarted) WamaEta.reset(gid);
+                insertRenderedCard(gid);
+                if (resp.restarted) startPolling(parseInt(gid));
+            },
+        });
     });
 
     // Init
@@ -331,42 +341,6 @@
             })
             .catch(() => WamaApp.toast('Erreur réseau', 'error'));
     });
-
-    function _postSettings(restart) {
-        const id = document.getElementById('settingsGenId').value;
-        const formData = new FormData();
-        formData.append('csrfmiddlewaretoken', CSRF);
-        // pt2 du portage : TOUS les champs de la modale sont des Param du schéma (params.py) et
-        // sont lus GÉNÉRIQUEMENT via la brique commune WamaParams.read — plus aucun hand-read par id.
-        // model/duration/prompt + output_format/output_quality (ces 2 viennent de la brique commune
-        // output_format_params_for_app, source = capacités du converter CONVERTER_OUTPUT_FORMATS).
-        // Un param ajouté au schéma est posté automatiquement, sans toucher ce code.
-        const _fields = document.getElementById('composerSettingsFields');
-        const vals = (window.WamaParams && _fields) ? WamaParams.read(_fields) : {};
-        Object.keys(vals).forEach(function (k) { formData.append(k, vals[k]); });
-        formData.append('restart', restart ? '1' : '0');
-
-        fetch(WamaApp.getUrl(APP.settingsUrlTemplate, id), { method: 'POST', body: formData })
-            .then(r => r.json())
-            .then(d => {
-                if (d.success) {
-                    bootstrap.Modal.getInstance(document.getElementById('settingsModal'))?.hide();
-                    // Re-rend la card serveur (SOURCE UNIQUE du markup) → data-* frais (model/duration/
-                    // format/quality/prompt) : modale ET inspecteur relisent les valeurs ENREGISTRÉES au
-                    // ré-ouvrir, au lieu des data-* d'origine (= défauts). Vaut pour « Enregistrer » ET
-                    // « Enregistrer et relancer » ; le statut réel (RUNNING) vient du rendu serveur.
-                    if (window.WamaEta && d.restarted) WamaEta.reset(id);   // l'ETA se re-seede via progress
-                    insertRenderedCard(id);
-                    if (d.restarted) startPolling(parseInt(id));
-                } else {
-                    WamaApp.toast('Erreur : ' + (d.error || 'inconnue'), 'error');
-                }
-            });
-    }
-    const settingsSaveBtn = document.getElementById('settingsSaveBtn');
-    if (settingsSaveBtn) settingsSaveBtn.addEventListener('click', () => _postSettings(false));
-    const settingsSaveRestartBtn = document.getElementById('settingsSaveRestartBtn');
-    if (settingsSaveRestartBtn) settingsSaveRestartBtn.addEventListener('click', () => _postSettings(true));
 
     // ---------------------------------------------------------------------------
     // Polling
