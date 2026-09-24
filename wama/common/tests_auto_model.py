@@ -456,9 +456,16 @@ class PredicatDeVoixClonéeDéfiniUneFoisTest(TestCase):
                          f'porteurs mesurés : {sorted(porteurs)}')
 
     def test_les_deux_pages_ne_font_que_DECLARER(self):
-        for page in ('wama/synthesizer/templates/synthesizer/index.html',
-                     'wama/avatarizer/templates/avatarizer/index.html'):
-            src = self._lire(page)
+        # Une « page » = son gabarit ET le JS d'app qu'il charge : depuis le 2026-09-24 la modale
+        # ⚙ de l'avatarizer est GÉNÉRÉE à l'ouverture (cycle commun `WamaParams.settingsModal`),
+        # et la déclaration d'appariement la suit dans `index.js` — où elle se branche sur chaque
+        # modale ouverte. L'exigence ne change pas : déclarer, jamais recopier.
+        pages = {'wama/synthesizer/templates/synthesizer/index.html': (),
+                 'wama/avatarizer/templates/avatarizer/index.html':
+                     ('wama/avatarizer/static/avatarizer/js/index.js',)}
+        for page, js in pages.items():
+            gabarit = self._lire(page)
+            src = gabarit + ''.join(self._lire(f) for f in js)
             for attendu in ('WamaModelCaps.cloneVoiceFilter(', 'WamaInputMatch.voiceSlot(',
                             'WamaInputMatch.langSlot(', 'capsProvider:'):
                 self.assertIn(attendu, src, f'{page} : {attendu} absent — la page recopie '
@@ -471,8 +478,8 @@ class PredicatDeVoixClonéeDéfiniUneFoisTest(TestCase):
             # `if (window.WamaModelCaps)`, était mort sans signal. Cette garde ne lisait que la
             # déclaration ; elle lit désormais aussi le <script src>.
             for brique in ('common/js/wama-model-caps.js', 'common/js/wama-input-match.js'):
-                self.assertIn(brique, src, f'{page} : la brique {brique} n’est pas chargée — '
-                                           'le bloc d’appariement se tait sans elle')
+                self.assertIn(brique, gabarit, f'{page} : la brique {brique} n’est pas chargée — '
+                                               'le bloc d’appariement se tait sans elle')
 
     def test_les_briques_exposent_les_deux_directions(self):
         caps_js = self._lire('wama/common/static/common/js/wama-model-caps.js')

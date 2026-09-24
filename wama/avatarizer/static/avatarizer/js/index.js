@@ -497,20 +497,86 @@
     // -----------------------------------------------------------------------
     // Settings modal (per-job parameters)
     // -----------------------------------------------------------------------
-    const settingsModal = document.getElementById('jobSettingsModal')
-        ? new bootstrap.Modal(document.getElementById('jobSettingsModal'))
-        : null;
-    const settingsBboxSlider  = $('#settingsBboxShift');
-    const settingsBboxVal     = $('#settingsBboxShiftVal');
+    // ⚙ item : le CYCLE complet (rendre du schéma → greffer le pied → afficher → lire →
+    // enregistrer → enchaîner) est la brique commune `WamaParams.settingsModal` (portage
+    // 2026-09-24 — la modale statique `#jobSettingsModal` du gabarit, son remplissage champ par
+    // champ, `saveJobSettings` et `buildParamsHtml` (qui repeignait la card en JS) vivaient ici).
+    // Les VALEURS viennent des data-* du gear (brique `card_gear`), lues par LE lecteur unique
+    // `WamaInspector.gearValues` ; la card enregistrée est RE-RENDUE par le serveur.
+    //
+    // L'APPARIEMENT voix ↔ langue ↔ moteur TTS (INPUT_MODEL_MATCHING §6.7) se branche à CHAQUE
+    // ouverture (`decorate`), sur les champs de la modale générée — même configuration qu'au
+    // chargement de la page jusque-là. Deux briques, deux directions, un seul catalogue :
+    // `WamaModelCaps` (moteur → voix/langues) et `WamaInputMatch` (voix/langue → moteurs grisés).
+    // ⚠ `WamaInputMatch` n'est ré-initialisable que depuis le 24/09 : son écouteur ✕ est unique
+    // pour la page, une instance dont la modale a disparu se retire d'elle-même.
+    function wireTtsMatching() {
+        const match = window.AVATARIZER_MATCH || {};
+        // Modèle → entrées : moteur sans clonage ⇒ voix ua_/cv_ masquées ; langues restreintes
+        // à celles du moteur. Domaine par CAPACITÉ (route F4b ②), identique au synthesizer :
+        // c'est le MÊME parc, et l'avatarizer n'en possède aucun moteur. Les deux prédicats sont
+        // DÉFINIS DANS LA BRIQUE, cette page ne déclare que ses ids.
+        let modelCaps = null;
+        if (window.WamaModelCaps) {
+            modelCaps = WamaModelCaps.init({
+                task: 'text-to-speech',
+                modelSelectId: 'settingsTtsModel',
+                filters: [
+                    WamaModelCaps.cloneVoiceFilter('settingsVoicePreset'),
+                    WamaModelCaps.langFilter('settingsLanguage'),
+                ],
+            });
+        }
+        // Entrée → modèle : une voix CLONÉE choisie désactive les moteurs sans clonage, une
+        // LANGUE choisie ceux qui ne la parlent pas — grisés avec la raison, jamais cachés.
+        if (window.WamaInputMatch) {
+            WamaInputMatch.init({
+                selectId: 'settingsTtsModel',
+                meta: match.meta || {},
+                inputLabels: match.labels || {},
+                slots: {
+                    reference_voice: WamaInputMatch.voiceSlot('settingsVoicePreset'),
+                    language: WamaInputMatch.langSlot('settingsLanguage'),
+                },
+                // Le MÊME catalogue que la direction modèle→choix (langues incluses).
+                capsProvider: modelCaps ? modelCaps.caps : null,
+            });
+        }
+    }
 
-    if (settingsBboxSlider) {
-        settingsBboxSlider.addEventListener('input', () => {
-            if (settingsBboxVal) settingsBboxVal.textContent = settingsBboxSlider.value;
+    function openSettingsModal(id, btn) {
+        const schema = window.AVATARIZER_PARAMS_SCHEMA || [];
+        const card = (btn && btn.closest('.wama-card')) || btn;
+        const voiceGroups = window.AVATARIZER_VOICE_GROUPS || [];
+        return WamaParams.settingsModal({
+            id: id,
+            title: 'Paramètres du job',
+            titleIcon: 'fa-cog',
+            schema: schema,
+            values: WamaInspector.gearValues(card, schema.map(function (p) { return p.name; })),
+            formClass: 'avatarizer-settings-form',
+            footerTplId: 'avatarizerSettingsFooterTpl',
+            saveUrl: `${cfg.urls.updateOptions}${id}/`,
+            csrf: csrf,
+            // Voix : groupes per-user injectés par la vue (brique commune get_voice_groups).
+            optionsResolver: function (p) { return p.options_source === 'voices' ? voiceGroups : null; },
+            decorate: function () { wireTtsMatching(); },
+            onSaved: async function (jobId, restart) {
+                await refreshCard(jobId);
+                if (restart) {
+                    try {
+                        await startJob(jobId);
+                        startPolling(jobId);
+                    } catch (err) {
+                        WamaApp.toast('Erreur démarrage : ' + err.message, 'error');
+                    }
+                }
+            },
         });
     }
 
     // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js), portage 2026-08-23.
-    WamaQueueActions.onSettings(function (id, btn) { openSettingsModal(btn); });
+    WamaQueueActions.onSettings(function (id, btn) { openSettingsModal(id, btn); });
 
     // 🗑 RÉSIDU de suppression — la brique retire la card, le lot vidé et signale au gestionnaire
     // de fichiers ; ne restent que le poller local (pas encore `WamaApp.Poller` ici), le compteur
@@ -527,134 +593,6 @@
                 </div>`;
         }
     });
-
-    function openSettingsModal(btn) {
-        if (!settingsModal) return;
-        const jobId      = btn.dataset.jobId;
-        const enhancer   = btn.dataset.useEnhancer === 'true';
-        const bboxShift  = parseInt(btn.dataset.bboxShift || '0', 10);
-
-        const jobIdInput = $('#settingsJobId');
-        if (jobIdInput) jobIdInput.value = jobId;
-
-        // Le mode rapide/qualité est MORT (2026-08-03) : CodeFormer = seul contrôle de qualité.
-        // Enhancer
-        const enhancerCb = $('#settingsUseEnhancer');
-        if (enhancerCb) enhancerCb.checked = enhancer;
-
-        // Champs pipeline GÉNÉRÉS (2026-08-28) : préremplis depuis les data-* dérivés du
-        // schéma (brique card_gear) ; le 'change' déclenche le show_if de WamaParams —
-        // sur un job standalone (texte vide) les 4 champs restent masqués.
-        [['settingsTextContent', 'textContent'], ['settingsTtsModel', 'ttsModel'],
-         ['settingsLanguage', 'language'], ['settingsVoicePreset', 'voicePreset']]
-            .forEach(([id, key]) => {
-                const el = $('#' + id);
-                if (!el) return;
-                el.value = btn.dataset[key] || '';
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-            });
-
-        // Bbox
-        if (settingsBboxSlider) {
-            settingsBboxSlider.value = bboxShift;
-            // Champ GÉNÉRÉ (WamaParams) : synchronise l affichage de valeur (.wama-range-val).
-            settingsBboxSlider.dispatchEvent(new Event("input"));
-        }
-        if (settingsBboxVal)    settingsBboxVal.textContent = bboxShift;
-
-        settingsModal.show();
-    }
-
-    function buildParamsHtml(useEnhancer, bboxShift) {
-        // Standalone-only (2026-07-15) : l'audio vient d'amont/import, plus de TTS.
-        let html = '<i class="fas fa-upload"></i> Audio<br>';
-        html += useEnhancer
-            ? '<i class="fas fa-wand-magic-sparkles"></i> CodeFormer'
-            : '<i class="fas fa-bolt"></i> MuseTalk seul';
-        if (bboxShift !== '0' && bboxShift !== 0) html += ` &bull; <i class="fas fa-arrows-alt-v"></i> ${bboxShift}`;
-        return html;
-    }
-
-    async function saveJobSettings(startAfterSave) {
-        const jobId = $('#settingsJobId') ? $('#settingsJobId').value : null;
-        if (!jobId) return;
-
-        const enhancerCb  = $('#settingsUseEnhancer');
-
-        const newEnhancer  = !!(enhancerCb && enhancerCb.checked);
-        const newBbox      = settingsBboxSlider ? settingsBboxSlider.value : '0';
-
-        const fd = new FormData();
-        fd.append('use_enhancer', newEnhancer ? 'true' : 'false');
-        fd.append('bbox_shift',   newBbox);
-
-        // Champs pipeline (2026-08-28) — postés seulement si un texte est présent ;
-        // `update_options` ne les applique de toute façon qu'aux jobs pipeline.
-        const textEl = $('#settingsTextContent');
-        if (textEl && textEl.value.trim()) {
-            fd.append('text_content', textEl.value.trim());
-            [['settingsTtsModel', 'tts_model'], ['settingsLanguage', 'language'],
-             ['settingsVoicePreset', 'voice_preset']].forEach(([id, name]) => {
-                const el = $('#' + id);
-                if (el && el.value) fd.append(name, el.value);
-            });
-        }
-
-        try {
-            const resp = await fetch(`${cfg.urls.updateOptions}${jobId}/`, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrf },
-                body: fd,
-            });
-            const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || 'Erreur mise à jour');
-
-            // Mettre à jour l'affichage de la card sans rechargement
-            const card = $(`#job-${jobId}`);
-            if (card) {
-                const mode = card.dataset.mode || 'pipeline';
-
-                // 1. Rafraîchir le bloc paramètres (col-2)
-                const paramsEl = $('.job-params-display', card);
-                if (paramsEl) {
-                    paramsEl.innerHTML = buildParamsHtml(newEnhancer, newBbox);
-                }
-
-                // 2. Mettre à jour les data-* du bouton settings (pour le prochain ouverture du modal)
-                const settBtn = $('.settings-btn', card);   // graphie commune depuis le 23/08
-                if (settBtn) {
-                    settBtn.dataset.useEnhancer = newEnhancer ? 'true' : 'false';
-                    settBtn.dataset.bboxShift   = newBbox;
-                    if (textEl && textEl.value.trim()) {
-                        settBtn.dataset.textContent = textEl.value.trim();
-                        [['settingsTtsModel', 'ttsModel'], ['settingsLanguage', 'language'],
-                         ['settingsVoicePreset', 'voicePreset']].forEach(([id, key]) => {
-                            const el = $('#' + id);
-                            if (el && el.value) settBtn.dataset[key] = el.value;
-                        });
-                    }
-                }
-            }
-
-            if (settingsModal) settingsModal.hide();
-
-            if (startAfterSave) {
-                try {
-                    await startJob(jobId);
-                    startPolling(jobId);
-                } catch (err) {
-                    WamaApp.toast('Erreur démarrage : ' + err.message, 'error');
-                }
-            }
-        } catch (err) {
-            WamaApp.toast('Erreur : ' + err.message, 'error');
-        }
-    }
-
-    const btnSettingsSave      = $('#btnSettingsSave');
-    const btnSettingsSaveStart = $('#btnSettingsSaveStart');
-    if (btnSettingsSave)      btnSettingsSave.addEventListener('click',      () => saveJobSettings(false));
-    if (btnSettingsSaveStart) btnSettingsSaveStart.addEventListener('click', () => saveJobSettings(true));
 
     // -----------------------------------------------------------------------
     // Bind delete / start / preview-video buttons on job cards

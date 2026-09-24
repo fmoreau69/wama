@@ -249,31 +249,13 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
 {# MODAL — Paramètres d'un job                                           #}
 {# ===================================================================== #}
 {% block extra_modals %}
-<div class="modal fade" id="jobSettingsModal" tabindex="-1" aria-labelledby="jobSettingsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content bg-dark text-white border-secondary">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="jobSettingsModalLabel">
-                    <i class="fas fa-cog me-1"></i> Paramètres du job
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="settingsJobId">
-
-                {% comment %} Réglages GÉNÉRÉS par WamaParams (params.py, context 'item') — source
-                unique. Avatarizer = STANDALONE : uniquement les paramètres MuseTalk (le TTS relève
-                du synthesizer ; en pipeline = composition studio synthesizer → avatarizer).
-                ⚠ 7e récidive du piège {% templatetag opencomment %} multi-ligne : Django ne strippe
-                ce commentaire QUE sur une ligne — multi-ligne il est RENDU en texte dans la modale. {% endcomment %}
-                <h6 class="text-info mb-3"><i class="fas fa-sliders-h me-1"></i>Paramètres</h6>
-                <div class="wama-params" id="avatarizerMtFields"></div>
-            </div>
-            {# Pied de modale COMMUN (convention MODAL_ACTIONS_AUDIT §3) #}
-            {% include 'common/_settings_modal_footer.html' with save_id='btnSettingsSave' save_start_id='btnSettingsSaveStart' %}
-        </div>
-    </div>
-</div>
+{% comment %}Modale ⚙ d'ITEM : plus de markup ici — GÉNÉRÉE à chaque ouverture par le cycle
+commun `WamaParams.settingsModal` (index.js, portage 2026-09-24), qui y branche aussi
+l'appariement voix/langue/moteur. Ne reste que le pied COMMUN qu'il greffe, avec les classes
+qu'il délègue (`save-settings-btn` / `save-and-restart-btn`).{% endcomment %}
+<template id="avatarizerSettingsFooterTpl">
+    {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' %}
+</template>
 {% endblock extra_modals %}
 
 {# ===================================================================== #}
@@ -361,75 +343,25 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
 </div>
 
 <script>
-// Modale « Paramètres » : champs GÉNÉRÉS par WamaParams (params.py, context 'item') — P1.
-// AVANT index.js (qui met en cache les éléments par id à l'exécution). Voix : groupes
-// per-user injectés par la vue (brique commune get_voice_groups) via optionsResolver.
+// Données lues par index.js : le SCHÉMA (modale ⚙ générée à l'ouverture par le cycle commun
+// `WamaParams.settingsModal`, portage 2026-09-24), les VOIX per-user (brique commune
+// get_voice_groups, via optionsResolver) et les métadonnées d'APPARIEMENT voix/langue ↔ moteur
+// (INPUT_MODEL_MATCHING §6.7), rebranchées sur les champs de chaque modale ouverte.
+// |default : si la vue n'a pas (encore) fourni la variable (ex. serveur non redémarré), on dégrade
+// au lieu de tuer TOUT le script par une erreur de syntaxe.
+window.AVATARIZER_PARAMS_SCHEMA = {{ params_json|default:"[]"|safe }};
+window.AVATARIZER_VOICE_GROUPS = {{ voice_groups_json|default:"[]"|safe }};
+window.AVATARIZER_MATCH = {
+    meta: {{ input_match_meta|default:"{}"|safe }},
+    labels: {{ input_labels|default:"{}"|safe }},
+};
 (function () {
-    if (!window.WamaParams) { console.warn('[avatarizer] WamaParams absent — modale non générée'); return; }
-    {# |default:"[]" : si la vue n'a pas (encore) fourni la variable (ex. serveur non redémarré), #}
-    {# on dégrade en select de voix vide au lieu de tuer TOUT le script par une erreur de syntaxe. #}
-    var schema = {{ params_json|default:"[]"|safe }};
-    var voiceGroups = {{ voice_groups_json|default:"[]"|safe }};
-    var resolver = function (p) { return p.options_source === 'voices' ? voiceGroups : null; };
-    var hostMt = document.getElementById('avatarizerMtFields');
-    if (hostMt) WamaParams.render(hostMt, schema, { context: 'item', optionsResolver: resolver });
+    if (!window.WamaParams) { console.warn('[avatarizer] WamaParams absent — modale de lot non générée'); return; }
+    // Modale de LOT (context 'batch') : rendue ici, inchangée.
     var bhost = document.getElementById('avatarizerBatchParams');
-    if (bhost) WamaParams.render(bhost, schema, { context: 'batch', values: {} });
-
-    // ── Briques d'appariement du volet TTS (2026-08-28) ────────────────────────────────
-    // APRÈS le render : les selects n'existent qu'une fois la modale générée. Les ids sont
-    // ceux du contexte 'item' (params.py → dom_id), pas des ids écrits à la main.
-    // ⚠ WamaModelHelp n'est PAS câblé ici : `WamaParams._bindModelHelp` l'a déjà fait tout
-    // seul à partir de `help_source="synthesizer"` déclaré au schéma. L'ajouter donnerait
-    // DEUX descriptifs sur le même select — le doublon silencieux que la doctrine vise.
-    if (!hostMt) return;
-
-    // Modèle → entrées : moteur sans clonage ⇒ voix ua_/cv_ masquées ; langues restreintes
-    // à celles du moteur. Capacités lues par la brique elle-même (api/models/db/) : rien à
-    // passer depuis la vue. Dégradation douce si le catalogue est indisponible.
-    // Retour CAPTURÉ (2026-09-12) : son cache de capacités (`.caps`) alimente l'appariement
-    // entrée→modèle ci-dessous — le MÊME catalogue dans les deux directions.
-    var modelCaps = null;
-    if (window.WamaModelCaps) {
-        modelCaps = WamaModelCaps.init({
-            // Domaine par CAPACITÉ (route F4b ②, 2026-09-01), identique au synthesizer et au
-            // peuplement du select : c'est le MÊME parc, et l'avatarizer n'en possède aucun
-            // moteur — raison de plus pour ne pas l'ancrer sur une app.
-            task: 'text-to-speech',
-            modelSelectId: 'settingsTtsModel',
-            // ⚠ `resolveKey` RETIRÉ — jumeau exact du défaut du synthesizer : il préfixait une
-            // valeur qui porte déjà sa source, d'où `synthesizer:synthesizer:kokoro`, `caps`
-            // nul, et un filtrage voix/langues MUET. *Une garde se pose avec ses jumeaux ;
-            // celle-ci se RETIRE avec les siens.*
-            //
-            // Les DEUX prédicats sont DÉFINIS DANS LA BRIQUE, cette page ne déclare que ses ids
-            // — voix (12/09, `ua_|cv_` était recopié sur 4 sites dans 2 apps) comme langues
-            // (29/08, 3 états : géré / rendu par emprunt ⚠ gardé / non).
-            filters: [
-                WamaModelCaps.cloneVoiceFilter('settingsVoicePreset'),
-                WamaModelCaps.langFilter('settingsLanguage'),
-            ],
-        });
-    }
-
-    // Entrée → modèle (INPUT_MODEL_MATCHING) : une voix CLONÉE choisie DÉSACTIVE les moteurs
-    // sans clonage, une LANGUE choisie désactive ceux qui ne la parlent pas — grisés avec la
-    // raison, jamais cachés. Le prédicat de clonage est DÉFINI UNE FOIS (wama-model-caps) et
-    // lu ici ; il était recopié dans cette page (2026-09-12). Slots NON-fichier fournis par la
-    // brique (voiceSlot, langSlot) : cette page ne déclare que ses ids.
-    if (window.WamaInputMatch) {
-        WamaInputMatch.init({
-            selectId: 'settingsTtsModel',
-            meta: {{ input_match_meta|default:"{}"|safe }},
-            inputLabels: {{ input_labels|default:"{}"|safe }},
-            slots: {
-                reference_voice: WamaInputMatch.voiceSlot('settingsVoicePreset'),
-                language: WamaInputMatch.langSlot('settingsLanguage'),
-            },
-            // Le MÊME catalogue que la direction modèle→choix (langues incluses).
-            capsProvider: modelCaps ? modelCaps.caps : null,
-        });
-    }
+    if (bhost) WamaParams.render(bhost, window.AVATARIZER_PARAMS_SCHEMA, { context: 'batch', values: {} });
+    // ⚠ WamaModelHelp n'est câblé NULLE PART à la main : `WamaParams._bindModelHelp` le fait
+    // seul, dans la modale générée, à partir de `help_source="synthesizer"` déclaré au schéma.
 })();
 </script>
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
