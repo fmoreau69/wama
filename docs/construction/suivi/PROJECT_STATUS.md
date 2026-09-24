@@ -17077,4 +17077,53 @@ MORT est l'absence du PROCESSUS (`pgrep -f "queues=[g]pu"`, motif qui ne se trou
 l'extraire en une fonction partagée plutôt que la recopier ; ③ une tâche qui TUE le worker peut
 revenir à la relance (redélivrance) : budget de relances + arrêt signalé. Le MODE de supervision
 (systemd ou conteneurs) reste la décision ouverte d'`INFRA_WSL_VS_WINDOWS` point 5 — proposé,
-pas fait.
+pas fait. → ✅ fait le soir même, palier suivant.
+
+## §PALIER — 2026-09-24 (nuit), « Worker mort : surveillance, notifications dans WAMA, garde-temps par modèle » — ✅ LIVRÉ (`4203788d`)
+
+**Décisions de Fabien** : surveillance par un script lancé au démarrage (précédent passerelle
+Discord), tous les workers et Beat ; e-mail ET notification dans WAMA ; la card doit passer en échec
+sans rechargement ; le garde-temps de 30 min, court pour une vidéo, se règle depuis le model manager.
+Rappel en cours de route : *« Vérifie bien que tu restes aligné sur le fonctionnement de WAMA et
+que tu ne réinventes rien »* — d'où, relus avant d'écrire : la brique `notifications` du registre
+(ÉTENDUE, pas doublée), la conception §2.3 de `WAMA_COLLABORATION` (construite telle quelle), la
+preuve positive de `process_control` (réutilisée, avec un nouveau moment d'exécution), le
+précédent de la passerelle Discord (même forme de supervision).
+
+- **Surveillance** — `scripts/worker_watchdog.sh` + `scripts/wama_services.sh` (environnement et
+  lancements des workers : UNE définition, le démarrage et la relance l'appellent). Budget 3
+  relances / 30 min glissantes, pause `logs/worker_watchdog.pause`. **Mesuré en vrai** : le studio
+  tué (`kill -9`) à 22:50:56 → relancé à 22:51:03 → notification dans WAMA aux 3 comptes
+  d'administration. Premier `start_wama_prod.sh` sur la nouvelle version (lancé par Fabien ou une
+  autre session à 22:43) : 4 workers + surveillance démarrés.
+- **Card sans rechargement** — le worker relancé solde à son démarrage (`worker_ready`) les tâches
+  STARTED par un processus disparu de son nom ; geste `<app>.worker_death` **10/10**. ⚠⚠ Il a
+  trouvé **deux défauts réels** : describer et synthesizer reprenaient leur suivi sur la classe
+  `.processing`, retirée des cards le 18/09 — une card en cours à l'ouverture de la page n'était
+  PLUS JAMAIS suivie (ni succès ni échec affiché sans recharger). Corrigé sur `data-status`.
+- **Notifications dans WAMA** — premier morceau de `WAMA_COLLABORATION §2.3` (modèle, badge, page,
+  lu / non lu) ; les préférences type × canal restent la marche 5.
+- **Garde-temps** — par modèle (`extra_info.max_task_minutes`), action « Durée max… » de
+  l'inspecteur du model manager. ⚠ Ne s'applique qu'aux apps sur le squelette commun (converter,
+  enhancer, reader, describer) : la vidéo de l'imager n'y est pas encore — elle n'a donc AUCUN
+  garde-temps aujourd'hui, et le réglage la couvrira à son portage.
+- ⚠⚠ **E-mail : aucun ne part aujourd'hui.** `WAMA_EMAIL_HOST` est vide dans `.env` → Django
+  prend le backend CONSOLE (`settings.py:494-498`). Vrai aussi pour les notifications de fin de
+  tâche existantes. Configurer le SMTP UGE est une décision/un accès de Fabien.
+
+**Trois incidents de ma part, consignés** :
+1. **Prod en 500 sur toute page authentifiée** (~19:55 → 20:09) : l'en-tête citait la route neuve
+   avant que gunicorn ne l'ait chargée (gabarit relu à chaud, routes non) — signalé par l'instance
+   transcriber, réparé par reload. Leçon mémoire `feedback_gabarit_lu_a_chaud_en_prod`.
+2. **Génération d'images de Fabien ralentie** (2 → 250 s/pas, ~20:13-20:25, terminée) : ma boucle
+   de gestes chargeait des pages pendant que FLUX tenait ~24 Go ; les workers gunicorn recyclés à
+   20:17 y ont ouvert des contextes CUDA. Arrêtée sur signalement. Règle : **aucun geste UI pendant
+   un traitement GPU** (vérifier `nvidia-smi` et `inspect active` avant).
+3. `pkill -f "scripts/[w]orker_watchdog.sh"` lancé par `bash -lc` s'est tué lui-même (sa ligne de
+   commande contenait le chemin) — le piège d'auto-correspondance déjà en mémoire. Sans effet
+   durable (surveillance relancée) ; `start_wama_prod.sh` n'y est pas exposé.
+
+🔚 **Restes** : raccorder `start_wama_dev.sh` (worker default en pool solo) ; décider le mode de
+supervision de production (INFRA point 5 — systemd n'est pas actif dans ce WSL) ; configurer le
+SMTP ; porter la vidéo de l'imager au squelette (garde-temps) ; que les workers gunicorn n'ouvrent
+pas de contexte CUDA en servant une page (à mesurer, lié à l'incident 2).

@@ -44,8 +44,12 @@ declare -A GAVE_UP    # worker → 1 quand le budget est épuisé
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
 
 report() {   # $1 = worker, $2 = issue, $3 = relances dans la fenêtre
-    python manage.py worker_died --node "$(celery_worker_node "$1")" --outcome "$2" \
-        --restarts "$3" 2>&1 | grep -vE 'pynvml|FutureWarning' | tail -1
+    local node
+    node=$(celery_worker_node "$1")
+    # Seule la ligne de bilan de la commande (« <nœud>: <issue> ; … ») va au journal : le reste
+    # de la sortie de Django (avertissements de bibliothèques) n'y a pas sa place.
+    python manage.py worker_died --node "$node" --outcome "$2" --restarts "$3" 2>&1 \
+        | grep -F "$node: " | tail -1
 }
 
 log "surveillance démarrée : $WAMA_CELERY_WORKERS — toutes les ${INTERVAL_S}s, " \
