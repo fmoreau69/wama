@@ -113,13 +113,51 @@ def home(request):
         # l'accueil — parce que `base.html` les servait à toute page (WAMA_VOLETS §5).
         # `tete=True` garde le volet ouvert pour l'avatar sans rien d'autre.
         'volet': volet(tete=True, medias=False, parametres=False, actions=False),
+        # Menu « Présentations & annexes » : les archives se listent depuis leur déclaration.
+        'archived_presentations': [{'slug': k, 'label': v['label']}
+                                   for k, v in ARCHIVED_PRESENTATIONS.items()],
     }
     return render(request, 'home.html', context)
 
 
 def presentation(request):
-    """WAMA presentation slideshow."""
+    """WAMA presentation — canvas zoomable (constat → quatre mondes → accès → fabrique)."""
     return render(request, 'includes/wama_presentation.html')
+
+
+# Présentations ARCHIVÉES (jamais détruites, décision Fabien 2026-09-25) : slug → gabarit.
+# Ajouter une version = y déplacer l'ancien gabarit (git mv) et déclarer sa ligne ici ;
+# le menu de l'accueil les liste depuis ce même dict.
+ARCHIVED_PRESENTATIONS = {
+    '2026-v1': {
+        'template': 'includes/archive/wama_presentation_2026-v1.html',
+        'label': 'Présentation v1 (diaporama, 2026)',
+    },
+}
+
+
+def presentation_archive(request, slug):
+    """Une présentation archivée, servie telle quelle."""
+    from django.http import Http404
+    entry = ARCHIVED_PRESENTATIONS.get(slug)
+    if entry is None:
+        raise Http404(f"Présentation archivée inconnue : {slug}")
+    return render(request, entry['template'])
+
+
+def presentation_access_cases(request):
+    """Cas du modèle d'accès (tier × rôles × app) pour la vue 3D des droits de la présentation.
+
+    Calculé par `accounts.permissions.access_cases()` sur la politique EFFECTIVE : la
+    présentation montre les droits réels, pas une copie. Mis en cache une minute.
+    """
+    from django.core.cache import cache
+    from wama.accounts.permissions import access_cases
+    data = cache.get('presentation:access_cases')
+    if data is None:
+        data = access_cases()
+        cache.set('presentation:access_cases', data, 60)
+    return JsonResponse(data)
 
 
 def architecture(request):
