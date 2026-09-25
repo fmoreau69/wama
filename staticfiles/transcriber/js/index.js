@@ -408,9 +408,9 @@ document.addEventListener('DOMContentLoaded', function () {
     modal.dataset.batchId = btn.dataset.batchId;
     const idBadge = document.getElementById('batchSettingsBatchId');
     if (idBadge) idBadge.textContent = '#' + btn.dataset.batchId;
-    // Les moteurs sont découverts en asynchrone dans le select de la modale item :
+    // Les moteurs sont découverts en asynchrone dans le select du VOLET (`#backendSelect`) :
     // recopie des options vers le select batch (source unique de la découverte).
-    const src = document.getElementById('settingsBackend');
+    const src = document.getElementById('backendSelect');
     const dst = document.querySelector('#transcriberBatchParams [name="backend"]');
     if (src && dst && src.options.length > dst.options.length) {
       dst.innerHTML = src.innerHTML;
@@ -452,118 +452,63 @@ document.addEventListener('DOMContentLoaded', function () {
   // valable pour les cards rendues après coup (portage 2026-08-23).
   WamaQueueActions.onSettings(function (id, btn) { openSettingsModal(btn); });
 
+  // ⚙ item — le CYCLE commun `WamaParams.settingsModal` (portage 2026-09-25 ; la modale statique
+  // `#settingsModal`, `saveSettings` et la mise à jour de la card champ par champ vivaient ici).
+  // La modale est GÉNÉRÉE du schéma à chaque ouverture ; ce qui reste propre au transcriber est
+  // DÉCLARÉ en crochets :
+  //   - les valeurs viennent des data-* du ⚙ (la card les porte toutes) ;
+  //   - `decorate` recopie les moteurs découverts en asynchrone dans le select du volet
+  //     (`#backendSelect`, source unique de la découverte), puis resélectionne celui de la card ;
+  //   - `onSaved` re-rend la card depuis le serveur (plus de réécriture à la main de ses champs),
+  //     puis relance si « Enregistrer et démarrer ».
   function openSettingsModal(btn) {
-    const modal = document.getElementById('settingsModal');
-    if (!modal) return;
-    const _t = modal.querySelector('.modal-title');
-    if (_t) _t.textContent = 'Paramètres de transcription';
-
-    document.getElementById('settingsTranscriptId').value = btn.dataset.id;
-    // Population via le schéma commun (WamaParams) : gère range (+ affichage) et show/hide
-    // conditionnel du bloc résumé. Mêmes IDs/noms qu'avant (dom_id scopé context 'item').
-    if (window.WamaParams) {
-      WamaParams.apply(document.getElementById('settingsParams'), {
-        backend: btn.dataset.backend || 'auto',
-        hotwords: btn.dataset.hotwords || '',
-        preprocess_audio: btn.dataset.preprocessAudio === 'true',
-        enable_diarization: btn.dataset.enableDiarization !== 'false',
-        temperature: parseFloat(btn.dataset.temperature) || 0,
-        max_tokens: parseInt(btn.dataset.maxTokens) || 32768,
-        generate_summary: btn.dataset.generateSummary === 'true',
-        summary_type: btn.dataset.summaryType || 'structured',
-        verify_coherence: btn.dataset.verifyCoherence === 'true',
-      });
+    if (!window.WamaParams || !window.WAMA_TRANSCRIBER_SCHEMA) {
+      showToast('Formulaire indisponible (WamaParams non chargé) — recharger la page.', 'danger');
+      return;
     }
-
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
+    const id = btn.dataset.id;
+    const values = {
+      backend: btn.dataset.backend || 'auto',
+      hotwords: btn.dataset.hotwords || '',
+      preprocess_audio: btn.dataset.preprocessAudio === 'true',
+      enable_diarization: btn.dataset.enableDiarization !== 'false',
+      generate_summary: btn.dataset.generateSummary === 'true',
+      summary_type: btn.dataset.summaryType || 'structured',
+      verify_coherence: btn.dataset.verifyCoherence === 'true',
+    };
+    return WamaParams.settingsModal({
+      id: id,
+      title: 'Paramètres de transcription',
+      titleIcon: 'fa-cog',
+      schema: window.WAMA_TRANSCRIBER_SCHEMA,
+      values: values,
+      formClass: 'transcriber-settings-form',
+      footerTplId: 'transcriberSettingsFooterTpl',
+      saveUrl: getUrl(config.settingsUrlTemplate, id),
+      csrf: csrfToken,
+      decorate: function (host) {
+        const src = document.getElementById('backendSelect');
+        const dst = host.querySelector('[name="backend"]');
+        if (src && dst && src.options.length > dst.options.length) {
+          dst.innerHTML = src.innerHTML;
+          dst.value = values.backend;
+        }
+      },
+      onSaved: function (savedId, restart) {
+        refreshCard(savedId);
+        if (restart) handleStart(savedId);
+      },
+    });
   }
 
-  // Toggle summary type group visibility — both global panel and per-transcript modal
+  // Toggle summary type group visibility — global panel (the item modal's is handled by the
+  // schema's `show_if`, inside the shared renderer)
   document.addEventListener('change', function(e) {
-    if (e.target && e.target.id === 'settingsGenerateSummary') {
-      const group = document.getElementById('summaryTypeGroup');
-      if (group) group.style.display = e.target.checked ? 'block' : 'none';
-    }
     if (e.target && e.target.id === 'globalGenerateSummary') {
       const group = document.getElementById('globalSummaryTypeGroup');
       if (group) group.style.display = e.target.checked ? 'block' : 'none';
     }
   });
-
-  function saveSettings(andStart) {
-    const id = document.getElementById('settingsTranscriptId').value;
-    if (!id) return;
-
-    const summaryTypeEl = document.querySelector('input[name="summary_type"]:checked');
-
-    const payload = {
-      backend: document.getElementById('settingsBackend').value,
-      hotwords: document.getElementById('settingsHotwords').value,
-      preprocess_audio: document.getElementById('settingsPreprocess').checked,
-      enable_diarization: document.getElementById('settingsDiarization').checked,
-      temperature: 0,        // réglages retirés de l'UI (ASR = reproductibilité) → valeurs fixes
-      max_tokens: 32768,
-      generate_summary: document.getElementById('settingsGenerateSummary')?.checked || false,
-      summary_type: summaryTypeEl ? summaryTypeEl.value : 'structured',
-      verify_coherence: document.getElementById('settingsVerifyCoherence')?.checked || false,
-    };
-
-    const url = getUrl(config.settingsUrlTemplate, id);
-    fetch(url, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(payload),
-    })
-      .then(r => r.json())
-      .then(data => {
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
-        if (modal) modal.hide();
-
-        // Update card's data-attributes and options display
-        const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
-        if (card) {
-          card.dataset.backend = payload.backend;
-          card.dataset.hotwords = payload.hotwords;
-          card.dataset.preprocessAudio = payload.preprocess_audio ? 'true' : 'false';
-          card.dataset.enableDiarization = payload.enable_diarization ? 'true' : 'false';
-          card.dataset.temperature = payload.temperature;
-          card.dataset.maxTokens = payload.max_tokens;
-          card.dataset.generateSummary = payload.generate_summary ? 'true' : 'false';
-          card.dataset.summaryType = payload.summary_type;
-          card.dataset.verifyCoherence = payload.verify_coherence ? 'true' : 'false';
-
-          const settingsBtn = card.querySelector('.settings-btn');
-          if (settingsBtn) {
-            settingsBtn.dataset.backend = payload.backend;
-            settingsBtn.dataset.hotwords = payload.hotwords;
-            settingsBtn.dataset.preprocessAudio = payload.preprocess_audio ? 'true' : 'false';
-            settingsBtn.dataset.enableDiarization = payload.enable_diarization ? 'true' : 'false';
-            settingsBtn.dataset.temperature = payload.temperature;
-            settingsBtn.dataset.maxTokens = payload.max_tokens;
-            settingsBtn.dataset.generateSummary = payload.generate_summary ? 'true' : 'false';
-            settingsBtn.dataset.summaryType = payload.summary_type;
-            settingsBtn.dataset.verifyCoherence = payload.verify_coherence ? 'true' : 'false';
-          }
-
-          // Update options column display
-          const optionsCol = card.querySelectorAll('.col-md-2')[0];
-          if (optionsCol) {
-            let optHtml = `<small><i class="fas fa-microchip"></i> ${escapeHtml(payload.backend)}<br>`;
-            if (payload.hotwords) optHtml += `<i class="fas fa-tags"></i> ${escapeHtml(payload.hotwords.substring(0, 20))}${payload.hotwords.length > 20 ? '...' : ''}<br>`;
-            if (payload.enable_diarization) optHtml += `<i class="fas fa-users"></i> Diarisation<br>`;
-            if (payload.generate_summary) optHtml += `<i class="fas fa-file-lines"></i> Résumé<br>`;
-            if (payload.verify_coherence) optHtml += `<i class="fas fa-spell-check"></i> Cohérence`;
-            optHtml += '</small>';
-            optionsCol.innerHTML = optHtml;
-          }
-        }
-
-        if (andStart) handleStart(id);
-      })
-      .catch(err => showToast(err.message || 'Erreur lors de la sauvegarde', 'danger'));
-  }
 
   // ======================================================================
   // Result modal — tabbed interface
@@ -837,11 +782,7 @@ document.addEventListener('DOMContentLoaded', function () {
       r.addEventListener('change', savePanelSettings)
     );
 
-    // Settings modal buttons
-    const saveBtn = document.getElementById('saveSettingsBtn');
-    const saveStartBtn = document.getElementById('saveAndStartBtn');
-    if (saveBtn) saveBtn.addEventListener('click', () => saveSettings(false));
-    if (saveStartBtn) saveStartBtn.addEventListener('click', () => saveSettings(true));
+    // Item settings modal: buttons are delegated by the shared cycle (`WamaParams.settingsModal`).
 
     // Reset button
     const resetBtn = document.getElementById('resetOptions');
@@ -1271,11 +1212,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (_modelHelp) _modelHelp.render();
       }
 
-      // Populate settings modal selector (value set when modal opens)
-      const settingsSel = document.getElementById('settingsBackend');
-      if (settingsSel) {
-        settingsSel.insertAdjacentHTML('beforeend', options);
-      }
+      // The item modal is generated on each open and copies these options from `#backendSelect`
+      // (its `decorate` hook) — no second list to populate here.
     } catch (_) {
       // silently ignore — "Auto" remains functional
     }
