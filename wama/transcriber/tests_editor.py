@@ -225,6 +225,30 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         self.assertIsNotNone(self.item.processing_seconds)
         asr.unload.assert_not_called()
 
+    def _vad_filter_passed(self, mode, rejects=False):
+        from unittest import mock
+        Transcript.objects.filter(pk=self.item.pk).update(vad_mode=mode, status='RUNNING')
+        asr = self._asr()
+        asr.name = 'whisper'
+        probe = {'vad': 0.2, 'energy': 0.7, 'rejects': rejects}
+        with mock.patch('wama.common.utils.speech_activity.vad_rejects_speech',
+                        return_value=probe) as probed:
+            self._run(asr)
+        return asr.transcribe.call_args.kwargs.get('vad_filter'), probed.called
+
+    def test_the_vad_setting_drives_the_whisper_filter(self):
+        self.assertEqual((True, False), self._vad_filter_passed('on'))
+        self.assertEqual((False, False), self._vad_filter_passed('off'))
+
+    def test_auto_drops_the_filter_only_when_the_probe_says_it_rejects_speech(self):
+        self.assertEqual((False, True), self._vad_filter_passed('auto', rejects=True))
+        self.assertEqual((True, True), self._vad_filter_passed('auto', rejects=False))
+
+    def test_an_engine_without_a_vad_filter_gets_no_such_argument(self):
+        asr = self._asr()
+        self._run(asr)
+        self.assertNotIn('vad_filter', asr.transcribe.call_args.kwargs)
+
     def test_a_failed_transcription_is_a_failure_with_its_message(self):
         self._run(self._asr(fail=True))
         self.assertEqual('FAILURE', self.item.status)

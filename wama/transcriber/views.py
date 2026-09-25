@@ -85,7 +85,7 @@ from wama.transcriber.params import PARAMS_JSON as _SCHEMA
 #: Réglages d'un transcript écrits par la modale et le volet (schéma `params.py`) ; `temperature`
 #: et `max_tokens` sont hors schéma depuis leur retrait des réglages, gardés pour un client qui
 #: les posterait encore (JSON déjà typé).
-SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'enable_diarization',
+SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'vad_mode', 'enable_diarization',
                    'generate_summary', 'summary_type', 'verify_coherence',
                    'temperature', 'max_tokens')
 
@@ -1836,6 +1836,7 @@ def update_settings(request, pk: int):
         'temperature': t.temperature,
         'max_tokens': t.max_tokens,
         'preprocess_audio': t.preprocess_audio,
+        'vad_mode': t.vad_mode,
         'generate_summary': t.generate_summary,
         'summary_type': t.summary_type,
         'verify_coherence': t.verify_coherence,

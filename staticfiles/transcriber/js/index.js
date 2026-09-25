@@ -471,6 +471,7 @@ document.addEventListener('DOMContentLoaded', function () {
       backend: btn.dataset.backend || 'auto',
       hotwords: btn.dataset.hotwords || '',
       preprocess_audio: btn.dataset.preprocessAudio === 'true',
+      vad_mode: btn.dataset.vadMode || 'auto',
       enable_diarization: btn.dataset.enableDiarization !== 'false',
       generate_summary: btn.dataset.generateSummary === 'true',
       summary_type: btn.dataset.summaryType || 'structured',
@@ -926,6 +927,7 @@ document.addEventListener('DOMContentLoaded', function () {
             b.dataset.backend = payload.backend;
             b.dataset.hotwords = payload.hotwords;
             b.dataset.preprocessAudio = payload.preprocess_audio ? 'true' : 'false';
+            if (payload.vad_mode) b.dataset.vadMode = payload.vad_mode;
             b.dataset.enableDiarization = payload.enable_diarization ? 'true' : 'false';
             b.dataset.generateSummary = payload.generate_summary ? 'true' : 'false';
             b.dataset.summaryType = payload.summary_type;

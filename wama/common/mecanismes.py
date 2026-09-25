@@ -1485,6 +1485,14 @@ MECHANISMS = (
               "torchaudio pour les libs tierces qui l'appellent en interne (Coqui, DeepFilterNet)",
               'wama/common/utils/audio_decode.py', '',
               annexes=('wama/common/utils/torchaudio_compat.py',)),
+    Mechanism('speech_activity', 'Activité vocale (le VAD garde-t-il la parole ?)',
+              "Confronte, sur quelques fenêtres du média, ce que le filtre de parole Silero retient à "
+              "ce que l'énergie du signal dit actif : un VAD qui garde bien moins que l'actif rejette "
+              "une parole lointaine. L'appelant décide (le transcriber transcrit alors sans filtre, "
+              "réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25",
+              'wama/common/utils/speech_activity.py',
+              'wama/transcriber/TRANSCRIBER_CORRECTION.md §8',
+              annexes=('wama/common/tests_speech_activity.py',)),
     # Rattaché le 2026-08-29 après un défaut de MA part, pas du code : j'ai déclaré deux fois de
     # suite qu'« aucun détecteur commun de nature ne existait » et qu'« aucune déclaration ne dit
     # les types d'entrée d'une app » — les DEUX existaient ici depuis longtemps, et le générateur

@@ -22,6 +22,7 @@ PARAMS = derive_from_model(
         "backend",
         "hotwords",
         "preprocess_audio",
+        "vad_mode",
         "enable_diarization",
         "generate_summary",
         "summary_type",
@@ -56,6 +57,14 @@ PARAMS = derive_from_model(
                       '<a href="#" class="text-info text-decoration-none" data-bs-toggle="modal" '
                       'data-bs-target="#preprocessingModal"><i class="fas fa-circle-question"></i> En savoir plus</a>',
         ),
+        # Réglage de card et de lot : le volet global ne le propose pas (le dépôt prend « auto »).
+        "vad_mode": dict(
+            type="select", label="Filtre de parole (VAD)", icon="fa-wave-square",
+            contexts=("item", "batch"),
+            help="Whisper saute les passages qu'il juge sans parole. « Auto » vérifie d'abord qu'il "
+                 "ne rejette pas une parole lointaine (entretien enregistré à distance) et le "
+                 "désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les "
+                 "longs silences."),
         "enable_diarization": dict(
             chip=True, chip_label="Diarisation",label="Identifier les locuteurs", icon="fa-users",
             dom_id={"panel": "diarizationToggle", "item": "settingsDiarization"},
