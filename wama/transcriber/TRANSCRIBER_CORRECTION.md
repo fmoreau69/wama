@@ -93,7 +93,10 @@ nivellement du signal n'y a rien changé : c'est le filtre qu'il faut lever, pas
   (quelques secondes de CPU) et compare le VAD à l'énergie ; s'il garde moins de **0,6×** l'actif,
   la card est transcrite **sans filtre** et la console le dit (chiffres compris). Une sonde qui
   échoue garde le filtre — le comportement d'avant. ⚠ Seuil calé sur **deux** enregistrements
-  (0,43 contre ≥ 1,2) : large marge, mais pas une calibration.
+  (0,43 contre ≥ 1,2) : large marge, mais pas une calibration. **Rejoué le 2026-09-26 par le code
+  livré** (ses propres fenêtres, 20 s de CPU pour 142 min) : 0,354/0,697 = **0,51** → rejette ;
+  0,969/0,758 → garde. La marge côté champ lointain est donc plus MINCE qu'au calage (0,51 contre
+  0,6) : un 3ᵉ enregistrement en champ lointain dira si le seuil tient.
 - **Désactivé** garde tout : c'est le choix d'un **entretien** où chaque mot compte, au risque de
   texte inventé dans les silences. `vad_mode` est un réglage de configuration pour l'évaluation
   (`config_params`) : deux cards qui ne diffèrent que par lui se comparent.
@@ -262,6 +265,12 @@ Les réglages de TRANSCRIPTION aussi (2026-09-25) : le filtre de parole (§5bis)
 (qui a dégradé un entretien propre de 32 à 37 % d'erreurs par mot), la diarisation. Un profil
 n'invente donc pas de mécanisme : il pose des valeurs de réglages qui existent déjà, et la
 politique de cohérence qu'ils n'ont pas.
+⏳ **Plan aligné le 2026-09-26** (`ROADMAP §22.5`, décision de Fabien : chantier en session
+dédiée) : les profils de WAMA se rangent dans la **médiathèque** — système = `SystemAsset`,
+utilisateur = `UserAsset`, une nature « profil » —, jamais dans un modèle de plus. Les trois
+profils du transcriber y sont écrits en réglages existants : *Entretien (verbatim)*, *Réunion
+(compte rendu)*, *Sous-titrage* ; la conférence/cours n'en a pas (rien qui la distingue encore
+en réglages). La politique de réécriture par usage reste sans réglage.
 ⚠ Le contrat de `common/prompt_skills/` est explicitement « enrichissement de prompt génératif,
 sortie = le prompt enrichi seul » : un skill de contrôle qualité **n'y entre pas tel quel** — le
 traiter comme un `kind` distinct plutôt que de le faire rentrer au chausse-pied.

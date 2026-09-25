@@ -3674,6 +3674,66 @@ pour les paramètres (modale ET inspecteur), miroir des sections d'INFOS de la c
 APRÈS le portage du monde Médias (le mécanisme se déclare au schéma — donc après que les 10
 apps aient un schéma homogène et des réglages en colonnes, cf. §22.2 point 1).
 
+### 22.5 ⏳ PLAN ALIGNÉ (2026-09-26) — les profils vivent dans la MÉDIATHÈQUE, pas dans un modèle de plus
+
+> Demande de Fabien : des profils d'usage pour le transcriber (entretien, réunion, sous-titrage),
+> *« alignés sur la notion de profils systèmes et utilisateurs pour ne pas ajouter un nouveau
+> chemin de profil »*, puis *« le converter a des profils système mais on ne les a pas identifiés
+> comme tel »* et *« on ne réinvente rien, on porte au commun et on fait adopter »*.
+> **Décision de Fabien, le même jour : retirer la première construction, consigner, faire le
+> chantier en session dédiée.**
+
+**Ce qui a été construit puis RETIRÉ, et pourquoi.** Un modèle commun `SettingsProfile`
+(forme des fonctions : système en code, utilisateur en base) avec une fabrique de vues, adoptée
+par le converter et le transcriber, testée. Retiré avant tout commit (table vide, appliquée puis
+défaite sur la base live) parce qu'il **était un second registre d'instances**. La cible existait
+déjà, écrite, et n'avait pas été lue : `WAMA_APP_CONVENTIONS §2bis.3` (*« stockage = `UserAsset`
+(médiathèque, kind profil, JSON des params du schéma) »*) et la décision A′
+(`MEDIA_STORAGE_TIERING §9` : *« le registre d'assets EST la médiathèque ; ce qui manque est un
+registre de NATURES, jamais un 2ᵉ registre d'instances »*). La notion « système / utilisateur »
+de WAMA, c'est `SystemAsset` / `UserAsset` — les préréglages de voix du synthesizer y sont déjà
+passés (`ingest_voice_refs`).
+⚠ **Deux relevés trop étroits ont précédé** : « aucun profil au commun » (seules les classes de
+modèle cherchées) puis « le patron système/utilisateur est celui des fonctions » (la médiathèque
+pas regardée). Les deux fois, c'est Fabien qui a relevé l'écart.
+
+**Ce qui est acquis (constats, à reprendre tels quels)** :
+- **Les préréglages de qualité du converter SONT ses profils système** (`quality_presets`,
+  web/balanced/max par type de média) — le §23.2quater le disait (« un preset = un profil GÉNÉRAL
+  commun à tous »), sans que le code les nomme ainsi. Un profil système converter se déclare
+  comme une **position du curseur** `quality_intent` (le réglage déclaré au schéma), que le
+  serveur étale déjà en réglages d'encodage (`_quality_spread`) ; déclarer `quality_preset`,
+  `preset` ou `optimize` n'est pas possible : le schéma ne les porte pas (relevé par la garde
+  ci-dessous à sa première exécution).
+- ⚠ **Constat converter, non corrigé** : les préréglages audio écrivent `audio_bitrate` `160k` et
+  `224k`, que le select du schéma ne propose pas (128/192/256/320) — la modale affiche « Auto » sur
+  une valeur réellement posée.
+- `ConversionProfile` : **0 ligne** en base live (mesuré le 2026-09-26), aucun `ConversionJob`
+  ne pointe un profil — la migration de données est gratuite.
+- **Garde à reprendre** : pour toute app qui déclare des profils système, chaque valeur doit être
+  un réglage que SON schéma déclare, et une valeur de ses choix.
+- Le geste client : une ligne « Profil ▾ · 💾 · 🗑 » en tête de la section Réglages (§22.3),
+  greffée par `WamaParams.settingsModal` — profils système puis « mes profils » (et partagés) ;
+  choisir écrit dans le formulaire, Enregistrer écrit sur l'élément (§23.2quater).
+- Les trois profils d'usage du transcriber, en réglages qui EXISTENT : *Entretien (verbatim)* —
+  pas de prétraitement, filtre de parole `auto`, diarisation, ni résumé ni cohérence ; *Réunion
+  (compte rendu)* — diarisation, résumé `meeting`, cohérence ; *Sous-titrage* — filtre de parole
+  `on`, sans diarisation, ni résumé ni cohérence.
+
+**Le chantier, aligné** (à ouvrir en session dédiée — il touche la médiathèque) :
+1. une **nature** `settings_profile` dans `ASSET_NATURES` (fichier JSON des valeurs du schéma ;
+   attributs `app` + contexte, p. ex. `media_type`) — ⚠ elle doit rester HORS du sélecteur de
+   documents et de l'onglet des médias (`TYPE_GROUPS`, `MediaPicker`) : c'est la question de
+   catégorie à trancher en premier ;
+2. profils UTILISATEUR = `UserAsset` de cette nature (visibilité commune, donc partageables) ;
+3. profils SYSTÈME = `SystemAsset` SEMÉS depuis la déclaration de l'app (précédent des voix) —
+   la déclaration en code reste la source, la ligne en base sa projection ;
+4. la fabrique commune des trois vues (`profile_list/save/delete`, mêmes routes que le
+   converter) et la ligne cliente ; le converter l'adopte en gardant le contrat de son JS, puis
+   le transcriber ; le générateur (`views_gen`, bouchons `profile_*` aujourd'hui) émet la
+   fabrique ;
+5. restes connus : trace du profil appliqué (§22.2 point 4), le volet (contexte `panel`), la
+   politique de cohérence par usage (`TRANSCRIBER_CORRECTION §8.4`) qui n'a pas encore de réglage.
 
 ---
 
