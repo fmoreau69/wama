@@ -72,6 +72,33 @@ chaque étape (diarisation, résumé, cohérence) se relance seule au lieu de to
 - **À évaluer plus tard** (perf vs gain) : **WhisperX** (alignement mot wav2vec2 + pyannote,
   idéal éditeur), **NVIDIA Canary-Qwen-2.5B** (n°1 HF Open ASR, FR), **IBM Granite Speech 3.3**
   (FR). Variante rapide : **large-v3-turbo**.
+- **Tâche d'item et résidence du modèle** (2026-09-25) : la transcription passe par le squelette
+  commun `run_item_task` (statuts, durée max 180 min, notifications, signal d'exécution) et le
+  moteur ASR **reste chargé** après une card — la libération relève du gouverneur commun, pas de
+  l'app (un lot sur un même moteur ne recharge plus Whisper, 12-16 s mesurées par card).
+
+## 5bis. Filtre de parole (VAD) — `vad_mode` auto / actif / désactivé (2026-09-25)
+
+faster-whisper applique par défaut le VAD **Silero** avant de transcrire. Son rôle : **sauter
+les silences** (moins de texte inventé dans les longs blancs, plus rapide) — pas, en soi,
+écarter les voix extérieures. Mais il juge « non-parole » une parole **lointaine** ou étouffée.
+**Mesuré** sur deux entretiens (lots #442/#443) : enregistrement proche, le VAD garde 91-99 % de
+l'audio pour 74-76 % d'actif à l'énergie ; champ lointain, **17-58 %** pour 66-79 % d'actif, et
+Whisper y rendait **113 mots au lieu de 411** sur 3 minutes (≈ 372 dans la référence). Un
+nivellement du signal n'y a rien changé : c'est le filtre qu'il faut lever, pas le niveau.
+
+- **Réglage de card et de lot** `vad_mode` (schéma `params.py`, pas dans le volet global : un
+  dépôt prend « auto »). Seul Whisper le lit ; les autres moteurs ne reçoivent pas l'argument.
+- **auto** : la brique commune `wama/common/utils/speech_activity.py` sonde 3 fenêtres de 2 min
+  (quelques secondes de CPU) et compare le VAD à l'énergie ; s'il garde moins de **0,6×** l'actif,
+  la card est transcrite **sans filtre** et la console le dit (chiffres compris). Une sonde qui
+  échoue garde le filtre — le comportement d'avant. ⚠ Seuil calé sur **deux** enregistrements
+  (0,43 contre ≥ 1,2) : large marge, mais pas une calibration.
+- **Désactivé** garde tout : c'est le choix d'un **entretien** où chaque mot compte, au risque de
+  texte inventé dans les silences. `vad_mode` est un réglage de configuration pour l'évaluation
+  (`config_params`) : deux cards qui ne diffèrent que par lui se comparent.
+- ⏳ Le choix par défaut selon l'usage relève des **profils** (§8.4) : un profil entretien
+  fixerait « auto » ou « désactivé », un profil sous-titrage pourrait garder le filtre.
 
 ## 5ter. Forme d'onde — fichiers longs & overlay (décision d'archi)
 
@@ -231,6 +258,10 @@ comme erreur ni s'il a le droit de réécrire. C'est le trou. Un profil porte 4 
 
 Alimente la barre de guidage prévue en Phase 4 (slider rigueur + interrupteurs
 silences/hésitations/redondances) : les interrupteurs deviennent des **conséquences du profil**.
+Les réglages de TRANSCRIPTION aussi (2026-09-25) : le filtre de parole (§5bis), le prétraitement
+(qui a dégradé un entretien propre de 32 à 37 % d'erreurs par mot), la diarisation. Un profil
+n'invente donc pas de mécanisme : il pose des valeurs de réglages qui existent déjà, et la
+politique de cohérence qu'ils n'ont pas.
 ⚠ Le contrat de `common/prompt_skills/` est explicitement « enrichissement de prompt génératif,
 sortie = le prompt enrichi seul » : un skill de contrôle qualité **n'y entre pas tel quel** — le
 traiter comme un `kind` distinct plutôt que de le faire rentrer au chausse-pied.

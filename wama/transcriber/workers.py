@@ -390,6 +390,30 @@ def transcribe_without_preprocessing(self, transcript_id: int):
     return _run_transcription(self, transcript_id)
 
 
+def _vad_filter_for(t, audio_path: str) -> bool:
+    """Le réglage `vad_mode` de la card → le `vad_filter` de Whisper. En « auto », la sonde
+    `speech_activity` confronte le VAD à l'énergie du signal : s'il rejette la parole (champ
+    lointain), on transcrit SANS filtre et la console le dit. Une sonde qui échoue garde le filtre
+    — le comportement d'avant ce réglage."""
+    mode = getattr(t, 'vad_mode', 'auto') or 'auto'
+    if mode in ('on', 'off'):
+        return mode == 'on'
+    try:
+        from wama.common.utils.speech_activity import vad_rejects_speech
+        probe = vad_rejects_speech(audio_path, float(t.duration_seconds or 0))
+    except Exception as exc:
+        _console(t.user_id, f"Sonde du filtre de parole impossible ({exc}) — filtre gardé.",
+                 level='warning')
+        return True
+    if probe['rejects']:
+        _console(t.user_id,
+                 f"Filtre de parole désactivé : il ne garde que {probe['vad']:.0%} de l'audio "
+                 f"pour {probe['energy']:.0%} de signal actif (parole lointaine probable).",
+                 level='warning')
+        return False
+    return True
+
+
 def _transcribe_item(t, ctx):
     """La GLU du squelette : prétraitement → ASR → diarisation → sauvegarde → résumé → cohérence,
     puis mesure contre la référence, apprentissage ETA et forme d'onde. Le statut SUCCESS, la
@@ -458,6 +482,8 @@ def _transcribe_item(t, ctx):
         transcribe_kwargs = {}
         if t.hotwords:
             transcribe_kwargs['hotwords'] = t.hotwords
+        if backend.name == 'whisper':      # seul moteur qui filtre par VAD avant de transcrire
+            transcribe_kwargs['vad_filter'] = _vad_filter_for(t, cleaned_path)
 
         # Progression intermédiaire pendant l'ASR (30 → 75 %) → l'ETA peut s'estimer.
         def _asr_progress(ratio: float) -> None:

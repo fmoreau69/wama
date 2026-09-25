@@ -30,6 +30,13 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # VibeVoice-specific options
     hotwords = models.TextField(blank=True, default='')  # Domain-specific terms
     enable_diarization = models.BooleanField(default=True)
+    # Filtre de parole (VAD Silero de faster-whisper) : il saute les silences, mais rejette aussi
+    # la parole LOINTAINE — mesuré le 2026-09-25 : il ne gardait que 17-58 % d'un entretien en
+    # champ lointain dont 66-79 % était actif, et Whisper y rendait 113 mots au lieu de 411.
+    # « auto » compare le VAD à l'énergie du signal avant de transcrire (`speech_activity`).
+    VAD_MODE_CHOICES = [('auto', 'Auto'), ('on', 'Actif'), ('off', 'Désactivé')]
+    vad_mode = models.CharField(max_length=8, choices=VAD_MODE_CHOICES, default='auto',
+                                db_default='auto')  # le code en service avant le redémarrage insère sans elle
 
     # Advanced parameters (optional)
     temperature = models.FloatField(default=0.0)
