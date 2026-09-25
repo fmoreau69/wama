@@ -138,6 +138,10 @@ class TranscriberConfig(AppConfig):
             # Lot SANS référence : l'entrée est le fichier audio (les doubles d'une card le
             # PARTAGENT, `duplicate_instance` ne copie jamais), le désaccord est M1.
             input_identity=lambda item: item.audio.name or None,
+            # Les réglages qui changent les MOTS transcrits : deux cards Whisper, avec et sans
+            # prétraitement, sont deux configurations à comparer (lots #442/#443, 2026-09-25).
+            # La diarisation, le résumé, la cohérence ne touchent pas le texte mesuré.
+            config_params=('preprocess_audio', 'hotwords'),
             disagreement=_disagreement,
         ))
 
