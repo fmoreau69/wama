@@ -71,6 +71,13 @@ class EvaluationSpec:
     #: None = non comparables, ex. un résultat sans temps face à un résultat horodaté).
     input_identity: Optional[Callable[[object], Optional[str]]] = None
     disagreement: Optional[Callable[[object, object], Optional[float]]] = None
+    #: Réglages du schéma (`params.py`) qui CHANGENT le résultat mesuré. Deux éléments d'un lot
+    #: au même modèle mais à réglages différents sont deux CONFIGURATIONS, comparées séparément
+    #: (mesuré le 2026-09-25 : un lot « whisper avec / sans prétraitement » sortait sur UNE ligne,
+    #: les deux cards fondues). Vide = regroupement par modèle seul. DÉCLARÉ, jamais deviné :
+    #: un schéma mêle réglages, ENTRÉES (le prompt d'un composer diffère d'un élément à l'autre
+    #: sans en faire deux configurations) et options sans effet sur le résultat (un résumé).
+    config_params: Tuple[str, ...] = ()
 
 
 _REGISTRY: Dict[str, EvaluationSpec] = {}
@@ -192,6 +199,36 @@ def _model_label(model_key: str) -> str:
     return model_key.split(':', 1)[-1]
 
 
+def _configurations(spec: EvaluationSpec, items: list) -> Dict[int, Tuple[str, str]]:
+    """{pk: (clé, libellé)} de la CONFIGURATION de chaque élément : son modèle, plus les réglages
+    qui DIFFÈRENT d'un élément à l'autre du lot (libellés et valeurs lus au schéma de l'app).
+    Un réglage identique partout n'est pas nommé : il ne distingue rien."""
+    from wama.common.utils.param_schema import schema_for_app
+    schema = {p['name']: p for p in schema_for_app(spec.surface)}
+    names = list(spec.config_params)
+    values = {i.pk: {n: getattr(i, n, None) for n in names} for i in items}
+    varying = [n for n in names if len({repr(v[n]) for v in values.values()}) > 1]
+
+    def shown(name, value):
+        choices = dict((schema.get(name) or {}).get('choices') or [])
+        if isinstance(value, bool):
+            return 'oui' if value else 'non'
+        text = str(choices.get(value, value) or '—')
+        return text if len(text) <= 30 else text[:29] + '…'
+
+    out = {}
+    for item in items:
+        model_key = spec.model_key(item) or ''
+        settings = [(n, values[item.pk][n]) for n in varying]
+        key = model_key + ''.join(f'|{n}={v!r}' for n, v in settings)
+        label = _model_label(model_key)
+        if settings:
+            label += ' · ' + ', '.join(
+                f"{(schema.get(n) or {}).get('label') or n} : {shown(n, v)}" for n, v in settings)
+        out[item.pk] = (key, label)
+    return out
+
+
 def item_evaluation(surface: str, item) -> Optional[dict]:
     """La mesure d'un élément, prête pour l'onglet « Évaluation » ; None s'il n'y en a pas."""
     spec = evaluation_spec(surface)
@@ -246,12 +283,13 @@ def batch_evaluation(surface: str, items: Iterable) -> Optional[dict]:
     if not rows.exists():
         return None
 
+    configurations = _configurations(spec, items)
     per_model: Dict[str, dict] = {}
     for r in rows:
-        entry = per_model.setdefault(r.model_key, {'model_key': r.model_key,
-                                                   'model_label': _model_label(r.model_key),
-                                                   'items': set(), 'references': set(),
-                                                   'metrics': {}})
+        key, label = configurations.get(r.object_id, (r.model_key, _model_label(r.model_key)))
+        entry = per_model.setdefault(key, {'model_key': r.model_key, 'model_label': label,
+                                           'items': set(), 'references': set(),
+                                           'metrics': {}})
         entry['items'].add(r.object_id)
         entry['references'].add(r.reference_sha256)
         d = r.detail or {}
@@ -332,6 +370,8 @@ def batch_agreement(surface: str, items: Iterable) -> Optional[dict]:
     if cached is not None:
         return cached
 
+    configurations = _configurations(spec, [item for members in groups.values()
+                                            for item, _ in members])
     out = []
     for key, members in groups.items():
         pairs = []
@@ -346,7 +386,7 @@ def batch_agreement(surface: str, items: Iterable) -> Optional[dict]:
         for item, _ in members:
             mine = [v for x, y, v in pairs if item.pk in (x, y) and v is not None]
             engines.append({'pk': item.pk, 'model_key': spec.model_key(item),
-                            'model_label': _model_label(spec.model_key(item)),
+                            'model_label': configurations[item.pk][1],
                             'isolation': round(statistics.median(mine), 4) if mine else None,
                             'isolation_percent': (round(statistics.median(mine) * 100, 1)
                                                   if mine else None),

@@ -344,3 +344,31 @@ class TranscriberEvaluationTest(TestCase):
         self.assertEqual('aucun aligneur', outcome.get('skipped'))
         self.assertIsNone(repo)
         self.assertEqual(before, imported.segments_json)
+
+    def test_the_same_engine_with_different_settings_gives_two_rows_in_the_batch_line(self):
+        """Batches #442/#443 (2026-09-25): Whisper with and without audio preprocessing came out as
+        ONE row — the comparison the batch was made for was invisible."""
+        from wama.common.services.result_evaluation import attach_reference, batch_evaluation
+        audio = 'users/0/transcriber/input/meme_audio_reglages.wav'
+        plain = self._transcript('le chat dort sur le tapis oui je crois', audio=audio)
+        cleaned = self._transcript('le chat dort sur le tapis oui euh je crois', audio=audio,
+                                   preprocess_audio=True)
+        attach_reference('transcriber', [plain, cleaned],
+                         SimpleUploadedFile('ref.srt', SRT_REFERENCE.encode()))
+        rows = batch_evaluation('transcriber', [plain, cleaned])['models']
+        self.assertEqual(2, len(rows))
+        labels = sorted(r['model_label'] for r in rows)
+        self.assertTrue(all('Prétraitement audio' in label for label in labels), labels)
+        self.assertEqual(['Prétraitement audio : non', 'Prétraitement audio : oui'],
+                         sorted(label.split(' · ', 1)[1] for label in labels))
+        self.assertEqual(0.0, rows[0]['rates']['wer'], 'the preprocessed text is the exact one')
+
+    def test_settings_that_do_not_change_the_words_do_not_split_the_line(self):
+        from wama.common.services.result_evaluation import attach_reference, batch_evaluation
+        audio = 'users/0/transcriber/input/meme_audio_resume.wav'
+        a = self._transcript(audio=audio)
+        b = self._transcript(audio=audio, generate_summary=True)
+        attach_reference('transcriber', [a, b], SimpleUploadedFile('ref.srt', SRT_REFERENCE.encode()))
+        rows = batch_evaluation('transcriber', [a, b])['models']
+        self.assertEqual(1, len(rows))
+        self.assertNotIn('·', rows[0]['model_label'])
