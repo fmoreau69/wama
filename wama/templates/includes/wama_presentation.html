@@ -1,355 +1,605 @@
 <!DOCTYPE html>
+{% load static %}
+{% load wama_static %}
+{% comment %}
+  Présentation WAMA v2 (2026-09-25) — un canvas zoomable plutôt qu'un diaporama.
+  L'ancienne version est ARCHIVÉE, pas détruite : includes/archive/wama_presentation_2026-v1.html
+  (route `presentation_archive`, liste déclarée dans `wama/views.py::ARCHIVED_PRESENTATIONS`).
+
+  Anatomie : chaque .frame est posée dans #world par data-x / data-y (centre, px monde),
+  data-s (échelle) et data-r (rotation). Une frame « enfant » est posée DANS l'emprise de sa
+  frame parente, à petite échelle : la caméra y plonge (moteur : static/presentation/).
+  L'ordre de parcours est l'ordre du DOM ; data-section marque le début d'une section.
+
+  ⚠ Les chiffres sont DATÉS et sourcés (pied de frame) : ce sont des relevés de la doc de
+  construction, pas des mesures en direct — sauf la scène des droits, calculée par
+  `accounts.permissions.access_cases()` sur la politique d'accès effective.
+{% endcomment %}
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Présentation WAMA</title>
-    {% include 'includes/_presentation_style.html' %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WAMA — Présentation</title>
+  <link rel="stylesheet" href="{% static_v 'vendors/font-awesome-6.4.0/css/all.min.css' %}">
+  <link rel="stylesheet" href="{% static_v 'presentation/wama-presentation.css' %}">
+  {% include 'common/_three_importmap.html' %}
 </head>
 <body>
-    <div class="slide-container">
-        <!-- Slide 1: Titre -->
-        <div class="slide active">
-            <h1>🎬 WAMA</h1>
-            <div class="subtitle">Web App for Multimodal Automation</div>
-            <div class="subtitle" style="font-size: 1.2em; margin-top: 40px;">Plateforme IA pour l'automatisation multimédia au Lescot</div>
+  <canvas id="bg-layer"></canvas>
+  <div id="progress"></div>
+
+  <div id="viewport">
+    <div id="world">
+
+      <!-- Halos de mondes et liaisons : décor du plan, visibles surtout en vue d'ensemble -->
+      <div class="zone" style="--c:var(--media);left:-3800px;top:3600px;width:3400px;height:3400px"></div>
+      <div class="zone" style="--c:var(--data);left:-3800px;top:5500px;width:3400px;height:3400px"></div>
+      <div class="zone" style="--c:var(--lab);left:3900px;top:4550px;width:3600px;height:3600px"></div>
+      <div class="zone" style="--c:var(--trans);left:0px;top:7700px;width:5200px;height:4200px"></div>
+      <div class="zone" style="--c:#6b7693;left:-4200px;top:-300px;width:4200px;height:3000px"></div>
+      <svg class="links" viewBox="-6000 -1500 12000 14500" style="left:-6000px;top:-1500px;width:12000px;height:14500px">
+        <path d="M0 450 L0 1360" /><path d="M-1300 1300 C-2400 1100 -3400 700 -4200 420" />
+        <path d="M-900 2300 C-2000 2600 -2800 2800 -3800 2925" stroke="var(--media)" />
+        <path d="M-900 2300 C-2200 3400 -2700 4300 -3800 4825" stroke="var(--data)" />
+        <path d="M900 2300 C2200 2800 3200 3300 3900 3875" stroke="var(--lab)" />
+        <path d="M-2600 3600 C0 3700 1800 4000 2700 4400" stroke="var(--media)" class="flow" />
+        <path d="M-2600 5500 C0 5400 1800 5000 2700 4700" stroke="var(--data)" class="flow" />
+        <path d="M0 2440 L0 6800" stroke="var(--trans)" />
+        <path d="M1600 7700 L3740 7700" /><path d="M4700 8240 L4700 9050" /><path d="M4250 9950 C3000 10300 1800 10300 960 10200" />
+        <path d="M-960 10200 C-2200 10300 -3600 10300 -4700 9950" /><path d="M-4700 9950 C-4000 11200 -2000 11800 -1120 12000" />
+      </svg>
+
+      <!-- ═════════════════════ 0 · TITRE ═════════════════════ -->
+      <section class="frame" id="titre" data-x="0" data-y="0" data-s="1" data-title="WAMA">
+        <div class="kicker">Université Gustave Eiffel · Lescot</div>
+        <h1>WAMA</h1>
+        <p class="lead" style="margin-top:30px">Web App for Multimodal Automation — un écosystème d'IA
+          <b>local, gouverné et reproductible</b> pour la recherche.</p>
+        <p style="margin-top:40px;font-size:20px;color:var(--ink-mute)">
+          <i class="fas fa-keyboard"></i>&nbsp; → espace pour avancer · O vue d'ensemble · F plein écran · clic pour plonger</p>
+      </section>
+
+      <!-- ═════════════════════ 1 · CONSTAT ═════════════════════ -->
+      <section class="frame" id="constat" data-x="-4200" data-y="-300" data-s="1.6" data-section="1"
+               data-title="Le constat" style="justify-content:flex-start">
+        <div class="kicker">01 — Constat</div>
+        <h2>L'IA avance plus vite que nos façons de l'utiliser</h2>
+        <p class="lead" style="font-size:28px">Six tensions, vécues au labo, qui ont façonné WAMA.</p>
+      </section>
+
+      <section class="frame boxed" id="constat-llm" data-x="-4840" data-y="-270" data-s="0.36" data-title="Constat · Inconstance des LLM">
+        <div class="kicker">Constat 1/6</div>
+        <h2><i class="fas fa-wave-square c-lab"></i> L'inconstance des LLM</h2>
+        <div class="cards c2">
+          <div class="card"><h3>Ce qu'on subit</h3>
+            <p>Services indisponibles, statuts instables et périodes d'échecs à répétition.
+               Oublis de consigne, hallucinations. Un modèle peut aussi se tromper de façon stable.</p></div>
+          <div class="card accent"><h3>Ce que WAMA en fait</h3>
+            <p><b>Le LLM propose, la machine vérifie.</b> Chaque proposition passe par des contrôles
+               puis une validation humaine, et rien ne s'applique tout seul.
+               Mesuré : des affirmations d'absence étaient fausses dans 4 rapports sur 6.</p></div>
         </div>
+        <div class="src">WAMA_VISION_COMPLET §Partie 5 · WAMA_QUALITE.md · wama_data/dataset.py · ROADMAP (prospection)</div>
+      </section>
 
-        <!-- Slide 2: Le contexte -->
-        <div class="slide">
-            <h2>📊 Notre besoin au Lescot</h2>
-            <div class="content">
-                <p style="font-size: 1.4em; margin-bottom: 30px;">Dans nos expérimentations, nous utilisons massivement la vidéo et les médias</p>
-                
-                <div class="timeline">
-                    <div class="timeline-item">
-                        <div class="timeline-year">2015-2018</div>
-                        <div class="timeline-content">
-                            <strong>Prospect</strong><br>
-                            1440h de vidéo<br>
-                            Pointage manuel des trajectoires
-                        </div>
-                    </div>
-                    <div class="timeline-item">
-                        <div class="timeline-year">2016-2019</div>
-                        <div class="timeline-content">
-                            <strong>Autoconduct</strong><br>
-                            Monitoring conducteur<br>
-                            IA encore peu mature
-                        </div>
-                    </div>
-                    <div class="timeline-item">
-                        <div class="timeline-year">2020</div>
-                        <div class="timeline-content">
-                            <strong>Oculométrie</strong><br>
-                            Reconnaissance d'objets<br>
-                            Plugin temps réel
-                        </div>
-                    </div>
-                </div>
+      <section class="frame boxed" id="constat-commun" data-x="-4200" data-y="-270" data-s="0.36" data-title="Constat · Capitalisation">
+        <div class="kicker">Constat 2/6</div>
+        <h2><i class="fas fa-people-group c-media"></i> Capitaliser en communauté</h2>
+        <div class="cards c2">
+          <div class="card"><h3>Ce qu'on subit</h3>
+            <p>Chaque projet ou labo redéveloppe, dans son coin, des besoins qui sont en fait
+               <b>collectifs</b>. Pourtant, chacun a aussi besoin d'adapter l'outil à son cas.</p></div>
+          <div class="card accent"><h3>Ce que WAMA en fait</h3>
+            <p>Une règle, <b>zéro duplication</b> : ce qui sert à deux apps va dans le socle commun.
+               Les spécificités se <b>déclarent</b> au lieu de se coder partout. Une app métier devient,
+               au fil du temps, un ensemble de capacités réutilisables.</p></div>
+        </div>
+        <div class="src">AGENTS.md §Centralisation · VISION §7 (décomposition en capacités)</div>
+      </section>
 
-                <p style="margin-top: 50px; font-size: 1.3em; text-align: center;">
-                    <span class="highlight">Il nous fallait une solution unifiée et moderne</span>
-                </p>
+      <section class="frame boxed" id="constat-souverainete" data-x="-3560" data-y="-270" data-s="0.36" data-title="Constat · Souveraineté">
+        <div class="kicker">Constat 3/6</div>
+        <div style="display:flex;gap:60px;align-items:center">
+          <div class="rings">
+            <div class="ring r1">Clouds commerciaux</div>
+            <div class="ring r2">Clouds souverains</div>
+            <div class="ring r3">Cloud privé</div>
+            <div class="ring r4">Local</div>
+          </div>
+          <div>
+            <h2 style="font-size:54px">La souveraineté, à plusieurs niveaux</h2>
+            <ul>
+              <li><b>Local par défaut</b>, via Ollama. Les données sensibles restent en local.</li>
+              <li><b>Clouds souverains</b> : l'API Albert de la DINUM (SecNumCloud) est branchée depuis le 15/09.
+                  Mistral est aussi disponible.</li>
+              <li><b>Clouds commerciaux</b> : seulement si on les choisit, jamais par défaut.</li>
+              <li><span class="st todo">⏳</span> Filtre de confidentialité avant tout envoi au cloud : décidé, pas encore construit.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="src">ROADMAP §mode hybride · WAMA_LLM.md (Albert) · VISION §sécurité · llm_utils.CLOUD_DEFAULT_MODELS</div>
+      </section>
+
+      <section class="frame boxed" id="constat-repro" data-x="-4840" data-y="110" data-s="0.36" data-title="Constat · Reproductibilité">
+        <div class="kicker">Constat 4/6</div>
+        <h2><i class="fas fa-rotate c-data"></i> La reproductibilité</h2>
+        <div class="cards c3">
+          <div class="card"><h3>Versions figées</h3><p>Chaque librairie est fixée à une version exacte, installée depuis PyPI par son seul nom.
+              Pas de dépôt cloné.</p></div>
+          <div class="card"><h3>Tout se décrit</h3><p>Les apps, les modèles, les pipelines et les corpus sont décrits par des fiches,
+              des manifestes relus et contrôlés.</p></div>
+          <div class="card"><h3>Tout se trace</h3><p>Objectif : noter pour chaque exécution le modèle, sa version, les paramètres et
+              les entrées, et produire une fiche de méthode citable. <span class="st wip">🔄</span></p></div>
+        </div>
+        <div class="src">VISION §1.5 · ROADMAP §16.7 (verrous library) · WAMA_MANIFEST_SPEC.md</div>
+      </section>
+
+      <section class="frame boxed" id="constat-sobriete" data-x="-4200" data-y="110" data-s="0.36" data-title="Constat · Efficience & écologie">
+        <div class="kicker">Constat 5/6</div>
+        <h2 style="font-size:50px"><i class="fas fa-leaf" style="color:var(--ok)"></i> L'efficience : où placer le calcul ?</h2>
+        <p>L'essentiel du travail se fait avec des <b>modèles spécialisés, dix à cent fois plus petits</b>, choisis selon la
+           mémoire graphique (VRAM) disponible. Un gros LLM hébergé dans le cloud coûte et consomme bien plus pour la même tâche.</p>
+        <div class="ladder">
+          <div class="step" style="height:30%"><h3>Poste</h3><p>un GPU, un usage</p></div>
+          <div class="step" style="height:48%"><h3>Équipe</h3><p>serveur partagé</p></div>
+          <div class="step hot" style="height:66%"><h3>Labo / service</h3><p>WAMA aujourd'hui : un RTX 4090, 24 Go</p></div>
+          <div class="step hot" style="height:84%"><h3>Université</h3><p>cluster mutualisé ?</p></div>
+          <div class="step" style="height:100%"><h3>National</h3><p>clouds souverains</p></div>
+        </div>
+        <div class="src">VISION §1.4 (sobriété) · resource_governor.py · model_selector.select_model()</div>
+      </section>
+
+      <section class="frame boxed" id="constat-vitesse" data-x="-3560" data-y="110" data-s="0.36" data-title="Constat · Vitesse de l'open source">
+        <div class="kicker">Constat 6/6</div>
+        <h2><i class="fas fa-bolt c-trans"></i> L'open source va très vite</h2>
+        <div class="cards c3">
+          <div class="card"><h3>Prospecter</h3><p>On cherche les nouveaux modèles sur Hugging Face de façon <b>déterministe</b>,
+              sans LLM ni scraping. Un administrateur accepte chaque candidat.</p></div>
+          <div class="card"><h3>Tester sans risque</h3><p>Chaque app peut avoir une « jumelle » <code>&lt;app&gt;_NN</code>, avec ses propres
+              tables. On régénère l'app, pas la plateforme.</p></div>
+          <div class="card"><h3>Surveiller</h3><p>WAMA est comparé aux autres outils d'agents IA (Codex, Cursor, Claude Code…)
+              sur 14 axes. Les écarts sont écrits noir sur blanc.</p></div>
+        </div>
+        <div class="src">model_manager/services/prospector.py · ROUTE §10.3 (bac à sable) · WAMA_HARNESS.md</div>
+      </section>
+
+      <!-- ═════════════════════ 2 · QUATRE MONDES ═════════════════════ -->
+      <section class="frame" id="mondes" data-x="0" data-y="1900" data-s="1.2" data-section="1" data-title="Les quatre mondes">
+        <div style="width:500px">
+          <div class="kicker">02 — La réponse</div>
+          <h2>Un système,<br><span class="grad">quatre mondes</span></h2>
+          <p style="font-size:23px"><b class="c-media">Médias</b> et <b class="c-data">Data</b> alimentent le
+            <b class="c-lab">Lab</b>. Tous trois reposent sur un socle <b class="c-trans">Transversal</b>.
+            Un monde regroupe des outils et fixe qui y a accès. Ce n'est pas un silo : les mondes se parlent par
+            des capacités et des <b>ports typés</b>.</p>
+          <p class="scene-hint"><i class="fas fa-hand-pointer"></i> Faites tourner le schéma · cliquez un monde pour y plonger</p>
+        </div>
+        <div class="scene-slot" data-scene="worlds" style="left:600px;top:60px;width:950px;height:780px"></div>
+        <div class="src">WAMA_VISION_COMPLET Partie 2 · AGENTS.md « un monde n'est pas un sous-dossier du substrat »</div>
+      </section>
+
+      <!-- ── Monde Médias ─────────────────────────────────────── -->
+      <section class="frame" id="media" data-x="-3800" data-y="3600" data-s="1.5" data-section="1" data-title="Monde Médias">
+        <div style="width:760px">
+          <div class="kicker media">03 — Monde Médias</div>
+          <h2 style="font-size:54px;margin-bottom:14px">Dix apps en production</h2>
+          <p style="font-size:20px;margin-bottom:6px">Du média en entrée, du média en sortie. Les mêmes gestes partout :
+            même file d'attente, même volet, mêmes boutons.</p>
+          <div class="cards c2 compact">
+            <div class="card media"><p><b>Transcriber</b> : la parole en texte, avec correction assistée</p></div>
+            <div class="card media"><p><b>Anonymizer</b> : floute visages et plaques (YOLO)</p></div>
+            <div class="card media"><p><b>Synthesizer</b> : synthèse et clonage de voix</p></div>
+            <div class="card media"><p><b>Describer</b> : décrit un média avec un LLM multimodal</p></div>
+            <div class="card media"><p><b>Reader</b> : lit le texte des scans et PDF (olmOCR, EasyOCR)</p></div>
+            <div class="card media"><p><b>Imager</b> : génère images et vidéos (Hunyuan, Qwen, LTX…)</p></div>
+            <div class="card media"><p><b>Composer</b> : musique et bruitages (AudioCraft)</p></div>
+            <div class="card media"><p><b>Avatarizer</b> : avatar parlant (MuseTalk)</p></div>
+            <div class="card media"><p><b>Enhancer</b> : améliore image, vidéo et audio</p></div>
+            <div class="card media"><p><b>Converter</b> : convertit tous les formats</p></div>
+          </div>
+        </div>
+        <div class="src">README.md · VISION §2.1</div>
+      </section>
+
+      <section class="frame boxed" id="transcriber" data-x="-3185" data-y="3355" data-s="0.5" data-title="Médias · Transcriber, la chaîne">
+        <div class="kicker media">Zoom — Transcriber</div>
+        <h2>De la voix au texte vérifié</h2>
+        <div class="chain media">
+          <div class="node"><span class="n">01</span><h3>Nettoyage</h3><p>débruitage de l'audio (DeepFilterNet)</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">02</span><h3>Reconnaissance</h3><p>Whisper large-v3 par défaut, VibeVoice ; le moteur est choisi selon la VRAM</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">03</span><h3>Qui parle ?</h3><p>séparation des locuteurs (pyannote 3.1)</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">04</span><h3>Correction</h3><p>éditeur assisté par IA</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">05</span><h3>Export</h3><p>txt · srt · pdf · docx</p></div>
+        </div>
+        <p style="margin-top:28px"><b>Mode « Speak »</b> : transcription en direct dans le navigateur. Le texte est gardé
+           et peut repasser ensuite dans la chaîne complète.</p>
+        <div class="src">TRANSCRIBER_CORRECTION.md · transcriber/utils/model_config.py · transcriber/views.py</div>
+      </section>
+
+      <section class="frame boxed" id="transcriber-correction" data-x="-3185" data-y="3845" data-s="0.5" data-title="Médias · Correction assistée">
+        <div class="kicker media">Zoom — la correction assistée</div>
+        <h2>Aider l'humain, sans trahir la donnée</h2>
+        <div class="cards c3">
+          <div class="card media"><span class="st ok">✅</span><h3>Éditeur</h3>
+            <p>Forme d'onde, segments synchronisés, raccourcis clavier. La transcription d'origine n'est
+               jamais modifiée : la correction est rangée à part.</p></div>
+          <div class="card media"><span class="st ok">✅</span><h3>Carte de chaleur</h3>
+            <p>Chaque segment est coloré selon la confiance du moteur, ou selon la cohérence jugée par un LLM
+               (en un seul appel).</p></div>
+          <div class="card media"><span class="st wip">🔄</span><h3>Le biais repéré</h3>
+            <p>Un LLM juge la fluidité, pas la fidélité. Or, dans un entretien en sciences humaines, <b>une hésitation
+               est une donnée</b>. La parade : comparer deux moteurs de transcription. Cet outil est livré mais pas encore branché.</p></div>
+        </div>
+        <div class="src">TRANSCRIBER_CORRECTION.md §phases 1–2, §biais · common/services/divergence.py</div>
+      </section>
+
+      <!-- ── Monde Data ───────────────────────────────────────── -->
+      <section class="frame" id="data" data-x="-3800" data-y="5500" data-s="1.5" data-title="Monde Data">
+        <div style="width:760px">
+          <div class="kicker data">04 — Monde Data</div>
+          <h2 style="font-size:54px;margin-bottom:14px">Des données hétérogènes</h2>
+          <p style="font-size:22px">Signaux physiologiques, oculométrie, comportement, trajectoires, données véhicule.</p>
+          <div class="cards c2 compact" style="margin-top:18px">
+            <div class="card data"><h3 style="font-size:21px">Référentiel temporel</h3><p>met en phase des flux à cadences très différentes :
+               GPS 1 Hz, vidéo 25 i/s, regard 60 Hz, ECG 1 kHz</p></div>
+            <div class="card data"><h3 style="font-size:21px">Lecteurs</h3><p>RTMaps <code>.rec</code>, bases <code>.trip</code>, format natif
+               <code>.wdat</code> compatible BIND. Aucun format n'est privilégié.</p></div>
+            <div class="card data"><h3 style="font-size:21px">Fonctions typées</h3><p>55 fonctions au catalogue, qui ne s'enchaînent
+               que si leurs types sont compatibles</p></div>
+            <div class="card data"><h3 style="font-size:21px">État réel</h3><p>7 modules livrés mais pas encore utilisés, 3 à venir.
+               Le moteur est testé ; son interface reste à construire. <span class="st wip">🔄</span></p></div>
+          </div>
+        </div>
+        <div class="src">WAMA_DATA_WORLD.md · wama_data/modules.py · wama_data/core/temporal.py</div>
+      </section>
+
+      <section class="frame boxed" id="data-chaine" data-x="-3185" data-y="5255" data-s="0.5" data-title="Data · Une chaîne réelle">
+        <div class="kicker data">Zoom — un traitement de données réel (étude BIND)</div>
+        <h2>De l'acquisition aux indicateurs</h2>
+        <div class="chain data">
+          <div class="node"><span class="n">01</span><h3>Acquisition</h3><p>enregistrement RTMaps <code>.rec</code></p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">02</span><h3>Base <code>.trip</code></h3><p>1,28 Go pour un participant et 34 min</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">03</span><h3>Découpage</h3><p>8 flux, 6 tables d'événements, 12 tables de situations</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">04</span><h3>Export</h3><p>un tableur de 12 onglets</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">05</span><h3>Indicateurs</h3><p>393 colonnes (ECG, regard, EDA…)</p></div>
+        </div>
+        <p style="margin-top:26px">WAMA reprend cette chaîne dans des briques typées et testées,
+           héritées des outils du labo : BIND (MATLAB) et pynd (Python).</p>
+        <div class="src">WAMA_DATA_WORLD.md §étude BIND</div>
+      </section>
+
+      <section class="frame boxed" id="data-plan" data-x="-3185" data-y="5745" data-s="0.5" data-title="Data · Le plan d'expérience">
+        <div class="kicker data">Zoom — décrire un corpus, et que cette description serve</div>
+        <h2>Le plan d'expérience, pas l'arborescence</h2>
+        <div class="cards c2">
+          <div class="card data"><h3>Un manifeste qui s'exécute</h3>
+            <p>On décrit le corpus, et cette description suffit à le charger :
+               <code>manifeste → référentiel → vue → fonctions → export</code>.
+               Le manifeste dit ce qu'est le corpus, jamais ce qu'une analyse en fera.</p></div>
+          <div class="card data"><h3>Quatre rôles pour tout décrire</h3>
+            <p><b>Unité, regroupement, facteur, covariable.</b> Ces quatre rôles décrivent aussi bien une étude de
+               conduite qu'une série d'essais mécaniques. L'IA peut proposer un plan ; c'est le corpus qui le valide.</p></div>
+        </div>
+        <div class="src">VISION §8.1–8.2 · wama_data/dataset.py · WAMA_DATA_WORLD.md (axes)</div>
+      </section>
+
+      <!-- ── Monde Lab ────────────────────────────────────────── -->
+      <section class="frame" id="lab" data-x="3900" data-y="4550" data-s="1.5" data-title="Monde Lab">
+        <div style="width:760px">
+          <div class="kicker lab">05 — Monde Lab</div>
+          <h2>L'expertise métier, rendue réutilisable</h2>
+          <p style="font-size:22px">Les apps métier portent une expertise difficile à automatiser. Avec le temps,
+             chacune se <b>découpe en capacités</b> que d'autres peuvent réutiliser :</p>
+          <p style="font-size:18px;font-family:var(--mono);color:var(--ink-mute);margin:16px 0 22px">import → prétraitement → extraction →
+             modèles → analyse → visualisation → export</p>
+          <div class="cards c2" style="gap:12px">
+            <div class="card lab"><span class="st wip">🔄</span><h3 style="font-size:22px">Cam Analyzer</h3><p>Caméras d'une navette autonome :
+               comment les autres usagers s'insèrent aux intersections</p></div>
+            <div class="card lab"><span class="st wip">🔄</span><h3 style="font-size:22px">Face Analyzer</h3><p>Émotions (FER, DeepFace), rythme
+               cardiaque par caméra (rPPG), respiration, regard (MediaPipe)</p></div>
+          </div>
+        </div>
+        <div class="src">VISION Partie 7 · wama_lab/cam_analyzer/README.md · wama_lab/face_analyzer/README.md</div>
+      </section>
+
+      <section class="frame boxed" id="cam-analyzer" data-x="4515" data-y="4305" data-s="0.5" data-title="Lab · Cam Analyzer, la chaîne">
+        <div class="kicker lab">Zoom — Cam Analyzer</div>
+        <h2>De quatre caméras à des indicateurs de sécurité</h2>
+        <div class="chain lab">
+          <div class="node"><span class="n">01</span><h3>Détecter</h3><p>YOLO + suivi, voies, marquages au sol (SAM3)</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">02</span><h3>Situer</h3><p>pose GPS, distance, projection au sol</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">03</span><h3>Suivre à 360°</h3><p>identité conservée d'une caméra à l'autre, lissage de Kalman</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">04</span><h3>Vue de dessus</h3><p>carte Leaflet et orthophoto IGN</p></div>
+          <div class="arrow">→</div>
+          <div class="node"><span class="n">05</span><h3>Indicateurs</h3><p>conflits, TTC, PET, distance minimale</p></div>
+        </div>
+        <p style="margin-top:26px">La chaîne est complète ; sa validation dans le navigateur est en cours. C'est le premier pipeline
+           décrit dans le modèle commun : <b>13 étapes et 18 liens</b>.</p>
+        <div class="src">CAM_ANALYZER_CHAINE_TRAITEMENT.md · ROUTE §10.6</div>
+      </section>
+
+      <section class="frame boxed" id="cam-honnete" data-x="4515" data-y="4795" data-s="0.5" data-title="Lab · Ce qui tourne vraiment">
+        <div class="kicker lab">Zoom — un état sans maquillage</div>
+        <h2>Ce qui tourne, et ce qui ne tourne pas</h2>
+        <div class="cards c3">
+          <div class="card lab"><span class="st ok">câblé</span><h3>Branché</h3><p>YOLO + BoTSORT, YOLOPv2 (zone roulable et voies), SAM3 (marquages)</p></div>
+          <div class="card lab"><span class="st wip">mesure</span><h3>En mesure</h3><p>SAM3 appliqué à l'orthophoto IGN ; recalage de la pose de la navette</p></div>
+          <div class="card lab"><span class="st todo">jamais</span><h3>Jamais exécuté</h3><p>Apple Depth Pro : il fait planter la machine hôte</p></div>
+        </div>
+        <p style="margin-top:24px">L'app a <b>11 bascules A/B</b> et une analyse incrémentale : quand une étape change, seules
+           les passes devenues obsolètes (<code>STALE</code>) sont recalculées.</p>
+        <div class="src">CAM_ANALYZER_CHAINE_TRAITEMENT.md (table des modèles) · cam_analyzer/README.md</div>
+      </section>
+
+      <!-- ── Monde Transversal ───────────────────────────────── -->
+      <section class="frame" id="transversal" data-x="0" data-y="7700" data-s="2" data-title="Monde Transversal"
+               style="justify-content:flex-start;padding-top:60px">
+        <div class="kicker trans">06 — Monde Transversal</div>
+        <h2 style="font-size:58px;margin-bottom:6px">Le socle où les mondes se rejoignent</h2>
+      </section>
+
+      <section class="frame boxed" id="t-studio" data-x="-720" data-y="7460" data-s="0.4" data-title="Transversal · Studio & pipelines">
+        <div class="kicker trans">Chaîner</div>
+        <h2><i class="fas fa-diagram-project c-trans"></i> Studio et pipelines</h2>
+        <p>Le Studio construit des chaînes de traitement <b>en graphe</b>. Il relie les apps Médias, les fonctions
+           Data et les analyses Lab.</p>
+        <ul>
+          <li>Un seul modèle, acté le 15/09 : une <b>card</b> porte un <b>pipeline</b>, c'est-à-dire des entrées, des étapes et des sorties.</li>
+          <li>Le Studio est l'éditeur en graphe de ce même objet. Un pipeline devient à son tour une capacité.</li>
+          <li><span class="st wip">🔄</span> Les 10 apps et les fonctions du catalogue sont déjà des nœuds ; le traitement par lots reste à faire.</li>
+        </ul>
+        <div class="src">ROUTE §10.6 · VISION §Studio</div>
+      </section>
+
+      <section class="frame boxed" id="t-mediatheque" data-x="0" data-y="7460" data-s="0.4" data-title="Transversal · Médiathèque">
+        <div class="kicker trans">Partager</div>
+        <h2><i class="fas fa-photo-film c-trans"></i> Médiathèque</h2>
+        <p>Des ressources partagées : voix, images, sons, documents, avatars, objets 3D. <b>8 types</b> sont déclarés ;
+           en ajouter un demande une seule entrée, sans migration de base.</p>
+        <ul>
+          <li>Chaque média garde sa licence et son origine (Wikimedia, Pixabay, Freesound…).</li>
+          <li>On choisit avec qui le partager : moi seul, mon unité, un projet, tout le monde.</li>
+          <li><span class="st todo">⏳</span> Recherche par le sens (embeddings).</li>
+        </ul>
+        <div class="src">media_library/natures.py · VISION §médiathèque</div>
+      </section>
+
+      <section class="frame boxed" id="t-registres" data-x="720" data-y="7460" data-s="0.4" data-title="Transversal · Registres">
+        <div class="kicker trans">Savoir ce qu'on a</div>
+        <h2><i class="fas fa-table-list c-trans"></i> Registres</h2>
+        <p>Un registre dit ce que WAMA sait <b>nommer</b>, et il est confronté à ce qui existe vraiment :
+           modèles, apps, fonctions, skills, librairies, formats, licences, backends, docs, mémoire…</p>
+        <ul>
+          <li>Quatre façons de les tenir à jour : scan, mesure, redéclaration, dérivation.</li>
+          <li>Un registre des registres, visible par les administrateurs.</li>
+        </ul>
+        <div class="src">wama/common/registries.py · registries_builtin.py · wama_data/apps.py</div>
+      </section>
+
+      <section class="frame boxed" id="t-manifestes" data-x="-720" data-y="7900" data-s="0.4" data-title="Transversal · Manifestes & auto-génération">
+        <div class="kicker trans">Décrire → générer</div>
+        <h2><i class="fas fa-file-code c-trans"></i> Manifestes et apps générées</h2>
+        <p><b>7 types de fiches</b> : app, librairie, modèle, fonction, pipeline, projet, jeu de données.
+           L'interface se génère à partir de ces descriptions. Le parcours complet d'une app compte 8 étapes (F1 à F8) :
+           identité, ports, paramètres, modèles, traitement, prompts, droits, Studio.</p>
+        <ul>
+          <li>Chaîne « dépôt GitHub → app » : 6 rôles d'agent, et un humain valide toujours.</li>
+          <li><span class="st todo">⏳</span> Maillon manquant : produire automatiquement la fiche de l'app.</li>
+        </ul>
+        <div class="src">WAMA_MANIFEST_SPEC.md · ROUTE F1–F8 · ROUTE §10.5</div>
+      </section>
+
+      <section class="frame boxed" id="t-capacites" data-x="0" data-y="7900" data-s="0.4" data-title="Transversal · Capacités & ports typés">
+        <div class="kicker trans">Agréger</div>
+        <h2><i class="fas fa-plug c-trans"></i> Capacités et ports typés</h2>
+        <p>Trois catalogues se complètent : les apps, les fonctions, et les types de données. Les types forment
+           une hiérarchie (une trace GPS est une série temporelle, qui est une table).</p>
+        <ul>
+          <li>Les ports se déduisent du catalogue, <b>sans adaptateur écrit à la main</b>.</li>
+          <li>Une app regroupe des capacités, et le Studio sert aussi de bibliothèque.</li>
+          <li>Ce registre ne connaît jamais ceux qui l'alimentent : chaque monde déclare lui-même ses fonctions.</li>
+        </ul>
+        <div class="src">common/catalog/ · ROUTE §10.4 (marche D)</div>
+      </section>
+
+      <section class="frame boxed" id="t-llm" data-x="720" data-y="7900" data-s="0.4" data-title="Transversal · Harnais LLM">
+        <div class="kicker trans">Parler aux modèles</div>
+        <h2><i class="fas fa-robot c-trans"></i> Harnais LLM et prompts</h2>
+        <p>Une <b>seule chaîne de traitement des prompts</b>, sans rustine par app : on détecte la langue, on route,
+           on traduit, on enrichit, on ajoute les documents de référence.</p>
+        <ul>
+          <li>L'assistant : un seul cerveau pour plusieurs points d'accès (web, API, messageries), avec 71 outils au 19/09.</li>
+          <li>Écart repéré, le plus grave : l'assistant peut supprimer sans demander d'accord.</li>
+        </ul>
+        <div class="src">WAMA_LLM.md · WAMA_HARNESS.md (14 axes)</div>
+      </section>
+
+      <section class="frame boxed" id="t-gouverneur" data-x="-720" data-y="8340" data-s="0.4" data-title="Transversal · Gouverneur de ressources">
+        <div class="kicker trans">Arbitrer</div>
+        <h2><i class="fas fa-gauge-high c-trans"></i> Gouverneur et choix de modèle</h2>
+        <p>Un <b>point d'entrée unique</b> pour le GPU, le CPU et la RAM. Il est né d'un incident le 29/07 : 24 Go de VRAM
+           ont été dépassés, jusqu'à 38,1 Go.</p>
+        <ul>
+          <li>Plafond CUDA, registre VRAM partagé, priorités par app.</li>
+          <li>Le choix du modèle tient compte de la VRAM et préfère un modèle déjà chargé.</li>
+          <li><span class="st todo">⏳</span> Gestion du CPU et de la RAM, équité entre utilisateurs, passage à plusieurs GPU.</li>
+        </ul>
+        <div class="src">common/services/resource_governor.py · model_manager/services/model_selector.py</div>
+      </section>
+
+      <section class="frame boxed" id="t-memoire" data-x="0" data-y="8340" data-s="0.4" data-title="Transversal · Mémoire & RAG">
+        <div class="kicker trans">Se souvenir</div>
+        <h2><i class="fas fa-brain c-trans"></i> Mémoire et RAG</h2>
+        <p>Postgres avec pgvector (bge-m3, 1024 dimensions). Deux tables : les <b>souvenirs</b>, qui ne se purgent jamais,
+           et les <b>fragments</b>, qui se réindexent.</p>
+        <ul>
+          <li>Plusieurs niveaux : université → labo ou service → équipe → utilisateur, plus les projets.</li>
+          <li>Un contenu entre dans le RAG par un <b>geste</b> volontaire, jamais par un balayage automatique.</li>
+        </ul>
+        <div class="src">WAMA_MEMORY.md</div>
+      </section>
+
+      <section class="frame boxed" id="t-modeles" data-x="720" data-y="8340" data-s="0.4" data-title="Transversal · Model manager">
+        <div class="kicker trans">Choisir ses modèles</div>
+        <h2><i class="fas fa-cubes c-trans"></i> Model manager</h2>
+        <p>Il tient le catalogue des modèles installés, leur place sur le disque et leur provenance.</p>
+        <ul>
+          <li>Chaque modèle est rangé par famille ; un contrôle vérifie qu'aucun fichier étranger ne s'y mêle.</li>
+          <li>Plusieurs fournisseurs : Ollama en local, Albert, Mistral et d'autres clouds, sur choix explicite.</li>
+          <li>Un modèle proposé reste une proposition, qu'on peut refuser.</li>
+        </ul>
+        <div class="src">AGENTS.md §ajout d'un modèle · check_model_layout · llm_utils.py</div>
+      </section>
+
+      <!-- ═════════════════════ 3 · DROITS (3D) ═════════════════════ -->
+      <section class="frame" id="acces" data-x="4700" data-y="7700" data-s="1.2" data-section="1" data-title="Accès : tous les cas en 3D">
+        <div style="width:470px">
+          <div class="kicker">07 — Droits</div>
+          <h2 style="font-size:54px">Qui accède à quoi ? Tous les cas</h2>
+          <p style="font-size:21px"><b>Profil</b> (un seul, hiérarchique) × <b>rôles métier</b> (cumulables).
+            Chaque cube est une décision prise par la <b>vraie</b> fonction d'accès, sur la politique réellement en base.</p>
+          <p style="font-size:19px;margin-top:14px">S'ajoutent l'<b>organisation</b> (université → département → labo → équipe),
+            qui règle le partage et le RAG, et les <b>projets</b>, qui traversent les organisations.</p>
+          <p style="font-size:17px;margin-top:14px;color:var(--ink-mute)">Aujourd'hui, seule la famille « app » est contrôlée.
+            Modèles, librairies, fonctions et skills : ⏳ étape S3.</p>
+        </div>
+        <div class="scene-slot" data-scene="access" data-src="{% url 'presentation_access_cases' %}"
+             style="left:560px;top:40px;width:1000px;height:820px"></div>
+        <div class="src">accounts/permissions.py · PROFILES_PERMISSIONS.md · VISION §2.3</div>
+      </section>
+
+      <!-- ═════════════════════ 4 · LA FABRIQUE ═════════════════════ -->
+      <section class="frame boxed" id="docs" data-x="4700" data-y="9500" data-s="1" data-section="1" data-title="La doc se construit">
+        <div class="kicker">08 — La fabrique · documentation</div>
+        <h2>Une documentation qui se <span class="grad">confronte au code</span></h2>
+        <div class="cards c3">
+          <div class="card"><span class="st ok">✅</span><h3>Construction</h3><p>Le récit vivant : décisions, raisons, pièges, vision.
+              C'est une trace datée, pas un manuel.</p></div>
+          <div class="card"><span class="st wip">🔄</span><h3>Développeur</h3><p>3 docs produites à partir de la construction et
+              <b>nourries des registres</b> : le parcours, les registres, les briques.</p></div>
+          <div class="card"><span class="st wip">🔄</span><h3>Utilisateur</h3><p>Un passage n'y entre que si un registre confirme
+              ce qu'il décrit. Première doc produite le 14/09.</p></div>
+        </div>
+        <div class="cards c4" style="margin-top:20px">
+          <div class="card"><p><code>WAMA:FAIT(…)</code> : le chiffre est lu dans le registre, jamais recopié à la main.</p></div>
+          <div class="card"><p><code>doc_facts</code> régénère les tables ; la carte des 149 mécanismes est produite ainsi.</p></div>
+          <div class="card"><p><code>check_docs</code> : 2087 références vérifiées, <b>0 cassée</b> (18/09).</p></div>
+          <div class="card"><p>Un chiffre sans source (commande, date ou bloc généré) est signalé.</p></div>
+        </div>
+        <div class="src">AGENTS.md §Trois docs, trois publics · ROADMAP §25 · docs_catalog.py · fact_tags.py</div>
+      </section>
+
+      <section class="frame boxed" id="tests" data-x="0" data-y="10200" data-s="1.2" data-title="Les tests nocturnes">
+        <div class="kicker">09 — La fabrique · tests nocturnes</div>
+        <h2>Chaque nuit, WAMA <span class="grad">se remesure</span></h2>
+        <div style="display:flex;gap:50px;align-items:flex-start">
+          <div style="flex:1">
+            <div class="stats">
+              <div class="stat"><div class="big grad">300</div><span>scénarios au 19/09</span></div>
+              <div class="stat"><div class="big">2769</div><span>tests Django</span></div>
+              <div class="stat"><div class="big">96</div><span>critères de conformité</span></div>
             </div>
+            <ul style="margin-top:34px">
+              <li><b>02:30</b>, contrôles de cohérence : docs, conformité, manifestes, gabarits, redondance, vulnérabilités, secrets.
+                  Tolérance : zéro.</li>
+              <li><b>03:00</b>, tests fonctionnels sur le GPU. Désactivés par défaut, car l'hôte est instable.</li>
+              <li>Parcours d'interface avec Playwright : réponse HTTP 200, aucune erreur console, tous les onglets visités.</li>
+            </ul>
+          </div>
+          <div style="flex:0 0 560px">
+            <div class="card" style="margin-bottom:14px"><h3>Grille d'adoption</h3><p>Toutes les apps suivent-elles les mêmes règles ?
+               <b>863 / 906</b> au 18/09. Cette grille ne prouve pas que ça marche.</p></div>
+            <div class="card" style="margin-bottom:14px"><h3>Grille fonctionnelle</h3><p>Est-ce que ça marche vraiment ? Des scénarios
+               rejouent les gestes (couverture 17,5 sur 19 au 07/09).</p></div>
+            <div class="card"><h3>Budgets à sens unique</h3><p>Certains compteurs ne peuvent que baisser : noms en français dans le code,
+               écritures sauvages dans le cache HF (0). Ajouter un défaut devient impossible.</p></div>
+          </div>
         </div>
+        <div class="src">common/services/nightly_tests.py · settings.CELERY_BEAT_SCHEDULE · WAMA_VERIFICATION.md · check_app_conformity</div>
+      </section>
 
-        <!-- Slide 3: Qu'est-ce que WAMA -->
-        <div class="slide">
-            <h2>💡 Qu'est-ce que WAMA ?</h2>
-            <div class="content">
-                <div class="two-columns">
-                    <div>
-                        <h3>Une plateforme tout-en-un</h3>
-                        <ul>
-                            <li>Hébergée en interne (UGE)</li>
-                            <li>Open source et gratuite</li>
-                            <li>Personnalisable à volonté</li>
-                            <li>Évolutive avec l'état de l'art</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <h3>Pour quoi faire ?</h3>
-                        <ul>
-                            <li>Traiter images, vidéos, audio, textes</li>
-                            <li>Automatiser les tâches répétitives</li>
-                            <li>Exploiter l'IA sans expertise</li>
-                            <li>Intégrer dans nos workflows</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
+      <!-- ═════════════════════ 5 · CAP ═════════════════════ -->
+      <section class="frame boxed" id="cap" data-x="-4700" data-y="9500" data-s="1" data-section="1" data-title="Le cap">
+        <div class="kicker">10 — Le cap</div>
+        <h2>Ce qui est fait, en cours, à venir</h2>
+        <div class="cards c3">
+          <div class="card"><h3><span class="st ok">✅ fait</span></h3>
+            <ul><li>10 apps Médias en production</li><li>Accès par profils et rôles, arbre d'organisation</li>
+                <li>Socle mémoire et RAG (pgvector)</li><li>Doc confrontée au code, contrôles chaque nuit</li></ul></div>
+          <div class="card"><h3><span class="st wip">🔄 en cours</span></h3>
+            <ul><li>Docs développeur et utilisateur produites automatiquement</li><li>Cam Analyzer : validation</li>
+                <li>Adoption des briques communes par toutes les apps</li><li>Studio : traitement par lots</li></ul></div>
+          <div class="card"><h3><span class="st todo">⏳ à venir</span></h3>
+            <ul><li>Data Analyzer, l'app du monde Data</li><li>Un moteur de pipeline commun à tous les mondes</li>
+                <li>Filtre de confidentialité avant le cloud</li><li>Rapport de sobriété, passage multi-GPU</li></ul></div>
         </div>
+        <div class="src">PROJECT_STATUS.md · ROADMAP.md · VISION (marquage ✅/🔄/⏳)</div>
+      </section>
 
-        <!-- Slide 4: Applications principales -->
-        <div class="slide">
-            <h2>🛠️ Les applications</h2>
-            <div class="grid">
-                <div class="card">
-                    <h4><span class="emoji">🎭</span>Anonymizer / <span class="emoji">🔍</span>Detector</h4>
-                    <p>Flouter visages, plaques, corps · détecter des objets dans les vidéos</p>
-                </div>
-                <div class="card">
-                    <h4><span class="emoji">🎨</span>Imager / <span class="emoji">🎬</span>Video Gen</h4>
-                    <p>Générer images et vidéos depuis du texte ou des images</p>
-                </div>
-                <div class="card">
-                    <h4><span class="emoji">📝</span>Describer</h4>
-                    <p>Décrire n'importe quel média en texte</p>
-                </div>
-                <div class="card">
-                    <h4><span class="emoji">🎤</span>Transcriber</h4>
-                    <p>Audio → texte, avec correction assistée par IA</p>
-                </div>
-                <div class="card">
-                    <h4><span class="emoji">🔊</span>Synthesizer</h4>
-                    <p>Texte → voix (clonage et voix multiples)</p>
-                </div>
-                <div class="card">
-                    <h4><span class="emoji">✨</span>Enhancer</h4>
-                    <p>Améliorer la qualité vidéo/audio (débruitage, upscaling)</p>
-                </div>
-                <div class="card">
-                    <h4><span class="emoji">📖</span>Reader (OCR)</h4>
-                    <p>Lire le texte d'images, de scans et de PDF</p>
-                </div>
-                <div class="card">
-                    <h4><span class="emoji">🎵</span>Composer</h4>
-                    <p>Générer musique et bruitages depuis une description</p>
-                </div>
-                <div class="card">
-                    <h4><span class="emoji">👤</span>Avatarizer</h4>
-                    <p>Animer un visage qui parle (avatar parlant)</p>
-                </div>
-                <div class="card">
-                    <h4><span class="emoji">🔄</span>Converter</h4>
-                    <p>Convertir image / vidéo / audio / documents / archives</p>
-                </div>
-            </div>
-            <p style="text-align:center; margin-top:18px; opacity:0.85;">
-                + des outils de plateforme : <strong>Gestionnaire de modèles</strong>,
-                <strong>Médiathèque</strong> et un <strong>Assistant IA</strong> qui pilote les apps en langage naturel.
-            </p>
+      <section class="frame" id="fin" data-x="0" data-y="12000" data-s="1.4" data-title="Démonstration">
+        <div class="kicker">WAMA</div>
+        <h1 style="font-size:120px">Place à la démo</h1>
+        <p class="lead" style="margin-top:26px">Local d'abord · gouverné · reproductible · sobre · ouvert.</p>
+        <div style="display:flex;gap:14px;margin-top:44px;flex-wrap:wrap">
+          <a class="hud-btn" style="height:48px;font-size:17px" href="/"><i class="fas fa-house"></i> Ouvrir WAMA</a>
+          <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'architecture' %}"><i class="fas fa-sitemap"></i> Architecture</a>
+          <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'fiches' %}"><i class="fas fa-folder-open"></i> Le système de fiches</a>
+          <a class="hud-btn" style="height:48px;font-size:17px" href="{% url 'presentation_archive' '2026-v1' %}"><i class="fas fa-box-archive"></i> Présentation v1 (archive)</a>
         </div>
+      </section>
 
-        <!-- Slide 5: Cas d'usage Lescot -->
-        <div class="slide">
-            <h2>🔬 Cas d'usage au Lescot</h2>
-            <div class="content">
-                <div class="card" style="margin-bottom: 20px;">
-                    <h4>Anonymisation RGPD</h4>
-                    <p>Photos, vidéos, transcriptions audio pour respecter la confidentialité des participants</p>
-                </div>
-                
-                <div class="card" style="margin-bottom: 20px;">
-                    <h4>Standardisation des consignes</h4>
-                    <p>Avatars + voix de synthèse pour des consignes identiques entre participants</p>
-                </div>
-                
-                <div class="card" style="margin-bottom: 20px;">
-                    <h4>Analyse vidéo assistée</h4>
-                    <p>Détection automatique d'objets, segmentation, annotation pour gagner du temps</p>
-                </div>
-
-                <div class="card">
-                    <h4>Préparation de stimuli</h4>
-                    <p>Transformation contrôlée d'images/vidéos (luminosité, cadrage, orientation)</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Slide 6: WAMA Lab -->
-        <div class="slide">
-            <h2>🧪 WAMA Lab : la brique métier</h2>
-            <div class="content">
-                <div class="two-columns">
-                    <div>
-                        <h3>Objectif</h3>
-                        <p style="font-size: 1.2em; line-height: 1.8;">
-                            Séparer les applications <span class="highlight">génériques</span> des applications
-                            <span class="highlight">spécifiques à la recherche</span>
-                        </p>
-                        <ul style="margin-top: 30px;">
-                            <li>Environnements isolés</li>
-                            <li>Modèles spécialisés</li>
-                            <li>Tests expérimentaux</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <h3>Exemples futures</h3>
-                        <ul>
-                            <li>Analyse de scènes de conduite</li>
-                            <li>Détection de comportements</li>
-                            <li>Synchronisation multi-capteurs</li>
-                            <li>Reconstruction 3D</li>
-                            <li>Cinématique de la marche</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Slide 7: Face Analyzer -->
-        <div class="slide">
-            <h2>👤 Face Analyzer : analyse faciale non-invasive</h2>
-            <div class="content">
-                <p style="font-size: 1.2em; margin-bottom: 25px;">
-                    Extraction de signaux physiologiques à partir de vidéo faciale en <span class="highlight">temps réel</span> ou <span class="highlight">post-traitement</span>
-                </p>
-                <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap: 20px;">
-                    <div class="card" style="padding: 15px;">
-                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">❤️ rPPG</h4>
-                        <p style="font-size: 0.9em; line-height: 1.4;">
-                            Fréquence cardiaque, HRV, SpO2<br>
-                            <span style="opacity: 0.7;">rPPG-Toolbox • CHROM/POS</span>
-                        </p>
-                        <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
-                            📄 <a href="https://arxiv.org/abs/2210.00716" target="_blank" style="color: #ffd700;">NeurIPS 2023</a>
-                        </div>
-                    </div>
-                    <div class="card" style="padding: 15px;">
-                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">😊 Émotions</h4>
-                        <p style="font-size: 0.9em; line-height: 1.4;">
-                            7 émotions de base (Ekman)<br>
-                            <span style="opacity: 0.7;">FER (rapide) / DeepFace (complet)</span>
-                        </p>
-                        <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
-                            📄 <a href="https://ieeexplore.ieee.org/document/9259802" target="_blank" style="color: #ffd700;">IEEE 2020</a>
-                        </div>
-                    </div>
-                    <div class="card" style="padding: 15px;">
-                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">👁️ Oculométrie</h4>
-                        <p style="font-size: 0.9em; line-height: 1.4;">
-                            Regard, pupilles, clignements, PERCLOS<br>
-                            <span style="opacity: 0.7;">MediaPipe Face Mesh</span>
-                        </p>
-                        <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
-                            📄 <a href="https://arxiv.org/abs/1906.06440" target="_blank" style="color: #ffd700;">CVPR 2019</a>
-                        </div>
-                    </div>
-                    <div class="card" style="padding: 15px;">
-                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">🫁 Respiration</h4>
-                        <p style="font-size: 0.9em; line-height: 1.4;">
-                            Fréquence, amplitude, pattern<br>
-                            <span style="opacity: 0.7;">Signal processing</span>
-                        </p>
-                    </div>
-                    <div class="card" style="padding: 15px;">
-                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">👤 Âge & Genre</h4>
-                        <p style="font-size: 0.9em; line-height: 1.4;">
-                            Estimation démographique<br>
-                            <span style="opacity: 0.7;">DeepFace uniquement</span>
-                        </p>
-                        <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
-                            🔗 <a href="https://github.com/serengil/deepface" target="_blank" style="color: #ffd700;">GitHub</a>
-                        </div>
-                    </div>
-                    <div class="card" style="padding: 15px;">
-                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">📊 Visualisation</h4>
-                        <p style="font-size: 0.9em; line-height: 1.4;">
-                            Graphiques temps réel, overlay vidéo<br>
-                            <span style="opacity: 0.7;">Export JSON/CSV</span>
-                        </p>
-                    </div>
-                </div>
-                <p style="text-align: center; margin-top: 25px; font-size: 1em; opacity: 0.9;">
-                    🔗 Repos :
-                    <a href="https://github.com/ubicomplab/rPPG-Toolbox" target="_blank" style="color: #ffd700;">rPPG-Toolbox</a> •
-                    <a href="https://github.com/google/mediapipe" target="_blank" style="color: #ffd700;">MediaPipe</a> •
-                    <a href="https://github.com/justinshenk/fer" target="_blank" style="color: #ffd700;">FER</a> •
-                    <a href="https://github.com/serengil/deepface" target="_blank" style="color: #ffd700;">DeepFace</a>
-                </p>
-            </div>
-        </div>
-
-        <!-- Slide 8: Avantages -->
-        <div class="slide">
-            <h2>✅ Pourquoi WAMA change la donne</h2>
-            <div class="grid">
-                <div class="card">
-                    <h4>🏠 Hébergement interne</h4>
-                    <p>Sécurité, contrôle, pas de fuite de données sensibles</p>
-                </div>
-                <div class="card">
-                    <h4>🆓 Gratuit et illimité</h4>
-                    <p>Pas de coût de licence, utilisation sans limite</p>
-                </div>
-                <div class="card">
-                    <h4>🔄 Reproductibilité</h4>
-                    <p>Versions figées, logs, traçabilité scientifique</p>
-                </div>
-                <div class="card">
-                    <h4>🚀 Évolutif</h4>
-                    <p>Ajout facile de nouveaux modèles et fonctionnalités</p>
-                </div>
-                <div class="card">
-                    <h4>🔌 Intégrable</h4>
-                    <p>API pour automatiser les workflows de recherche</p>
-                </div>
-                <div class="card">
-                    <h4>🎓 Bac à sable</h4>
-                    <p>Tester de nouvelles applications IA sans risque</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Slide 9: Feuille de route -->
-        <div class="slide">
-            <h2>🗺️ Feuille de route</h2>
-            <div class="content">
-                <div class="card" style="margin-bottom: 15px; background: rgba(255,215,0,0.2);">
-                    <h4>Phase 1 · Mise en production 🔄</h4>
-                    <p>HTTPS, gestion utilisateurs, stockage externe, documentation</p>
-                </div>
-
-                <div class="card" style="margin-bottom: 15px; background: rgba(100,149,237,0.2);">
-                    <h4>Phase 2 · Industrialisation 🔄</h4>
-                    <p>Tests fonctionnels nocturnes (charpente en place), API, et mises à jour des modèles
-                       automatisées (détection + proposition d'installation)</p>
-                </div>
-
-                <div class="card" style="margin-bottom: 15px; background: rgba(144,238,144,0.2);">
-                    <h4>Phase 3 · Architecture unifiée 🔄</h4>
-                    <p>Toutes les apps construites sur des briques communes, pilotées par
-                       <strong>description et méta-informations</strong> : l'interface, l'inspecteur et les
-                       tests se génèrent à partir de ce que chaque app et chaque modèle déclarent</p>
-                </div>
-
-                <div class="card" style="background: rgba(255,182,193,0.2);">
-                    <h4>Phase 4 · Intelligence ⏳</h4>
-                    <p>Assistant IA déjà présent (pilote les apps en langage naturel) ; à venir :
-                       <strong>RAG</strong> — une mémoire documentaire à plusieurs niveaux (université, labo,
-                       équipe, utilisateur) et l'automatisation avancée</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Slide 10: Conclusion -->
-        <div class="slide">
-            <h2>🎯 En résumé</h2>
-            <div class="content" style="text-align: center;">
-                <p style="font-size: 1.8em; margin: 40px 0; line-height: 1.6;">
-                    WAMA = <span class="highlight">Plateforme unifiée</span> pour tous nos besoins multimédia
-                </p>
-                
-                <div style="font-size: 1.3em; line-height: 2; margin: 50px 0;">
-                    <p>✨ Anonymiser • Générer • Analyser • Enrichir</p>
-                    <p>🔒 Sécurisé • Open source • Évolutif</p>
-                    <p>🧪 Prêt pour la recherche au Lescot</p>
-                </div>
-
-                <p style="font-size: 2em; margin-top: 60px; color: #ffd700;">
-                    Place à la démonstration ! 🚀
-                </p>
-                <p style="margin-top: 30px;">
-                    <a href="{% url 'architecture' %}" style="color:#fff; text-decoration: underline; font-size: 1.1em;">
-                        🧩 Voir comment c'est construit (architecture) →
-                    </a>
-                </p>
-            </div>
-        </div>
     </div>
+  </div>
 
-    {% include 'includes/_presentation_nav.html' %}
+  <!-- Scènes 3D : superposées à leur .scene-slot une fois la caméra arrivée -->
+  <div id="scene-layer"><div id="scene-tooltip" class="scene-tooltip"></div></div>
+
+  <div id="access-panel">
+    <h4>Tous les cas</h4>
+    <div class="stats-line">Chargement…</div>
+    <h4>Profil</h4><div class="chips tiers"></div>
+    <h4>Rôles métier</h4><div class="chips roles"></div>
+    <div class="result"></div>
+    <div class="row"><button class="btn-tour">▶ Parcourir tous les cas</button><button class="btn-all">Tout voir</button></div>
+  </div>
+
+  <!-- Chrome -->
+  <div id="hud-top">
+    <a class="brand" href="/">WAMA <span>· présentation</span></a>
+    <div class="tools">
+      <button class="hud-btn" id="btn-help" title="Raccourcis (?)"><i class="fas fa-keyboard"></i></button>
+      <button class="hud-btn" id="btn-full" title="Plein écran (F)"><i class="fas fa-expand"></i></button>
+      <a class="hud-btn" href="/" title="Retour à WAMA"><i class="fas fa-house"></i></a>
+    </div>
+  </div>
+  <div id="help">
+    <kbd>→</kbd> <kbd>espace</kbd> suivant · <kbd>←</kbd> précédent<br>
+    <kbd>O</kbd> / <kbd>Échap</kbd> vue d'ensemble<br>
+    <kbd>F</kbd> plein écran · <kbd>Début</kbd> / <kbd>Fin</kbd><br>
+    Clic sur une zone : y plonger<br>
+    Scènes 3D : glisser pour tourner, molette pour zoomer
+  </div>
+  <div id="hud-bottom">
+    <button class="hud-btn" id="btn-overview" title="Vue d'ensemble (O)"><i class="fas fa-map"></i></button>
+    <button class="hud-btn" id="btn-prev" title="Précédent (←)"><i class="fas fa-chevron-left"></i></button>
+    <span id="hud-count"></span>
+    <span id="hud-title"></span>
+    <span id="hud-dots"></span>
+    <button class="hud-btn" id="btn-next" title="Suivant (→)"><i class="fas fa-chevron-right"></i></button>
+  </div>
+
+  <script src="{% static_v 'presentation/wama-presentation.js' %}"></script>
+  <script type="module" src="{% static_v 'presentation/wama-presentation-3d.js' %}"></script>
 </body>
 </html>

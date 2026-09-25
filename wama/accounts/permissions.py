@@ -331,6 +331,66 @@ def accessible_apps(user, app_ids):
     return [a for a in app_ids if accessible(user, 'app', a)]
 
 
+class _CaseUser:
+    """Compte FICTIF (tier + rôles) passé à `accessible()` pour énumérer les cas d'accès.
+
+    Il n'offre que ce que lisent `user_tier()`/`user_roles()` : décider à sa place recopierait
+    `_app_accessible()`, et deux barèmes pour une même question ne restent d'accord que par chance.
+    """
+    is_authenticated = True
+    is_superuser = False
+    username = ''
+
+    class _Groups:
+        def __init__(self, names):
+            self._names = names
+
+        def all(self):
+            from types import SimpleNamespace
+            return [SimpleNamespace(name=n) for n in self._names]
+
+    def __init__(self, tier, roles):
+        from types import SimpleNamespace
+        self.profile = SimpleNamespace(account_tier=tier)
+        self.groups = self._Groups([GROUP_PREFIX + r for r in roles])
+
+
+def access_cases():
+    """Tous les cas du modèle d'accès : chaque tier × chaque combinaison de rôles × chaque app.
+
+    Décision rendue par `accessible()` sur la politique EFFECTIVE (base, sinon seed) — c'est ce
+    que montre la présentation (visualisation 3D des droits). Renvoie aussi le nombre de
+    comportements DISTINCTS : les tiers qui contournent le gating rendent la même ligne quelles
+    que soient les rôles, si bien que les configurations se replient sur bien moins de cas réels.
+    """
+    from itertools import combinations
+    role_keys = list(ROLES)
+    role_sets = [list(c) for n in range(len(role_keys) + 1) for c in combinations(role_keys, n)]
+    # Jumelles de bac à sable exclues : dev-only par contrat, elles doubleraient leur app source.
+    apps = sorted((a for a in all_gated_apps() if app_group(a) != 'Bac à sable'), key=lambda a: (APP_GROUP_ORDER.index(app_group(a))
+                                                   if app_group(a) in APP_GROUP_ORDER else 99, a))
+    policies = {a: _policy_for(a) for a in apps}
+    matrix, distinct = [], set()
+    for tier in TIER_ORDER:
+        rows = []
+        for roles in role_sets:
+            row = [accessible(_CaseUser(tier, roles), 'app', a) for a in apps]
+            rows.append(row)
+            distinct.add(tuple(row))
+        matrix.append(rows)
+    return {
+        'tiers': [{'key': k, 'label': l} for k, l in TIER_CHOICES],
+        'roles': [{'key': k, 'label': ROLES[k], 'help': ROLE_DESCRIPTIONS.get(k, '')} for k in role_keys],
+        'role_sets': role_sets,
+        'apps': [{'id': a, 'group': app_group(a),
+                  'roles': sorted(policies[a]['roles']), 'public': bool(policies[a]['public']),
+                  'min_tier': policies[a]['min_tier']} for a in apps],
+        'matrix': matrix,
+        'configurations': len(TIER_ORDER) * len(role_sets),
+        'distinct_rows': len(distinct),
+    }
+
+
 def app_access(app_id):
     """
     Décorateur de vue (défense en profondeur, phase 2) : 403 si l'app n'est pas accessible.

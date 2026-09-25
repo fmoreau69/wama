@@ -650,7 +650,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
                   <a class="dropdown-item py-2" href="{% url 'presentation' %}">
                     <i class="fas fa-play-circle fa-fw me-2 text-primary"></i>
                     <span class="fw-semibold">La présentation interactive</span>
-                    <small class="d-block text-muted">Diaporama de la plateforme et de ses apps</small>
+                    <small class="d-block text-muted">Constat, quatre mondes, droits en 3D, fabrique</small>
                   </a>
                 </li>
                 <li><hr class="dropdown-divider"></li>
@@ -668,6 +668,18 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
                     <small class="d-block text-muted">Une fiche décrit, la plateforme se construit</small>
                   </a>
                 </li>
+                {% if archived_presentations %}
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Archives</h6></li>
+                {% for p in archived_presentations %}
+                <li>
+                  <a class="dropdown-item py-1" href="{% url 'presentation_archive' p.slug %}">
+                    <i class="fas fa-box-archive fa-fw me-2 text-muted"></i>
+                    <small>{{ p.label }}</small>
+                  </a>
+                </li>
+                {% endfor %}
+                {% endif %}
               </ul>
             </div>
           </div>
