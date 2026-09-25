@@ -1814,7 +1814,7 @@ def download_srt(request, pk: int):
 
 
 @require_POST
-def save_settings(request, pk: int):
+def update_settings(request, pk: int):
     """Réglages d'UN transcript — même lecture (coercition par le schéma) et même affectation
     que `batch_update_settings` de la fabrique : `read_settings_payload` + `apply_item_settings`.
     L'ancien `_apply_transcript_settings` typait à la main (`bool`, `float`, `int`) ce que le

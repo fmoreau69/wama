@@ -84,7 +84,7 @@ par fillDetail.{% endcomment %}
       editUrlTemplate: '{% url "transcriber:edit" 0 %}',
       downloadSrtUrlTemplate: '{% url "transcriber:download_srt" 0 %}',
       segmentsUrlTemplate: '{% url "transcriber:segments" 0 %}',
-      settingsUrlTemplate: '{% url "transcriber:save_settings" 0 %}',
+      settingsUrlTemplate: '{% url "transcriber:update_settings" 0 %}',
       previewUrlTemplate: '{% url "common:unified_preview" "transcriber" 0 %}',
       startAllUrl: '{% url "transcriber:start_all" %}',
       clearUrl: '{% url "transcriber:clear_all" %}',
@@ -130,10 +130,8 @@ par fillDetail.{% endcomment %}
     var values = {{ panel_values_json|safe }};
     WamaParams.render(host, schema, { context: 'panel', values: values });
 
-    // Modale « Paramètres » (item/batch) rendue DEPUIS LE MÊME SCHÉMA (context 'item').
-    // dom_id scopés → IDs/noms d'origine (settingsBackend…) ; openSettingsModal peuple à l'ouverture.
-    var modalHost = document.getElementById('settingsParams');
-    if (modalHost) WamaParams.render(modalHost, schema, { context: 'item', values: {} });
+    {% comment %}Modale ⚙ d'ÉLÉMENT : plus rendue ici — GÉNÉRÉE à chaque ouverture par le cycle
+    commun `WamaParams.settingsModal` (index.js, portage 2026-09-25), depuis ce même schéma.{% endcomment %}
 
     {% comment %} Modale de BATCH dédiée (contrat reader) — même schéma, context 'batch'.
     Remplace le détournement de la modale item (titre échangé + _settingsBatchId). {% endcomment %}
@@ -285,33 +283,12 @@ window._batchImport = WamaBatchImport({
 {% endblock %}
 
 {% block extra_modals %}
-<!-- Per-Transcript Settings Modal -->
-<div class="modal fade" id="settingsModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-cog"></i> Paramètres de transcription
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="settingsForm">
-                    <input type="hidden" id="settingsTranscriptId" name="transcript_id">
-
-                    <!-- Réglages GÉNÉRÉS depuis le schéma unique (params.py / WamaParams), context 'item'.
-                         Les dom_id scopés reproduisent les IDs/noms d'origine (settingsBackend, settingsHotwords,
-                         name="summary_type"…) → saveSettings/openSettingsModal/loadBackendsAsync inchangés.
-                         Même schéma que le volet inspecteur (context 'panel') = fin de la divergence modale↔volet. -->
-                    <div id="settingsParams" class="wama-params"></div>
-
-                </form>
-            </div>
-            {# Pied de modale COMMUN (convention MODAL_ACTIONS_AUDIT §3) — ids conservés (JS inchangé). #}
-            {% include 'common/_settings_modal_footer.html' with save_id='saveSettingsBtn' save_start_id='saveAndStartBtn' save_start_label='Enregistrer et démarrer' %}
-        </div>
-    </div>
-</div>
+{% comment %}⚙ modal of an ITEM: no markup here any more — GENERATED on each open by the shared cycle
+`WamaParams.settingsModal` (index.js, ported 2026-09-25). Only the SHARED footer it grafts remains,
+with the classes the cycle delegates (`save-settings-btn` / `save-and-restart-btn`).{% endcomment %}
+<template id="transcriberSettingsFooterTpl">
+    {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' save_start_label='Enregistrer et démarrer' %}
+</template>
 
 {% comment %} Modale paramètres de BATCH — champs générés du schéma (context:'batch'),
 appliqués à tous les items non-RUNNING (batch_update_settings). {% endcomment %}

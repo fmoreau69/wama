@@ -55,7 +55,7 @@ urlpatterns = [
     path('backends/', views.get_backends, name='backends'),
     path('segments/<int:pk>/', views.get_segments, name='segments'),
     path('download_srt/<int:pk>/', views.download_srt, name='download_srt'),
-    path('settings/<int:pk>/', views.save_settings, name='save_settings'),
+    path('settings/<int:pk>/', views.update_settings, name='update_settings'),
 
     # User-level settings
     path('user_settings/', views.get_user_transcriber_settings, name='get_user_settings'),

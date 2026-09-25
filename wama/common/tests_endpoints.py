@@ -260,7 +260,6 @@ class ItemEditRouteConventionTest(TestCase):
     #: Apps still on another name — each with its reason. An entry that has become conforming
     #: fails the test: the exemption must go with the debt.
     NAME_PENDING = {
-        'transcriber': "`save_settings` — l'app est en chantier dans une autre session (24/09)",
         'anonymizer': "`save_media_settings/` SANS identifiant (le `media_id` est posté) — et son "
                       "`update_settings` est une route GLOBALE sans pk, qui prendrait le nom "
                       "canonique : la renommer d'abord (right_panel.js, update.js)",
