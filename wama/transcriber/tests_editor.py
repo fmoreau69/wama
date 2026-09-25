@@ -177,3 +177,56 @@ class WriteModesTest(TestCase):
                                            busy=True)
         self.assertEqual('preempt', outcome['reason'])
         self.assertEqual([], spans)
+
+
+class TranscriptionTaskOnSkeletonTest(TestCase):
+    """The item task runs through the COMMON skeleton (`run_item_task`, 2026-09-25), and the ASR
+    model stays loaded after a card (Fabien's decision: a batch on one engine no longer reloads)."""
+
+    def setUp(self):
+        from django.core.files.base import ContentFile
+        from wama.common.services.ui_smoke import _wav_silence
+        self.user = User.objects.create_user('transcriber_skeleton', password='x')
+        self.item = Transcript(user=self.user, status='RUNNING', backend='auto',
+                               enable_diarization=False)
+        self.item.audio.save('skeleton.wav', ContentFile(_wav_silence(1.0, 8000)), save=False)
+        self.item.save()
+        self.addCleanup(lambda: self.item.audio.delete(save=False))
+
+    def _run(self, asr):
+        from unittest import mock
+        from wama.transcriber import workers
+        with mock.patch.object(workers, 'get_backend', return_value=asr), \
+                mock.patch.object(workers, 'compute_waveform_peaks'), \
+                mock.patch.object(workers, '_save_output_files'), \
+                mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
+            workers.transcribe_without_preprocessing.run(self.item.pk)
+        self.item.refresh_from_db()
+
+    def _asr(self, fail=False):
+        from unittest import mock
+        from wama.common.backends.speech_to_text_base import TranscriptionResult, TranscriptionSegment
+        asr = mock.MagicMock(display_name='Fake ASR', _current_model='fake-1')
+        asr.name = 'fake'
+        asr.load.return_value = True
+        asr.transcribe.return_value = TranscriptionResult(
+            success=not fail, text='bonjour à tous', language='fr', error='boom' if fail else None,
+            segments=[TranscriptionSegment('', 0.0, 1.0, 'bonjour à tous')])
+        return asr
+
+    def test_a_card_succeeds_through_the_skeleton_and_the_model_stays_loaded(self):
+        asr = self._asr()
+        self._run(asr)
+        self.assertEqual('SUCCESS', self.item.status)
+        self.assertEqual(100, self.item.progress)
+        self.assertEqual('bonjour à tous', self.item.text)
+        self.assertEqual(1, len(self.item.segments_json))
+        self.assertIsNotNone(self.item.finished_at)
+        self.assertIsNotNone(self.item.processing_seconds)
+        asr.unload.assert_not_called()
+
+    def test_a_failed_transcription_is_a_failure_with_its_message(self):
+        self._run(self._asr(fail=True))
+        self.assertEqual('FAILURE', self.item.status)
+        self.assertIn('boom', self.item.error_message)
+        self.assertEqual(0, self.item.progress)

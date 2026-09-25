@@ -364,37 +364,42 @@ def _transcribe_maybe_chunked(backend, audio_path: str, duration: float, kwargs:
 
 
 
+def _run_transcription(task, transcript_id: int):
+    """La tâche d'item du transcriber passe par le squelette COMMUN (`run_item_task`, 2026-09-25) :
+    gardes (redélivrance après crash), ingestion d'une source distante, statuts canoniques, durée
+    max, chrono, console, notifications et signal d'exécution — l'app ne fournit que sa GLU.
+    La progression reste écrite par `_set_progress` (clé et champ que lit le front), déclarée au
+    squelette par `progress_fn` : une seule main écrit la progression."""
+    from wama.common.utils.task_skeleton import run_item_task
+    run_item_task(task, app_id='transcriber', model=Transcript, item_id=transcript_id,
+                  process=_transcribe_item, notify_label='Transcriber',
+                  progress_fn=lambda item, pct, msg: _set_progress(item, pct, force=True))
+
+
 @shared_task(bind=True)
 def transcribe(self, transcript_id: int):
-    """
-    Main transcription task with preprocessing and backend selection.
+    """Transcription d'une card, prétraitement selon son réglage."""
+    return _run_transcription(self, transcript_id)
 
-    Uses the backend system to select the best available engine.
-    Supports VibeVoice (diarization) and Whisper backends.
-    """
+
+@shared_task(bind=True)
+def transcribe_without_preprocessing(self, transcript_id: int):
+    """Transcription d'une card SANS prétraitement (le réglage est remis à faux d'abord). Même
+    squelette, lancé avec CETTE tâche : la garde de redélivrance lit le drapeau de SON message."""
+    Transcript.objects.filter(pk=transcript_id).update(preprocess_audio=False)
+    return _run_transcription(self, transcript_id)
+
+
+def _transcribe_item(t, ctx):
+    """La GLU du squelette : prétraitement → ASR → diarisation → sauvegarde → résumé → cohérence,
+    puis mesure contre la référence, apprentissage ETA et forme d'onde. Le statut SUCCESS, la
+    progression 100, la durée et la notification sont posés par le squelette APRÈS ce retour ;
+    une exception le fait passer en FAILURE."""
     import time
-    _t0 = time.time()
-    close_old_connections()
-    t = Transcript.objects.get(pk=transcript_id)
+    from django.utils import timezone
 
-    # Garde anti-boucle-de-crash (brique COMMUNE) : un message `redelivered` vient
-    # d'un worker mort sans acquitter (freeze machine) — on refuse de rejouer
-    # l'exécution qui a tué le worker, l'item passe en échec relançable.
-    from wama.common.utils.process_control import refuse_crash_redelivery
-    if refuse_crash_redelivery(self, t):
-        _console(t.user_id, f"Transcription {t.id} : reprise après crash refusée — item en échec, relancer manuellement.")
-        return
-
-    _set_progress(t, 5, force=True)
     _console(t.user_id, f"Transcription {t.id} démarrée.")
-
     _set_partial_text(t.id, "🎙️ Transcription en cours...\n")
-
-    # Import par URL / batch : télécharger l'audio si pas encore de fichier local
-    # (mécanisme commun déclaratif ensure_local_input, spec WAMA_INGEST du modèle).
-    from wama.common.utils.source_ingest import ensure_local_input
-    ensure_local_input(t, console=lambda m: _console(t.user_id, m))
-
     audio_path = t.audio.path
     cleaned_path = None
 
@@ -513,11 +518,10 @@ def transcribe(self, transcript_id: int):
         _save_output_files(t, backend.name)
         _set_progress(t, 95)
 
-        # Unload the ASR model NOW — before LLM steps — to free GPU VRAM for Ollama
-        try:
-            backend.unload()
-        except Exception:
-            pass
+        # Le modèle ASR RESTE chargé (décision de Fabien, 2026-09-25 — la protection de juillet
+        # contre les crashs n'a plus lieu d'être) : un lot au même moteur ne le recharge plus à
+        # chaque card (12-16 s mesurés pour Whisper large-v3). La VRAM se partage par le
+        # gouverneur commun : reclaim local avant un gros chargement, libération à la demande.
 
         # Step 7: Optional LLM summary (structured or meeting compte-rendu)
         if t.generate_summary and t.text:
@@ -597,14 +601,6 @@ def transcribe(self, transcript_id: int):
             except Exception as seg_err:
                 _console(t.user_id, f"Avertissement: cohérence par-segment échouée ({seg_err})", level='warning')
 
-        _set_progress(t, 100)
-        # SUCCESS seulement maintenant : tout est prêt (texte, segments, résumé,
-        # cohérence globale + par-segment) → le front recharge au bon moment.
-        from django.utils import timezone
-        t.processing_seconds = round(time.time() - _t0, 1)   # durée réelle (affichée à la place de l'ETA)
-        t.finished_at = timezone.now()
-        t.status = 'SUCCESS'
-        t.save(update_fields=['status', 'processing_seconds', 'finished_at'])
         _set_status_message(t, '')                            # plus d'action en cours
 
         # Mesure contre la RÉFÉRENCE, si l'élément en porte une (brique commune, best-effort :
@@ -628,59 +624,22 @@ def transcribe(self, transcript_id: int):
                 )
         except Exception:
             pass
-        _console(t.user_id, f"Transcription {t.id} terminée ({backend.display_name}) ✓ "
-                            f"en {t.processing_display}")
-
-        # Notification email (respecte les préférences du profil ; fail-safe).
-        try:
-            from wama.common.utils.notifications import notify_job
-            notify_job(t.user, 'Transcriber', getattr(t, 'name', '') or f"transcription #{t.id}",
-                       True, detail=f"{num_segments} segment(s) · {t.processing_display}")
-        except Exception:
-            pass
-
         # Enveloppe de forme d'onde (peaks) — calcul asynchrone, non bloquant (éditeur /edit).
         try:
             compute_waveform_peaks.delay(t.id)
         except Exception:
             pass
 
-        # Unload model to free memory
-        try:
-            backend.unload()
-        except Exception:
-            pass
-
         return {
-            'ok': True,
-            'engine': backend.name,
-            'preprocessed': t.preprocess_audio,
-            'segments': num_segments,
-            'language': result.language
+            'fields': {'finished_at': timezone.now()},
+            'label': getattr(t, 'filename', '') or f"transcription #{t.id}",
+            'console_success': f"Transcription {t.id} terminée ({backend.display_name}) ✓",
+            'models': [t.model_key] if t.model_key else None,
         }
-
     except Exception as e:
-        import traceback
-        error_msg = str(e)
-        _console(t.user_id, f"Erreur transcription {t.id}: {error_msg}")
-        print(f"[Transcriber] Error: {traceback.format_exc()}")
-
-        t.status = 'FAILURE'
-        t.error_message = error_msg[:2000]
-        t.save(update_fields=['status', 'error_message'])
         _set_progress(t, 0, force=True)
-        _set_partial_text(t.id, f"❌ Erreur lors de la transcription:\n\n{error_msg}")
-
-        # Notification email d'échec (respecte les préférences ; fail-safe).
-        try:
-            from wama.common.utils.notifications import notify_job
-            notify_job(t.user, 'Transcriber', getattr(t, 'name', '') or f"transcription #{t.id}",
-                       False, detail=error_msg)
-        except Exception:
-            pass
-
-        return {'ok': False, 'error': error_msg}
-
+        _set_partial_text(t.id, f"❌ Erreur lors de la transcription:\n\n{e}")
+        raise
     finally:
         # Cleanup: remove preprocessed temporary file
         if cleaned_path and cleaned_path != audio_path and os.path.exists(cleaned_path):
@@ -689,30 +648,6 @@ def transcribe(self, transcript_id: int):
                 _console(t.user_id, "Fichier temporaire nettoyé")
             except OSError as e:
                 _console(t.user_id, f"Avertissement: impossible de supprimer {cleaned_path}: {e}")
-
-
-@shared_task(bind=True)
-def transcribe_without_preprocessing(self, transcript_id: int):
-    """
-    Transcription task without audio preprocessing.
-
-    Delegates to the main transcribe task after disabling preprocessing.
-    """
-    close_old_connections()
-
-    # Garde anti-boucle-de-crash (brique COMMUNE) — le flag `redelivered` est porté
-    # par CE message ; la délégation directe à transcribe() ne le verrait pas.
-    from wama.common.utils.process_control import refuse_crash_redelivery
-    t = Transcript.objects.get(pk=transcript_id)
-    if refuse_crash_redelivery(self, t):
-        _console(t.user_id, f"Transcription {t.id} : reprise après crash refusée — item en échec, relancer manuellement.")
-        return
-
-    # Update transcript to disable preprocessing
-    Transcript.objects.filter(pk=transcript_id).update(preprocess_audio=False)
-
-    # Delegate to main task (Celery injects self automatically for bind=True)
-    return transcribe(transcript_id)
 
 
 @shared_task(bind=True, name='wama.transcriber.enrich_transcript')

@@ -1030,6 +1030,11 @@ def holders_summary(limit: int = 4) -> str:
 #: un défaut par type se pose quand une mesure le justifie, pas d'avance.
 TASK_MAX_MINUTES = {
     '_default': 30,
+    # Mesuré le 2026-09-25 au passage du transcriber sur le squelette : la plus longue
+    # transcription réelle a pris 1 792 s (29,9 min) pour 87 min d'audio (résumé compris) —
+    # soit 0,34 × la durée. Un entretien de 2 h 22 (lot #442) dépasserait donc le défaut et
+    # serait ARRÊTÉ. 180 min couvrent ~8 h d'audio à ce rythme.
+    'transcriber': 180,
 }
 #: Réglage utilisateur (brique `user_settings`, app `common`) : 0 / absent = le défaut de l'app.
 USER_SETTING_MAX_TASK_MINUTES = 'max_task_minutes'
