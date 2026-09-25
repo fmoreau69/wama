@@ -82,9 +82,24 @@ class QwenASRBackend(SpeechToTextBackend):
     # Availability
     # ------------------------------------------------------------------
 
-    # is_available() : hérité du contrat commun (find_spec sur REQUIRED_PACKAGES). On n'importe
-    # PAS transformers pour répondre — c'est lourd et inutile juste pour peupler la liste des
-    # modèles (volet droit / modales) après un restart.
+    @classmethod
+    def is_available(cls) -> bool:
+        """Le moteur ne tourne que si l'ARCHITECTURE `qwen3_asr` est connue — de transformers, ou
+        de la bibliothèque officielle `qwen-asr`. Le défaut du contrat (paquets présents) disait
+        « disponible » alors que tout chargement échouait (« Transformers does not recognize this
+        architecture », card #49, 2026-09-25) : l'interface proposait un moteur qui ne pouvait pas
+        partir. Mesure LÉGÈRE, sans importer transformers (`find_spec` du sous-paquet) — c'est ce
+        que demandait ce commentaire : ne pas alourdir le peuplement des listes."""
+        import importlib.util
+        if cls.missing_packages():
+            return False
+        for module in ('transformers.models.qwen3_asr', 'qwen_asr'):
+            try:
+                if importlib.util.find_spec(module) is not None:
+                    return True
+            except (ImportError, ValueError):
+                continue
+        return False
 
     # ------------------------------------------------------------------
     # Internal helpers

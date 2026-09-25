@@ -375,3 +375,26 @@ class AutoriteDuMoteurSurLeClonageTest(TestCase):
             self.assertFalse(get_sync_service()._reconcile_engine_flags(ligne))
         ligne.refresh_from_db()
         self.assertEqual(avant, ligne.capabilities)
+
+
+class QwenAsrAvailabilityTest(TestCase):
+    """Card #49 (2026-09-25): Qwen3-ASR said « available » while every load failed — transformers
+    does not know the `qwen3_asr` architecture. Available means: the architecture is known."""
+
+    def _available(self, known):
+        from unittest import mock
+        from wama.common.backends.qwen_asr_backend import QwenASRBackend
+
+        def find_spec(name, *args):
+            return object() if name in known else None
+
+        with mock.patch.object(QwenASRBackend, 'missing_packages', return_value=[]), \
+                mock.patch('importlib.util.find_spec', side_effect=find_spec):
+            return QwenASRBackend.is_available()
+
+    def test_packages_alone_do_not_make_the_engine_available(self):
+        self.assertFalse(self._available(set()))
+
+    def test_the_architecture_known_by_transformers_or_by_qwen_asr_does(self):
+        self.assertTrue(self._available({'transformers.models.qwen3_asr'}))
+        self.assertTrue(self._available({'qwen_asr'}))
