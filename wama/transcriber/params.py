@@ -48,7 +48,11 @@ PARAMS = derive_from_model(
         "preprocess_audio": dict(
             label="Prétraitement audio", icon="fa-wand-magic-sparkles",
             dom_id={"panel": "preprocessingToggle", "item": "settingsPreprocess"},
+            # Risque MESURÉ (2026-09-25, lots d'évaluation #443) : sur un entretien propre, le
+            # débruitage a fait passer l'erreur par mot de 32 à 37 % — ses artefacts gênent l'ASR.
             help_html='Débruitage IA (DeepFilterNet) + 16 kHz mono<br>'
+                      '<span class="text-warning">Peut dégrader la transcription d\'un enregistrement '
+                      'déjà propre : à réserver aux fonds très bruyants.</span><br>'
                       '<a href="#" class="text-info text-decoration-none" data-bs-toggle="modal" '
                       'data-bs-target="#preprocessingModal"><i class="fas fa-circle-question"></i> En savoir plus</a>',
         ),
