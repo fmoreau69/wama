@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**153 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**159 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -63,11 +63,11 @@ Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel
 
 ### Gardes de process
 
-Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines
+Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ; solde des tâches d'un worker MORT (preuve : processus disparu) au démarrage du worker relancé (`worker_ready`) et par la surveillance des workers (`scripts/worker_watchdog.sh` → `manage.py worker_died`)
 
-- **Domicile** : `wama/common/utils/process_control.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
+- **Domicile** : `wama/common/utils/process_control.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Contrôle de process COMMUN — brique transversale (cf. memory project_process_button_lifecycle).
-- **API publique** (10) :
+- **API publique** (13) :
   - `begin_processing(model, pk, *, user=None, reset=None, status_field: str='status', task_field: str='task_id', running_value: str='RUNNING')` — Démarrage ANTI-RACE d'un item (pattern obligatoire AGENTS.md — généralise describer
   - `stop_instance(instance, *, status_field: str='status', task_field: str='task_id', to_status: str='FAILURE', error_field: str | None=None, error_message: str="I…` — Stoppe le traitement d'un item : révoque la tâche Celery (SIGTERM) et le remet dans un état
   - `is_task_dead(task_id: str) -> bool` — True si la tâche Celery est dans un état terminal (finie/échouée/révoquée). NE classe PAS PENDING
@@ -77,6 +77,9 @@ Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines
   - `is_task_orphaned(task_id: str, snapshot) -> bool` — True SEULEMENT si l'on a une PREUVE POSITIVE que la tâche est morte : elle a démarré
   - `is_task_lost(task_id: str, snapshot) -> bool` — True SEULEMENT si la tâche n'est PLUS NULLE PART : état Celery `PENDING`, aucun message
   - `reconcile_orphaned_running(instances, *, snapshot=None, status_field: str='status', task_field: str='task_id', running_value: str='RUNNING', to_status: str='FA…` — Réconcilie une liste d'items RUNNING dont la tâche Celery est TERMINÉE (is_task_dead)
+  - `is_task_on_dead_process(task_id: str, hostname: str) -> bool` — PREUVE POSITIVE de mort (2026-09-24) : la tâche a démarré (`STARTED`) sur le worker
+  - `work_models()` — Les modèles qu'un worker Celery peut traiter : ceux des apps WAMA qui portent la paire
+  - `reconcile_dead_worker_tasks(hostname: str, *, error_message: str="Traitement interrompu : le worker s'est arrêté. Relancer l'élément.") -> list` — Bascule en échec RELANÇABLE chaque élément RUNNING dont la tâche a démarré sur le worker
   - `refuse_crash_redelivery(task, instance, *, status_field: str='status', task_field: str='task_id', to_status: str='FAILURE', error_field: str | None=None, error…` — Garde ANTI-BOUCLE-DE-CRASH pour les tâches lourdes (GPU) — à appeler EN TÊTE
 
 ### Gouverneur de ressources
@@ -85,7 +88,7 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
-- **API publique** (50) :
+- **API publique** (51) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
   - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU.
   - `reserve_vram(owner: str, gb: float, *, allocated: bool=False, expires_in_s: float | None=None) -> bool` — Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
@@ -128,7 +131,8 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
   - `obtain_vram(needed_gb: float, requester: str, *, reason: str='', timeout_s: float=120.0, poll_s: float=2.0, console=None) -> tuple[bool, float]` — Demande la libération, puis ATTEND que la SONDE rende `needed_gb` (bornée : le pilote
   - `release_in_progress() -> bool` — Une libération est en cours (au moins une demande vivante). L'assistant le lit pour rester
   - `holders_summary(limit: int=4) -> str` — Une phrase pour l'utilisateur : QUI tient QUOI — modèles résidents (Go) et tâches en cours.
-  - `task_time_limit_s(app_id: str, user=None) -> float` — Plafond de durée d'UN traitement, en secondes : le réglage de l'utilisateur s'il en a posé
+  - `model_task_minutes(model_key: str | None) -> int` — Durée max déclarée pour un modèle au catalogue (minutes), 0 si aucune.
+  - `task_time_limit_s(app_id: str, user=None, model_key: str | None=None) -> float` — Plafond de durée d'UN traitement, en secondes : le réglage de l'utilisateur s'il en a posé
   - `class Tenant` — Ce qu'un process qui tient de la VRAM DÉCLARE au gouverneur : son nom, comment savoir
   - `serve_release_requests(tenant: Tenant) -> int` — UN passage : sert les demandes que ce tenant n'a pas encore acquittées, restaure après
   - `start_release_listener(tenant: Tenant, poll_s: float=RELEASE_POLL_S) -> bool` — Lance, une fois par process, le thread démon qui sert les demandes de libération pour
@@ -410,7 +414,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)
 
 - **Domicile** : `wama/model_manager/services/prospector.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Prospection de modèles — version DÉTERMINISTE (sans LLM, sans scraping).
-- **API publique** (16) :
+- **API publique** (17) :
   - `hf_task_to_wama(pipeline_tag: str, tags=())` — (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
   - `card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str='') -> dict` — Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
   - `prospect_hf(task: str, limit: int=15, library: str | None=None, min_downloads: int=0, search: str | None=None, sort: str='downloads')` — Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
@@ -418,6 +422,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)
   - `local_inventory(snapshot_root)` — `[(chemin relatif, taille)]` d'un modèle INSTALLÉ — le jumeau LOCAL de `_siblings`
   - `safetensors_facts(path)` — `{'params': nombre de paramètres, 'dtypes': [...]}` lus dans l'EN-TÊTE seul d'un
   - `precision_of_files(revision, files_by_role) -> dict` — `{rôle: {'params', 'dtypes'}}` — la PRÉCISION de chaque composant, lue dans les en-têtes
+  - `remote_precision(hf_id: str, files_by_role) -> dict` — JUMEAU DISTANT de `precision_of_files`, même forme `{rôle: {params, dtypes,
   - `quantized_variants(hf_id: str, limit: int=5) -> list[dict]` — Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
   - `analyze_license(hf_id: str, license_id: str='', base_model=None, _profondeur: int=0)` — Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
   - `install_options(cand) -> dict` — Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
@@ -476,14 +481,13 @@ Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique,
 
 - **Domicile** : `wama/common/static/common/js/wama-inspector.js` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7ter](../construction/ia/WAMA_MEMORY.md)
 
-### Barre d'outils générale (registre + profils)
 ### Ancrage d'un texte sans temps sur des mots horodatés
 
 Étage A de l'alignement forcé, SANS modèle : un texte fait ailleurs (export Sonal, texte) retrouve l'heure de chacun de ses mots parmi ceux d'une sortie ASR de la même audio — plus longue sous-suite commune des mots (RapidFuzz `Indel`, jamais Levenshtein, qui substitue aux ex-aequo et décale la suite). Chaque mot dit la qualité de son temps : `exact`, `estimated` (dans la durée réelle des mots corrigés), `interpolated` (rien en face). Étage B (`refine_turns`) : un aligneur ACOUSTIQUE (contrat `ForcedAlignmentBackend`, choisi au catalogue par sa tâche `alignment` et sa langue) reprend les seuls mots estimés, par fenêtres que tiennent leurs voisins sûrs, coupées entre deux mots au-delà de sa capacité ; ils deviennent `aligned`. Le module ne charge aucun modèle : il reçoit le geste d'alignement. Bornes (`move_boundary`, `split_turn`) : déplacer la jonction de deux tours ou couper un tour, toujours ENTRE deux mots et sans en perdre un — un texte corrigé se réancre d'abord sur la référence ASR. Plage (`replace_span`) : une plage retranscrite remplace les mots qui s'y disaient, ou remplit un blanc d'un tour neuf
 
 - **Domicile** : `wama/common/services/word_anchoring.py` · **doc** : [wama/transcriber/TRANSCRIBER_CORRECTION.md §10.5](../../wama/transcriber/TRANSCRIBER_CORRECTION.md)
 - **Module** : Ancrage d'un texte SANS TEMPS sur des mots HORODATÉS — l'étage A de l'alignement forcé.
-- **API publique** (3) :
+- **API publique** (8) :
   - `timed_tokens(words: List[dict]) -> List[Tuple[str, float, float]]` — Mots horodatés (`{word, start, end}`, forme Whisper) → jetons comparables horodatés.
   - `anchor_turns(turns: List[dict], words: List[dict]) -> Optional[Tuple[List[dict], dict]]` — Donne des temps aux tours de parole `turns` (`{text, …}`) à partir des mots horodatés `words`.
   - `refine_turns(turns: List[dict], align_window, max_seconds: float, *, audio_end: Optional[float]=None) -> Tuple[List[dict], dict]` — ÉTAGE B : reprend à l'oreille les mots `estimated`/`interpolated` de tours ANCRÉS.
@@ -493,6 +497,7 @@ Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique,
   - `split_turn(turn: dict, at: float, reference: Optional[List[dict]]=None) -> Optional[Tuple[dict, dict]]` — Coupe un tour en deux à `at`, entre deux mots : les mots d'avant restent, ceux d'après
   - `replace_span(turns: List[dict], start: float, end: float, words: List[dict], reference: Optional[List[dict]]=None, new_turn: Optional[dict]=None) -> List[dict]` — Remplace les mots de `turns` dont le MILIEU tombe dans [start, end] par `words` (horodatés).
 
+### Barre d'outils générale (registre + profils)
 
 UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire des outils, elle ne les énumère pas — ajouter un outil à toutes les files est UNE clé, plus jamais douze gabarits (demande Fabien 2026-09-08 : « de façon globale, pas par app »). Les deux barres historiques SURVIVENT en façades vers `_toolbar.html`, ce qui laisse les 27 pages appelantes inchangées ; les deux ENVELOPPES sont conservées telles quelles (les fondre aurait changé les deux apparences). Chaque outil est un partial sous `common/toolbar/`
 
@@ -757,7 +762,6 @@ Souvenirs + fragments sur pgvector, scope hérité de ScopedVisibility ; 5 opér
   - `approve(item, *, par, visibility=None, scope_org_unit=None, scope_project=None)` — LE GESTE DE VALIDATION HUMAINE — ajouté le 2026-09-09, et son absence était le trou.
   - `list_memories(user, *, en_attente=False)` — Les souvenirs à AFFICHER — matière de la page « Mes souvenirs » (jumelle de « Mon RAG »).
 
-### Outils de DÉVELOPPEMENT (surface MCP « wama-dev »)
 ### Métriques à vérité terrain (WER / CER)
 
 Distance d'une sortie texte à sa RÉFÉRENCE (port `reference_result`) : substitutions, suppressions, insertions rapportées à la longueur de la référence. Ne normalise que la casse et la ponctuation — les hésitations restent des données (verbatim) ; une référence vide rend un taux INDÉFINI, jamais zéro
@@ -770,6 +774,7 @@ Distance d'une sortie texte à sa RÉFÉRENCE (port `reference_result`) : substi
   - `word_error_rate(reference: str, hypothesis: str) -> ErrorRate` — WER — taux d'erreur par MOT de `hypothesis` (la sortie) contre `reference`.
   - `character_error_rate(reference: str, hypothesis: str) -> ErrorRate` — CER — taux d'erreur par CARACTÈRE, sur le même texte normalisé que le WER (mots séparés
 
+### Outils de DÉVELOPPEMENT (surface MCP « wama-dev »)
 
 Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sable d'apps, exposés à un client MCP. ⚠ JAMAIS chargé dans le process de PRODUCTION (ROADMAP §16 : défense en profondeur > scope de jeton) — ni dans `TOOL_REGISTRY` ni importé par `tool_api` ; seul `run_mcp_server --surface dev` l'importe, et `tests_mcp_dev_tools` le garde. Les rôles écrivent une PROPOSITION dans `wama-dev-ai/outputs/` et n'appliquent rien
 
@@ -909,14 +914,13 @@ CVE des paquets INSTALLÉS du venv courant via l'API OSV.dev (pas les requiremen
   - `interroger_osv(paquets: list[tuple[str, str]]) -> dict[str, list[str]]` — {"nom==version": [ids OSV]} — lève si l'API est injoignable.
   - `class Command(BaseCommand)`
 
-## Contenu & prompts
 ### Évaluation d'un résultat contre sa référence
 
-Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référence, lecture du résultat et de la référence, modèle, métriques) et la brique fait le reste : pose la référence sur un élément OU un lot (un seul fichier, partagé), mesure, conserve la mesure par élément (`ResultEvaluation` — modèle, échelle, sens, identité de la référence : ce que l'indice interne des modèles agrégera) et compare les modèles d'un lot (taux de CORPUS, et dit quand les références diffèrent). Va avec la capacité `has_reference_result` — un test refuse l'une sans l'autre
+Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référence, lecture du résultat et de la référence, modèle, métriques) et la brique fait le reste : pose la référence sur un élément OU un lot (un seul fichier, partagé), mesure, conserve la mesure par élément (`ResultEvaluation` — modèle, échelle, sens, identité de la référence : ce que l'indice interne des modèles agrégera) et compare les modèles d'un lot (taux de CORPUS, et dit quand les références diffèrent). SANS référence, l'accord entre moteurs d'une même entrée (M1 deux à deux, médiane M6, jamais de « meilleur »). Va avec la capacité `has_reference_result` — un test refuse l'une sans l'autre
 
 - **Domicile** : `wama/common/services/result_evaluation.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Évaluation d'un résultat contre sa RÉFÉRENCE — la brique commune que chaque app adopte par une DÉCLARATION (`register_evaluation`), jamais par du code d'évaluation à elle.
-- **API publique** (14) :
+- **API publique** (15) :
   - `class EvaluationSpec` — Ce qu'une surface déclare pour être évaluable. Voir l'en-tête du module.
   - `register_evaluation(spec: EvaluationSpec) -> None` — Appelé depuis le `apps.py:ready()` de l'app — le registre ne connaît jamais ses apps.
   - `evaluation_spec(surface: str) -> Optional[EvaluationSpec]`
@@ -933,6 +937,7 @@ Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référenc
   - `detach_result(surface: str, item) -> int` — Retire le fichier du résultat existant. Le RÉSULTAT de l'élément reste tel quel jusqu'à
   - `detach_reference(surface: str, targets: List) -> int` — Retire la référence d'éléments ; le fichier n'est supprimé que s'il n'est plus désigné.
 
+## Contenu & prompts
 
 ### Accès LLM
 
@@ -1056,12 +1061,13 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
 
 - **Domicile** : `wama/common/services/assistant_engine.py`
 - **Module** : Moteur de l'assistant IA — boucle agentique multi-surface (chantier « passerelle de canaux », étape 0).
-- **API publique** (5) :
+- **API publique** (6) :
+  - `surface_attaches_files(surface: str) -> bool` — La réponse de cette surface est-elle publiée par un ADAPTATEUR qui joint les fichiers ?
   - `assistant_settings(user) -> dict` — Réglages DURABLES de l'assistant pour `user` (brique commune `user_settings`, app
   - `resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple` — (fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
   - `thinking_wanted(quality_intent) -> bool` — La réflexion du modèle est-elle demandée pour ce réglage de curseur ?
   - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str=None, model: str=None, domain: str=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
-  - `run_assistant_turn(user, message: str, provider: str=None, model: str=None, history: list=None, domain: str=None) -> dict` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
+  - `run_assistant_turn(user, message: str, provider: str=None, model: str=None, history: list=None, domain: str=None, surface: str='web') -> dict` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
 
 ### Pipeline de prompts
 
@@ -1181,7 +1187,7 @@ Source commune des formats+qualités de fichier par domaine (réutilise le vocab
   - `get_output_formats(domain: str) -> List[Tuple[str, str]]` — [(valeur, libellé)] des formats de fichier de sortie pour un domaine. 'original' = inchangé.
   - `get_output_qualities(domain: str | None=None) -> List[Tuple[str, str]]` — Presets de qualité (web/équilibré/max). `domain` réservé pour d'éventuelles variantes futures.
   - `output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None) -> list` — Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
-  - `output_format_params_for_app(app_name: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None) -> list` — AUTO depuis APP_CATALOG : lit `multi_format_download` (early/late) + déduit le domaine des
+  - `output_format_params_for_app(app_name: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, domain:…` — AUTO depuis APP_CATALOG : lit `multi_format_download` (early/late) + déduit le domaine des
 
 ### Gabarits de génération d'app (marches S2 + B1)
 
@@ -1398,15 +1404,18 @@ Une règle unique pour les 8 apps à liaison PRÉCOCE, en deux familles : entré
   - `output_tag(app: str) -> str` — Mot de process de l'app : déclaré dans `APP_CATALOG`, sinon table de repli, sinon l'app.
   - `compose_output_name(*, app: str, model: str='', ext: str='', source_name: str='', item_id=None, index: int=None, total: int=1) -> str` — Compose le nom du fichier de sortie. Rend un NOM, jamais un chemin.
 
-### Notifications de tâche
+### Notifications
 
-notify_job() — fin de traitement, succès comme échec
+notify_job() — fin de traitement par e-mail, succès comme échec ; notify_in_app() — DANS WAMA (badge de l'en-tête, page /common/notifications/, lu / non lu) ; notify_admins() — les deux canaux vers les administrateurs (mort d'un worker)
 
-- **Domicile** : `wama/common/utils/notifications.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
+- **Domicile** : `wama/common/utils/notifications.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md](../construction/exploitation/WAMA_COLLABORATION.md)
 - **Module** : Notifications utilisateur (email) — brique commune, métadonnée/préférence-driven.
-- **API publique** (3) :
+- **API publique** (6) :
   - `notify_emails(recipients, subject, body, html=None)` — Envoie un email à une liste d'ADRESSES (pas forcément des Users) — ex. modérateurs.
   - `notify_user(user, subject, body, html=None)` — Envoie un email à l'utilisateur si une adresse est disponible. Fail-safe (jamais d'exception).
+  - `notify_in_app(users, kind, title, body='', url='')` — Crée une notification DANS WAMA pour chaque utilisateur (`common.Notification`, badge de
+  - `infrastructure_admins()` — Les comptes qui administrent l'infrastructure : ceux que la politique d'accès laisse
+  - `notify_admins(kind, subject, body, url='')` — Prévient les administrateurs de l'infrastructure DANS WAMA et par e-mail. Fail-safe ;
   - `notify_job(user, app_label, item_name, success, detail='', url='')` — Notifie la fin (ou l'échec) d'un traitement, en respectant les préférences du profil.
 
 ### Ordre MANUEL de la file
@@ -1415,7 +1424,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (27) :
+- **API publique** (29) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -1428,6 +1437,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `user_scope_org_ids(user)` — Ensemble des OrgUnit ids « couvrant » l'utilisateur : ses unités de rattachement
   - `class ElementPreference(models.Model)` — ABONNEMENT d'un utilisateur à un élément de catalogue (app, modèle, fonction, skill…).
   - `class UserAppSetting(models.Model)` — RÉGLAGE GLOBAL d'un utilisateur pour une app — DURABLE (brique `utils/user_settings.py`).
+  - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
   - `class ScopedVisibility(models.Model)` — Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
   - `scoped_visible_q(user, owner_field='user')` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
   - `class PromptScoped(models.Model)` — Modèle portant un prompt utilisateur TRAITÉ par la PromptPipeline (enrichissement).
@@ -1437,6 +1447,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class Manifest(models.Model)` — Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
+  - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class Embedded(models.Model)` — Socle vectoriel commun au souvenir et au fragment. ABSTRAIT — aucune table.
   - `class MemoryItem(Embedded, ScopedVisibility)` — LE SOUVENIR — un fait, un événement ou une procédure. NON re-dérivable.
   - `class RagChunk(Embedded, ScopedVisibility)` — LE FRAGMENT — un morceau d'un document source. RE-DÉRIVABLE : la source fait foi, donc une
@@ -1455,7 +1466,7 @@ Tri + filtrage communs de la file unifiée, préférence persistée et PARTAGÉE
 
 ### Vues de lot (fabrique commune)
 
-Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, batch_update, batch_delete, batch_duplicate, batch_download, batch_status — paramétrée comme la fabrique de file (les deux formes de rattachement par `batch_elements`/`attach_to_batch`). EXTRAITE le 2026-09-22 des corps conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps réelles les écrivaient chacune à la main (60 lectures de lot recopiées, `ROUTE §11 #36`) et la rallient au fil des portages (critère `batch_views_common`)
+Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, batch_update, batch_delete, batch_duplicate, batch_download, batch_status — paramétrée comme la fabrique de file (les deux formes de rattachement par `batch_elements`/`attach_to_batch`). EXTRAITE le 2026-09-22 des corps conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps réelles les écrivaient chacune à la main (60 lectures de lot recopiées, `ROUTE §11 #36`) — ADOPTÉE 10/10 le 2026-09-23, spécificités en kwargs (jamais un `if app`), chaque élément lu portant `batch_link` (la ligne qui le porte) ; restent locaux, assumés, les `batch_download` multi-format et les `batch_update` à logique propre (critère `batch_views_common` : vrai ou partiel, plus jamais rouge)
 
 - **Domicile** : `wama/common/utils/batch_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les VUES DE LOT : fabrique commune (`make_batch_views`).
@@ -1621,7 +1632,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (16) :
+- **API publique** (17) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
   - `class ParamGroup` — Groupe d'affichage d'une surface de saisie (modale ⚙ / volet) — l'app le déclare,
@@ -1636,6 +1647,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `schema_extra_params(app_id: str, params: dict) -> dict` — Symétrique de `schema_model_kwargs` : les params DÉCLARÉS au schéma qui ne sont PAS des
   - `schema_arg_names(app_id: str) -> set` — Noms de params qu'une app DÉCLARE — surface d'arguments acceptable d'un outil `**params`.
   - `invalid_choice_values(schema, data) -> dict` — {nom: (valeurs_refusées, choices_valides_triés)} pour chaque valeur PRÉSENTE hors
+  - `unapplicable_numeric_values(schema, data) -> dict` — {nom: (valeur_refusée, explication)} pour chaque nombre PRÉSENT que le schéma ne peut
   - `schema_choice_values(app_id, name) -> set` — Valeurs valides d'un param à `choices`, DÉRIVÉES du schéma — jamais recopiées.
   - `coerce_schema_values(schema, data, only_present: bool=True) -> dict` — Coercition COMPLÈTE d'un mapping selon le schéma : types (booléens) + bornes (numériques).
 
@@ -1657,10 +1669,6 @@ Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vi
 
 - **Domicile** : `wama/common/static/common/js/wama-app-base.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 
-### Sélecteur de médiathèque
-
-Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta
-
 ### Suivre la tête de lecture (traitement au fil de la lecture)
 
 Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, modèle gardé chargé, et s'arrête d'elle-même (arrêt demandé, 90 s d'inactivité, traitement prioritaire à laisser passer). Verrou de lancement, verrou vivant, refroidissement : chacun a son cas vécu. L'app fournit le chargement, la tranche et la question « dois-je céder ? » — jamais la mécanique. Extrait du mode Live du cam_analyzer quand le transcriber en est devenu le 2ᵉ utilisateur ; première forme du curseur de session
@@ -1672,6 +1680,10 @@ Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, mo
   - `post_cursor(channel: Channel, cursor: Optional[dict], spawn: Callable[[], None]) -> dict` — Pose le curseur envoyé par le navigateur, et lance la boucle si aucune ne tourne.
   - `follow(channel: Channel, owner: str, step: Callable[[dict], bool], *, on_start: Optional[Callable[[], None]]=None, should_yield: Optional[Callable[[], bool]]=N…` — La boucle : suit le curseur du canal jusqu'à ce qu'une raison de s'arrêter survienne.
 
+### Sélecteur de médiathèque
+
+Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta
+
 - **Domicile** : `wama/common/static/common/js/media-picker.js`
 
 ### Vocabulaire des capacités
@@ -1680,7 +1692,10 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
 
 - **Domicile** : `wama/common/utils/model_capabilities.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Vocabulaire CANONIQUE des capacités modèle (`AIModel.capabilities`) — SOURCE UNIQUE.
-- **API publique** (10) :
+- **API publique** (13) :
+  - `sampling_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]` — `recommended_steps` / `recommended_guidance` depuis `default_steps` /
+  - `video_caps_from_declaration(config: Dict[str, Any], tokens=()) -> Dict[str, Any]` — Les capacités VIDÉO tirées d'une déclaration d'app (`fps`, `max_frames`, `resolution`
+  - `video_limits(caps: Dict[str, Any]) -> Dict[str, Any]` — Les limites vidéo d'un modèle, lues UNE fois : `{fps, max_frames, max_duration_s,
   - `get_languages(caps: Dict[str, Any]) -> List[str]` — Langues gérées, ou [] si non déclaré (le repli par type est géré par lang_routing).
   - `is_multilingual(caps: Dict[str, Any]) -> bool` — Vrai si le modèle gère >1 langue ou est agnostique ('*'). Remplace l'ex-clé `multilingual`.
   - `languages_count(caps: Dict[str, Any]) -> int` — Nombre de langues déclarées (0 si inconnu). Remplace l'ex-clé `languages_count`.
@@ -1755,6 +1770,17 @@ Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / 
   - `visible_or_404(model, user, **kwargs)` — Objet que `user` a le droit de VOIR : le sien, ou partagé avec lui (unité/projet/public).
   - `listable_by(queryset, user)` — Ce que `user` a le droit de LISTER : `visible_to`, sauf pour le compte de service anonyme.
   - `owned_or_404(model, user, **kwargs)` — Objet que `user` a le droit de MODIFIER — aujourd'hui : le sien, point.
+
+### Activité vocale (le VAD garde-t-il la parole ?)
+
+Confronte, sur quelques fenêtres du média, ce que le filtre de parole Silero retient à ce que l'énergie du signal dit actif : un VAD qui garde bien moins que l'actif rejette une parole lointaine. L'appelant décide (le transcriber transcrit alors sans filtre, réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25
+
+- **Domicile** : `wama/common/utils/speech_activity.py` · **doc** : [wama/transcriber/TRANSCRIBER_CORRECTION.md §8](../../wama/transcriber/TRANSCRIBER_CORRECTION.md)
+- **Module** : Activité vocale d'un enregistrement — le filtre de parole (VAD) garde-t-il ce que le signal porte ?
+- **API publique** (3) :
+  - `energy_active_ratio(wave, sr: int, margin_db: float=ACTIVE_MARGIN_DB) -> float` — Part des trames de 100 ms dont le niveau dépasse le plancher de bruit de `margin_db`.
+  - `vad_speech_ratio(wave, sr: int) -> float` — Part de l'audio que le VAD de faster-whisper retient, avec ses réglages par défaut.
+  - `vad_rejects_speech(path, duration_s: float=0.0, windows: int=3, window_s: float=120.0, decode=None) -> dict` — Sonde `windows` fenêtres de `window_s` réparties dans le média et rend
 
 ### Actualisation des catalogues
 
@@ -1999,7 +2025,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (15) :
+- **API publique** (16) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d') d'un chemin
@@ -2009,6 +2035,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `app_supports_during_preview(app_id)` — True si l'app déclare la capacité de preview « pendant » (progressive/temporaire pendant le
   - `studio_node_ports(app_id)` — Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
   - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
+  - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
   - `derive_category(entry) -> str` — Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation
   - `get_apps_by_category()` — Catalogue groupé, ordonné par APP_CATEGORIES[order] — source des surfaces groupées
   - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
@@ -2084,7 +2111,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (27) :
+- **API publique** (29) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2097,6 +2124,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
   - `user_scope_org_ids(user)` — Ensemble des OrgUnit ids « couvrant » l'utilisateur : ses unités de rattachement
   - `class ElementPreference(models.Model)` — ABONNEMENT d'un utilisateur à un élément de catalogue (app, modèle, fonction, skill…).
   - `class UserAppSetting(models.Model)` — RÉGLAGE GLOBAL d'un utilisateur pour une app — DURABLE (brique `utils/user_settings.py`).
+  - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
   - `class ScopedVisibility(models.Model)` — Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
   - `scoped_visible_q(user, owner_field='user')` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
   - `class PromptScoped(models.Model)` — Modèle portant un prompt utilisateur TRAITÉ par la PromptPipeline (enrichissement).
@@ -2106,6 +2134,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
   - `class Manifest(models.Model)` — Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
+  - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class Embedded(models.Model)` — Socle vectoriel commun au souvenir et au fragment. ABSTRAIT — aucune table.
   - `class MemoryItem(Embedded, ScopedVisibility)` — LE SOUVENIR — un fait, un événement ou une procédure. NON re-dérivable.
   - `class RagChunk(Embedded, ScopedVisibility)` — LE FRAGMENT — un morceau d'un document source. RE-DÉRIVABLE : la source fait foi, donc une
@@ -2182,7 +2211,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (85) :
+- **API publique** (86) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `add_to_anonymizer(user, file_path: str, use_sam3: bool=False, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `start_anonymizer(user, media_id: int=None) -> dict` — Trigger Celery processing for a specific media item or all pending items.
@@ -2256,6 +2285,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `primary_arg_name(tool_name: str)` — Nom du 1er paramètre « utile » d'un outil (celui qui suit `user`), ou None.
   - `sanitize_tool_args(tool_name: str, args: dict)` — Prépare les arguments d'un appel d'outil : coercition par le SCHÉMA de l'app puis
   - `relay_quality_intent(user, tool_name: str, result: dict) -> dict` — Relaie le curseur Rapide ↔ Qualité de l'ASSISTANT vers l'élément qu'un outil `add_to_<app>`
+  - `relay_next_step(tool_name: str, result: dict) -> dict` — Dit au modèle, DANS LE RÉSULTAT, qu'un ajout n'a lancé AUCUN traitement.
   - `execute_tool(tool_name: str, args: dict, user) -> dict` — Dispatch a tool call from the agentic loop.
   - `list_user_files_view(request)`
   - `add_to_anonymizer_view(request)`
