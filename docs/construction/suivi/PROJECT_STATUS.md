@@ -17183,3 +17183,5 @@ une vraie card en `vad_mode=auto` sur un enregistrement en champ lointain.
 d'abord) · grille transcriber `quality_intent` / `model_options_catalog` / `backend_routes` ·
 débits audio du converter · générateur `views_gen` (bouchons `profile_*`).
 **Pendings système** : `kill -HUP` gunicorn (Fabien) · push de la session.
+
+**Suite du 2026-09-26 (après le reload de Fabien)** : `run_nightly_tests --app transcriber --with-gpu` → **21/21 OK**, 0 skip (rapport `nightly_20260926_142028`) — la prod transcriber est rétablie ; `processing` et `batch_processing` passent sur le squelette commun avec le filtre de parole livré. Reste du point d'entrée : une vraie card en `vad_mode=auto` sur un enregistrement en champ lointain.
