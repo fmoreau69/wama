@@ -203,6 +203,16 @@ en dur les satisfaisait toutes en cassant la sélection par catalogue.
   se lit — la poser seulement ici ne l'aurait pas atteinte.
   ⭐ *Un rituel qui déclenche son propre contrôle ne se corrige pas là où le contrôle échoue,
   mais là où l'instruction fautive est écrite.*
+- ⚠⚠ **VARIANTE 3, le 2026-09-26 (6ᵉ récidive) : un chemin PRÉVU, pas un chemin cassé.** Ni une
+  description de l'existant, ni un exemple : le **plan** d'un livrable à venir, dont le nom de
+  fichier a été écrit comme on nomme une cible (« le rôle X — `<dossier>/<nom>.py`, patron … »).
+  Un fichier qui n'existe **pas encore** est exactement aussi cassé qu'un fichier disparu, et la
+  cible a survécu **quatre jours**, recopiée entre-temps par une autre instance qui la signalait.
+  ✅ **Le geste** : dans un plan, décrire le livrable par sa NATURE et son DOSSIER (« un pilote de
+  plus sous `wama-dev-ai/`, sur le patron de son rôle `codegen` »), jamais par un nom de fichier
+  collé à son extension. Le nom se fixera en le créant.
+  ⭐ *Le contrôle ne distingue pas « ce qui a disparu » de « ce qui n'est pas encore né » — donc
+  écrire l'avenir au présent coûte une dérive, et elle essaime.*
 
 ## 3. Balayage « rien laissé de côté » — chercher, pas se souvenir
 

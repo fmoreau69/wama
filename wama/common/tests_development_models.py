@@ -81,6 +81,71 @@ class DevelopmentGradeTest(TestCase):
         self.assertEqual(set(), dm.dev_cloud_keys(get_user_model().objects.get(pk=self.user.pk)))
 
 
+class DevelopmentRoleModelTest(TestCase):
+    """Le bridage vaut AUSSI pour les rôles wama-dev-ai — « de façon globale à wama-dev-ai, pas
+    seulement l'assistant » (Fabien, 22/09).
+
+    ⚠ CE LIVRABLE EST RESTÉ NON GARDÉ JUSQU'À LA CLÔTURE DU 26/09, et c'est exactement le profil
+    de défaut que le rituel demande de couvrir en priorité : il ne se voit pas à l'exécution
+    locale. Un rôle lancé sans modèle de niveau développement doit S'ARRÊTER en le disant ; s'il
+    retombe sur la chaîne de repli de `config.py`, il rend une proposition plausible et fausse,
+    et personne ne saura qu'elle vient d'un petit modèle.
+
+    Le dossier `wama-dev-ai` porte un TIRET, donc aucun `import` ne peut l'atteindre (règle de
+    nommage d'`AGENTS.md`). On charge le module PAR CHEMIN plutôt que de renoncer à la garde.
+    """
+
+    @staticmethod
+    def _role_utils():
+        import importlib.util
+        from pathlib import Path
+
+        from django.conf import settings
+        path = Path(settings.BASE_DIR) / 'wama-dev-ai' / 'role_utils.py'
+        spec = importlib.util.spec_from_file_location('wama_dev_ai_role_utils', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def setUp(self):
+        self.small = _model('ollama:small:4b', coding=22.6, vram=3.4)
+        self.big = _model('ollama:big:8b', coding=58.2, vram=17.0)
+        vram = mock.patch('wama.model_manager.services.model_selector.get_free_vram_gb',
+                          return_value=24.0)
+        vram.start()
+        self.addCleanup(vram.stop)
+
+    def test_a_local_role_takes_the_development_model_and_never_the_fallback_chain(self):
+        import sys
+        chain = mock.Mock(side_effect=AssertionError("la chaîne de config.py ne doit pas servir"))
+        with mock.patch.dict(sys.modules, {'config': mock.Mock(select_model_for_role=chain)}):
+            self.assertEqual('big:8b', self._role_utils().resolve_model('ollama', 'codegen'))
+        chain.assert_not_called()
+
+    def test_an_explicit_model_is_passed_through_untouched(self):
+        """Contre-épreuve : le bridage porte sur le TIRAGE, pas sur un choix assumé en ligne
+        de commande. Sans elle, « rend toujours le modèle de niveau dev » passerait aussi."""
+        self.assertEqual('small:4b', self._role_utils().resolve_model('ollama', 'codegen',
+                                                                       model='small:4b'))
+
+    def test_a_role_stops_when_no_development_grade_model_is_available(self):
+        self.big.delete()
+        with self.assertRaises(RuntimeError) as levee:
+            self._role_utils().resolve_model('ollama', 'codegen')
+        self.assertIn('niveau développement', str(levee.exception))
+
+    def test_an_unreachable_catalogue_falls_back_to_the_historical_chain(self):
+        """Une première installation, sans catalogue, ne doit pas bloquer un rôle : c'est le
+        seul cas où la chaîne de `config.py` reste légitime, et le rôle le DIT."""
+        import sys
+        fallback = mock.Mock(return_value=(None, mock.Mock(ollama_id='de-repli')))
+        with mock.patch('wama.common.services.development_models.development_model',
+                        side_effect=RuntimeError('catalogue injoignable')), \
+             mock.patch.dict(sys.modules, {'config': mock.Mock(select_model_for_role=fallback)}):
+            self.assertEqual('de-repli', self._role_utils().resolve_model('ollama', 'codegen'))
+        fallback.assert_called_once_with('codegen')
+
+
 class AssistantDevelopmentBridleTest(TestCase):
 
     def setUp(self):
