@@ -721,7 +721,11 @@ chaîne. ⚠ Le TTS n'a **aucun document de référence dédié** dans la table 
 (`AGENTS.md`) — son intention vit dans le code et la fiche « langues » ; trou à combler le jour
 où le sujet grossit, sans créer de doc concurrent d'ici là.
 
-## Investigation web de l'assistant — design acté le 2026-08-29, NON implémenté
+## Investigation web de l'assistant — design acté le 2026-08-29, ✅ LIVRÉ (⚠ moteur HORS SERVICE)
+
+> ⚠ Ce titre disait « NON implémenté » jusqu'au 2026-09-26, alors que **sa propre table, juste
+> en dessous, porte sept ✅ « LIVRÉ 29/08 »**. Un titre est ce qu'on lit en premier et ce qu'on
+> cite : celui-ci a fait passer pour un chantier à ouvrir une brique en place depuis un mois.
 
 > Demande de Fabien (ex. canonique : photo d'une plante malade → identifier au VLM → chercher
 > les soins sur le web → réponse sourcée). La question « spécialiste d'un domaine jamais couvert
@@ -752,6 +756,32 @@ bibliothèque des méthodes et métiers d'app.
 | domaine `investigation` + skill de rôle | ✅ **LIVRÉS 29/08** (registre `DOMAINES`, chargé via `charger_competence`) | `common/utils/assistant_skills.py`, `prompt_skills/assistant-investigation.md` |
 | entrée image de l'assistant | ❌ vue JSON pur, input text seul | `wama/views.py::ai_chat`, `home.html` |
 | plafond octets / allowlist MIME | ✅ dans `web_search` (2 Mo / 12 k chars) ; ❌ toujours RIEN dans l'ingest | `url_ingest`/`video_utils` |
+
+### ⚠ État MESURÉ le 2026-09-26 (question de Fabien : « et le proxy ? ») — le moteur refuse
+
+Trois mesures, depuis **WSL2** (le process qui exécute réellement gunicorn et Celery, et dont
+l'environnement n'est pas celui de Windows) :
+
+| ce qu'on croyait | ce que la mesure dit |
+|---|---|
+| le proxy va bloquer la recherche | **non** : le proxy de l'université est joignable ET l'accès direct fonctionne — un POST isolé vers le moteur rend `200` dans les deux cas |
+| `requests` suit le proxy tout seul | **à moitié** : `.env` ne pose que `HTTP_PROXY`, donc pour une URL **HTTPS** `requests` ne trouvait **aucun** proxy et sortait en direct. Invisible tant que le direct marche ; le jour où le réseau se ferme, la médiathèque (qui passe par la brique) tiendrait et la recherche web tomberait seule |
+| la recherche « ne trouve rien » | **elle n'a jamais lieu** : DuckDuckGo répond `200` avec 14 Ko de *« Unfortunately, bots use DuckDuckGo too. Please complete the following challenge »* — le parsing ne trouve aucun `result__a` et rendait une liste VIDE |
+
+**Corrigé le 26/09** : les deux appels sortants passent par la brique commune
+(`proxies_for('duckduckgo')` pour le moteur — sa source est au registre —, `outbound_proxies()`
+pour la lecture de page), comme les connecteurs de la médiathèque depuis le 21/09 ; et un défi
+anti-robot lève désormais `SearchEngineUnavailable` au lieu de se faire passer pour une
+recherche sans résultat — l'assistant reçoit *« Recherche indisponible : le moteur a répondu par
+un défi anti-robot »*. ⚠ Le réglage `WAMA_OUTBOUND_PROXY`, que la brique lit **en premier**,
+n'était déclaré **nulle part** dans `settings.py` (`hasattr` = False) : cette branche ne pouvait
+jamais jouer. Déclarée, vide par défaut.
+
+🔚 **DÉCISION de Fabien** : la recherche web de l'assistant est **hors service** tant que le
+moteur sert un défi. Options — un moteur à clé (Brave Search, Tavily, SerpAPI : une source de
+plus au registre, clé par instance ou par utilisateur comme les connecteurs média), une instance
+SearXNG du labo, ou l'abandon de cette surface. *Le code est prêt et gardé ; ce qui manque est
+un moteur qui accepte d'être interrogé par un programme.*
 
 **Incohérence relevée à résorber au passage** : DEUX routes de résolution vision coexistent —
 `describer/backends/image_backend.py` (liste en dur `gemma4:12b/e4b`) court-circuite le tier

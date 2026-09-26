@@ -100,3 +100,81 @@ class OutilsAssistantTests(SimpleTestCase):
             rendu = outil(AnonymousUser(), 'quelconque')
             self.assertIn('error', rendu, nom)
             self.assertIn('identifi', rendu['error'], nom)
+
+
+class WebSearchFollowsTheOutboundProxyTest(SimpleTestCase):
+    """La recherche web sort par le proxy que WAMA déclare, pas par ce que `requests` devine.
+
+    Mesuré le 2026-09-26 dans WSL2 — le process qui exécute réellement gunicorn et Celery :
+    `.env` n'y pose que `HTTP_PROXY`, et `requests`, laissé seul, ne trouve AUCUN proxy pour
+    l'URL HTTPS du moteur (`get_environ_proxies` rend `{'http': …}` et rien pour https). Il
+    sortait donc en direct, c'est-à-dire dans le vide derrière le proxy de l'université. La
+    brique commune, elle, applique la valeur aux DEUX schémas.
+
+    C'est le défaut exact soldé le 21/09 pour les connecteurs de la médiathèque, resté sur
+    cette brique-ci : *une surface sortante qui n'emprunte pas la brique commune est une
+    surface qui ne suit pas le proxy — et elle échoue sans rien dire d'utile.*
+    """
+
+    def test_the_search_engine_call_carries_the_declared_proxies(self):
+        import requests as real_requests
+        from django.test import override_settings
+        # `web_search` importe `requests` DANS ses fonctions : on patche donc le module lui-même.
+        with override_settings(WAMA_OUTBOUND_PROXY='http://proxy.test:3128'):
+            with mock.patch.object(real_requests, 'post',
+                                   return_value=_ReponseHttp(text=_DDG_SAMPLE)) as posted:
+                web_search.search_web('monstera')
+        self.assertEqual({'http': 'http://proxy.test:3128', 'https': 'http://proxy.test:3128'},
+                         posted.call_args.kwargs['proxies'])
+
+    def test_reading_a_page_carries_them_too(self):
+        from django.test import override_settings
+        import requests as real_requests
+        page = _ReponseHttp(content=b'<html><body><p>Texte</p></body></html>',
+                            headers={'Content-Type': 'text/html'}, url='https://example.org/a')
+        # `verifier_url` résout le DNS : on la neutralise comme les autres tests de ce fichier
+        # (elle a sa propre garde, `test_une_adresse_interne_est_refusee…`).
+        with override_settings(WAMA_OUTBOUND_PROXY='http://proxy.test:3128'), \
+                mock.patch('wama.common.utils.url_guard.verifier_url'):
+            with mock.patch.object(real_requests, 'get', return_value=page) as fetched:
+                web_search.read_web_page('https://example.org/a')
+        self.assertEqual({'http': 'http://proxy.test:3128', 'https': 'http://proxy.test:3128'},
+                         fetched.call_args.kwargs['proxies'])
+
+    def test_without_any_proxy_nothing_is_forced(self):
+        """Contre-épreuve : sans réglage, on ne force rien — `requests` garde son comportement
+        (il lit l'environnement lui-même). Passer `{}` le priverait de cette lecture."""
+        import os
+        import requests as real_requests
+        from django.test import override_settings
+        clean = {k: v for k, v in os.environ.items()
+                 if not (k.lower().endswith('_proxy') or k.lower() in ('no_proxy', 'all_proxy'))}
+        with override_settings(WAMA_OUTBOUND_PROXY=''), mock.patch.dict(os.environ, clean, clear=True):
+            with mock.patch.object(real_requests, 'post',
+                                   return_value=_ReponseHttp(text=_DDG_SAMPLE)) as posted:
+                web_search.search_web('monstera')
+        self.assertIsNone(posted.call_args.kwargs['proxies'])
+
+
+class ASilentEngineFailureIsSaidOutLoudTest(SimpleTestCase):
+    """Un défi anti-robot n'est pas « zéro résultat » — mesuré sur le moteur réel le 26/09."""
+
+    _CHALLENGE = ('<html><body><p>Unfortunately, bots use DuckDuckGo too. Please complete the '
+                  'following challenge to confirm this search was made by a human.</p>'
+                  '<script>anomaly</script></body></html>')
+
+    def test_a_challenge_page_raises_instead_of_looking_empty(self):
+        import requests as real_requests
+        from wama.common.utils.web_search import SearchEngineUnavailable
+        with mock.patch.object(real_requests, 'post',
+                               return_value=_ReponseHttp(text=self._CHALLENGE)):
+            with self.assertRaises(SearchEngineUnavailable):
+                web_search.search_web('monstera')
+
+    def test_a_genuinely_empty_result_page_stays_empty(self):
+        """Contre-épreuve : sans marqueur de défi, zéro résultat reste une réponse LÉGITIME —
+        la garde ne doit pas transformer toute recherche infructueuse en panne."""
+        import requests as real_requests
+        page = '<html><body><p>Aucun résultat pour cette recherche.</p></body></html>'
+        with mock.patch.object(real_requests, 'post', return_value=_ReponseHttp(text=page)):
+            self.assertEqual([], web_search.search_web('xyzzy introuvable'))

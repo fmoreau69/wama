@@ -28,6 +28,24 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_BYTES = 2_000_000
 DEFAULT_MAX_CHARS = 12_000
 
+
+class SearchEngineUnavailable(RuntimeError):
+    """Le moteur a répondu, mais pas avec des résultats (défi anti-robot, page d'erreur…).
+
+    ⚠ Distinct d'une recherche SANS RÉSULTAT, qui est une réponse légitime. Mesuré le
+    2026-09-26 : DuckDuckGo rend un HTTP 200 de 14 Ko contenant *« Unfortunately, bots use
+    DuckDuckGo too. Please complete the following challenge »* — la requête réussit, le
+    parsing ne trouve rien, et `search_web` rendait une liste VIDE. L'assistant concluait
+    alors « je n'ai rien trouvé » sur une recherche qui n'avait jamais eu lieu.
+    *Un échec qui emprunte la forme d'un succès est pire qu'une erreur : il se croit.*
+    """
+
+
+#: Marqueurs d'une page de DÉFI plutôt que de résultats. Deux conditions réunies (aucun
+#: résultat parsé ET un de ces mots) : un seul des deux se déclencherait à tort — une
+#: recherche légitime sur le mot « challenge » rendrait des résultats, donc ne lèvera pas.
+_CHALLENGE_MARKERS = ('anomaly', 'challenge', 'captcha', 'unusual traffic')
+
 _UA = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
                   '(KHTML, like Gecko) Chrome/122 Safari/537.36',
@@ -70,7 +88,15 @@ def search_web(query: str, max_results: int = 5) -> list:
         return []
     max_results = max(1, min(int(max_results), 10))
 
-    resp = requests.post(_ddg_html(), data={'q': query}, headers=_UA, timeout=15)
+    # Proxy : par la PORTÉE déclarée de la source, comme les connecteurs de la médiathèque
+    # depuis le 2026-09-21 — et pour la même raison, mesurée ici le 2026-09-26 : `requests`
+    # lit bien l'environnement TOUT SEUL, mais le process qui exécute l'assistant (WSL2) n'a
+    # que `HTTP_PROXY`. Pour l'URL HTTPS du moteur, il ne trouvait donc AUCUN proxy et sortait
+    # en direct — c'est-à-dire dans le vide, derrière le proxy de l'université. La brique
+    # commune, elle, applique la valeur aux DEUX schémas.
+    from wama.common.external_sources import proxies_for
+    resp = requests.post(_ddg_html(), data={'q': query}, headers=_UA, timeout=15,
+                         proxies=proxies_for('duckduckgo'))
     resp.raise_for_status()
 
     soup = BeautifulSoup(resp.text, 'lxml')
@@ -93,6 +119,15 @@ def search_web(query: str, max_results: int = 5) -> list:
         })
         if len(resultats) >= max_results:
             break
+    if not resultats:
+        bas = resp.text.lower()
+        marqueur = next((m for m in _CHALLENGE_MARKERS if m in bas), '')
+        if marqueur:
+            logger.warning("[web_search] le moteur a servi un défi anti-robot (« %s ») — "
+                           "aucune recherche n'a eu lieu", marqueur)
+            raise SearchEngineUnavailable(
+                "le moteur de recherche a répondu par un défi anti-robot au lieu de résultats "
+                "— la recherche web est indisponible (changer de moteur relève d'une décision)")
     return resultats
 
 
@@ -109,8 +144,13 @@ def read_web_page(url: str,
     from wama.common.utils.url_guard import verifier_url, verifier_redirections
     from wama.common.utils.url_ingest import html_to_readable_text
 
+    from wama.common.utils.http_proxy import outbound_proxies
+
     verifier_url(url)
-    resp = requests.get(url, headers=_UA, timeout=20, stream=True)
+    # La cible est une URL QUELCONQUE, pas une source déclarée : le proxy SORTANT commun.
+    # `url_guard` a déjà refusé les cibles internes — aucun cas local à neutraliser ici.
+    resp = requests.get(url, headers=_UA, timeout=20, stream=True,
+                        proxies=outbound_proxies())
     try:
         verifier_redirections(resp)
         resp.raise_for_status()
