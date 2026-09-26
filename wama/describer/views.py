@@ -252,6 +252,11 @@ def upload(request):
 
     if not uploaded_file and not media_url:
         return JsonResponse({'error': 'No file or URL provided'}, status=400)
+    from wama.common.app_registry import accepts_file
+    if uploaded_file and not accepts_file('describer', uploaded_file.name):
+        return JsonResponse({'error': f'Format non pris en charge : '
+                                      f'{os.path.splitext(uploaded_file.name)[1] or uploaded_file.name}'},
+                            status=400)
 
     # Handle URL download
     if media_url and not uploaded_file:

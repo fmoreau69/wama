@@ -280,6 +280,24 @@ class IndexView(View):
         })
 
 
+def _deposit_settings(user, post):
+    """Réglages d'un DÉPÔT : les défauts de l'utilisateur (table `UserSettings` propre à
+    l'enhancer, `ROADMAP §23.3bis` — à porter sur la brique commune), puis ce que le VOLET
+    POSTE, lu par le schéma (`schema_model_kwargs`). Les deux créations (fichier, lien) lisaient
+    les seuls défauts : un modèle choisi au volet n'arrivait jamais sur l'élément (contrat
+    générique `tests_import_contract`, 2026-09-26)."""
+    from wama.common.utils.param_schema import schema_model_kwargs
+    stored, _ = UserSettings.objects.get_or_create(user=user)
+    values = {'ai_model': stored.default_ai_model, 'denoise': stored.default_denoise,
+              'blend_factor': stored.default_blend_factor,
+              'output_format': 'original', 'output_quality': 'balanced'}
+    values.update({k: v for k, v in schema_model_kwargs('enhancer', post).items()
+                   if k not in ('upscale_factor', 'quality_intent') and v not in (None, '')})
+    values['upscale_factor'] = _factor_posted(post, 4)
+    values['quality_intent'] = _intent_posted(post)
+    return values
+
+
 @require_POST
 @app_access('enhancer')
 def upload(request):
@@ -333,10 +351,6 @@ def upload(request):
 
                 logger.info(f"Detected media type: {media_type}")
 
-                # Get user settings for defaults
-                user_settings, _ = UserSettings.objects.get_or_create(user=user)
-                logger.info(f"User settings: model={user_settings.default_ai_model}, denoise={user_settings.default_denoise}, blend={user_settings.default_blend_factor}")
-
                 # Create enhancement with the downloaded file
                 with open(downloaded_path, 'rb') as f:
                     django_file = File(f, name=filename)
@@ -345,13 +359,7 @@ def upload(request):
                         user=user,
                         media_type=media_type,
                         input_file=django_file,
-                        ai_model=user_settings.default_ai_model,
-                        denoise=user_settings.default_denoise,
-                        blend_factor=user_settings.default_blend_factor,
-                        upscale_factor=_factor_posted(request.POST, 4),
-                        quality_intent=_intent_posted(request.POST),
-                        output_format=request.POST.get('output_format', 'original'),
-                        output_quality=request.POST.get('output_quality', 'balanced'),
+                        **_deposit_settings(user, request.POST),
                     )
 
             logger.info(f"Created Enhancement ID: {enhancement.id}")
@@ -399,22 +407,12 @@ def upload(request):
 
     logger.info(f"Detected media type: {media_type}")
 
-    # Get user settings for defaults
-    user_settings, _ = UserSettings.objects.get_or_create(user=user)
-    logger.info(f"User settings: model={user_settings.default_ai_model}, denoise={user_settings.default_denoise}, blend={user_settings.default_blend_factor}")
-
     # Create enhancement record
     enhancement = Enhancement.objects.create(
         user=user,
         media_type=media_type,
         input_file=file,
-        ai_model=user_settings.default_ai_model,
-        denoise=user_settings.default_denoise,
-        blend_factor=user_settings.default_blend_factor,
-        upscale_factor=_factor_posted(request.POST, 4),
-        quality_intent=_intent_posted(request.POST),
-        output_format=request.POST.get('output_format', 'original'),
-        output_quality=request.POST.get('output_quality', 'balanced'),
+        **_deposit_settings(user, request.POST),
     )
     logger.info(f"Created Enhancement ID: {enhancement.id}")
 
@@ -745,31 +743,31 @@ def download_all(request):
     return FileResponse(buffer, as_attachment=True, filename="enhanced_files.zip")
 
 
-def _apply_enhancement_settings(e, post):
-    """Applique ai_model/denoise/blend_factor + format/qualité de sortie (depuis le form)
-    à un Enhancement (sans save)."""
-    ai_model = post.get('ai_model')
-    if ai_model:
-        e.ai_model = ai_model
-    denoise = post.get('denoise')
-    if denoise is not None:
-        e.denoise = denoise.lower() in ('1', 'true', 'on')
-    blend_factor = post.get('blend_factor')
-    if blend_factor is not None:
-        try:
-            e.blend_factor = float(blend_factor)
-        except (ValueError, TypeError):
-            pass
+def _read_enhancement_settings(request):
+    """Les réglages postés — JSON (inspecteur) OU FormData (modale ⚙), par le lecteur COMMUN.
+    La vue lisait `request.POST` seul : le JSON de l'inspecteur n'était jamais écrit (relevé
+    par le contrat générique `tests_item_settings_contract`, 2026-09-26). Un curseur posé VIDE
+    reste une valeur (curseur effacé)."""
+    from wama.common.utils.batch_views import read_settings_payload
+    from wama.enhancer.params import MEDIA_PARAMS_JSON
+    return read_settings_payload(request, MEDIA_PARAMS_JSON,
+                                 [p['name'] for p in MEDIA_PARAMS_JSON],
+                                 empty_is_value=('quality_intent',))
+
+
+def _apply_enhancement_settings(e, data):
+    """Applique les réglages d'un Enhancement (sans save). Les colonnes simples passent par la
+    brique COMMUNE (valeur hors choix ignorée) ; restent ici le facteur (×2/×4) et le curseur,
+    propres à l'enhancer."""
+    from wama.common.utils.batch_views import apply_item_settings
+    apply_item_settings(e, {k: v for k, v in data.items() if v not in (None, '')},
+                        params_fields=('ai_model', 'denoise', 'blend_factor',
+                                       'output_format', 'output_quality'))
     # Curseur + facteur (chantier C) : clé ABSENTE = inchangé ; posée vide = curseur effacé
     # (la cascade retombe sur le réglage d'app, puis 50).
-    e.upscale_factor = _factor_posted(post, e.upscale_factor)
-    if 'quality_intent' in post:
-        e.quality_intent = _intent_posted(post)
-    # Format/qualité de sortie (schéma 18/08 — champs de la modale générée).
-    if post.get('output_format'):
-        e.output_format = post['output_format']
-    if post.get('output_quality'):
-        e.output_quality = post['output_quality']
+    e.upscale_factor = _factor_posted(data, e.upscale_factor)
+    if 'quality_intent' in data:
+        e.quality_intent = _intent_posted(data)
 
 
 @require_POST
@@ -779,10 +777,11 @@ def batch_update(request, pk):
     batch = get_object_or_404(BatchEnhancement, id=pk, user=user)
     from wama.common.utils.batch_common import batch_elements
     updated = 0
+    payload = _read_enhancement_settings(request)
     for e in batch_elements(batch, Enhancement):     # brique : ordre des lignes garanti
         if e.status == 'RUNNING':
             continue
-        _apply_enhancement_settings(e, request.POST)
+        _apply_enhancement_settings(e, payload)
         e.save()
         updated += 1
     return JsonResponse({'success': True, 'updated': updated})
@@ -797,7 +796,7 @@ def update_settings(request, pk: int):
     if enhancement.status == 'RUNNING':
         return JsonResponse({'error': 'Cannot update running enhancement'}, status=400)
 
-    _apply_enhancement_settings(enhancement, request.POST)
+    _apply_enhancement_settings(enhancement, _read_enhancement_settings(request))
     enhancement.save()
 
     return JsonResponse({

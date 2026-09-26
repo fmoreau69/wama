@@ -80,14 +80,32 @@ def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=
     return {k: v for k, v in data.items() if not (v == '' and k in names)}
 
 
+def _within_choices(item, name, value) -> bool:
+    """Vrai si le champ `name` du modèle n'a pas de liste fermée, ou si `value` en fait partie."""
+    try:
+        field = item._meta.get_field(name)
+    except Exception:
+        return True
+    choices = getattr(field, 'choices', None)
+    if not choices:
+        return True
+    return str(value) in {str(c[0]) for c in choices}
+
+
 def apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=()):
     """Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
     et, s'il existe, le conteneur JSON `options_field` pour les champs de schéma HORS colonnes
     (`extra_names`, idiome `params_storage`). Rend la liste des champs touchés (pour
-    `save(update_fields=…)`) ; rien n'est sauvé ici."""
+    `save(update_fields=…)`) ; rien n'est sauvé ici.
+
+    Une valeur HORS des `choices` du champ du modèle est IGNORÉE, jamais écrite (2026-09-26,
+    contrat générique `tests_item_settings_contract`) : le reader le faisait à la main champ par
+    champ, les autres apps l'écrivaient — ou plantaient en 500 quand elle dépassait la colonne."""
     touched = []
     for name in params_fields:
         if name in data:
+            if not _within_choices(item, name, data[name]):
+                continue
             setattr(item, name, data[name])
             touched.append(name)
     if options_field:

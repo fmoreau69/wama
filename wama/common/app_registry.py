@@ -1235,6 +1235,21 @@ except ImportError:
     CONVERTER_OUTPUT_FORMATS = {}
 
 
+def accepts_file(app_name: str, filename: str) -> bool:
+    """Le serveur prend-il ce fichier pour cette app ? — les extensions DÉCLARÉES
+    (`input_extensions`), celles que la zone de dépôt propose déjà (`file_accept`).
+
+    Ajouté le 2026-09-26 : le contrat générique `tests_import_contract` a trouvé trois vues
+    d'upload qui acceptaient un `.xyz` (transcriber, describer créaient l'élément ; le reader
+    répondait 200 vide). Une app sans liste déclarée n'est pas filtrée."""
+    import os
+    declared = (APP_CATALOG.get(app_name) or {}).get('input_extensions') or ()
+    if not declared:
+        return True
+    wanted = {e.lower() if e.startswith('.') else f'.{e.lower()}' for e in declared}
+    return os.path.splitext(filename or '')[1].lower() in wanted
+
+
 def get_app_extensions_for_filemanager() -> dict:
     """
     Returns a dict suitable for FileManager JS APP_EXTENSIONS:

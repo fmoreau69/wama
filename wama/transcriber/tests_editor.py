@@ -252,20 +252,6 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
                         side_effect=RuntimeError('ffmpeg missing')):
             self.assertTrue(_vad_filter_for(self.item, self.item.audio.path))
 
-    def test_the_settings_route_writes_the_vad_mode(self):
-        from django.contrib.auth.models import Group
-        from wama.accounts.permissions import GROUP_PREFIX
-        self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')[0])
-        self.client.force_login(self.user)
-        resp = self.client.post(f'/transcriber/settings/{self.item.pk}/',
-                                data=json.dumps({'vad_mode': 'off'}),
-                                content_type='application/json')
-        self.assertEqual(200, resp.status_code)
-        self.assertEqual('off', resp.json()['vad_mode'])
-        self.item.refresh_from_db()
-        self.assertEqual('off', self.item.vad_mode)
-        self.assertEqual('off', self.item.gear_data.get('vad-mode'))
-
     def test_an_engine_without_a_vad_filter_gets_no_such_argument(self):
         asr = self._asr()
         self._run(asr)

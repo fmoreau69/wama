@@ -143,138 +143,10 @@ class TextExtractorTest(TestCase):
         self.assertNotIn("   ", clean)
 
 
-class ViewsTest(TestCase):
-    """Tests pour les vues."""
-
-    def setUp(self):
-        self.client = Client()
-        self.user = _utilisateur_autorise()     # cf. _utilisateur_autorise : le 302 venait du gating
-        # `force_login` plutôt que `client.login` : convention du dépôt (tests_volet,
-        # tests_memory, tests_codegen_lot) et évite de traverser le backend LDAP en tête
-        # d'`AUTHENTICATION_BACKENDS` pour rien — ces tests portent sur les VUES.
-        self.client.force_login(self.user)
-
-        self.text_file = SimpleUploadedFile(
-            "test.txt",
-            b"Test content",
-            content_type="text/plain"
-        )
-
-    def test_index_view(self):
-        """Test de la page d'index."""
-        response = self.client.get(reverse('synthesizer:index'))
-
-        self.assertEqual(response.status_code, 200)
-        # ⚠ l'assertion précédente cherchait « WAMA Synthesizer » — chaîne qui n'a JAMAIS
-        # existé dans ce gabarit (elle ne vit que dans des docstrings et les libellés
-        # `AIModel.source`). Elle était donc fausse depuis toujours, mais le 302 du gating
-        # échouait AVANT elle et la masquait : lever une cause en découvre une plus vieille.
-        # On ancre désormais sur le titre réel ET sur un élément propre à CETTE app —
-        # le volet de paramètres — pour que le test distingue « la page a rendu » de
-        # « seul le gabarit de base a rendu ».
-        self.assertContains(response, "Synthesizer - Text To Speech")
-        self.assertContains(response, 'id="synthPanelParams"')
-
-    def test_upload_view(self):
-        """Test de l'upload."""
-        response = self.client.post(
-            reverse('synthesizer:upload'),
-            {
-                'file': self.text_file,
-                'tts_model': 'kokoro',
-                'language': 'fr',
-                'speed': 1.0,
-                'pitch': 1.0
-            }
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIn('id', data)
-        self.assertEqual(data['status'], 'PENDING')
-
-    def test_upload_invalid_format(self):
-        """Test d'upload avec format invalide."""
-        invalid_file = SimpleUploadedFile(
-            "test.xyz",
-            b"Invalid content",
-            content_type="application/octet-stream"
-        )
-
-        response = self.client.post(
-            reverse('synthesizer:upload'),
-            {'file': invalid_file}
-        )
-
-        self.assertEqual(response.status_code, 400)
-
-    def test_start_synthesis(self):
-        """Test du démarrage d'une synthèse."""
-        synthesis = VoiceSynthesis.objects.create(
-            user=self.user,
-            text_file=self.text_file,
-            text_content="Test content"
-        )
-
-        response = self.client.post(
-            reverse('synthesizer:start', args=[synthesis.id])
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIn('task_id', data)
-
-    def test_progress_view(self):
-        """Test de la vue de progression."""
-        synthesis = VoiceSynthesis.objects.create(
-            user=self.user,
-            text_file=self.text_file,
-            status='RUNNING',
-            progress=50
-        )
-
-        response = self.client.get(
-            reverse('synthesizer:progress', args=[synthesis.id])
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data['status'], 'RUNNING')
-        self.assertGreaterEqual(data['progress'], 0)
-
-    def test_delete_view(self):
-        """Test de suppression."""
-        synthesis = VoiceSynthesis.objects.create(
-            user=self.user,
-            text_file=self.text_file
-        )
-
-        response = self.client.post(
-            reverse('synthesizer:delete', args=[synthesis.id])
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(
-            VoiceSynthesis.objects.filter(id=synthesis.id).exists()
-        )
-
-    def test_unauthorized_access(self):
-        """Test d'accès non autorisé."""
-        other_user = User.objects.create_user(
-            username='otheruser',
-            password='testpass123'
-        )
-
-        synthesis = VoiceSynthesis.objects.create(
-            user=other_user,
-            text_file=self.text_file
-        )
-
-        response = self.client.post(
-            reverse('synthesizer:start', args=[synthesis.id])
-        )
-
-        self.assertEqual(response.status_code, 404)
+# `ViewsTest` RETIRÉ le 2026-09-26 : ses 7 tests (page, dépôt, extension refusée, ▶, progression,
+# suppression, élément d'autrui) sont tenus pour TOUTES les apps par les contrats génériques
+# (`common/tests_endpoints`, `tests_import_contract`, `tests_item_lifecycle_contract`,
+# `tests_queue_delete_contract`) — `WAMA_VERIFICATION §8`.
 
 
 class IntegrationTest(TestCase):
@@ -344,55 +216,9 @@ class IntegrationTest(TestCase):
         self.assertEqual(data['progress'], 100)
 
 
-class PerformanceTest(TestCase):
-    """Tests de performance."""
+# `PerformanceTest` RETIRÉ le 2026-09-26 : il testait l'ORM de Django (bulk_create,
+# select_related), pas un comportement de WAMA.
 
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass123'
-        )
-
-    def test_bulk_create(self):
-        """Test de création en masse."""
-        syntheses = []
-        for i in range(100):
-            text_file = SimpleUploadedFile(
-                f"test_{i}.txt",
-                b"Test content",
-                content_type="text/plain"
-            )
-            syntheses.append(
-                VoiceSynthesis(
-                    user=self.user,
-                    text_file=text_file,
-                    text_content="Test content"
-                )
-            )
-
-        VoiceSynthesis.objects.bulk_create(syntheses)
-        self.assertEqual(VoiceSynthesis.objects.count(), 100)
-
-    def test_query_optimization(self):
-        """Test d'optimisation des requêtes."""
-        # Créer des synthèses
-        for i in range(10):
-            text_file = SimpleUploadedFile(
-                f"test_{i}.txt",
-                b"Test content",
-                content_type="text/plain"
-            )
-            VoiceSynthesis.objects.create(
-                user=self.user,
-                text_file=text_file
-            )
-
-        # Requête optimisée avec select_related
-        with self.assertNumQueries(1):
-            list(VoiceSynthesis.objects.select_related('user').all())
-
-# Pour exécuter les tests:
-# python manage.py test synthesizer
 
 class ConfinementServerPathTest(TestCase):
     """🔴 Traversée de chemin refusée (2026-09-05, `MEDIA_STORAGE_TIERING §8.6` D1).
@@ -497,25 +323,13 @@ class PanelVoiceFieldIsGeneratedTest(TestCase):
             self.assertNotIn('customVoicesGroup', js, path.name)
             self.assertIn("addEventListener('wama:options-filled'", js, path.name)
 
-    def test_every_inline_script_of_the_page_parses(self):
-        """Le rendu du champ vit dans un script EN LIGNE du gabarit : une erreur de syntaxe y
-        tuerait tout le bloc — donc le select, les filtres et l'inspecteur — sans qu'aucun
-        test Python ne s'en aperçoive. V8 parse sans exécuter (le DOM n'existe pas ici).
-
-        ⚠ `py_mini_racer` n'est installé que dans venv_win : ce test SKIPPE ailleurs.
-        """
+    def test_the_voice_field_is_rendered_by_an_inline_script(self):
+        """Le rendu du champ vit dans un script EN LIGNE du gabarit. Que TOUS les scripts en
+        ligne de TOUTES les pages se parsent est tenu par le contrat générique
+        `common/tests_served_assets_contract` (2026-09-26) ; reste ici ce qui est propre au
+        synthesizer — le rendu du champ de voix est bien DANS un de ces blocs, sans quoi le
+        contrat attesterait d'autres blocs pendant que celui-ci manquerait."""
         import re
-        try:
-            from py_mini_racer import MiniRacer
-        except ImportError:
-            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour parser la page')
         blocks = re.findall(r'<script>(.*?)</script>', self._page(), re.S)
-        self.assertGreaterEqual(len(blocks), 2, 'la page a perdu ses scripts en ligne')
-        # Que le rendu du champ soit bien DANS ce qu'on parse — sans quoi le test attesterait
-        # d'autres blocs et resterait vert pendant que celui-ci serait cassé.
         self.assertTrue(any('renderPanelVoiceField' in b for b in blocks),
                         'le rendu du champ de voix n\'est plus dans un script en ligne')
-        ctx = MiniRacer()
-        for i, block in enumerate(blocks):
-            with self.subTest(block=i):
-                ctx.eval('(function(){' + block + '\n})')

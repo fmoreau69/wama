@@ -44,7 +44,8 @@ def _compact_preview(text: str, max_chars: int = 400) -> str:
     return t[:max_chars]
 
 
-ACCEPTED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp'}
+# `ACCEPTED_EXTENSIONS` (liste écrite ici, doublon de `OCR_INPUT_EXTENSIONS` du catalogue)
+# retirée le 2026-09-26 : le dépôt lit la déclaration par `app_registry.accepts_file`.
 
 
 def _get_user(request):
@@ -310,12 +311,13 @@ def upload(request):
     quality_intent = (read_quality_intent(request.POST.get('quality_intent'))
                       if request.POST.get('quality_intent', '') != '' else last['quality_intent'])
 
+    from wama.common.app_registry import accepts_file
     items_created = []
     created = []
     for f in files:
         ext = os.path.splitext(f.name)[1].lower()
-        if ext not in ACCEPTED_EXTENSIONS:
-            continue  # skip unsupported types silently
+        if not accepts_file('reader', f.name):
+            continue  # un fichier refusé ne crée rien ; si AUCUN ne passe, la vue le DIT
 
         item = ReadingItem.objects.create(
             user=user,
@@ -342,7 +344,9 @@ def upload(request):
         created.append(_item_to_dict(item))
 
     if not items_created:
-        return JsonResponse({'created': []})
+        # Un refus se DIT : le 200 vide laissait la brique d'import sans rien afficher.
+        return JsonResponse({'created': [], 'error': 'Aucun fichier au format pris en charge'},
+                            status=400)
 
     # Re-persiste les choix comme défauts du prochain dépôt.
     save_user_app_settings(user, 'reader', {
@@ -662,24 +666,17 @@ def update_settings(request, pk: int):
     # JSON (inspecteur) OU FormData (modale ⚙ par le cycle commun `WamaParams.settingsModal`,
     # portage 2026-09-24) : le lecteur COMMUN des réglages postés, coercé au schéma — `language`
     # vide EST une valeur (auto-détection), comme pour la vue de lot.
-    from wama.common.utils.batch_views import read_settings_payload
+    # L'écrivain COMMUN ignore une valeur hors des choix du modèle : les trois listes
+    # `allowed_*` écrites ici à la main en sont retirées (2026-09-26).
+    from wama.common.utils.batch_views import apply_item_settings, read_settings_payload
     data = read_settings_payload(request, _SCHEMA, [p['name'] for p in _SCHEMA],
                                  empty_is_value=('language',))
-
-    allowed_backends = [c[0] for c in ReadingItem.Backend.choices]
-    allowed_modes    = [c[0] for c in ReadingItem.Mode.choices]
-    allowed_formats  = [c[0] for c in ReadingItem.OutputFormat.choices]
-
-    if 'backend' in data and data['backend'] in allowed_backends:
-        item.backend = data['backend']
-    if 'mode' in data and data['mode'] in allowed_modes:
-        item.mode = data['mode']
-    if 'output_format' in data and data['output_format'] in allowed_formats:
-        item.output_format = data['output_format']
     if 'language' in data:
-        item.language = str(data['language'] or '').strip()[:16]
-
-    item.save(update_fields=['backend', 'mode', 'output_format', 'language'])
+        data['language'] = str(data['language'] or '').strip()[:16]
+    touched = apply_item_settings(item, data,
+                                  params_fields=('backend', 'mode', 'output_format', 'language'))
+    if touched:
+        item.save(update_fields=touched)
     return JsonResponse(_item_to_dict(item))
 
 

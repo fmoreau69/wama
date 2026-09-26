@@ -1657,34 +1657,36 @@ def update_settings(request, pk):
         if generation.status == 'RUNNING':
             return JsonResponse({'error': 'Cannot edit a running generation'}, status=400)
 
-        # Update fields from POST data
-        if 'prompt' in request.POST:
-            prompt = request.POST.get('prompt', '').strip()
+        # JSON (inspecteur) OU FormData (modale ⚙) par le lecteur COMMUN — la vue lisait
+        # `request.POST` seul (contrat générique `tests_item_settings_contract`, 2026-09-26).
+        # Il coerce aussi PAR LE SCHÉMA (types + bornes de params.py) : les 13 blocs
+        # `if ... int()/float()` qui vivaient ici en étaient une 3ᵉ copie.
+        from wama.common.utils.batch_views import apply_item_settings, read_settings_payload
+        schema = _schema_for(generation)
+        names = [p['name'] for p in schema]
+        data = read_settings_payload(request, schema, names, empty_is_value=('seed',))
+
+        if 'prompt' in data:
+            prompt = str(data.get('prompt') or '').strip()
             if not prompt:
                 return JsonResponse({'error': 'Prompt is required'}, status=400)
             # Champ à DEUX ÉTATS : l'arbitrage « dans quel champ écrire » est une brique
             # COMMUNE (`apply_prompt_state`) — il était réimplémenté ici le 30/07, ce qui
             # aurait obligé chaque app à le recopier.
             from wama.common.utils.app_metadata import apply_prompt_state
-            apply_prompt_state(generation, 'prompt', prompt,
-                               request.POST.get('prompt_state'))
+            apply_prompt_state(generation, 'prompt', prompt, data.get('prompt_state'))
 
-        # Reste des champs : coercition PAR LE SCHÉMA (types + bornes déclarés dans
-        # params.py). Les 13 blocs `if ... int()/float()` qui vivaient ici étaient une
-        # 3ᵉ copie du schéma — chaque champ ajouté demandait de les éditer aussi.
-        from wama.common.utils.param_schema import coerce_schema_values
-        for field, value in coerce_schema_values(_schema_for(generation), request.POST).items():
-            setattr(generation, field, value)
-
-        # Seed VIDE = aléatoire : la coercition ignore les champs vides, il faut donc
-        # remettre None explicitement (sinon l'ancienne graine survivrait).
-        if request.POST.get('seed', None) == '':
+        # Seed VIDE = aléatoire : remis à None explicitement (sinon l'ancienne graine survivrait).
+        seed_cleared = data.get('seed', None) == ''
+        apply_item_settings(generation, {k: v for k, v in data.items() if k != 'prompt'},
+                            params_fields=[n for n in names if n != 'seed' or not seed_cleared])
+        if seed_cleared:
             generation.seed = None
 
         # HORS schéma : résolution image (widget à présets par modèle).
         for _f in ('width', 'height'):
-            if request.POST.get(_f):
-                setattr(generation, _f, int(request.POST[_f]))
+            if data.get(_f):
+                setattr(generation, _f, int(data[_f]))
 
         generation.save()
 
