@@ -97,6 +97,16 @@ mais c'est défaire son geste dans son dos.
   bas.** Avant de commiter un handoff dans `PROJECT_STATUS`, relire les blocs du même jour :
   un autre s'y est peut-être déjà chargé du point.
 
+- **2026-09-26 — l'index partagé n'est PAS vide (WIP stagé d'autrui) mais on doit commiter
+  quand même.** Voie sûre : un INDEX TEMPORAIRE — `GIT_INDEX_FILE=<scratchpad>/tmp.index`,
+  `git read-tree HEAD`, `git apply --cached` du patch, `git add` de ses fichiers propres,
+  `git commit`, puis `unset GIT_INDEX_FILE`. ⚠⚠ **ET ENSUITE** : l'index partagé garde, pour
+  les chemins commités, les blobs de l'ANCIEN HEAD — `git status` les montre alors en `M`/`D`
+  en 1ʳᵉ colonne, c'est-à-dire comme un RETOUR ARRIÈRE STAGÉ que le prochain `git commit` de
+  l'autre instance emporterait. Réaligner **ces seuls chemins** : `git reset -q HEAD -- <mes
+  chemins>` (jamais un `git reset` global), puis vérifier que `git diff --cached --stat` est
+  revenu à l'état d'autrui d'avant.
+
 ## 4. Docs générées
 
 Un bloc régénéré (`doc_facts`) projette le REGISTRE tel qu'il est dans l'arbre, WIP d'autrui
