@@ -229,9 +229,11 @@ l'app — détail et règle de déclaration : `docs/construction/ui/INPUT_MODEL_
 **`supports_profiles` (spec migrée de `MODAL_ACTIONS_AUDIT.md §4`, 2026-07-25 — À IMPLÉMENTER en
 capacité COMMUNE, pas par app)** : « sauver la configuration courante comme profil réutilisable ».
 L'app qui la déclare gagne dans le pied de modale (§6.5) un bouton « Enregistrer comme profil » ;
-stockage = `UserAsset` (médiathèque, kind profil, JSON des params du schéma `params.py`) ; relecture
-= liste des profils dans la modale/l'inspecteur. Converter a un système de profils PROPRE
-(`profile_list/save/delete`) → premier candidat à la généralisation, ne pas dupliquer son impl.
+relecture = liste des profils dans la modale/l'inspecteur. ~~stockage = `UserAsset` (médiathèque,
+kind profil)~~ — **RETIRÉ le 2026-09-27 (Fabien)** : *« les profils de réglages se gèrent
+directement dans l'application »*, pas dans la médiathèque. Le modèle est celui du converter
+(`profile_list/save/delete`, `ConversionProfile` : valeurs du schéma `params.py` en JSON), à
+PORTER au commun puis faire adopter — ne pas dupliquer son impl. Route : `ROADMAP §22.5`.
 
 ### 2bis.4 Prompt targets — déclaration des prompts (pilote la PromptPipeline §16.6)
 Chaque app déclare ses champs-prompt dans `common/utils/app_metadata.py::PROMPT_TARGETS` (source
