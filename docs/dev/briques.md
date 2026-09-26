@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**160 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**161 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1090,7 +1090,7 @@ Recherche internet + page → texte plafonné (octets ET caractères) pour l'inv
 - **Domicile** : `wama/common/utils/web_search.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 - **Module** : web_search — Recherche internet + lecture de page en CHAÎNE (COMMUN).
 - **API publique** (2) :
-  - `search_web(query: str, max_results: int=5) -> list` — Recherche web → [{'title', 'url', 'snippet'}], au plus `max_results` (borné 1-10).
+  - `search_web(query: str, max_results: int=5, user=None) -> list` — Recherche web → [{'title', 'url', 'snippet'}], au plus `max_results` (borné 1-10).
   - `read_web_page(url: str, max_bytes: int=DEFAULT_MAX_BYTES, max_chars: int=DEFAULT_MAX_CHARS) -> dict` — Page publique → {'url', 'final_url', 'text', 'truncated'} — texte lisible borné.
 
 ### Skills de rôle de l'assistant
@@ -1744,7 +1744,7 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
-- **API publique** (11) :
+- **API publique** (12) :
   - `app_group(app_id)`
   - `app_id_for_path(path)` — app_id gardé correspondant à un chemin de requête, ou None.
   - `tool_accessible(user, tool_name)` — Un user peut-il exécuter cet outil `tool_api` ? MÊME décision que `accessible()` : la
@@ -1755,6 +1755,7 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
   - `user_roles(user)` — Ensemble des clés de rôles métier d'un user (depuis ses Groups 'role:*').
   - `accessible(user, kind, element_id)` — Un user peut-il accéder à cet élément ? Point UNIQUE de décision (nav, vues, studio, outils).
   - `accessible_apps(user, app_ids)` — Sous-ensemble d'app_ids accessibles à user (préserve l'ordre).
+  - `access_cases()` — Tous les cas du modèle d'accès : chaque tier × chaque combinaison de rôles × chaque app.
   - `app_access(app_id)` — Décorateur de vue (défense en profondeur, phase 2) : 403 si l'app n'est pas accessible.
 
 ### Accès ffmpeg
@@ -1902,6 +1903,22 @@ REGISTRE de capacités de lecture — aucun format privilégié : ajouter un for
 - **API publique** (2) :
   - `make_audible(text: str) -> str` — Traduit la MISE EN FORME VISUELLE en respirations audibles.
   - `text_for_speech(text: str) -> str` — Prépare un texte pour la synthèse vocale : la TTS doit LIRE, pas décrire.
+
+### Moteurs de recherche web
+
+Un adaptateur par moteur (Exa, Staan, SearXNG, DuckDuckGo) derrière UN contrat : l'inventaire vient des sources `kind='recherche'` du registre, jamais d'une liste écrite dans le code appelant. Le choix a DEUX étages — défaut d'instance (`WAMA_SEARCH_ENGINE`) et préférence de chacun au profil qui le surcharge —, et un moteur à clé n'est proposé qu'à qui a posé la sienne. Né le 2026-09-26 (décision de Fabien) : la recherche de l'assistant était câblée sur UN moteur écrit en dur, et le jour où il a cessé de répondre autre chose qu'un défi anti-robot, la surface entière est tombée sans recours. ⚠ Un moteur qui répond autre chose que des résultats LÈVE (`SearchEngineUnavailable`) au lieu de rendre une liste vide : un échec qui emprunte la forme d'un succès se croit
+
+- **Domicile** : `wama/common/search_engines/registry.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
+- **Module** : Quel moteur de recherche, pour qui — et avec quelle clé.
+- **API publique** (8) :
+  - `engine_slugs() -> list[str]` — Les moteurs implémentés, dans l'ordre de préférence par défaut.
+  - `declared_engines() -> list` — Les sources `recherche` du registre QUI ONT un adaptateur ici.
+  - `needs_key(slug: str) -> bool`
+  - `key_for(user, slug: str) -> str` — La clé de CET utilisateur pour ce moteur — règle commune (`accounts.api_keys`) : un
+  - `usable_slugs(user) -> list[str]` — Les moteurs que CET utilisateur peut employer : sa clé posée, ou aucune clé requise —
+  - `preferred_slug(user) -> str` — Le moteur de cet utilisateur : sa préférence, sinon le défaut d'instance, sinon le
+  - `get_engine(slug: str, api_key: str='') -> BaseSearchEngine | None`
+  - `engine_for(user) -> BaseSearchEngine` — Le moteur à employer pour cet utilisateur, prêt à interroger.
 
 ### Médias de test isolés
 

@@ -1385,6 +1385,21 @@ MECHANISMS = (
               annexes=('wama/common/utils/http_proxy.py',
                        'wama/common/utils/ollama_host.py',
                        'wama/media_library/providers/base.py')),
+    Mechanism('search_engines', 'Moteurs de recherche web',
+              "Un adaptateur par moteur (Exa, Staan, SearXNG, DuckDuckGo) derrière UN contrat : "
+              "l'inventaire vient des sources `kind='recherche'` du registre, jamais d'une liste "
+              "écrite dans le code appelant. Le choix a DEUX étages — défaut d'instance "
+              "(`WAMA_SEARCH_ENGINE`) et préférence de chacun au profil qui le surcharge —, et un "
+              "moteur à clé n'est proposé qu'à qui a posé la sienne. Né le 2026-09-26 (décision "
+              "de Fabien) : la recherche de l'assistant était câblée sur UN moteur écrit en dur, "
+              "et le jour où il a cessé de répondre autre chose qu'un défi anti-robot, la surface "
+              "entière est tombée sans recours. ⚠ Un moteur qui répond autre chose que des "
+              "résultats LÈVE (`SearchEngineUnavailable`) au lieu de rendre une liste vide : un "
+              "échec qui emprunte la forme d'un succès se croit",
+              'wama/common/search_engines/registry.py', 'docs/construction/ia/WAMA_LLM.md',
+              annexes=('wama/common/search_engines/base.py',
+                       'wama/common/utils/web_search.py',
+                       'wama/accounts/api_keys.py')),
     Mechanism('units_display', "Unités d'affichage",
               "Moteur UNIQUE de conversion d'unités pour la PRÉSENTATION (pint) : la donnée "
               "reste dans SON unité (`WamaVariables.unit`, `ParamSpec.unit`), la préférence "

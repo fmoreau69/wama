@@ -893,6 +893,11 @@ DESCRIBER_LLM_MODELS = {
     'fast':    os.environ.get('DESCRIBER_MODEL_FAST',    ''),
 }
 
+# Moteur de recherche web par DÉFAUT de l'instance (clé d'une source `kind='recherche'` du
+# registre : exa, staan, searxng, duckduckgo). Vide = le premier moteur utilisable. Chaque
+# utilisateur peut le surcharger à son profil ; ce réglage ne fait que dire le défaut.
+WAMA_SEARCH_ENGINE = os.environ.get('WAMA_SEARCH_ENGINE', '')
+
 # Proxy SORTANT de l'instance — le réglage que la brique commune `outbound_proxies()` lit en
 # PREMIER, avant `HTTPS_PROXY`/`HTTP_PROXY` de l'environnement.
 # ⚠ Il n'était déclaré NULLE PART (mesuré le 2026-09-26 : `hasattr(settings, …)` = False) : la

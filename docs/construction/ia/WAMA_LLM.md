@@ -798,11 +798,54 @@ un défi anti-robot »*. ⚠ Le réglage `WAMA_OUTBOUND_PROXY`, que la brique li
 n'était déclaré **nulle part** dans `settings.py` (`hasattr` = False) : cette branche ne pouvait
 jamais jouer. Déclarée, vide par défaut.
 
-🔚 **DÉCISION de Fabien** : la recherche web de l'assistant est **hors service** tant que le
-moteur sert un défi. Options — un moteur à clé (Brave Search, Tavily, SerpAPI : une source de
-plus au registre, clé par instance ou par utilisateur comme les connecteurs média), une instance
-SearXNG du labo, ou l'abandon de cette surface. *Le code est prêt et gardé ; ce qui manque est
-un moteur qui accepte d'être interrogé par un programme.*
+### ✅ TRANCHÉ le 2026-09-26 — le moteur devient un CHOIX, plus une constante
+
+Décision de Fabien : *« on ajoute les moteurs de recherche aux sources et on laisse
+l'utilisateur sélectionner son moteur par défaut sur sa page profil »*. Ce que ça corrige tient
+en une phrase : **un moteur écrit en dur est un point de panne que rien ne contourne** — celui
+du 29/08 a tenu un mois.
+
+**La forme, identique à celle des connecteurs de la médiathèque** (on ne réinvente pas un
+patron pour une deuxième famille de connecteurs) :
+
+| ce qui est déclaré | où |
+|---|---|
+| le moteur existe, son adresse, sa portée (donc son proxy), sa page de clé | registre `external_sources`, famille `recherche` |
+| comment on l'interroge (corps de requête, forme de la réponse) | un adaptateur par moteur, `common/search_engines/` |
+| qui peut l'employer | sa clé, posée **au profil** par chacun (`accounts.UserApiKey`) |
+| lequel employer | préférence du profil → défaut d'instance (`WAMA_SEARCH_ENGINE`) → premier utilisable |
+
+**Les trois moteurs ouverts** (mesurés le 26/09, tarifs et conditions vérifiés à la source) :
+
+- **Exa** — 20 000 requêtes/mois offertes, sans carte bancaire ; recherche neuronale, forte
+  pour « identifier / comprendre ». Le plus simple à ouvrir aujourd'hui.
+- **Staan (Qwant + Ecosia)** — l'index **européen**, API ouverte en libre-service depuis 2026 ;
+  1 000 requêtes/mois offertes puis **2 €/1 000**, données **sous juridiction UE**. Le plus
+  aligné avec un labo public — et le seul qui ne dépende ni de Google ni de Bing.
+- **SearXNG** — instance auto-hébergée, sans clé. ⚠ **Il n'a pas d'index** : il interroge les
+  mêmes moteurs, depuis l'IP du labo (mesuré par des tiers en juillet 2026 : Google et Brave y
+  opposent un défi, seul DuckDuckGo répond). Il apporte la vie privée, **pas** la fiabilité :
+  il ne contourne pas le défi qui nous a bloqués, il le déplace.
+- ~~Brave~~ — index indépendant et bon marché, mais **tier gratuit supprimé en février 2026** :
+  carte bancaire obligatoire et crédit conditionné à une **attribution publique** sur le site.
+  Deux frictions administratives réelles pour un labo ; écarté à ce stade, pas condamné.
+
+⚠ **Sans configuration, rien ne change** : aucune clé posée et aucune instance déclarée
+laissent DuckDuckGo seul utilisable — qui dit son défi. Une instance SearXNG **non déclarée**
+n'est délibérément pas « utilisable » : sans cette règle, son adresse par défaut
+(`127.0.0.1:8888`) ferait d'elle le moteur de toute installation neuve, et chaque recherche
+mourrait sur une connexion refusée.
+
+**Ce que ça a RETIRÉ** — `accounts/api_keys.py` filtrait la famille `llm` **en dur** : ouvrir
+le mécanisme des clés personnelles aux moteurs a consisté à remplacer ce littéral par une
+liste de familles déclarée. *Une brique qui nomme une famille en dur devra être modifiée à
+chaque famille ; une brique qui lit le registre, jamais.* ⚠ `media` n'y entre PAS : les
+connecteurs de la médiathèque ont leur propre stockage chiffré — les réunir est un chantier de
+FUSION, pas un ajout, et le déclarer ici ferait deux domiciles pour une même notion.
+
+🔚 **Reste à Fabien** : ouvrir un compte sur **Exa** et/ou **Staan** et poser la clé au profil
+(rien d'autre à faire : la page, la sonde et le choix sont en place). Puis, le cas échéant,
+décider du défaut d'instance.
 
 **Incohérence relevée à résorber au passage** : DEUX routes de résolution vision coexistent —
 `describer/backends/image_backend.py` (liste en dur `gemma4:12b/e4b`) court-circuite le tier

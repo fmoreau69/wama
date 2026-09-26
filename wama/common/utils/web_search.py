@@ -5,12 +5,16 @@ Complète `url_ingest` (URL connue → FICHIER local, pour l'ingest des apps) po
 de l'assistant (`WAMA_LLM.md §Investigation web`) : URL inconnue → CHERCHER, puis
 page → TEXTE en mémoire, borné, prêt à entrer dans un prompt.
 
-Moteur v1 : DuckDuckGo (endpoint HTML, sans clé d'API) — encapsulé derrière `search_web()`
-pour changer de moteur sans toucher aux appelants.
+⚠ Le MOTEUR ne vit plus ici depuis le 2026-09-26 (décision de Fabien). Ce module en avait UN,
+écrit en dur — DuckDuckGo —, et le jour où ce moteur a cessé de répondre autre chose qu'un
+défi anti-robot, la surface entière est tombée sans recours. Les moteurs sont désormais des
+sources du registre avec un adaptateur chacun (`common/search_engines/`), et le choix est une
+PRÉFÉRENCE de chacun au profil sur un défaut d'instance. Ce module orchestre : il choisit,
+appelle, et met en forme pour l'appelant.
 
 Gardes, toutes délibérées :
   • `url_guard` sur chaque lecture de page (URL pilotée par une donnée), REDIRECTIONS
-    comprises — le moteur de recherche, lui, est un hôte FIXE écrit ici, pas une saisie ;
+    comprises — l'adresse d'un moteur, elle, vient du registre, jamais d'une saisie ;
   • plafond d'OCTETS au téléchargement (⚠ premier de WAMA — `url_ingest` n'en a pas,
     trou consigné dans `WAMA_LLM.md`) et de CARACTÈRES en sortie : le texte est destiné
     à un prompt de LLM local à fenêtre étroite ;
@@ -22,113 +26,47 @@ from __future__ import annotations
 
 import logging
 
+#: Ré-exporté : les appelants (tool_api, tests) l'attrapent sans connaître les moteurs.
+from wama.common.search_engines import SearchEngineUnavailable  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 #: Bornes par défaut — le plafond d'octets protège la machine, celui de caractères le prompt.
 DEFAULT_MAX_BYTES = 2_000_000
 DEFAULT_MAX_CHARS = 12_000
 
-
-class SearchEngineUnavailable(RuntimeError):
-    """Le moteur a répondu, mais pas avec des résultats (défi anti-robot, page d'erreur…).
-
-    ⚠ Distinct d'une recherche SANS RÉSULTAT, qui est une réponse légitime. Mesuré le
-    2026-09-26 : DuckDuckGo rend un HTTP 200 de 14 Ko contenant *« Unfortunately, bots use
-    DuckDuckGo too. Please complete the following challenge »* — la requête réussit, le
-    parsing ne trouve rien, et `search_web` rendait une liste VIDE. L'assistant concluait
-    alors « je n'ai rien trouvé » sur une recherche qui n'avait jamais eu lieu.
-    *Un échec qui emprunte la forme d'un succès est pire qu'une erreur : il se croit.*
-    """
-
-
-#: Marqueurs d'une page de DÉFI plutôt que de résultats. Deux conditions réunies (aucun
-#: résultat parsé ET un de ces mots) : un seul des deux se déclencherait à tort — une
-#: recherche légitime sur le mot « challenge » rendrait des résultats, donc ne lèvera pas.
-_CHALLENGE_MARKERS = ('anomaly', 'challenge', 'captcha', 'unusual traffic')
-
+#: En-têtes de LECTURE d'une page. Distincts de ceux d'un moteur (chaque adaptateur porte les
+#: siens) : on lit ici des sites quelconques, dont beaucoup servent une page dégradée à un
+#: client qui ne s'annonce pas comme un navigateur.
 _UA = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
                   '(KHTML, like Gecko) Chrome/122 Safari/537.36',
     'Accept-Language': 'fr-FR,fr;q=0.9,en-US,en;q=0.8',
 }
-#: Hôte du moteur — déclaré au registre commun des sources externes depuis le 2026-09-01
-#: (l'intention « il change à UN endroit » est la même, portée un cran plus haut : elle vaut
-#: pour toutes les sources, et permet d'INVENTORIER à quoi WAMA se connecte).
-def _ddg_html() -> str:
-    from wama.common.external_sources import base_url
-    return base_url('duckduckgo') + '/'
 
 
-def _decode_ddg_href(href: str) -> str:
-    """DuckDuckGo enrobe les liens de résultat (`//duckduckgo.com/l/?uddg=<url>`) — rendre l'URL réelle."""
-    from urllib.parse import urlparse, parse_qs
-
-    if href.startswith('//'):
-        href = 'https:' + href
-    p = urlparse(href)
-    if p.netloc.endswith('duckduckgo.com') and p.path.startswith('/l/'):
-        # parse_qs décode déjà le percent-encoding — ne PAS ré-unquoter.
-        uddg = parse_qs(p.query).get('uddg', [''])[0]
-        return uddg or href
-    return href
-
-
-def search_web(query: str, max_results: int = 5) -> list:
+def search_web(query: str, max_results: int = 5, user=None) -> list:
     """
     Recherche web → [{'title', 'url', 'snippet'}], au plus `max_results` (borné 1-10).
+
+    Le moteur est celui de `user` (sa préférence de profil, sinon le défaut d'instance, sinon
+    le premier utilisable). Sans utilisateur — tâche planifiée, ligne de commande — la
+    résolution retombe sur le défaut d'instance et les clés d'instance.
 
     Les URL rendues ne sont PAS visitées ici : la garde SSRF s'applique au moment de la
     LECTURE (`read_web_page`), là où la sortie réseau pilotée par la donnée a lieu.
     """
-    import requests
-    from bs4 import BeautifulSoup
+    from wama.common.search_engines import engine_for
 
     query = (query or '').strip()
     if not query:
         return []
     max_results = max(1, min(int(max_results), 10))
 
-    # Proxy : par la PORTÉE déclarée de la source, comme les connecteurs de la médiathèque
-    # depuis le 2026-09-21 — et pour la même raison, mesurée ici le 2026-09-26 : `requests`
-    # lit bien l'environnement TOUT SEUL, mais le process qui exécute l'assistant (WSL2) n'a
-    # que `HTTP_PROXY`. Pour l'URL HTTPS du moteur, il ne trouvait donc AUCUN proxy et sortait
-    # en direct — c'est-à-dire dans le vide, derrière le proxy de l'université. La brique
-    # commune, elle, applique la valeur aux DEUX schémas.
-    from wama.common.external_sources import proxies_for
-    resp = requests.post(_ddg_html(), data={'q': query}, headers=_UA, timeout=15,
-                         proxies=proxies_for('duckduckgo'))
-    resp.raise_for_status()
-
-    soup = BeautifulSoup(resp.text, 'lxml')
-    resultats = []
-    for res in soup.select('div.result'):
-        classes = ' '.join(res.get('class') or [])
-        if 'result--ad' in classes:
-            continue
-        lien = res.select_one('a.result__a')
-        if not lien or not lien.get('href'):
-            continue
-        url = _decode_ddg_href(lien['href'])
-        if not url.startswith(('http://', 'https://')):
-            continue
-        extrait = res.select_one('.result__snippet')
-        resultats.append({
-            'title': lien.get_text(strip=True),
-            'url': url,
-            'snippet': extrait.get_text(strip=True) if extrait else '',
-        })
-        if len(resultats) >= max_results:
-            break
-    if not resultats:
-        bas = resp.text.lower()
-        marqueur = next((m for m in _CHALLENGE_MARKERS if m in bas), '')
-        if marqueur:
-            logger.warning("[web_search] le moteur a servi un défi anti-robot (« %s ») — "
-                           "aucune recherche n'a eu lieu", marqueur)
-            raise SearchEngineUnavailable(
-                "le moteur de recherche a répondu par un défi anti-robot au lieu de résultats "
-                "— la recherche web est indisponible (changer de moteur relève d'une décision)")
-    return resultats
+    engine = engine_for(user)
+    hits = engine.search(query, max_results=max_results)
+    logger.info("[web_search] %s : %d résultat(s) pour %r", engine.slug, len(hits), query[:60])
+    return [hit.to_dict() for hit in hits[:max_results]]
 
 
 def read_web_page(url: str,
