@@ -99,6 +99,7 @@ FRENCH_WORDS = frozenset({
 ALLOWED = frozenset({
     'liste_id',
     'test_an_adapter_declares_nothing_rather_than_a_misleading_weight',   # verbe anglais
+    'test_the_home_page_declares_the_common_chat_in_full_density',        # verbe anglais
 })
 #: Un accent est un signal CERTAIN (Python 3 les accepte dans les identifiants).
 ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖÙÛÜŸÇ]')
@@ -113,7 +114,7 @@ ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖ�
 #: Les noms de tests etaient la derniere exemption de la doctrine (AGENTS.md, 22/08) ; elle est
 #: LEVEE. Ils restent comptes A PART parce qu'ils se soldent autrement : aucun appelant, donc
 #: aucun risque de rendre FAUX — mais 1298 renommages qui noieraient tout autre diff.
-BUDGET_CODE = 2736          # production + fichiers de tests hors noms (2750 → 2744 le 22/09, 2737 le 23/09 : les dix apps sur la fabrique des vues de lot ; 2736 le 24/09, modale ⚙ du reader au cycle commun)
+BUDGET_CODE = 2735          # production + fichiers de tests hors noms (2750 → 2744 le 22/09, 2737 le 23/09 : les dix apps sur la fabrique des vues de lot ; 2736 le 24/09, modale ⚙ du reader au cycle commun ; 2735 le 26/09, le nettoyage du texte à dire porté en brique commune — `_rendre_audible`/`_FIN_PONCTUEE`/`lignes`/`nue` disparaissent avec leur domicile)
 #: +142 le 2026-09-21 (et +1 classe, +28 noms de tests) : AFFUTAGE, pas ajout — six mots
 #: evidents inscrits a la liste noire sur decision de Fabien (cf. FRENCH_WORDS). Dette ANCIENNE
 #: rendue visible ; 2608 avant.

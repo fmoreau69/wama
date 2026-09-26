@@ -7,6 +7,8 @@ import os
 import logging
 import re
 
+from wama.common.utils.tts_text import text_for_speech
+
 logger = logging.getLogger(__name__)
 
 
@@ -105,31 +107,16 @@ def _extract_from_csv(file_path: str) -> str:
 
 
 def clean_text_for_tts(text: str) -> str:
+    """Prépare un texte pour la synthèse vocale — DÉLÈGUE à la brique commune.
+
+    ⚠ Le corps vivait ici jusqu'au 2026-09-26, et il retirait les URL, les e-mails et les
+    espaces multiples : rien de faux, mais il ignorait les EMOJIS et les RESPIRATIONS, qui
+    étaient écrites dans `wama/views.py` sous le MÊME NOM de fonction. Le synthesizer, dont
+    tout le métier est de lire un document à voix haute, lisait donc les listes à puces d'un
+    trait et faisait verbaliser les pictogrammes par espeak.
+
+    Les six appelants de ce nom sont conservés (rien à réécrire chez eux) ; ce qu'ils appellent
+    est désormais la chaîne complète. Nouveau comportement pour eux : pause en fin de ligne non
+    ponctuée, retrait des emojis, aplatissement du Markdown.
     """
-    Nettoie et prépare un texte pour la synthèse vocale.
-
-    Args:
-        text: Texte brut
-
-    Returns:
-        str: Texte nettoyé
-    """
-    if not text:
-        return ""
-
-    # Supprimer les URLs
-    text = re.sub(r'http[s]?://\S+', '', text)
-
-    # Supprimer les emails
-    text = re.sub(r'\S+@\S+', '', text)
-
-    # Normaliser les espaces multiples
-    text = re.sub(r'\s+', ' ', text)
-
-    # Supprimer les caractères de contrôle sauf retours à la ligne
-    text = ''.join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
-
-    # Normaliser les sauts de ligne multiples
-    text = re.sub(r'\n{3,}', '\n\n', text)
-
-    return text.strip()
+    return text_for_speech(text)
