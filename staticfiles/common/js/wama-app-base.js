@@ -35,6 +35,29 @@
     return fetch(url, opts);
   }
 
+  // Lit une réponse JSON en DISANT ce qui s'est passé quand ce n'en est pas.
+  //
+  // ⚠⚠ MESURÉ le 2026-09-23. Les deux surfaces de l'assistant faisaient `await r.json()` sans
+  // regarder `r.ok`. Un tour trop long (le modèle de niveau dev, 23 Go, chargé sur un budget
+  // de 3,6 Go → offload CPU) dépasse le `timeout = 120` de gunicorn, qui rend une PAGE HTML
+  // 504. L'utilisateur lisait alors « Network error: Unexpected token '<', "<html><hea"… » :
+  // le message parle du parseur JSON, jamais de ce qui a échoué.
+  // Un serveur qui rend du HTML à un appel JSON a TOUJOURS une raison ; la dire est le
+  // minimum, et 504 en a une que l'utilisateur peut comprendre et corriger.
+  function jsonOrExplain(response) {
+    if (response.ok) return response.json();
+    var messages = {
+      504: 'Le serveur a mis trop de temps à répondre (plus de 2 minutes). '
+         + 'Un modèle trop gros pour la mémoire libre peut mettre plusieurs minutes : '
+         + 'réessayez, ou choisissez un modèle plus léger.',
+      502: 'Le serveur a coupé la connexion (502). Le traitement a peut-être été interrompu.',
+      403: 'Accès refusé (403) — session expirée ? Rechargez la page.',
+      500: 'Erreur interne du serveur (500). Elle est journalisée côté serveur.',
+    };
+    return Promise.reject(new Error(messages[response.status]
+                                    || ('Le serveur a répondu ' + response.status + '.')));
+  }
+
   // Jeton CSRF de la page : le champ caché d'un formulaire, sinon le cookie. (Le même geste
   // vivait en ligne dans base.html ; il est exposé ici pour les briques communes.)
   function csrfToken() {
@@ -515,6 +538,7 @@
     csrfHeaders: csrfHeaders,
     csrfFetch: csrfFetch,
     csrfToken: csrfToken,
+    jsonOrExplain: jsonOrExplain,
     wordCount: wordCount,
     Poller: Poller,
     emptyState: emptyState,

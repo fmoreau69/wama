@@ -319,12 +319,17 @@ def thinking_wanted(quality_intent) -> bool:
         return False
 
 
-def _ollama_call(messages: list, ollama_model: str, think: bool = None) -> tuple:
+def _ollama_call(messages: list, ollama_model: str, think: bool = None, on_delta=None) -> tuple:
     """
     Low-level Ollama POST.
 
     `think` : None = défaut du modèle (réflexion ON pour les modèles qui la portent) ; False la
     coupe ; True la demande. Dérivé du curseur par `thinking_wanted`, jamais figé ici.
+
+    `on_delta(fragment)` : si fourni, la réponse est demandée EN FLUX (`stream: True`) et chaque
+    fragment est remis à l'appelant au fil de l'eau — levier 5 de `WAMA_LLM §1bis`. Sans lui,
+    le corps est IDENTIQUE à ce qu'il était : un seul POST, une seule réponse. Ce défaut compte,
+    car l'API v1 et la passerelle n'ont aucune raison de payer un flux qu'elles n'affichent pas.
 
     Returns:
         (text: str, usage: dict) on success
@@ -354,11 +359,13 @@ def _ollama_call(messages: list, ollama_model: str, think: bool = None) -> tuple
         "model": ollama_model,
         "messages": messages,
         "options": {"temperature": 0.7, "num_predict": 4096},
-        "stream": False,
+        "stream": bool(on_delta),
     }
     if think is not None:
         payload["think"] = bool(think)
     try:
+        if on_delta:
+            return _ollama_stream(ollama_url, payload, on_delta)
         with httpx.Client(timeout=180.0, trust_env=False) as client:
             resp = client.post(ollama_url, json=payload)
         if resp.status_code != 200:
@@ -389,6 +396,97 @@ def _ollama_call(messages: list, ollama_model: str, think: bool = None) -> tuple
     except Exception as e:
         logger.error(f"Ollama error: {e}")
         return None, {'error': f'Ollama error: {e}', 'status': 500}
+
+
+def _ollama_stream(ollama_url: str, payload: dict, on_delta) -> tuple:
+    """Un tour Ollama EN FLUX : les fragments partent à `on_delta` au fil de l'eau, et la
+    fonction rend le même couple `(texte complet, usage)` que la voie synchrone — l'appelant
+    n'a donc rien d'autre à changer, et la boucle à outils continue de raisonner sur un texte
+    entier.
+
+    ⚠ Le texte accumulé ici est le texte BRUT : c'est l'appelant qui décide ce qui s'AFFICHE
+    (un appel d'outil et un bloc de réflexion n'ont rien à faire à l'écran) — cf. `_TokenGate`.
+    """
+    import httpx
+
+    chunks, usage = [], {'input_tokens': 0, 'output_tokens': 0}
+    with httpx.Client(timeout=180.0, trust_env=False) as client:
+        with client.stream('POST', ollama_url, json=payload) as resp:
+            if resp.status_code != 200:
+                resp.read()
+                return None, {'error': f'Ollama error: {resp.text}', 'status': resp.status_code}
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:      # ligne partielle : Ollama émet un JSON par ligne
+                    continue
+                fragment = (data.get('message') or {}).get('content') or ''
+                if fragment:
+                    chunks.append(fragment)
+                    on_delta(fragment)
+                if data.get('done'):
+                    usage = {'input_tokens': data.get('prompt_eval_count', 0),
+                             'output_tokens': data.get('eval_count', 0)}
+    return ''.join(chunks), usage
+
+
+class _TokenGate:
+    """Décide, AU FIL DE L'EAU, ce qu'un fragment a le droit de montrer à l'écran.
+
+    Trois choses arrivent par le même canal et une seule doit s'afficher :
+      • la RÉFLEXION du modèle (`<think>…</think>`) — elle vaut 7 354 caractères pour 244 de
+        réponse sur un tour mesuré : l'afficher noierait la réponse ;
+      • un APPEL D'OUTIL (`{"tool": …}`) — c'est un ordre, pas une phrase ; l'afficher ferait
+        lire du JSON à l'utilisateur, puis disparaître ;
+      • la RÉPONSE, la seule attendue.
+
+    ⚠ La décision doit se prendre SANS attendre la fin, sinon il n'y a plus de flux. D'où
+    l'attente prudente au DÉBUT de chaque itération : tant que le premier caractère utile n'est
+    pas connu, on retient. Un `{` ouvre un appel d'outil et ferme le robinet pour cette
+    itération entière ; tout autre caractère l'ouvre définitivement. C'est décidable sur UN
+    caractère, et c'est ce qui rend le filtre possible en flux.
+    """
+
+    def __init__(self, emit):
+        self._emit = emit
+        self._buffer = ''
+        self._decided = False
+        self._muted = False
+        self._in_think = False
+
+    def feed(self, fragment: str) -> None:
+        self._buffer += fragment
+        if self._in_think:
+            fin = self._buffer.find('</think>')
+            if fin < 0:
+                return
+            self._buffer = self._buffer[fin + len('</think>'):]
+            self._in_think = False
+        if not self._decided:
+            rest = self._buffer.lstrip()
+            if rest.startswith('<think>'):
+                self._in_think = True
+                self._buffer = rest[len('<think>'):]
+                return self.feed('')
+            # `<` seul peut être le début de `<think>` : on attend d'en savoir plus.
+            if not rest or (rest[0] == '<' and not rest.startswith('<think>')
+                            and len(rest) < len('<think>')):
+                return
+            self._decided = True
+            self._muted = rest[0] == '{'
+            self._buffer = rest
+        if self._muted or not self._buffer:
+            return
+        self._emit(self._buffer)
+        self._buffer = ''
+
+    def close(self) -> None:
+        """Fin d'itération : ce qui restait en attente part, sauf si l'itération était muette."""
+        if self._decided and not self._muted and self._buffer:
+            self._emit(self._buffer)
+        self._buffer = ''
 
 
 def _claude_code_call(messages: list, user=None) -> tuple:
@@ -447,7 +545,7 @@ def _claude_code_call(messages: list, user=None) -> tuple:
 
 
 def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
-              think: bool = None) -> tuple:
+              think: bool = None, on_delta=None) -> tuple:
     """
     Un tour de LLM, quel que soit le fournisseur.
 
@@ -467,7 +565,10 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
         (text, usage_dict) on success · (None, error_dict) on failure
     """
     if provider in _LOCAL_PROVIDERS:
-        return _ollama_call(messages, llm_model, think=think)
+        # ⚠ Le FLUX n'existe que sur le chemin LOCAL : `llm_chat` (LiteLLM) rend un texte
+        # entier, et l'abonnement Claude Code lance un process qui finit avant de parler. Un
+        # tour cloud reste donc synchrone, et la surface le sait (elle affiche son attente).
+        return _ollama_call(messages, llm_model, think=think, on_delta=on_delta)
 
     if provider in _SUBSCRIPTION_PROVIDERS:
         return _claude_code_call(messages, user=user)
@@ -562,7 +663,7 @@ def _sanitize_history(history) -> list:
 
 def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: str = '',
                          provider: str = None, model: str = None,
-                         domain: str = None) -> dict:
+                         domain: str = None, on_event=None) -> dict:
     """
     UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
 
@@ -597,7 +698,8 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
         logger.exception("[ai_chat] store de conversation indisponible — tour sans historique")
 
     resultat = run_assistant_turn(user, message, provider=provider, model=model,
-                                  history=historique, domain=domain)
+                                  history=historique, domain=domain, surface=surface,
+                                  on_event=on_event)
 
     if fil is not None and 'error' not in resultat:
         try:
@@ -611,7 +713,7 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
 
 def run_assistant_turn(user, message: str, provider: str = None,
                        model: str = None, history: list = None,
-                       domain: str = None) -> dict:
+                       domain: str = None, surface: str = 'web', on_event=None) -> dict:
     """
     UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
     surfaces (vue web `ai_chat`, API v1 `assistant/chat/`, adaptateurs de canaux).
@@ -775,7 +877,15 @@ def run_assistant_turn(user, message: str, provider: str = None,
     MAX_TOOL_ITERATIONS = 5
 
     for _ in range(MAX_TOOL_ITERATIONS):
-        text, result = _llm_call(messages, llm_model, provider, user=user, think=think)
+        # FLUX (levier 5) : un portier par itération — il ne laisse passer ni la réflexion du
+        # modèle ni un appel d'outil, qui arrivent par le même canal que la réponse.
+        gate = None
+        if on_event is not None and local:
+            gate = _TokenGate(lambda fragment: on_event({'type': 'delta', 'text': fragment}))
+        text, result = _llm_call(messages, llm_model, provider, user=user, think=think,
+                                 on_delta=(gate.feed if gate else None))
+        if gate is not None:
+            gate.close()
         if text is None:
             return result  # error dict
 
@@ -837,6 +947,10 @@ def run_assistant_turn(user, message: str, provider: str = None,
             elif isinstance(tool_result, dict):
                 tool_result = dict(tool_result, warning=development_refusal(user))
         tool_steps.append({'tool': tool_name, 'args': tool_args, 'result': tool_result})
+        if on_event is not None:
+            # L'étape part DÈS qu'elle est jouée : « ce qui est pénible n'est pas d'attendre,
+            # c'est d'attendre sans savoir » (`WAMA_HARNESS §9 chantier 4`).
+            on_event({'type': 'step', 'step': tool_steps[-1]})
 
         # Add assistant tool-call turn + tool result to conversation
         messages.append({"role": "assistant", "content": text})
