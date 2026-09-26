@@ -27,6 +27,13 @@ PROVIDERS_DIR = Path(base.__file__).parent
 PROXY_VARS = ('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy')
 
 
+def _is_proxy_var(name):
+    """Tout ce qu'urllib lit comme réglage de proxy : `*_proxy` quelle que soit la casse,
+    `no_proxy` et `all_proxy` compris (la liste en dur ci-dessus n'en voyait que quatre)."""
+    low = name.lower()
+    return low.endswith('_proxy') or low in ('no_proxy', 'all_proxy')
+
+
 def _explicit_proxies(opener):
     """Les proxies EXPLICITEMENT passés à l'ouvreur (urllib ajoute sinon son gestionnaire par
     défaut, qui lit l'environnement : c'est justement lui qu'on distingue)."""
@@ -46,11 +53,24 @@ class CommonOpenerTest(SimpleTestCase):
 
     @override_settings(WAMA_OUTBOUND_PROXY='')
     def test_without_any_proxy_the_opener_behaves_as_before(self):
-        """Contre-épreuve : sans réglage ni environnement, on ne pose AUCUN proxy — urllib garde
-        exactement son comportement d'avant le 21/09."""
-        clean = {k: v for k, v in os.environ.items() if k not in PROXY_VARS}
+        """Contre-épreuve : sans réglage, notre ouvreur vaut EXACTEMENT l'ouvreur urllib nu.
+
+        ⚠ Ce test a comparé à `[]` jusqu'au 2026-09-26, et il est devenu rouge sans qu'une
+        ligne du code testé ait bougé — deux fois de suite, pour deux raisons emboîtées :
+          1. la machine a reçu un `no_proxy` (API des assistants), que la liste en dur ne
+             neutralisait pas → `getproxies()` rendait `{'no': 'api.anthropic.com,…'}` ;
+          2. une fois l'environnement VRAIMENT vidé, `getproxies()` est allé chercher plus
+             loin — le REGISTRE Windows, où le proxy de l'université est configuré.
+        Comparer à `[]` revenait donc à exiger qu'aucun proxy ne soit configuré SUR LA MACHINE,
+        ce que ce test n'a jamais voulu dire. Ce qu'il affirme — « on ne pose rien de plus
+        qu'urllib » — se mesure par DIFFÉRENCE avec un ouvreur nu construit au même instant :
+        vrai derrière le proxy de l'université comme sur une machine nue.
+        """
+        clean = {k: v for k, v in os.environ.items() if not _is_proxy_var(k)}
         with patch.dict(os.environ, clean, clear=True):
-            self.assertEqual([], _explicit_proxies(base.build_opener('pixabay')))
+            ours = _explicit_proxies(base.build_opener('pixabay'))
+            bare = _explicit_proxies(urllib.request.build_opener())
+        self.assertEqual(bare, ours, "l'ouvreur commun a posé un proxy que urllib n'aurait pas")
 
     def test_every_provider_call_goes_through_the_common_opener(self):
         """La garde de non-retour : un connecteur qui rappellerait `urlopen` lui-même
