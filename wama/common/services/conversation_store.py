@@ -90,13 +90,32 @@ def last_loaded_domain(conversation, limite: int = MAX_TOURS) -> str:
 
     Sert au domaine de DÉVELOPPEMENT (2026-09-22) : une fois la compétence dev chargée, les
     tours suivants du MÊME fil restent bridés aux modèles de niveau dev sans que la surface ait
-    à le redire — le modèle a choisi une fois, le fil s'en souvient."""
+    à le redire — le modèle a choisi une fois, le fil s'en souvient.
+
+    ⚠⚠ MAIS LE SOUVENIR S'ARRÊTE QUAND LA CONVERSATION QUITTE LE CODE (2026-09-23, demande de
+    Fabien). Sans cette sortie, le souvenir n'en était pas un : c'était un verrou. Cas mesuré —
+    un `charger_competence('dev')` le 22/09 à 10:22 (question « Modification du code WAMA »,
+    parfaitement légitime) bridait encore, LE LENDEMAIN, un « anonymise ma photo » : modèle de
+    niveau dev (23 Go) tiré sur 3,6 Go libres, `DEV_QUALITY_INTENT=100` qui fait cesser le
+    budget de borner, réflexion activée — et un tour si long que gunicorn rendait un 504.
+    *Un état qu'aucun geste ne peut quitter n'est pas une mémoire, c'est un piège.*
+
+    LE SIGNAL DE SORTIE EST DÉRIVÉ, pas listé : un outil de la TRIADE d'app (`add_` / `start_` /
+    `get_*_status`) dit que l'utilisateur SE SERT de WAMA au lieu d'en écrire le code. On
+    remonte donc le fil du plus récent au plus ancien et le premier des deux signaux rencontré
+    l'emporte — une compétence rechargée reprend la main au tour suivant, sans rien redéclarer.
+    """
     if conversation is None:
         return ''
+    from wama.tool_api import tool_role
+
     for turn in conversation.turns.filter(role='assistant').order_by('-created_at', '-pk')[:limite]:
         for step in reversed(turn.tool_steps or []):
-            if (step or {}).get('tool') == 'charger_competence':
+            tool = str((step or {}).get('tool') or '')
+            if tool == 'charger_competence':
                 return str(((step or {}).get('args') or {}).get('domaine') or '')
+            if tool_role(tool) in ('add', 'start', 'status'):
+                return ''
     return ''
 
 
