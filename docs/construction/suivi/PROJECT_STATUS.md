@@ -17446,8 +17446,9 @@ sauvegarde du volet de lot (anonymizer, imager, enhancer) → `refreshCard`, con
 > de lignes) et porter ça sur la page d'accueil. On le fait de suite et le levier 5 aussi. »*
 
 **LEVIER 5 (flux SSE) — `2716f47e`.** Ollama reçoit `stream: true` dès qu'un rappel est fourni ;
-chaque fragment remonte à l'écran ET à la voix. Mesure navigateur : 1ᵉʳ texte **0,2 s**, fin du
-tour **2,2 s**. ⚠ Le point dur n'est pas le transport mais le **portier** (`_TokenGate`) : la
+chaque fragment remonte à l'écran ET à la voix. ⚠ **Le chiffre annoncé ici (« 1ᵉʳ texte 0,2 s,
+fin 2,2 s ») est CORRIGÉ plus bas** : il venait d'un tour unique sur serveur éphémère. La mesure
+sur la pile réelle est au bloc de fin de session. ⚠ Le point dur n'est pas le transport mais le **portier** (`_TokenGate`) : la
 réflexion du modèle et les appels d'outils arrivent par le MÊME canal que la réponse, et il faut
 trancher **fragment par fragment** — aucun de ces défauts ne lève d'exception, ils produisent un
 écran faux. Contre-épreuve câblée : sans rappel, aucun flux n'est demandé, donc l'API v1 et la
@@ -17550,6 +17551,61 @@ contrôle de source des liens écrit le même jour par une autre instance : on D
 l'efface pas en silence.
 *Un smoke réel n'est pas une redondance des tests : il lit la SORTIE, là où un test lit une
 assertion qu'on a soi-même choisie.*
+
+### 2ᵉ relance — LE FLUX MESURÉ SUR LA PILE RÉELLE, et un chiffre publié qui était faux
+
+**Ce qu'aucun test Django ne pouvait lever** : un intermédiaire qui TAMPONNE annule le levier 5
+**sans rien casser** — la réponse arrive complète, l'écran se remplit d'un coup, le code reste
+correct et le gain a disparu. La démo de Fabien passera par Apache : il fallait mesurer là.
+✅ **Apache ne tamponne pas** : `text/event-stream`, `X-Accel-Buffering: no` propagé, **111
+événements** reçus un par un, à travers le port 80 comme en direct sur gunicorn.
+
+⚠⚠ **ET LA MESURE CORRIGE UN CHIFFRE QUE J'AVAIS PUBLIÉ CE MATIN** (« 1ᵉʳ texte 0,2 s, fin 2,2 s,
+2,0 s gagnées »). C'était UN tour sur un serveur de développement éphémère, présenté comme la
+performance du levier. Sur la pile réelle, cache chaud, trois longueurs de réponse :
+
+| réponse demandée | 1ᵉʳ fragment | fin du tour | gain du flux | caractères |
+|---|---|---|---|---|
+| très courte | 0,9 s | 0,9 s | 0,02 s | 2 |
+| moyenne | 0,86 s | 1,75 s | 0,89 s | 555 |
+| longue | 0,91 s | 3,03 s | 2,12 s | 1 411 |
+
+⭐ **Ce qu'un chiffre unique cachait** : le délai avant le 1ᵉʳ fragment est CONSTANT (~0,9 s à
+chaud, 3,7 à 10,7 s à froid) et le gain du flux EST la durée de génération, donc proportionnel à
+la longueur de la réponse. Le flux ne réduit pas l'attente initiale, il supprime celle qui la
+suit. *Le poste dominant d'un tour court reste l'évaluation du prompt — la cible du levier 3, qui
+devient donc le prochain levier utile et non un reste facultatif.*
+⚠ **Trois mesures valent mieux qu'une, et une seule condition n'est pas une performance.** Le
+premier appel de chaque série paie le cache froid (10,67 s puis 3,72 s) : sans faire varier la
+longueur ET l'état du cache, on publie le chiffre qui arrange.
+
+**Le correctif des adresses est bien SERVI** — et la preuve n'est pas un smoke, qui lit le disque
+et non le processus : les gunicorn tournent depuis **22 h 26 57**, le correctif est commité à
+**21 h 31 42**, donc leur code chargé le contient. *Un smoke en processus Django atteste le code
+du DISQUE ; pour ce que gunicorn SERT, c'est l'heure de démarrage qui tranche, ou une réponse HTTP
+qui expose la différence.*
+
+**TESTS — 84 OK sur mon périmètre**, sur une **base de test DÉDIÉE**. ⚠ Deux autres instances
+lançaient `manage.py test --keepdb` sur `test_wama_db` au même moment (mesuré au `ps`) : mes
+premiers rouges en étaient l'artefact, et **deux exécutions consécutives ne rendaient pas le même
+verdict** — le signe à reconnaître. Le remède est celui du rituel : un module de settings jetable
+qui nomme SA base, et `--noinput` redevient alors sans danger.
+
+🔴 **TROIS ROUGES DÉCLARÉS, AUCUN N'EST DE MOI** — ils appartiennent tous au chantier VIVANT
+d'une autre instance (clés d'API, moteurs de recherche, sources externes), dont le travail est
+dans l'arbre sans être commité. Les « corriger » reviendrait à figer ou absorber son WIP, ce que
+la doctrine interdit :
+
+| test | cause mesurée | à qui |
+|---|---|---|
+| `tests_docs_catalog.test_chaque_mecanisme_a_sa_section` | 161 mécanismes au registre pour 160 sections — `mecanismes.py` modifié à **22 h 55**, non commité | l'autre instance |
+| `tests_doc_plans.test_chaque_fichier_derive_est_ce_que_son_plan_produit` | même cause : `docs/dev/briques.md` projette l'arbre, qui porte son chantier | l'autre instance |
+| `tests_identifier_language` (budget code 2738 > 2735) | 3 identifiants français neufs dans `ui_smoke_menus.py`, modifié à **22 h 45**, non commité | l'autre instance |
+
+⭐ **Ce qui a permis de trancher sans deviner, et qui vaut pour la prochaine fois** : l'`mtime`
+des fichiers, pas l'apparence du `git status`. Les trois pointent sur des fichiers touchés dans
+les vingt minutes précédentes, tous en 1ʳᵉ colonne à espace. *« Ce n'est pas moi » est une
+hypothèse ; une heure de modification est une mesure.*
 
 🔚 **POINT D'ENTRÉE SESSION SUIVANTE** — **le cadrage de l'avatar, réglage utilisateur durable**
 (question de Fabien, non tranchée faute d'être dans le « on le fait de suite »). **Mesuré : c'est

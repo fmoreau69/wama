@@ -378,8 +378,23 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
    bénéficie sans une ligne de plus.
 5. ✅ **Flux jeton par jeton (SSE) — câblé le 26/09.** Ollama reçoit `stream: true` **dès qu'un
    rappel est fourni**, et chaque fragment remonte jusqu'à l'écran et jusqu'à la voix.
-   **Mesure navigateur** : 1ᵉʳ texte à **0,2 s**, fin du tour à **2,2 s** — 2,0 s gagnées, et la
-   voix parle par phrases pendant que le reste arrive.
+   La voix parle par phrases pendant que le reste arrive.
+   ⚠ **CETTE LIGNE ANNONÇAIT « 1ᵉʳ texte à 0,2 s, fin à 2,2 s, 2,0 s gagnées » — corrigé le
+   2026-09-26 au soir.** C'était UN tour sur un serveur de développement éphémère, présenté comme
+   la performance du levier. Remesuré **à travers la pile réelle** (Apache → gunicorn → Ollama),
+   cache de préfixe chaud, trois longueurs de réponse :
+
+   | réponse demandée | 1ᵉʳ fragment | fin du tour | ce que le flux fait gagner | caractères |
+   |---|---|---|---|---|
+   | très courte | 0,9 s | 0,9 s | 0,02 s | 2 |
+   | moyenne | 0,86 s | 1,75 s | **0,89 s** | 555 |
+   | longue | 0,91 s | 3,03 s | **2,12 s** | 1 411 |
+
+   ⭐ **Ce que le tableau dit, et qu'un chiffre unique cachait** : le délai avant le 1ᵉʳ fragment
+   est **CONSTANT** (~0,9 s à chaud, 3,7 à 10,7 s à froid) et le gain du flux **est la durée de
+   génération**, donc proportionnel à la longueur de la réponse. Le flux ne réduit pas l'attente
+   initiale — il supprime l'attente APRÈS elle. *Le poste dominant d'un tour court reste
+   l'évaluation du prompt, c'est-à-dire la cible du levier 3.*
    - **Le point dur n'est pas le transport, c'est le PORTIER** (`_TokenGate`) : la réflexion du
      modèle (`<think>`) et les appels d'outils (JSON) arrivent par le MÊME canal que la réponse,
      et il faut trancher **fragment par fragment, sans attendre la fin** — y compris quand la
@@ -388,6 +403,12 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
    - **Les trois surfaces ne changent pas**, et c'est CÂBLÉ, pas promis : sans rappel, aucun flux
      n'est demandé à Ollama. L'API v1 et la passerelle ne paient pas un flux qu'elles
      n'affichent pas — une contre-épreuve le verrouille.
+   - ✅ **APACHE NE TAMPONNE PAS** (mesuré le 26/09 au soir, à travers le port 80 comme en
+     direct sur gunicorn) : `Content-Type: text/event-stream`, `X-Accel-Buffering: no` propagé,
+     **111 événements** reçus un par un des deux côtés. ⚠ C'était le risque qu'aucun test Django
+     ne pouvait lever : un intermédiaire qui tamponne **annule le levier sans rien casser** — la
+     réponse arrive complète, l'écran se remplit d'un coup, le code reste correct et le gain a
+     disparu. La démo passera par Apache : il fallait le mesurer là.
    - **Le flux n'existe que sur le chemin LOCAL** : `llm_chat` (LiteLLM) rend un texte entier et
      l'abonnement Claude Code lance un process qui finit avant de parler. Un tour cloud reste
      synchrone, et la surface le sait (elle affiche son attente).
