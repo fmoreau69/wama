@@ -356,7 +356,15 @@ MECHANISMS = (
               "format choisi par le builder du ⬇ (`register_export_builder`), asset "
               "`document`, coche et retrait par format (`export_choices`). ⚠ `synthesizer` "
               "n'était PAS une copie : son écriture d'asset est l'UPLOAD d'une voix, un autre "
-              "geste.",
+              "geste. ⭐ Depuis le 2026-09-27 le geste DÉPLACE au lieu de copier (décision de "
+              "Fabien : « un fichier ajouté à la médiathèque doit aller dans la médiathèque ») et "
+              "`file_references.repoint` fait SUIVRE tous ses porteurs — la card d'origine "
+              "comprise, sinon ranger un résultat le ferait disparaître de sa card. Le RETRAIT est "
+              "l'inverse exact : le fichier retourne à l'endroit noté par l'ajout "
+              "(`attributes.moved_from`) tant qu'un porteur le désigne, et ne part avec l'asset "
+              "que s'il n'en a plus. Même brique (`move_into_library`) pour la seconde porte, "
+              "l'ajout d'un fichier du dossier temporaire (`tool_api.add_to_media_library`). Le "
+              "PARTAGE n'a rien à suivre : il sert le chemin RÉEL de la ligne.",
               'wama/media_library/services.py', 'docs/construction/ui/CARD_DESIGN.md §2bis',
               symbol='export_item_to_library'),
     Mechanism('filter_bar', 'Barre de filtrage',
