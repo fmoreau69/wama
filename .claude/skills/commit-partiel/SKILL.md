@@ -97,6 +97,33 @@ mais c'est défaire son geste dans son dos.
   bas.** Avant de commiter un handoff dans `PROJECT_STATUS`, relire les blocs du même jour :
   un autre s'y est peut-être déjà chargé du point.
 
+- 🔴🔴 **2026-09-26 — `git apply --cached --unidiff-zero` POSE MAL UNE INSERTION PURE quand des
+  hunks laissés la PRÉCÈDENT.** C'est la récidive du piège du 24/09, par l'autre bout : là il
+  s'agissait d'un hunk posé au bon endroit d'un fichier devenu faux ; ici le hunk lui-même
+  atterrit ailleurs. Mesuré sur `assistant_engine.py` (12 hunks miens, 10 laissés) : un hunk
+  `@@ -328,0 +364,5 @@` de docstring s'est posé **d'après le numéro NOUVEAU 364**, et comme les
+  35 lignes d'autrui qui le précèdent n'étaient pas appliquées, 364 désignait le milieu du corps
+  de la fonction — **le fichier indexé ne compilait plus**.
+  ✅ **La voie sûre** : ne pas laisser `git apply` choisir. Recomposer le blob **par les numéros
+  de lignes ANCIENS** (ils référencent tous le même fichier, HEAD, donc ils ne se décalent
+  jamais), puis le poser avec `git hash-object -w --stdin` + `git update-index --cacheinfo`.
+  Script : `stage_by_oldlines.py` à côté de ce skill. Il **vérifie chaque hunk de remplacement
+  contre HEAD avant de poser** (`present == removed`) — un hunk qui ne correspond pas arrête tout.
+  ✅ **Et le contrôle qui l'aurait attrapé de toute façon** : après avoir construit l'index,
+  `git show :<fichier>` puis `py_compile` (ou le parseur du format) **sur le blob INDEXÉ**, plus
+  un `grep` à zéro sur les symboles des hunks laissés. L'arbre de travail, lui, compile toujours :
+  il porte les deux chantiers. ⚠ Extraire ce blob par une redirection shell le TRANSCODE sous
+  Windows (un em-dash devenu `?` → faux `SyntaxError`) : lire en OCTETS, sinon on diagnostique
+  son propre instrument.
+- 🔴 **2026-09-26 — vérifier l'index PUIS commiter laisse une FENÊTRE DE COURSE.** Mesuré le
+  jour même : `git diff --cached --stat` montrait 15 fichiers, le `git commit` qui a suivi en a
+  porté **16**. Une autre instance avait stagé un `git mv` entre les deux (le temps de rédiger le
+  message). Rien n'a été perdu — son contenu de travail est resté non stagé —, mais le renommage
+  est enregistré sous mon message.
+  ✅ **La forme sans fenêtre est l'INDEX TEMPORAIRE ci-dessous, et elle vaut pour TOUS les cas,
+  pas seulement « index non vide » : un index vide ne le reste pas.** Le faire par défaut.
+  ⭐ *Une vérification et le geste qu'elle autorise doivent être ATOMIQUES, ou la vérification ne
+  vaut que pour l'instant où elle a eu lieu.*
 - **2026-09-26 — l'index partagé n'est PAS vide (WIP stagé d'autrui) mais on doit commiter
   quand même.** Voie sûre : un INDEX TEMPORAIRE — `GIT_INDEX_FILE=<scratchpad>/tmp.index`,
   `git read-tree HEAD`, `git apply --cached` du patch, `git add` de ses fichiers propres,
