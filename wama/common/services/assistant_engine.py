@@ -76,9 +76,12 @@ Rules:
 - When the user asks a question or wants information, answer directly without tools.
 - Always confirm what you did after tool calls.
 - Respond in {LANGUE}.
+- AN add_* TOOL QUEUES, IT DOES NOT RUN. Its result carries `status: queued` and `next_step`: you MUST then call that start_* tool in the same turn. Until you do, nothing is processing — never say « la tâche a été lancée », and never report a result you have not read in a get_*_status result.
 - COMPLETION NOTIFICATION: After starting a task (start_anonymizer, start_imager, start_enhancer, start_audio_enhancer, start_synthesizer, start_describer, start_transcriber), automatically call the corresponding get_*_status tool. If the task is already SUCCESS/done, immediately report the result with the file URL/preview link. If still RUNNING/PENDING, tell the user "La tâche a démarré — vous serez notifié dès la fin." and explain they can ask "quel est le statut ?" to check progress.
 - OUTPUT LINKS: When a get_*_status result shows status="SUCCESS" or status="done" and contains output_url / audio_url / output_urls / video_url, ALWAYS include these links in your response using Markdown format: [📥 Télécharger](URL) or [🖼️ Voir l'image](URL).
 - QUALITY LEVEL: when an add_* result carries `quality_level`, tell the user the task was queued at that level, e.g. « niveau Équilibré (55) — réglable par le curseur Rapide ↔ Qualité de l'assistant ». It is the user's own slider setting, applied to the task for them.
+- NEVER INVENT A LINK. A URL may appear in your answer ONLY if it is copied character for character from a tool result you received in THIS conversation. If you do not have such a result, call the matching get_*_status tool and wait for it — never write a plausible-looking address (example.com, a path you guessed, a filename you rebuilt).
+- NEVER CLAIM YOU CANNOT DO SOMETHING THAT A TOOL IN THE LIST ABOVE DOES. Check the list first. If a tool exists and fails, report WHAT FAILED, quoting the error message returned by the tool — do not turn a failure into « je ne peux pas » or « cela dépasse mes capacités ». A wrong refusal costs the user more than an error message.
 
 File search strategy:
 - When the user asks to anonymize a file: check "anon_input" first, then "temp".
@@ -88,6 +91,38 @@ File search strategy:
 - When the user references an asset from the médiathèque (e.g. "ma voix X", "l'image Y"), use list_media_assets to find it.
 - If the file is not found in any folder, tell the user to upload it via the WAMA File Manager at /filemanager/ or the corresponding application page.
 """
+
+#: Consigne ajoutée SUR LES SURFACES DE CANAL seulement (Discord, Matrix…). Sans elle, le
+#: modèle répondait « je ne peux pas envoyer de fichiers par Discord » — faux : la passerelle
+#: JOINT au message les sorties trouvées dans les résultats d'outils du tour
+#: (`gateway/core.py::_produced_files` → `Reply.files` → `discord.File`). Mesuré le 2026-09-23
+#: sur un échange réel : l'utilisateur a demandé trois fois son fichier, a reçu trois refus et
+#: un lien INVENTÉ (`https://example.com/…`), alors que le canal savait le lui envoyer.
+#: ⚠ Un lien `/media/…` est protégé par session : hors WAMA il ne s'ouvre pas — la pièce
+#: jointe n'est donc pas un confort, c'est le SEUL chemin de récupération dans un canal.
+CHANNEL_FILES_PROMPT = """
+Channel surface ({SURFACE}):
+- Files are ATTACHED to your reply automatically. Every /media/… output URL found in the tool results of THIS turn is uploaded to the conversation by the gateway — you have nothing to call for that.
+- So NEVER answer that you cannot send a file here. To send the result of a task, call the matching get_*_status tool in this turn: its output_url makes the file travel with your answer. Then simply say the file is attached.
+- A /media/… link is useless outside WAMA (it needs a browser session): mention it if you like, but the attachment is what the user actually receives.
+"""
+
+def surface_attaches_files(surface: str) -> bool:
+    """La réponse de cette surface est-elle publiée par un ADAPTATEUR qui joint les fichiers ?
+
+    LA LISTE N'EST PAS ICI : elle est déclarée par la passerelle (`gateway.core.CHANNELS`),
+    qui est ce qui joint. Le moteur la LIT — il ne la redéclare pas, sinon le jour où un
+    adaptateur Matrix arrive, l'assistant continuerait d'affirmer à ses utilisateurs qu'il ne
+    peut pas leur envoyer de fichier. (`Conversation.SURFACES` répond à une autre question :
+    quelles surfaces existent — web et api comprises, qui ne joignent rien.)
+
+    Passerelle absente ou non installée : `False`, donc aucune promesse faite à l'utilisateur.
+    """
+    try:
+        from wama.gateway.core import CHANNELS
+    except Exception:          # pragma: no cover — WAMA tourne sans la passerelle
+        return False
+    return surface in CHANNELS
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +660,62 @@ def _strip_think_tags(text: str) -> str:
     return re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
 
 
+#: URL ou chemin média dans une réponse. S'arrête aux délimiteurs Markdown pour ne pas
+#: avaler la parenthèse fermante d'un `[libellé](url)`.
+_URL_IN_TEXT = re.compile(r'(?:https?://|/media/)[^\s)\]>"\'`]+')
+#: Ce qui remplace un lien dont aucun outil n'a parlé. DIT, jamais effacé en silence.
+_UNSOURCED_MARK = '(lien non vérifié — retiré)'
+
+
+def _strip_unsourced_urls(text: str, tool_steps: list, message: str = '') -> str:
+    """Retire d'une réponse les URL dont AUCUN résultat d'outil de ce tour n'a parlé.
+
+    ⚠⚠ POURQUOI UN CONTRÔLE, ET PAS UNE RÈGLE DE PROMPT (mesuré le 2026-09-23, DEUX FOIS).
+    Le modèle local a annoncé une anonymisation « terminée avec succès » avec un lien
+    `https://example.com/output/…` inventé — puis a RECOMMENCÉ après l'ajout de la règle
+    « NEVER INVENT A LINK », dans un tour SANS AUCUN appel d'outil. La cause est mécanique :
+    ses propres fabrications sont dans l'historique du fil, qui lui est resservi à chaque
+    tour, et un modèle de 4 milliards de paramètres imite ce qu'il lit. *Une règle de prompt
+    ne défait pas un exemple que l'on remet sous les yeux du modèle.*
+
+    LES SOURCES ADMISES sont donc les résultats d'outils DE CE TOUR et le message de
+    l'utilisateur — **jamais l'historique**, qui est précisément ce qui recycle le mensonge.
+    Un lien légitime d'un tour précédent est retiré aussi : le remède est à portée du modèle
+    (rappeler l'outil de statut), et dans un canal c'est la PIÈCE JOINTE qui compte.
+
+    ⚠ Ne touche pas au reste du texte : le libellé d'un lien Markdown est conservé.
+    """
+    if not text:
+        return text
+    sources = json.dumps(tool_steps or [], ensure_ascii=False) + '\n' + (message or '')
+
+    removed = []
+
+    def _known(url):
+        return url.rstrip('.,;:!?') in sources or url in sources
+
+    def _in_markdown(match):
+        label, url = match.group(1), match.group(2)
+        if _known(url):
+            return match.group(0)
+        removed.append(url)
+        return f'{label} {_UNSOURCED_MARK}'.strip()
+
+    def _bare(match):
+        url = match.group(0)
+        if _known(url):
+            return url
+        removed.append(url)
+        return _UNSOURCED_MARK
+
+    text = re.sub(r'\[([^\]]*)\]\((' + _URL_IN_TEXT.pattern + r')\)', _in_markdown, text)
+    text = _URL_IN_TEXT.sub(_bare, text)
+    if removed:
+        logger.warning("[ai_chat] %d lien(s) sans source retiré(s) de la réponse : %s",
+                       len(removed), ', '.join(removed[:5]))
+    return text
+
+
 def _parse_tool_call(text: str) -> dict | None:
     """
     Detect a JSON tool call in the LLM response.
@@ -739,6 +830,9 @@ def run_assistant_turn(user, message: str, provider: str = None,
         domain:   Domaine d'intervention (`assistant_skills.DOMAINES` : 'general', 'science',
                   'design', 'dev'). Détermine le skill de RÔLE injecté au prompt système et,
                   pour les domaines qui le déclarent, le rappel du contexte de laboratoire.
+        surface:  D'où vient le tour ('web', 'api', 'discord'…). Le moteur reste le même ;
+                  seule change la consigne sur CE QUE LA SURFACE SAIT FAIRE de la réponse —
+                  un canal joint les fichiers produits, un client web suit des liens.
 
     Returns:
         dict succès : {success, response, model, usage, tool_steps}
@@ -822,9 +916,15 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # le cache KV sur le PRÉFIXE commun des jetons : jusqu'au 2026-09-22 l'état des files
     # (56 caractères, changeant) précédait le bloc d'outils, et un seul item en plus dans une
     # file forçait la ré-évaluation de ~3 000 jetons de prompt (mesuré, WAMA_LLM §1bis).
+    # La consigne de SURFACE est FIXE pour un fil donné (un canal ne devient pas le web en
+    # cours de conversation) : elle se place donc avec le bloc fixe, avant le dynamique.
+    surface_prompt = (CHANNEL_FILES_PROMPT.replace('{SURFACE}', surface)
+                      if user and surface_attaches_files(surface) else '')
+
     system_prompt = (WAMA_SYSTEM_PROMPT.replace('{LANGUE}', langue)
                      + (f"\n\n{role}" if role else '')
                      + annonce + tools_prompt.replace('{LANGUE}', langue)
+                     + surface_prompt
                      + contexte_labo + wama_context)
 
     # Réflexion du modèle (chemin local) DÉRIVÉE du curseur Rapide ↔ Qualité de l'utilisateur —
@@ -900,7 +1000,9 @@ def run_assistant_turn(user, message: str, provider: str = None,
         if not tool_call:
             # No tool call → this is the final answer
             # Strip any remaining reasoning tags from the displayed response
-            clean_text = _strip_think_tags(text)
+            # Contrôle de SOURCE des liens : ce que le prompt demande, la sortie le VÉRIFIE
+            # (les fabrications du fil sont resservies au modèle à chaque tour).
+            clean_text = _strip_unsourced_urls(_strip_think_tags(text), tool_steps, message)
             return {
                 'success': True,
                 'response': clean_text,
@@ -925,6 +1027,13 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 tool_result = relay_quality_intent(user, tool_name, tool_result)
             except Exception:
                 logger.debug("[ai_chat] relais du curseur impossible", exc_info=True)
+            # Un AJOUT ne lance rien : le résultat le DIT (23/09). Sans ce rappel, le modèle
+            # lit `status: queued` comme « c'est parti » et annonce une tâche qui dort.
+            try:
+                from wama.tool_api import relay_next_step
+                tool_result = relay_next_step(tool_name, tool_result)
+            except Exception:
+                logger.debug("[ai_chat] relais de l'étape suivante impossible", exc_info=True)
 
         # BASCULE EN COURS DE TOUR (22/09) : le tour a commencé sur le modèle du curseur, et le
         # modèle vient de charger la compétence dev ou d'appeler un outil de dev — la SUITE du
@@ -964,7 +1073,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
     last_text = messages[-2].get("content", "") if len(messages) >= 2 else ""
     return {
         'success': True,
-        'response': _strip_think_tags(last_text),
+        'response': _strip_unsourced_urls(_strip_think_tags(last_text), tool_steps, message),
         'model': etiquette,
         'usage': total_usage,
         'tool_steps': tool_steps,

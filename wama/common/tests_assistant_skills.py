@@ -87,7 +87,7 @@ class InjectionDansLeMoteurTests(TestCase):
     def _prompt_systeme(self, **kw):
         capture = {}
 
-        def _faux_llm(messages, llm_model, provider, user=None):
+        def _faux_llm(messages, llm_model, provider, user=None, **kwargs):
             capture['system'] = messages[0]['content']
             return 'ok', {'input_tokens': 0, 'output_tokens': 0}
 
@@ -101,7 +101,11 @@ class InjectionDansLeMoteurTests(TestCase):
         self.assertIn('scientific assistant', systeme.lower())
 
     def test_role_dev_present_et_distinct(self):
-        systeme = self._prompt_systeme(domain='dev')
+        # ⚠ Le fournisseur est IMPOSÉ depuis le 2026-09-23 : depuis le bridage du 22/09, un
+        # domaine `dev` sans modèle de niveau développement DANS LE CATALOGUE refuse le tour
+        # (503) avant tout appel au LLM — ce test mesurait alors le contenu de la base de
+        # test, pas le rôle dans le prompt, qui est son sujet.
+        systeme = self._prompt_systeme(domain='dev', provider='ollama', model='qwen')
         self.assertIn('wama/common/', systeme)      # la règle de centralisation
         self.assertNotIn('MEASURED', systeme)       # pas la posture scientifique
 
@@ -164,7 +168,7 @@ class ChargementParLAssistantTests(TestCase):
         """Sans annonce, l'assistant ignore que ces compétences existent."""
         capture = {}
 
-        def _faux_llm(messages, llm_model, provider, user=None):
+        def _faux_llm(messages, llm_model, provider, user=None, **kwargs):
             capture['system'] = messages[0]['content']
             return 'ok', {'input_tokens': 0, 'output_tokens': 0}
 
@@ -177,7 +181,7 @@ class ChargementParLAssistantTests(TestCase):
     def test_le_domaine_actif_n_est_pas_re_annonce(self):
         capture = {}
 
-        def _faux_llm(messages, llm_model, provider, user=None):
+        def _faux_llm(messages, llm_model, provider, user=None, **kwargs):
             capture['system'] = messages[0]['content']
             return 'ok', {'input_tokens': 0, 'output_tokens': 0}
 

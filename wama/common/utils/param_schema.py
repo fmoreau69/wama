@@ -542,6 +542,63 @@ def invalid_choice_values(schema, data) -> dict:
     return out
 
 
+def unapplicable_numeric_values(schema, data) -> dict:
+    """{nom: (valeur_refusée, explication)} pour chaque nombre PRÉSENT que le schéma ne peut
+    PAS appliquer — hors de la grille `step` déclarée depuis `min`.
+
+    ⚠⚠ POURQUOI (mesuré le 2026-09-23). L'assistant a lancé une anonymisation avec
+    `blur_ratio=2`, alors que le schéma déclare `min=1, step=2` (noyau gaussien, donc IMPAIR)
+    et que la description remise au modèle dit « (impaire). [1–99] (défaut : 25) ». Personne
+    ne l'a refusé : `normalize_blur_ratio` a réécrit 2 en 3, en silence. Un noyau de 3×3 ne
+    floute rien — SAM3 avait pourtant trouvé les trois visages, et la photo est sortie
+    IDENTIQUE, sans une erreur nulle part. *Une valeur corrigée en silence est une valeur
+    qu'on n'a pas refusée.*
+
+    Pendant de `invalid_choice_values` pour les nombres : celle-là borne les énumérations,
+    celle-ci la GRILLE. Les bornes min/max, elles, restent CLAMPÉES par `coerce_params` — on
+    ne refuse que ce qu'aucune coercition ne peut rendre applicable.
+
+    L'explication nomme la grille ET le défaut, et invite à OMETTRE : un modèle qui ne sait
+    pas quoi mettre ne doit pas deviner, il doit laisser l'app décider.
+    """
+    out = {}
+    for p in schema:
+        name, step = _pget(p, 'name'), _pget(p, 'step')
+        if not step or name not in data:
+            continue
+        value = data[name]
+        if value is None or value == '' or isinstance(value, bool):
+            continue
+        try:
+            value, step = float(value), float(step)
+            start = float(_pget(p, 'min') or 0)
+        except (TypeError, ValueError):
+            continue
+        if step <= 0:
+            continue
+        gap = abs((value - start) / step - round((value - start) / step))
+        if gap <= 1e-6:
+            continue
+        default = _pget(p, 'default')
+        nearest = start + round((value - start) / step) * step
+        nearest = int(nearest) if float(nearest).is_integer() else round(nearest, 6)
+        out[name] = (data[name],
+                     f"valeurs applicables de {_format_number(start)} en {_format_number(step)} "
+                     f"(la plus proche : {_format_number(nearest)}"
+                     + (f" ; défaut de l'app : {_format_number(default)}" if default is not None else '')
+                     + ") — omettez ce paramètre pour laisser l'app décider")
+    return out
+
+
+def _format_number(v):
+    """Affichage d'un nombre sans `.0` parasite (un noyau se lit « 25 », pas « 25.0 »)."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return str(v)
+    return str(int(f)) if f.is_integer() else str(round(f, 6))
+
+
 def schema_choice_values(app_id, name) -> set:
     """Valeurs valides d'un param à `choices`, DÉRIVÉES du schéma — jamais recopiées.
 

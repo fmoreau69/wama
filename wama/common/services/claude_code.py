@@ -231,10 +231,53 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
         return {'success': False, 'error': f"Invocation impossible : {e}"}
 
     if acheve.returncode != 0:
-        detail = (acheve.stderr or acheve.stdout or '').strip()[:500] or 'aucun détail'
-        return {'success': False, 'error': f"Claude Code a échoué (code {acheve.returncode}) : {detail}"}
+        return {'success': False,
+                'error': _failure_message(acheve.returncode, acheve.stdout, acheve.stderr)}
 
     return _lire_sortie(acheve.stdout)
+
+
+def _failure_message(code: int, stdout: str, stderr: str) -> str:
+    """
+    Message d'échec LISIBLE — la raison, pas les 500 premiers caractères de télémétrie.
+
+    ⚠⚠ POURQUOI CETTE FONCTION EXISTE (mesuré le 2026-09-23). En cas d'échec, ce module
+    rendait `(stderr or stdout)[:500]`. Or le CLI écrit sa raison dans le champ `result`
+    d'un JSON dont les 500 premiers caractères ne sont que des compteurs (`duration_api_ms`,
+    `usage`, `session_id`…) : la cause était SYSTÉMATIQUEMENT tronquée. L'utilisateur a reçu
+    « Claude Code a échoué (code 1) : {"duration_api_ms":0,"stop_reason":… », le modèle
+    local a lu ce charabia comme une impossibilité et a répondu « je ne peux pas lancer
+    Claude Code » — alors qu'il venait de le lancer. *Une erreur illisible se propage en
+    fausse incapacité.*
+
+    Le JSON est donc lu comme dans le cas nominal, et la sortie brute est journalisée en
+    entier : la prochaine occurrence sera diagnosticable sans rejouer l'appel.
+    """
+    logger.warning("[claude_code] échec (code %s)\n--- stdout ---\n%s\n--- stderr ---\n%s",
+                   code, (stdout or '')[:4000], (stderr or '')[:2000])
+
+    reason = ''
+    raw = (stdout or '').strip()
+    if raw:
+        try:
+            payload = json.loads(raw)
+            if isinstance(payload, list):
+                payload = payload[-1] if payload else {}
+            if isinstance(payload, dict):
+                reason = str(payload.get('result') or payload.get('error') or '').strip()
+                # `subtype` / `api_error_status` nomment la FAMILLE de panne (limite d'usage,
+                # jeton expiré, refus de permission) quand `result` est vide.
+                family = ' / '.join(
+                    str(payload.get(key)) for key in ('subtype', 'api_error_status')
+                    if payload.get(key) and str(payload.get(key)) != 'success')
+                if family:
+                    reason = f"{reason} [{family}]" if reason else f"[{family}]"
+        except json.JSONDecodeError:
+            reason = raw[:500]
+
+    if not reason:
+        reason = (stderr or '').strip()[:500] or 'aucun détail'
+    return f"Claude Code a échoué (code {code}) : {reason}"
 
 
 def _lire_sortie(brut: str) -> dict:

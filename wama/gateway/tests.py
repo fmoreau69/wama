@@ -338,7 +338,14 @@ class TronconnageDiscordTests(TestCase):
 
 class FichiersProduitsTests(TestCase):
     """`_produced_files` — le retour des sorties d'outils vers le canal (correctif 29/08 :
-    `Reply.files` n'était JAMAIS rempli, le code d'envoi de l'adaptateur était mort)."""
+    `Reply.files` n'était JAMAIS rempli, le code d'envoi de l'adaptateur était mort).
+
+    ⚠⚠ CES TESTS ONT ATTESTÉ UNE FORME QUI N'EXISTE PAS, du 29/08 au 2026-09-23. Ils
+    posaient `{'output_urls': [...]}` à PLAT, quand les dix `get_<app>_status` rendent
+    `{'jobs': [{…, 'output_url': …}]}` (`tool_api.py:320-328` pour l'anonymizer,
+    `:503-512` pour l'imager). Verts, ils couvraient un correctif qui n'avait rien
+    corrigé : en Discord, un « quel est le statut ? » n'a jamais rapporté de fichier.
+    La forme ci-dessous est désormais COPIÉE de ces fonctions, jamais réinventée."""
 
     def _creer_media(self, rel):
         from pathlib import Path
@@ -349,19 +356,64 @@ class FichiersProduitsTests(TestCase):
         self.addCleanup(chemin.unlink)
         return chemin
 
-    def test_les_sorties_media_du_tour_repartent_et_les_autres_urls_non(self):
+    def test_the_real_get_status_shape_does_carry_the_output(self):
+        """La forme MESURÉE : la sortie vit sous `jobs[]`, pas à la racine du résultat."""
         self._creer_media('gateway_tests/sortie.png')
         self._creer_media('gateway_tests/sortie.wav')
-        resultat = {'tool_steps': [
-            {'tool': 'get_imager_status', 'result': {
-                'output_urls': ['/media/gateway_tests/sortie.png',
-                                'https://exemple.org/ailleurs.png']}},
-            {'tool': 'get_synthesizer_status', 'result': {
-                'audio_url': '/media/gateway_tests/sortie.wav'}},
+        result = {'tool_steps': [
+            # `get_imager_status` — tool_api.py:503-512
+            {'tool': 'get_imager_status', 'result': {'jobs': [
+                {'id': 42, 'status': 'SUCCESS',
+                 'output_urls': ['/media/gateway_tests/sortie.png',
+                                 'https://exemple.org/ailleurs.png'],
+                 'video_url': None},
+            ]}},
+            # `get_synthesizer_status` — même forme, clé `audio_url`
+            {'tool': 'get_synthesizer_status', 'result': {'jobs': [
+                {'id': 7, 'status': 'done', 'audio_url': '/media/gateway_tests/sortie.wav'},
+            ]}},
             {'tool': 'search_web', 'result': {'results': []}},
         ]}
-        fichiers = core._produced_files(resultat)
-        self.assertEqual(fichiers, ['gateway_tests/sortie.png', 'gateway_tests/sortie.wav'])
+        files = core._produced_files(result)
+        self.assertEqual(files, ['gateway_tests/sortie.png', 'gateway_tests/sortie.wav'])
+
+    def test_only_the_most_recent_job_travels_back(self):
+        """Les `get_<app>_status` rendent les DIX derniers jobs (tri `-id`). Republier les
+        anciens renverrait à chaque question de statut des sorties déjà récupérées."""
+        self._creer_media('gateway_tests/recent.jpg')
+        self._creer_media('gateway_tests/ancien.jpg')
+        result = {'tool_steps': [
+            {'tool': 'get_anonymizer_status', 'result': {'jobs': [
+                {'id': 647, 'status': 'done', 'output_url': '/media/gateway_tests/recent.jpg'},
+                {'id': 646, 'status': 'done', 'output_url': '/media/gateway_tests/ancien.jpg'},
+            ]}},
+        ]}
+        self.assertEqual(core._produced_files(result), ['gateway_tests/recent.jpg'])
+
+    def test_the_output_of_the_real_get_imager_status_travels_back(self):
+        """LA mesure — celle qui manquait. Aucune forme écrite à la main ici : on crée un
+        item, on appelle l'outil RÉEL, et on vérifie que la passerelle y voit le fichier.
+        C'est le seul test que la forme des outils ne peut pas contourner."""
+        from django.contrib.auth.models import User
+
+        from wama.imager.models import ImageGeneration
+        from wama.tool_api import get_imager_status
+
+        path = self._creer_media('gateway_tests/rendu.png')
+        user = User.objects.create(username='mesureuse')
+        ImageGeneration.objects.create(user=user, prompt='un chat', status='SUCCESS',
+                                       generated_images=[str(path)])
+
+        result = {'tool_steps': [{'tool': 'get_imager_status',
+                                    'result': get_imager_status(user)}]}
+        self.assertEqual(core._produced_files(result), ['gateway_tests/rendu.png'])
+
+    def test_a_flat_shape_still_works(self):
+        """Contre-épreuve : les outils qui rendent l'URL à la racine ne régressent pas."""
+        self._creer_media('gateway_tests/plat.png')
+        result = {'tool_steps': [
+            {'tool': 'x', 'result': {'file_url': '/media/gateway_tests/plat.png'}}]}
+        self.assertEqual(core._produced_files(result), ['gateway_tests/plat.png'])
 
     def test_une_traversee_hors_media_root_est_ignoree(self):
         resultat = {'tool_steps': [{'tool': 'x', 'result': {
@@ -374,3 +426,46 @@ class FichiersProduitsTests(TestCase):
             {'tool': 'y', 'result': 'erreur en chaîne'},
         ]}
         self.assertEqual(core._produced_files(resultat), [])
+
+
+class SurfaceThatAttachesFilesIsDeclaredTests(TestCase):
+    """Le moteur d'assistant ne dit à un canal « tes fichiers repartent joints » que si sa
+    surface est DÉCLARÉE (`assistant_engine.SURFACES_WITH_ATTACHMENTS`). Un adaptateur
+    ajouté sans y être inscrit ferait retomber l'assistant dans le refus mesuré le 23/09
+    (« je ne peux pas envoyer de fichiers par Discord »), sans rien casser d'autre — donc
+    sans que rien ne le signale. Ce test est ce signal."""
+
+    def test_the_discord_adapter_channel_is_declared(self):
+        from wama.common.services.assistant_engine import surface_attaches_files
+        from wama.gateway.adapters.discord_bot import CANAL
+        self.assertIn(CANAL, core.CHANNELS)
+        self.assertTrue(surface_attaches_files(CANAL))
+
+    def test_the_engine_reads_the_gateway_list_it_keeps_none_of_its_own(self):
+        """Le moteur ne redeclare pas les canaux : un canal ajoute a la passerelle DOIT
+        suffire. Sans cela, l'assistant continuerait de dire a ses utilisateurs Matrix qu'il
+        ne peut pas leur envoyer de fichier."""
+        from wama.common.services.assistant_engine import surface_attaches_files
+        with patch.object(core, 'CHANNELS', ('discord', 'matrix')):
+            self.assertTrue(surface_attaches_files('matrix'))
+        self.assertFalse(surface_attaches_files('web'))
+        self.assertFalse(surface_attaches_files('api'))
+
+    def test_the_instruction_is_added_only_on_a_channel_surface(self):
+        """Contre-épreuve : le web, lui, ne joint rien — il ne doit pas l'annoncer."""
+        from wama.common.services import assistant_engine
+
+        seen = {}
+
+        def _fake_call(messages, *args, **kwargs):
+            seen['system'] = messages[0]['content']
+            return 'ok', {}
+
+        user = User.objects.create(username='surface')
+        with patch.object(assistant_engine, '_llm_call', _fake_call):
+            assistant_engine.run_assistant_turn(user, 'bonjour', provider='ollama',
+                                                model='m', surface='discord')
+            self.assertIn('attached to your reply automatically', seen['system'].lower())
+            assistant_engine.run_assistant_turn(user, 'bonjour', provider='ollama',
+                                                model='m', surface='web')
+            self.assertNotIn('attached to your reply automatically', seen['system'].lower())
