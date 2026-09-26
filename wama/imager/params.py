@@ -249,48 +249,13 @@ VIDEO_PARAMS = VIDEO_PARAMS + output_format_params_for_app(
 # divergence que la brique A5-22 supprime). Seuls les params ayant une surface
 # `panel` sont persistés : le volet EST la surface des défauts utilisateur.
 # La CLÉ de stockage est le `dom_id` du volet — unique par construction (ce sont des
-# ids DOM), donc aucune table de correspondance clé↔champ à maintenir.
-def _panel_id(p):
-    """dom_id du param sur la surface VOLET, ou None s'il n'y figure pas.
-
-    Deux formes coexistent dans le commun : un dict par surface (params d'app, IDs legacy
-    différents selon la surface) ou une chaîne unique (params de brique, même id partout —
-    la surface se lit alors dans `contexts`). Ignorer la 2e écartait silencieusement
-    output_format/output_quality du volet.
-    """
-    dom = getattr(p, "dom_id", None)
-    if isinstance(dom, dict):
-        return dom.get("panel")
-    if dom and "panel" in (getattr(p, "contexts", None) or ()):
-        return dom
-    return None
-
-
-def _panel_defaults(params):
-    return {pid: p.default for p in params if (pid := _panel_id(p))}
-
-
-def panel_values_by_name(stored, params):
-    """Ré-indexe les réglages STOCKÉS (clé = dom_id) vers ce que WamaParams.render attend.
-
-    Deux clés différentes, chacune pour une bonne raison :
-      • stockage → `dom_id` du volet, UNIQUE entre domaines (image et vidéo partagent les
-        noms `model`, `steps`, `seed`, `guidance_scale` : un dict à plat par nom les écraserait) ;
-      • rendu    → `name` du param, car `render()` teste `p.name in values` (wama-params.js:223).
-    """
-    return {p.name: stored[pid] for p in params
-            if (pid := _panel_id(p)) and pid in stored}
-
-
-def panel_prefs_from_post(post, params):
-    """Chemin INVERSE de `panel_values_by_name` : capture l'état du volet reçu AU DÉPÔT.
-
-    La card poste les valeurs par NOM de param ; le stockage user_settings est clé par
-    `dom_id` du volet (unique entre domaines). Ne retient que ce que le POST porte
-    réellement : une clé absente ne doit pas écraser un réglage déjà stocké.
-    """
-    return {pid: post.get(p.name) for p in params
-            if (pid := _panel_id(p)) and p.name in post}
+# ids DOM), donc aucune table de correspondance clé↔champ à maintenir : image et vidéo
+# partagent les noms `model`, `steps`, `seed`, `guidance_scale`, un dict à plat par nom les
+# écraserait. Les trois helpers vivaient ici ; ils sont au COMMUN depuis le 2026-09-26
+# (`common/utils/param_schema`, clé par défaut = ce `dom_id`), le transcriber en est le 2ᵉ
+# adoptant.
+from wama.common.utils.param_schema import (  # noqa: E402
+    panel_defaults as _panel_defaults, panel_prefs_from_post, panel_values_by_name)
 
 
 USER_SETTINGS_DEFAULTS = {**_panel_defaults(IMAGE_PARAMS), **_panel_defaults(VIDEO_PARAMS)}
