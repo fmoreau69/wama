@@ -73,6 +73,27 @@ class CardsStatutAwaitingTest(SimpleTestCase):
                              f"{chemin} : table de LIBELLÉS en dur réintroduite — le libellé "
                              f"vient de `get_status_display` (les choices du modèle)")
 
+    def test_no_script_selects_a_card_by_a_removed_state_class(self):
+        """The READING side of the 18/09 switch (2026-09-24). The guard above keeps the classes
+        out of the templates; nothing kept the SCRIPTS from still looking for them. Describer and
+        synthesizer resumed their polling on `.wama-card.processing` / `.synthesis-card.processing`:
+        since 18/09 those selectors matched nothing, so a card in progress when the page opened
+        was never followed again — found by the `<app>.worker_death` gesture."""
+        import re
+        removed = re.compile(r'\.[\w-]*card\.(processing|success|error|awaiting|stale)\b')
+        roots = [BASE / 'wama', BASE / 'wama_lab']
+        offenders = []
+        for root in roots:
+            for path in list(root.rglob('*.js')) + list(root.rglob('*.html')):
+                rel = path.relative_to(BASE).as_posix()
+                if '/vendors/' in rel or re.match(r'wama/[a-z_]+_\d{2}/', rel):
+                    continue            # third-party code; sandbox twins follow their source
+                for n, line in enumerate(path.read_text(encoding='utf-8', errors='replace')
+                                         .splitlines(), 1):
+                    if removed.search(line):
+                        offenders.append(f'{rel}:{n}')
+        self.assertEqual([], offenders, 'select the card by `[data-status="…"]` instead')
+
     def test_plus_aucune_chaine_de_libelles_de_statut_en_dur_dans_les_cards(self):
         """Le libellé vient de `get_status_display` (choices communs) : une chaîne
         {% if %}En attente{% elif %}… recopiée par gabarit est la duplication que la
