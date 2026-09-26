@@ -57,10 +57,8 @@ PARAMS = derive_from_model(
                       '<a href="#" class="text-info text-decoration-none" data-bs-toggle="modal" '
                       'data-bs-target="#preprocessingModal"><i class="fas fa-circle-question"></i> En savoir plus</a>',
         ),
-        # Réglage de card et de lot : le volet global ne le propose pas (le dépôt prend « auto »).
         "vad_mode": dict(
             type="select", label="Filtre de parole (VAD)", icon="fa-wave-square",
-            contexts=("item", "batch"),
             help="Whisper saute les passages qu'il juge sans parole. « Auto » vérifie d'abord qu'il "
                  "ne rejette pas une parole lointaine (entretien enregistré à distance) et le "
                  "désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les "
@@ -85,3 +83,23 @@ PARAMS = derive_from_model(
 )
 
 PARAMS_JSON = schema_to_dicts(PARAMS)
+
+# ── Réglages UTILISATEUR du volet (brique commune `user_settings`) — dérivés du schéma ────
+# Même forme que l'imager (`common/utils/param_schema.panel_defaults` & co., 2026-09-26) : le
+# volet EST la surface des défauts utilisateur. La clé de stockage est le NOM du param, sauf
+# deux clés déjà en base sous un autre nom (frontière des données : elles restent).
+_STORED_UNDER = {'enable_diarization': 'diarization', 'preprocess_audio': 'preprocessing_enabled'}
+
+
+def user_setting_key(p):
+    """Clé de stockage d'un param du volet, None s'il n'y figure pas."""
+    name = p.name if hasattr(p, 'name') else p.get('name')
+    contexts = p.contexts if hasattr(p, 'contexts') else p.get('contexts')
+    if 'panel' not in (contexts or ()):
+        return None
+    return _STORED_UNDER.get(name, name)
+
+
+from wama.common.utils.param_schema import panel_defaults  # noqa: E402
+
+USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)

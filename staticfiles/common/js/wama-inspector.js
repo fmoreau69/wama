@@ -1213,7 +1213,14 @@
         function (p) { return p.options_source === 'catalog'; });
     }
 
-    return init(Object.assign({}, cfg, { panel: panel, cardSettings: cardSettings }));
+    const api = init(Object.assign({}, cfg, { panel: panel, cardSettings: cardSettings }));
+    // Le lecteur et l'applicateur DÉRIVÉS du schéma, exposés (2026-09-26) : l'app en a besoin
+    // hors inspection — au dépôt, pour ses défauts utilisateur, pour « ↺ Par défaut ». Sans
+    // eux le transcriber relisait son volet champ par champ, par id, et un réglage ajouté au
+    // schéma s'affichait sans jamais être lu.
+    api.read = panel.read;
+    api.apply = panel.apply;
+    return api;
   }
 
   // ── Preview de RÉSULTAT dans les CARDS — mécanisme COMMUN (18/08, décision Fabien) ─────

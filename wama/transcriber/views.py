@@ -295,32 +295,11 @@ class IndexView(View):
             if not t.duration_display and t.audio:
                 _describe_audio(t)
 
-        # Récupérer les préférences utilisateur
-        # Défaut OFF : Whisper est robuste au bruit ; le débruitage IA est opt-in
-        # (à activer pour de l'audio vraiment dégradé seulement).
-        # Réglages user — brique commune (A5-22) : clés + défauts uniques (USER_SETTINGS_DEFAULTS)
-        from wama.common.utils.user_settings import get_user_app_settings
-        _us = get_user_app_settings(user, 'transcriber', USER_SETTINGS_DEFAULTS)
-        enable_preprocessing = _us['preprocessing_enabled']
-        selected_backend = _us['backend']
-        user_hotwords = _us['hotwords']
-        global_diarization = _us['diarization']
-        global_generate_summary = _us['generate_summary']
-        global_summary_type = _us['summary_type']
-        global_verify_coherence = _us['verify_coherence']
-
-        # Schéma de réglages (volet droit généré par WamaParams) + valeurs courantes.
+        # Valeurs du volet = réglages utilisateur, DÉRIVÉS du schéma (brique commune, même forme
+        # que l'imager depuis le 2026-09-26) — plus de liste de champs écrite ici.
         import json
         from wama.transcriber.params import PARAMS_JSON
-        panel_values = {
-            'backend': selected_backend,
-            'hotwords': user_hotwords,
-            'enable_diarization': global_diarization,
-            'preprocess_audio': enable_preprocessing,
-            'generate_summary': global_generate_summary,
-            'summary_type': global_summary_type,
-            'verify_coherence': global_verify_coherence,
-        }
+        panel_values = _user_panel_values(user)
 
         # Backends are loaded asynchronously by JS (via /transcriber/backends/) to avoid
         # blocking the page render on heavy transformers imports (VibeVoice, Qwen3-ASR).
@@ -330,13 +309,6 @@ class IndexView(View):
             'q_sort': q_sort,
             'q_filter': q_filter,
             'transcripts': all_transcripts,  # kept for global progress bar
-            'preprocessing_enabled': enable_preprocessing,
-            'selected_backend': selected_backend,
-            'user_hotwords': user_hotwords,
-            'global_diarization': global_diarization,
-            'global_generate_summary': global_generate_summary,
-            'global_summary_type': global_summary_type,
-            'global_verify_coherence': global_verify_coherence,
             'params_json': json.dumps(PARAMS_JSON),
             'panel_values_json': json.dumps(panel_values),
             # Appariement entrée↔modèles (brique commune input_match) : meta re-clée sur les
@@ -355,24 +327,11 @@ def upload(request):
     if not file:
         return HttpResponseBadRequest('Missing file')
 
-    preprocess_requested = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
-    backend_requested = request.POST.get('backend', 'auto')
-    hotwords_requested = request.POST.get('hotwords', '')
-    # Capture l'état COMPLET du volet droit au dépôt (sinon ces réglages sont perdus).
-    diarization_requested = str(request.POST.get('enable_diarization', 'true')).lower() in ('1', 'true', 'on')
-    generate_summary_requested = str(request.POST.get('generate_summary', '')).lower() in ('1', 'true', 'on')
-    summary_type_requested = request.POST.get('summary_type', 'structured')
-    verify_coherence_requested = str(request.POST.get('verify_coherence', '')).lower() in ('1', 'true', 'on')
-
-    # Persist preferences for future uploads — brique commune user_settings (A5-22)
+    # L'état COMPLET du volet voyage avec le dépôt — lu PAR LE SCHÉMA (`schema_model_kwargs`,
+    # comme le converter) et gardé comme préférence (comme l'imager) : un réglage ajouté à
+    # `params.py` est pris ici sans toucher la vue.
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.user_settings import save_user_app_settings
-    _prefs = {'preprocessing_enabled': preprocess_requested}
-    if backend_requested:
-        _prefs['backend'] = backend_requested
-    if hotwords_requested:
-        _prefs['hotwords'] = hotwords_requested
-    save_user_app_settings(user, 'transcriber', _prefs)
+    settings_values = _deposit_settings(user, request.POST)
 
     from ..common.utils.video_utils import is_video_file, extract_audio_from_video
 
@@ -380,17 +339,7 @@ def upload(request):
     # status='DRAFT' → l'élément arrive en zone de staging (« à valider »), PAS
     # directement en file d'attente : l'utilisateur règle les paramètres puis
     # clique « Ajouter » / « Lancer ». Voir WAMA_APP_CONVENTIONS §8.X (staging).
-    transcript_fields = {
-        'user': user,
-        'status': 'DRAFT',
-        'preprocess_audio': preprocess_requested,
-        'backend': backend_requested,
-        'hotwords': hotwords_requested,
-        'enable_diarization': diarization_requested,
-        'generate_summary': generate_summary_requested,
-        'summary_type': summary_type_requested,
-        'verify_coherence': verify_coherence_requested,
-    }
+    transcript_fields = {'user': user, 'status': 'DRAFT', **settings_values}
 
     # Vérifier si c'est une vidéo
     if is_video_file(file.name):
@@ -475,16 +424,8 @@ def upload_youtube(request):
             'error': 'URL YouTube invalide'
         }, status=400)
 
-    preprocess_requested = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
-    diarization_requested = str(request.POST.get('enable_diarization', 'true')).lower() in ('1', 'true', 'on')
-    generate_summary_requested = str(request.POST.get('generate_summary', '')).lower() in ('1', 'true', 'on')
-    summary_type_requested = request.POST.get('summary_type', 'structured')
-    verify_coherence_requested = str(request.POST.get('verify_coherence', '')).lower() in ('1', 'true', 'on')
-    backend_requested = request.POST.get('backend', 'auto')
-    hotwords_requested = request.POST.get('hotwords', '')
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.user_settings import save_user_app_settings
-    save_user_app_settings(user, 'transcriber', {'preprocessing_enabled': preprocess_requested})
+    settings_values = _deposit_settings(user, request.POST)
 
     try:
         from ..common.utils.video_utils import download_youtube_audio
@@ -511,13 +452,7 @@ def upload_youtube(request):
             user=user,
             audio=audio_django_file,
             status='DRAFT',
-            preprocess_audio=preprocess_requested,
-            backend=backend_requested,
-            hotwords=hotwords_requested,
-            enable_diarization=diarization_requested,
-            generate_summary=generate_summary_requested,
-            summary_type=summary_type_requested,
-            verify_coherence=verify_coherence_requested,
+            **settings_values,
         )
 
         # Nettoyer le dossier temporaire
@@ -601,33 +536,8 @@ def stop(request, pk: int):
 # Staging (« à valider ») — DRAFT → file d'attente
 # ---------------------------------------------------------------------------
 
-def _apply_panel_settings(drafts, post):
-    """Applique en masse aux DRAFT les paramètres du volet présents dans POST.
-
-    Ne touche que les champs effectivement fournis. Renvoie la liste des champs MAJ.
-    """
-    def _b(key, default=''):
-        return str(post.get(key, default)).lower() in ('1', 'true', 'on')
-
-    updates = {}
-    if 'backend' in post:
-        updates['backend'] = post.get('backend', 'auto')
-    if 'hotwords' in post:
-        updates['hotwords'] = post.get('hotwords', '')
-    if 'preprocess_audio' in post:
-        updates['preprocess_audio'] = _b('preprocess_audio')
-    if 'enable_diarization' in post:
-        updates['enable_diarization'] = _b('enable_diarization')
-    if 'generate_summary' in post:
-        updates['generate_summary'] = _b('generate_summary')
-    if 'summary_type' in post:
-        updates['summary_type'] = post.get('summary_type', 'structured')
-    if 'verify_coherence' in post:
-        updates['verify_coherence'] = _b('verify_coherence')
-    if updates:
-        drafts.update(**updates)
-    return list(updates.keys())
-
+# _apply_panel_settings SUPPRIMÉ 2026-09-26 : aucun appelant (mesuré, dépôt entier), et une
+# 3ᵉ liste de champs du volet écrite à la main — le dépôt lit le schéma (`_deposit_settings`).
 
 # _launch_transcript SUPPRIMÉ 2026-07-06 : code mort (aucun appelant) qui dupliquait le
 # lancement sans anti-race — start/start_all/batch_start passent par begin_processing (commun).
@@ -1843,64 +1753,59 @@ def update_settings(request, pk: int):
     })
 
 
+# ── Réglages UTILISATEUR du volet — DÉRIVÉS du schéma (2026-09-26) ────────────────────────
+# Ici vivaient trois listes écrites à la main (défauts, noms JSON acceptés, correspondance
+# nom↔clé) plus une quatrième dans la page et une cinquième dans l'upload : un réglage ajouté à
+# `params.py` n'était lu par AUCUNE (le filtre de parole n'apparaissait donc que dans la
+# modale). Les défauts et la clé de stockage sont déclarés dans `params.py`
+# (`USER_SETTINGS_DEFAULTS`, `user_setting_key`), la lecture et l'écriture sont les helpers
+# COMMUNS portés de l'imager (`param_schema.panel_*`).
+from wama.transcriber.params import USER_SETTINGS_DEFAULTS, user_setting_key  # noqa: E402
+
+
+def _user_panel_values(user):
+    """Les réglages utilisateur, par NOM de param — ce que le volet rend et ce que l'API sert."""
+    from wama.common.utils.param_schema import panel_values_by_name
+    from wama.common.utils.user_settings import get_user_app_settings
+    stored = get_user_app_settings(user, 'transcriber', USER_SETTINGS_DEFAULTS)
+    return panel_values_by_name(stored, _SCHEMA, key=user_setting_key)
+
+
+def _save_user_panel_values(user, data):
+    """Garde comme préférences les réglages du volet présents dans `data` (par nom), coercés
+    par le schéma ; une clé absente n'écrase rien."""
+    from wama.common.utils.param_schema import coerce_schema_values, panel_prefs_from_post
+    from wama.common.utils.user_settings import save_user_app_settings
+    typed = {**data, **coerce_schema_values(_SCHEMA, data)}
+    prefs = panel_prefs_from_post(typed, _SCHEMA, key=user_setting_key)
+    if prefs:
+        save_user_app_settings(user, 'transcriber', prefs)
+    return prefs
+
+
+def _deposit_settings(user, post):
+    """Les réglages d'un DÉPÔT (fichier, lien) : les champs du modèle déclarés au schéma, lus
+    dans le POST (`schema_model_kwargs`, comme le converter), et gardés comme préférences
+    (comme l'imager). Un champ absent du POST prend le défaut du modèle."""
+    from wama.common.utils.param_schema import schema_model_kwargs
+    _save_user_panel_values(user, post)
+    return schema_model_kwargs('transcriber', post)
+
+
 @require_POST
 def save_user_transcriber_settings(request):
-    """Réglages user (brique commune user_settings — clés ``user_{id}_transcriber_*``).
-
-    JSON accepté : backend, hotwords, enable_diarization, preprocessing_enabled,
-    generate_summary, summary_type, verify_coherence (clés absentes = inchangées).
-    """
+    """Réglages user (brique commune user_settings) — JSON par NOM de param du schéma, clés
+    absentes = inchangées."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
     try:
         data = json.loads(request.body.decode('utf-8'))
     except (json.JSONDecodeError, UnicodeDecodeError):
         data = {}
-
-    from wama.common.utils.user_settings import save_user_app_settings
-    values = {}
-    for json_name in USER_SETTINGS_JSON_NAMES:
-        if json_name in data:
-            values[_JSON_TO_SETTING.get(json_name, json_name)] = data[json_name]
-    if values:
-        save_user_app_settings(user, 'transcriber', values)
-
-    return JsonResponse(_user_settings_payload(user))
-
-
-# Réglages user — brique commune user_settings (clés user_{id}_transcriber_*, A5-22).
-# NB : preprocessing_enabled était stocké SANS préfixe d'app (user_{id}_preprocessing_enabled) ;
-# la clé est normalisée 2026-07-06 (ancienne valeur perdue → défaut True, sans gravité).
-USER_SETTINGS_DEFAULTS = {  # wama:redondance-ok — contrat de persistance des réglages utilisateur (sous-ensemble + défauts décidés)
-    'backend': 'auto',
-    'hotwords': '',
-    'diarization': True,
-    # DeepFilterNet : défaut OFF (décision projet) — les anciens sites divergeaient (False/True).
-    'preprocessing_enabled': False,
-    'generate_summary': False,
-    'summary_type': 'structured',
-    'verify_coherence': False,
-}
-USER_SETTINGS_JSON_NAMES = ('backend', 'hotwords', 'enable_diarization', 'preprocessing_enabled',  # wama:redondance-ok — contrat de persistance des réglages utilisateur
-                            'generate_summary', 'summary_type', 'verify_coherence')
-_JSON_TO_SETTING = {'enable_diarization': 'diarization'}
-
-
-def _user_settings_payload(user):
-    from wama.common.utils.user_settings import get_user_app_settings
-    s = get_user_app_settings(user, 'transcriber', USER_SETTINGS_DEFAULTS)
-    return {
-        'backend': s['backend'],
-        'hotwords': s['hotwords'],
-        'enable_diarization': s['diarization'],
-        'preprocessing_enabled': s['preprocessing_enabled'],
-        'generate_summary': s['generate_summary'],
-        'summary_type': s['summary_type'],
-        'verify_coherence': s['verify_coherence'],
-    }
+    _save_user_panel_values(user, data if isinstance(data, dict) else {})
+    return JsonResponse(_user_panel_values(user))
 
 
 def get_user_transcriber_settings(request):
     """Réglages user (lecture) — brique commune user_settings."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    return JsonResponse(_user_settings_payload(user))
+    return JsonResponse(_user_panel_values(user))

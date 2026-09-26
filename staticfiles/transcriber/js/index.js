@@ -13,8 +13,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const startProcessBtn = document.getElementById('transcriber-process-btn');
   const clearAllBtn = document.getElementById('transcriber-clear-btn');
   const downloadAllBtn = document.getElementById('transcriber-download-all-btn');
-  const preprocessToggle = document.getElementById('preprocessingToggle');
-  const toggleDatasetUrl = preprocessToggle ? preprocessToggle.dataset.preprocessUrl : '';
 
   // Polling + état vide délégués au module commun (common/js/wama-app-base.js).
   const _poller = new WamaApp.Poller({
@@ -28,10 +26,6 @@ document.addEventListener('DOMContentLoaded', function () {
     cardSelector: '.synthesis-card',
     html: '<i class="fas fa-inbox fa-3x mb-3 text-white-50"></i><p class="text-white-50">Aucune transcription en attente</p>',
   });
-  let preprocessEnabled = !!config.preprocessingEnabled;
-  if (typeof config.preprocessingEnabled === 'string') {
-    preprocessEnabled = config.preprocessingEnabled === 'true';
-  }
 
   // Helpers génériques délégués au module commun (common/js/wama-app-base.js).
   const getUrl     = WamaApp.getUrl;
@@ -53,29 +47,12 @@ document.addEventListener('DOMContentLoaded', function () {
   // Ajoute TOUS les paramètres du volet droit au FormData (pas seulement
   // backend/hotwords/preprocess) afin que l'élément DRAFT capture l'état complet
   // du volet au moment du dépôt.
+  // Chaque réglage que le SCHÉMA met au volet (`_panelReadValues`) — plus de liste de champs.
   function _appendPanelParams(body) {
     const v = _panelReadValues();
-    body.append('preprocess_audio', v.preprocess_audio ? '1' : '0');
-    body.append('backend', v.backend);
-    body.append('hotwords', v.hotwords);
-    body.append('enable_diarization', v.enable_diarization ? '1' : '0');
-    body.append('generate_summary', v.generate_summary ? '1' : '0');
-    body.append('summary_type', v.summary_type);
-    body.append('verify_coherence', v.verify_coherence ? '1' : '0');
-  }
-
-  // Mêmes paramètres sous forme d'objet (pour les POST de staging).
-  function _panelParamsObj() {
-    const v = _panelReadValues();
-    return {
-      preprocess_audio:   v.preprocess_audio ? '1' : '0',
-      backend:            v.backend,
-      hotwords:           v.hotwords,
-      enable_diarization: v.enable_diarization ? '1' : '0',
-      generate_summary:   v.generate_summary ? '1' : '0',
-      summary_type:       v.summary_type,
-      verify_coherence:   v.verify_coherence ? '1' : '0',
-    };
+    Object.keys(v).forEach(function (k) {
+      body.append(k, typeof v[k] === 'boolean' ? (v[k] ? '1' : '0') : v[k]);
+    });
   }
 
   // ── Toast : brique commune (wama-app-base.js), zéro dialogue bloquant ──
@@ -752,67 +729,24 @@ document.addEventListener('DOMContentLoaded', function () {
     // The queue toolbar now renders it from the catalogue (`export_formats`) via
     // `common/_download_button.html` with `split=False`. This code only toggles `disabled`
     // (see `updateDownloadAllState`); the menu is server-rendered and always present.
-    if (preprocessToggle) {
-      preprocessToggle.checked = preprocessEnabled;
-      preprocessToggle.addEventListener('change', () => {
-        preprocessEnabled = preprocessToggle.checked;
-        // Inspecteur : si un élément/batch est inspecté, on l'édite sans toucher le défaut ;
-        // sinon on persiste la préférence globale de prétraitement.
-        const st = _inspector ? _inspector.state() : {};
-        if (!st.itemId && !st.batchId) persistPreprocessingPreference(preprocessEnabled);
-        savePanelSettings();
-      });
-    }
-
-    // Auto-save all other panel settings on change
-    const panelBackendSel = document.getElementById('backendSelect');
-    const panelHotwordsIn = document.getElementById('hotwordsInput');
-    const panelDiarToggle = document.getElementById('diarizationToggle');
-    const panelGenSumm    = document.getElementById('globalGenerateSummary');
-    const panelVerifCoh   = document.getElementById('globalVerifyCoherence');
-    if (panelBackendSel) panelBackendSel.addEventListener('change', savePanelSettings);
-    if (panelHotwordsIn) panelHotwordsIn.addEventListener('blur', savePanelSettings);
-    if (panelDiarToggle) panelDiarToggle.addEventListener('change', savePanelSettings);
-    if (panelGenSumm)    panelGenSumm.addEventListener('change', savePanelSettings);
-    if (panelVerifCoh)   panelVerifCoh.addEventListener('change', savePanelSettings);
-    const panelTemp = document.getElementById('panelTemperature');
-    const panelMaxTok = document.getElementById('panelMaxTokens');
-    if (panelTemp)   panelTemp.addEventListener('change', savePanelSettings);
-    if (panelMaxTok) panelMaxTok.addEventListener('change', savePanelSettings);
-    document.querySelectorAll('input[name="globalSummaryType"]').forEach(r =>
-      r.addEventListener('change', savePanelSettings)
-    );
+    // Enregistrement automatique : UN écouteur sur le volet, pour tout champ que le schéma y
+    // rend (un `change` de textarea part à la perte du focus, comme l'ancien `blur`). Les
+    // listes d'écouteurs par id sont retirées (2026-09-26) : le filtre de parole, ajouté au
+    // schéma, n'y figurait pas.
+    const panelHost = document.getElementById('panelSettings');
+    if (panelHost) panelHost.addEventListener('change', savePanelSettings);
 
     // Item settings modal: buttons are delegated by the shared cycle (`WamaParams.settingsModal`).
 
     // Reset button
     const resetBtn = document.getElementById('resetOptions');
     if (resetBtn) {
+      // « ↺ Par défaut » : les défauts du SCHÉMA (brique commune applyDefaults), posés par
+      // l'applicateur de l'inspecteur (il connaît les noms legacy des radios) ; puis on garde.
       resetBtn.addEventListener('click', () => {
-        const backendEl = document.getElementById('backendSelect');
-        if (backendEl) backendEl.value = 'auto';
-
-        const hotwordsEl = document.getElementById('hotwordsInput');
-        if (hotwordsEl) hotwordsEl.value = '';
-
-        const preprocessEl = document.getElementById('preprocessingToggle');
-        if (preprocessEl) { preprocessEl.checked = false; preprocessEnabled = false; }
-
-        const diarizationEl = document.getElementById('diarizationToggle');
-        if (diarizationEl) diarizationEl.checked = false;
-
-        const genSummaryEl = document.getElementById('globalGenerateSummary');
-        if (genSummaryEl) {
-          genSummaryEl.checked = false;
-          genSummaryEl.dispatchEvent(new Event('change'));   // WamaParams masque le bloc résumé
-        }
-
-        const summTypeEl = document.querySelector('input[name="globalSummaryType"][value="structured"]');
-        if (summTypeEl) summTypeEl.checked = true;
-
-        const verifCoherEl = document.getElementById('globalVerifyCoherence');
-        if (verifCoherEl) verifCoherEl.checked = false;
-
+        const host = document.getElementById('panelSettings');
+        const vals = WamaParams.applyDefaults(host, window.WAMA_TRANSCRIBER_SCHEMA || [], 'panel');
+        if (_inspector && _inspector.apply) _inspector.apply(vals);
         savePanelSettings();
       });
     }
@@ -868,37 +802,16 @@ document.addEventListener('DOMContentLoaded', function () {
     downloadAllBtn.disabled = !hasSuccess;
   }
 
-  function persistPreprocessingPreference(enabled) {
-    const endpoint = config.preprocessingUrl || toggleDatasetUrl;
-    if (!endpoint) return;
-    fetch(endpoint, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ enabled }),
-    }).catch(() => {
-      if (preprocessToggle) preprocessToggle.checked = !enabled;
-    });
-  }
 
   // ======================================================================
   // Inspecteur (niveau 2) — le volet droit reflète la card sélectionnée
   // ======================================================================
   let _inspector = null;   // instance WamaInspector (module commun) — créée dans initInspector
 
+  // Les valeurs du volet, lues PAR LE SCHÉMA (lecteur dérivé de l'inspecteur commun,
+  // `WamaInspector.initFromSchema`) : tout param de contexte `panel`, noms legacy compris.
   function _panelReadValues() {
-    const st = document.querySelector('input[name="globalSummaryType"]:checked');
-    const e = id => document.getElementById(id);
-    return {
-      backend:            e('backendSelect') ? e('backendSelect').value : 'auto',
-      hotwords:           e('hotwordsInput') ? e('hotwordsInput').value : '',
-      preprocess_audio:   e('preprocessingToggle') ? e('preprocessingToggle').checked : false,
-      enable_diarization: e('diarizationToggle') ? e('diarizationToggle').checked : true,
-      generate_summary:   e('globalGenerateSummary') ? e('globalGenerateSummary').checked : false,
-      summary_type:       st ? st.value : 'structured',
-      verify_coherence:   e('globalVerifyCoherence') ? e('globalVerifyCoherence').checked : false,
-      temperature:        e('panelTemperature') ? (parseFloat(e('panelTemperature').value) || 0) : 0,
-      max_tokens:         e('panelMaxTokens') ? (parseInt(e('panelMaxTokens').value) || 32768) : 32768,
-    };
+    return (_inspector && _inspector.read) ? _inspector.read() : {};
   }
 
     // Actions de la card inspectée (callback WamaInspector) : clone des boutons de la card + rebind.
@@ -919,24 +832,9 @@ document.addEventListener('DOMContentLoaded', function () {
       body: JSON.stringify(payload),
     })
       .then(r => r.json())
-      .then(() => {
-        // Garde la card synchronisée (data-* du bouton paramètres)
-        if (card) {
-          const b = card.querySelector('.settings-btn');
-          if (b) {
-            b.dataset.backend = payload.backend;
-            b.dataset.hotwords = payload.hotwords;
-            b.dataset.preprocessAudio = payload.preprocess_audio ? 'true' : 'false';
-            if (payload.vad_mode) b.dataset.vadMode = payload.vad_mode;
-            b.dataset.enableDiarization = payload.enable_diarization ? 'true' : 'false';
-            b.dataset.generateSummary = payload.generate_summary ? 'true' : 'false';
-            b.dataset.summaryType = payload.summary_type;
-            b.dataset.verifyCoherence = payload.verify_coherence ? 'true' : 'false';
-            b.dataset.temperature = payload.temperature;
-            b.dataset.maxTokens = payload.max_tokens;
-          }
-        }
-      })
+      // La card est re-rendue par le serveur : ses data-* (le ⚙) viennent de `gear_data`,
+      // dérivé du schéma — plus de recopie champ par champ ici.
+      .then(() => { if (card) refreshCard(id); })
       .catch(() => showToast('Erreur lors de l\'enregistrement', 'danger'));
   }
 
@@ -953,21 +851,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // Sauvegarde des valeurs par défaut (niveau file, rien d'inspecté).
   function saveGlobalSettings() {
     if (!config.saveUserSettingsUrl) return;
-    const backendSel  = document.getElementById('backendSelect');
-    const hotwordsIn  = document.getElementById('hotwordsInput');
-    const diarEl      = document.getElementById('diarizationToggle');
-    const genSummEl   = document.getElementById('globalGenerateSummary');
-    const summTypeEl  = document.querySelector('input[name="globalSummaryType"]:checked');
-    const verifEl     = document.getElementById('globalVerifyCoherence');
-    const payload = {
-      backend:               backendSel ? backendSel.value  : 'auto',
-      hotwords:              hotwordsIn ? hotwordsIn.value  : '',
-      enable_diarization:    diarEl     ? diarEl.checked    : true,
-      preprocessing_enabled: preprocessEnabled,
-      generate_summary:      genSummEl  ? genSummEl.checked : false,
-      summary_type:          summTypeEl ? summTypeEl.value  : 'structured',
-      verify_coherence:      verifEl    ? verifEl.checked   : false,
-    };
+    const payload = _panelReadValues();   // par NOM de param ; le serveur re-clé pour le stockage
     fetch(config.saveUserSettingsUrl, {
       method: 'POST',
       headers: csrfHeaders({ 'Content-Type': 'application/json' }),

@@ -267,6 +267,47 @@ def applicable_defaults(schema, values=None) -> dict:
     return out
 
 
+# ── Réglages UTILISATEUR du VOLET (brique `user_settings`) — dérivés du schéma ─────────────
+# Portés de l'imager le 2026-09-26, quand le transcriber en a eu besoin : le volet EST la
+# surface des défauts utilisateur, seuls ses params sont persistés, et la clé de STOCKAGE est
+# une fonction du param — le `dom_id` du volet par défaut (la forme de l'imager, unique entre
+# ses deux domaines) ; une app dont les clés stockées suivent une autre règle la DÉCLARE
+# (`key=`), les clés déjà en base restant ce qu'elles sont (frontière des données).
+def panel_dom_id(p):
+    """dom_id du param sur la surface VOLET, ou None s'il n'y figure pas.
+
+    Deux formes coexistent : un dict par surface (params d'app, IDs legacy différents selon la
+    surface) ou une chaîne unique (params de brique, même id partout — la surface se lit alors
+    dans `contexts`). Ignorer la 2ᵉ écartait silencieusement output_format/output_quality."""
+    dom = _pget(p, 'dom_id')
+    if isinstance(dom, dict):
+        return dom.get('panel')
+    if dom and 'panel' in (_pget(p, 'contexts') or ()):
+        return dom
+    return None
+
+
+def panel_defaults(params, key=None) -> dict:
+    """{clé de stockage: défaut} des params du volet."""
+    key = key or panel_dom_id
+    return {k: _pget(p, 'default') for p in params if (k := key(p))}
+
+
+def panel_values_by_name(stored, params, key=None) -> dict:
+    """Ré-indexe les réglages STOCKÉS vers ce que `WamaParams.render` attend (le `name` du
+    param, `p.name in values` côté JS)."""
+    key = key or panel_dom_id
+    return {_pget(p, 'name'): stored[k] for p in params if (k := key(p)) and k in stored}
+
+
+def panel_prefs_from_post(post, params, key=None) -> dict:
+    """Chemin INVERSE de `panel_values_by_name` : les valeurs postées par NOM, re-clées pour le
+    stockage. Ne retient que ce que le POST porte : une clé absente n'écrase pas un réglage."""
+    key = key or panel_dom_id
+    return {k: post.get(_pget(p, 'name')) for p in params
+            if (k := key(p)) and _pget(p, 'name') in post}
+
+
 #: Une valeur est POSÉE si elle n'est ni absente ni vide. `False` et `0` COMPTENT — un
 #: interrupteur décoché et un « 0 = inchangé » sont des choix, pas des silences (même
 #: convention que la vue d'upload du converter depuis toujours).
