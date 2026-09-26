@@ -3026,3 +3026,20 @@ class RejudgeOnNewFactsTest(TestCase):
         self.assertEqual(out['text_encoder']['params_by_dtype'], {'F32': 5, 'I64': 1})
         self.assertEqual(out['transformer']['params'], 7)
         self.assertNotIn('config', out, 'a role without safetensors has no precision, not zero')
+
+
+class VramFootprintExposedTest(TestCase):
+    """`AIModel.vram_footprint()` (to_dict) feeds the VRAM sort and the inspector line « VRAM
+    exigée » from the COMMON cascade — never a second computation (2026-09-23)."""
+
+    def test_both_peaks_come_from_the_component_weights(self):
+        m = AIModel.objects.create(
+            model_key='test:footprint', name='fp', model_type='diffusion', source='imager',
+            extra_info={'weights': {'total_gb': 22.5, 'largest_gb': 10.6}})
+        self.assertEqual({'offload': 10.6, 'full': 22.5, 'provenance': 'source'}, m.vram_footprint())
+        self.assertEqual(m.vram_footprint(), m.to_dict()['vram_footprint'])
+
+    def test_an_unknown_model_says_nothing(self):
+        m = AIModel.objects.create(model_key='test:nothing-known', name='n',
+                                   model_type='diffusion', source='imager')
+        self.assertEqual({}, m.vram_footprint())

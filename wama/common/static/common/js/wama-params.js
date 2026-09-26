@@ -1110,6 +1110,9 @@
 
   global.WamaParams = { render: render, read: read, apply: apply,
                         applyDefaults: applyDefaults,
+                        // La règle `cap_from` elle-même (bornes, zones, champ imposé) — exposée
+                        // pour que sa garde (`tests_cap_from_js`, V8) l'exerce sans navigateur.
+                        applyCapFrom: _applyCap,
                         renderSettingsModal: renderSettingsModal,
                         settingsModal: settingsModal,
                         // Extension du vocabulaire de composants SANS toucher au moteur :
