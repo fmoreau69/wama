@@ -17607,6 +17607,16 @@ des fichiers, pas l'apparence du `git status`. Les trois pointent sur des fichie
 les vingt minutes précédentes, tous en 1ʳᵉ colonne à espace. *« Ce n'est pas moi » est une
 hypothèse ; une heure de modification est une mesure.*
 
+**Outillage laissé au dépôt** : `/commit-partiel` gagne un second script, la sélection de hunks
+par NUMÉRO, pour le cas où aucun mot-clé ne couvre les siens (vécu deux fois ce soir ; élargir le
+mot-clé jusqu'à attraper le dernier aurait pris des hunks d'autrui). Le skill est PROMU (n=2) :
+il a guidé sept commits partiels de bout en bout et y a gagné cinq pièges mesurés.
+**Artefacts de session** : les scripts de mesure vivent dans le scratchpad de session (smoke de
+vocalisation, smoke de flux à travers les deux piles, module de settings à base de test dédiée) —
+jetables, rien à nettoyer ; la base de test dédiée se détruit en fin de run.
+**Contrôles** : `check_docs` 2 cassées (les deux préexistantes de ce fichier) et **0 périmée** ;
+`check_skills` 0 défaut franc ; index partagé vide, aucun `stash`, aucun worktree.
+
 🔚 **POINT D'ENTRÉE SESSION SUIVANTE** — **le cadrage de l'avatar, réglage utilisateur durable**
 (question de Fabien, non tranchée faute d'être dans le « on le fait de suite »). **Mesuré : c'est
 jouable et court.** Le cadrage est **trois constantes** dans un seul fichier
