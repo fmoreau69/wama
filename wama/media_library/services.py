@@ -347,11 +347,15 @@ def delete_asset(asset) -> None:
 
     Pour un asset créé par `export_item_to_library`, le fichier est une COPIE (`upload_to` → nom
     unique) : la sortie de l'app n'est jamais touchée. ⚠ Certains assets ANCIENS pointent un fichier
-    PARTAGÉ (migration 0002 — voix personnalisées) : le supprimer casse l'autre référent. Comportement
-    de `api_delete` antérieur au 14/09, relevé à l'audit, non traité ici.
+    PARTAGÉ (migration 0002 — voix personnalisées) : le supprimer casse l'autre référent.
+    ✅ **Traité le 2026-09-23** : la brique commune `delete_file_unless_shared` garde le fichier
+    tant qu'une autre ligne le désigne, dans N'IMPORTE QUEL modèle (mesuré : `UserAsset #1` et
+    `CustomVoice #1` partagent `Voix_Fab.wav`). L'asset part, le fichier attend son dernier porteur.
     """
+    from wama.common.utils.queue_duplication import delete_file_unless_shared
+
     source_app, source_pk = asset.source_app, asset.source_pk
-    asset.file.delete(save=False)
+    delete_file_unless_shared(asset, 'file')
     asset.delete()
     # Que la suppression parte du menu d'une card OU de la page médiathèque, le drapeau suit
     # (audit du 14/09 : supprimé depuis la page, le composer répondait « Déjà exporté » à vie).

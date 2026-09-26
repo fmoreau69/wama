@@ -161,16 +161,19 @@ def record_origin(copy_path, *, kind, ref, source_path=None):
 def kind_of(media_path) -> str:
     """La nature d'une source désignée par son chemin dans le gestionnaire de fichiers.
 
-    `mounts/<id>/…` → `mount` ; `users/<u>/temp/…` → `temp` ; tout autre chemin sous
-    `MEDIA_ROOT` est le fichier d'une app (l'entrée ou la sortie d'une autre card : « Envoyer
-    vers » chaîne describer → imager → enhancer) → `app`.
+    `mounts/<id>/…` → `mount` ; `users/<u>/temp/…` → `temp` ; `users/<u>/media_library/…` →
+    `asset` ; tout autre chemin sous `MEDIA_ROOT` est le fichier d'une app (l'entrée ou la sortie
+    d'une autre card : « Envoyer vers » chaîne describer → imager → enhancer) → `app`.
     """
     p = str(media_path or '').replace('\\', '/')
     if p.startswith('mounts/'):
         return 'mount'
     parts = p.split('/')
-    if len(parts) > 2 and parts[0] == 'users' and parts[2] == 'temp':
-        return 'temp'
+    if len(parts) > 2 and parts[0] == 'users':
+        if parts[2] == 'temp':
+            return 'temp'
+        if parts[2] == 'media_library':
+            return 'asset'
     return 'app'
 
 

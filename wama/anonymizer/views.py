@@ -99,10 +99,11 @@ class IndexView(View):
                             # gabarit généré et le converter confinent à MEDIA_ROOT. Même règle
                             # partout : un chemin de lot se résout SOUS MEDIA_ROOT, ou est
                             # refusé (`MEDIA_STORAGE_TIERING §8.6` D3).
-                            from wama.common.utils.media_paths import copy_into_app_input, resolve_under_media_root
+                            from wama.common.utils.media_paths import reference_or_copy, resolve_under_media_root
                             from wama.common.utils.provenance import kind_of
                             abs_src, src_rel = resolve_under_media_root(path)   # OutsideMediaRoot / FileNotFoundError → failed[]
-                            dest, _rel = copy_into_app_input(abs_src, 'anonymizer', user.id, 'input')
+                            # Déjà dans l'arbre de l'utilisateur → POINTÉ (2026-09-23).
+                            dest, _rel = reference_or_copy(abs_src, 'anonymizer', user.id, 'input')
                             video_path = str(dest)
                             origin = {'kind': kind_of(src_rel), 'ref': src_rel, 'source_path': abs_src}
                         # Crée Media en DB
@@ -169,8 +170,15 @@ def process_media(video_path, user, output_format='original', output_quality='ba
     try:
         filename = os.path.basename(video_path)
         ext = os.path.splitext(filename)[1]
-        # Use user-specific path
-        relative_path = get_relative_media_path('anonymizer', user.id, 'input', filename)
+        # ⚠ Le chemin enregistré est celui du fichier RÉEL, jamais un chemin recomposé
+        # (2026-09-23) : depuis que la brique commune PEUT pointer un fichier déjà rangé dans
+        # l'arbre de l'utilisateur, « anonymizer/<uid>/input/<nom> » serait un chemin où le
+        # fichier n'est pas — la 3ᵉ route du disque, celle du NOM enregistré.
+        from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+        try:
+            _abs, relative_path = resolve_under_media_root(str(video_path))
+        except (OutsideMediaRoot, FileNotFoundError):
+            relative_path = get_relative_media_path('anonymizer', user.id, 'input', filename)
         media = Media.objects.create(
             file=relative_path, file_ext=ext, user=user,
             output_format=output_format or 'original',

@@ -972,10 +972,11 @@ def start_synthesizer(user, synthesis_id: int = None) -> dict:
         synthesis.progress = 0
         synthesis.error_message = ''
         if synthesis.audio_output:
-            try:
-                synthesis.audio_output.delete(save=False)
-            except Exception:
-                pass
+            # Relance : l'ancienne sortie part par la BRIQUE (propriété + partage, tous modèles) —
+            # elle peut avoir été rangée dans la médiathèque ou désignée par une autre card.
+            from wama.common.utils.queue_duplication import safe_delete_file
+            safe_delete_file(synthesis, 'audio_output')
+            synthesis.audio_output = None
         synthesis.save(update_fields=['status', 'progress', 'error_message', 'audio_output'])
         cache.set(f'synthesizer_progress_{synthesis.id}', 0, timeout=3600)
 

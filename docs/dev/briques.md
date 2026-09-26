@@ -846,9 +846,10 @@ L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent �
 
 - **Domicile** : `wama/common/utils/file_references.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : QUI DÉSIGNE CE FICHIER ? — l'index des cards qui utilisent un chemin, et les deux gestes qui le tiennent à jour quand le fichier bouge ou disparaît.
-- **API publique** (6) :
+- **API publique** (7) :
   - `file_field_models()` — `[(modèle, [FileField…])]` pour tout le dépôt — UNE énumération, plusieurs lecteurs
   - `direct_references(path, *, folder=False) -> list` — Les cards dont un `FileField` porte ce chemin (ou, `folder=True`, un chemin SOUS ce dossier).
+  - `is_referenced_elsewhere(path, *, label='', pk=None, field='') -> bool` — Une AUTRE ligne, DE N'IMPORTE QUEL MODÈLE, désigne-t-elle ce fichier ?
   - `source_references(path, *, folder=False) -> list` — Les provenances dont la SOURCE est ce chemin (ou un chemin sous ce dossier).
   - `usage(path, *, folder=False) -> dict` — Ce que le gestionnaire de fichiers doit savoir AVANT de supprimer.
   - `repoint(old_path, new_path, *, folder=False) -> dict` — Le fichier (ou le dossier) a bougé : chaque lien suit, directs et sources.
@@ -1319,10 +1320,11 @@ duplicate_instance() et safe_delete_file() — fichiers partagés entre items
 
 - **Domicile** : `wama/common/utils/queue_duplication.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : WAMA — Common utilities for queue item duplication and safe file deletion.
-- **API publique** (4) :
+- **API publique** (5) :
   - `owns_file(instance, file_name: str) -> bool` — Le fichier vit-il dans le DOMICILE de l'app de cette card (`users/<uid>/<app>/…`) ?
   - `safe_delete_file(instance, field_name: str) -> bool` — Delete a FileField's physical file only if it is the card's OWN file and no other row
-  - `is_shared_elsewhere(instance, field_name: str, file_name: str) -> bool` — Une AUTRE ligne du même modèle désigne-t-elle ce fichier dans le même champ ?
+  - `is_shared_elsewhere(instance, field_name: str, file_name: str) -> bool` — Une AUTRE ligne désigne-t-elle ce fichier — DANS N'IMPORTE QUEL MODÈLE ?
+  - `delete_file_unless_shared(instance, field_name: str) -> bool` — Suppression VOULUE du fichier d'un objet — mais jamais s'il en reste un porteur.
   - `duplicate_instance(instance, reset_fields=None, clear_fields=None)` — Create a new DB row that shares the same input file(s) as the original.
 
 ### Entrée de file (card seule OU lot)
@@ -1835,11 +1837,11 @@ Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AV
 
 ### Chemins média
 
-Emplacements canoniques des entrées/sorties par app et par utilisateur
+Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la brique décide aussi POINTER ou COPIER (`reference_or_copy`, décision de Fabien, cible annoncée le 12/09) : une source déjà sous `users/<uid>/` du MÊME utilisateur est désignée telle quelle — un `FileField` est déjà un pointeur, l'aperçu commun sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) garde la copie, et son site le dit
 
-- **Domicile** : `wama/common/utils/media_paths.py`
+- **Domicile** : `wama/common/utils/media_paths.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : WAMA Common - Media Path Utilities
-- **API publique** (15) :
+- **API publique** (17) :
   - `get_app_media_path(app_name: str, user_id: Union[int, str], subfolder: str='input') -> Path` — Get the absolute path for an app's user-specific media folder.
   - `class OutsideMediaRoot(ValueError)` — Le chemin demandé sort de MEDIA_ROOT (traversée `..`, dossier frère, absolu étranger).
   - `resolve_under_media_root(candidate, *, must_exist: bool=True)` — Résout un chemin — absolu, ou RELATIF à MEDIA_ROOT — et GARANTIT qu'il y reste.
@@ -1849,6 +1851,8 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur
   - `app_media_dir(app_name: str, user_id: Union[int, str], subfolder: str='input') -> str` — Dossier média d'une app, RELATIF à `MEDIA_ROOT` — la FORME du chemin, en un seul endroit.
   - `get_relative_media_path(app_name: str, user_id: Union[int, str], subfolder: str, filename: str) -> str` — Get the relative path for storing in Django FileField.
   - `copy_into_app_input(source_path, app_name: str, user_id, subfolder: str='input', allowed_exts=None, *, for_instance=None, field=None, provenance_kind='temp', p…` — Copy a source file into an app's media folder with collision-safe naming.
+  - `in_user_home(rel_path, user_id) -> bool` — Ce chemin (relatif à `MEDIA_ROOT`) est-il DANS l'arbre de CET utilisateur ?
+  - `reference_or_copy(source_path, app_name: str, user_id, subfolder: str='input', allowed_exts=None, *, for_instance=None, field=None, provenance_kind=None, prove…` — POINTER le fichier s'il est déjà dans l'arbre de l'utilisateur, le COPIER sinon.
   - `class UploadToUserPath` — Callable class for Django FileField upload_to that generates user-specific paths.
   - `system_asset_relpath(asset_type: str, filename: str) -> str` — Chemin relatif (sous `MEDIA_ROOT`) d'un asset système : un sous-dossier par NATURE.
   - `class UploadToSystemAssetPath` — `upload_to` de `SystemAsset.file` — `media_library/system/<asset_type>/<fichier>`.

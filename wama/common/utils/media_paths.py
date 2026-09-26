@@ -258,6 +258,78 @@ def copy_into_app_input(source_path, app_name: str, user_id, subfolder: str = 'i
     return dest_path, relative_path
 
 
+def in_user_home(rel_path, user_id) -> bool:
+    """Ce chemin (relatif à `MEDIA_ROOT`) est-il DANS l'arbre de CET utilisateur ?
+
+    La frontière du pointage : `users/<uid>/…` — son dossier temporaire, sa médiathèque, les
+    entrées et sorties de ses apps. Tout le reste (montage, cache, arbre d'un AUTRE utilisateur)
+    n'y est pas, et se copie. La comparaison de l'identifiant est ce qui interdit à une card de
+    pointer les octets d'autrui, condition du chiffrement par utilisateur.
+    """
+    rel = str(rel_path or '').replace('\\', '/').lstrip('/')
+    return rel.startswith(f'users/{user_id}/')
+
+
+def reference_or_copy(source_path, app_name: str, user_id, subfolder: str = 'input',
+                      allowed_exts=None, *, for_instance=None, field=None,
+                      provenance_kind=None, provenance_ref=None):
+    """POINTER le fichier s'il est déjà dans l'arbre de l'utilisateur, le COPIER sinon.
+
+    Décision de Fabien du 2026-09-23 (`MEDIA_STORAGE_TIERING §Cible`, jalon annoncé le 12/09 :
+    *« sortir les fichiers médias des apps et ne faire que les POINTER »*). Même contrat de retour
+    que `copy_into_app_input` — `(chemin, chemin relatif)` — pour que les importeurs ne changent
+    que d'appel : les métadonnées se lisent ensuite sur le fichier POINTÉ, ce qui est le même
+    fichier.
+
+    Pourquoi c'était possible sans rien casser (mesuré) : **un `FileField` EST déjà un pointeur**
+    — il stocke un chemin relatif à `MEDIA_ROOT`, et l'aperçu commun sert `/media/<ce chemin>`
+    (`preview_utils`, via `field.url`). Rien dans la chaîne ne suppose que le fichier vive dans le
+    dossier de l'app : la route « importer un fichier déjà sur le serveur » du synthesizer le fait
+    depuis des mois.
+
+    Ce qui se copie encore, et pourquoi :
+      * un dépôt depuis le poste (il n'a pas de source dans WAMA) ;
+      * un dossier CONNECTÉ (hors `MEDIA_ROOT` ; et un traitement ne doit pas lire un disque
+        réseau — verdict de performance de `MEDIA_STORAGE_TIERING`) ;
+      * une URL (matérialisée par `ensure_local_input`) ;
+      * l'arbre d'un AUTRE utilisateur (`in_user_home` refuse) ;
+      * une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) — elle garde son appel à
+        `copy_into_app_input`, et le site le dit.
+
+    Returns:
+        `(path: Path, relative_path: str)` — pointé : le chemin de la SOURCE ; copié : la copie.
+    """
+    from pathlib import Path
+
+    src = Path(source_path)
+    ext = src.suffix.lower()
+    if allowed_exts is not None and ext not in {e.lower() for e in allowed_exts}:
+        raise ValueError(f"Format non supporté : {ext}")
+
+    rel = None
+    try:
+        _absolu, rel_candidat = resolve_under_media_root(str(src))
+        if in_user_home(rel_candidat, user_id):
+            rel = rel_candidat
+    except (OutsideMediaRoot, FileNotFoundError):
+        rel = None
+
+    if rel is None:
+        return copy_into_app_input(
+            src, app_name, user_id, subfolder, allowed_exts,
+            for_instance=for_instance, field=field,
+            provenance_kind=provenance_kind or 'temp', provenance_ref=provenance_ref)
+
+    if for_instance is not None and field:
+        # La provenance d'une entrée POINTÉE se désigne elle-même : « cette entrée EST ce
+        # fichier de l'utilisateur ». La nature se dérive du chemin (temp, app, médiathèque).
+        from wama.common.utils.provenance import kind_of, record_provenance
+        record_provenance(for_instance, field, kind=provenance_kind or kind_of(rel),
+                          ref=provenance_ref if provenance_ref is not None else rel,
+                          original_name=src.name, source_path=src)
+    return src, rel
+
+
 class UploadToUserPath:
     """
     Callable class for Django FileField upload_to that generates user-specific paths.

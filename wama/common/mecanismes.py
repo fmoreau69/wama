@@ -1586,8 +1586,17 @@ MECHANISMS = (
               "Extraction audio des vidéos + téléchargement YouTube/yt-dlp",
               'wama/common/utils/video_utils.py', ''),
     Mechanism('media_paths', 'Chemins média',
-              "Emplacements canoniques des entrées/sorties par app et par utilisateur",
-              'wama/common/utils/media_paths.py', ''),
+              "Emplacements canoniques des entrées/sorties par app et par utilisateur "
+              "(`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la "
+              "brique décide aussi POINTER ou COPIER (`reference_or_copy`, décision de Fabien, "
+              "cible annoncée le 12/09) : une source déjà sous `users/<uid>/` du MÊME utilisateur "
+              "est désignée telle quelle — un `FileField` est déjà un pointeur, l'aperçu commun "
+              "sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier "
+              "connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL "
+              "ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER "
+              "(cam_analyzer, RTMaps) garde la copie, et son site le dit",
+              'wama/common/utils/media_paths.py',
+              'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md'),
     Mechanism('scoped_visibility', 'Visibilité et portée',
               "Privé / unité / public : filtrage des lectures, mutations inchangées",
               'wama/common/models.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',

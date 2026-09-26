@@ -713,7 +713,7 @@ def batch_create(request):
     import os as _os
     from django.conf import settings
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
-    from wama.common.utils.media_paths import get_app_media_path, copy_into_app_input
+    from wama.common.utils.media_paths import get_app_media_path, reference_or_copy
 
     user = request.user
     try:
@@ -753,7 +753,9 @@ def batch_create(request):
                 except (OutsideMediaRoot, FileNotFoundError):
                     warnings.append(f'Introuvable : {src}')
                     continue
-                dpath, rel = copy_into_app_input(abs_src, 'converter', user.id, 'input')
+                # Une ligne `-i` qui désigne un fichier DÉJÀ dans l'arbre de l'utilisateur est
+                # POINTÉE, plus recopiée (2026-09-23) : la brique décide, le site ne sait rien.
+                dpath, rel = reference_or_copy(abs_src, 'converter', user.id, 'input')
                 fname = dpath.name
                 origin = {'kind': kind_of(src_rel), 'ref': src_rel, 'source_path': abs_src}
 
