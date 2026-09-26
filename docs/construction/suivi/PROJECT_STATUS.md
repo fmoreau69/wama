@@ -17519,8 +17519,12 @@ commit qui le porte, il date de l'arbre qui l'a produit.*
 **Vérifié** : 107 tests de mon périmètre OK **après la dernière écriture** (flux 16, texte à dire
 17, surfaces, plans de doc, budget de langue, synthesizer) ; `check_docs` 2 cassées (les deux
 préexistantes de ce fichier), 0 périmée ; budgets de langue tenus, aucun relevé.
-**Pendings système** : **6 commits non poussés** (`2716f47e`, `6389072a`, `761fe722`,
-`4b423a79`, `304491f4`, `b4489172`) ; le serveur dev éphémère du port 8012 est **arrêté**.
+**Pendings système** : la série va de **`2716f47e`** (flux) à **`b4489172`** (adresses dicibles),
+huit commits ; le serveur dev éphémère du port 8012 est **arrêté**.
+⚠ **Ne pas se fier à une liste de « non poussés » écrite ici** : mesuré à 21 h 45, six des huit
+l'étaient DÉJÀ, poussés par une autre instance qui a poussé la branche entière. *Sur un dépôt
+partagé, « non poussé » est un fait sur le DISTANT à un instant, pas une propriété de mes
+commits.* La mesure : `git rev-list --count origin/dev..HEAD` après un `git fetch`.
 **Reload gunicorn** : fait par Fabien pour les trois premiers, et c'est cette relance qui a permis
 la vérification ci-dessous. ⚠ **`b4489172` est POSTÉRIEUR à la relance** : le remplacement des
 adresses par un mot dicible n'est pas encore servi, il attend un nouveau reload.
