@@ -1,4 +1,5 @@
 import json
+import logging
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -18,6 +19,8 @@ from ..common.utils.secret_crypto import storage_available
 from ..anonymizer.forms import UserSettingsEdit
 from ..anonymizer.models import UserSettings
 from ..common.utils.volet import VOLET_AUCUN, volet
+
+logger = logging.getLogger(__name__)
 
 
 def admin_required(view_func):
@@ -333,6 +336,7 @@ def rattachement_institutionnel(profile):
     2026-08-22, « {EIFFEL}CFR - LESCOT » est porté par le profil mais absent de `ou=structures`.
     Le dire évite de chercher un bug ici.
     """
+    from wama.accounts.ldap import split_namespace
     from wama.common.models import OrgUnit
 
     codes = list(profile.org_affiliations or [])
@@ -340,24 +344,59 @@ def rattachement_institutionnel(profile):
         codes.insert(0, profile.org_entity_code)
     connues = {u.code: u for u in OrgUnit.local().filter(code__in=codes)}
 
+    def _readable(code, nom=''):
+        """Libellé pour un humain : le nom de l'unité s'il en a un, sinon le code SANS son
+        préfixe d'autorité SUPANN (`{IFSTTAR}LESCOT` → « LESCOT »). Le code brut reste
+        affiché à côté — on ne le remplace pas, on cesse d'en faire le titre."""
+        namespace, value = split_namespace(code)
+        if nom and nom != code:
+            return nom, namespace
+        # Un code réduit à son seul préfixe (`{IFSTTAR}`, la racine de la chaîne) n'a pas
+        # de valeur après le namespace : c'est le namespace qui EST le nom lisible.
+        return (value or namespace or code), namespace
+
     rattachements = []
     for code in codes:
         unite = connues.get(code)
+        label, namespace = _readable(code, unite.name if unite else '')
         rattachements.append({
             'code': code,
+            'libelle': label,
+            'autorite': namespace,          # l'annuaire émetteur du code, quand il est préfixé
             'nom': unite.name if unite else '',
             'type': unite.get_unit_type_display() if unite else '',
             'reconnu': unite is not None,
             'principal': code == profile.org_entity_code,
             # La chaîne d'ancêtres EST le mécanisme d'héritage du RAG : un document partagé au
             # labo est visible depuis une équipe fille. L'afficher rend l'héritage lisible.
-            'chaine': [u.name for u in unite.ancestors()] if unite else [],
+            'chaine': [_readable(u.code, u.name)[0] for u in unite.ancestors()] if unite else [],
         })
+
+    # ⚠⚠ CE QUE LE PARTAGE FAIT, DEMANDÉ AU MÉCANISME — pas affirmé ici (2026-09-26).
+    # Cette fonction concluait « partage_possible » dès qu'UN rattachement était reconnu, et la
+    # page l'annonçait à l'utilisateur. Mesuré sur le compte de Fabien (3 rattachements) :
+    # `lab_share_target` REFUSE — « plusieurs affiliations : nommer l'unité cible ». La page
+    # promettait donc l'inverse de ce que le code fait. On appelle la règle au lieu de la
+    # redire : un seul domicile, et l'écran ne peut plus diverger.
+    target, reason = None, ''
+    try:
+        from wama.common.memory.index import lab_share_target
+        target, reason = lab_share_target(profile.user)
+    except Exception:                    # brique mémoire indisponible : on n'affirme rien
+        logger.debug('cible de partage labo indéterminable', exc_info=True)
+
     return {
         'etablissement': profile.establishment,
+        'etablissement_libelle': _readable(profile.establishment)[0],
+        'etablissement_autorite': split_namespace(profile.establishment)[0],
         'affiliation_ldap': profile.ldap_affiliation,
         'rattachements': rattachements,
+        'reconnus': [r for r in rattachements if r['reconnu']],
         'partage_possible': [r for r in rattachements if r['reconnu']],
+        #: L'unité qui recevrait un partage labo SANS qu'on la nomme, ou None + la raison.
+        'partage_cible': target,
+        'partage_raison': reason,
+        'partage_a_designer': target is None and any(r['reconnu'] for r in rattachements),
         'hierarchie': profile.org_hierarchy or [],
     }
 

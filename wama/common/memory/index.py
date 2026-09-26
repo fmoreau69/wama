@@ -193,6 +193,20 @@ def list_rag(user):
             for l in lignes]
 
 
+def lab_share_target(user):
+    """`(unité, raison)` — ce qu'un partage « labo » ferait SANS unité nommée.
+
+    Porte d'entrée PUBLIQUE de la règle que `_resolve_unit` applique déjà : une seule
+    affiliation → c'est elle ; plusieurs → WAMA ne choisit pas, l'utilisateur désigne ;
+    aucune → rien à partager. Ajoutée le 2026-09-26 pour que la page de profil DISE ce que
+    le mécanisme fait, au lieu de l'affirmer de son côté : elle annonçait « ces
+    rattachements vous ouvrent le partage au niveau labo » dès qu'UN seul était reconnu,
+    alors que le compte de Fabien en porte trois et que le partage refusait de trancher.
+    *Une page qui promet ce que le code refuse est un bug d'interface, pas de présentation.*
+    """
+    return _resolve_unit(user, None)
+
+
 def _resolve_unit(user, org_unit):
     """
     Rend `(OrgUnit, '')` ou `(None, raison)`. STRICT sur deux points, délibérément :
