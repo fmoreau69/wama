@@ -174,17 +174,55 @@
 
   // ── Toast non bloquant (généralise le toast composer ; remplace les alert()) ──
   // type ∈ {success, error|danger, info, warning} — mêmes couleurs que les badges Bootstrap.
+  // ⚠ La DURÉE dépend du type depuis le 2026-09-27 (constat de Fabien : « le temps d'affichage
+  // de la pop-up d'erreur est un peu court, je manque de temps pour copier le texte »). Une
+  // confirmation se lit d'un coup d'œil ; un message d'ERREUR se lit, se comprend, et se
+  // RECOPIE — souvent dans un rapport. Les 3,5 s uniformes traitaient les deux pareil.
+  // Trois réponses, et non une seule : plus de temps, le survol qui SUSPEND la disparition
+  // (on ne court pas après un texte qu'on est en train de sélectionner), et une croix.
+  const TOAST_MS = { error: 15000, danger: 15000, warning: 10000 };
+  const TOAST_DEFAULT_MS = 3500;
+
   function toast(message, type) {
     const colors = { success: '#198754', error: '#dc3545', danger: '#dc3545',
                      info: '#0dcaf0', warning: '#ffc107' };
+    const lasting = TOAST_MS[type] || TOAST_DEFAULT_MS;
     const el = document.createElement('div');
     el.className = 'wama-toast';
     el.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;' +
       'background:' + (colors[type] || '#333') + ';color:#fff;padding:10px 16px;' +
-      'border-radius:6px;font-size:.9rem;box-shadow:0 4px 12px rgba(0,0,0,.4);max-width:300px;';
+      'border-radius:6px;font-size:.9rem;box-shadow:0 4px 12px rgba(0,0,0,.4);max-width:420px;' +
+      // `user-select` explicite : le texte d'une erreur est fait pour être COPIÉ.
+      'user-select:text;white-space:pre-wrap;word-break:break-word;';
     el.textContent = message;
+
+    let timer = null;
+    const close = function () { if (timer) clearTimeout(timer); el.remove(); };
+    const arm = function () { timer = setTimeout(close, lasting); };
+
+    // Messages qui DURENT : on peut les fermer soi-même, et le survol suspend leur retrait.
+    // ⚠ AUCUN nœud ajouté dans l'élément — pas de croix « × » : `textContent` d'un toast est
+    // LU par les sondes du smoke (`ui_smoke.py:1319` collecte les textes, `:2233` compare la
+    // réponse visible d'une action de pied de modale). Une croix insérée comme premier enfant
+    // aurait fait lire « ×Erreur… » — une régression invisible en développement, et fausse
+    // seulement là où quelqu'un compare. L'affordance passe donc par le `title` et le curseur.
+    if (TOAST_MS[type]) {
+      el.setAttribute('title', 'Cliquer pour fermer');
+      el.style.cssText += 'cursor:pointer;';
+      el.addEventListener('click', function () {
+        // Un clic qui termine une SÉLECTION ne ferme pas : on est justement en train de
+        // copier le message. C'est le geste que ce toast est fait pour permettre.
+        const selected = window.getSelection ? String(window.getSelection()) : '';
+        if (selected) return;
+        close();
+      });
+      // Survol = lecture en cours : on ne retire pas sous les yeux de qui lit.
+      el.addEventListener('mouseenter', function () { if (timer) clearTimeout(timer); });
+      el.addEventListener('mouseleave', arm);
+    }
     document.body.appendChild(el);
-    setTimeout(function () { el.remove(); }, 3500);
+    arm();
+    return el;
   }
 
   // ── Import par URL : câble le bloc URL de la carte commune (_new_item_card.html) ──

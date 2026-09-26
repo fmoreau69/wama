@@ -730,37 +730,33 @@ document.addEventListener('DOMContentLoaded', function() {
             // Pour simplifier, on va créer un blob avec le premier chunk (qui contient le header)
             // et ajouter uniquement les données audio des chunks suivants
 
-            if (audioBuffers.length === 1) {
-                // Un seul chunk, facile
-                const blob = new Blob([audioBuffers[0]], { type: 'audio/wav' });
-                const audioUrl = URL.createObjectURL(blob);
+            // ⚠ UNE seule branche depuis le 2026-09-27 : les deux qui vivaient ici (« un seul
+            // chunk » / « plusieurs ») étaient IDENTIQUES au caractère près — `new Blob([x])`
+            // et `new Blob(x)` font le même objet pour une liste d'un élément. La condition
+            // n'a jamais rien décidé ; elle doublait seulement le code à corriger.
+            // (La concaténation de WAV garde leurs en-têtes successifs : imparfait, connu,
+            // inchangé ici — ce correctif porte sur la POSE de la source, pas sur le montage.)
+            const blob = new Blob(audioBuffers, { type: 'audio/wav' });
+            const audioUrl = URL.createObjectURL(blob);
 
-                audioPlayer.querySelector('source').src = audioUrl;
-                audioPlayer.load();
+            // ⚠ DÉFAUT SIGNALÉ PAR FABIEN le 2026-09-27 : « Cannot set properties of null
+            // (setting 'src') ». Le code écrivait dans `querySelector('source').src`, mais le
+            // lecteur de la card d'entrée (`_new_item_extra.html`) n'a PAS de balise `<source>`
+            // — seul celui de la modale en a une. L'aperçu de voix était donc cassé depuis que
+            // la zone est passée dans ce partial. L'attribut `src` de `<audio>` se pose
+            // directement et vaut pour les deux formes ; la `<source>` est mise à jour quand
+            // elle existe, pour qu'un rechargement ne reserve pas l'ancienne URL.
+            const declaredSource = audioPlayer.querySelector('source');
+            if (declaredSource) declaredSource.src = audioUrl;
+            audioPlayer.src = audioUrl;
+            audioPlayer.load();
 
-                // Afficher le lecteur, masquer le loader
-                loaderElement.style.display = 'none';
-                containerElement.style.display = 'block';
+            // Afficher le lecteur, masquer le loader
+            loaderElement.style.display = 'none';
+            containerElement.style.display = 'block';
 
-                // Auto-play
-                audioPlayer.play().catch(e => console.log('Autoplay prevented:', e));
-            } else {
-                // Plusieurs chunks - concaténation simple
-                // ATTENTION: Ceci fonctionne mais n'est pas optimal pour WAV
-                // car chaque chunk a son propre header
-                const blob = new Blob(audioBuffers, { type: 'audio/wav' });
-                const audioUrl = URL.createObjectURL(blob);
-
-                audioPlayer.querySelector('source').src = audioUrl;
-                audioPlayer.load();
-
-                // Afficher le lecteur, masquer le loader
-                loaderElement.style.display = 'none';
-                containerElement.style.display = 'block';
-
-                // Auto-play
-                audioPlayer.play().catch(e => console.log('Autoplay prevented:', e));
-            }
+            // Auto-play
+            audioPlayer.play().catch(e => console.log('Autoplay prevented:', e));
 
             console.log('Audio assembled and ready to play');
 
