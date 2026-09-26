@@ -16,12 +16,32 @@ demandent une requête additionnelle : `resolve_org_hierarchy` (best-effort, à 
 la base DN des structures est configurée). Pour l'instant on peuple les CODES bruts, gratuits.
 """
 import logging
+import re
 
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 logger = logging.getLogger(__name__)
+
+
+#: Forme SUPANN `{namespace}valeur` — `{UAI}0772894C`, `{IFSTTAR}LESCOT`. La norme préfixe la
+#: valeur par l'AUTORITÉ qui l'émet. WAMA garde le code BRUT partout (décision du modèle
+#: `OrgUnit` : « le code doit rester celui de l'annuaire, sinon chaque synchro devient de la
+#: chirurgie de chaîne ») — la séparation ci-dessous ne sert donc qu'à l'AFFICHAGE.
+_SUPANN_NAMESPACE = re.compile(r'^\{([^}]+)\}\s*(.*)$')
+
+
+def split_namespace(code: str):
+    """`'{IFSTTAR}LESCOT'` → `('IFSTTAR', 'LESCOT')` ; un code sans préfixe → `('', code)`.
+
+    Ajouté le 2026-09-26 : la page de profil affichait `{UAI}0772894C` et
+    `{IFSTTAR} › {IFSTTAR}DG › {IFSTTAR}LESCOT` tels quels, c'est-à-dire la syntaxe d'un
+    annuaire à un utilisateur qui n'en a pas le manuel. Le code brut reste la donnée et
+    reste montré ; c'est le LIBELLÉ qui devient lisible.
+    """
+    m = _SUPANN_NAMESPACE.match((code or '').strip())
+    return (m.group(1), m.group(2).strip()) if m else ('', (code or '').strip())
 
 
 def _first(attrs, key):
@@ -41,7 +61,7 @@ def _list(attrs, key):
 def _parse_org(attrs):
     """Attributs LDAP (fiche personne) → dict de champs profil (codes bruts)."""
     return {
-        'establishment': _first(attrs, 'supannEtablissement'),
+        'establishment': _first(attrs, 'supannEtablissement'),  # forme `{UAI}0772894C`
         'org_entity_code': _first(attrs, 'supannEntiteAffectationPrincipale'),
         'org_affiliations': _list(attrs, 'supannEntiteAffectation'),
         'ldap_affiliation': _first(attrs, 'eduPersonPrimaryAffiliation'),

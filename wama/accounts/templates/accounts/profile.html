@@ -138,9 +138,64 @@
                 </div>
                 <div class="card-body">
                     {% if rattachement.rattachements %}
+                    {% comment %}CE QUE ÇA OUVRE, D'ABORD — refonte du 2026-09-26 (Fabien :
+                    « 3 rattachements indiqués pour 1 seul utilisé »). La version précédente
+                    listait les trois codes bruts de l'annuaire à égalité et annonçait que le
+                    partage labo était ouvert, alors que le mécanisme REFUSE de choisir quand
+                    il y en a plusieurs. On dit donc l'état réel (`partage_cible`, demandé à
+                    `lab_share_target`), on nomme les unités en clair, et on replie la
+                    syntaxe d'annuaire — qui reste consultable, mais cesse d'être le titre.
+                    {% endcomment %}
+                    {% if rattachement.partage_cible %}
+                    <p class="mb-3">
+                        <i class="fas fa-circle-check text-success me-1"></i>
+                        Vos partages « labo » vont à
+                        <strong>{{ rattachement.partage_cible.name }}</strong>.
+                    </p>
+                    {% elif rattachement.partage_a_designer %}
+                    <p class="mb-3">
+                        <i class="fas fa-hand-pointer text-info me-1"></i>
+                        Vous appartenez à plusieurs unités : WAMA ne choisit pas pour vous —
+                        vous <strong>désignez l'unité</strong> au moment du partage, dans
+                        <a href="{% url 'common:rag' %}">Mon RAG</a>.
+                    </p>
+                    {% else %}
+                    <p class="mb-3">
+                        <i class="fas fa-circle-info text-white-50 me-1"></i>
+                        Aucune de vos unités n'est reconnue dans l'annuaire des structures :
+                        le partage au niveau labo reste indisponible.
+                    </p>
+                    {% endif %}
+
+                    <div class="row mb-2">
+                        <div class="col-4 label-col">Unités</div>
+                        <div class="col-8 value-col">
+                            {% for r in rattachement.reconnus %}
+                            <div class="mb-2">
+                                <span class="fw-semibold">{{ r.libelle }}</span>
+                                {% if r.type %}<small class="text-white-50">· {{ r.type }}</small>{% endif %}
+                                {% comment %}L'autorité émettrice DISTINGUE deux unités homonymes :
+                                le compte de Fabien porte « LESCOT » deux fois, l'une venue de
+                                l'annuaire IFSTTAR, l'autre de l'arbre CFR.{% endcomment %}
+                                {% if r.autorite %}<small class="text-white-50">· annuaire {{ r.autorite }}</small>{% endif %}
+                                {% if r.principal %}<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1">principale</span>{% endif %}
+                                {% if r.chaine|length > 1 %}
+                                <small class="text-white-50 d-block">{{ r.chaine|join:" › " }}</small>
+                                {% endif %}
+                            </div>
+                            {% empty %}
+                            <span class="text-white-50">aucune unité reconnue</span>
+                            {% endfor %}
+                        </div>
+                    </div>
                     <div class="row mb-2">
                         <div class="col-4 label-col">Établissement</div>
-                        <div class="col-8 value-col">{{ rattachement.etablissement|default:"—" }}</div>
+                        <div class="col-8 value-col">
+                            {{ rattachement.etablissement_libelle|default:"—" }}
+                            {% if rattachement.etablissement_autorite %}
+                            <small class="text-white-50">· code {{ rattachement.etablissement_autorite }}</small>
+                            {% endif %}
+                        </div>
                     </div>
                     {% if rattachement.affiliation_ldap %}
                     <div class="row mb-2">
@@ -148,46 +203,36 @@
                         <div class="col-8 value-col">{{ rattachement.affiliation_ldap }}</div>
                     </div>
                     {% endif %}
-                    <div class="row mb-2">
-                        <div class="col-4 label-col">Rattachements</div>
-                        <div class="col-8 value-col">
+
+                    {% comment %}Les codes d'annuaire, repliés : ils servent au diagnostic
+                    (un code absent d'`ou=structures` n'est PAS un bug WAMA — mesuré le
+                    22/08 sur « {EIFFEL}CFR - LESCOT »), pas à la lecture courante.{% endcomment %}
+                    <details class="mt-2">
+                        <summary class="text-white-50 small" style="cursor:pointer">
+                            Codes de l'annuaire ({{ rattachement.rattachements|length }})
+                        </summary>
+                        <div class="mt-2 ps-2 border-start border-secondary">
                             {% for r in rattachement.rattachements %}
-                            <div class="mb-2">
+                            <div class="mb-2 small">
+                                <code>{{ r.code }}</code>
                                 {% if r.reconnu %}
-                                <span class="badge bg-success-subtle text-success border border-success-subtle">
-                                    <i class="fas fa-check"></i> reconnu
-                                </span>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">reconnu</span>
                                 {% else %}
-                                {% comment %}Un code absent de l'annuaire n'est PAS un bug WAMA :
-                                mesuré le 22/08, « {EIFFEL}CFR - LESCOT » est porté par le profil
-                                mais n'existe pas dans ou=structures.{% endcomment %}
                                 <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"
                                       title="Ce code figure sur votre fiche d'annuaire mais aucune entité ne lui correspond dans ou=structures. Le partage vers cette unité n'est pas possible.">
-                                    <i class="fas fa-question"></i> inconnu de l'annuaire
+                                    absent des structures
                                 </span>
                                 {% endif %}
-                                {% if r.principal %}<span class="badge bg-primary-subtle text-primary border border-primary-subtle">principal</span>{% endif %}
-                                <span class="ms-1">{{ r.nom|default:r.code }}</span>
-                                {% if r.type %}<small class="text-white-50">· {{ r.type }}</small>{% endif %}
-                                {% if r.nom %}<small class="text-white-50 d-block ms-1">code : <code>{{ r.code }}</code></small>{% endif %}
-                                {% if r.chaine|length > 1 %}
-                                <small class="text-white-50 d-block ms-1">{{ r.chaine|join:" › " }}</small>
-                                {% endif %}
+                                {% if r.autorite %}<small class="text-white-50">· émis par {{ r.autorite }}</small>{% endif %}
                             </div>
                             {% endfor %}
                         </div>
-                    </div>
-                    <p class="text-white-50 small mb-0">
+                    </details>
+
+                    <p class="text-white-50 small mb-0 mt-2">
                         <i class="fas fa-circle-info me-1"></i>
                         Ces informations viennent de l'annuaire et se rafraîchissent à chaque
                         connexion — elles ne se modifient pas ici.
-                        {% if rattachement.partage_possible %}
-                        Elles vous ouvrent le partage au niveau labo dans
-                        <a href="{% url 'common:rag' %}">Mon RAG</a>.
-                        {% else %}
-                        Aucun de vos rattachements n'est reconnu : le partage au niveau labo
-                        restera indisponible.
-                        {% endif %}
                     </p>
                     {% else %}
                     <p class="text-white-50 small mb-0">
