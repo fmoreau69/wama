@@ -17519,10 +17519,33 @@ commit qui le porte, il date de l'arbre qui l'a produit.*
 **Vérifié** : 107 tests de mon périmètre OK **après la dernière écriture** (flux 16, texte à dire
 17, surfaces, plans de doc, budget de langue, synthesizer) ; `check_docs` 2 cassées (les deux
 préexistantes de ce fichier), 0 périmée ; budgets de langue tenus, aucun relevé.
-**Pendings système** : **4 commits non poussés** (`2716f47e`, `6389072a`, `761fe722`, plus ce
-bloc) ; **reload
-gunicorn requis** (la vue SSE `api/ai-chat/stream/` est neuve, et `wama/views.py` a changé) ; le
-serveur dev éphémère du port 8012 est **arrêté**.
+**Pendings système** : **6 commits non poussés** (`2716f47e`, `6389072a`, `761fe722`,
+`4b423a79`, `304491f4`, `b4489172`) ; le serveur dev éphémère du port 8012 est **arrêté**.
+**Reload gunicorn** : fait par Fabien pour les trois premiers, et c'est cette relance qui a permis
+la vérification ci-dessous. ⚠ **`b4489172` est POSTÉRIEUR à la relance** : le remplacement des
+adresses par un mot dicible n'est pas encore servi, il attend un nouveau reload.
+
+### Après la relance de WAMA par Fabien — vérification sur le serveur RÉEL, et un défaut trouvé
+
+**Ce que la relance permettait de mesurer, et que le serveur éphémère ne disait pas** : l'accueil
+et `/synthesizer/` rendent 200, donc l'import de la brique résout dans les **deux** domiciles en
+production (un import cassé aurait mis toute page à 500) ; la route de flux existe (403 CSRF sur
+un POST anonyme, pas 404) ; et surtout une **vocalisation de bout en bout** par la vue réelle,
+compte de test, microservice TTS chaud : **HTTP 200, 489 516 octets d'audio**, sur une entrée qui
+déclenche toutes les règles.
+
+⚠⚠ **ET LE SMOKE A TROUVÉ UN DÉFAUT QUE MES 17 GARDES NE VOYAIENT PAS** (corrigé, `b4489172`).
+« Écrivez à contact@… ou https://… » sortait en **« Écrivez a ou. »**, lu tel quel à voix haute :
+l'adresse était EFFACÉE, et la phrase porteuse ne disait plus rien.
+⭐ **La garde était en cause autant que le code.** Elle vérifiait l'ABSENCE de l'adresse
+(`assertNotIn('@')`, `assertNotIn('https')`) et rien de plus, donc elle passait au vert sur une
+phrase vidée de son sens. *Vérifier qu'une chose a disparu ne dit pas ce qui reste à sa place.*
+La nouvelle garde teste la PHRASE, avec sa contre-épreuve. L'adresse est désormais REMPLACÉE par
+un mot qui nomme sa nature, « un lien », « une adresse électronique » — même principe que le
+contrôle de source des liens écrit le même jour par une autre instance : on DIT le retrait, on ne
+l'efface pas en silence.
+*Un smoke réel n'est pas une redondance des tests : il lit la SORTIE, là où un test lit une
+assertion qu'on a soi-même choisie.*
 
 🔚 **POINT D'ENTRÉE SESSION SUIVANTE** — **le cadrage de l'avatar, réglage utilisateur durable**
 (question de Fabien, non tranchée faute d'être dans le « on le fait de suite »). **Mesuré : c'est
