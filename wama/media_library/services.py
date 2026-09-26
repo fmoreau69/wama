@@ -215,7 +215,6 @@ def export_item_to_library(user, app: str, pk: int, asset_type: str = '', name: 
         logger.warning(f"[media_library] export {app}#{pk} : adapter en échec : {e}")
         return {'error': f"Détail indisponible pour {app}#{pk} : {e}"}
 
-    from django.core.files import File
     from django.core.files.base import ContentFile
 
     from wama.common.utils.export_formats import export_builder_for, is_late_binding
@@ -300,13 +299,23 @@ def export_item_to_library(user, app: str, pk: int, asset_type: str = '', name: 
     try:
         if contenu is not None:
             # ⭐ AUCUN chemin construit ici non plus : `upload_to` décide, le rendu est un contenu.
+            # (Late-binding : le fichier n'existait pas, il n'y a rien à déplacer.)
             asset.file.save(nom_fichier, contenu, save=False)
+            enrich_asset_from_file(asset)
+            asset.save()
         else:
-            with open(chemin, 'rb') as f:
-                # ⭐ AUCUN chemin construit ici : `upload_to` (UploadToUserPath) décide du domicile.
-                asset.file.save(nom_fichier, File(f), save=False)
-        enrich_asset_from_file(asset)
-        asset.save()
+            # ⭐ DÉPLACEMENT, plus une copie (décision de Fabien, 2026-09-27 : *« un fichier ajouté
+            # à la médiathèque doit aller dans la médiathèque »*). Le fichier rejoint le domicile
+            # de la médiathèque et **les porteurs suivent** : la card qui l'avait produit le DÉSIGNE
+            # désormais là où il est. Avant, l'ajout laissait deux exemplaires des mêmes octets et
+            # la médiathèque n'était qu'un dossier de copies.
+            asset.save()                      # il faut un pk pour repointer proprement
+            deplace = move_into_library(asset, chemin, nom_fichier)
+            if deplace is None:
+                asset.delete()
+                return {'error': "Impossible de déplacer le fichier dans la médiathèque."}
+            enrich_asset_from_file(asset)
+            asset.save()
     except Exception as e:
         logger.warning(f"[media_library] export {app}#{pk} : écriture impossible : {e}")
         return {'error': f"Impossible de ranger le fichier : {e}"}
@@ -318,6 +327,96 @@ def export_item_to_library(user, app: str, pk: int, asset_type: str = '', name: 
 
     logger.info(f"[media_library] {app}#{pk} → asset #{asset.id} ({asset_type}) pour {user}")
     return {'asset_id': asset.id, 'name': asset.name, 'asset_type': asset.asset_type}
+
+
+def move_into_library(asset, source, nom_fichier: str):
+    """DÉPLACE `source` dans le domicile de la médiathèque et fait SUIVRE tous ses porteurs.
+
+    Décision de Fabien du 2026-09-27 : *« de manière générale, un source_file ajouté à la médiathèque
+    doit aller dans la médiathèque »* — et les autres le POINTENT (suite du pointage du 23/09).
+
+    Trois gestes, dans cet ordre, parce que l'ordre est ce qui rend l'opération sûre :
+      1. la destination est décidée par le CHAMP (`upload_to`, jamais un chemin composé ici) et
+         dé-collisionnée par le stockage ;
+      2. le source_file est déplacé ;
+      3. `file_references.repoint` réécrit **toutes** les lignes qui désignaient l'old_rel chemin —
+         la card d'origin comprise. Sans ce 3ᵉ geste, ranger un résultat le ferait disparaître de
+         sa card : c'est exactement la 3ᵉ route du disque (le NOM enregistré).
+
+    ⚠ Le PARTAGE n'a rien à suivre : il sert `asset.file.url`, c'est-à-dire le chemin RÉEL de la
+    line (mesuré le 2026-09-27, `_serialize_user_asset`) — jamais un emplacement d'origin.
+
+    Rend le chemin relatif final, ou `None` si le déplacement a échoué (rien n'est alors perdu :
+    le source_file est resté où il était).
+    """
+    import shutil
+    from pathlib import Path
+
+    from django.conf import settings
+    from django.core.files.storage import default_storage
+
+    from wama.common.utils.file_references import repoint
+
+    try:
+        source = Path(source)
+        old_rel = source.resolve().relative_to(Path(settings.MEDIA_ROOT).resolve()).as_posix()
+        target = default_storage.get_available_name(
+            asset._meta.get_field('file').generate_filename(asset, nom_fichier))
+        target_abs = Path(settings.MEDIA_ROOT) / target
+        target_abs.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(target_abs))     # `move` et non `replace` : DrvFS ≠ ext4
+        asset.file.name = target
+        # D'OÙ il vient — pour que le RETRAIT soit l'inverse exact de l'ajout (le source_file retourne
+        # chez sa card). Sans cette trace, le retrait devrait deviner un dossier de completed.
+        attributes_ = dict(asset.attributes or {})
+        attributes_['moved_from'] = old_rel
+        asset.attributes = attributes_
+        asset.save(update_fields=['file', 'attributes'])
+        repoint(old_rel, target)                       # la card d'origin et tout autre porteur
+        return target
+    except Exception as exc:
+        logger.warning('[media_library] déplacement vers la médiathèque impossible (%s) : %s',
+                       source, exc)
+        return None
+
+
+def _move_back_to_origin(asset) -> bool:
+    """Rend le source_file à l'endroit d'où l'ajout l'a pris, si une card le désigne encore.
+
+    L'inverse de `move_into_library`, et rien de plus : même brique de repointage, même règle
+    (aucun chemin inventé — on relit celui que l'ajout a noté). Rend `True` si le source_file a été
+    rendu (l'appelant ne doit alors PAS le supprimer), `False` s'il n'y avait rien à rendre :
+    pas d'origin notée (asset créé par un rendu, ou ajouté avant le 2026-09-27), source_file absent,
+    ou plus aucun autre porteur — dans ce dernier cas il s'agit bien d'une suppression.
+    """
+    import shutil
+    from pathlib import Path
+
+    from django.conf import settings
+
+    from wama.common.utils.file_references import is_referenced_elsewhere, repoint
+
+    origin = (asset.attributes or {}).get('moved_from') if asset.attributes else None
+    current = asset.file.name if asset.file else ''
+    if not origin or not current:
+        return False
+    if not is_referenced_elsewhere(current, label=asset._meta.label, pk=asset.pk, field='file'):
+        return False                      # plus personne ne le désigne : c'est une suppression
+    try:
+        source = Path(settings.MEDIA_ROOT) / current
+        target = Path(settings.MEDIA_ROOT) / origin
+        if not source.is_file():
+            return False
+        if target.exists():                # la place est reprise : on ne détruit rien, on laisse
+            return True
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(target))
+        repoint(current, origin)
+        return True
+    except Exception as exc:
+        logger.warning('[media_library] retour du source_file à son origin impossible (%s) : %s',
+                       current, exc)
+        return True                       # on n'a pas rendu, mais on ne supprime pas à l'aveugle
 
 
 def assets_of_item(user, app: str, pk: int):
@@ -351,11 +450,18 @@ def delete_asset(asset) -> None:
     ✅ **Traité le 2026-09-23** : la brique commune `delete_file_unless_shared` garde le fichier
     tant qu'une autre ligne le désigne, dans N'IMPORTE QUEL modèle (mesuré : `UserAsset #1` et
     `CustomVoice #1` partagent `Voix_Fab.wav`). L'asset part, le fichier attend son dernier porteur.
+
+    ⭐ **Depuis le 2026-09-27, le retrait est l'INVERSE de l'ajout** : l'ajout DÉPLACE le fichier
+    dans la médiathèque (décision de Fabien), donc le retrait le **rend à sa card** quand elle le
+    désigne encore — le chemin d'origine est celui que l'ajout a noté (`attributes.moved_from`).
+    Sans ce retour, les octets resteraient dans un dossier « médiathèque » que plus rien n'y range.
+    Si plus aucun porteur ne le désigne, le fichier part avec l'asset, comme avant.
     """
     from wama.common.utils.queue_duplication import delete_file_unless_shared
 
     source_app, source_pk = asset.source_app, asset.source_pk
-    delete_file_unless_shared(asset, 'file')
+    if not _move_back_to_origin(asset):
+        delete_file_unless_shared(asset, 'file')
     asset.delete()
     # Que la suppression parte du menu d'une card OU de la page médiathèque, le drapeau suit
     # (audit du 14/09 : supprimé depuis la page, le composer répondait « Déjà exporté » à vie).

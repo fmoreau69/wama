@@ -664,7 +664,7 @@ class BackendsDecouplesDeLeurAppTest(SimpleTestCase):
                          'lire une déclaration ne doit toucher aucune base')
 
 
-class SondeDeDisponibiliteLEGERETest(SimpleTestCase):
+class AvailabilityProbeStaysLightTest(SimpleTestCase):
     """`is_available()` d'un moteur ne doit RIEN importer de lourd — mesuré, pas promis.
 
     Né le 2026-09-26 d'un défaut trouvé en jouant le scénario nocturne du transcriber : son
@@ -688,43 +688,43 @@ class SondeDeDisponibiliteLEGERETest(SimpleTestCase):
     #: Large exprès : on sépare « instantané » de « importe torch et transformers » (34 s).
     BUDGET_S = 8.0
 
-    def _sondes(self):
-        """(nom de classe, source de `is_available`) pour tous les backends du dépôt."""
+    def _probes(self):
+        """(nom de klass, source de `is_available`) pour tous les backends du dépôt."""
         import ast
         trouvees = []
-        for fichier in sorted(Path('wama').rglob('*_backend.py')):
-            if 'vendor' in fichier.parts:
+        for source_file in sorted(Path('wama').rglob('*_backend.py')):
+            if 'vendor' in source_file.parts:
                 continue
             try:
-                arbre = ast.parse(fichier.read_text(encoding='utf-8'))
+                tree = ast.parse(source_file.read_text(encoding='utf-8'))
             except (SyntaxError, UnicodeDecodeError):
                 continue
-            for classe in [n for n in ast.walk(arbre) if isinstance(n, ast.ClassDef)]:
-                for methode in [m for m in classe.body if isinstance(m, ast.FunctionDef)]:
-                    if methode.name in ('is_available', 'missing_packages'):
-                        trouvees.append((f'{fichier.as_posix()}::{classe.name}.{methode.name}',
-                                         methode))
+            for klass in [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]:
+                for method in [m for m in klass.body if isinstance(m, ast.FunctionDef)]:
+                    if method.name in ('is_available', 'missing_packages'):
+                        trouvees.append((f'{source_file.as_posix()}::{klass.name}.{method.name}',
+                                         method))
         return trouvees
 
-    def test_aucune_sonde_de_disponibilite_n_interroge_un_nom_POINTE(self):
+    def test_no_availability_probe_asks_for_a_DOTTED_name(self):
         import ast
-        sondes = self._sondes()
-        self.assertGreaterEqual(len(sondes), 5, 'le parc de sondes n’est pas mesuré')
-        fautives = []
-        for etiquette, methode in sondes:
-            for appel in [n for n in ast.walk(methode) if isinstance(n, ast.Call)]:
-                nom = getattr(appel.func, 'attr', None) or getattr(appel.func, 'id', None)
+        probes = self._probes()
+        self.assertGreaterEqual(len(probes), 5, 'le parc de probes n’est pas mesuré')
+        offenders = []
+        for label, method in probes:
+            for call in [n for n in ast.walk(method) if isinstance(n, ast.Call)]:
+                nom = getattr(call.func, 'attr', None) or getattr(call.func, 'id', None)
                 if nom not in ('find_spec', 'import_module'):
                     continue
-                for arg in appel.args:
+                for arg in call.args:
                     if isinstance(arg, ast.Constant) and isinstance(arg.value, str)                             and '.' in arg.value:
-                        fautives.append(f'{etiquette} → {nom}({arg.value!r})')
-        self.assertEqual([], fautives,
+                        offenders.append(f'{label} → {nom}({arg.value!r})')
+        self.assertEqual([], offenders,
                          'une sonde de disponibilité interroge un nom POINTÉ : elle IMPORTE le '
                          'paquet parent (34,1 s mesurées pour transformers). Interroger la RACINE '
-                         'et regarder le disque : ' + ' ; '.join(fautives))
+                         'et regarder le disque : ' + ' ; '.join(offenders))
 
-    def test_la_sonde_du_moteur_qwen_ne_charge_PAS_transformers(self):
+    def test_the_qwen_probe_does_NOT_load_transformers(self):
         import subprocess
         import sys
         import time
@@ -736,15 +736,15 @@ class SondeDeDisponibiliteLEGERETest(SimpleTestCase):
             't = time.perf_counter();'
             'r = Q.is_available();'
             'd = time.perf_counter() - t;'
-            'print("verdict", r, "transformers", "transformers" in sys.modules, "duree", round(d, 2))'
+            'print("verdict", r, "transformers", "transformers" in sys.modules, "duration", round(d, 2))'
         )
-        sortie = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True,
+        completed = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True,
                                 timeout=180, cwd=str(Path.cwd()))
-        ligne = [x for x in sortie.stdout.splitlines() if x.startswith('verdict')]
-        self.assertTrue(ligne, f'sonde injouable : {sortie.stderr[-400:]}')
-        self.assertIn('transformers False', ligne[0],
+        line = [x for x in completed.stdout.splitlines() if x.startswith('verdict')]
+        self.assertTrue(line, f'sonde injouable : {completed.stderr[-400:]}')
+        self.assertIn('transformers False', line[0],
                       'la sonde a IMPORTÉ transformers — le coût est revenu')
-        duree = float(ligne[0].split('duree')[1])
-        self.assertLess(duree, self.BUDGET_S,
-                        f'la sonde a pris {duree:.1f}s (budget {self.BUDGET_S}s) : '
+        duration = float(line[0].split('duration')[1])
+        self.assertLess(duration, self.BUDGET_S,
+                        f'la sonde a pris {duration:.1f}s (budget {self.BUDGET_S}s) : '
                         f'quelque chose de lourd est chargé')
