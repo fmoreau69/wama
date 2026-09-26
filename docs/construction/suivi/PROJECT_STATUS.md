@@ -17813,3 +17813,62 @@ désigne le mauvais coupable — `goto(networkidle)` sur `/transcriber/` dépass
 requête en vol, `/transcriber/backends/` depuis 42,4 s**, alors que cette adresse répond en **2 ms**
 à curl (cache 1 h) et que `/converter/` atteint le repos en 3,1 s. Détail et piste :
 `WAMA_VERIFICATION §Geste 14 (« Envoyer vers »)`. Aucune instance ne tenait le transcriber.
+
+## §PALIER — 2026-09-27 (nuit), « Le moteur de recherche devient un CHOIX » + les restes techniques soldés — ✅ LIVRÉ (7 commits, non poussés)
+
+**Enchaînement** : les deux « petits restes » de la session précédente, la dernière décision ouverte du
+22/09, la suppression demandée des fixtures — puis une question de Fabien (« si l'assistant prend un
+skill de recherche web, comment gère-t-il le proxy ? ») qui a ouvert le vrai chantier.
+
+| livré | commit |
+|---|---|
+| `.mjs` déclaré comme les types audio (+ garde des SIX, avec contre-épreuve) | `13a078c1` |
+| l'avatarizer replié sur `voice_groups_json` + la garde GÉNÉRIQUE qui manquait aux deux pages TTS | `9eabacd3` |
+| clé de payload `shared` → `common` (mots-clés de prompt), chaîne entière | `f806e414` |
+| la contre-épreuve du proxy mesurait la MACHINE, pas le code | `19b02e6a` |
+| `is_public` soldée par retrait + `shared` tranchée (`WAMA_COLLABORATION §9`) | `adecc849`, `m5` |
+| la recherche web par la brique commune + défi anti-robot DIT | `dc23097f` |
+| **moteurs de recherche : registre + adaptateurs + préférence au profil** | `e16088de` |
+
+**Le chantier du soir — un moteur écrit en dur est un point de panne que rien ne contourne.** Mesuré
+depuis WSL2 (le process qui exécute vraiment gunicorn et Celery) : DuckDuckGo répond `200` avec 14 Ko
+de défi anti-robot, et `search_web` rendait une liste VIDE — l'assistant concluait « je n'ai rien
+trouvé » sur une recherche qui n'avait jamais eu lieu. Décision de Fabien : les moteurs entrent au
+registre des sources, chacun pose sa clé au profil, et le choix est une préférence sur un défaut
+d'instance. Forme reprise des connecteurs de la médiathèque, sans rien réinventer : l'adresse, la
+portée (donc le proxy) et la sonde viennent du registre ; le protocole vit dans un adaptateur.
+**Trois moteurs ouverts** après vérification des conditions à la source : **Exa** (20 000 req./mois
+offertes, sans CB), **Staan** (l'index européen Qwant + Ecosia, API ouverte en 2026, 1 000 req./mois
+puis 2 €/1 000, données sous juridiction UE) et **SearXNG** auto-hébergé — ⚠ sans index propre, il
+déplace le défi sur l'IP du labo au lieu de le résoudre. **Brave écarté** : tier gratuit supprimé en
+février 2026 (CB obligatoire + attribution publique exigée).
+
+**Ce que ça a RETIRÉ** : `accounts/api_keys.py` nommait la famille `llm` EN DUR — remplacée par une
+liste de familles déclarée. *Une brique qui nomme une famille en dur devra être modifiée à chaque
+famille ; une brique qui lit le registre, jamais.*
+
+**Données réelles modifiées (déclarées)** : les 3 fixtures `smoke-0802-*` du compte réel SUPPRIMÉES
+(lignes + fichiers) sur feu vert de Fabien, par le geste commun `media_library.services.delete_asset`.
+Rien ne les lisait — le test qui cite leur nom construit un dictionnaire littéral.
+
+**Contrôles.** Suite `wama.common` + `wama.accounts` : **1959 tests, 11 rouges — AUCUN À MOI**,
+attribués un par un : `tests_notifications` ×3 (chantier e-mail du soir, autre instance),
+`tests_identifier_language` ×3 (budget dépassé de 3 par du WIP d'autrui — vérifié : aucun identifiant
+français dans mes fichiers neufs), `tests_mcp_dev_tools` ×2 (préexistant, artefact venv_win, vert
+WSL2 le 22/09), `tests_tool_api_lectures` (déclaré rouge le 21/09), `tests_access_points`
+(`api/vram/grant/`, connu), `tests_check_templates` (commentaire multi-ligne dans
+`_new_item_card_v4.html`, commité le 22/09). `check_docs` : 2 cassées, les deux dans des blocs de
+clôture écrits ce soir par d'autres instances. Mes modules : **verts** (moteurs 15 gardes, web_search,
+docs_catalog, api_keys, avatarizer, synthesizer, médiathèque).
+⚠ **Leçon d'outillage** : j'ai d'abord lancé la suite complète PENDANT qu'une autre tournait sur la
+même base `--keepdb` → 12 faux rouges ; puis capturé la sortie de fond avec un `Select-Object -Last
+30` qui a masqué 9 échecs sur 11. *Une mesure mal capturée vaut une mesure non faite.*
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : Fabien ouvre un compte **Staan** (ou Exa) et colle la clé à
+son profil — rien d'autre à câbler, la page, la sonde et le choix sont en place. Puis, au choix, poser
+`WAMA_SEARCH_ENGINE` comme défaut d'instance.
+**Décisions encore ouvertes** : les 8 voix enfant/âgé (âge inventé, TOUJOURS proposées au sélecteur —
+mesuré : 4 `child` + 4 `elderly`).
+**Pendings système** : `librosa`/`datasets`/`soundfile` hors requirements ; 7 commits non poussés ;
+`docs/dev/briques.md` régénéré contient `permissions.access_cases()`, ajout non commité d'une autre
+instance (annoncé au commit — une doc générée à moitié serait pire).
