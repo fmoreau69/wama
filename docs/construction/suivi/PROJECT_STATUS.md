@@ -17792,3 +17792,24 @@ grant VRAM (gouverneur B1, commit `608fc7c0`) — aucun de mes fichiers n'y touc
 ⚠ **Trou de l'instrument de langue, trouvé à l'œil** : `declarant` et `herite` ne sont pas dans la
 liste noire (vérifié : 15 renommages, total inchangé). Les y ajouter recale le budget dans le même
 commit — à faire quand l'arbre est calme.
+
+### SUITE — 2026-09-26 (serveur relancé) : le smoke a corrigé MA conception (`5422f8ff`)
+
+**Geste réel rejoué sur le live** : `.send_to` = **10 OK / 0 échec / 7 skips** (skips = dettes
+déjà déclarées — avatarizer et composer sans importeur, trois apps sans extension d'entrée).
+
+**Scénario nocturne NEUF `common.tree_delete_in_use`** — le test qui manquait à D20 : il joue les
+DEUX issues du geste (refus → le fichier reste ; confirmation → fichier parti, card SURVIVANTE et
+détachée), **7/7**. ⚠ Il porte sa propre politique de dialogue : la brique commune accepte toutes
+les confirmations, et *on ne mesure pas un refus avec un harnais qui accepte tout*.
+
+⭐ **Ce scénario a trouvé un défaut de MA conception que 23 contrats Python ne pouvaient pas voir**
+: la réponse « utilisé par N cards » partait en **409**, donc le navigateur écrivait « Failed to
+load resource » dans la console — que le nocturne surveille comme un signal. Corrigé en **200 +
+`in_use`**. *Un statut d'erreur pour un cas PRÉVU rend le contrôle aveugle à ce qui n'est pas prévu.*
+
+🔴 **Signalé, NON traité (hors périmètre)** : `transcriber.send_to` saute chaque nuit et son motif
+désigne le mauvais coupable — `goto(networkidle)` sur `/transcriber/` dépasse 45 s avec **une seule
+requête en vol, `/transcriber/backends/` depuis 42,4 s**, alors que cette adresse répond en **2 ms**
+à curl (cache 1 h) et que `/converter/` atteint le repos en 3,1 s. Détail et piste :
+`WAMA_VERIFICATION §Geste 14 (« Envoyer vers »)`. Aucune instance ne tenait le transcriber.
