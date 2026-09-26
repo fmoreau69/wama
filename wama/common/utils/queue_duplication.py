@@ -68,8 +68,9 @@ def safe_delete_file(instance, field_name: str) -> bool:
       * OWNERSHIP — the file lives in the app's home for the card's owner (`owns_file`). A file
         the card only REFERENCES (the user's temp, the media library, a mount) is never
         destroyed: deleting the card removes the link, not the original.
-      * SHARING — no other row of the same model references the same path. `duplicate_instance`
-        shares files by contract: deleting the original must not break its copy.
+      * SHARING — no other row references the same path, IN ANY MODEL (`is_shared_elsewhere`,
+        widened on 2026-09-23). `duplicate_instance` shares files by contract, and so does an
+        input designated across apps: deleting one holder must never break another.
 
     Args:
         instance:   The model instance that is about to be deleted from the DB.
@@ -95,18 +96,57 @@ def safe_delete_file(instance, field_name: str) -> bool:
 
 
 def is_shared_elsewhere(instance, field_name: str, file_name: str) -> bool:
-    """Une AUTRE ligne du même modèle désigne-t-elle ce fichier dans le même champ ?
+    """Une AUTRE ligne désigne-t-elle ce fichier — DANS N'IMPORTE QUEL MODÈLE ?
 
     La moitié PARTAGE de `safe_delete_file`, nommée à part le 2026-09-22 à la demande de
     l'instance qui remplace les voix SYSTÈME : un `SystemAsset` n'a pas de propriétaire, donc la
-    règle de propriété ne s'y applique pas — mais celle du partage, si. Sans ce nom, elle
-    recopiait ces deux lignes. Un appelant hors card emploie CETTE fonction, jamais
-    `safe_delete_file`, dont la règle de propriété refuserait tout fichier sans propriétaire.
+    règle de propriété ne s'y applique pas — mais celle du partage, si. Un appelant hors card
+    emploie CETTE fonction, jamais `safe_delete_file`, dont la règle de propriété refuserait tout
+    fichier sans propriétaire.
+
+    ⚠⚠ **ÉLARGIE LE 2026-09-23** : elle ne regardait que le MÊME modèle et le MÊME champ. Cela
+    suffisait tant que le partage venait de « Dupliquer » (une card copiée dans sa propre app) ;
+    mesuré sur les données réelles, le partage ENTRE apps existe déjà — trois jobs du converter
+    désignent un fichier rangé chez l'anonymizer, et la voix de la médiathèque partage son fichier
+    avec la voix clonée du synthesizer. La garde locale les tenait pour non partagés : supprimer la
+    dernière card de l'app propriétaire détruisait le fichier d'une autre app. *Une garde qui ne
+    regarde que sa propre famille ne voit pas le partage qui compte.* Le balayage global vit dans
+    `file_references.is_referenced_elsewhere` ; la vérification LOCALE reste tentée d'abord, parce
+    qu'elle répond en une requête dans le cas le plus fréquent (une duplication).
     """
-    return (type(instance).objects
-            .filter(**{field_name: file_name})
-            .exclude(pk=instance.pk)
-            .exists())
+    local = (type(instance).objects
+             .filter(**{field_name: file_name})
+             .exclude(pk=instance.pk)
+             .exists())
+    if local:
+        return True
+    from wama.common.utils.file_references import is_referenced_elsewhere
+    return is_referenced_elsewhere(file_name, label=instance._meta.label,
+                                   pk=instance.pk, field=field_name)
+
+
+def delete_file_unless_shared(instance, field_name: str) -> bool:
+    """Suppression VOULUE du fichier d'un objet — mais jamais s'il en reste un porteur.
+
+    Pour les gestes où l'utilisateur supprime délibérément l'objet ET ses octets : une voix ou un
+    asset de sa médiathèque, une ligne de son index de fichiers. La règle de PROPRIÉTÉ de
+    `safe_delete_file` n'y a pas de sens (l'asset n'appartient pas à une app), celle du PARTAGE, si
+    — et c'est elle qui manquait : mesuré le 2026-09-23, supprimer la voix de la médiathèque
+    effaçait le fichier que la voix clonée du synthesizer désigne encore.
+
+    Rend `True` si le fichier a été supprimé, `False` s'il a été gardé (partagé, champ vide, ou
+    échec). Ne lève jamais.
+    """
+    field = getattr(instance, field_name, None)
+    if field is None or not field.name:
+        return False
+    if is_shared_elsewhere(instance, field_name, field.name):
+        return False
+    try:
+        field.delete(save=False)
+        return True
+    except Exception:
+        return False
 
 
 def duplicate_instance(instance, reset_fields=None, clear_fields=None):

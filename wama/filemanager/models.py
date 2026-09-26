@@ -40,12 +40,15 @@ class UserFile(models.Model):
         return os.path.basename(self.file.name) if self.file else ''
 
     def delete(self, *args, **kwargs):
-        """Delete file from storage when model is deleted."""
+        """Delete file from storage when model is deleted.
+
+        ⚠ Depuis le 2026-09-23, jamais si une card (ou tout autre modèle) désigne encore ce
+        fichier : cette ligne n'est que l'INDEX du dossier temporaire, et une card peut pointer
+        dessus. Sans cette garde, retirer l'entrée d'index détruisait l'entrée d'une card.
+        """
         if self.file:
-            try:
-                self.file.delete(save=False)
-            except Exception:
-                pass
+            from wama.common.utils.queue_duplication import delete_file_unless_shared
+            delete_file_unless_shared(self, 'file')
         super().delete(*args, **kwargs)
 
 

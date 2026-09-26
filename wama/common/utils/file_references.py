@@ -79,6 +79,37 @@ def direct_references(path, *, folder=False) -> list:
     return sorted(out, key=lambda r: (r['label'], r['pk'], r['field']))
 
 
+def is_referenced_elsewhere(path, *, label='', pk=None, field='') -> bool:
+    """Une AUTRE ligne, DE N'IMPORTE QUEL MODÈLE, désigne-t-elle ce fichier ?
+
+    La moitié « partage » de la suppression, élargie le 2026-09-23 à tout le dépôt. Elle ne
+    regardait que le même modèle et le même champ — ce qui suffisait tant que le partage venait de
+    « Dupliquer » (une card copiée dans sa propre app). Mesuré sur les données réelles ce jour-là,
+    le partage entre apps existe DÉJÀ : trois jobs du converter désignent un fichier rangé chez
+    l'anonymizer, et la voix de la médiathèque partage son fichier avec la voix clonée du
+    synthesizer. La garde locale ne les voyait pas.
+
+    Sortie ANTICIPÉE au premier porteur trouvé : c'est une existence, pas un inventaire (55 champs
+    fichier au 2026-09-23 — ~30 ms quand personne ne désigne le fichier, moins dès qu'un le fait).
+    """
+    path = _normalized(path)
+    if not path:
+        return False
+    for model, fields in file_field_models():
+        if model._meta.label in EXCLUDED_MODELS:
+            continue
+        for f in fields:
+            try:
+                qs = model.objects.filter(**{f.name: path})
+                if model._meta.label == label and f.name == field and pk is not None:
+                    qs = qs.exclude(pk=pk)
+                if qs.exists():
+                    return True
+            except Exception:
+                continue
+    return False
+
+
 def source_references(path, *, folder=False) -> list:
     """Les provenances dont la SOURCE est ce chemin (ou un chemin sous ce dossier)."""
     path = _normalized(path)

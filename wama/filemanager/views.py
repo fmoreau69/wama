@@ -626,7 +626,7 @@ def api_upload(request):
                     # Save file with its original folder structure — nom DÉ-COLLISIONNÉ
                     # (2026-09-05, MEDIA_STORAGE_TIERING §8.6 D8) : cette branche ÉCRASAIT
                     # un fichier homonyme déjà présent, seule voie du parc à le faire ; le
-                    # dépôt simple, `copy_into_app_input` et `UploadToUserPath` renomment tous.
+                    # dépôt simple, `reference_or_copy` et `UploadToUserPath` renomment tous.
                     from wama.common.utils.media_paths import get_unique_filename
                     nom_unique = get_unique_filename(dest_dir, Path(safe_path).name)
                     dest_path = f'users/{user.id}/temp/{(Path(safe_path).parent / nom_unique).as_posix()}'
@@ -1495,11 +1495,11 @@ def import_to_describer(source_path, user, app_label='describer'):
     """
     from django.apps import apps as django_apps
     from wama.describer.views import detect_type_from_extension
-    from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.media_paths import reference_or_copy
 
     Description = django_apps.get_model(app_label, 'Description')
 
-    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')
+    dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input')
 
     ext = dest_path.suffix.lstrip('.').lower()
     description = Description.objects.create(
@@ -1527,7 +1527,7 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
     importeurs sont paramétrés le 2026-09-03 : chaque nouvelle jumelle dérive le sien,
     plus jamais un cas à la fois (converter 30/08, describer 03/09 = 2 occurrences)."""
     from django.apps import apps as django_apps
-    from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.media_paths import reference_or_copy
 
     image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic'}
     video_extensions = {'.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp'}
@@ -1539,7 +1539,7 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
         # ── Audio ─────────────────────────────────────────────────────────────
         AudioEnhancement = django_apps.get_model(app_label, 'AudioEnhancement')
 
-        dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input/audio')
+        dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input/audio')
 
         duration = 0.0
         file_size = dest_path.stat().st_size
@@ -1567,7 +1567,7 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
 
         Enhancement = django_apps.get_model(app_label, 'Enhancement')
         media_type = 'image' if ext in image_extensions else 'video'
-        dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input/media')
+        dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input/media')
 
         media_info = get_media_info(str(dest_path))
         enhancement = Enhancement.objects.create(
@@ -1598,7 +1598,7 @@ def import_to_imager(source_path, user, app_label='imager'):
     `app_label` re-cible une JUMELLE de bac à sable (contrat `importer_for()`).
     """
     from django.apps import apps as django_apps
-    from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.media_paths import reference_or_copy
 
     ImageGeneration = django_apps.get_model(app_label, 'ImageGeneration')
     ext = source_path.suffix.lower()
@@ -1615,7 +1615,7 @@ def import_to_imager(source_path, user, app_label='imager'):
     else:
         raise ValueError(f"Format not supported for Imager: {ext}")
 
-    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, subfolder)
+    dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, subfolder)
 
     if file_type == 'prompt_file':
         # ── LOT COMMUN (2026-09-10) — cette voie créait un PLACEHOLDER ────────────────────
@@ -1664,11 +1664,11 @@ def import_to_anonymizer(source_path, user, app_label='anonymizer'):
     """Import a file to Anonymizer app. `app_label` re-cible une jumelle (importer_for)."""
     from django.apps import apps as django_apps
     from wama.anonymizer.views import add_media_to_db
-    from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.media_paths import reference_or_copy
     import mimetypes
 
     Media = django_apps.get_model(app_label, 'Media')
-    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')
+    dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input')
 
     # Get file extension and determine media type
     file_ext = dest_path.suffix.lower()
@@ -1707,11 +1707,11 @@ def import_to_anonymizer(source_path, user, app_label='anonymizer'):
 def import_to_synthesizer(source_path, user, app_label='synthesizer'):
     """Import a text file to Synthesizer app. `app_label` re-cible une jumelle (importer_for)."""
     from django.apps import apps as django_apps
-    from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.media_paths import reference_or_copy
 
     VoiceSynthesis = django_apps.get_model(app_label, 'VoiceSynthesis')
     allowed_exts = {'.txt', '.pdf', '.docx', '.csv', '.md'}
-    dest_path, relative_path = copy_into_app_input(
+    dest_path, relative_path = reference_or_copy(
         source_path, app_label, user.id, 'input', allowed_exts=allowed_exts)
 
     # Batch detection — try to parse as a pipe-separated batch file first
@@ -1769,11 +1769,11 @@ def import_to_synthesizer(source_path, user, app_label='synthesizer'):
 def import_to_reader(source_path, user, app_label='reader'):
     """Import a document/image file to Reader (OCR) app. `app_label` re-cible une jumelle."""
     from django.apps import apps as django_apps
-    from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.media_paths import reference_or_copy
 
     ReadingItem = django_apps.get_model(app_label, 'ReadingItem')
     reader_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp'}
-    dest_path, relative_path = copy_into_app_input(
+    dest_path, relative_path = reference_or_copy(
         source_path, app_label, user.id, 'input', allowed_exts=reader_extensions)
 
     item = ReadingItem(user=user, original_filename=dest_path.name, status='PENDING')
@@ -1809,7 +1809,7 @@ def import_to_converter(source_path, user, app_label='converter'):
     """
     from django.apps import apps as django_apps
     from wama.converter.utils.format_router import detect_media_type
-    from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.media_paths import reference_or_copy
 
     ConversionJob = django_apps.get_model(app_label, 'ConversionJob')
 
@@ -1817,7 +1817,7 @@ def import_to_converter(source_path, user, app_label='converter'):
     if media_type is None:
         raise ValueError(f"Type de fichier non supporté par le Converter : {source_path.suffix}")
 
-    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')
+    dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input')
 
     job = ConversionJob.objects.create(
         user=user,
@@ -1841,10 +1841,10 @@ def import_to_converter(source_path, user, app_label='converter'):
 def import_to_transcriber(source_path, user, app_label='transcriber'):
     """Import a file to Transcriber app. `app_label` re-cible une jumelle (importer_for)."""
     from django.apps import apps as django_apps
-    from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.media_paths import reference_or_copy
 
     Transcript = django_apps.get_model(app_label, 'Transcript')
-    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')
+    dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input')
 
     # status='DRAFT' → l'élément arrive en zone de staging (« À valider »), pas
     # directement en file (cohérent avec l'upload / l'URL). Cf. conventions §8.X.
@@ -1865,10 +1865,10 @@ def import_to_transcriber(source_path, user, app_label='transcriber'):
 def import_to_face_analyzer(source_path, user, app_label='face_analyzer'):
     """Import a video file to Face Analyzer app. `app_label` re-cible une jumelle."""
     from django.apps import apps as django_apps
-    from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.media_paths import reference_or_copy
 
     AnalysisSession = django_apps.get_model(app_label, 'AnalysisSession')
-    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')
+    dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input')
 
     session = AnalysisSession.objects.create(
         user=user,
@@ -1889,7 +1889,14 @@ def import_to_face_analyzer(source_path, user, app_label='face_analyzer'):
 
 def import_to_cam_analyzer(source_path, user, app_label='cam_analyzer'):
     """Import a video file to Cam Analyzer app (copies to input folder).
-    `app_label` re-cible une jumelle (importer_for) — pas de ligne ORM ici, la copie suffit."""
+    `app_label` re-cible une jumelle (importer_for) — pas de ligne ORM ici, la copie suffit.
+
+    ⚠ LE SEUL IMPORTEUR QUI COPIE ENCORE, et c'est voulu (2026-09-23) : cam_analyzer lit ses
+    entrées **PAR DOSSIER** — il cherche un `.rec` dans `users/<uid>/cam_analyzer/input` et range
+    les sources RTMaps sous `input/rtmaps/` — et aucune ligne de base ne décrit ce qu'il importe.
+    POINTER ne déposerait rien dans ce dossier : l'app ne verrait plus le fichier. La règle du
+    dépôt (« aucune référence en base n'y signifie pas orphelin ») dit déjà la même chose.
+    """
     from wama.common.utils.media_paths import copy_into_app_input
 
     dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')

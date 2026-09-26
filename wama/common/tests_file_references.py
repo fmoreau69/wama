@@ -153,6 +153,86 @@ class FileReferencesBrickTest(_TempMediaMixin, TestCase):
         self.assertEqual((0, 1), (u['count'], u['copies']))
 
 
+class SharingAcrossAppsTest(_TempMediaMixin, TestCase):
+    """Un fichier désigné par DEUX modèles différents ne part qu'avec son dernier porteur.
+
+    Né le 2026-09-23 d'une mesure sur les données réelles : la garde de partage ne regardait que
+    le MÊME modèle et le MÊME champ, alors que le partage entre apps existe déjà (trois jobs du
+    converter désignent un fichier rangé chez l'anonymizer ; la voix de la médiathèque partage son
+    fichier avec la voix clonée du synthesizer). Supprimer le dernier porteur de l'app
+    PROPRIÉTAIRE détruisait donc le fichier d'une autre app, sans une erreur.
+    """
+
+    def _other_model(self, model):
+        """Un modèle à champ fichier d'une AUTRE app que `model` — pris au parc, pas nommé."""
+        from wama.common.utils.file_references import file_field_models
+        for other, fields in file_field_models():
+            if other._meta.app_label != model._meta.app_label and any(
+                    f.name for f in fields) and other._meta.label != 'filemanager.UserFile':
+                try:
+                    if other._meta.get_field('user').related_model:
+                        return other, next(f.name for f in fields)
+                except Exception:
+                    continue
+        return None, None
+
+    def test_a_file_designated_by_another_app_survives_the_owners_deletion(self):
+        from wama.common.utils.queue_duplication import safe_delete_file
+        from wama.common.utils.media_paths import app_media_dir
+        for surface, account, model in self._fleet():
+            with self.subTest(surface=surface):
+                # Le fichier vit CHEZ l'app du témoin : il lui appartient, la propriété ne le
+                # protège donc pas — seul le partage peut le sauver.
+                rel = self._write(f'{app_media_dir(model._meta.app_label, account.id, "output")}'
+                                  f'/partage_{surface}.bin')
+                owner, field = self._card_pointing_at(model, account, rel)
+                other_model, other_field = self._other_model(model)
+                self.assertIsNotNone(other_model, 'aucun second modèle à champ fichier au parc')
+                other = _instance(other_model, account)
+                setattr(other, other_field, rel)
+                other.save()
+
+                self.assertFalse(safe_delete_file(owner, field),
+                                 'le fichier est désigné par une autre app : il doit RESTER')
+                self.assertTrue((Path(self.tmp) / rel).exists())
+
+                # Dernier porteur parti → le fichier peut enfin s'en aller.
+                other.delete()
+                self.assertTrue(safe_delete_file(owner, field))
+                self.assertFalse((Path(self.tmp) / rel).exists())
+
+    def test_a_deliberate_asset_deletion_keeps_a_file_another_row_still_uses(self):
+        """Le geste « supprimer ma voix » n'a pas de règle de propriété (l'asset n'est à aucune
+        app) mais garde celle du partage — c'est le cas mesuré sur les données réelles."""
+        from wama.common.utils.queue_duplication import delete_file_unless_shared
+        surface, account, model = next(self._fleet())
+        rel = self._write(self._temp(account, 'voix_partagee.wav'))
+        holder, field = self._card_pointing_at(model, account, rel)
+
+        from wama.media_library.models import UserAsset
+        asset = UserAsset(user=account, name='Voix témoin', asset_type='voice')
+        asset.file.name = rel
+        asset.save()
+
+        self.assertFalse(delete_file_unless_shared(asset, 'file'))
+        self.assertTrue((Path(self.tmp) / rel).exists(), 'la card désigne encore ce fichier')
+
+        holder.delete()
+        self.assertTrue(delete_file_unless_shared(asset, 'file'))
+        self.assertFalse((Path(self.tmp) / rel).exists())
+
+    def test_the_existence_check_ignores_the_row_it_is_called_for(self):
+        """Contre-épreuve du filtre d'exclusion : sans elle, un fichier ne serait JAMAIS
+        supprimable — la ligne se verrait elle-même comme un autre porteur."""
+        from wama.common.utils.file_references import is_referenced_elsewhere
+        surface, account, model = next(self._fleet())
+        rel = self._write(self._temp(account, 'seule.bin'))
+        el, field = self._card_pointing_at(model, account, rel)
+        self.assertFalse(is_referenced_elsewhere(rel, label=model._meta.label, pk=el.pk,
+                                                 field=field))
+        self.assertTrue(is_referenced_elsewhere(rel))
+
+
 class FileManagerGesturesTest(_TempMediaMixin, TestCase):
     """Les quatre gestes du gestionnaire, par leurs VUES, sur chaque app du parc."""
 
@@ -238,6 +318,108 @@ class FileManagerGesturesTest(_TempMediaMixin, TestCase):
                                 'le lien de la card désigne le fichier là où il est')
 
 
+class PointingInsteadOfCopyingTest(_TempMediaMixin, TestCase):
+    """Un fichier DÉJÀ dans l'arbre de l'utilisateur est POINTÉ, pas recopié.
+
+    Décision de Fabien du 2026-09-23 (cible annoncée le 12/09). La brique `reference_or_copy`
+    décide seule ; les importeurs ne savent pas ce qu'ils obtiennent. Ce qui se copie encore est
+    éprouvé ici aussi : l'arbre d'un AUTRE utilisateur, et une source hors de `MEDIA_ROOT`
+    (un dossier connecté).
+    """
+
+    def _files_under(self, rel_dir):
+        base = Path(self.tmp) / rel_dir
+        return {p.relative_to(Path(self.tmp)).as_posix() for p in base.rglob('*') if p.is_file()} \
+            if base.exists() else set()
+
+    def test_a_file_already_in_the_users_tree_is_pointed_not_copied(self):
+        from wama.common.utils.media_paths import reference_or_copy
+        for surface, account, model in self._fleet():
+            with self.subTest(surface=surface):
+                app = model._meta.app_label
+                rel = self._write(self._temp(account, f'point_{surface}.bin'))
+                before = self._files_under(f'users/{account.id}/{app}')
+                path, got = reference_or_copy(Path(self.tmp) / rel, app, account.id, 'input')
+                self.assertEqual(rel, got, 'le path rendu doit être CELUI du fichier')
+                self.assertEqual(before, self._files_under(f'users/{account.id}/{app}'),
+                                 'aucun fichier ne doit apparaître dans le dossier de l’app')
+                self.assertTrue(Path(path).exists())
+
+    def test_a_source_outside_the_users_tree_is_still_copied(self):
+        """Contre-épreuve : hors de son arbre (dossier connecté, arbre d'someone_else), on copie."""
+        import tempfile
+
+        from wama.common.utils.media_paths import reference_or_copy
+        surface, account, model = next(self._fleet())
+        app = model._meta.app_label
+
+        outside = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, outside, True)
+        source = outside / 'venu_d_ailleurs.bin'
+        source.write_bytes(b'x')
+        _p, rel = reference_or_copy(source, app, account.id, 'input')
+        self.assertTrue(rel.startswith(f'users/{account.id}/{app}/input/'), rel)
+        self.assertTrue((Path(self.tmp) / rel).exists(), 'la copie doit exister')
+
+        # L'arbre d'un AUTRE utilisateur : jamais pointé — condition du chiffrement par utilisateur.
+        someone_else = self._write(f'users/{account.id + 99999}/temp/pas_a_moi.bin')
+        _p2, rel2 = reference_or_copy(Path(self.tmp) / someone_else, app, account.id, 'input')
+        self.assertTrue(rel2.startswith(f'users/{account.id}/{app}/input/'), rel2)
+
+    def test_the_same_source_sent_to_two_apps_creates_no_copy_at_all(self):
+        """Le gain mesuré : chaîner deux apps sur la même source ne duplique plus les octets."""
+        from wama.common.utils.media_paths import reference_or_copy
+        fleet = list(self._fleet())
+        (s1, account, m1), (s2, _a2, m2) = fleet[0], fleet[1]
+        rel = self._write(self._temp(account, 'une_seule_fois.bin'))
+        total_before = len(list(Path(self.tmp).rglob('*')))
+        for model in (m1, m2):
+            _p, got = reference_or_copy(Path(self.tmp) / rel, model._meta.app_label,
+                                           account.id, 'input')
+            self.assertEqual(rel, got)
+        self.assertEqual(total_before, len(list(Path(self.tmp).rglob('*'))),
+                         'aucun fichier ni dossier nouveau : les deux apps désignent le même')
+
+    def test_send_to_an_app_points_the_users_file(self):
+        """Le geste RÉEL, par la vue : « Envoyer vers » ne recopie plus un fichier du temp.
+
+        Une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) reste une exception assumée :
+        elle ne crée aucune card, donc ce contrat ne la contredit pas — et son importeur le dit.
+        """
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.services.nightly_tests import get_test_user
+        from wama.common.utils.file_references import direct_references
+        from wama.filemanager.views import IMPORTERS
+
+        user = get_test_user()
+        self.client.force_login(user)
+        pointed = []
+        for app in IMPORTERS:
+            exts = {e.lower() for e in (APP_CATALOG.get(app) or {}).get('input_extensions', ())}
+            if '.txt' not in exts:
+                continue
+            with self.subTest(app=app):
+                rel = self._temp(user, f'envoi_{app}.txt')
+                path = Path(self.tmp) / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('Bonjour.', encoding='utf-8')
+                r = self.client.post(reverse('filemanager:api_import'),
+                                     data=json.dumps({'path': rel, 'app': app}),
+                                     content_type='application/json')
+                data = json.loads(r.content)
+                self.assertTrue(data.get('imported'), data)
+                refs = direct_references(rel)
+                for ref in refs:
+                    self.assertEqual(rel, ref['name'])
+                if refs:
+                    pointed.append(app)
+        # Mesuré le 2026-09-23 : 3 apps créent, depuis un `.txt`, une card dont le champ d'entrée
+        # désigne le fichier (converter, describer, synthesizer). Les autres acceptent le `.txt`
+        # pour un autre usage : l'imager en fait un LOT de prompts, l'anonymizer y lit une liste
+        # de chemins — aucune ne range le .txt dans un champ. Le compte ne peut que monter.
+        self.assertGreaterEqual(len(pointed), 3, f'apps pointées : {pointed}')
+
+
 class SendToRecordsProvenanceTest(_TempMediaMixin, TestCase):
     """« Envoyer vers » : chaque card créée depuis le temp se souvient de sa source.
 
@@ -299,8 +481,10 @@ class SendToRecordsProvenanceTest(_TempMediaMixin, TestCase):
                                      content_type='application/json')
                 data = json.loads(r.content)
                 self.assertTrue(data.get('imported'), data)
+                # ⚠ Ne PAS écarter le cas « le path rendu est celui de la source » : depuis le
+                # pointage (2026-09-23) c'est le cas NORMAL, et l'écarter faisait taire ce test.
                 copy = data.get('path')
-                refs = direct_references(copy) if copy and copy != rel else []
+                refs = direct_references(copy) if copy else []
                 for ref in refs:
                     el = django_apps.get_model(ref['label']).objects.get(pk=ref['pk'])
                     prov = provenance_of(el, ref['field'])

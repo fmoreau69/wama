@@ -909,7 +909,11 @@ def delete_custom_voice(request, pk: int):
     from wama.media_library.models import UserAsset
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     asset = get_object_or_404(UserAsset, pk=pk, user=user, asset_type='voice')
-    asset.file.delete(save=False)
+    # Le fichier ne part que s'il n'a plus d'autre porteur : une voix de la médiathèque partage
+    # souvent son fichier avec la voix CLONÉE du synthesizer (mesuré le 2026-09-23 sur `UserAsset #1`
+    # et `CustomVoice #1`). La brique commune juge le partage, tous modèles confondus.
+    from wama.common.utils.queue_duplication import delete_file_unless_shared
+    delete_file_unless_shared(asset, 'file')
     asset.delete()
     return JsonResponse({'deleted': pk})
 
