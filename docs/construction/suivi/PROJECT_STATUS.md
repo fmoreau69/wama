@@ -17659,3 +17659,102 @@ production ; un dossier CACHÉ est écarté (des octets invisibles sont ce que c
 temps à réparer), et l'arbre continue de s'afficher DEPUIS LE DISQUE, le registre n'ajoutant que
 le sens (« utilisé par N cards ») — le disque est le seul inventaire complet, et le seul index de
 pointeurs existant dérive déjà. cam_analyzer reste à part (lecture par dossier, RTMaps).
+
+---
+
+## §CLÔTURE — 2026-09-23→26, « ASSISTANT / PASSERELLE / SÉLECTION » — 10 commits, NON POUSSÉS
+
+> Départ : un échange Discord de Fabien où l'assistant annonce une anonymisation « terminée »,
+> donne un lien inventé et refuse trois fois d'envoyer le fichier. Fin : la photo est floutée,
+> et **neuf défauts distincts** ont été trouvés derrière ce seul symptôme — chacun mesuré sur
+> l'échange réel avant d'être corrigé.
+
+**Ce qui est livré** (détail : `WAMA_LLM §2026-09-23`, `WAMA_QUALITE §échelle des signaux`,
+`WAMA_VERIFICATION §1bis`) :
+
+| # | défaut | levée |
+|---|---|---|
+| 1 | `Reply.files` TOUJOURS vide depuis le 29/08 — la lecture ne regardait que le 1ᵉʳ niveau, forme qu'aucun `get_*_status` ne produit ; les 3 tests attestaient une forme SYNTHÉTIQUE | descente bornée + un test qui appelle le VRAI outil |
+| 2 | un `add_to_*` pris pour un lancement | `relay_next_step`, dérivé de la triade et du vocabulaire d'états commun |
+| 3 | « je ne peux pas envoyer de fichiers par Discord » | la `surface` descend au moteur ; la liste des canaux a UN domicile (`gateway.core.CHANNELS`) |
+| 4 | lien inventé, **revenu** après la règle de prompt | `_strip_unsourced_urls` — l'historique n'est pas une source |
+| 5 | `start_anonymizer` mort depuis l'audit du 2026-07-11 (`processed` devenu property) | `begin_processing`, la brique du bouton de lancement + un contrôle générique sur les dix apps |
+| 6 | intensité de flou 2 réécrite en 3 en silence : 682 pixels changés sur 1,92 M | `unapplicable_numeric_values` à la porte d'exécution |
+| 7 | la chaîne d'adaptation SAM3 existait et n'était **jamais appelée** (le hook d'enrichissement est gardé par `kind == 'generative'`) ; et le skill prescrivait une forme que le modèle n'ancre pas | hook « concept » + un appel SAM3 par concept |
+| 8 | un fil épinglé `dev` ne pouvait plus en sortir : 23 Go tirés sur 3,6 Go libres, puis 504 | la triade d'app RELÂCHE le souvenir |
+| 9 | le tirage préférait le PLUS GROS modèle dès qu'un candidat n'était pas mesuré | l'échelle se juge sur le sous-ensemble qu'elle couvre ; **rang centile branché** (écrit le 01/09, jamais lu) |
+
+Plus : le bloc « rattachement institutionnel » du profil DIT enfin ce que le partage fait
+(il promettait l'inverse), et la grille cesse de reprocher à une jumelle de bac à sable une
+déclaration qu'elle a (75 % → 80 %).
+
+**⭐ La leçon de la session** : *une consigne de prompt n'est pas un contrôle* — quatre correctifs
+ont donné de meilleures INFORMATIONS au modèle, il a menti quand même ; ce qui tient est ce que la
+SORTIE vérifie et ce que la DONNÉE porte.
+**⭐ Et la leçon de méthode** : quatre réinventions de ma main dans la même session (une 3ᵉ liste
+de surfaces, une liste d'états écrite à la main, une préférence cachée pour le local, un prédicat
+sans son 2ᵉ appelant) — **trois relevées par les questions de Fabien, une par `check_redundancy`**.
+Le gardien anti-duplication mériterait d'être déroulé À LA CLÔTURE, pas seulement sur demande.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+**Relancer la passerelle Discord ET gunicorn** (tous deux sur du code antérieur aux six derniers
+commits), puis demander au bot « quel est le statut ? » : c'est le seul maillon que je n'ai pas pu
+prouver moi-même — la pièce jointe qui arrive dans Discord.
+
+### File des chantiers ouverts (ordre proposé)
+1. 🔴 **BLOQUANT — budget VRAM sur un chemin HTTP** : le tour d'assistant ne passe par AUCUN des
+   trois cas du gouverneur (l'appel Ollama poste en direct), et `DEV_QUALITY_INTENT=100` lève le
+   budget, donc offload CPU et 504 garanti à 120 s. Mesuré : `fits_alone(23.0) = True` — la carte
+   POUVAIT l'accueillir. Deux voies : l'assistant emprunte `obtain_vram`, ou le tirage interactif
+   garde son budget. **Rien ne se fiabilise côté assistant sans cette réponse.**
+2. **Arbitrage cloud en deux étages d'ADMISSION** (proposition de Fabien, 26/09 : souverain
+   d'office, tiers en débordement). Le signal de saturation existe chez le gouverneur, et le
+   niveau « cloud si WAMA est saturé » l'attend explicitement. Ne PAS le mettre dans le score.
+3. **Trois registres que le bac à sable n'injecte pas** → 7 rouges MÉRITÉS sur une jumelle : la
+   triade d'outils, le nœud studio, la découverte de modèles. La réponse dépend de l'usage visé
+   (modérateur qui valide une app candidate ↔ jumelle de comparaison visuelle).
+4. **Les 9 critères qui mesurent le code GÉNÉRÉ** d'une jumelle → `ROUTE §11`. Cible proposée :
+   non un pourcentage mais l'invariant *écart jumelle ↔ source explicable, nul pour une jumelle
+   fraîchement générée*.
+5. **La prévision de modèle ignore le fil**, donc le bridage : elle annonce un modèle que le
+   lancement remplace.
+6. Deux modèles Albert vivants **sans aucun banc** (`benchmark_meta` vide) : un alias exige la
+   confirmation humaine du slug exact chez le tiers.
+7. Le cam_analyzer appelle l'enrichissement avec `allow_shorter=False` : un prompt de marquage que
+   le skill RACCOURCIRAIT serait silencieusement rejeté. Jamais mesuré.
+8. La pipeline traduit d'après la langue du PROFIL sans regarder le texte (appel inutile sur un
+   prompt déjà anglais). Et une OrgUnit dont le NOM est son propre code — artefact d'import.
+
+### Pendings système (ce que ma session laisse au terrain)
+- **Passerelle Discord** : relancée 4 fois, la dernière à 16:46 — donc **antérieure** aux commits
+  de sélection, de profil et de conformité. Une seule instance tourne (vérifié).
+- **gunicorn** : jamais relancé par moi → le web n'a ni le nouveau tirage, ni la sortie de
+  compétence de fil, ni le bloc profil.
+- **Worker Celery GPU** : relancé par Fabien à 13:45 ; les correctifs SAM3 y sont (prouvé par le
+  run de 14:03), ceux d'après non.
+- **Item anonymizer 647** : traité pour de vrai (3 masques, visages floutés). ⚠ J'ai **remis ses
+  réglages inventés aux défauts de l'app** (intensité de flou 2 → 25, seuil de détection, ROI,
+  flou progressif) — une écriture sur la donnée de Fabien, faite pour obtenir un résultat
+  utilisable.
+- **Conversation Discord #11** : l'historique porte encore les fabrications (faux liens,
+  « terminée avec succès »). Le contrôle retire désormais les liens, pas les phrases. Purge
+  proposée à Fabien, **non faite** — c'est sa conversation.
+- **Abonnement Claude Code** : 2 appels de diagnostic (~1,2 $ d'équivalent-API, cache froid).
+- Scripts de mesure de la session (diagnostic du CLI, A/B des prompts SAM3, tirages de modèle,
+  vidage des conversations) : dans le **scratchpad de session**, jetables, hors dépôt.
+
+### Contrôles attendus au prochain /reprise (tous MESURÉS le 26/09)
+| contrôle | valeur |
+|---|---|
+| tests du périmètre (18 modules : passerelle, assistant, sélection, anonymizer, api, comptes) | **539**, 3 rouges — tous `tests_identifier_language`, **pas de moi** (preuve : 15 renommages n'ont pas bougé le compte ; le dépassement suit le WIP chaud d'une autre instance) |
+| `check_docs` | 2 cassées / **2 cibles distinctes**, les deux dans ce fichier-ci et appartenant à une autre instance — dont le pilote wama-dev-ai « prévu, pas né » que le skill de clôture documente en VARIANTE 3 |
+| `check_redundancy` | **62** trouvailles ; **zéro** dans mes fichiers de session (63 avant — mon aide de test débruitée) |
+| `check_identifier_language` | 4183 / 4180 — l'écart est le WIP d'autrui |
+| grille de conformité | 10 apps notées inchangées (converter 99 %, describer 99 %, enhancer 98 %…) ; **jumelle `describer_01` 75 % → 80 %** |
+| `manage.py check` | propre |
+
+⚠ **Rouge PRÉ-EXISTANT, non mien, non corrigé** : `tests_access_points` échoue sur la route de
+grant VRAM (gouverneur B1, commit `608fc7c0`) — aucun de mes fichiers n'y touche.
+⚠ **Trou de l'instrument de langue, trouvé à l'œil** : `declarant` et `herite` ne sont pas dans la
+liste noire (vérifié : 15 renommages, total inchangé). Les y ajouter recale le budget dans le même
+commit — à faire quand l'arbre est calme.
