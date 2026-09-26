@@ -333,3 +333,67 @@ class PanelVoiceFieldIsGeneratedTest(TestCase):
         blocks = re.findall(r'<script>(.*?)</script>', self._page(), re.S)
         self.assertTrue(any('renderPanelVoiceField' in b for b in blocks),
                         'le rendu du champ de voix n\'est plus dans un script en ligne')
+
+
+class VoicePreviewPlayerTest(TestCase):
+    """L'aperçu de voix pose sa source sur un lecteur qui n'a PAS de balise `<source>`.
+
+    Défaut signalé par Fabien le 2026-09-27 en testant une voix enfant avec XTTS v2 :
+    « Erreur lors de l'assemblage de l'audio: Cannot set properties of null (setting 'src') ».
+    Le code écrivait dans `audioPlayer.querySelector('source').src`, mais le lecteur de la card
+    d'entrée (`_new_item_extra.html`) n'en a aucune — seul celui de la modale en a une. La
+    fonction est donc rejouée ICI sur un lecteur NU, c'est-à-dire sur le cas qui cassait.
+
+    ⚠ `py_mini_racer` n'est installé que dans venv_win : ce test SKIPPE sous venv_linux.
+    """
+
+    JS_DOM = """
+    var window = this; var revoked = [];
+    function atob(s) { return s; }
+    function Blob(parts, opts) { this.parts = parts; this.type = opts && opts.type; }
+    var URL = { createObjectURL: function (b) { return 'blob:wama/' + b.parts.length; } };
+    function bareplayer() {
+      return { src: null, loaded: 0, played: 0, style: {},
+               querySelector: function () { return null; },      // AUCUNE balise <source>
+               load: function () { this.loaded++; },
+               play: function () { this.played++; return { catch: function () {} }; } };
+    }
+    function box() { return { style: {} }; }
+    var console = { log: function () {}, error: function () {} };
+    var WamaApp = { toast: function (m) { this.said = m; } };
+    """
+
+    def _function_source(self):
+        import re
+        from pathlib import Path
+
+        from django.conf import settings
+        source = (Path(settings.BASE_DIR) / 'wama' / 'synthesizer' / 'static' / 'synthesizer'
+                  / 'js' / 'index.js').read_text(encoding='utf-8')
+        found = re.search(r'\n    async function assembleAndPlayAudio\(.*?\n    \}\n', source, re.S)
+        self.assertIsNotNone(found, "`assembleAndPlayAudio` a disparu ou changé de forme")
+        return found.group(0)
+
+    def test_a_player_without_a_source_tag_still_receives_the_audio(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+        ctx = MiniRacer()
+        ctx.eval(self.JS_DOM + self._function_source())
+        ctx.eval("var p = bareplayer(); var c = box(); var l = box();"
+                 " assembleAndPlayAudio(['AAA'], p, c, l);")
+        self.assertTrue(ctx.eval('p.src && p.src.indexOf("blob:") === 0'),
+                        "la source doit être posée sur le lecteur lui-même")
+        self.assertEqual(1, ctx.eval('p.loaded'))
+        # ⚠ Comparer DANS V8 : une valeur absente revient en `JSUndefined`, qui n'est pas
+        # `None` — un `assertIsNone` échouerait sur le comportement correct.
+        self.assertTrue(ctx.eval('WamaApp.said === undefined'),
+                        "aucune erreur ne doit être annoncée sur le cas nominal")
+        self.assertEqual('block', ctx.eval('c.style.display'))
+        self.assertEqual('none', ctx.eval('l.style.display'))
+
+    def test_the_single_and_multi_chunk_paths_are_one(self):
+        """Les deux branches d'origine étaient identiques au caractère près : une condition qui
+        ne décide de rien double seulement le code à corriger."""
+        self.assertNotIn('audioBuffers.length === 1', self._function_source())
