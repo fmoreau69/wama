@@ -893,6 +893,16 @@ DESCRIBER_LLM_MODELS = {
     'fast':    os.environ.get('DESCRIBER_MODEL_FAST',    ''),
 }
 
+# Proxy SORTANT de l'instance — le réglage que la brique commune `outbound_proxies()` lit en
+# PREMIER, avant `HTTPS_PROXY`/`HTTP_PROXY` de l'environnement.
+# ⚠ Il n'était déclaré NULLE PART (mesuré le 2026-09-26 : `hasattr(settings, …)` = False) : la
+# première branche de la brique ne pouvait donc jamais jouer, et seuls les tests le posaient
+# par `override_settings`. Vide par défaut — le comportement ne change pas —, mais il existe
+# désormais comme point de réglage unique, sans avoir à peupler l'environnement de chaque
+# service. ⚠ Poser SEULEMENT `HTTP_PROXY` dans l'environnement ne suffit pas aux surfaces qui
+# laissent `requests` décider seul : il ne trouve alors aucun proxy pour une URL HTTPS.
+WAMA_OUTBOUND_PROXY = os.environ.get('WAMA_OUTBOUND_PROXY', '')
+
 # TTS Microservice URL (FastAPI service for preloaded TTS models)
 TTS_SERVICE_URL = os.environ.get('TTS_SERVICE_URL', 'http://localhost:8001')
 
