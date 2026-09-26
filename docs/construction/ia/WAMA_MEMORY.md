@@ -570,8 +570,13 @@ est la différence entre un index technique et un traitement de données de rech
 pas la détection des sources. Trois pistes, à arbitrer par qui possède ce module :
 
 1. **Opt-in par objet** — un geste « ajouter au RAG » sur l'item (transcription, description, doc
-   de médiathèque). C'est ce que décrit Fabien, et c'est ce que l'encart RAG de l'accueil promet
-   déjà visuellement (`home.html:974`) sans rien faire.
+   de médiathèque). C'est ce que décrit Fabien. ⚠ **Corrigé le 2026-09-26** : cette ligne disait
+   que « l'encart RAG de l'accueil le promet déjà visuellement sans rien faire ». L'encart a été
+   RETIRÉ depuis — précisément parce qu'il promettait sans rien faire (le pourquoi est resté dans
+   le gabarit, `home.html:698-709` : *l'entrée au RAG doit être un GESTE, pas un balayage*,
+   arbitrage de Fabien du 21/08). Le constat était donc juste et sa cible n'existe plus ; c'est le
+   portage du chat de l'accueil en brique commune qui l'a rendu visible, en raccourcissant le
+   fichier de 282 lignes.
 2. **Opt-in par utilisateur** — une préférence de profil « indexer mes sorties » (défaut : non).
    ⚠ Précédent à ne pas répéter : `UserProfile.prompt_enrich` existe **sans aucun endpoint ni case
    à cocher** — un champ sans surface reste mort.

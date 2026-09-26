@@ -17399,3 +17399,132 @@ Complète le point 1 (« SMTP ») du §CLÔTURE « PORTAGE (lots, modales, route
 quatre alias ; puis refaire la sonde sans envoi, relancer la pile, `manage.py sendtestemail`.
 Jusque-là, tout envoi échoue en silence (`fail_silently=True`). **Pending système** : 33 commits
 non poussés sur `dev`.
+
+## §PALIER — 2026-09-26 (soir), « TESTS GÉNÉRIQUES : les cinq contrats de `WAMA_VERIFICATION §8` » — ✅ LIVRÉ (`7872e5ea`, `18d86ee9`, `c03753dc`, `53abe5da`, non poussés)
+
+Demande de Fabien : *« un test est générique et s'applique à toutes les applications par défaut
+en schéma-driven — sinon on multiplie les tests »*, puis *« commence par 1 et 3, puis enchaîne les
+autres »*. Mesure préalable : 146 tests d'app spécifiques, 7 doublons, **31 contrats transverses
+gardés dans UNE seule app**. Détail, défauts trouvés et restes : `WAMA_VERIFICATION §8.1`.
+
+- **Cinq contrats au commun**, sans nom d'app : route de réglages d'un élément ; propriété et
+  cycle ; volet ↔ réglages utilisateur ↔ dépôt ; issue par le squelette ; fichiers servis et
+  rendus — plus la modale ⚙ ⟷ volet (`tests_settings_surfaces`, 9 écarts listés à la baisse).
+- **Défauts réels trouvés au premier passage, corrigés au commun puis adoptés** : le JSON de
+  l'inspecteur n'était écrit que par 3 apps sur 9 ; une valeur hors choix plantait (500) ou
+  s'écrivait ; le composer RELANÇAIT une génération à chaque enregistrement sans `restart` ;
+  l'avatarizer remettait `use_enhancer` à faux ; l'enhancer ignorait le volet au dépôt ; un
+  `.xyz` créait un élément (transcriber, describer). Briques : `apply_item_settings` (choix),
+  `app_registry.accepts_file`, `model_declarations.declarations`.
+- **Listes d'apps écrites à la main → dérivées** (`PORTEES`, `SOURCES`) ; tests d'app retirés
+  quand un générique les tient (reader 2, synthesizer 9, transcriber 2, converter 1, imager 2) ;
+  les tests du backend COMMUN audio.cpp rangés au commun.
+- ⚠ **Mon `git mv` a été emporté par le commit d'une autre instance** (`2716f47e`, assistant) :
+  un `git mv` STAGE dans l'index PARTAGÉ. Contenu juste (le renommage là-bas, l'en-tête ici),
+  attribution scindée. *Sur ce dépôt : copier puis supprimer, et commiter les deux chemins.*
+- `docs/dev/briques.md` : seuls mes hunks commités (la version régénérée porte le travail en
+  cours d'autres instances : `is_cloud`, `staff_emails`, `on_event`).
+
+**Vérifié** : chaque contrat et chaque app touchée sous venv_win (212 + 71 + 55 + 33 + 16 + … OK) ;
+suite WSL complète (common + 10 apps) : voir la ligne ajoutée ci-dessous. **Reload gunicorn
+requis** : 9 vues de réglages et 4 vues de dépôt ont changé.
+🔚 **Restes** : ZIP de lot (converter seul) ; classes d'app dans `tests_intent_vision` ; les 8
+apps aux réglages utilisateur à la main et les 9 écarts modale/volet (décisions + portages) ;
+`model_loaded` nocturne générique (décision de Fabien) ; `location.reload()` après la
+sauvegarde du volet de lot (anonymizer, imager, enhancer) → `refreshCard`, consigne du jour.
+
+## §SUITE — 2026-09-26, « ASSISTANT : le FLUX, un seul rendu de chat, le texte À DIRE en brique » — ✅ LIVRÉ (3 commits, non poussés)
+
+> Suite de la clôture « ASSISTANT : avatar persistant, latence, bridage dev, volet » (§17313).
+> Demande de Fabien : *« il faut une brique commune complète qui conserve bien les améliorations
+> pour la vocalisation (suppression des emojis, intonations et soupirs sur les parenthèses et fins
+> de lignes) et porter ça sur la page d'accueil. On le fait de suite et le levier 5 aussi. »*
+
+**LEVIER 5 (flux SSE) — `b24ca53e`.** Ollama reçoit `stream: true` dès qu'un rappel est fourni ;
+chaque fragment remonte à l'écran ET à la voix. Mesure navigateur : 1ᵉʳ texte **0,2 s**, fin du
+tour **2,2 s**. ⚠ Le point dur n'est pas le transport mais le **portier** (`_TokenGate`) : la
+réflexion du modèle et les appels d'outils arrivent par le MÊME canal que la réponse, et il faut
+trancher **fragment par fragment** — aucun de ces défauts ne lève d'exception, ils produisent un
+écran faux. Contre-épreuve câblée : sans rappel, aucun flux n'est demandé, donc l'API v1 et la
+passerelle sont inchangées. Les ÉTAPES d'outils partent par le même canal (ce que
+`WAMA_HARNESS §9 chantier 4` demandait, sans mécanisme à part). 16 gardes.
+**UN SEUL RENDU DE CHAT** : l'accueil portait le sien (282 lignes à la main) pour le même fil ; il
+DÉCLARE la brique commune (`data-density` full / compact). Message d'accueil et mot d'attente
+restent SERVIS, par `<template>`. Une garde vérifie que les identifiants de l'ancien rendu ont
+disparu — sans elle, laisser les deux en place passerait inaperçu.
+
+**LE TEXTE À DIRE EST UNE BRIQUE — `6389072a`** (`common/utils/tts_text.py`). ⚠⚠ Ce que la mesure
+a trouvé, et qui n'était pas la question posée : le domaine était écrit **DEUX FOIS, sous le MÊME
+NOM DE FONCTION** — la vue de vocalisation avait emojis/Markdown/respirations (1 appelant), le
+synthesizer avait URL/e-mails (6 appelants). Aucun n'était faux ; ensemble ils faisaient un
+demi-vocabulaire, et le synthesizer — dont tout le métier est de lire un document à voix haute —
+lisait les listes d'un trait. **C'est le nom dupliqué qui rendait la chose invisible à un `grep`**
+(sept résultats qui semblaient parler d'une seule fonction). Le nom du synthesizer DÉLÈGUE : ses
+six appelants sont intacts et gagnent les améliorations. Budget de langue 2736 → 2735.
+⚠ **« Porter sur l'accueil » : l'accueil y passait DÉJÀ** — le nettoyage est côté serveur, dans
+`api/tts-kokoro/`. Le trou n'était pas où il semblait : la brique n'était pas une brique.
+**17 gardes là où il n'y en avait AUCUNE.** La chaîne s'était enrichie règle par règle, chacune
+après un défaut ENTENDU, et rien ne la protégeait. ⚠ C'est le défaut qui ne lève rien : le
+serveur répond 200, le WAV existe, l'écran ne montre rien — il ne s'entend qu'à l'oreille. Chaque
+règle a sa CONTRE-ÉPREUVE, car toutes sont des arbitrages (le tiret se retire en incise et jamais
+dans « arrière-plan » ; le `/` se dit « ou » entre deux mots et jamais dans `26/09/2026`).
+
+**Docs + registre — `761fe722`.** `WAMA_LLM §1bis` remis à la mesure (son titre disait « rien de
+câblé » alors que 1, 2 et 4 l'étaient depuis le 22/09) ; le **domicile du levier 4 était faux** :
+décrit dans `home.html`, il n'existait donc que sur l'accueil — il est dans la brique de voix.
+`mecanismes.py` gagne `tts_text` (**160** mécanismes). Trois références à des lignes du gabarit
+d'accueil (dans la route de génération ×2 et `WAMA_MEMORY`) ont été périmées par le retrait des
+282 lignes : recalées, `check_docs` 0 périmée. L'encart RAG que citait `WAMA_MEMORY` n'existe
+plus du tout — son retrait est expliqué dans le gabarit, et c'est ce raccourcissement qui l'a
+rendu visible.
+⚠ **Et cette ligne-ci a d'abord refait le piège du `/cloture §2c`** : décrire les références
+périmées **en les écrivant** en ouvre de nouvelles (mesuré à la relance du contrôle, juste
+après). Nommer la cible en clair, jamais par un numéro de ligne.
+
+**⚠⚠ TROIS LEÇONS GIT, toutes mesurées, toutes consignées dans `/commit-partiel` :**
+1. **`git apply --cached --unidiff-zero` pose MAL une insertion pure** quand des hunks laissés la
+   précèdent : il suit le numéro NOUVEAU. 5 lignes de docstring ont atterri au milieu du corps de
+   la fonction, **le fichier indexé ne compilait plus**. ✅ Recomposer le blob par les numéros
+   **ANCIENS** (`stage_by_oldlines.py`, neuf, à côté du skill) ; il confronte chaque hunk de
+   remplacement à HEAD avant de poser.
+2. **Vérifier l'index PUIS commiter laisse une FENÊTRE DE COURSE** : mon `--stat` montrait 15
+   fichiers, le commit en a porté **16** (un `git mv` stagé entre les deux par une autre
+   instance — déclaré dans le message, rien perdu). ✅ L'**index temporaire** rend les deux gestes
+   atomiques ; il vaut pour TOUS les cas, pas seulement « index non vide ».
+3. **Après un commit par index temporaire, l'index PARTAGÉ garde les blobs de l'ANCIEN HEAD** →
+   `MM`/`D ` sur mes chemins, c'est-à-dire un **retour arrière stagé** que le prochain commit
+   d'autrui emporterait. ✅ `git reset -q HEAD -- <mes seuls chemins>`, vérifié.
+
+**⚠ Ce que je n'ai PAS commité, et pourquoi** : les ~148 lignes de `WAMA_LLM.md` et les 10 hunks
+d'`assistant_engine.py` du chantier **Discord/liens** d'une autre instance (encore chaud,
+`tool_api.py`/`gateway/` avec). Deux emports DÉLIBÉRÉS et déclarés dans les messages : 2 lignes
+indissociables des miennes (le paramètre `surface`, inerte sans le reste) et **tout son
+`jsonOrExplain`** de `wama-app-base.js` — ma brique l'APPELLE, HEAD lèverait une `TypeError` sans
+lui ; c'est aussi ce qui préserve son correctif du 23/09, le rendu à la main de l'accueil
+disparaissant.
+⚠ **Les docs GÉNÉRÉES projettent l'ARBRE, pas HEAD** : 20 compteurs de consommateurs ont bougé
+dans `WAMA_MECANISMES.md`/`briques.md` (dont `gateway/services` 339 → 345, qui n'est pas de moi).
+Les régénérer était obligatoire (`tests_doc_plans` rouge sinon). *Un chiffre généré ne date pas du
+commit qui le porte, il date de l'arbre qui l'a produit.*
+
+**Vérifié** : 107 tests de mon périmètre OK **après la dernière écriture** (flux 16, texte à dire
+17, surfaces, plans de doc, budget de langue, synthesizer) ; `check_docs` 2 cassées (les deux
+préexistantes de ce fichier), 0 périmée ; budgets de langue tenus, aucun relevé.
+**Pendings système** : **3 commits non poussés** (`b24ca53e`, `6389072a`, `761fe722`) ; **reload
+gunicorn requis** (la vue SSE `api/ai-chat/stream/` est neuve, et `wama/views.py` a changé) ; le
+serveur dev éphémère du port 8012 est **arrêté**.
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** — **le cadrage de l'avatar, réglage utilisateur durable**
+(question de Fabien, non tranchée faute d'être dans le « on le fait de suite »). **Mesuré : c'est
+jouable et court.** Le cadrage est **trois constantes** dans un seul fichier
+(`common/static/common/js/wama-avatar.js:87-89` — `cameraView`, `cameraDistance`, `cameraY`), et
+la brique durable existe (`common/utils/user_settings.py` : `get_user_app_setting` /
+`save_user_app_settings`). La route : (1) la brique avatar **LIT** son cadrage au lieu de le coder
+en dur, les constantes actuelles restant les défauts — rien ne change pour qui n'y touche pas ;
+(2) les valeurs viennent de `user_settings` sous l'app `avatarizer` ; (3) **UN** endpoint commun
+les écrit, consommé par DEUX surfaces (la page avatarizer et le profil) — l'avatar est monté sur
+toute page, le réglage ne peut pas vivre dans une app. ⚠ `avatarizer/params.py` dérive son schéma
+du MODÈLE (`derive_from_model`) : y ajouter le cadrage supposerait des champs de modèle — le
+préférer en `user_settings`, qui est fait pour une préférence sans item. Reste à trancher par
+Fabien : le geste de recadrage (deux curseurs distance/hauteur + réinitialiser, appliqués en
+direct, enregistrés au relâchement) et s'il vit aussi dans le profil.
