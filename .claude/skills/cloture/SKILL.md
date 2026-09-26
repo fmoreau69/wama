@@ -153,6 +153,36 @@ côté WAMA** est la voie — pas renoncer.
 quel ») est une CONTRE-ÉPREUVE qu'aucune des trois autres n'imposait — sans elle, un `model=None`
 en dur les satisfaisait toutes en cassant la sélection par catalogue.
 
+### 2a ter. 🔴 `check_redundancy` — A-T-ON RÉINVENTÉ ? (inconditionnel dès que la session écrit du code)
+
+> **Ajouté le 2026-09-26, au prix d'une mesure.** Session assistant/passerelle/sélection :
+> **quatre réinventions de ma propre main** — une 3ᵉ liste de surfaces à côté de deux registres
+> qui l'avaient déjà, une liste d'états écrite à la main quand `JOB_STATUS_NOT_STARTED` existe,
+> une préférence cachée pour le local dans un score alors que `cloud_policy` tranche à
+> l'admission, et un prédicat neuf laissé sans son 2ᵉ appelant à côté d'une comparaison inline
+> identique. **TROIS ont été trouvées par les questions de Fabien** (« n'a-t-on rien
+> réinventé ? »), **une seule par le gardien**, déroulé parce qu'il l'avait demandé.
+> *Un contrôle qui dépend de ce que l'utilisateur pense à demander n'est pas un contrôle.*
+>
+> Et c'est la famille de défaut que l'auteur ne peut PAS voir : on ne réinvente que ce qu'on
+> ignore. Aucune relecture de son propre diff ne la trouve — d'où sa place ici, à côté de
+> « lancer n'est pas garder », et non dans la liste conditionnelle du §2b.
+
+```bash
+python manage.py check_redundancy          # compter AVANT/APRÈS ses propres commits
+```
+
+- **Le chiffre global ne dit rien** (le dépôt en porte des dizaines, pré-existantes) : ce qui
+  compte est **une trouvaille dans TES fichiers de session**. La filtrer par leurs noms.
+- **Une trouvaille chez soi = une brique à adopter**, pas une ligne de handoff. Le cas mesuré :
+  `is_cloud` venait d'être écrit et une comparaison de champ identique vivait dans un autre
+  module → second appelant branché, domicile unique (c'est la leçon de `subscription_allowed`,
+  « trois copies auraient dérivé »).
+- ⚠ **Le gardien rapproche aussi par le NOM, donc il produit des faux positifs** : une aide de
+  test `_model()` a été signalée contre `lang_routing.model_languages`. **Débruiter le sien**
+  (renommer) plutôt que s'habituer au bruit — *un contrôle bruyant se contourne*. Compter :
+  la trouvaille doit disparaître après le geste.
+
 ### 2b. Les autres — seulement ceux que la session a rendus nécessaires
 - Un REGISTRE a bougé (APP_CATALOG, params, capacités, tool_api, mecanismes.py…) →
   `manifest_export --check` (⚠ depuis WSL2 — venv_win = faux périmés sur les libraries) ;
@@ -232,6 +262,15 @@ en dur les satisfaisait toutes en cassant la sélection par catalogue.
   document écrit LE JOUR MÊME, et non faits — invisible sans cette passe.
 - **Les décisions ouvertes** du périmètre : les compter et les lister dans le handoff, une par
   ligne. Une décision ouverte qui n'apparaît pas dans le handoff est une décision perdue.
+- 🔴 **UNE LEÇON SUR LE RITUEL SE MET DANS LE RITUEL, PAS DANS LE HANDOFF** (ajouté le
+  2026-09-26, relevé de Fabien : « tu as modifié le skill en conséquence ? » — je ne l'avais
+  pas fait). Le §3 le disait déjà pour une étape qui n'a pas tenu ; le piège est plus large et
+  plus sournois : la leçon peut être VRAIE, bien écrite, consignée **trois fois** (handoff,
+  fiche mémoire, message final) et n'atteindre **jamais** l'endroit où elle changerait quelque
+  chose. Un handoff se lit une fois ; un skill se déroule à chaque session.
+  ✅ Le geste : avant d'écrire « il faudrait que la clôture… » ou « X mériterait d'être… »
+  **où que ce soit**, ouvrir le skill concerné et l'y écrire — puis seulement citer la décision
+  ailleurs. ⭐ *Écrire une leçon là où on la relit n'est pas l'écrire là où elle agit.*
 - **Le geste répétable de la session** — la session a-t-elle résolu un geste qui se
   REPRODUIRA (rituel, diagnostic, nettoyage, recette) non couvert par `.claude/skills/` ?
   → dérouler `/skill-forge` (distiller à la clôture est LE moment-écrivain ; à n=1 le skill
@@ -287,6 +326,11 @@ en dur les satisfaisait toutes en cassant la sélection par catalogue.
   C'est ce bloc que /reprise confronte.
   - 🔴 **Chaque chiffre doit avoir été MESURÉ dans cette session.** Recopier celui du handoff
     précédent produit un contrôle qui ne contrôle plus rien, et il survit des semaines.
+  - ⚠ **Le NOMBRE DE COMMITS se périme pendant qu'on rédige** (vécu 26/09) : le bloc annonçait
+    « 10 commits », et la clôture elle-même en a produit cinq de plus — le commit du handoff, la
+    garde manquante trouvée au §2a bis, le skill distillé au §3, deux correctifs de langue. Soit
+    l'écrire en dernier, soit le dire relatif (« N à ce point, plus ce que la clôture ajoutera »).
+    *Un rituel qui produit des commits ne peut pas les compter au milieu de lui-même.*
   - 🔴 **Si une CIBLE DISTINCTE a été créée ou abandonnée, mettre à jour `/reprise` DANS LE MÊME
     COMMIT** — même règle que « créer un `.md` de référence = ajouter sa ligne à la table de
     AGENTS.md dans le même commit ». Un critère périmé fait passer une vraie dérive pour du
@@ -319,6 +363,7 @@ en dur les satisfaisait toutes en cassant la sélection par catalogue.
   | 1 palier | ✓/✗ | derniers commits (shas) |
   | 2a tests | ✓/✗ | le chiffre MESURÉ + les noms des rouges s'il y en a |
   | 2a bis gardes AJOUTÉES | ✓/✗ | **une ligne PAR livrable** : son symbole → le fichier de test qui le nomme, ou « non gardé, parce que… ». ⚠ Un chiffre global ne coche PAS cette case — c'est celle du §2a |
+  | 2a ter réinvention | ✓/✗ | `check_redundancy` : le total, **et** le nombre de trouvailles dans TES fichiers (attendu : zéro, ou la brique adoptée). ⚠ « je n'ai rien réinventé » ne coche pas cette case — on ne réinvente que ce qu'on ignore |
   | 2b/2c contrôles | ✓/–/N-A | chiffres (corpus N, cibles distinctes N) OU « aucun registre n'a bougé » |
   | 3 balayage | ✓/✗ | nb de ⚠ balayés → réglés/pendings ; artefacts+effets de bord déclarés |
   | 4 handoff | ✓/✗ | l'ancre du bloc écrit |
