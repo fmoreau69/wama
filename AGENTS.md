@@ -833,6 +833,10 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > `update_settings`) : VRAI pour 7 apps, PARTIEL pour l'imager (chemin `save/` déclaré, sa
 > route de lecture occupe `settings/<id>/`), FAUX pour transcriber et anonymizer — écarts
 > DÉCLARÉS avec leur raison dans `tests_endpoints.ItemEditRouteConventionTest`.
+> ⚠ **Remesuré le 2026-09-26 : 892/943** — `settings_route` VRAI pour **8 apps** (le transcriber
+> s'est aligné, `f38685b3`, et a retiré son exemption du test — la garde « exemption devenue
+> inutile » a joué), reste l'anonymizer (FAUX) et l'imager (PARTIEL) ; `settings_modal_cycle`
+> **10/10**.
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
   (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
   le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,
