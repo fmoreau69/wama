@@ -107,7 +107,11 @@ def development_candidates(user) -> list:
     cloud = dev_cloud_keys(user)
     qs = AIModel.objects.filter(is_available=True, is_proposed=False, model_type='llm')
     qs = qs.filter(Q(execution=EXECUTION_LOCAL, is_downloaded=True) | Q(model_key__in=list(cloud)))
-    return [m.model_key for m in qs if m.execution != EXECUTION_CLOUD or m.model_key in cloud
+    # `is_cloud` plutôt que la comparaison de champ : depuis le 2026-09-26 le sélecteur pose la
+    # MÊME question (l'axe VRAM ne s'applique pas à un distant), et deux comparaisons de champ
+    # pour un même prédicat sont deux occasions de diverger — la leçon de `subscription_allowed`.
+    from wama.model_manager.services.model_selector import is_cloud
+    return [m.model_key for m in qs if not is_cloud(m) or m.model_key in cloud
             if is_development_grade(m)]
 
 
