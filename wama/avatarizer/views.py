@@ -94,6 +94,8 @@ class IndexView(View):
 
         gallery = _gallery_images()
 
+        from wama.common.utils.voice_options import voice_groups_json
+
         custom_voices = CustomVoice.objects.filter(user=user)
 
         # Tri / filtre de la file (brique COMMUNE) — porte sur la liste de LOTS, qui est
@@ -128,7 +130,9 @@ class IndexView(View):
             'params_json': json.dumps(_AVATAR_PARAMS_JSON),
             # Groupes de voix (brique commune, per-user) pour le select GÉNÉRÉ de la modale
             # (options_source='voices') — remplace les optgroups hardcodés du template.
-            'voice_groups_json': json.dumps(_voice_groups_safe(user)),
+            # Le repli fail-safe vit DANS la brique depuis le 2026-09-23 (l'aide locale qui
+            # l'enveloppait ici en était la copie ; le synthesizer appelait déjà celle-là).
+            'voice_groups_json': voice_groups_json(user),
             # Appariement ENTRÉE↔MODÈLE du volet TTS (brique commune WamaInputMatch) : une voix
             # CLONÉE désactive les moteurs sans clonage. Meta lue du catalogue par la brique TTS
             # COMMUNE — l'avatarizer ne possède aucun de ces modèles, il lit ceux du domaine.
@@ -138,15 +142,6 @@ class IndexView(View):
             'input_labels': json.dumps(input_labels()),
         }
         return render(request, 'avatarizer/index.html', context)
-
-
-def _voice_groups_safe(user):
-    """[{group, options:[…]}] via la brique commune get_voice_groups — fail-safe []."""
-    try:
-        from wama.common.utils.voice_options import get_voice_groups
-        return get_voice_groups(user)
-    except Exception:
-        return []
 
 
 @app_access('avatarizer')
