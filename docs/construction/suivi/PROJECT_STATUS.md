@@ -17607,6 +17607,14 @@ des fichiers, pas l'apparence du `git status`. Les trois pointent sur des fichie
 les vingt minutes précédentes, tous en 1ʳᵉ colonne à espace. *« Ce n'est pas moi » est une
 hypothèse ; une heure de modification est une mesure.*
 
+✅ **Remesuré à 23 h 30, juste avant de clore : DEUX des trois sont TOMBÉS TOUT SEULS** — l'autre
+instance a commité son mécanisme et régénéré (registre **161**, sections **161**, `briques.md` à
+jour). Reste le seul budget de langue, **2739 > 2735**, toujours son chantier en vol.
+⭐ *La preuve que le diagnostic était juste : on n'a rien corrigé et ils ont disparu quand leur
+auteur a fini. Un rouge attribué à autrui se vérifie en le laissant vivre — s'il persiste après
+son commit, l'attribution était fausse.* ⚠ Corollaire pour la reprise : **relancer les trois
+contrôles avant de conclure quoi que ce soit** de ce tableau, il date de 23 h 30.
+
 **Outillage laissé au dépôt** : `/commit-partiel` gagne un second script, la sélection de hunks
 par NUMÉRO, pour le cas où aucun mot-clé ne couvre les siens (vécu deux fois ce soir ; élargir le
 mot-clé jusqu'à attraper le dernier aurait pris des hunks d'autrui). Le skill est PROMU (n=2) :
