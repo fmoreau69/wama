@@ -49,11 +49,12 @@
     <div id="assistant-avatar" style="width:100%;height:200px;border-radius:8px;overflow:hidden;background:#15181c;"></div>
     <div id="avatar-status" class="small text-muted mt-1"></div>
     {% if assistant_avatar.compact_chat %}
-    <div id="assistant-chat"
+    <div id="assistant-chat" data-wama-chat data-density="compact"
          data-chat-url="{% url 'ai_chat' %}"
+         data-stream-url="{% url 'ai_chat_stream' %}"
          data-thread-url="{% url 'ai_chat_thread' %}"
          data-greeting="Posez une question ou demandez une tâche — même fil que l'accueil.">
-      <div class="wama-assistant-feed"></div>
+      <div class="wama-assistant-feed" data-assistant-feed></div>
       <div class="wama-assistant-row">
         <textarea rows="1" placeholder="Votre message…" aria-label="Message à l'assistant"></textarea>
         <button type="button" class="btn btn-outline-info btn-sm" data-assistant-voice
@@ -63,7 +64,8 @@
       </div>
       {% comment %}Rappel en LECTURE SEULE du dernier tour (modèle · niveau) : les réglages se
       font sur l'accueil et valent partout (durables).{% endcomment %}
-      <div class="wama-assistant-status" title="Réglages (modèle, qualité, voix) : page d'accueil"></div>
+      <div class="wama-assistant-status" data-assistant-status
+           title="Réglages (modèle, qualité, voix) : page d'accueil"></div>
     </div>
     {% endif %}
   </div>

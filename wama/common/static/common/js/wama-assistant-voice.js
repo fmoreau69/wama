@@ -30,6 +30,14 @@
   var state = { enabled: true, speaking: false, voice: '', lang: 'fr', settingsUrl: '' };
   var listeners = [];
   var avatarPoll = null;
+  // ⚠ La page qui se DÉCHARGE abandonne les requêtes en vol, et le navigateur rend alors
+  // `TypeError: Failed to fetch` — indiscernable d'un service TTS en panne si on le journalise.
+  // Mesuré au smoke du 2026-09-26 : changer de page pendant une vocalisation écrivait une
+  // erreur rouge en console à chaque fois. On note le départ, et on se tait à partir de là.
+  var quitte = false;
+  ['pagehide', 'beforeunload'].forEach(function (evenement) {
+    global.addEventListener(evenement, function () { quitte = true; stop(); });
+  });
 
   function csrfToken() {
     if (global.WamaApp && global.WamaApp.csrfToken) return global.WamaApp.csrfToken();
@@ -141,37 +149,91 @@
     setSpeaking(false);
   }
 
-  // `options.force` : lire même en muet — le bouton « Écouter » d'un message est un geste
-  // explicite, pas une lecture automatique.
-  function speak(text, options) {
-    if (!state.enabled && !(options && options.force)) return Promise.resolve(false);
-    var clean = stripMarkdown(text);
-    if (!clean || !global.WamaApp || !global.WamaApp.Speech) return Promise.resolve(false);
+  /**
+   * Ouvre UN tour de parole alimenté au fil de l'eau — c'est ce qui permet à l'assistant de
+   * commencer à parler pendant qu'il écrit encore (flux, `WAMA_LLM §1bis` leviers 4+5).
+   *
+   * ⚠ POURQUOI CETTE API EXISTE : `speak()` RÉCLAME le canal à chaque appel (`Speech.claim()`),
+   * donc l'appeler une fois par fragment reçu annulerait la phrase précédente à chaque fois.
+   * Un flux a besoin d'UNE réclamation et d'une FILE.
+   *
+   * Rend `{push(texte), end()}` — `end()` rend une promesse résolue quand tout a été dit.
+   * `options.force` : lire même en muet (geste explicite, bouton « Écouter »).
+   */
+  function speakStream(options) {
+    if (!state.enabled && !(options && options.force)) {
+      return { push: function () {}, end: function () { return Promise.resolve(false); } };
+    }
+    if (!global.WamaApp || !global.WamaApp.Speech) {
+      return { push: function () {}, end: function () { return Promise.resolve(false); } };
+    }
     var turn = global.WamaApp.Speech.claim();
     if (global.WamaAvatar && global.WamaAvatar.stop) global.WamaAvatar.stop();
-    var chunks = splitSentences(clean);
     setSpeaking(true);
-    var pending = fetchSpeech(chunks[0], turn.signal);
-    var i = 0;
-    function next() {
-      return pending.then(function (blob) {
-        if (!turn.valid()) return false;                    // un tour plus récent a pris la main
-        if (i + 1 < chunks.length) pending = fetchSpeech(chunks[i + 1], turn.signal);
-        var play = blob ? playChunk(blob, chunks[i], turn) : Promise.resolve();
-        return play.then(function () {
-          if (!turn.valid()) return false;
-          i += 1;
-          return i < chunks.length ? next() : waitAvatarSilence().then(function () { return true; });
+    var attente = '';            // texte reçu, pas encore prononçable
+    var chaine = Promise.resolve();
+    var fini = false;
+
+    // Ne prend que des phrases ACHEVÉES : en flux, la dernière peut être coupée au milieu.
+    // `force` (fin du tour) vide ce qui reste, quoi qu'il arrive.
+    function prendre(force) {
+      if (force) { var tout = attente; attente = ''; return tout; }
+      var m = attente.match(/^[\s\S]*[.!?…](?=\s)/);
+      if (!m || m[0].length < CHUNK_MIN_CHARS) return '';
+      attente = attente.slice(m[0].length);
+      return m[0];
+    }
+
+    function enfiler(texte) {
+      var propre = texte.trim();
+      if (!propre) return;
+      chaine = chaine.then(function () {
+        if (!turn.valid()) return;
+        return fetchSpeech(propre, turn.signal).then(function (blob) {
+          if (!turn.valid() || !blob) return;
+          return playChunk(blob, propre, turn);
         });
+      }).catch(function (e) {
+        // ⚠ Un tour PÉRIMÉ n'a pas d'erreur à signaler : quitter la page ou relancer une
+        // question pendant que l'assistant parle abandonne la requête en vol. Le navigateur
+        // rend alors `AbortError` (notre propre annulation) ou `TypeError: Failed to fetch`
+        // (navigation), et les journaliser remplissait la console de faux défauts — mesuré au
+        // smoke du 2026-09-26 en changeant de page pendant une vocalisation.
+        if (!quitte && turn.valid() && e && e.name !== 'AbortError') {
+          console.error('[WamaAssistantVoice]', e);
+        }
       });
     }
-    return next().catch(function (e) {
-      if (e && e.name !== 'AbortError') console.error('[WamaAssistantVoice]', e);
-      return false;
-    }).then(function (done) {
-      if (turn.valid()) setSpeaking(false);
-      return done;
-    });
+
+    return {
+      push: function (fragment) {
+        if (fini) return;
+        attente += stripMarkdown(fragment || '');
+        var pret = prendre(false);
+        if (pret) enfiler(pret);
+      },
+      end: function () {
+        if (fini) return chaine;
+        fini = true;
+        var reste = prendre(true);
+        if (reste) enfiler(reste);
+        return chaine.then(waitAvatarSilence).then(function () {
+          if (turn.valid()) setSpeaking(false);
+          return true;
+        });
+      },
+    };
+  }
+
+  // `options.force` : lire même en muet — le bouton « Écouter » d'un message est un geste
+  // explicite, pas une lecture automatique. Un texte ENTIER est le cas particulier d'un flux
+  // qui reçoit tout d'un coup : une seule mécanique, donc un seul comportement à garder.
+  function speak(text, options) {
+    var clean = stripMarkdown(text);
+    if (!clean) return Promise.resolve(false);
+    var flux = speakStream(options);
+    flux.push(text);
+    return flux.end();
   }
 
   function setEnabled(on, options) {
@@ -214,6 +276,7 @@
   global.WamaAssistantVoice = {
     configure: configure,
     speak: speak,
+    speakStream: speakStream,
     stop: stop,
     setEnabled: setEnabled,
     isEnabled: function () { return state.enabled; },

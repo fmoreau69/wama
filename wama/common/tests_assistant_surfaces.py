@@ -374,7 +374,7 @@ class ChargementDeCompetenceTest(TestCase):
 
         vus = []
 
-        def _faux_llm(messages, llm_model, provider, user=None, think=None):
+        def _faux_llm(messages, llm_model, provider, user=None, **kwargs):
             vus.append(list(messages))
             if len(vus) == 1:
                 return ('{"tool": "charger_competence", "args": {"domaine": "science"}}',
@@ -397,7 +397,7 @@ class ChargementDeCompetenceTest(TestCase):
         """L'autre moitié : sans l'annonce, le modèle ne sait pas que l'outil existe."""
         from wama.common.services import assistant_engine
 
-        def _faux_llm(messages, llm_model, provider, user=None, think=None):
+        def _faux_llm(messages, llm_model, provider, user=None, **kwargs):
             return messages[0]['content'], {'input_tokens': 0, 'output_tokens': 0}
 
         with mock.patch.object(assistant_engine, '_llm_call', side_effect=_faux_llm):

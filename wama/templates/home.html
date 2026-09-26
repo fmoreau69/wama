@@ -9,9 +9,12 @@
   l'accueil. Depuis le 2026-09-22 son conteneur est dans `base.html`
   (`common/_assistant_avatar.html`, en tête de tout volet), sa préférence est DURABLE
   (`assistant/params.py` : `avatar`, `avatar_collapsed`) et son comportement est la brique
-  `wama-avatar-panel.js`. Cette page ne garde que la VOIX (`speakText` ci-dessous) et le
-  bouton qui bascule la préférence. Le volet reste déclaré `tete=True` (views.home) pour
-  rester ouvert avec l'avatar seul.
+  `wama-avatar-panel.js`. Le volet reste déclaré `tete=True` (views.home) pour rester ouvert
+  avec l'avatar seul.
+  ⭐ Et depuis le 2026-09-26, le CHAT lui-même est la brique commune `wama-assistant-chat.js`
+  (densité `full`) : ce gabarit ne garde que ce qui est PROPRE à l'accueil — le sélecteur de
+  voix, le micro, les réglages `WamaParams`, les boutons Effacer et Avatar. 282 lignes de
+  rendu, d'envoi et de vocalisation en sont sorties.
   ⚠ En mode SIMPLIFIÉ le volet droit est masqué (`body.wama-simple #wama-right-panel`) :
   l'avatar n'y existe pas — un second domicile central reste à trancher (WAMA_VOLETS §7).
   L'importmap three.js est GLOBALE (base.html) : ne pas la ré-inclure ici.
@@ -79,11 +82,8 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
     }
 
     // AI Chat functionality (Admin only)
-    const chatForm = document.getElementById('ai-chat-form');
-    if (chatForm) {
-      const chatInput = document.getElementById('ai-chat-input');
-      const chatMessages = document.getElementById('ai-chat-messages');
-      const chatSubmit = document.getElementById('ai-chat-submit');
+    const chatRoot = document.getElementById('ai-chat');
+    if (chatRoot) {
       const settingsBox = document.getElementById('ai-settings');
 
       // Historique tenu CÔTÉ SERVEUR depuis le 2026-09-15 (store de conversation commun, comme
@@ -101,41 +101,13 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
       const voiceSelect = document.getElementById('ai-voice-select');
       const micBtn = document.getElementById('ai-mic-btn');
 
-      // ── « Effacer » : supprime le fil côté serveur, puis réaffiche l'accueil ──────────
-      async function clearChatHistory() {
-        try {
-          await fetch("{% url 'ai_chat_clear' %}",
-                      { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } });
-        } catch(e) { /* écran vidé quand même ; le fil réapparaîtra au prochain chargement */ }
-        {% comment %}Accueil DÉCLARÉ côté serveur (assistant_skills.greeting) et non écrit ici :
-        il VARIE selon l'état de connexion — un visiteur non identifié doit toujours s'entendre
-        dire le parcours (s'identifier, puis attendre la modération), ce qu'un texte figé dans le
-        gabarit ne pouvait pas faire. Déclaré aussi pour qu'il s'affiche même LLM indisponible,
-        et pour que sa voix puisse être pré-calculée (texte fixe → l'avatar parle sans attendre
-        le premier jeton).{% endcomment %}
-        chatMessages.innerHTML = `
-          <div class="text-center py-4">
-            <i class="fas fa-robot fa-2x mb-2"></i>
-            <p class="mb-0" id="assistant-accueil">{{ accueil_assistant.message|linebreaksbr }}</p>
-            {% if accueil_assistant.identifie %}
-            <p class="small mt-2 text-muted">Ex : "Liste mes fichiers temporaires" · "Ajoute biovam.mp4 à l'anonymizer avec SAM3" · "Lance le traitement"</p>
-            {% else %}
-            {% comment %}LOGIN_URL = '/' : c'est ICI qu'atterrit un @login_required anonyme,
-            avec `?next=<cible>`. Ce lien le transmet donc à la page de login, sinon le fil
-            casserait à cette maille.
-            ⚠ RECTIFIÉ le 2026-08-31 (revue de session) : j'avais écrit que « la trajectoire
-            du QR se perdait exactement là ». FAUX — ce bloc n'est rendu que par
-            `clearChatHistory()`, donc après un clic sur « Effacer » ; au CHARGEMENT c'est le
-            placeholder codé en dur plus bas qui s'affiche, sans ce lien. La maille qui porte
-            réellement la trajectoire du QR est la MODALE de login, ouverte automatiquement
-            par la présence de `?next=` (plus haut dans ce fichier), dont le champ caché a été
-            corrigé en même temps. Ce lien-ci reste un chemin réel — mais secondaire.
-            *Réparer la bonne chose pour la mauvaise raison laisse une explication fausse
-            derrière soi, et c'est elle qu'on relira.*{% endcomment %}
-            <p class="small mt-2"><a href="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">S'identifier</a></p>
-            {% endif %}
-          </div>`;
-      }
+      {% comment %}« Effacer » est un geste de la BRIQUE (`data-clear-url`) : elle supprime le
+      fil côté serveur puis réaffiche l'accueil déclaré. Ce gabarit ne fait que lui câbler son
+      bouton, qui vit hors du conteneur, dans l'en-tête de la carte.{% endcomment %}
+      document.getElementById('ai-chat-clear').addEventListener('click', function () {
+        var chat = window.WamaAssistantChat && WamaAssistantChat.first();
+        if (chat) chat.clear();
+      });
 
       // ── Réglages : rendus du SCHÉMA par la brique commune, et mémorisés côté serveur ──────
       // Le menu de modèles est peuplé par `options_source: 'catalog'` (route commune), « auto »
@@ -170,15 +142,6 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
       });
       WamaAssistantVoice.bindButton(voiceToggleBtn);
       voiceSelect.style.display = WamaAssistantVoice.isEnabled() ? 'inline-block' : 'none';
-
-      // ── Vocalisation : brique COMMUNE `WamaAssistantVoice` (phrases, avatar, arrêt) ───
-      // Le nettoyage du Markdown, le découpage en phrases (la suivante demandée pendant la
-      // lecture), la lecture par l'avatar ou le canal commun vivaient ici ; le mini-chat du
-      // volet en avait besoin à l'identique — extraits le 2026-09-22. `force` = le bouton
-      // « Écouter » d'un message, qui lit même en muet.
-      function speakText(text, force) {
-        return WamaAssistantVoice.speak(text, { force: !!force });
-      }
 
       // ── Avatar parlant : brique COMMUNE `WamaAvatarPanel` (base.html) ─────────
       // Conteneur, chargement à la demande, repli et PERSISTANCE de la préférence vivent
@@ -237,8 +200,13 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
         micBtn.classList.remove('btn-outline-secondary');
         micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
         recognition.onresult = function(event) {
-          chatInput.value = event.results[0][0].transcript;
-          chatInput.focus();
+          // La zone de saisie appartient désormais à la BRIQUE : on la vise par le conteneur
+          // plutôt que par un id disparu avec l'ancien formulaire.
+          const champ = chatRoot.querySelector('textarea');
+          if (!champ) return;
+          champ.value = event.results[0][0].transcript;
+          champ.dispatchEvent(new Event('input'));   // la brique ajuste sa hauteur
+          champ.focus();
         };
         recognition.onerror = function(event) {
           console.error('Speech recognition error:', event.error);
@@ -253,239 +221,6 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
       }
       micBtn.addEventListener('click', toggleMicRecording);
 
-      // ── Tool icon map ─────────────────────────────────────────────────────
-      const TOOL_ICONS = {
-        list_user_files:           '📂',
-        add_to_anonymizer:         '➕',
-        start_anonymizer:          '▶️',
-        get_anonymizer_status:     '📊',
-        sam3_examples:             '💡',
-        create_image:              '🎨',
-        start_imager:              '▶️',
-        get_imager_status:         '📊',
-        add_to_enhancer:           '✨',
-        start_enhancer:            '▶️',
-        get_enhancer_status:       '📊',
-        add_to_audio_enhancer:     '🎙️',
-        start_audio_enhancer:      '▶️',
-        get_audio_enhancer_status: '📊',
-        synthesize_text:           '🗣️',
-        start_synthesizer:         '▶️',
-        get_synthesizer_status:    '📊',
-        add_to_describer:          '🔍',
-        start_describer:           '▶️',
-        get_describer_status:      '📊',
-        add_to_transcriber:        '🎤',
-        start_transcriber:         '▶️',
-        get_transcriber_status:    '📊',
-        add_to_reader:             '📄',
-        start_reader:              '▶️',
-        get_reader_status:         '📊',
-        list_media_assets:         '🗃️',
-        get_media_asset_url:       '🔗',
-      };
-
-      // ── Render helpers (save=true when called from user action) ───────────
-      function renderToolSteps(steps) {
-        const stepsDiv = document.createElement('div');
-        stepsDiv.className = 'mb-2';
-        steps.forEach(step => {
-          const icon = TOOL_ICONS[step.tool] || '🔧';
-          const hasError = step.result && step.result.error;
-          const summary = hasError
-            ? `${icon} ${step.tool} → ❌ ${step.result.error}`
-            : `${icon} ${step.tool} → ✅`;
-          const details = document.createElement('details');
-          details.className = 'mb-1';
-          details.style.cssText = 'font-size:0.8em;';
-          const sumEl = document.createElement('summary');
-          sumEl.style.cssText = `cursor:pointer; color:${hasError ? '#ff6b6b' : '#6fcf97'}; user-select:none;`;
-          sumEl.textContent = summary;
-          const pre = document.createElement('pre');
-          pre.style.cssText = 'font-size:0.75em; background:#0d1117; color:#c9d1d9; border-radius:4px; padding:6px; max-height:120px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; margin:4px 0 0 0;';
-          pre.textContent = JSON.stringify(step.result, null, 2);
-          details.appendChild(sumEl);
-          details.appendChild(pre);
-          stepsDiv.appendChild(details);
-        });
-        return stepsDiv;
-      }
-
-      // Convert a subset of Markdown to safe HTML (links, bold, newlines)
-      function _mdToHtml(text) {
-        // Escape HTML entities first
-        let h = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        // Bold **text**
-        h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-        // Markdown links [label](url) — only allow http/https
-        h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-          '<a href="$2" target="_blank" rel="noopener" style="color:#a8d8ff">$1</a>');
-        // Newlines
-        h = h.replace(/\n/g, '<br>');
-        return h;
-      }
-
-      function renderMessage(content, isUser, isError, modelInfo) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `mb-3 ${isUser ? 'text-end' : ''}`;
-        const bubble = document.createElement('div');
-        bubble.className = `d-inline-block p-3 rounded-3 ${isUser ? 'bg-primary text-white' : isError ? 'bg-danger text-white' : 'bg-secondary text-white'}`;
-        bubble.style.maxWidth = '85%';
-        bubble.style.textAlign = 'left';
-        bubble.style.wordBreak = 'break-word';
-        if (isUser || isError) {
-          bubble.style.whiteSpace = 'pre-wrap';
-          bubble.textContent = content;
-        } else {
-          bubble.innerHTML = _mdToHtml(content);
-        }
-        if (!isUser && !isError && modelInfo) {
-          const badge = document.createElement('div');
-          badge.className = 'small mt-1';
-          badge.textContent = modelInfo;
-          bubble.appendChild(badge);
-        }
-        messageDiv.appendChild(bubble);
-        // Speaker replay button on assistant messages
-        if (!isUser && !isError) {
-          const speakBtn = document.createElement('button');
-          speakBtn.type = 'button';
-          speakBtn.className = 'btn btn-sm btn-link text-secondary p-0 ms-1 align-top';
-          speakBtn.title = 'Écouter';
-          speakBtn.innerHTML = '<i class="fas fa-volume-up" style="font-size:0.8em;"></i>';
-          speakBtn.addEventListener('click', () => speakText(content, true));
-          messageDiv.appendChild(speakBtn);
-        }
-        return messageDiv;
-      }
-
-      // ── Public DOM mutators ───────────────────────────────────────────────
-      function addToolSteps(steps) {
-        if (!steps || steps.length === 0) return;
-        const placeholder = chatMessages.querySelector('.text-center');
-        if (placeholder) placeholder.remove();
-        chatMessages.appendChild(renderToolSteps(steps));
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-      }
-
-      function addMessage(content, isUser = false, isError = false, modelInfo = null) {
-        const placeholder = chatMessages.querySelector('.text-center');
-        if (placeholder) placeholder.remove();
-        chatMessages.appendChild(renderMessage(content, isUser, isError, modelInfo));
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        // Lecture automatique de la réponse — si la voix est active (la brique le sait).
-        if (!isUser && !isError) {
-          speakText(content);
-        }
-      }
-
-      function addLoadingIndicator() {
-        const placeholder = chatMessages.querySelector('.text-center');
-        if (placeholder) placeholder.remove();
-        const choix = document.getElementById('ai-model');
-        const providerName = (choix && choix.selectedIndex >= 0
-                              && choix.options[choix.selectedIndex].textContent.trim())
-                             || 'WAMA';
-        const loadingDiv = document.createElement('div');
-        loadingDiv.id = 'ai-loading';
-        loadingDiv.className = 'mb-3';
-        loadingDiv.innerHTML = `<div class="d-inline-block p-3 rounded-3 bg-secondary text-white"><i class="fas fa-spinner fa-spin me-2"></i> ${providerName} is thinking...<span id="ai-attente" class="d-block small mt-1 opacity-75"></span></div>`;
-        chatMessages.appendChild(loadingDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        {% comment %}Mot d'attente APRÈS un délai, pas tout de suite : un modèle local doit
-        parfois se charger (plusieurs secondes) et l'attente ressemble alors à une panne —
-        surtout pour un visiteur qui découvre. L'afficher immédiatement ferait au contraire
-        clignoter l'interface quand la réponse arrive vite. Texte et délai sont DÉCLARÉS
-        (assistant_skills), pas écrits ici.{% endcomment %}
-        clearTimeout(window._attenteTimer);
-        window._attenteTimer = setTimeout(function () {
-          const el = document.getElementById('ai-attente');
-          if (el) el.textContent = "{{ accueil_assistant.attente|escapejs }}";
-        }, {{ accueil_assistant.attente_apres_ms }});
-      }
-
-      function removeLoadingIndicator() {
-        clearTimeout(window._attenteTimer);
-        const loading = document.getElementById('ai-loading');
-        if (loading) loading.remove();
-      }
-
-      // ── Fil relu du SERVEUR au chargement (views.home → chat_thread) ──────────────
-      function loadChatHistory() {
-        try {
-          const threadEl = document.getElementById('ai-chat-thread');
-          const chatHistory = threadEl ? JSON.parse(threadEl.textContent) : [];
-          if (!chatHistory.length) return;
-          // Clear placeholder
-          chatMessages.innerHTML = '';
-          chatHistory.forEach(entry => {
-            if (entry.type === 'tool_steps') {
-              chatMessages.appendChild(renderToolSteps(entry.steps));
-            } else if (entry.type === 'user') {
-              chatMessages.appendChild(renderMessage(entry.content, true, false, null));
-            } else if (entry.type === 'assistant') {
-              chatMessages.appendChild(renderMessage(entry.content, false, false, entry.model));
-            } else if (entry.type === 'error') {
-              chatMessages.appendChild(renderMessage(entry.content, false, true, null));
-            }
-          });
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        } catch(e) { /* fil illisible : l'accueil reste affiché */ }
-      }
-      loadChatHistory();
-
-      // ── Clear button ──────────────────────────────────────────────────────
-      document.getElementById('ai-chat-clear').addEventListener('click', clearChatHistory);
-
-      // ── Submit handler ────────────────────────────────────────────────────
-      chatForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const message = chatInput.value.trim();
-        if (!message) return;
-
-        addMessage(message, true);
-        chatInput.value = '';
-        chatInput.disabled = true;
-        chatSubmit.disabled = true;
-        chatSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        addLoadingIndicator();
-
-        // Ni historique ni fournisseur : le serveur tient le fil (store commun) et résout le
-        // modèle par le réglage durable de l'utilisateur, puis par le tirage « auto ».
-        const requestBody = { message };
-
-        try {
-          const response = await fetch('/api/ai-chat/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-            body: JSON.stringify(requestBody)
-          });
-          removeLoadingIndicator();
-          const data = await response.json();
-          if (data.success) {
-            if (data.tool_steps && data.tool_steps.length > 0) {
-              addToolSteps(data.tool_steps);
-              // Detect switch_mode action from tool results
-              for (var _s of data.tool_steps) {
-                if (_s.result && _s.result.action === 'switch_mode') {
-                  window.wamaSetMode && window.wamaSetMode(_s.result.mode, false);
-                }
-              }
-            }
-            addMessage(data.response, false, false, data.model);
-          } else {
-            addMessage(data.error || 'An error occurred', false, true);
-          }
-        } catch (error) {
-          removeLoadingIndicator();
-          addMessage('Network error: ' + error.message, false, true);
-        } finally {
-          chatInput.disabled = false;
-          chatSubmit.disabled = false;
-          chatSubmit.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
-          chatInput.focus();
-        }
-      });
     }
 
     // ── Home mode management ──────────────────────────────────────────────
@@ -681,24 +416,48 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
             {{ chat_params|json_script:"ai-chat-params" }}
             {{ chat_values|json_script:"ai-chat-values" }}
             {{ chat_thread|json_script:"ai-chat-thread" }}
-            <!-- Chat Messages Container -->
-            <div id="ai-chat-messages" class="mb-3" style="max-height: 400px; overflow-y: auto; min-height: 100px; background: #1a1d21; border-radius: 8px; padding: 15px;">
-              <div class="text-center py-4">
+            {% comment %}
+              LE CHAT EST LA BRIQUE COMMUNE depuis le 2026-09-26 (`wama-assistant-chat.js`) —
+              la MÊME qu'au volet droit, en densité `full`. Les ~200 lignes de rendu qui
+              vivaient dans ce gabarit (bulles, étapes d'outils, indicateur d'attente, envoi,
+              vocalisation) n'y sont plus : deux rendus d'un seul fil finissaient par diverger.
+              Ce bloc ne DÉCLARE plus que ce qui est propre à l'accueil : le message de
+              bienvenue (qui varie selon l'état de connexion), le mot d'attente et son délai
+              (déclarés par `assistant_skills`), le fil déjà rendu dans la page, et le micro.
+              Le FLUX (`data-stream-url`) fait écrire la réponse au fur et à mesure et démarrer
+              la voix à la première phrase ; sans lui la brique retombe d'elle-même sur le POST.
+            {% endcomment %}
+            <div id="ai-chat" data-wama-chat data-density="full"
+                 data-chat-url="{% url 'ai_chat' %}"
+                 data-stream-url="{% url 'ai_chat_stream' %}"
+                 data-clear-url="{% url 'ai_chat_clear' %}"
+                 data-thread-el="ai-chat-thread"
+                 data-waiting="{{ accueil_assistant.attente }}"
+                 data-waiting-after-ms="{{ accueil_assistant.attente_apres_ms }}">
+              <template data-assistant-greeting>
                 <i class="fas fa-robot fa-2x mb-2"></i>
-                <p class="mb-0">Posez-moi une question ou demandez-moi d'agir sur WAMA.</p>
-                <p class="small mt-2 text-muted">Ex : "Liste mes fichiers temporaires" · "Ajoute biovam.mp4 à l'anonymizer avec SAM3" · "Lance le traitement"</p>
+                <p class="mb-0" id="assistant-accueil">{{ accueil_assistant.message|linebreaksbr }}</p>
+                {% if accueil_assistant.identifie %}
+                <p class="small mt-2 text-muted">Ex : « Liste mes fichiers temporaires » · « Ajoute biovam.mp4 à l'anonymizer avec SAM3 » · « Lance le traitement »</p>
+                {% else %}
+                {% comment %}LOGIN_URL = '/' : c'est ICI qu'atterrit un `@login_required` anonyme,
+                avec `?next=<cible>`. Ce lien la transmet à la page de login, sinon le fil
+                casserait à cette maille.{% endcomment %}
+                <p class="small mt-2"><a href="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">S'identifier</a></p>
+                {% endif %}
+              </template>
+              <div class="wama-assistant-feed" data-assistant-feed></div>
+              <div class="wama-assistant-row">
+                <button type="button" id="ai-mic-btn" class="btn btn-outline-secondary" title="Parler à l'assistant">
+                  <i class="fas fa-microphone"></i>
+                </button>
+                <textarea rows="1" placeholder="Votre message…" aria-label="Message à l'assistant"></textarea>
+                <button type="button" class="btn btn-primary" data-assistant-send style="min-width: 100px;">
+                  <i class="fas fa-paper-plane"></i> Envoyer
+                </button>
               </div>
+              <div class="wama-assistant-status" data-assistant-status></div>
             </div>
-            <!-- Input Form -->
-            <form id="ai-chat-form" class="d-flex gap-2">
-              <button type="button" id="ai-mic-btn" class="btn btn-outline-secondary" title="Parler à l'assistant">
-                <i class="fas fa-microphone"></i>
-              </button>
-              <input type="text" id="ai-chat-input" class="form-control" placeholder="Type your message..." autocomplete="off" style="background: #1a1d21; border: 1px solid #495057; color: #fff;">
-              <button type="submit" id="ai-chat-submit" class="btn btn-primary" style="min-width: 100px;">
-                <i class="fas fa-paper-plane"></i> Send
-              </button>
-            </form>
           </div>
         </div>
       </div>

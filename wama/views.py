@@ -254,6 +254,85 @@ def ai_chat_settings(request):
     return JsonResponse({'success': True, 'settings': valeurs})
 
 
+@require_http_methods(["POST"])
+@csrf_protect
+def ai_chat_stream(request):
+    """UN tour d'assistant EN FLUX (SSE) — levier 5 de `WAMA_LLM §1bis`.
+
+    MÊME moteur, MÊME fil, MÊMES gardes que `ai_chat` : cette vue n'est qu'un second
+    TRANSPORT. C'est la condition pour qu'elle n'ouvre aucune divergence — le tour synchrone
+    reste le chemin de l'API v1, de la passerelle, et du repli quand le navigateur ne sait pas
+    lire un flux.
+
+    ⚠ POURQUOI UN FIL D'EXÉCUTION. `conversation_turn` est bloquante et rend à la fin ; on ne
+    peut pas `yield` depuis le rappel qu'elle appelle. Le moteur tourne donc dans un thread qui
+    POUSSE ses événements dans une file, et la vue les tire pour les écrire. L'ORM y est touché
+    (store de conversation) : les connexions sont refermées en sortie, comme dans tout worker.
+
+    Événements : `delta` (fragment de réponse), `step` (outil joué), `done` (réponse complète,
+    modèle, étapes — c'est LUI qui fait foi pour l'affichage final et la trace), `error`.
+    Un commentaire SSE part toutes les 15 s tant que rien n'arrive : un modèle qui se charge
+    peut rester muet plus longtemps qu'un proxy n'est patient.
+    """
+    import queue
+    import threading
+
+    from django.db import close_old_connections
+    from django.http import StreamingHttpResponse
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentification requise'}, status=401)
+    try:
+        data = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    message = (data.get('message') or '').strip()
+    if not message:
+        return JsonResponse({'error': 'Message is required'}, status=400)
+
+    # MÊME garde que le tour synchrone : pendant une libération de la carte, l'assistant reste
+    # muet et le dit. La dupliquer serait une divergence ; on la lit au même endroit.
+    from wama.common.services.resource_governor import release_in_progress
+    if release_in_progress():
+        return JsonResponse({'response': _RELEASE_WAIT_MESSAGE, 'busy': True})
+
+    user, domain = request.user, data.get('domain')
+    events: 'queue.Queue' = queue.Queue()
+
+    def engine():
+        from wama.common.services.assistant_engine import conversation_turn
+        try:
+            result = conversation_turn(user, message, surface='web', domain=domain,
+                                       on_event=events.put)
+            events.put({'type': 'done', 'result': result})
+        except Exception as e:                      # jamais de trace nue vers le navigateur
+            logger.exception('ai_chat_stream')
+            events.put({'type': 'error', 'error': str(e)})
+        finally:
+            close_old_connections()
+            events.put(None)
+
+    threading.Thread(target=engine, daemon=True, name='wama-assistant-stream').start()
+
+    def stream():
+        while True:
+            try:
+                event = events.get(timeout=15)
+            except queue.Empty:
+                yield ': keep-alive\n\n'
+                continue
+            if event is None:
+                return
+            yield 'data: ' + json.dumps(event, ensure_ascii=False, default=str) + '\n\n'
+
+    response = StreamingHttpResponse(stream(), content_type='text/event-stream')
+    response['Cache-Control'] = 'no-cache'
+    # `X-Accel-Buffering` est lu par nginx ; Apache, lui, relaie le chunked au fil de l'eau.
+    # Posé quand même : le frontal de production changera (`ROADMAP §11`).
+    response['X-Accel-Buffering'] = 'no'
+    return response
+
+
 @require_http_methods(["GET"])
 def ai_chat_thread(request):
     """Le fil `web` de l'utilisateur, au format d'affichage — pour le mini-chat du volet droit
