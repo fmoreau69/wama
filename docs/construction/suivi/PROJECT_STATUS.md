@@ -17768,6 +17768,14 @@ prouver moi-même — la pièce jointe qui arrive dans Discord.
 | `check_docs` | 2 cassées / **2 cibles distinctes**, les deux dans ce fichier-ci et appartenant à une autre instance — dont le pilote wama-dev-ai « prévu, pas né » que le skill de clôture documente en VARIANTE 3 |
 | `check_redundancy` | **62** trouvailles ; **zéro** dans mes fichiers de session (63 avant — mon aide de test débruitée) |
 | `check_identifier_language` | 4183 / 4180 — l'écart est le WIP d'autrui |
+| grille de conformité | 10 apps notées inchangées (converter 99 %, describer 99 %, enhancer 98 %…) ; **jumelle `describer_01` 75 % → 80 %** |
+| `manage.py check` | propre |
+
+⚠ **Rouge PRÉ-EXISTANT, non mien, non corrigé** : `tests_access_points` échoue sur la route de
+grant VRAM (gouverneur B1, commit `608fc7c0`) — aucun de mes fichiers n'y touche.
+⚠ **Trou de l'instrument de langue, trouvé à l'œil** : `declarant` et `herite` ne sont pas dans la
+liste noire (vérifié : 15 renommages, total inchangé). Les y ajouter recale le budget dans le même
+commit — à faire quand l'arbre est calme.
 
 ### SUITE de clôture — ce que le rituel a ajouté APRÈS le bloc ci-dessus
 - **§2a bis a trouvé le seul livrable sans garde** : `SAM3Processor.concepts()`, du découpage de
@@ -17784,8 +17792,6 @@ prouver moi-même — la pièce jointe qui arrive dans Discord.
   autre instance, qui a unifié les deux surfaces de chat : la duplication que je signalais n'existe
   plus.
 - Total : **13 commits**, toujours non poussés.
-| grille de conformité | 10 apps notées inchangées (converter 99 %, describer 99 %, enhancer 98 %…) ; **jumelle `describer_01` 75 % → 80 %** |
-| `manage.py check` | propre |
 
 ⚠ **Rouge PRÉ-EXISTANT, non mien, non corrigé** : `tests_access_points` échoue sur la route de
 grant VRAM (gouverneur B1, commit `608fc7c0`) — aucun de mes fichiers n'y touche.
@@ -17872,3 +17878,5 @@ mesuré : 4 `child` + 4 `elderly`).
 **Pendings système** : `librosa`/`datasets`/`soundfile` hors requirements ; 7 commits non poussés ;
 `docs/dev/briques.md` régénéré contient `permissions.access_cases()`, ajout non commité d'une autre
 instance (annoncé au commit — une doc générée à moitié serait pire).
+
+**Nocturne complet du 2026-09-26 (après le reload)** : 1er passage 161/359 (≈85 échecs = le navigateur de test côté WSL a reçu « connexion refusée » sur :8000 pendant que gunicorn servait) ; rejeu des 109 échecs : **23 restants, aucun imputable aux contrats du jour**. Le GPU était tenu par Ollama (`qwen3.8`, 18 Go, hors file Celery — utilisation extérieure au nocturne) : `transcriber.processing` resté RUNNING, pages lentes. Instrument : `reader.processing` dépose un témoin `.pdf` qui n'est pas un PDF (échec « Failed to open file »). Hors périmètre, antérieurs ou d'autres instances : `rights_anonymous` et `accounts` (chantier comptes en cours), `queue_search` médiathèque/studio, `media_library.clear_all`, `anonymizer.batch_processing` (Télécharger tout → 400), jumelles `_01` (501/500), consistances (vulns, manifestes, docs dérivées). Rouge corrigé de mon fait : une trouvaille de redondance dans `transcriber/tests_panel_settings` (marqueur déclaré).
