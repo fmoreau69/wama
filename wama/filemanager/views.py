@@ -707,7 +707,14 @@ def sanitize_relative_path(path):
 
 
 def _in_use_payload(in_use: dict, path: str) -> dict:
-    """La réponse « fichier utilisé » — la même pour un fichier et pour un dossier."""
+    """La réponse « fichier utilisé » — la même pour un fichier et pour un dossier.
+
+    ⚠ Rendue en **200**, pas en 409 (corrigé le 2026-09-26 après le smoke navigateur) : demander
+    confirmation est le déroulement NORMAL du geste, pas une erreur. Un code hors 2xx fait écrire
+    « Failed to load resource » dans la console du navigateur — et la console est un SIGNAL surveillé
+    par le filet nocturne. *Un statut d'erreur pour un cas prévu rend le contrôle aveugle à ce qui
+    n'est pas prévu.* Le client décide sur `in_use`, jamais sur le statut.
+    """
     return {
         'in_use': True,
         'path': path,
@@ -747,7 +754,7 @@ def api_delete(request):
             from wama.common.utils.file_references import detach, usage
             in_use = usage(file_path)
             if in_use['count'] and not confirmed:
-                return JsonResponse(_in_use_payload(in_use, file_path), status=409)
+                return JsonResponse(_in_use_payload(in_use, file_path))
 
             default_storage.delete(file_path)
 
@@ -798,7 +805,7 @@ def api_delete_all(request):
         from wama.common.utils.file_references import detach, usage
         in_use = usage(folder_path, folder=True)
         if in_use['count'] and not confirmed:
-            return JsonResponse(_in_use_payload(in_use, folder_path), status=409)
+            return JsonResponse(_in_use_payload(in_use, folder_path))
 
         deleted_count = 0
         deleted_folders = 0

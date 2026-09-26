@@ -252,8 +252,12 @@ class FileManagerGesturesTest(_TempMediaMixin, TestCase):
                 el, field = self._card_pointing_at(model, account, rel)
 
                 r, data = self._post('api_delete', {'path': rel})
-                self.assertEqual(409, r.status_code, data)
+                # 200 et non 409 : demander confirmation est le déroulement NORMAL du geste — un
+                # statut d'erreur ferait écrire une erreur dans la console du navigateur, que le
+                # filet nocturne surveille (relevé par le smoke du 2026-09-26).
+                self.assertEqual(200, r.status_code, data)
                 self.assertTrue(data['in_use'])
+                self.assertFalse(data.get('deleted'), 'rien ne doit être supprimé sans confirmation')
                 self.assertGreaterEqual(data['count'], 1)
                 self.assertTrue((Path(self.tmp) / rel).exists(),
                                 'sans confirmation, le fichier ne doit PAS partir')
@@ -285,7 +289,8 @@ class FileManagerGesturesTest(_TempMediaMixin, TestCase):
         folder = self._temp(account, 'lot')
 
         r, data = self._post('api_delete_all', {'path': folder})
-        self.assertEqual(409, r.status_code, data)
+        self.assertEqual(200, r.status_code, data)
+        self.assertTrue(data['in_use'])
         self.assertTrue((Path(self.tmp) / rel).exists())
 
         r, data = self._post('api_delete_all', {'path': folder, 'confirm': True})
