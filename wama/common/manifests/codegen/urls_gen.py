@@ -76,9 +76,10 @@ ROUTE_ALIASES = {
     # transcriber). Without them the generated twin of such an app got NO ⚙ opener (the
     # template only emits it when it finds this route) and a 501 stub as edit view: measured on
     # `describer_01`, whose ⚙ did nothing (« aucune app n'a déclaré d'ouvreur »).
-    # Same evening, the real apps were aligned on CONVENTIONS §3.1 (`update_settings`): only the
-    # transcriber (`save_settings`) and frozen twins still use another name — the aliases stay
-    # until they go (criterion `settings_route`, `tests_endpoints.ItemEditRouteConventionTest`).
+    # Same evening, the real apps were aligned on CONVENTIONS §3.1 (`update_settings`), the
+    # transcriber the next day (f38685b3): only frozen sandbox twins (copied views) still use
+    # another name — the aliases stay until they are regenerated (criterion `settings_route`,
+    # `tests_endpoints.ItemEditRouteConventionTest`).
     # ⚠ `update_settings` is ALSO the anonymizer's name for a GLOBAL settings route, without pk.
     # Hence `ITEM_ROUTES` below: for these, an alias counts only if its declared pattern takes
     # `<int:pk>` — the same trap as `clear_media` further down, closed by a rule, not by memory.

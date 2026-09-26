@@ -17113,8 +17113,14 @@ précédent de la passerelle Discord (même forme de supervision).
 
 **Trois incidents de ma part, consignés** :
 1. **Prod en 500 sur toute page authentifiée** (~19:55 → 20:09) : l'en-tête citait la route neuve
-   avant que gunicorn ne l'ait chargée (gabarit relu à chaud, routes non) — signalé par l'instance
+   avant que gunicorn ne l'ait chargée ~~(gabarit relu à chaud, routes non)~~ — signalé par l'instance
    transcriber, réparé par reload. Leçon mémoire `feedback_gabarit_lu_a_chaud_en_prod`.
+   ⚠ **Explication corrigée le 2026-09-26** (par une autre instance, à la récidive sur
+   `transcriber/index.html`) : Django met le chargeur de gabarits EN CACHE par worker ; l'effet
+   « à chaud » venait des workers recyclés (`max_requests`) qui relisaient le fichier, et
+   restaurer le fichier ne répare rien sans reload. ⚠⚠ Et chaque `kill -HUP` charge AUSSI le
+   travail NON COMMITÉ des autres instances présent dans l'arbre : j'en ai lancé plusieurs dans
+   cette session (24/09, après chaque livraison) — geste non neutre, à laisser à Fabien.
 2. **Génération d'images de Fabien ralentie** (2 → 250 s/pas, ~20:13-20:25, terminée) : ma boucle
    de gestes chargeait des pages pendant que FLUX tenait ~24 Go ; les workers gunicorn recyclés à
    20:17 y ont ouvert des contextes CUDA. Arrêtée sur signalement. Règle : **aucun geste UI pendant
@@ -17225,3 +17231,77 @@ WSL2) ; un serveur de dev 8011 lancé puis ARRÊTÉ ; le worker GPU a été tué
    partition « tests de robustesse ».
 4. Le plafond de résolution de LTX fp8 (768×432) reste codé dans la tâche.
 5. Pousser les commits.
+
+## §CLÔTURE — 2026-09-26, « PORTAGE (lots, modales, routes) + WORKER MORT » — ✅ CLOSE — 🔚 portage : `backend_routes` + `task_skeleton`
+
+Session ouverte le 22/09 (bac à sable, `make_batch_views`), close après revérification complète
+demandée par Fabien : *« qu'on a rien réinventé, que tout est bien aligné sur le fonctionnement de
+wama, qu'on a bien tout consigné et ajouté tous les tests nécessaires »*. Paliers : §PALIER 23/09
+« 10/10 », 24/09 « Quick wins », « describer_01 ⚙ », « describer de bout en bout », « Réglages d'un
+élément : une route, un nom », « Worker mort » (tous ci-dessus).
+
+**Décision de Fabien (26/09)** : la surveillance des workers est le mode retenu, **pas systemd**
+(`INFRA_WSL_VS_WINDOWS` point 5). `start_wama_dev.sh` raccordé (`dcc1208b`).
+
+**Revérification — ce qu'elle a trouvé et corrigé** :
+- **3 duplications de ma main** : helper de thread nu recopié dans `ui_smoke` (le motif existait
+  dans `_test_account_id`), parcours de l'URLconf écrit une 3ᵉ fois dans `tests_endpoints`,
+  identifiant français `cibles` (`app_sandbox`, compté au budget) → `d61eae21`.
+- **Rien d'autre de réinventé** : notifications = extension de la brique `notifications` du
+  registre + conception §2.3 de `WAMA_COLLABORATION` ; mort d'une tâche = preuve positive de
+  `process_control` ; supervision = précédent de la passerelle Discord ; découverte des modèles par
+  leur FORME = précédent `file_references.py`/`secret_crypto.py` ; ZIP texte et téléchargement
+  texte = briques `make_batch_views`/`compose_output_name`.
+- **4 trous de test fermés** (`863bc056`) : scripts de supervision (`tests_worker_watchdog`, 8),
+  ZIP de lot texte, sélecteurs de classe d'état retirée (la garde du 18/09 ne lisait que les
+  gabarits : c'est ce trou qui a figé describer et synthesizer).
+- **Consignation complétée** : `ROUTE §S` (3 leçons de génération), `WAMA_VERIFICATION` geste 13
+  (card mère figée, commun), explication corrigée de l'incident « prod en 500 » (le cache de
+  gabarits PAR worker, pas une relecture à chaud — correction d'une autre instance).
+- **La garde « exemption devenue inutile » a joué** : le transcriber s'est aligné sur
+  `update_settings` (`f38685b3`) et a dû retirer son exemption du test — `settings_route` 8/10.
+
+**Contrôles attendus au prochain /reprise** (mesurés le 26/09) :
+- Grille : **100 critères, 892/943** ; `settings_modal_cycle` 10/10 ; `settings_route` 8/10
+  (anonymizer FAUX, imager PARTIEL) ; `backend_routes` FAUX pour 7 apps, `task_skeleton` pour 5.
+- Tests du périmètre (32 modules, WSL2) : **834, 4 rouges tous au contrôle de langue** (code 2738
+  pour 2736, méthodes 1313 pour 1312) — ma part nette est **−1** (vérifié commit par commit :
+  `cle` retiré, `cibles` ajouté puis retiré) ; l'ajout restant vient de `816d3293` (`resultats`,
+  autre instance) et d'avant. 1 erreur de CHARGEMENT (`wama.avatarizer.tests` n'existe pas — ma
+  liste) ; 1 skip, hors de mes modules neufs (tous exécutés en entier).
+- `check_docs` : 2 cibles distinctes, aucune de moi (`wama-dev-ai/run_improve.py` citée par
+  `WAMA_LLM.md` ; `pipeline_utils.py:2118`, bloc imager vidéo `eae1486d`).
+- `doc_facts --check` : 3 blocs périmés, NON régénérés — ils figeraient le WIP d'autres instances
+  (`param_schema` dans `docs/dev/briques.md`) ; aucune de mes briques n'y figure.
+
+**Effets de bord sur le terrain partagé** :
+- `kill -HUP` de gunicorn lancé PLUSIEURS FOIS (22→24/09) : chacun a chargé aussi le travail non
+  commité des autres instances — à laisser à Fabien désormais.
+- Migration `common 0015_notification` appliquée à la base vivante ; le dossier `migrations/`
+  n'est pas versionné (clone frais : `makemigrations common`).
+- Surveillance des workers EN COURS (relancée par moi, détachée, après un `pkill` auto-
+  correspondant) ; le prochain `start_wama_prod.sh` la reprend.
+- 3 notifications réelles « worker studio arrêté » (test du 24/09, `kill -9`) ; une session
+  d'administration de test créée puis SUPPRIMÉE ; éléments de test montés puis retirés.
+- Jumelles `converter_01`, `describer_01` régénérées (`urls+views+templates`) ; `imager_01` laissée
+  (vues copiées).
+
+**Laissé de côté, nommément** :
+1. **SMTP** : aucun e-mail ne part (`WAMA_EMAIL_HOST` vide) — à remplir par Fabien.
+2. **anonymizer** : route d'édition sans identifiant, et `update_settings` GLOBAL à renommer
+   d'abord (`right_panel.js`, `update.js`).
+3. **imager** : fusionner la lecture et l'écriture des réglages (`settings/<id>/`) ; porter la
+   vidéo au squelette commun (aujourd'hui SANS garde-temps).
+4. Les workers gunicorn ouvrent des contextes CUDA en servant des pages (ralentissement de FLUX
+   le 24/09) — à mesurer.
+5. **Non gardés hors GPU** : compteurs vivants de la card mère (`queue-actions.js`), couverts par
+   `<app>.batch_processing` (GPU) seulement ; branchement `worker_ready` de `wama/celery.py`
+   (la brique qu'il appelle est testée, le signal non).
+6. Comptes de test (`@wama.local`) destinataires des notifications d'administration.
+7. Corpus `manifests/apps/` périmé au-delà des routes — ré-export complet sans WIP de schéma.
+8. Préférences type × canal des notifications (marche 5 de `WAMA_COLLABORATION`).
+
+🔚 **POINT D'ENTRÉE** : portage — `backend_routes` (anonymizer, avatarizer, composer, imager,
+reader, synthesizer, transcriber) puis `task_skeleton` (anonymizer, avatarizer, composer, imager,
+synthesizer), app par app, jumelle régénérée à chaque pas. **Pending système** : pousser 30+
+commits non poussés (`dev`).

@@ -293,9 +293,10 @@ urlpatterns = [
 > était suivie par le seul composer ; le même geste s'appelait `update`, `update_options`,
 > `update_settings` ou `save_settings`, sur cinq chemins. Alignés ce jour : describer,
 > avatarizer, synthesizer, converter, enhancer, reader ; l'imager garde `settings/<int:pk>/save/`
-> (sa LECTURE occupe `settings/<id>/` — fusionner les deux vues lèverait l'écart). Restent
-> transcriber (autre session) et anonymizer (route sans identifiant ; son `update_settings`
-> est une route GLOBALE, à renommer d'abord). Tenu par le critère `settings_route` et par
+> (sa LECTURE occupe `settings/<id>/` — fusionner les deux vues lèverait l'écart). ~~Restent
+> transcriber (autre session) et~~ Reste l'anonymizer (route sans identifiant ; son `update_settings`
+> est une route GLOBALE, à renommer d'abord) — le transcriber s'est aligné le 2026-09-25
+> (`f38685b3`, remesuré le 26/09). Tenu par le critère `settings_route` et par
 > `tests_endpoints.ItemEditRouteConventionTest`, qui échoue aussi quand une exemption devient
 > inutile. Les CORPS diffèrent encore (lecture JSON/FormData, refus RUNNING, relance, forme de
 > réponse) : les ramener au corps généré (`read_settings_payload` + `apply_item_settings`) est un
