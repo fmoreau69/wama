@@ -9,6 +9,13 @@ mimetypes.add_type('audio/aac', '.aac')
 mimetypes.add_type('audio/ogg', '.ogg')
 mimetypes.add_type('audio/flac', '.flac')
 mimetypes.add_type('audio/webm', '.weba')
+# `.mjs` : un module ES refusé par le contrôle MIME STRICT du navigateur ne se charge pas du
+# tout — et Windows ne connaît pas cette extension, donc `runserver` la sert en `text/plain`.
+# Mesuré le 2026-09-23 : `talkinghead.mjs` cassé sur le serveur de dev (et lui seul — en
+# production whitenoise sert juste), ce qui faisait échouer la garde « console propre » de
+# TOUT smoke navigateur : 9/10 gestes au lieu de 10/10, un faux rouge qui coûte une enquête
+# à chaque fois. Déclaré ici, comme les types audio ci-dessus : une fois, au démarrage.
+mimetypes.add_type('text/javascript', '.mjs')
 
 # Load environment variables from .env file
 load_dotenv()
