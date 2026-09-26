@@ -17426,7 +17426,12 @@ gardés dans UNE seule app**. Détail, défauts trouvés et restes : `WAMA_VERIF
   cours d'autres instances : `is_cloud`, `staff_emails`, `on_event`).
 
 **Vérifié** : chaque contrat et chaque app touchée sous venv_win (212 + 71 + 55 + 33 + 16 + … OK) ;
-suite WSL complète (common + 10 apps) : voir la ligne ajoutée ci-dessous. **Reload gunicorn
+suite WSL complète (common + 10 apps, 1997 tests) : **aucun contrat rouge** ; 9 rouges hors
+périmètre (notifications ×3 et `tool_api_lectures` = travail en cours d'autres instances ;
+commentaire de gabarit du 22/09 ; budgets et docs dérivées faussés par le WIP de l'arbre).
+**Sur HEAD** (worktree propre) : 175/176, budgets d'identifiants EXACTS (2735/133/1312) ; le
+seul rouge est `docs/dev/registres.md`, commité par un autre depuis un `WAMA_DATA_WORLD`
+non commité. **Reload gunicorn
 requis** : 9 vues de réglages et 4 vues de dépôt ont changé.
 🔚 **Restes** : ZIP de lot (converter seul) ; classes d'app dans `tests_intent_vision` ; les 8
 apps aux réglages utilisateur à la main et les 9 écarts modale/volet (décisions + portages) ;
