@@ -17768,6 +17768,22 @@ prouver moi-même — la pièce jointe qui arrive dans Discord.
 | `check_docs` | 2 cassées / **2 cibles distinctes**, les deux dans ce fichier-ci et appartenant à une autre instance — dont le pilote wama-dev-ai « prévu, pas né » que le skill de clôture documente en VARIANTE 3 |
 | `check_redundancy` | **62** trouvailles ; **zéro** dans mes fichiers de session (63 avant — mon aide de test débruitée) |
 | `check_identifier_language` | 4183 / 4180 — l'écart est le WIP d'autrui |
+
+### SUITE de clôture — ce que le rituel a ajouté APRÈS le bloc ci-dessus
+- **§2a bis a trouvé le seul livrable sans garde** : `SAM3Processor.concepts()`, du découpage de
+  chaîne PUR — rien ne justifiait son absence de test. 6 gardes ajoutées (`tests_sam3_concepts`),
+  dont la tolérance du « and » que les modèles écrivent spontanément et le prompt vide qui ne doit
+  pas produire un concept vide (son zéro masque ressemblerait à un échec de détection). Le test
+  PORTE la mesure qui fonde le contrat, pour qu'un suivant ne croie pas le découpage arbitraire.
+- **`/skill-forge` déroulé** (l'étape que le rituel signale comme la plus sautée) :
+  **`diagnostic-assistant`**, CANDIDAT n=1 — le geste qui a trouvé les neuf défauts. *Une réponse
+  d'assistant est une SORTIE de modèle, pas une trace d'exécution ; seul `tool_steps` est mesurable.*
+- **`jsonOrExplain` reste sans test Python**, et c'est déclaré : c'est du JS, attesté cette session
+  par parse V8 des fichiers servis + exécution avec un faux DOM (WAMA n'a pas de harnais JS —
+  `AGENTS.md §le JS aussi`). Son unique appelant a d'ailleurs été absorbé par la refonte d'une
+  autre instance, qui a unifié les deux surfaces de chat : la duplication que je signalais n'existe
+  plus.
+- Total : **13 commits**, toujours non poussés.
 | grille de conformité | 10 apps notées inchangées (converter 99 %, describer 99 %, enhancer 98 %…) ; **jumelle `describer_01` 75 % → 80 %** |
 | `manage.py check` | propre |
 
