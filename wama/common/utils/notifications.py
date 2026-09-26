@@ -13,15 +13,19 @@ logger = logging.getLogger(__name__)
 
 def notify_emails(recipients, subject, body, html=None):
     """Envoie un email à une liste d'ADRESSES (pas forcément des Users) — ex. modérateurs.
-    Fail-safe (jamais d'exception), transport piloté par settings. Point d'envoi commun."""
+    Fail-safe (jamais d'exception), transport piloté par settings. Point d'envoi commun.
+    Répondre à un mail de WAMA écrit au support (`WAMA_SUPPORT_EMAIL`) : l'expéditeur est un
+    no-reply."""
     try:
-        recipients = [e for e in (recipients or []) if e]
+        recipients = list(dict.fromkeys(e for e in (recipients or []) if e))
         if not recipients:
             return False
         from django.core.mail import EmailMultiAlternatives
         from django.conf import settings
+        support = getattr(settings, 'WAMA_SUPPORT_EMAIL', '') or ''
         msg = EmailMultiAlternatives(subject, body,
-                                     getattr(settings, 'DEFAULT_FROM_EMAIL', None), recipients)
+                                     getattr(settings, 'DEFAULT_FROM_EMAIL', None), recipients,
+                                     reply_to=[support] if support else None)
         if html:
             msg.attach_alternative(html, 'text/html')
         msg.send(fail_silently=True)
@@ -60,16 +64,45 @@ def infrastructure_admins():
             if accessible(u, 'app', 'model_manager')]
 
 
-def notify_admins(kind, subject, body, url=''):
-    """Prévient les administrateurs de l'infrastructure DANS WAMA et par e-mail. Fail-safe ;
-    rend (notifications créées, e-mail envoyé)."""
+#: Niveau de compte de chaque audience du staff, et le réglage de son adresse fonctionnelle.
+STAFF_AUDIENCES = {
+    'admin': ('admin', 'WAMA_ADMIN_EMAILS'),
+    'dev': ('developpeur', 'WAMA_DEV_EMAILS'),
+}
+
+
+def staff_emails(audiences=('admin', 'dev')):
+    """Adresses d'envoi pour une ou plusieurs audiences du staff : l'adresse FONCTIONNELLE
+    déclarée (`WAMA_ADMIN_EMAILS`, `WAMA_DEV_EMAILS` — alias wama-admin@ / wama-dev@) ; à défaut,
+    l'adresse de chaque compte actif de ce niveau (`user_tier`). Sans doublon."""
+    from django.conf import settings
+    from django.contrib.auth import get_user_model
+    from wama.accounts.permissions import user_tier
+    out = []
+    for audience in audiences:
+        tier, setting = STAFF_AUDIENCES[audience]
+        declared = list(getattr(settings, setting, []) or [])
+        if declared:
+            out += declared
+            continue
+        out += [u.email for u in get_user_model().objects.filter(is_active=True).exclude(email='')
+                if user_tier(u) == tier]
+    return list(dict.fromkeys(out))
+
+
+def notify_admins(kind, subject, body, url='', audiences=('admin', 'dev')):
+    """Prévient le staff technique DANS WAMA (chaque compte qui administre l'infrastructure) et
+    par e-mail (adresses fonctionnelles des `audiences`, cf. `staff_emails`). Une alerte
+    d'exploitation (worker mort) concerne admins ET développeurs. Fail-safe ; rend
+    (notifications créées, e-mail envoyé)."""
     try:
         admins = infrastructure_admins()
+        emails = staff_emails(audiences)
     except Exception as e:  # pragma: no cover
         logger.warning("notify_admins : destinataires illisibles (%s)", e)
         return 0, False
     created = notify_in_app(admins, kind, subject, body, url)
-    sent = notify_emails([a.email for a in admins], f"[WAMA] {subject}", body)
+    sent = notify_emails(emails, f"[WAMA] {subject}", body)
     return created, sent
 
 
