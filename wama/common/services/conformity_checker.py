@@ -1277,16 +1277,16 @@ def _f6_prompt(fn):
 def _catalog_entry(f: _AppFiles):
     # Une jumelle hérite de la déclaration de sa source : `inject_sandbox_catalog` la clone
     # dans `APP_CATALOG` au runtime (cf. `_declaring_app`).
-    declarant = _declaring_app(f.app)
-    herite = f" (hérité de {declarant})" if declarant != f.app else ''
-    block = _registry_block(declarant, APP_REGISTRY_PY)
+    declaring = _declaring_app(f.app)
+    inherited = f" (hérité de {declaring})" if declaring != f.app else ''
+    block = _registry_block(declaring, APP_REGISTRY_PY)
     if block is None:
         return False, "absente d'APP_CATALOG (identité non déclarée)"
     missing = [k for k in ('input_types', 'output_types', 'input_extensions')
                if not re.search(rf"'{k}'\s*:", block)]
     if missing:
-        return 'partial', f"APP_CATALOG['{declarant}'] : manquent {', '.join(missing)}"
-    return True, f"{APP_REGISTRY_PY} APP_CATALOG['{declarant}'] (E/S typées + extensions){herite}"
+        return 'partial', f"APP_CATALOG['{declaring}'] : manquent {', '.join(missing)}"
+    return True, f"{APP_REGISTRY_PY} APP_CATALOG['{declaring}'] (E/S typées + extensions){inherited}"
 
 
 # ── F3 — preview « PENDANT » (backend câblé ⟷ frontend consommateur) ─────────────
@@ -1593,12 +1593,12 @@ def _tool_api_item_id(f: _AppFiles):
 def _access_policy(f: _AppFiles):
     # `inject_sandbox_access` injecte la jumelle dans DEFAULT_APP_ACCESS au runtime : c'est la
     # déclaration de sa SOURCE qui fait foi (cf. `_declaring_app`).
-    declarant = _declaring_app(f.app)
-    herite = f" (hérité de {declarant})" if declarant != f.app else ''
+    declaring = _declaring_app(f.app)
+    inherited = f" (hérité de {declaring})" if declaring != f.app else ''
     m = re.search(r'DEFAULT_APP_ACCESS\s*=\s*\{(.*?)\n\}',
                   _wama_text('accounts/permissions.py'), re.S)
-    if m and re.search(rf"'{declarant}'\s*:", m.group(1)):
-        return True, f"accounts/permissions.py DEFAULT_APP_ACCESS['{declarant}']{herite}"
+    if m and re.search(rf"'{declaring}'\s*:", m.group(1)):
+        return True, f"accounts/permissions.py DEFAULT_APP_ACCESS['{declaring}']{inherited}"
     return False, "absente du seed DEFAULT_APP_ACCESS (gating d'app non déclaré)"
 
 
