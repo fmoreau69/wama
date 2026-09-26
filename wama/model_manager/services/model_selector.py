@@ -105,15 +105,20 @@ def _rank_key(pool, family=None):
     pas, quel que soit son mérite — et poser un premier indice mesuré sur un YOLO aurait suffi à
     fausser toute la sélection vision (constaté le 2026-08-12 en préparant la boucle qualité).
 
-    Règle : on ne compare des indices QUE si tout le lot en a un ; sinon on retombe sur `vram_gb`
-    pour TOUT LE MONDE. On ne mélange jamais les deux. `NULL` reste « inconnu », pas « mauvais ».
+    Règle : on ne mélange JAMAIS deux échelles, et `NULL` reste « inconnu », pas « mauvais ».
 
     Étage BENCHMARK (2026-08-19, échelle des signaux : a priori < benchmark tiers < mesure
-    interne) : même règle de lot, un étage au-dessus — si TOUT le lot porte un
-    `benchmark_index` (mesure tierce Artificial Analysis, `sync_benchmarks`), c'est lui qui
-    ordonne ; sinon l'a priori si tout le lot en a un ; sinon la VRAM. Trois échelles,
-    jamais mélangées — une couverture benchmark PARTIELLE retombe donc sur l'a priori,
-    ce qui est l'incitation à compléter l'appariement, pas un bug.
+    interne) : le sous-indice de domaine, sinon le `benchmark_index` tiers COMPARABLE
+    (Artificial Analysis, `sync_benchmarks`), sinon l'a priori, sinon la VRAM.
+
+    ⚠ CE PARAGRAPHE DISAIT « si TOUT le lot le porte … sinon on retombe pour TOUT LE MONDE »
+    jusqu'au 2026-09-26 — c'est FAUX depuis. Un étage se juge désormais sur le SOUS-ENSEMBLE
+    qu'il couvre (`_quality_scalars`) : un seul modèle non mesuré ne fait plus tomber le lot
+    entier sur la taille. Il perd sa place au classement (dernier ici), il ne la fait plus
+    perdre aux autres. La phrase retirée ajoutait que la couverture partielle était « une
+    incitation à compléter l'appariement, pas un bug » : elle l'était en intention, elle
+    faisait tirer le PLUS GROS en pratique (mesuré sur le tirage dev — qwen3.6:35b préféré à
+    qwen3.8 qui le bat de 16 points en coding et pèse 6 Go de moins).
 
     Effet sur l'existant : nul tant que `sync_benchmarks` n'a pas tourné (benchmark_index
     NULL partout → étage inerte) ; ensuite, les lots 100 % appariés (LLM Ollama) passent
@@ -127,8 +132,12 @@ def _rank_key(pool, family=None):
     # le module qui écrit l'échelle connaît son sens), sinon a priori, sinon VRAM.
     scalars, _ = _quality_scalars(pool, family)
 
+    # ⚠ `.get` depuis le 2026-09-26 : l'échelle ne couvre plus que le sous-ensemble
+    # COMPARABLE, donc un modèle hors échelle n'a pas de valeur. Il passe DERNIER (`-inf`)
+    # plutôt que de faire tomber tout le lot d'un étage — ce qu'il provoquait avant.
+    # Dernier, pas « nul » : il reste choisi s'il est le seul candidat.
     def sort_key(m):
-        return (m.is_loaded, scalars[id(m)])
+        return (m.is_loaded, scalars.get(id(m), float('-inf')))
     return sort_key
 
 
@@ -170,33 +179,108 @@ def _quality_weight(value) -> float:
     return max(0.0, min(100.0, v)) / 100.0
 
 
+def is_cloud(model) -> bool:
+    """Ce modèle s'exécute-t-il CHEZ UN TIERS ? Lit le champ DÉCLARÉ (`AIModel.execution`),
+    jamais un proxy.
+
+    ⚠ Le proxy tentant — `vram_gb == 0` — est FAUX : il confond « je n'ai pas mesuré sa
+    VRAM » (inconnu, donc prudence) et « il n'en consomme aucune ici » (distant, donc hors
+    de cet axe). C'est cette confusion qui faisait d'un modèle distant le PIRE du lot sur
+    les deux axes à la fois (cf. `_quality_scalars` et le terme de coût de `_best_by_vram`).
+    """
+    from wama.model_manager.models import EXECUTION_CLOUD
+    return getattr(model, 'execution', None) == EXECUTION_CLOUD
+
+
 def _quality_scalars(pool, family=None):
     """Valeur de QUALITÉ scalaire par modèle — l'ÉCHELLE DES SIGNAUX, en un seul domicile.
 
-    Même règle de lot que partout (a priori < benchmark tiers < mesure interne, jamais
-    deux échelles mélangées) : sous-indice de domaine si TOUT le lot le porte, sinon
-    benchmark comparable, sinon a priori, sinon la VRAM en PROXY assumé. `_rank_key`
-    (le tri) et le score pondéré (le curseur) lisent tous deux ce barème.
+    Même règle qu'avant sur le FOND (a priori < benchmark tiers < mesure interne, jamais
+    deux échelles mélangées) : sous-indice de domaine, sinon benchmark comparable, sinon
+    a priori, sinon la VRAM en PROXY assumé. `_rank_key` (le tri) et le score pondéré
+    (le curseur) lisent tous deux ce barème.
 
-    Retour : ({id(m): valeur}, proxy_vram) — le drapeau dit si la « qualité » n'est que
-    la taille (utile aux appelants pour doser leur confiance).
+    ⚠⚠ CE QUI CHANGE LE 2026-09-26 (demande de Fabien) : UN ÉTAGE SE JUGE SUR LE
+    SOUS-ENSEMBLE QU'IL COUVRE, plus sur « tout le lot ou rien ».
+
+    Le « tout ou rien » visait juste — ne jamais normaliser deux échelles ensemble — mais il
+    punissait le lot entier pour UN modèle non mesuré, et le repli est la VRAM, c'est-à-dire
+    la TAILLE. Mesuré ce jour sur le tirage de développement :
+
+        qwen3.8:latest    coding 58,2   17 Go     ← le meilleur, et le plus léger
+        qwen3.6:35b       coding 41,9   23 Go     ← celui qui était tiré
+        albert:gemma-4-31b-it   coding 43,4
+        albert:gpt-oss-120b     coding ABSENT     ← à lui seul, il faisait tomber l'étage
+
+    Un seul score manquant → repli VRAM → « le meilleur » devenait « le plus gros », ce que
+    la docstring de `_best_by_vram` dément elle-même (un MoE : la qualité d'un 36B au coût
+    d'un 3B). *Un lot ne se juge pas au modèle qu'on n'a pas mesuré.*
+
+    On compare donc CEUX QUI PARTAGENT L'ÉCHELLE, et le pool effectif du classement est
+    restreint à eux (l'appelant lit les clés du dict) : un modèle non mesuré ne gagne pas
+    par défaut, et ne fait plus perdre les autres. L'étage benchmark garde sa double
+    condition — mesuré ET échelle unique — appliquée au sous-ensemble mesuré.
+
+    ⚠ LE PROXY VRAM NE COUVRE QUE LE LOCAL. Un modèle distant n'a pas de taille ici ; le
+    classer à 0 en faisait le pire du lot, alors que sa VRAM est nulle par NATURE et non par
+    médiocrité. Il sort donc de cet étage — c'est la distinction local/distant demandée par
+    Fabien le 26/09, désormais lue sur le champ `execution` et non devinée d'un `vram_gb`.
+
+    Retour : ({id(m): valeur} sur le sous-ensemble COMPARABLE, proxy_vram) — le drapeau dit
+    si la « qualité » n'est que la taille (utile aux appelants pour doser leur confiance).
     """
     def _family_score(m):
         return ((getattr(m, 'benchmark_meta', None) or {}).get('family_scores') or {}).get(family)
 
     from .benchmark_sync import benchmarks_comparable, orderable_value
-    family_usable = bool(family) and bool(pool) and all(
-        _family_score(m) is not None for m in pool)
-    tous_benchmarkes = benchmarks_comparable(pool)
-    tous_qualifies = bool(pool) and all(m.quality_index is not None for m in pool)
 
-    if family_usable:
-        return {id(m): _family_score(m) for m in pool}, False
-    if tous_benchmarkes:
-        return {id(m): orderable_value(m) for m in pool}, False
-    if tous_qualifies:
-        return {id(m): m.quality_index for m in pool}, False
-    return {id(m): (m.vram_gb or 0) for m in pool}, True
+    batch = list(pool)
+    if not batch:
+        return {}, False
+
+    if family:
+        covered = [m for m in batch if _family_score(m) is not None]
+        if covered:
+            return {id(m): _family_score(m) for m in covered}, False
+
+    # Étage benchmark TIERS : le sous-ensemble mesuré doit AUSSI partager une seule échelle
+    # (un Elo et un Intelligence Index ne se classent pas ensemble — `benchmarks_comparable`).
+    measured = [m for m in batch if getattr(m, 'benchmark_index', None) is not None]
+    if measured and benchmarks_comparable(measured):
+        return {id(m): orderable_value(m) for m in measured}, False
+
+    # Étage RANG CENTILE — la lecture INTER-ÉCHELLES (branché le 2026-09-26, demande de Fabien).
+    # `benchmark_sync.percentile_rank` a été écrit le 01/09 pour exactement cette question
+    # (« ramener toute valeur entre 0 et 100 pour pouvoir comparer »), il est calculé et STOCKÉ
+    # à chaque synchro… et la sélection ne le lisait pas. Mesuré le 26/09 : **55 modèles
+    # mesurés sur 55 en portent un**, sur 11 échelles — dont les distants, qu'Albert note en
+    # `aa_intelligence_index` et Anthropic en `arena_elo_text`. Sans cet étage, un lot mixte
+    # local+Albert+Anthropic tombait d'un cran, et le cran d'après est la TAILLE.
+    #
+    # ⚠ Il vient APRÈS la valeur brute, jamais avant : à échelle unique, le score exact dit
+    # plus que le rang. Il ne perd personne au passage — le rang est écrit en même temps que
+    # `benchmark_index`, donc il couvre exactement le même sous-ensemble.
+    # ⚠⚠ SES DEUX RÉSERVES, écrites dans sa docstring et à redire partout où il sert :
+    # il est ORDINAL (90ᵉ et 80ᵉ centile ne veulent pas dire « 10 % meilleur »), et il dépend
+    # de la POPULATION de son banc, qui contient des modèles fermés qu'on ne fait pas tourner —
+    # être médian chez AA n'est pas être médian chez soi. C'est un classement raisonnable entre
+    # mondes, pas une mesure commune : c'est pourquoi il ne PRIME pas sur l'échelle unique.
+    ranked = [m for m in batch
+              if ((getattr(m, 'benchmark_meta', None) or {}).get('percentile_rank')) is not None]
+    if ranked:
+        return ({id(m): m.benchmark_meta['percentile_rank'] for m in ranked}, False)
+
+    rated = [m for m in batch if m.quality_index is not None]
+    if rated:
+        return {id(m): m.quality_index for m in rated}, False
+
+    sized = [m for m in batch if not is_cloud(m) and m.vram_gb]
+    if sized:
+        return {id(m): m.vram_gb for m in sized}, True
+
+    # Rien de comparable dans ce lot : aucun ne prime, l'appelant départagera autrement
+    # (résidence, ordre du catalogue). Mieux vaut l'égalité qu'un classement inventé.
+    return {id(m): 0 for m in batch}, True
 
 
 def _minmax(values: dict) -> dict:
@@ -280,16 +364,45 @@ def _best_by_vram(models, budget_gb: Optional[float], family=None, quality_inten
             return min(models, key=lambda m: (m.vram_gb or 0))
         pool = fit
 
-    q = _minmax(_quality_scalars(pool, family)[0])
-    # Coût = VRAM MESURÉE, normalisée sur les seuls modèles qui en ont une ; inconnue → 1.0.
-    mesures = {id(m): m.vram_gb for m in pool if m.vram_gb}
-    c = _minmax(mesures)
+    # L'échelle ne couvre que les modèles COMPARABLES entre eux (2026-09-26) : le classement
+    # se fait sur eux, pas sur le lot entier. Un modèle que rien ne mesure ne gagne pas par
+    # défaut — et il ne fait plus tomber les autres d'un étage.
+    values, _ = _quality_scalars(pool, family)
+    rankable = [m for m in pool if id(m) in values] or pool
+    q = _minmax(values)
+
+    # Coût = VRAM. Trois cas, et on ne les confond plus (Fabien, 26/09) :
+    #   • LOCAL mesuré        → sa VRAM ;
+    #   • LOCAL jamais mesuré → PIRE coût du lot (garde du 02/09 : Audio8, `vram_gb=0` faute
+    #     de mesure, battait Kokoro (0,5 mesuré) sur « rapide » par accident) ;
+    #   • DISTANT             → **0** : il ne prend rien sur CETTE carte. Ce n'est pas une
+    #     faveur, c'est la mesure.
+    #
+    # ⚠⚠ LE SÉLECTEUR N'ARBITRE PAS local/distant — **c'est l'utilisateur qui le définit**
+    # (`UserProfile.cloud_policy` : 100 % local / cloud si WAMA est saturé / cloud autorisé),
+    # appliqué EN AMONT par `allowed_cloud_keys` → `select_model(cloud_keys=…)`. Un distant
+    # qui arrive jusqu'ici a DÉJÀ été autorisé par son propriétaire : lui opposer ici une
+    # préférence pour le local trancherait une seconde fois, ailleurs, une question déjà
+    # tranchée. (J'avais écrit cette préférence le matin même — retirée le jour même.)
+    #
+    # ⏳ POURQUOI `cost_tier` N'EST PAS LU ICI (question tranchée le 26/09). Le coût propre
+    # d'un distant EST déclaré (`AIModel.cost_tier` : free / subscription / metered, posé par
+    # source dans `external_sources`) et n'a aujourd'hui aucun consommateur qui l'ORDONNE. Le
+    # brancher dans ce score demanderait d'inventer l'ordre ET des poids, et surtout de mettre
+    # des euros et des gigaoctets dans un même min-max — l'équivalence que l'échelle des
+    # signaux interdit. Or WAMA arbitre déjà « où partent mes données, à quel prix » à
+    # l'ADMISSION, pas au classement : `cloud_policy` (l'utilisateur) et `hosting == sovereign`
+    # (`dev_cloud_keys`) décident QUI entre dans le lot. C'est là qu'un arbitrage de coût a son
+    # domicile — pas dans un second lieu qui divergerait du premier.
+    costs = {id(m): (0.0 if is_cloud(m) else m.vram_gb)
+             for m in pool if is_cloud(m) or m.vram_gb}
+    c = _minmax(costs)
 
     def score(m):
         cout = c.get(id(m), 1.0)
-        return w * q[id(m)] + (1.0 - w) * (1.0 - cout) + 1e-6 * q[id(m)]
+        return w * q.get(id(m), 0.0) + (1.0 - w) * (1.0 - cout) + 1e-6 * q.get(id(m), 0.0)
 
-    return max(pool, key=score)
+    return max(rankable, key=score)
 
 
 def select_model(
