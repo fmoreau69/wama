@@ -113,14 +113,16 @@ class DiffermentFauteDeVramTest(TestCase):
     def test_ressources_insuffisantes_l_item_ATTEND_et_le_worker_est_rendu(self):
         from wama.common.utils.task_skeleton import _differer_faute_de_vram
         T, Retry = self._task()
+        # Cas (b) : TIENT sur la carte vide, pas maintenant. `fits_alone` est FIXÉ : sans lui, le
+        # verdict dépendait de la carte de l'hôte — 24,0 Go sur une carte de 23,99 Go tombait
+        # dans le refus d'emblée (cas (a), 20/09), rouge relevé le 2026-09-26.
         with mock.patch('wama.common.services.resource_governor.effective_free_gb',
-                        return_value=1.0):
-            # 20 Go et non 24 : la carte réelle mesure 23,99 Go, et depuis le 20/09 un besoin
-            # plus grand que la carte ENTIÈRE est refusé d'emblée (cas (a)) — 24,0 testait ce
-            # cas-là au lieu de l'attente (rouge sur l'hôte à GPU, relevé le 2026-09-26).
+                        return_value=1.0), \
+                mock.patch('wama.common.services.resource_governor.fits_alone',
+                           return_value=True):
             with self.assertRaises(Retry):
                 _differer_faute_de_vram(T, self._ctx(), self.item, self.model,
-                                        self.item.pk, 'synthesizer', 20.0, 'error_message')
+                                        self.item.pk, 'synthesizer', 24.0, 'error_message')
         self.item.refresh_from_db()
         self.assertEqual(self.item.status, 'AWAITING_RESOURCES')
         # ⚠ Ce n'est PAS une erreur : on ne laisse pas de trace d'échec sur une attente.
