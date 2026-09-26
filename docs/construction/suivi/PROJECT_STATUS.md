@@ -17127,3 +17127,59 @@ précédent de la passerelle Discord (même forme de supervision).
 supervision de production (INFRA point 5 — systemd n'est pas actif dans ce WSL) ; configurer le
 SMTP ; porter la vidéo de l'imager au squelette (garde-temps) ; que les workers gunicorn n'ouvrent
 pas de contexte CUDA en servant une page (à mesurer, lié à l'incident 2).
+
+
+## §CLÔTURE — 2026-09-26 (nuit), « TRANSCRIBER : évaluation, alignement, modes d'écriture, portage 90/96, filtre de parole ; profils = plan aligné » — ✅ LIVRÉ, ⚠ prod transcriber en 500 jusqu'au reload
+
+**Périmètre** (session ouverte le 24/09) : Transcriber + briques communes touchées pour lui. Commits,
+dans l'ordre : `09670b7d` `1f5b224e` alignement A/B · `df905971` outil Bornes · `62653d19` geste
+`batch_extract` · `444f0576` brique `playhead_follow` (mode Live du cam_analyzer porté) · `7337db86`
+modes d'écriture · `816d3293` jeton de résultat typé par la sortie · `26fd7191` chemin média au
+studio · `c8164ebd` M10 (`WAMA_QUALITE`) · `c999cf80` configurations d'évaluation · `43117c0a`
+Qwen3-ASR indisponible dit · `33521ebf` risque du prétraitement · `a6f27c01` squelette commun +
+modèle gardé chargé · `f38685b3` modale ⚙ au cycle commun · `f50c5d72` `vad_mode` + brique
+`speech_activity` · `12353dd4` plan des profils + 2 gardes · `b6d3af59` docs dérivées 153→159 ·
+`66fd4c23`→`9e55e981` test VAD indépendant de la carte. **Aucun poussé.**
+
+**Mesures de la session** : grille transcriber **90/96** (87 au départ) ; rouges restants
+`quality_intent`, `model_options_catalog`, `backend_routes`. Sonde du filtre de parole rejouée sur
+les deux enregistrements de calage : champ lointain 0,354/0,697 = **0,51** → rejette ; proche → garde
+(marge plus mince que le seuil 0,6 : un 3ᵉ enregistrement dira s'il tient). Geste
+`transcriber.settings` sur serveur éphémère : 9 champs, `vad_mode` fidèle.
+
+**Profils de réglages — décision de Fabien : RETIRÉ, plan consigné (`ROADMAP §22.5`).** Un modèle
+commun `SettingsProfile` a été construit puis retiré avant commit : c'était un 2ᵉ registre
+d'instances, alors que `WAMA_APP_CONVENTIONS §2bis.3` et A′ placent les profils dans la
+MÉDIATHÈQUE (`SystemAsset`/`UserAsset`, une nature). Deux relevés trop étroits l'ont précédé, les
+deux relevés par Fabien. Constats acquis : les préréglages de qualité du converter SONT ses profils
+système (positions du curseur `quality_intent`) ; ses débits audio `160k`/`224k` sont hors du
+select de son schéma ; `ConversionProfile` = 0 ligne en base.
+
+**Trois incidents de ma part** :
+1. ⚠⚠ **`/transcriber/` en HTTP 500 en prod depuis ~00:30** — `index.html` a cité une route neuve
+   (`profile_list`) que gunicorn ne connaissait pas. Fichier restauré, mais les workers gardent le
+   gabarit EN CACHE (la note mémoire disait l'inverse : corrigée). **Répare : `kill -HUP` — laissé
+   à Fabien** (le reload charge aussi le travail non commité des autres instances).
+2. La table `common_settingsprofile` a été appliquée puis défaite sur la base live (vide).
+3. Mes deux migrations retirées avaient été appliquées à la **base de test PARTAGÉE** par un run
+   `--keepdb` : réparée par l'inverse exact (DDL d'origine de `converter 0001`, une transaction) —
+   `tests_endpoints` + converter + transcriber : 81 OK après réparation.
+
+**Tests (WSL, `venv_linux`, transcriber + converter + common + studio + cam_analyzer)** : 1954,
+**10 rouges** avant corrections ; après : doc dérivées ✓ (54 OK), `tests_endpoints` ✓ (base de test
+réparée), `gpu_safe_mode` ✓ (rouge depuis `608fc7c0`, 20/09). **Restent, pas à moi** :
+- `tests_identifier_language` ×4 — code 2738/2736, noms de tests 1313/1312 : travail NON COMMITÉ
+  d'autres instances (aucun de mes fichiers ne porte d'identifiant relevé) ;
+- `tests_tool_api_lectures.AddItemToMediaLibraryTest` — `tool_api.py` modifié, non commité, par une
+  autre instance ;
+- `tests_check_templates.DepotReelTests` — commentaire multi-ligne de
+  `common/_new_item_card_v4.html:175`, posé par `4cb36454` (22/09).
+`check_docs` : 2 références cassées (`WAMA_LLM.md`, un bloc antérieur de ce fichier), hors périmètre.
+
+🔚 **POINT D'ENTRÉE** : après le reload de Fabien, rejouer `run_nightly_tests --app transcriber
+--with-gpu` (18 gestes UI tombés sur le 500 cette nuit ; `wired`, suite et chargement ASR ✓), puis
+une vraie card en `vad_mode=auto` sur un enregistrement en champ lointain.
+**File** : chantier profils en médiathèque (`ROADMAP §22.5`, 5 marches — la catégorie de la nature
+d'abord) · grille transcriber `quality_intent` / `model_options_catalog` / `backend_routes` ·
+débits audio du converter · générateur `views_gen` (bouchons `profile_*`).
+**Pendings système** : `kill -HUP` gunicorn (Fabien) · push de la session.
