@@ -17538,3 +17538,41 @@ du MODÈLE (`derive_from_model`) : y ajouter le cadrage supposerait des champs d
 préférer en `user_settings`, qui est fait pour une préférence sans item. Reste à trancher par
 Fabien : le geste de recadrage (deux curseurs distance/hauteur + réinitialiser, appliqués en
 direct, enregistrés au relâchement) et s'il vit aussi dans le profil.
+
+## §PALIER — 2026-09-23 (soir), « POINTER AU LIEU DE COPIER » (D22 puis D23)
+
+> Décision de Fabien : *« oui, je pense qu'il faut passer au pointage. Si le fichier est déjà
+> quelque part dans l'arbre de l'utilisateur, on le pointe depuis l'application. »* Commit
+> **`5d168e07`**, vérifié sur HEAD en worktree (174 tests). Détail : `MEDIA_STORAGE_TIERING`
+> §Cible (domicile de la bascule) + D22/D23 — ce bloc ne le recopie pas.
+
+**Deux chantiers, et l'ordre est la raison pour laquelle rien n'a été perdu.** D22 d'abord : la
+garde de partage ne comparait que le MÊME modèle et le MÊME champ. Mesuré sur les données RÉELLES :
+6 lignes désignent `users/1/anonymizer/input/biovam.mp4` (3 cards anonymizer + **3 jobs converter**),
+et `UserAsset #1` partage `Voix_Fab.wav` avec `CustomVoice #1` — pendant que `delete_custom_voice`
+effaçait le fichier **sans aucune garde**. Le pointage aurait généralisé ce partage : il fallait
+donc élargir la règle avant, pas après. ⭐ *Une garde qui ne regarde que sa propre famille ne voit
+pas le partage qui compte.*
+
+**D23 — le pointage.** `media_paths.reference_or_copy` : déjà sous `users/<uid>/` du MÊME
+utilisateur → pointé ; sinon copié (poste, dossier connecté, URL, arbre d'autrui). ⭐ Ce qui a rendu
+la bascule indolore, et qu'il fallait MESURER avant de l'entreprendre : **un `FileField` est déjà
+un pointeur** — il stocke un chemin relatif à `MEDIA_ROOT`, et l'aperçu commun sert `/media/<ce
+chemin>`. ⚠ Deux choses trouvées en chemin : `anonymizer.process_media` RECOMPOSAIT le chemin
+enregistré (la 3ᵉ route du disque, celle du 22/09), et cam_analyzer doit garder sa copie — il lit
+ses entrées PAR DOSSIER, l'exception est écrite AU SITE.
+
+**Preuves** : 23 contrats génériques (8 neufs), **deux contre-épreuves à blanc** (balayage global
+neutralisé → le partage rougit ; `in_user_home` aveuglé → le pointage rougit), 370 tests verts sur
+le périmètre, et le **geste réel au navigateur** sur le code neuf (serveur de dev éphémère 8011,
+gunicorn non touché) : « Envoyer vers » converter / describer / synthesizer, 3/3.
+⚠ Deux fautes de ma main, relevées par les contrôles : un test qui avait cessé de mesurer (il
+écartait le cas devenu normal) et 6 identifiants français dans mes tests (budgets de langue
+tenus après renommage).
+
+**🔚 Reste** : la réorganisation de l'arbre utilisateur (dossier `imports/` visible en lecture
+seule, trois dossiers réels) est DIFFÉRÉE — décision de Fabien, elle se posera à la mise en
+production ; un dossier CACHÉ est écarté (des octets invisibles sont ce que ce dépôt passe son
+temps à réparer), et l'arbre continue de s'afficher DEPUIS LE DISQUE, le registre n'ajoutant que
+le sens (« utilisé par N cards ») — le disque est le seul inventaire complet, et le seul index de
+pointeurs existant dérive déjà. cam_analyzer reste à part (lecture par dossier, RTMaps).
