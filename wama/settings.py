@@ -491,7 +491,9 @@ EMAIL_USE_TLS = _os.environ.get('WAMA_EMAIL_USE_TLS', '1') == '1'
 EMAIL_USE_SSL = _os.environ.get('WAMA_EMAIL_USE_SSL', '0') == '1'
 if EMAIL_USE_SSL:
     EMAIL_USE_TLS = False
-DEFAULT_FROM_EMAIL = _os.environ.get('WAMA_EMAIL_FROM', 'WAMA <no-reply@univ-eiffel.fr>')
+# Expéditeur PROPRE à WAMA (Fabien, 2026-09-26) : `no-reply@univ-eiffel.fr` est partagé par
+# d'autres services de l'université — un mail de WAMA doit se reconnaître comme tel.
+DEFAULT_FROM_EMAIL = _os.environ.get('WAMA_EMAIL_FROM', 'WAMA <wama-noreply@univ-eiffel.fr>')
 
 # Modération des nouveaux comptes (login LDAP = toute l'université → gate).
 WAMA_MODERATE_NEW_USERS = os.environ.get('WAMA_MODERATE_NEW_USERS', '1') == '1'
