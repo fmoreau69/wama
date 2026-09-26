@@ -17377,3 +17377,25 @@ doc développeur générée.
 🔚 **POINT D'ENTRÉE** : relancer le serveur MCP dev (effet de bord 1) puis trancher les leviers
 3/5 de latence, ou attendre la réponse DSI pour le HTTPS si la démo approche. **Pendings
 système** : commits non poussés sur `dev`.
+
+## §SUITE — 2026-09-26, « PORTAGE + WORKER MORT » après clôture : l'envoi d'e-mails — 🔄 en attente de la DSI
+
+Complète le point 1 (« SMTP ») du §CLÔTURE « PORTAGE (lots, modales, routes) + WORKER MORT ».
+- Serveur donné par Fabien : `partage.univ-eiffel.fr`, **465**, SSL/TLS implicite. Django ne
+  combine pas SSL et STARTTLS → variable `WAMA_EMAIL_USE_SSL` (`aa6e54f6`) ; le 587 était un
+  défaut générique du code (`668a15cd`, 30/06), recopié dans `.env` le 19/08 (`bb9e9aa5`).
+- **Mesuré sans rien envoyer** (EHLO / MAIL FROM / RCPT TO / RSET) : le serveur REFUSE l'envoi
+  non authentifié depuis la machine WAMA (`554 5.7.1 Client host rejected`). Il faut un compte
+  FONCTIONNEL WAMA — jamais un compte personnel (Fabien) — ou une IP autorisée par la DSI.
+- Adresses retenues par Fabien, toutes sous le préfixe `wama-` (`no-reply@` et `wama@` jugés trop
+  génériques) : compte d'envoi ET expéditeur `wama-noreply@` (défaut de `settings.py` aligné,
+  `4d5566ec`) ; alias `wama-moderation@`, `wama-admin@`, `wama-dev@`, `wama-support@`.
+- Branchés (`6cc91c55`) : `WAMA_ADMIN_EMAILS`/`WAMA_DEV_EMAILS` reçoivent les alertes
+  d'exploitation (`notify_admins`, repli sur chaque compte du niveau), `WAMA_SUPPORT_EMAIL` est le
+  Reply-To de tous les mails. Tests `StaffAddressesTest` (4) ; `tests_notifications` 11 verts.
+  `.env` rempli (hors mot de passe), `.env.example` documente le rôle de USER / PASSWORD / FROM.
+
+🔚 **En attente** : que la DSI crée `wama-noreply@` (mot de passe → `WAMA_EMAIL_PASSWORD`) et les
+quatre alias ; puis refaire la sonde sans envoi, relancer la pile, `manage.py sendtestemail`.
+Jusque-là, tout envoi échoue en silence (`fail_silently=True`). **Pending système** : 33 commits
+non poussés sur `dev`.
