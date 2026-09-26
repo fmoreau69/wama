@@ -61,6 +61,45 @@ class NotificationBrickTest(TestCase):
         self.assertIsNone(other.read_at)
 
 
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class StaffAddressesTest(TestCase):
+    """Functional staff addresses (2026-09-26, Fabien: aliases wama-admin@ / wama-dev@ /
+    wama-support@): mails go to the declared alias, else to each account of the tier."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.admin = User.objects.create_superuser('staff_admin', 'boss@test.local', 'x')
+        self.dev = User.objects.create_user('staff_dev', 'dev@test.local', 'x')
+        self.dev.profile.account_tier = 'developpeur'
+        self.dev.profile.save()
+        User.objects.create_user('staff_member', 'member@test.local', 'x')
+
+    def test_without_aliases_each_account_of_the_tier_is_written_to(self):
+        from wama.common.utils.notifications import staff_emails
+        self.assertEqual(['boss@test.local'], staff_emails(('admin',)))
+        self.assertEqual(['dev@test.local'], staff_emails(('dev',)))
+
+    @override_settings(WAMA_ADMIN_EMAILS=['wama-admin@test.local'],
+                       WAMA_DEV_EMAILS=['wama-dev@test.local'])
+    def test_declared_aliases_replace_the_personal_addresses(self):
+        notify_admins('worker_died', 'Worker gpu arrêté', 'détail')
+        self.assertEqual(['wama-admin@test.local', 'wama-dev@test.local'], mail.outbox[0].to)
+        # In-app notifications still reach each ACCOUNT: an alias has no inbox in WAMA.
+        self.assertTrue(Notification.objects.filter(recipient=self.admin).exists())
+
+    @override_settings(WAMA_SUPPORT_EMAIL='wama-support@test.local')
+    def test_replies_go_to_support(self):
+        from wama.common.utils.notifications import notify_emails
+        notify_emails(['someone@test.local', 'someone@test.local'], 'Sujet', 'Corps')
+        self.assertEqual(['wama-support@test.local'], mail.outbox[0].reply_to)
+        self.assertEqual(['someone@test.local'], mail.outbox[0].to)   # no duplicate
+
+    def test_no_support_address_means_no_reply_to(self):
+        from wama.common.utils.notifications import notify_emails
+        notify_emails(['someone@test.local'], 'Sujet', 'Corps')
+        self.assertEqual([], mail.outbox[0].reply_to)
+
+
 class WorkerDiedCommandTest(TestCase):
     """`manage.py worker_died`, called by `scripts/worker_watchdog.sh` after a death."""
 

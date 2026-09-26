@@ -496,6 +496,12 @@ DEFAULT_FROM_EMAIL = _os.environ.get('WAMA_EMAIL_FROM', 'WAMA <no-reply@univ-eif
 # Modération des nouveaux comptes (login LDAP = toute l'université → gate).
 WAMA_MODERATE_NEW_USERS = os.environ.get('WAMA_MODERATE_NEW_USERS', '1') == '1'
 WAMA_MODERATOR_EMAILS = [e for e in os.environ.get('WAMA_MODERATOR_EMAILS', '').split(',') if e.strip()]
+# Adresses FONCTIONNELLES du staff (2026-09-26, décision de Fabien : alias wama-admin@ / wama-dev@).
+# Vides → repli sur l'adresse de chaque compte du niveau concerné (`notifications.staff_emails`).
+WAMA_ADMIN_EMAILS = [e.strip() for e in os.environ.get('WAMA_ADMIN_EMAILS', '').split(',') if e.strip()]
+WAMA_DEV_EMAILS = [e.strip() for e in os.environ.get('WAMA_DEV_EMAILS', '').split(',') if e.strip()]
+# Adresse de RÉPONSE de tous les mails (l'expéditeur est un no-reply) ; vide → pas de Reply-To.
+WAMA_SUPPORT_EMAIL = os.environ.get('WAMA_SUPPORT_EMAIL', '').strip()
 if EMAIL_HOST:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 else:
