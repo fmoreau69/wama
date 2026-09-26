@@ -636,3 +636,54 @@ class VoiceGroupKeysTest(TestCase):
         self.assertIn('mine', groups)
         self.assertEqual([], groups['mine']['options'])
         self.assertNotIn('shared', groups, "un groupe de voix partagées vide ne se montre pas")
+
+
+class VoicePagesServeTheirGroupsTest(TestCase):
+    """Les DEUX pages qui offrent des voix les reçoivent de la brique commune, en JSON valide.
+
+    Test GÉNÉRIQUE et non par app (`WAMA_VERIFICATION §8`) : le contrat est le même des deux
+    côtés — la vue injecte `voice_groups_json`, le gabarit le passe en `optionsResolver` au
+    champ généré (`options_source='voices'`). Il n'existait AUCUN test rendant ces pages : le
+    jour où la vue cesse de fournir la variable, le gabarit replie sur `[]` (`|default`) et la
+    page reste debout, muette, avec un sélecteur qui n'a plus que ce que la recharge async lui
+    ramènera. Un défaut sans erreur — exactement ce qu'un test doit attraper.
+
+    Ajouter une app qui sert des voix = ajouter sa route ici.
+    """
+    PAGES = (('synthesizer', 'synthesizer:index'), ('avatarizer', 'avatarizer:index'))
+
+    def setUp(self):
+        from django.contrib.auth.models import Group, User
+        from django.test import Client
+        from wama.accounts.permissions import GROUP_PREFIX
+        self.user = User.objects.create_user('voice_pages_user', password='x')
+        for role in ('communication', 'recherche'):
+            group, _ = Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')
+            self.user.groups.add(group)
+        self.client = Client()
+        self.client.force_login(self.user)
+
+    def test_each_voice_page_injects_groups_that_parse(self):
+        """⚠ La mesure porte sur le CONTEXTE, pas sur un nom de variable JS.
+
+        Première rédaction : chercher `var voiceGroups` dans le corps rendu. Vert au
+        synthesizer, rouge à l'avatarizer — dont le gabarit a été réécrit depuis et nomme la
+        sienne `window.AVATARIZER_VOICE_GROUPS`. Le test mesurait une CONVENTION DE GABARIT,
+        propre à chaque page, au lieu du contrat commun : la vue fournit `voice_groups_json`,
+        et la page l'injecte. S'arrimer au premier, c'est casser au prochain portage sans
+        qu'aucune régression n'ait eu lieu.
+        """
+        import json
+        from django.urls import reverse
+        for app, route in self.PAGES:
+            with self.subTest(app=app):
+                page = self.client.get(reverse(route))
+                self.assertEqual(200, page.status_code, f'{app} : page non rendue')
+                served = page.context['voice_groups_json']
+                groups = json.loads(served)
+                keys = [g.get('key') for g in groups]
+                # `default` et `mine` sont servis même sans voix clonée — c'est le contrat.
+                self.assertIn('default', keys, app)
+                self.assertIn('mine', keys, app)
+                # …et le JSON atteint vraiment la page (injecté dans le vide, il ne sert rien).
+                self.assertIn(served, page.content.decode('utf-8'), f'{app} : non injecté')
