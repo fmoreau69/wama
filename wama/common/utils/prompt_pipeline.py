@@ -158,6 +158,39 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
                     result['prompt'] = enriched
                     result['enriched'] = True
 
+        # ── Hook A bis : ADAPTATION « concept » — la phrase devient des CONCEPTS ──
+        # ⚠⚠ CE HOOK MANQUAIT, et c'est ce qui rendait l'anonymisation SAM3 vide (mesuré le
+        # 2026-09-23). Le skill `anonymizer-detection.md` existait depuis des semaines, il était
+        # RÉSOLU par `resolve_skill`… et jamais appliqué : Hook A ci-dessus est gardé par
+        # `kind == 'generative'`, donc un target `concept` ne pouvait PAS l'atteindre, même en
+        # déclarant `enrich: True`. Le prompt partait donc tel quel au modèle de segmentation —
+        # « Detect faces and license plates. » → 0 masque, aucune erreur, image inchangée.
+        #
+        # DEUX différences assumées avec l'enrichissement génératif :
+        #   • `allow_shorter=True` : adapter un concept, c'est RACCOURCIR (voir `enrich_generative`) ;
+        #   • PAS d'interrupteur maître `WAMA_PROMPT_ENRICH`. L'enrichissement génératif est un
+        #     confort qu'on peut couper ; l'adaptation en concepts est ce SANS QUOI le modèle ne
+        #     trouve rien. La couper rendrait la détection muette au lieu d'économiser.
+        # Sans skill résolu, on ne fait RIEN (jamais le system prompt génératif sur un concept).
+        if kind == 'concept' and enrich:
+            from .prompt_enrichment import enrich_generative
+            from .prompt_skills import resolve_skill
+            sk_name, sk_text = resolve_skill(app=app, domain=domain or model_type, kind=kind)
+            if sk_text:
+                # `console` n'est PAS transmis : le message générique d'`enrich_generative`
+                # dit « prompt enrichi … pour une meilleure génération », ce qui décrit
+                # l'inverse de ce qui se passe ici (on réduit, et il s'agit de détection).
+                adapted = enrich_generative(result['prompt'], language='en', glossary=glossary,
+                                            timeout=timeout,
+                                            skill_name=sk_name, skill_text=sk_text,
+                                            allow_shorter=True)
+                if adapted and adapted != result['prompt']:
+                    if console:
+                        console(f"🎯 Concepts de détection : « {adapted} » "
+                                f"(le modèle n'ancre qu'un groupe nominal par concept).")
+                    result['prompt'] = adapted
+                    result['enriched'] = True
+
         # ── Hook : compréhension des fichiers de référence (§10.B) ──
         # Data-gated : ne fait rien si aucun fichier fourni (no-op tant qu'aucune app ne déclare
         # `reference_field` dans PROMPT_TARGETS). Replie un contexte de grounding dans le prompt.

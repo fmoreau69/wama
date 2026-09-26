@@ -9,6 +9,7 @@ Anonymize class, enabling text prompt-driven segmentation and blurring.
 
 import os
 import gc
+import re
 import cv2
 import torch
 import numpy as np
@@ -239,6 +240,48 @@ class SAM3Processor(DetectionBackend):
         if self.image_model is None or self.image_processor is None:
             self.load_model('image')
 
+    def concepts(self):
+        """Le prompt découpé en CONCEPTS — SAM3 n'en segmente qu'un par appel.
+
+        ⚠⚠ MESURÉ le 2026-09-23 sur une photo réelle, même image, même modèle chargé une
+        fois, seul le prompt changeant :
+
+            'face'                                        → 3 masques (0.93, 0.89, 0.88)
+            'faces'                                       → 3 masques
+            'human face'                                  → 3 masques
+            'all human faces'                             → 0 masque   ← le quantificateur
+            'face and person'                             → 1 masque (0.60, dégradé)
+            'faces and license plates'                    → 0 masque   ← la conjonction
+            'all human faces and vehicle license plates'  → 0 masque
+            'Detect faces and license plates.'            → 0 masque   ← ce qui était envoyé
+
+        SAM3 ancre UN groupe nominal simple. Une conjonction, un quantificateur (« all ») ou
+        un verbe (« detect », « blur ») le font échouer SILENCIEUSEMENT : 0 masque, aucune
+        erreur, une image de sortie identique à l'entrée. C'est ce qui a rendu l'anonymisation
+        du 23/09 vide sans que rien ne le signale.
+
+        Le contrat est donc : **une LISTE de concepts**, séparés par des virgules (ou par
+        « and », toléré parce que c'est ce que les modèles écrivent spontanément), chacun
+        segmenté à part et les masques réunis. C'est déjà la forme du cam_analyzer, dont les
+        prompts SAM3 sont une liste itérée un par un.
+        """
+        parts = re.split(r'\s*[,;\n]\s*|\s+and\s+|\s+et\s+', self.text_prompt or '')
+        return [p.strip().strip('.') for p in parts if p and p.strip().strip('.')]
+
+    def _segment(self, pil_image):
+        """Masques de TOUS les concepts du prompt sur une image — un appel SAM3 par concept."""
+        masks, scores = [], []
+        for concept in self.concepts():
+            state = self.image_processor.set_image(pil_image)
+            output = self.image_processor.set_text_prompt(state=state, prompt=concept)
+            found = output.get("masks", [])
+            raw_scores = output.get("scores")
+            values = list(raw_scores) if raw_scores is not None else []
+            for i, mask in enumerate(found):
+                masks.append(mask)
+                scores.append(values[i] if i < len(values) else 1.0)
+        return masks, scores
+
     def process(self, **kwargs):
         """
         Main processing entry point.
@@ -300,20 +343,18 @@ class SAM3Processor(DetectionBackend):
         self.output_path = kwargs.get('output_path', self._get_output_path(self.input_path))
 
         try:
-            # Set image in processor
-            inference_state = self.image_processor.set_image(pil_image)
+            # UN appel SAM3 PAR CONCEPT (cf. `concepts()`) : le modèle n'ancre pas une
+            # conjonction. Les masques de tous les concepts sont réunis ici.
+            masks, scores = self._segment(pil_image)
 
-            # Get segmentation from text prompt
-            output = self.image_processor.set_text_prompt(
-                state=inference_state,
-                prompt=self.text_prompt
-            )
-
-            masks = output.get("masks", [])
-            scores = output.get("scores", [])
-
-            logger.info(f"[SAM3] Found {len(masks)} masks for prompt")
-            print(f"[SAM3] Found {len(masks)} masks for prompt")
+            concepts = self.concepts()
+            logger.info(f"[SAM3] Found {len(masks)} masks for {len(concepts)} concept(s): {concepts}")
+            print(f"[SAM3] Found {len(masks)} masks for {len(concepts)} concept(s): {concepts}")
+            if not masks:
+                # Un prompt que SAM3 n'ancre pas rend 0 masque SANS erreur, et la sortie est
+                # alors identique à l'entrée : le dire, sinon l'échec est invisible.
+                logger.warning(f"[SAM3] AUCUN masque — rien ne sera flouté. Concepts: {concepts}")
+                print(f"[SAM3] AUCUN masque — rien ne sera flouté. Concepts: {concepts}")
 
             # Apply blur to detected regions
             blurred_image = cv_image.copy()
@@ -402,17 +443,8 @@ class SAM3Processor(DetectionBackend):
                 pil_frame = Image.fromarray(frame_rgb)
 
                 try:
-                    # Set image in processor
-                    inference_state = self.image_processor.set_image(pil_frame)
-
-                    # Get segmentation from text prompt
-                    output = self.image_processor.set_text_prompt(
-                        state=inference_state,
-                        prompt=self.text_prompt
-                    )
-
-                    masks = output.get("masks", [])
-                    scores = output.get("scores", [])
+                    # UN appel SAM3 PAR CONCEPT, comme pour l'image (cf. `concepts()`).
+                    masks, scores = self._segment(pil_frame)
 
                     # Apply blur to detected regions
                     blurred_frame = frame.copy()

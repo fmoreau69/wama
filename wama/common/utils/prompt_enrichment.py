@@ -111,7 +111,8 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
                       provider: str = 'ollama', glossary=None, console=None,
                       timeout: int = 60, skill_name: str = None, skill_text: str = None,
                       max_input_chars: int = _MAX_INPUT_CHARS,
-                      keep_alive: str = _KEEP_ALIVE, contract: str = None) -> str:
+                      keep_alive: str = _KEEP_ALIVE, contract: str = None,
+                      allow_shorter: bool = False) -> str:
     """
     Étoffe un prompt génératif. Retourne l'enrichi, ou `prompt` inchangé si rien à faire / erreur.
 
@@ -167,7 +168,12 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
         return prompt
     enriched = _clean(out)
     # Garde-fou anti-dégénérescence : l'enrichi doit ajouter du détail, pas raccourcir/effondrer.
-    if not enriched or len(enriched) < len(text):
+    # ⚠ `allow_shorter` LÈVE ce garde-fou, et c'est indispensable pour un prompt de DÉTECTION :
+    # y « enrichir » veut dire RÉDUIRE (« Detect faces and license plates. » → « face, license
+    # plate »), parce que le modèle de segmentation n'ancre qu'un groupe nominal simple
+    # (mesuré, cf. `SAM3Processor.concepts`). Sans ce drapeau, l'adaptation correcte serait
+    # rejetée par une règle écrite pour l'enrichissement génératif.
+    if not enriched or (len(enriched) < len(text) and not allow_shorter):
         return prompt
     _cache_set(ckey, enriched)
     if console:
