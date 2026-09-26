@@ -1842,7 +1842,9 @@ def search_web(user, query: str, max_results: int = 5) -> dict:
         return {'error': "Recherche web réservée aux utilisateurs identifiés."}
     try:
         from wama.common.utils.web_search import search_web as _chercher
-        resultats = _chercher(query, max_results=max_results)
+        # `user` décide du MOTEUR (sa préférence de profil, sinon le défaut d'instance) et
+        # porte sa propre clé — règle commune des clés personnelles (2026-09-15).
+        resultats = _chercher(query, max_results=max_results, user=user)
         return {'results': resultats, 'count': len(resultats)}
     except Exception as e:
         return {'error': f'Recherche indisponible : {e}'}

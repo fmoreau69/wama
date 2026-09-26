@@ -24,7 +24,9 @@ urlpatterns = [
     path('profile/layout/', views.layout_update, name='profile-layout'),
     path('profile/inspector-autoplay/', views.inspector_autoplay_update, name='profile-inspector-autoplay'),
     path('profile/cloud-policy/', views.cloud_policy_update, name='profile-cloud-policy'),
-    # Clés d'API personnelles des fournisseurs LLM (chiffrées) — ROADMAP §8d Phase 3, étape 4a.
+    # Moteur de recherche web de l'assistant (2026-09-26) — préférence sur le défaut d'instance.
+    path('profile/search-engine/', views.search_engine_update, name='profile-search-engine'),
+    # Clés d'API personnelles (LLM et moteurs de recherche, chiffrées) — ROADMAP §8d Phase 3, 4a.
     path('profile/api-keys/', views.api_keys_list, name='profile-api-keys'),
     path('profile/api-keys/<slug:slug>/', views.api_key_save, name='profile-api-key-save'),
     path('manage/app-access/', views.app_access_matrix, name='app-access-matrix'),

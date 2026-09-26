@@ -225,6 +225,23 @@ def _is_ldap_user(request):
     return 'LDAPBackend' in backend
 
 
+def _search_engine_options(user) -> list:
+    """[{slug, label, usable, needs_key, usage}] — de quoi rendre le choix ET dire POURQUOI un
+    moteur ne peut pas être choisi. Un select qui grise sans raison est un cul-de-sac."""
+    try:
+        from wama.common.search_engines import declared_engines, needs_key, usable_slugs
+    except Exception:
+        return []
+    usable = set(usable_slugs(user))
+    return [{
+        'slug': s.key,
+        'label': s.label,
+        'usable': s.key in usable,
+        'needs_key': needs_key(s.key),
+        'usage': s.usage,
+    } for s in declared_engines()]
+
+
 @login_required
 def profile_view(request):
     """Unified profile page: user info + preferred language + API token."""
@@ -252,6 +269,10 @@ def profile_view(request):
         'rattachement': rattachement_institutionnel(profile),
         'cloud_policies': UserProfile.CLOUD_POLICIES,
         'secret_storage_available': storage_available(),
+        # Moteurs de recherche : l'inventaire vient du REGISTRE (sources `recherche` ayant un
+        # adaptateur), jamais d'une liste écrite au gabarit — ajouter un moteur ne touche
+        # donc ni cette vue ni la page.
+        'search_engines': _search_engine_options(request.user),
         # 2026-09-15 (Fabien) : TOUT ce qui touche aux clés — jeton d'API, fournisseurs LLM,
         # connecteurs de la médiathèque — vit dans la section Paramètres du volet droit, pour ne
         # pas allonger la page. Médias et Actions n'y ont rien à montrer.
@@ -270,11 +291,13 @@ def api_keys_list(request):
 @require_POST
 def api_key_save(request, slug):
     """POST {api_key} : enregistre (chiffrée) ou efface (vide) la clé personnelle d'un fournisseur."""
-    from .api_keys import is_llm_source
+    # Toute source à clé personnelle, plus les seuls LLM (2026-09-26) : les moteurs de
+    # recherche posent leur clé par le MÊME écran et la MÊME route.
+    from .api_keys import is_keyed_source
     from .models import UserApiKey
     from wama.common.utils.secret_crypto import SecretStorageUnavailable
 
-    if not is_llm_source(slug, request.user):
+    if not is_keyed_source(slug, request.user):
         return JsonResponse({'error': 'Fournisseur introuvable'}, status=404)
     try:
         data = json.loads(request.body)
@@ -494,6 +517,32 @@ def notifications_update(request):
     profile.notify_on = notify_on
     profile.save(update_fields=['notify_email', 'notify_on'])
     return JsonResponse({'success': True, 'notify_email': profile.notify_email, 'notify_on': profile.notify_on})
+
+
+@login_required
+@require_POST
+def search_engine_update(request):
+    """AJAX {engine} : le moteur de recherche web de CET utilisateur ('' = celui de l'instance).
+
+    Validé contre les moteurs UTILISABLES par lui — pas contre la liste complète : choisir un
+    moteur dont on n'a pas la clé produirait une préférence qui échoue à chaque recherche, et
+    l'utilisateur n'aurait aucun moyen de comprendre pourquoi.
+    """
+    from wama.common.search_engines import usable_slugs
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    engine = (data.get('engine') or '').strip()
+    if engine and engine not in usable_slugs(request.user):
+        return JsonResponse({'error': "Moteur indisponible : inconnu, ou sa clé n'est pas "
+                                      "posée sur votre profil."}, status=400)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.search_engine = engine
+    profile.save(update_fields=['search_engine'])
+    return JsonResponse({'success': True, 'engine': engine})
 
 
 @login_required

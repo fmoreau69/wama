@@ -284,7 +284,31 @@ SOURCES: tuple[ExternalSource, ...] = (
         kind='audit', doc='docs/construction/suivi/PROJECT_STATUS.md'),
     ExternalSource(
         'duckduckgo', 'DuckDuckGo (HTML)', 'https://html.duckduckgo.com/html/',
-        "Recherche web de l'assistant — point d'entrée sans clé", kind='recherche'),
+        "Recherche web de l'assistant, sans clé — ⚠ HORS SERVICE depuis le 2026-09-26 : le "
+        "moteur répond un défi anti-robot au lieu de résultats", kind='recherche'),
+    # ── Moteurs de recherche à CLÉ (décision de Fabien, 2026-09-26) ──────────────────────────
+    # Même forme que les connecteurs de la médiathèque : sources COMMUNES, clé de CHACUN au
+    # profil. Le choix du moteur est une PRÉFÉRENCE (profil) sur un défaut d'instance ; les
+    # options de ce choix se dérivent d'ICI, jamais d'une liste écrite ailleurs.
+    ExternalSource(
+        'exa', 'Exa', 'https://api.exa.ai',
+        "Recherche NEURONALE (par le sens) pour l'assistant — 20 000 requêtes/mois offertes, "
+        "sans carte bancaire ; le plus généreux des moteurs à clé mesurés le 26/09",
+        kind='recherche', user_key=True, api_key_env='EXA_API_KEY',
+        api_key_help_url='https://dashboard.exa.ai/api-keys', api_key_label='Clé API Exa'),
+    ExternalSource(
+        'staan', 'Staan (Qwant + Ecosia)', 'https://api.staan.ai/v2',
+        "Index de recherche EUROPÉEN (coentreprise Qwant + Ecosia, Paris) — données sous "
+        "juridiction UE, 1 000 requêtes/mois offertes puis 2 €/1 000 ; API ouverte en "
+        "libre-service depuis 2026",
+        kind='recherche', user_key=True, api_key_env='STAAN_API_KEY',
+        api_key_help_url='https://staan.ai/', api_key_label='Clé API Staan'),
+    ExternalSource(
+        'searxng', 'SearXNG (instance du labo)', 'http://127.0.0.1:8888',
+        "Méta-moteur AUTO-HÉBERGÉ, sans clé — n'a PAS d'index propre : il interroge les mêmes "
+        "moteurs, depuis l'IP du labo (mesuré en juillet 2026 : Google et Brave y opposent un "
+        "défi, seul DuckDuckGo répond). Vie privée, pas fiabilité",
+        kind='recherche', scope=LOCAL, setting='SEARXNG_URL', env='SEARXNG_URL'),
 
     # ── Banques de médias — les connecteurs de la médiathèque (décision de Fabien, 22/09) ────
     # Sources COMMUNES, clé de CHACUN (`user_key`) : aucune clé d'instance, donc pas

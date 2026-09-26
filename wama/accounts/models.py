@@ -93,6 +93,19 @@ class UserProfile(models.Model):
         max_length=24, choices=CLOUD_POLICIES, default='local_only',
         verbose_name="Usage des modèles cloud",
     )
+    # ── Moteur de recherche web de l'assistant (décision de Fabien, 2026-09-26) ────────
+    # DEUX étages, comme partout : un défaut d'INSTANCE (`settings.WAMA_SEARCH_ENGINE`) et
+    # cette préférence, qui le surcharge. Vide = « celui de l'instance » — et non « aucun » :
+    # un champ vide doit vouloir dire l'inertie, jamais un refus.
+    # ⚠ AUCUN `choices=` : les moteurs sont les sources `kind='recherche'` du registre commun
+    # qui ont un adaptateur (`common/search_engines`). Les figer ici ferait deux inventaires
+    # qui divergent — et une MIGRATION à chaque moteur ajouté, pour un choix d'affichage.
+    search_engine = models.CharField(
+        max_length=32, blank=True, default='',
+        verbose_name="Moteur de recherche web",
+        help_text="Vide = celui de l'instance. Un moteur à clé n'est proposé que si vous "
+                  "avez posé la vôtre ci-dessous.",
+    )
     # ── Défauts de NIVEAUX du RAG (jalon 14, WAMA_MEMORY.md §7ter) ────────────────────
     # DEUX préférences, et non une : le niveau auquel MES ajouts partent, et les niveaux
     # rappelés quand l'IA cherche. Les confondre obligerait à partager pour pouvoir lire.
