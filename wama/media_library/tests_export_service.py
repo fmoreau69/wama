@@ -246,17 +246,42 @@ class ProvenanceEtRetraitTest(TestCase):
         self.assertEqual(d['in_library']['audio_music']['asset_id'], out['asset_id'])
         self.assertIn('audio_music', d['labels'])
 
-    def test_le_RETRAIT_supprime_la_copie_et_JAMAIS_la_sortie_de_l_app(self):
+    def test_adding_MOVES_the_file_into_the_library_and_the_card_FOLLOWS(self):
+        """Décision de Fabien (2026-09-27) : *« un source_file ajouté à la médiathèque doit aller dans
+        la médiathèque »* — et les autres le POINTENT. Ce test disait l'inverse jusqu'à cette date
+        (« la copie rangée doit partir avec l'asset ») : il décrivait fidèlement l'old_rel
+        comportement, où ranger un résultat en faisait un SECOND exemplaire.
+        """
         from pathlib import Path
+        sortie_avant = Path(self.gen.audio_output.path)
         out = export_item_to_library(self.moi, 'composer', self.gen.pk, asset_type='audio_music')
-        copie = Path(UserAsset.objects.get(pk=out['asset_id']).file.path)
-        sortie = Path(self.gen.audio_output.path)
+        asset = UserAsset.objects.get(pk=out['asset_id'])
+        rangee = Path(asset.file.path)
+
+        self.assertTrue(rangee.exists(), 'le source_file doit être DANS la médiathèque')
+        self.assertIn('/media_library/', asset.file.name.replace('\\', '/'))
+        self.assertFalse(sortie_avant.exists(), 'déplacé, donc plus aucun octet à l’old_rel endroit')
+        self.gen.refresh_from_db()
+        self.assertEqual(asset.file.name, self.gen.audio_output.name,
+                         'la card DÉSIGNE le source_file là où il est (aucune copie)')
+
+    def test_REMOVING_gives_the_file_back_to_its_card_instead_of_destroying_it(self):
+        """L'inverse exact de l'ajout. ⚠ Le source_file ne doit surtout PAS partir avec l'asset : il
+        appartient au résultat de la card, que le rangement n'a fait que déplacer."""
+        from pathlib import Path
+        origin = self.gen.audio_output.name
+        out = export_item_to_library(self.moi, 'composer', self.gen.pk, asset_type='audio_music')
+        rangee = Path(UserAsset.objects.get(pk=out['asset_id']).file.path)
+
         r = self.client.post(self._url(), {'action': 'remove', 'asset_type': 'audio_music'})
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.json()['removed'], 1)
         self.assertFalse(UserAsset.objects.filter(pk=out['asset_id']).exists())
-        self.assertFalse(copie.exists(), "la copie rangée doit partir avec l'asset")
-        self.assertTrue(sortie.exists(), "le résultat de l'app ne doit JAMAIS être touché")
+        self.gen.refresh_from_db()
+        self.assertEqual(origin, self.gen.audio_output.name, 'la card retrouve son chemin')
+        self.assertTrue(Path(self.gen.audio_output.path).exists(),
+                        'le résultat de l’app ne doit JAMAIS être perdu')
+        self.assertFalse(rangee.exists(), 'plus rien ne doit rester dans la médiathèque')
 
     def test_le_retrait_rend_l_element_de_nouveau_exportable(self):
         """Le drapeau d'app (composer) suit : sinon sa route refuserait « Déjà exporté » à vie."""
@@ -458,6 +483,75 @@ class GardienAntiCopieTest(TestCase):
                         and n.func.value.id == 'shutil'):
                     coupables.append(f'{vues.parent.name}/views.py:{n.lineno}')
         self.assertEqual(coupables, [], f'copie manuelle vers la médiathèque : {coupables}')
+
+
+class AddedFileLivesInTheLibraryTest(TestCase):
+    """La règle de Fabien (2026-09-27) : *« de manière générale, un source_file ajouté à la médiathèque
+    doit aller dans la médiathèque »* — et les autres le POINTENT. Elle vaut pour les DEUX portes,
+    qui recopiaient toutes les deux : ranger le résultat d'une card, et ajouter un source_file de son
+    dossier temporaire. Éprouvé ici sur la seconde (la première l'est par `ProvenanceEtRetrait`).
+    """
+
+    def setUp(self):
+        import shutil
+        import tempfile
+
+        from django.test import override_settings
+        self.tmp = tempfile.mkdtemp()
+        reglage = override_settings(MEDIA_ROOT=self.tmp)
+        reglage.enable()
+        self.addCleanup(reglage.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.moi = _utilisateur('moi-ajout-mediatheque')
+
+    def _witness(self, nom='wama_temoin_ajout.wav'):
+        from pathlib import Path
+        rel = f'users/{self.moi.id}/temp/{nom}'
+        chemin = Path(self.tmp) / rel
+        chemin.parent.mkdir(parents=True, exist_ok=True)
+        chemin.write_bytes(b'RIFF0000WAVEfmt ')
+        return rel, chemin
+
+    def test_a_file_from_the_temp_folder_is_MOVED_into_the_library(self):
+        from pathlib import Path
+
+        from wama.tool_api import add_to_media_library
+        from wama.media_library.models import UserAsset
+
+        rel, source = self._witness()
+        files_before = len([p for p in Path(self.tmp).rglob('*') if p.is_file()])
+
+        out = add_to_media_library(self.moi, rel, 'voice', name='Témoin déplacé')
+        self.assertNotIn('error', out, out)
+        asset = UserAsset.objects.get(pk=out['id'])
+
+        self.assertIn('/media_library/', asset.file.name.replace('\\', '/'),
+                      'le source_file doit vivre DANS la médiathèque')
+        self.assertTrue((Path(self.tmp) / asset.file.name).is_file())
+        self.assertFalse(source.exists(), 'déplacé : plus rien à l’old_rel endroit')
+        files_after = len([p for p in Path(self.tmp).rglob('*') if p.is_file()])
+        self.assertEqual(files_before, files_after,
+                         'aucun octet dupliqué : le compte de fichiers ne change pas')
+
+    def test_the_file_managers_index_FOLLOWS_the_moved_file(self):
+        """⚠ Le repointage ne saute PAS `UserFile` : cet index dérive sinon (20 lignes mortes
+        mesurées sur lui). C'est l'asymétrie voulue de la brique — il n'est pas compté comme
+        « utilisateur » du source_file, mais il est tenu à jour quand le source_file bouge."""
+        from wama.filemanager.models import UserFile
+        from wama.media_library.models import UserAsset
+        from wama.tool_api import add_to_media_library
+
+        rel, _source = self._witness('wama_temoin_indexe.wav')
+        line = UserFile.objects.create(user=self.moi, original_name='wama_temoin_indexe.wav')
+        line.file.name = rel
+        line.save()
+
+        out = add_to_media_library(self.moi, rel, 'voice', name='Témoin indexé')
+        self.assertNotIn('error', out, out)
+        asset = UserAsset.objects.get(pk=out['id'])
+        line.refresh_from_db()
+        self.assertEqual(asset.file.name, line.file.name,
+                         'l’index du gestionnaire doit désigner le source_file là où il est')
 
 
 class GeneriquePourTOUTESLesAppsTest(TestCase):

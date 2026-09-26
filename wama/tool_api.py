@@ -1786,7 +1786,6 @@ def add_to_media_library(user, file_path: str, asset_type: str,
         return err
     try:
         import mimetypes
-        from django.core.files import File
         from wama.media_library.models import (
             ALLOWED_EXTENSIONS, ASSET_TYPES, UserAsset,
         )
@@ -1803,13 +1802,20 @@ def add_to_media_library(user, file_path: str, asset_type: str,
         if UserAsset.objects.filter(user=user, name=asset_name, asset_type=asset_type).exists():
             return {'error': f'Un asset « {asset_name} » de ce type existe déjà.'}
 
-        with open(str(src), 'rb') as fh:
-            asset = UserAsset.objects.create(
-                user=user, name=asset_name, asset_type=asset_type,
-                file=File(fh, name=src.name), description=description,
-            )
+        # ⭐ DÉPLACEMENT, plus une copie (décision de Fabien, 2026-09-27 : *« un fichier ajouté à la
+        # médiathèque doit aller dans la médiathèque »*) — même brique que le rangement d'une sortie
+        # d'app, donc la même règle et le même repointage des porteurs. Le fichier vient du dossier
+        # de l'utilisateur (`_resolve_user_path` l'a confiné) : il change de place chez lui.
+        from wama.media_library.services import move_into_library
+
+        size = src.stat().st_size
+        asset = UserAsset.objects.create(user=user, name=asset_name, asset_type=asset_type,
+                                        description=description)
+        if move_into_library(asset, src, src.name) is None:
+            asset.delete()
+            return {'error': 'Ajout impossible : le fichier n’a pas pu rejoindre la médiathèque.'}
         asset.mime_type = mimetypes.guess_type(src.name)[0] or ''
-        asset.file_size = src.stat().st_size
+        asset.file_size = size
         asset.save(update_fields=['mime_type', 'file_size'])
         return {'id': asset.id, 'name': asset.name, 'asset_type': asset.asset_type}
     except Exception as e:

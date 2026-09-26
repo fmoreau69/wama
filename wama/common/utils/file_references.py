@@ -153,10 +153,14 @@ def repoint(old_path, new_path, *, folder=False) -> dict:
         name = _normalized(name)
         return new + name[len(old):] if folder else new
 
+    # ⚠ ASYMÉTRIE VOULUE (2026-09-27) : le repointage ne SAUTE PAS `filemanager.UserFile`, alors que
+    # `direct_references`/`usage` l'écartent. Les deux questions sont différentes : « qui UTILISE ce
+    # fichier ? » ne doit pas compter l'index du gestionnaire (sinon tout fichier du temp paraîtrait
+    # utilisé), mais « le fichier a bougé » doit tenir cet index à jour — sans quoi il DÉRIVE, et
+    # c'est exactement le défaut mesuré sur lui (20 lignes vers des fichiers disparus). Les vues du
+    # gestionnaire le mettent déjà à jour de leur côté : réécrire la même valeur est sans effet.
     with transaction.atomic():
         for model, fields in file_field_models():
-            if model._meta.label in EXCLUDED_MODELS:
-                continue
             for field in fields:
                 try:
                     rows = list(model.objects.filter(**_lookup(field.name, old, folder))
