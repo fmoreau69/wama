@@ -424,6 +424,72 @@ else
 fi
 
 # ------------------------------------------------------
+# SERVEUR MCP « wama-dev » — outils de DÉVELOPPEMENT (ROADMAP §8d Phase 3, étapes 3 et 5)
+# ------------------------------------------------------
+# MÊME NATURE que la passerelle ci-dessus, et MÊME panne muette — c'est pour cela qu'il se
+# supervise ici. Lancé à la main le 2026-09-22, il était MORT au 26/09 : et l'assistant,
+# lui, répondait normalement. Sans ce serveur il n'ANNONCE tout simplement plus aucun outil
+# `dev_*` — `common/services/mcp_client.py` rend une liste vide quand la surface est
+# injoignable, DÉLIBÉRÉMENT (un assistant muet parce qu'un service optionnel dort serait le
+# pire des deux maux). *Une fonction absente ne se voit pas ; une panne, si.*
+#
+# ⚠ LA RÈGLE §16 EST TENUE PAR CE BLOC, PAS CONTOURNÉE : « les outils de dev/admin ne sont
+# JAMAIS chargés dans le process de PRODUCTION ». C'est précisément un process SÉPARÉ, sur
+# son propre port ; gunicorn n'importe toujours pas `dev_tools` (gardé par un test qui le
+# vérifie dans un process neuf). La garde d'accès, elle, reste `is_developer`, vérifiée par
+# le serveur à CHAQUE appel — la liste d'outils n'est qu'un confort.
+#
+# Port DÉCLARÉ par `external_sources['wama_mcp_dev']` ; repris ici pour la seule sonde de
+# disponibilité, comme le 8001 du service TTS plus haut.
+MCP_DEV_PORT=8771
+
+# Sonde SANS jeton : un **401** prouve que le serveur écoute ET authentifie. C'est la seule
+# vérification possible sans clé, et elle distingue « démarré » d'un port pris par autre
+# chose, qui ne répondrait pas 401 ; `000` = rien n'écoute encore.
+mcp_dev_repond() {
+    [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 -X POST \
+        "http://127.0.0.1:$MCP_DEV_PORT/mcp" -H 'Content-Type: application/json' \
+        -d '{}' 2>/dev/null)" = "401" ]
+}
+# $1 = secondes d'attente maximales. ⚠ MESURÉ le 2026-09-26 : **61 s** entre le lancement et
+# le premier 401 — le serveur importe Django et torch depuis `/mnt/d` (drvfs, lent). Une
+# première version attendait 45 s et aurait donc crié au défaut sur un démarrage SAIN.
+mcp_dev_attend() {
+    for _ in $(seq 1 $(( $1 / 2 ))); do
+        mcp_dev_repond && return 0
+        sleep 2
+    done
+    return 1
+}
+
+if ! pgrep -f "manage.py run_mcp_server --surface dev" > /dev/null; then
+    echo "=== Starting MCP dev server (port $MCP_DEV_PORT) ==="
+    nohup python manage.py run_mcp_server --surface dev --settings=$DJANGO_SETTINGS_MODULE \
+        >> $LOG_DIR/mcp-dev.log 2>&1 &
+    MCP_DEV_PID=$!
+    disown $MCP_DEV_PID
+    if [ $FAST -eq 1 ]; then
+        echo "  MCP dev server started (PID $MCP_DEV_PID) — fire & forget (--fast)"
+    elif mcp_dev_attend 150; then
+        echo "  MCP dev server ready (PID $MCP_DEV_PID) — outils dev_* visibles de l'assistant"
+    else
+        echo "  WARNING: MCP dev server n'a pas répondu 401 après 150s — $LOG_DIR/mcp-dev.log"
+        echo "  (l'assistant répondra normalement, mais SANS outil de développement)"
+    fi
+# ⚠⚠ UN PROCESS N'EST PAS UN SERVICE, et c'est tout l'objet de ce bloc : `pgrep` a trouvé un
+# process le 26/09 alors que RIEN n'écoutait — il démarrait encore. Un process PLANTÉ resterait
+# visible de la même façon, et un « already running » nu rendrait muette exactement la panne
+# qu'on ferme ici. On sonde donc AUSSI dans cette branche, brièvement : s'il devait écouter, il
+# écouterait déjà.
+elif mcp_dev_attend 40; then
+    echo "MCP dev server is already running and answering."
+else
+    echo "WARNING: un process MCP dev existe mais n'écoute pas sur $MCP_DEV_PORT."
+    echo "  Le relancer : pkill -f 'manage.py run_[m]cp_server --surface dev' puis ce script."
+    echo "  Détail : tail -n 20 $LOG_DIR/mcp-dev.log"
+fi
+
+# ------------------------------------------------------
 # FIN
 # ------------------------------------------------------
 echo "=== WAMA production stack started successfully ==="
