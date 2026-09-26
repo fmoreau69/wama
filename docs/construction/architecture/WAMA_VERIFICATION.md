@@ -735,8 +735,31 @@ qu'un élément apparaisse. Le fichier importé est retiré avec la ligne. *(Dep
 2026-09-23, un témoin déjà dans l'arbre de l'utilisateur n'est plus COPIÉ mais désigné —
 `MEDIA_STORAGE_TIERING §Cible` ; le geste et sa mesure sont inchangés.)*
 
-> 🔴 **`transcriber.send_to` SAUTE chaque nuit, et son motif désigne le mauvais coupable** (mesuré
-> le 2026-09-26, sur le live après relance, **deux fois sur deux**). Le skip dit « navigateur/serveur
+> ✅ **`transcriber.send_to` sautait chaque nuit — CAUSE TROUVÉE ET CORRIGÉE le 2026-09-26.**
+> L'inventaire des moteurs du transcriber prenait **38,5 s à froid** (0 s ensuite, ce qui le rendait
+> invisible) : `QwenASRBackend.is_available()` appelait `find_spec('transformers.models.qwen3_asr')`,
+> et **`find_spec` d'un nom POINTÉ importe ses paquets parents** — transformers en entier, **34,1 s
+> mesurées**, alors que le commentaire du code promettait « sans importer transformers ». La page
+> demande cet inventaire au chargement : sa réponse restait en vol ~40 s à chaque expiration du
+> cache d'une heure, donc la navigation n'atteignait jamais le repos réseau. Sonde refaite sans
+> aucun import (`find_spec` sur la RACINE + existence du dossier de l'architecture sur le disque) :
+> **38,5 s → 0,04 s**, mêmes verdicts, transformers absent de `sys.modules`. Scénario rejoué avec
+> le cache VIDÉ : **OK en 7,7 s**. Gardes dans `tests_backend_inventory` — une de FORME sur tout le
+> parc (aucune sonde de disponibilité n'interroge un nom pointé, contre-éprouvée avec un moteur
+> fautif jetable) et une de COMPORTEMENT en sous-processus (transformers non importé, sonde sous
+> budget). ⚠ Le budget de la seconde a d'abord mesuré le `django.setup()` du sous-processus (46 s) :
+> *un budget de temps doit chronométrer le geste, pas son décor.*
+>
+> **Le motif du skip, lui, était faux** — et c'est la seconde leçon : il disait « navigateur/serveur
+> indisponible » alors que le serveur répondait. Les **7 sites** qui le recopiaient passent par une
+> brique, `_motif_skip`, qui distingue un **délai de navigation** (« la page a répondu mais n'a
+> jamais atteint le repos réseau : `<url>` — une requête reste EN VOL ») d'une indisponibilité.
+> *Deux fois, ce motif a détourné le regard du coupable : 14 faux « serveurs indisponibles » le
+> 22/08, et ce saut nocturne pendant des semaines.*
+>
+> <details><summary>Le relevé qui a mené à la cause (conservé : c'est la démarche, pas l'anecdote)</summary>
+>
+> Mesuré le 2026-09-26 sur le live après relance, **deux fois sur deux**. Le skip dit « navigateur/serveur
 > indisponible » ; la cause est ailleurs : `page.goto('/transcriber/', wait_until='networkidle')`
 > dépasse 45 s, et **une seule requête est en vol au moment du dépassement — `/transcriber/backends/`,
 > depuis 42,4 s**. La même navigation sur `/converter/` atteint le repos en **3,1 s**. ⚠ Et ce n'est
@@ -744,9 +767,17 @@ qu'un élément apparaisse. Le fichier importé est retiré avec la ligne. *(Dep
 > (`views.get_backends` met en cache une heure) ; en `wait_until='domcontentloaded'` puis 20 s
 > d'attente, aucune requête ne reste en vol et le repos EST atteint. Les trois pages comparées
 > émettent le même volume de sondages. La question ouverte est donc : pourquoi cette requête n'est
-> jamais close CÔTÉ NAVIGATEUR alors que le serveur a répondu. Aucune instance ne tenait le
-> transcriber au moment du relevé — signalé, non traité. *Un skip nomme ce qu'on a vu : ici, il
-> nommait ce qu'on avait supposé.*
+> jamais close CÔTÉ NAVIGATEUR alors que le serveur a répondu. *Un skip nomme ce qu'on a vu : ici,
+> il nommait ce qu'on avait supposé.*
+>
+> La suite du relevé a tranché : la **PREMIÈRE** requête après expiration du cache pendait, les
+> suivantes répondaient en 2 ms — mes deux premiers `curl` mesuraient un cache que mon propre
+> navigateur venait de remplir. *Une mesure « à froid » qui suit une mesure « à chaud » n'est pas
+> froide.* Chronométrage par moteur ensuite : whisper 0,0 s, vibevoice 0,0 s, **qwen_asr 34,6 s pour
+> répondre NON** — puis, dans la sonde, `missing_packages()` 0,0 s contre `find_spec` du nom pointé
+> **34,1 s**. Le coupable était nommé, et la page ne l'avait jamais dit.
+>
+> </details>
 
 > ⚠⚠ **Le geste a DEUX moitiés, et elles étaient bâties sur des sources différentes.** Le MENU se
 > construit chez le client depuis `WAMA_APP_CATALOG.input_extensions` — la déclaration de l'app,
