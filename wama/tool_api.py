@@ -242,36 +242,43 @@ def start_anonymizer(user, media_id: int = None) -> dict:
     from wama.anonymizer.tasks import process_single_media, process_user_media_batch
     from django.core.cache import cache
 
+    from wama.anonymizer.models import Media
+
     if media_id is not None:
-        # Validate ownership
-        from wama.anonymizer.models import Media
-        try:
-            media = Media.objects.get(pk=media_id, user=user)
-        except Media.DoesNotExist:
+        # ⭐ MÊME BRIQUE QUE LE BOUTON ▶ de l'app (`anonymizer/views.py::start`) :
+        # `begin_processing` est le pattern anti-race obligatoire (transaction +
+        # `select_for_update`, révocation de l'ancienne tâche, passage à RUNNING). Le verrou
+        # `anon_lock:media:` n'est PAS posé ici — c'est `process_single_media` qui le pose
+        # (tasks.py:143), comme pour la vue. Et `force_individual=True` : un lancement à
+        # l'unité applique les réglages de l'item, comme un clic sur sa card.
+        from wama.common.utils.process_control import begin_processing
+        media, err = begin_processing(Media, media_id, user=user,
+                                      reset={'blur_progress': 0, 'error_message': ''})
+        if err == 'not_found':
             return {'error': f'Media #{media_id} introuvable ou non autorisé.'}
+        if err:
+            return {'error': f'Media #{media_id} est déjà en cours.'}
 
-        # Reset processing state
-        media.processed = False
-        media.blur_progress = 0
-        media.save(update_fields=['processed', 'blur_progress'])
-        cache.set(f'anon_lock:media:{media_id}', True, timeout=7200)
+        cache.delete(f'media_progress_{media.id}')
+        task = process_single_media.delay(media.id, force_individual=True)
+        media.task_id = task.id
+        media.save(update_fields=['task_id'])
+        return {'task_id': task.id, 'status': 'started', 'media_id': media.id}
 
-        task = process_single_media.delay(media_id)
-        return {'task_id': task.id, 'status': 'started', 'media_id': media_id}
-    else:
-        # Batch: reset all pending media and launch batch task
-        from wama.anonymizer.models import Media
-        pending = Media.objects.filter(user=user, processed=False)
-        if not pending.exists():
-            return {'error': 'Aucun média en attente de traitement.'}
+    # Lot : tout ce qui n'a pas ABOUTI, exactement le critère de la tâche elle-même
+    # (`process_user_media_batch` : `.exclude(status='SUCCESS')`) — c'est elle qui enfile et
+    # qui pose les verrous individuels. Le verrou de LOT est pris ici, atomiquement, comme
+    # `ProcessView` : sans lui, deux « lance tout » se doublent.
+    pending = Media.objects.filter(user=user).exclude(status='SUCCESS')
+    if not pending.exists():
+        return {'error': 'Aucun média en attente de traitement.'}
+    if not cache.add(f'anon_lock:batch:{user.id}', True, timeout=7200):
+        return {'error': 'Un traitement de lot est déjà en cours.'}
 
-        pending.update(blur_progress=0)
-        for m in pending:
-            cache.set(f'anon_lock:media:{m.id}', True, timeout=7200)
-
-        task = process_user_media_batch.delay(user.id)
-        return {'task_id': task.id, 'status': 'started', 'media_id': None,
-                'count': pending.count()}
+    count = pending.count()
+    pending.update(status='PENDING', blur_progress=0)
+    task = process_user_media_batch.delay(user.id)
+    return {'task_id': task.id, 'status': 'started', 'media_id': None, 'count': count}
 
 
 def get_anonymizer_status(user) -> dict:
@@ -2593,8 +2600,11 @@ def charger_competence(user, domaine: str, question: str = '') -> dict:
                   context. Always pass it: without it the retrieval has nothing to match.
 
     Returns:
-        {"domaine", "libelle", "consigne", "contexte"} — apply `consigne` to the rest of
-        this conversation; `contexte` holds laboratory material, cite its references.
+        {"domaine", "libelle", "consigne", "contexte"} — apply `consigne` while the
+        conversation stays on that topic; `contexte` holds laboratory material, cite its
+        references. As soon as the user goes back to USING an app (queueing, starting or
+        checking a job), the competence stops applying: load another one if the topic shifts
+        again. You do not have to unload it yourself.
     """
     # ⚠ LE CHOIX EST CELUI DE L'ASSISTANT, jamais de la surface qui l'appelle. Un adaptateur
     # de canal ne connaît que son protocole ; lui faire deviner le domaine (par le nom d'un
@@ -3913,6 +3923,59 @@ def relay_quality_intent(user, tool_name: str, result: dict) -> dict:
     return result
 
 
+#: Littéral NON CANONIQUE qu'un outil d'ajout rend encore (`add_to_anonymizer`, `:225`) — il
+#: date d'avant l'audit du 2026-07-11 qui a donné son vocabulaire commun aux états de file.
+#: ⚠ Il n'est PAS ajouté à `JOB_STATUS_ALIASES` : cette table traduit des états d'ITEM (base,
+#: JSON de nœud, littéral d'app), pas des charges utiles d'outil — et son domicile
+#: (`common/models.py`) est co-édité. Le vrai remède est que l'outil parle canonique ; en
+#: attendant, l'alias est ICI, nommé, avec sa date.
+_LEGACY_QUEUED = 'QUEUED'
+
+
+def relay_next_step(tool_name: str, result: dict) -> dict:
+    """Dit au modèle, DANS LE RÉSULTAT, qu'un ajout n'a lancé AUCUN traitement.
+
+    ⚠⚠ LE DÉFAUT MESURÉ (2026-09-23, conversation Discord #11 du 22/09). Le modèle a appelé
+    `add_to_anonymizer`, a lu `{"status": "queued"}` et a annoncé « la tâche a été lancée »,
+    puis, au tour suivant, « terminée avec succès » — avec un lien INVENTÉ. Or l'item 647
+    était encore `queued`, progress 0, le lendemain : `start_anonymizer` n'a jamais été
+    appelé. *Un ajout n'est pas un lancement, et rien dans le résultat ne le disait.*
+
+    Le rappel est DÉRIVÉ, jamais écrit par app : rôle de l'outil (`_split_triad`) + existence
+    du `start_*` correspondant dans `TOOL_REGISTRY`. Une app portée à la triade l'obtient sans
+    qu'on touche ici. Appelé par la boucle de l'assistant, comme `relay_quality_intent` — le
+    studio et l'API d'outils enchaînent eux-mêmes et n'ont pas besoin qu'on leur rappelle.
+    """
+    if not isinstance(result, dict) or 'error' in result:
+        return result
+    role, app_id = _split_triad(tool_name)
+    if role != 'add' or not app_id:
+        return result
+    # L'état est lu dans le VOCABULAIRE COMMUN (`normalize_job_status` + `JOB_STATUS_NOT_STARTED`,
+    # domicile `common/models.py`), jamais contre une liste de mots écrite ici : `AWAITING_RESOURCES`
+    # en fait partie, et une app qui l'emploierait serait couverte sans qu'on y pense.
+    from wama.common.models import JOB_STATUS_NOT_STARTED, normalize_job_status
+    if normalize_job_status(result.get('status')) not in (
+            JOB_STATUS_NOT_STARTED | {_LEGACY_QUEUED}):
+        return result
+
+    raw_app = tool_name[len('add_to_'):]
+    start_tool = next((f'start_{name}' for name in (raw_app, app_id)
+                       if f'start_{name}' in TOOL_REGISTRY), None)
+    if not start_tool:
+        return result
+
+    item_id = result.get('item_id') or result.get('media_id') or result.get('id')
+    result['started'] = False
+    result['next_step'] = start_tool
+    result['next_step_hint'] = (
+        f"L'élément est dans la file et RIEN NE TOURNE. Appelle `{start_tool}` "
+        f"({item_id}) pour lancer le traitement. N'annonce jamais une tâche « lancée » "
+        f"ni « terminée » après un simple ajout."
+    )
+    return result
+
+
 def execute_tool(tool_name: str, args: dict, user) -> dict:
     """
     Dispatch a tool call from the agentic loop.
@@ -3951,13 +4014,25 @@ def execute_tool(tool_name: str, args: dict, user) -> dict:
         # modèles enhancer). None/'' passent (défaut) ; l'erreur nomme les valeurs valides.
         app_id = app_id_for_tool(tool_name)
         if app_id:
-            from wama.common.utils.param_schema import invalid_choice_values, schema_for_app
-            bad = invalid_choice_values(schema_for_app(app_id), clean)
+            from wama.common.utils.param_schema import (
+                invalid_choice_values, schema_for_app, unapplicable_numeric_values)
+            schema = schema_for_app(app_id)
+            bad = invalid_choice_values(schema, clean)
             if bad:
                 detail = ' ; '.join(
                     f"{k}={', '.join(map(repr, refusees))} (valides : {', '.join(valides)})"
                     for k, (refusees, valides) in sorted(bad.items()))
                 return {'error': f"Valeur hors schéma pour '{tool_name}' : {detail}"}
+            # … et la GRILLE des nombres. `blur_ratio=2` (noyau pair) passait ici le
+            # 2026-09-23 : `normalize_blur_ratio` le réécrivait en 3, un flou invisible, sur
+            # une photo dont SAM3 avait pourtant trouvé les trois visages. Refuser est la
+            # seule réponse honnête — corriger en silence, c'est produire un résultat vide
+            # qui a l'air d'un succès.
+            off = unapplicable_numeric_values(schema, clean)
+            if off:
+                detail = ' ; '.join(f"{k}={value!r} — {why}"
+                                    for k, (value, why) in sorted(off.items()))
+                return {'error': f"Valeur inapplicable pour '{tool_name}' : {detail}"}
         # `user` n'est passé que si l'outil le déclare — remplace le cas spécial
         # `if tool_name == 'sam3_examples'` codé en dur : la signature le dit déjà.
         sig = _tool_signature(fn)

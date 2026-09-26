@@ -28,6 +28,14 @@ from .services import PairingError, account_for, pairing_url, unlink, request_li
 
 logger = logging.getLogger(__name__)
 
+#: LES CANAUX SERVIS — domicile unique. Un canal = un module dans `gateway/adapters/` ;
+#: ajouter un canal, c'est ajouter une entrée ici et ce module, sans toucher au cœur.
+#: Deux consommateurs : `run_gateway` (choix de la commande) et le moteur de l'assistant, qui
+#: y lit quelles SURFACES joignent les fichiers produits — c'est la passerelle qui les joint,
+#: elle seule sait pour qui. ⚠ `Conversation.SURFACES` est une autre liste et le reste : elle
+#: dit quelles surfaces EXISTENT (web et api comprises), pas lesquelles sont un canal.
+CHANNELS = ('discord',)
+
 #: Longueur au-delà de laquelle une réponse est coupée par l'adaptateur. Chaque protocole a
 #: sa propre limite (Discord : 2000 caractères) — la valeur réelle est celle de l'adaptateur,
 #: celle-ci n'est qu'un repli.
@@ -250,6 +258,12 @@ _OUTPUT_KEYS = ('output_urls', 'output_url', 'file_url', 'video_url', 'audio_url
 #: Bornes d'envoi : nombre de pièces, et octets par pièce (limite Discord la plus basse).
 _MAX_OUTPUT_FILES = 5
 _MAX_OUTPUT_BYTES = 24 * 1024 * 1024
+#: Profondeur de descente dans un résultat d'outil. MESURÉE, pas choisie : les dix
+#: `get_<app>_status` rendent `{"jobs": [{…, "output_url": …}]}` (`tool_api.py:320-328`,
+#: `:503-512`, et la triade générée `:3523`) — la clé de sortie est au 2ᵉ niveau
+#: (dict → liste → dict). 4 laisse la marge d'un `detail` imbriqué (`get_item_detail`) sans
+#: ouvrir une descente illimitée dans une structure qu'un outil compose librement.
+_MAX_OUTPUT_DEPTH = 4
 
 
 def _produced_files(resultat) -> list:
@@ -257,6 +271,22 @@ def _produced_files(resultat) -> list:
 
     Seules les URLs `/media/…` résolues SOUS MEDIA_ROOT sont retenues — un résultat d'outil
     est une donnée, pas une autorisation de lire le disque. Bornés en nombre et en taille.
+
+    ⚠⚠ CE QUI ÉTAIT FAUX JUSQU'AU 2026-09-23. Cette fonction ne lisait que le PREMIER niveau
+    du résultat (`contenu.get('output_url')`), forme qu'AUCUN outil de WAMA ne produit : les
+    dix `get_<app>_status` nichent la sortie sous `jobs[]`. `Reply.files` restait donc vide
+    quoi qu'il arrive, et le code d'envoi des adaptateurs était mort — le défaut même que le
+    correctif du 29/08 croyait avoir levé. Il a survécu parce que ses trois tests
+    construisaient une forme SYNTHÉTIQUE (`{'output_urls': [...]}` à plat) au lieu de la
+    forme mesurée des outils : *une mesure qui ignore une forme rend un verdict inverse.*
+    Mesuré le 2026-09-23 sur un tour Discord réel (conversation #11, 22/09 20:42).
+
+    ⚠ UN SEUL ÉLÉMENT PAR LISTE DE CONTENEURS. Un `get_<app>_status` rend les DIX derniers
+    jobs, triés `-id` (vérifié : les dix outils et la triade générée trient tous ainsi) —
+    descendre dans tous republierait à CHAQUE question de statut cinq sorties déjà
+    récupérées. Le premier élément est le plus récent, c'est-à-dire celui dont on parle. Une
+    liste trouvée SOUS une clé de sortie (`output_urls` d'une génération à N images) garde,
+    elle, tous ses éléments : ce sont les sorties d'un même item.
     """
     from pathlib import Path
 
@@ -286,17 +316,27 @@ def _produced_files(resultat) -> list:
         vus.add(rel)
         fichiers.append(rel)
 
+    def _keep_output(value):
+        if isinstance(value, (list, tuple)):
+            for element in value:
+                _keep(element)
+        else:
+            _keep(value)
+
+    def _walk(node, depth=0):
+        if depth > _MAX_OUTPUT_DEPTH or len(fichiers) >= _MAX_OUTPUT_FILES:
+            return
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in _OUTPUT_KEYS:
+                    _keep_output(value)
+                else:
+                    _walk(value, depth + 1)
+        elif isinstance(node, (list, tuple)) and node:
+            _walk(node[0], depth + 1)                 # le plus récent — cf. docstring
+
     for etape in (resultat or {}).get('tool_steps') or []:
-        contenu = etape.get('result')
-        if not isinstance(contenu, dict):
-            continue
-        for cle in _OUTPUT_KEYS:
-            valeur = contenu.get(cle)
-            if isinstance(valeur, (list, tuple)):
-                for element in valeur:
-                    _keep(element)
-            else:
-                _keep(valeur)
+        _walk(etape.get('result'))
     return fichiers
 
 

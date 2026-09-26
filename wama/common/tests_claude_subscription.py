@@ -162,3 +162,57 @@ class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
             visible = self.MODELE in self._options(self._ouvrir(user))
             self.assertEqual(visible, subscription_allowed(user),
                              f"écran et garde divergent pour « {nom} »")
+
+
+class AFailureMustBeReadableTests(TestCase):
+    """Le MESSAGE d'échec, pas la télémétrie (mesuré le 2026-09-23).
+
+    Un appel réel a échoué le 22/09 depuis Discord ; l'utilisateur a reçu
+    `Claude Code a échoué (code 1) : {"duration_api_ms":0,"stop_reason":"stop_sequence",…` —
+    la raison était au-delà des 500 caractères conservés, dans le champ `result`. Le petit
+    modèle local a lu ce charabia comme une impossibilité et a répondu « je ne peux pas
+    lancer Claude Code », après l'avoir lancé. *Une erreur illisible se propage en fausse
+    incapacité.*"""
+
+    def _failure(self, stdout='', stderr='', code=1):
+        from wama.common.services.claude_code import _failure_message
+        return _failure_message(code, stdout, stderr)
+
+    def test_the_reason_is_extracted_from_the_json_however_deep_in_the_output(self):
+        import json
+        raw = json.dumps({
+            'duration_api_ms': 0, 'stop_reason': 'stop_sequence',
+            'session_id': 'x' * 400,
+            'usage': {'input_tokens': 0, 'output_tokens': 0},
+            'is_error': True, 'subtype': 'error_during_execution',
+            'result': "Claude AI usage limit reached",
+        })
+        message = self._failure(stdout=raw)
+        self.assertIn('Claude AI usage limit reached', message)
+        self.assertNotIn('duration_api_ms', message)
+
+    def test_without_a_result_the_failure_family_is_still_named(self):
+        import json
+        message = self._failure(stdout=json.dumps({'subtype': 'error_max_turns',
+                                                 'api_error_status': 429, 'result': ''}))
+        self.assertIn('error_max_turns', message)
+        self.assertIn('429', message)
+
+    def test_a_non_json_or_empty_output_falls_back_to_stderr(self):
+        self.assertIn('commande introuvable',
+                      self._failure(stdout='', stderr='commande introuvable'))
+        self.assertIn('bruit', self._failure(stdout='bruit', stderr=''))
+        self.assertIn('aucun détail', self._failure())
+
+    def test_the_tool_hands_that_message_to_the_assistant(self):
+        """Contre-épreuve de bout en bout : c'est bien CE texte que le modèle reçoit."""
+        from unittest.mock import patch
+
+        from wama.tool_api import ask_claude_code
+
+        user = User.objects.create(username='dev-legible', is_superuser=True)
+        with patch('wama.common.services.claude_code.demander',
+                   return_value={'success': False, 'error': 'Claude Code a échoué (code 1) : '
+                                                            'Claude AI usage limit reached'}):
+            result = ask_claude_code(user, 'audite le dépôt')
+        self.assertIn('usage limit reached', result.get('error', ''))

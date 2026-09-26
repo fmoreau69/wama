@@ -20,9 +20,10 @@ from django.core.management.base import BaseCommand, CommandError
 
 logger = logging.getLogger(__name__)
 
-#: Adaptateurs disponibles. Ajouter un canal = ajouter une entrée ici et un module dans
-#: `gateway/adapters/` — le cœur (`gateway/core.py`) n'a pas à changer.
-ADAPTATEURS = ('discord',)
+#: Adaptateurs disponibles — DÉCLARÉS dans `gateway/core.py` (domicile unique depuis le
+#: 2026-09-23 : le moteur de l'assistant lit la même liste pour savoir quelles surfaces
+#: joignent les fichiers produits ; deux listes auraient dérivé au premier canal ajouté).
+from wama.gateway.core import CHANNELS as ADAPTATEURS
 
 
 class Command(BaseCommand):
