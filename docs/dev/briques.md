@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**159 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**160 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -462,8 +462,9 @@ Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité
 
 - **Domicile** : `wama/model_manager/services/model_selector.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Sélection intelligente de modèles — centralisée pour toutes les apps WAMA.
-- **API publique** (9) :
+- **API publique** (10) :
   - `get_free_vram_gb() -> Optional[float]` — VRAM libre (Go) du GPU le plus libre, MOINS ce que d'autres process ont réservé.
+  - `is_cloud(model) -> bool` — Ce modèle s'exécute-t-il CHEZ UN TIERS ? Lit le champ DÉCLARÉ (`AIModel.execution`),
   - `abilities_of(model) -> list` — Libellés des aptitudes déclarées par `model`, lus dans `ModelAbility` (+ sa spécialité).
   - `select_model(source: Optional[str]=None, *, model_type: Optional[str]=None, requires: Optional[List[str]]=None, classes: Optional[List[str]]=None, prefer_loade…` — Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
   - `list_models(source: str, downloaded_only: bool=True) -> List[dict]` — Liste des modèles d'une source (dicts to_dict — description courte/longue + vram).
@@ -1066,8 +1067,8 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
   - `assistant_settings(user) -> dict` — Réglages DURABLES de l'assistant pour `user` (brique commune `user_settings`, app
   - `resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple` — (fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
   - `thinking_wanted(quality_intent) -> bool` — La réflexion du modèle est-elle demandée pour ce réglage de curseur ?
-  - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str=None, model: str=None, domain: str=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
-  - `run_assistant_turn(user, message: str, provider: str=None, model: str=None, history: list=None, domain: str=None, surface: str='web') -> dict` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
+  - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str=None, model: str=None, domain: str=None, on_event=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
+  - `run_assistant_turn(user, message: str, provider: str=None, model: str=None, history: list=None, domain: str=None, surface: str='web', on_event=None) -> dict` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
 
 ### Pipeline de prompts
 
@@ -1411,12 +1412,13 @@ notify_job() — fin de traitement par e-mail, succès comme échec ; notify_in_
 
 - **Domicile** : `wama/common/utils/notifications.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md](../construction/exploitation/WAMA_COLLABORATION.md)
 - **Module** : Notifications utilisateur (email) — brique commune, métadonnée/préférence-driven.
-- **API publique** (6) :
+- **API publique** (7) :
   - `notify_emails(recipients, subject, body, html=None)` — Envoie un email à une liste d'ADRESSES (pas forcément des Users) — ex. modérateurs.
   - `notify_user(user, subject, body, html=None)` — Envoie un email à l'utilisateur si une adresse est disponible. Fail-safe (jamais d'exception).
   - `notify_in_app(users, kind, title, body='', url='')` — Crée une notification DANS WAMA pour chaque utilisateur (`common.Notification`, badge de
   - `infrastructure_admins()` — Les comptes qui administrent l'infrastructure : ceux que la politique d'accès laisse
-  - `notify_admins(kind, subject, body, url='')` — Prévient les administrateurs de l'infrastructure DANS WAMA et par e-mail. Fail-safe ;
+  - `staff_emails(audiences=('admin', 'dev'))` — Adresses d'envoi pour une ou plusieurs audiences du staff : l'adresse FONCTIONNELLE
+  - `notify_admins(kind, subject, body, url='', audiences=('admin', 'dev'))` — Prévient le staff technique DANS WAMA (chaque compte qui administre l'infrastructure) et
   - `notify_job(user, app_label, item_name, success, detail='', url='')` — Notifie la fin (ou l'échec) d'un traitement, en respectant les préférences du profil.
 
 ### Ordre MANUEL de la file
@@ -1886,6 +1888,16 @@ REGISTRE de capacités de lecture — aucun format privilégié : ajouter un for
   - `probe(path) -> SourceInfo` — Inventaire d'une source, quel que soit son format.
   - `load(path, streams=None, timestampers=None, name: str='') -> TemporalReferential` — Lit une source et rend un référentiel temporel prêt à interroger.
   - `reader_modules() -> List[str]` — Modules de lecture du paquet — **DÉCOUVERTS, jamais cités**.
+
+### Le texte À DIRE (préparation avant vocalisation)
+
+`text_for_speech` (la chaîne, dans un ordre dont chaque place se justifie) et `make_audible` (la mise en forme visuelle traduite en respirations : puce de tête, point en fin de ligne non ponctuée, tiret d'incise → virgule, `/` → « ou »). ⚠ Le domaine était écrit DEUX FOIS, sous le MÊME NOM de fonction : la vue de vocalisation avait les emojis, le Markdown et les respirations, `synthesizer/utils/text_extractor.py` avait les URL et les e-mails — donc le synthesizer, dont le métier est de lire un document à voix haute, lisait les listes d'un trait. Unifié le 2026-09-26 (demande de Fabien) ; le nom du synthesizer DÉLÈGUE, ses six appelants sont intacts. Consommateurs : la vue `kokoro_tts` (donc toute surface qui vocalise — accueil, volet, canaux) et le synthesizer
+
+- **Domicile** : `wama/common/utils/tts_text.py` · **doc** : [docs/construction/ia/WAMA_LLM.md §1bis](../construction/ia/WAMA_LLM.md)
+- **Module** : Le texte À DIRE — brique commune de préparation d'un texte pour la synthèse vocale.
+- **API publique** (2) :
+  - `make_audible(text: str) -> str` — Traduit la MISE EN FORME VISUELLE en respirations audibles.
+  - `text_for_speech(text: str) -> str` — Prépare un texte pour la synthèse vocale : la TTS doit LIRE, pas décrire.
 
 ### Médias de test isolés
 

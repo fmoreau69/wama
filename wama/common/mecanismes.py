@@ -741,6 +741,11 @@ MECHANISMS = (
               # 🔊/🔇/⏹ qui arrête une lecture) et le MINI-CHAT du volet (`wama-assistant-chat.js`,
               # même fil `web` que l'accueil, servi par `views.ai_chat_thread`) : l'assistant se
               # parle depuis toute page, dans l'accordéon « Assistant ».
+              # + le 26/09 : UN SEUL RENDU DE CHAT. L'accueil portait le sien (282 lignes écrites
+              # à la main) pour le même fil ; il DÉCLARE maintenant la brique (`data-density`
+              # full / compact). Et le FLUX (levier 5, `WAMA_LLM §1bis`) : `ai_chat_stream` (SSE)
+              # + le portier `_TokenGate` du moteur — la réflexion et les appels d'outils arrivent
+              # par le même canal que la réponse, il faut trancher sans attendre la fin.
               annexes=('wama/common/static/common/js/wama-avatar.js',
                        'wama/common/static/common/js/wama-avatar-panel.js',
                        'wama/common/static/common/js/wama-assistant-voice.js',
@@ -1553,6 +1558,21 @@ MECHANISMS = (
               annexes=('wama/common/utils/voice_options.py',
                        'wama/media_library/management/commands/ingest_voice_refs.py',
                        'wama/common/tests_voice_refs.py')),
+    Mechanism('tts_text', 'Le texte À DIRE (préparation avant vocalisation)',
+              "`text_for_speech` (la chaîne, dans un ordre dont chaque place se justifie) et "
+              "`make_audible` (la mise en forme visuelle traduite en respirations : puce de tête, "
+              "point en fin de ligne non ponctuée, tiret d'incise → virgule, `/` → « ou »). "
+              "⚠ Le domaine était écrit DEUX FOIS, sous le MÊME NOM de fonction : la vue de "
+              "vocalisation avait les emojis, le Markdown et les respirations, "
+              "`synthesizer/utils/text_extractor.py` avait les URL et les e-mails — donc le "
+              "synthesizer, dont le métier est de lire un document à voix haute, lisait les listes "
+              "d'un trait. Unifié le 2026-09-26 (demande de Fabien) ; le nom du synthesizer "
+              "DÉLÈGUE, ses six appelants sont intacts. Consommateurs : la vue `kokoro_tts` (donc "
+              "toute surface qui vocalise — accueil, volet, canaux) et le synthesizer",
+              'wama/common/utils/tts_text.py', 'docs/construction/ia/WAMA_LLM.md §1bis',
+              annexes=('wama/common/tests_tts_text.py',
+                       'wama/synthesizer/utils/text_extractor.py'),
+              symbol='text_for_speech'),
     Mechanism('test_media_isolation', 'Médias de test isolés',
               "Le runner de tests redirige `MEDIA_ROOT` vers `media_tests/run-<id>/` — dossier "
               "SŒUR de `media/`, jamais dedans (servi, sauvegardé, miré) ; les exécutions "

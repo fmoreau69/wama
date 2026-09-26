@@ -338,7 +338,7 @@ et les visèmes de l'avatar viendront d'un endpoint TTS distinct. C'est la contr
 cerveau, N surfaces » : le contrat commun ne porte que ce qui vaut pour toutes les surfaces —
 un bot Discord n'a rien à faire d'un WAV en base64.
 
-#### 1bis. Latence du tour web — MESURÉE le 2026-09-22, leviers identifiés (⏳ rien de câblé)
+#### 1bis. Latence du tour web — MESURÉE le 2026-09-22, **4 leviers sur 5 câblés** (5 le 26/09)
 
 > Constat de Fabien en testant l'assistant vocal (GPU de nouveau utilisable) : réponse ET
 > vocalisation lentes. La chaîne est **strictement séquentielle** : `ai_chat` (LLM complet,
@@ -353,7 +353,7 @@ un bot Discord n'a rien à faire d'un WAV en base64.
 | **TTS** | service `kokoro-onnx` chaud (port 8001, `read_timeout=30`) : coût ≈ longueur du texte ; un WAV base64 unique | `_tts_via_service` |
 
 **Leviers, du moins coûteux au plus structurant** — 1, 2 et 4 **✅ câblés le 22/09** (décision
-de Fabien : « purement amélioratif ») ; 3 et 5 restent des questions :
+de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une question :
 1. ✅ **Réflexion reliée au curseur Rapide ↔ Qualité** : `assistant_engine.thinking_wanted` —
    la réflexion (`think`) n'est demandée qu'à la position « quality » de la déclinaison commune
    à paliers (`preset_key_for_intent` : fast 15 / balanced 50 / quality 85) ; le défaut (50) est
@@ -369,19 +369,52 @@ de Fabien : « purement amélioratif ») ; 3 et 5 restent des questions :
    à la demande (le modèle demande « les outils de l'app X »), et un 2ᵉ tour LLM quand il se
    trompe de domaine. Gain : ~2 600 jetons de prompt par tour, c'est-à-dire du temps d'évaluation
    de prompt SEULEMENT quand le cache KV est froid (le levier 2 rend ce cas rare).
-4. ✅ **TTS par phrases** (`home.html` : `splitSentences` ≥ 60 caractères, `fetchSpeech`,
-   `playSpeechChunk`) : la première phrase part au service dès la réponse reçue, la suivante est
-   demandée PENDANT la lecture ; l'avatar met les morceaux en file (TalkingHead), le canal commun
-   attend la fin d'un morceau avant le suivant. L'attente avant la première parole ne dépend plus
-   de la longueur de la réponse.
-5. ⏳ **Flux jeton par jeton** (SSE) — le plus coûteux : `ai_chat` rend un JSON complet après la
-   boucle à outils ; streamer suppose un tour qui ÉMET pendant qu'il s'exécute (appels d'outils
-   compris), donc un autre contrat pour les TROIS surfaces (web, API v1, Discord) et pour le
-   store (un tour interrompu à mi-flux). Ce que l'utilisateur gagnerait : voir le texte arriver,
-   et une TTS qui commence à la première phrase émise (levier 4 sur le flux). Ce que le
-   `WAMA_HARNESS §9 chantier 4` propose à la place : publier les ÉTAPES (« j'interroge la
-   file… ») par la brique de progression commune — ce qui est pénible n'est pas d'attendre,
-   c'est d'attendre sans savoir.
+4. ✅ **TTS par phrases** : la première phrase part au service dès qu'elle est complète, la
+   suivante est demandée PENDANT la lecture ; l'avatar met les morceaux en file (TalkingHead), le
+   canal commun attend la fin d'un morceau avant le suivant. L'attente avant la première parole
+   ne dépend plus de la longueur de la réponse.
+   ⚠ **Domicile corrigé le 26/09** : ce levier vivait dans `home.html`, donc il n'existait QUE
+   sur l'accueil. Il est dans la brique commune de voix (`speakStream`), et le volet droit en
+   bénéficie sans une ligne de plus.
+5. ✅ **Flux jeton par jeton (SSE) — câblé le 26/09.** Ollama reçoit `stream: true` **dès qu'un
+   rappel est fourni**, et chaque fragment remonte jusqu'à l'écran et jusqu'à la voix.
+   **Mesure navigateur** : 1ᵉʳ texte à **0,2 s**, fin du tour à **2,2 s** — 2,0 s gagnées, et la
+   voix parle par phrases pendant que le reste arrive.
+   - **Le point dur n'est pas le transport, c'est le PORTIER** (`_TokenGate`) : la réflexion du
+     modèle (`<think>`) et les appels d'outils (JSON) arrivent par le MÊME canal que la réponse,
+     et il faut trancher **fragment par fragment, sans attendre la fin** — y compris quand la
+     balise est coupée en deux. Aucun de ces défauts ne lève d'exception : ils produisent un
+     écran faux.
+   - **Les trois surfaces ne changent pas**, et c'est CÂBLÉ, pas promis : sans rappel, aucun flux
+     n'est demandé à Ollama. L'API v1 et la passerelle ne paient pas un flux qu'elles
+     n'affichent pas — une contre-épreuve le verrouille.
+   - **Le flux n'existe que sur le chemin LOCAL** : `llm_chat` (LiteLLM) rend un texte entier et
+     l'abonnement Claude Code lance un process qui finit avant de parler. Un tour cloud reste
+     synchrone, et la surface le sait (elle affiche son attente).
+   - **Les ÉTAPES d'outils partent aussi**, dès qu'elles sont jouées — c'est ce que
+     `WAMA_HARNESS §9 chantier 4` demandait (*ce qui est pénible n'est pas d'attendre, c'est
+     d'attendre sans savoir*), obtenu par le même canal au lieu d'un mécanisme à part.
+   - **Le store n'a pas eu besoin d'un autre contrat** : le tour PERSISTE comme avant, à la fin ;
+     le flux ne fait que montrer plus tôt ce qui sera écrit. Un tour interrompu à mi-flux laisse
+     donc le fil exactement dans l'état d'un tour interrompu tout court.
+   - Gardes : `common/tests_assistant_stream.py` (16).
+
+**Et un rendu de chat au lieu de deux (26/09).** L'accueil portait SON propre rendu (282 lignes
+de JavaScript écrit à la main) à côté de la brique du volet droit, pour le MÊME fil : deux
+implémentations d'un même écran, donc deux endroits où corriger un défaut. L'accueil DÉCLARE
+maintenant la brique commune en densité `full`, le volet en `compact`. Le message d'accueil et
+le mot d'attente restent SERVIS (ils varient selon l'état de connexion), portés par un
+`<template>` plutôt que figés dans le JavaScript. Une garde vérifie que les identifiants de
+l'ancien rendu ont disparu — sans elle, laisser les deux en place passerait inaperçu.
+
+**Le texte À DIRE est une brique (26/09)** — `common/utils/tts_text.py`. Il était écrit DEUX
+FOIS, **sous le même nom de fonction** : la vue de vocalisation avait les emojis, le Markdown et
+les respirations ; `synthesizer/utils/text_extractor.py` avait les URL et les e-mails. Aucun des
+deux n'était faux ; ensemble ils faisaient un demi-vocabulaire, et le synthesizer — dont tout le
+métier est de lire un document à voix haute — n'avait ni retrait d'emoji ni pause de fin de
+ligne. ⚠ C'est le NOM DUPLIQUÉ qui rendait la chose invisible à un `grep`. Les six appelants du
+synthesizer sont conservés : ce nom DÉLÈGUE. Gardes : `common/tests_tts_text.py` (17), là où il
+n'y en avait **aucune** — le défaut ne se voit qu'à l'oreille, le serveur répondant 200.
 
 #### 1ter. L'assistant agit sur le CODE — pour les développeurs et administrateurs (22/09)
 
