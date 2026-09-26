@@ -50,8 +50,19 @@ _PUNCTUATED_END = '.,;:!?…'
 #: Ce qui ne se DIT pas : une adresse lue caractère par caractère est du bruit, dans les deux
 #: surfaces. Le libellé d'un lien Markdown, lui, est conservé (il est retiré plus tôt, par
 #: `_MARKDOWN_LINK`) — on perd l'adresse, jamais le sens de la phrase.
+#: ⚠⚠ ELLE SE REMPLACE, ELLE NE S'EFFACE PAS — mesuré le 2026-09-26 par un smoke réel sur le
+#: serveur relancé, et c'est un défaut que les gardes ne voyaient pas : elles vérifiaient
+#: l'ABSENCE de l'adresse, jamais que la phrase restait dicible. « Écrivez à contact@… ou
+#: https://… » devenait **« Écrivez a ou. »** — une phrase qui ne dit plus rien, lue telle
+#: quelle à voix haute.
+#: *Vérifier qu'une chose a disparu ne dit pas ce qui reste à sa place.* Même principe que le
+#: contrôle de source des liens : on DIT le retrait, on ne l'efface pas en silence.
 _URL = re.compile(r'https?://\S+|www\.\S+')
 _EMAIL = re.compile(r'\S+@\S+\.\w+')
+#: Ce que la voix dit à la place. L'auditeur a le texte sous les yeux : nommer la NATURE de ce
+#: qui a été retiré lui suffit pour le retrouver.
+_URL_SPOKEN = 'un lien'
+_EMAIL_SPOKEN = 'une adresse électronique'
 
 _MARKDOWN_LINK = re.compile(r'\[([^\]]+)\]\([^)]+\)')
 _TABLE_SEPARATOR = re.compile(r'^[ \t]*\|?[ \t:|-]{3,}\|?[ \t]*$', re.M)
@@ -114,7 +125,8 @@ def text_for_speech(text: str) -> str:
       2. flèches      — avant (3), qui les ferait disparaître sans laisser de pause ;
       3. pictogrammes — sinon espeak verbalise leur nom Unicode ;
       4. Markdown     — le libellé d'un lien survit, son adresse non ;
-      5. URL/e-mails  — après (4), pour ne pas décapiter un lien de son libellé ;
+      5. URL/e-mails  — après (4), pour ne pas décapiter un lien de son libellé. REMPLACÉS par
+                        un mot, jamais effacés : sinon la phrase porteuse devient indicible ;
       6. respirations — en dernier : elle raisonne LIGNE PAR LIGNE, donc après tout ce qui
                         peut vider ou fusionner une ligne.
     """
@@ -131,8 +143,8 @@ def text_for_speech(text: str) -> str:
     text = _TABLE_SEPARATOR.sub('', text)
     text = text.replace('|', ' ')
     text = _MARKDOWN_MARKERS.sub('', text)
-    text = _EMAIL.sub('', text)
-    text = _URL.sub('', text)
+    text = _EMAIL.sub(_EMAIL_SPOKEN, text)
+    text = _URL.sub(_URL_SPOKEN, text)
     text = make_audible(text)
     text = re.sub(r'[ \t]{2,}', ' ', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
