@@ -109,13 +109,16 @@
                 + '<span class="wpc-chips">';
             (group.items || []).forEach(function (kw) {
                 var on = self.active.has(kw.text);
-                var del = kw.shared ? '' :
+                // `kw.common` : mot-clé du TRONC COMMUN (sans propriétaire) — pas de croix, on
+                // ne supprime que les siens. La clé s'appelait `shared` jusqu'au 2026-09-26 ;
+                // « partagé » a un autre sens dans WAMA (cf. `PromptKeyword.to_dict`).
+                var del = kw.common ? '' :
                     '<span class="wpc-del" data-del="' + kw.id + '" title="Supprimer ce mot-clé perso">&times;</span>';
                 // Esthétique des boutons d'action des cards : btn-outline-X (plein quand actif), pill.
                 var cls = 'wpc-chip btn btn-sm rounded-pill btn-' + (on ? '' : 'outline-') + v;
                 inner += '<button type="button" class="' + cls
                     + '" data-kw="' + esc(kw.text) + '" data-variant="' + v + '"'
-                    + (kw.shared ? '' : ' data-perso="1"') + '>'
+                    + (kw.common ? '' : ' data-perso="1"') + '>'
                     + esc(kw.text) + del + '</button>';
             });
             inner += '</span></div>';
