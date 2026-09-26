@@ -1309,3 +1309,67 @@ vérouillant les index : la décision est le visiteur GUIDÉ, c'est le SCÉNARIO
 | V1 (d'origine) | GET anonyme sur les INDEX | rouge sur la POLITIQUE même (« visiteur guidé » : les pages se voient) — accusait la décision |
 | V2 (02/09, matin) | GET anonyme sur les routes `@require_POST` (405 = « vue atteinte ») | **RÉFUTÉE à sa première contre-vérification** : `@require_POST` est posé DEVANT la garde d'accès — son 405 répond à tout GET, gardé ou pas. *Un verdict d'instrument se contre-vérifie sur UNE vue réelle avant d'accuser 34.* |
 | V3 (02/09, retenue) | **POST anonyme À VIDE** sur `upload`, jeton CSRF réel (sans lui le 403 CSRF tombe AVANT les gardes et ne prouve rien), ceinture ORM (aucun objet ne doit naître — vérifié, supprimé et DIT sinon) | verdict au contrat de la décision, dans les DEUX sens (le converter gardé est aussi un écart) |
+
+
+## 8. Les tests PYTHON : génériques par défaut, par app seulement pour le spécifique (2026-09-26)
+
+> Question de Fabien : *« Les tests sont censés être génériques et se faire dans toutes les
+> app, pas app par app […] Je me rends compte que la plupart des app ont leurs propres tests y
+> compris scénarios nocturnes dans l'app elle-même. Est-ce normal ? […] Oui je veux qu'un test
+> soit générique et s'applique à toutes les applications par défaut en schéma-driven. Sinon, on
+> multiplie les tests. »* Déclenché par un défaut réel : le filtre de parole du transcriber
+> n'était que dans la modale ⚙, et AUCUN test ne compare les deux surfaces — l'app le montrait,
+> personne ne le mesurait.
+
+**La règle** : un CONTRAT transverse (route de réglages, dépôt, lot, squelette de tâche,
+réglages utilisateur, surfaces, rendu de card, fichiers servis…) se teste UNE fois dans
+`wama/common/tests_*.py`, en bouclant sur les DÉCLARATIONS (`APP_CATALOG`, `schema_for_app`,
+`declared_param_schemas`, registres) — une app neuve y entre sans une ligne de test. Un test
+dans `wama/<app>/` n'est légitime que pour un comportement PROPRE à l'app. Même règle pour les
+scénarios nocturnes (`<app>/nightly_scenarios.py`). Un test d'ADOPTION écrit dans l'app qui
+adopte est le symptôme à éviter : j'en ai écrit un le jour même (`transcriber/tests_panel_settings`).
+
+**Mesure du 2026-09-26** (lecture des corps de test, 8 apps médias ; describer et avatarizer
+n'ont aucun test propre) — méthodes de test par catégorie :
+
+| | spécifique (A) | déjà couvert par un générique (B) | contrat transverse testé dans UNE app (C) |
+|---|---|---|---|
+| total | **146** | **7** | **31** |
+
+La duplication pure (B) est faible ; le vrai trou est **C** : 31 contrats transverses gardés
+dans une seule app, donc NON gardés dans les neuf autres. Les génériques qui bouclent déjà sur
+les apps : `tests_endpoints`, `tests_queue_delete_contract`, `tests_import_contract`,
+`tests_queue_dnd`, `tests_intent_vision`, `tests_result_evaluation`, `tests_backend_inventory`,
+`tests_catalogues`, `tests_media_paths`, `tests_send_to`, `tests_volet`… et les gestes
+navigateur `ui_smoke*.register_*_scenarios`.
+
+**Livré le jour même** : `tests_settings_surfaces` — pour TOUTES les apps, la modale ⚙ et le
+volet offrent les mêmes réglages, lus du schéma. Il a mesuré **9 écarts** dans 4 apps
+(avatarizer ×5, composer `prompt`, enhancer audio `output_format`/`output_quality`, reader
+`quality_intent` au volet seul) : listés, non tranchés, la liste ne peut que BAISSER.
+
+**⏳ Les contrats à généraliser, dans l'ordre** (chacun remplace des tests d'app) :
+1. **Route de réglages d'un élément** (`update_settings`) : FormData ET JSON écrivent les champs
+   du schéma, vide = effacé/auto, hors choix = ignoré — aujourd'hui dans reader, enhancer,
+   transcriber, converter ; `ItemEditRouteConventionTest` ne vérifie que le nom et le chemin.
+2. **Propriété et cycle par les vues** : l'élément d'un AUTRE utilisateur → 404/403 sur toute
+   route à identifiant (étendre `EveryEndpointAnswersTest` d'un témoin d'autrui) ; ▶ tâche
+   doublée → RUNNING + `task_id` ; progression lisible ; extension refusée (synthesizer seul).
+3. **Volet ↔ réglages utilisateur ↔ dépôt** : tout param `panel` est un réglage utilisateur, un
+   dépôt garde ce qu'il poste, un dépôt vide prend les défauts (transcriber, converter).
+4. **Issue par le squelette** (`run_item_task`, backend doublé) : succès → SUCCESS, 100 %,
+   `finished_at` ; échec → FAILURE avec son message (transcriber, enhancer).
+5. **Fichiers servis et rendus** : `staticfiles/` = source pour tout JS d'app, scripts inline
+   parsés par V8, `card_html` rend une card réelle, le ZIP de lot contient les sorties.
+
+**Corrections annexes** : les listes d'apps ÉCRITES À LA MAIN de `tests_import_contract`
+(`PORTEES`, 7 apps : composer, imager, avatarizer absents) et de `tests_model_anatomy`
+(`SOURCES`) doivent se dériver du registre ; les tests du backend audio.cpp (commun) vivent dans
+`composer/tests.py`, et `tests_intent_vision` porte des classes propres à une app — à ranger.
+
+**Scénarios nocturnes par app** : `transcriber.asr_load` et `enhancer.deepfilternet_load` sont
+le MÊME geste écrit deux fois (charger un backend du contrat commun, vérifier, décharger). Sa
+forme générique existe à portée — l'inventaire `backend_inventory` déclare chaque backend, sa
+VRAM et ses paquets — mais charger chaque nuit TOUS les modèles présents (plusieurs dizaines
+de Go pour l'image) est une **décision de Fabien** (lesquels, à quelle fréquence).
+`studio.pipeline.converter` est légitime : c'est le monde studio.
