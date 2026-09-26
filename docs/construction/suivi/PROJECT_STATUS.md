@@ -16739,7 +16739,7 @@ du composer ← `max_duration`, déjà bornée côté serveur seulement).
 - **La vidéo 15 s n'était pas « longue », elle était MORTE** : worker GPU tué par l'OOM (46,9 Go
   anon, `dmesg` 22:40:41) en dérivant le pipeline image→vidéo du 2ᵉ segment. Cause, dans MON code du
   soir : `from_pipe` a pour défaut `torch_dtype=float32` et convertit EN PLACE les modules partagés
-  (diffusers 0.37 `pipeline_utils.py:2118/2214`) — 23 Go bf16 → 46 Go. → `torch_dtype=None`, garde
+  (diffusers 0.37, module `pipeline_utils` du paquet, `from_pipe`) — 23 Go bf16 → 46 Go. → `torch_dtype=None`, garde
   `SharedPipelineDtypeTest`. Le 1ᵉʳ segment, lui, a montré le gain du tuilage VAE : décodage
   **2 min 51** (69 min le matin). ⚠ Le worker GPU n'a pas redémarré seul : il n'y en avait plus.
 - **Aperçu imager multi-images perdu** : la migration vers le domicile utilisateur (12/09) a déplacé
@@ -17185,3 +17185,43 @@ débits audio du converter · générateur `views_gen` (bouchons `profile_*`).
 **Pendings système** : `kill -HUP` gunicorn (Fabien) · push de la session.
 
 **Suite du 2026-09-26 (après le reload de Fabien)** : `run_nightly_tests --app transcriber --with-gpu` → **21/21 OK**, 0 skip (rapport `nightly_20260926_142028`) — la prod transcriber est rétablie ; `processing` et `batch_processing` passent sur le squelette commun avec le filtre de parole livré. Reste du point d'entrée : une vraie card en `vad_mode=auto` sur un enregistrement en champ lointain.
+
+## §CLÔTURE — 2026-09-26, « PROSPECTION → VIDÉO » (session 23→26/09) — ✅ CLOSE — 🔚 Fabien teste LTX fp8, puis nouvelle session « modèles vidéo »
+
+**Ce que la session a livré** (blocs du 23 et du 24/09 plus haut, rien n'est recopié) : chaîne
+complète derrière « Prospecter », rejugement sur faits nouveaux, pics VRAM des candidats, tri des
+modèles ; imager vidéo — VAE découpé en espace ET en temps (brique commune), sortie vidéo convertie,
+réglages effectifs DITS, réglages bornés par les capacités du modèle (`Param.cap_from`, bleu /
+orange / rouge), prolongation par segments (FastWan) et CONTINUATION (LTX, 25 images), OOM du
+`from_pipe` float32, aperçu imager à 4 images réparé (listes JSON de chemins), appariement des
+paliers hébergés (« Pro »), réglages recommandés d'un modèle distillé.
+Commits : `09592450` `d62b0a6a` `e0d3206a` `ece76f16` `eae1486d` `03d0814b` `e3411df8` + celui de
+cette clôture — **NON POUSSÉS**.
+
+**Tests ajoutés à la clôture** (§2a bis) : `tests_cap_from_js` (8, V8 — `applyCapFrom`, tri,
+`capabilityFacts`), `VramFootprintExposedTest` (2). Périmètre sous WSL2 : 422 tests, seuls rouges
+= contrôle de langue (code +1, méthodes +1), hors de mes fichiers (vérifié fichier par fichier).
+**Non gardé** : la navigation ↑/↓ qui saute les cards filtrées (`wama-inspector.js`,
+`wama-queue.js`) — logique interne de fermeture, vue au navigateur seulement.
+
+**Contrôles** : `check_docs` 1 cible distincte (`wama-dev-ai/run_improve.py`, citée par
+`WAMA_LLM.md`, autre instance) — la 2ᵉ, un chemin de diffusers que j'avais écrit ici, corrigée ;
+`doc_facts` 2 blocs périmés, NON régénérés (ils embarqueraient le WIP d'une autre instance — mes
+briques neuves y entreront au prochain rattrapage) ; corpus de manifestes 85 périmés dont 10 lignes
+imager (capacités vidéo neuves), NON régénéré pour la même raison ; `check_skills` sans défaut.
+
+**Effets de bord sur le terrain partagé** : catalogue réel modifié (doublon FastWan retiré ; 44
+candidats HF pesés ; 11 listes `generated_images` réalignées ; synchros et bancs relancés depuis
+WSL2) ; un serveur de dev 8011 lancé puis ARRÊTÉ ; le worker GPU a été tué par l'OOM du 23/09
+22:40 puis relancé par Fabien. Scripts de mesure de la session : dans le scratchpad, jetables.
+
+**Pendings, dans l'ordre** :
+1. Fabien : LTX 0.9.8 **fp8**, 8 pas, guidage 1 — 5 s d'abord (décodage), puis 12-15 s
+   (continuation : regarder les jointures). Ni la continuation ni le découpage temporel du VAE
+   n'ont tourné au GPU.
+2. Nouvelle session « modèles vidéo » : LTX-2.x (licence à lire, variante quantisée sous 24 Go,
+   backend `ltx2` de diffusers), SkyReels-V2 à prospecter ; `quality`, pas seulement durée.
+3. `check_media_integrity` ne lit pas les listes JSON de chemins (images comptées orphelines) —
+   partition « tests de robustesse ».
+4. Le plafond de résolution de LTX fp8 (768×432) reste codé dans la tâche.
+5. Pousser les commits.
