@@ -9,7 +9,8 @@
 # démarrage À L'IDENTIQUE — d'où ce fichier.
 #
 # Suppose : PROJECT_DIR et LOG_DIR posés, répertoire courant = PROJECT_DIR, venv activé.
-# ⚠ `start_wama_dev.sh` garde ses propres lancements (worker default en pool solo) : non raccordé.
+# Appelants : `start_wama_prod.sh`, `start_wama_dev.sh` (qui déclare WAMA_DEFAULT_WORKER_POOL=solo)
+# et `scripts/worker_watchdog.sh` (qui hérite de cette variable du script qui l'a lancé).
 # ------------------------------------------------------------------------------------------
 
 #: Les processus Celery surveillés et relancés, dans l'ordre de lancement.
@@ -86,11 +87,18 @@ start_celery_worker() {
             celery -A wama worker --pool=solo --queues=gpu --hostname=gpu@%h \
                 --prefetch-multiplier=1 --statedb="$LOG_DIR/celery-gpu.state" \
                 --loglevel=INFO --detach --logfile "$LOG_DIR/celery-gpu.log" ;;
-        # Default : tâches légères (model_manager, périodiques), élastique 1 → 4 process.
+        # Default : tâches légères (model_manager, périodiques), élastique 1 → 4 process. Le
+        # script de DEV le lance en pool solo (compatibilité WSL) : WAMA_DEFAULT_WORKER_POOL=solo.
         default)
-            celery -A wama worker --pool=prefork --queues=default,celery --hostname=default@%h \
-                --autoscale=4,1 --statedb="$LOG_DIR/celery-default.state" \
-                --loglevel=INFO --detach --logfile "$LOG_DIR/celery-default.log" ;;
+            if [ "${WAMA_DEFAULT_WORKER_POOL:-prefork}" = solo ]; then
+                celery -A wama worker --pool=solo --queues=default,celery --hostname=default@%h \
+                    --statedb="$LOG_DIR/celery-default.state" \
+                    --loglevel=INFO --detach --logfile "$LOG_DIR/celery-default.log"
+            else
+                celery -A wama worker --pool=prefork --queues=default,celery --hostname=default@%h \
+                    --autoscale=4,1 --statedb="$LOG_DIR/celery-default.state" \
+                    --loglevel=INFO --detach --logfile "$LOG_DIR/celery-default.log"
+            fi ;;
         # Studio : ORCHESTRATEUR de pipelines (`run_pipeline_task` retient le worker pendant
         # tout le run). File DÉDIÉE : sur une file partagée, N runs studio peuvent occuper tous
         # les slots et affamer la tâche d'app qu'ils attendent (deadlock, smoke 03/08).

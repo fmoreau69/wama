@@ -6,6 +6,8 @@ set -e
 # ------------------------------------------------------
 echo "=== Stopping old processes if any ==="
 pkill -f "manage.py runserver" || true
+# La surveillance des workers d'abord : laissée en vie, elle relancerait ceux qu'on arrête.
+pkill -f "scripts/[w]orker_watchdog.sh" || true
 pkill -f "celery" || true
 pkill -f "uvicorn tts_service" || true
 pkill -f "redis-server" || true
@@ -28,6 +30,13 @@ mkdir -p $LOG_DIR
 # ------------------------------------------------------
 cd $PROJECT_DIR
 source $VENV_DIR/bin/activate
+
+# Environnement d'exécution et lancement des workers : UNE définition, partagée avec la production
+# et la surveillance des workers (scripts/wama_services.sh). En dev, le worker default tourne en
+# pool solo (compatibilité WSL) — déclaré ici, hérité par la surveillance qui le relance.
+source $PROJECT_DIR/scripts/wama_services.sh
+export WAMA_DEFAULT_WORKER_POOL=solo
+wama_runtime_env
 
 echo "=== Starting WAMA development script ==="
 
@@ -139,84 +148,23 @@ fi
 # ------------------------------------------------------
 # CELERY WORKERS (2 workers: gpu + default)
 # ------------------------------------------------------
-# Environment variables for AI models
-export COQUI_TOS_AGREED=1
-export TTS_HOME=$PROJECT_DIR/AI-models/synthesizer/tts
-export CUDA_LAUNCH_BLOCKING=0
-# WAMA est 100% PyTorch : on EMPÊCHE transformers d'importer TensorFlow/Flax. TF (installé mais inutile
-# ici) saisirait un contexte CUDA parallèle → "CUDA error: unknown error" (cudaErrorUnknown) en WSL2.
-export USE_TF=0
-export USE_FLAX=0
-# expandable_segments : mémoire virtuelle CUDA (cuMemMap), instable sous WSL2 → assert
-# "!handles_.at(i)" (CUDACachingAllocator) qui fait planter les grosses générations (VibeVoice ASR).
-# On le DÉSACTIVE en WSL, on le GARDE sur Linux natif (anti-fragmentation des gros modèles).
-if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
-    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False
-else
-    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-fi
+# Environnement des workers et lancements : scripts/wama_services.sh (mêmes que la production,
+# worker default en pool solo par WAMA_DEFAULT_WORKER_POOL ci-dessus).
+wama_worker_env
+for w in $WAMA_CELERY_WORKERS; do
+    if ! celery_worker_alive "$w"; then
+        echo "=== Starting Celery $w ==="
+        start_celery_worker "$w"
+    else
+        echo "Celery $w is already running."
+    fi
+done
 
-# GPU Worker: handles all GPU-intensive AI tasks (1 task at a time)
-# Queue: gpu (anonymizer, imager, enhancer, synthesizer, transcriber, describer)
-if ! pgrep -f "celery.*gpu@" > /dev/null; then
-    echo "=== Starting Celery GPU Worker (solo) ==="
-    celery -A wama worker \
-        --pool=solo \
-        --queues=gpu \
-        --hostname=gpu@%h \
-        --prefetch-multiplier=1 \
-        --statedb=$LOG_DIR/celery-gpu.state \
-        --loglevel=INFO \
-        --detach \
-        --logfile $LOG_DIR/celery-gpu.log
-else
-    echo "Celery GPU worker is already running."
-fi
-
-# Default Worker: handles light tasks (model_manager, periodic tasks)
-# Pool solo for WSL compatibility
-if ! pgrep -f "celery.*default@" > /dev/null; then
-    echo "=== Starting Celery Default Worker (solo) ==="
-    celery -A wama worker \
-        --pool=solo \
-        --queues=default,celery \
-        --hostname=default@%h \
-        --statedb=$LOG_DIR/celery-default.state \
-        --loglevel=INFO \
-        --detach \
-        --logfile $LOG_DIR/celery-default.log
-else
-    echo "Celery Default worker is already running."
-fi
-
-# Studio Worker: ORCHESTRATEUR de pipelines (run_pipeline_task retient le worker pendant
-# toute la durée du run — boucle de poll). File DÉDIÉE : sur une file partagée en pool solo,
-# la tâche d'app attendue (ex. converter → default) ne partait jamais (deadlock, smoke 03/08).
-if ! pgrep -f "celery.*studio@" > /dev/null; then
-    echo "=== Starting Celery Studio Worker (solo) ==="
-    celery -A wama worker \
-        --pool=solo \
-        --queues=studio \
-        --hostname=studio@%h \
-        --statedb=$LOG_DIR/celery-studio.state \
-        --loglevel=INFO \
-        --detach \
-        --logfile $LOG_DIR/celery-studio.log
-else
-    echo "Celery Studio worker is already running."
-fi
-
-# ------------------------------------------------------
-# CELERY BEAT (optionnel)
-# ------------------------------------------------------
-if ! pgrep -f "celery.*beat" > /dev/null; then
-    echo "=== Starting Celery Beat ==="
-    celery -A wama beat \
-        --loglevel=INFO \
-        --detach \
-        --logfile $LOG_DIR/celery-beat.log
-else
-    echo "Celery Beat is already running."
+# Surveillance des workers (relance d'un worker mort) — cf. start_wama_prod.sh.
+if ! pgrep -f "scripts/[w]orker_watchdog.sh" > /dev/null; then
+    echo "=== Starting worker watchdog ==="
+    nohup bash $PROJECT_DIR/scripts/worker_watchdog.sh >> $LOG_DIR/worker-watchdog.log 2>&1 &
+    disown $!
 fi
 
 # ------------------------------------------------------
