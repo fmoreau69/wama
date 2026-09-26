@@ -584,8 +584,11 @@ def _modes_declared(f: _AppFiles):
     (composer/reader/describer, 14/08) sanctionnait la doctrine — même logique que
     PROMPT_TARGETS vide (gate F6, 14/08). Clé ABSENTE = toujours rouge (non traité)."""
     try:
-        from wama.common.utils.app_modes import APP_MODES
-        entry = APP_MODES.get(f.app)
+        # L'ACCESSEUR, pas le dict brut : `get_app_modes` porte le repli JUMELLE depuis le
+        # 2026-09-04 (« une jumelle perdait SILENCIEUSEMENT les inputs[] de sa source »).
+        # Lire `APP_MODES` directement court-circuitait le seul point qui les connaît.
+        from wama.common.utils.app_modes import get_app_modes
+        entry = get_app_modes(f.app) or None
     except Exception:
         entry = None
     if entry is None:
@@ -1063,6 +1066,30 @@ def _registry_block(app: str, rel: str) -> str | None:
     return m.group(2) if m else None
 
 
+def _declaring_app(app: str) -> str:
+    """L'app dont la DÉCLARATION fait foi pour `app` : elle-même, ou sa SOURCE si c'est une
+    jumelle du bac à sable.
+
+    ⚠⚠ MESURÉ le 2026-09-26 (question de Fabien : faire entrer le bac à sable dans la grille).
+    Une jumelle `describer_01` sortait à **75 %** contre **99 %** pour sa source — et sur ses
+    20 rouges, QUATRE étaient faux : le contrôle lisait le TEXTE d'un registre pendant que le
+    bac à sable, lui, injecte la jumelle dans ce même registre AU RUNTIME
+    (`inject_sandbox_catalog`, `inject_sandbox_access`). La grille reprochait donc à la jumelle
+    une déclaration qu'elle a. Montrer ça à un modérateur, c'est lui mentir.
+
+    ⚠ À N'EMPLOYER QUE pour les registres que le bac à sable injecte RÉELLEMENT :
+    `APP_CATALOG`, `DEFAULT_APP_ACCESS`, et `APP_MODES` (par son accesseur `get_app_modes`,
+    qui porte le même repli depuis le 04/09). Pour ceux qu'il n'injecte PAS — `TOOL_REGISTRY`,
+    `TRIAD_SPECS`, `GENERIC_APPS`, `model_registry._discover_<app>_models` — l'employer ferait
+    dire à la grille qu'une jumelle expose quelque chose qu'elle n'expose pas : ces rouges-là
+    sont MÉRITÉS, et c'est une décision (injecter ou non) qu'ils appellent, pas un correctif
+    de mesure. C'est pourquoi ce repli est posé APPEL PAR APPEL et non dans
+    `_registry_block`, que `_studio_params` emprunte aussi.
+    """
+    from wama.common.sandbox import twin_source
+    return twin_source(app) or app
+
+
 def _registry_keys(name: str, rel: str) -> set[str]:
     """Clés de PREMIER niveau d'un dict-registre `NAME = { 'app': …, }` (indentation 4)."""
     m = re.search(rf"^{name}\s*[:=].*?\{{(.*?)^\}}", _wama_text(rel), re.S | re.M)
@@ -1248,14 +1275,18 @@ def _f6_prompt(fn):
 # ── F1 / F2 — identité déclarée & entrée ─────────────────────────────────────────
 
 def _catalog_entry(f: _AppFiles):
-    block = _registry_block(f.app, APP_REGISTRY_PY)
+    # Une jumelle hérite de la déclaration de sa source : `inject_sandbox_catalog` la clone
+    # dans `APP_CATALOG` au runtime (cf. `_declaring_app`).
+    declarant = _declaring_app(f.app)
+    herite = f" (hérité de {declarant})" if declarant != f.app else ''
+    block = _registry_block(declarant, APP_REGISTRY_PY)
     if block is None:
         return False, "absente d'APP_CATALOG (identité non déclarée)"
     missing = [k for k in ('input_types', 'output_types', 'input_extensions')
                if not re.search(rf"'{k}'\s*:", block)]
     if missing:
-        return 'partial', f"APP_CATALOG['{f.app}'] : manquent {', '.join(missing)}"
-    return True, f"{APP_REGISTRY_PY} APP_CATALOG['{f.app}'] (E/S typées + extensions)"
+        return 'partial', f"APP_CATALOG['{declarant}'] : manquent {', '.join(missing)}"
+    return True, f"{APP_REGISTRY_PY} APP_CATALOG['{declarant}'] (E/S typées + extensions){herite}"
 
 
 # ── F3 — preview « PENDANT » (backend câblé ⟷ frontend consommateur) ─────────────
@@ -1560,10 +1591,14 @@ def _tool_api_item_id(f: _AppFiles):
 # ── F7 — permissions & scope données ─────────────────────────────────────────────
 
 def _access_policy(f: _AppFiles):
+    # `inject_sandbox_access` injecte la jumelle dans DEFAULT_APP_ACCESS au runtime : c'est la
+    # déclaration de sa SOURCE qui fait foi (cf. `_declaring_app`).
+    declarant = _declaring_app(f.app)
+    herite = f" (hérité de {declarant})" if declarant != f.app else ''
     m = re.search(r'DEFAULT_APP_ACCESS\s*=\s*\{(.*?)\n\}',
                   _wama_text('accounts/permissions.py'), re.S)
-    if m and re.search(rf"'{f.app}'\s*:", m.group(1)):
-        return True, f"accounts/permissions.py DEFAULT_APP_ACCESS['{f.app}']"
+    if m and re.search(rf"'{declarant}'\s*:", m.group(1)):
+        return True, f"accounts/permissions.py DEFAULT_APP_ACCESS['{declarant}']{herite}"
     return False, "absente du seed DEFAULT_APP_ACCESS (gating d'app non déclaré)"
 
 
@@ -1720,7 +1755,7 @@ def _filemanager_import(f: _AppFiles):
     """
     if 'wama:fileimported' not in _wama_text('common/static/common/js/wama-app-base.js'):
         return False, 'brique commune absente de wama-app-base.js'
-    if _registry_block(f.app, APP_REGISTRY_PY) is None:
+    if _registry_block(_declaring_app(f.app), APP_REGISTRY_PY) is None:
         return False, "absente d'APP_CATALOG → window.WAMA_CURRENT_APP ne résout pas"
     own = f.find(JS, r"addEventListener\('wama:fileimported'")
     if own:

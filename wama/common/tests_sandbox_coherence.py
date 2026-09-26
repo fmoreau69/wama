@@ -287,3 +287,60 @@ class SupersededTaskModuleTest(SimpleTestCase):
                 self.assertEqual(cmd_sandbox._restore_retired_modules('jumelle_00', ['workers.py']),
                                  ['workers.py'])
                 self.assertEqual((p / 'workers.py').read_text(encoding='utf-8'), 'COPIE = 1\n')
+
+
+class TwinGridReadsWhatIsInjectedTest(SimpleTestCase):
+    """La grille doit noter une jumelle sur ce qu'elle EST, pas sur ce que le contrôle lit.
+
+    MESURÉ le 2026-09-26 (question de Fabien : faire entrer le bac à sable dans la grille pour
+    qu'un modérateur puisse juger une app candidate). `describer_01` sortait à **75 %** contre
+    **99 %** pour sa source ; sur ses 20 rouges, QUATRE étaient FAUX — le contrôle lisait le
+    TEXTE d'un registre pendant que le bac à sable injecte la jumelle dans ce même registre au
+    RUNTIME (`inject_sandbox_catalog`, `inject_sandbox_access`, `get_app_modes`).
+    *Une grille qui reproche une déclaration qu'on a ment au modérateur qui la lit.*
+
+    ⚠ ET LA CONTRE-ÉPREUVE COMPTE AUTANT : le repli ne doit PAS s'étendre aux registres que le
+    bac à sable n'injecte pas (`TOOL_REGISTRY`, `TRIAD_SPECS`, `GENERIC_APPS`, la découverte du
+    model_manager). Là, le rouge est MÉRITÉ : la jumelle n'expose réellement rien, et c'est une
+    décision (injecter ou non) qu'il appelle, pas un correctif de mesure.
+    """
+
+    #: Les fonctions de contrôle qui lisent un registre NON injecté par le bac à sable.
+    SANS_REPLI = ('_tool_api_triad', '_tool_api_item_id', '_triad_specs',
+                  '_studio_params', '_model_discovery', '_model_caps_canonical')
+
+    def test_a_twin_inherits_the_declaration_of_its_source(self):
+        from wama.common.services import conformity_checker as checker
+        with patch('wama.common.sandbox.twin_source', return_value='describer'):
+            self.assertEqual('describer', checker._declaring_app('describer_01'))
+
+    def test_a_normal_app_answers_for_itself(self):
+        from wama.common.services import conformity_checker as checker
+        self.assertEqual('describer', checker._declaring_app('describer'))
+
+    def test_the_fallback_stays_out_of_the_registries_the_sandbox_does_not_inject(self):
+        """Contre-épreuve de PÉRIMÈTRE : un repli qui déborde ferait verdir un critère sur une
+        chose que la jumelle n'expose pas — le contraire du service rendu au modérateur."""
+        import re
+        from pathlib import Path
+
+        from wama.common.services import conformity_checker as checker
+        source = Path(checker.__file__).read_text(encoding='utf-8')
+        for name in self.SANS_REPLI:
+            body = re.search(rf"^def {name}\b.*?(?=^def |\Z)", source, re.S | re.M)
+            self.assertIsNotNone(body, f'{name} introuvable')
+            self.assertNotIn('_declaring_app', body.group(0),
+                             f"{name} lit un registre que le bac à sable n'injecte pas : "
+                             f"le repli y ferait dire à la grille une chose fausse")
+
+    def test_the_four_criteria_that_do_inherit_say_so_in_their_message(self):
+        """Le modérateur doit voir que la déclaration est HÉRITÉE, pas propre à la jumelle."""
+        import re
+        from pathlib import Path
+
+        from wama.common.services import conformity_checker as checker
+        source = Path(checker.__file__).read_text(encoding='utf-8')
+        for name in ('_catalog_entry', '_access_policy'):
+            body = re.search(rf"^def {name}\b.*?(?=^def |\Z)", source, re.S | re.M).group(0)
+            self.assertIn('_declaring_app', body, name)
+            self.assertIn('hérité de', body, f'{name} : le message doit dire que c\'est hérité')
