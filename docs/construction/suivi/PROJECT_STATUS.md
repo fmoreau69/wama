@@ -17440,7 +17440,7 @@ sauvegarde du volet de lot (anonymizer, imager, enhancer) → `refreshCard`, con
 > pour la vocalisation (suppression des emojis, intonations et soupirs sur les parenthèses et fins
 > de lignes) et porter ça sur la page d'accueil. On le fait de suite et le levier 5 aussi. »*
 
-**LEVIER 5 (flux SSE) — `b24ca53e`.** Ollama reçoit `stream: true` dès qu'un rappel est fourni ;
+**LEVIER 5 (flux SSE) — `2716f47e`.** Ollama reçoit `stream: true` dès qu'un rappel est fourni ;
 chaque fragment remonte à l'écran ET à la voix. Mesure navigateur : 1ᵉʳ texte **0,2 s**, fin du
 tour **2,2 s**. ⚠ Le point dur n'est pas le transport mais le **portier** (`_TokenGate`) : la
 réflexion du modèle et les appels d'outils arrivent par le MÊME canal que la réponse, et il faut
@@ -17494,6 +17494,10 @@ après). Nommer la cible en clair, jamais par un numéro de ligne.
 3. **Après un commit par index temporaire, l'index PARTAGÉ garde les blobs de l'ANCIEN HEAD** →
    `MM`/`D ` sur mes chemins, c'est-à-dire un **retour arrière stagé** que le prochain commit
    d'autrui emporterait. ✅ `git reset -q HEAD -- <mes seuls chemins>`, vérifié.
+4. **Un `--amend` RECRÉE le commit : son sha meurt.** Ce bloc citait d'abord `b24ca53e`, sha
+   d'avant l'amendement du message — **introuvable**, y compris par `git log --all`. Une
+   consignation qui cite un sha mort envoie la session suivante nulle part, et rien ne le signale.
+   ✅ Relire le sha **après** le dernier amendement, jamais celui qu'a affiché le premier commit.
 
 **⚠ Ce que je n'ai PAS commité, et pourquoi** : les ~148 lignes de `WAMA_LLM.md` et les 10 hunks
 d'`assistant_engine.py` du chantier **Discord/liens** d'une autre instance (encore chaud,
@@ -17510,7 +17514,8 @@ commit qui le porte, il date de l'arbre qui l'a produit.*
 **Vérifié** : 107 tests de mon périmètre OK **après la dernière écriture** (flux 16, texte à dire
 17, surfaces, plans de doc, budget de langue, synthesizer) ; `check_docs` 2 cassées (les deux
 préexistantes de ce fichier), 0 périmée ; budgets de langue tenus, aucun relevé.
-**Pendings système** : **3 commits non poussés** (`b24ca53e`, `6389072a`, `761fe722`) ; **reload
+**Pendings système** : **4 commits non poussés** (`2716f47e`, `6389072a`, `761fe722`, plus ce
+bloc) ; **reload
 gunicorn requis** (la vue SSE `api/ai-chat/stream/` est neuve, et `wama/views.py` a changé) ; le
 serveur dev éphémère du port 8012 est **arrêté**.
 

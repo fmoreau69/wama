@@ -124,6 +124,13 @@ mais c'est défaire son geste dans son dos.
   pas seulement « index non vide » : un index vide ne le reste pas.** Le faire par défaut.
   ⭐ *Une vérification et le geste qu'elle autorise doivent être ATOMIQUES, ou la vérification ne
   vaut que pour l'instant où elle a eu lieu.*
+- 🔴 **2026-09-26 — un `--amend` RECRÉE le commit : LE SHA AFFICHÉ PAR LE PREMIER `git commit`
+  EST MORT.** Vécu le jour même : le handoff citait le sha d'avant l'amendement du message, donc
+  un objet **introuvable, `git log --all` compris**. Une consignation qui cite un sha mort envoie
+  la session suivante nulle part, **et rien ne le signale** — `check_docs` ne vérifie pas les shas.
+  ✅ Relire `git log -1 --format=%h` **après le dernier amendement**, et pour retrouver un commit
+  amendé, le chercher par son MESSAGE (`git log --format='%h %s' | grep <ancre>`), jamais par le
+  sha noté plus tôt.
 - **2026-09-26 — l'index partagé n'est PAS vide (WIP stagé d'autrui) mais on doit commiter
   quand même.** Voie sûre : un INDEX TEMPORAIRE — `GIT_INDEX_FILE=<scratchpad>/tmp.index`,
   `git read-tree HEAD`, `git apply --cached` du patch, `git add` de ses fichiers propres,
