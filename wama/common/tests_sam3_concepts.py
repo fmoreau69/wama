@@ -56,8 +56,8 @@ class Sam3ConceptSplitTest(SimpleTestCase):
     def test_an_empty_or_blank_prompt_yields_nothing_rather_than_an_empty_concept(self):
         """Un concept vide interrogerait SAM3 pour rien — et son zéro masque ressemblerait
         à un échec de détection."""
-        for texte in ('', '   ', ',,', None):
-            self.assertEqual([], _concepts(texte), repr(texte))
+        for empty in ('', '   ', ',,', None):
+            self.assertEqual([], _concepts(empty), repr(empty))
 
     def test_a_single_concept_stays_whole(self):
         self.assertEqual(['human face'], _concepts('human face'))
