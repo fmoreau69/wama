@@ -82,10 +82,14 @@
     <select id="searchEngineSelect"
             class="form-select form-select-sm bg-dark text-white border-secondary">
         <option value="" {% if not profile.search_engine %}selected{% endif %}>Celui de l'instance</option>
+        {% comment %}⚠ DEUX raisons distinctes d'être indisponible, et les confondre est un
+        cul-de-sac : un moteur à clé attend la vôtre, un service auto-hébergé attend d'être
+        DÉCLARÉ (`SEARXNG_URL`). Vu à l'écran le 2026-09-27 : SearXNG affichait « clé requise »
+        alors qu'il n'en demande aucune — le libellé mentait sur le geste à faire.{% endcomment %}
         {% for e in search_engines %}
         <option value="{{ e.slug }}"{% if e.slug == profile.search_engine %} selected{% endif %}
-                {% if not e.usable %}disabled title="Posez votre clé ci-dessus pour l'activer"{% else %}title="{{ e.usage }}"{% endif %}>
-            {{ e.label }}{% if not e.usable %} — clé requise{% endif %}
+                {% if not e.usable %}disabled title="{% if e.needs_key %}Posez votre clé ci-dessus pour l'activer{% else %}Déclarez l'adresse de votre instance ({{ e.slug|upper }}_URL) pour l'activer{% endif %}"{% else %}title="{{ e.usage }}"{% endif %}>
+            {{ e.label }}{% if not e.usable %}{% if e.needs_key %} — clé requise{% else %} — instance à déclarer{% endif %}{% endif %}
         </option>
         {% endfor %}
     </select>
@@ -808,10 +812,20 @@ async function loadKeys(group) {
             container.innerHTML = `<div class="text-white-50 small">${cfg.empty}</div>`;
             return;
         }
+        // Sous-titre quand la FAMILLE change (`kind_label` vient du registre) : depuis le
+        // 2026-09-26 cette liste mêle fournisseurs d'IA et moteurs de recherche, et une liste
+        // plate ne dirait plus à quoi chaque clé sert. Les connecteurs de la médiathèque n'ont
+        // pas de famille — la ligne saute alors, sans rien changer pour eux.
+        let famille = null;
         container.innerHTML = providers.map(p => {
             const id = `${group}-${p.slug}`;
             const act = (action) => `data-key-action="${action}" data-group="${group}" data-slug="${p.slug}"`;
-            return `
+            let titre = '';
+            if (p.kind_label && p.kind_label !== famille) {
+                famille = p.kind_label;
+                titre = `<div class="text-info small fw-bold mt-2 mb-1">${p.kind_label}</div>`;
+            }
+            return titre + `
             <div class="key-row">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="small text-light">
