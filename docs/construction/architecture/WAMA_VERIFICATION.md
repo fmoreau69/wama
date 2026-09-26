@@ -731,7 +731,22 @@ trois apps n'ont pas d'importeur, et le scénario le dit en toutes lettres aprè
 dans le dossier temporaire du compte de test, ouvrir la page de l'app (le gestionnaire de fichiers
 **n'a pas de page à lui**, c'est un volet gauche que `base.html` inclut partout), déplier l'arbre,
 **clic droit** sur le témoin, survoler « Envoyer vers… », cliquer le libellé de l'app — puis exiger
-qu'un élément apparaisse. Le fichier copié dans le dossier d'entrée est retiré avec la ligne.
+qu'un élément apparaisse. Le fichier importé est retiré avec la ligne. *(Depuis le pointage du
+2026-09-23, un témoin déjà dans l'arbre de l'utilisateur n'est plus COPIÉ mais désigné —
+`MEDIA_STORAGE_TIERING §Cible` ; le geste et sa mesure sont inchangés.)*
+
+> 🔴 **`transcriber.send_to` SAUTE chaque nuit, et son motif désigne le mauvais coupable** (mesuré
+> le 2026-09-26, sur le live après relance, **deux fois sur deux**). Le skip dit « navigateur/serveur
+> indisponible » ; la cause est ailleurs : `page.goto('/transcriber/', wait_until='networkidle')`
+> dépasse 45 s, et **une seule requête est en vol au moment du dépassement — `/transcriber/backends/`,
+> depuis 42,4 s**. La même navigation sur `/converter/` atteint le repos en **3,1 s**. ⚠ Et ce n'est
+> **pas** la lenteur de la vue : cette adresse répond en **2 ms** à `curl`, à froid comme à chaud
+> (`views.get_backends` met en cache une heure) ; en `wait_until='domcontentloaded'` puis 20 s
+> d'attente, aucune requête ne reste en vol et le repos EST atteint. Les trois pages comparées
+> émettent le même volume de sondages. La question ouverte est donc : pourquoi cette requête n'est
+> jamais close CÔTÉ NAVIGATEUR alors que le serveur a répondu. Aucune instance ne tenait le
+> transcriber au moment du relevé — signalé, non traité. *Un skip nomme ce qu'on a vu : ici, il
+> nommait ce qu'on avait supposé.*
 
 > ⚠⚠ **Le geste a DEUX moitiés, et elles étaient bâties sur des sources différentes.** Le MENU se
 > construit chez le client depuis `WAMA_APP_CATALOG.input_extensions` — la déclaration de l'app,
@@ -961,6 +976,28 @@ fermés au compte de test.)
 > huit jumeaux du fichier. Il a coûté un diagnostic : un run a rapporté **14 serveurs
 > indisponibles** alors que le serveur tournait et que la faute était l'appel Playwright.
 > Un skip nomme ce qu'on a **vu**, pas ce qu'on suppose.
+
+### Geste de SUPPRESSION depuis le gestionnaire (2026-09-26) — le premier geste dont le succès est un REFUS
+
+Posé par la décision D20 de Fabien (`MEDIA_STORAGE_TIERING §8.6`) : *supprimer un fichier qu'une
+card utilise doit PRÉVENIR et demander confirmation ; confirmée, la card reste et il faut lui
+redonner un fichier.* Scénario **`common.tree_delete_in_use`** (`ui_smoke_menus.py`), **7/7** au
+premier run complet — il joue les deux issues, parce qu'elles cassent séparément :
+
+| moitié | ce qui est exercé | attendu |
+|---|---|---|
+| **A. le refus** | clic droit sur le fichier → Supprimer → la 1ʳᵉ confirmation est acceptée, la SECONDE (« N card(s) utilisent ce fichier ») est REFUSÉE | le fichier est **toujours sur le disque** |
+| **B. la confirmation** | le même geste, les deux dialogues acceptés | fichier parti, **ligne de card SURVIVANTE**, son entrée VIDÉE (détachée) |
+
+> ⭐ **Ce scénario a trouvé un défaut que 23 contrats Python ne pouvaient pas voir** : la réponse
+> « fichier utilisé » partait en **HTTP 409**, et le navigateur écrit alors « Failed to load
+> resource » dans la console — que le nocturne surveille précisément comme un signal. Le geste
+> était juste, son statut mentait sur sa nature. Corrigé en **200 + `in_use`** : *un statut
+> d'erreur pour un cas PRÉVU rend le contrôle aveugle à ce qui n'est pas prévu.*
+
+> ⚠ **Ce scénario a sa propre politique de dialogue.** La brique commune `_ouvrir` accepte TOUTES
+> les confirmations — ce qui rendrait la moitié A inobservable (on ne peut pas mesurer un refus
+> avec un harnais qui accepte tout). Il enregistre donc les messages et décide sur leur contenu.
 
 ---
 

@@ -1401,8 +1401,10 @@
     });
 
     // Suppression en deux temps quand des cards utilisent le(s) fichier(s) : le serveur répond
-    // 409 `{in_use, count, message}` ; l'utilisateur confirme en connaissance de cause, et la
-    // même requête repart avec `confirm: true`. Rend la réponse finale, ou `null` si abandon.
+    // `{in_use, count, message}` — en 200, parce que demander confirmation est le déroulement
+    // NORMAL du geste (un statut d'erreur ferait écrire « Failed to load resource » dans la
+    // console, que le filet nocturne surveille). L'utilisateur confirme en connaissance de cause,
+    // et la même requête repart avec `confirm: true`. Rend la réponse finale, ou `null` si abandon.
     function postDeletion(url, payload) {
         const send = body => fetch(url, {
             method: 'POST',
@@ -1410,7 +1412,7 @@
             body: JSON.stringify(body)
         }).then(res => res.json().then(data => ({ status: res.status, data })));
         return send(payload).then(({ status, data }) => {
-            if (status !== 409 || !data.in_use) return data;
+            if (!data.in_use) return data;
             if (!confirm(`${data.message}\n\nSupprimer quand même ?`)) return null;
             return send(Object.assign({}, payload, { confirm: true })).then(r => r.data);
         });
@@ -1426,8 +1428,8 @@
 
         if (!confirm(`Supprimer "${node.text}" ?`)) return;
 
-        // D20 : un fichier qu'une card utilise revient en 409 avec le compte — on le DIT, et la
-        // suppression ne part qu'après une seconde confirmation (`confirm: true`).
+        // D20 : un fichier qu'une card utilise revient avec `in_use` et le compte de cards — on le
+        // DIT, et la suppression ne part qu'après une seconde confirmation (`confirm: true`).
         postDeletion(config.apiDeleteUrl || '/filemanager/api/delete/', { path: path })
             .then(data => {
                 if (!data) return;

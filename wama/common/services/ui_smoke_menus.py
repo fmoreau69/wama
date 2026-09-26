@@ -561,6 +561,100 @@ def check_nav_sandbox_keyboard():
     return _bilan(verdicts)
 
 
+def check_tree_delete_in_use():
+    """Supprimer un fichier qu'une card UTILISE : WAMA le DIT, demande confirmation, détache. (ok, detail)
+
+    Le geste posé par D20 (décision de Fabien du 2026-09-23 : *« il faut le prévenir que son fichier
+    est utilisé par une ou des cards et lui demander s'il est sûr »*). Les contrats Python
+    l'attestent côté serveur ; ici on le JOUE — deux boîtes de dialogue, dont la seconde NOMME le
+    nombre de cards, et un refus qui laisse le fichier en place.
+
+    ⚠ Ce scénario a sa propre politique de dialogue : `_ouvrir` accepte TOUT, ce qui rendrait le
+    refus inobservable. Il enregistre les messages et décide selon leur contenu.
+    """
+    from django.contrib.auth import get_user_model
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    jeton, uid = _test_session_key('converter'), _test_account_id('converter')
+    if not (jeton and uid):
+        raise SkipScenario('aucun compte de test disponible')
+    user = get_user_model().objects.get(pk=uid)
+    dossier = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
+    dossier.mkdir(parents=True, exist_ok=True)
+    temoin = _temoin(dossier, 'wama_temoin_suppr_utilise.mp4', '.mp4')
+    rel = f'users/{uid}/temp/{temoin.name}'
+
+    # ORM HORS du contexte Playwright : une card qui DÉSIGNE le témoin (elle ne le possède pas).
+    from wama.converter.models import ConversionJob
+    job = ConversionJob.objects.create(user=user, input_filename=temoin.name, media_type='video',
+                                       output_format='', status='PENDING')
+    job.input_file.name = rel
+    job.save(update_fields=['input_file'])
+
+    avant, verdicts, dialogues = _session_keys(), [], []
+
+    def _dialogue(d, refuser_le_second):
+        dialogues.append(d.message)
+        utilise = 'utilisent ce fichier' in d.message
+        d.dismiss() if (utilise and refuser_le_second) else d.accept()
+
+    try:
+        with sync_playwright() as p:
+            nav = p.chromium.launch()
+            ctx = nav.new_context(viewport={'width': 1500, 'height': 1000})
+            ctx.add_cookies(_cookie(jeton))
+            page = ctx.new_page()
+            erreurs = []
+            page.on('console', lambda m: erreurs.append(m.text) if m.type == 'error' else None)
+            page.on('pageerror', lambda e: erreurs.append(f'PAGEERROR {e}'))
+            refus = {'actif': True}
+            page.on('dialog', lambda d: _dialogue(d, refus['actif']))
+            try:
+                resp = page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
+                arrivee = _exiger_la_page(page, resp, PAGE)
+                if arrivee:
+                    return arrivee
+                _arbre_pret(page, [temoin.name])
+                ancre = f'{ARBRE} .jstree-anchor:text-is("{temoin.name}")'
+
+                # ① REFUS : deux dialogues, le second dit combien de cards, et rien ne part.
+                page.click(ancre, button='right')
+                page.click('.wama-card-menu .wama-cm-item:has-text("Supprimer")')
+                page.wait_for_timeout(1500)
+                prevenu = [m for m in dialogues if 'utilisent ce fichier' in m]
+                verdicts.append((bool(prevenu), f'prévenu : {prevenu[:1] or dialogues}'))
+                verdicts.append((temoin.exists(), 'refus : le fichier reste sur le disque'))
+
+                # ② ACCEPTATION : le fichier part, la card reste (détachée).
+                refus['actif'] = False
+                dialogues.clear()
+                page.click(ancre, button='right')
+                page.click('.wama-card-menu .wama-cm-item:has-text("Supprimer")')
+                page.wait_for_timeout(2000)
+                verdicts.append((not temoin.exists(), 'confirmé : le fichier est supprimé'))
+                verdicts.append((len(dialogues) >= 2,
+                                 f'{len(dialogues)} dialogue(s) à la confirmation'))
+                verdicts.append(_console(erreurs))
+            finally:
+                nav.close()
+    finally:
+        _drop_new_sessions(avant)
+        temoin.unlink(missing_ok=True)
+
+    # Après le navigateur (ORM) : la card a SURVÉCU, et son entrée est vide.
+    job.refresh_from_db()
+    verdicts.append((bool(ConversionJob.objects.filter(pk=job.pk).exists()),
+                     'la card survit à la suppression de son fichier'))
+    verdicts.append((not job.input_file.name,
+                     f'la card est DÉTACHÉE (entrée « {job.input_file.name} »)'))
+    # Ménage : `_retirer` vise un asset (`.file`) — ici l'entrée est justement VIDE, et le fichier
+    # est déjà parti ; la ligne témoin suffit.
+    ConversionJob.objects.filter(pk=job.pk).delete()
+    return _bilan(verdicts)
+
+
 def register_menu_scenarios():
     from wama.common.services.nightly_tests import register
     register(id='common.tree_menu_keyboard', app='common', stage='ui',
@@ -584,6 +678,10 @@ def register_menu_scenarios():
                          "fichier de SORTIE — mêmes entrées que la card, résolues au serveur après "
                          "l'ouverture ; rien de tel sur un dépôt temporaire",
              run=lambda ctx: check_tree_item_menu(), timeout_s=240)
+    register(id='common.tree_delete_in_use', app='common', stage='ui',
+             description="Arbre : supprimer un fichier qu'une card UTILISE prévient (combien de "
+                         "cards), un refus ne supprime rien, une confirmation détache la card",
+             run=lambda ctx: check_tree_delete_in_use(), timeout_s=240)
     register(id='common.nav_sandbox_keyboard', app='common', stage='ui',
              description='Sous-menu « Bac à sable » au CLAVIER, sans détournement par Bootstrap',
              run=lambda ctx: check_nav_sandbox_keyboard(), timeout_s=180)
