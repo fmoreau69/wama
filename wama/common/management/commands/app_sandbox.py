@@ -453,9 +453,9 @@ class Command(BaseCommand):
         # (vécu sur converter_01 : `update_job` → `update_settings`, smoke 404 dans les deux
         # ordres, l'include de la jumelle tombant à l'import). Ensemble : générées, mesurées et
         # revertées comme UNE substitution.
-        cibles = [c for c in (cible or '').split('+') if c]
-        unknown = [c for c in cibles if c not in _SUBSTITUTABLE]
-        if not cibles or unknown:
+        targets = [c for c in (cible or '').split('+') if c]
+        unknown = [c for c in targets if c not in _SUBSTITUTABLE]
+        if not targets or unknown:
             raise CommandError(f'Cible inconnue : {cible} (attendu {sorted(_SUBSTITUTABLE)}, '
                                'ou plusieurs jointes par « + »).')
         entries = load_registry()
@@ -470,7 +470,7 @@ class Command(BaseCommand):
         # boutons de card MORTS. Le smoke de l'étape 3 (HTTP 200) ne voit rien : la paire
         # incohérente REND. On refuse donc templates sans views:ok — l'inverse (views générées,
         # templates copiés) est refusé par l'ORDRE recommandé et le même argument.
-        if 'templates' in cibles and 'views' not in cibles:
+        if 'templates' in targets and 'views' not in targets:
             v = ((entry.get('substituted') or {}).get('views') or {}).get('verdict')
             if v != 'ok':
                 raise CommandError(
@@ -484,7 +484,7 @@ class Command(BaseCommand):
         if not manifest:
             raise CommandError(f"Extraction du manifeste de {src} impossible.")
         renders = []
-        for c in cibles:            # tout RENDRE avant d'écrire : un refus n'écrit rien
+        for c in targets:            # tout RENDRE avant d'écrire : un refus n'écrit rien
             fname_c, mod_path, fn_name = _SUBSTITUTABLE[c]
             rendered, raison = getattr(importlib.import_module(mod_path), fn_name)(manifest)
             if rendered is None:
@@ -527,7 +527,7 @@ class Command(BaseCommand):
         # import mort vers les vues copiées (cf. `_superseded_task_modules`). Restauré au revert.
         withdrawn = (_withdraw_modules(label, _superseded_task_modules(
                          manifest, _SUBSTITUTABLE['tasks'][0]))
-                     if 'tasks' in cibles else [])
+                     if 'tasks' in targets else [])
         if withdrawn:
             details.append(f'module de tâches COPIÉ remplacé par le généré, retiré : {withdrawn}')
         # Juge GÉNÉRIQUE avant tout sous-process : chaque symbole intra-paquet importé par
@@ -543,7 +543,7 @@ class Command(BaseCommand):
             details.append('manage.py check KO')
         mig_dir = WAMA_DIR / label / 'migrations'
         mig_avant = {p.name for p in mig_dir.glob('0*.py')}
-        if verdict == 'ok' and 'models' in cibles:
+        if verdict == 'ok' and 'models' in targets:
             r = _manage(['makemigrations', label])
             if r.returncode != 0:
                 verdict, details = 'revert', ['makemigrations KO']
@@ -576,7 +576,7 @@ class Command(BaseCommand):
         # recommandé) le juge s'en abstient ; au pas `templates` — ou à un `views` rejoué après
         # — il l'exige. Sans cette règle le couple était un ordre à respecter de mémoire.
         templates_ok = ((entry.get('substituted') or {}).get('templates') or {}).get('verdict') == 'ok'
-        check_card = 'templates' in cibles or templates_ok
+        check_card = 'templates' in targets or templates_ok
         if verdict == 'ok' and item_model:
             habite = subprocess.run(
                 [sys.executable, '-c',
@@ -633,7 +633,7 @@ class Command(BaseCommand):
                 _restore_retired_modules(label, withdrawn)
             # Le COUPLE se défait ensemble : des templates qui échouent laissaient des vues
             # GÉNÉRÉES servir des templates COPIÉS — card_html en 500 (composer_01, 22/09).
-            if 'templates' in cibles and 'views' not in cibles:
+            if 'templates' in targets and 'views' not in targets:
                 v_path = WAMA_DIR / label / 'views.py'
                 v_temoin = v_path.with_name('views.py.temoin')
                 if v_temoin.exists() and 'manifest-gen' in v_path.read_text(
@@ -658,7 +658,7 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.SUCCESS(
                 f'{cible} : GÉNÉRÉ tient ({" ; ".join(details) or "aucun écart"})'))
-        for c in cibles:
+        for c in targets:
             entry.setdefault('substituted', {})[c] = {
                 'verdict': verdict, 'details': details,
                 'at': datetime.now(timezone.utc).isoformat(timespec='seconds')}
