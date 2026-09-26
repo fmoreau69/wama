@@ -807,14 +807,162 @@ lancement, anti-double-passe), donc indépendant de la surface qui dépose la ca
    repli). Reste vrai : aucune surface ne passe `domain` au tour initial → rôle `general`
    d'abord — c'est le design (le domaine est le choix de l'ASSISTANT).
 3. ✅ corrigé 29/08 — **les fichiers produits repartent vers le canal** :
-   `core.py::_fichiers_produits` lit les `tool_steps` (URLs `/media/…` résolues SOUS
-   MEDIA_ROOT seulement, bornées en nombre et taille) et nourrit `Reponse.fichiers` — le
+   `core.py::_produced_files` lit les `tool_steps` (URLs `/media/…` résolues SOUS
+   MEDIA_ROOT seulement, bornées en nombre et taille) et nourrit `Reply.files` — le
    code d'envoi de l'adaptateur n'est plus mort. 3 tests `gateway/tests.py`.
+   ⚠⚠ **RECTIFIÉ le 2026-09-23 : ce « corrigé » était FAUX pendant 25 jours.** La fonction
+   ne lisait que le PREMIER niveau du résultat (`contenu.get('output_url')`), forme qu'AUCUN
+   outil ne produit : les dix `get_<app>_status` nichent la sortie sous `jobs[]`
+   (`tool_api.py:320-328`). `Reply.files` restait donc TOUJOURS vide. Les 3 tests étaient
+   verts parce qu'ils construisaient une forme SYNTHÉTIQUE au lieu de la forme mesurée des
+   outils — *une mesure qui ignore une forme rend un verdict inverse.* Levé le 23/09 :
+   descente bornée (profondeur 4, 1er élément d'une liste de conteneurs = le job le plus
+   récent, tri `-id`), et un test appelle désormais le VRAI `get_imager_status`.
+   Contre-épreuve mesurée : ancienne version `[]`, nouvelle `['…/rendu.png']`.
 4. ⚠ `PROMPT_TARGETS['composer']` sans clé `'model'` → pas d'enrichissement à l'ingestion
    (le lancement rattrape — asymétrie non documentée avec imager, sans effet fonctionnel).
 5. ✅ corrigé 29/08 : la docstring de `charger_competence` énumérait les domaines en dur
    (sans `investigation`) en contredisant l'annonce du même prompt — l'énumération est
    REMPLACÉE par un renvoi à l'annonce, qui ne peut plus dériver.
+
+### ⭐ 2026-09-23 — QUATRE défauts DE PLUS, mesurés sur un échange Discord RÉEL
+
+> Source : la conversation Discord #11 du 22/09 (`Conversation`/`ConversationTurn`, tours et
+> `tool_steps` persistés — c'est le store qui a permis de mesurer au lieu de supposer).
+> Fabien y demande une anonymisation, l'assistant la déclare lancée puis **terminée**, donne
+> un lien `https://example.com/…` **inventé**, et refuse trois fois d'envoyer le fichier.
+> *Aucun de ces quatre défauts n'était visible d'un test : ils vivaient dans ce que le
+> modèle CROIT de sa surface.*
+
+| # | ce que le modèle a fait | ce qui manquait | levé par |
+|---|---|---|---|
+| 1 | annonce « tâche lancée » puis « terminée » après un simple `add_to_anonymizer` | un ajout RANGE dans la file, `start_*` lance — rien ne le disait dans le résultat (l'item 647 dormait encore `queued`, progress 0, le lendemain) | `tool_api.relay_next_step` : le résultat porte `started: False` + le NOM du `start_*`, **dérivé** du rôle de l'outil et du registre (aucune liste d'apps à tenir), appliqué par la boucle à côté de `relay_quality_intent` |
+| 2 | « je ne peux pas envoyer de fichiers par Discord » | FAUX depuis le 21/08 : la passerelle joint les sorties du tour. Le moteur ne recevait même pas sa `surface` | `surface` descend jusqu'à `run_assistant_turn` ; `CHANNEL_FILES_PROMPT` n'est posé que sur un CANAL, et `surface_attaches_files()` le LIT de `gateway.core.CHANNELS` (domicile unique, désormais lu aussi par `run_gateway`) — le moteur ne redéclare rien, donc l'adaptateur Matrix héritera de la consigne sans qu'on y pense |
+| 3 | un lien `https://example.com/output/…` **fabriqué de toutes pièces** | aucune règle n'interdisait d'écrire une URL plausible ; le statut n'avait même pas été demandé | règle « NEVER INVENT A LINK » : une URL ne peut venir que d'un résultat d'outil de CE tour, sinon appeler `get_*_status` |
+| 4 | « je ne peux pas lancer Claude Code » — juste après l'avoir lancé | `ask_claude_code` avait échoué et rendu 500 caractères de télémétrie (`{"duration_api_ms":0,…`) ; la raison, dans `result`, était tronquée | `claude_code._failure_message` lit le JSON même en échec (`result`, sinon `subtype`/`api_error_status`) et journalise la sortie ENTIÈRE |
+
+⭐ **La leçon commune : une erreur illisible se propage en fausse incapacité.** Trois des
+quatre « je ne peux pas » ne venaient pas d'un manque, mais d'une information que le modèle
+n'avait pas — ou qu'il avait reçue sous une forme illisible. **Un petit modèle ne dit pas
+« je ne comprends pas ce résultat » : il dit « je ne peux pas ».**
+
+#### Puis DEUX de plus, révélés en remettant la chaîne en service le même jour
+
+| # | mesure | ce qui n'allait pas | levé par |
+|---|---|---|---|
+| 5 | `start_anonymizer` → `property 'processed' of 'Media' object has no setter` | l'outil écrivait encore `media.processed = False` et filtrait `filter(processed=False)`, alors que l'**audit du 2026-07-11** a remplacé ce booléen par `status` en ne laissant `processed` qu'en property DÉRIVÉE. **Les DEUX branches étaient mortes** (AttributeError à l'unité, FieldError en lot) : l'assistant n'a jamais pu lancer une anonymisation. Le défaut #1 le cachait — on n'atteignait pas l'outil | l'outil passe par `begin_processing`, **la brique du bouton ▶ de la card** (anti-race obligatoire), et parle le vocabulaire canonique `status`. `wama/common/tests_tool_api_start.py` : gardes ciblées + un contrôle GÉNÉRIQUE (« aucun `start_*` ne LÈVE sur file vide ») qui traverse les dix apps |
+| 6 | le lien inventé est REVENU après le correctif #3, dans un tour **sans aucun appel d'outil** | ses propres fabrications sont dans l'historique du fil, qui lui est resservi à chaque tour. *Une règle de prompt ne défait pas un exemple qu'on remet sous les yeux du modèle* | `_strip_unsourced_urls` : une URL ne sort de la boucle que si elle figure dans un résultat d'outil **du tour** ou dans le message de l'utilisateur — jamais depuis l'historique, qui est ce qui recycle le mensonge. Le libellé reste, la mention « lien non vérifié — retiré » le dit, le retrait est journalisé |
+
+⭐⭐ **Le vrai enseignement du 23/09 : une consigne de prompt n'est pas un contrôle.** Les
+quatre premiers correctifs donnaient au modèle de meilleures INFORMATIONS ; il a menti quand
+même, parce qu'il lisait ses propres mensonges. Ce qui tient, c'est ce que la SORTIE vérifie
+(`_strip_unsourced_urls`) et ce que la DONNÉE porte (`next_step`) — pas ce que le prompt
+demande. *Le même principe que `check_identifier_language` : une règle qui demande de se
+souvenir n'est pas un contrôle.*
+
+**Chaîne prouvée de bout en bout le 23/09 sur l'item réel 647** : `start_anonymizer` →
+`RUNNING` → `SUCCESS` (`users/1/anonymizer/output/IMG-…_blurred_sam3.jpg`) →
+`get_anonymizer_status` porte l'`output_url` → `_produced_files` ne rend QUE ce fichier-là
+(pas les neuf jobs précédents) → la passerelle le joint.
+
+### ⭐⭐ 2026-09-23 (suite) — la chaîne d'ADAPTATION du prompt SAM3 ne tenait pas
+
+> Question de Fabien après le premier run réussi : *« sam3 n'a rien flouté. Est-ce que le
+> prompt automatique est correct ? On avait mis en place un mécanisme d'adaptation. »*
+> Il avait raison sur les deux points : le mécanisme existait, et il n'était pas appelé.
+
+**① Le hook `concept` n'existait pas.** Tout était en place — le KIND `concept`
+(`prompt_pipeline`), la déclaration `PROMPT_TARGETS['anonymizer']` (`kind: concept`,
+`domain: detection`), le skill `anonymizer-detection.md`, `resolve_skill` qui le TROUVE,
+`enrich_generative` qui sait l'appliquer, et l'appel `process_prompt_for` au lancement
+(`anonymizer/tasks.py:203`). Mais Hook A est gardé par `kind == 'generative'` : **un target
+`concept` ne pouvait pas l'atteindre**, même en déclarant `enrich: True`. Mesuré avant
+correction : `enriched: False`, prompt inchangé. Le seul effet de la pipeline était une
+traduction fr→en… d'un texte déjà anglais (la langue vient du PROFIL, pas du texte).
+Levé : **Hook A bis** pour `kind == 'concept'`, + `enrich: True` à la déclaration.
+Deux différences assumées avec le génératif — `allow_shorter=True` (adapter un concept, c'est
+RACCOURCIR ; le garde-fou anti-dégénérescence rejetait la bonne sortie) et **pas
+d'interrupteur maître** (couper l'enrichissement est un confort, couper l'adaptation rend la
+détection muette).
+
+**② Le skill lui-même prescrivait une forme que SAM3 n'ancre pas.** Il demandait « short noun
+phrases separated by "and" » — et sa propre phrase d'exemple rend **zéro masque**. Mesuré,
+même image, modèle chargé une fois, seul le prompt changeant :
+
+| prompt | masques |
+|---|---|
+| `face` · `faces` · `human face` | **3** (0.93 / 0.89 / 0.88) |
+| `all human faces` | 0 — le quantificateur |
+| `face and person` | 1 (0.60, dégradé) |
+| `faces and license plates` · `all human faces and vehicle license plates` | 0 — la conjonction |
+| `Detect faces and license plates.` (ce qui partait) | 0 |
+
+**SAM3 n'ancre qu'un groupe nominal simple à la fois.** Le contrat du skill est donc devenu
+une LISTE de concepts, et `SAM3Processor.concepts()` / `_segment()` font **un appel par
+concept** en réunissant les masques — ce qui est déjà, par construction, la forme du
+cam_analyzer (`sam3_markings_prompts` itérée un par un). Un prompt sans masque est désormais
+DIT (`AUCUN masque — rien ne sera flouté`) : il produisait jusque-là une sortie identique à
+l'entrée, sans une ligne d'alerte.
+
+**③ Et une valeur INVENTÉE finissait le travail.** Prompt corrigé, masques trouvés aux bonnes
+coordonnées — et la photo sortait encore identique : **682 pixels changés sur 1,92 M**. Cause :
+l'assistant avait passé `blur_ratio=2` (le schéma déclare `min=1, step=2`, noyau gaussien
+IMPAIR, défaut 25 — et la description qu'il lit le dit). `normalize_blur_ratio` réécrivait 2
+en 3 **en silence** : un noyau 3×3 ne floute rien. Levé par
+`param_schema.unapplicable_numeric_values`, pendant numérique d'`invalid_choice_values`, posé
+à la MÊME porte (`execute_tool`) : une valeur hors grille est refusée, le message nomme la
+grille, le défaut de l'app, et invite à OMETTRE le paramètre.
+⭐ *Une valeur corrigée en silence est une valeur qu'on n'a pas refusée.*
+
+### ⭐⭐ 2026-09-23 (fin) — le souvenir de compétence d'un fil a désormais une SORTIE
+
+> Relevé par Fabien depuis la page web : « Peux-tu anonymiser IMG-…jpg avec SAM3 ? » →
+> `Network error: Unexpected token '<', "<html><hea"…`, avec un modèle « qui réfléchit »
+> alors que le curseur n'avait pas bougé et que le modèle annoncé était `qwen3.5:4b`.
+
+**La chaîne, mesurée.** Le fil web #12 a chargé `charger_competence('dev')` le **22/09 à
+10:22** (question « Modification du code WAMA » — un choix légitime). Le lendemain, chaque
+tour du MÊME fil repartait bridé : `development_model()` → `qwen3.6:35b` (23 Go),
+`DEV_QUALITY_INTENT = 100` ≥ `QUALITY_OFFLOAD_THRESHOLD` → **le budget VRAM cesse de borner**
+(comportement voulu : « l'offload est le prix assumé de la qualité »), `think` activé. Sur
+3,6 Go libres, l'offload CPU a fait dépasser le `timeout = 120` de gunicorn → 504 → **page
+HTML** → le front, qui faisait `await r.json()` sans regarder `r.ok`, affichait l'erreur du
+PARSEUR au lieu de la raison.
+
+⚠ Le défaut n'est PAS « dev est chargé par défaut » — le défaut est `general`, et
+`resolve_domain` y retombe sur toute clé inconnue. Le défaut est qu'**aucun geste ne
+permettait de QUITTER** le domaine une fois chargé.
+⭐ *Un état qu'aucun geste ne peut quitter n'est pas une mémoire, c'est un piège.*
+
+**Levé** (`conversation_store.last_loaded_domain`) : on remonte le fil du plus récent au plus
+ancien, et le premier signal rencontré l'emporte — `charger_competence` REPREND la main, un
+outil de la **triade d'app** (`add_` / `start_` / `get_*_status`) la RELÂCHE. Le signal est
+DÉRIVÉ de `tool_role`, jamais listé : une app portée à la triade le fournit sans qu'on touche
+à ce code. Se servir de WAMA n'est pas en écrire le code. Vérifié sur le fil réel : `'dev'`
+→ `''`. 6 gardes (`wama/common/tests_domain_memory.py`), dont la contre-épreuve de bout en
+bout (le tour suivant change effectivement de modèle) et celle qui protège l'inverse (parler
+du code sans lancer de tâche ne relâche rien).
+
+**Et l'erreur illisible est traitée à part** : `WamaApp.jsonOrExplain` (brique commune
+`wama-app-base.js`), consommée par les DEUX surfaces de l'assistant — la page d'accueil et
+`wama-assistant-chat.js` faisaient chacune leur `r.json()` en aveugle. Un 504 dit désormais
+« le serveur a mis trop de temps… un modèle trop gros pour la mémoire libre peut mettre
+plusieurs minutes ». Attesté sans navigateur (parse V8 des fichiers de `staticfiles/`, global
+créé, brique exposée).
+
+⚠ **Deux questions restent OUVERTES, elles engagent Fabien** : ① le budget VRAM doit-il
+s'effacer sur un chemin HTTP borné à 120 s, alors que le prix assumé de la qualité s'y solde
+toujours par un 504 ? ② la PRÉVISION du modèle (`auto_preview`, `predict_model_choice`)
+ignore le fil, donc le bridage : elle annonçait `qwen3.5:4b` pendant que le tour partait sur
+le 35b. Le marqueur `· dev` existe, mais seulement sur la réponse.
+
+⚠ **Restes signalés, non corrigés** : le cam_analyzer appelle `enrich_on_demand` directement
+dans sa tâche (l'autre instance câblée du même mécanisme ; son `list_item_field` annonce un
+« futur hook générique » dont Hook A bis est la version scalaire) — et il passe par
+`enrich_generative` avec `allow_shorter=False`, donc un prompt de marquage que le skill
+RACCOURCIRAIT serait silencieusement rejeté. Jamais mesuré. Et la pipeline traduit selon la
+langue du PROFIL sans regarder le texte : un prompt déjà anglais paie un appel de traduction
+inutile.
 
 ## Intake universel de fichiers par l'assistant — inventaire MESURÉ 2026-08-29, plan PROPOSÉ (⏳ validation Fabien)
 
