@@ -59,6 +59,24 @@ class PronounceableTest(SimpleTestCase):
         self.assertNotIn('https', said)
         self.assertIn('pour suivre', said)
 
+    def test_a_removed_address_leaves_a_sentence_one_can_still_say(self):
+        """⚠⚠ LE DÉFAUT QUE LA GARDE PRÉCÉDENTE NE VOYAIT PAS, trouvé par un smoke réel le
+        2026-09-26. Elle vérifiait l'ABSENCE de l'adresse et rien de plus : effacer l'adresse
+        rendait « Écrivez à contact@… ou https://… » en **« Écrivez a ou. »**, lu tel quel à
+        voix haute. *Vérifier qu'une chose a disparu ne dit pas ce qui reste à sa place.*
+        L'adresse est donc REMPLACÉE par un mot qui nomme sa nature."""
+        said = text_for_speech('Écrivez à contact@exemple.fr ou https://exemple.fr')
+        self.assertIn('une adresse électronique', said)
+        self.assertIn('un lien', said)
+        self.assertNotIn(' a ou', said)
+        self.assertNotIn('  ', said)
+
+    def test_the_replacement_does_not_fire_when_there_is_no_address(self):
+        """Contre-épreuve : une phrase sans adresse ne gagne aucun mot."""
+        said = text_for_speech('Écrivez-moi quand vous voulez.')
+        self.assertNotIn('un lien', said)
+        self.assertNotIn('adresse électronique', said)
+
 
 class AudibleTest(SimpleTestCase):
     """Prononçable ne veut pas dire ÉCOUTABLE : seule la ponctuation fait une pause."""
