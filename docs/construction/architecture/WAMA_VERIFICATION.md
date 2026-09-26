@@ -28,6 +28,36 @@ lire « vert » là où l'utilisateur voit un écran mort.
 > `check_app_conformity --app converter_01` fonctionne (mesuré : 39✅/3🔶/21❌ sur 63 → 64 %) —
 > mais il faut le vouloir.
 
+### 1bis. Noter une JUMELLE : ce que la grille lui reprochait à tort (2026-09-26)
+
+> Question de Fabien : *« il faut faire rentrer les app bac à sable dans les mesures de
+> conformité — à la fin du portage, elles serviront à ce qu'un utilisateur teste une app avant
+> validation d'un modérateur. On le fait maintenant ou à la fin ? »*
+
+Mesure d'entrée : **`describer_01` 66✅/4🔶/20❌ sur 90 → 75 %**, contre **99 %** pour sa source
+`describer`. Les 20 rouges, **ouverts un par un** (pas déduits de leur nom), se rangent en trois
+familles — et la distinction qui compte n'est pas « jumelle ou pas », c'est **ce que le contrôle
+lit** :
+
+| famille | critères | verdict |
+|---|---|---|
+| le bac à sable **injecte au runtime**, le contrôle lit une source STATIQUE | `catalog_entry`, `filemanager_import` (texte d'`app_registry.py`), `access_policy` (le **seed** de `permissions.py`), `modes` (le dict brut `APP_MODES` au lieu de l'accesseur `get_app_modes`, qui porte le repli jumelle depuis le 04/09) | **rouge FAUX** — corrigé le 26/09 (`_declaring_app`) : 75 % → **80 %** |
+| le bac à sable **n'injecte pas** | `tool_api`, `tool_api_item_id`, `triad_specs` (`TOOL_REGISTRY`/`TRIAD_SPECS`) · `studio_runnable`, `studio_params_module` (`GENERIC_APPS`) · `model_discovery`, `model_caps_canonical` (`_discover_<app>_models`) | **rouge MÉRITÉ** — la jumelle n'expose réellement rien. ⏳ 3 décisions : faut-il injecter ? |
+| le contrôle lit le **code de la jumelle** | `new_item_card`, `settings_modal_footer`, `select_model`, `quality_intent`, `hf_cache_isolation`, `reconcile_orphans`, `card_refresh_common`, `app_access_view`, `scoped_reads` | **mesure honnête du GÉNÉRATEUR** — c'est le sujet de `ROUTE §11` |
+
+⚠⚠ **Le repli `_declaring_app` ne vaut QUE pour la première famille**, et une contre-épreuve de
+périmètre le tient (`tests_sandbox_coherence`) : l'étendre aux registres non injectés ferait dire
+à la grille qu'une jumelle expose ce qu'elle n'expose pas — exactement le mensonge qu'on vient de
+retirer, dans l'autre sens. *Un contrôle doit lire ce que le runtime expose, ni plus ni moins.*
+
+**Réponse à la question du calendrier : maintenant pour la mesure, jamais pour la photo globale.**
+La grille sait déjà noter une jumelle par app ; ce qu'il fallait, c'était qu'elle ne mente pas. Le
+run global, lui, garde `non_sandbox_apps` : le registre des jumelles est *gitignoré* et jetable,
+un total qui bouge parce que quelqu'un a créé une jumelle n'est plus une mesure. **La cible de
+portage n'est pas un pourcentage mais un invariant** : *l'écart jumelle ↔ source doit être
+explicable, et nul pour une jumelle fraîchement générée*. Le jour où il vaut zéro, la grille du
+modérateur est fiable par construction — sans rien ajouter.
+
 ---
 
 ## 2. TROIS grilles, trois prétentions — à ne jamais confondre
