@@ -2588,6 +2588,23 @@ _GABARIT_DE_LOT = """(async () => {
 })()"""
 
 
+def _in_plain_thread(fn, *args, timeout: float = 60):
+    """Run an ORM call from a bare thread — `sync_playwright` installs an event loop in the
+    current thread, where Django refuses synchronous ORM access (`SynchronousOnlyOperation`,
+    measured 2026-08-27). A bare thread is enough; its own connection is closed with it."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _call():
+        from django.db import connections
+        try:
+            return fn(*args)
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=1) as ex:
+        return ex.submit(_call).result(timeout=timeout)
+
+
 def _test_account_id(app: str | None = None):
     """L'id du compte de test, lu DEPUIS UN THREAD ORDINAIRE.
 
@@ -2601,26 +2618,19 @@ def _test_account_id(app: str | None = None):
     sur le placeholder du gabarit, et l'app se voyait accusée de refuser son propre lot.
     Django ne l'interdit que dans le thread PORTEUR de la boucle : un thread nu suffit.
     """
-    from concurrent.futures import ThreadPoolExecutor
+    def _read():
+        from wama.common.services.nightly_tests import get_test_dev_user, get_test_user
+        twin = False
+        if app:
+            try:
+                from wama.common.app_registry import APP_CATALOG
+                twin = bool((APP_CATALOG.get(app) or {}).get('generated_from'))
+            except Exception:
+                twin = False
+        u = get_test_dev_user() if twin else get_test_user()
+        return getattr(u, 'id', None)
 
-    def _lire():
-        from django.db import connections
-        try:
-            from wama.common.services.nightly_tests import get_test_dev_user, get_test_user
-            en_jumelle = False
-            if app:
-                try:
-                    from wama.common.app_registry import APP_CATALOG
-                    en_jumelle = bool((APP_CATALOG.get(app) or {}).get('generated_from'))
-                except Exception:
-                    en_jumelle = False
-            u = get_test_dev_user() if en_jumelle else get_test_user()
-            return getattr(u, 'id', None)
-        finally:
-            connections.close_all()   # connexion propre au thread : à refermer avec lui
-
-    with ThreadPoolExecutor(max_workers=1) as ex:
-        return ex.submit(_lire).result(timeout=20)
+    return _in_plain_thread(_read, timeout=20)
 
 
 def _source_resolvable(app: str, combien: int = 2):
@@ -5673,22 +5683,6 @@ def register_batch_processing_scenarios():
         )
 
 
-def _in_plain_thread(fn, *args):
-    """Run an ORM call from a bare thread — `sync_playwright` forbids it in its own thread
-    (`SynchronousOnlyOperation`), the same way as `_test_account_id`."""
-    from concurrent.futures import ThreadPoolExecutor
-
-    def _call():
-        from django.db import connections
-        try:
-            return fn(*args)
-        finally:
-            connections.close_all()
-
-    with ThreadPoolExecutor(max_workers=1) as ex:
-        return ex.submit(_call).result(timeout=60)
-
-
 def _start_on_a_dead_process(app: str, item_id) -> str:
     """Put element `item_id` in the state a worker crash leaves: RUNNING, its task STARTED by a
     process that no longer exists. The worker name is FICTITIOUS (`wama-smoke@<host>`): no live
@@ -5764,9 +5758,8 @@ def check_app_worker_death(app: str, url_path: str):
                                f"« {page.evaluate(card_state, ident)} » au chargement")
             page.evaluate("() => { window.__wamaWorkerDeath = 'same-page'; }")
 
-            settled = _in_plain_thread(
-                __import__('wama.common.utils.process_control', fromlist=['x'])
-                .reconcile_dead_worker_tasks, node)
+            from wama.common.utils.process_control import reconcile_dead_worker_tasks
+            settled = _in_plain_thread(reconcile_dead_worker_tasks, node)
             if not any(str(pk) == str(ident) for _l, _m, pk in settled):
                 return False, f"la brique n'a pas soldé l'élément #{ident} ({settled})"
             try:

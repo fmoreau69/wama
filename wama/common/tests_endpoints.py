@@ -32,22 +32,29 @@ def _app_labels():
             - twins_with_copied_views())
 
 
-def _parameterless_routes():
-    """(chemin d'espace complet, nom) de chaque adresse NOMMÉE sans argument, dans un espace
-    d'app. ⚠ Le chemin COMPLET, pas le dernier segment : une app peut être rangée dans un espace
-    imbriqué (`lab:…`) — mesuré au premier passage, `reverse('cam_analyzer:…')` n'existe pas."""
-    labels = _app_labels()
+def _app_patterns(labels=None):
+    """[(espaces d'adresses, motif)] de chaque adresse NOMMÉE d'un espace d'app — le parcours
+    UNIQUE de l'URLconf pour ce module (il était écrit trois fois, 2026-09-26). `labels` restreint
+    aux espaces voulus ; défaut : `_app_labels()`."""
+    labels = _app_labels() if labels is None else labels
     found = []
 
     def walk(resolver, path):
         for p in resolver.url_patterns:
             if isinstance(p, URLResolver):
                 walk(p, path + [p.namespace] if p.namespace else path)
-            elif isinstance(p, URLPattern) and path and path[-1] in labels and p.name \
-                    and not p.pattern.regex.groups:
-                found.append((':'.join(path), p.name))
+            elif isinstance(p, URLPattern) and path and path[-1] in labels and p.name:
+                found.append((path, p))
     walk(get_resolver(), [])
-    return sorted(set(found))
+    return found
+
+
+def _parameterless_routes():
+    """(chemin d'espace complet, nom) de chaque adresse NOMMÉE sans argument, dans un espace
+    d'app. ⚠ Le chemin COMPLET, pas le dernier segment : une app peut être rangée dans un espace
+    imbriqué (`lab:…`) — mesuré au premier passage, `reverse('cam_analyzer:…')` n'existe pas."""
+    return sorted({(':'.join(path), p.name) for path, p in _app_patterns()
+                   if not p.pattern.regex.groups})
 
 
 def _routes_with_ids():
@@ -55,21 +62,15 @@ def _routes_with_ids():
     sont des identifiants — la forme de ~260 des 317 adresses à argument (mesuré le 2026-09-22).
     Les formes rares (texte, slug, mélanges) restent hors de ce parcours, et sont COMPTÉES."""
     from django.urls.converters import IntConverter, UUIDConverter
-    labels = _app_labels()
     found, other = [], []
-
-    def walk(resolver, path):
-        for p in resolver.url_patterns:
-            if isinstance(p, URLResolver):
-                walk(p, path + [p.namespace] if p.namespace else path)
-            elif (isinstance(p, URLPattern) and path and path[-1] in labels and p.name
-                    and p.pattern.converters):
-                kinds = [(k, 'int' if isinstance(c, IntConverter) else
-                          'uuid' if isinstance(c, UUIDConverter) else None)
-                         for k, c in p.pattern.converters.items()]
-                (found if all(kind for _k, kind in kinds) else other).append(
-                    (':'.join(path), p.name, kinds))
-    walk(get_resolver(), [])
+    for path, p in _app_patterns():
+        if not p.pattern.converters:
+            continue
+        kinds = [(k, 'int' if isinstance(c, IntConverter) else
+                  'uuid' if isinstance(c, UUIDConverter) else None)
+                 for k, c in p.pattern.converters.items()]
+        (found if all(kind for _k, kind in kinds) else other).append(
+            (':'.join(path), p.name, kinds))
     return found, other
 
 
@@ -278,17 +279,8 @@ class ItemEditRouteConventionTest(TestCase):
         from wama.common.sandbox import LABEL_RE
         labels = {label for label in _app_labels() if not LABEL_RE.match(label)}
         names = set(route_variants('update'))
-        found = {}
-
-        def walk(resolver, path):
-            for p in resolver.url_patterns:
-                if isinstance(p, URLResolver):
-                    walk(p, path + [p.namespace] if p.namespace else path)
-                elif (isinstance(p, URLPattern) and path and path[-1] in labels
-                        and p.name in names and p.pattern.converters):
-                    found[path[-1]] = (p.name, str(p.pattern))
-        walk(get_resolver(), [])
-        return found
+        return {path[-1]: (p.name, str(p.pattern)) for path, p in _app_patterns(labels)
+                if p.name in names and p.pattern.converters}
 
     def test_the_item_settings_route_has_the_conventional_name_and_path(self):
         routes = self._item_edit_routes()
