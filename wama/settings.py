@@ -486,6 +486,11 @@ EMAIL_PORT = int(_os.environ.get('WAMA_EMAIL_PORT', '587'))
 EMAIL_HOST_USER = _os.environ.get('WAMA_EMAIL_USER', '')
 EMAIL_HOST_PASSWORD = _os.environ.get('WAMA_EMAIL_PASSWORD', '')
 EMAIL_USE_TLS = _os.environ.get('WAMA_EMAIL_USE_TLS', '1') == '1'
+# SSL IMPLICITE (port 465, ex. partage.univ-eiffel.fr) — exclusif de STARTTLS (port 587) : Django
+# refuse les deux à la fois. Poser WAMA_EMAIL_USE_SSL=1 éteint donc TLS.
+EMAIL_USE_SSL = _os.environ.get('WAMA_EMAIL_USE_SSL', '0') == '1'
+if EMAIL_USE_SSL:
+    EMAIL_USE_TLS = False
 DEFAULT_FROM_EMAIL = _os.environ.get('WAMA_EMAIL_FROM', 'WAMA <no-reply@univ-eiffel.fr>')
 
 # Modération des nouveaux comptes (login LDAP = toute l'université → gate).
