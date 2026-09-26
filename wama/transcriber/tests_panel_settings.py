@@ -27,7 +27,7 @@ class TranscriberLegacyStoredKeysTest(TestCase):
     def test_the_two_legacy_keys_stay_stored_under_their_old_name(self):
         """Data boundary: `diarization` and `preprocessing_enabled` are already in base."""
         from wama.common.utils.user_settings import get_user_app_settings
-        self.client.post('/transcriber/user_settings/save/',
+        self.client.post('/transcriber/user_settings/save/',  # wama:redondance-ok — les noms postés SONT l'objet du test (clés historiques)
                          json.dumps({'enable_diarization': False, 'preprocess_audio': True,
                                      'vad_mode': 'off'}), content_type='application/json')
         stored = get_user_app_settings(self.user, 'transcriber', USER_SETTINGS_DEFAULTS)
