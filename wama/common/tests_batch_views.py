@@ -320,6 +320,39 @@ class LinkFormBatchViewsTest(TestCase):
         self.assertEqual(seen, [0, 1])
 
 
+class TextResultBatchDownloadTest(TestCase):
+    """`output_text` (2026-09-24): an app whose declared result is TEXT (`RESULT = {'kind':
+    'text', 'field': 'result_text'}`, describer) gets a batch ZIP of `.txt` entries — the
+    generated twin answered 404 before, the brick only knew a file column."""
+
+    def setUp(self):
+        from wama.describer.models import BatchDescription, BatchDescriptionItem, Description
+        self.u = _user()
+        self.rf = RequestFactory()
+        self.lot = BatchDescription.objects.create(user=self.u, total=2)
+        done = Description.objects.create(user=self.u, status='SUCCESS', result_text='a text',
+                                          input_file='describer/in/photo.png')
+        failed = Description.objects.create(user=self.u, status='FAILURE', result_text='')
+        BatchDescriptionItem.objects.create(batch=self.lot, description=done, row_index=0)
+        BatchDescriptionItem.objects.create(batch=self.lot, description=failed, row_index=1)
+        self.views = make_batch_views(
+            work_model=Description, batch_model=BatchDescription, get_user=lambda r: self.u,
+            item_model=BatchDescriptionItem, fk_name='description', output_text='result_text')
+
+    def test_the_zip_holds_one_txt_per_successful_element_named_by_the_common_rule(self):
+        import io
+        import zipfile
+        req = self.rf.get('/x/')
+        req.user = self.u
+        r = self.views['batch_download'](req, self.lot.pk)
+        self.assertEqual(200, r.status_code)
+        archive = zipfile.ZipFile(io.BytesIO(b''.join(r.streaming_content)))
+        names = archive.namelist()
+        self.assertEqual(1, len(names), names)            # the failed element is left out
+        self.assertTrue(names[0].startswith('photo') and names[0].endswith('.txt'), names)
+        self.assertEqual(b'a text', archive.read(names[0]))
+
+
 class SettingsPayloadTest(TestCase):
     """Les deux helpers partagés par `update` (élément) et `batch_update` (lot)."""
 

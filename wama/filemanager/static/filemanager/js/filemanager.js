@@ -44,7 +44,8 @@
     function isProcessingActive() {
         return !!document.querySelector(
             // Toute card en cours porte data-status (la classe .processing a été retirée des
-            // cards le 2026-09-18 : `.synthesis-card.processing` ne trouvait plus rien).
+            // cards le 2026-09-18 : l'ancien sélecteur par classe de la card synthesizer ne
+            // trouvait plus rien).
             '[data-status="RUNNING"], ' +
             // Anonymizer, Imager: body flag set by app JS
             '[data-wama-processing]'
