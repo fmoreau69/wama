@@ -17307,3 +17307,73 @@ synthesizer), app par app, jumelle régénérée à chaque pas. **Pending systè
 commits non poussés (`dev`).
 
 **Suite du 2026-09-26 (après-midi) — volet droit du transcriber porté au schéma (`7966f735`)**, constat de Fabien : `vad_mode` absent du volet. Le volet était RENDU du schéma mais LU champ par champ (JS : 6 sites par id ; serveur : upload, upload_youtube, 3 listes de réglages utilisateur) — je l'avais donc exclu du volet au lieu de dire le portage inachevé. Portés au commun depuis l'imager : `param_schema.panel_*` (imager adoptant, sortie identique sur ses 19 clés) ; `WamaInspector.initFromSchema` expose `read/apply`. Dépôt par `schema_model_kwargs` ; clés `diarization`/`preprocessing_enabled` gardées en base. Vérifié sur 8011 (contrôle ciblé 3/3, gestes 7/8 — `ui` rouge par l'artefact `.mjs` connu). ⚠ **Reload gunicorn requis** : d'ici là, le JS neuf tourne avec les vues anciennes (seule la préférence de prétraitement du volet ne s'enregistre pas). 🔚 Après reload : retirer du gabarit `preprocessingUrl`/`preprocessingEnabled` (morts) et décider du sort de la route `set_preprocessing` (plus aucun appelant JS) ; proposer un geste générique « tout réglage de la modale ⚙ figure au volet » (hors prod le soir : peut rougir d'autres apps).
+
+---
+
+## §CLÔTURE — 2026-09-22 (code) → 26/09 (clôture), « ASSISTANT : avatar persistant, latence, bridage dev, volet » — ✅ LIVRÉ
+
+> ⚠ Session ÉTALÉE : les 5 commits sont du **22/09**, la clôture du **26/09**. Tout ce que
+> `git status` montrait à la clôture est daté du 23/09 ou après, donc d'AUTRES instances —
+> établi par `date -r` fichier par fichier, pas à l'allure du statut (règle du §0 de `/cloture`).
+> Rien de mon périmètre n'est resté en arbre de travail.
+
+**Livré** — `ed6767c6` avatar · `dc2ad485` latence + client MCP · `c0224d96` bridage dev +
+cadrage · `d2b16bba` relais du curseur · `c5f79ffc` volet assistant.
+
+| Livrable | Gardé par |
+|---|---|
+| Avatar PERSISTANT : préférence durable (`avatar`, `avatar_collapsed`), conteneur en `base.html`, chargement à la demande, repli | `tests_assistant_surfaces.AvatarPersistantTest` + smoke Playwright 15/15 |
+| Réflexion du modèle reliée au CURSEUR (`thinking_wanted`, position « quality » de `preset_key_for_intent`) | `tests_assistant_surfaces.LatencyLeversTest` |
+| Prompt système réordonné : FIXE avant DYNAMIQUE (cache de préfixe Ollama) | idem, `test_the_fixed_tool_block_precedes_the_dynamic_queue_state` |
+| Assistant CLIENT MCP de la surface dev (`mcp_client`) : outils `dev_*` annoncés aux devs, relayés | `tests_mcp_client` (dont §16 dans un process neuf) |
+| BRIDAGE niveau développement (`development_models`) | `tests_development_models` |
+| Bridage des RÔLES wama-dev-ai (`role_utils.resolve_model`) | ⚠ **non gardé jusqu'au 26/09** → `DevelopmentRoleModelTest`, écrit À LA CLÔTURE (module chargé PAR CHEMIN, le dossier porte un tiret) |
+| Relais du curseur aux tâches lancées (`relay_quality_intent`) | `tests_quality_relay` |
+| Voix commune (phrases + bouton 🔊/🔇/⏹ qui ARRÊTE) et mini-chat du volet | `AvatarPersistantTest` (voix durable, chat hors accueil, endpoint du fil) + parse V8 + smoke 8/8 |
+| Cadrage de l'avatar (2 passes) | **non gardé, assumé** : apparence, jugée à la capture |
+
+**Mesures qui fondent les décisions** (toutes du 22/09) : réflexion du modèle **12,7 s → 2,4 s**
+sur le même message (`qwen3.5:4b`), tour à OUTIL vérifié à 1,7 s avec appel JSON intact ; prompt
+système **14 693 caractères ≈ 3 700 jetons**, dont 12 361 pour 71 outils ; plancher du bridage
+= score **coding ≥ 40** au banc tiers (qwen3.8 58,2 · albert gemma-4-31b 43,4 · qwen3.6:35b 41,9
+contre gemma4:12b 31 · qwen3.5:4b 22,6 · gemma4:e4b 9,4).
+
+**Contrôles MESURÉS à la clôture** : périmètre **95 tests, 6 rouges, AUCUN de moi** —
+2 × `tests_mcp_dev_tools.TachesTest` (artefact venv_win, contre-épreuve WSL2 verte le 22/09) et
+4 × `tests_identifier_language` (budgets +1 code / +1 méthodes, venus de `816d3293` du 25/09 ;
+**zéro identifiant français dans mes fichiers**, mesuré par filtre) · `check_docs` **2 cassées /
+2262, 2 cibles distinctes, aucune de moi APRÈS correction** — j'en avais ouvert une en écrivant
+le nom d'un fichier de rôle qui n'existe pas encore, corrigée ici (6ᵉ récidive de la famille §2c) ;
+les 2 restantes sont des citations dans les blocs de contrôle d'autres instances, qui **se
+neutralisent en nommant la cible sans chemin résolvable** · `doc_facts --check` 2 blocs périmés,
+**NON régénérés** (ils figeraient le WIP d'autrui) — mes 2 mécanismes neufs figurent déjà dans la
+doc développeur générée.
+
+**Effets de bord sur le terrain partagé** :
+1. 🔴 **Le serveur MCP « wama-dev » est MORT** (vérifié le 26/09 : rien sur 8771, aucun process).
+   Il avait été lancé à la main le 22/09 et **aucun script de démarrage ne le relance**.
+   Conséquence SILENCIEUSE : l'assistant n'annonce plus aucun outil `dev_*`, tout en répondant
+   normalement — la fonction est absente, pas en panne. Relancer par `run_mcp_server --surface dev`.
+2. Compte de test nocturne : ses réglages d'assistant ont été écrits par les smokes (avatar, voix,
+   curseur) et son fil `web` porte de vrais échanges.
+3. Un job de dev du 22/09 est resté sous `logs/dev_jobs/` (terminé, jetable).
+4. Scripts de mesure et captures dans le scratchpad de session, hors dépôt, jetables.
+
+**Décisions ouvertes / laissé de côté, nommément** :
+- **HTTPS + nom de service : demande à la DSI RÉDIGÉE le 26/09, PAS ENVOYÉE.** Consigné dans
+  `INFRA_WSL_VS_WINDOWS.md §HTTPS et nom de service`. ⚠ Sans HTTPS, **aucun micro hors du poste** :
+  cela conditionne la démo sur site distant à venir.
+- Leviers de latence **3** (réduire le prompt d'outils) et **5** (flux jeton par jeton) : analysés,
+  chiffrés, **non décidés** — `WAMA_LLM §1bis`.
+- Page d'édition en bac à sable : **3 décisions avant d'écrire** (`WAMA_LLM §1ter`), dont une
+  ÉCRITURE qui attend la marque d'approbation de `WAMA_HARNESS §9 chantier 2`. ⚠ Le bac à sable
+  est mené par une autre instance : à concevoir AVEC elle.
+- **Deux rendus de chat coexistent** (accueil complet, volet compact) : l'accueil devrait devenir
+  la même brique en mode « complet ». Le micro reste sur l'accueil seul.
+- `albert:gpt-oss-120b` admis par DÉCLARATION faute de banc : mesuré le 22/09, ce n'est pas une
+  resynchronisation qui manque (identité sans version, et absent des 882 + 670 entrées des deux
+  sources). Ne pas relancer la prospection pour ça.
+
+🔚 **POINT D'ENTRÉE** : relancer le serveur MCP dev (effet de bord 1) puis trancher les leviers
+3/5 de latence, ou attendre la réponse DSI pour le HTTPS si la démo approche. **Pendings
+système** : commits non poussés sur `dev`.

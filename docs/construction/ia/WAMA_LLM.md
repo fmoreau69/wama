@@ -433,7 +433,10 @@ d'outils ne sont pas concernés (la boucle de l'assistant seule relaie). Tenu pa
 
 ⏳ **Ce qui manque pour « une page d'édition en bac à sable avec
 un guide de conception et d'intégration »** — trois décisions avant d'écrire :
-1. **le rôle « améliorer »** (`wama-dev-ai/run_improve.py`, patron `run_codegen.py`) : matière =
+1. **le rôle « améliorer »** — un pilote de plus sous `wama-dev-ai/`, sur le patron de son rôle
+   `codegen` ; son nom de fichier n'est **pas écrit ici**, et c'est délibéré : un chemin qui
+   n'existe pas encore est compté par `check_docs` comme une cible cassée, et le seuil est ZÉRO
+   depuis le 2026-09-07. Matière =
    les docs de référence du domaine touché (`AGENTS.md`, `WAMA_APP_CONVENTIONS`, `ROUTE`) + le
    code RÉEL de la jumelle par AST ; sortie = un DIFF proposé dans `outputs/`, contrôlé
    mécaniquement (compile, imports résolus, `check_identifier_language`) ; **jamais appliqué** ;
