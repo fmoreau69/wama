@@ -128,22 +128,23 @@ class DeclaredCompositionsAreValidTest(SimpleTestCase):
     serait transportée au catalogue, puis REFUSÉE à la projection du manifeste, sans bruit.
     """
 
-    SOURCES = (('wama.imager.utils.model_config', 'IMAGER_MODELS'),
-               ('wama.composer.utils.model_config', 'COMPOSER_MODELS'),
-               ('wama.synthesizer.utils.model_config', 'SYNTHESIZER_MODELS'))
-
     def test_every_declared_composition_passes_the_manifest_schema(self):
-        import importlib
+        """Toutes les apps du catalogue, par la convention commune (`model_declarations`) — la
+        liste de trois modules écrite ici à la main est retirée le 2026-09-26 : une app qui se
+        met à déclarer des compositions est validée sans toucher ce test."""
+        from wama.common.app_registry import APP_CATALOG
         from wama.common.manifests.builtin.model import _validate_composition
+        from wama.common.utils.model_declarations import declarations
         seen = 0
-        for module, table in self.SOURCES:
-            models = getattr(importlib.import_module(module), table)
-            for key, cfg in models.items():
-                compo = cfg.get('composition')
+        for app, spec in APP_CATALOG.items():
+            if (spec or {}).get('sandbox'):
+                continue
+            for key, cfg in declarations(app).items():
+                compo = cfg.get('composition') if isinstance(cfg, dict) else None
                 if not compo:
                     continue
                 seen += 1
-                with self.subTest(app=table, model=key):
+                with self.subTest(app=app, model=key):
                     self.assertEqual(_validate_composition(compo), [])
         # contre-épreuve : le test ne doit pas passer à vide si une table change de nom
         self.assertGreaterEqual(seen, 20, "moins de compositions déclarées que mesuré le 21/09")

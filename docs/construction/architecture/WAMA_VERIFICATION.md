@@ -1365,7 +1365,7 @@ volet offrent les mêmes réglages, lus du schéma. Il a mesuré **9 écarts** d
 **Corrections annexes** : les listes d'apps ÉCRITES À LA MAIN de `tests_import_contract`
 (`PORTEES`, 7 apps : composer, imager, avatarizer absents) et de `tests_model_anatomy`
 (`SOURCES`) doivent se dériver du registre ; les tests du backend audio.cpp (commun) vivent dans
-`composer/tests.py`, et `tests_intent_vision` porte des classes propres à une app — à ranger.
+le fichier de tests du composer, et `tests_intent_vision` porte des classes propres à une app — à ranger.
 
 **Scénarios nocturnes par app** : `transcriber.asr_load` et `enhancer.deepfilternet_load` sont
 le MÊME geste écrit deux fois (charger un backend du contrat commun, vérifier, décharger). Sa
@@ -1373,3 +1373,36 @@ forme générique existe à portée — l'inventaire `backend_inventory` déclar
 VRAM et ses paquets — mais charger chaque nuit TOUS les modèles présents (plusieurs dizaines
 de Go pour l'image) est une **décision de Fabien** (lesquels, à quelle fréquence).
 `studio.pipeline.converter` est légitime : c'est le monde studio.
+
+### §8.1 ✅ Les cinq contrats POSÉS le 2026-09-26 (même journée, demande de Fabien : « commence par 1 et 3, puis enchaîne les autres »)
+
+| contrat | module commun | apps mesurées | ce qu'il a TROUVÉ à son premier passage (corrigé le jour même) |
+|---|---|---|---|
+| 1 — route de réglages d'un élément | `tests_item_settings_contract` | les 9 apps à route par élément | JSON de l'inspecteur **jamais écrit** : synthesizer, avatarizer, enhancer, composer, imager (vues lisant `request.POST` seul) ; converter n'écrivait qu'un blob `options_json` ; valeur hors choix → **500** (transcriber, describer_01) ou **écrite** (describer) ; avatarizer remettait `use_enhancer` à faux s'il n'était pas posté ; composer **relançait** la génération par défaut à tout enregistrement sans `restart` |
+| 2 — propriété et cycle | `tests_endpoints.AnotherUsersElementTest`, `tests_item_lifecycle_contract` | toute route à identifiant (GET+POST) ; ▶ de 10 apps, progression de 8 | rien : aucune route ne sert ni ne change l'élément d'autrui (contre-épreuve : le parcours voit bien des 200 sur ses propres éléments) |
+| 3 — volet ↔ réglages utilisateur ↔ dépôt | `tests_panel_user_settings`, `tests_import_contract` | 2 apps dérivées + 8 listées à la baisse ; dépôt : 5 apps | l'enhancer créait l'élément avec ses défauts stockés en ignorant le volet ; transcriber et describer acceptaient un `.xyz` (élément créé), le reader répondait 200 vide |
+| 4 — issue par le squelette | `tests_task_skeleton_contract` | les 5 adoptants du critère `task_skeleton` | rien |
+| 5 — fichiers servis et rendus | `tests_served_assets_contract`, `tests_queue_delete_contract` (card rendue) | 82 JS/CSS, les pages index de toutes les apps, `card_html` de 11 surfaces | rien |
+
+**Au commun, pour que les apps adoptent au lieu de recopier** : `apply_item_settings` ignore une
+valeur hors des `choices` du modèle (le reader le faisait à la main) ; `app_registry.accepts_file`
+(les extensions DÉCLARÉES, jamais une liste de vue — celle du reader est retirée) ;
+`model_declarations.declarations(app)` ; `param_schema.panel_*` (portés de l'imager le matin même).
+
+**Listes écrites à la main → DÉRIVÉES** : `tests_import_contract.PORTEES` (critère `import_front`,
+hors mode attache, rôles de la politique d'accès, témoin par NATURE déclarée ; seules restent
+déclarées les deux particularités qu'aucune déclaration ne porte, `UPLOAD_QUIRKS`) ;
+`tests_model_anatomy.SOURCES` (toutes les apps par la convention).
+
+**Tests d'app retirés parce que tenus par un générique** : reader (2), synthesizer (`ViewsTest` ×7,
+`PerformanceTest` ×2 — il testait l'ORM de Django), transcriber (2), converter (1), imager (2) ;
+les tests du backend COMMUN audio.cpp quittent le fichier de tests du composer pour `common/tests_audiocpp_backend.py`.
+Chaque fichier d'app garde son SPÉCIFIQUE et le dit en tête.
+
+**⏳ Restes** : le ZIP de lot contient les sorties (converter seul — il faut de vraies sorties) ;
+les classes propres à une app dans `tests_intent_vision` ; les 8 apps aux réglages utilisateur
+écrits à la main (`NOT_YET_DERIVED`) et les 9 écarts modale/volet (`DECLARED_GAPS`) — décisions et
+portages, pas des tests ; le `model_loaded` nocturne générique (décision de Fabien : quels modèles,
+quelle fréquence). Côté UI (consigne du même jour) : le moins de rechargement de page possible —
+`refreshCard` plutôt que `location.reload()` (l'enregistrement du volet de lot en fait encore un
+dans anonymizer, imager, enhancer).

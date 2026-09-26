@@ -275,15 +275,8 @@ class ImageAttacheeAUnInputQuiEXISTETest(TestCase):
         self.assertIn('inputId: refInputId,', js,
                       'le slot d’appariement vise encore l’id déclaré')
 
-    def test_la_copie_SERVIE_est_le_meme_fichier(self):
-        """`staticfiles/` est ce que le navigateur reçoit : une modification qui ne s'y
-        resynchronise pas ne change rien à l'écran, et rien ne le signale."""
-        import hashlib
-        a = self._js('wama/imager/static/imager/js/input_card.js')
-        b = self._js('staticfiles/imager/js/input_card.js')
-        self.assertEqual(hashlib.sha256(a.encode()).hexdigest(),
-                         hashlib.sha256(b.encode()).hexdigest(),
-                         'staticfiles/ n’a pas été resynchronisé — le navigateur sert l’ancien')
+    # `test_la_copie_SERVIE_est_le_meme_fichier` RETIRÉ le 2026-09-26 : tenu pour TOUT fichier de
+    # toute app par `common/tests_served_assets_contract` (WAMA_VERIFICATION §8).
 
 
 class DeclaredCompositionTest(TestCase):
@@ -301,14 +294,10 @@ class DeclaredCompositionTest(TestCase):
         return {mid: cfg['composition'] for mid, cfg in IMAGER_MODELS.items()
                 if cfg.get('composition')}
 
-    def test_every_declaration_passes_the_manifest_schema(self):
-        """Le schéma est celui des manifestes — pas un second formalisme pour l'imager."""
-        from wama.common.manifests.builtin.model import _validate_composition
-        declarations = self._declared()
-        self.assertGreaterEqual(len(declarations), 12, "les compositions imager ont disparu")
-        for mid, composition in declarations.items():
-            self.assertEqual(_validate_composition(composition), [],
-                             f"{mid} : composition hors schéma")
+    # `test_every_declaration_passes_the_manifest_schema` RETIRÉ le 2026-09-26 : la validité au
+    # schéma des manifestes est tenue pour TOUTES les apps par
+    # `common/tests_model_anatomy.DeclaredCompositionsAreValidTest` (WAMA_VERIFICATION §8).
+    # Restent ici les règles propres aux compositions IMAGER (ancrage des motifs).
 
     def test_a_pattern_names_its_own_role_and_excludes_the_variants(self):
         """Un motif doit être ANCRÉ sur le dossier de son rôle : `vae/*` suffirait à faire
