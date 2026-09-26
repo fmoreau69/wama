@@ -297,5 +297,15 @@ class PromptKeyword(models.Model):
         return f"[{self.category}/{scope}] {self.text}"
 
     def to_dict(self):
+        # `common` = ce mot-clé appartient au TRONC COMMUN (aucun propriétaire, `user=None` —
+        # le vocabulaire de `seed_prompt_keywords`), donc personne ne peut le supprimer ;
+        # l'inverse est un mot-clé PERSO. ⚠ La clé s'appelait `shared` jusqu'au 2026-09-26 :
+        # dans WAMA, « partagé » désigne depuis le 17/09 un geste PRÉCIS — quelqu'un donne
+        # accès à son élément, avec une ligne de partage, un droit et une portée
+        # (`WAMA_COLLABORATION §1`). Un mot-clé commun n'a jamais été partagé par personne :
+        # garder le mot aurait fait dire deux choses opposées au même terme le jour où les
+        # mots-clés deviendront réellement partageables. Renommé ENTIÈREMENT (un producteur,
+        # deux lecteurs dans `wama-prompt-chips.js`) — une clé de payload se traite
+        # entièrement ou pas du tout (`AGENTS.md`, frontière des données).
         return {'id': self.id, 'category': self.category, 'text': self.text,
-                'domain': self.domain, 'shared': self.user_id is None}
+                'domain': self.domain, 'common': self.user_id is None}
