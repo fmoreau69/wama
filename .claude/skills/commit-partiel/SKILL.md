@@ -59,6 +59,16 @@ Le **mot-clé** est un mot que SEULES mes lignes changées portent dans ce fichi
 chantier, une clé de champ (`vram_measured`), un nom de doc neuf. Un mot présent dans le contexte
 seulement ne sélectionne rien (le patch est sans contexte).
 
+⚠ **Quand mes hunks n'ont AUCUN mot commun** — cas vécu deux fois le 2026-09-26 sur une doc, où
+l'un de mes trois hunks était une ligne de prose modifiée ne partageant aucun terme avec les
+deux autres (mot-clé `levier` : 2 hunks sur 3 ; `evier` : les mêmes 2). Élargir le mot-clé
+jusqu'à l'attraper aurait pris des hunks d'autrui. ✅ Sélectionner par **NUMÉRO de hunk**, après
+les avoir LUS un par un : `pick_hunks.py <fichier> <patch> <n1> <n2> …` (les numéros sont ceux de
+la ligne ANCIENNE, tels que `git diff -U0 | grep '^@@'` les affiche). Le script échoue si le
+compte retenu ne correspond pas aux numéros demandés — on ne peut pas en rater un en silence.
+⭐ *Le mot-clé est une heuristique ; la lecture des hunks est la mesure. Quand les deux
+divergent, c'est la lecture qui décide.*
+
 Le **message** dit que l'index a été construit hunk par hunk sur des fichiers co-édités : celui
 qui lira `git log` doit comprendre pourquoi ce commit n'a pas de pathspec.
 
