@@ -431,18 +431,30 @@ def update_settings(request, pk):
     if job.status == 'RUNNING':
         return JsonResponse({'error': 'Impossible de modifier une conversion en cours'}, status=400)
 
-    output_fmt = (request.POST.get('output_format') or '').strip().lower()
+    # JSON (inspecteur) OU FormData (modale ⚙), par le lecteur COMMUN : la vue ne lisait que
+    # `request.POST`, et seulement le blob `options_json` — un réglage posté à plat n'était
+    # jamais écrit (contrat générique `tests_item_settings_contract`, 2026-09-26).
+    from wama.common.utils.batch_views import read_settings_payload
+    from wama.converter.params import PARAMS_JSON as _SCH
+    names = [p['name'] for p in _SCH]
+    data = read_settings_payload(request, _SCH, names)
+
+    output_fmt = str(data.get('output_format') or '').strip().lower()
     if output_fmt:
         if output_fmt not in get_output_formats(job.media_type):
             return JsonResponse({'error': f"Format de sortie non supporté : {output_fmt}"}, status=400)
         job.output_format = output_fmt
 
-    # Options can come as a JSON blob (preferred) or as individual POST keys.
+    # Options : le blob `options_json` (le JS du converter) OU les réglages du schéma postés à plat.
     champs_touches = []
-    options_json = request.POST.get('options_json')
+    options_json = data.get('options_json')
+    if not options_json:
+        flat = {k: data[k] for k in names if k in data and k not in ('output_format', 'media_type')}
+        options_json = _json.dumps(flat) if flat else None
     if options_json:
         try:
-            new_opts = _json.loads(options_json)
+            new_opts = (options_json if isinstance(options_json, dict)
+                        else _json.loads(options_json))
             if not isinstance(new_opts, dict):
                 raise ValueError("options_json must be an object")
             # ── MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09) : le preset est un GESTE D'ÉCRITURE ──

@@ -1095,30 +1095,21 @@ def update_settings(request, pk: int):
             'error': 'Impossible de modifier une synthèse en cours'
         }, status=400)
 
-    # Mettre à jour les champs
-    if 'tts_model' in request.POST:
-        synthesis.tts_model = request.POST['tts_model']
-    if 'quality_intent' in request.POST:
-        synthesis.quality_intent = read_quality_intent(request.POST['quality_intent'])
-    if 'language' in request.POST:
-        synthesis.language = request.POST['language']
-    if 'voice_preset' in request.POST:
-        synthesis.voice_preset = request.POST['voice_preset']
-    if 'speed' in request.POST:
-        synthesis.speed = float(request.POST['speed'])
-    if 'pitch' in request.POST:
-        synthesis.pitch = float(request.POST['pitch'])
-    if 'emotion_intensity' in request.POST:
-        synthesis.emotion_intensity = float(request.POST['emotion_intensity'])
-    if 'multi_speaker' in request.POST:
-        synthesis.multi_speaker = request.POST['multi_speaker'] == '1'
-    if 'scene_description' in request.POST:
-        synthesis.scene_description = request.POST['scene_description']
-    # Format/qualité de sortie (early-binding : réglés avant génération, per-item)
-    if 'output_format' in request.POST:
-        synthesis.output_format = request.POST['output_format']
-    if 'output_quality' in request.POST:
-        synthesis.output_quality = request.POST['output_quality']
+    # Les réglages du SCHÉMA — JSON (inspecteur) OU FormData (modale ⚙) — par le lecteur et
+    # l'écrivain COMMUNS (coercition au schéma, valeur hors choix ignorée). La vue lisait
+    # `request.POST` champ par champ : le JSON de l'inspecteur n'était jamais écrit (relevé par
+    # le contrat générique `tests_item_settings_contract`, 2026-09-26).
+    from wama.common.utils.batch_views import apply_item_settings, read_settings_payload
+    names = [p['name'] for p in _SYNTH_PARAMS_JSON]
+    data = read_settings_payload(request, _SYNTH_PARAMS_JSON, names)
+    apply_item_settings(synthesis, data, params_fields=names)
+    # Hors schéma, lus dans le MÊME payload.
+    if 'emotion_intensity' in data:
+        synthesis.emotion_intensity = float(data['emotion_intensity'])
+    if 'multi_speaker' in data:
+        synthesis.multi_speaker = str(data['multi_speaker']).lower() in ('1', 'true', 'on')
+    if 'scene_description' in data:
+        synthesis.scene_description = data['scene_description']
 
     # Voice reference
     if 'voice_reference' in request.FILES:

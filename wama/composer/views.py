@@ -517,12 +517,18 @@ def update_settings(request, pk):
     if gen.status == 'RUNNING':
         return JsonResponse({'error': 'Impossible de modifier une génération en cours'}, status=400)
 
-    model_id = request.POST.get('model', gen.model)
+    # JSON (inspecteur) OU FormData (modale ⚙) par le lecteur COMMUN — la vue lisait
+    # `request.POST` seul (contrat générique `tests_item_settings_contract`, 2026-09-26).
+    from wama.common.utils.batch_views import read_settings_payload
+    from wama.composer.params import PARAMS_JSON as _schema
+    data = read_settings_payload(request, _schema, [p['name'] for p in _schema])
+
+    model_id = data.get('model', gen.model)
     if model_id not in COMPOSER_MODELS and model_id not in AUTO_MODELS:
         return JsonResponse({'error': 'Modèle invalide'}, status=400)
 
     try:
-        duration = float(request.POST.get('duration', gen.duration))
+        duration = float(data.get('duration', gen.duration))
         duration = clamp_duration(duration)
     except (ValueError, TypeError):
         duration = gen.duration
@@ -533,21 +539,23 @@ def update_settings(request, pk):
     gen.model = model_id
     gen.duration = duration
     gen.generation_type = generation_type
-    if request.POST.get('quality_intent', '') != '':
-        gen.quality_intent = _intent_posted(request.POST)
+    if str(data.get('quality_intent', '')) != '':
+        gen.quality_intent = _intent_posted(data)
     # Prompt éditable (modale complète P1) — on ne l'écrase pas s'il est vide.
-    prompt = request.POST.get('prompt')
-    if prompt is not None and prompt.strip():
-        gen.prompt = prompt.strip()
+    prompt = data.get('prompt')
+    if prompt is not None and str(prompt).strip():
+        gen.prompt = str(prompt).strip()
     # Format/qualité de sortie (early-binding, per-item) si fournis
-    if request.POST.get('output_format'):
-        gen.output_format = request.POST['output_format']
-    if request.POST.get('output_quality'):
-        gen.output_quality = request.POST['output_quality']
+    if data.get('output_format'):
+        gen.output_format = data['output_format']
+    if data.get('output_quality'):
+        gen.output_quality = data['output_quality']
 
     # Pied de modale CONFORME : « Enregistrer » (restart=0) sauve SANS purger la sortie ni
-    # relancer ; « Enregistrer et relancer » (restart=1, défaut historique) purge + re-run.
-    restart = request.POST.get('restart', '1') == '1'
+    # relancer ; « Enregistrer et relancer » (restart=1) purge + re-run. ⚠ Le défaut était
+    # `1` : un enregistrement qui ne le posait pas (JSON de l'inspecteur) RELANÇAIT la
+    # génération. La modale le pose toujours (`index.js` collect) ; absent = on ne relance pas.
+    restart = str(data.get('restart', '0')) == '1'
     if not restart:
         gen.save()
         return JsonResponse({'success': True, 'status': gen.status, 'restarted': False})

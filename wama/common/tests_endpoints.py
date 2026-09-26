@@ -245,6 +245,87 @@ class EveryEndpointAnswersTest(TestCase):
                                      + ' ; '.join(errors))
 
 
+class AnotherUsersElementTest(TestCase):
+    """Contract 2 of `WAMA_VERIFICATION §8` (2026-09-26): an element that belongs to ANOTHER
+    user is never served nor changed through an app's routes — every route with an id, GET and
+    POST, for every app, with a PRIVATE witness built by the generic factory. Only
+    `synthesizer/tests.py` checked it, for its own detail view.
+
+    A 200 on someone else's element is a leak (GET) or an act on their data (POST); 302, 400,
+    403, 404, 405 are answers. The witness must still exist at the end."""
+
+    def _account_for(self, namespace):
+        return EveryEndpointAnswersTest._account_for(self, namespace)
+
+    def _others(self, namespace, other):
+        from wama.common.tests_queue_delete_contract import _instance, _lot_de
+        from wama.common.utils.batch_common import batch_model_for
+        from wama.common.utils.preview_registry import PreviewRegistry
+        model = PreviewRegistry.get_model(namespace.split(':')[-1])
+        if model is None:
+            return None
+        try:
+            item = _instance(model, other)
+            batch = (_lot_de(model, other, 1)[0] if batch_model_for(model) is not None else None)
+        except Exception:
+            return None
+        return model, item, batch
+
+    def test_another_users_element_is_neither_served_nor_changed(self):
+        from django.contrib.auth import get_user_model
+        from django.db import transaction
+        other = get_user_model().objects.create_user('someone_else_entirely', password='x')
+        routes, _rare = _routes_with_ids()
+        offenders, checked, witnesses, own_served = [], 0, {}, 0
+        with mock.patch('celery.app.task.Task.apply_async',
+                        return_value=mock.Mock(id='tache-de-test')):
+            current = None
+            for namespace, name, kinds in routes:
+                if namespace not in witnesses:
+                    witnesses[namespace] = self._others(namespace, other)
+                found = witnesses[namespace]
+                if not found or len(kinds) != 1 or kinds[0][1] != 'int':
+                    continue
+                model, item, batch = found[:3]
+                target = batch if ('batch' in name and batch is not None) else item
+                url = reverse(f'{namespace}:{name}', kwargs={kinds[0][0]: target.pk})
+                if namespace != current:
+                    self.client.force_login(self._account_for(namespace.split(':')[-1]))
+                    current = namespace
+                for method in ('get', 'post'):
+                    try:
+                        with transaction.atomic():
+                            status = getattr(self.client, method)(url).status_code
+                    except Exception as exc:
+                        status = type(exc).__name__
+                    checked += 1
+                    if status == 200:
+                        offenders.append(f'{method.upper()} {url}')
+                # Counter-check: the SAME route on the account's OWN element may answer 200 —
+                # the sweep can see a 200, so its silence on someone else's element means something.
+                mine = found[3] if len(found) > 3 else None
+                if mine is None:
+                    from wama.common.tests_queue_delete_contract import _instance
+                    mine = _instance(model, self._account_for(namespace.split(':')[-1]))
+                    witnesses[namespace] = (*found, mine)
+                if 'batch' not in name:
+                    try:
+                        with transaction.atomic():
+                            own = self.client.get(reverse(f'{namespace}:{name}',
+                                                          kwargs={kinds[0][0]: mine.pk}))
+                        own_served += own.status_code == 200
+                    except Exception:
+                        pass
+        self.assertGreater(checked, 100, 'le parcours ne mesure presque rien')
+        self.assertGreater(own_served, 20, "le parcours ne voit jamais un 200 : son silence ne prouve rien")
+        for found in witnesses.values():
+            if found:
+                self.assertTrue(found[0].objects.filter(pk=found[1].pk).exists(),
+                                "l'élément d'un autre utilisateur a disparu")
+        self.assertEqual([], offenders, f"{len(offenders)} adresse(s) servent ou changent "
+                                        "l'élément d'un AUTRE utilisateur : " + ' ; '.join(offenders))
+
+
 class ItemEditRouteConventionTest(TestCase):
     """The route that saves ONE element's settings follows `WAMA_APP_CONVENTIONS §3.1` :
     `settings/<int:pk>/`, named `update_settings` (2026-09-24).

@@ -326,6 +326,10 @@ def upload(request):
     file = request.FILES.get('file')
     if not file:
         return HttpResponseBadRequest('Missing file')
+    from wama.common.app_registry import accepts_file
+    if not accepts_file('transcriber', file.name):
+        return JsonResponse({'error': f'Format non pris en charge : {os.path.splitext(file.name)[1] or file.name}'},
+                            status=400)
 
     # L'état COMPLET du volet voyage avec le dépôt — lu PAR LE SCHÉMA (`schema_model_kwargs`,
     # comme le converter) et gardé comme préférence (comme l'imager) : un réglage ajouté à

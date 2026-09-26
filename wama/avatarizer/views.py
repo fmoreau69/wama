@@ -372,37 +372,27 @@ def update_settings(request, pk):
     if job.status == 'RUNNING':
         return JsonResponse({'error': 'Impossible de modifier un job en cours.'}, status=400)
 
-    # TTS (pipeline seulement — un job standalone a un audio, le texte n'y a pas de sens)
-    if job.mode == 'pipeline':
-        text_content = (request.POST.get('text_content') or '').strip()
-        if text_content:
-            # Éditable avant relance : la ré-exécution REGÉNÈRE l'audio depuis ce texte.
-            job.text_content = text_content
-        tts_model = request.POST.get('tts_model')
-        if tts_model:
-            job.tts_model = tts_model
-        quality_intent = request.POST.get('quality_intent')
-        if quality_intent:
-            from wama.common.utils.auto_model import read_quality_intent
-            job.quality_intent = read_quality_intent(quality_intent)
-        language = request.POST.get('language')
-        if language:
-            job.language = language
-        voice_preset = request.POST.get('voice_preset')
-        if voice_preset:
-            job.voice_preset = voice_preset
-
-    # MuseTalk params — quality_mode DÉRIVÉ de use_enhancer (2026-08-03)
-    job.use_enhancer = request.POST.get('use_enhancer', 'false') == 'true'
-    job.quality_mode = 'quality' if job.use_enhancer else 'fast'
-
-    try:
-        job.bbox_shift = max(-10, min(10, int(request.POST.get('bbox_shift', job.bbox_shift))))
-    except (ValueError, TypeError):
-        pass
-
-    job.save(update_fields=['text_content', 'tts_model', 'quality_intent', 'language',
-                            'voice_preset', 'quality_mode', 'use_enhancer', 'bbox_shift'])
+    # Les réglages du SCHÉMA — JSON (inspecteur) OU FormData (modale ⚙) — par le lecteur et
+    # l'écrivain COMMUNS (coercition et bornes du schéma, valeur hors choix ignorée, rien de
+    # touché qui n'est pas posté). La vue lisait `request.POST` seul, et remettait
+    # `use_enhancer` à faux dès qu'il n'était pas posté (contrat générique
+    # `tests_item_settings_contract`, 2026-09-26).
+    from wama.common.utils.batch_views import apply_item_settings, read_settings_payload
+    names = [p['name'] for p in _AVATAR_PARAMS_JSON]
+    data = read_settings_payload(request, _AVATAR_PARAMS_JSON, names)
+    # TTS (pipeline seulement — un job standalone a un audio, le texte n'y a pas de sens) ;
+    # un texte vide ne remplace pas le texte existant : la relance REGÉNÈRE l'audio depuis lui.
+    tts = ('text_content', 'tts_model', 'quality_intent', 'language', 'voice_preset')
+    if not str(data.get('text_content') or '').strip():
+        data.pop('text_content', None)
+    fields = [n for n in names if job.mode == 'pipeline' or n not in tts]
+    touched = apply_item_settings(job, data, params_fields=fields)
+    # MuseTalk — quality_mode DÉRIVÉ de use_enhancer (2026-08-03).
+    if 'use_enhancer' in touched:
+        job.quality_mode = 'quality' if job.use_enhancer else 'fast'
+        touched.append('quality_mode')
+    if touched:
+        job.save(update_fields=touched)
     return JsonResponse({'status': 'updated'})
 
 
