@@ -42,9 +42,60 @@
 **L'échelle des signaux** (déjà câblée pour A, `wama/model_manager/services/model_selector.py`
 `_quality_scalars`) : *a priori structurel* (`model_quality.py`) < *banc tiers confronté*
 (`benchmark_sync.py`, échelles AA / Arena / Open ASR / MTEB) < **mesure interne** (vide aujourd'hui).
-Règle intangible : **on ne compare des valeurs que sur un lot où tout le monde porte la même
-échelle** ; jamais deux échelles mélangées, jamais de min-max qui inventerait une équivalence
+Règle intangible : **on ne compare que des valeurs qui partagent la même échelle** ; jamais
+deux échelles mélangées, jamais de min-max qui inventerait une équivalence
 (`benchmark_sync.percentile_rank` : le rang, pas le score).
+
+⚠⚠ **PRÉCISION DU 2026-09-26 (demande de Fabien) — « la même échelle » ne veut pas dire
+« tout le lot ».** Cette règle s'appliquait jusque-là en TOUT OU RIEN : un seul modèle non
+mesuré faisait tomber l'étage pour tout le monde, et le dernier repli est la **VRAM**,
+c'est-à-dire la TAILLE. Mesuré sur le tirage de développement : `albert:gpt-oss-120b`, sans
+score coding, suffisait à faire préférer `qwen3.6:35b` (coding 41,9 — 23 Go) à
+`qwen3.8:latest` (coding **58,2** — 17 Go), meilleur *et* plus léger. Un étage se juge
+désormais sur le **sous-ensemble qu'il couvre** : le modèle non mesuré perd sa place au
+classement, il ne la fait plus perdre aux autres. La règle des deux échelles est intacte —
+l'étage banc tiers exige toujours une échelle UNIQUE sur le sous-ensemble mesuré.
+⭐ *Un lot ne se juge pas au modèle qu'on n'a pas mesuré.*
+
+⚠ **Et LOCAL ≠ DISTANT sur l'axe de la VRAM** (même demande). Un modèle distant a
+`vram_gb = 0` : le repli en faisait mécaniquement le **pire** du lot, et le terme de coût du
+curseur le pénalisait comme s'il était le plus lourd. Ce sont deux absences différentes —
+« pas mesuré » (inconnu, prudence — garde du 02/09) et « n'en consomme pas ici » (hors
+sujet). La distinction se lit maintenant sur le champ DÉCLARÉ `AIModel.execution`
+(`model_selector.is_cloud`), jamais devinée d'un `vram_gb`.
+
+⭐⭐ **ET LE SÉLECTEUR N'ARBITRE PAS local/distant — l'UTILISATEUR le définit** (recadrage de
+Fabien, 26/09). `UserProfile.cloud_policy` a trois niveaux (100 % local / cloud si WAMA est
+saturé / cloud autorisé), appliqués **à l'ADMISSION** par `allowed_cloud_keys` →
+`select_model(cloud_keys=…)`, et `dev_cloud_keys` y ajoute la souveraineté
+(`external_sources.hosting == 'sovereign'`). Un distant qui atteint le classement a donc
+**déjà** été autorisé : lui opposer là une préférence pour le local trancherait une seconde
+fois, ailleurs, une question déjà tranchée. *(Écrit puis retiré le même jour : j'avais encodé
+exactement cette préférence cachée.)* Son coût sur la carte est donc **0** — une mesure, pas
+une faveur.
+
+⭐ **LE RANG CENTILE EST BRANCHÉ (2026-09-26, demande de Fabien)** — c'est l'étage qui
+permet de comparer un modèle local et un distant sans rien inventer. `percentile_rank` était
+écrit depuis le **2026-09-01** pour exactement cette question, calculé et **stocké** à chaque
+synchro… et la sélection ne le lisait pas : mesuré le 26/09, **55 modèles mesurés sur 55** en
+portent un, sur 11 échelles. Un lot mixte (Albert en `aa_intelligence_index`, Anthropic en
+`arena_elo_text`, Ollama en `aa_intelligence_index`) tombait donc d'un cran — et le cran
+d'après est la TAILLE. Ordre des étages : sous-indice de domaine → **valeur brute à échelle
+unique** → **rang centile (inter-échelles)** → a priori → VRAM (local seulement). Le rang vient
+APRÈS la valeur brute, jamais avant : à échelle unique, le score exact dit plus que le rang. Il
+ne perd personne au passage (il est écrit en même temps que `benchmark_index`, donc il couvre
+le même sous-ensemble). ⚠ Ses deux réserves restent entières et se redisent partout où il
+sert : il est **ordinal**, et il dépend de la **population de son banc**.
+
+⏳ **`AIModel.cost_tier` reste NON LU, et c'est délibéré** (question tranchée le 26/09,
+demande initiale de Fabien de « brancher l'arbitrage honnête », retirée après mesure). Le
+champ est bien renseigné par source (`external_sources` : albert `free` + souverain,
+anthropic `metered`, claude_code `subscription`) mais **aucun consommateur ne l'ordonne**.
+Le brancher dans le score du curseur demanderait d'inventer l'ordre ET des poids, et de
+mettre des euros et des gigaoctets dans un même min-max — l'équivalence que cette même
+section interdit. Or WAMA arbitre déjà « où partent mes données, à quel prix » **à
+l'admission**. C'est là qu'un arbitrage de coût a son domicile : un niveau de `cloud_policy`
+ou un ordre de sources, pas un second lieu qui divergerait du premier.
 
 **Trois garde-fous non négociables** (`ROADMAP.md §16.5`, repris dans `wama/common/utils/qc.py`) :
 1. **validateur indépendant du générateur** — autre famille de modèle, **ou contrôle
