@@ -39,8 +39,13 @@ PROMPT_TARGETS = {
          'source': 'imager', 'default_model_type': 'diffusion'},
     ],
     'anonymizer': [
+        # `enrich: True` AJOUTÉ le 2026-09-23 — sans lui le skill `anonymizer-detection` était
+        # résolu mais jamais appliqué, et SAM3 recevait la phrase de l'utilisateur telle quelle
+        # (« Detect faces and license plates. » → 0 masque, image inchangée, aucune erreur).
+        # Le hook « concept » de la pipeline (`prompt_pipeline`, Hook A bis) transforme la
+        # phrase en LISTE de concepts, que `SAM3Processor` segmente un par un.
         {'field': 'sam3_prompt', 'kind': 'concept', 'when': 'use_sam3',
-         'domain': 'detection'},
+         'domain': 'detection', 'enrich': True},
     ],
     'cam_analyzer': [
         # Prompts de marquages SAM3 : LISTE de {label, prompt}. Enrichis en « concept »
