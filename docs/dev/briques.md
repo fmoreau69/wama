@@ -1237,7 +1237,8 @@ Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la
 
 - **Domicile** : `wama/common/utils/model_declarations.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lire la DÉCLARATION d'un modèle sans importer l'app qui la porte.
-- **API publique** (1) :
+- **API publique** (2) :
+  - `declarations(source: str) -> dict` — TOUTES les déclarations de modèle de l'app `source` (`{model_id: dict}`), `{}` si l'app
   - `declaration(source: str, model_id: str) -> Optional[dict]` — Déclaration de `model_id` telle que l'app `source` la porte, ou None.
 
 ### Routage des poids hors HuggingFace
@@ -1632,13 +1633,17 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (17) :
+- **API publique** (21) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
   - `class ParamGroup` — Groupe d'affichage d'une surface de saisie (modale ⚙ / volet) — l'app le déclare,
   - `groups_to_dicts(groups: List[ParamGroup]) -> List[dict]` — Sérialise les groupes pour le front (JSON) / un template.
   - `schema_to_dicts(params: List[Param]) -> List[dict]` — Sérialise un schéma pour le front (JSON) / un template.
   - `applicable_defaults(schema, values=None) -> dict` — Défauts APPLICABLES d'un schéma pour un élément NAISSANT : params de contexte 'item'
+  - `panel_dom_id(p)` — dom_id du param sur la surface VOLET, ou None s'il n'y figure pas.
+  - `panel_defaults(params, key=None) -> dict` — {clé de stockage: défaut} des params du volet.
+  - `panel_values_by_name(stored, params, key=None) -> dict` — Ré-indexe les réglages STOCKÉS vers ce que `WamaParams.render` attend (le `name` du
+  - `panel_prefs_from_post(post, params, key=None) -> dict` — Chemin INVERSE de `panel_values_by_name` : les valeurs postées par NOM, re-clées pour le
   - `effective_settings(schema, posees=None, preset=None, contexte=None) -> dict` — Valeurs EFFECTIVES d'un élément — **défauts (schéma) ← preset ← réglages POSÉS**.
   - `coerce_params(schema, data, caps=None)` — Borne UNIQUE des paramètres numériques = le SCHÉMA (`params.py`). Source de vérité serveur.
   - `schema_for_app(app_id: str) -> List[dict]` — Schéma de params d'une app, résolu depuis le REGISTRE (`wama/<app>/params.py`).
@@ -2025,7 +2030,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (16) :
+- **API publique** (17) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d') d'un chemin
@@ -2038,6 +2043,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
   - `derive_category(entry) -> str` — Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation
   - `get_apps_by_category()` — Catalogue groupé, ordonné par APP_CATEGORIES[order] — source des surfaces groupées
+  - `accepts_file(app_name: str, filename: str) -> bool` — Le serveur prend-il ce fichier pour cette app ? — les extensions DÉCLARÉES
   - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
   - `category_color(cid: str) -> str` — Couleur de RÉFÉRENCE d'une catégorie (en-têtes de section, dossiers…).
   - `measure_and_write_conformity() -> dict` — Mesure les 10 apps (conformity_checker.run_checks) et ÉCRIT le rapport JSON.

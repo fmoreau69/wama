@@ -444,9 +444,8 @@ class LaCardPasseParEnCoursTest(TestCase):
         self.assertNotIn("dataset.status = 'PENDING'", corps)
         self.assertIn('await refreshCard(jobId);', corps)
 
-    def test_la_copie_SERVIE_est_celle_du_source(self):
-        """`staticfiles/` est ce que sert la production : une correction non recopiée n'existe pas."""
-        self.assertEqual(self._source('staticfiles'), self._source())
+    # `test_la_copie_SERVIE_est_celle_du_source` RETIRÉ le 2026-09-26 : tenu pour TOUT fichier de
+    # toute app par `common/tests_served_assets_contract` (WAMA_VERIFICATION §8).
 
 
 class InlineSameFormatReencodeTest(TestCase):

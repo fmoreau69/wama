@@ -215,6 +215,21 @@ class SuppressionDansChaqueAppTest(TestCase):
         """Non-vacuité : sans les dix apps de file, les sous-tests ne garderaient rien."""
         self.assertGreaterEqual(len(_surfaces()), 11, [s for s, *_ in _surfaces()])
 
+    def test_card_html_renders_the_card_of_the_element_it_is_asked_for(self):
+        """Contract 5 (`WAMA_VERIFICATION §8`, 2026-09-26): the card re-rendered by the server —
+        what the JS asks for instead of reloading the page — is a REAL card for that element
+        (its id on it), for every app. It was checked for the converter alone."""
+        from wama.common.utils.preview_registry import PreviewRegistry
+        for surface, _route_suppression, route_card in _surfaces():
+            with self.subTest(surface=surface):
+                compte = self._compte_pour(surface)
+                element = _instance(PreviewRegistry.get_model(surface), compte)
+                r = self.client.get(reverse(route_card, args=[element.pk]))
+                self.assertEqual(200, r.status_code, r.content[:200])
+                html = r.content.decode()
+                self.assertRegex(html, rf'data-(?:id|job-id|item-id)="{element.pk}"',
+                                 'la card rendue ne porte pas l\'identifiant de son élément')
+
     def test_supprimer_une_card_d_un_lot_de_deux_dit_que_le_lot_redevient_une_card_simple(self):
         from wama.common.utils.preview_registry import PreviewRegistry
         for surface, route_suppression, route_card in _surfaces():

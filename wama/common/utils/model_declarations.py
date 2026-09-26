@@ -31,6 +31,22 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def declarations(source: str) -> dict:
+    """TOUTES les déclarations de modèle de l'app `source` (`{model_id: dict}`), `{}` si l'app
+    n'existe pas ou ne suit pas la convention. Ajoutée le 2026-09-26 pour qu'un test générique
+    parcoure les déclarations de TOUTES les apps au lieu d'une liste de modules écrite à la main
+    (`tests_model_anatomy`) — la même convention, un seul endroit."""
+    if not source:
+        return {}
+    try:
+        module = importlib.import_module(f'wama.{source}.utils.model_config')
+    except Exception as e:
+        logger.debug('[declarations] %s sans model_config : %s', source, e)
+        return {}
+    found = getattr(module, f'{source.upper()}_MODELS', None)
+    return found if isinstance(found, dict) else {}
+
+
 def declaration(source: str, model_id: str) -> Optional[dict]:
     """Déclaration de `model_id` telle que l'app `source` la porte, ou None.
 
@@ -44,16 +60,8 @@ def declaration(source: str, model_id: str) -> Optional[dict]:
     """
     if not source or not model_id:
         return None
-    try:
-        module = importlib.import_module(f'wama.{source}.utils.model_config')
-    except Exception as e:
-        logger.debug('[declarations] %s sans model_config : %s', source, e)
-        return None
-    declarations = getattr(module, f'{source.upper()}_MODELS', None)
-    if not isinstance(declarations, dict):
-        return None
-    valeur = declarations.get(model_id)
-    return valeur if isinstance(valeur, dict) else None
+    value = declarations(source).get(model_id)
+    return value if isinstance(value, dict) else None
 
 
 # ⚠ Une commodité `declaration_for(model_key)` a vécu ici le 2026-09-06 — elle découpait la clé

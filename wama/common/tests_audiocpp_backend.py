@@ -1,5 +1,7 @@
 """
-Composer — backend COMPOSÉ audio.cpp (premier modèle multi-composants, MiniMax-Music3).
+Backend COMMUN audio.cpp (`common/backends/audiocpp_backend`) — premier modèle multi-composants,
+MiniMax-Music3, déclaré par le composer. Déplacé de `composer/tests.py` le 2026-09-26 : il teste
+une brique du commun, sa place est au commun (`WAMA_VERIFICATION §8`).
 
 CE QUE CES TESTS PROTÈGENT. Le backend ne code AUCUNE anatomie : il lit la déclaration
 (`AIModel.composition`, posée par le manifeste `model`) et la traduit en invocation du
