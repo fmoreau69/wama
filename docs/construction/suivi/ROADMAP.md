@@ -3674,28 +3674,37 @@ pour les paramètres (modale ET inspecteur), miroir des sections d'INFOS de la c
 APRÈS le portage du monde Médias (le mécanisme se déclare au schéma — donc après que les 10
 apps aient un schéma homogène et des réglages en colonnes, cf. §22.2 point 1).
 
-### 22.5 ⏳ PLAN ALIGNÉ (2026-09-26) — les profils vivent dans la MÉDIATHÈQUE, pas dans un modèle de plus
+### 22.5 ⏳ Profils de réglages — ils se gèrent DANS L'APPLICATION, comme au converter
 
-> Demande de Fabien : des profils d'usage pour le transcriber (entretien, réunion, sous-titrage),
-> *« alignés sur la notion de profils systèmes et utilisateurs pour ne pas ajouter un nouveau
-> chemin de profil »*, puis *« le converter a des profils système mais on ne les a pas identifiés
-> comme tel »* et *« on ne réinvente rien, on porte au commun et on fait adopter »*.
-> **Décision de Fabien, le même jour : retirer la première construction, consigner, faire le
-> chantier en session dédiée.**
+> Demande de Fabien (2026-09-26) : des profils d'usage pour le transcriber (entretien, réunion,
+> sous-titrage), *« alignés sur la notion de profils systèmes et utilisateurs pour ne pas ajouter
+> un nouveau chemin de profil »*, puis *« le converter a des profils système mais on ne les a pas
+> identifiés comme tel »* et *« on ne réinvente rien, on porte au commun et on fait adopter »*.
+> Le même jour, la première construction a été retirée et le chantier renvoyé en session dédiée.
 
-**Ce qui a été construit puis RETIRÉ, et pourquoi.** Un modèle commun `SettingsProfile`
-(forme des fonctions : système en code, utilisateur en base) avec une fabrique de vues, adoptée
-par le converter et le transcriber, testée. Retiré avant tout commit (table vide, appliquée puis
-défaite sur la base live) parce qu'il **était un second registre d'instances**. La cible existait
-déjà, écrite, et n'avait pas été lue : `WAMA_APP_CONVENTIONS §2bis.3` (*« stockage = `UserAsset`
-(médiathèque, kind profil, JSON des params du schéma) »*) et la décision A′
-(`MEDIA_STORAGE_TIERING §9` : *« le registre d'assets EST la médiathèque ; ce qui manque est un
-registre de NATURES, jamais un 2ᵉ registre d'instances »*). La notion « système / utilisateur »
-de WAMA, c'est `SystemAsset` / `UserAsset` — les préréglages de voix du synthesizer y sont déjà
-passés (`ingest_voice_refs`).
-⚠ **Deux relevés trop étroits ont précédé** : « aucun profil au commun » (seules les classes de
-modèle cherchées) puis « le patron système/utilisateur est celui des fonctions » (la médiathèque
-pas regardée). Les deux fois, c'est Fabien qui a relevé l'écart.
+⚠ **CORRECTION (2026-09-27, Fabien)** — cette section disait jusqu'ici « PLAN ALIGNÉ : les
+profils vivent dans la MÉDIATHÈQUE » (`SystemAsset` / `UserAsset`, une nature `settings_profile`)
+et l'attribuait à une décision de Fabien. **Il ne l'a jamais prise, et la récuse** : *« je ne
+pense pas que ce soit une bonne idée de mettre les réglages dans la médiathèque… Les profils de
+réglages se gèrent directement dans l'application. On l'a déjà mis en place dans le
+converteur. »* L'orientation médiathèque venait d'une INTENTION de juillet
+(`WAMA_APP_CONVENTIONS §2bis.3`, spec migrée d'un audit, jamais implémentée) promue en décision
+par l'agent qui rédigeait. *Une intention citée n'est pas une décision ; l'attribuer à quelqu'un
+sans sa phrase, c'est l'inventer.*
+
+**La cible** : le mécanisme de profils du converter — gérés dans l'app, depuis sa modale
+(`profile_list` / `profile_save` / `profile_delete`, `wama/converter/views.py:882-956` ; modèle
+`ConversionProfile` : utilisateur, nom, contexte `media_type`, valeurs `options` en JSON,
+`wama/converter/models.py:7`) — se **porte au commun** et s'adopte app par app. Les profils
+SYSTÈME restent déclarés dans le code de l'app (au converter : ses préréglages de qualité, cf.
+ci-dessous).
+
+**Ce qui a été construit puis RETIRÉ le 2026-09-26.** Un modèle commun `SettingsProfile`
+(système en code, utilisateur en base) avec une fabrique de vues, adopté par le converter et le
+transcriber, testé — retiré avant tout commit (table vide, appliquée puis défaite sur la base
+live). Le motif invoqué, « un second registre d'instances à côté de la médiathèque », tombe avec
+la correction ci-dessus : cette construction était **dans la bonne direction**, et c'est elle
+que le chantier reprendra.
 
 **Ce qui est acquis (constats, à reprendre tels quels)** :
 - **Les préréglages de qualité du converter SONT ses profils système** (`quality_presets`,
@@ -3720,19 +3729,15 @@ pas regardée). Les deux fois, c'est Fabien qui a relevé l'écart.
   (compte rendu)* — diarisation, résumé `meeting`, cohérence ; *Sous-titrage* — filtre de parole
   `on`, sans diarisation, ni résumé ni cohérence.
 
-**Le chantier, aligné** (à ouvrir en session dédiée — il touche la médiathèque) :
-1. une **nature** `settings_profile` dans `ASSET_NATURES` (fichier JSON des valeurs du schéma ;
-   attributs `app` + contexte, p. ex. `media_type`) — ⚠ elle doit rester HORS du sélecteur de
-   documents et de l'onglet des médias (`TYPE_GROUPS`, `MediaPicker`) : c'est la question de
-   catégorie à trancher en premier ;
-2. profils UTILISATEUR = `UserAsset` de cette nature (visibilité commune, donc partageables) ;
-3. profils SYSTÈME = `SystemAsset` SEMÉS depuis la déclaration de l'app (précédent des voix) —
-   la déclaration en code reste la source, la ligne en base sa projection ;
-4. la fabrique commune des trois vues (`profile_list/save/delete`, mêmes routes que le
-   converter) et la ligne cliente ; le converter l'adopte en gardant le contrat de son JS, puis
-   le transcriber ; le générateur (`views_gen`, bouchons `profile_*` aujourd'hui) émet la
-   fabrique ;
-5. restes connus : trace du profil appliqué (§22.2 point 4), le volet (contexte `panel`), la
+**Le chantier** (session dédiée) :
+1. porter au commun le mécanisme du converter : un modèle de profil utilisateur (app, nom,
+   contexte, valeurs du schéma en JSON), la fabrique des trois vues (`profile_list/save/delete`,
+   mêmes routes que le converter) ; les profils système déclarés par l'app dans son code ;
+2. la ligne cliente « Profil ▾ · 💾 · 🗑 » greffée par `WamaParams.settingsModal` ;
+3. le converter l'adopte en gardant le contrat de son JS (migration de `ConversionProfile`
+   gratuite : 0 ligne), puis le transcriber avec ses trois profils ; le générateur
+   (`views_gen`, bouchons `profile_*` aujourd'hui) émet la fabrique ;
+4. restes connus : trace du profil appliqué (§22.2 point 4), le volet (contexte `panel`), la
    politique de cohérence par usage (`TRANSCRIBER_CORRECTION §8.4`) qui n'a pas encore de réglage.
 
 ---

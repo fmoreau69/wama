@@ -265,9 +265,9 @@ Les réglages de TRANSCRIPTION aussi (2026-09-25) : le filtre de parole (§5bis)
 (qui a dégradé un entretien propre de 32 à 37 % d'erreurs par mot), la diarisation. Un profil
 n'invente donc pas de mécanisme : il pose des valeurs de réglages qui existent déjà, et la
 politique de cohérence qu'ils n'ont pas.
-⏳ **Plan aligné le 2026-09-26** (`ROADMAP §22.5`, décision de Fabien : chantier en session
-dédiée) : les profils de WAMA se rangent dans la **médiathèque** — système = `SystemAsset`,
-utilisateur = `UserAsset`, une nature « profil » —, jamais dans un modèle de plus. Les trois
+⏳ **Chantier en session dédiée** (`ROADMAP §22.5`) : les profils se gèrent **dans
+l'application**, par le mécanisme du converter porté au commun (corrigé le 2026-09-27 : la
+version du 26/09 les rangeait dans la médiathèque, ce que Fabien n'a jamais décidé). Les trois
 profils du transcriber y sont écrits en réglages existants : *Entretien (verbatim)*, *Réunion
 (compte rendu)*, *Sous-titrage* ; la conférence/cours n'en a pas (rien qui la distingue encore
 en réglages). La politique de réécriture par usage reste sans réglage.
