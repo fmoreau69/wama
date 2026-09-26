@@ -662,3 +662,89 @@ class BackendsDecouplesDeLeurAppTest(SimpleTestCase):
         self.assertTrue(declaration('composer', 'musicgen-small'))
         self.assertEqual(len(connection.queries), avant,
                          'lire une déclaration ne doit toucher aucune base')
+
+
+class SondeDeDisponibiliteLEGERETest(SimpleTestCase):
+    """`is_available()` d'un moteur ne doit RIEN importer de lourd — mesuré, pas promis.
+
+    Né le 2026-09-26 d'un défaut trouvé en jouant le scénario nocturne du transcriber : son
+    inventaire de moteurs prenait **38,5 s à froid** (et 0 s ensuite, ce qui le rendait invisible).
+    Cause : `QwenASRBackend.is_available()` appelait `find_spec('transformers.models.qwen3_asr')`
+    — et **`find_spec` d'un nom POINTÉ importe ses paquets parents**, donc transformers en entier
+    (34,1 s mesurées). Le commentaire du code promettait « sans importer transformers » ; la
+    promesse ne valait pas mesure. Conséquence à l'écran : la page du transcriber demande cet
+    inventaire au chargement, sa réponse restait en vol ~40 s à chaque expiration du cache, et le
+    scénario « Envoyer vers » du transcriber sautait TOUTES LES NUITS sur un délai de navigation.
+
+    Deux gardes, parce qu'elles attrapent deux choses différentes :
+      * la FORME, sur tout le parc — aucune sonde de disponibilité n'a le droit d'interroger un
+        nom pointé (elle vaut aussi pour les moteurs à venir) ;
+      * le COMPORTEMENT du cas mesuré, dans un SOUS-PROCESSUS — le seul endroit où « transformers
+        n'est pas importé » est observable (dans la suite, un autre test l'a déjà importé).
+    """
+
+    #: Budget de temps de la SONDE — pas du sous-processus, dont le `django.setup()` prend 46 s à
+    #: lui seul (mesuré : mon premier budget mesurait le démarrage, pas ce qu'il visait).
+    #: Large exprès : on sépare « instantané » de « importe torch et transformers » (34 s).
+    BUDGET_S = 8.0
+
+    def _sondes(self):
+        """(nom de classe, source de `is_available`) pour tous les backends du dépôt."""
+        import ast
+        trouvees = []
+        for fichier in sorted(Path('wama').rglob('*_backend.py')):
+            if 'vendor' in fichier.parts:
+                continue
+            try:
+                arbre = ast.parse(fichier.read_text(encoding='utf-8'))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            for classe in [n for n in ast.walk(arbre) if isinstance(n, ast.ClassDef)]:
+                for methode in [m for m in classe.body if isinstance(m, ast.FunctionDef)]:
+                    if methode.name in ('is_available', 'missing_packages'):
+                        trouvees.append((f'{fichier.as_posix()}::{classe.name}.{methode.name}',
+                                         methode))
+        return trouvees
+
+    def test_aucune_sonde_de_disponibilite_n_interroge_un_nom_POINTE(self):
+        import ast
+        sondes = self._sondes()
+        self.assertGreaterEqual(len(sondes), 5, 'le parc de sondes n’est pas mesuré')
+        fautives = []
+        for etiquette, methode in sondes:
+            for appel in [n for n in ast.walk(methode) if isinstance(n, ast.Call)]:
+                nom = getattr(appel.func, 'attr', None) or getattr(appel.func, 'id', None)
+                if nom not in ('find_spec', 'import_module'):
+                    continue
+                for arg in appel.args:
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str)                             and '.' in arg.value:
+                        fautives.append(f'{etiquette} → {nom}({arg.value!r})')
+        self.assertEqual([], fautives,
+                         'une sonde de disponibilité interroge un nom POINTÉ : elle IMPORTE le '
+                         'paquet parent (34,1 s mesurées pour transformers). Interroger la RACINE '
+                         'et regarder le disque : ' + ' ; '.join(fautives))
+
+    def test_la_sonde_du_moteur_qwen_ne_charge_PAS_transformers(self):
+        import subprocess
+        import sys
+        import time
+        code = (
+            'import sys, os, time, django;'
+            'os.environ.setdefault("DJANGO_SETTINGS_MODULE", "wama.settings");'
+            'django.setup();'
+            'from wama.common.backends.qwen_asr_backend import QwenASRBackend as Q;'
+            't = time.perf_counter();'
+            'r = Q.is_available();'
+            'd = time.perf_counter() - t;'
+            'print("verdict", r, "transformers", "transformers" in sys.modules, "duree", round(d, 2))'
+        )
+        sortie = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True,
+                                timeout=180, cwd=str(Path.cwd()))
+        ligne = [x for x in sortie.stdout.splitlines() if x.startswith('verdict')]
+        self.assertTrue(ligne, f'sonde injouable : {sortie.stderr[-400:]}')
+        self.assertIn('transformers False', ligne[0],
+                      'la sonde a IMPORTÉ transformers — le coût est revenu')
+        duree = float(ligne[0].split('duree')[1])
+        self.assertLess(duree, self.BUDGET_S,
+                        f'la sonde a pris {duree:.1f}s (budget {self.BUDGET_S}s) : '
+                        f'quelque chose de lourd est chargé')

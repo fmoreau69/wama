@@ -496,6 +496,29 @@ def _fichier_temoin(extensions: str) -> Path:
     return Path(f.name)
 
 
+def _motif_skip(exc) -> str:
+    """Motif d'un skip TECHNIQUE — il nomme ce qu'on a VU, jamais ce qu'on suppose.
+
+    ⚠⚠ « navigateur/serveur indisponible » a coûté DEUX diagnostics. Le 2026-08-22 : un run a
+    rapporté **14 serveurs indisponibles** alors que le serveur tournait (la faute était l'appel
+    Playwright). Le 2026-09-26 : `transcriber.send_to` sautait ainsi **chaque nuit** pendant que la
+    cause réelle était une REQUÊTE jamais close — l'inventaire des moteurs à 38,5 s (`find_spec`
+    d'un nom pointé importait transformers). Deux fois, le motif a détourné le regard du coupable.
+
+    Un **délai de NAVIGATION** n'est pas une indisponibilité : la page a répondu, mais elle n'a
+    jamais atteint le repos réseau. On le dit, avec l'adresse, parce que c'est une piste
+    exploitable (une requête reste en vol) et non une fatalité d'environnement.
+    """
+    nom, texte = type(exc).__name__, str(exc)
+    if 'Timeout' in nom and 'goto' in texte:
+        cible = (texte.split('navigating to "')[-1].split('"')[0]
+                 if 'navigating to' in texte else '(adresse non rapportée)')
+        return (f"la page a répondu mais n'a jamais atteint le repos réseau : {cible} — une "
+                f"requête reste EN VOL (ce n'est pas une indisponibilité du serveur ; regarder "
+                f"quelle requête, cf. WAMA_VERIFICATION §Geste 14)")
+    return f'navigateur/serveur indisponible ({nom}: {texte[:100]})'
+
+
 def _exiger_la_page(page, resp, cible: str):
     """Vérifie qu'on est SUR la page demandée — pas seulement qu'UNE page a répondu 200.
 
@@ -825,7 +848,7 @@ def check_app_import(app: str, url_path: str):
         # se méfier de tous les skips (mesuré le 2026-08-22 sur les 5 skips de la passe).
         raise
     except Exception as e:
-        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+        raise SkipScenario(_motif_skip(e))
     finally:
         if temoin:
             try:
@@ -1060,7 +1083,7 @@ def check_app_send_to(app: str, url_path: str):
     except SkipScenario:
         raise
     except Exception as e:
-        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+        raise SkipScenario(_motif_skip(e))
     finally:
         _drop_new_sessions(sessions_before)
         temoin.unlink(missing_ok=True)
@@ -1399,7 +1422,7 @@ def check_app_url_import(app: str, url_path: str):
     except SkipScenario:
         raise
     except Exception as e:
-        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:120]})")
+        raise SkipScenario(_motif_skip(e))
     finally:
         temoin.unlink(missing_ok=True)
         _drop_new_sessions(sessions_before)
@@ -2033,7 +2056,7 @@ def check_app_duplicate_delete(app: str, url_path: str):
     except SkipScenario:
         raise
     except Exception as e:
-        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+        raise SkipScenario(_motif_skip(e))
     finally:
         _drop_new_sessions(sessions_before)
         if modele is not None:
@@ -2505,7 +2528,7 @@ def check_app_settings(app: str, url_path: str):
     except SkipScenario:
         raise
     except Exception as e:
-        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+        raise SkipScenario(_motif_skip(e))
     finally:
         _drop_new_sessions(sessions_before)
         if modele is not None:
@@ -4035,7 +4058,7 @@ def check_volet_deselection(app: str, url_path: str):
             finally:
                 navigateur.close()
     except Exception as e:
-        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+        raise SkipScenario(_motif_skip(e))
     finally:
         _drop_new_sessions(sessions_before)
 
@@ -4132,7 +4155,7 @@ def check_volet_instances(app: str, url_path: str):
             finally:
                 navigateur.close()
     except Exception as e:
-        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+        raise SkipScenario(_motif_skip(e))
     finally:
         _drop_new_sessions(sessions_before)
 

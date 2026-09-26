@@ -88,18 +88,38 @@ class QwenASRBackend(SpeechToTextBackend):
         de la bibliothèque officielle `qwen-asr`. Le défaut du contrat (paquets présents) disait
         « disponible » alors que tout chargement échouait (« Transformers does not recognize this
         architecture », card #49, 2026-09-25) : l'interface proposait un moteur qui ne pouvait pas
-        partir. Mesure LÉGÈRE, sans importer transformers (`find_spec` du sous-paquet) — c'est ce
-        que demandait ce commentaire : ne pas alourdir le peuplement des listes."""
+        partir.
+
+        ⚠⚠ **`find_spec` d'un nom POINTÉ IMPORTE ses paquets parents** — la version précédente de
+        cette méthode promettait « sans importer transformers » et faisait exactement l'inverse :
+        `find_spec('transformers.models.qwen3_asr')` mesuré à **34,1 s** (et `transformers` présent
+        dans `sys.modules` juste après). Le coût était invisible ici et se payait ailleurs : la
+        page du transcriber demande l'inventaire des moteurs au chargement, cette réponse restait
+        en vol **~40 s** à chaque expiration du cache, et le scénario nocturne « Envoyer vers » du
+        transcriber SAUTAIT toutes les nuits sur un délai de navigation (2026-09-26).
+        *Une promesse de légèreté n'est pas une mesure.*
+
+        La mesure JUSTE ne demande rien à l'import : `find_spec` sur la RACINE (pas de parent à
+        importer, 0,00 s, `transformers` absent de `sys.modules` ensuite), puis l'existence du
+        dossier de l'architecture dans le paquet installé (1 ms). `qwen_asr` est une racine : son
+        `find_spec` est légitime.
+        """
         import importlib.util
+        from pathlib import Path
+
         if cls.missing_packages():
             return False
-        for module in ('transformers.models.qwen3_asr', 'qwen_asr'):
-            try:
-                if importlib.util.find_spec(module) is not None:
+        try:
+            racine = importlib.util.find_spec('transformers')
+            for dossier in list(getattr(racine, 'submodule_search_locations', None) or []):
+                if (Path(dossier) / 'models' / 'qwen3_asr').is_dir():
                     return True
-            except (ImportError, ValueError):
-                continue
-        return False
+        except (ImportError, ValueError):
+            pass
+        try:
+            return importlib.util.find_spec('qwen_asr') is not None
+        except (ImportError, ValueError):
+            return False
 
     # ------------------------------------------------------------------
     # Internal helpers
