@@ -209,3 +209,19 @@ class ProfileOffersTheKeysOfBothFamiliesTest(TestCase):
                                 data='{"engine": "exa"}', content_type='application/json')
         self.assertEqual(400, resp.status_code)
         self.assertIn('clé', resp.json()['error'].lower())
+
+    def test_the_listing_fields_are_all_consumed_by_the_page(self):
+        """Garde anti-champ MORT : `kind_label` a été ajouté au payload « pour grouper par
+        famille » et n'était consommé par rien — une intention écrite dans un docstring, pas
+        dans la page. Le profil mêle désormais deux familles de clés : sans le sous-titre, une
+        liste plate ne dit plus à quoi chaque clé sert."""
+        from pathlib import Path
+
+        from django.conf import settings
+        from wama.accounts.api_keys import listing
+        page = (Path(settings.BASE_DIR) / 'wama' / 'accounts' / 'templates' / 'accounts'
+                / 'profile.html').read_text(encoding='utf-8')
+        for field in listing(self.user)[0]:
+            if field in ('slug', 'kind'):      # identifiants internes, jamais affichés
+                continue
+            self.assertIn(field, page, f'`{field}` est servi au profil mais rien ne le lit')
