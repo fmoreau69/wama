@@ -16,8 +16,6 @@ from functools import wraps
 
 from .models import LoginForm, UserRegistrationForm, UserProfile
 from ..common.utils.secret_crypto import storage_available
-from ..anonymizer.forms import UserSettingsEdit
-from ..anonymizer.models import UserSettings
 from ..common.utils.volet import VOLET_AUCUN, volet
 
 logger = logging.getLogger(__name__)
@@ -103,8 +101,6 @@ def signup_view(request):
     if request.method == 'POST':
         if form.is_valid():
             user = form.save()
-            # Crée les UserSettings liés
-            UserSettings.objects.get_or_create(user=user)
             return render(request, 'accounts/signup_validation.html', {'volet': VOLET_AUCUN})
 
     return render(request, 'accounts/login.html',
@@ -170,42 +166,9 @@ class UserEdit(UpdateView):
         return context
 
 
-@method_decorator(login_required, name='dispatch')
-class UserSettingsUpdate(UpdateView):
-    template_name = 'accounts/user_settings_form.html'
-    form_class = UserSettingsEdit
-
-    def get_success_url(self):
-        return reverse('anonymizer:upload')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['volet'] = VOLET_AUCUN          # page de compte, cf. login_view
-        return context
-
-    def get_object(self):
-        return get_object_or_404(UserSettings, user=self.request.user)
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-        # Apply dark theme styling to all form fields
-        for field_name, field in form.fields.items():
-            widget_class = 'form-control bg-dark text-white border-secondary'
-            if hasattr(field.widget, 'input_type') and field.widget.input_type == 'checkbox':
-                widget_class = 'form-check-input'
-            elif hasattr(field.widget, 'template_name') and 'select' in field.widget.template_name:
-                widget_class = 'form-select bg-dark text-white border-secondary'
-            field.widget.attrs.update({'class': widget_class})
-        return form
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Paramètres utilisateur'
-        return context
-
-    def form_valid(self, form):
-        form.instance.user = self.request.user
-        return super().form_valid(form)
+# `UserSettingsUpdate` (page `user/settings/edit/`) RETIRÉE le 2026-09-27 : elle éditait la table
+# legacy `UserSettings` de l'anonymizer, que plus rien ne lisait — les réglages de l'anonymizer
+# sont ceux de son volet (brique commune `user_settings`), comme dans les autres apps.
 
 
 def login_form(request):
@@ -984,9 +947,6 @@ def user_add(request):
             profile, _ = UserProfile.objects.get_or_create(user=user)
             profile.account_tier = tier_map.get(role, 'utilisateur')
             profile.save(update_fields=['account_tier'])
-
-            # Create UserSettings
-            UserSettings.objects.get_or_create(user=user)
 
             return JsonResponse({
                 'success': True,

@@ -2,9 +2,6 @@ from __future__ import unicode_literals
 from django.db import models
 from django.contrib.auth.models import User
 from django.template.defaulttags import register
-from django.utils.translation import gettext_lazy as _
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 
 from wama.settings import BASE_DIR, AI_MODELS_DIR
 from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager, JOB_STATUS_CHOICES
@@ -113,13 +110,7 @@ class Media(ProcessingTimeMixin, ScopedVisibility):
     target_mode = models.CharField(max_length=16, choices=TARGET_MODES, default='classes',
                                    db_default='classes', verbose_name='Désignation')
 
-    # ⚠ LEGACY — relu seulement par `migrate_anonymizer_mode_and_models`, qui le convertit en
-    # `target_mode` ; retiré après ce transfert (le code en service avant le rechargement le lit).
-    use_sam3 = models.BooleanField(
-        default=False,
-        verbose_name='Use SAM3 for segmentation',
-        help_text='When True, uses SAM3 text prompt instead of YOLO classes'
-    )
+    # (`use_sam3` RETIRÉ le 2026-09-27, converti en `target_mode` — REMOVAL_LEDGER R73.)
     sam3_prompt = models.TextField(
         blank=True,
         null=True,
@@ -177,107 +168,9 @@ class Media(ProcessingTimeMixin, ScopedVisibility):
         return gear_data(self, PARAMS)
 
 
-# ── `GlobalSettings` et `UserSettings` : LEGACY, plus lus ni écrits par l'app (2026-09-27) ──
-# Les réglages de l'utilisateur vivent dans la brique commune `user_settings`, leurs défauts dans
-# le schéma. Les deux tables ne restent que le temps que `manage.py
-# migrate_anonymizer_user_settings` en transfère le contenu ; elles seront retirées ensuite
-# (`accounts` les crée encore à l'inscription).
-class GlobalSettings(models.Model):
-    title = models.CharField(max_length=255)
-    name = models.CharField(max_length=255, null=True)
-    last_modified = models.DateTimeField(auto_now_add=True)
-    default = models.JSONField(default=dict)
-    value = models.JSONField(default=dict)
-    type = models.CharField(max_length=5, choices=[('BOOL', 'Boolean'), ('FLOAT', 'Float')], default="FLOAT")
-    label = models.CharField(max_length=255, choices=[('WTB', 'What to blur ?'), ('HTB', 'How to blur ?'), ('WTS', 'What to show ?'),], default='HTB')
-    attr_list = models.JSONField(default=dict, blank=True, null=True)
-    min = models.CharField(max_length=255, default="", blank=True)
-    max = models.CharField(max_length=255, default="", blank=True)
-    step = models.CharField(max_length=255, default="", blank=True)
-
-    def __str__(self):
-        val = self.value.get("current") if isinstance(self.value, dict) else self.value
-        return f"{self.title} ({val})"
-
-
-class UserSettings(models.Model):
-    user = models.OneToOneField(
-        User,
-        verbose_name=_('member'),
-        on_delete=models.CASCADE,
-        related_name='user_settings',
-        related_query_name='user_settings'
-    )
-
-    media_added = models.BooleanField(default=False, verbose_name='Media added')
-    show_gs = models.BooleanField(default=False, verbose_name='Show global settings')
-    show_console = models.BooleanField(default=False, verbose_name='Show media settings')
-    GSValues_customised = models.BooleanField(default=False, verbose_name='Global settings customised')
-
-    blur_ratio = models.IntegerField(default=25)
-    roi_enlargement = models.FloatField(default=1.05)
-    progressive_blur = models.IntegerField(default=25)
-    detection_threshold = models.FloatField(default=0.25)
-    interpolate_detections = models.BooleanField(default=True, verbose_name='Interpolate missing detections')
-    max_interpolation_frames = models.IntegerField(default=15, verbose_name='Max frames to interpolate (capped at 0.5s)')
-
-    show_preview = models.BooleanField(default=True)
-    show_boxes = models.BooleanField(default=True)
-    show_labels = models.BooleanField(default=True)
-    show_conf = models.BooleanField(default=True)
-
-    classes2blur = models.JSONField(
-        default=default_classes2blur,
-        blank=True,
-        verbose_name='Objects to blur',
-        help_text="List of objects to blur"
-    )
-
-    model_to_use = models.CharField(
-        max_length=255,
-        default='detect/yolov8n.pt',
-        help_text='YOLO model path (e.g., detect/yolo11n.pt or detect/faces/yolov9s-face-lindevs.pt)'
-    )
-
-    precision_level = models.IntegerField(
-        default=50,
-        verbose_name='Processing precision level',
-        help_text='0=Quick (fast), 50=Balanced, 100=Precise (slow but accurate)'
-    )
-
-    use_segmentation = models.BooleanField(
-        default=True,
-        verbose_name='Use segmentation models',
-        help_text='Automatically determined by precision level'
-    )
-
-    # SAM3 (Segment Anything Model 3) fields
-    use_sam3 = models.BooleanField(
-        default=False,
-        verbose_name='Use SAM3 by default',
-        help_text='When True, uses SAM3 text prompt instead of YOLO classes by default'
-    )
-    sam3_prompt = models.TextField(
-        blank=True,
-        null=True,
-        verbose_name='Default SAM3 Text Prompt',
-        help_text='Default text prompt for SAM3 segmentation'
-    )
-    hf_token_configured = models.BooleanField(
-        default=False,
-        verbose_name='HuggingFace token configured',
-        help_text='Whether user has configured HuggingFace access token for SAM3'
-    )
-
-    def __str__(self):
-        username = getattr(self.user, 'username', 'Unknown User')
-        return f"UserSettings for {username}"
-
-    def get_field_value(self, field):
-        return getattr(self, field, None)
-
-
-# `create_user_profile` (post_save User → UserSettings) RETIRÉ le 2026-09-27 : table legacy.
+# `GlobalSettings` et `UserSettings` RETIRÉS le 2026-09-27 (REMOVAL_LEDGER R73) : les réglages de
+# l'utilisateur vivent dans la brique commune `user_settings` (préférences transférées), leurs
+# défauts dans le schéma (`params.py`, dérivé des colonnes de `Media`).
 
 
 from wama.common.models import QueueOrderMixin, BatchMixin

@@ -57,7 +57,9 @@ PROMPT_TARGETS = {
         # anglophone (skill cam_analyzer-transport) — l'itération sur la liste est faite
         # dans la tâche (`analyze_sam3_only_task`) via enrich_on_demand ; `list_item_field`
         # documente la structure pour un futur hook générique.
-        {'field': 'sam3_markings_prompts', 'kind': 'concept', 'when': 'use_sam3',
+        # `when` : le champ RÉEL du modèle (2026-09-27) — la déclaration citait `use_sam3`, que
+        # `Session` n'a jamais eu ; `_when_ok` l'aurait donc toujours lu faux.
+        {'field': 'sam3_markings_prompts', 'kind': 'concept', 'when': 'sam3_markings_enabled',
          'domain': 'transport', 'list_item_field': 'prompt'},
     ],
     'composer': [

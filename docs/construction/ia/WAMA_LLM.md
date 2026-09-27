@@ -54,8 +54,8 @@ et la méta-app.
 |-----|-------|------|-------|
 | imager | `prompt` | generative | `enrich=True` |
 | imager | `negative_prompt` | generative | pas d'enrich |
-| anonymizer | `sam3_prompt` | concept | `when='use_sam3'` |
-| cam_analyzer | `sam3_markings_prompts` | concept | `when='use_sam3'`, `domain='transport'`, `list_item_field='prompt'` (liste `{label,prompt}`) |
+| anonymizer | `sam3_prompt` | concept | `when={'field': 'target_mode', 'equals': 'description'}` (le mode de l'élément, 2026-09-27) |
+| cam_analyzer | `sam3_markings_prompts` | concept | `when='sam3_markings_enabled'` (corrigé le 2026-09-27 : `use_sam3` n'existe pas sur la session), `domain='transport'`, `list_item_field='prompt'` (liste `{label,prompt}`) |
 | composer | `prompt` | generative | `default_model_type='music'` (MusicGen EN) |
 | assistant | `message` | intent | `model_id=` dynamique (modèle Ollama résolu) |
 | synthesizer | — | — | **aucun target** : `text_content` = contenu à dire (jamais traduit) |

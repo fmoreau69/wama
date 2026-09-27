@@ -14,7 +14,7 @@ from wama.accounts.permissions import TIER_CHOICES
 class UserProfile(models.Model):
     """
     WAMA-wide user preferences (cross-app).
-    Distinct from anonymizer.UserSettings which is anonymizer-specific.
+    (L'anonymizer avait sa propre table `UserSettings`, retirée le 2026-09-27.)
     """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     preferred_language = models.CharField(
