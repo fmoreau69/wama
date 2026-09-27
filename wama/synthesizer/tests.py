@@ -321,7 +321,11 @@ class PanelVoiceFieldIsGeneratedTest(TestCase):
             js = path.read_text(encoding='utf-8')
             self.assertIn('optgroup[data-group-key="', js, path.name)
             self.assertNotIn('customVoicesGroup', js, path.name)
-            self.assertIn("addEventListener('wama:options-filled'", js, path.name)
+            # L'app ANNONCE que les options ont changé ; elle ne les écoute plus. Le seul
+            # auditeur d'app (le miroir de la card d'entrée) a été retiré le 2026-09-27 avec
+            # les contrôles qu'il servait — l'annonce, elle, reste indispensable : c'est ce
+            # qui fait rejouer les filtres de capacité sur une voix fraîchement clonée.
+            self.assertIn("dispatchEvent(new CustomEvent('wama:options-filled'", js, path.name)
 
     def test_the_voice_field_is_rendered_by_an_inline_script(self):
         """Le rendu du champ vit dans un script EN LIGNE du gabarit. Que TOUS les scripts en
@@ -397,3 +401,51 @@ class VoicePreviewPlayerTest(TestCase):
         """Les deux branches d'origine étaient identiques au caractère près : une condition qui
         ne décide de rien double seulement le code à corriger."""
         self.assertNotIn('audioBuffers.length === 1', self._function_source())
+
+
+class TheEntryCardKeepsOneHomePerSettingTest(TestCase):
+    """La card d'entrée ne duplique plus les réglages du volet (constat de Fabien, 2026-09-27).
+
+    Elle annonçait elle-même « Modèle, langue et options avancées : volet de droite » tout en
+    portant un sélecteur de voix et un curseur de vitesse. Deux domiciles pour un même réglage,
+    et le second n'avait pas de source propre : il RECOPIAIT le volet, donc il se réparait
+    (recâblé sur `wama:options-filled` quand le select est devenu généré) au lieu de servir.
+
+    ⚠ Ce que cette garde tient vraiment : que le retrait n'ait pas emporté ce que le volet
+    doit encore offrir. Un contrôle retiré d'un côté DOIT exister de l'autre.
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.user = _utilisateur_autorise('entry_card_user')
+        self.client.force_login(self.user)
+
+    def _page(self):
+        return self.client.get(reverse('synthesizer:index')).content.decode('utf-8')
+
+    def test_the_entry_card_no_longer_mirrors_voice_and_speed(self):
+        page = self._page()
+        self.assertNotIn('id="textVoiceQuick"', page)
+        self.assertNotIn('id="textSpeedQuick"', page)
+        self.assertIn('id="textTitle"', page, 'le titre reste : il n\'existe QUE là')
+
+    def test_what_the_card_removed_the_panel_still_offers(self):
+        """Contre-épreuve : la voix et la vitesse n'ont pas disparu de la page, elles n'ont
+        plus qu'UN domicile — le volet."""
+        page = self._page()
+        self.assertIn('id="voicePresetHost"', page)     # champ de voix GÉNÉRÉ du schéma
+        self.assertIn('id="speed"', page)               # curseur de vitesse du volet
+
+    def test_no_dead_reference_to_the_removed_mirror(self):
+        """Un JS qui lirait encore les ids retirés serait muet, jamais en erreur."""
+        from pathlib import Path
+
+        from django.conf import settings
+        base = Path(settings.BASE_DIR)
+        for path in (base / 'wama' / 'synthesizer' / 'static' / 'synthesizer' / 'js' / 'index.js',
+                     base / 'staticfiles' / 'synthesizer' / 'js' / 'index.js'):
+            if not path.exists():
+                continue
+            js = path.read_text(encoding='utf-8')
+            for dead in ('textVoiceQuick', 'textSpeedQuick', 'cloneVoiceOptions'):
+                self.assertNotIn(dead, js, f'{dead} dans {path.name}')

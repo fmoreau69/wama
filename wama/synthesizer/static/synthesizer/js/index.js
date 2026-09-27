@@ -470,67 +470,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // ── Card « Nouvelle synthèse » : accordéon + voix/vitesse inline synchronisés au volet droit ──
-    // Entrée progressive : le texte est l'entrée ; Entrée (ou saisie) déplie titre + voix + vitesse +
-    // aperçu + ajouter. Voix/vitesse inline = miroirs des contrôles canoniques du volet droit
-    // (#voice_preset / #speed) que le submit lit déjà → aucune modif du flux d'envoi.
-    (function initQuickComposeMirrors() {
-        // Le pliage/dépliage de la card d'entrée est géré par la brique COMMUNE
-        // wama-new-item-card.js (data-wama-nic : clic/focus/drag déplient — décision
-        // 2026-07-26). Restent ici : les MIROIRS voix/vitesse du volet compose et
-        // Entrée → passage aux options.
-        const textContent   = document.getElementById('textContent');
-        const quickVoice    = document.getElementById('textVoiceQuick');
-        const quickSpeed    = document.getElementById('textSpeedQuick');
-        const quickSpeedVal = document.getElementById('textSpeedQuickVal');
-        const voicePreset   = document.getElementById('voice_preset');
-        const speedInput    = document.getElementById('speed');
+    // ── Card « Nouvelle synthèse » : le texte, et rien que le texte ────────────────────────
+    // ⚠ Les MIROIRS voix et vitesse vivaient ici (recopie du volet droit, synchronisation
+    // bidirectionnelle) — RETIRÉS le 2026-09-27 avec les contrôles qu'ils servaient
+    // (`_new_item_extra.html`, constat de Fabien) : la card annonçait elle-même que ces
+    // réglages sont à droite, et un miroir sans source propre est un doublon qui se répare
+    // (il a fallu le recâbler sur `wama:options-filled` quand le select est devenu généré).
+    // Le pliage/dépliage reste la brique COMMUNE `wama-new-item-card.js`.
+    (function initQuickCompose() {
+        const textContent = document.getElementById('textContent');
         if (!textContent) return;
-
-        // Entrée (sans Maj) → focus sur la voix rapide (le focus a déjà déplié)
+        // Entrée (sans Maj) ne saute plus vers la voix rapide : elle n'existe plus. Le texte
+        // est l'entrée, la touche ne doit pas y insérer un saut de ligne involontaire —
+        // on donne la main au bouton d'aperçu, geste suivant le plus probable.
         textContent.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                if (quickVoice) quickVoice.focus();
+                const preview = document.getElementById('previewTextBtn');
+                if (preview) preview.focus();
             }
         });
-
-        // Voix rapide = clone du select canonique du volet (source serveur unique,
-        // ids retirés pour éviter les doublons) ; changement → répercuté au volet.
-        function cloneVoiceOptions() {
-            if (!quickVoice || !voicePreset) return;
-            quickVoice.innerHTML = voicePreset.innerHTML;
-            quickVoice.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
-            quickVoice.value = voicePreset.value;
-        }
-        cloneVoiceOptions();
-        // Le select du volet est GÉNÉRÉ (2026-09-23) : ses options arrivent une 1re fois au
-        // rendu, puis REVIENNENT de /common/api/voices/. Un miroir recopié une seule fois
-        // au chargement serait figé sur l'état d'avant la recharge — la brique commune
-        // annonce chaque remplissage, on se recopie dessus.
-        if (voicePreset) voicePreset.addEventListener('wama:options-filled', cloneVoiceOptions);
-        if (quickVoice && voicePreset) {
-            quickVoice.addEventListener('change', () => {
-                voicePreset.value = quickVoice.value;
-                voicePreset.dispatchEvent(new Event('change', { bubbles: true }));
-            });
-            voicePreset.addEventListener('change', () => { quickVoice.value = voicePreset.value; });
-        }
-
-        // Vitesse rapide ↔ volet (bidirectionnel)
-        if (quickSpeed && speedInput) {
-            quickSpeed.value = speedInput.value;
-            if (quickSpeedVal) quickSpeedVal.textContent = parseFloat(speedInput.value).toFixed(1);
-            quickSpeed.addEventListener('input', () => {
-                speedInput.value = quickSpeed.value;
-                speedInput.dispatchEvent(new Event('input', { bubbles: true }));
-                if (quickSpeedVal) quickSpeedVal.textContent = parseFloat(quickSpeed.value).toFixed(1);
-            });
-            speedInput.addEventListener('input', () => {
-                quickSpeed.value = speedInput.value;
-                if (quickSpeedVal) quickSpeedVal.textContent = parseFloat(speedInput.value).toFixed(1);
-            });
-        }
     })();
 
     // Preview text button with streaming support
