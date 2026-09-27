@@ -317,7 +317,7 @@ class TheCardRendersWhatTheNatureDeclaresTest(SimpleTestCase):
                               'attributes': {'gender': 'male', 'language': 'en'}})
         self.assertEqual(['Langue', 'Genre'], [a['label'] for a in rendu])
 
-    def test_an_attribute_the_nature_does_not_declare_is_not_shown(self):
+    def test_an_attribute_outside_the_vocabulary_is_not_shown(self):
         """Contre-épreuve : la clé inconnue est CONSERVÉE en base (`normalize_attributes` ne
         perd rien) mais pas affichée — un libellé brut au milieu de libellés soignés serait pire
         que son absence."""
