@@ -100,51 +100,106 @@ class AutoriteDuMoteurTest(TestCase):
         self.assertIsNone(voice_refs.model_supports_cloning(''))
 
 
-class LesWorkersNeDecidentPlusRienTest(TestCase):
-    """Garde textuelle : aucun worker ne recopie la résolution ni ne teste un nom de moteur."""
+def _python_files():
+    """Tout le code des trois racines, hors la brique elle-même et hors tests."""
+    from pathlib import Path
 
-    FICHIERS = ('wama/synthesizer/workers.py', 'wama/avatarizer/workers.py',
-                'wama/synthesizer/views.py')
+    from django.conf import settings
+    racine = Path(settings.BASE_DIR)
+    for chemin in sorted(racine.glob('wama*/**/*.py')):
+        rel = chemin.relative_to(racine).as_posix()
+        if rel == BRICK or Path(rel).name.startswith('tests'):
+            continue
+        yield rel, chemin
 
-    def _texte(self, rel):
-        """Le CODE seul — les commentaires racontent ce qu'on a retiré, et le nomment."""
+
+def _calls(chemin, name):
+    """Les appels à `name` dans ce fichier, par AST — `(ligne, mots-clés)`.
+
+    Par AST et non par motif texte : l'appel est multi-ligne chez deux des appelants, et un
+    `language=` cité dans un COMMENTAIRE ou une docstring ne doit pas compter pour l'argument.
+    """
+    import ast
+    try:
+        arbre = ast.parse(chemin.read_text(encoding='utf-8'))
+    except (SyntaxError, UnicodeDecodeError):
+        return
+    for noeud in ast.walk(arbre):
+        if not isinstance(noeud, ast.Call):
+            continue
+        court = getattr(noeud.func, 'id', None) or getattr(noeud.func, 'attr', None)
+        if court == name:
+            yield noeud.lineno, {k.arg for k in noeud.keywords if k.arg}
+
+
+#: La brique — seule autorisée à résoudre elle-même.
+BRICK = 'wama/common/tts/voice_refs.py'
+
+
+def _apps_that_speak():
+    """Les apps qui DÉCLARENT une voix : un modèle avec un champ `voice_preset`.
+
+    C'est la déclaration qui pilote, pas une liste : une app neuve qui gagne une voix entre
+    dans cette garde **sans une ligne de test** (`WAMA_VERIFICATION §8`).
+    """
+    from django.apps import apps
+    labels = set()
+    for model in apps.get_models():
+        if any(f.name == 'voice_preset' for f in model._meta.get_fields()):
+            labels.add(model._meta.app_label)
+    return labels
+
+
+class LaPorteDesVoixEstUnContratTRANSVERSETest(SimpleTestCase):
+    """Le contrat de la porte des voix, gardé UNE fois pour TOUTES les apps.
+
+    ⚠ Jusqu'au 2026-09-27 cette garde nommait TROIS FICHIERS à la main — le trou « C » que
+    `WAMA_VERIFICATION §8` désigne : un contrat transverse gardé dans une app est NON gardé
+    dans les neuf autres, et une app neuve lui échappe en silence. Ici les appelants sont
+    DÉCOUVERTS, et les apps concernées DÉRIVÉES de leurs modèles.
+    """
+
+    def test_every_app_that_declares_a_voice_goes_through_the_door(self):
+        parlantes = _apps_that_speak()
+        self.assertTrue(parlantes, 'aucune app ne déclare `voice_preset` : garde à blanc')
+        adopte = {rel.split('/')[1] for rel, chemin in _python_files()
+                  if any(_calls(chemin, 'speaker_wav_for'))}
+        manquantes = parlantes - adopte
+        self.assertFalse(manquantes,
+                         f"app(s) avec une voix mais sans passer par la porte : {manquantes}")
+
+    def test_every_caller_passes_the_language(self):
+        """⚠ Sans `language=`, « Voix par défaut » retombe sur le clip LJSpeech ANGLOPHONE :
+        un texte allemand sortirait avec une locutrice anglaise, **sans erreur, sans journal,
+        sans rien à l'écran**. Le type de défaut que rien ne rattrape à l'exécution — il rend
+        un résultat plausible et faux."""
+        vus = 0
+        for rel, chemin in _python_files():
+            for ligne, mots in _calls(chemin, 'speaker_wav_for'):
+                vus += 1
+                self.assertIn('language', mots,
+                              f"{rel}:{ligne} : la langue n'est pas transmise — la voix par "
+                              f"défaut redeviendrait anglophone en silence")
+        self.assertGreaterEqual(vus, 3, 'aucun appelant découvert : la garde tournerait à vide')
+
+    def test_nobody_outside_the_brick_resolves_a_voice_itself(self):
+        """La résolution `ua_`/`cv_`/preset appartient à la brique. Un appel direct ailleurs
+        contournerait la décision par CAPACITÉ (D7) — et ne verrait pas la langue."""
+        directs = [f'{rel}:{ligne}' for rel, chemin in _python_files()
+                   for ligne, _ in _calls(chemin, 'resolve_speaker_wav')]
+        self.assertFalse(directs, f'résolution recopiée hors de la brique : {directs}')
+
+    def test_no_app_still_tests_an_engine_by_NAME(self):
+        """D7 : c'est la CAPACITÉ qui décide, jamais `tts_model == 'coqui-xtts'`."""
+        import re
         from pathlib import Path
-
-        from django.conf import settings
-        lignes = Path(settings.BASE_DIR, rel).read_text(encoding='utf-8').splitlines()
-        return '\n'.join(l for l in lignes if not l.lstrip().startswith('#'))
-
-    def test_les_deux_workers_et_l_apercu_passent_par_la_porte(self):
-        for rel in self.FICHIERS:
-            self.assertIn('speaker_wav_for(', self._texte(rel), rel)
-
-    def test_the_three_callers_pass_the_language_to_the_door(self):
-        """⚠ La garde qui manquait au palier du 27/09 (relevée en revérifiant, pas en s'en
-        souvenant). Sans `language=`, « Voix par défaut » retombe sur le clip LJSpeech
-        ANGLOPHONE : un texte allemand sortirait avec une locutrice anglaise, **sans erreur,
-        sans journal, sans rien à l'écran**. C'est le type de défaut que rien ne rattrape à
-        l'exécution — il rend un résultat plausible et faux.
-
-        Textuelle et non par AST, comme sa sœur au-dessus : l'appel est multi-ligne dans les
-        trois fichiers, et c'est la PRÉSENCE de l'argument qui est en jeu, pas sa valeur.
-        """
-        import re
-        for rel in self.FICHIERS:
-            texte = self._texte(rel)
-            appel = re.search(r'speaker_wav_for\((?:[^()]|\([^()]*\))*\)', texte, re.S)
-            self.assertIsNotNone(appel, f'{rel} : appel à speaker_wav_for introuvable')
-            self.assertIn('language=', appel.group(0),
-                          f"{rel} : la langue n'est pas transmise — la voix par défaut "
-                          f"redeviendrait anglophone en silence")
-
-    def test_plus_aucune_resolution_ni_test_de_moteur_recopie(self):
-        import re
-        for rel in self.FICHIERS:
-            t = self._texte(rel)
-            self.assertIsNone(re.search(r"tts_model\s*==\s*'", t), rel)
-            self.assertNotIn('_get_default_speaker_wav', t, rel)
-            self.assertNotIn("voice_preset.startswith('ua_')", t, rel)
-            self.assertNotIn('resolve_speaker_wav(', t, rel)
+        for rel, chemin in _python_files():
+            if not rel.startswith(('wama/synthesizer/', 'wama/avatarizer/')):
+                continue
+            lignes = Path(chemin).read_text(encoding='utf-8').splitlines()
+            code = '\n'.join(l for l in lignes if not l.lstrip().startswith('#'))
+            self.assertIsNone(re.search(r"tts_model\s*==\s*'", code), rel)
+            self.assertNotIn('_get_default_speaker_wav', code, rel)
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────

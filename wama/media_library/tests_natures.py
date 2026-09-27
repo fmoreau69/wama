@@ -333,6 +333,34 @@ class TheCardRendersWhatTheNatureDeclaresTest(SimpleTestCase):
         self.assertEqual([('bpm', '120'), ('key', 'Am')],
                          [(a['label'], a['value']) for a in rendu])
 
+    def test_EVERY_declared_attribute_of_EVERY_nature_renders_with_a_label(self):
+        """⚠ LA forme générique (`WAMA_VERIFICATION §8`) : on ne nomme aucune nature.
+
+        On boucle sur la DÉCLARATION — une nature neuve, ou un attribut ajouté à une nature
+        existante, entre dans cette garde **sans une ligne de test**. Les trois tests
+        au-dessus restent : ils disent ce qu'on LIT concrètement pour une voix, ce qu'un
+        parcours générique ne montre pas.
+        """
+        valeur_type = {'str': None, 'int': 7, 'float': 1.5, 'bool': True, 'list': ['a']}
+        vus = 0
+        for asset_type, spec in natures.natures_as_json().items():
+            declares = spec.get('attributes') or {}
+            if not declares:
+                continue
+            attributs = {}
+            for cle, a in declares.items():
+                choix = a.get('choices') or []
+                attributs[cle] = choix[0] if choix else (valeur_type.get(a['kind']) or 'x')
+            rendu = self._render({'asset_type': asset_type, 'attributes': attributs})
+            self.assertEqual(len(declares), len(rendu),
+                             f'{asset_type} : {len(declares)} attributs déclarés, '
+                             f'{len(rendu)} rendus')
+            for a in rendu:
+                self.assertTrue(a['label'].strip(), f'{asset_type} : un attribut sans libellé')
+                self.assertTrue(a['value'].strip(), f'{asset_type} : un attribut sans valeur')
+            vus += 1
+        self.assertGreaterEqual(vus, 3, 'moins de 3 natures à attributs : garde à blanc ?')
+
     def test_an_asset_without_attributes_renders_nothing(self):
         self.assertEqual([], self._render({'asset_type': 'voice', 'attributes': {}}))
         self.assertEqual([], self._render({'asset_type': 'voice'}))
