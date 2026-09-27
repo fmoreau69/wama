@@ -17946,3 +17946,21 @@ sélecteur de médiathèque.
   `quality_intent`, `AWAITING_RESOURCES`, `result_role` — les chantiers prospection, curseur C,
   gouverneur et médiathèque, jamais ré-exportés. Rien de ma session ; régénérer figerait le WIP
   d’une instance qui travaille en ce moment sur le synthesizer.
+
+### SUITE 2026-09-27 — l'usage réel a trouvé deux défauts de plus (18 → 20 commits)
+Fabien reçoit sa photo dans Discord : la chaîne tient de bout en bout. Deux constats immédiats,
+tous deux mesurés par lui, consignés dans `WAMA_LLM §2026-09-27` :
+- **l'aperçu n'est pas le fichier** — un webp de 75 Ko enregistré là où WAMA a envoyé un JPEG de
+  445 203 octets. Rien n'est recompressé de notre côté : c'est le proxy d'images de Discord.
+  `_caption_original` édite le message après téléversement pour porter l'URL de la **pièce
+  jointe** (l'original), son poids et l'avertissement. ⭐ C'est le **lien de téléchargement qui
+  manquait**, et il ne demande ni URL publique ni secret WAMA circulant dans une messagerie ;
+- **au-delà du plafond, rien n'arrivait et rien ne le disait** — théorique pour une image, cas
+  NORMAL pour une vidéo. La réponse porte désormais nom, taille et où le récupérer.
+- 🔚 **Décision ouverte, née de la question « d'où vient la limite ? »** : `_MAX_OUTPUT_BYTES`
+  est une constante DEVINÉE (« limite Discord la plus basse », rien ne la mesure) posée dans le
+  module qui s'interdit de connaître les protocoles, quand `discord.py` déclare la vraie et que
+  le plafond entrant (25 Mo) vit, lui, dans l'adaptateur. **Qui filtre** : le cœur avec une borne
+  générique, ou l'adaptateur avec la borne déclarée par son protocole ?
+- ⏳ Et quand `wama.univ-eiffel.fr` existera : la porte SIGNÉE à durée de vie courte reste à
+  faire — c'est le seul chemin pour un fichier que le canal ne peut pas porter.
