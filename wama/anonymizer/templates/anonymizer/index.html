@@ -80,7 +80,7 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
         `extra_class='setting-button'` = l'auto-persistance des réglages du volet (update.js).
         La DÉCLINAISON de la valeur est au COMMUN depuis le 20/09 (chantier C :
         model_coverage.size_for_intent / segmentation_for_intent), inchangée au cran près.{% endcomment %}
-        {% include 'common/_intent_slider.html' with dom_id='user_setting_precision_level' name='precision_level' value=gs_values.precision_level|default:50 step=5 extra_class='setting-button' %}
+        {% include 'common/_intent_slider.html' with dom_id='user_setting_precision_level' name='precision_level' value=gs_values.precision_level step=5 extra_class='setting-button' %}
     </div>
 
     <!-- Model Selection -->
@@ -166,7 +166,7 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
             <input class="form-range setting-button" type="range"
                    name="blur_ratio"
                    id="user_setting_blur_ratio"
-                   value="{{ gs_values.blur_ratio|default:'25' }}"
+                   value="{{ gs_values.blur_ratio }}"
                    {% comment %}step=2 CONSERVÉ — ce n'était pas arbitraire : blur_ratio est la
                    taille de noyau d'un flou gaussien, qui DOIT être impaire (normalize_blur_ratio,
                    core/blur_utils.py:234). Avec un pas de 1, l'utilisateur choisissait 42 et le
@@ -176,7 +176,7 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
                    min="1" max="99" step="2"
                    style="flex: 0 0 90px;"
                    oninput="this.nextElementSibling.textContent = this.value">
-            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.blur_ratio|default:"25" }}</output>
+            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.blur_ratio }}</output>
             <span class="small text-light text-nowrap">Intensité flou</span>
         </div>
     </div>
@@ -187,11 +187,11 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
             <input class="form-range setting-button" type="range"
                    name="roi_enlargement"
                    id="user_setting_roi_enlargement"
-                   value="{{ gs_values.roi_enlargement|default:'1.05' }}"
+                   value="{{ gs_values.roi_enlargement }}"
                    min="0.5" max="1.5" step="0.05"
                    style="flex: 0 0 90px;"
                    oninput="this.nextElementSibling.textContent = this.value">
-            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.roi_enlargement|default:"1.05" }}</output>
+            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.roi_enlargement }}</output>
             <span class="small text-light text-nowrap">Agrandissement ROI</span>
         </div>
     </div>
@@ -202,11 +202,11 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
             <input class="form-range setting-button" type="range"
                    name="progressive_blur"
                    id="user_setting_progressive_blur"
-                   value="{{ gs_values.progressive_blur|default:'25' }}"
+                   value="{{ gs_values.progressive_blur }}"
                    min="3" max="31" step="2"
                    style="flex: 0 0 90px;"
                    oninput="this.nextElementSibling.textContent = this.value">
-            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.progressive_blur|default:"25" }}</output>
+            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.progressive_blur }}</output>
             <span class="small text-light text-nowrap">Flou progressif</span>
         </div>
     </div>
@@ -217,11 +217,11 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
             <input class="form-range setting-button" type="range"
                    name="detection_threshold"
                    id="user_setting_detection_threshold"
-                   value="{{ gs_values.detection_threshold|default:'0.25' }}"
+                   value="{{ gs_values.detection_threshold }}"
                    min="0" max="1" step="0.05"
                    style="flex: 0 0 90px;"
                    oninput="this.nextElementSibling.textContent = this.value">
-            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.detection_threshold|default:"0.25" }}</output>
+            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.detection_threshold }}</output>
             <span class="small text-light text-nowrap">Seuil détection</span>
         </div>
     </div>

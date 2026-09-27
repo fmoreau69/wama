@@ -946,7 +946,10 @@ def _user_settings(f: _AppFiles):
     # `user_settings, _ = UserSettings.objects…` d'anonymizer/enhancer (modèle legacy) —
     # trois faux verts. La preuve d'adoption est l'ÉCRITURE de la brique : sans
     # `save_user_app_settings`, rien ne persiste et le mécanisme est à moitié vivant.
-    write = f.find(VIEWS, r'save_user_app_settings')
+    # 2026-09-27 : la brique du VOLET (`make_panel_settings_views`, `save_panel_settings`)
+    # écrit par la même persistance — sans elle au motif, une app portée sur la brique
+    # (anonymizer) retombait sur « modèle local ».
+    write = f.find(VIEWS, r'save_user_app_settings|make_panel_settings_views|save_panel_settings')
     if write:
         return True, write
     read_only = f.find(VIEWS, r'get_user_app_settings')

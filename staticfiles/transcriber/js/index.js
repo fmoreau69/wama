@@ -729,12 +729,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // The queue toolbar now renders it from the catalogue (`export_formats`) via
     // `common/_download_button.html` with `split=False`. This code only toggles `disabled`
     // (see `updateDownloadAllState`); the menu is server-rendered and always present.
-    // Enregistrement automatique : UN écouteur sur le volet, pour tout champ que le schéma y
-    // rend (un `change` de textarea part à la perte du focus, comme l'ancien `blur`). Les
-    // listes d'écouteurs par id sont retirées (2026-09-26) : le filtre de parole, ajouté au
-    // schéma, n'y figurait pas.
-    const panelHost = document.getElementById('panelSettings');
-    if (panelHost) panelHost.addEventListener('change', savePanelSettings);
+    // Enregistrement automatique : `autoSave` de l'inspecteur commun (2026-09-27), sur les seuls
+    // gestes réels — l'écouteur local d'avant partait aussi sur les `change` que l'inspecteur
+    // émet en affichant une card, et réécrivait l'élément à chaque clic.
 
     // Item settings modal: buttons are delegated by the shared cycle (`WamaParams.settingsModal`).
 
@@ -848,19 +845,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }).then(r => r.json()).catch(() => showToast('Erreur lors de l\'enregistrement du batch', 'danger'));
   }
 
-  // Sauvegarde des valeurs par défaut (niveau file, rien d'inspecté).
-  function saveGlobalSettings() {
-    if (!config.saveUserSettingsUrl) return;
-    const payload = _panelReadValues();   // par NOM de param ; le serveur re-clé pour le stockage
-    fetch(config.saveUserSettingsUrl, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-  }
-
-  // Routage de la sauvegarde via l'inspecteur commun (item / batch / défauts file).
-  function savePanelSettings() { if (_inspector) _inspector.save(); else saveGlobalSettings(); }
+  // Routage de la sauvegarde via l'inspecteur commun (item / batch / défauts de l'utilisateur,
+  // ces derniers par `saveGlobalUrl` — brique commune, 2026-09-27).
+  function savePanelSettings() { if (_inspector) _inspector.save(); }
 
   // Crée l'inspecteur commun (WamaInspector) câblé aux spécificités du transcriber.
   function initInspector() {
@@ -880,7 +867,8 @@ document.addEventListener('DOMContentLoaded', function () {
       renderBatchActions: function (host, batchId) { WamaInspector.cloneBatchActions(host, batchId); },
       saveItem: saveInspectorItem,
       saveBatch: saveInspectorBatch,
-      saveGlobal: saveGlobalSettings,
+      saveGlobalUrl: config.saveUserSettingsUrl,
+      autoSave: true,
       itemLabel: (id) => "l'élément #" + id,
       batchLabel: (id) => "le batch #" + id + " (tous les éléments)",
     });

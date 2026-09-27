@@ -1,9 +1,10 @@
 /**
  * Anonymizer — enregistrement du VOLET DROIT (réglages `.setting-button`).
  *
- * Depuis le 2026-09-27 un réglage changé au volet est ENREGISTRÉ PAR L'INSPECTEUR COMMUN, qui
- * route selon ce qui est inspecté : l'élément, le lot, ou — rien d'inspecté — les défauts de
- * l'utilisateur (brique `user_settings`). Avant, chaque champ partait seul vers
+ * Depuis le 2026-09-27 un réglage changé au volet est ENREGISTRÉ PAR L'INSPECTEUR COMMUN
+ * (`autoSave`, queue.js), qui route selon ce qui est inspecté : l'élément, le lot, ou — rien
+ * d'inspecté — les défauts de l'utilisateur (brique `user_settings`). Il ne reste ici que
+ * l'affichage de la valeur à côté d'un curseur. Avant, chaque champ partait seul vers
  * `update_settings/` et écrivait TOUJOURS les réglages de l'utilisateur, même quand le volet
  * montrait une card : l'élément inspecté ne recevait rien.
  *
@@ -15,18 +16,6 @@
  */
 $(document).ready(function () {
 
-    function debounce(func, wait) {
-        let timeout;
-        return function (...args) {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
-        };
-    }
-
-    const debouncedSave = debounce(function () {
-        if (window.AnonQueue && window.AnonQueue.savePanel) window.AnonQueue.savePanel();
-    }, 250);
-
     $(document).on("input change", ".setting-button", function () {
         const $el = $(this);
         // Met à jour le <output> voisin s'il existe (utile pour sliders)
@@ -34,7 +23,6 @@ $(document).ready(function () {
         if ($output.length) {
             $output.text($el.attr("type") === "checkbox" ? ($el.prop("checked") ? "true" : "false") : $el.val());
         }
-        debouncedSave();
     });
 
     /* ============================
