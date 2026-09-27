@@ -127,10 +127,13 @@ class SAM3RoadAnalyzer:
         # cache n''est jamais muté. L''appel de préparation a été retiré le 2026-09-07.
 
         try:
-            from sam3.model_builder import build_sam3_image_model
             from sam3.model.sam3_image_processor import Sam3Processor as _Sam3Proc
 
-            image_model = build_sam3_image_model()
+            # MÊME chargement que la brique commune (2026-09-27) : poids LOCAUX, par chemin —
+            # l'appel nu `build_sam3_image_model()` passait par le Hub (jeton d'instance, cache
+            # partagé) au lieu du dossier du modèle (`ROADMAP §17` : le 2ᵉ wrapper SAM3).
+            from wama.common.backends.sam3_processor import load_sam3_image_model
+            image_model = load_sam3_image_model()
             self._processor = _Sam3Proc(image_model)
             logger.info("[SAM3RoadAnalyzer] Model loaded")
         except ImportError as e:
