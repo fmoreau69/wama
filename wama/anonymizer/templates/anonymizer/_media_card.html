@@ -140,8 +140,8 @@ Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
   {% comment %}Preview PERMANENTE (§11, contrat famille — la card était la SEULE sans zone
   preview, constat Fabien 18/08) : média anonymisé affiché en SUCCESS ; le placeholder reste
   dans tous les cas (contrat JS des autres apps).{% endcomment %}
-  {% comment %}output_file = CharField (chemin RELATIF sous MEDIA), pas un FileField —
-  l'URL se construit avec get_media_prefix (le contexte de la card n'a pas media_url).{% endcomment %}
+  {% comment %}output_file = champ fichier de la card (depuis le 2026-09-27) ; l'aperçu le lit
+  par le detail commun (`result_file`).{% endcomment %}
   {% load static %}
   {% if elem.status == 'SUCCESS' and elem.output_file %}
   {% comment %}MÉCANISME COMMUN « Preview unifiée » (route n°30) : placeholder seul, hydraté

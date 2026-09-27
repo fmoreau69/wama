@@ -32,7 +32,7 @@ from wama.accounts.permissions import app_access
 from .models import Media, BatchAnonymizer, BatchAnonymizerItem
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
 from .tasks import process_single_media, process_user_media_batch, stop_process
-from .utils.media_utils import get_input_media_path, get_output_media_path, get_blurred_media_path, get_unique_filename
+from .utils.media_utils import get_unique_filename
 from .utils.yolo_utils import get_model_path
 from .utils.sam3_manager import (
     get_sam3_status, validate_sam3_prompt,
@@ -581,50 +581,20 @@ def download_media(request):
 
 
 def _servir_media_traite(request, media):
-    """Résout le fichier de sortie (le suffixe varie selon le backend) et le sert."""
+    """Sert la sortie floutée DE CETTE CARD — son champ `output_file` (2026-09-27).
 
-    # Generate the canonical blurred output path; the actual file written
-    # by the pipeline carries a suffix that varies by backend:
-    #   YOLO :  {base}_blurred_{model_suffix}{ext}
-    #   SAM3 :  {base}_blurred_sam3{ext}
-    # We resolve to whichever matches by globbing the output directory.
-    media_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
-    blurred_filename = os.path.basename(media_path)
-    print(f"[download_media] Looking for file: {media_path}")
-
-    if not os.path.exists(media_path):
-        # Fallback: glob for {base}_blurred*{ext} and pick the most recent.
-        # The pipelines write _blurred_<suffix>.<ext> rather than just _blurred.<ext>.
-        import glob as _glob
-        out_dir = os.path.dirname(media_path)
-        base = os.path.splitext(os.path.basename(media_path))[0]
-        # Strip the trailing "_blurred" so we can match base_blurred*{ext}.
-        if base.endswith('_blurred'):
-            base = base[:-len('_blurred')]
-        ext = os.path.splitext(media_path)[1]
-        candidates = sorted(
-            _glob.glob(os.path.join(out_dir, f"{base}_blurred*{ext}")),
-            key=os.path.getmtime,
-            reverse=True,
-        )
-        if candidates:
-            media_path = candidates[0]
-            blurred_filename = os.path.basename(media_path)
-            print(f"[download_media] Resolved via glob: {media_path}")
-        else:
-            print(f"[download_media] ✗ File not found: {media_path}")
-            context = get_context(request)
-            context['error'] = f"Processed file {blurred_filename} doesn't exist."
-            return render(request, 'anonymizer/index.html', context)
-
-    # Serve le fichier
-    try:
-        response = FileResponse(open(media_path, "rb"), as_attachment=True, filename=os.path.basename(media_path))
-        print(f"[download_media] ✓ Download started: {blurred_filename}")
-        return response
-    except Exception as e:
-        print(f"[download_media] ✗ Error: {str(e)}")
-        return HttpResponseBadRequest(f"Erreur lors du téléchargement : {str(e)}")
+    Avant : le chemin se RECALCULAIT depuis le nom de l'entrée, le nom exact `<entrée>_blurred`
+    servi EN PRIORITÉ, puis le plus récent `<entrée>_blurred*`. Deux défauts mesurés : des cards
+    dupliquées servaient la même sortie, et un vieux `_blurred` resté sur disque masquait
+    indéfiniment les nouveaux résultats (média 183 : fichier de janvier servi à la place de mars).
+    """
+    out = media.output_file
+    if not out or not os.path.exists(out.path):
+        context = get_context(request)
+        context['error'] = "Aucune sortie floutée pour ce média — relancez son traitement."
+        return render(request, 'anonymizer/index.html', context)
+    return FileResponse(open(out.path, "rb"), as_attachment=True,
+                        filename=os.path.basename(out.name))
 
 
 # @login_required
@@ -658,17 +628,14 @@ def download_all_media(request):
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for media in processed_medias:
-            file_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
-            print(f"[download_all_media] Looking for: {file_path}")
-
-            if os.path.exists(file_path):
-                archive_name = os.path.basename(file_path)
-                zip_file.write(str(file_path), arcname=archive_name)
+            # La sortie DE LA CARD (2026-09-27). Ce lecteur cherchait le seul nom exact
+            # `<entrée>_blurred`, qu'aucun moteur n'écrit plus : l'archive restait vide.
+            out = media.output_file
+            if out and os.path.exists(out.path):
+                zip_file.write(out.path, arcname=os.path.basename(out.name))
                 files_added += 1
-                print(f"[download_all_media] ✓ Added to ZIP: {archive_name}")
             else:
-                missing_files.append(os.path.basename(file_path))
-                print(f"[download_all_media] ✗ File not found: {file_path}")
+                missing_files.append(f"#{media.id}")
 
     print(f"[download_all_media] ZIP created with {files_added} files, {len(missing_files)} missing")
 
@@ -763,11 +730,12 @@ def stop(request, pk):
 # 2026-09-23, 9ᵉ app réelle — ROUTE §11 #36). Spécificités DÉCLARÉES : la remise à zéro du ▶ est
 # celle de `start` (`_reset_for_relaunch`) plus l'oubli du cache de progression ; les réglages
 # de lot sont le SCHÉMA de l'app (`PARAMS_JSON`, coercé par la brique) et chaque média réglé
-# passe `MSValues_customised` (`after_update`) ; la duplication ne vide aucune sortie (la sortie
-# floutée n'est pas un FileField — elle vit à `get_blurred_media_path`), et remet `blur_progress`
-# à 0 ; la suppression purge verrous, cache et sortie floutée (`_forget_outputs`) avant que la
-# brique ne supprime `file` (propriété + partage jugés) et la ligne. `@app_access` gardé sur ▶.
-# `batch_download` reste local (sortie hors FileField, assumé), lu par `batch_elements`.
+# passe `MSValues_customised` (`after_update`) ; la duplication VIDE la sortie (`output_file`,
+# champ fichier depuis le 2026-09-27) et remet `blur_progress` à 0 ; la suppression purge
+# verrous et cache (`_forget_outputs`) avant que la brique ne supprime `file` ET `output_file`
+# (propriété + partage jugés) et la ligne. `@app_access` gardé sur ▶. `batch_download` est
+# désormais celui de la fabrique : il n'était local que parce que la sortie n'était pas un
+# champ fichier — et il cherchait le nom `<entrée>_blurred`, que plus rien n'écrit.
 from wama.common.utils.batch_views import make_batch_views
 from .params import PARAMS_JSON as _ANON_PARAMS_JSON
 
@@ -787,22 +755,24 @@ def _mark_customised(media):
 
 
 def _forget_outputs(media):
-    """Ce qu'aucune brique ne connaît d'un média : ses verrous, son cache et sa sortie floutée
-    (un chemin dérivé, pas un FileField). Appelé par la fabrique (`on_delete`) AVANT `file`."""
+    """Ce qu'aucune brique ne connaît d'un média : ses verrous et son cache. Appelé par la
+    fabrique (`on_delete`) AVANT les fichiers — la sortie floutée, champ fichier depuis le
+    2026-09-27, est supprimée par la brique avec `file`."""
     cache.delete(f"anon_lock:media:{media.id}")
     cache.delete(f"anon_task_owner:media:{media.id}")
-    try:
-        output_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
-        if os.path.exists(output_path):
-            os.remove(output_path)
-    except Exception:
-        pass
+
+
+def _read_batch(user, pk):
+    """Un lot PARTAGÉ se lit (téléchargement, état) — partage F7, comme avant le portage."""
+    from wama.common.utils.scoping import visible_or_404
+    return visible_or_404(BatchAnonymizer, user, pk=pk)
 
 
 _bv = make_batch_views(
     work_model=Media, batch_model=BatchAnonymizer, get_user=_get_user,
     task=process_single_media, reset_on_start=_reset_and_forget_progress,
-    file_fields=('file',), output_fields=(),
+    file_fields=('file', 'output_file'), output_fields=('output_file',),
+    read_lookup=_read_batch,
     params_fields=tuple(p['name'] for p in _ANON_PARAMS_JSON if p.get('name')),
     schema=_ANON_PARAMS_JSON, after_update=_mark_customised,
     item_model=BatchAnonymizerItem, fk_name='media',
@@ -813,6 +783,7 @@ batch_start = app_access('anonymizer')(_bv['batch_start'])
 batch_update = _bv['batch_update']
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
+batch_download = _bv['batch_download']
 
 
 def queue_count(request):
@@ -1106,16 +1077,10 @@ def clear_all_media(request):
             cache.delete(f"anon_lock:media:{media.id}")
             cache.delete(f"anon_task_owner:media:{media.id}")
 
-            # Delete input file only if not shared with another item (safe for duplicates)
+            # Entrée ET sortie : supprimées seulement si aucune autre ligne ne les désigne
+            # (la sortie était effacée par un chemin recalculé, qui ne l'atteignait jamais).
             safe_delete_file(media, 'file')
-
-            # Delete output file (blurred media) - always unique per item
-            try:
-                output_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
-                if os.path.exists(output_path):
-                    os.remove(output_path)
-            except Exception:
-                pass
+            safe_delete_file(media, 'output_file')
 
             media.delete()
 
@@ -1166,6 +1131,7 @@ def _supprimer_media(media, user):
     cache.delete(f"anon_task_owner:media:{media.pk}")
 
     safe_delete_file(media, 'file')
+    safe_delete_file(media, 'output_file')
     media.delete()  # signal batch_sync : recale total / supprime le batch vidé
 
 
@@ -1437,36 +1403,9 @@ def duplicate_media(request, media_id):
     new_media = duplicate_instance(
         media,
         reset_fields={'status': 'PENDING', 'blur_progress': 0},
-        clear_fields=[],
+        clear_fields=['output_file'],   # l'entrée se partage, la sortie jamais (2026-09-27)
     )
     return JsonResponse({'duplicated': new_media.id})
-
-
-def batch_download(request, pk):
-    """ZIP de toutes les sorties traitées d'un batch. Lecture → partage F7.
-
-    Reste LOCAL (2026-09-23) : la sortie floutée n'est pas un FileField, la fabrique commune
-    ne peut pas la servir — écart assumé ; la lecture du lot, elle, est la brique."""
-    import io
-    import zipfile
-    from wama.common.utils.batch_common import batch_elements
-    from wama.common.utils.scoping import visible_or_404
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = visible_or_404(BatchAnonymizer, user, pk=pk)
-    buf = io.BytesIO()
-    added = 0
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for m in batch_elements(batch, Media):
-            if not m.processed:
-                continue
-            fp = get_blurred_media_path(m.file.name, m.file_ext, m.user_id)
-            if os.path.exists(fp):
-                zf.write(str(fp), arcname=os.path.basename(fp))
-                added += 1
-    if added == 0:
-        return HttpResponseBadRequest("Aucune sortie disponible dans ce batch")
-    buf.seek(0)
-    return FileResponse(buf, as_attachment=True, filename=f'anonymizer_batch_{batch.id}.zip')
 
 
 # =============================================================================

@@ -320,6 +320,7 @@ class SAM3Processor(DetectionBackend):
         if not self.input_path or not os.path.exists(self.input_path):
             raise FileNotFoundError(f"Input file not found: {self.input_path}")
 
+        self.item_id = kwargs.get('item_id')
         self.blur_ratio = normalize_blur_ratio(kwargs.get('blur_ratio', self.blur_ratio))
         self.progressive_blur = int(kwargs.get('progressive_blur', self.progressive_blur))
 
@@ -587,9 +588,13 @@ class SAM3Processor(DetectionBackend):
         Returns:
             Output path in destination directory with model suffix
         """
-        filename = os.path.basename(input_path)
-        name, ext = os.path.splitext(filename)
-        return os.path.join(self.destination, f"{name}_blurred_sam3{ext}")
+        # Brique COMMUNE de nommage, comme la branche YOLO (2026-09-27) — le `_blurred_sam3`
+        # écrit ici à la main ignorait l'identifiant de card : deux cards dupliquées
+        # écrivaient le même fichier (cf. `Anonymize.process`).
+        from wama.common.utils.output_naming import compose_output_name
+        return os.path.join(self.destination, compose_output_name(
+            app='anonymizer', model='sam3', source_name=input_path,
+            item_id=getattr(self, 'item_id', None)))
 
     def cleanup(self):
         """Release all resources and models."""

@@ -27,7 +27,10 @@ class GridValuesTest(TestCase):
         self.assertIn('blur_ratio', bad)
         value, why = bad['blur_ratio']
         self.assertEqual(2, value)
-        self.assertIn('25', why)            # le défaut de l'app est NOMMÉ
+        # le défaut de l'app est NOMMÉ — lu dans le schéma : il était écrit « 25 » en dur, et le
+        # passage du défaut à 75 (2026-09-27) a cassé ce test sans rien casser d'autre
+        default = next(p['default'] for p in schema_for_app('anonymizer') if p['name'] == 'blur_ratio')
+        self.assertIn(f"défaut de l'app : {default}", why)
         self.assertIn('omettez', why)       # et l'omission est la sortie recommandée
 
     def test_a_value_on_the_grid_passes(self):

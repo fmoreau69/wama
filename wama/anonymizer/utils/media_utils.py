@@ -20,53 +20,10 @@ def get_input_media_path(filename: str, user_id: Union[int, str] = None) -> str:
     return os.path.join(MEDIA_ROOT, filename)
 
 
-def get_output_media_path(filename: str, user_id: Union[int, str] = None) -> str:
-    """
-    Retourne le chemin absolu d'une vidéo générée (output_media).
-
-    Args:
-        filename: Filename
-        user_id: User ID (required for user-specific paths)
-    """
-    if user_id is not None:
-        output_dir = get_app_media_path('anonymizer', user_id, 'output')
-        output_dir.mkdir(parents=True, exist_ok=True)
-        return str(output_dir / os.path.basename(filename))
-    # Fallback for legacy paths (backwards compatibility)
-    from wama.settings import MEDIA_OUTPUT_ROOT
-    return os.path.join(MEDIA_OUTPUT_ROOT, os.path.basename(filename))
-
-
-def get_blurred_media_path(filename: str, file_ext: str, user_id: Union[int, str] = None) -> str:
-    """
-    Retourne le chemin absolu pour une version 'blurred' du fichier média.
-    Exemple : input.mp4 → input_blurred.mp4
-    Note: For videos, always returns .mp4 regardless of intermediate format
-
-    Args:
-        filename: Original filename
-        file_ext: File extension
-        user_id: User ID (required for user-specific paths)
-    """
-    # Extract just the filename without path
-    base_filename = os.path.basename(filename)
-    base = os.path.splitext(base_filename)[0]
-
-    # For videos, always use .mp4 as final output (after FFmpeg re-encoding)
-    # Images keep their original extension
-    if file_ext.lower() in ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.wmv']:
-        file_ext = '.mp4'
-
-    blurred_filename = f"{base}_blurred{file_ext}"
-
-    if user_id is not None:
-        output_dir = get_app_media_path('anonymizer', user_id, 'output')
-        output_dir.mkdir(parents=True, exist_ok=True)
-        return str(output_dir / blurred_filename)
-
-    # Fallback for legacy paths
-    from wama.settings import MEDIA_OUTPUT_ROOT
-    return os.path.join(MEDIA_OUTPUT_ROOT, blurred_filename)
+# `get_output_media_path` et `get_blurred_media_path` retirés le 2026-09-27 (REMOVAL_LEDGER
+# R77) : la sortie floutée est le champ fichier `Media.output_file`, posé par la tâche avec le
+# chemin que le moteur a ÉCRIT. Les recalculer depuis le nom de l'ENTRÉE faisait partager une
+# sortie à des cards dupliquées.
 
 
 def get_unique_filename(folder: str, filename: str) -> str:

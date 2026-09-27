@@ -293,8 +293,6 @@ def get_anonymizer_status(user) -> dict:
         {"jobs": [{"id", "name", "progress", "status", "target_mode", "output_url"}]}
     """
     from wama.anonymizer.models import Media
-    from wama.anonymizer.utils.media_utils import get_blurred_media_path
-    from django.conf import settings
     from django.core.cache import cache
 
     media_qs = Media.objects.filter(user=user).order_by('-id')[:10]
@@ -308,25 +306,9 @@ def get_anonymizer_status(user) -> dict:
         else:
             status = 'queued'
 
-        output_url = None
-        if m.processed and m.file:
-            try:
-                import glob as _glob
-                # Output file is named {base}_blurred_{model_suffix}{ext}
-                # Scan output dir for any matching file since suffix varies by model
-                base = os.path.splitext(os.path.basename(m.file.name))[0]
-                ext_lower = m.file_ext.lower()
-                out_ext = '.mp4' if ext_lower in ('.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.wmv') else ext_lower
-                out_dir = get_blurred_media_path(m.file.name, m.file_ext, m.user_id)
-                # get_blurred_media_path returns a full path; use its parent as output dir
-                out_dir = os.path.dirname(out_dir)
-                pattern = os.path.join(out_dir, f"{base}_blurred*{out_ext}")
-                matches = _glob.glob(pattern)
-                if matches:
-                    rel = os.path.relpath(matches[0], settings.MEDIA_ROOT)
-                    output_url = settings.MEDIA_URL + rel.replace(os.sep, '/')
-            except Exception:
-                pass
+        # La sortie DE CETTE CARD (champ fichier depuis le 2026-09-27) — plus un `glob` sur le
+        # nom de l'entrée, qui rendait à des cards dupliquées la sortie de l'une d'elles.
+        output_url = m.output_file.url if (m.processed and m.output_file) else None
 
         jobs.append({
             'id': m.id,
