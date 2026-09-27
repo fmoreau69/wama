@@ -94,6 +94,11 @@ KINDS = {
     'audit':     'Audit de sécurité',
     'recherche': 'Recherche web',
     'media':     'Banque de médias',
+    #: Jeux de données dont WAMA tire de la MATIÈRE (voix de référence, corpus) — distinct de
+    #: `catalogue`, qui référence des MODÈLES. Ouvert le 2026-09-27 avec Mozilla Data
+    #: Collective : y ranger un corpus de voix sous « Catalogue de modèles » aurait fait mentir
+    #: la facette de la page des sources, que cette table remplit.
+    'corpus':    'Corpus de données',
 }
 
 
@@ -231,6 +236,38 @@ SOURCES: tuple[ExternalSource, ...] = (
         'roboflow', 'Roboflow Universe', 'https://universe.roboflow.com',
         "Fiches de modèles de vision (référence de plateforme, pas de téléchargement)",
         kind='catalogue'),
+    # ── Corpus de voix : Mozilla Data Collective (décision de Fabien, 2026-09-27) ────────────
+    # Pourquoi cette source EXISTE, alors que les corpus arrivaient jusqu'ici par le Hub :
+    # depuis **octobre 2025, Common Voice n'est PLUS distribué que par cette plateforme**. Le
+    # dépôt `mozilla-foundation/common_voice_17_0` du Hub ne porte plus que `.gitattributes`
+    # et `README.md` (mesuré le 27/09) — un `load_dataset` y échoue sur « aucun fichier de
+    # données », et la version de `datasets` du venv refuse en plus les scripts de chargement
+    # que ce jeu employait. Ce n'est donc pas une panne : c'est une migration.
+    #
+    # ⚠ DEUX limites MESURÉES à la documentation de l'API, qui décident de ce qu'on peut en
+    # faire — et qu'il vaut mieux lire ici qu'à l'usage :
+    #   • **chaque utilisateur doit accepter les conditions du jeu de données SUR LE SITE**
+    #     avant que sa clé n'ouvre quoi que ce soit ; l'acceptation par l'API seule n'est pas
+    #     prévue. Une clé posée au profil ne suffit donc pas : ce prérequis se dit à l'écran ;
+    #   • `POST /download` rend une URL présignée vers une **ARCHIVE COMPLÈTE** (l'exemple de
+    #     la documentation pèse 268 Go). Il n'y a pas d'accès au clip : en tirer quatre voix
+    #     de référence demanderait de rapatrier tout un corpus. C'est ce qui reste à trancher
+    #     avant d'ouvrir le créneau « âgé » (`MEDIA_STORAGE_TIERING §9.4bis`).
+    #
+    # `user_key` ET `api_key_env` : la clé de CHACUN pour ce qu'un utilisateur demande, celle
+    # de l'instance pour les tâches SANS utilisateur — le téléchargement des voix SYSTÈME en
+    # est une (règle des clés personnelles, Fabien 2026-09-15).
+    ExternalSource(
+        'mozilla_data_collective', 'Mozilla Data Collective (Common Voice)',
+        'https://mozilladatacollective.com',
+        "Corpus de voix Common Voice — seule distribution depuis octobre 2025 ; métadonnées "
+        "d'âge et de genre DÉCLARÉES par le locuteur (ce que VoxPopuli n'a pas)",
+        kind='corpus', user_key=True,
+        api_key_env='MOZILLA_DATA_COLLECTIVE_API_KEY',
+        api_key_label='Clé API Mozilla Data Collective',
+        api_key_help_url='https://mozilladatacollective.com/profile/credentials',
+        attribution='Mozilla Common Voice (CC0)',
+        doc='docs/construction/exploitation/MEDIA_STORAGE_TIERING.md'),
 
     # ── Bancs de performance (cf. `benchmark_sync`) ──────────────────────────────────────
     ExternalSource(

@@ -190,11 +190,27 @@ class ProfileOffersTheKeysOfBothFamiliesTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('keys_user', password='x')
 
-    def test_the_profile_listing_covers_llm_and_search(self):
+    def test_the_profile_listing_covers_every_family_that_asks_for_a_personal_key(self):
+        """Le critère est `user_key`, plus une liste de familles à tenir à jour.
+
+        ⚠ C'en était une (`('llm', 'recherche')`) jusqu'au 2026-09-27 : le jour où un CORPUS de
+        voix a demandé une clé par utilisateur (Mozilla Data Collective), le profil n'aurait
+        rien affiché — silencieusement, une liste vide n'étant pas une erreur."""
         from wama.accounts.api_keys import listing
-        kinds = {row['kind'] for row in listing(self.user)}
-        self.assertIn('llm', kinds)
-        self.assertIn('recherche', kinds, "les moteurs à clé se posent au MÊME endroit")
+        from wama.common import external_sources
+
+        served = {row['slug'] for row in listing(self.user)}
+        attendu = {s.key for s in external_sources.SOURCES
+                   if s.user_key and s.kind != 'media' and not s.developer_only}
+        self.assertTrue(attendu <= served, f'jamais proposées au profil : {attendu - served}')
+        self.assertIn('corpus', {row['kind'] for row in listing(self.user)},
+                      'un corpus à clé de chacun se pose au MÊME endroit que les autres')
+
+    def test_media_connectors_never_appear_twice(self):
+        """Contre-épreuve : les connecteurs de la médiathèque ont leur PROPRE écran et leur
+        propre stockage — les lister ici les afficherait deux fois, chacun écrivant ailleurs."""
+        from wama.accounts.api_keys import listing
+        self.assertNotIn('media', {row['kind'] for row in listing(self.user)})
 
     def test_saving_a_search_engine_key_is_accepted(self):
         """La route refusait toute source non-LLM avant le 2026-09-26."""
