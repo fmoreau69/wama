@@ -954,6 +954,38 @@ même, parce qu'il lisait ses propres mensonges. Ce qui tient, c'est ce que la S
 demande. *Le même principe que `check_identifier_language` : une règle qui demande de se
 souvenir n'est pas un contrôle.*
 
+#### 2026-09-27 — la chaîne a servi, et l'usage a trouvé deux défauts de plus
+
+> Fabien reçoit enfin sa photo dans Discord. Deux constats immédiats, tous deux mesurés par lui.
+
+**① L'APERÇU N'EST PAS LE FICHIER.** Il enregistre l'image depuis le fil et obtient un **webp de
+75 Ko** là où WAMA a envoyé un **JPEG de 445 203 octets**. Rien n'est recompressé de notre côté
+(`discord.File` lit le fichier tel quel) : ce qu'on enregistre depuis l'aperçu est le **proxy
+d'images** de Discord, redimensionné et ré-encodé. ⭐ *Un aperçu et un fichier se ressemblent à
+l'écran et ne pèsent pas la même chose.*
+Levé par `_caption_original` : l'URL de la pièce jointe n'existant qu'**après** le téléversement,
+le message est ÉDITÉ pour la porter, avec le poids et la mention que l'aperçu est compressé.
+⭐ C'est aussi le **lien de téléchargement qui manquait** — et il ne demande ni `WAMA_PUBLIC_URL`
+(vide ; demandée à la DSI sous `wama.univ-eiffel.fr`), ni de faire circuler un secret WAMA dans
+une messagerie, ce que la doctrine d'appariement refuse. ⚠ Ces URL de CDN portent une signature
+courte : la légende le dit, plutôt que de laisser croire à une adresse pérenne.
+
+**② AU-DELÀ DU PLAFOND, RIEN N'ARRIVAIT ET RIEN NE LE DISAIT.** `_produced_files` écartait le
+fichier sans un mot. Théorique pour une image ; **le cas NORMAL pour une vidéo anonymisée** — la
+réponse disait « c'est terminé », sans pièce jointe et sans explication. La fonction rend
+désormais `(envoyables, trop_gros)` et le cœur ajoute une ligne à la `Reply` (nom, taille, où le
+récupérer) : la mention voyage avec le texte, donc elle vaudra aussi pour Tchap.
+
+⚠⚠ **ET LE PLAFOND LUI-MÊME EST À REPRENDRE** (question de Fabien : « d'où vient la limite ? »).
+Mesuré : `_MAX_OUTPUT_BYTES = 24 Mo` est une constante **devinée** — son commentaire dit « limite
+Discord la plus basse » et rien ne la mesure, alors que `discord.py` expose `guild.filesize_limit`
+(qui tient compte du niveau de boost). Elle vit de surcroît dans `gateway/core.py`, dont la
+docstring dit « le cœur, celui qui ne connaît AUCUN protocole » — c'est une borne de Discord dans
+le module qui s'interdit de connaître Discord, quand le plafond ENTRANT (25 Mo) est, lui, dans
+l'adaptateur. Les deux se contredisent d'ailleurs : 25 entrant, 24 sortant, deux raisonnements
+sans rapport. ⏳ Décision à prendre : **qui filtre** — le cœur avec une borne générique, ou
+l'adaptateur avec la borne que son protocole DÉCLARE ?
+
 **Chaîne prouvée de bout en bout le 23/09 sur l'item réel 647** : `start_anonymizer` →
 `RUNNING` → `SUCCESS` (`users/1/anonymizer/output/IMG-…_blurred_sam3.jpg`) →
 `get_anonymizer_status` porte l'`output_url` → `_produced_files` ne rend QUE ce fichier-là
