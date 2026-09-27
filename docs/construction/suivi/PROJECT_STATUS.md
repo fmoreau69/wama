@@ -18346,3 +18346,54 @@ d'eux n'est dans les 22 fichiers que mes 9 commits ont touchés**.
 🔚 **Ma session se clôt ici.** Le dépôt, lui, est **ROUGE sur 14 tests** appartenant à cinq
 chantiers : ce n'est pas à moi de les refermer, mais ils sont nommés, datés et attribués — pas
 laissés à découvrir.
+
+---
+
+## §CLÔTURE — 2026-09-28, « OUTILLAGE : ÉCONOMIE DE TOKENS (HEADROOM, RTK) » — ✅ hors dépôt, 0 commit de code
+
+**Périmètre** : le harnais Claude Code de l'utilisateur, **rien dans WAMA** (aucun fichier du dépôt
+touché hors ce bloc). Demande de Fabien : Headroom ne fait rien économiser, et le wrap empêche le
+Remote Control — pourquoi, faut-il le mettre à jour, qu'existe-t-il d'autre ?
+
+**Headroom — mesuré, pas relancé** :
+- installé **0.26.0** (dans `venv_win`), PyPI **0.39.0**. Rien compressé depuis le passage en
+  `--mode cache` du 06/08 (compteur à vie figé depuis cette date).
+- **Remote Control** : Claude Code le désactive de façon déterministe dès que l'URL d'API est
+  personnalisée — limite de Claude Code, aucune version de Headroom n'y changera rien.
+- mise à jour normale **bloquée** dans `venv_win` : son extra proxy exige transformers ≥ 5.5 (WAMA
+  en 4.57.6) et onnxruntime ≥ 1.24 (1.21.1), et monterait litellm (utilisé par `llm_utils.py`).
+  En `--no-deps`, testée sans toucher au venv : elle démarre et sert une vraie session, mais le
+  gain mesuré en mode cache est de **1,4 %** — le résultat de l'outil `Read` est exclu d'office.
+  **Pas mis à jour** : le gain ne justifie pas la manœuvre.
+
+**RTK — mis à jour et ACTIVÉ en hook global** (GO de Fabien, toutes les instances à l'arrêt) :
+- 0.28.2 → **0.50.0** (checksum vérifié), même emplacement, dans le dossier `bin` de Headroom.
+- jusqu'ici **aucun hook** : RTK n'agissait que si l'agent tapait le préfixe à la main. Désormais
+  un hook `PreToolUse` global (`rtk hook claude`, **outil Bash seulement**) réécrit les commandes.
+  Le CLAUDE.md global de l'utilisateur, qui ne portait que la table RTK (137 lignes), est devenu un
+  renvoi vers un court fichier d'instructions RTK.
+- **exclusions mesurées** (`%APPDATA%\rtk\config.toml`) : `grep`, `rg` (AGENTS.md interdit de
+  conclure d'une recherche compressée), `git log` (corps de message tronqués), **`git show`
+  (corps du message SUPPRIMÉ sans aucun marqueur — perte silencieuse)**. Fidèles : `cat`→lecture
+  RTK, `git diff`, `git status`, `wc`, `curl`. `ls`/`find` coupent vers 50-70 entrées, mais le
+  disent et gardent l'original récupérable.
+- permissions : le hook autorise lui-même les commandes en lecture seule ; les autres restent
+  soumises à l'allowlist du projet, déjà symétrique `git`/`rtk git` (allow ET ask).
+- ⚠ **Le PowerShell n'est volontairement PAS couvert** : `ls x | Select-Object` deviendrait
+  `rtk ls`, qui rend du texte au lieu d'objets.
+- retour arrière : `rtk init -g --uninstall` ; sauvegardes `*.bak-20260928-pre-rtk` à côté des
+  originaux, dans le dossier `.claude` de l'utilisateur.
+
+**Signalé par une autre instance, déjà consigné par elle** : `transcriber.send_to` saute chaque
+nuit (`WAMA_VERIFICATION §Geste 14`, ce fichier plus haut). Rien ajouté ici, pointeur posé en mémoire.
+
+**Pendings (décisions de Fabien, aucune bloquante)** :
+1. le serveur MCP `headroom` reste déclaré en global et démarre à chaque session sans proxy
+   derrière — le retirer ?
+2. `headroom-ai` 0.26 reste dans `venv_win` — le laisser, le désinstaller, ou le sortir dans un
+   environnement à part ?
+3. suivre le gain réel du hook (`rtk gain`, `rtk session`) ; toute sortie suspecte → une exclusion
+   de plus.
+
+🔚 **Point d'entrée** : aucun chantier ouvert par cette session. Les instances suivantes ont le hook
+d'office ; si une sortie Bash paraît tronquée, le préfixe `rtk proxy <cmd>` rend la sortie brute.
