@@ -564,6 +564,65 @@ Chaque palier est **attestable sans GPU** jusqu'au P4 ; chacun livre une brique 
 seul jeu de vérité humaine disponible, il débloque M3 (WER), la calibration de M1 et de M5, et le
 finetuning ASR — quatre chaînons pour un import.
 
+### 9bis — LES CORPUS OPEN DATA S'AJOUTENT À CELUI DE FABIEN (décision, 2026-09-27)
+
+🔴 **Décision de Fabien** : *« pour le corpus, c'est plus simple de partir d'open data que d'en
+constituer un […] Je n'ai que 2 audios + transcription corrigée manuellement, sans certitude que
+la transcription soit exacte. Il vaut mieux partir de données certifiées depuis des datasets. Ça
+pourrait rentrer dans les tests nocturnes et ne pas encombrer les tâches utilisateur. »*
+
+⚠⚠ **Ça COMPLÈTE la source de vérité, ça ne la remplace pas** — et c'est le mécanisme du §4.1 qui
+le dit : un indice porte une **échelle nommée** ET une **population**, « l'indice n'est comparable
+qu'à l'intérieur d'elle ». Le corpus de Fabien et un jeu open data sont **deux populations**, donc
+deux échelles qui **s'ajoutent**. Rien ne se substitue à rien — comme les bancs tiers et la mesure
+interne coexistent au lieu de se remplacer.
+**Deux surfaces, un seul mécanisme de mesure** : les audios de Fabien par le port
+`reference_result` de la CARD (Q6, déjà tranchée) ; les jeux open data par les **tests nocturnes**,
+pour ne pas encombrer les tâches utilisateur.
+*J'avais écrit « ça change la source de vérité annoncée » — faux, et corrigé par Fabien.*
+
+#### Ce qu'il faut d'un corpus pour COMPARER des moteurs : du LONG
+
+Constat de Fabien : *« il faut des audios suffisamment longs. Pas 5 secondes. Plus le texte est
+long, plus un modèle risque de faire des erreurs et c'est là qu'on peut réellement établir une
+comparaison. »* Le seuil qui compte est **30 s** — la fenêtre de Whisper : au-delà, on teste le
+fenêtrage, la dérive, les boucles de répétition et l'hallucination sur silence, c'est-à-dire ce
+qui SÉPARE les moteurs. En deçà, tous se valent à peu près.
+
+**Mozilla Data Collective ne répond PAS à ce besoin** (mesuré, 24 requêtes : réunion, entretien,
+conférence, parlement, livre audio, téléphone…). Ce qui y est long est dans une autre langue
+(portugais brésilien 140 h d'entretiens spontanés, manipuri/gujarati 25 h conversationnels,
+arménien 20 h), d'un registre particulier (*English Stuttered Speech*), ou sous licence
+commerciale avec des SOUS-TITRES — qui ne sont pas des transcriptions verbatim. Common Voice reste
+à ~5 s l'énoncé.
+
+**La route HuggingFace n'est pas à construire** : `common/tts/voice_refs.py` (`_try_voxpopuli`)
+streame déjà `facebook/voxpopuli` par `datasets`, **sans authentification**, à travers le proxy.
+
+**Candidats VÉRIFIÉS par l'API** (existence, accès, volumes — jamais cités de mémoire) :
+
+| jeu | langue | ce que c'est | accès |
+|---|---|---|---|
+| **`distil-whisper/earnings22`** config `full` | EN | **125 appels d'actionnaires ENTIERS** (colonne `file_length`), 1,92 Go — le jeu long-form de référence | non *gated* ; ⚠ **licence non déclarée** en `cardData`, à vérifier avant usage |
+| `distil-whisper/meanwhile` | EN | 64 monologues, 0,06 Go | non *gated* |
+| `edinburghcstr/ami` | EN | **réunions réelles multi-locuteurs** — le registre du transcriber ; 22,1 Go, mais **découpé en énoncés** (12 643 au test) : `meeting_id` + `begin_time`/`end_time` permettent de RECONSTITUER la session | **CC-BY-4.0** |
+| `BrunoHays/ESLO` | **FR** | corpus d'Orléans, entretiens sociolinguistiques spontanés — proche de l'usage SHS | ⚠ **CC-BY-NC-4.0** (à confronter à `LICENSING.md`) ; viewer en échec, script de chargement custom |
+| `datasets-CNRS/ESLO-MD` | FR | idem | ⚠ CC-BY-NC-SA-4.0, viewer désactivé |
+
+*Écartés* : `speechcolab/gigaspeech` et `kensho/spgispeech` sont *gated* ; `LIUM/tedlium` rend
+**401**.
+
+**VoxPopuli `fr` — MESURÉ, et il ne suffit pas** (12 lignes streamées du split `test`) : le texte
+est bien là (`raw_text` ET `normalized_text`, plus `is_gold_transcript`, `gender`, `speaker_id`,
+`accent`), mais **médiane 7,4 s, max 20,1 s, 0/12 au-dessus de 30 s**. C'est un corpus ASR
+SEGMENTÉ. Il reste précieux (CC0, route câblée, texte de référence) pour le registre court ; il ne
+répond pas à la question du long format. Une piste non tranchée : **recoudre** des segments
+consécutifs d'une même session pour fabriquer du long — mais un long RECOUSU n'est pas un long
+RÉEL, et il faudrait le déclarer comme tel (garde-fou A2 : « jeux synthétiques DÉCLARÉS »).
+
+🔚 **Le point dur est le FRANÇAIS long format** : les deux ESLO sont **NC**, donc suspendus à
+`LICENSING.md`. L'anglais, lui, est réglé par `earnings22` pour le prix de 1,92 Go.
+
 ---
 
 ## Voir aussi

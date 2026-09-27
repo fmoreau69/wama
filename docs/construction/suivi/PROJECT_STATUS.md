@@ -18033,3 +18033,95 @@ côté ? »)** — deux trous trouvés en cherchant, pas en se souvenant :
    premier passage a déjà payé son écriture.*
 3. **2ᵉ adoption de `voicesFollowLanguage`** : l'avatarizer, en UNE ligne — ce qu'une brique
    commune doit coûter à sa deuxième app.
+
+---
+
+## §SUITE — 2026-09-27, « LES VOIX ENTRENT, ET LE CORPUS D'ÉVALUATION SE CHOISIT » — ✅ LIVRÉ, 2 commits
+
+*Suite directe du §CLÔTURE « VOIX » ci-dessus : la clé Mozilla est posée, les jeux sont acceptés,
+et l'obstacle « 268 Go » qu'il annonçait était faux — mesuré, corrigé, et le créneau âgé rouvre.*
+
+### Livré
+
+1. **« Voix par défaut » suit la langue** (`0cbb3c9b`). `default` était un preset plat
+   `{'language': 'en'}` — un texte allemand sortait avec une locutrice anglaise, en silence.
+   C'est le SERVEUR qui la résout (`default_voice_for_language`), transmise par la porte commune
+   `speaker_wav_for(language=)` à ses trois appelants : l'audio suit partout, pas seulement dans
+   le volet. ⚠⚠ **La valeur stockée reste `default`, et c'est LA décision** : poser la voix dans
+   le select figeait l'automatique en choix manuel au premier changement de langue. Le client ne
+   fait que DIRE laquelle : « Voix par défaut (Français — Femme 1) ». Garde : la règle « la
+   première voix de la langue » est écrite deux fois (Python / JS), **un test les confronte** —
+   sinon le libellé mentirait sur la voix employée. Consigné `MEDIA_STORAGE_TIERING §9.4quater`.
+2. **La médiathèque AFFICHE les attributs, et refuse la suppression d'un asset système**
+   (`6c1c2d4b`). `language`/`age`/`gender` étaient sérialisés et rendus nulle part, parce que les
+   **libellés de valeurs** vivaient dans la brique TTS : seul le menu du synthesizer savait lire
+   des données que la médiathèque STOCKE. Ils remontent à la déclaration de nature
+   (`natures.Attr.label`/`labels`), `voice_refs` les LIT, et le JS rend les attributs
+   **génériquement** (bpm d'une musique, `rigged` d'un objet 3D suivent le même chemin).
+   `delete_asset` lisait `source_app`, absent de `SystemAsset` → `AttributeError` : *une protection
+   par accident n'en est pas une*, remplacée par un refus qui dit quoi faire (`is_active=False`).
+3. **Deux voix versées** : `sa_38` (EN Femme 3, Kathleen) et `sa_39` (EN Homme 3, Joe), CC0.
+   Détail, mesures et créneau `elderly` désormais fabricable : `MEDIA_STORAGE_TIERING §9.4quinquies`.
+4. **Le corpus d'évaluation ASR est cartographié** : `WAMA_QUALITE §9bis` (décision de Fabien +
+   candidats vérifiés par l'API) et `WAMA_VERIFICATION §4ter` (où passent les heures de la nuit).
+
+### ⚠⚠ QUATRE erreurs de ma part, relevées par Fabien — le motif est UN seul
+
+*« On a les benchmarks d'un côté et l'évaluation interne de l'autre, plusieurs indicateurs
+juxtaposés, pas de remplacement. C'est ce qui a été décidé. […] Je pense que tu rates beaucoup de
+choses là. »* — **trois fois dans le même message, j'ai lu une DÉCISION DE PHASAGE comme un TROU.**
+
+| ce que j'ai écrit | la ligne qui me contredit |
+|---|---|
+| « ce qui reste ouvert, c'est que la note interne entre dans la sélection » | `WAMA_QUALITE:386` — l'indice interne entre **comme les bancs tiers y entrent** ; `:395` on **descend** d'un étage, ils coexistent ; `model_manager/views.py` pose `internal_quality` **à côté** de `benchmark_index`. Q3 est un phasage **avec son critère** |
+| « l'open data change la source de vérité annoncée » | `:388-392` — une échelle nommée **et une population** ; deux corpus = deux populations qui **s'ajoutent** |
+| « charge GPU nocturne non gouvernée » | `resource_governor.py` — la campagne est une **pseudo-app déclarée**, palier `basse` ; `backends/base.py` enveloppe `load` par `__init_subclass__`, « sans ce module le gouverneur ne verrait rien ». J'ai pris un filtre d'ORDONNANCEMENT pour le mécanisme de sécurité |
+| « `datasets>=4.7` pourrait casser le téléchargement de voix (torchcodec) » | `voice_refs.py` fait déjà `Audio(decode=False)` avec le commentaire qui nomme `libtorchcodec`. **J'ai réinventé une parade écrite cinq lignes au-dessus** |
+
+⭐ **Le test qui l'aurait évité** : avant d'écrire « ce qui manque, c'est X », vérifier que X n'est
+pas l'ÉTAGE SUIVANT d'un empilement voulu ni une PHASE déclarée avec son critère de bascule. Trois
+signaux : le mot « d'abord » dans la doc, un critère chiffré de passage, un champ exposé **à côté**
+d'un autre plutôt qu'à sa place. ⚠ Et ma propre fiche mémoire du gouverneur portait DÉJÀ
+l'avertissement « ne pas relire ceci comme *le gouverneur a un trou* » — je ne l'avais pas relue.
+*Quand on croit trouver un trou dans un mécanisme, on ouvre d'abord le module de CE mécanisme.*
+
+### Mesures de la session
+
+- **Mozilla Data Collective** : l'acceptation est **par jeu**, ne s'enchaîne pas (délai entre
+  deux, constat de Fabien). `POST /download` → **200 + URL présignée R2** après acceptation,
+  `403 Terms must be accepted` avant — établi par contre-épreuve. L'URL est signée **pour GET
+  seul** (un `HEAD` rend 403 sans que rien ne soit cassé) et c'est un secret temporaire.
+- **F0** : mon premier instrument rendait `fmin` sur tout ; qualifié sur des voix déjà étiquetées
+  (216 / 126 / 245 Hz, trois étiquettes confirmées) avant de juger l'inconnue.
+- **VoxPopuli `fr`** : le texte est là (`raw_text`, `normalized_text`, `is_gold_transcript`) mais
+  médiane **7,4 s**, max 20,1 s, **0/12 au-dessus de 30 s** — segmenté, donc insuffisant pour
+  comparer des moteurs.
+- **Nuit** : `ui` 52,8 % · `suite` 41,6 % · `model_loaded` **42 s pour 2 scénarios**.
+- Tests : 86 puis 187 OK sur le périmètre (voix, synthesizer, avatarizer, media_library) ;
+  contrat des fichiers servis OK ; parse V8 des JS touchés OK ; `check_docs` **4 cassées / 4
+  cibles distinctes** (inchangé).
+- ⚠ `check_identifier_language` est **rouge et ne vient pas de ce palier** : mesuré à 4196 des deux
+  côtés, mes fichiers mis de côté (`git stash`) puis remis. Les fichiers en dépassement sont
+  `ui_smoke.py`, `doc_facts.py`, `tests_catalogues.py`, `model_manager/tests.py`,
+  `ui_smoke_menus.py` — aucun n'est de moi.
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : Fabien teste `sa_38`/`sa_39` à l'oreille (⚠ Kathleen est
+mesurée à 155 Hz — féminine très grave, l'étiquette vient de la fiche, pas de la mesure).
+
+**Décisions ouvertes, une par ligne** :
+1. **Fabriquer les voix `elderly`** depuis les TSV Common Voice — FR homme largement fourni
+   (6 locuteurs, 243 clips pour le mieux), EN femme correcte (82 clips), FR femme juste (15).
+   ⚠ MP3 au micro personnel, plusieurs crans sous le studio : mesurer ET faire écouter avant.
+2. **Créneau `child`** : reste FERMÉ (aucun `child` dans les corpus ; `teens` ≠ enfant ; et la
+   question est éthique avant d'être technique).
+3. **Cadence nocturne** : champ `cadence` sur `Scenario` + filtre dans la TÂCHE + trois entrées
+   beat (`WAMA_VERIFICATION §4ter`) — forme proposée, **GO non donné**.
+4. **Corpus long format FR** : les deux ESLO sont **CC-BY-NC** → à confronter à `LICENSING.md`.
+   L'anglais est réglé (`distil-whisper/earnings22` config `full`, 1,92 Go, 125 fichiers entiers)
+   ⚠ sauf sa licence, non déclarée en `cardData` — à vérifier avant usage.
+5. **Recoudre VoxPopuli** pour fabriquer du long : possible, mais un long RECOUSU n'est pas un long
+   RÉEL — il faudrait le déclarer comme jeu synthétique (garde-fou A2).
+
+**Pendings système** : **20 commits non poussés** (18 + les 2 de cette suite). Aucun redémarrage
+requis (JS, gabarits, docs). Les archives des 4 corpus (~510 Mo) et les scripts de sonde vivent
+dans le scratchpad de session — jetables, rien à conserver.
