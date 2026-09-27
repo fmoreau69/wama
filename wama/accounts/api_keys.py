@@ -21,25 +21,33 @@ from __future__ import annotations
 from wama.common import external_sources
 
 
-#: Les familles de sources dont la clé se pose au PROFIL, dans l'ordre d'affichage.
-#: ⚠ `media` n'y est PAS : les connecteurs de la médiathèque ont leur propre stockage
-#: (`media_library.UserProviderConfig`, chiffré lui aussi) et leur propre écran. Les y faire
-#: entrer est un chantier de FUSION — deux domiciles pour une même notion —, pas un ajout ;
-#: tant qu'il n'est pas fait, déclarer `media` ici rendrait les clés média en double.
-KEYED_KINDS = ('llm', 'recherche')
+#: Les familles qui ont DÉJÀ leur propre écran et leur propre stockage de clés.
+#: ⚠ `media` : les connecteurs de la médiathèque rangent la leur dans
+#: `media_library.UserProviderConfig` (chiffrée elle aussi) et la saisissent dans leur section
+#: du profil. Les faire entrer ici les afficherait DEUX FOIS, chacune écrivant ailleurs. Les
+#: réunir est un chantier de FUSION — deux domiciles pour une même notion —, pas un ajout.
+KINDS_WITH_THEIR_OWN_SCREEN = ('media',)
 
 
-def keyed_sources(user=None, kinds: tuple = KEYED_KINDS) -> list:
-    """Les sources qui demandent une clé personnelle, dans l'ordre de déclaration.
+def keyed_sources(user=None, kinds: tuple = ()) -> list:
+    """Les sources dont la clé se pose AU PROFIL, dans l'ordre de déclaration.
 
-    Une source entre ici si elle porte une clé d'INSTANCE (`api_key_env`) ou une clé de CHACUN
-    (`user_key`) — les deux disent « cette source a besoin d'une clé », à des étages différents.
-    Une source `developer_only` (abonnement Claude Code : accès au dépôt) n'est proposée qu'à un
-    développeur — même prédicat que la garde de l'abonnement.
+    Le critère est `user_key` — le drapeau qui dit précisément « cette clé est celle de
+    chacun ». ⚠ C'était une LISTE DE FAMILLES (`('llm', 'recherche')`) jusqu'au 2026-09-27 :
+    elle a fallu l'élargir à chaque famille nouvelle, et le jour où un corpus de voix a
+    demandé une clé par utilisateur (Mozilla Data Collective), il n'aurait rien affiché —
+    silencieusement, puisqu'une liste vide n'est pas une erreur. *Une énumération à tenir à
+    jour finit par être en retard ; un drapeau déclaré à la source, jamais.*
+
+    `kinds` reste accepté pour RESTREINDRE (c'est ce dont `llm_sources` a besoin), jamais pour
+    élargir. Une source `developer_only` (abonnement Claude Code : accès au dépôt) n'est
+    proposée qu'à un développeur — même prédicat que la garde de l'abonnement.
     """
     from wama.accounts.permissions import is_developer
     return [s for s in external_sources.SOURCES
-            if s.kind in kinds and (s.api_key_env or s.user_key)
+            if s.user_key
+            and s.kind not in KINDS_WITH_THEIR_OWN_SCREEN
+            and (not kinds or s.kind in kinds)
             and (not s.developer_only or is_developer(user))]
 
 
@@ -75,7 +83,7 @@ def key_for(user, source: str) -> str:
     return row.api_key if row else ''
 
 
-def listing(user, kinds: tuple = KEYED_KINDS) -> list:
+def listing(user, kinds: tuple = ()) -> list:
     """Même forme que la liste des connecteurs de la médiathèque (`api_provider_keys`) : le volet
     du profil rend les deux avec le même code. Jamais la clé elle-même.
 
