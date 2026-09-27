@@ -290,9 +290,11 @@ greffe, avec les classes qu'il délègue (`save-settings-btn` / `save-and-restar
 
                 {% comment %}Corps GÉNÉRÉ du schéma (WamaParams context 'batch', contrat reader) —
                 remplace les 5 champs hand-built (17/08). Les ids legacy batchSettings* viennent des
-                dom_id.batch de params.py → le JS d'ouverture/sauvegarde est inchangé. Les optgroups
-                de voix (dynamiques, server-rendered) sont CLONÉS depuis le select canonique du volet
-                après rendu — même mécanique que cloneVoiceOptions (cf. script plus bas).{% endcomment %}
+                dom_id.batch de params.py → le JS d'ouverture/sauvegarde est inchangé. Les options de
+                voix sont CLONÉES du select canonique du volet à l'ouverture (`optionsResolver`, plus
+                bas) : la modale d'un lot ne refait pas l'inventaire, elle recopie celui qui est à
+                l'écran. ⚠ Ce bloc citait `cloneVoiceOptions`, le miroir de la card d'entrée, retiré
+                le 2026-09-27 avec les contrôles qu'il servait.{% endcomment %}
                 <div id="synthBatchParams"></div>
             </div>
             {# Pied de modale COMMUN — ids conservés pour le script batch #}
@@ -531,6 +533,13 @@ document.addEventListener('DOMContentLoaded', function () {
             capsProvider: modelCaps ? modelCaps.caps : null,
             statusId: 'inputMatchStatus',
         });
+        // Troisième direction, ouverte le 2026-09-27 (constat de Fabien : « le sélecteur de
+        // langue ne filtre pas les voix ») : les groupes de voix de la langue CHOISIE
+        // remontent en tête du sélecteur. Rien n'est masqué — un timbre se clone d'une langue
+        // à l'autre, seule la prononciation n'est pas garantie (même doctrine que le filtre
+        // de capacité). C'est aussi la réponse au menu qui s'allonge quand l'inventaire
+        // grandit : ce qu'on cherche est en haut, ce qu'on pourrait vouloir reste accessible.
+        WamaInputMatch.voicesFollowLanguage('voice_preset', 'language');
     }
 
     // Chevron rotation on collapse

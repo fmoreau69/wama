@@ -290,5 +290,86 @@
     };
   }
 
-  global.WamaInputMatch = { init: init, voiceSlot: voiceSlot, langSlot: langSlot };
+  /*
+   * ── Les voix SUIVENT la langue choisie (2026-09-27, constat de Fabien) ──────────────────
+   * « Il y a un sélecteur de langue et un sélecteur de voix, mais le sélecteur de langue ne
+   * filtre pas les voix. » Mesuré : exact, et ce n'était pas un défaut mais un TROU — le
+   * `data-language` d'une voix n'était confronté qu'aux langues du MOTEUR
+   * (`WamaModelCaps.cloneVoiceFilter`), jamais à la langue choisie. La direction
+   * « langue → voix » n'existait pas.
+   *
+   * ⚠ On ne MASQUE rien, et c'est une décision, pas une facilité : la doctrine du filtre de
+   * voix dit « avertissement, jamais masquage — un timbre se clone d'une langue à l'autre,
+   * seule la prononciation n'est pas garantie ». Une voix anglaise reste donc choisissable
+   * pour un texte français. Ce qui change, c'est l'ORDRE : les groupes de la langue choisie
+   * remontent en tête. C'est ce qui répond aussi à « le menu va devenir ingérable » quand
+   * l'inventaire grandira — sans retirer à personne ce qu'il pouvait faire hier.
+   *
+   * Réversible par construction : l'ordre d'ORIGINE est relu à chaque remplissage du select
+   * (`wama:options-filled`), donc changer de langue réordonne à partir du même état.
+   */
+  function groupLanguage(group) {
+    /* La langue d'un groupe = celle de ses options quand elles s'accordent ; '' sinon
+       (« Voix par défaut », « Mes voix », « Bark » n'ont pas de langue — elles ne bougent
+       jamais, et c'est voulu : ce sont les entrées les plus employées). */
+    const langs = Array.prototype.map.call(group.querySelectorAll('option'), function (o) {
+      return (o.dataset && o.dataset.language) || '';
+    });
+    const first = langs[0] || '';
+    return (first && langs.every(function (l) { return l === first; })) ? first : '';
+  }
+
+  /* Cœur PUR, testable sans DOM : l'ordre des groupes pour une langue donnée.
+     Rend les indices d'origine réordonnés — les groupes de la langue choisie d'abord, chacun
+     gardant sa position relative, les autres ensuite dans leur ordre initial. */
+  function voiceGroupOrder(languages, chosen) {
+    const first = [], rest = [];
+    languages.forEach(function (lang, i) {
+      (chosen && lang === chosen ? first : rest).push(i);
+    });
+    return first.concat(rest);
+  }
+
+  function voicesFollowLanguage(voiceSelectId, languageSelectId) {
+    const voices = document.getElementById(voiceSelectId);
+    const language = document.getElementById(languageSelectId);
+    if (!voices || !language) return null;
+
+    /* Ordre d'ORIGINE — celui que le serveur a rendu. ⚠⚠ Il DOIT être mémorisé : réordonner
+       à partir de l'ordre COURANT fait DÉRIVER la liste. Mesuré au navigateur le 2026-09-27,
+       après trois changements de langue (fr → en → de → fr) : « Voix par défaut » était
+       passée de la 2ᵉ à la 4ᵉ place, chaque langue visitée laissant son groupe devant elle.
+       La garde purement calculatoire ne pouvait pas le voir — elle recevait à chaque appel la
+       liste que le test lui donnait, jamais celle que le DOM avait gardée.
+       *Une fonction juste, appelée sur un état qui dérive, produit une dérive.* */
+    let baseline = null;
+
+    function remember() {
+      baseline = Array.prototype.slice.call(voices.querySelectorAll('optgroup'));
+    }
+
+    function reorder() {
+      if (!baseline || !baseline.length) remember();
+      if (!baseline.length) return;
+      const langs = baseline.map(function (g) { return groupLanguage(g); });
+      const order = voiceGroupOrder(langs, language.value);
+      // Réinsérer dans l'ordre voulu : `appendChild` DÉPLACE un nœud déjà attaché, donc la
+      // valeur sélectionnée et les annotations des filtres de capacité survivent.
+      const kept = voices.value;
+      order.forEach(function (i) { voices.appendChild(baseline[i]); });
+      if (kept) voices.value = kept;
+    }
+
+    language.addEventListener('change', reorder);
+    // Le select de voix est GÉNÉRÉ : ses options reviennent de l'endpoint commun après coup.
+    // Le remplissage produit des optgroups NEUFS — l'ordre d'origine se relit là, et là seul.
+    voices.addEventListener('wama:options-filled', function () { remember(); reorder(); });
+    remember();
+    reorder();
+    return { reorder: reorder };
+  }
+
+  global.WamaInputMatch = { init: init, voiceSlot: voiceSlot, langSlot: langSlot,
+                            voicesFollowLanguage: voicesFollowLanguage,
+                            voiceGroupOrder: voiceGroupOrder };
 })(window);
