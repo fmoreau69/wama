@@ -46,7 +46,26 @@ markdown-it-py>=4.0
 # dans les deux venvs comme dépendance de `python-doctr` ; déclaré parce que WAMA l'importe
 # désormais directement. Distance d'édition en C++ (MIT) : ~10⁸ cases en Python pur sur 1 h d'audio.
 rapidfuzz>=3.14
+# ── Chaîne des VOIX DE RÉFÉRENCE (médiathèque) — déclarées le 2026-09-27 ────────────────────
+# Les trois étaient installées dans les deux venvs et IMPORTÉES par WAMA sans figurer nulle
+# part : `common/tts/voice_refs.py` les prend dans des `try/except ImportError` qui dégradent
+# en silence. Conséquence mesurée : sur une machine sans `librosa`, la vérification du genre
+# par la hauteur (pYIN) est simplement SAUTÉE — et c'est elle qui avait trouvé 12 voix sur 25
+# en contradiction avec leur libellé. *Une dépendance non déclarée dont l'absence ne plante
+# pas ne manque à personne — jusqu'au jour où son contrôle ne s'exécute plus.*
+#   · librosa   : mesure de F0 (genre RÉEL d'un clip, `_measured_gender`)
+#   · soundfile : décodage audio maison — choisi À DESSEIN contre torchcodec, dont le
+#                 chargement échoue quand il n'est pas aligné avec torch/FFmpeg
+#   · datasets  : lecture en flux des corpus de voix (VoxPopuli)
+# ⚠ Bornes BASSES (style du fichier) et non épinglage : `datasets` diverge entre les venvs
+# (**5.0.0** sous venv_win, **4.7.0** sous venv_linux, mesuré le 27/09). Épingler forcerait une
+# rétrogradation d'un côté ou une montée de l'autre EN PRODUCTION. Vérifié avant d'écrire :
+# VoxPopuli s'ouvre sous les DEUX (la 5.0 a supprimé les scripts de chargement, que ce corpus
+# n'emploie pas) — la divergence est donc à résorber, pas urgente.
+datasets>=4.7
+librosa>=0.11
 safetensors>=0.4.0
+soundfile>=0.13
 segno>=1.6  # QR codes (pur Python, BSD-3, zéro dépendance) — brique commune common/utils/qr.py : QR d'appariement joint par le bot (ROADMAP §19.1) ; TOTP/Imager à venir
 # torch/torchvision/torchaudio : voir requirements_torch.txt, à installer EN PREMIER.
 # (L'ancienne ligne `torch>=2.8.0+cu128` ne pouvait pas marcher — PyPI n'a aucune roue avec
