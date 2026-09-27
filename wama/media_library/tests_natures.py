@@ -5,9 +5,14 @@ L'EMPREINTE du vocabulaire tel qu'il était écrit à la main dans `models.py` a
 2026-09-13 est figée ici : les dérivations doivent la reproduire à l'identique — le
 déplacement d'une déclaration ne change pas ce qu'elle déclare.
 """
+import json
+import re
+from pathlib import Path
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.app_registry import MEDIA_CATEGORIES
 from wama.media_library import natures
@@ -267,3 +272,72 @@ class ASystemAssetIsNeverDeletedHereTest(TestCase):
         a.save()
         delete_asset(a)
         self.assertFalse(UserAsset.objects.filter(pk=a.pk).exists())
+
+
+class TheCardRendersWhatTheNatureDeclaresTest(SimpleTestCase):
+    """Le rendu JS des attributs, exécuté sous V8 avec la VRAIE déclaration (2026-09-27).
+
+    Garde ajoutée en revérifiant la session, pas en s'en souvenant : `assetAttributes` était le
+    seul livrable du palier sans attestation. Un `.js` ne casse jamais à la compilation — et
+    celui-ci est nourri par `natures_as_json()`, donc le test prouve la CHAÎNE entière :
+    déclaration Python → JSON → libellés à l'écran.
+    """
+
+    SOURCE = Path(settings.BASE_DIR) / 'wama/media_library/static/media_library/js/media-library.js'
+
+    def setUp(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+        src = self.SOURCE.read_text(encoding='utf-8')
+        self.ctx = MiniRacer()
+        # Parse du module ENTIER : il touche au DOM au chargement, on ne l'exécute pas.
+        self.ctx.eval('(function(){ ' + src + '\n})')
+        body = re.search(r'\n    function assetAttributes\(.*?\n    \}\n', src, re.S)
+        self.assertIsNotNone(body, '`assetAttributes` a disparu ou changé de forme')
+        self.ctx.eval(f'var natures = {json.dumps(natures.natures_as_json())};')
+        self.ctx.eval("var currentType = 'voice';")
+        self.ctx.eval(body.group(0))
+
+    def _render(self, asset):
+        return json.loads(self.ctx.eval(f'JSON.stringify(assetAttributes({json.dumps(asset)}))'))
+
+    def test_a_voice_reads_in_plain_words(self):
+        rendu = self._render({'asset_type': 'voice',
+                              'attributes': {'language': 'fr', 'age': 'adult',
+                                             'gender': 'female', 'variant': 2}})
+        self.assertEqual([('Langue', 'Français'), ('Âge', 'Adulte'),
+                          ('Genre', 'Femme'), ('Variante', '2')],
+                         [(a['label'], a['value']) for a in rendu])
+
+    def test_the_order_is_the_one_DECLARED_not_the_one_stored(self):
+        """Deux voix doivent se lire dans le même ordre, quel que soit l'ordre du JSON stocké."""
+        rendu = self._render({'asset_type': 'voice',
+                              'attributes': {'gender': 'male', 'language': 'en'}})
+        self.assertEqual(['Langue', 'Genre'], [a['label'] for a in rendu])
+
+    def test_an_attribute_the_nature_does_not_declare_is_not_shown(self):
+        """Contre-épreuve : la clé inconnue est CONSERVÉE en base (`normalize_attributes` ne
+        perd rien) mais pas affichée — un libellé brut au milieu de libellés soignés serait pire
+        que son absence."""
+        rendu = self._render({'asset_type': 'voice',
+                              'attributes': {'language': 'fr', 'inconnu': 'xyz'}})
+        self.assertEqual(['Langue'], [a['label'] for a in rendu])
+
+    def test_a_nature_without_labels_shows_the_raw_value(self):
+        """Une nature sans vocabulaire de valeurs (musique) affiche la valeur telle quelle —
+        le rendu est GÉNÉRIQUE, il ne connaît pas les voix."""
+        self.ctx.eval("currentType = 'audio_music';")
+        rendu = self._render({'asset_type': 'audio_music', 'attributes': {'bpm': 120, 'key': 'Am'}})
+        self.assertEqual([('bpm', '120'), ('key', 'Am')],
+                         [(a['label'], a['value']) for a in rendu])
+
+    def test_an_asset_without_attributes_renders_nothing(self):
+        self.assertEqual([], self._render({'asset_type': 'voice', 'attributes': {}}))
+        self.assertEqual([], self._render({'asset_type': 'voice'}))
+
+    def test_the_served_copy_matches_its_source(self):
+        served = Path(settings.BASE_DIR) / 'staticfiles/media_library/js/media-library.js'
+        if served.exists():
+            self.assertEqual(self.SOURCE.read_bytes(), served.read_bytes())
