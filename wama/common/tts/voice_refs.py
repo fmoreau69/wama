@@ -225,10 +225,38 @@ def readable_voice_assets(user):
     return listable_by(qs, user)
 
 
-def resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]:
+def default_voice_for_language(language: str) -> Optional[str]:
+    """L'id (`sa_<pk>`) de la voix de RÉFÉRENCE d'une langue — ce que « Voix par défaut » veut
+    dire dès qu'une langue est choisie (décision de Fabien, 2026-09-27).
+
+    ⚠ « Voix par défaut » était une voix FIXE : le preset plat `default`, un clip LJSpeech
+    ANGLOPHONE (table `LEGACY_FLAT_VOICES` plus haut, `{'language': 'en'}`). Demander un texte
+    espagnol sans toucher au sélecteur donnait donc une locutrice anglaise — et rien ne le
+    disait. Même partage que « auto » pour les modèles : l'automatique porte le cas courant,
+    le choix manuel reste entier et n'est jamais défait.
+
+    L'ordre est celui du MENU (`voice_reference_groups`, donc `_sort_key`) : « la première voix
+    de cette langue » désigne la MÊME voix pour le serveur et pour l'utilisateur qui lit la
+    liste. Deux règles « la première » qui divergeraient rendraient le libellé menteur — c'est
+    ce qu'une garde confronte.
+    """
+    lang = str(language or '').lower().split('-')[0].strip()
+    if not lang:
+        return None
+    for group in voice_reference_groups():
+        for voice in group.get('voices', []):
+            if voice.get('language') == lang:
+                return voice.get('id')
+    return None
+
+
+def resolve_speaker_wav(voice_preset: str, user=None, language: str = '') -> Optional[str]:
     """
     Résout un voice_preset en chemin `speaker_wav` (audio de référence) pour le CLONAGE
     de voix. Logique CENTRALISÉE, partagée par les workers et les aperçus :
+      - vide / `default` + une LANGUE → la voix de référence de cette langue
+                  (`default_voice_for_language` ci-dessus) ; sans langue, ou si la médiathèque
+                  n'en porte aucune pour elle, le preset plat `default` comme avant ;
       - sa_<id> → SystemAsset (médiathèque commune — les voix de référence) ;
       - ua_<id> → UserAsset (médiathèque de l'utilisateur ; `user` la restreint) ;
       - cv_<id> → CustomVoice (hérité) ;
@@ -239,6 +267,14 @@ def resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]:
     plus sûr que de lui en refuser un (c'était déjà le sens du repli disque). `None` seulement
     si la médiathèque n'a pas non plus de `default`.
     """
+    if not voice_preset or voice_preset == 'default':
+        # La langue ne PRIME jamais sur un choix explicite : on n'arrive ici que pour la valeur
+        # « par défaut », c'est-à-dire quand l'utilisateur n'a rien choisi.
+        preferred = default_voice_for_language(language)
+        if preferred:
+            path = _system_voice_path(preferred[3:], by_pk=True)
+            if path:
+                return path
     if not voice_preset:
         return _system_voice_path('default')
     if voice_preset.startswith('bark_v2_'):
@@ -309,7 +345,8 @@ def model_supports_cloning(model_key: str) -> Optional[bool]:
 
 
 def speaker_wav_for(model_key: str, voice_preset: str, user=None,
-                    reference_path: Optional[str] = None) -> Optional[str]:
+                    reference_path: Optional[str] = None,
+                    language: str = '') -> Optional[str]:
     """LA porte des workers et des aperçus : le `speaker_wav` à passer au service TTS.
 
     - le moteur ne clone PAS (déclaré) → `None`, quelle que soit la voix choisie : l'UI grise
@@ -319,13 +356,16 @@ def speaker_wav_for(model_key: str, voice_preset: str, user=None,
       prime, sinon `resolve_speaker_wav` (ua_/cv_/presets). Un moteur INCONNU reçoit donc
       une voix : XTTS l'EXIGE, un moteur sans clonage l'ignore — le sens sûr.
 
+    `language` ne sert QUE pour la valeur « par défaut » : elle la résout vers la voix de
+    référence de cette langue (27/09). Un choix explicite n'en dépend jamais.
+
     Le service (`tts_service.py`) ne résout plus rien : tout `speaker_wav` vient d'ici (D6).
     """
     if model_supports_cloning(model_key) is False:
         return None
     if reference_path:
         return reference_path
-    return resolve_speaker_wav(voice_preset, user)
+    return resolve_speaker_wav(voice_preset, user, language=language)
 
 
 def ingest_voice_file(name: str, path, *, source_url: str = '', license: str = '',

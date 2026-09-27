@@ -31,7 +31,15 @@ class LaCapaciteDecideTest(TestCase):
              patch.object(voice_refs, 'resolve_speaker_wav', return_value='/x/default.wav') as res:
             self.assertEqual(voice_refs.speaker_wav_for('synthesizer:coqui-xtts', 'female_1', 'u'),
                              '/x/default.wav')
-            res.assert_called_once_with('female_1', 'u')
+            res.assert_called_once_with('female_1', 'u', language='')
+
+    def test_the_language_is_passed_through_to_the_resolution(self):
+        """La porte TRANSMET la langue (27/09) — sans elle, « Voix par défaut » resterait le
+        clip anglophone pour tout le monde, quel que soit le texte."""
+        with patch.object(voice_refs, 'model_supports_cloning', return_value=True), \
+             patch.object(voice_refs, 'resolve_speaker_wav', return_value='/x/fr.wav') as res:
+            voice_refs.speaker_wav_for('synthesizer:coqui-xtts', 'default', 'u', language='fr')
+            res.assert_called_once_with('default', 'u', language='fr')
 
     def test_un_moteur_INCONNU_recoit_une_voix_le_sens_sur(self):
         """XTTS l'exige, un moteur sans clonage l'ignore : le doute résout."""
@@ -210,6 +218,52 @@ class LaMediathequePorteLesVoixTest(TestCase):
         self.assertEqual(voice_refs.resolve_speaker_wav('sa_999999'), defaut)
         self.assertEqual(voice_refs.resolve_speaker_wav('ua_999999'), defaut)
         self.assertIsNone(voice_refs.resolve_speaker_wav('bark_v2_en_0'))
+
+    def test_the_default_voice_follows_the_chosen_language(self):
+        """« Voix par défaut » + une langue = la voix de RÉFÉRENCE de cette langue.
+
+        Avant le 2026-09-27, `default` était un clip LJSpeech anglophone quelle que soit la
+        langue demandée : un texte allemand sortait avec une locutrice anglaise, en silence.
+        """
+        fr = self.voix['french/adult/female_adult_1_fr']        # 1ʳᵉ du groupe FR : « Femme 1 »
+        de = self.voix['german/adult/female_adult_1_de']
+        self.assertEqual(voice_refs.resolve_speaker_wav('default', language='fr'), fr.file.path)
+        self.assertEqual(voice_refs.resolve_speaker_wav('', language='de'), de.file.path)
+        self.assertEqual(voice_refs.resolve_speaker_wav('default', language='fr-FR'), fr.file.path)
+
+    def test_an_explicit_choice_never_depends_on_the_language(self):
+        """Contre-épreuve : la langue ne décide QUE du défaut. Une voix choisie reste la sienne,
+        même pour un texte d'une autre langue — c'est la doctrine « avertissement, jamais
+        masquage » : un timbre se clone d'une langue à l'autre."""
+        chosen = self.voix['french/adult/female_adult_2_fr']
+        self.assertEqual(voice_refs.resolve_speaker_wav(f'sa_{chosen.pk}', language='de'),
+                         chosen.file.path)
+        self.assertEqual(voice_refs.resolve_speaker_wav('male_1', language='fr'),
+                         self.voix['male_1'].file.path)
+
+    def test_a_language_without_reference_voice_keeps_the_flat_default(self):
+        """Aucune voix ne porte l'italien → le preset plat, jamais une voix d'une AUTRE langue :
+        un repli silencieux vers une langue étrangère serait moins prévisible que l'état d'avant.
+        Et sans langue du tout, le comportement d'avant, à l'octet près."""
+        self.assertEqual(voice_refs.resolve_speaker_wav('default', language='it'),
+                         self.voix['default'].file.path)
+        self.assertEqual(voice_refs.resolve_speaker_wav('default'),
+                         self.voix['default'].file.path)
+
+    def test_the_server_and_the_menu_name_the_same_first_voice(self):
+        """⚠ LA garde de cette décision : « la première voix de la langue » est écrite DEUX
+        fois — en Python (`default_voice_for_language`, ce que le serveur SYNTHÉTISE) et en JS
+        (`firstVoiceOfLanguage`, ce que le menu AFFICHE entre parenthèses). Les deux lisent la
+        même liste dans le même ordre ; si elles divergeaient, le libellé mentirait sur la voix
+        réellement employée — un défaut qu'aucune des deux ne verrait seule."""
+        from wama.common.utils.voice_options import get_voice_groups
+        groups = get_voice_groups(None)
+        for lang in ('fr', 'en', 'de'):
+            in_menu = next((value for g in groups for value, _ in (g.get('options') or [])
+                            if ((g.get('attributes') or {}).get(value) or {}).get('language') == lang),
+                           None)
+            self.assertIsNotNone(in_menu, lang)
+            self.assertEqual(voice_refs.default_voice_for_language(lang), in_menu, lang)
 
     def test_une_voix_inactive_ne_resout_plus(self):
         v = self.voix['german/adult/female_adult_1_de']

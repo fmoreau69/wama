@@ -539,6 +539,9 @@ document.addEventListener('DOMContentLoaded', function () {
         // à l'autre, seule la prononciation n'est pas garantie (même doctrine que le filtre
         // de capacité). C'est aussi la réponse au menu qui s'allonge quand l'inventaire
         // grandit : ce qu'on cherche est en haut, ce qu'on pourrait vouloir reste accessible.
+        // Et l'option « Voix par défaut » DIT laquelle elle désigne pour la langue choisie —
+        // le serveur la résout (`voice_refs.default_voice_for_language`), la valeur stockée
+        // reste `default` : l'automatique ne se fige jamais en choix manuel.
         WamaInputMatch.voicesFollowLanguage('voice_preset', 'language');
     }
 

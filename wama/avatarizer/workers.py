@@ -84,7 +84,8 @@ def _call_tts_service(job: AvatarJob) -> str:
     n'est pas centralisée, elle est mal rangée. Le bloc manuel qui vivait ici avant elle ne
     couvrait que `cv_*` : les voix de la médiathèque étaient silencieusement ignorées."""
     from wama.common.tts.voice_refs import speaker_wav_for
-    speaker_wav = speaker_wav_for(job.tts_model, job.voice_preset, user=job.user)
+    speaker_wav = speaker_wav_for(job.tts_model, job.voice_preset, user=job.user,
+                                  language=job.language or '')
     return tts_via_service(
         job.text_content, job.tts_model,
         language=job.language, voice_preset=job.voice_preset,
