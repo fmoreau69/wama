@@ -372,7 +372,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 - **API publique** (27) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
-  - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
+  - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
   - `duplicate_weight_files(files) -> list` — Fichiers de poids à NE PAS tirer parce que leur jumeau `.safetensors` existe — même
   - `format_duplicates(hf_id: str) -> list` — Les jumeaux de format d'un dépôt HF — un appel HTTP, la règle vient de
   - `weight_for_spec(spec: dict)` — Poids en Go de ce qu'un descripteur d'installation va TIRER, ou None si indéterminable.
@@ -383,12 +383,12 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `register_after_install()` — Re-synchronise le catalogue `AIModel` pour que le modèle fraîchement installé apparaisse.
   - `replaced_model(cand)` — (nom Ollama de l'ancien modèle, espace qu'il rendra en Go) pour un candidat successeur,
   - `disk_space_guard(ref: str, *, reclaim_gb: float=0.0, force: bool=False, needed_gb: float | None=None)` — Refuse une installation qui saturerait le volume. Retourne None si l'installation peut
-  - `request_install(model_key: str, *, force: bool=False, variant_ref: str='', variant_file: str='') -> dict` — DEMANDE d'installation par CLÉ — corps unique du geste « Installer » : choix de variante,
-  - `install_candidate(cand, progress=None) -> dict` — Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
+  - `request_install(model_key: str, *, force: bool=False, variant_ref: str='', variant_file: str='', user=None) -> dict` — DEMANDE d'installation par CLÉ — corps unique du geste « Installer » : choix de variante,
+  - `install_candidate(cand, progress=None, token=None) -> dict` — Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
   - `uninstall_model(model_key: str) -> dict` — DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
   - `spec_for_catalog_row(model) -> dict | None` — Spec d'installation DÉRIVÉ d'une ligne de catalogue non téléchargée — le geste « Installer »
   - `patterns_from_composition(composition) -> list | None` — `allow_patterns` DÉRIVÉS d'une `composition` déclarée (manifeste `model`,
-  - `install_from_spec(spec: dict) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
+  - `install_from_spec(spec: dict, token=None) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
   - `record_provenance(spec: dict, res: dict) -> dict` — Après un téléchargement réussi : sync du catalogue, puis provenance des lignes apparues.
   - `pip_spec_error(spec: str)` — Motif de refus d'un spécificateur pip, ou None s'il passe les verrous syntaxiques.
   - `pip_constraint_errors(constraints) -> list` — Motifs de refus des contraintes pip — mêmes verrous qu'un spécificateur.
@@ -1533,11 +1533,11 @@ data-* du ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur, qui li
 
 ### Domaines → modes
 
-Schéma déclaratif des onglets-domaine et modes par app — scope la file
+Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`)
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).
-- **API publique** (9) :
+- **API publique** (12) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
   - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs.
@@ -1546,6 +1546,9 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file
   - `route_prefix(app: str, domain_id: str) -> str` — Préfixe des routes de ce domaine (`audio` → `audio_batch_delete`), '' par défaut.
   - `accepts(app: str, domain_id: str) -> tuple` — Catégories média (MEDIA_CATEGORIES) que ce domaine prend en ENTRÉE.
   - `domain_for_category(app: str, categorie: str) -> str | None` — Domaine d'une app capable d'accueillir cette catégorie média — base du ROUTAGE d'un
+  - `mode_param(app: str, domain_id: str) -> str` — Le param du schéma qui porte le mode de ce domaine ('' si le domaine n'en déclare pas).
+  - `options_mode_for(app: str, domain_id: str) -> dict` — La déclaration `Param.options_mode` d'un select de modèle borné par le mode de ce
+  - `mode_model_filter(app: str, domain_id: str, mode_id: str) -> dict` — Ce que le mode impose au MODÈLE, dans le vocabulaire de `model_selector.matches_inputs` :
   - `resolve_inputs(porteur: dict) -> list` — Détaille les entrées d'un MODE ou d'un DOMAINE (définitions `INPUT_TYPES`).
 
 ### Déclaration du volet par la page
@@ -1990,7 +1993,7 @@ Aligne des flux à cadences INCOMMENSURABLES et répond aux questions temporelle
 
 ### Réglages utilisateur par app
 
-Persistance cache user_{id}_{app}_{clé} avec défauts déclarés par l'app
+Réglages durables en base (UserAppSetting, cache devant) ; réglages du VOLET dérivés du schéma — lire, garder, remettre à zéro, faire naître un élément, deux routes JSON (`*_panel_settings`, `new_element_settings`, `make_panel_settings_views`)
 
 - **Domicile** : `wama/common/utils/user_settings.py`
 - **Module** : WAMA Common — Réglages UTILISATEUR par app, DURABLES en base (cache en lecture devant).
@@ -1998,10 +2001,10 @@ Persistance cache user_{id}_{app}_{clé} avec défauts déclarés par l'app
   - `get_user_app_settings(user, app, defaults)` — Retourne le dict complet des réglages de ``user`` pour ``app``.
   - `get_user_app_setting(user, app, name, default=None)` — Lecture d'UN réglage.
   - `clear_user_app_settings(user, app, names)` — Retire les réglages `names` de ``user`` pour ``app`` : ils reprennent le défaut que
-  - `read_panel_settings(user, app, params, *, key=None, extra=None) -> dict` — Les réglages du volet de ``user``, par NOM de param (ce que `WamaParams.render` attend),
+  - `read_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict` — Les réglages du volet de ``user``, par NOM de param (ce que `WamaParams.render` attend),
   - `save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None) -> dict` — Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
-  - `reset_panel_settings(user, app, params, *, key=None, extra=None) -> dict` — Remet le volet de ``user`` sur les défauts : ses préférences sont RETIRÉES (jamais
-  - `new_element_settings(user, app, params, model, *, key=None, extra=None) -> dict` — Les colonnes de réglage d'un élément NAISSANT : les réglages du volet de son auteur,
+  - `reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict` — Remet le volet de ``user`` sur les défauts : ses préférences sont RETIRÉES (jamais
+  - `new_element_settings(user, app, params, model, *, post=None, context=None, key=None, extra=None, clean=None) -> dict` — Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
   - `make_panel_settings_views(app, params, *, key=None, extra=None, clean=None)` — Les deux vues JSON du volet — lecture (GET) et enregistrement (POST, JSON par NOM, clés
   - `save_user_app_settings(user, app, values, *, timeout=DEFAULT_TIMEOUT)` — Persiste chaque réglage fourni (en base, et en cache pour la lecture).
 
@@ -2191,18 +2194,19 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
 
 ### Voix de référence (médiathèque) et voix de clonage
 
-LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur, jamais par un nom de moteur), `resolve_speaker_wav` (sa_/ua_/cv_/nom d'avant), `describe_voice`, `voice_reference_groups` (optgroups dérivés d'une REQUÊTE sur `SystemAsset(voice)` + `attributes`), `ingest_voice_file` (le seul point d'entrée, ingest initial ET téléchargements). Les voix VIVENT en médiathèque depuis le 2026-09-13 (28 versées, dossier `voice_references/` retiré) ; `tts_service.py` ne résout plus rien. Quatre consommateurs : synthesizer, avatarizer, `voice_options` (menus), assistant
+LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur, jamais par un nom de moteur, et qui TRANSMET la langue depuis le 2026-09-27), `resolve_speaker_wav` (sa_/ua_/cv_/nom d'avant), `default_voice_for_language` (« Voix par défaut » = la voix de référence de la LANGUE choisie, dans l'ordre du menu ; sans elle c'était un clip anglophone quelle que soit la langue), `describe_voice`, `voice_reference_groups` (optgroups dérivés d'une REQUÊTE sur `SystemAsset(voice)` + `attributes`), `ingest_voice_file` (le seul point d'entrée, ingest initial ET téléchargements). Les voix VIVENT en médiathèque depuis le 2026-09-13 (28 versées, dossier `voice_references/` retiré) ; `tts_service.py` ne résout plus rien. Quatre consommateurs : synthesizer, avatarizer, `voice_options` (menus), assistant
 
 - **Domicile** : `wama/common/tts/voice_refs.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9.4](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Voix de RÉFÉRENCE — la brique COMMUNE : résolution d'un preset en fichier, groupes du menu, libellés, téléchargement. Les voix VIVENT EN MÉDIATHÈQUE (`SystemAsset(asset_type='voice')`, `media_library/system/`) depuis le 2026-09-13 — plan `MEDIA_STORAGE_TIERING §9.4`.
-- **API publique** (11) :
+- **API publique** (12) :
   - `attributes_from_voice_id(voice_id: str) -> Dict` — Les `attributes` (nature `voice`) qu'un identifiant de preset PORTE.
   - `voice_reference_groups() -> List[Dict]` — Les optgroups du menu « voix de référence », DÉRIVÉS de la médiathèque :
   - `readable_voice_assets(user)` — Les voix de médiathèque qu'un utilisateur a le DROIT d'employer : les SIENNES **et celles
-  - `resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]` — Résout un voice_preset en chemin `speaker_wav` (audio de référence) pour le CLONAGE
+  - `default_voice_for_language(language: str) -> Optional[str]` — L'id (`sa_<pk>`) de la voix de RÉFÉRENCE d'une langue — ce que « Voix par défaut » veut
+  - `resolve_speaker_wav(voice_preset: str, user=None, language: str='') -> Optional[str]` — Résout un voice_preset en chemin `speaker_wav` (audio de référence) pour le CLONAGE
   - `is_cloned_voice(voice_preset: str) -> bool` — Cette voix est-elle un CLONAGE (`ua_<id>` médiathèque de l'utilisateur, `cv_<id>` hérité) ?
   - `model_supports_cloning(model_key: str) -> Optional[bool]` — Le moteur du modèle `model_key` CLONE-t-il ? — `True`/`False` si quelque chose le dit,
-  - `speaker_wav_for(model_key: str, voice_preset: str, user=None, reference_path: Optional[str]=None) -> Optional[str]` — LA porte des workers et des aperçus : le `speaker_wav` à passer au service TTS.
+  - `speaker_wav_for(model_key: str, voice_preset: str, user=None, reference_path: Optional[str]=None, language: str='') -> Optional[str]` — LA porte des workers et des aperçus : le `speaker_wav` à passer au service TTS.
   - `ingest_voice_file(name: str, path, *, source_url: str='', license: str='', description: str='', replace: bool=False)` — Verse UN fichier de voix dans la médiathèque comme `SystemAsset(voice)` nommé `name`,
   - `needs_voice_download() -> bool` — Vrai si une voix du catalogue n'est pas (encore) en médiathèque.
   - `download_missing_voice_refs(force: bool=False, names=None) -> Dict[str, str]` — Télécharge les voix de référence manquantes et les VERSE en médiathèque.
