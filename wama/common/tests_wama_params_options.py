@@ -111,3 +111,95 @@ class SingleOptionRendererTest(SimpleTestCase):
             served = SERVED_DIR / name
             if served.exists():
                 self.assertEqual((JS_DIR / name).read_bytes(), served.read_bytes(), name)
+
+
+class RadioNameTest(SimpleTestCase):
+    """A radio setting has ONE `name` per button (2026-09-27). The renderer wrote `name="<id>"` and
+    then the identity attribute — `name="<param>"` in a modal — and the browser keeps the FIRST:
+    a radio setting of a modal was posted as `wp-item-<param>`, which the server never reads
+    (measured on the anonymizer's mode; the transcriber worked around it with `radio_name`)."""
+
+    def setUp(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+        self.ctx = MiniRacer()
+        self.ctx.eval(FAKE_DOM)
+        self.ctx.eval((JS_DIR / 'wama-params.js').read_text(encoding='utf-8'))
+
+    def _inputs(self, param, context):
+        html = self.ctx.eval("(function(){ var b = box(); WamaParams.render(b, [%s], { context: '%s' });"
+                             " return b.innerHTML; })()" % (json.dumps(param), context))
+        return re.findall(r'<input[^>]*type="radio"[^>]*>', html)
+
+    def test_a_modal_radio_posts_under_the_setting_name_once(self):
+        param = {"name": "target_mode", "type": "radio",
+                 "choices": [["classes", "Classes"], ["description", "Description"]]}
+        inputs = self._inputs(param, 'item')
+        self.assertEqual(2, len(inputs))
+        for tag in inputs:
+            self.assertEqual(['target_mode'], re.findall(r'\bname="([^"]*)"', tag), tag)
+
+    def test_a_declared_legacy_name_still_wins(self):
+        """Counter-check: the transcriber's `radio_name` keeps working, alone."""
+        param = {"name": "summary_type", "type": "radio",
+                 "radio_name": {"panel": "globalSummaryType", "item": "summary_type_legacy"},
+                 "choices": [["structured", "Structuré"], ["meeting", "Réunion"]]}
+        for tag in self._inputs(param, 'item'):
+            self.assertEqual(['summary_type_legacy'], re.findall(r'\bname="([^"]*)"', tag), tag)
+        for tag in self._inputs(param, 'panel'):
+            self.assertEqual(['globalSummaryType'], re.findall(r'\bname="([^"]*)"', tag), tag)
+            self.assertIn('data-param="summary_type"', tag)
+
+
+MODE_DOM = """
+var window = this; var global = this; var urls = [];
+function CustomEvent(t) { this.type = t; } function Event(t) { this.type = t; }
+var modelSelect = { innerHTML: '', value: '', selectedIndex: -1, parentNode: null, options: [],
+  addEventListener: function () {}, dispatchEvent: function () {} };
+var modeField = { type: 'hidden', value: 'description' };
+var container = { _l: {},
+  querySelectorAll: function (sel) { return sel.indexOf('target_mode') >= 0 ? [modeField] : []; },
+  querySelector: function () { return null; },
+  addEventListener: function (t, f) { (this._l[t] = this._l[t] || []).push(f); } };
+var document = { getElementById: function (id) { return id === 'model_menu' ? modelSelect : null; },
+                 querySelectorAll: function () { return []; }, addEventListener: function () {} };
+var pending = [];
+function fetch(u) { urls.push(u); return new Promise(function (res) { pending.push({ u: u, res: res }); }); }
+function answer(i, groups) { pending[i].res({ json: function () { return Promise.resolve({ groups: groups }); } }); }
+"""
+MODE_PARAM = {"name": "model_to_use", "type": "select", "dom_id": "model_menu", "contexts": ["panel"],
+              "options_source": "catalog", "options_query": {"source": "anonymizer", "task": "detect,segment"},
+              "options_mode": {"app": "anonymizer", "domain": "image_video", "field": "target_mode"}}
+
+
+class ModeBoundMenuTest(SimpleTestCase):
+    """A catalogue menu bounded by the element's MODE (`Param.options_mode`, 2026-09-27)."""
+
+    def setUp(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+        self.ctx = MiniRacer()
+        self.ctx.eval(MODE_DOM)
+        self.ctx.eval((JS_DIR / 'wama-params.js').read_text(encoding='utf-8'))
+        self.ctx.eval("WamaParams.bindOptionSources(container, [%s], 'panel');" % json.dumps(MODE_PARAM))
+
+    def test_the_request_carries_the_mode_read_in_the_same_container(self):
+        url = self.ctx.eval('urls[0]')
+        self.assertIn('mode=description', url)
+        self.assertIn('app=anonymizer', url)
+        self.assertIn('domain=image_video', url)
+
+    def test_a_mode_change_reloads_and_a_stale_answer_never_fills_the_menu(self):
+        """Measured in the browser: the answer of the FIRST request (other mode) could arrive
+        last and put back a list that did not match the mode."""
+        self.ctx.eval("modeField.value = 'classes';"
+                      "container._l.change.forEach(function (f) { f({ target: { matches: function () { return true; } } }); });")
+        self.assertIn('mode=classes', self.ctx.eval('urls[urls.length - 1]'))
+        self.ctx.eval("answer(1, [{ options: [['yolo:a.pt', 'A']] }]);")   # the current one
+        self.ctx.eval("answer(0, [{ options: [['sam3', 'SAM3']] }]);")     # the stale one, late
+        self.assertIn('yolo:a.pt', self.ctx.eval('modelSelect.innerHTML'))
+        self.assertNotIn('sam3', self.ctx.eval('modelSelect.innerHTML'))
