@@ -620,8 +620,33 @@ répond pas à la question du long format. Une piste non tranchée : **recoudre*
 consécutifs d'une même session pour fabriquer du long — mais un long RECOUSU n'est pas un long
 RÉEL, et il faudrait le déclarer comme tel (garde-fou A2 : « jeux synthétiques DÉCLARÉS »).
 
-🔚 **Le point dur est le FRANÇAIS long format** : les deux ESLO sont **NC**, donc suspendus à
-`LICENSING.md`. L'anglais, lui, est réglé par `earnings22` pour le prix de 1,92 Go.
+#### ⭐ Le français long format est RÉGLÉ — et c'est la recherche web qui l'a trouvé
+
+Le paragraphe ci-dessus concluait « le point dur est le FRANÇAIS : les deux ESLO sont **NC** ».
+**Périmé le jour même** : la clé Exa posée au profil, la toute PREMIÈRE requête réelle passée par
+`engine_for(user)` a sorti trois candidats que ni mes requêtes Mozilla ni mes identifiants de
+mémoire n'avaient atteints. Vérifiés ensuite par l'API HF, un par un :
+
+| jeu | ce que c'est | licence | volumes |
+|---|---|---|---|
+| **`linagora/SUMM-RE`** | **conversations de RÉUNION en français** (corpus Linagora, article HAL/Inria) — le registre exact du transcriber | ✅ **CC-BY-SA-4.0**, non *gated* | 15,5 Go · **45 réunions au split `test`** (+ 45 train, 50 dev) · colonnes `meeting_id`, `speaker_id`, `audio`, `segments`, `transcript` |
+| `ggfox00000/stt-summre-fr-test` | miroir du split test de SUMM-RE, prêt pour l'ASR | CC-BY-SA-4.0 | 13,8 Go · 124 items |
+| `ggfox00000/stt-cefc-fr-test` | miroir long format de **CEFC-Orfeo** (français parlé) | ⚠ `other` — à lire avant usage | 19,8 Go · 901 items · porte `duration_sec`, `n_segments`, `n_speakers` |
+
+⇒ **SUMM-RE remplace ESLO** pour le français : même registre (parole spontanée, plusieurs
+locuteurs, sessions entières), et une licence **CC-BY-SA** au lieu de **NC** — donc plus rien à
+arbitrer contre `LICENSING.md`. Les ESLO restent une piste, plus une nécessité.
+
+⭐ **Ce que cet épisode démontre, et qui vaut plus que le corpus** : l'outil de recherche web a
+payé son intégration **à sa première requête réelle**, en atteignant ce qu'une session entière de
+requêtes par mots-clés sur un seul catalogue n'avait pas trouvé. *Un catalogue interrogé de
+l'intérieur ne rend que ce qu'il contient ; c'est la recherche qui dit ce qui existe ailleurs.*
+⚠ Et la discipline tient quand même : un moteur rend des **pages**, pas des faits — les trois
+lignes ci-dessus sont vérifiées à l'API (licence, accès, splits, colonnes), pas recopiées du
+résultat de recherche.
+
+🔚 **Reste ouvert** : l'anglais est réglé par `earnings22` (1,92 Go) ⚠ **licence non déclarée en
+`cardData`**, à lire avant usage ; et la licence `other` du miroir CEFC-Orfeo.
 
 ---
 

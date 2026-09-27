@@ -18125,3 +18125,43 @@ mesurée à 155 Hz — féminine très grave, l'étiquette vient de la fiche, pa
 **Pendings système** : **20 commits non poussés** (18 + les 2 de cette suite). Aucun redémarrage
 requis (JS, gabarits, docs). Les archives des 4 corpus (~510 Mo) et les scripts de sonde vivent
 dans le scratchpad de session — jetables, rien à conserver.
+
+### Revérification de clôture (2026-09-27, après le push) — 2 gardes ajoutées, 1 décision levée
+
+**§2a bis — chaque livrable a-t-il sa garde ?** Le balayage en a trouvé **deux sans attestation**,
+trouvées en cherchant, pas en se souvenant :
+1. 🔴 **Les trois appelants transmettaient `language=` sans qu'aucune garde ne l'exige.** C'est le
+   défaut qui ne se voit PAS à l'exécution : sans l'argument, « Voix par défaut » retombe sur le
+   clip LJSpeech anglophone — un texte allemand sortirait avec une locutrice anglaise, **sans
+   erreur, sans journal, sans rien à l'écran**. Garde posée (`LesWorkersNeDecidentPlusRienTest`),
+   et **contre-épreuve par MUTANTS** : 5/5, y compris le cas où `language=` n'apparaît que dans un
+   commentaire. *Une garde verte ne prouve rien tant qu'on n'a pas vu ce qui la fait rougir.*
+2. **Le rendu JS des attributs** (`assetAttributes`) n'avait que le contrat de fichier servi.
+   Garde V8 nourrie par la VRAIE déclaration (`natures_as_json()`), donc elle atteste la chaîne
+   entière — déclaration Python → JSON → libellés à l'écran — plus 3 contre-épreuves (ordre
+   DÉCLARÉ et non stocké, clé non déclarée non affichée, nature sans vocabulaire).
+
+**⭐ DÉCISION n°4 LEVÉE par la première requête réelle du moteur de recherche.** Clé Exa posée au
+profil → `engine_for(user)` → résultats réels. La toute première requête a sorti
+**`linagora/SUMM-RE`** : conversations de **réunion en français**, **CC-BY-SA-4.0** (pas NC),
+45 réunions au split `test`. Il **remplace ESLO** et supprime l'arbitrage de licence qui bloquait
+le français long format. Vérifié à l'API HF, pas recopié du résultat de recherche. Consigné
+`WAMA_QUALITE §9bis`. *Un catalogue interrogé de l'intérieur ne rend que ce qu'il contient.*
+
+**Contrôles** : 92 tests OK (voix + natures) ; `check_docs` **4 cassées / 4 cibles** (inchangé) ;
+`git log origin/dev..dev` **vide** — tout est poussé ; index partagé propre (le chantier
+anonymizer d'une autre instance est resté non stagé).
+
+⚠ **`npx` est inexécutable ici** : `node`/`npx`/`npm` **absents côté Windows ET WSL2** (remesuré,
+pas recopié d'`AGENTS.md`). L'onboarding d'Exa propose d'installer un skill tiers par `npx` — non
+fait, et **pas seulement** faute de node : ce serait une dépendance exécutable tierce dans
+`.claude/skills/`, **versionné et public**, la famille de risque que la route `library` verrouille
+déjà côté Python. Ça se décide.
+
+🔚 **Décisions ouvertes après cette passe** : ① voix `elderly` à fabriquer ; ② créneau `child`
+FERMÉ ; ③ cadence nocturne (forme proposée, GO non donné) ; ④ ~~corpus FR long format~~ **LEVÉE
+(SUMM-RE)** — reste à lire la licence `other` du miroir CEFC-Orfeo et la licence **non déclarée**
+d'`earnings22` ; ⑤ recoudre VoxPopuli (à déclarer synthétique si fait) ; ⑥ **NOUVELLE** —
+souscrire Staan engage l'Université par une signature et des informations de facturation : acte
+institutionnel, pas technique. Rien ne le presse, Exa couvre le besoin (20 000 requêtes/mois
+offertes) et l'adaptateur Staan attend sa clé sans une ligne de code de plus.

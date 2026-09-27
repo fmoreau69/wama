@@ -118,6 +118,25 @@ class LesWorkersNeDecidentPlusRienTest(TestCase):
         for rel in self.FICHIERS:
             self.assertIn('speaker_wav_for(', self._texte(rel), rel)
 
+    def test_the_three_callers_pass_the_language_to_the_door(self):
+        """⚠ La garde qui manquait au palier du 27/09 (relevée en revérifiant, pas en s'en
+        souvenant). Sans `language=`, « Voix par défaut » retombe sur le clip LJSpeech
+        ANGLOPHONE : un texte allemand sortirait avec une locutrice anglaise, **sans erreur,
+        sans journal, sans rien à l'écran**. C'est le type de défaut que rien ne rattrape à
+        l'exécution — il rend un résultat plausible et faux.
+
+        Textuelle et non par AST, comme sa sœur au-dessus : l'appel est multi-ligne dans les
+        trois fichiers, et c'est la PRÉSENCE de l'argument qui est en jeu, pas sa valeur.
+        """
+        import re
+        for rel in self.FICHIERS:
+            texte = self._texte(rel)
+            appel = re.search(r'speaker_wav_for\((?:[^()]|\([^()]*\))*\)', texte, re.S)
+            self.assertIsNotNone(appel, f'{rel} : appel à speaker_wav_for introuvable')
+            self.assertIn('language=', appel.group(0),
+                          f"{rel} : la langue n'est pas transmise — la voix par défaut "
+                          f"redeviendrait anglophone en silence")
+
     def test_plus_aucune_resolution_ni_test_de_moteur_recopie(self):
         import re
         for rel in self.FICHIERS:
