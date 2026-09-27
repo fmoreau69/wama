@@ -129,7 +129,6 @@ def list_user_files(user, folder: str = 'temp') -> dict:
 def add_to_anonymizer(
     user,
     file_path: str,
-    use_sam3: bool = False,
     sam3_prompt: str = '',
     classes: list = None,
     precision_level: int = 50,
@@ -141,9 +140,10 @@ def add_to_anonymizer(
     Args:
         user:            Django User instance
         file_path:       Path relative to MEDIA_ROOT  (e.g. "users/1/temp/biovam.mp4")
-        use_sam3:        Use SAM3 text-based segmentation
-        sam3_prompt:     SAM3 text prompt  (e.g. "all human faces")
-        classes:         YOLO detection classes  (default: ['face'])
+        sam3_prompt:     describe what to blur in text (e.g. "all human faces") — given alone,
+                         it selects the DESCRIPTION mode (`target_mode`, a schema setting that
+                         can also be passed explicitly: 'classes' | 'description')
+        classes:         classes to blur in the CLASSES mode  (default: ['face'])
         precision_level: 0–100 (0=Quick, 50=Balanced, 100=Precise)
 
     Returns:
@@ -151,9 +151,13 @@ def add_to_anonymizer(
     """
     if classes is None:
         classes = ['face']
+    # Le MODE de l'élément (2026-09-27, ex-`use_sam3`) : déclaré, sinon déduit — une description
+    # donnée seule désigne le mode Description.
+    by_description = (params.get('target_mode') == 'description'
+                      or (bool(sam3_prompt) and not params.get('target_mode')))
 
     # Validate prompt if SAM3 requested
-    if use_sam3 and sam3_prompt:
+    if by_description and sam3_prompt:
         from wama.anonymizer.utils.sam3_manager import validate_sam3_prompt
         valid, err = validate_sam3_prompt(sam3_prompt)
         if not valid:
@@ -202,10 +206,10 @@ def add_to_anonymizer(
         media.precision_level = max(0, min(100, int(precision_level)))
         if classes:
             media.classes2blur = classes
-        if use_sam3:
-            media.use_sam3 = True
+        media.target_mode = 'description' if by_description else 'classes'
+        if by_description:
             media.sam3_prompt = sam3_prompt or ''
-        touched = ['precision_level', 'classes2blur', 'use_sam3', 'sam3_prompt']  # wama:redondance-ok — kwargs EXPLICITES de la signature, gérés à part du balayage schéma
+        touched = ['precision_level', 'classes2blur', 'target_mode', 'sam3_prompt']  # wama:redondance-ok — kwargs EXPLICITES de la signature (et le mode qu'ils déduisent), gérés à part du balayage schéma
         # Tout autre réglage DÉCLARÉ au schéma (détection, modèle, flou, tracking…) : appliqué
         # sans être recopié dans la signature. Les kwargs explicites ci-dessus priment.
         for field, value in schema_model_kwargs('anonymizer', params).items():
@@ -223,8 +227,8 @@ def add_to_anonymizer(
         'name': result['name'],
         'duration': result.get('duration', ''),
         'status': 'queued',
-        'use_sam3': use_sam3,
-        'sam3_prompt': sam3_prompt if use_sam3 else None,
+        'target_mode': 'description' if by_description else 'classes',
+        'sam3_prompt': sam3_prompt if by_description else None,
     }
 
 
@@ -286,7 +290,7 @@ def get_anonymizer_status(user) -> dict:
     Return status of the user's current anonymizer jobs (last 10).
 
     Returns:
-        {"jobs": [{"id", "name", "progress", "status", "use_sam3", "output_url"}]}
+        {"jobs": [{"id", "name", "progress", "status", "target_mode", "output_url"}]}
     """
     from wama.anonymizer.models import Media
     from wama.anonymizer.utils.media_utils import get_blurred_media_path
@@ -329,8 +333,8 @@ def get_anonymizer_status(user) -> dict:
             'name': os.path.basename(m.file.name) if m.file else f'Media #{m.id}',
             'progress': progress,
             'status': status,
-            'use_sam3': m.use_sam3,
-            'sam3_prompt': m.sam3_prompt if m.use_sam3 else None,
+            'target_mode': m.target_mode,
+            'sam3_prompt': m.sam3_prompt if m.target_mode == 'description' else None,
             'output_url': output_url,
         })
     return {'jobs': jobs}

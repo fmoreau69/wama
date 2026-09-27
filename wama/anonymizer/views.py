@@ -33,7 +33,7 @@ from .models import Media, BatchAnonymizer, BatchAnonymizerItem
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
 from .tasks import process_single_media, process_user_media_batch, stop_process
 from .utils.media_utils import get_input_media_path, get_output_media_path, get_blurred_media_path, get_unique_filename
-from .utils.yolo_utils import get_model_path, list_models_by_type
+from .utils.yolo_utils import get_model_path
 from .utils.sam3_manager import (
     get_sam3_status, validate_sam3_prompt,
     get_sam3_requirements, get_recommended_prompt_examples

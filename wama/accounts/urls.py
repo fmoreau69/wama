@@ -13,7 +13,6 @@ urlpatterns = [
     path('users/<int:pk>/', views.UserPage.as_view(), name='user-page'),
     path('users/add/', RedirectView.as_view(url=reverse_lazy('accounts:signup')), name='insert'),
     path('user/edit', views.UserEdit.as_view(), name='user-edit'),
-    path('user/settings/edit/', views.UserSettingsUpdate.as_view(), name='settings-edit'),
 
     # Profile
     path('profile/', views.profile_view, name='profile'),
