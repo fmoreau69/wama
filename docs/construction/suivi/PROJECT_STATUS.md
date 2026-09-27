@@ -18190,12 +18190,27 @@ qui borne le menu de modèles), `38657fa5` (3 fichiers oubliés par une autre in
   n'arrivait jamais au serveur) ; course des options (la plus lente gagnait) ; découverte des
   modèles distants lancée pour toute source à clé (500 à l'enregistrement d'un jeton HF).
 
+**Finalisation (même jour, instance seule restante, demande de Fabien)** — `8bae7457`, `d3a24204`,
+`046e435e`, `9e02c849`, `97d35907` :
+- **R73–R76 faits** : tables `UserSettings`/`GlobalSettings`, colonne `use_sam3`, page de profil
+  `settings-edit`, commandes de transfert, listes de modèles par dossier. Relevé SANS filtre de
+  chemin : il a trouvé `tool_api.add_to_anonymizer`/`get_anonymizer_status` qui écrivaient/lisaient
+  encore `use_sam3` (le motif `wama/**/*.py` ne voit pas `wama/tool_api.py`) — corrigés
+  (`target_mode`). Sauvegarde complète avant : `backups/db/wama_db_2026-09-27_1759.dump`.
+- **cam_analyzer** : aucun consommateur des tables retirées ; son chargement de SAM3 passait par le
+  Hub → aligné sur `sam3_processor.load_sam3_image_model` (R75) ; sa déclaration de prompt citait
+  `when='use_sam3'`, champ inexistant → `sam3_markings_enabled`. (G2, `_use_sam3_fallback` jamais
+  défini, reste consigné dans son CHANGELOG : bloc mort par design, non touché.)
+- **Rouges soldés** : budget langue (+34 occurrences du jour renommées en passe tokenisée → code
+  2690, classes 132, noms 1311) ; `api/vram/grant/` a sa garde propre (`owned_or_404`).
+- Corpus des manifestes et faits générés remis à la mesure (85 manifestes).
+- Tests : 998 + 324 verts sur les séries touchées.
+
 **🔚 Restes, dans l'ordre.**
-1. **Recharger gunicorn** : le Python du `47ce33ac` (jeton, pastille, route de jeton retirée) n'est
-   pas en service ; gabarit et JS le sont déjà (compatibles avec l'ancien Python).
-2. **R73** (`REMOVAL_LEDGER`) : retirer `UserSettings`, `GlobalSettings`, la colonne `use_sam3`
-   et leurs références dans `accounts` — données transférées ; geste DESTRUCTIF, à confirmer par
-   Fabien ; `accounts/views.py` co-édité → commit partiel.
+1. **Recharger gunicorn, PUIS appliquer la migration** : `manage.py migrate anonymizer` (0030 :
+   suppression des deux tables et de `use_sam3`). ⚠ Jamais avant : le code d'avant sélectionne
+   encore la colonne ; la migration (gitignorée) est sur le disque.
+2. (ex-R73 : fait.)
 3. Le volet de l'anonymizer est encore écrit à la main (sections, curseur, menu) : le rendre du
    schéma comme au transcriber. Imager encore sur ses propres helpers de préférences ; 6 apps
    (`NOT_YET_DERIVED`) + l'enhancer.
