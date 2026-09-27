@@ -1289,6 +1289,58 @@ créer : elle existe déjà partiellement — `common/nightly_scenarios.py` exer
 (`_run_tool_api_inventaire`, `_run_tool_api_lectures`). C'est le point d'accroche à réutiliser le
 jour où on montera d'un étage, pas un chantier neuf.
 
+### 4ter — OÙ PASSENT RÉELLEMENT LES HEURES, et ce que la cadence par type de modèle coûterait
+
+Demande de Fabien, 2026-09-27 : *« décomposer les tests nocturnes pour la partie GPU en
+sous-catégories par types de modèles, pour ne pas encombrer des heures chaque nuit avec des tests
+qui ne sont pas nécessaires quotidiennement, mais plutôt hebdomadaires ou mensuels. »*
+
+**Ventilation MESURÉE** du dernier passage complet (`logs/nightly_tests/nightly_20260926_233909.json`,
+359 scénarios, 8 182 s = 2 h 16) — `duration_s` est déjà porté par scénario (`ScenarioResult`),
+il n'y a rien à instrumenter, seulement à lire :
+
+| stage | n | cumul | part |
+|---|---|---|---|
+| `ui` | 287 | 4 320 s | **52,8 %** |
+| `suite` | 19 | 3 402 s | **41,6 %** (dont `wama.common.suite` seul : 1 822 s) |
+| `consistency` | 11 | 373 s | 4,6 % |
+| `output` | 35 | 44 s | 0,5 % |
+| `model_loaded` | **2** | **42 s** | **0,5 %** |
+
+⭐ **Aujourd'hui la partie GPU ne coûte rien** — et c'est le symptôme de ce qui n'existe pas
+encore : le `model_loaded` générique, dont §8 dit depuis longtemps qu'il attend une décision de
+Fabien (« quels modèles, à quelle fréquence »). **La demande EST cette décision.** Conséquence
+pratique : on ne décompose pas un existant lourd, **on pose la cadence avant de construire** — ce
+qui coûte infiniment moins. Et si l'objectif est de RACCOURCIR la nuit, la cadence devrait porter
+d'abord sur `ui` et `suite`, qui pèsent 94 % à eux deux.
+
+⚠⚠ **Ce qui N'EST PAS un trou, contrairement à ce que j'ai d'abord écrit** : la campagne nocturne
+est **déclarée DANS le gouverneur** — `resource_governor.py` : pseudo-app `"_nightly_tests":
+"basse"`, avec le commentaire *« Charge des modèles, donc file GPU, mais ne doit JAMAIS passer
+devant un traitement demandé par un utilisateur »*. Et tout chargement de modèle est enregistré au
+gouverneur **par construction** : `common/backends/base.py` enveloppe `load`/`unload`/`process` par
+`__init_subclass__` à n'importe quelle profondeur d'héritage (« sans ce module, le gouverneur ne
+verrait rien »), registre Redis **cross-process**.
+`--with-gpu` / `--max-vram` est un choix d'**ORDONNANCEMENT** (quels scénarios jouer), pas le
+mécanisme de sécurité ; et le gate `NIGHTLY_TESTS_ENABLED` répond à l'**instabilité hôte**.
+*Preuve empirique que la campagne GPU n'a jamais tourné ici : le fichier d'état du
+`PersistentScheduler` ne porte que 9 entrées, et `nightly-functional-tests` n'en fait pas partie.*
+
+**Forme proposée, NON décidée** (elle appelle un GO) : un champ déclaratif `cadence`
+(`daily`/`weekly`/`monthly`) sur `Scenario` — qui n'en porte aucun aujourd'hui —, son filtre posé
+**dans la tâche Celery** et non seulement dans la commande, et trois entrées beat (`crontab` sait
+faire `day_of_week` et `day_of_month`). ⚠ **Avec sa leçon** : `vram_gb` a été *déclaré depuis
+l'origine et lu par personne* — un champ sans son filtre ET son entrée beat dans le même commit ne
+vaut rien. Le lien vers le TYPE de modèle n'a aucun registre aujourd'hui (motif
+`ModelTask|model_type` dans les modules nocturnes → 0), mais `ModelTask` existe (27 valeurs, et sa
+docstring dit *« c'est l'axe qui compte pour ÉVALUER un modèle »*) et `backend_inventory` déclare
+déjà backend → modèles → VRAM : le `model_loaded` générique se **dérive**, il ne s'écrit pas
+modèle par modèle.
+
+🔚 C'est aussi là que se brancheraient les **corpus open data d'évaluation ASR** — décision de
+Fabien du même jour, consignée en `docs/construction/ia/WAMA_QUALITE.md §9bis` : les jeux open data
+tournent au nocturne, les audios personnels passent par la card.
+
 ---
 
 ## 5. Le second chantier : la grille d'adoption ne couvre pas tous les mécanismes
