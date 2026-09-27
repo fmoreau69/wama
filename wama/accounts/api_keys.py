@@ -83,6 +83,21 @@ def key_for(user, source: str) -> str:
     return row.api_key if row else ''
 
 
+def download_token(user, source: str):
+    """Le jeton d'un TÉLÉCHARGEMENT chez `source` (2026-09-27, HuggingFace) — même règle que
+    `key_for`, dite dans la forme que les bibliothèques de téléchargement comprennent :
+
+      • lancé par quelqu'un → SON jeton, ou `False` s'il n'en a pas posé : « aucun jeton »
+        explicite, pour que `huggingface_hub` ne retombe PAS sur celui de l'instance. Un dépôt
+        qui en exige un est alors refusé, avec un message qui renvoie au profil ;
+      • sans utilisateur (synchronisation, tâche planifiée, ligne de commande) → `None` : la
+        bibliothèque lit la variable d'instance (`HF_TOKEN`).
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return None
+    return key_for(user, source) or False
+
+
 def listing(user, kinds: tuple = ()) -> list:
     """Même forme que la liste des connecteurs de la médiathèque (`api_provider_keys`) : le volet
     du profil rend les deux avec le même code. Jamais la clé elle-même.

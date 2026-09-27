@@ -55,32 +55,18 @@
     host.dispatchEvent(new Event('change', { bubbles: true }));   // applique la condition
   }
 
-  // ── Badge d'état SAM3 dans le titre du groupe « Mode de détection » (référence
-  // Uniformisation) — même endpoint et mêmes états que right_panel.js. ──
+  // ── Pastille d'état SAM3 dans le titre du groupe « Mode de détection » — la MÊME que celle
+  // du volet (`AnonSam3Badge`, right_panel.js) : mêmes états, même renvoi au profil. ──
   function appendSam3Badge(host) {
     const title = host.querySelector('[data-group="mode"] .wama-param-group-title');
-    if (!title) return;
+    if (!title || !window.AnonSam3Badge) return;
     const badge = document.createElement('span');
+    badge.dataset.baseClass = 'float-end';
     badge.className = 'badge bg-secondary float-end';
     badge.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
     title.appendChild(badge);
-    fetch('/anonymizer/sam3/status/')
-      .then(r => r.json())
-      .then(d => {
-        if (d.ready) {
-          badge.className = 'badge bg-success float-end';
-          badge.innerHTML = '<i class="fas fa-check-circle"></i> SAM3 disponible';
-        } else if (d.installed && !d.hf_authenticated) {
-          badge.className = 'badge bg-warning text-dark float-end';
-          badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Config HF requise';
-        } else if (!d.installed) {
-          badge.className = 'badge bg-danger float-end';
-          badge.innerHTML = '<i class="fas fa-times-circle"></i> SAM3 non installé';
-        } else {
-          badge.className = 'badge bg-secondary float-end';
-          badge.innerHTML = '<i class="fas fa-info-circle"></i> ' + (d.error || 'État inconnu');
-        }
-      })
+    AnonSam3Badge.fetch()
+      .then(d => AnonSam3Badge.render(badge, d))
       .catch(() => badge.remove());
   }
 

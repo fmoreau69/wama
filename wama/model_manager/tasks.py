@@ -223,8 +223,19 @@ ASSESS_CACHE_KEY = 'model_manager:assess_proposed'
 ASSESS_TTL = 6 * 3600
 
 
+def _download_token(user_id):
+    """Jeton du téléchargement : celui de la personne qui l'a lancé (`user_id`), l'instance
+    sinon — `accounts.api_keys.download_token`. La clé est relue ici, jamais passée en argument
+    d'une tâche (elle serait écrite en clair dans le courtier)."""
+    from django.contrib.auth import get_user_model
+
+    from wama.accounts.api_keys import download_token
+    user = get_user_model().objects.filter(pk=user_id).first() if user_id else None
+    return download_token(user, 'huggingface')
+
+
 @shared_task(bind=True, name='model_manager.install_proposed')
-def install_proposed_task(self, model_key: str):
+def install_proposed_task(self, model_key: str, user_id=None):
     """
     Installe un candidat de prospection Ollama EN TÂCHE DE FOND — remplace le corps
     synchrone de `api_prospect_install` (2026-08-18). Motif : un pull de 18 Go dans la
@@ -254,7 +265,8 @@ def install_proposed_task(self, model_key: str):
     publier('RUNNING', {'status': 'démarrage…', 'name': cand.name})
     try:
         res = install_candidate(
-            cand, progress=lambda s: publier('RUNNING', {'status': s, 'name': cand.name}))
+            cand, progress=lambda s: publier('RUNNING', {'status': s, 'name': cand.name}),
+            token=_download_token(user_id))
     except Exception as exc:
         logger.exception("[install_proposed] échec inattendu pour %s", model_key)
         publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}", 'name': cand.name})
@@ -266,7 +278,7 @@ def install_proposed_task(self, model_key: str):
 
 
 @shared_task(bind=True, name='model_manager.install_catalog')
-def install_catalog_task(self, model_key: str):
+def install_catalog_task(self, model_key: str, user_id=None):
     """
     Installe un modèle DU CATALOGUE (non téléchargé, hf_id + install_dir déclarés) — le
     pendant de `install_proposed_task` pour les modèles d'app (2026-08-27, cas
@@ -296,7 +308,7 @@ def install_catalog_task(self, model_key: str):
 
     publier('RUNNING', {'status': f"téléchargement {spec['ref']}…", 'name': model.name})
     try:
-        res = install_from_spec(spec)
+        res = install_from_spec(spec, token=_download_token(user_id))
     except Exception as exc:
         logger.exception("[install_catalog] échec inattendu pour %s", model_key)
         publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}", 'name': model.name})

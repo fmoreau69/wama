@@ -35,7 +35,7 @@ from .tasks import process_single_media, process_user_media_batch, stop_process
 from .utils.media_utils import get_input_media_path, get_output_media_path, get_blurred_media_path, get_unique_filename
 from .utils.yolo_utils import get_model_path, list_models_by_type
 from .utils.sam3_manager import (
-    get_sam3_status, setup_hf_auth, validate_sam3_prompt,
+    get_sam3_status, validate_sam3_prompt,
     get_sam3_requirements, get_recommended_prompt_examples
 )
 
@@ -1408,26 +1408,9 @@ def get_sam3_status_view(request):
     return JsonResponse(status)
 
 
-@require_POST
-def configure_hf_token(request):
-    """Configure HuggingFace token for SAM3 access."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    token = request.POST.get('hf_token', '').strip()
-    if not token:
-        return JsonResponse({'success': False, 'error': 'Token requis'}, status=400)
-
-    if setup_hf_auth(token):
-        return JsonResponse({
-            'success': True,
-            'message': 'Token HuggingFace configure avec succes'
-        })
-    else:
-        return JsonResponse({
-            'success': False,
-            'error': 'Echec de la configuration du token'
-        }, status=500)
-
+# `configure_hf_token` RETIRÉ le 2026-09-27 : il écrivait le jeton HuggingFace dans le dossier
+# personnel. Le jeton se pose au profil (source `huggingface`, clé de chacun) et ne sert qu'au
+# téléchargement, fait depuis le gestionnaire de modèles avec le jeton de celui qui installe.
 
 def validate_prompt_view(request):
     """Validate a SAM3 text prompt."""

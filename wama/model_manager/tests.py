@@ -1226,7 +1226,8 @@ class RestesTechniquesDuSoirTest(TestCase):
         from .services import model_installer as mi
         vus = {}
 
-        def faux_snapshot(repo_id, cache_dir, allow_patterns=None, ignore_patterns=None):
+        def faux_snapshot(repo_id, cache_dir, allow_patterns=None, ignore_patterns=None,
+                          token=None):
             vus.update(allow=allow_patterns, ignore=ignore_patterns)
             return '/faux/chemin'
         with patch('huggingface_hub.snapshot_download', side_effect=faux_snapshot), \
@@ -1511,7 +1512,8 @@ class RouteUniqueDInstallationTest(TestCase):
             delay.return_value = type('T', (), {'id': 'tid-1'})()
             res = mi.request_install(cand.model_key)
         self.assertEqual((res['ok'], res['started'], res['task_id']), (True, True, 'tid-1'))
-        delay.assert_called_once_with(cand.model_key)
+        # Sans utilisateur : `user_id=None`, le téléchargement lira le jeton d'instance.
+        delay.assert_called_once_with(cand.model_key, user_id=None)
         # Le poids relevé à la prospection sert la garde : pas d'interrogation du registre
         # Ollama pour un dépôt HuggingFace, qu'il ne connaît pas.
         self.assertEqual(garde.call_args.kwargs['needed_gb'], 0.4)
@@ -1558,7 +1560,10 @@ class RouteUniqueDInstallationTest(TestCase):
         self.assertEqual(cand.extra_info['prospect']['spec'],
                          {'kind': 'yolo', 'ref': 'yolo26s-seg', 'task': 'segment',
                           'note': 'installation VISION par nom'})
-        delay.assert_called_once_with('proposed:yolo:yolo26s-seg')
+        # La tâche reçoit QUI a lancé : le téléchargement se fera avec son jeton (27/09).
+        from django.contrib.auth import get_user_model
+        admin = get_user_model().objects.get(username='admin_yolo')
+        delay.assert_called_once_with('proposed:yolo:yolo26s-seg', user_id=admin.pk)
 
     def test_un_nom_de_poids_yolo_invente_est_refuse_sans_rien_ecrire(self):
         self._admin('admin_yolo_faux')
@@ -1642,7 +1647,7 @@ class RouteUniqueDInstallationTest(TestCase):
         self.assertEqual(out, {'started': True, 'model_key': 'proposed:hf:Org/P',
                                'task_id': 'tid-2'})
         req.assert_called_once_with('proposed:hf:Org/P', force=False, variant_ref='',
-                                    variant_file='')
+                                    variant_file='', user=user)
 
     def test_l_assistant_rend_les_chiffres_du_refus_d_espace(self):
         from wama import tool_api
@@ -1724,7 +1729,7 @@ class RouteUniqueDInstallationTest(TestCase):
             delay.return_value = type('T', (), {'id': 'tid-3'})()
             res = mi.request_install(pose['model_key'])
         self.assertTrue(res['started'])
-        delay.assert_called_once_with('proposed:hf:Org/Juge')
+        delay.assert_called_once_with('proposed:hf:Org/Juge', user_id=None)
 
     def test_les_deux_verbes_de_modeles_sont_gardes_par_le_model_manager(self):
         """Ce sont les seuls outils qui écrivent côté modèles : ils suivent le gating de la
@@ -3043,3 +3048,44 @@ class VramFootprintExposedTest(TestCase):
         m = AIModel.objects.create(model_key='test:nothing-known', name='n',
                                    model_type='diffusion', source='imager')
         self.assertEqual({}, m.vram_footprint())
+
+
+class DownloadTokenTest(TestCase):
+    """A HuggingFace download uses the token of WHOEVER launches it (2026-09-27, Fabien's
+    decision): the account that obtained access to a gated repository — never the instance's
+    token in their place. Without a user (sync, scheduled task), the instance token."""
+
+    def test_the_download_token_is_passed_to_the_hub(self):
+        from .services import model_installer as mi
+        seen = {}
+
+        def fake_snapshot(**kw):
+            seen.update(kw)
+            return '/fake/path'
+        with patch('huggingface_hub.snapshot_download', side_effect=fake_snapshot),                 patch.object(mi, 'format_duplicates', return_value=[]):
+            self.assertTrue(mi.pull_hf_model('org/x', 'vision', family='x', token=False)['ok'])
+        self.assertIs(seen['token'], False,
+                      "« no token » must reach the library, or it falls back on HF_TOKEN")
+
+    def test_an_access_refusal_says_where_to_set_the_token(self):
+        from .services import model_installer as mi
+
+        class GatedRepoError(Exception):
+            pass
+        with patch('huggingface_hub.snapshot_download', side_effect=GatedRepoError('403')),                 patch.object(mi, 'format_duplicates', return_value=[]):
+            res = mi.pull_hf_model('facebook/sam3', 'vision', family='sam', token=False)
+        self.assertEqual((False, 'gated'), (res['ok'], res.get('reason')))
+        self.assertIn('Profil', res['error'])
+
+    def test_the_task_reads_the_launching_user_token_and_nobody_elses(self):
+        from django.contrib.auth import get_user_model
+        from wama.accounts.models import UserApiKey
+        from .tasks import _download_token
+        with self.settings(SECRET_KEY='k' * 50, SECRET_KEY_FALLBACKS=[]):
+            owner = get_user_model().objects.create_user('hf_owner', password='x')
+            other = get_user_model().objects.create_user('hf_other', password='x')
+            UserApiKey.objects.create(user=owner, source='huggingface', api_key='hf_owner_token')
+            self.assertEqual('hf_owner_token', _download_token(owner.pk))
+            self.assertIs(False, _download_token(other.pk),
+                          'no fallback on the instance token for a user without one')
+            self.assertIsNone(_download_token(None), 'without a user: the instance token')

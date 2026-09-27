@@ -30,37 +30,43 @@
     // SAM3 Status Check
     // ========================================
 
+    // Pastille d'état SAM3 — UNE fonction, partagée avec la modale (`AnonSam3Badge`). Prêt =
+    // paquet présent ET poids sur le disque ; sinon elle dit quoi faire et RENVOIE au profil,
+    // où se pose le jeton HuggingFace de chacun (le téléchargement se fait avec lui).
+    function renderSam3Badge(badge, data) {
+        if (!badge) return;
+        const base = badge.dataset.baseClass || '';
+        const set = (cls, html, title) => {
+            badge.className = 'badge ' + cls + (base ? ' ' + base : '');
+            badge.innerHTML = html;
+            badge.title = title || '';
+        };
+        if (!data) { set('bg-secondary', '<i class="fas fa-question-circle"></i> Vérification échouée'); return; }
+        if (data.ready) { set('bg-success', '<i class="fas fa-check-circle"></i> SAM3 prêt'); return; }
+        if (!data.installed) {
+            set('bg-danger', '<i class="fas fa-times-circle"></i> SAM3 non installé (paquet absent)', data.error || '');
+            return;
+        }
+        const gated = data.gated === 'manual' ? " L'accès au dépôt est accordé par Meta, sur demande." : '';
+        const link = data.profile_url
+            ? ' <a href="' + data.profile_url + '" class="link-dark text-decoration-underline">jeton HuggingFace</a>'
+            : ' jeton HuggingFace';
+        set('bg-warning text-dark',
+            '<i class="fas fa-exclamation-triangle"></i> Poids à installer —' + link,
+            "Installer SAM3 depuis le gestionnaire de modèles, avec votre jeton HuggingFace posé " +
+            "au profil." + gated);
+    }
+    window.AnonSam3Badge = {
+        render: renderSam3Badge,
+        fetch: () => fetch('/anonymizer/sam3/status/').then(r => r.json()),
+    };
+
     function checkSam3Status() {
-        const sam3StatusBadge = document.getElementById('sam3_status_badge');
-        const hfConfigWarning = document.getElementById('hf_config_warning');
-
-        if (!sam3StatusBadge) return;
-
-        fetch('/anonymizer/sam3/status/')
-            .then(response => response.json())
-            .then(data => {
-                if (data.ready) {
-                    sam3StatusBadge.className = 'badge bg-success';
-                    sam3StatusBadge.innerHTML = '<i class="fas fa-check-circle"></i> SAM3 pret';
-                    if (hfConfigWarning) hfConfigWarning.style.display = 'none';
-                } else if (data.installed && !data.hf_authenticated) {
-                    sam3StatusBadge.className = 'badge bg-warning text-dark';
-                    sam3StatusBadge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Config HF requise';
-                    if (hfConfigWarning) hfConfigWarning.style.display = 'block';
-                } else if (!data.installed) {
-                    sam3StatusBadge.className = 'badge bg-danger';
-                    sam3StatusBadge.innerHTML = '<i class="fas fa-times-circle"></i> SAM3 non installe';
-                    if (hfConfigWarning) hfConfigWarning.style.display = 'none';
-                } else {
-                    sam3StatusBadge.className = 'badge bg-secondary';
-                    sam3StatusBadge.innerHTML = '<i class="fas fa-info-circle"></i> ' + (data.error || 'Etat inconnu');
-                }
-            })
-            .catch(err => {
-                sam3StatusBadge.className = 'badge bg-secondary';
-                sam3StatusBadge.innerHTML = '<i class="fas fa-question-circle"></i> Verification echouee';
-                console.error('[right_panel.js] SAM3 status check failed:', err);
-            });
+        const badge = document.getElementById('sam3_status_badge');
+        if (!badge) return;
+        window.AnonSam3Badge.fetch()
+            .then(data => renderSam3Badge(badge, data))
+            .catch(() => renderSam3Badge(badge, null));
     }
 
     // ========================================
@@ -183,95 +189,7 @@
         updateCount();
     }
 
-    // ========================================
-    // HuggingFace Token Configuration
-    // ========================================
-
-    function initHfTokenConfig() {
-        const hfSaveBtn = document.getElementById('hf_config_save_btn');
-        const hfTokenInput = document.getElementById('hf_token_input');
-        const hfConfigResult = document.getElementById('hf_config_result');
-
-        if (!hfSaveBtn || !hfTokenInput) return;
-
-        hfSaveBtn.addEventListener('click', function() {
-            const token = hfTokenInput.value.trim();
-
-            if (!token) {
-                if (hfConfigResult) {
-                    hfConfigResult.className = 'alert alert-warning';
-                    hfConfigResult.textContent = 'Veuillez entrer un token.';
-                    hfConfigResult.classList.remove('d-none');
-                }
-                return;
-            }
-
-            hfSaveBtn.disabled = true;
-            hfSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enregistrement...';
-
-            const formData = new FormData();
-            formData.append('hf_token', token);
-            formData.append('csrfmiddlewaretoken', getCsrfToken());
-
-            fetch('/anonymizer/sam3/configure-hf/', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCsrfToken()
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    if (hfConfigResult) {
-                        hfConfigResult.className = 'alert alert-success';
-                        hfConfigResult.textContent = 'Token configure avec succes!';
-                        hfConfigResult.classList.remove('d-none');
-                    }
-
-                    // Update status badge
-                    const sam3StatusBadge = document.getElementById('sam3_status_badge');
-                    if (sam3StatusBadge) {
-                        sam3StatusBadge.className = 'badge bg-success';
-                        sam3StatusBadge.innerHTML = '<i class="fas fa-check-circle"></i> SAM3 pret';
-                    }
-
-                    // Hide warning
-                    const hfConfigWarning = document.getElementById('hf_config_warning');
-                    if (hfConfigWarning) {
-                        hfConfigWarning.style.display = 'none';
-                    }
-
-                    // Close modal after 1.5s
-                    setTimeout(function() {
-                        const modalEl = document.getElementById('modal_hf_config');
-                        if (modalEl && typeof bootstrap !== 'undefined') {
-                            const modal = bootstrap.Modal.getInstance(modalEl);
-                            if (modal) modal.hide();
-                        }
-                    }, 1500);
-                } else {
-                    if (hfConfigResult) {
-                        hfConfigResult.className = 'alert alert-danger';
-                        hfConfigResult.textContent = data.error || 'Erreur lors de la configuration.';
-                        hfConfigResult.classList.remove('d-none');
-                    }
-                }
-            })
-            .catch(err => {
-                if (hfConfigResult) {
-                    hfConfigResult.className = 'alert alert-danger';
-                    hfConfigResult.textContent = 'Erreur de connexion.';
-                    hfConfigResult.classList.remove('d-none');
-                }
-                console.error('[right_panel.js] HF config error:', err);
-            })
-            .finally(function() {
-                hfSaveBtn.disabled = false;
-                hfSaveBtn.innerHTML = '<i class="fas fa-save me-1"></i>Enregistrer';
-            });
-        });
-    }
+    // (Configuration du jeton HuggingFace RETIRÉE le 2026-09-27 : il se pose au profil.)
 
     // ========================================
     // Move Modals to Body Level (for z-index fix)
@@ -385,7 +303,6 @@
         initSam3Prompt();
         initSam3Examples();
         initClassesModal();
-        initHfTokenConfig();
         initResetGlobalSettings();
         fixModalZIndex();
 

@@ -49,10 +49,10 @@ _FORMAT_GROUPS = [
 # Mode de détection → Quoi flouter (YOLO) | SAM3 → Comment flouter → Quoi afficher → Sortie.
 # Les champs advanced SANS groupe tombent dans le groupe implicite « Avancé » replié (WamaParams).
 GROUPS = [
-    ParamGroup("mode", "Mode de détection", icon="fa-bullseye"),
-    ParamGroup("classes", "Quoi flouter (classes)", icon="fa-eye-slash",
+    ParamGroup("mode", "Quoi flouter", icon="fa-bullseye"),
+    ParamGroup("classes", "Classes à flouter", icon="fa-eye-slash",
                show_if={"field": "target_mode", "equals": "classes"}),
-    ParamGroup("description", "Quoi flouter (description)", icon="fa-comment-dots",
+    ParamGroup("description", "Description", icon="fa-comment-dots",
                show_if={"field": "target_mode", "equals": "description"}),
     ParamGroup("model", "Modèle", icon="fa-microchip"),
     ParamGroup("comment", "Comment flouter", icon="fa-droplet", columns=2),

@@ -228,10 +228,17 @@ SOURCES: tuple[ExternalSource, ...] = (
         kind='catalogue'),
     # `api_key_env` posé le 2026-09-02 : le jeton vivait dans un fichier que personne ne
     # localisait ; `settings.py` le promeut en `HF_TOKEN`, la page peut donc le DIRE.
+    # `user_key` (2026-09-27, décision de Fabien) : un jeton ne sert qu'à TÉLÉCHARGER (un modèle
+    # installé se charge par chemin local, sans jeton). Le téléchargement qu'une personne lance
+    # se fait avec SON jeton — c'est son compte qui a obtenu l'accès aux dépôts `gated`, et
+    # c'est la règle commune des clés (`accounts/api_keys.py`) : pas de repli sur celui de
+    # l'instance, qui reste aux usages sans utilisateur (synchronisation, tâches planifiées).
     ExternalSource(
         'huggingface', 'HuggingFace Hub', 'https://huggingface.co',
         "Poids, datasets et fiches de modèles — source principale du parc ; jeton = dépôts "
-        "gated + quota d'API relevé", kind='catalogue', api_key_env='HF_TOKEN'),
+        "gated + quota d'API relevé", kind='catalogue', api_key_env='HF_TOKEN', user_key=True,
+        api_key_label='Jeton HuggingFace (lecture)',
+        api_key_help_url='https://huggingface.co/settings/tokens'),
     ExternalSource(
         'roboflow', 'Roboflow Universe', 'https://universe.roboflow.com',
         "Fiches de modèles de vision (référence de plateforme, pas de téléchargement)",

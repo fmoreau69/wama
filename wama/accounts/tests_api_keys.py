@@ -192,3 +192,26 @@ class VoletDuProfilTest(TestCase):
             self.assertGreater(html.index(marqueur), debut_volet,
                                f"{marqueur} rendu hors du volet droit")
         self.assertIn('id="cloudPolicySelect"', html)
+
+
+@override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
+class HuggingFaceKeyTest(TestCase):
+    """The HuggingFace token is set in the profile like any personal key (2026-09-27)."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('cle_hf', password='x')
+        self.client.force_login(self.user)
+
+    def test_the_profile_offers_the_huggingface_token(self):
+        self.assertIn('huggingface', {row['slug'] for row in api_keys.listing(self.user)})
+
+    def test_saving_it_does_not_run_the_model_discovery_of_llm_providers(self):
+        """`<address>/models` is an HTML page at HuggingFace: reading it as JSON made the save
+        answer 500. The discovery belongs to model providers (`llm`) only."""
+        with mock.patch('wama.model_manager.services.cloud_models.refresh_key') as refresh:
+            r = self.client.post(reverse('accounts:profile-api-key-save', args=['huggingface']),
+                                 data=json.dumps({'api_key': 'hf_abc'}),
+                                 content_type='application/json')
+        self.assertEqual(200, r.status_code, r.content)
+        refresh.assert_not_called()
+        self.assertEqual('hf_abc', api_keys.key_for(self.user, 'huggingface'))

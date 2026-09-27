@@ -1,6 +1,12 @@
 """
-SAM3 Model Manager - Handles model management and HuggingFace authentication
-for SAM3 (Segment Anything Model 3) integration in WAMA Anonymizer.
+SAM3 Model Manager — état et prompts de SAM3 (Segment Anything Model 3) dans l'anonymizer.
+
+⚠ Le JETON HuggingFace ne se gère plus ici (2026-09-27, décision de Fabien). `setup_hf_auth`
+l'écrivait dans le dossier personnel (`HfFolder.save_token`) — ce que le socle a retiré partout
+ailleurs le 07/09 — et `check_hf_auth` faisait dire « Config HF requise » à tout utilisateur,
+alors qu'un SAM3 installé se charge par chemin local, SANS jeton (`sam3_processor`,
+`load_from_HF=False`). Le jeton ne sert qu'au TÉLÉCHARGEMENT : il se pose au profil (règle
+commune des clés, source `huggingface`) et c'est celui de la personne qui installe.
 """
 
 import os
@@ -42,58 +48,6 @@ def check_sam3_installed() -> bool:
         return False
 
 
-def check_hf_auth() -> bool:
-    """
-    Check if HuggingFace authentication is configured.
-
-    Returns:
-        True if HuggingFace token is set
-    """
-    try:
-        from huggingface_hub import HfFolder
-        token = HfFolder.get_token()
-        return token is not None and len(token) > 0
-    except ImportError:
-        logger.warning("huggingface_hub not installed")
-        return False
-    except Exception as e:
-        logger.warning(f"Error checking HuggingFace auth: {e}")
-        return False
-
-
-def setup_hf_auth(token: str) -> bool:
-    """
-    Setup HuggingFace authentication by saving the token.
-
-    Args:
-        token: HuggingFace access token (starts with 'hf_')
-
-    Returns:
-        True if successful, False otherwise
-    """
-    if not token or not token.strip():
-        logger.error("Empty token provided")
-        return False
-
-    token = token.strip()
-
-    # Basic validation
-    if not token.startswith('hf_'):
-        logger.warning("Token does not start with 'hf_', might be invalid")
-
-    try:
-        from huggingface_hub import HfFolder
-        HfFolder.save_token(token)
-        logger.info("HuggingFace token saved successfully")
-        return True
-    except ImportError:
-        logger.error("huggingface_hub not installed. Install with: pip install huggingface-hub")
-        return False
-    except Exception as e:
-        logger.error(f"Failed to setup HuggingFace auth: {e}")
-        return False
-
-
 def check_sam3_models_cached() -> bool:
     """
     Check if SAM3 models are already cached locally.
@@ -126,23 +80,19 @@ def check_sam3_models_cached() -> bool:
 
 
 def get_sam3_status() -> Dict:
-    """
-    Get comprehensive SAM3 installation and configuration status.
+    """État de SAM3 pour la pastille et le catalogue.
 
-    Returns:
-        Dict containing:
-        - installed: bool - whether SAM3 package is installed
-        - hf_authenticated: bool - whether HuggingFace token is configured
-        - models_cached: bool - whether models are already downloaded locally
-        - models_dir: str - path to SAM3 models directory
-        - models_dir_exists: bool - whether models directory exists
-        - ready: bool - whether SAM3 is ready to use
-        - version: str - SAM3 version if installed, None otherwise
-        - error: str - error message if any
+    PRÊT = le paquet `sam3` est importable ET les poids sont sur le disque : c'est tout ce que
+    le chargement demande. Sinon, la pastille dit quoi faire — installer le modèle depuis le
+    gestionnaire de modèles, avec SON jeton HuggingFace posé au profil (`profile_url`) : le
+    dépôt est « sur approbation » chez Meta (`gated`, lu au catalogue), l'accès se demande sur
+    `access_url` avec le même compte.
+
+    Clés : installed, models_cached, ready, gated, version, error, models_dir,
+    models_dir_exists, profile_url, access_url.
     """
     status = {
         'installed': False,
-        'hf_authenticated': False,
         # DISQUE d'abord, AVANT le retour anticipé « paquet absent » : les poids sont une
         # propriété du disque, pas du venv. Le retour anticipé rendait models_cached=False
         # depuis venv_win (sam3 installé côté venv_linux seulement) → faux positif
@@ -153,9 +103,22 @@ def get_sam3_status() -> Dict:
         'ready': False,
         'version': None,
         'error': None,
+        'gated': '',
+        'access_url': f'https://huggingface.co/{SAM3_HF_REPO}',
+        'profile_url': '',
     }
+    try:
+        from django.urls import reverse
+        status['profile_url'] = reverse('accounts:profile')
+    except Exception:
+        pass
+    try:
+        from wama.model_manager.models import AIModel
+        row = AIModel.objects.filter(model_key='anonymizer:sam3').values('gated').first()
+        status['gated'] = (row or {}).get('gated') or ''
+    except Exception:
+        pass
 
-    # Check if SAM3 is installed
     try:
         import sam3
         status['installed'] = True
@@ -164,25 +127,10 @@ def get_sam3_status() -> Dict:
         status['error'] = f"SAM3 not installed: {e}"
         return status
 
-    # Check HuggingFace authentication
-    status['hf_authenticated'] = check_hf_auth()
-
-    # Ready if:
-    # - SAM3 is installed AND
-    # - Either models are cached locally OR HF is authenticated (for download)
-    if status['models_cached']:
-        # Models already downloaded, no need for HF auth
-        status['ready'] = True
-        status['error'] = None
-    elif status['hf_authenticated']:
-        # Can download models with HF auth
-        status['ready'] = True
-        status['error'] = None
-    else:
-        # Need HF auth to download models
-        status['ready'] = False
-        status['error'] = "HuggingFace token required to download SAM3 models"
-
+    status['ready'] = bool(status['models_cached'])
+    if not status['ready']:
+        status['error'] = ("Poids SAM3 absents — à installer depuis le gestionnaire de modèles, "
+                           "avec votre jeton HuggingFace posé au profil.")
     return status
 
 
@@ -246,7 +194,8 @@ def get_sam3_requirements() -> Dict:
             '2. Activer l\'environnement: conda activate sam3',
             '3. Installer PyTorch: pip install torch==2.7.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126',
             '4. Installer SAM3: pip install sam3',
-            '5. Configurer HuggingFace: hf auth login',
+            "5. Poser son jeton HuggingFace au profil (Clés d'API), puis installer le modèle "
+            "depuis le gestionnaire de modèles",
         ],
         'hf_model_repo': SAM3_HF_REPO,
         'hf_access_request_url': f'https://huggingface.co/{SAM3_HF_REPO}',
