@@ -222,8 +222,15 @@ def _handle(msg: IncomingMessage) -> Reply:
     # Les fichiers PRODUITS pendant le tour repartent avec la réponse : sans ça, le code
     # d'envoi des adaptateurs est mort et l'utilisateur reçoit un lien `/media/…` protégé
     # par session, inutilisable hors WAMA (défaut mesuré 2026-08-29, WAMA_LLM §Vérification).
-    return Reply(text=resultat.get('response') or '(réponse vide)',
-                   files=_produced_files(resultat))
+    sendable, oversized = _produced_files(resultat)
+    body = resultat.get('response') or '(réponse vide)'
+    if oversized:
+        # Le DIRE plutôt que de laisser l'utilisateur devant une réponse « c'est terminé »
+        # sans pièce jointe. Le texte part avec la réponse, donc il vaut pour TOUT canal.
+        details = ' · '.join(f"{name} ({mb:.1f} Mo)" for name, mb in oversized)
+        body += (f"\n\n⚠ Trop volumineux pour ce canal : {details}. "
+                 f"Le fichier est bien produit — récupérez-le dans WAMA.")
+    return Reply(text=body, files=sendable)
 
 
 def _pairing_qr(code: str) -> list:
@@ -292,12 +299,11 @@ def _produced_files(resultat) -> list:
 
     from django.conf import settings
 
-    media_root = Path(settings.MEDIA_ROOT).resolve()
     media_url = getattr(settings, 'MEDIA_URL', '/media/') or '/media/'
-    vus, fichiers = set(), []
+    vus, sendable, oversized = set(), [], []
 
     def _keep(valeur):
-        if len(fichiers) >= _MAX_OUTPUT_FILES or not isinstance(valeur, str):
+        if len(sendable) >= _MAX_OUTPUT_FILES or not isinstance(valeur, str):
             return
         if not valeur.startswith(media_url):
             return
@@ -312,9 +318,15 @@ def _produced_files(resultat) -> list:
         if not chemin.is_file():
             return
         if chemin.stat().st_size > _MAX_OUTPUT_BYTES:
+            # ⚠⚠ ÉCARTÉ, MAIS PLUS EN SILENCE (2026-09-27, question de Fabien sur le lien de
+            # téléchargement). Pour une image le plafond est théorique ; pour une VIDÉO
+            # anonymisée c'est le cas NORMAL — l'utilisateur recevait « c'est terminé », sans
+            # pièce jointe et sans explication. *Ce qui ne plante pas ne se signale pas.*
+            vus.add(rel)
+            oversized.append((chemin.name, chemin.stat().st_size / (1024 * 1024)))
             return
         vus.add(rel)
-        fichiers.append(rel)
+        sendable.append(rel)
 
     def _keep_output(value):
         if isinstance(value, (list, tuple)):
@@ -324,7 +336,7 @@ def _produced_files(resultat) -> list:
             _keep(value)
 
     def _walk(node, depth=0):
-        if depth > _MAX_OUTPUT_DEPTH or len(fichiers) >= _MAX_OUTPUT_FILES:
+        if depth > _MAX_OUTPUT_DEPTH or len(sendable) >= _MAX_OUTPUT_FILES:
             return
         if isinstance(node, dict):
             for key, value in node.items():
@@ -337,7 +349,7 @@ def _produced_files(resultat) -> list:
 
     for etape in (resultat or {}).get('tool_steps') or []:
         _walk(etape.get('result'))
-    return fichiers
+    return sendable, oversized
 
 
 def _store_attachments(user, pieces) -> list:

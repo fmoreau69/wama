@@ -374,7 +374,7 @@ class FichiersProduitsTests(TestCase):
             ]}},
             {'tool': 'search_web', 'result': {'results': []}},
         ]}
-        files = core._produced_files(result)
+        files = core._produced_files(result)[0]
         self.assertEqual(files, ['gateway_tests/sortie.png', 'gateway_tests/sortie.wav'])
 
     def test_only_the_most_recent_job_travels_back(self):
@@ -388,7 +388,7 @@ class FichiersProduitsTests(TestCase):
                 {'id': 646, 'status': 'done', 'output_url': '/media/gateway_tests/ancien.jpg'},
             ]}},
         ]}
-        self.assertEqual(core._produced_files(result), ['gateway_tests/recent.jpg'])
+        self.assertEqual(core._produced_files(result)[0], ['gateway_tests/recent.jpg'])
 
     def test_the_output_of_the_real_get_imager_status_travels_back(self):
         """LA mesure — celle qui manquait. Aucune forme écrite à la main ici : on crée un
@@ -406,26 +406,26 @@ class FichiersProduitsTests(TestCase):
 
         result = {'tool_steps': [{'tool': 'get_imager_status',
                                     'result': get_imager_status(user)}]}
-        self.assertEqual(core._produced_files(result), ['gateway_tests/rendu.png'])
+        self.assertEqual(core._produced_files(result)[0], ['gateway_tests/rendu.png'])
 
     def test_a_flat_shape_still_works(self):
         """Contre-épreuve : les outils qui rendent l'URL à la racine ne régressent pas."""
         self._creer_media('gateway_tests/plat.png')
         result = {'tool_steps': [
             {'tool': 'x', 'result': {'file_url': '/media/gateway_tests/plat.png'}}]}
-        self.assertEqual(core._produced_files(result), ['gateway_tests/plat.png'])
+        self.assertEqual(core._produced_files(result)[0], ['gateway_tests/plat.png'])
 
     def test_une_traversee_hors_media_root_est_ignoree(self):
         resultat = {'tool_steps': [{'tool': 'x', 'result': {
             'file_url': '/media/../wama/settings.py'}}]}
-        self.assertEqual(core._produced_files(resultat), [])
+        self.assertEqual(core._produced_files(resultat)[0], [])
 
     def test_un_fichier_inexistant_ou_un_resultat_non_dict_ne_cassent_rien(self):
         resultat = {'tool_steps': [
             {'tool': 'x', 'result': {'file_url': '/media/gateway_tests/absent.png'}},
             {'tool': 'y', 'result': 'erreur en chaîne'},
         ]}
-        self.assertEqual(core._produced_files(resultat), [])
+        self.assertEqual(core._produced_files(resultat)[0], [])
 
 
 class SurfaceThatAttachesFilesIsDeclaredTests(TestCase):
@@ -469,3 +469,65 @@ class SurfaceThatAttachesFilesIsDeclaredTests(TestCase):
             assistant_engine.run_assistant_turn(user, 'bonjour', provider='ollama',
                                                 model='m', surface='web')
             self.assertNotIn('attached to your reply automatically', seen['system'].lower())
+
+
+class FichierTropVolumineuxTests(TestCase):
+    """Un fichier que le canal ne peut pas porter doit être DIT, pas écarté en silence.
+
+    MESURÉ le 2026-09-27 (question de Fabien sur le lien de téléchargement) : au-delà du
+    plafond, `_produced_files` écartait le fichier sans un mot. Pour une image le cas est
+    théorique ; **pour une vidéo anonymisée c'est le cas NORMAL** — l'utilisateur recevait
+    « c'est terminé », sans pièce jointe et sans explication.
+    ⭐ *Ce qui ne plante pas ne se signale pas.*
+    """
+
+    def _creer_media(self, rel, octets):
+        from pathlib import Path
+        from django.conf import settings
+        chemin = Path(settings.MEDIA_ROOT) / rel
+        chemin.parent.mkdir(parents=True, exist_ok=True)
+        chemin.write_bytes(b'\0' * octets)
+        self.addCleanup(chemin.unlink)
+        return chemin
+
+    def _resultat(self, url):
+        return {'tool_steps': [{'tool': 'get_anonymizer_status',
+                                'result': {'jobs': [{'id': 1, 'output_url': url}]}}]}
+
+    def test_an_oversized_output_is_reported_instead_of_vanishing(self):
+        self._creer_media('gateway_tests/gros.mp4', core._MAX_OUTPUT_BYTES + 1)
+        files, oversized = core._produced_files(
+            self._resultat('/media/gateway_tests/gros.mp4'))
+        self.assertEqual([], files)
+        self.assertEqual(1, len(oversized))
+        self.assertEqual('gros.mp4', oversized[0][0])
+
+    def test_the_reply_says_it_in_words(self):
+        """Contre-épreuve de bout en bout : c'est l'utilisateur qui doit l'apprendre."""
+        from unittest.mock import patch
+
+        from wama.gateway.models import ChannelLink
+        self._creer_media('gateway_tests/lourd.mp4', core._MAX_OUTPUT_BYTES + 1)
+        user = User.objects.create(username='gros-fichier')
+        ChannelLink.objects.create(user=user, channel=CANAL, external_id='999',
+                                   confirmed_at=timezone.now())
+        # Le moteur est patché à SA source : `core` l'importe tardivement, il n'en est pas
+        # un attribut (même geste que les autres gardes de ce fichier).
+        with patch('wama.common.services.assistant_engine.run_assistant_turn',
+                   return_value={'success': True, 'response': "C'est terminé.",
+                                 'model': 'test', 'usage': {},
+                                 'tool_steps': self._resultat(
+                                     '/media/gateway_tests/lourd.mp4')['tool_steps']}):
+            reponse = core.handle_message(core.IncomingMessage(
+                channel=CANAL, external_id='999', text='où est ma vidéo ?'))
+        self.assertIn('Trop volumineux', reponse.text)
+        self.assertIn('lourd.mp4', reponse.text)
+        self.assertEqual([], reponse.files)
+
+    def test_a_file_within_the_ceiling_travels_and_says_nothing(self):
+        """Contre-épreuve : le cas normal ne doit pas hériter d'un avertissement."""
+        self._creer_media('gateway_tests/leger.jpg', 1024)
+        files, oversized = core._produced_files(
+            self._resultat('/media/gateway_tests/leger.jpg'))
+        self.assertEqual(['gateway_tests/leger.jpg'], files)
+        self.assertEqual([], oversized)
