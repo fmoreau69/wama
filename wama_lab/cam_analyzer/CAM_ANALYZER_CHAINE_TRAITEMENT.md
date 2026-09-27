@@ -392,6 +392,18 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 > de la conception. **Aucun smoke GPU/navigateur** n'a été fait (GPU interdit sous WSL2 ici) →
 > l'inférence Depth Pro et le gain `placement_spread` sont **à valider côté runtime/R760xa**.
 > Détail dans `CAM_ANALYZER_CHANGELOG.md` (2026-08-05).
+>
+> 📏 **1er passage GPU RÉEL (2026-09-28, session `4da52df3`) — la chaîne tourne, la donnée d'entrée
+> n'est pas exploitable.** Étage 1 : 96 cartes, 155 contacts, 87 s. Mais la profondeur est
+> **aberrante** : la zone de route est vue entre **0,2 et 1 m** (cartes quasi uniformes) sur la
+> grande majorité des images ; le désaccord médian profondeur↔pinhole vaut **10,6 m**. Rejoué sur
+> **CPU float32** : cartes identiques → ni le float16 ni le GPU ne sont en cause, c'est la sortie du
+> modèle sur ces images (384×248, prises derrière le vitrage de la navette — reflets d'habitacle
+> visibles ; hypothèse non tranchée : vitrage et/ou faible résolution). Étage 2 : les **4 plans de
+> sol sont REJETÉS par les gardes physiques** (hauteurs 0,04–1,1 m, pitch −12 à +6,5°) → repli
+> homographie, rien de dégradé. **Conséquence : ⚑ `depth_estimation` ON ne change aujourd'hui aucun
+> placement.** Étage 3 (overlay) : toujours **inexistant** — aucune vue ni JS ne lit `DepthFrame`.
+> Détail et scripts de mesure : `CAM_ANALYZER_CHANGELOG.md` (2026-09-28).
 
 > 🧱 **DÉCOUPLAGE EN 3 ÉTAGES (2026-08-05, recadrage Fabien « analyse d'abord, calculs ensuite »).**
 > La profondeur n'est plus un bloc monolithique greffé dans `global_tracking` (invisible) mais une
