@@ -22,52 +22,9 @@
             .catch(err => console.error('[right_panel.js] Failed to save setting:', err));
     }
 
-    // ========================================
-    // Detection Mode (YOLO/SAM3) Toggle
-    // ========================================
-
-    function initDetectionModeToggle() {
-        const yoloRadio = document.getElementById('detection_mode_yolo');
-        const sam3Radio = document.getElementById('detection_mode_sam3');
-        const yoloSection = document.getElementById('yolo_settings_section');
-        const sam3Section = document.getElementById('sam3_settings_section');
-        const sam3StatusIndicator = document.getElementById('sam3_status_indicator');
-
-        function toggleDetectionMode(mode) {
-            console.log('[right_panel.js] Toggling detection mode to:', mode);
-            if (mode === 'yolo') {
-                if (yoloSection) yoloSection.style.display = 'block';
-                if (sam3Section) sam3Section.style.display = 'none';
-                if (sam3StatusIndicator) sam3StatusIndicator.style.display = 'none';
-                console.log('[right_panel.js] Saving use_sam3 = false');
-                saveUserSetting('use_sam3', false);
-            } else {
-                if (yoloSection) yoloSection.style.display = 'none';
-                if (sam3Section) sam3Section.style.display = 'block';
-                if (sam3StatusIndicator) sam3StatusIndicator.style.display = 'block';
-                checkSam3Status();
-                console.log('[right_panel.js] Saving use_sam3 = true');
-                saveUserSetting('use_sam3', true);
-            }
-        }
-
-        if (yoloRadio) {
-            yoloRadio.addEventListener('change', function() {
-                if (this.checked) toggleDetectionMode('yolo');
-            });
-        }
-
-        if (sam3Radio) {
-            sam3Radio.addEventListener('change', function() {
-                if (this.checked) toggleDetectionMode('sam3');
-            });
-
-            // Check SAM3 status on page load if SAM3 mode is selected
-            if (sam3Radio.checked) {
-                checkSam3Status();
-            }
-        }
-    }
+    // Le switch de mode (Classes / Description) est la brique commune WamaModes, qui porte le
+    // réglage `target_mode` et affiche les sections du mode (2026-09-27) : ex-`initDetectionModeToggle`
+    // (radios YOLO/SAM3, sections basculées ici, préférence écrite ici) retiré.
 
     // ========================================
     // SAM3 Status Check
@@ -379,97 +336,20 @@
 
     function refreshGlobalSettings(settings) {
         if (!settings) return;
-
-        console.log('[right_panel.js] Refreshing with settings:', settings);
-
-        // Helper to update slider and its output element
-        function updateSlider(id, value) {
-            const slider = document.getElementById(id);
-            if (slider && value !== undefined) {
-                slider.value = value;
-                // Update the output element (next sibling)
-                if (slider.nextElementSibling && slider.nextElementSibling.tagName === 'OUTPUT') {
-                    slider.nextElementSibling.textContent = value;
-                }
-                console.log('[right_panel.js] Updated', id, 'to', value);
-            }
-        }
-
-        // Update precision slider — l'événement DOIT buller : la surface du curseur commun
-        // (zone + couleur) est tenue par la liaison DÉLÉGUÉE au document (wama-params.js),
-        // un input non bullant la laissait figée sur mise à jour programmatique.
-        updateSlider('user_setting_precision_level', settings.precision_level);
-        const precisionSlider = document.getElementById('user_setting_precision_level');
-        if (precisionSlider) {
-            precisionSlider.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-
-        // Update blur_ratio slider
-        updateSlider('user_setting_blur_ratio', settings.blur_ratio);
-
-        // Update detection_threshold slider
-        updateSlider('user_setting_detection_threshold', settings.detection_threshold);
-
-        // Update roi_enlargement slider
-        updateSlider('user_setting_roi_enlargement', settings.roi_enlargement);
-
-        // Update progressive_blur slider
-        updateSlider('user_setting_progressive_blur', settings.progressive_blur);
-
-        // Update SAM3 settings
-        const yoloRadio = document.getElementById('detection_mode_yolo');
-        const sam3Radio = document.getElementById('detection_mode_sam3');
-        if (yoloRadio && sam3Radio) {
-            if (settings.use_sam3) {
-                sam3Radio.checked = true;
-                sam3Radio.dispatchEvent(new Event('change'));
-            } else {
-                yoloRadio.checked = true;
-                yoloRadio.dispatchEvent(new Event('change'));
-            }
-        }
-
-        // Update SAM3 prompt
-        const sam3Prompt = document.getElementById('user_setting_sam3_prompt');
-        if (sam3Prompt) {
-            sam3Prompt.value = settings.sam3_prompt || '';
-            sam3Prompt.dispatchEvent(new Event('input'));
-        }
-
-        // Update classes checkboxes
+        // Les réglages du SCHÉMA (mode compris) : l'applicateur de l'inspecteur commun, qui
+        // connaît chaque champ du volet — plus de recopie champ par champ ici.
+        if (window._anonInspector && window._anonInspector.apply) window._anonInspector.apply(settings);
+        // Classes à flouter : hors schéma (cases de la modale des classes).
         if (settings.classes2blur) {
             document.querySelectorAll('.classes2blur-checkbox').forEach(function(cb) {
                 cb.checked = settings.classes2blur.includes(cb.value);
             });
-            // Update count
             const countEl = document.getElementById('classes2blur_count');
             if (countEl) {
                 const checked = document.querySelectorAll('.classes2blur-checkbox:checked').length;
                 countEl.textContent = checked + ' classe(s) selectionnee(s)';
             }
         }
-
-        // Update model dropdown
-        const modelSelect = document.getElementById('user_setting_model_to_use');
-        if (modelSelect) {
-            modelSelect.value = settings.model_to_use || '';
-        }
-
-        // Update display checkboxes
-        const checkboxes = {
-            'user_setting_show_preview': settings.show_preview,
-            'user_setting_show_boxes': settings.show_boxes,
-            'user_setting_show_labels': settings.show_labels,
-            'user_setting_show_conf': settings.show_conf
-        };
-        for (const [id, value] of Object.entries(checkboxes)) {
-            const cb = document.getElementById(id);
-            if (cb) {
-                cb.checked = value;
-            }
-        }
-
-        console.log('[right_panel.js] Global settings refreshed');
     }
 
     function showResetSuccessMessage() {
@@ -501,7 +381,7 @@
     function init() {
         console.log('[right_panel.js] Initializing...');
 
-        initDetectionModeToggle();
+        checkSam3Status();
         initSam3Prompt();
         initSam3Examples();
         initClassesModal();

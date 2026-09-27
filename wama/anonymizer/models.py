@@ -104,7 +104,17 @@ class Media(ProcessingTimeMixin, ScopedVisibility):
         help_text='Automatically determined by precision level'
     )
 
-    # SAM3 (Segment Anything Model 3) fields
+    # MODE de l'élément (`app_modes`, `mode_param` du domaine `image_video`) : COMMENT on désigne
+    # ce qu'il faut flouter — une liste de classes, ou une description en texte. Remplace le
+    # booléen `use_sam3` (2026-09-27), qui nommait une famille de modèles au lieu du choix.
+    TARGET_MODES = [('classes', 'Classes'), ('description', 'Description')]
+    # `db_default` : le code d'AVANT le rechargement crée des médias sans connaître ce champ —
+    # sans défaut côté base, l'insertion échouait sur NOT NULL (même précaution que `vad_mode`).
+    target_mode = models.CharField(max_length=16, choices=TARGET_MODES, default='classes',
+                                   db_default='classes', verbose_name='Désignation')
+
+    # ⚠ LEGACY — relu seulement par `migrate_anonymizer_mode_and_models`, qui le convertit en
+    # `target_mode` ; retiré après ce transfert (le code en service avant le rechargement le lit).
     use_sam3 = models.BooleanField(
         default=False,
         verbose_name='Use SAM3 for segmentation',
@@ -122,7 +132,10 @@ class Media(ProcessingTimeMixin, ScopedVisibility):
         blank=True,
         null=True,
         verbose_name='YOLO model to use',
-        help_text='Specific YOLO model for this media (empty = use global setting or auto-select)'
+        # Identifiant du CATALOGUE sans la source (`yolo:<fichier>`, `sam3`), ou « auto » — depuis
+        # le 2026-09-27 ; les chemins d'avant (`detect/…pt`) restent lisibles
+        # (`utils.model_selector.model_path_for`) jusqu'à leur conversion.
+        help_text='Catalogue id of the model for this media (empty or "auto" = automatic choice)'
     )
 
     source_url = models.CharField(

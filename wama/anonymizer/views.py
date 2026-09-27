@@ -883,7 +883,7 @@ def _decorate_card(media):
     from wama.common.utils.card_chips import chips_by_section
     from wama.anonymizer.params import PARAMS_JSON
     extra = []
-    if not media.use_sam3 and media.classes2blur:
+    if media.target_mode == 'classes' and media.classes2blur:
         extra.append({'label': ', '.join(media.classes2blur[:3])
                                 + ('…' if len(media.classes2blur) > 3 else ''),
                       'icon': 'fa-eye-slash',
@@ -1015,20 +1015,18 @@ def get_context(request):
     # `gs_values` : nom historique du gabarit du volet, qui lit ces valeurs par NOM de param.
     gs_values = read_panel_settings(user, 'anonymizer', _PARAMS, **PANEL_SETTINGS)
     gs_values['sam3_prompt'] = gs_values.get('sam3_prompt') or ''
-    gs_values['model_to_use'] = gs_values.get('model_to_use') or ''
-
-    from .utils.yolo_utils import get_all_class_choices
-    models_by_type = list_models_by_type()
+    # Le menu de modèle est rempli par le CATALOGUE (source `catalog`, `options_mode`) : sa
+    # valeur est un identifiant du catalogue ou « auto » (une ancienne valeur s'y traduit).
+    from .utils.yolo_utils import catalogue_id_for, get_all_class_choices
+    gs_values['model_to_use'] = catalogue_id_for(gs_values.get('model_to_use')) or 'auto'
 
     return {
         'user': user,
         'gs_values': gs_values,
         'classes': get_all_class_choices(),
-        'models_by_type': models_by_type,
-        'model_help_meta': _model_help_meta(models_by_type),
-        # Appariement entrée↔modèles (brique commune input_match) — JSON déjà sérialisé,
-        # même contrat que model_help_meta (valeurs d'option `type/fichier` OU `fichier`).
-        'input_match_meta': _input_match_meta(models_by_type),
+        # Appariement entrée↔modèles (brique commune input_match) — JSON déjà sérialisé, clé =
+        # identifiant du catalogue (valeur d'option du menu).
+        'input_match_meta': _input_match_meta(),
         'input_labels': _input_labels(),
         # Couverture de classes PAR MODÈLE (brique d'alias model_coverage, JSON) → meta
         # WamaModelCaps : griser les checkboxes de classes hors modèle (jamais cachées).
@@ -1066,23 +1064,16 @@ def _class_coverage_meta():
         return '{}'
 
 
-def _input_match_meta(models_by_type):
-    """Meta JSON brique COMMUNE re-clée sur les VALEURS D'OPTION du select (`type/fichier`,
-    ou `fichier` seul pour le type root — même double clé que _model_help_meta) + pseudo-choix
-    '' (« Auto (basé sur précision) », yolo seulement — sam3 vit derrière le radio de mode)."""
+def _input_match_meta(models_by_type=None):
+    """Meta JSON brique COMMUNE, clée sur les VALEURS D'OPTION du select de modèle — les
+    identifiants du CATALOGUE sans la source (`yolo:<fichier>`, `sam3`), servis par la source
+    `catalog` depuis le 2026-09-27 — plus l'entrée `auto`."""
     import json as _json
     from wama.common.utils.input_match import auto_entry, input_match_meta
-    base = input_match_meta('anonymizer', key=lambda mk: mk.rsplit(':', 1)[-1])
-    if not base:
+    meta = input_match_meta('anonymizer', key=lambda mk: mk.split(':', 1)[-1])
+    if not meta:
         return '{}'
-    meta = {}
-    for mtype, names in (models_by_type or {}).items():
-        for name in names:
-            entry = base.get(name)
-            if entry:
-                meta[f"{mtype}/{name}"] = entry
-                meta.setdefault(name, entry)
-    meta[''] = auto_entry({k: v for k, v in base.items() if k != 'sam3'} or base)
+    meta['auto'] = auto_entry({k: v for k, v in meta.items() if k != 'sam3'} or meta)
     return _json.dumps(meta)
 
 
@@ -1093,31 +1084,8 @@ def _input_labels():
     return _json.dumps(input_labels())
 
 
-def _model_help_meta(models_by_type):
-    """Meta JSON {valeur_option: {description, description_long, vram_gb}} pour WamaModelHelp
-    (descriptif sous le select #user_setting_model_to_use), lue depuis le CATALOGUE `AIModel`
-    (clés `anonymizer:yolo:<fichier>`). Les valeurs d'options du template sont `type/fichier`
-    (ou `fichier` seul) → on mappe par nom de fichier. Fail-safe : '{}' si catalogue indispo."""
-    import json as _json
-    try:
-        from wama.model_manager.models import AIModel
-        by_fname = {}
-        for m in AIModel.objects.filter(model_key__startswith='anonymizer:yolo:'):
-            by_fname[m.model_key.rsplit(':', 1)[-1]] = {
-                'description': m.description_short or '',
-                'description_long': m.description or '',
-                'vram_gb': m.vram_gb,
-            }
-        meta = {}
-        for mtype, names in (models_by_type or {}).items():
-            for name in names:
-                info = by_fname.get(name)
-                if info:
-                    meta[f"{mtype}/{name}"] = info
-                    meta.setdefault(name, info)
-        return _json.dumps(meta)
-    except Exception:
-        return '{}'
+# `_model_help_meta` RETIRÉ le 2026-09-27 : l'aide sous le menu de modèle vient de la voie
+# commune `WamaModelHelp.fetchCatalogMeta('anonymizer')`, clée comme les options du catalogue.
 
 
 # `update_settings` (réglage PAR CHAMP : média, utilisateur ou « global »), `expand_area` (drapeaux
@@ -1269,26 +1237,22 @@ def get_media_settings(request, media_id):
             v = getattr(media, field['name'], None)
             if v is not None:
                 values[field['name']] = v
-        values['model_to_use'] = media.model_to_use or ''
+        from .utils.yolo_utils import catalogue_id_for
+        values['model_to_use'] = catalogue_id_for(media.model_to_use) or 'auto'
         values['sam3_prompt'] = media.sam3_prompt or ''
 
-        from .utils.yolo_utils import get_all_class_choices, get_model_choices_grouped
+        from .utils.yolo_utils import get_all_class_choices
         media_classes = media.classes2blur or []
         classes2blur_list = [
             {'value': code, 'label': label, 'checked': code in media_classes}
             for code, label in get_all_class_choices()
         ]
-        model_choices = [
-            {'value': value, 'label': label, 'group': group_label}
-            for group_label, group_choices in get_model_choices_grouped()
-            for value, label in group_choices
-        ]
-
+        # Les options du menu de modèle ne partent plus d'ici : la modale les tire du CATALOGUE
+        # (source `catalog`, bornées par le mode de l'élément — `options_mode`).
         return JsonResponse({
             'success': True,
             'values': values,
             'classes2blur': classes2blur_list,
-            'model_choices': model_choices,
         })
 
     except Http404:
@@ -1344,11 +1308,11 @@ def save_media_settings(request):
                     }, status=400)
             media.sam3_prompt = prompt if prompt else None
 
-        # Save model selection
+        # Modèle : identifiant du catalogue, ou « auto » / vide = choix automatique au lancement.
         model_to_use = request.POST.get('model_to_use')
         if model_to_use is not None:
-            # Empty string means use global/auto-select
-            media.model_to_use = model_to_use.strip() if model_to_use.strip() else None
+            from wama.common.utils.auto_model import AUTO, is_auto
+            media.model_to_use = AUTO if is_auto(model_to_use) else model_to_use.strip()
 
         # Mark as customized
         media.MSValues_customised = True

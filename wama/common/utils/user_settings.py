@@ -143,7 +143,9 @@ def save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=
             fix = (clean or {}).get(name)
             prefs[name] = fix(data[name]) if fix else data[name]
     defaults = _panel_defaults(params, key, extra)
-    same = [k for k, v in prefs.items() if k in defaults and v == defaults[k]]
+    # Vide et `None` disent la même chose pour un texte (défaut `None`, formulaire rend '').
+    same = [k for k, v in prefs.items() if k in defaults and (
+        v == defaults[k] or (v in ('', None) and defaults[k] in ('', None)))]
     if same:
         clear_user_app_settings(user, app, same)
     prefs = {k: v for k, v in prefs.items() if k not in same}

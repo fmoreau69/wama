@@ -762,7 +762,9 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
 
     Filtres de capacité, tous en VOCABULAIRE CANONIQUE (cf. `INPUT_MODEL_MATCHING.md`) :
       - `modality`        : 'image' | 'video' | 'audio' | … (appartenance à `modalities`)
-      - `task`            : 'text-to-image', 'image-to-video', … (format HF)
+      - `task`            : 'text-to-image', 'image-to-video', … (format HF) — ou PLUSIEURS
+                            (liste, ou chaîne « a,b ») : le domaine d'un select peut réunir des
+                            tâches voisines (anonymizer : détection ET segmentation, 2026-09-27)
       - `available_inputs`: ids d'`INPUT_TYPES` dont on dispose → ne garde que les modèles
                             dont les `inputs_required` sont satisfaites
       - `requires`        : drapeaux booléens `supports_*` (usage historique)
@@ -774,7 +776,12 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
     # Le catalogue parle NOTRE vocabulaire de tâches ; l'appelant (manifeste, prospection,
     # UI) parle parfois celui de HuggingFace. On traduit AVANT de comparer — sans quoi la
     # requête ne trouve rien et le repli ci-dessous sert toute la catégorie, en silence.
-    task = canonical_task(task)
+    tasks = ([x.strip() for x in task.split(',') if x.strip()] if isinstance(task, str)
+             else [x for x in (task or ()) if x])
+    tasks = [canonical_task(x) for x in tasks]
+    # Une seule tâche garde EXACTEMENT le chemin d'avant (inférence de catégorie, filtre de
+    # `matches_inputs`) ; plusieurs se filtrent ci-dessous, chacune gardant son ancrage.
+    task = tasks[0] if len(tasks) == 1 else None
     qs = AIModel.objects.filter(is_available=True)
     from django.db.models import Q
     from ..models import EXECUTION_CLOUD, EXECUTION_LOCAL
@@ -815,6 +822,10 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
         # Ensemble, ils rendent le permissif SÛR : un modèle fraîchement installé, pas
         # encore décrit finement, reste proposable DANS SA CATÉGORIE — jamais ailleurs.
         mt = model_type
+        if not mt and len(tasks) > 1:
+            from ..models import model_type_for_task
+            kinds = {model_type_for_task(x) for x in tasks}
+            mt = kinds.pop() if len(kinds) == 1 else None
         if not mt and task:
             # Table task → model_type DÉJÀ écrite pour la prospection : on la réutilise,
             # on n'en invente pas une seconde. Elle est indexée sur les tags HF : on y
@@ -832,10 +843,11 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
         qs = qs.filter(Q(is_downloaded=True) | Q(execution=EXECUTION_CLOUD))
     qs = qs.order_by('-vram_gb', 'name')
     models = [m for m in qs
-              if _supports(m, requires, None)
+              if (len(tasks) < 2 or (m.capabilities or {}).get('task') in tasks)
+              and _supports(m, requires, None)
               and (modality is None or modality in ((m.capabilities or {}).get('modalities') or []))
               and matches_inputs(m, available_inputs, task, consumes)]
-    if (requires or modality or task or consumes or available_inputs is not None) and not models:
+    if (requires or modality or tasks or consumes or available_inputs is not None) and not models:
         # Le catalogue n'a pas (encore) les capacités — typiquement avant le premier
         # `sync_models` qui suit un enrichissement de l'ingest. On sert la liste NON filtrée
         # plutôt qu'un <select> vide : dégrader la précision, jamais la disponibilité.

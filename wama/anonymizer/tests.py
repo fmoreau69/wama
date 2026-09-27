@@ -44,13 +44,13 @@ class AnonymizerUserSettingsTest(TestCase):
         from wama.anonymizer.models import Media
         from wama.anonymizer.views import new_media_settings
         self._save({'blur_ratio': 41, 'show_boxes': False, 'classes2blur': ['plate'],
-                    'use_sam3': True, 'sam3_prompt': 'blur the plates'})
+                    'target_mode': 'description', 'sam3_prompt': 'blur the plates'})
         media = Media.objects.create(user=self.user, file='anonymizer/x/input/sample.png',
                                      file_ext='.png',
                                      **new_media_settings(self.user, post={'blur_ratio': '9'}))
-        self.assertEqual((9, False, ['plate'], True, 'blur the plates'),
+        self.assertEqual((9, False, ['plate'], 'description', 'blur the plates'),
                          (media.blur_ratio, media.show_boxes, media.classes2blur,
-                          media.use_sam3, media.sam3_prompt),
+                          media.target_mode, media.sam3_prompt),
                          'the deposit POST wins over the author settings, which win over defaults')
 
     def test_another_user_settings_do_not_leak_into_my_media(self):

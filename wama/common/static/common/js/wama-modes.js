@@ -10,6 +10,17 @@
  *       onChange: s => { renderAppSettings(s); } });
  *     // ... wm.getState() -> {domain, mode, inputs}
  *   });
+ *
+ * LE MODE EST UN RÉGLAGE (2026-09-27, `app_modes.mode_param`). Quand le domaine nomme son
+ * `mode_param`, le switch tient un champ caché `name=<mode_param>` : l'inspecteur commun le lit
+ * et l'applique comme n'importe quel réglage (le mode d'une card s'affiche quand on la
+ * sélectionne), la modale et les préférences aussi. Un clic de l'utilisateur émet
+ * `wama:user-edit` (l'enregistrement au geste, `WamaInspector` `autoSave`) ; une valeur posée de
+ * l'extérieur (inspecteur) met le switch à jour sans rien signaler comme geste. Chaque rendu
+ * ANNONCE la valeur du mode par un `change` du champ (non « trusted ») : ce qui en dépend s'aligne,
+ * même rempli avant que le switch n'existe. Les éléments
+ * `[data-mode-section="<id> <id>…"]` de `sectionsRoot` (défaut : la page) ne sont affichés que
+ * pour les modes qu'ils listent — des sections de réglages propres à un mode, sans script d'app.
  */
 (function (global) {
     'use strict';
@@ -65,14 +76,46 @@
         this.block = !!cfg.block;
         // Label optionnel au-dessus du switch de mode (ex : « Mode de génération »).
         this.modesLabel = cfg.modesLabel || null;
+        this.sectionsRoot = cfg.sectionsRoot || document;
+        this._bindParamListener();
         this._render();
     }
+
+    // Le param du schéma qui porte le mode du domaine courant ('' sinon).
+    WamaModes.prototype._param = function () {
+        const dom = this._domains().find(d => d.id === this.domain);
+        return (dom && dom.mode_param) || '';
+    };
+
+    // Valeur posée de l'EXTÉRIEUR sur le champ caché (inspecteur, préférences) → le switch suit.
+    // Délégué sur le conteneur : le champ est recréé à chaque rendu.
+    WamaModes.prototype._bindParamListener = function () {
+        const self = this;
+        if (!this.container) return;
+        this.container.addEventListener('change', function (e) {
+            const tg = e.target;
+            if (!tg || !tg.classList || !tg.classList.contains('wm-param')) return;
+            if (tg.value && tg.value !== self.mode) { self.mode = tg.value; self._render(true); }
+        });
+    };
+
+    // Sections propres à un mode : affichées pour les modes qu'elles listent.
+    WamaModes.prototype._applySections = function () {
+        // Seulement quand le mode est un RÉGLAGE déclaré : sans `mode_param`, le switch n'est
+        // qu'un affichage et ne décide de rien d'autre sur la page.
+        if (!this._param()) return;
+        const mode = this.mode;
+        (this.sectionsRoot || document).querySelectorAll('[data-mode-section]').forEach(el => {
+            const modes = (el.dataset.modeSection || '').split(/\s+/).filter(Boolean);
+            el.hidden = modes.length > 0 && modes.indexOf(mode) === -1;
+        });
+    };
 
     WamaModes.prototype._domains = function () {
         return (this.schema && this.schema.domains) || [];
     };
 
-    WamaModes.prototype._render = function () {
+    WamaModes.prototype._render = function (quiet) {
         const ds = this._domains();
         if (!this.container) return;
         if (!ds.length) { this.container.innerHTML = ''; return; }
@@ -112,6 +155,12 @@
             });
             html += '</div>';
         }
+        // Le champ du RÉGLAGE de mode (si le domaine le déclare) : ce que lisent l'inspecteur,
+        // les préférences et `WamaParams` (`options_mode`) — jamais les boutons eux-mêmes.
+        const param = this._param();
+        if (param && modes.length > 1) {
+            html += `<input type="hidden" class="wm-param" name="${esc(param)}" data-param="${esc(param)}" value="${esc(this.mode)}">`;
+        }
         // ENTRÉES typées du mode (sautées si renderInputs=false : l'app garde les siennes)
         if (this.renderInputs) {
             html += '<div class="wm-inputs">';
@@ -128,7 +177,15 @@
 
         this.container.innerHTML = html;
         this._bind();
-        this.onChange({ domain: this.domain, mode: this.mode, modeDef: mode, realtime: !!mode.realtime });
+        this._applySections();
+        // La valeur du mode est ANNONCÉE à chaque rendu (le premier compris) : ce qui en dépend —
+        // un menu de modèles borné par le mode (`options_mode`) — a pu se remplir avant que le
+        // switch n'existe. Un `change` émis par code n'est jamais pris pour un geste
+        // (l'enregistrement au geste n'écoute que les événements « trusted » et `wama:user-edit`).
+        const field = this.container.querySelector('.wm-param');
+        if (field) field.dispatchEvent(new Event('change', { bubbles: true }));
+        this.onChange({ domain: this.domain, mode: this.mode, modeDef: mode, realtime: !!mode.realtime,
+                        external: !!quiet });
     };
 
     WamaModes.prototype._bind = function () {
@@ -136,8 +193,15 @@
         this.container.querySelectorAll('.wm-domain').forEach(b => b.addEventListener('click', function () {
             self.domain = this.dataset.domain; self.mode = null; self._render();
         }));
-        this.container.querySelectorAll('.wm-mode').forEach(b => b.addEventListener('click', function () {
+        this.container.querySelectorAll('.wm-mode').forEach(b => b.addEventListener('click', function (e) {
+            if (this.dataset.mode === self.mode) return;
             self.mode = this.dataset.mode; self._render();
+            // Un GESTE de l'utilisateur (le rendu a déjà annoncé la nouvelle valeur) :
+            // l'enregistrement au geste est prévenu.
+            const field = self.container.querySelector('.wm-param');
+            if (field && e.isTrusted) {
+                field.dispatchEvent(new CustomEvent('wama:user-edit', { bubbles: true }));
+            }
         }));
         // Bouton « médiathèque » : ouvre MediaPicker (filtré par type), stocke le File choisi.
         this.container.querySelectorAll('.wm-lib').forEach(b => b.addEventListener('click', function () {

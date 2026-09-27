@@ -7,8 +7,9 @@
  * classes .save-settings-btn / .save-and-restart-btn).
  *
  * Exceptions app-spécifiques (déclarées en tête de params.py, PAS des champs du schéma) :
- *   • classes2blur : grille de cases à cocher (multi-sélection d'objets YOLO) ;
- *   • model_to_use : options peuplées du catalogue (get_media_settings.model_choices).
+ *   • classes2blur : grille de cases à cocher (multi-sélection d'objets YOLO).
+ * Le menu de modèle, lui, est un réglage du schéma comme un autre depuis le 2026-09-27 :
+ * WamaParams le remplit depuis le catalogue, borné par le mode de l'élément (`options_mode`).
  *
  * Remplace l'ancien settings_modal.js hand-built (listes sliders/booleans en dur qui
  * recopiaient le schéma).
@@ -27,10 +28,10 @@
 
 
   // ── Section bespoke classes2blur (exception hors schéma) — insérée DANS le groupe
-  // « Quoi flouter (YOLO) » : concept YOLO-only, masquée avec lui en mode SAM3. ──
+  // « Quoi flouter (classes) » : masquée avec lui en mode Description. ──
   function appendClassesSection(host, classes) {
     if (!classes || !classes.length) return;
-    const yolo = host.querySelector('[data-group="yolo"] .wama-param-group-body');
+    const yolo = host.querySelector('[data-group="classes"] .wama-param-group-body');
     const sec = document.createElement('div');
     sec.className = 'mt-3 anon-classes2blur';
     sec.innerHTML =
@@ -45,7 +46,13 @@
         esc(c.label) + '</label></div></div>'
       ).join('') +
       '</div>';
+    // Visibilité : la condition du GROUPE déclaré (params.py, groupe `classes`), appliquée par
+    // la visibilité conditionnelle commune de WamaParams — jamais réécrite ici. Le groupe n'est
+    // pas rendu quand aucun réglage du schéma n'y vit ; la grille porte alors sa condition.
+    const group = (window.WAMA_ANONYMIZER_GROUPS || []).find(g => g.key === 'classes');
+    if (group && group.show_if) sec.setAttribute('data-show-if', JSON.stringify(group.show_if));
     (yolo || host).appendChild(sec);
+    host.dispatchEvent(new Event('change', { bubbles: true }));   // applique la condition
   }
 
   // ── Badge d'état SAM3 dans le titre du groupe « Mode de détection » (référence
@@ -77,29 +84,6 @@
       .catch(() => badge.remove());
   }
 
-  // ── Options du select modèle (catalogue serveur, groupées) ──
-  function fillModelChoices(host, choices, current) {
-    const sel = host.querySelector('select[name="model_to_use"]');
-    if (!sel || !choices) return;
-    sel.innerHTML = '<option value="">Auto (basé sur précision)</option>';
-    const groups = {};
-    choices.forEach(c => {
-      (groups[c.group] = groups[c.group] || []).push(c);
-    });
-    Object.keys(groups).forEach(g => {
-      const og = document.createElement('optgroup');
-      og.label = g;
-      groups[g].forEach(c => {
-        const o = document.createElement('option');
-        o.value = c.value;
-        o.textContent = c.label;
-        og.appendChild(o);
-      });
-      sel.appendChild(og);
-    });
-    sel.value = current || '';
-  }
-
   // Ouverture : ORCHESTRATION COMMUNE (WamaParams.settingsModal). Ce fichier ne declare
   // plus que les specificites anonymizer via les hooks decorate/collect/onSaved/errorOf.
   async function openSettingsModal(id) {
@@ -129,7 +113,6 @@
       csrf: cfg.csrfToken,
       idField: 'media_id',
       decorate: function (host) {
-        fillModelChoices(host, data.model_choices, (data.values || {}).model_to_use);
         appendClassesSection(host, data.classes2blur);
         appendSam3Badge(host);
         // Enrichissement ✨ du prompt SAM3 dans la modale (pipeline commune)

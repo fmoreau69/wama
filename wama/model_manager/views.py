@@ -1219,9 +1219,16 @@ def api_model_options(request):
     une seule app sur dix dérivait sa liste du catalogue, les autres la portaient en dur —
     donc un modèle installé n'apparaissait nulle part sans édition de code.
 
-    Paramètres de DOMAINE (querystring) : `task`, `model_type`, `modality`, `source`.
+    Paramètres de DOMAINE (querystring) : `task` (une, ou plusieurs « a,b »), `model_type`,
+    `modality`, `source`, et un MODE DÉCLARÉ — `app` + `domain` + `mode` (2026-09-27).
     Réponse : `{groups: [{group?, options: [[valeur, libellé]]}]}` — le contrat que
-    `_bindOptionSources` attend déjà (même forme que `/common/api/voices/`).
+    `_bindOptionSources` attend déjà (même forme que `/common/api/voices/`). `group=task`
+    (drapeau d'UI, comme `auto`) : un groupe par tâche, libellé de `ModelTask`.
+
+    Le MODE est une borne de domaine, pas une entrée fournie : c'est le switch de l'app qui dit
+    QUEL travail l'élément fera (désigner par des classes, ou par une description). Ce qu'il
+    impose au modèle se DÉRIVE de sa déclaration (`app_modes.mode_model_filter`) — l'appelant
+    nomme un mode déclaré, jamais des entrées ; l'invariant ci-dessous tient donc.
 
     ⚠⚠ INVARIANT — LISTER N'EST PAS POUVOIR CHOISIR (`INPUT_MODEL_MATCHING §2`, rappelé par
     Fabien le 2026-08-31). Cet endpoint ne prend VOLONTAIREMENT ni `requires` ni
@@ -1250,9 +1257,15 @@ def api_model_options(request):
     if request.GET.get('cloud') in ('1', 'true'):
         from .services.cloud_models import allowed_cloud_keys
         cloud_keys = allowed_cloud_keys(request.user, automatic=False)
+    mode_filter = {}
+    if request.GET.get('mode'):
+        from wama.common.utils.app_modes import mode_model_filter
+        mode_filter = mode_model_filter(request.GET.get('app') or '',
+                                        request.GET.get('domain') or '', request.GET['mode'])
     try:
         choices, info = get_registry_models(
-            source, task=task, model_type=model_type, modality=modality, cloud_keys=cloud_keys)
+            source, task=task, model_type=model_type, modality=modality, cloud_keys=cloud_keys,
+            **mode_filter)
     except Exception as e:
         logger.warning("api_model_options: %s", e, exc_info=True)
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
@@ -1284,7 +1297,20 @@ def api_model_options(request):
         else:
             options.append([mid, libelle])
 
-    reponse = {'success': True, 'groups': [{'options': options}]}
+    groups = [{'options': options}]
+    if request.GET.get('group') == 'task':
+        # Un groupe par TÂCHE, dans l'ordre de la demande — le libellé est celui du catalogue.
+        from .models import ModelTask
+        labels = dict(ModelTask.choices)
+        task_of = {d['id']: (d.get('capabilities') or {}).get('task') or '' for d in info}
+        order = [x.strip() for x in (task or '').split(',') if x.strip()]
+        by_task = {}
+        for opt in options:
+            value = opt['value'] if isinstance(opt, dict) else opt[0]
+            by_task.setdefault(task_of.get(value, ''), []).append(opt)
+        keys = [k for k in order if k in by_task] + [k for k in by_task if k not in order]
+        groups = [{'group': labels.get(k, k or 'Autres'), 'options': by_task[k]} for k in keys]
+    reponse = {'success': True, 'groups': groups}
     # « auto » en 1ʳᵉ option + PRÉVISION du modèle retenu (brique commune auto_model,
     # décision Fabien 2026-09-01). OPT-IN par le schéma (`options_auto`) : seule une app
     # dont le lancement résout « auto » le demande — l'ajouter d'office enverrait une
@@ -1293,11 +1319,23 @@ def api_model_options(request):
     # lancement réévalue.
     if request.GET.get('auto') in ('1', 'true'):
         from wama.common.utils.auto_model import AUTO, AUTO_LABEL, predict_model_choice
-        options.insert(0, [AUTO, AUTO_LABEL])
+        # « auto » en tête de la LISTE, donc en tête du premier groupe (hors de tout groupe
+        # nommé quand la liste est groupée par tâche).
+        if len(groups) > 1 or groups[0].get('group'):
+            groups.insert(0, {'options': [[AUTO, AUTO_LABEL]]})
+        else:
+            options.insert(0, [AUTO, AUTO_LABEL])
         # `quality_intent` (curseur de qualité 0-100) : la prévision arbitre comme le
         # tirage réel arbitrera — valeur inconnue repliée sur équilibré par le sélecteur.
         quality_intent = request.GET.get('quality_intent') or None
+        # Pas de PRÉVISION pour une liste qui réunit plusieurs tâches (2026-09-27) : l'app y
+        # tranche « auto » au lancement avec ce que le domaine ne dit pas (anonymizer : les
+        # classes de l'élément × le curseur). Une prévision par capacité seule annoncerait un
+        # autre modèle que celui du lancement — la prévision doit dire la vérité ou se taire.
+        multi_task = ',' in (task or '')
         try:
+            if multi_task:
+                raise LookupError('liste multi-tâches : pas de prévision')
             preview = predict_model_choice(
                 {'task': task, 'model_type': model_type,
                  'modality': modality, 'source': source,

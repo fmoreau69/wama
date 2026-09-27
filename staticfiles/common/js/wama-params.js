@@ -216,13 +216,21 @@
     // name = groupage des radios (obligatoire) ; radio_name = pont vers le nom legacy si fourni
     // (string ou objet par contexte, comme dom_id).
     const id = api.id, idA = api.idAttr, v = api.value;
-    const rname = perCtx(p.radio_name, api.ctx) || id;
+    // UN seul `name` par bouton (corrigé le 2026-09-27) : on posait `name="<id>"` PUIS l'attribut
+    // d'identité, qui vaut `name="<param>"` dans une modale — le navigateur garde le PREMIER, et
+    // un réglage radio d'une modale partait sous `wp-item-<param>`, que le serveur ne lit jamais
+    // (mesuré sur le mode de l'anonymizer). Le nom historique déclaré (`radio_name`) prime ;
+    // sinon celui de la modale ; au volet (`data-param`), l'id sert à grouper les boutons.
+    const legacy = perCtx(p.radio_name, api.ctx);
+    const posts = idA.indexOf('name=') === 0;
+    const nameAttrs = legacy ? ('name="' + esc(legacy) + '"' + (posts ? '' : ' ' + idA))
+                             : (posts ? idA : ('name="' + id + '" ' + idA));
     const rcls = p.inline ? 'form-check form-check-inline' : 'form-check';
     return api.options(p).map(function (o, i) {
       const checked = (String(o.value) === String(v)) ? 'checked' : '';
       const rid = id + '-' + i;
       return '<div class="' + rcls + '">' +
-        '<input class="form-check-input" type="radio" name="' + rname + '" id="' + rid + '" ' + idA +
+        '<input class="form-check-input" type="radio" ' + nameAttrs + ' id="' + rid + '"' +
         ' value="' + esc(o.value) + '" ' + checked + '>' +
         '<label class="form-check-label" for="' + rid + '">' + esc(o.label) + '</label></div>';
     }).join('');
@@ -505,6 +513,18 @@
     return parts.length ? ('?' + parts.join('&')) : '';
   }
 
+  // Valeur d'un champ VOISIN dans le même conteneur, quel que soit son rendu : `name` (modale),
+  // `data-param` (volet), radios (la cochée), case à cocher. Sert `options_mode` ci-dessous.
+  function _siblingValue(root, name) {
+    var els = (root || document).querySelectorAll('[name="' + name + '"], [data-param="' + name + '"]');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.type === 'radio') { if (el.checked) return el.value; continue; }
+      return el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value;
+    }
+    return '';
+  }
+
   // `only` (optionnel) : prédicat de filtrage — permet à un appelant EXTERNE (volet via
   // WamaInspector.initFromSchema) de ne lier que certaines sources. Ce qu'il sert : ne pas
   // lier DEUX FOIS un champ que l'app a déjà rendu elle-même (le champ de voix du volet
@@ -534,6 +554,8 @@
       if (p.options_cloud) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'cloud=1';
       // `options_abilities` (2026-09-17) : le libellé porte les capacités déclarées du modèle.
       if (p.options_abilities) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'abilities=1';
+      // `options_group` (2026-09-27) : drapeau d'UI lui aussi — les options arrivent groupées.
+      if (p.options_group) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'group=' + encodeURIComponent(p.options_group);
       // Curseur d'INTENTION du même contexte : la prévision arbitre comme le tirage
       // arbitrera. L'intention entre dans l'URL — donc dans la clé de cache — et son
       // changement RAFRAÎCHIT la prévision (sans re-remplir le select : seule la note bouge).
@@ -545,9 +567,22 @@
         }
       }
       var baseUrl = url;   // figé AVANT l'ajout d'intention (la fermeture ci-dessous en dépend)
+      // `options_mode` (2026-09-27) : la liste est BORNÉE PAR LE MODE de l'élément — la valeur du
+      // champ déclaré (`app_modes.mode_param`), lue dans le MÊME conteneur, part avec la requête ;
+      // le serveur en dérive ce que le mode impose au modèle. Sa valeur entre dans l'URL, donc
+      // dans la clé de cache : deux modes ne se servent jamais la liste l'un de l'autre.
+      var om = p.options_mode;
+      var root = container || document;
+      var modeQuery = function () {
+        if (!om || !om.field) return '';
+        var v = _siblingValue(root, om.field);
+        return v ? ((baseUrl.indexOf('?') >= 0 ? '&' : '?') + 'app=' + encodeURIComponent(om.app) +
+                    '&domain=' + encodeURIComponent(om.domain) + '&mode=' + encodeURIComponent(v)) : '';
+      };
       var urlWithIntent = function () {
-        return baseUrl + (intentEl && intentEl.value
-          ? '&quality_intent=' + encodeURIComponent(intentEl.value) : '');
+        var u = baseUrl + modeQuery();
+        return u + (intentEl && intentEl.value
+          ? (u.indexOf('?') >= 0 ? '&' : '?') + 'quality_intent=' + encodeURIComponent(intentEl.value) : '');
       };
       url = urlWithIntent();
       var sid = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
@@ -575,6 +610,9 @@
         } else if (cur) {
           sel.value = cur;
         }
+        // Valeur disparue de la nouvelle liste (un modèle d'un autre mode) : la PREMIÈRE option,
+        // jamais un select sans sélection — sa lecture rendrait '' (mesuré au smoke du 27/09).
+        if (sel.selectedIndex < 0 && sel.options.length) sel.selectedIndex = 0;
         wanted = null;
         _bindAutoPreview(sel, d.auto_preview);
         // « Options prêtes » (2026-09-22) : les options de CE select viennent d'être REMPLACÉES.
@@ -599,11 +637,32 @@
             .catch(function () {});
         });
       }
-      if (_optionSourceCache[url]) { fill(_optionSourceCache[url]); return; }
-      fetch(url, { credentials: 'same-origin' })
-        .then(function (r) { return r.json(); })
-        .then(function (d) { _optionSourceCache[url] = d || {}; fill(_optionSourceCache[url]); })
-        .catch(function () {});
+      // La DERNIÈRE demande seule remplit le select : la première part avant que le mode ne
+      // soit connu, et sa réponse peut arriver APRÈS celle du mode — elle remettait alors la
+      // liste non bornée (mesuré au smoke du 2026-09-27 : SAM3 proposé en mode « Classes »).
+      var load = function (u) {
+        var seq = sel._wpOptionsSeq = (sel._wpOptionsSeq || 0) + 1;
+        if (_optionSourceCache[u]) { fill(_optionSourceCache[u]); return; }
+        fetch(u, { credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            _optionSourceCache[u] = d || {};
+            if (sel._wpOptionsSeq === seq) fill(_optionSourceCache[u]);
+          })
+          .catch(function () {});
+      };
+      // Changement de MODE → la LISTE change (contrairement à l'intention) : on re-remplit. La
+      // sélection est gardée si le modèle existe dans le nouveau mode, sinon le select revient
+      // à sa première option (« auto » quand le schéma la sert).
+      if (om && om.field && !sel._wpModeBound) {
+        sel._wpModeBound = true;
+        root.addEventListener('change', function (e) {
+          var tg = e.target;
+          if (!tg || !tg.matches || !tg.matches('[name="' + om.field + '"], [data-param="' + om.field + '"]')) return;
+          load(urlWithIntent());
+        });
+      }
+      load(url);
     });
   }
 

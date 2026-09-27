@@ -223,3 +223,92 @@ class ChipsDeCardTest(TestCase):
         champ['choices'] = [('olmocr', 'Libellé du schéma')]
         libelles = [c['label'] for c in chips_for(_Item(), [champ])]
         self.assertIn('Libellé du schéma', libelles)
+
+
+def _model(key, name, *, task, inputs=None, model_type='vision'):
+    return AIModel.objects.create(
+        model_key=key, name=name, model_type=model_type, source=key.split(':')[0], vram_gb=1.0,
+        is_available=True, is_downloaded=True, is_proposed=False,
+        capabilities={'task': task, **({'inputs_required': inputs} if inputs else {})})
+
+
+class ModeBoundOptionsTest(TestCase):
+    """A model menu BOUNDED BY THE ELEMENT'S MODE (2026-09-27, `Param.options_mode`).
+
+    The mode is a declared domain bound (`app_modes.mode_param`), never an input the user
+    provides: what it imposes on the model is DERIVED from its declaration
+    (`mode_model_filter`). Seeded on the anonymizer, the first app to declare it."""
+
+    def setUp(self):
+        _model('anonymizer:yolo:a.pt', 'YOLO a', task='detect')
+        _model('anonymizer:yolo:b-seg.pt', 'YOLO b seg', task='segment')
+        _model('anonymizer:sam3', 'SAM3', task='segment', inputs=['work_file', 'prompt'])
+        _model('anonymizer:yolo:p-pose.pt', 'YOLO pose', task='pose')
+        user = get_user_model().objects.create_user(username='mode_bound', password='x')
+        self.client = Client()
+        self.client.force_login(user)
+
+    def _values(self, **query):
+        r = self.client.get(URL, {'source': 'anonymizer', 'task': 'detect,segment', **query})
+        self.assertEqual(r.status_code, 200)
+        return [(g.get('group'), sorted(o[0] if isinstance(o, list) else o['value']
+                                        for o in g['options'])) for g in r.json()['groups']]
+
+    def test_several_tasks_bound_the_domain_together(self):
+        values = {v for _, vs in self._values() for v in vs}
+        self.assertEqual({'yolo:a.pt', 'yolo:b-seg.pt', 'sam3'}, values,
+                         'a pose model has no place in a menu of detection and segmentation')
+
+    def test_each_mode_keeps_the_models_that_serve_it(self):
+        mode = {'app': 'anonymizer', 'domain': 'image_video'}
+        classes = {v for _, vs in self._values(mode='classes', **mode) for v in vs}
+        description = {v for _, vs in self._values(mode='description', **mode) for v in vs}
+        self.assertEqual({'yolo:a.pt', 'yolo:b-seg.pt'}, classes,
+                         'a model that REQUIRES a description cannot serve the classes mode')
+        self.assertEqual({'sam3'}, description,
+                         'a model that ignores the description does not serve that mode')
+
+    def test_the_menu_is_grouped_by_task_with_the_catalogue_labels(self):
+        groups = dict(self._values(group='task', auto='1'))
+        self.assertEqual(['auto'], groups.get(None), '« auto » heads the menu, outside any group')
+        self.assertEqual(['yolo:a.pt'], groups.get('Détection'))
+        self.assertEqual(['sam3', 'yolo:b-seg.pt'], groups.get('Segmentation'))
+
+    def test_a_multi_task_menu_announces_no_forecast(self):
+        """The app settles « auto » at launch with what the domain does not say (the element's
+        classes): a forecast by capability alone would name another model."""
+        r = self.client.get(URL, {'source': 'anonymizer', 'task': 'detect,segment', 'auto': '1'})
+        self.assertNotIn('auto_preview', r.json())
+
+
+class ModeDeclarationsTest(TestCase):
+    """True for EVERY app: a declared mode is a real setting of the app's schema."""
+
+    def test_every_mode_param_is_a_schema_setting_whose_values_are_the_mode_ids(self):
+        from wama.common.utils.app_modes import APP_MODES
+        checked = 0
+        for app, spec in APP_MODES.items():
+            for domain in spec.get('domains') or []:
+                param = domain.get('mode_param')
+                if not param:
+                    continue
+                with self.subTest(app=app, domain=domain['id']):
+                    field = _champ(app, param)
+                    values = {c[0] for c in field.get('choices') or []}
+                    self.assertEqual({m['id'] for m in domain.get('modes') or []}, values)
+                    self.assertIn(field.get('default'), values)
+                    self.assertIn('panel', field.get('contexts') or ())
+                    checked += 1
+        self.assertGreaterEqual(checked, 1, 'the anonymizer declares its mode')
+
+    def test_every_options_mode_points_at_a_declared_mode_param(self):
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.utils.app_modes import mode_param
+        for app in APP_CATALOG:
+            for field in _schemas(app):
+                om = field.get('options_mode')
+                if not om:
+                    continue
+                with self.subTest(app=app, field=field.get('name')):
+                    self.assertEqual(field.get('options_source'), 'catalog')
+                    self.assertEqual(om.get('field'), mode_param(om.get('app'), om.get('domain')))
