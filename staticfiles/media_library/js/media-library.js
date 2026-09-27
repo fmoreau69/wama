@@ -258,6 +258,34 @@
         loadAssets(false);
     });
 
+    // ── Attributs de nature, en clair ─────────────────────────────────────────
+
+    /** Les attributs DÉCLARÉS que cet asset porte, libellés — `[{label, value}]`.
+     *
+     *  L'ordre est celui de la DÉCLARATION (natures.py), pas celui du JSON stocké : deux voix
+     *  doivent se lire dans le même ordre. Une clé non déclarée est ignorée ici — elle est
+     *  conservée en base (`normalize_attributes` ne perd rien), mais l'afficher sans savoir
+     *  la nommer ferait un libellé brut au milieu de libellés soignés. */
+    function assetAttributes(asset) {
+        const declared = (natures[asset.asset_type || currentType] || {}).attributes || {};
+        const held = asset.attributes || {};
+        return Object.keys(declared).filter(function (key) {
+            return held[key] !== undefined && held[key] !== null && held[key] !== '';
+        }).map(function (key) {
+            const spec = declared[key];
+            const value = held[key];
+            return { label: spec.label || key,
+                     value: (spec.labels && spec.labels[value]) || String(value) };
+        });
+    }
+
+    function describeAttributes(asset) {
+        const parts = assetAttributes(asset).map(function (a) {
+            return `<span class="asset-attr" title="${esc(a.label)}">${esc(a.value)}</span>`;
+        });
+        return parts.length ? `<div class="asset-attrs">${parts.join('')}</div>` : '';
+    }
+
     // ── Construction d'une carte ──────────────────────────────────────────────
 
     function buildCard(asset, isSystem) {
@@ -289,6 +317,14 @@
                 <i class="fas ${icon} asset-preview-icon"></i>
             </div>`;
         }
+
+        // Attributs déclarés par la NATURE (langue, âge, genre pour une voix ; bpm/tonalité pour
+        // une musique ; format/rigged pour un objet 3D…). Ils étaient sérialisés depuis A′ et
+        // affichés NULLE PART : la médiathèque stockait la taxonomie sans jamais la montrer, et
+        // une voix s'y lisait `french/adult/male_adult_1_fr` quand le synthesizer, lui, disait
+        // « Français — Adulte — Homme 1 ». Rendu GÉNÉRIQUE : rien ici ne connaît les voix, tout
+        // vient de `natures_as_json()` — une nature qui déclare un attribut l'affiche.
+        const attrsHtml = describeAttributes(asset);
 
         // Tags
         const tagsHtml = asset.tags
@@ -342,6 +378,7 @@
                 <div class="asset-name" title="${esc(asset.name)}" data-id="${asset.id}">${esc(asset.name)}</div>
                 ${audioPlayerHtml}
                 ${asset.description ? `<div class="asset-meta text-truncate mt-1" title="${esc(asset.description)}">${esc(asset.description)}</div>` : ''}
+                ${attrsHtml}
                 <div class="asset-meta">${metaParts.join(' · ')}</div>
                 ${tagsHtml ? `<div class="asset-tags">${tagsHtml}</div>` : ''}
             </div>`;

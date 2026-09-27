@@ -30,10 +30,20 @@ from wama.common.app_registry import MEDIA_CATEGORIES
 class Attr:
     """Un attribut déclaré d'une nature : son TYPE (pour la coercition), sa description (doc
     vivante — même rôle que les valeurs de `CANONICAL_CAPABILITIES`) et, s'il en a un, son
-    vocabulaire de valeurs. `choices` vide = valeur libre."""
+    vocabulaire de valeurs. `choices` vide = valeur libre.
+
+    `label` et `labels` sont ce qu'on AFFICHE : le nom du champ, et le nom de chaque valeur
+    (`'fr'` → `Français`). Ils vivent ICI, avec la déclaration, et nulle part ailleurs — c'est
+    le même partage que `choices` : *une nature qui déclare ses valeurs déclare comment on les
+    lit*. Jusqu'au 2026-09-27 ces tables vivaient dans la brique TTS (`tts/voice_refs.py`), qui
+    était donc seule à savoir dire « Français — Adulte — Homme » ; la médiathèque, qui STOCKE
+    ces attributs, ne les affichait pas du tout.
+    """
     kind: str                      # 'str' | 'int' | 'float' | 'bool' | 'list'
     description: str
     choices: Tuple[str, ...] = ()
+    label: str = ''                # libellé du CHAMP ('' → la clé telle quelle)
+    labels: Dict[str, str] = field(default_factory=dict)   # libellé de chaque VALEUR
 
 
 @dataclass(frozen=True)
@@ -53,6 +63,19 @@ class Nature:
 _AGES = ('child', 'adult', 'elderly')
 _GENDERS = ('male', 'female')
 
+#: Les libellés des valeurs de la nature `voice`. ⚠ DOMICILE UNIQUE depuis le 2026-09-27 :
+#: `common/tts/voice_refs.py` les lit d'ici (ses `_LANG_CODE_TO_LABEL`/`_AGE_TO_LABEL`/
+#: `_GENDER_TO_LABEL` en étaient la souche) et la page médiathèque les reçoit par
+#: `natures_as_json()`. Ajouter une langue = une ligne, et les deux surfaces suivent.
+_LANGUAGE_LABELS: Dict[str, str] = {
+    'fr': 'Français', 'en': 'English', 'es': 'Español',
+    'de': 'Deutsch', 'it': 'Italiano', 'pt': 'Português',
+    'ja': '日本語', 'zh': '中文', 'ko': '한국어',
+    'nl': 'Nederlands', 'pl': 'Polski', 'ru': 'Русский',
+}
+_AGE_LABELS: Dict[str, str] = {'child': 'Enfant', 'adult': 'Adulte', 'elderly': 'Senior'}
+_GENDER_LABELS: Dict[str, str] = {'male': 'Homme', 'female': 'Femme'}
+
 #: Les TROIS natures audio acceptent les MÊMES fichiers (2026-09-19, question de Fabien :
 #: « pourquoi un bruitage ne peut-il pas être un .aac ? »). Les listes divergeaient par
 #: héritage d'un littéral (aac pour la musique seule, aiff pour le bruitage seul), pas par
@@ -66,10 +89,14 @@ ASSET_NATURES: Dict[str, Nature] = {
         label='Voix', category='audio', icon='fa-microphone', pivot='wav',
         extensions=AUDIO_EXTENSIONS,
         attributes={
-            'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…)"),
-            'age':      Attr('str', "tranche d'âge de la voix", _AGES),
-            'gender':   Attr('str', 'genre de la voix', _GENDERS),
-            'variant':  Attr('int', 'numéro de variante parmi les voix de même (langue, âge, genre) ; 1 par défaut'),
+            'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…)",
+                             label='Langue', labels=_LANGUAGE_LABELS),
+            'age':      Attr('str', "tranche d'âge de la voix", _AGES,
+                             label='Âge', labels=_AGE_LABELS),
+            'gender':   Attr('str', 'genre de la voix', _GENDERS,
+                             label='Genre', labels=_GENDER_LABELS),
+            'variant':  Attr('int', 'numéro de variante parmi les voix de même (langue, âge, genre) ; 1 par défaut',
+                             label='Variante'),
         },
     ),
     'audio_music': Nature(
@@ -174,7 +201,8 @@ def nature_of(asset_type: str) -> Nature:
 def attribute_schema(asset_type: str) -> Dict[str, Dict[str, Any]]:
     """Le schéma d'attributs d'une nature, sérialisable — c'est ce depuis quoi un formulaire
     se REND (même geste que `param_schema` → `WamaParams` pour les réglages d'app)."""
-    return {k: {'kind': a.kind, 'description': a.description, 'choices': list(a.choices)}
+    return {k: {'kind': a.kind, 'description': a.description, 'choices': list(a.choices),
+                'label': a.label or k, 'labels': dict(a.labels)}
             for k, a in nature_of(asset_type).attributes.items()}
 
 

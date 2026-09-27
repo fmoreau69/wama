@@ -195,3 +195,75 @@ class LaSauvegardeNormaliseTest(TestCase):
         with self.assertRaises(ValueError):
             s.attributes = {'gender': 'robot'}
             s.save()
+
+
+class ANatureSaysHowItsValuesAreReadTest(TestCase):
+    """Les LIBELLÉS de valeurs vivent avec la déclaration (2026-09-27).
+
+    Avant, ils vivaient dans `common/tts/voice_refs.py` : le menu du synthesizer savait dire
+    « Français — Adulte — Homme 1 », et la médiathèque, qui STOCKE ces attributs, les affichait
+    nulle part. Deux tables auraient divergé — celle-ci est la seule.
+    """
+
+    def test_the_voice_nature_labels_its_values(self):
+        schema = natures.attribute_schema('voice')
+        self.assertEqual('Langue', schema['language']['label'])
+        self.assertEqual('Français', schema['language']['labels']['fr'])
+        self.assertEqual('Adulte', schema['age']['labels']['adult'])
+        self.assertEqual('Femme', schema['gender']['labels']['female'])
+
+    def test_the_tts_brick_reads_those_labels_and_does_not_hold_its_own(self):
+        """⚠ La garde qui compte : la brique TTS ne DÉCLARE plus ces tables, elle les LIT.
+        Sans elle, on recopierait la table le jour où l'import gêne, et les deux surfaces
+        diraient deux choses de la même voix."""
+        import inspect
+
+        from wama.common.tts import voice_refs
+        self.assertIs(voice_refs._LANG_CODE_TO_LABEL,
+                      natures.ASSET_NATURES['voice'].attributes['language'].labels)
+        source = inspect.getsource(voice_refs)
+        self.assertNotIn("'fr': 'Français'", source,
+                         "la table des langues est redéclarée dans la brique TTS")
+
+    def test_the_age_order_still_goes_child_adult_elderly(self):
+        """Contre-épreuve : déplacer les libellés ne doit pas toucher au TRI du menu."""
+        from wama.common.tts import voice_refs
+        self.assertEqual({'child': 0, 'adult': 1, 'elderly': 2}, voice_refs._AGE_ORDER)
+
+    def test_an_undeclared_nature_attribute_has_no_labels(self):
+        """Une nature sans vocabulaire de valeurs rend un dictionnaire vide, jamais `None` :
+        le JS y lit `spec.labels[value]` sans garde."""
+        schema = natures.attribute_schema('audio_music')
+        self.assertEqual({}, schema['bpm']['labels'])
+        self.assertEqual('bpm', schema['bpm']['label'])
+
+
+class ASystemAssetIsNeverDeletedHereTest(TestCase):
+    """`delete_asset` REFUSE un asset système, en le disant (2026-09-27).
+
+    Elle lisait `asset.source_app` sans rien vérifier — champ absent de `SystemAsset` : passé
+    une voix intégrée, elle levait `AttributeError`. *Une protection par accident n'en est pas
+    une* — le message parlait d'un champ manquant, pas de ce qui est interdit.
+    """
+
+    def _fichier(self, nom='v.wav'):
+        return ContentFile(b'RIFF\0\0\0\0WAVE', name=nom)
+
+    def test_deleting_a_system_asset_is_refused_by_name(self):
+        from wama.media_library.services import delete_asset
+        s = SystemAsset(name='sys_protege', asset_type='voice')
+        s.file.save('sys_protege.wav', self._fichier(), save=False)
+        s.save()
+        with self.assertRaisesRegex(TypeError, 'SystemAsset'):
+            delete_asset(s)
+        self.assertTrue(SystemAsset.objects.filter(pk=s.pk).exists())
+
+    def test_a_user_asset_is_still_deleted(self):
+        """Contre-épreuve : le refus ne doit pas fermer la porte normale."""
+        from wama.media_library.services import delete_asset
+        user = get_user_model().objects.create_user('del_t', password='x')
+        a = UserAsset(user=user, name='a_supprimer', asset_type='voice')
+        a.file.save('a_supprimer.wav', self._fichier('a_supprimer.wav'), save=False)
+        a.save()
+        delete_asset(a)
+        self.assertFalse(UserAsset.objects.filter(pk=a.pk).exists())

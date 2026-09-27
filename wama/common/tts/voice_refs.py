@@ -36,23 +36,21 @@ logger = logging.getLogger(__name__)
 # Tables de conversion (libellés) — les VALEURS sont celles de `natures.py` ('voice')
 # ---------------------------------------------------------------------------
 
-_LANG_CODE_TO_LABEL: Dict[str, str] = {  # wama:redondance-ok — labels d'affichage par langue (info nouvelle)
-    'fr': 'Français', 'en': 'English', 'es': 'Español',
-    'de': 'Deutsch', 'it': 'Italiano', 'pt': 'Português',
-    'ja': '日本語', 'zh': '中文', 'ko': '한국어',
-    'nl': 'Nederlands', 'pl': 'Polski', 'ru': 'Русский',
-}
+# ⚠ Ces trois tables ne sont plus DÉCLARÉES ici (2026-09-27) : elles vivent avec la nature qui
+# les porte (`media_library/natures.py`, `Attr.labels`), et la page médiathèque les reçoit par
+# `natures_as_json()`. Tant qu'elles n'étaient qu'ici, la médiathèque STOCKAIT `language`/`age`/
+# `gender` sans jamais savoir les afficher — seul le menu du synthesizer savait lire ses propres
+# données. *Le vocabulaire et sa lecture se déclarent au même endroit, ou ils divergent.*
+from wama.media_library.natures import ASSET_NATURES as _NATURES
 
-_AGE_TO_LABEL: Dict[str, str] = {
-    'child': 'Enfant', 'adult': 'Adulte', 'elderly': 'Senior',
-}
+_VOICE_ATTRS = _NATURES['voice'].attributes
+_LANG_CODE_TO_LABEL: Dict[str, str] = _VOICE_ATTRS['language'].labels
+_AGE_TO_LABEL: Dict[str, str] = _VOICE_ATTRS['age'].labels
+_GENDER_TO_LABEL: Dict[str, str] = _VOICE_ATTRS['gender'].labels
 
-# Sort key for age (child < adult < elderly)
-_AGE_ORDER: Dict[str, int] = {'child': 0, 'adult': 1, 'elderly': 2}
-
-_GENDER_TO_LABEL: Dict[str, str] = {
-    'male': 'Homme', 'female': 'Femme',
-}
+# L'ORDRE des âges, lui, reste ici : ce n'est pas un libellé mais un critère de TRI du menu,
+# et `Attr.choices` le donne déjà dans le bon sens (enfant < adulte < senior).
+_AGE_ORDER: Dict[str, int] = {value: i for i, value in enumerate(_VOICE_ATTRS['age'].choices)}
 
 # Pattern: {gender}_{age}[_{variant}]_{lang}.wav
 _FILE_PATTERN = re.compile(
