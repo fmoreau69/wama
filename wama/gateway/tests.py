@@ -531,3 +531,66 @@ class FichierTropVolumineuxTests(TestCase):
             self._resultat('/media/gateway_tests/leger.jpg'))
         self.assertEqual(['gateway_tests/leger.jpg'], files)
         self.assertEqual([], oversized)
+
+
+class LegendeDuFichierOriginalTests(TestCase):
+    """La légende qui porte le lien vers l'ORIGINAL (2026-09-27, mesure de Fabien).
+
+    Il enregistre l'image depuis le fil et obtient un **webp de 75 Ko** là où WAMA a envoyé un
+    **JPEG de 445 203 octets** : ce qu'on enregistre depuis l'aperçu est le proxy d'images de
+    Discord. L'original est la pièce jointe, et son URL n'existe qu'APRÈS le téléversement.
+    ⭐ *Un aperçu et un fichier se ressemblent à l'écran et ne pèsent pas la même chose.*
+
+    C'est aussi le « lien de téléchargement » qui manquait : il ne demande ni URL publique de
+    WAMA, ni de faire circuler un secret dans une messagerie.
+    """
+
+    class _Piece:
+        url = 'https://cdn.discordapp.com/attachments/1/2/sortie.jpg?ex=abc'
+
+    class _Message:
+        def __init__(self, attachments):
+            self.attachments = attachments
+            self.content = None
+
+        async def edit(self, content=None):
+            self.content = content
+
+    def _fichier(self, octets=445203):
+        from pathlib import Path
+        from django.conf import settings
+        chemin = Path(settings.MEDIA_ROOT) / 'gateway_tests' / 'sortie.jpg'
+        chemin.parent.mkdir(parents=True, exist_ok=True)
+        chemin.write_bytes(b'\0' * octets)
+        self.addCleanup(chemin.unlink)
+        return chemin
+
+    def _legender(self, message, chemin):
+        import asyncio
+
+        from wama.gateway.adapters.discord_bot import _caption_original
+        asyncio.run(_caption_original(message, chemin))
+        return message.content
+
+    def test_the_caption_carries_the_attachment_url_its_size_and_the_warning(self):
+        message = self._Message([self._Piece()])
+        texte = self._legender(message, self._fichier())
+        self.assertIn(self._Piece.url, texte)
+        self.assertIn('sortie.jpg', texte)
+        self.assertIn('0.4 Mo', texte)
+        self.assertIn('compressée', texte, "l'utilisateur doit savoir que l'aperçu ment")
+
+    def test_a_message_without_attachment_is_left_alone(self):
+        """Contre-épreuve : rien à légender ne doit pas produire une légende vide."""
+        message = self._Message([])
+        self.assertIsNone(self._legender(message, self._fichier()))
+
+    def test_a_failed_edit_never_costs_the_attachment(self):
+        """La pièce jointe est DÉJÀ partie : une légende qui échoue ne doit rien emporter."""
+        class _Rate(self._Message):
+            async def edit(self, content=None):
+                raise RuntimeError('discord indisponible')
+
+        message = _Rate([self._Piece()])
+        self._legender(message, self._fichier())      # ne lève pas
+        self.assertIsNone(message.content)
