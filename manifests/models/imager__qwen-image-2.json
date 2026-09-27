@@ -12,6 +12,8 @@
       "modalities": [
         "image"
       ],
+      "recommended_guidance": 4.0,
+      "recommended_steps": 50,
       "task": "text-to-image",
       "tasks": [
         "text-to-image"

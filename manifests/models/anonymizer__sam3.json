@@ -27,7 +27,7 @@
       }
     },
     "extra_info": {
-      "version": null,
+      "version": "0.1.2",
       "vram_provenance": "declared"
     },
     "formats": {

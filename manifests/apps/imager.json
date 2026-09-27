@@ -506,6 +506,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Curseur rapide/qualité 0-100 du tirage auto'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "quality_intent"
+            },
+            {
+              "args": [],
               "class": "django.db.models.BooleanField",
               "kwargs": {
                 "default": {
@@ -1173,6 +1192,7 @@
         "IMAGE_PARAMS_JSON": [
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1200,7 +1220,11 @@
             "min_label": "",
             "name": "model",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1213,6 +1237,55 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 50,
+            "dom_id": {
+              "item": "settings_quality_intent",
+              "panel": "quality_intent"
+            },
+            "group": "modele",
+            "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-gauge-high",
+            "inline": false,
+            "label": "Rapide ↔ Qualité",
+            "max": 100,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "quality_intent",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "auto",
+              "field": "model"
+            },
+            "step": 1,
+            "type": "intent",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1239,7 +1312,11 @@
             "min_label": "",
             "name": "negative_prompt",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1252,6 +1329,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "img",
             "choices": [
@@ -1296,7 +1374,11 @@
             "min_label": "",
             "name": "num_images",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1309,6 +1391,13 @@
           },
           {
             "advanced": false,
+            "cap_from": {
+              "capability": "recommended_steps",
+              "field": "model",
+              "label": "Recommandé pour ce modèle :",
+              "mode": "note",
+              "unit": " pas"
+            },
             "chip": true,
             "chip_label": "steps",
             "choices": null,
@@ -1336,7 +1425,11 @@
             "min_label": "",
             "name": "steps",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1349,6 +1442,12 @@
           },
           {
             "advanced": false,
+            "cap_from": {
+              "capability": "recommended_guidance",
+              "field": "model",
+              "label": "Guidage recommandé pour ce modèle :",
+              "mode": "note"
+            },
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1376,7 +1475,11 @@
             "min_label": "",
             "name": "guidance_scale",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1389,6 +1492,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1416,7 +1520,11 @@
             "min_label": "",
             "name": "seed",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1429,6 +1537,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1455,7 +1564,11 @@
             "min_label": "",
             "name": "image_strength",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1468,6 +1581,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1495,7 +1609,11 @@
             "min_label": "",
             "name": "upscale",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1508,6 +1626,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -1516,40 +1635,36 @@
                 "Original (inchangé)"
               ],
               [
-                "mp4",
-                ".MP4"
+                "jpg",
+                ".JPG"
               ],
               [
-                "webm",
-                ".WEBM"
+                "png",
+                ".PNG"
               ],
               [
-                "avi",
-                ".AVI"
+                "webp",
+                ".WEBP"
               ],
               [
-                "mov",
-                ".MOV"
+                "tiff",
+                ".TIFF"
               ],
               [
-                "mkv",
-                ".MKV"
+                "bmp",
+                ".BMP"
               ],
               [
                 "gif",
                 ".GIF"
               ],
               [
-                "mp3",
-                ".MP3"
+                "avif",
+                ".AVIF"
               ],
               [
-                "wav",
-                ".WAV"
-              ],
-              [
-                "ogg",
-                ".OGG"
+                "pdf",
+                ".PDF"
               ]
             ],
             "contexts": [
@@ -1575,7 +1690,11 @@
             "min_label": "",
             "name": "output_format",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1588,6 +1707,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -1614,7 +1734,7 @@
               "panel": "output_quality"
             },
             "group": "sortie",
-            "help": "",
+            "help": "Appliquée à la conversion vers le format choisi.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1627,13 +1747,29 @@
             "min_label": "",
             "name": "output_quality",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
             "section": "settings",
-            "show_if": null,
+            "show_if": {
+              "field": "output_format",
+              "in": [
+                "jpg",
+                "png",
+                "webp",
+                "tiff",
+                "bmp",
+                "gif",
+                "avif",
+                "pdf"
+              ]
+            },
             "step": null,
             "type": "select",
             "unit": ""
@@ -1642,6 +1778,7 @@
         "VIDEO_PARAMS_JSON": [
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1669,7 +1806,11 @@
             "min_label": "",
             "name": "model",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1682,6 +1823,55 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 50,
+            "dom_id": {
+              "item": "video_settings_quality_intent",
+              "panel": "panel_video_quality_intent"
+            },
+            "group": "modele",
+            "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-gauge-high",
+            "inline": false,
+            "label": "Rapide ↔ Qualité",
+            "max": 100,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "quality_intent",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "auto",
+              "field": "model"
+            },
+            "step": 1,
+            "type": "intent",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1708,7 +1898,11 @@
             "min_label": "",
             "name": "negative_prompt",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1721,6 +1915,12 @@
           },
           {
             "advanced": false,
+            "cap_from": {
+              "capability": "native_resolution",
+              "field": "model",
+              "label": "Résolution native du modèle :",
+              "mode": "note"
+            },
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -1757,7 +1957,11 @@
             "min_label": "",
             "name": "video_resolution",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1770,6 +1974,12 @@
           },
           {
             "advanced": false,
+            "cap_from": {
+              "capability": "max_duration_s",
+              "extension": "duration_extension",
+              "field": "model",
+              "unit": " s"
+            },
             "chip": true,
             "chip_label": "s",
             "choices": null,
@@ -1797,7 +2007,11 @@
             "min_label": "",
             "name": "video_duration",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1810,6 +2024,13 @@
           },
           {
             "advanced": false,
+            "cap_from": {
+              "capability": "fps",
+              "field": "model",
+              "label": "Cadence native du modèle :",
+              "mode": "fixed",
+              "unit": " i/s"
+            },
             "chip": true,
             "chip_label": "fps",
             "choices": null,
@@ -1837,7 +2058,11 @@
             "min_label": "",
             "name": "video_fps",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1850,6 +2075,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1877,7 +2103,11 @@
             "min_label": "",
             "name": "seed",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1890,6 +2120,13 @@
           },
           {
             "advanced": false,
+            "cap_from": {
+              "capability": "recommended_steps",
+              "field": "model",
+              "label": "Recommandé pour ce modèle :",
+              "mode": "note",
+              "unit": " pas"
+            },
             "chip": true,
             "chip_label": "steps",
             "choices": null,
@@ -1917,7 +2154,11 @@
             "min_label": "",
             "name": "steps",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1930,6 +2171,12 @@
           },
           {
             "advanced": false,
+            "cap_from": {
+              "capability": "recommended_guidance",
+              "field": "model",
+              "label": "Guidage recommandé pour ce modèle :",
+              "mode": "note"
+            },
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1957,7 +2204,11 @@
             "min_label": "",
             "name": "guidance_scale",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1970,6 +2221,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -2000,18 +2252,6 @@
               [
                 "gif",
                 ".GIF"
-              ],
-              [
-                "mp3",
-                ".MP3"
-              ],
-              [
-                "wav",
-                ".WAV"
-              ],
-              [
-                "ogg",
-                ".OGG"
               ]
             ],
             "contexts": [
@@ -2021,7 +2261,7 @@
             "default": null,
             "dom_id": {
               "item": "video_settings_output_format",
-              "panel": "output_format"
+              "panel": "panel_video_output_format"
             },
             "group": "sortie",
             "help": "",
@@ -2037,7 +2277,11 @@
             "min_label": "",
             "name": "output_format",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2050,6 +2294,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -2073,10 +2318,10 @@
             "default": null,
             "dom_id": {
               "item": "video_settings_output_quality",
-              "panel": "output_quality"
+              "panel": "panel_video_output_quality"
             },
             "group": "sortie",
-            "help": "",
+            "help": "Appliquée à la conversion vers le format choisi.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -2089,13 +2334,27 @@
             "min_label": "",
             "name": "output_quality",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
             "section": "settings",
-            "show_if": null,
+            "show_if": {
+              "field": "output_format",
+              "in": [
+                "mp4",
+                "webm",
+                "avi",
+                "mov",
+                "mkv",
+                "gif"
+              ]
+            },
             "step": null,
             "type": "select",
             "unit": ""
@@ -2184,11 +2443,6 @@
           "name": "index",
           "pattern": "",
           "view": "views.index"
-        },
-        {
-          "name": "console",
-          "pattern": "console/",
-          "view": "views.console"
         },
         {
           "name": "create",
@@ -2311,21 +2565,6 @@
           "view": "views.get_batch_children"
         },
         {
-          "name": "batch_start",
-          "pattern": "batch/<int:batch_id>/start/",
-          "view": "views.start_batch"
-        },
-        {
-          "name": "batch_delete",
-          "pattern": "batch/<int:batch_id>/delete/",
-          "view": "views.batch_delete"
-        },
-        {
-          "name": "batch_duplicate",
-          "pattern": "batch/<int:batch_id>/duplicate/",
-          "view": "views.batch_duplicate"
-        },
-        {
           "name": "api_model_resolutions",
           "pattern": "api/model-resolutions/",
           "view": "views.api_model_resolutions"
@@ -2362,6 +2601,7 @@
           ],
           "params_fields": [
             "model",
+            "quality_intent",
             "negative_prompt",
             "num_images",
             "steps",
@@ -2378,6 +2618,7 @@
       "processing_time": false,
       "statuses": [
         "PENDING",
+        "AWAITING_RESOURCES",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
@@ -2440,9 +2681,10 @@
             "model": "select — Modèle de génération (Auto = tirage VRAM-aware au lancement). (défaut : 'stable-diffusion-v1-5')",
             "negative_prompt": "textarea — Ce qu'il faut éviter dans l'image.",
             "num_images": "select — Nombre d'images à générer en une passe. (choix : 1 | 2 | 3 | 4) (défaut : 1)",
-            "output_format": "select — Format de sortie (choix : original | mp4 | webm | avi | mov | mkv | gif | mp3 …)",
-            "output_quality": "select — Qualité (choix : web | balanced | max)",
+            "output_format": "select — Format de sortie (choix : original | jpg | png | webp | tiff | bmp | gif | avif …)",
+            "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max)",
             "prompt": "str (requis)",
+            "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "seed": "number — Graine aléatoire (vide = aléatoire).",
             "steps": "range — Nombre d'étapes de diffusion. [1–100] (défaut : 30)",
             "upscale": "toggle — Agrandit l'image générée (×2). (défaut : False)",

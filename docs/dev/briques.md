@@ -2264,7 +2264,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 - **Module** : WAMA Tool API
 - **API publique** (86) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
-  - `add_to_anonymizer(user, file_path: str, use_sam3: bool=False, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
+  - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `start_anonymizer(user, media_id: int=None) -> dict` — Trigger Celery processing for a specific media item or all pending items.
   - `get_anonymizer_status(user) -> dict` — Return status of the user's current anonymizer jobs (last 10).
   - `sam3_examples() -> dict` — Return recommended SAM3 text prompt examples.

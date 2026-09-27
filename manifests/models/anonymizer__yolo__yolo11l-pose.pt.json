@@ -24,6 +24,7 @@
       ],
       "model_id": "pose/yolo11l-pose.pt",
       "specialty": null,
+      "vram_provenance": "heuristic",
       "yolo_type": "pose"
     },
     "formats": {

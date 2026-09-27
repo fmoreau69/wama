@@ -1,0 +1,78 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_audio",
+        "work_result"
+      ],
+      "languages": [
+        "fr"
+      ],
+      "modalities": [
+        "audio",
+        "text"
+      ],
+      "supports_diarization": false,
+      "supports_hotwords": false,
+      "supports_timestamps": true,
+      "task": "alignment"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
+    "extra_info": {
+      "hf_id": "jonatasgrosman/wav2vec2-large-xlsr-53-french",
+      "vram_measured": {
+        "at": "2026-09-24T16:08:12+00:00",
+        "last_gb": 0.59,
+        "max_gb": 0.59,
+        "n": 1
+      },
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Aligne un texte connu sur l'audio, mot à mot — ne transcrit pas.",
+      "hf_id": "jonatasgrosman/wav2vec2-large-xlsr-53-french",
+      "license": null,
+      "model_type": "speech",
+      "platform_ref": null,
+      "source": "transcriber"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "transcriber",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 2.0
+    }
+  },
+  "description": "Alignement forcé acoustique : à partir d'un texte déjà écrit (une transcription reprise, une correction) et de l'audio, donne l'heure de début et de fin de chaque mot. Modèle wav2vec2 CTC ; ne produit aucun texte. Sert à resynchroniser les passages qu'une correction a modifiés, là où la transcription automatique n'a pas d'heure fiable.",
+  "key": "transcriber:wav2vec2-fr-aligner",
+  "manifest_kind": "model",
+  "name": "wav2vec2-large-xlsr-53-french (alignement)",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:transcriber:wav2vec2-fr-aligner",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,6 +1,7 @@
 {
   "body": {
     "capabilities": {
+      "fps": 30,
       "inputs_optional": [],
       "inputs_required": [
         "prompt"
@@ -8,9 +9,12 @@
       "languages": [
         "en"
       ],
+      "max_duration_s": 2.8,
+      "max_frames": 84,
       "modalities": [
         "video"
       ],
+      "native_resolution": "848x480",
       "task": "text-to-video",
       "tasks": [
         "text-to-video"
@@ -45,7 +49,7 @@
     },
     "identity": {
       "author": "genmo",
-      "description_short": "Mochi-1 Preview — haute qualité, 30 fps",
+      "description_short": "Mochi-1 Preview — haute qualité",
       "gated": "no",
       "hf_id": "genmo/mochi-1-preview",
       "license": "apache-2.0",
@@ -72,7 +76,7 @@
   "description": "Mochi-1 Preview (Genmo) : génération vidéo haute fidélité à 30 images/s, mouvements naturels et bonne adhérence au prompt. Le plus gourmand des modèles vidéo — à réserver aux rendus soignés.",
   "key": "imager:mochi-1-preview",
   "manifest_kind": "model",
-  "name": "Mochi-1 Preview — haute qualité, 30 fps",
+  "name": "Mochi-1 Preview — haute qualité",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",

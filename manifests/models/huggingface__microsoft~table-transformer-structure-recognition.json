@@ -17,7 +17,8 @@
     },
     "extra_info": {
       "category": "vision",
-      "family": "table-transformer-structure-recognition"
+      "family": "table-transformer-structure-recognition",
+      "vram_provenance": "estimated"
     },
     "formats": {
       "can_convert_to": [],

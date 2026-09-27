@@ -13,6 +13,8 @@
       "batch_type": "media_list",
       "during_preview": true,
       "has_batch": true,
+      "has_reference_result": true,
+      "has_result_import": true,
       "has_url_import": true,
       "has_youtube": true,
       "inspector": true,
@@ -227,6 +229,29 @@
                 }
               },
               "name": "enable_diarization"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('auto', 'Auto'), ('on', 'Actif'), ('off', 'Désactivé')]",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "8",
+                  "imports": []
+                }
+              },
+              "name": "vad_mode"
             },
             {
               "args": [],
@@ -449,6 +474,67 @@
                 }
               },
               "name": "used_backend"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "128",
+                  "imports": []
+                }
+              },
+              "name": "model_key"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('transcriber', 'input')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "reference_result"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('transcriber', 'input')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "work_result"
             },
             {
               "args": [],
@@ -1141,6 +1227,14 @@
             "forme": "nu",
             "icone": "fa-spell-check",
             "label": "Cohérence"
+          },
+          {
+            "cache": true,
+            "cible": "evaluationContent",
+            "cle": "evaluation",
+            "forme": "nu",
+            "icone": "fa-scale-balanced",
+            "label": "Évaluation"
           }
         ]
       },
@@ -1156,6 +1250,7 @@
         "transcriber:qwen3-asr-0.6b",
         "transcriber:qwen3-asr-1.7b",
         "transcriber:vibevoice-asr",
+        "transcriber:wav2vec2-fr-aligner",
         "transcriber:whisper"
       ],
       "source_attr": "TRANSCRIBER_MODELS"
@@ -1184,6 +1279,7 @@
         "PARAMS_JSON": [
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "",
             "choices": [
@@ -1216,7 +1312,11 @@
             "min_label": "",
             "name": "backend",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": "backends",
             "pills": [],
@@ -1229,6 +1329,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "",
             "choices": null,
@@ -1256,7 +1357,11 @@
             "min_label": "",
             "name": "hotwords",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1269,6 +1374,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1285,7 +1391,7 @@
             "group": "",
             "help": "",
             "help_fallback": null,
-            "help_html": "Débruitage IA (DeepFilterNet) + 16 kHz mono<br><a href=\"#\" class=\"text-info text-decoration-none\" data-bs-toggle=\"modal\" data-bs-target=\"#preprocessingModal\"><i class=\"fas fa-circle-question\"></i> En savoir plus</a>",
+            "help_html": "Débruitage IA (DeepFilterNet) + 16 kHz mono<br><span class=\"text-warning\">Peut dégrader la transcription d'un enregistrement déjà propre : à réserver aux fonds très bruyants.</span><br><a href=\"#\" class=\"text-info text-decoration-none\" data-bs-toggle=\"modal\" data-bs-target=\"#preprocessingModal\"><i class=\"fas fa-circle-question\"></i> En savoir plus</a>",
             "help_source": null,
             "icon": "fa-wand-magic-sparkles",
             "inline": false,
@@ -1296,7 +1402,11 @@
             "min_label": "",
             "name": "preprocess_audio",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1309,6 +1419,62 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "auto",
+                "Auto"
+              ],
+              [
+                "on",
+                "Actif"
+              ],
+              [
+                "off",
+                "Désactivé"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "auto",
+            "dom_id": "",
+            "group": "",
+            "help": "Whisper saute les passages qu'il juge sans parole. « Auto » vérifie d'abord qu'il ne rejette pas une parole lointaine (entretien enregistré à distance) et le désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les longs silences.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-wave-square",
+            "inline": false,
+            "label": "Filtre de parole (VAD)",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "vad_mode",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "Diarisation",
             "choices": null,
@@ -1336,7 +1502,11 @@
             "min_label": "",
             "name": "enable_diarization",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1349,6 +1519,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "Résumé",
             "choices": null,
@@ -1376,7 +1547,11 @@
             "min_label": "",
             "name": "generate_summary",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1389,6 +1564,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -1422,7 +1598,11 @@
             "min_label": "",
             "name": "summary_type",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1438,6 +1618,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "Cohérence",
             "choices": null,
@@ -1465,7 +1646,11 @@
             "min_label": "",
             "name": "verify_coherence",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1490,6 +1675,26 @@
           "types": [
             "audio",
             "video"
+          ]
+        },
+        {
+          "description": "Un résultat déjà produit ailleurs (autre outil, version antérieure). Il tient lieu de traitement et devient le résultat de l'élément, à corriger ou à comparer.",
+          "group": "travail",
+          "id": "work_result",
+          "label": "Résultat existant",
+          "multi": false,
+          "types": [
+            "document"
+          ]
+        },
+        {
+          "description": "Le résultat ATTENDU, produit ailleurs (souvent corrigé à la main). La sortie lui est comparée pour mesurer la qualité ; il n'est ni transformé ni transmis au modèle.",
+          "group": "reference",
+          "id": "reference_result",
+          "label": "Résultat de référence",
+          "multi": false,
+          "types": [
+            "document"
           ]
         }
       ],
@@ -1540,10 +1745,10 @@
         "remove_from_batch",
         "reorder",
         "reorder_queue",
+        "retime_segments",
         "save_correction",
         "save_meta",
         "save_realtime",
-        "save_settings",
         "save_user_settings",
         "segments",
         "set_preprocessing",
@@ -1551,9 +1756,12 @@
         "start_all",
         "stop",
         "suggest_speakers",
+        "update_settings",
         "upload",
         "upload_youtube",
-        "waveform_peaks"
+        "waveform_peaks",
+        "write_cursor",
+        "write_results"
       ],
       "extra_routes": [
         {
@@ -1612,6 +1820,21 @@
           "view": "views.save_correction"
         },
         {
+          "name": "retime_segments",
+          "pattern": "edit/<int:pk>/retime/",
+          "view": "views.retime_segments"
+        },
+        {
+          "name": "write_cursor",
+          "pattern": "edit/<int:pk>/write-cursor/",
+          "view": "views.write_cursor"
+        },
+        {
+          "name": "write_results",
+          "pattern": "edit/<int:pk>/write-results/",
+          "view": "views.write_results"
+        },
+        {
           "name": "save_meta",
           "pattern": "edit/<int:pk>/save-meta/",
           "view": "views.save_meta"
@@ -1667,9 +1890,9 @@
           "view": "views.download_srt"
         },
         {
-          "name": "save_settings",
+          "name": "update_settings",
           "pattern": "settings/<int:pk>/",
-          "view": "views.save_settings"
+          "view": "views.update_settings"
         },
         {
           "name": "get_user_settings",
@@ -1723,6 +1946,7 @@
             "backend",
             "hotwords",
             "preprocess_audio",
+            "vad_mode",
             "enable_diarization",
             "generate_summary",
             "summary_type",
@@ -1734,6 +1958,7 @@
       "processing_time": true,
       "statuses": [
         "PENDING",
+        "AWAITING_RESOURCES",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
@@ -1742,7 +1967,7 @@
         {
           "file": "workers.py",
           "function": "transcribe",
-          "lifecycle": true,
+          "lifecycle": false,
           "task_name": null
         },
         {
@@ -1756,6 +1981,24 @@
           "function": "enrich_transcript",
           "lifecycle": false,
           "task_name": "wama.transcriber.enrich_transcript"
+        },
+        {
+          "file": "workers.py",
+          "function": "import_existing_result_task",
+          "lifecycle": false,
+          "task_name": "wama.transcriber.import_existing_result"
+        },
+        {
+          "file": "workers.py",
+          "function": "align_existing_result",
+          "lifecycle": false,
+          "task_name": null
+        },
+        {
+          "file": "workers.py",
+          "function": "live_write_task",
+          "lifecycle": false,
+          "task_name": null
         },
         {
           "file": "workers.py",
@@ -1782,6 +2025,7 @@
             "hotwords": "textarea — Séparés par des virgules",
             "preprocess_audio": "toggle — Prétraitement audio (défaut : False)",
             "summary_type": "radio (choix : structured | meeting) (défaut : 'structured')",
+            "vad_mode": "select — Whisper saute les passages qu'il juge sans parole. « Auto » vérifie d'abord qu'il ne rejette pas une parole lointaine (entretien enregistré à distance) et le désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les longs silences. (choix : auto | on | off) (défaut : 'auto')",
             "verify_coherence": "toggle — Score + correction proposée côte à côte (défaut : False)"
           },
           "description": "Ajoute un élément à la file d'attente de Transcriber (Transcription audio/vidéo en texte (Whisper)) et renvoie son item_id."
@@ -1821,6 +2065,10 @@
     },
     {
       "key": "transcriber:vibevoice-asr",
+      "kind": "model"
+    },
+    {
+      "key": "transcriber:wav2vec2-fr-aligner",
       "kind": "model"
     },
     {

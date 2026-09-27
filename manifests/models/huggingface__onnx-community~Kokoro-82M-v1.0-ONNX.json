@@ -38,7 +38,8 @@
     },
     "extra_info": {
       "category": "speech",
-      "family": "Kokoro-82M-v1.0-ONNX"
+      "family": "Kokoro-82M-v1.0-ONNX",
+      "vram_provenance": "estimated"
     },
     "formats": {
       "can_convert_to": [],

@@ -1,6 +1,8 @@
 {
   "body": {
     "capabilities": {
+      "duration_extension": "segments",
+      "fps": 8,
       "inputs_optional": [],
       "inputs_required": [
         "prompt",
@@ -9,9 +11,12 @@
       "languages": [
         "en"
       ],
+      "max_duration_s": 6.12,
+      "max_frames": 49,
       "modalities": [
         "video"
       ],
+      "native_resolution": "720x480",
       "task": "image-to-video",
       "tasks": [
         "image-to-video"
@@ -46,7 +51,7 @@
     },
     "identity": {
       "author": "Zhipu AI (Z.ai)",
-      "description_short": "CogVideoX 5B — Image-to-Video, 24 fps",
+      "description_short": "CogVideoX 5B — Image-to-Video",
       "gated": "no",
       "hf_id": "THUDM/CogVideoX-5b-I2V",
       "license": "cogvideox-license",
@@ -70,10 +75,10 @@
       "vram_gb": 21.0
     }
   },
-  "description": "CogVideoX 5B I2V (Zhipu/THUDM) : anime une image de référence en clip vidéo 24 images/s, guidé par le prompt. Idéal pour donner vie à une illustration ou une photo.",
+  "description": "CogVideoX 5B I2V (Zhipu/THUDM) : anime une image de référence en clip vidéo guidé par le prompt. Limites du modèle : 6 secondes (49 images à 8 i/s), 720×480. Au-delà, la vidéo est prolongée par segments enchaînés (chaque segment repart de la dernière image).",
   "key": "imager:cogvideox-5b-i2v",
   "manifest_kind": "model",
-  "name": "CogVideoX 5B — Image-to-Video, 24 fps",
+  "name": "CogVideoX 5B — Image-to-Video",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",

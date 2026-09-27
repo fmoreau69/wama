@@ -182,6 +182,7 @@
       ],
       "model_id": "segment/yolo11m-seg.pt",
       "specialty": null,
+      "vram_provenance": "heuristic",
       "yolo_type": "segment"
     },
     "formats": {

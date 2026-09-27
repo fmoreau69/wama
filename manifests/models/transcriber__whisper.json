@@ -21,7 +21,8 @@
       }
     },
     "extra_info": {
-      "hf_id": "openai/whisper-large-v3"
+      "hf_id": "openai/whisper-large-v3",
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

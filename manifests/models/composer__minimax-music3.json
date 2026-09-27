@@ -48,7 +48,8 @@
     "extra_info": {
       "max_duration": 300,
       "sample_rate": 32000,
-      "type": "music"
+      "type": "music",
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

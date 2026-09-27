@@ -52,6 +52,7 @@
       ],
       "model_id": "obb/yolo11x-obb.pt",
       "specialty": null,
+      "vram_provenance": "heuristic",
       "yolo_type": "obb"
     },
     "formats": {
