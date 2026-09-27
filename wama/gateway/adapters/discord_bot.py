@@ -186,9 +186,43 @@ async def _publier(message, reponse):
         if not chemin.exists():
             continue
         try:
-            await cible.send(file=discord.File(str(chemin), filename=chemin.name))
+            sent = await cible.send(file=discord.File(str(chemin), filename=chemin.name))
+            await _caption_original(sent, chemin)
         except Exception:
             logger.exception("[gateway/discord] envoi de fichier impossible : %s", chemin)
+
+
+async def _caption_original(message, path):
+    """Ajoute au message le lien vers le fichier ORIGINAL, une fois qu'il est téléversé.
+
+    ⚠⚠ POURQUOI (mesuré par Fabien le 2026-09-27). L'image apparaît dans le fil, on clique
+    « enregistrer »… et on obtient un **webp de 75 Ko** quand WAMA a envoyé un **JPEG de
+    445 203 octets**. Rien n'est recompressé de notre côté (`discord.File` lit le fichier tel
+    quel) : ce qu'on enregistre depuis l'APERÇU est le proxy d'images de Discord, redimensionné
+    et ré-encodé. L'original, lui, est la pièce jointe elle-même.
+    *Un aperçu et un fichier se ressemblent à l'écran et ne pèsent pas la même chose.*
+
+    L'URL de la pièce jointe n'existe qu'APRÈS le téléversement : on édite donc le message
+    qu'on vient d'envoyer plutôt que d'en poster un second — un fil de résultats doit rester
+    lisible. C'est aussi le « lien de téléchargement » qui manquait : il ne demande ni
+    `WAMA_PUBLIC_URL` (absente à ce jour), ni de faire circuler un secret WAMA dans une
+    messagerie — ce que la doctrine d'appariement refuse.
+
+    ⚠ Ces URL de CDN portent une signature à durée de vie courte : le lien vaut pour la
+    session de lecture, il n'est pas une adresse pérenne. Le dire plutôt que le laisser croire.
+    """
+    attached = next(iter(getattr(message, 'attachments', []) or []), None)
+    if attached is None:
+        return
+    mb = path.stat().st_size / (1024 * 1024)
+    try:
+        await message.edit(content=(
+            f"📥 **[{path.name}]({attached.url})** — {mb:.1f} Mo, fichier ORIGINAL "
+            f"(l'aperçu ci-dessous est une version compressée par Discord ; lien temporaire)"))
+    except Exception:
+        # Une légende manquante ne doit jamais faire perdre la pièce jointe, qui est partie.
+        logger.warning("[gateway/discord] légende d'original non posée : %s", path.name,
+                       exc_info=True)
 
 
 def bot_token() -> str:

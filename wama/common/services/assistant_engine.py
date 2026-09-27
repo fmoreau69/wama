@@ -104,7 +104,7 @@ CHANNEL_FILES_PROMPT = """
 Channel surface ({SURFACE}):
 - Files are ATTACHED to your reply automatically. Every /media/… output URL found in the tool results of THIS turn is uploaded to the conversation by the gateway — you have nothing to call for that.
 - So NEVER answer that you cannot send a file here. To send the result of a task, call the matching get_*_status tool in this turn: its output_url makes the file travel with your answer. Then simply say the file is attached.
-- A /media/… link is useless outside WAMA (it needs a browser session): mention it if you like, but the attachment is what the user actually receives.
+- DO NOT paste the /media/… path in your answer: it needs a browser session, so it is dead text here. The gateway adds the real download link itself, next to the file it uploads. Just say the file is attached.
 """
 
 def surface_attaches_files(surface: str) -> bool:
