@@ -18207,9 +18207,9 @@ qui borne le menu de modèles), `38657fa5` (3 fichiers oubliés par une autre in
 - Tests : 998 + 324 verts sur les séries touchées.
 
 **🔚 Restes, dans l'ordre.**
-1. **Recharger gunicorn, PUIS appliquer la migration** : `manage.py migrate anonymizer` (0030 :
-   suppression des deux tables et de `use_sam3`). ⚠ Jamais avant : le code d'avant sélectionne
-   encore la colonne ; la migration (gitignorée) est sur le disque.
+1. ✅ **Migration 0030 appliquée** (2026-09-27 18:52) — par `start_wama_prod.sh` au relancement :
+   il lance `migrate` AVANT de démarrer gunicorn, donc dans le bon ordre. Tables et colonne
+   absentes de la base (vérifié) ; anonymizer, préférences et statut SAM3 répondent 200.
 2. (ex-R73 : fait.)
 3. Le volet de l'anonymizer est encore écrit à la main (sections, curseur, menu) : le rendre du
    schéma comme au transcriber. Imager encore sur ses propres helpers de préférences ; 6 apps
