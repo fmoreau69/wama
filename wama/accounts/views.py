@@ -323,6 +323,12 @@ def api_key_save(request, slug):
         return JsonResponse({'error': str(exc)}, status=503)
     # Découverte des modèles ouverts à CETTE clé (ROADMAP §8d, 4b). Un échec ne défait pas
     # l'enregistrement : il est rendu lisible, et la clé reste posée.
+    # ⚠ Réservée aux FOURNISSEURS DE MODÈLES (famille `llm`, 2026-09-27) : elle interroge
+    # `<adresse>/models`, qui n'existe pas chez un moteur de recherche (fausse erreur affichée)
+    # et répond une PAGE HTML chez HuggingFace (lecture JSON → 500 à l'enregistrement).
+    from .api_keys import is_llm_source
+    if not is_llm_source(slug, request.user):
+        return JsonResponse({'success': True, 'has_key': True})
     from wama.model_manager.services.cloud_models import refresh_key
     count, error = refresh_key(row)
     return JsonResponse({'success': True, 'has_key': True, 'models_count': count,

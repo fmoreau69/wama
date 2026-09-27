@@ -1553,6 +1553,22 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    connecteurs dans la section Paramètres du volet droit (`volet(medias=False, actions=False)`),
    un seul rendu JS pour les deux listes. Gardes : `accounts/tests_api_keys` (chiffrement en base,
    pas de repli, 503 sur clé serveur non sûre, rechiffrement à la rotation, rendu dans le volet).
+   ✅ **Jeton HuggingFace, même règle (27/09, décisions de Fabien)** : un jeton ne sert qu'à
+   TÉLÉCHARGER — un modèle installé se charge par chemin local (SAM3 : `load_from_HF=False`) —, donc
+   le téléchargement qu'une personne lance se fait avec SON jeton (`api_keys.download_token` :
+   le sien, ou `False` = « aucun » s'il n'en a pas, pour que la lib ne retombe pas sur `HF_TOKEN`) ;
+   sans utilisateur (sync, tâche planifiée, commande), celui de l'instance. Source `huggingface`
+   `user_key=True` → saisi au profil ; `request_install(…, user=)` → tâches `install_*`
+   (`user_id`, la clé relue dans la tâche, jamais passée au courtier) → `pull_hf_model(token=)` ;
+   un dépôt « gated » refusé renvoie au profil (`GATED_REFUSAL`). Retirés : la page de jeton de
+   l'anonymizer (qui l'écrivait dans le dossier personnel) et son « Config HF requise » ; la
+   pastille SAM3 dit « prêt » si les poids sont installés, sinon renvoie au profil. Au passage :
+   la découverte de modèles distants ne tourne plus que pour les sources `llm` (HF répondait une
+   page HTML → 500 à l'enregistrement de la clé). Gardes : `DownloadTokenTest`,
+   `HuggingFaceKeyTest` (contre-épreuve faite).
+   ⏳ **Idée de Fabien, non tranchée — des QUOTAS sur les jetons système** : au lieu du refus
+   actuel, laisser un utilisateur sans jeton télécharger avec celui de l'instance dans une limite
+   (« x essais / heure »), en lui disant qu'il lève la limite en posant le sien.
 4b. 🔄 **Verrou du catalogue levé — premier palier** (15/09) : `ModelSource.ALBERT`, champs
    `AIModel.execution` (local/cloud) et `cost_tier` ; hébergement et coût déclarés sur la source
    (`external_sources`, Albert = `sovereign`/`free`). DÉCOUVERTE par la clé de l'utilisateur
@@ -2732,6 +2748,27 @@ open-vocab supprimerait le reste du problème de couverture de classes), cam_ana
 
 **Alternatives libres** si la licence bloque : YOLO-World, MM-Grounding-DINO (Apache-2.0), OWLv2 —
 la brique (2) est agnostique au backend, l'investissement reste bon dans tous les cas.
+
+**⏳ État au 2026-09-27 — désignation par classes / par description (chantier anonymizer, décisions
+de Fabien)** :
+- L'anonymizer DÉSIGNE ce qu'il floute par un MODE déclaré (`app_modes`, `mode_param =
+  target_mode`) : **Classes** (modèles à classes) ou **Description** (modèles qui consomment un
+  prompt) — ex-« YOLO/SAM3 », qui confondait la désignation et le résultat. Le résultat (boîte /
+  contour) reste au curseur rapide ↔ qualité en « auto » (segmentation à partir de 50), au choix
+  du modèle sinon ; le menu est tiré du catalogue, `detect` + `segment`, groupé par tâche.
+- **LocateAnything** : capacités complétées au catalogue (`inputs_required` + prompt,
+  `text_promptable`) — mais **PAS proposé dans l'anonymizer** tant que trois conditions ne sont pas
+  levées : branché au moteur de floutage (qui ne consomme que YOLO et SAM3), éprouvé de bout en
+  bout sur GPU (jamais tourné sur ce poste), et grisé pour la VIDÉO par sa latence (1,5–7 s/image).
+- **pose / classify / obb** : hors du menu de l'anonymizer (filtre par tâche, rien de supprimé) ;
+  ils restent au catalogue pour le Detector — qui devra les chercher PAR TÂCHE, pas par app (leur
+  `source` est encore `anonymizer`, héritage du rangement des poids).
+- **Piste (non ouverte) — flouter des PARTIES DU CORPS par la pose** : un modèle de pose ne
+  découpe pas la silhouette, il place 17 points (nez, yeux, oreilles, épaules, poignets…) et une
+  boîte par personne. On pourrait en DÉDUIRE des zones — la tête depuis les cinq points du visage
+  quand un détecteur de visages échoue (profil, distance), une main… : une 3ᵉ désignation
+  (« parties du corps »), avec un travail moteur (points → zones). Pour une silhouette entière, la
+  segmentation de la classe « personne » fait déjà mieux.
 
 ### 17ter. Reconstruction 2D→3D + chaîne objets 3D (consigné 2026-08-18 — NON ouvert)
 

@@ -147,7 +147,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   |---|---|---|---|
   | imager | Images / Vidéos | dérivé modèle | garder domaine (hint) |
   | enhancer | Image-Vidéo / Audio | dérivé modèle | garder domaine (hint) |
-  | anonymizer | — | yolo / SAM3 (dérivé) | **refactor** : sélecteur de modèle groupé + switch capacités |
+  | anonymizer | — | yolo / SAM3 (dérivé) | **refactor** : sélecteur de modèle groupé + switch capacités — ✅ **fait autrement le 2026-09-27 (décision de Fabien)** : le mode RESTE DÉCLARÉ, parce qu'il change les ENTRÉES (liste de classes / description), et c'est lui qui BORNE les modèles, non l'inverse — `Classes` / `Description`, réglage `target_mode` (`app_modes.mode_param`), menu du catalogue borné par le mode (`Param.options_mode`) et groupé par tâche ; le résultat (boîte / contour) reste au curseur. SAM3 a des particularités d'accès (dépôt gated) : elles suivent le MODÈLE (catalogue, jeton au profil), pas le mode. `ROADMAP §17bis` |
   | avatarizer | — | — | **sortir du mécanisme** : rapide/qualité = simple paramètre |
   | composer | — | — (optionnel switch dérivé) | **sortir** : music/bruitage = MAJ UI auto par sélection modèle |
   Principe : **but qui change → domaine/onglet ; mêmes but, contrôles qui changent → mode/switch dérivé.**

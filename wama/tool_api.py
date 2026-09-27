@@ -2336,8 +2336,10 @@ def install_model(user, model_key: str, force: bool = False,
     """
     from wama.model_manager.services.model_installer import request_install
 
+    # `user` : le téléchargement se fait avec SON jeton HuggingFace (règle commune des clés).
     res = request_install((model_key or '').strip(), force=bool(force),
-                          variant_ref=variant_ref or '', variant_file=variant_file or '')
+                          variant_ref=variant_ref or '', variant_file=variant_file or '',
+                          user=user)
     if res.get('ok'):
         return {k: v for k, v in res.items() if k != 'ok'}
     if res.get('reason') == 'insufficient_storage':

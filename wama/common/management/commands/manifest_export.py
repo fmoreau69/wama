@@ -147,6 +147,9 @@ _EXTRA_INFO_ETAT_MACHINE = frozenset({
     'size_bytes', 'size_mb', 'disk_gb',
     # Présence / bon fonctionnement à l'instant T
     'installed', 'ready', 'models_dir_exists', 'models_cached', 'error', 'hf_authenticated',
+    # Aides d'écran du statut SAM3 (2026-09-27) : `gated` DOUBLE le champ du catalogue, les deux
+    # adresses se dérivent (`hf_id`, route du profil) — rien qui ne soit porté ailleurs
+    'gated', 'access_url', 'profile_url',
     # Empreintes et marqueurs posés par la DÉCOUVERTE
     'ollama_id', 'hf_snapshot', 'vram_estimated', 'update_check', 'declared',
     # Relevé de poids PAR COMPOSANT du snapshot LOCAL (`model_sync.persist_weights`, 19/09) :

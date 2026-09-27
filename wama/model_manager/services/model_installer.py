@@ -107,14 +107,32 @@ _TYPE_CATEGORY = {
 }
 
 
+#: Message du refus d'un dépôt qui exige un jeton que la personne n'a pas posé (ou dont
+#: l'accès n'a pas été accordé à son compte) — il dit où agir, jamais la clé.
+GATED_REFUSAL = ("Ce dépôt HuggingFace est soumis à conditions (« gated ») : son téléchargement "
+                 "se fait avec VOTRE jeton, et votre compte HuggingFace doit avoir obtenu l'accès "
+                 "sur la page du modèle. Posez votre jeton dans Profil → Clés d'API.")
+
+
+def _is_access_refusal(exc) -> bool:
+    """Refus d'ACCÈS du Hub (dépôt gated, jeton absent ou refusé) — par la classe d'erreur de
+    `huggingface_hub` quand elle existe, sinon par le statut HTTP (versions de la lib)."""
+    if 'Gated' in type(exc).__name__:
+        return True
+    status = getattr(getattr(exc, 'response', None), 'status_code', None)
+    return status in (401, 403)
+
+
 def pull_hf_model(hf_id: str, category: str, family: str | None = None,
-                  dry_run: bool = False, allow_patterns=None, progress=None):
+                  dry_run: bool = False, allow_patterns=None, progress=None, token=None):
     """
     Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
     `snapshot_download(cache_dir=…)` — on catégorise par `cache_dir`, SANS muter `HF_HUB_CACHE`
     global (cause de dispersion/doublons quand plusieurs threads le mutent en concurrence).
 
     `dry_run` : ne télécharge pas, retourne juste le dossier cible (valide la logique de chemin).
+    `token` : `accounts.api_keys.download_token` — le jeton de la personne qui lance, `False`
+    si elle n'en a pas (jamais celui de l'instance à sa place), `None` sans utilisateur.
     Retourne {'ok': bool, 'path'|'target'|'error': …}.
 
     NB : « téléchargé + catalogué » ≠ « utilisable dans l'app » — l'usage requiert un backend qui
@@ -135,10 +153,12 @@ def pull_hf_model(hf_id: str, category: str, family: str | None = None,
         from huggingface_hub import snapshot_download
         ignore = None if allow_patterns else format_duplicates(hf_id)
         path = snapshot_download(repo_id=hf_id, cache_dir=target, allow_patterns=allow_patterns,
-                                 ignore_patterns=ignore or None)
+                                 ignore_patterns=ignore or None, token=token)
         return {'ok': True, 'path': path, 'target': target,
                 **({'ignores': ignore} if ignore else {})}
     except Exception as e:
+        if _is_access_refusal(e):
+            return {'ok': False, 'error': GATED_REFUSAL, 'reason': 'gated'}
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
 
 
@@ -821,7 +841,7 @@ def _persist_variant_choice(cand, variant_ref: str, variant_file: str):
 
 
 def request_install(model_key: str, *, force: bool = False, variant_ref: str = '',
-                    variant_file: str = '') -> dict:
+                    variant_file: str = '', user=None) -> dict:
     """
     DEMANDE d'installation par CLÉ — corps unique du geste « Installer » : choix de variante,
     garde d'espace disque, idempotence, puis dispatch de la séquence longue en Celery.
@@ -913,12 +933,14 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
     if en_cours:
         return {'ok': True, 'already_running': True, 'model_key': target.model_key,
                 'progress': en_cours}
-    started = task.delay(target.model_key)
+    # `user_id` : le téléchargement se fera avec le jeton de CETTE personne (2026-09-27,
+    # `accounts.api_keys.download_token`) — la tâche relit la clé, qui ne transite jamais.
+    started = task.delay(target.model_key, user_id=getattr(user, 'pk', None))
     return {'ok': True, 'started': True, 'model_key': target.model_key,
             'task_id': started.id}
 
 
-def install_candidate(cand, progress=None) -> dict:
+def install_candidate(cand, progress=None, token=None) -> dict:
     """
     Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
     la tâche Celery (`install_proposed_task`, chemin normal depuis le 2026-08-18) et
@@ -939,7 +961,7 @@ def install_candidate(cand, progress=None) -> dict:
     if spec and spec.get('kind') and spec['kind'] != 'ollama':
         if progress:
             progress(f"téléchargement {spec.get('ref')} (HuggingFace)…")
-        res = install_from_spec(spec)
+        res = install_from_spec(spec, token=token)
         if not res.get('ok'):
             return {'ok': False, 'error': res.get('error', 'installation échouée')}
         installed_name = cand.name
@@ -1157,7 +1179,7 @@ def patterns_from_composition(composition) -> list | None:
     return patterns + _PATTERNS_DE_BORD if patterns else None
 
 
-def install_from_spec(spec: dict) -> dict:
+def install_from_spec(spec: dict, token=None) -> dict:
     """
     Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
     hardcodés par type. Le spec peut être construit par l'UI, par la prospection, ou par
@@ -1179,6 +1201,8 @@ def install_from_spec(spec: dict) -> dict:
       'note': 'pourquoi ce modèle',            # traçabilité (journalisée)
     }
     Retourne {'ok': bool, …} (mêmes clés que les drivers, + 'pip' si dépendances).
+    `token` : jeton du téléchargement HF (`accounts.api_keys.download_token`), hors du spec À
+    DESSEIN — un spec est déclaratif et circule (prospection, assistant) ; un secret, jamais.
     """
     spec = spec or {}
     kind = spec.get('kind')
@@ -1204,7 +1228,8 @@ def install_from_spec(spec: dict) -> dict:
             return {'ok': False, 'error': "spec.category requis pour kind='hf'"}
         res = pull_hf_model(ref, spec['category'], spec.get('family'),
                             allow_patterns=(spec.get('allow_patterns')
-                                            or patterns_from_composition(spec.get('composition'))))
+                                            or patterns_from_composition(spec.get('composition'))),
+                            token=token)
     else:
         return {'ok': False, 'error': f"spec.kind inconnu: {kind!r} (ollama|hf|yolo)"}
 

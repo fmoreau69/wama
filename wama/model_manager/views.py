@@ -1824,7 +1824,8 @@ def api_prospect_install(request):
 
         res = request_install(key, force=bool(data.get('force')),
                               variant_ref=data.get('variant_ref') or '',
-                              variant_file=data.get('variant_file') or '')
+                              variant_file=data.get('variant_file') or '',
+                              user=request.user)
         if not res.get('ok'):
             if res.get('reason') == 'insufficient_storage':
                 return JsonResponse(res['blocked'], status=507)   # 507 Insufficient Storage

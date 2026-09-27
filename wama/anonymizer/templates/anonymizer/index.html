@@ -65,14 +65,6 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
         <div class="collapse mb-2" id="sam3_examples_collapse">
             <div class="list-group list-group-flush" id="sam3_examples_list"></div>
         </div>
-        <div id="hf_config_warning" class="alert alert-warning py-2 px-3 mb-2" style="display: none;">
-            <small>
-                <i class="fas fa-exclamation-triangle"></i> Token HuggingFace requis
-                <button type="button" class="btn btn-sm btn-warning ms-2" data-bs-toggle="modal" data-bs-target="#modal_hf_config">
-                    Configurer
-                </button>
-            </small>
-        </div>
     </div>
 </div>
 
@@ -527,37 +519,6 @@ WamaParams.render(context:'batch') dans #anonBatchParams, appliqués à tous les
 
 {# La modale de progression `#modal-progress` est RETIRÉE (2026-09-08) : progression d'envoi = barre commune de WamaImport, import par URL = formalisme de lot commun. #}
 
-<!-- HuggingFace Token Configuration Modal -->
-<div class="modal fade" id="modal_hf_config" tabindex="-1" aria-labelledby="modalHfConfigLabel">
-    <div class="modal-dialog">
-        <div class="modal-content bg-dark text-light">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="modalHfConfigLabel">
-                    <i class="fas fa-key me-2"></i>Configuration HuggingFace
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p class="small text-white-50">
-                    SAM3 nécessite un token HuggingFace pour télécharger les modèles.
-                    Obtenez votre token sur <a href="https://huggingface.co/settings/tokens" target="_blank" class="text-info">huggingface.co/settings/tokens</a>
-                </p>
-                <div class="mb-3">
-                    <label for="hf_token_input" class="form-label">Token HuggingFace</label>
-                    <input type="password" class="form-control bg-dark text-white border-secondary"
-                           id="hf_token_input" placeholder="hf_xxxxxxxxxxxxx">
-                    <div class="form-text text-white-50">Le token commence par "hf_"</div>
-                </div>
-                <div id="hf_config_result" class="alert d-none" role="alert"></div>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary" id="hf_config_save_btn">
-                    <i class="fas fa-save me-1"></i>Enregistrer
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+{# La modale de jeton HuggingFace est RETIRÉE (2026-09-27) : le jeton se pose au profil (clé de chacun), la pastille SAM3 y renvoie. #}
 
 {% endblock %}

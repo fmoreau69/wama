@@ -2,7 +2,8 @@
   "body": {
     "capabilities": {
       "inputs_required": [
-        "work_file"
+        "work_file",
+        "prompt"
       ],
       "languages": [
         "en"
@@ -11,7 +12,8 @@
         "image",
         "video"
       ],
-      "task": "detect"
+      "task": "detect",
+      "text_promptable": true
     },
     "composition": {
       "runtime": {
