@@ -1571,7 +1571,10 @@ MECHANISMS = (
                        'wama/media_library/tests_natures.py')),
     Mechanism('voice_refs', 'Voix de référence (médiathèque) et voix de clonage',
               "LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur, "
-              "jamais par un nom de moteur), `resolve_speaker_wav` (sa_/ua_/cv_/nom d'avant), "
+              "jamais par un nom de moteur, et qui TRANSMET la langue depuis le 2026-09-27), "
+              "`resolve_speaker_wav` (sa_/ua_/cv_/nom d'avant), `default_voice_for_language` "
+              "(« Voix par défaut » = la voix de référence de la LANGUE choisie, dans l'ordre "
+              "du menu ; sans elle c'était un clip anglophone quelle que soit la langue), "
               "`describe_voice`, `voice_reference_groups` (optgroups dérivés d'une REQUÊTE sur "
               "`SystemAsset(voice)` + `attributes`), `ingest_voice_file` (le seul point d'entrée, "
               "ingest initial ET téléchargements). Les voix VIVENT en médiathèque depuis le "
