@@ -463,6 +463,18 @@ def api_vram_grant(request):
     item_id = data.get('item')
     if not app_id or item_id in (None, ''):
         return JsonResponse({'success': False, 'error': 'app et item requis'}, status=400)
+    # Garde PROPRE de la route (2026-09-27) : on n'accorde que pour un élément qu'on POSSÈDE
+    # (`owned_or_404`, la règle commune des mutations), ou en admin. Le squelette refait le
+    # contrôle au moment d'honorer l'accord (`task_skeleton._grant_honoured`) ; sans celui-ci,
+    # n'importe qui pouvait déposer un accord sur l'élément d'un autre (sans effet, mais écrit).
+    if not request.user.is_staff:
+        from wama.common.utils.detail_registry import DetailRegistry
+        from wama.common.utils.scoping import owned_or_404
+        entry = DetailRegistry.get(app_id)
+        if not entry:
+            return JsonResponse({'success': False, 'error': f'app inconnue : {app_id}'},
+                                status=404)
+        owned_or_404(entry['model'], request.user, pk=item_id)
     ok = grant_release(app_id, item_id, user_id=request.user.pk)
     return JsonResponse({'success': bool(ok),
                          'message': ("Accord enregistré : la carte sera libérée pour cet élément "

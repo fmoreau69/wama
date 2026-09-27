@@ -107,9 +107,14 @@ class PointDApplicationTests(TestCase):
             if idx <= 0:
                 continue
             entete = source[max(0, idx - 400):idx]
+            fin = source.find('\ndef ', idx + 1)
+            corps = source[idx:fin if fin > 0 else None]
             mute = 'require_POST' in entete
+            # Garde de RÔLE (décorateur) ou garde d'OBJET dans le corps : `owned_or_404`, la règle
+            # commune des mutations (`scoping`) — une route qu'un utilisateur ordinaire doit
+            # pouvoir appeler sur SES éléments (accord de libération VRAM, 2026-09-27).
             garde = ('is_admin_or_dev' in entete or 'user_passes_test' in entete
-                     or 'staff_member_required' in entete)
+                     or 'staff_member_required' in entete or 'owned_or_404(' in corps)
             if mute and not garde:
                 nues.append(motif)
         self.assertEqual(
