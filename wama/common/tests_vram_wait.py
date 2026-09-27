@@ -169,16 +169,34 @@ class GrantEndpointAndMuteAssistantTest(TestCase):
         self.addCleanup(p.stop)
         self.client.force_login(self.user)
 
+    def _media(self, owner):
+        from wama.anonymizer.models import Media
+        return Media.objects.create(user=owner, file='anonymizer/x/input/grant.png',
+                                    file_ext='.png')
+
     def test_the_grant_is_recorded_with_the_user_who_gave_it(self):
         from django.urls import reverse
+        item = self._media(self.user)
         r = self.client.post(reverse('model_manager:api_vram_grant'),
-                             data='{"app": "imager", "item": 7}',
+                             data=f'{{"app": "anonymizer", "item": {item.pk}}}',
                              content_type='application/json')
         self.assertEqual(r.status_code, 200, r.content)
-        self.assertEqual(gov.release_granted('imager', 7)['user'], self.user.pk)
+        self.assertEqual(gov.release_granted('anonymizer', item.pk)['user'], self.user.pk)
         r = self.client.post(reverse('model_manager:api_vram_grant'), data='{"app": ""}',
                              content_type='application/json')
         self.assertEqual(r.status_code, 400)
+
+    def test_nobody_grants_for_an_item_they_do_not_own(self):
+        """The route's OWN guard (2026-09-27): the skeleton re-checks when honouring, but a grant
+        on someone else's item is not even written."""
+        from django.urls import reverse
+        other = get_user_model().objects.create_user('b1_other', password='x')
+        item = self._media(other)
+        r = self.client.post(reverse('model_manager:api_vram_grant'),
+                             data=f'{{"app": "anonymizer", "item": {item.pk}}}',
+                             content_type='application/json')
+        self.assertEqual(r.status_code, 404)
+        self.assertIsNone(gov.release_granted('anonymizer', item.pk))
 
     def test_the_grant_needs_a_logged_in_user(self):
         from django.urls import reverse
