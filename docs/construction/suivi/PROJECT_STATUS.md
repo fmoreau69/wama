@@ -18266,3 +18266,27 @@ non commité d'une autre instance (20 fichiers, dont `external_sources.py`, `api
 ⚠ **Et un piège que j'ai refermé sur moi une DEUXIÈME fois** : `Select-Object -Last 60` dans la
 commande de fond a caché **10 des 15 échecs**. C'est consigné dans ma mémoire depuis une session
 antérieure. *Ne jamais tronquer la sortie d'une suite de tests — rediriger vers un fichier.*
+
+### État FINAL après régénération (2026-09-27) — 14 rouges, aucun de cette session
+
+**Régénération faite** (arbre propre, tous les chantiers commités) : `docs/dev/briques.md` porte
+désormais `default_voice_for_language` et les signatures avec `language` ; `WAMA_MECANISMES.md`
+suit le registre. `doc_facts --check` **propre**, `check_docs` **4 cassées / 4 cibles** (stable).
+⇒ **`tests_doc_plans` est repassé au VERT** — c'était le seul rouge où j'avais une part. 15 → 14.
+
+**Les 14 restants n'appartiennent à aucun fichier de cette session**, établi par deux mesures
+indépendantes : (1) le dernier commit de chaque fichier de test est **antérieur au 27/09** —
+`capabilities_languages` 25/09, `notifications` 26/09, `schema_grid` 26/09, `tool_api_lectures`
+12/09, `check_templates` 01/09, `identifier_language` 19/09, `mcp_dev_tools` 15/09 ; (2) **aucun
+d'eux n'est dans les 22 fichiers que mes 9 commits ont touchés**.
+
+| famille | ce que dit l'assertion | à qui |
+|---|---|---|
+| `identifier_language` ×5 | code 2768>2735, classes 135>133, méthodes 1311<1312 | budgets à recaler / renommages à faire par les chantiers qui ont ajouté. **Ma part (+1) est soldée** |
+| `notifications` ×3 | attend `admin@test.local`, reçoit `wama-admin@univ-eiffel.fr` | chantier e-mail du 26/09. ⚠ **Hypothèse à vérifier** (non établie) : les tests lisent les réglages RÉELS au lieu de les surcharger — un `.env` de production qui entre dans une suite |
+| `mcp_dev_tools` ×2 | « la tâche n'a pas fini » | serveur MCP dev, qui ne survit pas à un redémarrage — WAMA venait d'être relancé |
+| `capabilities_languages` · `schema_grid` · `tool_api_lectures` · `check_templates` | architecture `qwen3_asr` inconnue · noyau gaussien · `candidates` absent · commentaire multi-ligne (`_new_item_card_v4.html:175`, inchangé depuis le 22/09) | chantiers transcriber / anonymizer / médiathèque |
+
+🔚 **Ma session se clôt ici.** Le dépôt, lui, est **ROUGE sur 14 tests** appartenant à cinq
+chantiers : ce n'est pas à moi de les refermer, mais ils sont nommés, datés et attribués — pas
+laissés à découvrir.
