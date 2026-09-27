@@ -62,9 +62,14 @@ rapidfuzz>=3.14
 # rétrogradation d'un côté ou une montée de l'autre EN PRODUCTION. Vérifié avant d'écrire :
 # VoxPopuli s'ouvre sous les DEUX (la 5.0 a supprimé les scripts de chargement, que ce corpus
 # n'emploie pas) — la divergence est donc à résorber, pas urgente.
+#   · scipy     : lecture WAV pour la mesure (`scipy.io.wavfile`) — trouvé par la garde neuve
+#                 `tests_optional_imports_declared`, PAS à l'œil : il était importé directement
+#                 depuis `voice_refs.py:579` et ne figurait nulle part. Une garde qui trouve un
+#                 trou de plus dès son premier passage a déjà payé son écriture.
 datasets>=4.7
 librosa>=0.11
 safetensors>=0.4.0
+scipy>=1.16
 soundfile>=0.13
 segno>=1.6  # QR codes (pur Python, BSD-3, zéro dépendance) — brique commune common/utils/qr.py : QR d'appariement joint par le bot (ROADMAP §19.1) ; TOTP/Imager à venir
 # torch/torchvision/torchaudio : voir requirements_torch.txt, à installer EN PREMIER.

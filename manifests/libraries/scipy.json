@@ -1,0 +1,32 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "numpy"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": null,
+      "license": "BSD License",
+      "repository": "https://github.com/scipy/scipy",
+      "summary": "Fundamental algorithms for scientific computing in Python",
+      "version": "1.16.2"
+    },
+    "install": {
+      "pip": "scipy==1.16.2",
+      "requires_python": ">=3.11"
+    }
+  },
+  "description": "Fundamental algorithms for scientific computing in Python",
+  "key": "scipy",
+  "manifest_kind": "library",
+  "name": "scipy",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:scipy==1.16.2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
