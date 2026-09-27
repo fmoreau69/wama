@@ -57,9 +57,9 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
 
                     {% comment %}Options — GÉNÉRÉES depuis le schéma (transcriber/params.py, chip=True)
                     via la brique commune, au lieu d'une ligne + une condition écrites à la main par
-                    réglage (CARD_DESIGN §11.4). Le rendu « liste verticale à icônes » de la v1 est
-                    conservé : c'est la classe .wama-chips--list qui le donne, pas le markup — même
-                    source pour tous les designs, donc aucune divergence possible.
+                    réglage (CARD_DESIGN §11.4). Même source pour toutes les densités, donc aucune
+                    divergence possible (le rendu « liste verticale » de l'ex-v1 est retiré depuis
+                    le 2026-09-28, §11.6bis).
                     Comportement identique à l'ancien code : un réglage inactif ne produit AUCUN chip
                     (chips_for filtre les valeurs vides/False), le moteur montre used_backend, et le
                     repli sur un autre moteur est signalé (variant warn + title).{% endcomment %}

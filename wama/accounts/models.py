@@ -49,10 +49,13 @@ class UserProfile(models.Model):
     # Ce n'est PAS la disposition de la file (card_layout) ni la pile : c'est l'anatomie d'une
     # card. Les trois lisent la même source générée (schéma → chips) et ne diffèrent que par
     # leur mise en page — d'où trois feuilles de style, jamais un branchement côté serveur.
+    # Refonte du 2026-09-28 (décision de Fabien, CARD_DESIGN §11.6bis) : l'ancien « Détaillé »
+    # (v1) est retiré, la v3 prend son nom, et « Affiné » devient la v3 SANS aperçu. Les valeurs
+    # STOCKÉES ne se renomment pas (v3 reste v3) ; l'ordre de la liste est celui du menu.
     CARD_DESIGNS = [
-        ('v1', 'Détaillé — tout lisible sans cliquer'),
+        ('v3', 'Détaillé — sections alignées, aperçu compris'),
+        ('v3np', 'Affiné — le même, sans aperçu'),
         ('v2', 'Compact — une ligne par élément'),
-        ('v3', 'Affiné — sections alignées entre cards'),
     ]
     card_design = models.CharField(
         max_length=4, choices=CARD_DESIGNS, default='v3',

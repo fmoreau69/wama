@@ -870,6 +870,40 @@ Deux pièges rencontrés, tous deux visibles seulement à l'écran :
 > temps réel/prétraité, propriétés audio, métriques de sortie). Ne pas conclure de l'écart nul
 > sur le reader que les deux designs se valent — le comparer sur le Transcriber.
 
+### 11.6bis REFONTE DES DENSITÉS — Détaillé · Affiné · Compact (décision de Fabien, 2026-09-28)
+
+> ⚠ Ce paragraphe **remplace** la table du §11.6 pour l'état présent. Les §11.6 et §11.7
+> restent comme trace datée : ce qu'ils disent de la v1 (liste verticale, sortie sous les
+> sections, placement explicite) décrit un design RETIRÉ.
+
+| ordre du menu | libellé | valeur stockée | ce qu'il montre |
+|---|---|---|---|
+| 1 (défaut) | **Détaillé** | `v3` | l'ancien « Affiné » : 5 sections alignées, étiquettes, aperçu du résultat |
+| 2 | **Affiné** | `v3np` | le même, **sans l'aperçu** (`.wcv3-preview`, `.wama-card-preview`) — il reste au volet droit, à un clic |
+| 3 | **Compact** | `v2` | inchangé : une ligne, sans étiquettes ni bandeau ni propriétés ni aperçu |
+
+- **L'ancien « Détaillé » (`v1`) est retiré** (`REMOVAL_LEDGER` R78) avec ses deux blocs CSS et
+  le skin `.wama-chips--list`, que plus aucun gabarit ni JS ne posait. Aucun profil ne le portait
+  (mesuré : 14 profils, tous `v3`), donc aucune migration de données ; la migration `accounts
+  0022` ne change que les choix (sans SQL).
+- **Les valeurs stockées ne se renomment pas** (frontière des DONNÉES, `AGENTS.md`) : seul le
+  libellé de `v3` change. `v3np` = « v3, no preview ».
+- **La vignette d'ENTRÉE reste en Affiné** : elle identifie la card, elle ne prévisualise pas son
+  résultat (la v2 la garde aussi).
+- **La card d'entrée n'est PAS concernée** : sa zone de preview v4 porte aussi les modalités
+  d'import (§11.11) — la masquer retirerait le geste. À trancher avec la v4 (§11.11 G), comme la
+  règle `[data-card-design="v2"] .wama-input-preview` déjà posée, qui a le même effet en Compact.
+- **Mesuré au navigateur** (serveur éphémère, compte `ui_smoke_v3`, une card par app) — hauteur
+  Détaillé → Affiné → Compact : reader 143 → 102 → 62 px, describer 195 → 154 → 116, converter
+  351 → 276 → 168 ; les étiquettes restent en Affiné (5), l'aperçu sort (2 → 0 au converter) ;
+  menu ordonné, case active, persistance au rechargement, 0 erreur console. Transcriber,
+  synthesizer, imager : Détaillé = Affiné sur ces cards de test, qui n'ont pas d'aperçu.
+- **Gardé par `wama/accounts/tests_card_designs.py`**, sans nommer aucune densité : le menu offre
+  exactement les choix déclarés dans leur ordre ; le défaut ouvre la liste ; tout sélecteur
+  `[data-card-design="…"]` des feuilles servies vise une densité déclarée (CSS mort) ; toute
+  densité autre que le défaut a ses règles ; tout repli (`|default:'…'`, `|| '…'`) égale le
+  défaut ; la vue enregistre chaque densité et refuse `v1`. Contre-épreuve : 4 mutations, 4 rouges.
+
 ### 11.7 TRANSCRIBER — émission des 5 sections (2026-08-01)
 
 Le Transcriber émet désormais les 5 sections nommées : il peut donc basculer entre les trois

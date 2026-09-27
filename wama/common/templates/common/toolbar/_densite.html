@@ -7,18 +7,22 @@ la file et 3 feuilles de style — aucun branchement côté serveur.
 
 Menu et non liste déroulante : la barre porte déjà tri, filtre, disposition, pile puis les
 actions de file — un select à libellés poussait « Démarrer tout / Télécharger tout / Tout
-effacer » à la ligne sur les 10 apps. Un bouton-icône tient dans la place d'un bouton.{% endcomment %}
+effacer » à la ligne sur les 10 apps. Un bouton-icône tient dans la place d'un bouton.
+
+Refonte du 2026-09-28 (CARD_DESIGN §11.6bis) : Détaillé = la v3 (défaut) · Affiné = la v3 sans
+aperçu · Compact = la v2 ; l'ancien Détaillé (v1) est retiré. Les options suivent l'ordre de
+`UserProfile.CARD_DESIGNS` (garde : `accounts/tests_card_designs`).{% endcomment %}
 <div class="btn-group wama-design-select" data-design="{{ card_design|default:'v3' }}">
     <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle"
             data-bs-toggle="dropdown" aria-expanded="false"
             title="Densité d'affichage des cards"><i class="fas fa-text-height"></i></button>
     <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
         <li><h6 class="dropdown-header">Densité des cards</h6></li>
-        <li><button class="dropdown-item wama-design-opt" data-value="v1" type="button">
-            Détaillé <small class="text-muted d-block">tout lisible sans cliquer</small></button></li>
+        <li><button class="dropdown-item wama-design-opt" data-value="v3" type="button">
+            Détaillé <small class="text-muted d-block">sections alignées, aperçu compris</small></button></li>
+        <li><button class="dropdown-item wama-design-opt" data-value="v3np" type="button">
+            Affiné <small class="text-muted d-block">le même, sans aperçu</small></button></li>
         <li><button class="dropdown-item wama-design-opt" data-value="v2" type="button">
             Compact <small class="text-muted d-block">une ligne par élément</small></button></li>
-        <li><button class="dropdown-item wama-design-opt" data-value="v3" type="button">
-            Affiné <small class="text-muted d-block">sections alignées entre cards</small></button></li>
     </ul>
 </div>

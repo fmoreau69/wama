@@ -305,7 +305,8 @@ card, mise en évidence, avec **toutes** les actions de l'app.
 **La card du journal HÉRITE des trois designs communs.** Elle émet les **5 sections nommées** de
 la card v3 (`CARD_DESIGN §11.6`) — Entrée · Réglages · Sortie · État · Actions — et le conteneur
 porte `data-card-design` (densité choisie au profil, diffusée par le context processor). Les trois
-densités **v1 détaillé · v2 compact · v3 affiné** sont trois blocs CSS de `wama-card-v3.css` : le
+densités — **v3 détaillé · v3np affiné · v2 compact** depuis le 2026-09-28 (`CARD_DESIGN §11.6bis` ;
+v1 retirée) — sont des blocs CSS de `wama-card-v3.css` : le
 journal les obtient sans une ligne de style propre, et respecte le choix de l'utilisateur comme
 les 10 apps. Vérifié au rendu : 25 cards × 5 sections, `data-card-design="v3"`, **aucun
 `{% templatetag openblock %} if design {% templatetag closeblock %}`** — le garde-fou de §11.4 tient (la différence entre densités est un
