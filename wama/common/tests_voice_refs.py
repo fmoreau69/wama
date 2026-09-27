@@ -12,14 +12,14 @@ from wama.common.tts import voice_refs
 
 class LaCapaciteDecideTest(TestCase):
     def test_un_moteur_qui_ne_clone_pas_ne_recoit_JAMAIS_de_voix(self):
-        with patch.object(voice_refs, 'model_supports_cloning', return_value=False), \
+        with patch.object(voice_refs, 'model_supports_cloning', return_value=False),\
              patch.object(voice_refs, 'resolve_speaker_wav') as res:
             self.assertIsNone(voice_refs.speaker_wav_for('synthesizer:kokoro', 'ua_1', None,
                                                           reference_path='/tmp/ref.wav'))
             res.assert_not_called()
 
     def test_un_moteur_qui_clone_prend_la_reference_du_job_avant_le_preset(self):
-        with patch.object(voice_refs, 'model_supports_cloning', return_value=True), \
+        with patch.object(voice_refs, 'model_supports_cloning', return_value=True),\
              patch.object(voice_refs, 'resolve_speaker_wav') as res:
             self.assertEqual(voice_refs.speaker_wav_for('synthesizer:coqui-xtts', 'default', None,
                                                          reference_path='/tmp/ref.wav'),
@@ -27,7 +27,7 @@ class LaCapaciteDecideTest(TestCase):
             res.assert_not_called()
 
     def test_un_moteur_qui_clone_resout_le_preset_par_la_brique(self):
-        with patch.object(voice_refs, 'model_supports_cloning', return_value=True), \
+        with patch.object(voice_refs, 'model_supports_cloning', return_value=True),\
              patch.object(voice_refs, 'resolve_speaker_wav', return_value='/x/default.wav') as res:
             self.assertEqual(voice_refs.speaker_wav_for('synthesizer:coqui-xtts', 'female_1', 'u'),
                              '/x/default.wav')
@@ -36,14 +36,14 @@ class LaCapaciteDecideTest(TestCase):
     def test_the_language_is_passed_through_to_the_resolution(self):
         """La porte TRANSMET la langue (27/09) — sans elle, « Voix par défaut » resterait le
         clip anglophone pour tout le monde, quel que soit le texte."""
-        with patch.object(voice_refs, 'model_supports_cloning', return_value=True), \
+        with patch.object(voice_refs, 'model_supports_cloning', return_value=True),\
              patch.object(voice_refs, 'resolve_speaker_wav', return_value='/x/fr.wav') as res:
             voice_refs.speaker_wav_for('synthesizer:coqui-xtts', 'default', 'u', language='fr')
             res.assert_called_once_with('default', 'u', language='fr')
 
     def test_un_moteur_INCONNU_recoit_une_voix_le_sens_sur(self):
         """XTTS l'exige, un moteur sans clonage l'ignore : le doute résout."""
-        with patch.object(voice_refs, 'model_supports_cloning', return_value=None), \
+        with patch.object(voice_refs, 'model_supports_cloning', return_value=None),\
              patch.object(voice_refs, 'resolve_speaker_wav', return_value='/x/d.wav'):
             self.assertEqual(voice_refs.speaker_wav_for('synthesizer:???', 'default'), '/x/d.wav')
 
@@ -59,10 +59,10 @@ class LesDeuxModelesLibellentParLaBriqueTest(TestCase):
         from wama.avatarizer.models import AvatarJob
         from wama.synthesizer.models import VoiceSynthesis
         u = get_user_model().objects.create_user('libelle_voix', password='x')
-        for modele in (VoiceSynthesis, AvatarJob):
-            self.assertFalse(modele._meta.get_field('voice_preset').choices,
-                             f'{modele.__name__}.voice_preset porte encore des choices')
-            obj = modele(voice_preset='sa_42', user=u)
+        for target_model in (VoiceSynthesis, AvatarJob):
+            self.assertFalse(target_model._meta.get_field('voice_preset').choices,
+                             f'{target_model.__name__}.voice_preset porte encore des choices')
+            obj = target_model(voice_preset='sa_42', user=u)
             with patch.object(voice_refs, 'describe_voice', return_value='Français — Adulte — Homme 1') as d:
                 self.assertEqual(obj.get_voice_preset_display(), 'Français — Adulte — Homme 1')
             self.assertEqual(d.call_args[0][0], 'sa_42')
@@ -106,14 +106,14 @@ def _python_files():
 
     from django.conf import settings
     racine = Path(settings.BASE_DIR)
-    for chemin in sorted(racine.glob('wama*/**/*.py')):
-        rel = chemin.relative_to(racine).as_posix()
+    for file_path in sorted(racine.glob('wama*/**/*.py')):
+        rel = file_path.relative_to(racine).as_posix()
         if rel == BRICK or Path(rel).name.startswith('tests'):
             continue
-        yield rel, chemin
+        yield rel, file_path
 
 
-def _calls(chemin, name):
+def _calls(file_path, name):
     """Les appels à `name` dans ce fichier, par AST — `(ligne, mots-clés)`.
 
     Par AST et non par motif texte : l'appel est multi-ligne chez deux des appelants, et un
@@ -121,7 +121,7 @@ def _calls(chemin, name):
     """
     import ast
     try:
-        arbre = ast.parse(chemin.read_text(encoding='utf-8'))
+        arbre = ast.parse(file_path.read_text(encoding='utf-8'))
     except (SyntaxError, UnicodeDecodeError):
         return
     for noeud in ast.walk(arbre):
@@ -162,42 +162,42 @@ class LaPorteDesVoixEstUnContratTRANSVERSETest(SimpleTestCase):
     def test_every_app_that_declares_a_voice_goes_through_the_door(self):
         parlantes = _apps_that_speak()
         self.assertTrue(parlantes, 'aucune app ne déclare `voice_preset` : garde à blanc')
-        adopte = {rel.split('/')[1] for rel, chemin in _python_files()
-                  if any(_calls(chemin, 'speaker_wav_for'))}
-        manquantes = parlantes - adopte
-        self.assertFalse(manquantes,
-                         f"app(s) avec une voix mais sans passer par la porte : {manquantes}")
+        adopte = {rel.split('/')[1] for rel, file_path in _python_files()
+                  if any(_calls(file_path, 'speaker_wav_for'))}
+        missing = parlantes - adopte
+        self.assertFalse(missing,
+                         f"app(s) avec une voix mais sans passer par la porte : {missing}")
 
     def test_every_caller_passes_the_language(self):
         """⚠ Sans `language=`, « Voix par défaut » retombe sur le clip LJSpeech ANGLOPHONE :
         un texte allemand sortirait avec une locutrice anglaise, **sans erreur, sans journal,
         sans rien à l'écran**. Le type de défaut que rien ne rattrape à l'exécution — il rend
         un résultat plausible et faux."""
-        vus = 0
-        for rel, chemin in _python_files():
-            for ligne, mots in _calls(chemin, 'speaker_wav_for'):
-                vus += 1
+        seen = 0
+        for rel, file_path in _python_files():
+            for line, mots in _calls(file_path, 'speaker_wav_for'):
+                seen += 1
                 self.assertIn('language', mots,
-                              f"{rel}:{ligne} : la langue n'est pas transmise — la voix par "
+                              f"{rel}:{line} : la langue n'est pas transmise — la voix par "
                               f"défaut redeviendrait anglophone en silence")
-        self.assertGreaterEqual(vus, 3, 'aucun appelant découvert : la garde tournerait à vide')
+        self.assertGreaterEqual(seen, 3, 'aucun appelant découvert : la garde tournerait à vide')
 
     def test_nobody_outside_the_brick_resolves_a_voice_itself(self):
         """La résolution `ua_`/`cv_`/preset appartient à la brique. Un appel direct ailleurs
         contournerait la décision par CAPACITÉ (D7) — et ne verrait pas la langue."""
-        directs = [f'{rel}:{ligne}' for rel, chemin in _python_files()
-                   for ligne, _ in _calls(chemin, 'resolve_speaker_wav')]
+        directs = [f'{rel}:{line}' for rel, file_path in _python_files()
+                   for line, _ in _calls(file_path, 'resolve_speaker_wav')]
         self.assertFalse(directs, f'résolution recopiée hors de la brique : {directs}')
 
     def test_no_app_still_tests_an_engine_by_NAME(self):
         """D7 : c'est la CAPACITÉ qui décide, jamais `tts_model == 'coqui-xtts'`."""
         import re
         from pathlib import Path
-        for rel, chemin in _python_files():
+        for rel, file_path in _python_files():
             if not rel.startswith(('wama/synthesizer/', 'wama/avatarizer/')):
                 continue
-            lignes = Path(chemin).read_text(encoding='utf-8').splitlines()
-            code = '\n'.join(l for l in lignes if not l.lstrip().startswith('#'))
+            lines = Path(file_path).read_text(encoding='utf-8').splitlines()
+            code = '\n'.join(l for l in lines if not l.lstrip().startswith('#'))
             self.assertIsNone(re.search(r"tts_model\s*==\s*'", code), rel)
             self.assertNotIn('_get_default_speaker_wav', code, rel)
 
@@ -263,9 +263,9 @@ class LaMediathequePorteLesVoixTest(TestCase):
         self.assertEqual(v.mime_type, 'audio/wav')
 
     def test_ingest_est_idempotent(self):
-        avant = self.voix['default'].pk
+        before = self.voix['default'].pk
         again = voice_refs.ingest_voice_file('default', self._temp_wav('default'))
-        self.assertEqual(again.pk, avant)
+        self.assertEqual(again.pk, before)
         from wama.media_library.models import SystemAsset
         self.assertEqual(SystemAsset.objects.filter(asset_type='voice', name='default').count(), 1)
 
@@ -282,9 +282,9 @@ class LaMediathequePorteLesVoixTest(TestCase):
 
     def test_resolution_par_sa_par_nom_d_avant_et_repli_default(self):
         v = self.voix['french/adult/female_adult_2_fr']
-        chemin = v.file.path
-        self.assertEqual(voice_refs.resolve_speaker_wav(f'sa_{v.pk}'), chemin)
-        self.assertEqual(voice_refs.resolve_speaker_wav('french/adult/female_adult_2_fr'), chemin)
+        file_path = v.file.path
+        self.assertEqual(voice_refs.resolve_speaker_wav(f'sa_{v.pk}'), file_path)
+        self.assertEqual(voice_refs.resolve_speaker_wav('french/adult/female_adult_2_fr'), file_path)
         self.assertEqual(voice_refs.resolve_speaker_wav('male_1'), self.voix['male_1'].file.path)
         defaut = self.voix['default'].file.path
         self.assertEqual(voice_refs.resolve_speaker_wav(''), defaut)
@@ -504,10 +504,10 @@ class VoiceAcquisitionTest(SimpleTestCase):
                  {'speaker_id': 'b', 'gender': 'female', 'audio': 'B'}]
         saved = []
         # L'instrument est écarté (None) : ce test isole le filtre sur l'ÉTIQUETTE de la source.
-        with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}), \
-                patch.object(voice_refs, '_measured_gender', return_value=None), \
+        with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}),\
+                patch.object(voice_refs, '_measured_gender', return_value=None),\
                 patch.object(voice_refs, '_decode_audio_item',
-                             side_effect=lambda audio: (np.zeros(8 * 16000) + (audio == 'B'), 16000)), \
+                             side_effect=lambda audio: (np.zeros(8 * 16000) + (audio == 'B'), 16000)),\
                 patch.object(voice_refs, '_save_audio_array',
                              side_effect=lambda arr, sr, target: saved.append(int(arr[0])) or True):
             self.assertTrue(voice_refs._try_voxpopuli(Path('x.wav'), 'fr', gender='female'))
@@ -520,11 +520,11 @@ class VoiceAcquisitionTest(SimpleTestCase):
         items = [{'speaker_id': 'a', 'gender': 'male', 'audio': 'A'},
                  {'speaker_id': 'b', 'gender': 'male', 'audio': 'B'}]
         saved = []
-        with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}), \
+        with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}),\
                 patch.object(voice_refs, '_decode_audio_item',
-                             side_effect=lambda audio: (np.zeros(8 * 16000) + (audio == 'B'), 16000)), \
+                             side_effect=lambda audio: (np.zeros(8 * 16000) + (audio == 'B'), 16000)),\
                 patch.object(voice_refs, '_measured_gender',
-                             side_effect=lambda arr, sr: 'male' if arr[0] else 'female'), \
+                             side_effect=lambda arr, sr: 'male' if arr[0] else 'female'),\
                 patch.object(voice_refs, '_save_audio_array',
                              side_effect=lambda arr, sr, target: saved.append(int(arr[0])) or True):
             self.assertTrue(voice_refs._try_voxpopuli(Path('x.wav'), 'fr', gender='male'))
@@ -547,10 +547,10 @@ class VoiceAcquisitionTest(SimpleTestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / 'v.wav'
-            with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}), \
-                    patch.object(voice_refs, '_measured_gender', return_value='male'), \
+            with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}),\
+                    patch.object(voice_refs, '_measured_gender', return_value='male'),\
                     patch.object(voice_refs, '_decode_audio_item',
-                                 side_effect=lambda audio: (np.zeros(8 * 16000) + (audio == 'B'), 16000)), \
+                                 side_effect=lambda audio: (np.zeros(8 * 16000) + (audio == 'B'), 16000)),\
                     patch.object(voice_refs, '_save_audio_array', side_effect=write):
                 self.assertTrue(voice_refs._try_voxpopuli(target, 'en', gender='male',
                                                           exclude_digests={taken}))
@@ -577,8 +577,8 @@ class VoiceAcquisitionTest(SimpleTestCase):
         """Contre-épreuve : sans genre demandé (`default`, presets plats), le premier clip gagne."""
         import numpy as np
         items = [{'speaker_id': 'a', 'gender': 'male', 'audio': 'A'}]
-        with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}), \
-                patch.object(voice_refs, '_decode_audio_item', return_value=(np.zeros(8 * 16000), 16000)), \
+        with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}),\
+                patch.object(voice_refs, '_decode_audio_item', return_value=(np.zeros(8 * 16000), 16000)),\
                 patch.object(voice_refs, '_save_audio_array', return_value=True):
             self.assertTrue(voice_refs._try_voxpopuli(Path('x.wav'), 'fr'))
 
@@ -591,10 +591,10 @@ class VoiceAcquisitionTest(SimpleTestCase):
         self.assertEqual('', voice_refs._url_source_gender(en), "jamais téléchargé : genre non établi")
 
     def _download(self, name, voxpopuli_ok=False):
-        with patch.object(voice_refs, '_library_voice_names', return_value=set()), \
-                patch.object(voice_refs, '_library_voice_digests', return_value=set()), \
-                patch.object(voice_refs, '_try_voxpopuli', return_value=voxpopuli_ok) as vp, \
-                patch.object(voice_refs, '_try_url_download', return_value=True) as url, \
+        with patch.object(voice_refs, '_library_voice_names', return_value=set()),\
+                patch.object(voice_refs, '_library_voice_digests', return_value=set()),\
+                patch.object(voice_refs, '_try_voxpopuli', return_value=voxpopuli_ok) as vp,\
+                patch.object(voice_refs, '_try_url_download', return_value=True) as url,\
                 patch.object(voice_refs, 'ingest_voice_file') as ingest:
             results = voice_refs.download_missing_voice_refs(force=True, names=[name])
         return results, vp, url, ingest
@@ -713,7 +713,7 @@ class DownloadCommandExitTest(SimpleTestCase):
 
     def test_the_helper_flushes_then_exits_with_the_given_code(self):
         from wama.synthesizer.management.commands import download_voice_refs as cmd
-        with patch.object(cmd.os, '_exit') as hard_exit, \
+        with patch.object(cmd.os, '_exit') as hard_exit,\
                 patch.object(cmd.logging, 'shutdown') as log_shutdown:
             cmd.exit_skipping_native_teardown(1)
         log_shutdown.assert_called_once()
@@ -721,7 +721,7 @@ class DownloadCommandExitTest(SimpleTestCase):
 
     def test_call_command_never_leaves_the_process(self):
         from django.core.management import call_command
-        with patch(self.CMD + '.download_missing_voice_refs', return_value={'default': 'skipped'}), \
+        with patch(self.CMD + '.download_missing_voice_refs', return_value={'default': 'skipped'}),\
                 patch(self.CMD + '.exit_skipping_native_teardown') as leave:
             call_command('download_voice_refs', '--names', 'default')
         leave.assert_not_called()
@@ -731,7 +731,7 @@ class DownloadCommandExitTest(SimpleTestCase):
         for results, code in (({'default': 'downloaded'}, 0), ({'default': 'failed'}, 1)):
             command = Command()
             command._called_from_command_line = True
-            with patch(self.CMD + '.download_missing_voice_refs', return_value=results), \
+            with patch(self.CMD + '.download_missing_voice_refs', return_value=results),\
                     patch(self.CMD + '.exit_skipping_native_teardown') as leave:
                 command.handle(force=False, names=['default'])
             leave.assert_called_once_with(code)

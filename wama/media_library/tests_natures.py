@@ -135,22 +135,22 @@ class LaPorteDeCompatibiliteTest(TestCase):
     def test_categorie_puis_attributs_requis(self):
         spec = natures.AssetSpec(category='3d', require={'units': 'm', 'rigged': False})
         self.assertEqual(natures.asset_accepts(spec, 'voice', {})[0], natures.INCOMPATIBLE)
-        etat, raison = natures.asset_accepts(spec, 'object3d', {'units': 'cm', 'rigged': False})
-        self.assertEqual(etat, natures.INCOMPATIBLE)
+        state, raison = natures.asset_accepts(spec, 'object3d', {'units': 'cm', 'rigged': False})
+        self.assertEqual(state, natures.INCOMPATIBLE)
         self.assertIn('units', raison)
         self.assertEqual(natures.asset_accepts(spec, 'object3d', {'units': 'm', 'rigged': False}),
                          (natures.COMPATIBLE, ''))
 
     def test_un_attribut_manquant_est_nomme(self):
         spec = natures.AssetSpec(asset_types=('voice',), require={'language': ('fr', 'en')})
-        etat, raison = natures.asset_accepts(spec, 'voice', {})
-        self.assertEqual(etat, natures.INCOMPATIBLE)
+        state, raison = natures.asset_accepts(spec, 'voice', {})
+        self.assertEqual(state, natures.INCOMPATIBLE)
         self.assertIn('language', raison)
 
     def test_prefere_donne_un_AVERTISSEMENT_pas_un_refus(self):
         spec = natures.AssetSpec(asset_types=('voice',), prefer={'language': 'fr'})
-        etat, raison = natures.asset_accepts(spec, 'voice', {'language': 'de'})
-        self.assertEqual(etat, natures.WARNING)
+        state, raison = natures.asset_accepts(spec, 'voice', {'language': 'de'})
+        self.assertEqual(state, natures.WARNING)
         self.assertIn("'de'", raison)
 
     def test_un_type_inconnu_est_incompatible_avec_raison(self):
@@ -165,20 +165,20 @@ class LaSauvegardeNormaliseTest(TestCase):
     def setUpTestData(cls):
         cls.user = get_user_model().objects.create_user('natures_t', password='x')
 
-    def _fichier(self, nom='v.wav'):
+    def _file(self, nom='v.wav'):
         return ContentFile(b'RIFF\0\0\0\0WAVE', name=nom)
 
     def test_UserAsset_coerce_ses_attributs_au_save(self):
         a = UserAsset(user=self.user, name='v', asset_type='voice',
                       attributes={'language': 'fr', 'variant': '1'})
-        a.file.save('v.wav', self._fichier(), save=False)
+        a.file.save('v.wav', self._file(), save=False)
         a.save()
         a.refresh_from_db()
         self.assertEqual(a.attributes, {'language': 'fr', 'variant': 1})
 
     def test_update_fields_partiel_ecrit_quand_meme_les_attributs_normalises(self):
         a = UserAsset(user=self.user, name='w', asset_type='voice')
-        a.file.save('w.wav', self._fichier('w.wav'), save=False)
+        a.file.save('w.wav', self._file('w.wav'), save=False)
         a.save()
         a.attributes = {'variant': '3'}
         a.save(update_fields=['mime_type'])
@@ -187,13 +187,13 @@ class LaSauvegardeNormaliseTest(TestCase):
 
     def test_un_asset_type_qui_est_une_CATEGORIE_est_refuse(self):
         a = UserAsset(user=self.user, name='x', asset_type='audio')
-        a.file.save('x.mp3', self._fichier('x.mp3'), save=False)
+        a.file.save('x.mp3', self._file('x.mp3'), save=False)
         with self.assertRaisesRegex(ValueError, "hors du vocabulaire"):
             a.save()
 
     def test_SystemAsset_aussi(self):
         s = SystemAsset(name='sys_v', asset_type='voice', attributes={'age': 'child', 'gender': 'female'})
-        s.file.save('s.wav', self._fichier('s.wav'), save=False)
+        s.file.save('s.wav', self._file('s.wav'), save=False)
         s.save()
         s.refresh_from_db()
         self.assertEqual(s.attributes, {'age': 'child', 'gender': 'female'})
@@ -251,13 +251,13 @@ class ASystemAssetIsNeverDeletedHereTest(TestCase):
     une* — le message parlait d'un champ manquant, pas de ce qui est interdit.
     """
 
-    def _fichier(self, nom='v.wav'):
+    def _file(self, nom='v.wav'):
         return ContentFile(b'RIFF\0\0\0\0WAVE', name=nom)
 
     def test_deleting_a_system_asset_is_refused_by_name(self):
         from wama.media_library.services import delete_asset
         s = SystemAsset(name='sys_protege', asset_type='voice')
-        s.file.save('sys_protege.wav', self._fichier(), save=False)
+        s.file.save('sys_protege.wav', self._file(), save=False)
         s.save()
         with self.assertRaisesRegex(TypeError, 'SystemAsset'):
             delete_asset(s)
@@ -268,13 +268,13 @@ class ASystemAssetIsNeverDeletedHereTest(TestCase):
         from wama.media_library.services import delete_asset
         user = get_user_model().objects.create_user('del_t', password='x')
         a = UserAsset(user=user, name='a_supprimer', asset_type='voice')
-        a.file.save('a_supprimer.wav', self._fichier('a_supprimer.wav'), save=False)
+        a.file.save('a_supprimer.wav', self._file('a_supprimer.wav'), save=False)
         a.save()
         delete_asset(a)
         self.assertFalse(UserAsset.objects.filter(pk=a.pk).exists())
 
 
-class TheCardRendersWhatTheNatureDeclaresTest(SimpleTestCase):
+class TheCardRendersWhatTheNatureStatesTest(SimpleTestCase):
     """Le rendu JS des attributs, exécuté sous V8 avec la VRAIE déclaration (2026-09-27).
 
     Garde ajoutée en revérifiant la session, pas en s'en souvenant : `assetAttributes` était le
@@ -341,25 +341,25 @@ class TheCardRendersWhatTheNatureDeclaresTest(SimpleTestCase):
         au-dessus restent : ils disent ce qu'on LIT concrètement pour une voix, ce qu'un
         parcours générique ne montre pas.
         """
-        valeur_type = {'str': None, 'int': 7, 'float': 1.5, 'bool': True, 'list': ['a']}
-        vus = 0
+        value_type = {'str': None, 'int': 7, 'float': 1.5, 'bool': True, 'list': ['a']}
+        seen = 0
         for asset_type, spec in natures.natures_as_json().items():
-            declares = spec.get('attributes') or {}
-            if not declares:
+            declared_names = spec.get('attributes') or {}
+            if not declared_names:
                 continue
             attributs = {}
-            for cle, a in declares.items():
-                choix = a.get('choices') or []
-                attributs[cle] = choix[0] if choix else (valeur_type.get(a['kind']) or 'x')
+            for key, a in declared_names.items():
+                choices = a.get('choices') or []
+                attributs[key] = choices[0] if choices else (value_type.get(a['kind']) or 'x')
             rendu = self._render({'asset_type': asset_type, 'attributes': attributs})
-            self.assertEqual(len(declares), len(rendu),
-                             f'{asset_type} : {len(declares)} attributs déclarés, '
+            self.assertEqual(len(declared_names), len(rendu),
+                             f'{asset_type} : {len(declared_names)} attributs déclarés, '
                              f'{len(rendu)} rendus')
             for a in rendu:
                 self.assertTrue(a['label'].strip(), f'{asset_type} : un attribut sans libellé')
                 self.assertTrue(a['value'].strip(), f'{asset_type} : un attribut sans valeur')
-            vus += 1
-        self.assertGreaterEqual(vus, 3, 'moins de 3 natures à attributs : garde à blanc ?')
+            seen += 1
+        self.assertGreaterEqual(seen, 3, 'moins de 3 natures à attributs : garde à blanc ?')
 
     def test_an_asset_without_attributes_renders_nothing(self):
         self.assertEqual([], self._render({'asset_type': 'voice', 'attributes': {}}))

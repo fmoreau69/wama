@@ -51,12 +51,12 @@ DISTRIBUTION = {'bs4': 'beautifulsoup4', 'PIL': 'pillow', 'yaml': 'pyyaml', 'fit
 def _declared() -> set:
     """Les distributions déclarées dans les `requirements*.txt`, en minuscules."""
     noms = set()
-    for fichier in BASE.glob('requirements*.txt'):
-        for ligne in fichier.read_text(encoding='utf-8').splitlines():
-            ligne = ligne.split('#')[0].strip()
-            if not ligne or ligne.startswith('-'):
+    for source_file in BASE.glob('requirements*.txt'):
+        for line in source_file.read_text(encoding='utf-8').splitlines():
+            line = line.split('#')[0].strip()
+            if not line or line.startswith('-'):
                 continue
-            nom = re.split(r'[<>=!~\[ ]', ligne, 1)[0].strip()
+            nom = re.split(r'[<>=!~\[ ]', line, 1)[0].strip()
             if nom:
                 noms.add(nom.lower().replace('_', '-'))
     return noms
@@ -79,7 +79,7 @@ class OptionalImportsAreDeclaredTest(SimpleTestCase):
 
     def test_every_third_party_import_of_a_watched_module_is_in_requirements(self):
         declared = _declared()
-        manquants = []
+        missing = []
         for rel in SOUS_SURVEILLANCE:
             path = BASE / rel
             if not path.exists():
@@ -87,8 +87,8 @@ class OptionalImportsAreDeclaredTest(SimpleTestCase):
             for module in sorted(_imported(path)):
                 dist = DISTRIBUTION.get(module, module).lower().replace('_', '-')
                 if dist not in declared:
-                    manquants.append(f'{rel} importe `{module}` — absent des requirements')
-        self.assertEqual([], manquants, '\n'.join(manquants))
+                    missing.append(f'{rel} importe `{module}` — absent des requirements')
+        self.assertEqual([], missing, '\n'.join(missing))
 
     def test_the_voice_chain_libraries_also_have_their_manifest(self):
         """Le manifeste est l'autre moitié : il porte identité, licence et version installée.
