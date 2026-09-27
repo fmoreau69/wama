@@ -72,6 +72,21 @@ divergent, c'est la lecture qui décide.*
 Le **message** dit que l'index a été construit hunk par hunk sur des fichiers co-édités : celui
 qui lira `git log` doit comprendre pourquoi ce commit n'a pas de pathspec.
 
+🔴 **AJOUTER À LA FIN D'UN FICHIER CO-ÉDITÉ N'EST PAS SÛR — et le patch est ce qui le dit.**
+Vécu DEUX fois le 2026-09-27 sur `PROJECT_STATUS`, en ajoutant un bloc de palier : lire le fichier,
+composer le bloc, puis l'écrire. Entre la lecture et l'écriture, **une autre instance avait commité
+5 lignes à la même fin de fichier** — mon écriture les a effacées sans qu'aucun `git status` ne le
+montre (le fichier était « modifié », comme toujours). *Un append n'est pas une insertion : c'est
+une réécriture complète du fichier à partir d'un état déjà périmé.*
+✅ **Le geste, en deux temps** : (1) relire le fichier **dans la même commande** que l'écriture
+(un script qui fait `read_bytes()` puis `write_bytes()` d'affilée, jamais une lecture d'il y a
+trois tours) ; (2) **exiger que le patch ne contienne AUCUNE suppression** —
+`grep -c '^-' <patch>` doit rendre **1** (la seule ligne `--- a/<fichier>` de l'en-tête). Une
+suppression dans un patch qui prétend AJOUTER un bloc est le signe qu'on emporte le travail d'un
+autre ; le hunk affiché comme `@@ -N,5 +N,20 @@` au lieu de `@@ -N,0 +N,20 @@` le dit aussi.
+⭐ *La règle « aucun commit depuis l'index partagé » a une sœur : aucune écriture depuis une
+lecture périmée.*
+
 ## 2. Si l'index n'est PAS vide au départ
 
 C'est le WIP stagé d'une autre instance. Deux issues, jamais une troisième : **attendre** son
