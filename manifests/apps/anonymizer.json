@@ -396,7 +396,7 @@
               "class": "django.db.models.IntegerField",
               "kwargs": {
                 "default": {
-                  "expr": "25",
+                  "expr": "75",
                   "imports": []
                 }
               },
@@ -585,22 +585,30 @@
             },
             {
               "args": [],
-              "class": "django.db.models.BooleanField",
+              "class": "django.db.models.CharField",
               "kwargs": {
-                "default": {
-                  "expr": "False",
+                "choices": {
+                  "expr": "[('classes', 'Classes'), ('description', 'Description')]",
                   "imports": []
                 },
-                "help_text": {
-                  "expr": "'When True, uses SAM3 text prompt instead of YOLO classes'",
+                "db_default": {
+                  "expr": "'classes'",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'classes'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "16",
                   "imports": []
                 },
                 "verbose_name": {
-                  "expr": "'Use SAM3 for segmentation'",
+                  "expr": "'Désignation'",
                   "imports": []
                 }
               },
-              "name": "use_sam3"
+              "name": "target_mode"
             },
             {
               "args": [],
@@ -634,7 +642,7 @@
                   "imports": []
                 },
                 "help_text": {
-                  "expr": "'Specific YOLO model for this media (empty = use global setting or auto-select)'",
+                  "expr": "'Catalogue id of the model for this media (empty or \"auto\" = automatic choice)'",
                   "imports": []
                 },
                 "max_length": {
@@ -713,545 +721,6 @@
           "manager": "wama.common.models.ScopedManager",
           "meta": {},
           "name": "Media"
-        },
-        {
-          "fields": [
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "max_length": {
-                  "expr": "255",
-                  "imports": []
-                }
-              },
-              "name": "title"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "max_length": {
-                  "expr": "255",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "name"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.DateTimeField",
-              "kwargs": {
-                "auto_now_add": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "last_modified"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.JSONField",
-              "kwargs": {
-                "default": {
-                  "expr": "dict",
-                  "imports": []
-                }
-              },
-              "name": "default"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.JSONField",
-              "kwargs": {
-                "default": {
-                  "expr": "dict",
-                  "imports": []
-                }
-              },
-              "name": "value"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('BOOL', 'Boolean'), ('FLOAT', 'Float')]",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'FLOAT'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "5",
-                  "imports": []
-                }
-              },
-              "name": "type"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('WTB', 'What to blur ?'), ('HTB', 'How to blur ?'), ('WTS', 'What to show ?')]",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'HTB'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "255",
-                  "imports": []
-                }
-              },
-              "name": "label"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.JSONField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "dict",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "attr_list"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "''",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "255",
-                  "imports": []
-                }
-              },
-              "name": "min"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "''",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "255",
-                  "imports": []
-                }
-              },
-              "name": "max"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "''",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "255",
-                  "imports": []
-                }
-              },
-              "name": "step"
-            }
-          ],
-          "manager": "",
-          "meta": {},
-          "name": "GlobalSettings"
-        },
-        {
-          "fields": [
-            {
-              "args": [],
-              "class": "django.db.models.OneToOneField",
-              "kwargs": {
-                "on_delete": {
-                  "expr": "django.db.models.deletion.CASCADE",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'user_settings'",
-                  "imports": []
-                },
-                "related_query_name": {
-                  "expr": "'user_settings'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "settings.AUTH_USER_MODEL",
-                  "imports": [
-                    "from django.conf import settings"
-                  ]
-                },
-                "verbose_name": {
-                  "expr": "'member'",
-                  "imports": []
-                }
-              },
-              "name": "user"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "False",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'Media added'",
-                  "imports": []
-                }
-              },
-              "name": "media_added"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "False",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'Show global settings'",
-                  "imports": []
-                }
-              },
-              "name": "show_gs"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "False",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'Show media settings'",
-                  "imports": []
-                }
-              },
-              "name": "show_console"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "False",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'Global settings customised'",
-                  "imports": []
-                }
-              },
-              "name": "GSValues_customised"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.IntegerField",
-              "kwargs": {
-                "default": {
-                  "expr": "25",
-                  "imports": []
-                }
-              },
-              "name": "blur_ratio"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.FloatField",
-              "kwargs": {
-                "default": {
-                  "expr": "1.05",
-                  "imports": []
-                }
-              },
-              "name": "roi_enlargement"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.IntegerField",
-              "kwargs": {
-                "default": {
-                  "expr": "25",
-                  "imports": []
-                }
-              },
-              "name": "progressive_blur"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.FloatField",
-              "kwargs": {
-                "default": {
-                  "expr": "0.25",
-                  "imports": []
-                }
-              },
-              "name": "detection_threshold"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'Interpolate missing detections'",
-                  "imports": []
-                }
-              },
-              "name": "interpolate_detections"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.IntegerField",
-              "kwargs": {
-                "default": {
-                  "expr": "15",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'Max frames to interpolate (capped at 0.5s)'",
-                  "imports": []
-                }
-              },
-              "name": "max_interpolation_frames"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "show_preview"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "show_boxes"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "show_labels"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "show_conf"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.JSONField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "wama.anonymizer.models.default_classes2blur",
-                  "imports": [
-                    "import wama.anonymizer.models"
-                  ]
-                },
-                "help_text": {
-                  "expr": "'List of objects to blur'",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'Objects to blur'",
-                  "imports": []
-                }
-              },
-              "name": "classes2blur"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "default": {
-                  "expr": "'detect/yolov8n.pt'",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'YOLO model path (e.g., detect/yolo11n.pt or detect/faces/yolov9s-face-lindevs.pt)'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "255",
-                  "imports": []
-                }
-              },
-              "name": "model_to_use"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.IntegerField",
-              "kwargs": {
-                "default": {
-                  "expr": "50",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'0=Quick (fast), 50=Balanced, 100=Precise (slow but accurate)'",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'Processing precision level'",
-                  "imports": []
-                }
-              },
-              "name": "precision_level"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'Automatically determined by precision level'",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'Use segmentation models'",
-                  "imports": []
-                }
-              },
-              "name": "use_segmentation"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "False",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'When True, uses SAM3 text prompt instead of YOLO classes by default'",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'Use SAM3 by default'",
-                  "imports": []
-                }
-              },
-              "name": "use_sam3"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.TextField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'Default text prompt for SAM3 segmentation'",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'Default SAM3 Text Prompt'",
-                  "imports": []
-                }
-              },
-              "name": "sam3_prompt"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "False",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'Whether user has configured HuggingFace access token for SAM3'",
-                  "imports": []
-                },
-                "verbose_name": {
-                  "expr": "'HuggingFace token configured'",
-                  "imports": []
-                }
-              },
-              "name": "hf_token_configured"
-            }
-          ],
-          "manager": "",
-          "meta": {},
-          "name": "UserSettings"
         },
         {
           "fields": [
@@ -1611,33 +1080,25 @@
           "icon": "fa-photo-film",
           "id": "image_video",
           "label": "Image / Vidéo",
+          "mode_param": "target_mode",
           "modes": [
             {
-              "icon": "fa-crosshairs",
-              "id": "yolo",
+              "icon": "fa-list-check",
+              "id": "classes",
               "inputs": [
                 "work_file"
               ],
-              "label": "Détection (YOLO)",
-              "settings": [
-                "model",
-                "classes",
-                "blur_ratio",
-                "detection_threshold"
-              ],
+              "label": "Classes",
               "variant": "primary"
             },
             {
-              "icon": "fa-wand-magic-sparkles",
-              "id": "sam3",
+              "icon": "fa-comment-dots",
+              "id": "description",
               "inputs": [
                 "work_file",
                 "prompt"
               ],
-              "label": "Prompt (SAM3)",
-              "settings": [
-                "blur_ratio"
-              ],
+              "label": "Description",
               "variant": "info"
             }
           ]
@@ -1650,52 +1111,58 @@
         "PARAMS_JSON": [
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
-            "chip_label": "SAM3",
-            "choices": null,
+            "chip_label": "Désignation",
+            "choices": [
+              [
+                "classes",
+                "Classes"
+              ],
+              [
+                "description",
+                "Description"
+              ]
+            ],
             "contexts": [
               "item",
               "batch",
               "panel"
             ],
-            "default": false,
+            "default": "classes",
             "dom_id": "",
             "group": "mode",
-            "help": "SAM3 : segmentation par prompt texte au lieu des classes YOLO.",
+            "help": "Classes : une liste d'objets à flouter. Description : ce qu'il faut flouter, décrit en texte.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
-            "icon": "fa-wand-magic-sparkles",
-            "inline": false,
+            "icon": "fa-bullseye",
+            "inline": true,
             "label": "",
             "max": null,
             "max_label": "",
             "min": null,
             "min_label": "",
-            "name": "use_sam3",
+            "name": "target_mode",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
-            "pills": [
-              {
-                "icon": "fa-image",
-                "label": "YOLO (Classes)"
-              },
-              {
-                "icon": "fa-comment-dots",
-                "label": "SAM3 (Prompt)"
-              }
-            ],
+            "pills": [],
             "radio_name": "",
             "section": "settings",
             "show_if": null,
             "step": null,
-            "type": "toggle",
+            "type": "radio",
             "unit": ""
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1708,7 +1175,7 @@
             "dom_id": {
               "panel": "user_setting_sam3_prompt"
             },
-            "group": "sam3",
+            "group": "description",
             "help": "Ex. « blur all faces and license plates ».",
             "help_fallback": null,
             "help_html": "",
@@ -1722,15 +1189,19 @@
             "min_label": "",
             "name": "sam3_prompt",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
             "section": "settings",
             "show_if": {
-              "equals": true,
-              "field": "use_sam3"
+              "equals": "description",
+              "field": "target_mode"
             },
             "step": null,
             "type": "textarea",
@@ -1738,6 +1209,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "",
             "choices": null,
@@ -1746,40 +1218,49 @@
               "batch",
               "panel"
             ],
-            "default": null,
+            "default": "auto",
             "dom_id": {
               "panel": "user_setting_model_to_use"
             },
-            "group": "yolo",
-            "help": "Modèle de détection YOLO (vide = auto selon la précision).",
+            "group": "model",
+            "help": "Automatique : choisi au lancement selon le curseur et les classes.",
             "help_fallback": null,
             "help_html": "",
-            "help_source": null,
+            "help_source": "anonymizer",
             "icon": "fa-microchip",
             "inline": false,
-            "label": "Modèle YOLO",
+            "label": "Modèle",
             "max": null,
             "max_label": "",
             "min": null,
             "min_label": "",
             "name": "model_to_use",
             "option_groups": null,
-            "options_auto": false,
-            "options_query": null,
-            "options_source": null,
+            "options_abilities": false,
+            "options_auto": true,
+            "options_cloud": false,
+            "options_group": "task",
+            "options_mode": {
+              "app": "anonymizer",
+              "domain": "image_video",
+              "field": "target_mode"
+            },
+            "options_query": {
+              "source": "anonymizer",
+              "task": "detect,segment"
+            },
+            "options_source": "catalog",
             "pills": [],
             "radio_name": "",
             "section": "settings",
-            "show_if": {
-              "equals": false,
-              "field": "use_sam3"
-            },
+            "show_if": null,
             "step": null,
             "type": "select",
             "unit": ""
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "",
             "choices": null,
@@ -1792,8 +1273,8 @@
             "dom_id": {
               "panel": "user_setting_precision_level"
             },
-            "group": "yolo",
-            "help": "5 paliers effectifs (n/s/m/l/x) ; au-delà de 50, segmentation fine.",
+            "group": "model",
+            "help": "5 paliers effectifs (n/s/m/l/x) ; à partir de 50, segmentation fine.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1806,7 +1287,11 @@
             "min_label": "",
             "name": "precision_level",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1819,6 +1304,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1845,7 +1331,11 @@
             "min_label": "",
             "name": "detection_threshold",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1858,6 +1348,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1866,7 +1357,7 @@
               "batch",
               "panel"
             ],
-            "default": 25,
+            "default": 75,
             "dom_id": {
               "panel": "user_setting_blur_ratio"
             },
@@ -1884,7 +1375,11 @@
             "min_label": "",
             "name": "blur_ratio",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1897,6 +1392,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1921,7 +1417,11 @@
             "min_label": "",
             "name": "rounded_edges",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1934,6 +1434,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1960,7 +1461,11 @@
             "min_label": "",
             "name": "roi_enlargement",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1973,6 +1478,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1999,7 +1505,11 @@
             "min_label": "",
             "name": "progressive_blur",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2012,6 +1522,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": true,
             "chip_label": "Interpolation",
             "choices": null,
@@ -2036,7 +1547,11 @@
             "min_label": "",
             "name": "interpolate_detections",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2049,6 +1564,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -2073,7 +1589,11 @@
             "min_label": "",
             "name": "max_interpolation_frames",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2089,6 +1609,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": true,
             "chip_label": "Segmentation",
             "choices": null,
@@ -2113,7 +1634,11 @@
             "min_label": "",
             "name": "use_segmentation",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2126,6 +1651,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -2150,7 +1676,11 @@
             "min_label": "",
             "name": "show_preview",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2163,6 +1693,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -2187,7 +1718,11 @@
             "min_label": "",
             "name": "show_boxes",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2200,6 +1735,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -2224,7 +1760,11 @@
             "min_label": "",
             "name": "show_labels",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2237,6 +1777,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -2261,7 +1802,11 @@
             "min_label": "",
             "name": "show_conf",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2274,6 +1819,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -2337,18 +1883,6 @@
                   [
                     "gif",
                     ".GIF"
-                  ],
-                  [
-                    "mp3",
-                    ".MP3"
-                  ],
-                  [
-                    "wav",
-                    ".WAV"
-                  ],
-                  [
-                    "ogg",
-                    ".OGG"
                   ]
                 ]
               ],
@@ -2390,7 +1924,11 @@
                 ]
               ]
             ],
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2403,6 +1941,7 @@
           },
           {
             "advanced": true,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -2440,7 +1979,11 @@
             "min_label": "",
             "name": "output_quality",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2506,7 +2049,6 @@
         "check_all_processed",
         "clear_all_media",
         "clear_media",
-        "configure_hf_token",
         "console",
         "consolidate",
         "debug_media_status",
@@ -2515,8 +2057,8 @@
         "download_all_media",
         "download_media",
         "duplicate_media",
-        "expand_area",
         "get_media_settings",
+        "get_user_settings",
         "global_progress",
         "help",
         "index",
@@ -2530,16 +2072,15 @@
         "remove_from_batch",
         "reorder",
         "reorder_queue",
-        "reset_media_settings",
         "reset_user_settings",
         "sam3_examples",
         "sam3_status",
         "save_media_settings",
+        "save_user_settings",
         "start",
         "start_all",
         "stop",
         "stop_process",
-        "update_settings",
         "upload",
         "validate_prompt"
       ],
@@ -2575,9 +2116,14 @@
           "view": "views.start_all"
         },
         {
-          "name": "update_settings",
-          "pattern": "update_settings/",
-          "view": "views.update_settings"
+          "name": "get_user_settings",
+          "pattern": "user_settings/",
+          "view": "views.get_user_anonymizer_settings"
+        },
+        {
+          "name": "save_user_settings",
+          "pattern": "user_settings/save/",
+          "view": "views.save_user_anonymizer_settings"
         },
         {
           "name": "delete",
@@ -2588,11 +2134,6 @@
           "name": "clear_media",
           "pattern": "clear_media/",
           "view": "views.clear_media"
-        },
-        {
-          "name": "reset_media_settings",
-          "pattern": "reset_media_settings/",
-          "view": "views.reset_media_settings"
         },
         {
           "name": "reset_user_settings",
@@ -2613,11 +2154,6 @@
           "name": "download_media",
           "pattern": "download_media/",
           "view": "views.download_media"
-        },
-        {
-          "name": "expand_area",
-          "pattern": "expand_area/",
-          "view": "views.expand_area"
         },
         {
           "name": "stop_process",
@@ -2675,11 +2211,6 @@
           "view": "views.get_sam3_status_view"
         },
         {
-          "name": "configure_hf_token",
-          "pattern": "sam3/configure-hf/",
-          "view": "views.configure_hf_token"
-        },
-        {
           "name": "validate_prompt",
           "pattern": "sam3/validate-prompt/",
           "view": "views.validate_prompt_view"
@@ -2717,7 +2248,7 @@
           "input_field": "file",
           "name": "Media",
           "params_fields": [
-            "use_sam3",
+            "target_mode",
             "sam3_prompt",
             "model_to_use",
             "precision_level",
@@ -2742,6 +2273,7 @@
       "processing_time": true,
       "statuses": [
         "PENDING",
+        "AWAITING_RESOURCES",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
@@ -2768,9 +2300,13 @@
       "targets": [
         {
           "domain": "detection",
+          "enrich": true,
           "field": "sam3_prompt",
           "kind": "concept",
-          "when": "use_sam3"
+          "when": {
+            "equals": "description",
+            "field": "target_mode"
+          }
         }
       ]
     },
@@ -2784,16 +2320,16 @@
       "descriptions": {
         "add_to_anonymizer": {
           "args": {
-            "blur_ratio": "range — Taille du noyau gaussien (impaire). [1–99] (défaut : 25)",
+            "blur_ratio": "range — Taille du noyau gaussien (impaire). [1–99] (défaut : 75)",
             "classes": "list",
             "detection_threshold": "range — Seuil de détection [0–1] (défaut : 0.25)",
             "file_path": "str (requis)",
             "interpolate_detections": "toggle — Interpoler les détections manquantes (défaut : True)",
             "max_interpolation_frames": "number — Frames max à interpoler [1–60] (défaut : 15)",
-            "model_to_use": "select — Modèle de détection YOLO (vide = auto selon la précision).",
+            "model_to_use": "select — Automatique : choisi au lancement selon le curseur et les classes. (défaut : 'auto')",
             "output_format": "select — Conversion inline après floutage (brique converter). « Original » = format produit par le pipeline. (défaut : 'original')",
             "output_quality": "select — Qualité de sortie (choix : web | balanced | max) (défaut : 'balanced')",
-            "precision_level": "intent — 5 paliers effectifs (n/s/m/l/x) ; au-delà de 50, segmentation fine. [0–100] (défaut : 50)",
+            "precision_level": "intent — 5 paliers effectifs (n/s/m/l/x) ; à partir de 50, segmentation fine. [0–100] (défaut : 50)",
             "progressive_blur": "range — Flou progressif [0–100] (défaut : 25)",
             "roi_enlargement": "range — Agrandissement de la zone [1.0–2.0] (défaut : 1.05)",
             "rounded_edges": "number — Bords arrondis [0–50] (défaut : 5)",
@@ -2802,7 +2338,7 @@
             "show_conf": "toggle — Afficher la confiance (défaut : True)",
             "show_labels": "toggle — Afficher les libellés (défaut : True)",
             "show_preview": "toggle — Afficher l'aperçu (défaut : True)",
-            "use_sam3": "toggle — SAM3 : segmentation par prompt texte au lieu des classes YOLO. (défaut : False)",
+            "target_mode": "radio — Classes : une liste d'objets à flouter. Description : ce qu'il faut flouter, décrit en texte. (choix : classes | description) (défaut : 'classes')",
             "use_segmentation": "toggle — Masque au contour de l'objet plutôt qu'au rectangle détecté. (défaut : True)"
           },
           "description": "Ajoute un élément à la file d'attente de Anonymizer (Floutage automatique de visages et plaques sur images et vidéos) et renvoie son item_id."

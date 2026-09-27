@@ -182,6 +182,7 @@
       ],
       "model_id": "detect/yolo11x.pt",
       "specialty": null,
+      "vram_provenance": "heuristic",
       "yolo_type": "detect"
     },
     "formats": {

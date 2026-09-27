@@ -205,6 +205,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Curseur rapide/qualité 0-100 du tirage auto'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "quality_intent"
+            },
+            {
+              "args": [],
               "class": "django.db.models.FileField",
               "kwargs": {
                 "blank": {
@@ -720,6 +739,7 @@
         "PARAMS_JSON": [
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -744,9 +764,11 @@
             "min_label": "",
             "name": "prompt",
             "option_groups": null,
-            "options_aptitudes": false,
+            "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -759,6 +781,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "",
             "choices": null,
@@ -829,9 +852,11 @@
                 ]
               ]
             ],
-            "options_aptitudes": false,
+            "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -844,6 +869,59 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": 50,
+            "dom_id": {
+              "batch": "batchSettingsQualityIntent",
+              "item": "settingsQualityIntent",
+              "panel": "qualityIntent"
+            },
+            "group": "",
+            "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-gauge-high",
+            "inline": false,
+            "label": "Rapide ↔ Qualité",
+            "max": 100,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "quality_intent",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "field": "model",
+              "in": [
+                "auto-music",
+                "auto-sfx"
+              ]
+            },
+            "step": 1,
+            "type": "intent",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "",
             "choices": null,
@@ -872,9 +950,11 @@
             "min_label": "10s",
             "name": "duration",
             "option_groups": null,
-            "options_aptitudes": false,
+            "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -887,6 +967,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -948,9 +1029,11 @@
             "min_label": "",
             "name": "output_format",
             "option_groups": null,
-            "options_aptitudes": false,
+            "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -963,6 +1046,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -991,7 +1075,7 @@
               "panel": "output_quality"
             },
             "group": null,
-            "help": "",
+            "help": "Appliquée à la conversion vers le format choisi.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1004,15 +1088,28 @@
             "min_label": "",
             "name": "output_quality",
             "option_groups": null,
-            "options_aptitudes": false,
+            "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
             "section": "settings",
-            "show_if": null,
+            "show_if": {
+              "field": "output_format",
+              "in": [
+                "mp3",
+                "wav",
+                "flac",
+                "ogg",
+                "m4a",
+                "aac",
+                "opus"
+              ]
+            },
             "step": null,
             "type": "select",
             "unit": ""
@@ -1178,6 +1275,7 @@
           "params_fields": [
             "prompt",
             "model",
+            "quality_intent",
             "duration",
             "output_format",
             "output_quality"
@@ -1231,8 +1329,9 @@
             "duration": "range — Durée [10–600s] (défaut : 10.0)",
             "model": "select — Modèle (défaut : 'musicgen-small')",
             "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus)",
-            "output_quality": "select — Qualité (choix : web | balanced | max)",
-            "prompt": "textarea — Prompt (requis)"
+            "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max)",
+            "prompt": "textarea — Prompt (requis)",
+            "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)"
           },
           "description": "Ajoute un élément à la file d'attente de Composer (Génération de musique et effets sonores par IA) et renvoie son item_id."
         },

@@ -21,7 +21,8 @@
       }
     },
     "extra_info": {
-      "hf_id": "microsoft/VibeVoice-ASR"
+      "hf_id": "microsoft/VibeVoice-ASR",
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

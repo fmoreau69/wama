@@ -1,6 +1,9 @@
 {
   "body": {
     "capabilities": {
+      "continuation_frames": 25,
+      "duration_extension": "continuation",
+      "fps": 24,
       "inputs_optional": [
         "work_image"
       ],
@@ -10,9 +13,14 @@
       "languages": [
         "en"
       ],
+      "max_duration_s": 6.71,
+      "max_frames": 161,
       "modalities": [
         "video"
       ],
+      "native_resolution": "1216x704",
+      "recommended_guidance": 1.0,
+      "recommended_steps": 8,
       "task": "text-to-video",
       "tasks": [
         "text-to-video",

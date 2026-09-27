@@ -43,7 +43,8 @@
     },
     "extra_info": {
       "category": "speech",
-      "family": "parakeet-tdt-0.6b-v3"
+      "family": "parakeet-tdt-0.6b-v3",
+      "vram_provenance": "estimated"
     },
     "formats": {
       "can_convert_to": [],

@@ -1,15 +1,22 @@
 {
   "body": {
     "capabilities": {
+      "duration_extension": "segments",
+      "fps": 24,
       "inputs_optional": [
         "work_image"
       ],
       "inputs_required": [
         "prompt"
       ],
+      "max_duration_s": 5.04,
+      "max_frames": 121,
       "modalities": [
         "video"
       ],
+      "native_resolution": "1280x704",
+      "recommended_guidance": 1.0,
+      "recommended_steps": 3,
       "task": "text-to-video",
       "tasks": [
         "text-to-video",
@@ -45,7 +52,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "FastWan 2.2 TI2V 5B — distillé 3 pas, 24 fps",
+      "description_short": "FastWan 2.2 TI2V 5B — distillé 3 pas",
       "hf_id": "FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",
       "license": null,
       "model_type": "diffusion",
@@ -68,10 +75,10 @@
       "vram_gb": 23.0
     }
   },
-  "description": "FastWan 2.2 (FastVideo) : Wan 2.2 TI2V 5B distillé en 3 pas de débruitage, pour générer une vidéo à partir d'un texte beaucoup plus vite que les modèles non distillés. Le nombre de pas et le guidage sont imposés par la distillation.",
+  "description": "FastWan 2.2 (FastVideo) : Wan 2.2 TI2V 5B distillé en 3 pas de débruitage, pour générer une vidéo à partir d'un texte beaucoup plus vite que les modèles non distillés. Limites du modèle : 5 secondes au plus en un passage (121 images à 24 i/s — au-delà, la vidéo est prolongée par segments enchaînés, chacun repartant de la dernière image : la continuité n'est pas garantie), cadence fixe de 24 i/s, résolution native 1280×704 (en dessous, la qualité baisse). Le nombre de pas, le guidage et donc le prompt négatif sont imposés par la distillation (sans effet ici).",
   "key": "imager:fastwan-2.2-ti2v-5b",
   "manifest_kind": "model",
-  "name": "FastWan 2.2 TI2V 5B — distillé 3 pas, 24 fps",
+  "name": "FastWan 2.2 TI2V 5B — distillé 3 pas",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",

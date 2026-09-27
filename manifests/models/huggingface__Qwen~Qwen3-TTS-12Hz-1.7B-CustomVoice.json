@@ -29,7 +29,8 @@
     },
     "extra_info": {
       "category": "speech",
-      "family": "Qwen3-TTS-12Hz-1.7B-CustomVoice"
+      "family": "Qwen3-TTS-12Hz-1.7B-CustomVoice",
+      "vram_provenance": "estimated"
     },
     "formats": {
       "can_convert_to": [],

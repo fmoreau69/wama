@@ -31,7 +31,8 @@
     },
     "extra_info": {
       "model_id": "codeformer",
-      "pipeline": "codeformer"
+      "pipeline": "codeformer",
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

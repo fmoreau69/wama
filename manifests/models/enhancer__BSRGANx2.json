@@ -16,7 +16,9 @@
         "engine": "onnxruntime"
       }
     },
-    "extra_info": {},
+    "extra_info": {
+      "vram_provenance": "heuristic"
+    },
     "formats": {
       "can_convert_to": [],
       "format": "onnx",

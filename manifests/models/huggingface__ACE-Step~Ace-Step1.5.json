@@ -16,7 +16,8 @@
     },
     "extra_info": {
       "category": "music",
-      "family": "Ace-Step1.5"
+      "family": "Ace-Step1.5",
+      "vram_provenance": "estimated"
     },
     "formats": {
       "can_convert_to": [],

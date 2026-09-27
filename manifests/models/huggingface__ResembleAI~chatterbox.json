@@ -45,7 +45,8 @@
     },
     "extra_info": {
       "category": "speech",
-      "family": "chatterbox"
+      "family": "chatterbox",
+      "vram_provenance": "estimated"
     },
     "formats": {
       "can_convert_to": [],

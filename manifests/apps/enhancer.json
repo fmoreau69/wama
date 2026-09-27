@@ -299,15 +299,15 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('RealESR_Gx4', 'RealESR-General x4 (Rapide)'), ('RealESR_Animex4', 'RealESR-Anime x4 (Anime)'), ('BSRGANx2', 'BSRGAN x2 (Qualité)'), ('BSRGANx4', 'BSRGAN x4 (Qualité)'), ('RealESRGANx4', 'RealESRGAN x4 (Haute qualité)'), ('IRCNN_Mx1', 'IRCNN-M x1 (Débruitage)'), ('IRCNN_Lx1', 'IRCNN-L x1 (Débruitage fort)')]",
+                  "expr": "[('auto', 'Automatique — choisi au lancement'), ('RealESR_Gx4', 'RealESR-General x4 (Rapide)'), ('RealESR_Animex4', 'RealESR-Anime x4 (Anime)'), ('BSRGANx2', 'BSRGAN x2 (Qualité)'), ('BSRGANx4', 'BSRGAN x4 (Qualité)'), ('RealESRGANx4', 'RealESRGAN x4 (Haute qualité)'), ('IRCNN_Mx1', 'IRCNN-M x1 (Débruitage)'), ('IRCNN_Lx1', 'IRCNN-L x1 (Débruitage fort)')]",
                   "imports": []
                 },
                 "default": {
-                  "expr": "'RealESR_Gx4'",
+                  "expr": "'auto'",
                   "imports": []
                 },
                 "help_text": {
-                  "expr": "'AI model for upscaling'",
+                  "expr": "\"AI model for upscaling ('auto' = résolu au lancement par le catalogue)\"",
                   "imports": []
                 },
                 "max_length": {
@@ -326,11 +326,30 @@
                   "imports": []
                 },
                 "help_text": {
-                  "expr": "'Upscaling factor (2x or 4x depending on model)'",
+                  "expr": "'Upscaling factor (2x or 4x) — le BESOIN que « auto » filtre avant de classer ; un modèle désigné impose le sien'",
                   "imports": []
                 }
               },
               "name": "upscale_factor"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Curseur rapide/qualité 0-100 du tirage automatique (vide = équilibré)'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "quality_intent"
             },
             {
               "args": [],
@@ -764,11 +783,11 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('resemble', 'Resemble Enhance (Recommandé — 44.1kHz)'), ('deepfilternet', 'DeepFilterNet 3 (Rapide — temps réel)')]",
+                  "expr": "[('auto', 'Automatique — choisi au lancement'), ('resemble', 'Resemble Enhance (Recommandé — 44.1kHz)'), ('deepfilternet', 'DeepFilterNet 3 (Rapide — temps réel)')]",
                   "imports": []
                 },
                 "default": {
-                  "expr": "'resemble'",
+                  "expr": "'auto'",
                   "imports": []
                 },
                 "max_length": {
@@ -821,11 +840,30 @@
                   "imports": []
                 },
                 "help_text": {
-                  "expr": "'NFE quality steps 32/64/128 (Resemble only)'",
+                  "expr": "'NFE quality steps 32/64/128 (Resemble only) — quand le moteur est « auto », le NFE se DÉCLINE du curseur'",
                   "imports": []
                 }
               },
               "name": "quality"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Curseur rapide/qualité 0-100 du tirage automatique (vide = équilibré)'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "quality_intent"
             },
             {
               "args": [],
@@ -934,11 +972,11 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('RealESR_Gx4', 'RealESR-General x4 (Rapide)'), ('RealESR_Animex4', 'RealESR-Anime x4 (Anime)'), ('BSRGANx2', 'BSRGAN x2 (Qualité)'), ('BSRGANx4', 'BSRGAN x4 (Qualité)'), ('RealESRGANx4', 'RealESRGAN x4 (Haute qualité)'), ('IRCNN_Mx1', 'IRCNN-M x1 (Débruitage)'), ('IRCNN_Lx1', 'IRCNN-L x1 (Débruitage fort)')]",
+                  "expr": "[('auto', 'Automatique — choisi au lancement'), ('RealESR_Gx4', 'RealESR-General x4 (Rapide)'), ('RealESR_Animex4', 'RealESR-Anime x4 (Anime)'), ('BSRGANx2', 'BSRGAN x2 (Qualité)'), ('BSRGANx4', 'BSRGAN x4 (Qualité)'), ('RealESRGANx4', 'RealESRGAN x4 (Haute qualité)'), ('IRCNN_Mx1', 'IRCNN-M x1 (Débruitage)'), ('IRCNN_Lx1', 'IRCNN-L x1 (Débruitage fort)')]",
                   "imports": []
                 },
                 "default": {
-                  "expr": "'RealESR_Gx4'",
+                  "expr": "'auto'",
                   "imports": []
                 },
                 "max_length": {
@@ -1539,6 +1577,21 @@
     },
     "inspector": {
       "detail_registered": true,
+      "detail_spec": {
+        "engine": "ai_model",
+        "extra_from_params": true,
+        "result_file": "output_file",
+        "result_role": {
+          "field": "media_type",
+          "map": {
+            "document": "document",
+            "image": "image",
+            "video": "video"
+          }
+        },
+        "source_file": "input_file",
+        "source_type": "media_type"
+      },
       "preview": {
         "file_field": "input_file",
         "user_field": "user"
@@ -1580,6 +1633,7 @@
               "settings": [
                 "ai_model",
                 "upscale_factor",
+                "quality_intent",
                 "denoise",
                 "blend_factor",
                 "tile_size",
@@ -1607,6 +1661,7 @@
               "label": "Débruitage / Restauration",
               "settings": [
                 "engine",
+                "quality_intent",
                 "mode",
                 "denoising_strength",
                 "quality"
@@ -1624,12 +1679,17 @@
         "AUDIO_PARAMS_JSON": [
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "",
             "choices": [
               [
+                "auto",
+                "Automatique — choisi au lancement"
+              ],
+              [
                 "resemble",
-                "Resemble Enhance (Recommandé)"
+                "Resemble Enhance (Recommandé — 44.1kHz)"
               ],
               [
                 "deepfilternet",
@@ -1670,7 +1730,11 @@
             "min_label": "",
             "name": "engine",
             "option_groups": null,
-            "options_auto": false,
+            "options_abilities": false,
+            "options_auto": true,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": {
               "source": "enhancer",
               "task": "audio-enhance"
@@ -1686,6 +1750,54 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": 50,
+            "dom_id": {
+              "item": "settingsAudioQualityIntent",
+              "panel": "audioQualityIntent"
+            },
+            "group": "",
+            "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-gauge-high",
+            "inline": false,
+            "label": "Rapide ↔ Qualité",
+            "max": 100,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "quality_intent",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "auto",
+              "field": "engine"
+            },
+            "step": 1,
+            "type": "intent",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "",
             "choices": [
@@ -1725,7 +1837,11 @@
             "min_label": "",
             "name": "mode",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1741,6 +1857,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1767,7 +1884,11 @@
             "min_label": "",
             "name": "strength",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1783,6 +1904,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -1822,7 +1944,11 @@
             "min_label": "",
             "name": "quality",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1838,6 +1964,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -1895,7 +2022,11 @@
             "min_label": "",
             "name": "output_format",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1908,6 +2039,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -1932,7 +2064,7 @@
               "item": "settingsAudioOutputQuality"
             },
             "group": null,
-            "help": "",
+            "help": "Appliquée à la conversion vers le format choisi.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1945,13 +2077,28 @@
             "min_label": "",
             "name": "output_quality",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
             "section": "settings",
-            "show_if": null,
+            "show_if": {
+              "field": "output_format",
+              "in": [
+                "mp3",
+                "wav",
+                "flac",
+                "ogg",
+                "m4a",
+                "aac",
+                "opus"
+              ]
+            },
             "step": null,
             "type": "select",
             "unit": ""
@@ -1960,9 +2107,14 @@
         "MEDIA_PARAMS_JSON": [
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "",
             "choices": [
+              [
+                "auto",
+                "Automatique — choisi au lancement"
+              ],
               [
                 "RealESR_Gx4",
                 "RealESR-General x4 (Rapide)"
@@ -2051,7 +2203,11 @@
             "min_label": "",
             "name": "ai_model",
             "option_groups": null,
-            "options_auto": false,
+            "options_abilities": false,
+            "options_auto": true,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": {
               "model_type": "upscaling",
               "source": "enhancer"
@@ -2067,6 +2223,110 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "2",
+                "×2"
+              ],
+              [
+                "4",
+                "×4"
+              ]
+            ],
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": "4",
+            "dom_id": {
+              "item": "settingsUpscaleFactor",
+              "panel": "mediaUpscaleFactor"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-expand",
+            "inline": false,
+            "label": "Facteur d'agrandissement",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "upscale_factor",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "auto",
+              "field": "ai_model"
+            },
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": 50,
+            "dom_id": {
+              "item": "settingsQualityIntent",
+              "panel": "mediaQualityIntent"
+            },
+            "group": "",
+            "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-gauge-high",
+            "inline": false,
+            "label": "Rapide ↔ Qualité",
+            "max": 100,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "quality_intent",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "auto",
+              "field": "ai_model"
+            },
+            "step": 1,
+            "type": "intent",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "Débruitage",
             "choices": null,
@@ -2093,7 +2353,11 @@
             "min_label": "",
             "name": "denoise",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2106,6 +2370,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "",
             "choices": null,
@@ -2132,7 +2397,11 @@
             "min_label": "",
             "name": "blend_factor",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2145,6 +2414,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": true,
             "chip_label": "",
             "choices": null,
@@ -2243,23 +2513,15 @@
                   [
                     "gif",
                     ".GIF"
-                  ],
-                  [
-                    "mp3",
-                    ".MP3"
-                  ],
-                  [
-                    "wav",
-                    ".WAV"
-                  ],
-                  [
-                    "ogg",
-                    ".OGG"
                   ]
                 ]
               ]
             ],
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2272,6 +2534,7 @@
           },
           {
             "advanced": false,
+            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": [
@@ -2311,7 +2574,11 @@
             "min_label": "",
             "name": "output_quality",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2364,6 +2631,12 @@
     },
     "processing": {
       "anti_race": true,
+      "backend_nature_field": "media_type",
+      "backend_routes": {
+        "audio": "backends.audio_backend.enhance_audio",
+        "image": "backends.media_backend.enhance_image",
+        "video": "backends.media_backend.enhance_video"
+      },
       "batch_link_model": "BatchEnhancementItem",
       "endpoints": [
         "about",
@@ -2650,6 +2923,8 @@
           ],
           "params_fields": [
             "ai_model",
+            "upscale_factor",
+            "quality_intent",
             "denoise",
             "blend_factor",
             "output_format",
@@ -2661,6 +2936,7 @@
       "processing_time": true,
       "statuses": [
         "PENDING",
+        "AWAITING_RESOURCES",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
@@ -2695,7 +2971,7 @@
       "descriptions": {
         "add_to_enhancer": {
           "args": {
-            "ai_model": "select — Modèle AI (choix : RealESR_Gx4 | RealESR_Animex4 | BSRGANx2 | BSRGANx4 | RealESRGANx4 | IRCNN_Mx1 | IRCNN_Lx1) (défaut : 'RealESR_Gx4')",
+            "ai_model": "select — Modèle AI (choix : auto | RealESR_Gx4 | RealESR_Animex4 | BSRGANx2 | BSRGANx4 | RealESRGANx4 | IRCNN_Mx1 | IRCNN_Lx1) (défaut : 'RealESR_Gx4')",
             "blend_factor": "range — Blend [0–1] (défaut : 0.0)",
             "denoise": "toggle — Débruitage (défaut : False)",
             "file_path": "str (requis)"

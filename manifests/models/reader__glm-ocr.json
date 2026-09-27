@@ -16,7 +16,8 @@
       }
     },
     "extra_info": {
-      "type": "ocr-vlm"
+      "type": "ocr-vlm",
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

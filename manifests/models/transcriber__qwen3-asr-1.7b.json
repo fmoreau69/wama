@@ -21,7 +21,8 @@
       }
     },
     "extra_info": {
-      "hf_id": "Qwen/Qwen3-ASR-1.7B"
+      "hf_id": "Qwen/Qwen3-ASR-1.7B",
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

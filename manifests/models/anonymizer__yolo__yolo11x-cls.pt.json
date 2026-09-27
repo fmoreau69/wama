@@ -2022,6 +2022,7 @@
       ],
       "model_id": "classify/yolo11x-cls.pt",
       "specialty": null,
+      "vram_provenance": "heuristic",
       "yolo_type": "classify"
     },
     "formats": {

@@ -21,7 +21,8 @@
       }
     },
     "extra_info": {
-      "pipeline": "musetalk"
+      "pipeline": "musetalk",
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

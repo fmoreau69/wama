@@ -26,6 +26,7 @@
       ],
       "model_id": "detect/faces&plates/yolov8m_face_plate_720p.pt",
       "specialty": "faces&plates",
+      "vram_provenance": "heuristic",
       "yolo_type": "detect"
     },
     "formats": {

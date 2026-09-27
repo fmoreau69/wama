@@ -23,7 +23,8 @@
     },
     "extra_info": {
       "model_id": "deepface-expression",
-      "optional": false
+      "optional": false,
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

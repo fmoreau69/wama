@@ -42,7 +42,8 @@
     },
     "extra_info": {
       "category": "speech",
-      "family": "Audio8-TTS-Preview-0.6b"
+      "family": "Audio8-TTS-Preview-0.6b",
+      "vram_provenance": "estimated"
     },
     "formats": {
       "can_convert_to": [],

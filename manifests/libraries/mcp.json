@@ -1,10 +1,6 @@
 {
   "body": {
-    "constraints": {
-      "pip": [
-        "starlette==0.46.2"
-      ]
-    },
+    "constraints": {},
     "dependencies": [
       "anyio",
       "httpx",
@@ -21,7 +17,11 @@
       "typing-inspection",
       "uvicorn"
     ],
-    "entry_points": {},
+    "entry_points": {
+      "console_scripts": [
+        "mcp"
+      ]
+    },
     "identity": {
       "author": "Anthropic, PBC.",
       "license": "MIT",
@@ -41,7 +41,7 @@
   "projects": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "wheel-metadata:mcp==1.30.0",
+    "ref": "importlib.metadata:mcp==1.30.0",
     "type": "extract"
   },
   "visibility": "public",

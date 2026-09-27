@@ -20,7 +20,8 @@
     },
     "extra_info": {
       "category": "vision",
-      "family": "PP-DocLayoutV3_safetensors"
+      "family": "PP-DocLayoutV3_safetensors",
+      "vram_provenance": "estimated"
     },
     "formats": {
       "can_convert_to": [],

@@ -43,7 +43,8 @@
     },
     "extra_info": {
       "category": "speech",
-      "family": "canary-1b-v2"
+      "family": "canary-1b-v2",
+      "vram_provenance": "estimated"
     },
     "formats": {
       "can_convert_to": [],

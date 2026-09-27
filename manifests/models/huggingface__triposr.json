@@ -22,7 +22,9 @@
         "engine": "triposr"
       }
     },
-    "extra_info": {},
+    "extra_info": {
+      "vram_provenance": "declared"
+    },
     "formats": {
       "can_convert_to": [],
       "format": null,

@@ -19,6 +19,7 @@
     "extra_info": {
       "model_id": "segment/yolopv2.pt",
       "specialty": null,
+      "vram_provenance": "heuristic",
       "yolo_type": "segment"
     },
     "formats": {

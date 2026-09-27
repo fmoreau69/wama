@@ -16,7 +16,8 @@
     "composition": {},
     "extra_info": {
       "category": "diffusion",
-      "family": "Minimax-h3-Turbo-SLA"
+      "family": "Minimax-h3-Turbo-SLA",
+      "vram_provenance": "estimated"
     },
     "formats": {
       "can_convert_to": [],

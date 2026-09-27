@@ -23,7 +23,8 @@
     },
     "extra_info": {
       "model_id": "deepface-age",
-      "optional": true
+      "optional": true,
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

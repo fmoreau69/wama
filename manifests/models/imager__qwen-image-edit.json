@@ -13,6 +13,8 @@
       "modalities": [
         "image"
       ],
+      "recommended_guidance": 4.0,
+      "recommended_steps": 50,
       "task": "image-to-image",
       "tasks": [
         "image-to-image"
