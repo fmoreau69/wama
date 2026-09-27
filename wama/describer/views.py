@@ -29,6 +29,9 @@ from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.video_utils import upload_media_from_url
 
+# Retiré par erreur le 2026-07-22 (portage de url_ingest) : les 9 `logger.*` de ce module levaient
+# NameError — dont l'import par URL dès sa 1ʳᵉ ligne. Tenu par `tests_unbound_names`.
+logger = logging.getLogger(__name__)
 
 # _fetch_html_as_text : lecture de page web portee au commun (reutilisable partout).
 from wama.common.utils.url_ingest import fetch_html_as_text as _fetch_html_as_text  # noqa: E402,F401

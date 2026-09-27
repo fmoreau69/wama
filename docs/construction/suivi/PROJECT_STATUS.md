@@ -18244,7 +18244,11 @@ n'ajoutent rien, mesuré fichier par fichier contre HEAD) ; `tests_access_points
 **🔚 Point d'entrée de la prochaine session** : reste n°3 ci-dessus (volet de l'anonymizer rendu
 du schéma) — puis 4, 5, 6. Idées NON tranchées, à ne pas ouvrir sans Fabien : quotas sur jetons
 système (`ROADMAP §8d 4a`), parties du corps par la pose (`§17bis`), LocateAnything dans
-l'anonymizer (`§17bis`). cam_analyzer G2 : mort par design, laissé.
+l'anonymizer (`§17bis`). ~~cam_analyzer G2 : mort par design, laissé.~~ **Soldé le soir même
+(demande de Fabien)** : bloc SAM3 inline retiré, et une garde GÉNÉRIQUE `tests_unbound_names`
+(tout nom lu dans un module y est lié) — qui a trouvé un 2ᵉ `NameError` latent : `logger` absent
+de `describer/views.py` depuis le 2026-07-22 (l'import par URL du describer levait dès sa 1ʳᵉ
+ligne), rétabli. ⚠ Le describer n'a pas été rejoué au navigateur : reload gunicorn requis.
 
 **Leçons.**
 - Deux apps avec la même fonction locale = extraire AVANT de commiter (question de Fabien : « rien

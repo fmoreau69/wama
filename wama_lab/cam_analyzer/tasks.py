@@ -850,9 +850,6 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
                 + (" — analyse restreinte aux fenêtres" if _restrict_to_windows else "")
             )
 
-        # SAM3 reuses the same windows when enabled
-        _sam3_windows = _intersection_windows if getattr(profile, 'sam3_markings_enabled', False) else []
-
         for cam_idx, camera in enumerate(cameras):
             if _is_cancelled(user_id):
                 raise InterruptedError("Annulé par l'utilisateur")
@@ -967,11 +964,12 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
                     _console(user_id,
                              f"  AVERTISSEMENT: road_model_path introuvable sur disque: {road_model_path}")
 
-            # SAM3 is intentionally NOT loaded here — see comment at the start
-            # of process_session_task. It runs as a chained task after YOLO +
-            # YOLOPv2 have unloaded, so VRAM is fresh when SAM3's ~8GB model
-            # loads.
-            sam3_analyzer = None
+            # SAM3 is intentionally NOT run here — see comment at the start of
+            # process_session_task. It runs as a chained task
+            # (analyze_sam3_only_task) after YOLO + YOLOPv2 have unloaded, so
+            # VRAM is fresh when SAM3's ~8GB model loads. The inline block that
+            # remained here could never run and named an undefined variable
+            # (CHANGELOG G2) — removed 2026-09-27.
 
             # Setup annotated video writer
             from wama.common.utils.media_paths import app_media_dir
@@ -1334,18 +1332,6 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
                     road_regions = road_segmenter.segment_frame(pred.orig_img)
                     detections.extend(road_regions)
 
-                # SAM3 road markings — gated to intersection windows (or road fallback)
-                if sam3_analyzer is not None and pred.orig_img is not None:
-                    _in_window = any(
-                        w['t_enter'] <= timestamp <= w['t_exit'] for w in _sam3_windows
-                    )
-                    if _in_window or _use_sam3_fallback:
-                        try:
-                            markings = sam3_analyzer.analyze_frame(pred.orig_img)
-                            detections.extend(markings)
-                        except Exception as _sam3_err:
-                            logger.debug(f"[SAM3] frame {frame_idx}: {_sam3_err}")
-
                 # ── Lane attribution (Phase 2) ───────────────────────────────
                 # Only when YOLOPv2 produced lane polygons AND we're on the
                 # front camera (lateral views see lanes obliquely — geometry
@@ -1509,11 +1495,6 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
             if road_segmenter is not None:
                 road_segmenter.unload()
                 road_segmenter = None
-
-            # Release SAM3 analyzer (if any) after this camera is done
-            if sam3_analyzer is not None:
-                sam3_analyzer.unload()
-                sam3_analyzer = None
 
             # Update summary
             summary['total_frames'] += total_frames
