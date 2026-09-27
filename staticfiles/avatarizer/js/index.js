@@ -541,6 +541,12 @@
                 // Le MÊME catalogue que la direction modèle→choix (langues incluses).
                 capsProvider: modelCaps ? modelCaps.caps : null,
             });
+            // Troisième direction (2026-09-27) : les groupes de voix de la langue CHOISIE
+            // remontent en tête du sélecteur. Rien n'est masqué — un timbre se clone d'une
+            // langue à l'autre. 2ᵉ adoption de la brique, et elle coûte UNE ligne : c'est ce
+            // que le synthesizer a payé pour elle. ⚠ Appelée ICI, dans `wireTtsMatching`, donc
+            // à CHAQUE ouverture de la modale : ses champs sont re-générés à chaque fois.
+            WamaInputMatch.voicesFollowLanguage('settingsVoicePreset', 'settingsLanguage');
         }
     }
 
