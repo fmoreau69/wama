@@ -12488,7 +12488,7 @@ cards orphelines (`PROFILES §3bis`) · triades déclaratives, specs de détail,
 
 ### ✅ Trouvé par ces tests et CORRIGÉ (demande Fabien : « il faut régler ça »)
 
-`anonymizer/signals.py` : le `post_save` de `Media` appelait `init_user_settings()` pour **TOUS les
+le module de signaux de l'anonymizer (retiré le 2026-09-27, `REMOVAL_LEDGER` R72 — chemin non écrit, il ne résout plus) : le `post_save` de `Media` appelait `init_user_settings()` pour **TOUS les
 utilisateurs** à chaque création de média — chaque dépôt **réinitialisait les réglages de tout le
 monde** (précision, segmentation, aperçu, `GSValues_customised = 0`), en commençant par
 `close_old_connections()` en plein cycle de requête. Mesuré : dans un `TestCase` la connexion se
@@ -18221,7 +18221,30 @@ qui borne le menu de modèles), `38657fa5` (3 fichiers oubliés par une autre in
 
 **Rouges du jour NON imputés à ce chantier** : budget langue (`code` 2768 > 2735 — mes fichiers
 n'ajoutent rien, mesuré fichier par fichier contre HEAD) ; `tests_access_points` sur
-`api/vram/grant/`.
+`api/vram/grant/`. *(Les deux soldés à la finalisation ci-dessus — `d3a24204`, `8bae7457`.)*
+
+**Clôture finale (2026-09-27 soir, `/cloture`)** — `f47c0638` + ce bloc.
+- **Gardes JS ajoutées** (§2a bis — les livrables communs de `wama-params.js` n'en avaient pas) :
+  `tests_wama_params_options.RadioNameTest` (radio de modale = UN `name`, celui du réglage ;
+  contre-épreuve : `radio_name` du transcriber prime toujours) et `ModeBoundMenuTest` (la requête
+  porte `app`/`domain`/`mode` lus dans le même conteneur ; une réponse PÉRIMÉE ne remplit jamais
+  le menu). **Contre-épreuve par mutation** : sans la garde de séquence, SAM3 revient en mode
+  « Classes ». ⚠ V8 n'est que dans venv_win : sous venv_linux ces tests SKIPPENT (déclaré).
+  9/9 OK.
+- Contrôles : `check_redundancy` 68 trouvailles, **aucune dans les fichiers de la session** ;
+  `doc_facts --check` à jour ; `manifest_export --check` à jour (246) ; `check_skills` 0 défaut ;
+  `check_docs` : les 2 cibles ouvertes par mes retraits (module de signaux, partial de bouton de
+  réglage) réécrites sans chemin → restent 2 cibles antérieures (`wama-dev-ai`, `pipeline_utils`).
+- `REMOVAL_LEDGER` : R70–R76 uniques. ⚠ **Doublons ANTÉRIEURS relevés, non touchés** : R43 (×2),
+  R64, R65, R66 (×2 chacun, sections composer/médiathèque vs synthesizer) — à renuméroter avec
+  table de renvoi par qui reprendra le registre.
+- Non gardé, déclaré : la pastille SAM3 (`AnonSam3Badge`, DOM au chargement — smoke navigateur
+  fait, pas de garde automatique).
+
+**🔚 Point d'entrée de la prochaine session** : reste n°3 ci-dessus (volet de l'anonymizer rendu
+du schéma) — puis 4, 5, 6. Idées NON tranchées, à ne pas ouvrir sans Fabien : quotas sur jetons
+système (`ROADMAP §8d 4a`), parties du corps par la pose (`§17bis`), LocateAnything dans
+l'anonymizer (`§17bis`). cam_analyzer G2 : mort par design, laissé.
 
 **Leçons.**
 - Deux apps avec la même fonction locale = extraire AVANT de commiter (question de Fabien : « rien
