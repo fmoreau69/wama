@@ -1498,8 +1498,10 @@ les tests du backend COMMUN audio.cpp quittent le fichier de tests du composer p
 Chaque fichier d'app garde son SPÉCIFIQUE et le dit en tête.
 
 **⏳ Restes** : le ZIP de lot contient les sorties (converter seul — il faut de vraies sorties) ;
-les classes propres à une app dans `tests_intent_vision` ; les 8 apps aux réglages utilisateur
-écrits à la main (`NOT_YET_DERIVED`) et les 9 écarts modale/volet (`DECLARED_GAPS`) — décisions et
+les classes propres à une app dans `tests_intent_vision` ; les 7 apps aux réglages utilisateur
+écrits à la main (`NOT_YET_DERIVED` ; l'anonymizer en est sorti le 2026-09-27 — brique commune
+`user_settings.*_panel_*`, dont le contrat `PanelSettingsBrickTest` vaut pour toute app dérivée)
+et les 9 écarts modale/volet (`DECLARED_GAPS`) — décisions et
 portages, pas des tests ; le `model_loaded` nocturne générique (décision de Fabien : quels modèles,
 quelle fréquence). Côté UI (consigne du même jour) : le moins de rechargement de page possible —
 `refreshCard` plutôt que `location.reload()` (l'enregistrement du volet de lot en fait encore un

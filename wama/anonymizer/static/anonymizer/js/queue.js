@@ -258,6 +258,23 @@
     });
   }
 
+  // ── Préférences de l'utilisateur (brique commune user_settings, 2026-09-27) ──
+  // Chemin écrit ici plutôt que par `{% url %}` dans la page : le gabarit est relu à chaud en
+  // production, les routes seulement au rechargement — une route neuve citée par le gabarit
+  // ferait tomber la page entre les deux.
+  const USER_SETTINGS_SAVE_URL = '/anonymizer/user_settings/save/';
+  function saveUserSettings(values) {
+    return fetch(USER_SETTINGS_SAVE_URL, {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
+      body: JSON.stringify(values),
+    }).then(r => r.json());
+  }
+  // Rien d'inspecté : le volet règle les défauts de l'utilisateur (les suivants naissent avec).
+  function saveGlobal() {
+    return saveUserSettings(WamaParams.read(document.getElementById('global-settings-container')));
+  }
+
   // ── Inspecteur (volet droit) — dérivé du SCHÉMA (dom_id.panel = ids legacy) ──
   if (window.WamaInspector && WamaInspector.initFromSchema) {
     window._anonInspector = WamaInspector.initFromSchema({
@@ -287,6 +304,7 @@
         });
         location.reload();
       },
+      saveGlobal: saveGlobal,
       renderItemActions: (host, card) => {
         WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
           '<i class="fas fa-crosshairs text-info"></i> Actions — média #' + card.dataset.id);
@@ -311,5 +329,13 @@
   }
 
   pollRunningCards();
-  window.AnonQueue = { refreshCard, startPolling, stopPolling, pollAllCards };
+  // `savePanel` : un réglage du volet a changé → l'inspecteur route (élément, lot, ou défauts de
+  // l'utilisateur). `saveUserSettings` : les widgets du volet HORS schéma (mode YOLO/SAM3,
+  // classes à flouter) ne règlent que les défauts de l'utilisateur, jusqu'au rendu du volet
+  // depuis le schéma.
+  function savePanel() {
+    if (window._anonInspector) window._anonInspector.save(); else saveGlobal();
+  }
+  window.AnonQueue = { refreshCard, startPolling, stopPolling, pollAllCards,
+                       savePanel, saveUserSettings };
 })();

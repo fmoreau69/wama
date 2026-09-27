@@ -1670,7 +1670,9 @@ MECHANISMS = (
               "Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / visible)",
               'wama/common/utils/scoping.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md'),
     Mechanism('user_settings', 'Réglages utilisateur par app',
-              "Persistance cache user_{id}_{app}_{clé} avec défauts déclarés par l'app",
+              "Réglages durables en base (UserAppSetting, cache devant) ; réglages du VOLET dérivés "
+              "du schéma — lire, garder, remettre à zéro, faire naître un élément, deux routes JSON "
+              "(`*_panel_settings`, `new_element_settings`, `make_panel_settings_views`)",
               'wama/common/utils/user_settings.py', ''),
     Mechanism('feature_flags', 'Bascules de fonctionnalités',
               "Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AVEC/SANS",

@@ -77,6 +77,121 @@ def get_user_app_setting(user, app, name, default=None):
     return _read(user, app, [name]).get(name, default)
 
 
+def clear_user_app_settings(user, app, names):
+    """Retire les réglages `names` de ``user`` pour ``app`` : ils reprennent le défaut que
+    l'app déclare. C'est la RÉINITIALISATION — écrire les défauts à la place les figerait, et
+    un défaut changé plus tard dans le schéma n'atteindrait plus cet utilisateur."""
+    names = list(names)
+    if _durable(user):
+        from wama.common.models import UserAppSetting
+        UserAppSetting.objects.filter(user=user, app=app, name__in=names).delete()
+    cache.delete_many([_key(user, app, n) for n in names])
+
+
+# ── Les réglages du VOLET d'une app, dérivés de son schéma (2026-09-27) ────────────────────
+# Le volet EST la surface des défauts de l'utilisateur. Lire, garder, remettre à zéro et faire
+# naître un élément avec ces défauts s'écrivait dans chaque app (transcriber, anonymizer,
+# imager) : c'est ici, une fois. L'app DÉCLARE seulement, dans son params.py :
+#   • `params`  — son schéma (seuls les params du contexte `panel` sont gardés) ;
+#   • `key`     — la clé de stockage d'un param (défaut : `panel_dom_id`), pour les clés déjà en
+#                 base sous un autre nom (frontière des données) ;
+#   • `extra`   — {nom: défaut} des réglages du volet HORS schéma (anonymizer : `classes2blur`),
+#                 et `clean` — {nom: fonction} qui assainit une valeur postée avant de la garder.
+# Toutes les fonctions acceptent la même déclaration (l'app la passe telle quelle, `**`).
+
+#: Types de param pour qui `''` EST une valeur (un prompt vidé, un choix remis sur « auto ») ;
+#: pour les autres (nombres, interrupteurs), `''` veut dire « non fourni ».
+_EMPTY_IS_VALUE = ('text', 'textarea', 'select')
+
+
+def _panel_defaults(params, key, extra):
+    from wama.common.utils.param_schema import panel_defaults
+    return {**panel_defaults(params, key=key), **dict(extra or {})}
+
+
+def read_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict:
+    """Les réglages du volet de ``user``, par NOM de param (ce que `WamaParams.render` attend),
+    défauts du schéma sous ce que l'utilisateur a posé — réglages hors schéma compris."""
+    from wama.common.utils.param_schema import panel_values_by_name
+    stored = get_user_app_settings(user, app, _panel_defaults(params, key, extra))
+    values = panel_values_by_name(stored, params, key=key)
+    values.update({name: stored[name] for name in (extra or {})})
+    return values
+
+
+def save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None) -> dict:
+    """Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
+    le schéma. Une clé absente n'écrase rien ; un nombre ou un interrupteur vide non plus.
+    Rend ce qui a été gardé, par clé de stockage."""
+    from wama.common.utils.param_schema import (_pget, coerce_schema_values,
+                                                panel_prefs_from_post)
+    typed = {**data, **coerce_schema_values(params, data)}
+    textual = {_pget(p, 'name') for p in params if _pget(p, 'type') in _EMPTY_IS_VALUE}
+    prefs = {}
+    for p in params:
+        stored_as = panel_prefs_from_post(typed, [p], key=key)
+        for k, v in stored_as.items():
+            if v not in (None, '') or _pget(p, 'name') in textual:
+                prefs[k] = v
+    for name in (extra or {}):
+        if name in data:
+            fix = (clean or {}).get(name)
+            prefs[name] = fix(data[name]) if fix else data[name]
+    if prefs:
+        save_user_app_settings(user, app, prefs)
+    return prefs
+
+
+def reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict:
+    """Remet le volet de ``user`` sur les défauts : ses préférences sont RETIRÉES (jamais
+    réécrites avec les défauts du jour). Rend les réglages tels qu'ils sont alors lus."""
+    clear_user_app_settings(user, app, _panel_defaults(params, key, extra))
+    return read_panel_settings(user, app, params, key=key, extra=extra)
+
+
+def new_element_settings(user, app, params, model, *, key=None, extra=None,
+                         clean=None) -> dict:
+    """Les colonnes de réglage d'un élément NAISSANT : les réglages du volet de son auteur,
+    restreints aux champs concrets de `model` — il naît complet (`ROADMAP §23.2quater`), et sa
+    tâche ne lit plus que ses colonnes."""
+    concrete = {f.name for f in model._meta.concrete_fields}
+    values = read_panel_settings(user, app, params, key=key, extra=extra)
+    return {k: v for k, v in values.items() if k in concrete}
+
+
+def make_panel_settings_views(app, params, *, key=None, extra=None, clean=None):
+    """Les deux vues JSON du volet — lecture (GET) et enregistrement (POST, JSON par NOM, clés
+    absentes inchangées) —, identiques d'une app à l'autre. Rend `(get_view, save_view)`,
+    à router sur `user_settings/` et `user_settings/save/`."""
+    import json as _json
+
+    from django.http import JsonResponse
+    from django.views.decorators.http import require_POST
+
+    def _user(request):
+        if request.user.is_authenticated:
+            return request.user
+        from wama.accounts.views import get_or_create_anonymous_user
+        return get_or_create_anonymous_user()
+
+    def get_view(request):
+        return JsonResponse(read_panel_settings(_user(request), app, params,
+                                                key=key, extra=extra))
+
+    @require_POST
+    def save_view(request):
+        user = _user(request)
+        try:
+            data = _json.loads(request.body.decode('utf-8'))
+        except (ValueError, UnicodeDecodeError):
+            data = {}
+        save_panel_settings(user, app, params, data if isinstance(data, dict) else {},
+                            key=key, extra=extra, clean=clean)
+        return JsonResponse(read_panel_settings(user, app, params, key=key, extra=extra))
+
+    return get_view, save_view
+
+
 def save_user_app_settings(user, app, values, *, timeout=DEFAULT_TIMEOUT):
     """Persiste chaque réglage fourni (en base, et en cache pour la lecture).
 

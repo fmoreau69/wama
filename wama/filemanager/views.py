@@ -1670,7 +1670,7 @@ def import_to_imager(source_path, user, app_label='imager'):
 def import_to_anonymizer(source_path, user, app_label='anonymizer'):
     """Import a file to Anonymizer app. `app_label` re-cible une jumelle (importer_for)."""
     from django.apps import apps as django_apps
-    from wama.anonymizer.views import add_media_to_db
+    from wama.anonymizer.views import add_media_to_db, new_media_settings
     from wama.common.utils.media_paths import reference_or_copy
     import mimetypes
 
@@ -1689,11 +1689,13 @@ def import_to_anonymizer(source_path, user, app_label='anonymizer'):
     else:
         media_type = 'video'  # Default
 
+    # Le média NAÎT avec les réglages de son auteur (brique `user_settings`, 2026-09-27).
     media = Media.objects.create(
         user=user,
         file=relative_path,
         file_ext=file_ext,
         media_type=media_type,
+        **new_media_settings(user, model=Media, app=app_label),
     )
 
     # Add metadata (dimensions, fps, duration, etc.)

@@ -14,32 +14,12 @@
         return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
     }
 
-    function debounce(func, wait) {
-        let timeout;
-        return function(...args) {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
-        };
-    }
-
+    // Widgets du volet HORS schéma (mode YOLO/SAM3, classes) : ils règlent les défauts de
+    // l'utilisateur (brique `user_settings`, 2026-09-27 — ex-`update_settings/` par champ).
     function saveUserSetting(settingName, value) {
-        const data = new FormData();
-        data.append('setting_type', 'user_setting');
-        data.append('setting_name', settingName);
-        data.append('input_value', value);
-        data.append('csrfmiddlewaretoken', getCsrfToken());
-
-        fetch('/anonymizer/update_settings/', {
-            method: 'POST',
-            body: data
-        })
-        .then(response => response.json())
-        .then(result => {
-            console.log('[right_panel.js] Setting saved:', settingName, '=', value, result);
-        })
-        .catch(err => {
-            console.error('[right_panel.js] Failed to save setting:', err);
-        });
+        if (!window.AnonQueue || !window.AnonQueue.saveUserSettings) return;
+        window.AnonQueue.saveUserSettings({ [settingName]: value })
+            .catch(err => console.error('[right_panel.js] Failed to save setting:', err));
     }
 
     // ========================================
@@ -60,14 +40,14 @@
                 if (sam3Section) sam3Section.style.display = 'none';
                 if (sam3StatusIndicator) sam3StatusIndicator.style.display = 'none';
                 console.log('[right_panel.js] Saving use_sam3 = false');
-                saveUserSetting('use_sam3', 'false');
+                saveUserSetting('use_sam3', false);
             } else {
                 if (yoloSection) yoloSection.style.display = 'none';
                 if (sam3Section) sam3Section.style.display = 'block';
                 if (sam3StatusIndicator) sam3StatusIndicator.style.display = 'block';
                 checkSam3Status();
                 console.log('[right_panel.js] Saving use_sam3 = true');
-                saveUserSetting('use_sam3', 'true');
+                saveUserSetting('use_sam3', true);
             }
         }
 
@@ -143,15 +123,9 @@
             }
         }
 
-        // Debounced save for SAM3 prompt
-        const debouncedSavePrompt = debounce(function(value) {
-            saveUserSetting('sam3_prompt', value);
-        }, 500);
-
-        sam3PromptTextarea.addEventListener('input', function() {
-            updatePromptCount();
-            debouncedSavePrompt(this.value);
-        });
+        // L'enregistrement du prompt est celui de tout réglage du schéma (`.setting-button`,
+        // update.js) : il suit ce que le volet inspecte.
+        sam3PromptTextarea.addEventListener('input', updatePromptCount);
 
         // Initial count
         updatePromptCount();
@@ -234,14 +208,17 @@
             }
         }
 
-        function saveClass(className, isChecked) {
-            saveUserSetting('classes2blur_' + className, isChecked ? 'true' : 'false');
+        // La LISTE entière est envoyée : le serveur la garde telle quelle.
+        function saveClasses() {
+            const checked = Array.from(document.querySelectorAll('.classes2blur-checkbox:checked'))
+                .map(cb => cb.value);
+            saveUserSetting('classes2blur', Array.from(new Set(checked)));
         }
 
         checkboxes.forEach(function(cb) {
             cb.addEventListener('change', function() {
                 updateCount();
-                saveClass(this.value, this.checked);
+                saveClasses();
             });
         });
 

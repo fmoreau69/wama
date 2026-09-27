@@ -1761,30 +1761,26 @@ def update_settings(request, pk: int):
 # Ici vivaient trois listes écrites à la main (défauts, noms JSON acceptés, correspondance
 # nom↔clé) plus une quatrième dans la page et une cinquième dans l'upload : un réglage ajouté à
 # `params.py` n'était lu par AUCUNE (le filtre de parole n'apparaissait donc que dans la
-# modale). Les défauts et la clé de stockage sont déclarés dans `params.py`
-# (`USER_SETTINGS_DEFAULTS`, `user_setting_key`), la lecture et l'écriture sont les helpers
-# COMMUNS portés de l'imager (`param_schema.panel_*`).
-from wama.transcriber.params import USER_SETTINGS_DEFAULTS, user_setting_key  # noqa: E402
+# modale). La clé de stockage est déclarée dans `params.py` (`user_setting_key`) ; lire, garder
+# et les deux routes JSON sont la brique COMMUNE `user_settings` (2026-09-27, partagée avec
+# l'anonymizer — ces fonctions étaient recopiées d'une app à l'autre).
+from wama.transcriber.params import user_setting_key  # noqa: E402
+from wama.common.utils.user_settings import (  # noqa: E402
+    make_panel_settings_views, read_panel_settings, save_panel_settings,
+)
+
+get_user_transcriber_settings, save_user_transcriber_settings = make_panel_settings_views(
+    'transcriber', _SCHEMA, key=user_setting_key)
 
 
 def _user_panel_values(user):
     """Les réglages utilisateur, par NOM de param — ce que le volet rend et ce que l'API sert."""
-    from wama.common.utils.param_schema import panel_values_by_name
-    from wama.common.utils.user_settings import get_user_app_settings
-    stored = get_user_app_settings(user, 'transcriber', USER_SETTINGS_DEFAULTS)
-    return panel_values_by_name(stored, _SCHEMA, key=user_setting_key)
+    return read_panel_settings(user, 'transcriber', _SCHEMA, key=user_setting_key)
 
 
 def _save_user_panel_values(user, data):
-    """Garde comme préférences les réglages du volet présents dans `data` (par nom), coercés
-    par le schéma ; une clé absente n'écrase rien."""
-    from wama.common.utils.param_schema import coerce_schema_values, panel_prefs_from_post
-    from wama.common.utils.user_settings import save_user_app_settings
-    typed = {**data, **coerce_schema_values(_SCHEMA, data)}
-    prefs = panel_prefs_from_post(typed, _SCHEMA, key=user_setting_key)
-    if prefs:
-        save_user_app_settings(user, 'transcriber', prefs)
-    return prefs
+    """Garde comme préférences les réglages du volet présents dans `data` (brique commune)."""
+    return save_panel_settings(user, 'transcriber', _SCHEMA, data, key=user_setting_key)
 
 
 def _deposit_settings(user, post):
@@ -1796,20 +1792,3 @@ def _deposit_settings(user, post):
     return schema_model_kwargs('transcriber', post)
 
 
-@require_POST
-def save_user_transcriber_settings(request):
-    """Réglages user (brique commune user_settings) — JSON par NOM de param du schéma, clés
-    absentes = inchangées."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    try:
-        data = json.loads(request.body.decode('utf-8'))
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        data = {}
-    _save_user_panel_values(user, data if isinstance(data, dict) else {})
-    return JsonResponse(_user_panel_values(user))
-
-
-def get_user_transcriber_settings(request):
-    """Réglages user (lecture) — brique commune user_settings."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    return JsonResponse(_user_panel_values(user))

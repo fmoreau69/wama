@@ -6,7 +6,7 @@ from celery import shared_task, chord, group
 from django.db import close_old_connections
 from django.core.cache import cache
 from django.contrib.auth import get_user_model
-from .models import Media, UserSettings
+from .models import Media
 from wama.common.backends import anonymize
 from .utils.media_utils import get_input_media_path
 from .utils.yolo_utils import get_model_path
@@ -118,13 +118,16 @@ def _apply_anonymizer_output_format(media):
 @shared_task(bind=True)
 def process_single_media(self, media_id, force_individual=False):
     """
-    Traite un média unique en DB, en respectant les settings utilisateur.
+    Traite un média unique en DB — avec SES réglages, et eux seuls.
 
-    force_individual : quand True (lancement individuel depuis la card), on
-        utilise les paramètres de la *Media* sans condition — `MSValues_customised`
-        est ignoré. Pour le batch (file d'attente globale ou "Tout lancer"),
-        laisser False : le fonctionnement historique est conservé (settings
-        globaux sauf si l'utilisateur a explicitement customisé le média).
+    Depuis le 2026-09-27 un média NAÎT avec les réglages de son auteur (brique `user_settings`,
+    `ROADMAP §23.2quater`) : la tâche ne lit plus que ses colonnes. Avant, elle relisait au
+    LANCEMENT les réglages courants de l'utilisateur (table `UserSettings`) sauf si le média avait
+    été « personnalisé » — un réglage changé entre le dépôt et le lancement changeait donc le
+    traitement d'un média déjà en file, et les options d'affichage venaient toujours de
+    l'utilisateur, jamais du média.
+
+    force_individual : conservé pour les appelants existants ; il n'a plus d'effet.
     """
 
     close_old_connections()
@@ -155,7 +158,6 @@ def process_single_media(self, media_id, force_individual=False):
             return {"skipped": True, "media_id": media_id, "reason": "crash_redelivery"}
 
         user = media.user
-        user_settings, _ = UserSettings.objects.get_or_create(user=user)
 
         # ── Ingest commun (WAMA_INGEST sur le modèle, brique source_ingest) :
         # télécharge source_url vers le FileField si pas encore local — idempotent. ──
@@ -180,21 +182,10 @@ def process_single_media(self, media_id, force_individual=False):
             return {"error": "no_file", "media_id": media_id}
         # ────────────────────────────────────────────────────────────────────
 
-        # When the user clicks "Process this media" on the card, the
-        # individual settings are the explicit signal of intent — apply them
-        # regardless of MSValues_customised. The historical batch path keeps
-        # the original "global unless customised" semantics.
-        ms_custom = bool(force_individual) or bool(media.MSValues_customised)
-        if force_individual:
-            logger.info(f"[process_single_media] force_individual=True → using media settings unconditionally")
-
-        # Get precision level and use_segmentation from media or user settings
-        precision_level = media.precision_level if ms_custom else user_settings.precision_level
-        use_segmentation = media.use_segmentation if ms_custom else user_settings.use_segmentation
-
-        # Get SAM3 settings from media or user settings
-        use_sam3 = media.use_sam3 if ms_custom else user_settings.use_sam3
-        sam3_prompt = media.sam3_prompt if ms_custom else user_settings.sam3_prompt
+        precision_level = media.precision_level
+        use_segmentation = media.use_segmentation
+        use_sam3 = media.use_sam3
+        sam3_prompt = media.sam3_prompt
 
         # SAM3 = concepts EN → pipeline commune (§16.6) ; KIND déclaré dans app_metadata.
         # Bug d'origine : « Floute les visages » (FR) → 0 masque. process_prompt_for est fail-safe.
@@ -204,11 +195,6 @@ def process_single_media(self, media_id, force_individual=False):
                                              instance=media, user=user,
                                              console=lambda m: _console(user.id, f"[SAM3] {m}"))
 
-        # Debug: Log SAM3 settings retrieval
-        print(f"[process_single_media] DEBUG: ms_custom={ms_custom}")
-        print(f"[process_single_media] DEBUG: media.use_sam3={media.use_sam3}, user_settings.use_sam3={user_settings.use_sam3}")
-        print(f"[process_single_media] DEBUG: media.sam3_prompt='{media.sam3_prompt}', user_settings.sam3_prompt='{user_settings.sam3_prompt}'")
-        print(f"[process_single_media] DEBUG: Final use_sam3={use_sam3}, sam3_prompt='{sam3_prompt}'")
         _console(user.id, f"[DEBUG] SAM3 settings: use_sam3={use_sam3}, prompt='{sam3_prompt[:30] if sam3_prompt else ''}'")
 
         # Determine if this is an image (interpolation doesn't apply to images)
@@ -216,9 +202,7 @@ def process_single_media(self, media_id, force_individual=False):
         is_image = media.file_ext and media.file_ext.lower() in image_extensions
 
         # Get interpolation setting (disabled for images)
-        interpolate_detections = False if is_image else (
-            media.interpolate_detections if ms_custom else user_settings.interpolate_detections
-        )
+        interpolate_detections = False if is_image else media.interpolate_detections
 
         kwargs = {
             'media_path': get_input_media_path(media.file.name, user.id),
@@ -226,18 +210,17 @@ def process_single_media(self, media_id, force_individual=False):
             # Assaini : un vieux chemin de sauvegarde a injecté le BOOLÉEN sérialisé 'false'
             # dans des listes de classes (médias 220/221/225 constatés le 2026-08-17) — une
             # classe est un nom, jamais true/false/none/vide.
-            'classes2blur': _classes_saines(
-                media.classes2blur if ms_custom else user_settings.classes2blur),
-            'blur_ratio': media.blur_ratio if ms_custom else user_settings.blur_ratio,
-            'roi_enlargement': media.roi_enlargement if ms_custom else user_settings.roi_enlargement,
-            'progressive_blur': media.progressive_blur if ms_custom else user_settings.progressive_blur,
-            'detection_threshold': media.detection_threshold if ms_custom else user_settings.detection_threshold,
+            'classes2blur': _classes_saines(media.classes2blur),
+            'blur_ratio': media.blur_ratio,
+            'roi_enlargement': media.roi_enlargement,
+            'progressive_blur': media.progressive_blur,
+            'detection_threshold': media.detection_threshold,
             'interpolate_detections': interpolate_detections,
-            'max_interpolation_frames': media.max_interpolation_frames if ms_custom else user_settings.max_interpolation_frames,
-            'show_preview': user_settings.show_preview,
-            'show_boxes': user_settings.show_boxes,
-            'show_labels': user_settings.show_labels,
-            'show_conf': user_settings.show_conf,
+            'max_interpolation_frames': media.max_interpolation_frames,
+            'show_preview': media.show_preview,
+            'show_boxes': media.show_boxes,
+            'show_labels': media.show_labels,
+            'show_conf': media.show_conf,
             'precision_level': precision_level,
             'use_segmentation': use_segmentation,
             # SAM3 parameters
@@ -250,10 +233,7 @@ def process_single_media(self, media_id, force_individual=False):
         # PARALLEL DETECTION: Check if multiple models are needed
         # ======================================================================
         # Determine user's specified model (if any)
-        user_specified_model = (
-            (ms_custom and media.model_to_use and media.model_to_use.strip()) or
-            (hasattr(user_settings, 'model_to_use') and user_settings.model_to_use and user_settings.model_to_use.strip())
-        )
+        user_specified_model = (media.model_to_use or '').strip()
 
         # Check if specialty classes (face, plate) are requested
         # These often require dedicated models even if user has a default COCO model
@@ -348,17 +328,10 @@ def process_single_media(self, media_id, force_individual=False):
                 from .utils.yolo_utils import get_model_path as _gmp
                 from .utils.model_selector import select_model_by_precision
 
-                # Priority: 1) Media-specific model, 2) User's global model, 3) Auto-select
-                model_to_use = None
-
-                # Check if media has a specific model set (only if customised)
-                if ms_custom and media.model_to_use and media.model_to_use.strip():
-                    model_to_use = media.model_to_use.strip()
+                # Le modèle du média s'il en porte un, sinon la sélection automatique.
+                model_to_use = user_specified_model or None
+                if model_to_use:
                     _console(user.id, f"Using media-specific model: {model_to_use}")
-                # Otherwise check user's global setting
-                elif hasattr(user_settings, 'model_to_use') and user_settings.model_to_use and user_settings.model_to_use.strip():
-                    model_to_use = user_settings.model_to_use.strip()
-                    _console(user.id, f"Using user's global model: {model_to_use}")
 
                 if model_to_use:
                     kwargs['model_path'] = _gmp(model_to_use)
