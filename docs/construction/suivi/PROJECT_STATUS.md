@@ -17880,3 +17880,69 @@ mesuré : 4 `child` + 4 `elderly`).
 instance (annoncé au commit — une doc générée à moitié serait pire).
 
 **Nocturne complet du 2026-09-26 (après le reload)** : 1er passage 161/359 (≈85 échecs = le navigateur de test côté WSL a reçu « connexion refusée » sur :8000 pendant que gunicorn servait) ; rejeu des 109 échecs : **23 restants, aucun imputable aux contrats du jour**. Le GPU était tenu par Ollama (`qwen3.8`, 18 Go, hors file Celery — utilisation extérieure au nocturne) : `transcriber.processing` resté RUNNING, pages lentes. Instrument : `reader.processing` dépose un témoin `.pdf` qui n'est pas un PDF (échec « Failed to open file »). Hors périmètre, antérieurs ou d'autres instances : `rights_anonymous` et `accounts` (chantier comptes en cours), `queue_search` médiathèque/studio, `media_library.clear_all`, `anonymizer.batch_processing` (Télécharger tout → 400), jumelles `_01` (501/500), consistances (vulns, manifestes, docs dérivées). Rouge corrigé de mon fait : une trouvaille de redondance dans `transcriber/tests_panel_settings` (marqueur déclaré).
+
+## §CLÔTURE — 2026-09-27, « MÉDIAS : POINTER, PARTAGER, RANGER » (D20→D24 + sonde de moteur)
+
+> Périmètre : les fichiers que des cards DÉSIGNENT. Huit commits à moi, **non poussés** :
+> `5d168e07` (pointage + garde de partage), `1313d1b2` et `864d86c1` (paliers), `5422f8ff`
+> (409 → 200 + scénario de suppression), `a680109e` (sonde qwen), `4137e2a7` (médiathèque =
+> déplacement), `05766d3d` et `293f72ef` (consignation, docs dérivées).
+
+**Ce qui est livré**, détail au domicile (`MEDIA_STORAGE_TIERING §8.6` D20-D24 + §Cible) :
+① la règle D20 (déplacer suit, supprimer prévient, la card reste détachée) ; ② la PROVENANCE
+enfin câblée (elle l’était à 1 site sur 14, sans aucun lecteur) ; ③ la garde de partage élargie
+à TOUT le dépôt — défaut PRÉSENT, mesuré sur les données réelles ; ④ le POINTAGE des fichiers
+déjà dans l’arbre de l’utilisateur ; ⑤ la médiathèque qui REÇOIT le fichier au lieu d’en faire
+une copie, avec un retrait qui le rend à sa card ; ⑥ la sonde de disponibilité qwen (38,5 s →
+0,04 s) et le motif de skip qui accusait le mauvais coupable.
+
+**Contrôles attendus au prochain `/reprise`** (tous MESURÉS cette nuit) :
+- tests de ce périmètre : **273 OK, 4 skips** (`tests_file_references`, `tests_provenance`,
+  `tests_queue_delete_contract`, `tests_media_paths`, `tests_retention`, `tests_backend_inventory`,
+  `media_library`, `filemanager`, `tests_endpoints`) ;
+- `check_redundancy` : **65 trouvailles au total, ZÉRO dans mes fichiers** ;
+- `check_docs` : **3 cassées / 0 périmée sur 2282**, aucune de moi (trois cibles citées par
+  d’anciens blocs de suivi) ;
+- gestes réels au navigateur : `.send_to` **10 OK / 0 échec / 7 skips déclarés**, le geste de
+  suppression **7/7**, le cycle du menu médiathèque **6/6 + 6/6**, `transcriber.send_to` **OK en
+  7,7 s avec le cache d’inventaire VIDÉ** (il sautait après 46 s).
+
+🔴 **PENDINGS SYSTÈME — ce qui attend Fabien** :
+1. **RELANCER WAMA** : le serveur sert le code d’avant `5422f8ff` (confirmation en 200), `a680109e`
+   (sonde qwen) et `4137e2a7` (médiathèque). Tout est prouvé sur serveur de dev éphémère, jamais
+   sur le live pour ces trois-là ;
+2. **8 commits non poussés** (les miens) ;
+3. migrations appliquées à la base LIVE : `synthesizer 0027` (retrait de `VoicePreset`, table vide)
+   et `common 0013` (nouveau `kind` de provenance) ;
+4. clé de cache `transcriber_backends_info` vidée pendant la mesure (elle se repeuple seule).
+
+🔚 **POINT D’ENTRÉE SESSION SUIVANTE** : relancer WAMA, puis rejouer `.send_to` + 
+`common.tree_delete_in_use` + `media_library.card_menu_state` sur le LIVE — c’est la seule preuve
+qui manque. Ensuite, au choix de Fabien : l’arbre `imports/` (différé) ou le pointage depuis le
+sélecteur de médiathèque.
+
+**File des chantiers ouverts, dans l’ordre** :
+- ⏳ **DÉCIDÉ mais DIFFÉRÉ par Fabien** : l’arbre utilisateur à trois dossiers réels (temporaire,
+  `imports/` VISIBLE en lecture seule, médiathèque). Écartés avec leur raison : un dossier CACHÉ
+  et un arbre reconstitué depuis un registre (le disque reste le seul inventaire complet) ;
+- ⏳ **STALE d’une card détachée** : impossible à STOCKER avant **P6** (`ROUTE §10.6 4.2`) ; le
+  champ vidé le rend dérivable, c’est P3 qui l’affichera ;
+- ⏳ **cam_analyzer** : sa garde de suppression lui est propre et il efface ses fichiers AVANT ses
+  lignes (conversion naïve = orphelins) ; il garde aussi la copie à l’import puisqu’il lit ses
+  entrées PAR DOSSIER. Au chantier du Lab ;
+- ⏳ **provenance non câblée** pour l’upload direct depuis le poste (aucune source dans WAMA : elle
+  ne servirait que la dédup par empreinte) ;
+- ⏳ **le sélecteur de médiathèque d’une card** copie encore (fetch → blob → renvoi) : c’est le
+  dernier geste qui duplique des octets.
+
+⚠ **Rouges et dérives NON MIENS, mesurés cette nuit** (déclarés, pas corrigés) :
+- `tests_tool_api_lectures.AddItemToMediaLibraryTest.test_ne_DEVINE_pas_le_role_et_rend_les_candidats`
+  échoue **à l’identique sans mes modifications** (vérifié en worktree sur HEAD) — le test attend
+  des candidats là où l’app déclare son rôle depuis le 18/09 ;
+- `tests_identifier_language` déborde de **9** (code 2744 mesuré / 2735 déclaré) : WIP d’autres
+  instances ; **mes fichiers n’ajoutent aucun identifiant français** (vérifié au détail, après
+  avoir renommé les miens — deux fois dans la session, relevé par le contrôle) ;
+- **corpus de manifestes : 85 périmés** sur les 10 apps. Diff mesuré sur converter : `cap_from`,
+  `quality_intent`, `AWAITING_RESOURCES`, `result_role` — les chantiers prospection, curseur C,
+  gouverneur et médiathèque, jamais ré-exportés. Rien de ma session ; régénérer figerait le WIP
+  d’une instance qui travaille en ce moment sur le synthesizer.
