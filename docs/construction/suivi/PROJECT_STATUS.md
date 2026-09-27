@@ -18015,5 +18015,21 @@ doc), il n'y a pas d'accès au clip.
 **Décisions ouvertes** : ① créneau **âgé** — rapatrier un corpus entier pour 4 voix, ou attendre un
 accès au clip (en attente, décision de Fabien) ; ② créneau **enfant** — FERMÉ : Common Voice
 s'arrête à « teens », et cloner la voix d'un mineur est une question éthique, pas technique.
-**Pendings système** : `librosa`/`datasets`/`soundfile` hors requirements ; 13 commits non poussés ;
-la table MIME et les moteurs sont servis, aucun redémarrage requis (JS et gabarits).
+**Pendings système** : 18 commits non poussés ; la table MIME et les moteurs sont servis, aucun
+redémarrage requis (JS et gabarits).
+
+**AJOUT au balayage de clôture (question de Fabien : « des quick wins ? des choses laissées de
+côté ? »)** — deux trous trouvés en cherchant, pas en se souvenant :
+1. **Les librairies de la chaîne des voix** (`bacaf0f9`, `214ac36d`). Mon pending les disait
+   « hors requirements » ; la mesure a corrigé le constat : `librosa` et `soundfile` avaient DÉJÀ
+   leur manifeste, seule `datasets` n'existait nulle part. Les quatre sont déclarées, manifestes
+   générés par la commande depuis venv_linux. ⚠ **Divergence mesurée et déclarée** : `datasets`
+   vaut 5.0.0 sous venv_win et 4.7.0 sous venv_linux — bornes basses plutôt qu'épinglage, pour
+   n'imposer ni rétrogradation ni montée en production ; VoxPopuli s'ouvre sous les deux.
+2. **La garde qui manquait** (`tests_optional_imports_declared`) : une lib importée DOIT être
+   déclarée, même quand son absence ne plante pas — `voice_refs` les prend dans des
+   `try/except ImportError` qui dégradent en silence. ⇒ **Elle a trouvé `scipy` dès son premier
+   passage** (importé directement, absent partout). *Une garde qui trouve un trou de plus dès son
+   premier passage a déjà payé son écriture.*
+3. **2ᵉ adoption de `voicesFollowLanguage`** : l'avatarizer, en UNE ligne — ce qu'une brique
+   commune doit coûter à sa deuxième app.
