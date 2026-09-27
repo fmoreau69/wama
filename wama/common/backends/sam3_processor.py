@@ -66,6 +66,23 @@ def _sam_root():
         or (AI_MODELS_DIR / 'models' / 'vision' / 'sam')
 
 
+def load_sam3_image_model():
+    """Le modèle IMAGE de SAM3, chargé depuis ses poids LOCAUX — le seul chemin de chargement
+    (2026-09-27). Les poids sont résolus dans le dossier du modèle (`poids_locaux`, 3ᵉ voie,
+    téléchargés là s'ils manquent) et la lib reçoit un CHEMIN (`load_from_HF=False`) : ni jeton
+    au chargement, ni cache partagé, ni environnement touché. Le cam_analyzer appelait
+    `build_sam3_image_model()` nu — la lib passait alors par le Hub avec le jeton d'instance.
+    """
+    import os
+
+    from sam3.model_builder import build_sam3_image_model
+
+    from wama.common.utils.hf_weights import poids_locaux
+    snapshot = poids_locaux('facebook/sam3', _sam_root(), patterns=['sam3.pt', 'config.json'])
+    return build_sam3_image_model(checkpoint_path=os.path.join(snapshot, 'sam3.pt'),
+                                  load_from_HF=False)
+
+
 class SAM3Processor(DetectionBackend):
     """
     SAM3-based processor for prompt-driven object segmentation and blurring.
@@ -173,7 +190,6 @@ class SAM3Processor(DetectionBackend):
         try:
             # Import SAM3 modules
             # Note: We only import the image model as video predictor requires 'triton' (Linux only)
-            from sam3.model_builder import build_sam3_image_model
             from sam3.model.sam3_image_processor import Sam3Processor as Sam3ImageProcessor
 
             if model_type in ['image', 'auto']:
@@ -194,13 +210,9 @@ class SAM3Processor(DetectionBackend):
                 # fichiers — tout ce que HF téléchargeait pendant la fenêtre (sous-dépendances
                 # comprises) restait dans `vision/sam/`. C'est le mécanisme exact qui a déposé
                 # `timm/resnet18` dans le dossier de table-transformer.
-                import os
-                from wama.common.utils.hf_weights import poids_locaux
-                snapshot = poids_locaux('facebook/sam3', _sam_root(),
-                                        patterns=['sam3.pt', 'config.json'])
-                self.image_model = build_sam3_image_model(
-                    checkpoint_path=os.path.join(snapshot, 'sam3.pt'),
-                    load_from_HF=False)
+                # (Corps extrait le 2026-09-27 dans `load_sam3_image_model`, que le cam_analyzer
+                # appelle aussi : un seul chargement de SAM3.)
+                self.image_model = load_sam3_image_model()
                 self.image_processor = Sam3ImageProcessor(self.image_model)
                 logger.info("[SAM3] Image model loaded successfully")
                 print("[SAM3] Image model loaded successfully")
