@@ -18250,6 +18250,19 @@ l'anonymizer (`§17bis`). ~~cam_analyzer G2 : mort par design, laissé.~~ **Sold
 de `describer/views.py` depuis le 2026-07-22 (l'import par URL du describer levait dès sa 1ʳᵉ
 ligne), rétabli. ⚠ Le describer n'a pas été rejoué au navigateur : reload gunicorn requis.
 
+**Suite (27→28/09, demandes de Fabien).** (1) SAM3 du cam_analyzer MESURÉ équivalent : 9/9 images
+de la session de référence identiques au passage du 17/07 (classe + confiance à 3 décimales) ;
+garde `tests_sam3_loading`. (2) « Le flou ne change rien pour SAM3 » : le flou est bien consommé
+(mesuré 5→99), la faute était la SORTIE dérivée du nom de l'entrée — partagée par les cards
+dupliquées → **R77** : `output_file` champ fichier de la card, `compose_output_name(item_id=)`,
+briques communes pour servir/zipper/dupliquer/supprimer, aperçu `?v=<mtime>`. 🔴 **Relancer WAMA** :
+migration **0031** (SQL no-op, remet en ordre 10 valeurs sur 23) + code neuf. Les sorties déjà
+écrasées (215/217/218/219) ne se recréent qu'en relançant ces cards. (3) « Plus de modèle dans la
+modale de #656 » : NON reproduit (32 options avec le compte de Fabien, JS servi à jour) — onglet
+ouvert avant le relancement, probablement. ⚠ Rouge NON imputé à ce chantier :
+`tests_tool_api_lectures.AddItemToMediaLibraryTest.test_ne_DEVINE_pas_le_role_et_rend_les_candidats`
+(composer → médiathèque : un rôle est deviné, `audio_music`) — chantier médiathèque/natures.
+
 **Leçons.**
 - Deux apps avec la même fonction locale = extraire AVANT de commiter (question de Fabien : « rien
   réinventé ? » — la cascade existait déjà, `effective_settings`).
