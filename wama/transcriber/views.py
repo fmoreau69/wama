@@ -1784,11 +1784,13 @@ def _save_user_panel_values(user, data):
 
 
 def _deposit_settings(user, post):
-    """Les réglages d'un DÉPÔT (fichier, lien) : les champs du modèle déclarés au schéma, lus
-    dans le POST (`schema_model_kwargs`, comme le converter), et gardés comme préférences
-    (comme l'imager). Un champ absent du POST prend le défaut du modèle."""
-    from wama.common.utils.param_schema import schema_model_kwargs
+    """Les réglages d'un DÉPÔT (fichier, lien) : ce que le volet poste est gardé comme
+    préférences, puis l'élément naît par la cascade COMMUNE (défauts ← réglages de l'auteur ←
+    POST, `user_settings.new_element_settings`, 2026-09-27) — avant, un champ absent du POST
+    prenait le défaut du modèle et non la préférence de l'auteur."""
+    from wama.common.utils.user_settings import new_element_settings
     _save_user_panel_values(user, post)
-    return schema_model_kwargs('transcriber', post)
+    return new_element_settings(user, 'transcriber', _SCHEMA, Transcript, post=post,
+                                key=user_setting_key)
 
 

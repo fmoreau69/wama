@@ -258,22 +258,10 @@
     });
   }
 
-  // ── Préférences de l'utilisateur (brique commune user_settings, 2026-09-27) ──
-  // Chemin écrit ici plutôt que par `{% url %}` dans la page : le gabarit est relu à chaud en
-  // production, les routes seulement au rechargement — une route neuve citée par le gabarit
-  // ferait tomber la page entre les deux.
-  const USER_SETTINGS_SAVE_URL = '/anonymizer/user_settings/save/';
-  function saveUserSettings(values) {
-    return fetch(USER_SETTINGS_SAVE_URL, {
-      method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
-      body: JSON.stringify(values),
-    }).then(r => r.json());
-  }
-  // Rien d'inspecté : le volet règle les défauts de l'utilisateur (les suivants naissent avec).
-  function saveGlobal() {
-    return saveUserSettings(WamaParams.read(document.getElementById('global-settings-container')));
-  }
+  // Le volet lu par le lecteur DÉRIVÉ du schéma (inspecteur commun) — jamais tout le conteneur,
+  // qui porte aussi les cases des classes à flouter : leurs valeurs brutes (`'false'`) finissaient
+  // dans `classes2blur` de l'élément.
+  const panelValues = () => (window._anonInspector ? window._anonInspector.read() : {});
 
   // ── Inspecteur (volet droit) — dérivé du SCHÉMA (dom_id.panel = ids legacy) ──
   if (window.WamaInspector && WamaInspector.initFromSchema) {
@@ -286,7 +274,7 @@
       itemLabel: id => "le média #" + id,
       batchLabel: id => "le batch #" + id + " (tous les éléments)",
       saveItem: async (id) => {
-        const vals = WamaParams.read(document.getElementById('global-settings-container'));
+        const vals = panelValues();
         const fd = new FormData();
         fd.append('media_id', id);
         Object.keys(vals).forEach(k => fd.append(k, vals[k]));
@@ -296,7 +284,7 @@
         if (d && d.success) refreshCard(id);
       },
       saveBatch: async (bid) => {
-        const vals = WamaParams.read(document.getElementById('global-settings-container'));
+        const vals = panelValues();
         await fetch(getUrl(cfg.batchUpdateUrlTemplate, bid), {
           method: 'POST',
           headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
@@ -304,7 +292,11 @@
         });
         location.reload();
       },
-      saveGlobal: saveGlobal,
+      // Préférences de l'utilisateur : brique commune (inspecteur + `user_settings`), et
+      // enregistrement au GESTE. Chemin écrit ici plutôt que par `{% url %}` : le gabarit est
+      // relu à chaud en production, les routes seulement au rechargement.
+      saveGlobalUrl: '/anonymizer/user_settings/save/',
+      autoSave: true,
       renderItemActions: (host, card) => {
         WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
           '<i class="fas fa-crosshairs text-info"></i> Actions — média #' + card.dataset.id);
@@ -329,13 +321,9 @@
   }
 
   pollRunningCards();
-  // `savePanel` : un réglage du volet a changé → l'inspecteur route (élément, lot, ou défauts de
-  // l'utilisateur). `saveUserSettings` : les widgets du volet HORS schéma (mode YOLO/SAM3,
-  // classes à flouter) ne règlent que les défauts de l'utilisateur, jusqu'au rendu du volet
-  // depuis le schéma.
-  function savePanel() {
-    if (window._anonInspector) window._anonInspector.save(); else saveGlobal();
-  }
-  window.AnonQueue = { refreshCard, startPolling, stopPolling, pollAllCards,
-                       savePanel, saveUserSettings };
+  // `saveUserSettings` : les widgets du volet HORS schéma (mode YOLO/SAM3, classes à flouter)
+  // ne règlent que les défauts de l'utilisateur, jusqu'au rendu du volet depuis le schéma.
+  const saveUserSettings = (values) => (window._anonInspector && window._anonInspector.saveUserValues
+    ? window._anonInspector.saveUserValues(values) : Promise.resolve(null));
+  window.AnonQueue = { refreshCard, startPolling, stopPolling, pollAllCards, saveUserSettings };
 })();

@@ -1120,7 +1120,8 @@
   // Évite à chaque app de réécrire panel.read/apply + cardSettings : on les DÉRIVE du schéma.
   //   - panel.read/apply  → WamaParams.read/apply sur le conteneur du volet (data-param ↔ name)
   //   - cardSettings(card) → { paramName: card.dataset[...] } pour chaque param du schéma
-  // L'app ne fournit plus que : queueContainer, panelContainer, schema, libellés, saveItem/saveBatch.
+  // L'app ne fournit plus que : queueContainer, panelContainer, schema, libellés, saveItem/saveBatch,
+  // et, pour ses préférences, `saveGlobalUrl` (+ `autoSave: true` pour enregistrer au geste).
   function initFromSchema(cfg) {
     cfg = cfg || {};
     const schema = cfg.schema || [];
@@ -1213,13 +1214,45 @@
         function (p) { return p.options_source === 'catalog'; });
     }
 
-    const api = init(Object.assign({}, cfg, { panel: panel, cardSettings: cardSettings }));
+    // Préférences de l'UTILISATEUR (rien d'inspecté) — COMMUN (2026-09-27). `saveGlobalUrl` =
+    // la route de la brique serveur `user_settings.make_panel_settings_views` ; le volet est lu
+    // par le lecteur DÉRIVÉ du schéma (jamais tout le conteneur : il porte aussi des widgets hors
+    // schéma, dont les valeurs brutes se glissaient dans l'enregistrement). Le transcriber et
+    // l'anonymizer écrivaient chacun ce `fetch`.
+    function saveUserValues(values) {
+      return fetch(cfg.saveGlobalUrl, {
+        method: 'POST', body: JSON.stringify(values || {}),
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _cookie('csrftoken') },
+      }).then(function (r) { return r.json(); });
+    }
+    const saveGlobal = cfg.saveGlobal ||
+      (cfg.saveGlobalUrl ? function () { return saveUserValues(panel.read()); } : null);
+
+    const api = init(Object.assign({}, cfg, { panel: panel, cardSettings: cardSettings,
+                                              saveGlobal: saveGlobal }));
+
+    // `autoSave` : un réglage changé au volet s'enregistre là où il doit (élément, lot ou
+    // préférences — `save()` route). Seuls les gestes RÉELS comptent (`isTrusted`) : l'inspecteur
+    // émet lui-même des `change` quand il affiche une card ou revient aux défauts, et les prendre
+    // pour des choix réécrivait l'élément à chaque clic — et figeait les défauts en préférences.
+    if (cfg.autoSave && ph) {
+      let timer = null;
+      const onEdit = function (e) {
+        if (!e.isTrusted) return;
+        clearTimeout(timer);
+        timer = setTimeout(function () { api.save(); }, 250);
+      };
+      ph.addEventListener('input', onEdit);
+      ph.addEventListener('change', onEdit);
+    }
     // Le lecteur et l'applicateur DÉRIVÉS du schéma, exposés (2026-09-26) : l'app en a besoin
     // hors inspection — au dépôt, pour ses défauts utilisateur, pour « ↺ Par défaut ». Sans
     // eux le transcriber relisait son volet champ par champ, par id, et un réglage ajouté au
     // schéma s'affichait sans jamais être lu.
     api.read = panel.read;
     api.apply = panel.apply;
+    // Pour les widgets HORS schéma d'un volet (classes à flouter de l'anonymizer) : même route.
+    if (cfg.saveGlobalUrl) api.saveUserValues = saveUserValues;
     return api;
   }
 

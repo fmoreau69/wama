@@ -122,6 +122,11 @@ def read_panel_settings(user, app, params, *, key=None, extra=None, clean=None) 
 def save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None) -> dict:
     """Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
     le schéma. Une clé absente n'écrase rien ; un nombre ou un interrupteur vide non plus.
+
+    Une valeur ÉGALE au défaut déclaré n'est pas gardée : sa préférence est RETIRÉE. Le volet
+    poste toutes ses valeurs à chaque geste ; garder les défauts les figerait, et un défaut
+    changé plus tard dans le schéma n'atteindrait plus personne (la base ne porte que ce que
+    l'utilisateur a POSÉ — même règle que `param_schema.effective_settings`).
     Rend ce qui a été gardé, par clé de stockage."""
     from wama.common.utils.param_schema import (_pget, coerce_schema_values,
                                                 panel_prefs_from_post)
@@ -137,6 +142,11 @@ def save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=
         if name in data:
             fix = (clean or {}).get(name)
             prefs[name] = fix(data[name]) if fix else data[name]
+    defaults = _panel_defaults(params, key, extra)
+    same = [k for k, v in prefs.items() if k in defaults and v == defaults[k]]
+    if same:
+        clear_user_app_settings(user, app, same)
+    prefs = {k: v for k, v in prefs.items() if k not in same}
     if prefs:
         save_user_app_settings(user, app, prefs)
     return prefs
@@ -149,13 +159,21 @@ def reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None)
     return read_panel_settings(user, app, params, key=key, extra=extra)
 
 
-def new_element_settings(user, app, params, model, *, key=None, extra=None,
-                         clean=None) -> dict:
-    """Les colonnes de réglage d'un élément NAISSANT : les réglages du volet de son auteur,
-    restreints aux champs concrets de `model` — il naît complet (`ROADMAP §23.2quater`), et sa
-    tâche ne lit plus que ses colonnes."""
+def new_element_settings(user, app, params, model, *, post=None, context=None, key=None,
+                         extra=None, clean=None) -> dict:
+    """Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
+    et sa tâche ne lit plus que ses colonnes.
+
+    La cascade est LA cascade commune, `param_schema.effective_settings` : défauts du schéma
+    applicables à `context` (la nature détectée, p. ex. `{'media_type': 'image'}`) ← réglages
+    du volet de l'auteur ← ce que le dépôt POSTE. Restreint aux champs concrets de `model`."""
+    from wama.common.utils.param_schema import coerce_schema_values, effective_settings
+    prefs = read_panel_settings(user, app, params, key=key, extra=extra)
+    posted = coerce_schema_values(params, post) if post is not None else {}
+    values = effective_settings(params, posees={**prefs, **posted}, contexte=context)
+    # Réglages HORS schéma : ceux de l'auteur (aucun dépôt ne les poste).
+    values.update({name: prefs[name] for name in (extra or {})})
     concrete = {f.name for f in model._meta.concrete_fields}
-    values = read_panel_settings(user, app, params, key=key, extra=extra)
     return {k: v for k, v in values.items() if k in concrete}
 
 

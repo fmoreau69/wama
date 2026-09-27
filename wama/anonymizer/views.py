@@ -109,8 +109,7 @@ class IndexView(View):
                         # Crée Media en DB
                         media = process_media(
                             video_path, user,
-                            output_format=request.POST.get('output_format'),
-                            output_quality=request.POST.get('output_quality'),
+                            post=request.POST,
                         )
                         added.append(media)
                         # Provenance : la copie se souvient de sa ligne de lot (brique commune).
@@ -125,8 +124,7 @@ class IndexView(View):
             video_path = upload_from_url(request, user)
             media_result = process_media(
                 video_path, user,
-                output_format=request.POST.get('output_format'),
-                output_quality=request.POST.get('output_quality'),
+                post=request.POST,
             )
             if isinstance(media_result, dict) and media_result.get('is_valid'):
                 return JsonResponse({'success': True, 'media': media_result})
@@ -165,7 +163,7 @@ def is_url(path):
         return False
 
 
-def process_media(video_path, user, output_format=None, output_quality=None):
+def process_media(video_path, user, post=None):
     """Create a Media object from the given path and assign metadata."""
     try:
         filename = os.path.basename(video_path)
@@ -179,13 +177,9 @@ def process_media(video_path, user, output_format=None, output_quality=None):
             _abs, relative_path = resolve_under_media_root(str(video_path))
         except (OutsideMediaRoot, FileNotFoundError):
             relative_path = get_relative_media_path('anonymizer', user.id, 'input', filename)
-        # Le média NAÎT avec les réglages de son auteur ; le format de sortie posté prime.
-        settings = new_media_settings(user)
-        if output_format:
-            settings['output_format'] = output_format
-        if output_quality:
-            settings['output_quality'] = output_quality
-        media = Media.objects.create(file=relative_path, file_ext=ext, user=user, **settings)
+        # Le média NAÎT avec les réglages de son auteur ; ce que le dépôt poste prime.
+        media = Media.objects.create(file=relative_path, file_ext=ext, user=user,
+                                     **new_media_settings(user, post=post))
 
         mime_type, _ = mimetypes.guess_type(video_path)
         if mime_type and mime_type.startswith("video/"):
@@ -1007,10 +1001,11 @@ def _request_user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
 
-def new_media_settings(user, model=None, app='anonymizer'):
-    """Les colonnes de réglage d'un média NAISSANT (brique commune). `model`/`app` : une jumelle
-    de bac à sable passe les siens (import du gestionnaire de fichiers)."""
-    return new_element_settings(user, app, _PARAMS, model or Media, **PANEL_SETTINGS)
+def new_media_settings(user, model=None, app='anonymizer', post=None):
+    """Les colonnes de réglage d'un média NAISSANT (brique commune : défauts ← réglages de
+    l'auteur ← ce que le dépôt poste). `model`/`app` : une jumelle de bac à sable passe les
+    siens (import du gestionnaire de fichiers)."""
+    return new_element_settings(user, app, _PARAMS, model or Media, post=post, **PANEL_SETTINGS)
 
 
 def get_context(request):

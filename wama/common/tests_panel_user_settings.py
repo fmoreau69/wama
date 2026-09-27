@@ -132,3 +132,19 @@ class PanelSettingsBrickTest(TestCase):
             with self.subTest(app=app):
                 self.assertEqual({}, us.save_panel_settings(self.user, app, schema,
                                                             {p['name']: ''}, **kwargs))
+
+    def test_saving_the_default_value_keeps_no_preference(self):
+        """The panel posts ALL its values at each gesture: keeping the defaults would freeze
+        them, and a default changed later in the schema would reach nobody."""
+        from wama.common.models import UserAppSetting
+        from wama.common.utils import user_settings as us
+        for app, schema, kwargs in _derived_apps():
+            p = self._numeric_panel_param(schema, kwargs)
+            if p is None or p.get('default') is None:
+                continue
+            with self.subTest(app=app):
+                chosen = p['max'] if p.get('default') != p['max'] else p['min']
+                us.save_panel_settings(self.user, app, schema, {p['name']: str(chosen)}, **kwargs)
+                us.save_panel_settings(self.user, app, schema,
+                                       {p['name']: str(p['default'])}, **kwargs)
+                self.assertFalse(UserAppSetting.objects.filter(user=self.user, app=app).exists())
