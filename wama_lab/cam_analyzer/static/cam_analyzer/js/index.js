@@ -833,7 +833,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (p.duration_s != null) lines.push(`Durée : ${p.duration_s.toFixed(1)} s`);
         if (p.error_message) lines.push(`Erreur : ${p.error_message.slice(0, 200)}`);
         const summary = p.output_summary || {};
-        if (summary.cameras) lines.push(`Caméras : ${summary.cameras.join(', ')}`);
+        // `cameras` : une LISTE de positions, ou un COMPTE (passe `depth`, depth_estimator) —
+        // un `.join` sur le compte faisait tomber tout le panneau en « Erreur de chargement ».
+        if (summary.cameras != null) lines.push(`Caméras : ${Array.isArray(summary.cameras) ? summary.cameras.join(', ') : summary.cameras}`);
         if (summary.detections_total != null) lines.push(`Détections : ${summary.detections_total}`);
         if (summary.count != null) lines.push(`Nombre : ${summary.count}`);
         if (summary.events_count != null) lines.push(`Évènements : ${summary.events_count}`);

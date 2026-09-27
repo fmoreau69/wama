@@ -100,6 +100,12 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-09-28
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| *(ce commit — le panneau Pipeline tombait dès qu'une passe `depth` aboutissait)* | **L'infobulle d'une passe (`_formatPassTooltip`, `index.js`) accepte `output_summary.cameras` en LISTE ou en COMPTE.** La passe `depth` écrit un compte (`depth_estimator.py:236`, `{'maps', 'contacts', 'cameras': cams_done}`, depuis `0a1c98da` du 2026-08-05) — le seul consommateur Python le lit d'ailleurs comme tel (`tasks.py:1856`) ; l'infobulle, écrite en mai, faisait `summary.cameras.join(', ')`. `TypeError` → le `catch` de `loadPipelinePanel` remplaçait **tout le panneau** par « Erreur de chargement ». **Aucun changement de calcul** : la passe avait réussi (session `4da52df3`, 96 cartes, 155 contacts, 4 caméras, 87 s). | Constat de Fabien : « analyse de profondeur lancée → Pipeline : Erreur de chargement ». Défaut **latent depuis le 05/08** : il ne se déclenche qu'à la première passe `depth` aboutie d'une session, et la passe (GPU, optionnelle ⚑) n'avait encore jamais abouti. Le serveur répondait 200 (journal d'accès) : le défaut était côté navigateur, invisible des journaux Django. | **V8 (MiniRacer) sur la fonction extraite, avec la vraie ligne de la base** : HEAD → `TypeError: summary.cameras.join is not a function` ; corrigé → « Caméras : 4 » ; contre-épreuve liste `['front','rear']` → « Caméras : front, rear » des deux côtés. `check_js.sh` : 0 erreur, `staticfiles/` synchronisé. ⚠ Pas de smoke navigateur : recharger la page (Ctrl+F5) suffit, aucun redémarrage. Annulation : `git revert`. |
+
 ## 2026-09-27
 
 | Commit | Quoi | Pourquoi | Validation/annulation |
