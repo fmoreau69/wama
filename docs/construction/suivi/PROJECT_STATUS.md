@@ -18255,8 +18255,9 @@ de la session de référence identiques au passage du 17/07 (classe + confiance 
 garde `tests_sam3_loading`. (2) « Le flou ne change rien pour SAM3 » : le flou est bien consommé
 (mesuré 5→99), la faute était la SORTIE dérivée du nom de l'entrée — partagée par les cards
 dupliquées → **R77** : `output_file` champ fichier de la card, `compose_output_name(item_id=)`,
-briques communes pour servir/zipper/dupliquer/supprimer, aperçu `?v=<mtime>`. 🔴 **Relancer WAMA** :
-migration **0031** (SQL no-op, remet en ordre 10 valeurs sur 23) + code neuf. Les sorties déjà
+briques communes pour servir/zipper/dupliquer/supprimer, aperçu `?v=<mtime>`. ✅ **Relancé le 28/09,
+migration 0031 appliquée** — vérifié : 23/23 cards SUCCESS pointent un fichier existant ; en HTTP,
+183 sert sa sortie SAM3 (plus le fichier de janvier), 656 sa sortie YOLO, aperçu versionné. Les sorties déjà
 écrasées (215/217/218/219) ne se recréent qu'en relançant ces cards. (3) « Plus de modèle dans la
 modale de #656 » : NON reproduit (32 options avec le compte de Fabien, JS servi à jour) — onglet
 ouvert avant le relancement, probablement. ⚠ Rouge NON imputé à ce chantier :
