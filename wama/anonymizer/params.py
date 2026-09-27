@@ -7,19 +7,25 @@ Les `dom_id` reprennent les IDs LEGACY du panneau droit → JS/AJAX `setting-but
 préservés lors du portage. Gabarit : reader/params.py, transcriber/params.py.
 
 Deux `show_if` DÉCLARATIFS remplacent du masquage JS hardcodé (cf. [[feedback_ui_from_model_capabilities]]) :
-  • SAM3 actif  → `sam3_prompt` visible, sélection de modèle YOLO (`model_to_use`) masquée ;
+  • mode Description → `sam3_prompt` visible ; mode Classes → les classes à flouter ;
   • interpolation active → `max_interpolation_frames` visible.
+
+MODE (2026-09-27, `app_modes`, `mode_param`) : `target_mode` dit COMMENT on désigne ce qu'il faut
+flouter — des classes, ou une description. Il BORNE le menu de modèles (`options_mode`) : en
+Classes, les modèles à classes ; en Description, ceux qui consomment un prompt. Le résultat
+(boîte ou contour) reste au curseur rapide ↔ qualité en « auto », au choix du modèle sinon —
+le menu est GROUPÉ par tâche du catalogue (Détection / Segmentation).
 
 Exceptions app-spécifiques VOLONTAIREMENT hors schéma (widgets bespoke) :
   • `classes2blur` : multi-sélection d'objets (modale à cases `#modal_classes2blur_*`) — pas un type
     scalaire du schéma (toggle|select|radio|text|textarea|number|range) → reste géré par le JS anonymizer.
   • `use_segmentation` : « déterminé automatiquement par le niveau de précision » → non éditable.
-  • `use_sam3` : porté par un couple de radios `name="detection_mode"` (yolo/sam3) côté legacy ; ici
-    toggle à rendu `pills=["YOLO","SAM3"]` (sélecteur segmenté, valeur booléenne inchangée).
+  • (`use_sam3`, booléen « YOLO/SAM3 », remplacé par le mode `target_mode` le 2026-09-27.)
 
 La modale ⚙ est SECTIONNÉE par `GROUPS` (ParamGroup) pour matcher les sections du volet droit —
 voir le commentaire au-dessus de GROUPS.
 """
+from wama.common.utils.app_modes import options_mode_for
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.output_formats import get_output_formats, get_output_qualities
 from wama.common.utils.param_schema import (
@@ -44,10 +50,11 @@ _FORMAT_GROUPS = [
 # Les champs advanced SANS groupe tombent dans le groupe implicite « Avancé » replié (WamaParams).
 GROUPS = [
     ParamGroup("mode", "Mode de détection", icon="fa-bullseye"),
-    ParamGroup("yolo", "Quoi flouter (YOLO)", icon="fa-eye-slash",
-               show_if={"field": "use_sam3", "equals": False}),
-    ParamGroup("sam3", "SAM3 — prompt texte", icon="fa-wand-magic-sparkles",
-               show_if={"field": "use_sam3", "equals": True}),
+    ParamGroup("classes", "Quoi flouter (classes)", icon="fa-eye-slash",
+               show_if={"field": "target_mode", "equals": "classes"}),
+    ParamGroup("description", "Quoi flouter (description)", icon="fa-comment-dots",
+               show_if={"field": "target_mode", "equals": "description"}),
+    ParamGroup("model", "Modèle", icon="fa-microchip"),
     ParamGroup("comment", "Comment flouter", icon="fa-droplet", columns=2),
     ParamGroup("afficher", "Quoi afficher", icon="fa-eye", columns=2),
     ParamGroup("sortie", "Sortie", icon="fa-file-export", columns=2),
@@ -58,7 +65,7 @@ PARAMS = derive_from_model(
     Media,
     include=[
         # ── Quoi détecter ──
-        "use_sam3", "sam3_prompt", "model_to_use",
+        "target_mode", "sam3_prompt", "model_to_use",
         # ── Réglage de détection ──
         "precision_level", "detection_threshold",
         # ── Comment flouter ──
@@ -74,29 +81,34 @@ PARAMS = derive_from_model(
         "output_format", "output_quality",
     ],
     overrides={
-        "use_sam3": dict(
-            # Sélecteur segmenté [YOLO | SAM3] comme le volet droit (label vide : le titre du
-            # groupe « Mode de détection » porte le sens ; la valeur reste booléenne).
-            type="toggle", label="", group="mode",
-            pills=[{"label": "YOLO (Classes)", "icon": "fa-image"},
-                   {"label": "SAM3 (Prompt)", "icon": "fa-comment-dots"}],
-            icon="fa-wand-magic-sparkles",
-            help="SAM3 : segmentation par prompt texte au lieu des classes YOLO.",
-            chip=True, chip_label="SAM3",
+        # Le MODE de l'élément : rendu par `WamaModes` au volet (switch généré d'`app_modes`),
+        # en choix à deux positions dans la modale.
+        "target_mode": dict(
+            type="radio", label="", group="mode", inline=True,
+            icon="fa-bullseye", chip=True, chip_label="Désignation",
+            help="Classes : une liste d'objets à flouter. Description : ce qu'il faut flouter, "
+                 "décrit en texte.",
         ),
         "sam3_prompt": dict(
             type="textarea", label="Prompt SAM3", icon="fa-comment-dots",
-            dom_id={"panel": "user_setting_sam3_prompt"}, group="sam3",
-            show_if={"field": "use_sam3", "equals": True},
+            dom_id={"panel": "user_setting_sam3_prompt"}, group="description",
+            show_if={"field": "target_mode", "equals": "description"},
             help='Ex. « blur all faces and license plates ».',
         ),
+        # Menu de modèle tiré du CATALOGUE (2026-09-27) : les tâches qui localisent ce qu'on
+        # floute (pose, classification et boîtes orientées n'y ont pas de sens), bornées par le
+        # MODE, groupées par tâche. « auto » : le curseur ci-dessous tranche la taille et la
+        # segmentation, la couverture des classes choisit le(s) modèle(s) au lancement.
         "model_to_use": dict(
-            type="select", label="Modèle YOLO", icon="fa-microchip",
-            dom_id={"panel": "user_setting_model_to_use"}, group="yolo",
-            show_if={"field": "use_sam3", "equals": False},
-            chip=True,
-            # Options peuplées par le JS anonymizer (modèles YOLO découverts) — bridge par dom_id legacy.
-            help="Modèle de détection YOLO (vide = auto selon la précision).",
+            type="select", label="Modèle", icon="fa-microchip",
+            dom_id={"panel": "user_setting_model_to_use"}, group="model",
+            options_source="catalog",
+            options_query={"source": "anonymizer", "task": "detect,segment"},
+            options_mode=options_mode_for("anonymizer", "image_video"),
+            options_group="task", options_auto=True,
+            help_source="anonymizer",
+            chip=True, default="auto",
+            help="Automatique : choisi au lancement selon le curseur et les classes.",
         ),
         # ⚠ step ALIGNÉ SUR LE RÉEL (2026-08-19). Le curseur déclarait 101 positions alors que
         # le moteur n'en distingue que CINQ : `get_model_size_from_precision`
@@ -114,8 +126,8 @@ PARAMS = derive_from_model(
         # paliers réels, un pas de 1 afficherait 101 positions pour 5 résultats (2026-08-19).
         "precision_level": intent_param(
             dom_id={"panel": "user_setting_precision_level"}, step=5,
-            help="5 paliers effectifs (n/s/m/l/x) ; au-delà de 50, segmentation fine.",
-            chip=True, group="yolo",
+            help="5 paliers effectifs (n/s/m/l/x) ; à partir de 50, segmentation fine.",
+            chip=True, group="model",
         ),
         "detection_threshold": dict(
             type="range", label="Seuil de détection", icon="fa-crosshairs",

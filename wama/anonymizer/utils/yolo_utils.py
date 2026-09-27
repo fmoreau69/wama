@@ -18,6 +18,41 @@ MODEL_EXTENSIONS = ['.pt', '.onnx']
 logger = logging.getLogger(__name__)
 
 
+#: Anciennes valeurs de `model_to_use` qui ne sont pas un fichier YOLO.
+_LEGACY_IDS = {'sam3_vit_h': 'sam3'}
+
+
+def catalogue_id_for(value) -> str:
+    """L'identifiant du CATALOGUE (sans la source) d'une valeur de `model_to_use`, ou '' si elle
+    est vide / « auto » / introuvable. Accepte l'identifiant lui-même (`yolo:x.pt`, `sam3`) et
+    les chemins d'avant le 2026-09-27 (`detect/faces/x.pt`, `x.pt`) : le fichier est unique au
+    catalogue (`anonymizer:yolo:<fichier>`)."""
+    from wama.common.utils.auto_model import is_auto
+    from wama.model_manager.models import AIModel
+    if is_auto(value):
+        return ''
+    value = _LEGACY_IDS.get(str(value).strip(), str(value).strip())
+    if AIModel.objects.filter(model_key=f'anonymizer:{value}').exists():
+        return value
+    legacy = 'yolo:' + value.replace('\\', '/').rsplit('/', 1)[-1]
+    return legacy if AIModel.objects.filter(model_key=f'anonymizer:{legacy}').exists() else ''
+
+
+def model_path_for(value):
+    """Chemin disque du modèle choisi pour un élément, ou None en automatique. Le catalogue
+    porte le chemin (`local_path`) ; une valeur qu'il ne connaît pas retombe sur la recherche
+    historique par nom de fichier (`get_model_path`)."""
+    from wama.common.utils.auto_model import is_auto
+    from wama.model_manager.models import AIModel
+    if is_auto(value):
+        return None
+    key = catalogue_id_for(value)
+    m = AIModel.objects.filter(model_key=f'anonymizer:{key}').first() if key else None
+    if m and m.local_path:
+        return m.local_path
+    return get_model_path(str(value).strip())
+
+
 def get_model_path(filename: str, auto_download: bool = True) -> str:
     """
     Retourne le chemin absolu d'un modèle YOLO.

@@ -20,137 +20,85 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
 <!-- CSRF Token for AJAX -->
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
-<!-- Section: Mode de détection -->
+<!-- Section : désignation (MODE de l'élément) -->
 <div class="right-panel-section">
     <div class="right-panel-section-title">
-        <i class="fas fa-crosshairs"></i> Mode de détection
+        <i class="fas fa-bullseye"></i> Quoi flouter
     </div>
+    {% comment %}Switch de MODE généré par la brique commune WamaModes depuis `app_modes.py`
+    (2026-08-23). Depuis le 2026-09-27 il porte le RÉGLAGE du mode (`mode_param` =
+    `target_mode`) : l'inspecteur le lit et l'applique comme tout réglage, et les sections
+    `data-mode-section` ci-dessous suivent le mode — plus de radios cachées ni de script d'app.{% endcomment %}
+    <div id="wamaAnonModes" data-initial-mode="{{ gs_values.target_mode|default:'classes' }}"></div>
 
-    {% comment %}Switch de MODE — GÉNÉRÉ depuis la déclaration (app_modes.py) par la brique
-    commune WamaModes, 2026-08-23. Les radios natifs restent la SOURCE DE VÉRITÉ (tout le JS
-    existant les lit et bascule les sections yolo/sam3) : le switch généré les coche et dispatche
-    'change'. Résilient — si le fetch échoue, les radios natifs restent visibles et fonctionnels.
-    Avant ce portage, anonymizer était la SEULE app à déclarer des modes dans APP_MODES tout en
-    les rendant à la main : deux sources, aucune reliée — donc rien ne garantissait qu'elles
-    disent la même chose.{% endcomment %}
-    <div id="wamaAnonModes"></div>
-    <div class="btn-group w-100 mb-2" role="group" aria-label="Detection mode" id="anonModeRadios">
-        <input type="radio" class="btn-check" name="detection_mode" id="detection_mode_yolo" value="yolo"
-               {% if not gs_values.use_sam3 %}checked{% endif %} autocomplete="off">
-        <label class="btn btn-outline-primary btn-sm" for="detection_mode_yolo">
-            <i class="fas fa-object-group"></i> YOLO
-        </label>
-        <input type="radio" class="btn-check" name="detection_mode" id="detection_mode_sam3" value="sam3"
-               {% if gs_values.use_sam3 %}checked{% endif %} autocomplete="off">
-        <label class="btn btn-outline-info btn-sm" for="detection_mode_sam3">
-            <i class="fas fa-comment-dots"></i> SAM3
-        </label>
-    </div>
-
-    <!-- SAM3 Status Indicator -->
-    <div id="sam3_status_indicator" class="small mb-2" style="display: {% if gs_values.use_sam3 %}block{% else %}none{% endif %};">
-        <span class="badge bg-secondary" id="sam3_status_badge">
-            <i class="fas fa-spinner fa-spin"></i> Vérification...
-        </span>
-    </div>
-</div>
-
-<!-- Section: Quoi flouter (YOLO) -->
-<div class="right-panel-section" id="yolo_settings_section" style="{% if gs_values.use_sam3 %}display: none;{% endif %}">
-    <div class="right-panel-section-title">
-        <i class="fas fa-eye-slash"></i> Quoi flouter (YOLO)
-    </div>
-
-    <!-- Classes Selection Button -->
-    <div class="mb-2">
-        <button type="button" class="btn btn-sm btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#modal_classes2blur_{{ user.id }}">
+    <div data-mode-section="classes">
+        <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#modal_classes2blur_{{ user.id }}">
             <i class="fas fa-list-check"></i> Sélectionner les classes
         </button>
     </div>
 
-    <!-- Precision Level — curseur COMMUN (route F4b, rallié 2026-09-02) -->
+    <div data-mode-section="description">
+        <div id="sam3_status_indicator" class="small mb-2">
+            <span class="badge bg-secondary" id="sam3_status_badge">
+                <i class="fas fa-spinner fa-spin"></i> Vérification...
+            </span>
+        </div>
+        <div class="mb-2">
+            <label class="form-label text-light small mb-1" for="user_setting_sam3_prompt">
+                Décrivez ce que vous voulez flouter :
+            </label>
+            <textarea class="form-control form-control-sm bg-dark text-white border-secondary setting-button"
+                      id="user_setting_sam3_prompt"
+                      name="sam3_prompt"
+                      rows="3"
+                      placeholder="Ex : tous les visages et plaques d'immatriculation"
+                      maxlength="500">{{ gs_values.sam3_prompt|default:"" }}</textarea>
+            <small class="text-white-50 d-flex justify-content-end">
+                <span id="sam3_prompt_count">0/500</span>
+            </small>
+        </div>
+        <div class="mb-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="sam3_examples_btn">
+                <i class="fas fa-lightbulb"></i> Exemples de descriptions
+            </button>
+        </div>
+        <div class="collapse mb-2" id="sam3_examples_collapse">
+            <div class="list-group list-group-flush" id="sam3_examples_list"></div>
+        </div>
+        <div id="hf_config_warning" class="alert alert-warning py-2 px-3 mb-2" style="display: none;">
+            <small>
+                <i class="fas fa-exclamation-triangle"></i> Token HuggingFace requis
+                <button type="button" class="btn btn-sm btn-warning ms-2" data-bs-toggle="modal" data-bs-target="#modal_hf_config">
+                    Configurer
+                </button>
+            </small>
+        </div>
+    </div>
+</div>
+
+<!-- Section : modèle — dans les deux modes ; le menu est borné par le mode (catalogue) -->
+<div class="right-panel-section">
+    <div class="right-panel-section-title">
+        <i class="fas fa-microchip"></i> Modèle
+    </div>
     <div class="mb-2">
         <label class="form-label small fw-bold text-light mb-0">
             <i class="fas fa-gauge-high"></i> Rapide ↔ Qualité
         </label>
-        {% comment %}Partial commun : zones Rapide/Équilibré/Qualité tricolores (les libellés
-        anglais Quick/Balanced/… de l'ancienne étiquette disparaissent — uniformisation actée
-        par Fabien le 02/09). step=5 CONSERVÉ (2026-08-19) : le moteur ne distingue que 5
-        paliers (n/s/m/l/x aux seuils 20/40/60/80, + seuil binaire 50 pour la segmentation).
-        `extra_class='setting-button'` = l'auto-persistance des réglages du volet (update.js).
-        La DÉCLINAISON de la valeur est au COMMUN depuis le 20/09 (chantier C :
-        model_coverage.size_for_intent / segmentation_for_intent), inchangée au cran près.{% endcomment %}
+        {% comment %}Partial commun. step=5 : le moteur ne distingue que 5 paliers (n/s/m/l/x aux
+        seuils 20/40/60/80) ; à partir de 50, la segmentation est préférée en automatique
+        (model_coverage.size_for_intent / segmentation_for_intent).{% endcomment %}
         {% include 'common/_intent_slider.html' with dom_id='user_setting_precision_level' name='precision_level' value=gs_values.precision_level step=5 extra_class='setting-button' %}
     </div>
-
-    <!-- Model Selection -->
     <div class="mb-2">
+        {% comment %}Options tirées du CATALOGUE par la source commune `catalog` (params.py :
+        `options_mode`, `options_group`) — groupées par tâche, bornées par le mode. La seule
+        option rendue ici est la valeur courante, le temps que la liste arrive.{% endcomment %}
         <select id="user_setting_model_to_use" class="form-select form-select-sm bg-dark text-white border-secondary setting-button">
-            <option value="">Auto (basé sur précision)</option>
-            {% for model_type, model_list in models_by_type.items %}
-                <optgroup label="{{ model_type|title }}">
-                    {% for model_name in model_list %}
-                        {% if model_type == 'root' %}
-                            <option value="{{ model_name }}" {% if gs_values.model_to_use == model_name %}selected{% endif %}>{{ model_name }}</option>
-                        {% else %}
-                            <option value="{{ model_type }}/{{ model_name }}" {% if gs_values.model_to_use == model_name or gs_values.model_to_use|stringformat:'s' == model_type|add:'/'|add:model_name %}selected{% endif %}>{{ model_name }}</option>
-                        {% endif %}
-                    {% endfor %}
-                </optgroup>
-            {% endfor %}
+            <option value="{{ gs_values.model_to_use|default:'auto' }}" selected>{{ gs_values.model_to_use|default:'auto' }}</option>
         </select>
-        {# Descriptif modèle (courte + ⓘ longue) lu du CATALOGUE (vue) via WamaModelHelp — cf. transcriber #}
         <small id="modelToUseHelp" class="text-muted d-block mt-1"></small>
-        {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) #}
         <small id="inputMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
-    </div>
-</div>
-
-<!-- Section: Quoi flouter (SAM3) -->
-<div class="right-panel-section" id="sam3_settings_section" style="{% if not gs_values.use_sam3 %}display: none;{% endif %}">
-    <div class="right-panel-section-title">
-        <i class="fas fa-comment-dots"></i> Quoi flouter (SAM3)
-    </div>
-
-    <!-- SAM3 Text Prompt -->
-    <div class="mb-2">
-        <label class="form-label text-light small mb-1" for="user_setting_sam3_prompt">
-            Décrivez ce que vous voulez flouter:
-        </label>
-        <textarea class="form-control form-control-sm bg-dark text-white border-secondary setting-button"
-                  id="user_setting_sam3_prompt"
-                  name="sam3_prompt"
-                  rows="3"
-                  placeholder="Ex: tous les visages et plaques d'immatriculation"
-                  maxlength="500">{{ gs_values.sam3_prompt|default:"" }}</textarea>
-        <small class="text-white-50 d-flex justify-content-between">
-            <span>Prompt pour SAM3</span>
-            <span id="sam3_prompt_count">0/500</span>
-        </small>
-    </div>
-
-    <!-- SAM3 Examples -->
-    <div class="mb-2">
-        <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="sam3_examples_btn">
-            <i class="fas fa-lightbulb"></i> Exemples de prompts
-        </button>
-    </div>
-
-    <!-- SAM3 Examples Dropdown -->
-    <div class="collapse mb-2" id="sam3_examples_collapse">
-        <div class="list-group list-group-flush" id="sam3_examples_list">
-            <!-- Examples will be loaded dynamically -->
-        </div>
-    </div>
-
-    <!-- HuggingFace Token Config (if not configured) -->
-    <div id="hf_config_warning" class="alert alert-warning py-2 px-3 mb-2" style="display: none;">
-        <small>
-            <i class="fas fa-exclamation-triangle"></i> Token HuggingFace requis
-            <button type="button" class="btn btn-sm btn-warning ms-2" data-bs-toggle="modal" data-bs-target="#modal_hf_config">
-                Configurer
-            </button>
-        </small>
     </div>
 </div>
 
@@ -378,47 +326,38 @@ window._batchImport = WamaBatchImport({
     },
 });
 
-// Switch de MODE depuis le schéma déclaratif (brique commune WamaModes).
-// Sous-schéma mono-domaine → WamaModes ne rend QUE le switch, pas d'onglet.
+// Switch de MODE depuis le schéma déclaratif (brique commune WamaModes). Il porte le réglage
+// `target_mode` (mode_param) : l'inspecteur, les préférences et le menu de modèle le lisent.
 if (window.WamaModes) {
     WamaModes.fetch('anonymizer').then(function (schema) {
         var dom = (schema.domains || [])[0];
         if (!dom || (dom.modes || []).length < 2) return;   // pas de switch à une position
-        var coche = document.querySelector('input[name="detection_mode"]:checked');
+        var host = document.getElementById('wamaAnonModes');
         WamaModes.create({
-            container: '#wamaAnonModes',
+            container: host,
             schema: { domains: [dom], input_types: schema.input_types },
-            mode: coche ? coche.value : null,
+            mode: host ? host.dataset.initialMode : null,
             renderInputs: false,
             block: true,
-            modesLabel: 'Mode de détection',
-            onChange: function (s) {
-                var radio = document.getElementById('detection_mode_' + s.mode);
-                if (radio && !radio.checked) {
-                    radio.checked = true;
-                    radio.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            },
         });
-        var natifs = document.getElementById('anonModeRadios');
-        if (natifs) natifs.classList.add('d-none');   // gardés : source de vérité + soumission
-    }).catch(function () { /* radios natifs conservés */ });
+    });
 }
 
-// Descriptif modèle YOLO (courte + ⓘ longue) sous le select — meta lue du CATALOGUE (vue),
-// rendue par le composant commun WamaModelHelp (chargé globalement dans base.html).
+// Descriptif du modèle sous le menu — voie COMMUNE : méta du catalogue, clée comme les options.
 if (window.WamaModelHelp) {
-    WamaModelHelp.init({
-        selectId: 'user_setting_model_to_use',
-        helpId: 'modelToUseHelp',
-        meta: {{ model_help_meta|safe }},
-        fallback: { '': 'Choix automatique du modèle selon le niveau de précision.' },
+    WamaModelHelp.fetchCatalogMeta('anonymizer').then(function (meta) {
+        WamaModelHelp.init({
+            selectId: 'user_setting_model_to_use',
+            helpId: 'modelToUseHelp',
+            meta: meta || {},
+            fallback: { auto: 'Choisi au lancement selon le curseur et les classes à flouter.' },
+        });
     });
 }
 
 // Appariement entrée↔modèles (brique commune wama-input-match) : meta du CATALOGUE (vue,
-// clés = valeurs d'option type/fichier). Fichiers consommés au dépôt (file) → direction
-// vivante = MODÈLE→ENTRÉES (ligne d'état) ; sam3 vit derrière le radio de mode, hors select.
+// clés = identifiants du catalogue, valeurs d'option du menu). Fichiers consommés au dépôt
+// (file) → direction vivante = MODÈLE→ENTRÉES (ligne d'état).
 if (window.WamaInputMatch) {
     WamaInputMatch.init({
         selectId: 'user_setting_model_to_use',
@@ -440,9 +379,10 @@ if (window.WamaModelCaps) {
     WamaModelCaps.init({
         source: 'anonymizer',
         modelSelectId: 'user_setting_model_to_use',
+        // Valeurs du menu = identifiants du catalogue (`yolo:<fichier>`) ou « auto ».
         resolveKey: function (v) {
-            if (!v) return 'auto';
-            return 'anonymizer:yolo:' + v.split('/').pop();
+            if (!v || v === 'auto') return 'auto';
+            return 'anonymizer:' + v;
         },
         meta: {{ class_coverage_meta|safe }},
         controls: [

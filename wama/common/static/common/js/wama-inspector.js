@@ -1244,6 +1244,12 @@
       };
       ph.addEventListener('input', onEdit);
       ph.addEventListener('change', onEdit);
+      // Un widget qui traduit un geste en valeur (switch de mode `WamaModes`) le dit par
+      // `wama:user-edit` : son `change` est émis par code, donc non « trusted ».
+      ph.addEventListener('wama:user-edit', function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () { api.save(); }, 250);
+      });
     }
     // Le lecteur et l'applicateur DÉRIVÉS du schéma, exposés (2026-09-26) : l'app en a besoin
     // hors inspection — au dépôt, pour ses défauts utilisateur, pour « ↺ Par défaut ». Sans

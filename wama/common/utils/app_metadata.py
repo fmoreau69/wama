@@ -12,7 +12,9 @@ Chaque target : {field, kind, [model_field, source, default_model_type, when, do
 - model_field       : attribut de l'instance donnant l'id du modèle cible (pour ses capacités langue).
 - source            : source du modèle dans le catalogue AIModel (défaut = nom de l'app).
 - default_model_type: type de repli si le modèle est introuvable (ex. 'diffusion').
-- when              : attribut booléen de l'instance qui conditionne le traitement (ex. 'use_sam3').
+- when              : ce qui conditionne le traitement — un attribut booléen de l'instance
+                      (ex. 'use_sam3'), ou une condition de la grammaire `show_if` du schéma
+                      ({'field': 'target_mode', 'equals': 'description'}, 2026-09-27).
 - domain / domain_field : domaine média pour la sélection du SKILL d'enrichissement
   ([[prompt_skills]] : `<app>-<domain>.md`) — statique (`domain='music'`) ou lu sur l'instance
   (`domain_field='output_type'`, ex. imager image|video). Repli = model_type du modèle cible.
@@ -44,7 +46,10 @@ PROMPT_TARGETS = {
         # (« Detect faces and license plates. » → 0 masque, image inchangée, aucune erreur).
         # Le hook « concept » de la pipeline (`prompt_pipeline`, Hook A bis) transforme la
         # phrase en LISTE de concepts, que `SAM3Processor` segmente un par un.
-        {'field': 'sam3_prompt', 'kind': 'concept', 'when': 'use_sam3',
+        # `when` : le prompt ne sert qu'en mode DESCRIPTION (`app_modes`, `mode_param`) — il
+        # suivait le booléen `use_sam3` jusqu'au 2026-09-27.
+        {'field': 'sam3_prompt', 'kind': 'concept',
+         'when': {'field': 'target_mode', 'equals': 'description'},
          'domain': 'detection', 'enrich': True},
     ],
     'cam_analyzer': [
@@ -171,12 +176,17 @@ def _domain_for(instance, tgt):
 
 
 def _when_ok(instance, tgt):
-    """Clause `when` déclarée : le target ne s'applique que si ce champ booléen est vrai."""
+    """Clause `when` déclarée : un champ booléen de l'instance, ou une condition `show_if`
+    (MÊME grammaire que le schéma, évaluée par la MÊME fonction)."""
     cond = tgt.get('when')
     if not cond:
         return True
     if instance is None:
         return False
+    if isinstance(cond, dict):
+        from wama.common.utils.param_schema import _show_if_met
+        name = cond.get('field')
+        return _show_if_met(cond, {name: getattr(instance, name, None)})
     return bool(getattr(instance, cond, False))
 
 

@@ -62,6 +62,19 @@ varier). `studio_node_ports` lit LES DEUX niveaux — les ports `reference` du s
 `ports` du manifeste, l'intake (`capabilities_for_path`) et l'appariement entrée⇄modèle en
 dérivent sans une ligne par consommateur. Détail : `WAMA_APP_GENERATION_ROUTE.md` §S2bis.6 (b).
 
+═══ UN MODE EST UN RÉGLAGE DE L'ÉLÉMENT — `mode_param` (2026-09-27) ═════════════════════════
+
+Un switch de mode n'est pas qu'un affichage : il dit comment CET élément sera traité. Il se stocke
+donc comme tout réglage — un param du schéma de l'app, dont les valeurs SONT les ids de mode —, et
+le domaine le NOMME (`mode_param`). C'est ce qui manquait : l'anonymizer rendait son switch depuis
+cette déclaration, mais le reliait à son booléen `use_sam3` par des radios cachées et un script
+d'app ; l'inspecteur ne voyait donc jamais le mode d'une card (mesuré, relevé par Fabien).
+Avec `mode_param`, le switch est un champ comme un autre pour l'inspecteur, la modale, la card
+et les préférences — et le mode BORNE la liste de modèles : ses `inputs` disent ce que
+l'élément fournira (`available_inputs`), et ce qui le DISTINGUE des autres modes du domaine,
+ce que le modèle doit consommer (`consumes`) — vocabulaire de `model_selector.matches_inputs`,
+rien d'inventé (`mode_model_filter`).
+
 Hiérarchie : App → Domaine → Mode → {entrées typées + sections de réglages}. Tout est métadonnée-driven :
 l'UI (onglets, switch de mode, champs, sections) se GÉNÈRE depuis ce schéma (générateur JS `WamaModes`).
 
@@ -287,18 +300,25 @@ APP_MODES = {
         ],
     },
 
-    # ── ANONYMIZER (multi-domaine futur ; prouve le switch de MODE yolo/sam3) ──
+    # ── ANONYMIZER — le mode dit COMMENT on désigne ce qu'il faut flouter ──
+    # ⚠ Les modes s'appelaient `yolo`/`sam3` (noms d'une FAMILLE de modèles) jusqu'au
+    # 2026-09-27 : ils confondaient deux choix indépendants — la désignation (une liste de
+    # classes / une description en texte) et le résultat (boîte / contour, que le curseur
+    # rapide ↔ qualité tranche). Une description qui rend des boîtes (LocateAnything) n'y avait
+    # pas de place. Leurs listes `settings` citaient `model` et `classes`, absents du schéma, et
+    # personne ne les lisait : retirées.
     'anonymizer': {
         'domains': [
             {'id': 'image_video', 'label': 'Image / Vidéo', 'icon': 'fa-photo-film',
-             'accepts': ('image', 'video'), 'modes': [
-                # variant par mode (couleurs alignées sur l'UI existante : yolo=bleu, sam3=cyan).
-                {'id': 'yolo', 'label': 'Détection (YOLO)', 'icon': 'fa-crosshairs', 'variant': 'primary',
-                 'inputs': ['work_file'],
-                 'settings': ['model', 'classes', 'blur_ratio', 'detection_threshold']},
-                {'id': 'sam3', 'label': 'Prompt (SAM3)', 'icon': 'fa-wand-magic-sparkles', 'variant': 'info',
-                 'inputs': ['work_file', 'prompt'],
-                 'settings': ['blur_ratio']},
+             'accepts': ('image', 'video'),
+             # Le réglage du schéma qui PORTE le mode (valeurs = ids ci-dessous).
+             'mode_param': 'target_mode',
+             'modes': [
+                # variant par mode (couleurs de l'UI existante : classes=bleu, description=cyan).
+                {'id': 'classes', 'label': 'Classes', 'icon': 'fa-list-check', 'variant': 'primary',
+                 'inputs': ['work_file']},
+                {'id': 'description', 'label': 'Description', 'icon': 'fa-comment-dots',
+                 'variant': 'info', 'inputs': ['work_file', 'prompt']},
             ]},
             # futurs : {'id':'audio',…}, {'id':'document',…}
         ],
@@ -398,6 +418,37 @@ def domain_for_category(app: str, categorie: str) -> str | None:
         if categorie in (d.get('accepts') or ()):
             return d.get('id')
     return None
+
+
+def mode_param(app: str, domain_id: str) -> str:
+    """Le param du schéma qui porte le mode de ce domaine ('' si le domaine n'en déclare pas)."""
+    return get_domain(app, domain_id).get('mode_param') or ''
+
+
+def options_mode_for(app: str, domain_id: str) -> dict:
+    """La déclaration `Param.options_mode` d'un select de modèle borné par le mode de ce
+    domaine — le nom du champ est LU ici, jamais recopié dans `params.py`."""
+    field = mode_param(app, domain_id)
+    return {'app': app, 'domain': domain_id, 'field': field} if field else None
+
+
+def mode_model_filter(app: str, domain_id: str, mode_id: str) -> dict:
+    """Ce que le mode impose au MODÈLE, dans le vocabulaire de `model_selector.matches_inputs` :
+
+      • `available_inputs` — les entrées que l'élément fournira dans ce mode (celles du mode) ;
+      • `consumes`         — celles qui DISTINGUENT ce mode des autres modes du domaine : un
+                             modèle qui les ignorerait ne servirait pas ce mode. L'entrée commune
+                             à tous les modes (le fichier de travail) n'en fait pas partie.
+
+    Dérivé de la déclaration, jamais écrit à la main : ajouter un mode suffit. {} pour un mode
+    inconnu — l'appelant ne restreint alors rien."""
+    modes = get_domain(app, domain_id).get('modes') or []
+    mode = next((m for m in modes if m.get('id') == mode_id), None)
+    if not mode:
+        return {}
+    shared = set.intersection(*(set(m.get('inputs') or ()) for m in modes)) if modes else set()
+    return {'available_inputs': list(mode.get('inputs') or []),
+            'consumes': [i for i in (mode.get('inputs') or []) if i not in shared]}
 
 
 def resolve_inputs(porteur: dict) -> list:

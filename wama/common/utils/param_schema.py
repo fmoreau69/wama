@@ -66,6 +66,20 @@ class Param:
                                                 # §2). Restreindre ici ferait une EXCLUSION serveur d'un
                                                 # grisage expliqué — l'utilisateur perdrait « ce modèle
                                                 # existe mais votre entrée l'écarte ».
+    options_mode: Optional[dict] = None         # select `catalog` BORNÉ PAR LE MODE de l'élément
+                                                # (2026-09-27) : {"app", "domain", "field"} — `field`
+                                                # = le `mode_param` du domaine (`app_modes`). Le
+                                                # navigateur ajoute `app/domain/mode=<valeur du champ>`
+                                                # à la requête et la relance quand le mode change ; le
+                                                # serveur en DÉRIVE ce que le mode impose au modèle
+                                                # (`app_modes.mode_model_filter`). À part de
+                                                # `options_query` À DESSEIN : les lecteurs serveur
+                                                # passent celui-ci tel quel au catalogue. Déclarer par
+                                                # `app_modes.options_mode_for(app, domain)`, jamais à la
+                                                # main (le nom du champ vit dans `app_modes`).
+    options_group: str = ""                     # select `catalog` : GROUPER les options ("task" = un
+                                                # groupe par tâche, libellé du catalogue). Drapeau
+                                                # d'UI, comme `options_auto`.
     options_auto: bool = False                  # select `catalog` : servir « auto » en 1ʳᵉ option
                                                 # (+ PRÉVISION du modèle retenu sous le select).
                                                 # OPT-IN par app : ne le déclarer QUE si le chemin de

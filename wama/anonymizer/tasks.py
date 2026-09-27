@@ -25,7 +25,9 @@ logger = logging.getLogger(__name__)
 def anonymizer_eta_key_size(media):
     """Clé + taille ETA — PARTAGÉE entre record_run (fin de tâche) et estimate
     (endpoint progress) : même clé des deux côtés ou l'EMA n'apprend jamais."""
-    engine = 'sam3' if media.use_sam3 else (media.model_to_use or 'auto')
+    from .utils.yolo_utils import catalogue_id_for
+    engine = ('sam3' if media.target_mode == 'description'
+              else (catalogue_id_for(media.model_to_use) or 'auto'))
     is_video = (media.media_type == 'video' or
                 normalize_types([media.file_ext]) == ['video'])
     if is_video:
@@ -184,7 +186,9 @@ def process_single_media(self, media_id, force_individual=False):
 
         precision_level = media.precision_level
         use_segmentation = media.use_segmentation
-        use_sam3 = media.use_sam3
+        # Mode DESCRIPTION (`app_modes`) : la seule désignation par texte branchée au moteur de
+        # floutage est SAM3 — LocateAnything, au catalogue, n'y est pas encore relié.
+        use_sam3 = media.target_mode == 'description'
         sam3_prompt = media.sam3_prompt
 
         # SAM3 = concepts EN → pipeline commune (§16.6) ; KIND déclaré dans app_metadata.
@@ -233,7 +237,9 @@ def process_single_media(self, media_id, force_individual=False):
         # PARALLEL DETECTION: Check if multiple models are needed
         # ======================================================================
         # Determine user's specified model (if any)
-        user_specified_model = (media.model_to_use or '').strip()
+        # Identifiant du catalogue, chemin d'avant, ou « auto » → '' (`catalogue_id_for`).
+        from .utils.yolo_utils import catalogue_id_for, model_path_for
+        user_specified_model = '' if use_sam3 else catalogue_id_for(media.model_to_use)
 
         # Check if specialty classes (face, plate) are requested
         # These often require dedicated models even if user has a default COCO model
@@ -296,7 +302,7 @@ def process_single_media(self, media_id, force_individual=False):
                 if user_specified_model:
                     try:
                         from .utils.model_selector import get_model_classes
-                        user_model_abs = _gmp(user_specified_model)
+                        user_model_abs = model_path_for(user_specified_model)
                         user_classes = set(get_model_classes(user_model_abs).values())
                         requested = {c.lower() for c in kwargs['classes2blur']}
                         if requested and requested.issubset(user_classes):
@@ -305,7 +311,7 @@ def process_single_media(self, media_id, force_individual=False):
                         logger.warning(f"[ModelSelection] Could not verify user model classes: {e}")
 
                 if keep_user_model:
-                    kwargs['model_path'] = _gmp(user_specified_model)
+                    kwargs['model_path'] = model_path_for(user_specified_model)
                     _console(user.id, f"Respecting user-specified model: {user_specified_model}")
                     logger.info(f"[ModelSelection] Keeping user-specified model {user_specified_model} "
                                 f"(already covers {kwargs['classes2blur']}) — no override")
@@ -334,7 +340,7 @@ def process_single_media(self, media_id, force_individual=False):
                     _console(user.id, f"Using media-specific model: {model_to_use}")
 
                 if model_to_use:
-                    kwargs['model_path'] = _gmp(model_to_use)
+                    kwargs['model_path'] = model_path_for(model_to_use)
                 else:
                     # Auto-select model based on precision level and classes
                     selected_model = select_model_by_precision(
