@@ -200,9 +200,10 @@ class ProfileOffersTheKeysOfBothFamiliesTest(TestCase):
         from wama.common import external_sources
 
         served = {row['slug'] for row in listing(self.user)}
-        attendu = {s.key for s in external_sources.SOURCES
-                   if s.user_key and s.kind != 'media' and not s.developer_only}
-        self.assertTrue(attendu <= served, f'jamais proposées au profil : {attendu - served}')
+        expected = {s.key for s in external_sources.SOURCES
+                    if s.user_key and s.kind != 'media' and not s.developer_only}
+        self.assertTrue(expected <= served,
+                        f'jamais proposées au profil : {expected - served}')
         self.assertIn('corpus', {row['kind'] for row in listing(self.user)},
                       'un corpus à clé de chacun se pose au MÊME endroit que les autres')
 
