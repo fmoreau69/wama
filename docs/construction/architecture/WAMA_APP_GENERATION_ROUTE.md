@@ -172,6 +172,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   | chips métadonnée (`card_chips`) | **10/10** (11 décorateurs, 6 noms — §S2ter) | l'assiette `values` (JSON) n'est passée que par converter |
   | `gear_data` (property modèle) | **10/10** | — |
   | `WamaModelCaps` (show_if depuis caps) | synthesizer seul | — |
+  | **champ de VOLET généré** (`WamaParams.render(context:'panel')` + source d'options) | **1/10 au 2026-09-27** — synthesizer, le seul champ de voix | Les autres champs de volet restent écrits à la main, avec leur `name=` ; l'inspecteur lit les DEUX formes (`[name=]`,`[data-param=]`), donc une app peut porter ses champs UN PAR UN. ⚠ Ce qui bloquait n'était pas technique : une phrase (« les options sont SERVER-RENDERED, on NE remplace donc PAS les champs ») recopiée du schéma vers DEUX briques communes **et cette route**. Le portage a d'abord consisté à la retirer. ⚠ Piège mesuré : un champ généré n'a **pas** de `name=` en contexte `panel` — tout lecteur qui n'interroge que `[name=]` cesse d'enregistrer, sans erreur |
   | **réglages utilisateur persistés** (`user_settings`) | **8/10** | anonymizer + enhancer persistent en TABLE Django maison (`UserSettings`) — architecture différente, pas un oubli |
 - **Manifeste** : `params` = `{primary, schemas}` **multi-schémas depuis le palier params**
   (trou #10 clos — « un seul params_attr » écrit ici avait survécu à sa résorption) ; ne
@@ -578,8 +579,16 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
   demi-jambes du 01/09 : *une jambe livrée aux deux bouts et absente au milieu ne se voit
   qu'en s'en servant* — et un smoke qui lit le DOM final tranche là où l'inspection du
   code ne voyait rien. Réglé au COMMUN : `WamaInspector.initFromSchema` lie les sources
-  `catalog` du volet (`WamaParams.bindOptionSources` exposé, prédicat — les voix du volet
-  restent rendues serveur, leurs optgroups clonés ne se remplacent pas).
+  `catalog` du volet (`WamaParams.bindOptionSources` exposé, avec un prédicat).
+  ⚠⚠ **Ce paragraphe se terminait par « — les voix du volet restent rendues serveur, leurs
+  optgroups clonés ne se remplacent pas », et c'était la QUATRIÈME copie d'une même phrase**
+  (schéma du synthesizer, `wama-params.js`, `wama-inspector.js`, ici). Elle a fait REFUSER
+  pendant trois semaines de peupler le select de voix du volet par la source commune —
+  jusqu'au **2026-09-27**, où ce champ est devenu GÉNÉRÉ (`WamaParams.render(context:'panel')`,
+  hôte `#voicePresetHost`, groupes de `get_voice_groups`). Le prédicat, lui, RESTE : il évite
+  de lier deux fois un champ que l'app rend elle-même. *Trois affirmations valent une seule si
+  elles descendent d'une même phrase — et c'est la copie logée dans la ROUTE qui coûte le plus
+  cher, puisqu'on la consulte avant de proposer.*
 
 ##### ⚠ INVARIANT À NE PAS CASSER : lister ≠ pouvoir choisir
 
@@ -1512,7 +1521,8 @@ outillé avant d'ouvrir cette marche.
   9. **`options_source` : DEUX familles de sources, un seul registre existait** (constat Fabien
      après re-dépôt : « la modale s'affiche, mais je vois options "formats" non déclaré »). Le
      resolver généré ne connaissait que les sources **ASYNCHRONES** (`OPTION_SOURCES` de
-     `wama-params.js` — un endpoint par clé, aujourd'hui `voices` seul) ; toute autre clé tombait
+     `wama-params.js` — un endpoint par clé ; `voices` seul À CETTE DATE, `catalog` l'a rejoint
+     avec la route F4b ② le 2026-09-01) ; toute autre clé tombait
      sur un `<option>` d'avertissement, donc pas de format de sortie, donc rien de lançable.
      ⚠⚠ **Et mon premier commentaire de correctif rangeait ça en TROU DU FORMALISME** — « rien, ni
      dans `Param` ni au manifeste, ne dit d'où viennent ces options ». **Faux** : la table
