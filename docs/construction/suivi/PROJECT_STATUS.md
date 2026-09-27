@@ -18165,3 +18165,104 @@ d'`earnings22` ; ⑤ recoudre VoxPopuli (à déclarer synthétique si fait) ; �
 souscrire Staan engage l'Université par une signature et des informations de facturation : acte
 institutionnel, pas technique. Rien ne le presse, Exa couvre le besoin (20 000 requêtes/mois
 offertes) et l'adaptateur Staan attend sa clé sans une ligne de code de plus.
+
+## §CLÔTURE — 2026-09-27, « ANONYMIZER : RÉGLAGES AU COMMUN, MODE CLASSES / DESCRIPTION, JETON HF » — ✅ LIVRÉ
+
+Instance de la session transcriber → tests génériques → anonymizer. Commits : `69213680` (profils =
+DANS l'app, pas la médiathèque — trace corrigée), `88e59799` + `f481b9c2` (réglages du volet :
+brique commune `user_settings.*_panel_*`, flou par défaut 75), `98251adc` (le mode est un RÉGLAGE
+qui borne le menu de modèles), `38657fa5` (3 fichiers oubliés par une autre instance), `47ce33ac`
+(jeton HF de celui qui télécharge, pastille SAM3, LocateAnything).
+
+**Ce qui est en place.**
+- Réglages du volet : `read/save/reset_panel_settings`, `new_element_settings` (cascade COMMUNE
+  `effective_settings` : défauts ← auteur ← dépôt), `make_panel_settings_views` ; une valeur égale
+  au défaut RETIRE la préférence. Anonymizer + transcriber adoptants ; tables `UserSettings` /
+  `GlobalSettings` plus lues ni écrites ; préférences transférées (39).
+- Modes : `app_modes.mode_param`, `Param.options_mode` / `options_group`, route des options du
+  catalogue multi-tâches et bornée par un mode déclaré ; `WamaModes` tient le réglage (inspecteur,
+  préférences, modale), `data-mode-section`, `wama:user-edit` → `autoSave`. Anonymizer :
+  `target_mode` (`classes` / `description`), menu `detect`+`segment` groupé par tâche ; données
+  converties (`convert_anonymizer_modes_and_models --apply` : 24 médias, 4 comptes).
+- Jeton HF : source `huggingface` au profil ; `download_token` ; page de jeton de l'anonymizer
+  retirée ; LocateAnything déclare son prompt (hors anonymizer, cf. `ROADMAP §17bis`).
+- Défauts communs corrigés au passage : rendu radio à DEUX `name` (un réglage radio de modale
+  n'arrivait jamais au serveur) ; course des options (la plus lente gagnait) ; découverte des
+  modèles distants lancée pour toute source à clé (500 à l'enregistrement d'un jeton HF).
+
+**🔚 Restes, dans l'ordre.**
+1. **Recharger gunicorn** : le Python du `47ce33ac` (jeton, pastille, route de jeton retirée) n'est
+   pas en service ; gabarit et JS le sont déjà (compatibles avec l'ancien Python).
+2. **R73** (`REMOVAL_LEDGER`) : retirer `UserSettings`, `GlobalSettings`, la colonne `use_sam3`
+   et leurs références dans `accounts` — données transférées ; geste DESTRUCTIF, à confirmer par
+   Fabien ; `accounts/views.py` co-édité → commit partiel.
+3. Le volet de l'anonymizer est encore écrit à la main (sections, curseur, menu) : le rendre du
+   schéma comme au transcriber. Imager encore sur ses propres helpers de préférences ; 6 apps
+   (`NOT_YET_DERIVED`) + l'enhancer.
+4. Le générateur (`views_gen._reglages_du_depot`) refait la cascade du dépôt en ligne : émettre
+   `new_element_settings`.
+5. Route d'élément de l'anonymizer hors convention (`save_media_settings`, critère `settings_route`).
+6. L'aperçu commun rend 500 pour un média SANS fichier (lot pas encore téléchargé) — antérieur.
+
+**Rouges du jour NON imputés à ce chantier** : budget langue (`code` 2768 > 2735 — mes fichiers
+n'ajoutent rien, mesuré fichier par fichier contre HEAD) ; `tests_access_points` sur
+`api/vram/grant/`.
+
+**Leçons.**
+- Deux apps avec la même fonction locale = extraire AVANT de commiter (question de Fabien : « rien
+  réinventé ? » — la cascade existait déjà, `effective_settings`).
+- Une affirmation sur un mécanisme se vérifie dans le code ET au navigateur : « YOLO/SAM3 hors
+  schéma » était faux (switch généré, `use_sam3` au schéma) ; le vrai défaut (l'inspecteur ne
+  voyait pas le mode) ne s'est lu qu'en mesurant `_anonInspector.read()`.
+- Une migration additive peut casser le code EN SERVICE : `AddField` avec défaut fait
+  `DROP DEFAULT` ; l'ancien code, qui ignore la colonne, aurait échoué sur NOT NULL → `db_default`.
+
+### Revérification COMPLÈTE de la session (2026-09-27, demande de Fabien) — 1 manquement, 1 défaut de généricité, 15 rouges attribués
+
+**A. A-t-on réinventé ?** Trois briques voisines confrontées, **un manquement reconnu** :
+
+| brique voisine | verdict |
+|---|---|
+| `common/tts/voices.py` (`voix_pour(langue)`) | **pas un doublon** : il nomme une voix INTERNE au moteur Kokoro (`ff_siwis`), `default_voice_for_language` sélectionne un FICHIER de référence pour le clonage. Le module trace déjà la frontière. ⚠ Mais il y a désormais **trois** résolveurs « langue → voix » (Kokoro, référence, libellé client) — la fusion `voices.py`/`voice_refs` était déjà « une question ouverte » dans le docstring ; elle le devient un peu plus |
+| **`WamaDetails`** (`wama-inspector-autofill.js`) | 🔴 **MANQUEMENT** : c'est LA brique commune d'affichage read-only clé/valeur depuis un schéma déclaratif, et **je ne l'ai pas ouverte avant d'écrire mes chips**. Mesuré après coup : la page médiathèque ne charge ni l'inspecteur ni `WamaDetails` ; l'y importer pour trois chips inline coûterait un script + le CSS d'un panneau. Ce qui EST partagé, et c'est le bon niveau, c'est la **déclaration** (`natures_as_json()`) — le renderer fait 15 lignes. *Le verdict est défendable ; l'avoir rendu sans avoir cherché ne l'était pas.* |
+| libellés de valeurs | vérifié qu'ils n'existaient qu'en UN exemplaire (brique TTS) avant de les déplacer à la déclaration ; `voice_refs` les LIT, garde par `inspect.getsource` |
+
+**B. Aligné sur WAMA ?** Métadonnée-driven (la nature déclare, tout dérive) · porte commune
+respectée — **zéro appel direct à `resolve_speaker_wav` hors de la brique, mesuré par AST** ·
+frontière des données tenue (la valeur stockée reste `default`) · registre `mecanismes.py` mis à
+jour (`360a0648`).
+
+**C. La route ?** Quatre blocs dans les quatre docs de référence de leur domaine ; **aucun `.md`
+nouveau**, donc rien à ajouter à la table d'`AGENTS.md` ni à `docs_catalog.py`. `check_docs`
+**4 cassées / 4 cibles**, stable.
+
+**D. 🔴 Les tests étaient-ils GÉNÉRIQUES ? NON — défaut trouvé et corrigé.**
+`LesWorkersNeDecidentPlusRienTest` nommait **trois fichiers à la main**, et je venais d'y greffer
+ma garde `language=` : exactement le trou « C » que `WAMA_VERIFICATION §8` désigne — *un contrat
+transverse gardé dans une app n'est pas gardé dans les neuf autres*. Remplacé par
+`LaPorteDesVoixEstUnContratTRANSVERSETest` : les apps concernées **dérivées des modèles** (qui
+déclare un champ `voice_preset` doit passer par la porte), les appelants **découverts par AST**,
+plus une garde anti-vide (`vus >= 3`). Même passe sur le rendu des attributs : il testait deux
+natures nommées, il **boucle** désormais sur toutes les natures à attributs. Contre-épreuves
+mutants **5/5** (langue retirée, dans un commentaire, dans une docstring, en positionnel, appel
+qualifié). 106 tests verts sur base isolée (`e991cfed`).
+
+**E. Les 15 rouges de la suite large — attribués, aucun n'est de moi**
+
+| rouge | à qui |
+|---|---|
+| `tests_identifier_language` ×5 (code 2768>2735, classes 135>133, méthodes 1311<1312) | autres chantiers. **Ma part était +1** (`does_not_declare`, radical français) : renommée, pas budgétée (`d6e52291`) — mesure 4201 → 4200 |
+| `tests_notifications` ×3 | adresses réelles de l'université (chantier SMTP) |
+| `tests_schema_grid` (noyau gaussien) · `tests_tool_api_lectures` · `tests_capabilities_languages` | chantiers anonymizer / `tool_api` / modèles, tous en WIP non commité |
+| `tests_check_templates` | `common/_new_item_card_v4.html:175`, commentaire multi-ligne — **dernière modification le 2026-09-22** (`4cb36454`), cinq jours avant cette session |
+| `tests_mcp_dev_tools` ×2 | serveur MCP dev, qui ne survit pas à un redémarrage (WAMA venait d'être relancé) |
+| `tests_doc_plans` | ⚠ **part MIENNE** : `docs/dev/briques.md` documente encore `resolve_speaker_wav(voice_preset, user=None)` sans `language`, et ignore `default_voice_for_language` — **et** le `token=None` d'un autre chantier |
+
+🔚 **Reste déclaré, pas corrigé** : `docs/dev/briques.md` est périmée pour **deux** raisons, une
+mienne et une d'autrui. **Non régénérée à dessein** — `/cloture §2b` : régénérer figerait le WIP
+non commité d'une autre instance (20 fichiers, dont `external_sources.py`, `api_keys.py`,
+`tool_api.py`, `model_installer.py`). La régénération revient à qui commitera ces briques.
+
+⚠ **Et un piège que j'ai refermé sur moi une DEUXIÈME fois** : `Select-Object -Last 60` dans la
+commande de fond a caché **10 des 15 échecs**. C'est consigné dans ma mémoire depuis une session
+antérieure. *Ne jamais tronquer la sortie d'une suite de tests — rediriger vers un fichier.*
