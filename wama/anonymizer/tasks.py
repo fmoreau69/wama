@@ -14,6 +14,7 @@ from wama.common.app_registry import normalize_types
 from wama.common.utils.media_paths import get_app_media_path
 from .utils.sam3_manager import check_sam3_installed, validate_sam3_prompt
 from wama.common.utils.console_utils import push_console_line
+from wama.common.utils.queue_duplication import safe_delete_file
 
 # Couverture multi-modèles : seule `needs_parallel_detection` survit au retrait du second
 # pipeline (2026-08-13) — elle ne fait que consulter la couverture, elle n'orchestre plus rien.
@@ -36,20 +37,22 @@ def anonymizer_eta_key_size(media):
     return (f'anonymizer:img:{engine}', mpx, 'megapixel')
 
 
-def _resolve_output_rel(media):
-    """Chemin MEDIA-relatif de la sortie floutée. Sortie RÉELLE = dossier output/ de
-    l'utilisateur, base sans extension + _blurred* (ext vidéo coercée .mp4, variante
-    _blurred_sam3) — même logique que get_blurred_media_path/download_media."""
-    import glob
-    import os
+def _record_output(media, written):
+    """Pose sur le média le fichier que le moteur a RÉELLEMENT écrit (2026-09-27).
+
+    Avant : `_resolve_output_rel` DEVINAIT la sortie par `glob('<entrée>_blurred*')`, trié par
+    ordre ALPHABÉTIQUE — donc des cards dupliquées (même entrée) se voyaient attribuer le même
+    fichier, et un média passé de YOLO à SAM3 pouvait garder la sortie de l'autre moteur.
+    La sortie précédente de CETTE card part si elle n'est plus la même (moteur ou format
+    changé) — par `safe_delete_file`, qui la garde si une autre ligne la désigne encore.
+    """
     from django.conf import settings
-    from wama.common.utils.media_paths import get_app_media_path
-    base = os.path.splitext(os.path.basename(media.file.name))[0]
-    out_dir = str(get_app_media_path('anonymizer', media.user_id, 'output'))
-    candidates = sorted(glob.glob(os.path.join(out_dir, base + '_blurred*')))
-    if not candidates:
-        return ''
-    return os.path.relpath(candidates[0], settings.MEDIA_ROOT).replace(chr(92), '/')
+    rel = ''
+    if written and os.path.exists(written):
+        rel = os.path.relpath(written, settings.MEDIA_ROOT).replace(chr(92), '/')
+    if media.output_file and media.output_file.name != rel:
+        safe_delete_file(media, 'output_file')
+    media.output_file.name = rel
 
 
 
@@ -71,47 +74,33 @@ def _console(user_id: int, message: str, level: str = None) -> None:
         pass
 
 
-def _apply_anonymizer_output_format(media):
-    """Convert the blurred output to the chosen format (Phase 3 élargie).
+def _apply_anonymizer_output_format(media, written):
+    """Convert the blurred output to the chosen format (Phase 3 élargie); return the final path.
 
     output_format:
         'original' → keep whatever the pipeline produced (no-op)
         'input'    → reconvert to the SOURCE file's format (e.g. pipeline
                      produced .mp4 but the user uploaded .mov → back to .mov)
         '<fmt>'    → explicit target format
-    The blurred file name carries a backend suffix ({base}_blurred*{ext}),
-    so we glob for it like the download view does.
+    Works on the file the engine WROTE (2026-09-27). It used to glob `<input>_blurred*`, which
+    converted the outputs of every card sharing the input — duplicates included.
     """
-    import glob as _glob
-    from .utils.media_utils import get_blurred_media_path
-
     fmt = (getattr(media, 'output_format', '') or 'original').lower()
-    if fmt in ('', 'original'):
-        return
+    if fmt in ('', 'original') or not written or not os.path.exists(written):
+        return written
 
     src_ext = (media.file_ext or '').lower().lstrip('.')
     target = src_ext if fmt == 'input' else fmt
-    if not target:
-        return
+    if not target or os.path.splitext(written)[1].lower().lstrip('.') == target:
+        return written
 
     try:
-        canonical = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
-        out_dir = os.path.dirname(canonical)
-        base = os.path.splitext(os.path.basename(canonical))[0]
-        if base.endswith('_blurred'):
-            base = base[:-len('_blurred')]
-        ext = os.path.splitext(canonical)[1]
-        matches = _glob.glob(os.path.join(out_dir, f"{base}_blurred*{ext}"))
-        if not matches:
-            return
         from wama.converter.utils.inline_convert import apply_inline_conversion
         preset = getattr(media, 'output_quality', 'balanced') or 'balanced'
-        for m in matches:
-            if os.path.splitext(m)[1].lower().lstrip('.') == target:
-                continue  # already in target format
-            apply_inline_conversion(m, target, preset)
+        return apply_inline_conversion(written, target, preset)
     except Exception as exc:
         logger.warning(f"[anonymizer] conversion format sortie échouée: {exc}")
+        return written
 
 
 # ----------------------------------------------------------------------
@@ -231,6 +220,9 @@ def process_single_media(self, media_id, force_individual=False):
             'use_sam3': use_sam3,
             'sam3_prompt': sam3_prompt,
             'user_id': user.id,  # For console logging
+            # Nom de sortie PROPRE à la card (`compose_output_name(item_id=…)`) : des cards
+            # dupliquées partagent leur entrée, jamais leur sortie.
+            'item_id': media.id,
         }
 
         # ======================================================================
@@ -437,9 +429,10 @@ def process_single_media(self, media_id, force_individual=False):
 
             kwargs['on_frame'] = _on_frame
 
+        written = None
         try:
             # Run the actual processing
-            start_process(**kwargs)
+            written = start_process(**kwargs)
         finally:
             # Stop the progress simulation
             cache.set(stop_flag, True, timeout=10)
@@ -453,14 +446,14 @@ def process_single_media(self, media_id, force_individual=False):
                     pass
 
         # Conversion de format de sortie (Phase 3 élargie)
-        _apply_anonymizer_output_format(media)
+        written = _apply_anonymizer_output_format(media, written)
 
         # Marque le média comme traité
         try:
             media.refresh_from_db()
             media.status = 'SUCCESS'
             media.processing_seconds = time.time() - _proc_t0
-            media.output_file = _resolve_output_rel(media)
+            _record_output(media, written)
             media.save(update_fields=["status", "processing_seconds", "output_file"])
             set_media_progress(media.id, 100)
             # ETA auto-apprenante : consigne le temps réel (même clé que estimate)
@@ -520,6 +513,9 @@ def start_process(**kwargs):
 
     If use_sam3=True and sam3_prompt is provided, uses SAM3 for segmentation.
     Otherwise, uses the standard YOLO-based Anonymize class.
+
+    Returns the path the engine ACTUALLY wrote (2026-09-27) — the task records it on the
+    media; nothing is guessed from the input's name any more.
     """
     media_path = kwargs.get('media_path', 'unknown')
     use_sam3 = kwargs.get('use_sam3', False)
@@ -587,7 +583,7 @@ def start_process(**kwargs):
 
                     if user_id:
                         _console(user_id, f"SAM3 processing complete")
-                    return
+                    return processor.output_path
                 except ImportError as e:
                     error_msg = f"SAM3 import error: {e}. Falling back to YOLO."
                     print(f"Warning: {error_msg}")
@@ -611,6 +607,7 @@ def start_process(**kwargs):
     model = anonymize.Anonymize(source_dir=source_dir, destination_dir=dest_dir)
     anonymize.Anonymize.load_model(model, **kwargs)
     anonymize.Anonymize.process(model, **kwargs)
+    return model.output_path
 
 
 # ----------------------------------------------------------------------

@@ -34,10 +34,6 @@ class AnonymizerConfig(AppConfig):
         from wama.common.utils.detail_registry import (MEDIA_CATEGORY_ROLE, build_detail,
                                                        register_app_detail)
 
-        def settings_media_url(rel):
-            from django.conf import settings
-            return settings.MEDIA_URL.rstrip('/') + '/' + rel.lstrip('/')
-
         def _anonymizer_detail(m):
             from .params import PARAMS
             extra = {p.label: getattr(m, p.name, None) for p in PARAMS
@@ -47,7 +43,7 @@ class AnonymizerConfig(AppConfig):
                 source_file=m.file,
                 source_type=m.media_type,
                 engine=getattr(m, 'model_to_use', None),
-                result_file=(settings_media_url(m.output_file) if m.output_file else None),
+                result_file=(m.output_file.url if m.output_file else None),
                 # Même catégorie que l'entrée (image → image, vidéo → vidéo) — table COMMUNE.
                 result_role=MEDIA_CATEGORY_ROLE.get(m.media_type),
                 extra=extra,

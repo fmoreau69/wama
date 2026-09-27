@@ -5,7 +5,7 @@ from django.template.defaulttags import register
 
 from wama.settings import BASE_DIR, AI_MODELS_DIR
 from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager, JOB_STATUS_CHOICES
-from wama.common.utils.media_paths import upload_to_user_input
+from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 import os
 
 # Model path - now points to centralized AI-models directory
@@ -48,9 +48,14 @@ class Media(ProcessingTimeMixin, ScopedVisibility):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     task_id = models.CharField(max_length=255, blank=True, default='')
     error_message = models.TextField(blank=True, default='')
-    # Chemin MEDIA-relatif de la sortie floutée (posé au SUCCESS par le worker, 2026-07-13 —
-    # avant : chemin uniquement DÉRIVÉ (_blurred_*) à chaque lecture, hors contrat canonique).
-    output_file = models.CharField(max_length=500, blank=True, default='')
+    # La sortie floutée — un FICHIER DE LA CARD, comme dans toutes les autres apps (2026-09-27).
+    # Elle était un TEXTE (chemin relatif posé au SUCCESS, 2026-07-13), et la plupart des
+    # lecteurs l'ignoraient pour RECALCULER le chemin depuis le nom de l'ENTRÉE : des cards
+    # dupliquées (entrée partagée) écrivaient et lisaient donc le même fichier. Devenue champ
+    # fichier, elle est servie, zippée, dupliquée (vidée) et supprimée (partage jugé) par les
+    # briques communes. Même colonne (varchar 500) : aucune écriture en base à la migration.
+    output_file = models.FileField(upload_to=upload_to_user_output('anonymizer'), max_length=500,
+                                   blank=True, default='')
 
     @property
     def processed(self):

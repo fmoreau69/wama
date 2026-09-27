@@ -261,8 +261,8 @@ class Anonymize(DetectionBackend):
             str: Model suffix (e.g., 'yolov8m', 'yolov8n-seg')
         """
         # Multi-modèles : le nom d'UN modèle mentirait sur le contenu du fichier produit.
-        # Même suffixe que l'ancien chemin (`_blurred_multi-model`) pour que les sorties déjà
-        # sur disque restent reconnues par `_resolve_output_rel` et la vue de téléchargement.
+        # Même suffixe que l'ancien chemin (`_blurred_multi-model`) : les sorties déjà sur disque
+        # gardent un nom cohérent avec les nouvelles.
         if len(self.models) > 1:
             return 'multi-model'
         if not self.model_name:
@@ -318,11 +318,17 @@ class Anonymize(DetectionBackend):
         # TODO: File list
         # File
         else:
+            # `item_id` (2026-09-27) : l'identifiant de la card entre dans le nom. Sans lui,
+            # deux cards DUPLIQUÉES — qui partagent leur fichier d'entrée par contrat —
+            # écrivaient la MÊME sortie : la dernière lancée écrasait les autres, et toutes
+            # affichaient son résultat (« changer le flou ne change rien »). C'est le cas que
+            # la brique prévoit (`item_id`, famille FICHIER) ; l'anonymizer ne le lui passait pas.
             from wama.common.utils.output_naming import compose_output_name
             self.output_path = os.path.join(
                 self.destination,
                 compose_output_name(app='anonymizer', model=model_suffix,
-                                    source_name=self.input_path),
+                                    source_name=self.input_path,
+                                    item_id=kwargs.get('item_id')),
             )
 
             if is_image(self.input_path):
@@ -875,6 +881,8 @@ class Anonymize(DetectionBackend):
         print(f"[copy_audio] Final output path: {final_output_path}")
 
         copy_audio_to_video(self.input_path, temp_video_path, final_output_path)
+        # Le chemin RÉELLEMENT écrit (toujours .mp4) : c'est lui que la tâche enregistre.
+        self.output_path = final_output_path
 
 
 def stop_process():

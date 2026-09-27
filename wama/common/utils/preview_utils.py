@@ -74,11 +74,31 @@ def _output_preview_data(app_name, instance, request):
         clean = url.split('?')[0]
         return {
             'name': os.path.basename(clean),
-            'url': request.build_absolute_uri(url),
+            'url': request.build_absolute_uri(_versioned(url)),
             'mime_type': guess_mime_type(clean) or 'application/octet-stream',
         }
     except Exception:
         return None
+
+
+def _versioned(url):
+    """`url?v=<mtime>` pour un fichier de MEDIA sans requête (2026-09-27).
+
+    Une card relancée RÉÉCRIT sa sortie sous le même nom (anonymizer : un nom par card, pour
+    que relancer remplace au lieu d'accumuler) : même URL, donc le navigateur réaffichait
+    l'image de son cache — le nouveau réglage semblait sans effet. La date du fichier change
+    à chaque écriture, l'URL avec elle. Toute autre URL passe telle quelle.
+    """
+    from django.conf import settings
+    media_url = settings.MEDIA_URL or '/media/'
+    if '?' in url or not url.startswith(media_url):
+        return url
+    from urllib.parse import unquote
+    path = os.path.join(str(settings.MEDIA_ROOT), unquote(url[len(media_url):]))
+    try:
+        return f'{url}?v={int(os.path.getmtime(path))}'
+    except OSError:
+        return url
 
 
 def _input_port_group(app_name):
