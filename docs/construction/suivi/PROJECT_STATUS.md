@@ -17964,3 +17964,56 @@ tous deux mesurés par lui, consignés dans `WAMA_LLM §2026-09-27` :
   générique, ou l'adaptateur avec la borne déclarée par son protocole ?
 - ⏳ Et quand `wama.univ-eiffel.fr` existera : la porte SIGNÉE à durée de vie courte reste à
   faire — c'est le seul chemin pour un fichier que le canal ne peut pas porter.
+
+## §CLÔTURE — 2026-09-27, « VOIX : CE QU'ON PROPOSE, ON DOIT POUVOIR LE TENIR » — ✅ LIVRÉ, 13 commits
+
+**Fil conducteur, donné par l'usage.** Fabien a testé l'aperçu de voix, puis écouté. Chaque constat
+a ouvert un cran plus profond que le précédent : une erreur JS → un lecteur sans `<source>` ; « les
+voix enfants et senior ne sont pas correctes » → **3 créneaux « senior » étaient les MÊMES OCTETS
+qu'une voix adulte, genre inversé** ; « le sélecteur de langue ne filtre pas les voix » → la
+direction n'existait pas ; « le menu va devenir ingérable » → même problème, même réponse.
+*Un défaut d'usage signalé par celui qui s'en sert vaut dix audits de code.*
+
+| livré | commit |
+|---|---|
+| `.mjs` déclaré (+ garde des 6 types, avec contre-épreuve) | `13a078c1` |
+| avatarizer replié sur la brique commune + garde générique des 2 pages TTS | `9eabacd3` |
+| clé de payload `shared` → `common` (mots-clés), chaîne entière | `f806e414` |
+| la contre-épreuve du proxy mesurait la MACHINE, pas le code | `19b02e6a` |
+| `is_public` soldée par retrait, `shared` tranchée | `adecc849` |
+| recherche web par la brique commune + défi anti-robot DIT | `dc23097f` |
+| **moteurs de recherche : registre + adaptateurs + préférence au profil** | `e16088de` |
+| clés groupées par famille, moteur grisé qui dit la VRAIE raison | `a8cf568a` |
+| aperçu de voix réparé (lecteur sans `<source>`) + toast d'erreur lisible 15 s | `cfe8e436` |
+| card d'entrée dédupliquée + **les voix suivent la langue** | `b23010ab` |
+| Mozilla Data Collective au registre, clé de CHACUN | `63ab0044` |
+| paliers et `attendu` → `expected` | `8682c559`, `878d3ecf` |
+
+**Données réelles modifiées (déclarées)** : 3 fixtures `smoke-0802-*` supprimées (feu vert), puis
+les **8 créneaux enfant/senior** retirés — lignes ET fichiers, par le geste commun
+`delete_file_unless_shared`. Vérifié après coup : 20 voix, aucun fichier manquant, aucun orphelin,
+résolution OK. ⚠ Un premier script a échoué à mi-parcours (mauvaise signature de la brique) en
+laissant une ligne supprimée et son fichier orphelin ; le balayage final l'a ramassé.
+
+**REVÉRIFICATION demandée par Fabien — résultats.**
+- *Rien de réinventé* : `search_engines` suit le patron des connecteurs médiathèque (`providers/`),
+  déjà employé par `preview` et `mcp_server` ; `voicesFollowLanguage` vit dans la brique
+  d'appariement qui portait déjà les deux slots ; `voice_groups_json` a REMPLACÉ une copie locale.
+  Les seuls fichiers neufs sont un adaptateur par moteur — la forme que le registre nomme.
+- *Chaque livrable est gardé* : 116 tests sur le périmètre, dont **46 neufs** (moteurs 17, ordre
+  des voix 8, toast 5, MIME 2, mots-clés 3, aperçu 2, card 3, champ de voix 6).
+- *Contrôles* : `check_identifier_language` — **aucun identifiant français dans mes fichiers**
+  (relevé : `attendu`, corrigé) ; les dépassements restants (code +13, classes +1) sont le WIP des
+  autres instances. `check_docs` : 4 cassées, **aucune de moi** (2 anciennes, 2 nées du portage
+  anonymizer de ce soir). `doc_facts` : 3 blocs périmés par les commits du soir, à régénérer par
+  qui commitera son registre.
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : Fabien pose sa clé **Mozilla Data Collective** au profil
+(section *Corpus de données*) — puis on tranche le créneau « âgé », dont le seul obstacle est
+désormais connu : `POST /download` rend une **archive complète** (268 Go dans l'exemple de la
+doc), il n'y a pas d'accès au clip.
+**Décisions ouvertes** : ① créneau **âgé** — rapatrier un corpus entier pour 4 voix, ou attendre un
+accès au clip (en attente, décision de Fabien) ; ② créneau **enfant** — FERMÉ : Common Voice
+s'arrête à « teens », et cloner la voix d'un mineur est une question éthique, pas technique.
+**Pendings système** : `librosa`/`datasets`/`soundfile` hors requirements ; 13 commits non poussés ;
+la table MIME et les moteurs sont servis, aucun redémarrage requis (JS et gabarits).
