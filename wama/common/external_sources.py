@@ -248,11 +248,22 @@ SOURCES: tuple[ExternalSource, ...] = (
     # faire — et qu'il vaut mieux lire ici qu'à l'usage :
     #   • **chaque utilisateur doit accepter les conditions du jeu de données SUR LE SITE**
     #     avant que sa clé n'ouvre quoi que ce soit ; l'acceptation par l'API seule n'est pas
-    #     prévue. Une clé posée au profil ne suffit donc pas : ce prérequis se dit à l'écran ;
-    #   • `POST /download` rend une URL présignée vers une **ARCHIVE COMPLÈTE** (l'exemple de
-    #     la documentation pèse 268 Go). Il n'y a pas d'accès au clip : en tirer quatre voix
-    #     de référence demanderait de rapatrier tout un corpus. C'est ce qui reste à trancher
-    #     avant d'ouvrir le créneau « âgé » (`MEDIA_STORAGE_TIERING §9.4bis`).
+    #     prévue. Une clé posée au profil ne suffit donc pas : ce prérequis se dit à l'écran.
+    #     ✅ VÉRIFIÉ sur l'API réelle le 2026-09-27 : sans clé, `POST /api/datasets/<id>/download`
+    #     rend `401 Authentication required` ; avec la clé de Fabien, `403 Terms must be accepted
+    #     before downloading: <url du jeu>`. L'API nomme elle-même la page où cliquer — c'est ce
+    #     message qu'il faut relayer à l'utilisateur, pas un échec générique ;
+    #   • le téléchargement se fait par ARCHIVE (`POST /api/datasets/<id>/download` → URL
+    #     présignée), jamais au clip.
+    #     ⚠⚠ **Ce commentaire a dit « l'exemple de la doc pèse 268 Go, donc en tirer quatre voix
+    #     demanderait de rapatrier tout un corpus » — c'était FAUX**, et la mesure sur le
+    #     catalogue RÉEL (2026-09-27, clé de Fabien) l'a renversé : les jeux sont découpés par
+    #     LANGUE et par version, et les tailles vont de **51 Mo** (Common Voice Spontaneous 5.0
+    #     — French) à **175 Mo** (Scripted 26.0 — French of France, qui porte le **TSV** des
+    #     métadonnées, donc `age` et `gender`) et 30,65 Go pour la Scripted 27.0 complète. Tous
+    #     en CC0-1.0, `isPaid: false`. Le créneau « âgé » est donc PRATICABLE.
+    #     *J'avais pris le chiffre d'un EXEMPLE de documentation pour une propriété de l'API —
+    #     un ordre de grandeur lu au lieu d'être mesuré.*
     #
     # `user_key` ET `api_key_env` : la clé de CHACUN pour ce qu'un utilisateur demande, celle
     # de l'instance pour les tâches SANS utilisateur — le téléchargement des voix SYSTÈME en
