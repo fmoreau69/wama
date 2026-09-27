@@ -456,8 +456,24 @@ def delete_asset(asset) -> None:
     désigne encore — le chemin d'origine est celui que l'ajout a noté (`attributes.moved_from`).
     Sans ce retour, les octets resteraient dans un dossier « médiathèque » que plus rien n'y range.
     Si plus aucun porteur ne le désigne, le fichier part avec l'asset, comme avant.
+
+    ⚠ **Un `SystemAsset` n'entre pas ici, et c'est dit** (2026-09-27). Le modèle l'annonce déjà
+    (« Non supprimable par les utilisateurs finaux », `models.py`) et la route le tient
+    (`api_delete` n'interroge que `UserAsset`) — mais cette fonction, elle, lisait `source_app`
+    sans rien vérifier : passé un asset système, elle levait `AttributeError`. *Une protection
+    par accident n'en est pas une* : le jour où un appelant lui passerait un `SystemAsset`, le
+    message ne dirait pas ce qui est interdit, il dirait qu'un champ manque.
     """
     from wama.common.utils.queue_duplication import delete_file_unless_shared
+    from wama.media_library.models import UserAsset
+
+    if not isinstance(asset, UserAsset):
+        raise TypeError(
+            f"{type(asset).__name__} : seul un UserAsset se supprime ici. Une voix ou un avatar "
+            "INTÉGRÉ (SystemAsset) est commun à tous les comptes — on le DÉSACTIVE "
+            "(`is_active=False`), on ne le supprime pas : des lignes en base le désignent par "
+            "son nom ou son `sa_<id>`, et elles retomberaient en silence sur la voix par défaut."
+        )
 
     source_app, source_pk = asset.source_app, asset.source_pk
     if not _move_back_to_origin(asset):
