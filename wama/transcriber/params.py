@@ -91,15 +91,13 @@ PARAMS_JSON = schema_to_dicts(PARAMS)
 _STORED_UNDER = {'enable_diarization': 'diarization', 'preprocess_audio': 'preprocessing_enabled'}
 
 
+from wama.common.utils.param_schema import panel_defaults, panel_name_key  # noqa: E402
+
+
 def user_setting_key(p):
     """Clé de stockage d'un param du volet, None s'il n'y figure pas."""
-    name = p.name if hasattr(p, 'name') else p.get('name')
-    contexts = p.contexts if hasattr(p, 'contexts') else p.get('contexts')
-    if 'panel' not in (contexts or ()):
-        return None
-    return _STORED_UNDER.get(name, name)
+    name = panel_name_key(p)
+    return _STORED_UNDER.get(name, name) if name else None
 
-
-from wama.common.utils.param_schema import panel_defaults  # noqa: E402
 
 USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)

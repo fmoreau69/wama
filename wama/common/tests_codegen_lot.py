@@ -874,18 +874,13 @@ class ItemEditRouteAliasTest(SimpleTestCase):
         self.assertIn('describer', checked, 'the case that revealed the defect must be covered')
 
     def test_a_global_settings_route_without_pk_is_never_taken_for_an_item_route(self):
-        """Counter-check: the anonymizer's `update_settings/` keeps its stub — a `(request, pk)`
-        body on a route without pk would raise TypeError, a 500 instead of the declared 501."""
+        """Counter-check: a `(request, pk)` body on a route without pk would raise TypeError, a
+        500 instead of the declared 501. The real case — the anonymizer's global per-field
+        `update_settings/` — was removed on 2026-09-27 with its legacy settings tables; the rule
+        itself stays held here."""
         from wama.common.manifests.codegen.urls_gen import alias_fits
         self.assertFalse(alias_fits('update', 'update_settings', {'update_settings': 'update_settings/'}))
         self.assertTrue(alias_fits('update', 'update_settings', {'update_settings': 'settings/<int:pk>/'}))
-        manifest = self._manifest('anonymizer')
-        route = self._item_edit_route(manifest)
-        self.assertIsNotNone(route)
-        self.assertNotIn('<int:pk>', route['pattern'])
-        src, why = render_views(manifest)
-        self.assertTrue(src, why)
-        self.assertNotIn('apply_item_settings(', _fonction(src, 'update_settings') or '')
 
 
 class NatureFieldAgreementTest(SimpleTestCase):

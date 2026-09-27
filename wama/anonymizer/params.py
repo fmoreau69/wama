@@ -189,3 +189,32 @@ PARAMS = derive_from_model(
 
 PARAMS_JSON = schema_to_dicts(PARAMS)
 GROUPS_JSON = groups_to_dicts(GROUPS)
+
+
+# ── Réglages UTILISATEUR du volet — brique commune `user_settings` (2026-09-27) ─────────────
+# Le volet EST la surface des défauts de l'utilisateur, et un média NAÎT avec eux (modèle
+# événementiel, ROADMAP §23.2quater). Lire, garder, remettre à zéro : `user_settings.*_panel_*`.
+# Remplace les tables `UserSettings` (défauts recopiés à la main du modèle `Media`) et
+# `GlobalSettings` (défauts semés par une liste en dur) : un défaut ne vit plus qu'à UN endroit,
+# la colonne de `Media` dont le schéma le dérive. Clé de stockage = le NOM du param.
+from wama.common.utils.param_schema import panel_defaults, panel_name_key  # noqa: E402
+from wama.anonymizer.models import default_classes2blur  # noqa: E402
+
+user_setting_key = panel_name_key
+USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)
+
+#: `classes2blur` est hors schéma (multi-sélection à cases, cf. en-tête) mais c'est un réglage
+#: du volet comme les autres : même stockage, même naissance de l'élément.
+CLASSES_SETTING = 'classes2blur'
+USER_SETTINGS_EXTRA = {CLASSES_SETTING: default_classes2blur()}
+
+
+def clean_classes(classes):
+    """Une liste postée de classes à flouter, assainie (mêmes règles que la tâche)."""
+    from wama.anonymizer.tasks import _classes_saines
+    return _classes_saines(classes) if isinstance(classes, list) else default_classes2blur()
+
+
+#: Tout ce que la brique commune doit savoir des réglages du volet de l'anonymizer.
+PANEL_SETTINGS = dict(key=user_setting_key, extra=USER_SETTINGS_EXTRA,
+                      clean={CLASSES_SETTING: clean_classes})

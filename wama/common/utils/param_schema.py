@@ -287,6 +287,13 @@ def panel_dom_id(p):
     return None
 
 
+def panel_name_key(p):
+    """Clé de stockage = le NOM du param, s'il figure au volet (None sinon). L'autre règle que
+    `panel_dom_id`, celle des apps dont les réglages portent le nom de leur colonne (transcriber,
+    anonymizer, 2026-09-27)."""
+    return _pget(p, 'name') if 'panel' in (_pget(p, 'contexts') or ()) else None
+
+
 def panel_defaults(params, key=None) -> dict:
     """{clé de stockage: défaut} des params du volet."""
     key = key or panel_dom_id

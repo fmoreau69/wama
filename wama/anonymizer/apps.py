@@ -5,7 +5,8 @@ class AnonymizerConfig(AppConfig):
     name = 'wama.anonymizer'
 
     def ready(self):
-        import wama.anonymizer.signals
+        # `signals.py` RETIRÉ le 2026-09-27 : son seul `post_save` garantissait une ligne
+        # `UserSettings` au déposant — table legacy, les réglages vivent dans `user_settings`.
 
         # Batch unifié : total auto-réparé + suppression des batches vidés (cf. BATCH_MODEL_AUDIT.md)
         try:

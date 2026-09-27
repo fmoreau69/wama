@@ -59,6 +59,8 @@ class Media(ProcessingTimeMixin, ScopedVisibility):
     def processed(self):
         return self.status == 'SUCCESS'
     show_ms = models.BooleanField(default=False, verbose_name='Show media settings')
+    # Badge « Personnalisé » de la card : réglé APRÈS la naissance. N'est plus lu par la tâche
+    # depuis le 2026-09-27 (le média naît complet, sa tâche ne lit que ses colonnes).
     MSValues_customised = models.BooleanField(default=False, verbose_name='Media settings customised')
 
     fps = models.IntegerField(default=0)
@@ -68,7 +70,9 @@ class Media(ProcessingTimeMixin, ScopedVisibility):
     duration_inMinSec = models.CharField(max_length=255, blank=True)
 
     blur_progress = models.IntegerField(default=0)
-    blur_ratio = models.IntegerField(default=25)
+    # 75 depuis le 2026-09-27 (Fabien : 25 floutait trop peu). C'est LE défaut : le schéma le
+    # dérive, le volet et la naissance d'un média le lisent de là (brique `user_settings`).
+    blur_ratio = models.IntegerField(default=75)
     rounded_edges = models.IntegerField(default=5)
     roi_enlargement = models.FloatField(default=1.05)
     progressive_blur = models.IntegerField(default=25)
@@ -160,6 +164,11 @@ class Media(ProcessingTimeMixin, ScopedVisibility):
         return gear_data(self, PARAMS)
 
 
+# ── `GlobalSettings` et `UserSettings` : LEGACY, plus lus ni écrits par l'app (2026-09-27) ──
+# Les réglages de l'utilisateur vivent dans la brique commune `user_settings`, leurs défauts dans
+# le schéma. Les deux tables ne restent que le temps que `manage.py
+# migrate_anonymizer_user_settings` en transfère le contenu ; elles seront retirées ensuite
+# (`accounts` les crée encore à l'inscription).
 class GlobalSettings(models.Model):
     title = models.CharField(max_length=255)
     name = models.CharField(max_length=255, null=True)
@@ -255,10 +264,7 @@ class UserSettings(models.Model):
         return getattr(self, field, None)
 
 
-@receiver(post_save, sender=User)
-def create_user_profile(sender, instance, created, **kwargs):
-    if created and instance and instance.pk:
-        UserSettings.objects.get_or_create(user=instance)
+# `create_user_profile` (post_save User → UserSettings) RETIRÉ le 2026-09-27 : table legacy.
 
 
 from wama.common.models import QueueOrderMixin, BatchMixin

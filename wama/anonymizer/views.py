@@ -1,6 +1,7 @@
 import os
 import re
 import io
+import json
 import cv2
 import yt_dlp
 import zipfile
@@ -28,7 +29,7 @@ from django.utils.encoding import iri_to_uri
 
 from wama.accounts.permissions import app_access
 
-from .models import Media, GlobalSettings, UserSettings, BatchAnonymizer, BatchAnonymizerItem
+from .models import Media, BatchAnonymizer, BatchAnonymizerItem
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
 from .tasks import process_single_media, process_user_media_batch, stop_process
 from .utils.media_utils import get_input_media_path, get_output_media_path, get_blurred_media_path, get_unique_filename
@@ -71,7 +72,6 @@ class IndexView(View):
 
     def post(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-        UserSettings.objects.filter(user_id=user.id).update(media_added=1)
 
         try:
             media_file = request.FILES.get('file')
@@ -109,8 +109,8 @@ class IndexView(View):
                         # Crée Media en DB
                         media = process_media(
                             video_path, user,
-                            output_format=request.POST.get('output_format', 'original'),
-                            output_quality=request.POST.get('output_quality', 'balanced'),
+                            output_format=request.POST.get('output_format'),
+                            output_quality=request.POST.get('output_quality'),
                         )
                         added.append(media)
                         # Provenance : la copie se souvient de sa ligne de lot (brique commune).
@@ -125,8 +125,8 @@ class IndexView(View):
             video_path = upload_from_url(request, user)
             media_result = process_media(
                 video_path, user,
-                output_format=request.POST.get('output_format', 'original'),
-                output_quality=request.POST.get('output_quality', 'balanced'),
+                output_format=request.POST.get('output_format'),
+                output_quality=request.POST.get('output_quality'),
             )
             if isinstance(media_result, dict) and media_result.get('is_valid'):
                 return JsonResponse({'success': True, 'media': media_result})
@@ -165,7 +165,7 @@ def is_url(path):
         return False
 
 
-def process_media(video_path, user, output_format='original', output_quality='balanced'):
+def process_media(video_path, user, output_format=None, output_quality=None):
     """Create a Media object from the given path and assign metadata."""
     try:
         filename = os.path.basename(video_path)
@@ -179,11 +179,13 @@ def process_media(video_path, user, output_format='original', output_quality='ba
             _abs, relative_path = resolve_under_media_root(str(video_path))
         except (OutsideMediaRoot, FileNotFoundError):
             relative_path = get_relative_media_path('anonymizer', user.id, 'input', filename)
-        media = Media.objects.create(
-            file=relative_path, file_ext=ext, user=user,
-            output_format=output_format or 'original',
-            output_quality=output_quality or 'balanced',
-        )
+        # Le média NAÎT avec les réglages de son auteur ; le format de sortie posté prime.
+        settings = new_media_settings(user)
+        if output_format:
+            settings['output_format'] = output_format
+        if output_quality:
+            settings['output_quality'] = output_quality
+        media = Media.objects.create(file=relative_path, file_ext=ext, user=user, **settings)
 
         mime_type, _ = mimetypes.guess_type(video_path)
         if mime_type and mime_type.startswith("video/"):
@@ -989,43 +991,42 @@ def consolidate(request):
     return JsonResponse({'consolidated': True, 'count': len(items)})
 
 
+# ── Réglages UTILISATEUR — brique commune `user_settings`, dérivés du schéma (2026-09-27) ──
+# Remplacent les tables `UserSettings` / `GlobalSettings`. Lire, garder, remettre à zéro, faire
+# naître un média et les deux routes JSON : la brique commune, sur la déclaration de params.py.
+from wama.anonymizer.params import PANEL_SETTINGS, PARAMS as _PARAMS  # noqa: E402
+from wama.common.utils.user_settings import (  # noqa: E402
+    make_panel_settings_views, new_element_settings, read_panel_settings, reset_panel_settings,
+)
+
+get_user_anonymizer_settings, save_user_anonymizer_settings = make_panel_settings_views(
+    'anonymizer', _PARAMS, **PANEL_SETTINGS)
+
+
+def _request_user(request):
+    return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+
+def new_media_settings(user, model=None, app='anonymizer'):
+    """Les colonnes de réglage d'un média NAISSANT (brique commune). `model`/`app` : une jumelle
+    de bac à sable passe les siens (import du gestionnaire de fichiers)."""
+    return new_element_settings(user, app, _PARAMS, model or Media, **PANEL_SETTINGS)
+
+
 def get_context(request):
-    """Contexte du VOLET DROIT (réglages user legacy `setting-button`) — la file, elle,
-    vient de `_queue_context` (briques communes). Les ModelForms et grilles `ms_values`/
-    `range_widths` legacy sont mortes avec les partials upload/ (port 2026-08-03)."""
-    if request.user.is_authenticated:
-        user = request.user
-    else:
-        user = get_or_create_anonymous_user()
-
-    user_settings, _ = UserSettings.objects.get_or_create(user=user)
-    # Ensure sensible defaults for initial view (show_preview True)
-    if user_settings.show_preview is None:
-        user_settings.show_preview = True
-        user_settings.save(update_fields=['show_preview'])
-
-    global_settings = GlobalSettings.objects.all()
-
-    # valeurs par défaut pour les global_settings
-    gs_values = {}
-    for setting in global_settings:
-        value = getattr(user_settings, setting.name, None)
-        if value is None:
-            # fallback on GlobalSettings.default
-            value = setting.default
-        gs_values[setting.name] = value
-
-    # Add SAM3 settings (not in GlobalSettings but needed for the right panel)
-    gs_values['use_sam3'] = getattr(user_settings, 'use_sam3', False)
-    gs_values['sam3_prompt'] = getattr(user_settings, 'sam3_prompt', '') or ''
-    gs_values['model_to_use'] = getattr(user_settings, 'model_to_use', '') or ''
+    """Contexte du VOLET DROIT — les réglages de l'utilisateur (brique commune) ; la file, elle,
+    vient de `_queue_context` (briques communes)."""
+    user = _request_user(request)
+    # `gs_values` : nom historique du gabarit du volet, qui lit ces valeurs par NOM de param.
+    gs_values = read_panel_settings(user, 'anonymizer', _PARAMS, **PANEL_SETTINGS)
+    gs_values['sam3_prompt'] = gs_values.get('sam3_prompt') or ''
+    gs_values['model_to_use'] = gs_values.get('model_to_use') or ''
 
     from .utils.yolo_utils import get_all_class_choices
     models_by_type = list_models_by_type()
 
     return {
         'user': user,
-        'global_settings': global_settings,
         'gs_values': gs_values,
         'classes': get_all_class_choices(),
         'models_by_type': models_by_type,
@@ -1124,201 +1125,10 @@ def _model_help_meta(models_by_type):
         return '{}'
 
 
-def update_settings(request):
-    if request.method != "POST":
-        return JsonResponse({'error': 'Invalid request method'}, status=400)
-
-    # Récupérer les champs du POST
-    setting_type = request.POST.get("setting_type")
-    setting_name = request.POST.get("setting_name")
-    input_value = request.POST.get("input_value")
-    media_id = request.POST.get("media_id")  # Peut être None pour global_setting
-
-    if not setting_type or not setting_name or input_value is None:
-        return JsonResponse({'error': 'Missing parameters'}, status=400)
-
-    # Préparer le contexte pour le render du bouton
-    context = {
-        'setting_type': setting_type,
-        'id': media_id or request.user.id,
-        # Global and user settings should render compact sliders; media_setting is full width
-        'range_width': 'col-sm-12' if setting_type == 'media_setting' else 'col-sm-3',
-    }
-
-    try:
-        if setting_type == 'media_setting':
-            if not media_id:
-                return JsonResponse({'error': 'Missing media_id for media_setting'}, status=400)
-
-            media = Media.objects.get(pk=int(media_id))
-
-            if setting_name.startswith('classes2blur_'):
-                # cas spécial checkbox dynamique pour une classe individuelle
-                _, class_name = setting_name.split('_', 1)
-                is_checked = str(input_value).lower() in ['true', '1', 'on']
-
-                current = media.classes2blur or []
-                if is_checked and class_name not in current:
-                    current.append(class_name)
-                elif not is_checked and class_name in current:
-                    current.remove(class_name)
-
-                media.classes2blur = current
-                media.MSValues_customised = True
-                media.save(update_fields=['classes2blur', 'MSValues_customised'])
-                context['value'] = current
-                # Pour classes2blur_, on cherche le GlobalSettings 'classes2blur'
-                context['setting'] = GlobalSettings.objects.get(name='classes2blur')
-
-            else:
-                # générique : float, bool, int, text
-                field = Media._meta.get_field(setting_name)
-                internal_type = field.get_internal_type()
-
-                if internal_type == 'BooleanField':
-                    value = str(input_value).lower() in ['true', '1', 'on']
-                elif internal_type in ['FloatField', 'DecimalField']:
-                    value = float(input_value)
-                elif internal_type in ['TextField', 'CharField']:
-                    # For text fields like sam3_prompt
-                    value = str(input_value) if input_value else None
-                elif internal_type == 'IntegerField':
-                    value = int(input_value)
-                else:
-                    # Fallback: try int, else keep as string
-                    try:
-                        value = int(input_value)
-                    except (ValueError, TypeError):
-                        value = str(input_value)
-
-                setattr(media, setting_name, value)
-                media.MSValues_customised = True
-                media.save(update_fields=[setting_name, 'MSValues_customised'])
-                context['value'] = getattr(media, setting_name)
-                # Pour les autres settings, on cherche le GlobalSettings avec le nom exact
-                try:
-                    context['setting'] = GlobalSettings.objects.get(name=setting_name)
-                except GlobalSettings.DoesNotExist:
-                    context['setting'] = None
-
-        elif setting_type == 'user_setting':
-            user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-            user_settings, _ = UserSettings.objects.get_or_create(user=user)
-            if setting_name.startswith('classes2blur_'):
-                # Toggle for a single class in the user's classes2blur list
-                _, class_name = setting_name.split('_', 1)
-                is_checked = str(input_value).lower() in ['true', '1', 'on']
-
-                current = user_settings.classes2blur or []
-                if is_checked and class_name not in current:
-                    current.append(class_name)
-                elif not is_checked and class_name in current:
-                    current.remove(class_name)
-
-                user_settings.classes2blur = current
-                user_settings.GSValues_customised = True
-                user_settings.save(update_fields=['classes2blur', 'GSValues_customised'])
-                context['value'] = current
-                context['setting'] = GlobalSettings.objects.get(name='classes2blur')
-            elif setting_name == 'model_to_use':
-                # simple string select
-                user_settings.model_to_use = str(input_value)
-                user_settings.GSValues_customised = True
-                user_settings.save(update_fields=['model_to_use', 'GSValues_customised'])
-                context['value'] = user_settings.model_to_use
-                context['setting'] = GlobalSettings.objects.filter(name='classes2blur').first()
-            else:
-                field = UserSettings._meta.get_field(setting_name)
-                internal_type = field.get_internal_type()
-
-                if internal_type == 'BooleanField':
-                    value = str(input_value).lower() in ['true', '1', 'on']
-                elif internal_type in ['FloatField', 'DecimalField']:
-                    value = float(input_value)
-                elif internal_type in ['TextField', 'CharField']:
-                    # For text fields like sam3_prompt
-                    value = str(input_value) if input_value else None
-                elif internal_type == 'IntegerField':
-                    value = int(input_value)
-                else:
-                    # Fallback: try int, else keep as string
-                    try:
-                        value = int(input_value)
-                    except (ValueError, TypeError):
-                        value = str(input_value)
-
-                setattr(user_settings, setting_name, value)
-                user_settings.GSValues_customised = True
-                user_settings.save(update_fields=[setting_name, 'GSValues_customised'])
-                context['value'] = getattr(user_settings, setting_name)
-                # Try to get the global setting, but don't fail if it doesn't exist (like sam3_prompt)
-                try:
-                    context['setting'] = GlobalSettings.objects.get(name=setting_name)
-                except GlobalSettings.DoesNotExist:
-                    context['setting'] = None
-
-        elif setting_type == 'global_setting':
-            print(f"[DEBUG] update_settings: received global_setting {setting_name}={input_value}")
-            try:
-                global_setting = GlobalSettings.objects.get(name=setting_name)
-            except GlobalSettings.DoesNotExist:
-                print(f"[update_settings] ❌ Unknown global setting: {setting_name}")
-                return JsonResponse({'error': f'Unknown global setting: {setting_name}'}, status=400)
-
-            print(
-                f"[update_settings] 🟡 Before save: {global_setting.name} = {input_value} (type={global_setting.type})")
-
-            # Conversion typée
-            if global_setting.type == 'BOOL':
-                value = str(input_value).lower() in ['true', '1', 'on']
-            elif global_setting.type == 'FLOAT':
-                value = float(input_value)
-            else:
-                value = input_value
-
-            global_setting.value = {"current": value}
-            global_setting.save(update_fields=['value'])
-
-            print(f"[update_settings] ✅ Saved: {global_setting.name} = {global_setting.value}")
-
-            context['value'] = value
-            context['setting'] = global_setting
-
-        else:
-            return JsonResponse({'error': f'Unknown setting_type: {setting_type}'}, status=400)
-
-        html = loader.render_to_string('anonymizer/upload/setting_button.html', context, request=request)
-        return JsonResponse({'render': html})
-
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-def expand_area(request):
-    if request.method != 'POST':
-        return HttpResponseNotAllowed(['POST'])
-
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    button_id = request.POST.get("button_id")
-    button_state = request.POST.get("button_state")
-
-    if not button_id or button_state is None:
-        return HttpResponseBadRequest("Missing button_id or button_state")
-
-    update_map = {
-        "MediaSettings": lambda: Media.objects.filter(pk=re.search(r'\d+$', button_id).group()).update(show_ms=button_state),
-        "GlobalSettings": lambda: UserSettings.objects.filter(user_id=user.id).update(show_gs=button_state),
-        "Preview": lambda: UserSettings.objects.filter(user_id=user.id).update(show_preview=button_state),
-        # "Console": lambda: UserSettings.objects.filter(user_id=user.id).update(show_console=button_state),
-    }
-
-    for key, action in update_map.items():
-        if key in button_id:
-            action()
-            return JsonResponse(data={})
-
-    return HttpResponseBadRequest("Unknown button_id")
-
+# `update_settings` (réglage PAR CHAMP : média, utilisateur ou « global »), `expand_area` (drapeaux
+# d'affichage `show_gs`/`show_ms`) RETIRÉS le 2026-09-27 avec les tables `UserSettings` et
+# `GlobalSettings` : le volet enregistre par l'inspecteur commun (élément, lot ou préférences
+# de l'utilisateur), la brique `user_settings` garde les préférences.
 
 
 def clear_all_media(request):
@@ -1345,8 +1155,6 @@ def clear_all_media(request):
                 pass
 
             media.delete()
-
-        UserSettings.objects.filter(user_id=user.id).update(media_added=0, show_gs=0)
 
     return JsonResponse({'success': True})
 
@@ -1389,21 +1197,13 @@ def _supprimer_media(media, user):
     """Travail de suppression proprement dit — partagé par `delete` et `clear_media`.
 
     Extrait le 2026-08-23 pour qu'il n'existe pas DEUX chemins de suppression : les verrous de
-    déduplication, la remise à zéro de `MSValues_customised` et la bascule `show_gs` sont des
-    effets de bord qu'on ne peut pas se permettre d'oublier d'un côté.
+    déduplication sont un effet de bord qu'on ne peut pas se permettre d'oublier d'un côté.
     """
     cache.delete(f"anon_lock:media:{media.pk}")
     cache.delete(f"anon_task_owner:media:{media.pk}")
 
-    Media.objects.filter(pk=media.pk).update(MSValues_customised=0)
     safe_delete_file(media, 'file')
     media.delete()  # signal batch_sync : recale total / supprime le batch vidé
-
-    has_media = Media.objects.filter(user=user).exists()
-    UserSettings.objects.filter(user_id=user.id).update(media_added=int(has_media))
-    if not has_media:
-        # Hide global settings section when no media remains
-        UserSettings.objects.filter(user_id=user.id).update(show_gs=0)
 
 
 def clear_media(request):
@@ -1417,7 +1217,7 @@ def clear_media(request):
 
     try:
         # DÉLÈGUE au même travail que `delete` (2026-08-23) : un seul chemin de suppression,
-        # sinon les effets de bord (verrous de dédup, MSValues_customised, bascule show_gs)
+        # sinon les effets de bord (verrous de dédup)
         # divergent au premier oubli. Cette vue n'a plus AUCUN consommateur dans le dépôt
         # depuis que la card passe par la brique commune — elle est conservée le temps de
         # vérifier qu'aucun appelant externe n'en dépend, puis à retirer (REMOVAL_LEDGER).
@@ -1427,34 +1227,8 @@ def clear_media(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
-def reset_media_settings(request):
-    if request.method != 'POST':
-        return HttpResponseNotAllowed(['POST'])
-
-    try:
-        media_id = request.POST.get('media_id')
-        if not media_id:
-            return JsonResponse({'success': False, 'error': 'Missing media_id'}, status=400)
-
-        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-        media = get_object_or_404(Media, pk=media_id, user=user)
-        global_settings_list = GlobalSettings.objects.all()
-
-        # Champs éditables = le SCHÉMA (params.py), plus le ModelForm legacy.
-        from wama.anonymizer.params import PARAMS_JSON
-        schema_names = {f['name'] for f in PARAMS_JSON} | {'classes2blur'}
-        updated_fields = {
-            setting.name: setting.default
-            for setting in global_settings_list
-            if setting.name in schema_names
-        }
-
-        if updated_fields:
-            Media.objects.filter(pk=media_id).update(**updated_fields, MSValues_customised=0)
-
-        return JsonResponse({'success': True})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+# `reset_media_settings` RETIRÉ le 2026-09-27 : sans consommateur, il remettait un média sur les
+# défauts de `GlobalSettings`.
 
 
 def check_all_processed(request):
@@ -1466,127 +1240,15 @@ def check_all_processed(request):
 
 @require_POST
 def reset_user_settings(request):
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    # Réinitialisation des UserSettings aux valeurs par défaut de GlobalSettings
-    init_user_settings(user)
-
-    # Get the updated settings to return to the client
-    user_settings, _ = UserSettings.objects.get_or_create(user=user)
-
-    # Check if this is an AJAX/fetch request
-    is_ajax = (
-        request.headers.get("x-requested-with") == "XMLHttpRequest" or
-        request.headers.get("Content-Type") == "application/json" or
-        request.content_type == "application/x-www-form-urlencoded"
-    )
-
-    if is_ajax or request.headers.get("X-CSRFToken"):
-        # Return JSON with the reset settings values
-        settings_data = {
-            'precision_level': user_settings.precision_level,
-            'blur_ratio': user_settings.blur_ratio,
-            'detection_threshold': user_settings.detection_threshold,
-            'roi_enlargement': user_settings.roi_enlargement,
-            'progressive_blur': user_settings.progressive_blur,
-            'use_sam3': getattr(user_settings, 'use_sam3', False),
-            'sam3_prompt': getattr(user_settings, 'sam3_prompt', '') or '',
-            'classes2blur': user_settings.classes2blur or [],
-            'interpolate_detections': user_settings.interpolate_detections,
-            'use_segmentation': user_settings.use_segmentation,
-            'model_to_use': getattr(user_settings, 'model_to_use', '') or '',
-            'show_preview': getattr(user_settings, 'show_preview', True),
-            'show_boxes': getattr(user_settings, 'show_boxes', True),
-            'show_labels': getattr(user_settings, 'show_labels', True),
-            'show_conf': getattr(user_settings, 'show_conf', True),
-        }
-        return JsonResponse({"success": True, "settings": settings_data})
-    else:
-        # ⚠ `next` vient du CLIENT : validé avant redirection, comme dans `login_view`
-        # (2026-08-31). C'est le JUMEAU que « une garde se pose avec ses jumeaux »
-        # demandait de traiter dans le même geste : les deux seuls consommateurs de `next`
-        # du dépôt sont cette vue et le login, et seul le second était gardé. Peu
-        # atteignable (le test `is_ajax` capture déjà les POST de formulaire courants),
-        # mais une garde ne se pose pas « là où c'est atteignable » — sinon elle se
-        # redécouvre le jour où un appelant change de Content-Type.
-        from django.utils.http import url_has_allowed_host_and_scheme
-        cible = request.POST.get('next', '')
-        if not url_has_allowed_host_and_scheme(cible, allowed_hosts={request.get_host()},
-                                               require_https=request.is_secure()):
-            cible = '/'
-        return redirect(cible)
+    """Remet les réglages de l'utilisateur sur les défauts du schéma (brique commune : ses
+    préférences sont RETIRÉES, jamais réécrites avec les défauts du jour)."""
+    values = reset_panel_settings(_request_user(request), 'anonymizer', _PARAMS, **PANEL_SETTINGS)
+    return JsonResponse({"success": True, "settings": values})
 
 
-
-def init_user_settings(user):
-    """
-    Réinitialise les UserSettings d'un utilisateur avec les valeurs par défaut des GlobalSettings.
-
-    Geste EXPLICITE (endpoint `reset_user_settings`) — jamais appelé par un signal depuis le
-    2026-09-07 : le `post_save` de `Media` l'appelait pour tous les utilisateurs à chaque dépôt.
-    Le `close_old_connections()` qui ouvrait cette fonction est retiré : dans un cycle de requête
-    il ne sert à rien, et il fermait la connexion au milieu d'une transaction de test.
-    """
-    user_settings, _ = UserSettings.objects.get_or_create(user=user)
-    global_settings_list = GlobalSettings.objects.all()
-
-    for setting in global_settings_list:
-        if setting.name in [f.name for f in UserSettings._meta.get_fields()]:
-            setattr(user_settings, setting.name, setting.default)
-
-    # Reset to model defaults (these may not be in GlobalSettings)
-    user_settings.precision_level = 50
-    user_settings.use_segmentation = False
-    user_settings.show_preview = True
-    user_settings.show_boxes = True
-    user_settings.show_labels = True
-    user_settings.show_conf = True
-
-    # Réinitialise le flag custom
-    user_settings.GSValues_customised = 0
-    user_settings.save()
-
-
-def init_global_settings():
-    if GlobalSettings.objects.exists():
-        return  # Already initialized
-
-    settings_data = [
-        {'title': "Objects to blur", 'name': "classes2blur", 'default': ["face"], 'value': ["face"],
-         'type': 'BOOL', 'label': 'WTB'},
-        {'title': "Processing precision", 'name': "precision_level", 'default': "50", 'value': "50",
-         'min': "0", 'max': "100", 'step': "5", 'type': 'FLOAT', 'label': 'WTB',
-         'attr_list': {'min': '0', 'max': '100', 'step': '5'}},
-        {'title': "Blur ratio", 'name': "blur_ratio", 'default': "25", 'value': "25",
-         'min': "1", 'max': "49", 'step': "2", 'type': 'FLOAT', 'label': 'HTB',
-         'attr_list': {'min': '1', 'max': '49', 'step': '2'}},
-        {'title': "ROI enlargement", 'name': "roi_enlargement", 'default': "1.05", 'value': "1.05",
-         'min': "0.5", 'max': "1.5", 'step': "0.05", 'type': 'FLOAT', 'label': 'HTB',
-         'attr_list': {'min': '0.5', 'max': '1.5', 'step': '0.05'}},
-        {'title': "Progressive blur", 'name': "progressive_blur", 'default': "25", 'value': "25",
-         'min': "3", 'max': "31", 'step': "2", 'type': 'FLOAT', 'label': 'HTB',
-         'attr_list': {'min': '3', 'max': '31', 'step': '2'}},
-        {'title': "Detection threshold", 'name': "detection_threshold", 'default': "0.25", 'value': "0.25",
-         'min': "0", 'max': "1", 'step': "0.05", 'type': 'FLOAT', 'label': 'HTB',
-         'attr_list': {'min': '0', 'max': '1', 'step': '0.05'}},
-        {'title': "Show preview", 'name': "show_preview", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTS'},
-        {'title': "Show boxes", 'name': "show_boxes", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTS'},
-        {'title': "Show labels", 'name': "show_labels", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTS'},
-        {'title': "Show conf", 'name': "show_conf", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTS'}
-        ]
-    for s in settings_data :
-        GlobalSettings.objects.create(**s)
-
-def ensure_global_settings():
-    if not GlobalSettings.objects.exists():
-        init_global_settings()
-
-def reset_global_settings_safe():
-    """Réinitialise tous les GlobalSettings proprement."""
-    close_old_connections()
-    with transaction.atomic():
-        GlobalSettings.objects.all().delete()
-        init_global_settings()
+# `init_user_settings`, `init_global_settings`, `ensure_global_settings`,
+# `reset_global_settings_safe` RETIRÉS le 2026-09-27 avec les tables `UserSettings` et
+# `GlobalSettings` : les défauts sont ceux du schéma (`params.USER_SETTINGS_DEFAULTS`).
 
 
 # ========================================
@@ -1797,11 +1459,6 @@ def configure_hf_token(request):
         return JsonResponse({'success': False, 'error': 'Token requis'}, status=400)
 
     if setup_hf_auth(token):
-        # Mark user as having configured HF token
-        user_settings, _ = UserSettings.objects.get_or_create(user=user)
-        user_settings.hf_token_configured = True
-        user_settings.save(update_fields=['hf_token_configured'])
-
         return JsonResponse({
             'success': True,
             'message': 'Token HuggingFace configure avec succes'
@@ -1936,11 +1593,10 @@ def batch_create(request):
             source_url=url_or_path,
             file='',
             file_ext='',
+            **new_media_settings(user),
         )
         BatchAnonymizerItem.objects.create(batch=batch, media=m, row_index=i)
         created_ids.append(m.id)
-
-    UserSettings.objects.filter(user_id=user.id).update(media_added=1)
 
     return JsonResponse({
         'batch_id': batch.id,

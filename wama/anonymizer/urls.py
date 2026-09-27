@@ -22,14 +22,16 @@ urlpatterns = [
     path('start/<int:pk>/', views.start, name='start'),
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('start_all/', views.start_all, name='start_all'),
-    path('update_settings/', views.update_settings, name='update_settings'),
+    # Réglages de l'UTILISATEUR (brique commune user_settings, 2026-09-27) — ex-`update_settings/`
+    # (réglage par champ) et ex-`reset_media_settings/`, `expand_area/`, retirés avec les tables.
+    path('user_settings/', views.get_user_anonymizer_settings, name='get_user_settings'),
+    path('user_settings/save/', views.save_user_anonymizer_settings, name='save_user_settings'),
     # Route au FORMAT COMMUN (2026-08-23) — les 9 autres apps exposent `delete/<pk>/` et
     # répondent l'état du lot (`batch`) ; c'est ce contrat que la brique `queue-actions.js` consomme.
     path('delete/<int:pk>/', views.delete, name='delete'),
     # Ancienne forme (media_id en champ de POST). Plus aucun consommateur dans le dépôt ;
     # délègue au même travail que `delete`. À retirer après vérification externe.
     path('clear_media/', views.clear_media, name='clear_media'),
-    path('reset_media_settings/', views.reset_media_settings, name='reset_media_settings'),
     path('reset_user_settings/', views.reset_user_settings, name='reset_user_settings'),
     path('process_progress/', views.get_process_progress, name='process_progress'),
     # Route au FORMAT COMMUN (2026-08-23) — un téléchargement est un GET, et c'est ce que la
@@ -37,7 +39,6 @@ urlpatterns = [
     # corps et n'a plus de consommateur : à retirer (REMOVAL_LEDGER).
     path('download/<int:pk>/', views.download, name='download'),
     path('download_media/', views.download_media, name='download_media'),
-    path('expand_area/', views.expand_area, name='expand_area'),
     path('stop_process/', views.stop_process_view, name='stop_process'),
     path('preview/<int:media_id>/', views.preview_media, name='preview_media'),
 
