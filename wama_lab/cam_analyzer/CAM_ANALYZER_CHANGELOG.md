@@ -87,7 +87,7 @@ mask_geometry / YOLO-OBB (non implémenté) · dépassement depuis trajectoires 
 |---|---|---|---|
 | **G7** | `auto_ground_calib` ON → `ground_ego` retombe **silencieusement** sur pinhole hors portée (`multicam_tracker.py:204`) → **placement MIXTE** sans indication → **fausse tout A/B** du flag. Corriger avant/avec la métrique (clé = `distance_source`). | Haute | vérifié |
 | **G8** | `_run_global_tracking` avale les échecs de `learn_branches`/`aggregate_markings` (`except non-blocking`) → clés `results_summary` **périmées en silence**. | Moyenne | rapporté |
-| **G2** | Bloc SAM3 inline **mort** dans `process_session_task` + `_use_sam3_fallback` **jamais défini** (`tasks.py:1336`) = `NameError` latent, masqué car le garde est toujours faux (SAM3 tourne via la tâche enchaînée). | Basse | vérifié (mort par design) |
+| **G2** | Bloc SAM3 inline **mort** dans `process_session_task` + `_use_sam3_fallback` **jamais défini** (`tasks.py:1336`) = `NameError` latent, masqué car le garde est toujours faux (SAM3 tourne via la tâche enchaînée). | Basse | ✅ **soldé 2026-09-27** — bloc retiré, garde `tests_unbound_names` |
 | **G4** | Marque de traçabilité au FOV **codé en dur** `{front:60,rear:60,left:90,right:90}` (`tasks.py:1562`) divergent du `DEFAULT_FOV_V_DEG` réellement appliqué → la trace peut mentir. | Basse | rapporté |
 | ~~G3~~ | *(affirmé par l'audit : `fov_v_used` non écrit par la passe inline)* — **RÉFUTÉ** : `tasks.py:1268` l'écrit bien par caméra. Fausse alerte conservée pour mémoire. | — | réfuté |
 
@@ -99,6 +99,13 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 **une amélioration comparable = un flag ⚑** (`utils/features.py`), jamais de `if` ad hoc.
 
 ---
+
+## 2026-09-27
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| `046e435e` | **SAM3 se charge par la brique commune** `sam3_processor.load_sam3_image_model()` (poids LOCAUX, `load_from_HF=False`) au lieu d'un `build_sam3_image_model()` nu qui passait par le Hub ; la déclaration de prompt citait `when='use_sam3'` (champ inexistant) → `sam3_markings_enabled`. | Un seul chargement de SAM3 dans WAMA (anonymizer + cam_analyzer), `REMOVAL_LEDGER` R75 ; un chargement par le Hub échoue hors ligne et sans jeton (modèle *gated*). | Tests cam_analyzer verts ; ⚠ pas rejoué au GPU sur une vraie session — à vérifier au prochain passage SAM3 (marquages présents, console « SAM3 chargé »). Annulation : `git revert` (restart WSL2). |
+| *(ce commit — G2)* | **Retrait du bloc SAM3 INLINE mort** de `process_session_task` : `sam3_analyzer = None` jamais réaffecté, le bloc par frame qui lisait `_use_sam3_fallback` (**jamais défini**), le calcul `_sam3_windows` qui ne servait qu'à lui, et le `unload()` de fin de caméra. **Aucun changement de comportement** : le bloc ne pouvait pas s'exécuter (SAM3 tourne dans la tâche enchaînée `analyze_sam3_only_task`, inchangée). | Gap G2 (audit 2026-07-21) : un `NameError` latent, et du code qui laissait croire à un 2ᵉ chemin SAM3. | Garde NEUVE et GÉNÉRIQUE `wama/common/tests_unbound_names.py` (tout nom lu dans un module doit y être lié) — qualifiée sur l'arbre d'avant : elle trouvait exactement G2 **et un 2ᵉ défaut ailleurs** (describer, `logger` indéfini depuis le 22/07). Tests cam_analyzer verts. Annulation : `git revert` (restart WSL2). |
 
 ## 2026-09-24
 
