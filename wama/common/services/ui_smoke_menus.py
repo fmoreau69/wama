@@ -31,10 +31,10 @@ JS_SOUS = """() => [...document.querySelectorAll('.wama-cm-sous .wama-cm-item')]
     .map(b => [b.textContent.trim(), (b.querySelector('i') || {}).className || ''])"""
 
 
-def _temoin(dossier: Path, nom: str, ext: str) -> Path:
+def _temoin(folder: Path, nom: str, ext: str) -> Path:
     """Un fichier témoin VALIDE pour `ext` (brique `_fichier_temoin`), déposé sous `nom`."""
     source = _fichier_temoin(ext)
-    cible = dossier / nom
+    cible = folder / nom
     cible.write_bytes(source.read_bytes())
     source.unlink(missing_ok=True)
     return cible
@@ -47,15 +47,15 @@ def _ouvrir(p, jeton):
     ctx = nav.new_context(viewport={'width': 1500, 'height': 1000})
     ctx.add_cookies(_cookie(jeton))
     page = ctx.new_page()
-    erreurs = []
-    page.on('console', lambda m: erreurs.append(m.text) if m.type == 'error' else None)
-    page.on('pageerror', lambda e: erreurs.append(f'PAGEERROR {e}'))
+    errors = []
+    page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
+    page.on('pageerror', lambda e: errors.append(f'PAGEERROR {e}'))
     page.on('dialog', lambda d: d.accept())
-    return nav, page, erreurs
+    return nav, page, errors
 
 
-def _console(erreurs):
-    garde = [x for x in erreurs if not any(tok in x for tok in IGNORED_CONSOLE)]
+def _console(errors):
+    garde = [x for x in errors if not any(tok in x for tok in IGNORED_CONSOLE)]
     return (not garde, f'console : {len(garde)} erreur(s) {garde[:1]}')
 
 
@@ -117,13 +117,13 @@ def check_tree_menu_keyboard():
     jeton, uid = _test_session_key('converter'), _test_account_id('converter')
     if not (jeton and uid):
         raise SkipScenario('aucun compte de test disponible')
-    dossier = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
-    dossier.mkdir(parents=True, exist_ok=True)
-    temoin = _temoin(dossier, 'wama_temoin_menu_clavier.png', '.png')
-    avant, verdicts = _session_keys(), []
+    folder = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
+    folder.mkdir(parents=True, exist_ok=True)
+    temoin = _temoin(folder, 'wama_temoin_menu_clavier.png', '.png')
+    before, verdicts = _session_keys(), []
     try:
         with sync_playwright() as p:
-            nav, page, erreurs = _ouvrir(p, jeton)
+            nav, page, errors = _ouvrir(p, jeton)
             try:
                 resp = page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
                 arrivee = _exiger_la_page(page, resp, PAGE)
@@ -149,7 +149,7 @@ def check_tree_menu_keyboard():
                     _attendre_sous(page)
                 except Exception:
                     verdicts.append((False, '→ n\'ouvre AUCUN sous-menu (navigation au clavier absente)'))
-                    verdicts.append(_console(erreurs))
+                    verdicts.append(_console(errors))
                     return _bilan(verdicts)
                 page.wait_for_timeout(200)
                 a = page.evaluate(JS_ACTIF)
@@ -168,11 +168,11 @@ def check_tree_menu_keyboard():
                 a = page.evaluate(JS_ACTIF)
                 verdicts.append((n_menus == 0 and a['id'].endswith('_anchor'),
                                  f"Échap ferme et rend le focus au fichier (menus {n_menus}, focus #{a['id']})"))
-                verdicts.append(_console(erreurs))
+                verdicts.append(_console(errors))
             finally:
                 nav.close()
     finally:
-        _drop_new_sessions(avant)
+        _drop_new_sessions(before)
         temoin.unlink(missing_ok=True)
     return _bilan(verdicts)
 
@@ -196,19 +196,19 @@ def check_tree_send_to_menus():
     if not (jeton and uid):
         raise SkipScenario('aucun compte de test disponible')
     user = get_user_model().objects.get(pk=uid)
-    dossier = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
-    dossier.mkdir(parents=True, exist_ok=True)
-    t_png = _temoin(dossier, 'wama_temoin_envoi_a.png', '.png')
-    t_wav = _temoin(dossier, 'wama_temoin_envoi_b.wav', '.wav')
+    folder = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
+    folder.mkdir(parents=True, exist_ok=True)
+    t_png = _temoin(folder, 'wama_temoin_envoi_a.png', '.png')
+    t_wav = _temoin(folder, 'wama_temoin_envoi_b.wav', '.wav')
     rel = lambda f: f'users/{uid}/temp/{f.name}'
     attendu_fichier = [d['libelle'] for d in destinations(user, [rel(t_png)])]
     attendu_selection = [f"{d['libelle']} ({len(d['acceptes'])}/2 fichiers)"
                          for d in destinations(user, [rel(t_png), rel(t_wav)], partiel=True)]
     attendu_dossier = [d['libelle'] for d in destinations_dossier(user)]
-    avant, verdicts = _session_keys(), []
+    before, verdicts = _session_keys(), []
     try:
         with sync_playwright() as p:
-            nav, page, erreurs = _ouvrir(p, jeton)
+            nav, page, errors = _ouvrir(p, jeton)
             try:
                 resp = page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
                 arrivee = _exiger_la_page(page, resp, PAGE)
@@ -250,11 +250,11 @@ def check_tree_send_to_menus():
                 verdicts.append((bool(attendu_dossier) and vu == attendu_dossier,
                                  f'dossier : menu {vu} / serveur {attendu_dossier}'))
                 _fermer_menus(page)
-                verdicts.append(_console(erreurs))
+                verdicts.append(_console(errors))
             finally:
                 nav.close()
     finally:
-        _drop_new_sessions(avant)
+        _drop_new_sessions(before)
         t_png.unlink(missing_ok=True)
         t_wav.unlink(missing_ok=True)
     return _bilan(verdicts)
@@ -281,17 +281,17 @@ def check_card_menu_library_state():
     job, sortie = _sortie_converter(uid, 'wama_temoin_menu_mediatheque.png')
     assets_avant = set(UserAsset.objects.filter(user_id=uid).values_list('id', flat=True))
     carte = f'.wama-card[data-id="{job.id}"]:not(.is-batch)'
-    avant, verdicts = _session_keys(), []
+    before, verdicts = _session_keys(), []
     try:
         with sync_playwright() as p:
-            nav, page, erreurs = _ouvrir(p, jeton)
+            nav, page, errors = _ouvrir(p, jeton)
             try:
                 resp = page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
                 arrivee = _exiger_la_page(page, resp, PAGE)
                 if arrivee:
                     return arrivee
                 verdicts += _cycle_mediatheque(page, carte, attendus=None)
-                verdicts.append(_console(erreurs))
+                verdicts.append(_console(errors))
             finally:
                 nav.close()
         # En base, HORS du navigateur : la copie a disparu, la sortie de l'app est intacte.
@@ -299,7 +299,7 @@ def check_card_menu_library_state():
         verdicts.append((restants == 0, f'base : {restants} asset(s) encore rangé(s) depuis le job'))
         verdicts.append((sortie.exists(), "la sortie de l'app n'a pas été touchée par le retrait"))
     finally:
-        _drop_new_sessions(avant)
+        _drop_new_sessions(before)
         for asset in UserAsset.objects.filter(user_id=uid).exclude(id__in=assets_avant):
             _retirer(asset)
         ConversionJob.objects.filter(pk=job.pk).delete()
@@ -375,23 +375,23 @@ def check_card_menu_library_late_binding():
     attendus = [c['label'] for c in export_choices('transcriber', {'result_text': t.text})]
     assets_avant = set(UserAsset.objects.filter(user_id=uid).values_list('id', flat=True))
     carte = f'.wama-card[data-id="{t.id}"]:not(.is-batch)'
-    avant, verdicts = _session_keys(), []
+    before, verdicts = _session_keys(), []
     try:
         with sync_playwright() as p:
-            nav, page, erreurs = _ouvrir(p, jeton)
+            nav, page, errors = _ouvrir(p, jeton)
             try:
                 resp = page.goto(BASE_URL + page_app, wait_until='networkidle', timeout=60000)
                 arrivee = _exiger_la_page(page, resp, page_app)
                 if arrivee:
                     return arrivee
                 verdicts += _cycle_mediatheque(page, carte, attendus=attendus)
-                verdicts.append(_console(erreurs))
+                verdicts.append(_console(errors))
             finally:
                 nav.close()
         restants = UserAsset.objects.filter(source_app='transcriber', source_pk=t.pk).count()
         verdicts.append((restants == 0, f'base : {restants} asset(s) encore rangé(s) depuis le transcript'))
     finally:
-        _drop_new_sessions(avant)
+        _drop_new_sessions(before)
         for asset in UserAsset.objects.filter(user_id=uid).exclude(id__in=assets_avant):
             _retirer(asset)
         Transcript.objects.filter(pk=t.pk).delete()
@@ -436,10 +436,10 @@ def check_tree_item_menu():
     # que la route, pas une liste recopiée.
     detail = DetailRegistry.get('converter')['adapter'](job)
     roles_attendus = [libelles.get(t, t) for t in admissible_roles(detail, sortie.name)]
-    avant, verdicts = _session_keys(), []
+    before, verdicts = _session_keys(), []
     try:
         with sync_playwright() as p:
-            nav, page, erreurs = _ouvrir(p, jeton)
+            nav, page, errors = _ouvrir(p, jeton)
             try:
                 resp = page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
                 arrivee = _exiger_la_page(page, resp, PAGE)
@@ -495,11 +495,11 @@ def check_tree_item_menu():
                                  and not any(e in GESTES_D_ELEMENT for e in sur_temp),
                                  f'temp : ni attente ni geste d’élément {sur_temp}'))
                 _fermer_menus(page)
-                verdicts.append(_console(erreurs))
+                verdicts.append(_console(errors))
             finally:
                 nav.close()
     finally:
-        _drop_new_sessions(avant)
+        _drop_new_sessions(before)
         ConversionJob.objects.filter(pk=job.pk).delete()
         sortie.unlink(missing_ok=True)
         temoin_temp.unlink(missing_ok=True)
@@ -525,10 +525,10 @@ def check_nav_sandbox_keyboard():
         return {texte: (a.textContent || '').trim().slice(0, 40), dans_sous: !!a.closest('.wama-nav-sous-menu'),
                 sous_visible: !!s && s.classList.contains('show'),
                 apps_ouvert: document.querySelector('.wama-apps-menu').classList.contains('show')}; }"""
-    avant, verdicts = _session_keys(), []
+    before, verdicts = _session_keys(), []
     try:
         with sync_playwright() as p:
-            nav, page, erreurs = _ouvrir(p, jeton)
+            nav, page, errors = _ouvrir(p, jeton)
             try:
                 resp = page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
                 arrivee = _exiger_la_page(page, resp, PAGE)
@@ -553,11 +553,11 @@ def check_nav_sandbox_keyboard():
                 e = page.evaluate(etat_js)
                 verdicts.append((not e['dans_sous'] and not e['sous_visible'] and e['apps_ouvert'],
                                  f'← referme et revient au déclencheur, « Applications » ouvert : {e}'))
-                verdicts.append(_console(erreurs))
+                verdicts.append(_console(errors))
             finally:
                 nav.close()
     finally:
-        _drop_new_sessions(avant)
+        _drop_new_sessions(before)
     return _bilan(verdicts)
 
 
@@ -581,9 +581,9 @@ def check_tree_delete_in_use():
     if not (jeton and uid):
         raise SkipScenario('aucun compte de test disponible')
     user = get_user_model().objects.get(pk=uid)
-    dossier = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
-    dossier.mkdir(parents=True, exist_ok=True)
-    temoin = _temoin(dossier, 'wama_temoin_suppr_utilise.mp4', '.mp4')
+    folder = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
+    folder.mkdir(parents=True, exist_ok=True)
+    temoin = _temoin(folder, 'wama_temoin_suppr_utilise.mp4', '.mp4')
     rel = f'users/{uid}/temp/{temoin.name}'
 
     # ORM HORS du contexte Playwright : une card qui DÉSIGNE le témoin (elle ne le possède pas).
@@ -593,7 +593,7 @@ def check_tree_delete_in_use():
     job.input_file.name = rel
     job.save(update_fields=['input_file'])
 
-    avant, verdicts, dialogues = _session_keys(), [], []
+    before, verdicts, dialogues = _session_keys(), [], []
 
     def _dialogue(d, refuser_le_second):
         dialogues.append(d.message)
@@ -606,11 +606,11 @@ def check_tree_delete_in_use():
             ctx = nav.new_context(viewport={'width': 1500, 'height': 1000})
             ctx.add_cookies(_cookie(jeton))
             page = ctx.new_page()
-            erreurs = []
-            page.on('console', lambda m: erreurs.append(m.text) if m.type == 'error' else None)
-            page.on('pageerror', lambda e: erreurs.append(f'PAGEERROR {e}'))
-            refus = {'actif': True}
-            page.on('dialog', lambda d: _dialogue(d, refus['actif']))
+            errors = []
+            page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
+            page.on('pageerror', lambda e: errors.append(f'PAGEERROR {e}'))
+            refusal = {'actif': True}
+            page.on('dialog', lambda d: _dialogue(d, refusal['actif']))
             try:
                 resp = page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
                 arrivee = _exiger_la_page(page, resp, PAGE)
@@ -628,7 +628,7 @@ def check_tree_delete_in_use():
                 verdicts.append((temoin.exists(), 'refus : le fichier reste sur le disque'))
 
                 # ② ACCEPTATION : le fichier part, la card reste (détachée).
-                refus['actif'] = False
+                refusal['actif'] = False
                 dialogues.clear()
                 page.click(ancre, button='right')
                 page.click('.wama-card-menu .wama-cm-item:has-text("Supprimer")')
@@ -636,11 +636,11 @@ def check_tree_delete_in_use():
                 verdicts.append((not temoin.exists(), 'confirmé : le fichier est supprimé'))
                 verdicts.append((len(dialogues) >= 2,
                                  f'{len(dialogues)} dialogue(s) à la confirmation'))
-                verdicts.append(_console(erreurs))
+                verdicts.append(_console(errors))
             finally:
                 nav.close()
     finally:
-        _drop_new_sessions(avant)
+        _drop_new_sessions(before)
         temoin.unlink(missing_ok=True)
 
     # Après le navigateur (ORM) : la card a SURVÉCU, et son entrée est vide.

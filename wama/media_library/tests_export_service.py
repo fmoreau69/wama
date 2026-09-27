@@ -253,14 +253,14 @@ class ProvenanceEtRetraitTest(TestCase):
         comportement, où ranger un résultat en faisait un SECOND exemplaire.
         """
         from pathlib import Path
-        sortie_avant = Path(self.gen.audio_output.path)
+        output_before = Path(self.gen.audio_output.path)
         out = export_item_to_library(self.moi, 'composer', self.gen.pk, asset_type='audio_music')
         asset = UserAsset.objects.get(pk=out['asset_id'])
         rangee = Path(asset.file.path)
 
         self.assertTrue(rangee.exists(), 'le source_file doit être DANS la médiathèque')
         self.assertIn('/media_library/', asset.file.name.replace('\\', '/'))
-        self.assertFalse(sortie_avant.exists(), 'déplacé, donc plus aucun octet à l’old_rel endroit')
+        self.assertFalse(output_before.exists(), 'déplacé, donc plus aucun octet à l’old_rel endroit')
         self.gen.refresh_from_db()
         self.assertEqual(asset.file.name, self.gen.audio_output.name,
                          'la card DÉSIGNE le source_file là où il est (aucune copie)')
@@ -419,7 +419,7 @@ class RoleDeclareParLAppTest(TestCase):
             if 'result_role' not in src:
                 continue
             for n in ast.walk(ast.parse(src)):
-                if isinstance(n, ast.Constant) and isinstance(n.value, str) \
+                if isinstance(n, ast.Constant) and isinstance(n.value, str)\
                         and re.fullmatch(r'[a-z_0-9]+', n.value) and n.value in (
                             'voice', 'audio_music', 'audio_sfx', 'image', 'video',
                             'document', 'avatar', 'object3d'):

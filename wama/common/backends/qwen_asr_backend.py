@@ -111,8 +111,8 @@ class QwenASRBackend(SpeechToTextBackend):
             return False
         try:
             racine = importlib.util.find_spec('transformers')
-            for dossier in list(getattr(racine, 'submodule_search_locations', None) or []):
-                if (Path(dossier) / 'models' / 'qwen3_asr').is_dir():
+            for folder in list(getattr(racine, 'submodule_search_locations', None) or []):
+                if (Path(folder) / 'models' / 'qwen3_asr').is_dir():
                     return True
         except (ImportError, ValueError):
             pass
