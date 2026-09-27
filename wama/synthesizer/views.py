@@ -1565,7 +1565,7 @@ def voice_preview(request):
         # synthèse complète — par LA porte commune, décidée par la capacité du moteur.
         # Sinon la preview XTTS ignorait la voix custom (voix par défaut).
         from wama.common.tts.voice_refs import speaker_wav_for
-        speaker_wav = speaker_wav_for(tts_model, voice_preset, request.user)
+        speaker_wav = speaker_wav_for(tts_model, voice_preset, request.user, language=language)
 
         # Stocker les paramètres dans le cache pour le traitement
         cache.set(f'voice_preview_{preview_id}', {

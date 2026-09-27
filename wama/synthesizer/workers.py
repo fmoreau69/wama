@@ -218,7 +218,8 @@ def synthesize_voice(self, synthesis_id: int):
         from wama.common.tts.voice_refs import speaker_wav_for
         speaker_wav = speaker_wav_for(
             synthesis.tts_model, synthesis.voice_preset, synthesis.user,
-            reference_path=synthesis.voice_reference.path if synthesis.voice_reference else None)
+            reference_path=synthesis.voice_reference.path if synthesis.voice_reference else None,
+            language=synthesis.language or '')
 
         # Generate audio via TTS service (with chunking for long texts)
         _synthesize_via_service(

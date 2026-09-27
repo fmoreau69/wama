@@ -330,10 +330,47 @@
     return first.concat(rest);
   }
 
+  /* L'option de la 1ʳᵉ voix d'une langue, ou `null` — ce que « la voix de cette langue » désigne.
+     Jumeau CLIENT de `common/tts/voice_refs.default_voice_for_language` : même règle (la
+     première dans l'ORDRE DU MENU), deux langages. Une garde Python confronte les deux — deux
+     règles « la première » qui divergeraient rendraient le libellé menteur. */
+  function firstVoiceOfLanguage(select, lang) {
+    if (!lang) return null;
+    const options = select.querySelectorAll('optgroup option');
+    for (let i = 0; i < options.length; i++) {
+      const o = options[i];
+      if (o.dataset && o.dataset.language === lang) return o;
+    }
+    return null;
+  }
+
   function voicesFollowLanguage(voiceSelectId, languageSelectId) {
     const voices = document.getElementById(voiceSelectId);
     const language = document.getElementById(languageSelectId);
     if (!voices || !language) return null;
+
+    /* ── « Voix par défaut » SUIT la langue (décision de Fabien, 2026-09-27) ───────────────
+       Elle était une voix FIXE — le preset plat `default`, un clip LJSpeech ANGLOPHONE
+       (`voice_refs.LEGACY_FLAT_VOICES`) : choisir l'espagnol donnait une locutrice anglaise,
+       et rien ne le disait. C'est le SERVEUR qui la résout désormais
+       (`voice_refs.default_voice_for_language`), et c'est ce qui compte ici :
+       ⚠ la valeur stockée reste `default`, donc l'automatisme ne se défait jamais tout seul.
+       Poser la voix DANS le select l'aurait figée au premier changement de langue — « auto »
+       serait devenu un choix manuel dans le dos de l'utilisateur, et la card l'aurait affiché
+       comme tel. Même partage que le curseur rapide/qualité : l'automatique porte le cas
+       courant, le choix manuel reste entier.
+       Le client ne fait donc qu'une chose : DIRE quelle voix cela désigne. */
+    function tellDefaultVoice() {
+      const option = voices.querySelector('option[value="default"]');
+      if (!option) return;
+      // Le libellé d'origine se mémorise : sans lui, chaque passage empilerait sa parenthèse.
+      if (!option.dataset.baseLabel) option.dataset.baseLabel = option.textContent;
+      const target = firstVoiceOfLanguage(voices, language.value);
+      const group = (target && target.parentNode && target.parentNode.label) || '';
+      option.textContent = target
+        ? option.dataset.baseLabel + ' (' + (group ? group + ' — ' : '') + target.textContent + ')'
+        : option.dataset.baseLabel;
+    }
 
     /* Ordre d'ORIGINE — celui que le serveur a rendu. ⚠⚠ Il DOIT être mémorisé : réordonner
        à partir de l'ordre COURANT fait DÉRIVER la liste. Mesuré au navigateur le 2026-09-27,
@@ -360,13 +397,18 @@
       if (kept) voices.value = kept;
     }
 
-    language.addEventListener('change', reorder);
+    function apply() {
+      reorder();
+      tellDefaultVoice();
+    }
+
+    language.addEventListener('change', apply);
     // Le select de voix est GÉNÉRÉ : ses options reviennent de l'endpoint commun après coup.
     // Le remplissage produit des optgroups NEUFS — l'ordre d'origine se relit là, et là seul.
-    voices.addEventListener('wama:options-filled', function () { remember(); reorder(); });
+    voices.addEventListener('wama:options-filled', function () { remember(); apply(); });
     remember();
-    reorder();
-    return { reorder: reorder };
+    apply();
+    return { reorder: reorder, tellDefaultVoice: tellDefaultVoice };
   }
 
   global.WamaInputMatch = { init: init, voiceSlot: voiceSlot, langSlot: langSlot,

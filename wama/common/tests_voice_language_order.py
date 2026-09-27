@@ -78,29 +78,42 @@ class ServedCopyTest(SimpleTestCase):
             self.assertEqual(SOURCE.read_bytes(), SERVED.read_bytes())
 
 
-class NoDriftTest(SimpleTestCase):
-    """⚠ LA garde qui compte : réordonner ne doit pas faire DÉRIVER la liste.
+class VoiceDomTestCase(SimpleTestCase):
+    """Socle des gardes qui ont besoin d'un DOM : un faux select de voix, exécuté sous V8.
 
-    Trouvée au navigateur, pas par un test : après fr → en → de → fr, « Voix par défaut »
-    était passée de la 2ᵉ à la 4ᵉ place — chaque langue visitée laissait son groupe devant
-    elle, parce que `reorder` repartait de l'ordre COURANT du DOM. La garde purement
-    calculatoire ne pouvait pas le voir : elle recevait à chaque appel la liste que le test
-    lui donnait, jamais celle que le DOM avait gardée.
-
-    *Une fonction juste, appelée sur un état qui dérive, produit une dérive.* D'où ce test-ci,
-    qui simule le DOM et REJOUE les changements de langue.
+    Aucun test ici — deux familles s'en servent : la DÉRIVE de l'ordre et le LIBELLÉ de la
+    voix par défaut. Les deux réclament le même faux DOM, et un faux DOM recopié dériverait
+    de son jumeau exactement comme le code qu'il teste.
     """
 
     FAKE_DOM = """
-    function group(label, lang) {
-      const opts = [{ dataset: lang ? { language: lang } : {} }];
-      return { label: label, querySelectorAll: function () { return opts; } };
+    function option(value, text, lang) {
+      return { value: value, textContent: text, dataset: lang ? { language: lang } : {} };
     }
-    const groups = [group('Français', 'fr'), group('Défaut', ''), group('English', 'en'),
-                    group('Deutsch', 'de'), group('Mes voix', '')];
+    function group(label, options) {
+      const g = { label: label, options: options,
+                  querySelectorAll: function () { return this.options; } };
+      options.forEach(function (o) { o.parentNode = g; });
+      return g;
+    }
+    const groups = [group('Français', [option('sa_1', 'Femme 1', 'fr'),
+                                       option('sa_2', 'Homme 1', 'fr')]),
+                    group('Défaut', [option('default', 'Voix par défaut', '')]),
+                    group('English', [option('sa_3', 'Femme 1', 'en')]),
+                    group('Deutsch', [option('sa_4', 'Homme 1', 'de')]),
+                    group('Mes voix', [option('ua_1', 'Ma voix', '')])];
     const voices = {
       kids: groups.slice(), value: '', listeners: {},
-      querySelectorAll: function () { return this.kids.slice(); },
+      allOptions: function () {
+        return this.kids.reduce(function (acc, g) { return acc.concat(g.options); }, []);
+      },
+      querySelectorAll: function (sel) {
+        return sel === 'optgroup' ? this.kids.slice() : this.allOptions();
+      },
+      querySelector: function (sel) {
+        const want = /value="([^"]+)"/.exec(sel)[1];
+        return this.allOptions().filter(function (o) { return o.value === want; })[0] || null;
+      },
       appendChild: function (node) {
         const at = this.kids.indexOf(node);
         if (at !== -1) this.kids.splice(at, 1);
@@ -115,6 +128,9 @@ class NoDriftTest(SimpleTestCase):
     const document = { getElementById: function (id) {
       return id === 'voice_preset' ? voices : (id === 'language' ? language : null); } };
     function labels() { return voices.kids.map(function (g) { return g.label; }).join(','); }
+    function defaultLabel() {
+      return voices.querySelector('option[value="default"]').textContent;
+    }
     function choose(lang) {
       language.value = lang;
       (language.listeners['change'] || []).forEach(function (f) { f(); });
@@ -135,6 +151,20 @@ class NoDriftTest(SimpleTestCase):
                       ' var WamaInputMatch = window.WamaInputMatch;')
         self.ctx.eval("WamaInputMatch.voicesFollowLanguage('voice_preset', 'language');")
 
+
+class NoDriftTest(VoiceDomTestCase):
+    """⚠ LA garde qui compte : réordonner ne doit pas faire DÉRIVER la liste.
+
+    Trouvée au navigateur, pas par un test : après fr → en → de → fr, « Voix par défaut »
+    était passée de la 2ᵉ à la 4ᵉ place — chaque langue visitée laissait son groupe devant
+    elle, parce que `reorder` repartait de l'ordre COURANT du DOM. La garde purement
+    calculatoire ne pouvait pas le voir : elle recevait à chaque appel la liste que le test
+    lui donnait, jamais celle que le DOM avait gardée.
+
+    *Une fonction juste, appelée sur un état qui dérive, produit une dérive.* D'où ce test-ci,
+    qui simule le DOM et REJOUE les changements de langue.
+    """
+
     def test_the_chosen_language_leads_and_the_rest_keeps_its_order(self):
         self.assertEqual('Français,Défaut,English,Deutsch,Mes voix', self.ctx.eval('labels()'))
         self.assertEqual('English,Français,Défaut,Deutsch,Mes voix', self.ctx.eval("choose('en')"))
@@ -151,3 +181,41 @@ class NoDriftTest(SimpleTestCase):
             labels = self.ctx.eval(f"choose({lang!r})").split(',')
             self.assertEqual(5, len(labels), lang)
             self.assertEqual(5, len(set(labels)), f'doublon après {lang}')
+
+
+class TheDefaultVoiceSaysWhichVoiceItIsTest(VoiceDomTestCase):
+    """« Voix par défaut » suit la langue — le SERVEUR la résout, le menu la NOMME.
+
+    Décision de Fabien, 2026-09-27. Le preset plat `default` était un clip LJSpeech anglophone
+    (`voice_refs.LEGACY_FLAT_VOICES`) : un texte allemand sortait avec une locutrice anglaise,
+    en silence. La résolution vit côté serveur (`default_voice_for_language`) ; ici on garde
+    ce que le client en fait — dire laquelle, sans jamais toucher à la VALEUR.
+    """
+
+    def test_the_default_option_names_the_voice_of_the_chosen_language(self):
+        self.assertEqual('Voix par défaut (Français — Femme 1)', self.ctx.eval('defaultLabel()'))
+        self.ctx.eval("choose('de')")
+        self.assertEqual('Voix par défaut (Deutsch — Homme 1)', self.ctx.eval('defaultLabel()'))
+
+    def test_the_label_never_piles_up(self):
+        """Le libellé d'origine est mémorisé : quatre changements de langue, une parenthèse."""
+        for lang in ('en', 'de', 'fr', 'en'):
+            self.ctx.eval(f"choose({lang!r});")
+        self.assertEqual(1, self.ctx.eval('defaultLabel().split("(").length') - 1)
+
+    def test_a_language_without_voices_falls_back_to_the_plain_label(self):
+        """Contre-épreuve : aucune voix ne porte cette langue → le libellé nu, pas une
+        parenthèse qui nommerait une voix d'une AUTRE langue (le serveur, lui, replie sur le
+        preset plat — les deux disent la même chose)."""
+        self.ctx.eval("choose('xx')")
+        self.assertEqual('Voix par défaut', self.ctx.eval('defaultLabel()'))
+
+    def test_the_stored_value_is_never_touched(self):
+        """⚠ LA garde de la décision : on ne pose PAS la voix dans le select. La valeur reste
+        `default`, donc l'automatisme ne se défait jamais tout seul — sinon le premier
+        changement de langue le figerait sur une voix, et « auto » serait devenu un choix
+        manuel dans le dos de l'utilisateur."""
+        self.ctx.eval("voices.value = 'default';")
+        for lang in ('en', 'de', 'fr'):
+            self.ctx.eval(f"choose({lang!r});")
+            self.assertEqual('default', self.ctx.eval('voices.value'), lang)
