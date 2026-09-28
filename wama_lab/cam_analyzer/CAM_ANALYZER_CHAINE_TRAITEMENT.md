@@ -406,6 +406,14 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 > homographie, rien de dégradé. **Conséquence : ⚑ `depth_estimation` ON ne change aujourd'hui aucun
 > placement.** Étage 3 (overlay) : toujours **inexistant** — aucune vue ni JS ne lit `DepthFrame`.
 > Détail et scripts de mesure : `CAM_ANALYZER_CHANGELOG.md` (2026-09-28).
+>
+> 📏 **Banc de modèles, même jour** (CPU, 96 images, arbitres = rig connu) : **ZoeDepth-KITTI** (MIT)
+> reproduit le **profil de route attendu à ±7 %** (caméra avant) avec un **facteur d'échelle constant
+> ×0,33**, et retrouve le **même facteur** contre le pinhole (avant ×0,30, arrière ×0,34) ; DA-V2 Metric
+> Small ×2,2 à ×3,4 selon l'arbitre ; Depth Pro forme cassée. **La forme est juste, l'échelle est à
+> ANCRER** — de préférence par la hauteur connue de la caméra, pour que la profondeur reste
+> indépendante du pinhole (§E.2). ⚠ Le rig a une focale **anisotrope** (fx ≈ 134, fy ≈ 210 px) que
+> `deproject_depth` ne sait pas porter (une seule focale) : défaut aussi de la production.
 
 > 🧱 **DÉCOUPLAGE EN 3 ÉTAGES (2026-08-05, recadrage Fabien « analyse d'abord, calculs ensuite »).**
 > La profondeur n'est plus un bloc monolithique greffé dans `global_tracking` (invisible) mais une
