@@ -62,14 +62,25 @@ def _type_ollama(task: str):
         return ModelType.LLM
 
 
-def _check_hf_model_downloaded(cache_dir: Path, hf_id: str) -> bool:
+def _check_hf_model_downloaded(cache_dir: Path, hf_id: str, *, weights_required: bool = True) -> bool:
     """
     Check if a HuggingFace model is downloaded in the cache directory.
 
     HuggingFace cache structure: models--<org>--<model>/snapshots/<hash>/
+
+    « Téléchargé » = des POIDS COMPLETS (`prospector.installed_weights_complete`), plus seulement un
+    dossier muni de `snapshots/` ou `blobs/` (2026-09-28 : Qwen3-ASR-1.7B passait « ready » avec
+    sa seule config). `weights_required=False` pour une RECETTE sans poids propres (pipeline
+    pyannote) : le dossier suffit alors, comme avant.
     """
     if not cache_dir or not hf_id:
         return False
+
+    def _complete(path: Path) -> bool:
+        if not weights_required:
+            return (path / "snapshots").exists() or (path / "blobs").exists()
+        from .prospector import installed_weights_complete
+        return installed_weights_complete(path)
 
     try:
         cache_dir = Path(cache_dir)
@@ -80,18 +91,13 @@ def _check_hf_model_downloaded(cache_dir: Path, hf_id: str) -> bool:
         folder_name = f"models--{hf_id.replace('/', '--')}"
         model_path = cache_dir / folder_name
 
-        # Simple check: if the model folder exists, consider it downloaded
-        if model_path.exists() and model_path.is_dir():
-            # Verify it has some content (snapshots or blobs)
-            snapshots = model_path / "snapshots"
-            blobs = model_path / "blobs"
-            if snapshots.exists() or blobs.exists():
-                return True
+        if model_path.exists() and model_path.is_dir() and _complete(model_path):
+            return True
 
         # Scan cache dir for matching folders (handles nested/varied structures)
         try:
             for path in cache_dir.iterdir():
-                if path.is_dir() and folder_name in path.name:
+                if path.is_dir() and folder_name in path.name and _complete(path):
                     return True
         except (PermissionError, OSError):
             pass
@@ -1259,8 +1265,10 @@ class ModelRegistry:
                 elif model_id == 'pyannote-diarization':
                     # La RECETTE (config.yaml, 0 octet de poids) ; ses poids sont ses
                     # COMPONENTS déclarés. On CONSTATE sa présence par le helper commun,
-                    # comme les autres — jamais en devinant un nom de dossier (§5b).
-                    is_downloaded = _check_hf_model_downloaded(diarization_dir, hf_id)
+                    # comme les autres — jamais en devinant un nom de dossier (§5b). Recette :
+                    # aucun poids propre à exiger (`weights_required=False`, 2026-09-28).
+                    is_downloaded = _check_hf_model_downloaded(diarization_dir, hf_id,
+                                                               weights_required=False)
                     name = "pyannote 3.1 (diarisation)"
                     fmt = 'pytorch'
                     extra = {'hf_id': hf_id, 'path': str(diarization_dir)}
@@ -1847,9 +1855,10 @@ class ModelRegistry:
             couvre que les familles qu'AUCUNE déclaration ne revendique.
           • La catégorie du dossier doit être un `ModelType` valide, sinon le dossier est
             ignoré (un dossier inconnu n'invente pas de taxonomie).
-          • Un snapshot avec blobs `*.incomplete` n'est PAS « téléchargé » : il est catalogué
-            `is_downloaded=False` avec `extra_info['incomplete']=True` — c'est précisément
-            l'état qu'un téléchargement interrompu laisse derrière lui.
+          • Un snapshot avec blobs `*.incomplete`, ou SANS AUCUN POIDS (config seule, laissée
+            par un chargement avorté — cas Qwen3-ASR, 2026-09-28), n'est PAS « téléchargé » :
+            il est catalogué `is_downloaded=False` avec `extra_info['incomplete']=True`.
+            Jugement commun : `prospector.installed_weights_complete`.
           • `backend_ref` reste vide : catalogué ≠ utilisable. L'entrée dit au model_manager
             que les poids existent (désinstallables, pesables) ; l'usage par une app reste
             conditionné à sa déclaration + un backend (chaîne d'intégration, étape séparée).
@@ -1917,7 +1926,10 @@ class ModelRegistry:
         blobs, snapshots = snap / 'blobs', snap / 'snapshots'
         if not snapshots.is_dir():
             return
-        incomplets = any(blobs.glob('*.incomplete')) if blobs.is_dir() else False
+        # « Incomplet » = le jugement COMMUN (2026-09-28) : blob `.incomplete` OU aucun poids —
+        # le même que la découverte des apps, sinon deux « téléchargé » divergent.
+        from .prospector import installed_weights_complete
+        incomplets = not installed_weights_complete(snap)
         taille = sum(f.stat().st_size for f in blobs.iterdir() if f.is_file()) \
             if blobs.is_dir() else 0
         # VRAM ESTIMÉE depuis les poids sur disque (quick win acté Fabien, 02/09). Sans

@@ -243,6 +243,52 @@ class SnapshotsInstallesTest(TestCase):
         self.assertEqual(m.vram_gb, 0, "un snapshot incomplet n'estime pas de VRAM "
                                        "(ses poids partiels ne disent rien)")
 
+    # ── 2026-09-28 : « téléchargé » = des POIDS complets, un seul jugement ────────────────────
+
+    @staticmethod
+    def _config_only_snapshot(root, category, family, org, name):
+        """What an aborted load leaves behind (Qwen3-ASR-1.7B, 25/09): config, no weights."""
+        repo = root / 'models' / category / family / f"models--{org}--{name}"
+        (repo / 'snapshots' / 'rev0').mkdir(parents=True)
+        (repo / 'snapshots' / 'rev0' / 'config.json').write_text('{}')
+        (repo / 'blobs').mkdir()
+        (repo / 'blobs' / 'cfg').write_text('{}')
+        return repo
+
+    def test_a_snapshot_holding_only_its_config_is_not_reported_downloaded(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._config_only_snapshot(root, 'speech', 'Asr', 'Org', 'Asr')
+            models = self._balayer(root)
+        m = models['huggingface:Org/Asr']
+        self.assertFalse(m.is_downloaded)
+        self.assertTrue(m.extra_info.get('incomplete'))
+
+    def test_the_app_discovery_helper_applies_the_same_judgement(self):
+        """Two judgements of « downloaded » existed; the app one only wanted a `snapshots/`."""
+        import tempfile
+
+        from .services.model_registry import _check_hf_model_downloaded
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._config_only_snapshot(root, 'speech', 'qwen_asr', 'Org', 'Asr')
+            self.assertFalse(_check_hf_model_downloaded(repo.parent, 'Org/Asr'))
+            self.assertTrue(_check_hf_model_downloaded(repo.parent, 'Org/Asr', weights_required=False),
+                            "a RECIPE (pyannote pipeline) declares it has no weights of its own")
+            full = _faux_snapshot(root, 'speech', 'qwen_asr', 'Org', 'Full')
+            self.assertTrue(_check_hf_model_downloaded(full.parent, 'Org/Full'))
+
+    def test_a_nemo_archive_counts_as_weights(self):
+        """canary-1b-v2 / parakeet-tdt ship a single `.nemo` — it IS the model."""
+        import tempfile
+
+        from .services.prospector import installed_weights_complete
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._config_only_snapshot(Path(tmp), 'speech', 'canary', 'nvidia', 'canary')
+            (repo / 'snapshots' / 'rev0' / 'canary.nemo').write_bytes(b'0' * 64)
+            self.assertTrue(installed_weights_complete(repo))
+
     def test_la_vram_est_estimee_depuis_les_poids_et_dite_estimation(self):
         """Le défaut mesuré du 02/09 : vram_gb=0 valait « inconnu » et le curseur de
         qualité traitait ces modèles au PIRE coût — jamais tirés en « rapide ». Les poids
