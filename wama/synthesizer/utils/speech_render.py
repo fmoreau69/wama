@@ -93,7 +93,7 @@ def preview_text(text):
 
 def render_speech(text, output_path, *, model, language, voice_preset, speaker_wav=None,
                   multi_speaker=False, scene_description='', speed=1.0, pitch=1.0,
-                  on_segment=None, console=None, read_timeout=None):
+                  on_segment=None, on_partial=None, console=None, read_timeout=None):
     """Rend `text` en WAV : segments par moteur → service TTS → assemblage → vitesse/hauteur.
 
     `output_path` reçoit l'assemblage ; le fichier FINAL (vitesse/hauteur appliquées) est rendu
@@ -102,6 +102,13 @@ def render_speech(text, output_path, *, model, language, voice_preset, speaker_w
     `on_segment(index, total)` est appelé avant chaque segment (progression) ; `console(msg)`
     reçoit les messages d'étape. Lève `TTSServiceLoadingError` (service pas encore chaud) et
     `RuntimeError` (toute autre indisponibilité) : la politique appartient à l'appelant.
+
+    `on_partial(audio, done, total)` — l'aperçu « PENDANT » (2026-09-28) : après chaque segment
+    SAUF le dernier, l'audio déjà assemblé (`AudioSegment`, AVANT vitesse/hauteur). Seulement
+    pour un texte en plusieurs segments : un texte d'un seul segment n'a rien à montrer avant
+    son résultat. L'assemblage est désormais fait AU FIL des segments — le fichier final est
+    le même qu'avant (chaque segment suivi de `CHUNK_GAP_MS` de silence). Un rappel qui échoue
+    n'arrête jamais le rendu.
     """
     from pydub import AudioSegment
 
@@ -117,27 +124,33 @@ def render_speech(text, output_path, *, model, language, voice_preset, speaker_w
     say(f'Génération audio: {len(chunks)} segment(s) via service TTS...')
 
     extra = {} if read_timeout is None else {'read_timeout': read_timeout}
+    total = len(chunks)
+    combined = AudioSegment.empty()
     chunk_files = []
     try:
         for i, chunk in enumerate(chunks):
             if on_segment:
-                on_segment(i, len(chunks))
-            say(f'Génération segment {i + 1}/{len(chunks)}...')
+                on_segment(i, total)
+            say(f'Génération segment {i + 1}/{total}...')
             chunk_files.append(tts_via_service(
                 chunk, model, language=language, voice_preset=voice_preset,
                 speaker_wav=speaker_wav, multi_speaker=multi_speaker,
                 # La description de scène (Higgs) ouvre le dialogue : premier segment seulement.
                 scene_description=scene_description if i == 0 else '',
                 **extra))
+            if total > 1:
+                combined += AudioSegment.from_wav(chunk_files[-1])
+                combined += AudioSegment.silent(duration=CHUNK_GAP_MS)
+                if on_partial and i < total - 1:
+                    try:
+                        on_partial(combined, i + 1, total)
+                    except Exception as exc:
+                        logger.warning(f'[speech_render] aperçu partiel ignoré : {exc}')
 
-        if len(chunk_files) == 1:
+        if total == 1:
             shutil.move(chunk_files.pop(), output_path)
         else:
             say('Assemblage des segments audio...')
-            combined = AudioSegment.empty()
-            for chunk_file in chunk_files:
-                combined += AudioSegment.from_wav(chunk_file)
-                combined += AudioSegment.silent(duration=CHUNK_GAP_MS)
             combined.export(output_path, format='wav')
     finally:
         for chunk_file in chunk_files:

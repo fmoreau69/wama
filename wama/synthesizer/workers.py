@@ -70,6 +70,50 @@ def _console(user_id: int, message: str, level: str = None) -> None:
         pass
 
 
+def _during_preview(synthesis):
+    """Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`, 2026-09-28) : l'audio
+    déjà synthétisé, publié après chaque segment d'un texte long — on entend la synthèse
+    GRANDIR. Même patron que l'enhancer et l'anonymizer : un fichier à nom fixe sous
+    `output/partials/`, réécrit, servi avec `?v=` ; les pics d'onde (`waveform.compute_peaks`)
+    l'accompagnent pour que le lecteur commun dessine l'onde sans décoder.
+    Vitesse et hauteur sont appliquées au partiel : il s'entend comme le résultat.
+    Rend le `on_partial` de `render_speech`."""
+    from wama.common.utils.media_paths import get_app_media_path
+    from wama.common.utils.preview_utils import publish_partial, publish_partial_peaks
+    from wama.common.utils.waveform import compute_peaks
+    from .utils.audio_processor import process_audio_output
+
+    folder = Path(get_app_media_path('synthesizer', synthesis.user_id, 'output')) / 'partials'
+    folder.mkdir(parents=True, exist_ok=True)
+    raw = folder / f'during_{synthesis.id}_raw.wav'
+    heard = folder / f'during_{synthesis.id}.wav'
+
+    def _publish(audio, done, total):
+        audio.export(str(raw), format='wav')
+        final = process_audio_output(str(raw), speed=synthesis.speed, pitch=synthesis.pitch,
+                                     output_path=str(heard))
+        rel = os.path.relpath(final, settings.MEDIA_ROOT).replace('\\', '/')
+        publish_partial('synthesizer', synthesis.id, f'{settings.MEDIA_URL}{rel}?v={done}')
+        peaks, duration = compute_peaks(final, buckets=800, dtype='uint8', with_duration=True)
+        if peaks:
+            publish_partial_peaks('synthesizer', synthesis.id, peaks, duration=duration)
+        _console(synthesis.user_id, f"Aperçu : {done}/{total} segment(s) à l'écoute")
+
+    return _publish
+
+
+def _clear_during(synthesis):
+    """Fin de run (succès, échec, nouvelle tentative) : la face SORTIE prend le relais."""
+    from wama.common.utils.media_paths import get_app_media_path
+    from wama.common.utils.preview_utils import clear_partial
+    clear_partial('synthesizer', synthesis.id)
+    folder = Path(get_app_media_path('synthesizer', synthesis.user_id, 'output')) / 'partials'
+    for name in (f'during_{synthesis.id}_raw.wav', f'during_{synthesis.id}.wav'):
+        try:
+            (folder / name).unlink()
+        except OSError:
+            pass
+
 
 def _apply_output_format(synthesis):
     """Convert the synthesized WAV to the user-chosen output format (Phase 3).
@@ -203,8 +247,10 @@ def synthesize_voice(self, synthesis_id: int):
             scene_description=getattr(synthesis, 'scene_description', ''),
             speed=synthesis.speed, pitch=synthesis.pitch,
             on_segment=lambda i, n: _set_progress(synthesis, 40 + int(i / n * 35)),
+            on_partial=_during_preview(synthesis),
             console=lambda m: _console(synthesis.user_id, m),
         )
+        _clear_during(synthesis)
         _set_progress(synthesis, 85)
 
         # Étape 5: Sauvegarde du résultat
@@ -283,6 +329,7 @@ def synthesize_voice(self, synthesis_id: int):
         logger.info(f"synthesize_voice #{synthesis_id}: {wait_msg}")
         synthesis.error_message = wait_msg
         synthesis.save(update_fields=['error_message'])
+        _clear_during(synthesis)
         _console(synthesis.user_id, wait_msg, level='warning')
         try:
             raise self.retry(exc=e, countdown=10)
@@ -297,6 +344,7 @@ def synthesize_voice(self, synthesis_id: int):
 
     except Exception as e:
         logger.error(f"Error in synthesize_voice task: {str(e)}", exc_info=True)
+        _clear_during(synthesis)
         synthesis.status = 'FAILURE'
         synthesis.error_message = str(e)
         synthesis.save(update_fields=['status', 'error_message'])

@@ -198,7 +198,10 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   sortie une fois écrite (converter), et le **composer ne publie l'onde qu'UNE fois, À LA FIN**
   (`audiocraft_backend.py` et `audiocpp_backend.py` appellent `on_audio` sur l'audio FINAL ; le
   commentaire du backend le dit : un vrai flux demanderait le rappel par jeton de MusicGen).
-  **Aucune émission** : synthesizer, imager, avatarizer. **Seul l'inspecteur la lit** (`_startDuring`) :
+  **Aucune émission** : imager, avatarizer — ✅ le **synthesizer** publie depuis le même jour
+  (8ᵉ app) : l'audio déjà synthétisé, après chaque segment d'un texte long, vitesse/hauteur
+  appliquées (`workers._during_preview`, rappel `on_partial` de `utils/speech_render`) ; un texte
+  d'un seul segment n'a rien à montrer avant son résultat. **Seul l'inspecteur la lit** (`_startDuring`) :
   les cards de la file n'affichent pas la face « pendant » (`CARD_DESIGN` « zone de preview
   permanente » = orientation, pas un câblage). Et les pics d'onde qu'elle transporte n'étaient
   **jamais dessinés** jusqu'à ce jour (`setPeaks` sans effet sur un lecteur pas encore initialisé,
