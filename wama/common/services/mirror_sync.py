@@ -36,6 +36,18 @@ La taille — et non la date — parce que `copy2` préserve le mtime mais que l
 horloges et les résolutions de mtime diffèrent entre ext4, 9p et le NAS : comparer
 les dates produisait des recopies fantômes. Un fichier modifié à taille identique
 échappe donc au miroir ; c'est un compromis assumé, `overwrite=True` force le resync.
+
+LIENS SYMBOLIQUES INTERNES — DÉCRITS, JAMAIS RECOPIÉS (2026-09-28)
+==================================================================
+Un cache HuggingFace porte chaque poids UNE fois dans `blobs/`, et une fois comme LIEN dans
+`snapshots/<rev>/`. `is_file()` suit les liens : le miroir recopiait donc chaque poids DEUX
+fois — mesuré sur qwen-image, 115 Go distants pour 54 Go locaux, et la moitié du temps d'une
+sauvegarde passée à recopier ce qui était déjà parti. Désormais un lien dont la cible est un
+fichier DE LA SOURCE n'est pas copié : il est inscrit dans `LINKS_MANIFEST`, à la racine du
+miroir (fusionné, jamais réécrit à vide — même doctrine cumulative), et le chemin inverse
+(le TIRAGE, `restore_backup`) relit ces manifestes pour RECRÉER les liens — faute de quoi une
+restauration rendrait des snapshots vides. Un lien vers l'EXTÉRIEUR de la source garde l'ancien
+comportement (son contenu est copié) : il n'y a pas d'autre copie de ce fichier dans l'archive.
 """
 
 from __future__ import annotations
@@ -54,6 +66,10 @@ MAX_ERRORS = 20
 #: Publication de l'avancement tous les N fichiers — assez fin pour une barre fluide,
 #: assez rare pour ne pas marteler Redis sur des dizaines de milliers de fichiers.
 PROGRESS_EVERY = 200
+
+#: Description des liens symboliques INTERNES d'un miroir (cf. docstring du module) :
+#: `{chemin relatif du lien: valeur relative du lien}`, à la racine de chaque destination.
+LINKS_MANIFEST = '.wama_links.json'
 
 
 #: Racine de l'espace de sauvegarde, des deux côtés de la frontière WSL/Windows.
@@ -143,6 +159,42 @@ def copy_file(source: Path, dest: Path) -> tuple[bool, float, str | None]:
         return False, 0.0, str(exc)
 
 
+def internal_link(path: Path, source_root: Path) -> str | None:
+    """Valeur RELATIVE du lien si `path` est un lien symbolique vers un fichier situé DANS
+    `source_root`, sinon None (pas un lien, lien cassé, ou cible extérieure — copiée alors)."""
+    if not path.is_symlink():
+        return None
+    try:
+        target = path.resolve(strict=True)
+        target.relative_to(source_root.resolve())
+    except (OSError, ValueError, RuntimeError):
+        return None
+    if not target.is_file():
+        return None
+    return os.path.relpath(target, path.parent.resolve())
+
+
+def _read_manifest(path: Path) -> dict:
+    import json
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_manifest(dest_root: Path, links: dict) -> None:
+    """FUSIONNE `links` dans le manifeste de `dest_root` — cumulatif comme le reste de
+    l'archive : une entrée n'en sort jamais, même si le lien a disparu en local."""
+    import json
+    target = dest_root / LINKS_MANIFEST
+    merged = _read_manifest(target)
+    merged.update(links)
+    scratch = target.with_name(target.name + '.tmp')
+    scratch.write_text(json.dumps(merged, indent=0, sort_keys=True), encoding='utf-8')
+    os.replace(scratch, target)
+
+
 def new_summary(remote_path) -> dict:
     """
     Squelette de compte rendu, partagé par les appelants pour publier un état initial
@@ -155,6 +207,7 @@ def new_summary(remote_path) -> dict:
     return {
         'success': False, 'total_files': 0, 'processed': 0, 'copied': 0,
         'skipped': 0, 'failed': 0, 'copied_mb': 0.0, 'errors': [],
+        'linked': 0,     # liens internes décrits (sauvegarde) ou recréés (tirage)
         'remote_path': str(remote_path),
     }
 
@@ -184,8 +237,13 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
                      où l'on veut mesurer l'écart avant de toucher à une installation.
         progress_cb: callable(dict) — avancement agrégé, tous les `progress_every` fichiers.
         on_file:     callable(source, dest, action, size_mb, error) par fichier, avec
-                     action ∈ {'copied', 'skipped', 'failed'}. Permet à un appelant de
-                     produire un compte rendu détaillé sans réécrire le parcours.
+                     action ∈ {'copied', 'skipped', 'failed', 'linked'}. Permet à un appelant
+                     de produire un compte rendu détaillé sans réécrire le parcours.
+
+    Liens symboliques INTERNES (docstring du module) : décrits dans `LINKS_MANIFEST` au lieu
+    d'être recopiés ; les manifestes trouvés dans la SOURCE (cas du tirage) font recréer les
+    liens dans la destination, et leurs chemins ne sont PAS recopiés même si une ancienne
+    sauvegarde les y avait déposés comme fichiers pleins.
 
     Returns: dict de synthèse (clés de `new_summary`).
     """
@@ -203,13 +261,30 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
 
     # Phase 1 — inventaire de la SOURCE (disque rapide) : connaître le total AVANT de
     # copier permet un vrai pourcentage côté UI plutôt qu'un spinner aveugle.
-    local_files = []
+    local_files, links, to_relink = [], {}, {}
     for path in source_root.rglob('*'):
+        relative = path.relative_to(source_root)
+        if excluded and excluded.intersection(relative.parts):
+            continue
+        if path.name == LINKS_MANIFEST:
+            # Tirage : les liens décrits par une sauvegarde se RECRÉENT, relatifs au dossier
+            # du manifeste (la sauvegarde globale en pose un à la racine, celle d'un modèle
+            # à la racine de SON dossier).
+            if path.is_file():
+                base = relative.parent
+                for link_path, value in _read_manifest(path).items():
+                    to_relink[(base / link_path).as_posix()] = value
+            continue
+        value = internal_link(path, source_root)
+        if value is not None:
+            links[relative.as_posix()] = value
+            continue
         if not path.is_file():
             continue
-        if excluded and excluded.intersection(path.relative_to(source_root).parts):
-            continue
         local_files.append(path)
+    if to_relink:
+        local_files = [p for p in local_files
+                       if p.relative_to(source_root).as_posix() not in to_relink]
     summary['total_files'] = len(local_files)
     if progress_cb:
         progress_cb(dict(summary, phase='copy', current=''))
@@ -260,6 +335,37 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
             except ValueError:
                 current = source.name
             progress_cb(dict(summary, phase='copy', current=current))
+
+    # Phase 3 — liens internes : décrits (sauvegarde), puis recréés (tirage).
+    if links:
+        summary['linked'] += len(links)
+        if not dry_run:
+            try:
+                _write_manifest(dest_root, links)
+            except OSError as exc:
+                summary['failed'] += len(links)
+                summary['errors'].append(f"{LINKS_MANIFEST}: {exc}")
+        if on_file:
+            for relative in links:
+                on_file(source_root / relative, dest_root / relative, 'linked', 0.0, None)
+    for relative, value in to_relink.items():
+        dest = dest_root / relative
+        if dest.exists() or dest.is_symlink():
+            continue
+        summary['linked'] += 1
+        if dry_run:
+            continue
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            os.symlink(value, dest)
+        except OSError:
+            # Pas de droit de créer un lien (Windows sans mode développeur) : une copie de la
+            # cible, déjà rapatriée, rend le même fichier au prix de l'espace.
+            ok, _, error = copy_file(dest.parent / value, dest)
+            if not ok:
+                summary['failed'] += 1
+                if len(summary['errors']) < MAX_ERRORS:
+                    summary['errors'].append(f"{dest.name}: {error}")
 
     summary['success'] = summary['failed'] == 0
     return summary
@@ -313,15 +419,16 @@ def run_mirror_job(runner, *, cache_key, task_id, label, ttl=24 * 3600):
         publier_progression(cache_key, task_id, state, payload, ttl)
 
     publish('RUNNING', {'phase': 'scan', 'total_files': 0, 'processed': 0,
-                        'copied': 0, 'skipped': 0, 'failed': 0, 'copied_mb': 0.0})
+                        'copied': 0, 'skipped': 0, 'failed': 0, 'copied_mb': 0.0, 'linked': 0})
     logger.info("[%s] démarrage", label)
 
     try:
         result = runner(lambda p: publish('RUNNING', p))
         publish('SUCCESS' if result['success'] else 'PARTIAL', result)
         logger.info(
-            "[%s] terminé : +%s copiés, %s déjà présents, %s échecs (%.1f Mo)",
-            label, result['copied'], result['skipped'], result['failed'], result['copied_mb'],
+            "[%s] terminé : +%s copiés, %s déjà présents, %s liens, %s échecs (%.1f Mo)",
+            label, result['copied'], result['skipped'], result.get('linked', 0),
+            result['failed'], result['copied_mb'],
         )
         return result
     except Exception as exc:
