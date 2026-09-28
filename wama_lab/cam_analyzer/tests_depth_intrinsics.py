@@ -58,3 +58,28 @@ class DepthModelChoiceTest(SimpleTestCase):
         self.assertEqual(depth_estimator.stored_depth_model(SimpleNamespace(results_summary={})), 'depthpro')
         self.assertEqual(depth_estimator.stored_depth_model(
             SimpleNamespace(results_summary={'depth_model': 'zoedepth-kitti'})), 'zoedepth-kitti')
+
+
+class WindowSamplingTest(SimpleTestCase):
+    """Profondeur à ~N images/s DANS les fenêtres d'intersection (2026-09-28)."""
+
+    ROWS = [(n, n / 12.0) for n in range(12 * 60)]          # 60 s de vidéo à 12 images/s
+    WINDOWS = [{'t_enter': 10.0, 't_exit': 20.0}, {'t_enter': 40.0, 't_exit': 45.0}]
+
+    def test_the_rate_is_held_inside_each_window(self):
+        fns = depth_estimator.frames_in_windows(self.ROWS, self.WINDOWS, 2.0)
+        times = [fn / 12.0 for fn in fns]
+        self.assertEqual(len([t for t in times if 10 <= t <= 20]), 21)   # 10 s à 2/s, bornes incluses
+        self.assertEqual(len([t for t in times if 40 <= t <= 45]), 11)
+        self.assertTrue(all(b - a >= 0.5 - 1e-6 for a, b in zip(times, times[1:])))
+
+    def test_nothing_is_sampled_outside_the_windows(self):
+        fns = depth_estimator.frames_in_windows(self.ROWS, self.WINDOWS, 2.0)
+        self.assertTrue(all(10 <= fn / 12.0 <= 20 or 40 <= fn / 12.0 <= 45 for fn in fns))
+
+    def test_zero_or_no_window_disables_and_a_bad_value_falls_back(self):
+        self.assertEqual(depth_estimator.frames_in_windows(self.ROWS, self.WINDOWS, 0), [])
+        self.assertEqual(depth_estimator.frames_in_windows(self.ROWS, [], 2.0), [])
+        self.assertEqual(depth_estimator.depth_window_fps(SimpleNamespace(config={})), 2.0)
+        self.assertEqual(depth_estimator.depth_window_fps(SimpleNamespace(config={'depth_window_fps': 0})), 0.0)
+        self.assertEqual(depth_estimator.depth_window_fps(SimpleNamespace(config={'depth_window_fps': 'x'})), 2.0)
