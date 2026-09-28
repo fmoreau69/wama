@@ -219,6 +219,61 @@ class ContratUploadDesAppsPorteesTest(TestCase):
                 self.assertGreaterEqual(rep.status_code, 400, f'{app} : un dépôt vide a été accepté')
 
 
+#: Apps dont la vue d'upload ne reçoit PAS encore une désignation (`media_paths.received_inputs`,
+#: 2026-09-28). Budget qui ne peut que DESCENDRE : une app qui passe le contrat alors qu'elle y
+#: figure fait rougir le test (l'exemption est devenue inutile, on la retire).
+NOT_YET_RECEIVING_DESIGNATIONS = {'anonymizer', 'converter', 'describer', 'enhancer', 'reader',
+                                  'synthesizer'}
+
+
+class UploadViewsReceiveDesignationsTest(TestCase):
+    """Un fichier DÉSIGNÉ (tuile Médiathèque, glisser depuis l'arbre) arrive par la MÊME vue
+    d'upload que le dépôt, avec les mêmes champs de volet, et l'élément créé POINTE le fichier —
+    aucune copie (plan de la card v4, étape 1, 2026-09-28 ; brique `received_inputs`)."""
+
+    _utilisateur = ContratUploadDesAppsPorteesTest._utilisateur
+
+    def _designate(self, app, roles, champ, ext, contenu, extra):
+        from django.conf import settings
+        from wama.common.utils.file_references import direct_references
+        from wama.common.utils.media_paths import DESIGNATION_FIELD
+        user = self._utilisateur(app, roles)
+        self.client.force_login(user)
+        rel = f'users/{user.id}/temp/wama_temoin_designe_{app}{ext}'
+        path = Path(settings.MEDIA_ROOT) / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(contenu())
+        rep = self.client.post(reverse(f'{app}:upload'), {DESIGNATION_FIELD: rel, **extra})
+        ok = rep.status_code == 200 and not (rep.json() if rep.headers.get('Content-Type', '')
+                                            .startswith('application/json') else {}).get('error')
+        pointed = ok and bool(identifiants(rep.json())) and bool(direct_references(rel))
+        return rep, pointed
+
+    def test_each_app_receives_a_designation_and_points_the_file(self):
+        adopted = []
+        for app, roles, champ, ext, contenu, extra in PORTEES:
+            with self.subTest(app=app):
+                rep, pointed = self._designate(app, roles, champ, ext, contenu, extra)
+                if app in NOT_YET_RECEIVING_DESIGNATIONS:
+                    self.assertFalse(pointed, f'{app} reçoit désormais une désignation : '
+                                              f'la retirer de NOT_YET_RECEIVING_DESIGNATIONS')
+                    continue
+                self.assertTrue(pointed, f'{app}:upload → {rep.status_code} {rep.content[:200]!r}')
+                adopted.append(app)
+        self.assertTrue(adopted, 'aucune app ne reçoit de désignation : le contrat serait à vide')
+
+    def test_a_designation_the_user_cannot_read_is_refused(self):
+        from wama.common.utils.media_paths import DESIGNATION_FIELD
+        for app, roles, champ, ext, contenu, extra in PORTEES:
+            if app in NOT_YET_RECEIVING_DESIGNATIONS:
+                continue
+            with self.subTest(app=app):
+                self.client.force_login(self._utilisateur(app, roles))
+                rep = self.client.post(reverse(f'{app}:upload'),
+                                       {DESIGNATION_FIELD: '../../etc/passwd', **extra})
+                self.assertGreaterEqual(rep.status_code, 400, rep.content[:200])
+
+
 class AdoptionDeLaBriqueTest(SimpleTestCase):
     """(2) — l'app EST sur la brique, et son gabarit la charge avant de l'instancier."""
 

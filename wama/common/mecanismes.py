@@ -1621,7 +1621,11 @@ MECHANISMS = (
               "sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier "
               "connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL "
               "ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER "
-              "(cam_analyzer, RTMaps) garde la copie, et son site le dit",
+              "(cam_analyzer, RTMaps) garde la copie, et son site le dit. ⭐ Depuis le "
+              "2026-09-28 : un asset SYSTÈME actif se pointe aussi, `readable_by` est LA règle "
+              "de ce qu'un utilisateur peut désigner, et `received_inputs` est ce qu'une vue "
+              "d'upload REÇOIT — un fichier téléversé ou DÉSIGNÉ (`designated_path` : "
+              "médiathèque, arbre), par la même vue, avec l'état du volet",
               'wama/common/utils/media_paths.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md'),
     Mechanism('scoped_visibility', 'Visibilité et portée',

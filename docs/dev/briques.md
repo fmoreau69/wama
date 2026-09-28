@@ -1843,11 +1843,11 @@ Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AV
 
 ### Chemins média
 
-Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la brique décide aussi POINTER ou COPIER (`reference_or_copy`, décision de Fabien, cible annoncée le 12/09) : une source déjà sous `users/<uid>/` du MÊME utilisateur est désignée telle quelle — un `FileField` est déjà un pointeur, l'aperçu commun sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) garde la copie, et son site le dit
+Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la brique décide aussi POINTER ou COPIER (`reference_or_copy`, décision de Fabien, cible annoncée le 12/09) : une source déjà sous `users/<uid>/` du MÊME utilisateur est désignée telle quelle — un `FileField` est déjà un pointeur, l'aperçu commun sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) garde la copie, et son site le dit. ⭐ Depuis le 2026-09-28 : un asset SYSTÈME actif se pointe aussi, `readable_by` est LA règle de ce qu'un utilisateur peut désigner, et `received_inputs` est ce qu'une vue d'upload REÇOIT — un fichier téléversé ou DÉSIGNÉ (`designated_path` : médiathèque, arbre), par la même vue, avec l'état du volet
 
 - **Domicile** : `wama/common/utils/media_paths.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : WAMA Common - Media Path Utilities
-- **API publique** (17) :
+- **API publique** (22) :
   - `get_app_media_path(app_name: str, user_id: Union[int, str], subfolder: str='input') -> Path` — Get the absolute path for an app's user-specific media folder.
   - `class OutsideMediaRoot(ValueError)` — Le chemin demandé sort de MEDIA_ROOT (traversée `..`, dossier frère, absolu étranger).
   - `resolve_under_media_root(candidate, *, must_exist: bool=True)` — Résout un chemin — absolu, ou RELATIF à MEDIA_ROOT — et GARANTIT qu'il y reste.
@@ -1859,6 +1859,11 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
   - `copy_into_app_input(source_path, app_name: str, user_id, subfolder: str='input', allowed_exts=None, *, for_instance=None, field=None, provenance_kind='temp', p…` — Copy a source file into an app's media folder with collision-safe naming.
   - `in_user_home(rel_path, user_id) -> bool` — Ce chemin (relatif à `MEDIA_ROOT`) est-il DANS l'arbre de CET utilisateur ?
   - `reference_or_copy(source_path, app_name: str, user_id, subfolder: str='input', allowed_exts=None, *, for_instance=None, field=None, provenance_kind=None, prove…` — POINTER le fichier s'il est déjà dans l'arbre de l'utilisateur, le COPIER sinon.
+  - `is_system_asset_file(rel_path) -> bool` — Ce chemin est-il le fichier d'un asset SYSTÈME actif de la médiathèque ?
+  - `readable_by(rel_path, user) -> bool` — Cet utilisateur peut-il DÉSIGNER ce fichier comme entrée d'une card ?
+  - `class ReceivedInput` — UN fichier reçu par une vue d'upload : téléversé, ou DÉSIGNÉ.
+  - `class ReceivedInputs(list)` — Les entrées reçues, plus `refusal` : le motif du premier refus (désignation illisible,
+  - `received_inputs(request, user, app_name: str, field: str='file', subfolder: str='input') -> ReceivedInputs` — Ce qu'une vue d'upload reçoit : les fichiers TÉLÉVERSÉS sous `field`, puis les fichiers
   - `class UploadToUserPath` — Callable class for Django FileField upload_to that generates user-specific paths.
   - `system_asset_relpath(asset_type: str, filename: str) -> str` — Chemin relatif (sous `MEDIA_ROOT`) d'un asset système : un sous-dossier par NATURE.
   - `class UploadToSystemAssetPath` — `upload_to` de `SystemAsset.file` — `media_library/system/<asset_type>/<fichier>`.

@@ -295,6 +295,8 @@ def reference_or_copy(source_path, app_name: str, user_id, subfolder: str = 'inp
       * l'arbre d'un AUTRE utilisateur (`in_user_home` refuse) ;
       * une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) — elle garde son appel à
         `copy_into_app_input`, et le site le dit.
+    Ce qui se POINTE en plus de l'arbre de l'utilisateur (2026-09-28) : un asset SYSTÈME actif
+    (`is_system_asset_file`) — zone commune en lecture, jamais supprimée par une card.
 
     Returns:
         `(path: Path, relative_path: str)` — pointé : le chemin de la SOURCE ; copié : la copie.
@@ -309,7 +311,10 @@ def reference_or_copy(source_path, app_name: str, user_id, subfolder: str = 'inp
     rel = None
     try:
         _absolu, rel_candidat = resolve_under_media_root(str(src))
-        if in_user_home(rel_candidat, user_id):
+        # Un asset SYSTÈME (zone commune, sans propriétaire, hors du chiffrement par utilisateur)
+        # se pointe aussi (2026-09-28) : `owns_file` ne le tient jamais pour le fichier d'une
+        # card, aucune suppression de card ne l'atteint donc.
+        if in_user_home(rel_candidat, user_id) or is_system_asset_file(rel_candidat):
             rel = rel_candidat
     except (OutsideMediaRoot, FileNotFoundError):
         rel = None
@@ -328,6 +333,127 @@ def reference_or_copy(source_path, app_name: str, user_id, subfolder: str = 'inp
                           ref=provenance_ref if provenance_ref is not None else rel,
                           original_name=src.name, source_path=src)
     return src, rel
+
+
+def is_system_asset_file(rel_path) -> bool:
+    """Ce chemin est-il le fichier d'un asset SYSTÈME actif de la médiathèque ?
+
+    Zone commune (`SYSTEM_ASSET_ROOT`), gérée par les admins, sans propriétaire : lisible par
+    tous, jamais chiffrée par utilisateur. Le préfixe seul ne suffit pas — un fichier déposé là
+    sans ligne `SystemAsset` active n'est pas un asset qu'on offre.
+    """
+    rel = str(rel_path or '').replace('\\', '/').lstrip('/')
+    if not rel.startswith(SYSTEM_ASSET_ROOT + '/'):
+        return False
+    from wama.media_library.models import SystemAsset
+    return SystemAsset.objects.filter(file=rel, is_active=True).exists()
+
+
+def readable_by(rel_path, user) -> bool:
+    """Cet utilisateur peut-il DÉSIGNER ce fichier comme entrée d'une card ?
+
+    Son propre arbre (`users/<uid>/…` : temporaire, médiathèque, entrées et sorties de ses
+    apps) ou un asset système actif. ⚠ Le fichier d'un AUTRE utilisateur n'est PAS lisible ici,
+    même partagé : le pointer ou le recopier dépend du modèle de clés du chiffrement par
+    utilisateur, pas encore décidé (`WAMA_COLLABORATION §9`, cadre du 2026-09-28). Le jour où il
+    l'est, c'est CETTE fonction qui s'étend (objet visible qui le désigne) — et nulle autre.
+    """
+    rel = str(rel_path or '').replace('\\', '/').lstrip('/')
+    user_id = getattr(user, 'id', None)
+    return bool(user_id) and (in_user_home(rel, user_id) or is_system_asset_file(rel))
+
+
+#: Champ POST d'une DÉSIGNATION : le chemin (relatif à `MEDIA_ROOT`) d'un fichier que la card
+#: reçoit sans qu'on le lui téléverse — choisi dans la médiathèque, glissé depuis l'arbre. Répété
+#: pour plusieurs fichiers. Même vue d'upload que le dépôt, mêmes champs de volet à côté.
+DESIGNATION_FIELD = 'designated_path'
+
+
+class ReceivedInput:
+    """UN fichier reçu par une vue d'upload : téléversé, ou DÉSIGNÉ.
+
+    La vue lit `name` (nom d'origine : extension, libellé) et assigne `value` au champ fichier
+    de l'élément. `value` est le fichier téléversé, ou le CHEMIN relatif de la désignation —
+    assigner une chaîne à un `FileField` enregistre le chemin sans rien écrire : c'est le
+    pointage (`reference_or_copy`). `local_path` est un chemin lisible sur le disque pour une
+    désignation (extraction d'audio, comptage de pages), `None` pour un téléversement.
+    """
+
+    def __init__(self, name, value, *, local_path=None, designation=None):
+        self.name = name
+        self.value = value
+        self.local_path = local_path
+        self.designation = designation
+
+    @property
+    def designated(self) -> bool:
+        return self.designation is not None
+
+    @property
+    def size(self):
+        if self.designated:
+            return Path(self.local_path).stat().st_size
+        return getattr(self.value, 'size', None)
+
+    @property
+    def content_type(self):
+        if self.designated:
+            import mimetypes
+            return mimetypes.guess_type(self.name)[0] or 'application/octet-stream'
+        return getattr(self.value, 'content_type', None)
+
+    def chunks(self, chunk_size=64 * 1024):
+        if not self.designated:
+            yield from self.value.chunks()
+            return
+        with open(self.local_path, 'rb') as fh:
+            while True:
+                block = fh.read(chunk_size)
+                if not block:
+                    return
+                yield block
+
+    def record(self, instance, field):
+        """La PROVENANCE, une fois l'élément créé. Rien pour un téléversement : il n'a pas de
+        source dans WAMA (`MEDIA_STORAGE_TIERING §8.6` D21)."""
+        if not self.designated:
+            return
+        from wama.common.utils.provenance import kind_of, record_provenance
+        record_provenance(instance, field, kind=kind_of(self.designation), ref=self.designation,
+                          original_name=self.name, source_path=Path(self.local_path))
+
+
+class ReceivedInputs(list):
+    """Les entrées reçues, plus `refusal` : le motif du premier refus (désignation illisible,
+    hors `MEDIA_ROOT`, absente). Une vue qui ne reçoit RIEN le rend tel quel — un refus se dit."""
+    refusal = ''
+
+
+def received_inputs(request, user, app_name: str, field: str = 'file',
+                    subfolder: str = 'input') -> ReceivedInputs:
+    """Ce qu'une vue d'upload reçoit : les fichiers TÉLÉVERSÉS sous `field`, puis les fichiers
+    DÉSIGNÉS sous `DESIGNATION_FIELD` — dans cet ordre.
+
+    Une désignation passe trois gardes avant d'être reçue : le confinement dans `MEDIA_ROOT`
+    (`resolve_under_media_root`, traversée `..` comprise), l'existence du fichier, et la
+    lisibilité pour CET utilisateur (`readable_by`). Elle est ensuite POINTÉE ou copiée par
+    `reference_or_copy` — la même décision que « Envoyer vers », en un seul endroit.
+    Ne lève jamais : un refus est rangé dans `refusal`.
+    """
+    received = ReceivedInputs(ReceivedInput(f.name, f) for f in request.FILES.getlist(field))
+    for raw in request.POST.getlist(DESIGNATION_FIELD):
+        try:
+            abs_path, rel = resolve_under_media_root(raw)
+        except (OutsideMediaRoot, FileNotFoundError) as exc:
+            received.refusal = received.refusal or str(exc)
+            continue
+        if not readable_by(rel, user):
+            received.refusal = received.refusal or f"Fichier non accessible : {os.path.basename(rel)}"
+            continue
+        path, value = reference_or_copy(abs_path, app_name, user.id, subfolder)
+        received.append(ReceivedInput(os.path.basename(rel), value,
+                                      local_path=str(path), designation=rel))
+    return received
 
 
 class UploadToUserPath:
