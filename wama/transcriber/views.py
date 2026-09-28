@@ -323,9 +323,15 @@ class IndexView(View):
 @require_POST
 @app_access('transcriber')
 def upload(request):
-    file = request.FILES.get('file')
-    if not file:
-        return HttpResponseBadRequest('Missing file')
+    # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique commune `received_inputs`
+    # (2026-09-28) : une désignation arrive par cette même vue, avec le même état du volet, et
+    # se POINTE au lieu d'être recopiée.
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    from wama.common.utils.media_paths import received_inputs
+    received = received_inputs(request, user, 'transcriber')
+    if not received:
+        return JsonResponse({'error': received.refusal or 'Aucun fichier reçu'}, status=400)
+    file = received[0]
     from wama.common.app_registry import accepts_file
     if not accepts_file('transcriber', file.name):
         return JsonResponse({'error': f'Format non pris en charge : {os.path.splitext(file.name)[1] or file.name}'},
@@ -334,7 +340,6 @@ def upload(request):
     # L'état COMPLET du volet voyage avec le dépôt — lu PAR LE SCHÉMA (`schema_model_kwargs`,
     # comme le converter) et gardé comme préférence (comme l'imager) : un réglage ajouté à
     # `params.py` est pris ici sans toucher la vue.
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     settings_values = _deposit_settings(user, request.POST)
 
     from ..common.utils.video_utils import is_video_file, extract_audio_from_video
@@ -373,6 +378,8 @@ def upload(request):
                 audio=audio_django_file,
                 **transcript_fields
             )
+            # L'audio EXTRAIT est un fichier neuf ; sa source reste la vidéo désignée.
+            file.record(t, 'audio')
 
             # Nettoyer les fichiers temporaires
             try:
@@ -386,11 +393,12 @@ def upload(request):
                 'error': f'Erreur lors de l\'extraction audio de la vidéo: {str(e)}'
             }, status=500)
     else:
-        # Fichier audio normal
+        # Fichier audio normal — téléversé, ou DÉSIGNÉ (le chemin : pointage).
         t = Transcript.objects.create(
-            audio=file,
+            audio=file.value,
             **transcript_fields
         )
+        file.record(t, 'audio')
 
     _describe_audio(t)
     # L'élément reste DRAFT (brouillon) ; il est enveloppé en batch par `_auto_wrap_orphans`
