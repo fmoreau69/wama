@@ -67,6 +67,9 @@ def _serialize_user_asset(a, user=None):
         'is_mine':     bool(user is not None and a.user_id == getattr(user, 'id', None)),
         'owner':       a.user.username if a.user_id else '',
         'file_url':    a.file.url if a.file else '',
+        # Le chemin (relatif à MEDIA_ROOT) : ce qu'une card DÉSIGNE pour pointer l'asset au lieu
+        # de le re-téléverser (`media_paths.designation_field`, 2026-09-28).
+        'path':        a.file.name if a.file else '',
         'file_size':   a.file_size_display,
         'duration':    a.duration_display,
         'mime_type':   a.mime_type,
@@ -83,6 +86,7 @@ def _serialize_system_asset(a):
         'name':        a.name,
         'asset_type':  a.asset_type,
         'file_url':    a.file.url if a.file else '',
+        'path':        a.file.name if a.file else '',   # cf. _serialize_user_asset
         'file_size':   a.file_size_display,
         'duration':    a.duration_display,
         'mime_type':   a.mime_type,

@@ -1809,7 +1809,21 @@
                     const attache = carteCommune && carteCommune.dataset.wamaDepot === 'attache';
                     const cible = attache && (currentDropZone.querySelector('input[type="file"]')
                                               || carteCommune.querySelector('input[type="file"]'));
-                    if (attache && cible && window.WamaApp && WamaApp.filesFromServerPaths) {
+                    // 0. DÉSIGNATION d'abord (2026-09-28, `media_paths.received_inputs`) : une
+                    //    card dont la voie d'import est connue reçoit les fichiers de l'arbre par
+                    //    leur CHEMIN — pointés, jamais recopiés, et par sa vue d'upload, donc AVEC
+                    //    l'état du volet (l'import serveur ci-dessous le perdait). La voie connaît
+                    //    elle-même le mode crée / attache. ⚠ Un dossier CONNECTÉ (`mounts/…`) se
+                    //    copie toujours : un traitement ne lit pas un disque réseau.
+                    const voie = window.WamaImport && WamaImport.forElement
+                        && (WamaImport.forElement(currentDropZone.id)
+                            || (cible && WamaImport.forElement(cible.id)));
+                    const locaux = dragFiles.every(function (f) { return !/^mounts\//.test(f.path || ''); });
+                    if (voie && voie.handleDesignations && locaux) {
+                        voie.handleDesignations(dragFiles.map(function (f) {
+                            return { path: f.path, name: f.name, type: f.mime };
+                        }));
+                    } else if (attache && cible && window.WamaApp && WamaApp.filesFromServerPaths) {
                         WamaApp.filesFromServerPaths(dragFiles).then(function (files) {
                             if (!files.length) return;   // déjà signalé par la brique
                             if (WamaApp.injectFiles(cible, files)) {

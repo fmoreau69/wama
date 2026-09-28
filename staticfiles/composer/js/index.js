@@ -232,15 +232,14 @@
 
             // Référence fournie → jointe. Plus de test hardcodé par modèle : l'appariement
             // WamaInputMatch garantit qu'un modèle incompatible n'est pas sélectionnable.
-            if (melodyInput?.files[0]) {
-                formData.append('melody_reference', melodyInput.files[0]);
-            }
+            // Fichier joint OU désigné (médiathèque, arbre — pointé, jamais re-téléversé).
+            const hasMelody = WamaApp.appendInput(formData, melodyInput, 'melody_reference');
 
             // Mélodie par URL (slot url de la card, champ SANS bouton d'import) : partie du
             // payload — téléchargée AU LANCEMENT par ensure_local_input (WAMA_INGEST).
             // Un fichier local joint prime sur l'URL.
             const melodyUrl = document.getElementById('melodyUrlInput');
-            if (melodyUrl?.value.trim() && !melodyInput?.files[0]) {
+            if (melodyUrl?.value.trim() && !hasMelody) {
                 formData.append('source_url', melodyUrl.value.trim());
             }
 

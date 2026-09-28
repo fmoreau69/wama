@@ -1132,6 +1132,13 @@ témoins à travers la brique. Découverte verrouillée en test : `trip`/`wdat` 
 CONTENU (table témoin SQLite), un chemin sans fichier décline à la porte ; et le lecteur
 `tabular` fait qu'un `.txt`/`.csv` remonte AUSSI comme donnée d'expérimentation candidate.
 Restent : étape 4 (portes lourdes) + les 3 rouges de la chaîne (§Vérification).
+✅ **2026-09-28 — un fichier du sas est POINTÉ par les tâches qu'on lance dessus** (demande de
+Fabien : *« ajoute l'assistant à l'étape 1 […] autant rendre les choses uniformes »*) :
+`tool_api.add_to_*` passe par `media_paths.designate`, la brique des vues d'upload, au lieu de
+recopier ; formats lus au catalogue. Et une garde de PROPRIÉTÉ qui manquait aux outils fichier
+(`_resolve_user_path` → `readable_by`) : l'assistant pouvait recopier ou lire le fichier d'un
+autre utilisateur. Détail : `ROADMAP §24.4 ① bis`. ⏳ Suite décidée le même jour : le dépôt SUR la
+fenêtre de l'assistant (card d'entrée v4 en mode « sas », accordéon replié) — `CARD_DESIGN §11.11`.
 
 **Plan (5 étapes) — AMENDÉ par l'instance portage puis CONFRONTÉ AU RÉEL le 29/08**
 (replay indépendant : 5 fichiers-témoins × 3 voies sur les 11 apps du catalogue — les deux

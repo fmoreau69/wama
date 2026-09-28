@@ -550,6 +550,90 @@
     return true;
   }
 
+  // ── DÉSIGNATIONS : un fichier déjà dans WAMA, POINTÉ au lieu d'être re-téléversé ──────
+  // (2026-09-28, `media_paths.received_inputs`). Un `<input type=file>` ne peut pas porter un
+  // chemin : la désignation vit sur l'input (`data-designated-path`), et le formulaire de
+  // création la poste sous `<champ>__designated` par `appendInput`. Un fichier choisi ensuite
+  // dans l'input la remplace (le `change` natif efface la désignation, cf. plus bas).
+  const DESIGNATION_SUFFIX = '__designated';
+
+  /** Pose une désignation (`{designation, name}`) dans un input de port, puis son `change`. */
+  function designateInto(input, item) {
+    if (!input || !item || !item.designation) return false;
+    try { input.value = ''; } catch (e) { /* input en lecture seule : sans effet */ }
+    input.dataset.designatedPath = item.designation;
+    input.dataset.designatedName = item.name || item.designation.split('/').pop();
+    input.dispatchEvent(new CustomEvent('change', { bubbles: true, detail: { designated: true } }));
+    return true;
+  }
+
+  /** La désignation d'un input, ou null. */
+  function designationOf(input) {
+    return (input && input.dataset && input.dataset.designatedPath)
+      ? { path: input.dataset.designatedPath, name: input.dataset.designatedName || '' } : null;
+  }
+
+  function clearDesignation(input) {
+    if (!input || !input.dataset) return;
+    delete input.dataset.designatedPath;
+    delete input.dataset.designatedName;
+  }
+
+  /** Ajoute au FormData un fichier OU un pseudo-fichier désigné (`{designation}`, celui que
+   *  `WamaImport` remet à `afterAttach`), sous `field`. Pour une app qui GARDE l'objet reçu
+   *  plutôt que de relire l'input (avatarizer). Rend true si quelque chose a été posé. */
+  function appendFile(fd, field, f) {
+    if (!f) return false;
+    if (typeof f.designation === 'string' && f.designation) {
+      fd.append(field + DESIGNATION_SUFFIX, f.designation);
+    } else {
+      fd.append(field, f);
+    }
+    return true;
+  }
+
+  /** Ajoute au FormData le fichier de l'input OU sa désignation, sous `field`. Rend true si
+   *  quelque chose a été posé. Le geste des formulaires de création des apps « attache ». */
+  function appendInput(fd, input, field) {
+    const d = designationOf(input);
+    if (d) return appendFile(fd, field, { designation: d.path });
+    return appendFile(fd, field, input && input.files && input.files[0]);
+  }
+
+  // Un fichier CHOISI dans l'input (sélecteur, dépôt) remplace une désignation antérieure : un
+  // `change` natif (sans `detail.designated`) l'efface. Phase de capture : avant les écouteurs
+  // de l'app, qui lisent donc l'état juste.
+  document.addEventListener('change', function (e) {
+    const t = e.target;
+    if (t && t.type === 'file' && !(e.detail && e.detail.designated) && t.files && t.files.length) {
+      clearDesignation(t);
+    }
+  }, true);
+
+  /** La tuile MÉDIATHÈQUE d'une card : l'asset choisi est DÉSIGNÉ par la voie d'import de la
+   *  card (`WamaImport`, qui connaît son mode crée/attache) — aucun téléchargement. Repli, pour
+   *  une page sans cette voie : l'ancien geste (fichier matérialisé puis injecté). */
+  function pickFromLibrary(opts) {
+    opts = opts || {};
+    if (typeof global.MediaPicker === 'undefined') {
+      toast('Médiathèque indisponible sur cette page (media-picker.js non chargé).', 'error');
+      return;
+    }
+    const input = document.getElementById(opts.fileInputId);
+    global.MediaPicker.open({
+      type: opts.type || 'all',
+      onPick: function (asset) {
+        const imp = global.WamaImport && global.WamaImport.forElement
+          && global.WamaImport.forElement(opts.fileInputId);
+        const item = { path: asset.path, name: (asset.path || '').split('/').pop(),
+                       type: asset.mime_type || '' };
+        if (imp && imp.handleDesignations && asset.path) { imp.handleDesignations([item]); return; }
+        filesFromServerPaths([{ path: asset.path, name: item.name, mime: item.type }])
+          .then(function (files) { if (files.length) injectFiles(input, files); });
+      },
+    });
+  }
+
   /** Card rendue par le SERVEUR (vue `card_html` de l'app), prête à insérer — ou null.
    *
    *  Source unique du markup (CARD_DESIGN §3) : le JS ne reconstruit jamais une card, il la
@@ -583,6 +667,12 @@
     toast: toast,
     filesFromServerPaths: filesFromServerPaths,
     injectFiles: injectFiles,
+    designateInto: designateInto,
+    designationOf: designationOf,
+    clearDesignation: clearDesignation,
+    appendFile: appendFile,
+    appendInput: appendInput,
+    pickFromLibrary: pickFromLibrary,
     fetchCard: fetchCard,
     initUrlImport: initUrlImport,
     pauseDomMedia: pauseDomMedia,

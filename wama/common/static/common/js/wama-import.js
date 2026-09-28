@@ -51,6 +51,26 @@
 (function (global) {
   'use strict';
 
+  /**
+   * DÉSIGNATION (2026-09-28, `media_paths.received_inputs`) : un fichier que la card reçoit SANS
+   * qu'on le lui téléverse — choisi dans la médiathèque, glissé depuis l'arbre. Il suit le MÊME
+   * chemin qu'un fichier (même vue d'upload, mêmes `extraFields` du volet, même lecture des ids,
+   * même regroupement en lot) ; seule la requête change : `<champ>__designated` porte son chemin
+   * au lieu du fichier. Le serveur le POINTE. Le suffixe est celui de `designation_field` (Python).
+   */
+  var DESIGNATION_SUFFIX = '__designated';
+  function designated(f) { return !!f && typeof f.designation === 'string' && f.designation !== ''; }
+  /** `{path, name?, type?}` → pseudo-fichier désigné (nom par défaut : fin du chemin). */
+  function toDesignation(item) {
+    var path = String(item.path || '');
+    return { name: item.name || path.split('/').pop() || 'fichier', type: item.type || item.mime || '',
+             size: 0, designation: path };
+  }
+
+  /** Instances par id de zone de dépôt ET d'input fichier : la tuile Médiathèque et le glisser
+   *  depuis l'arbre retrouvent la voie d'import de LEUR card sans connaître l'app. */
+  var REGISTRY = {};
+
   function WamaImport(cfg) {
     cfg = cfg || {};
 
@@ -201,7 +221,10 @@
     async function envoyer(fichiers, index, total) {
       var fd = new FormData();
       var champ = cfg.fieldName || (cfg.multiple ? 'files' : 'file');
-      fichiers.forEach(function (f) { fd.append(champ, f); });
+      fichiers.forEach(function (f) {
+        if (designated(f)) fd.append(champ + DESIGNATION_SUFFIX, f.designation);
+        else fd.append(champ, f);
+      });
       if (typeof cfg.extraFields === 'function') cfg.extraFields(fd, fichiers[0], fichiers);
       var afficher = (typeof cfg.onProgress === 'function') ? cfg.onProgress : progressionCommune;
       try {
@@ -238,15 +261,17 @@
       //   'single' (défaut) — seulement quand un fichier est déposé SEUL (le gabarit généré) ;
       //   'each'            — chaque fichier est testé, les lots reconnus sortent de l'envoi
       //                       (enhancer, synthesizer font ainsi aujourd'hui).
+      // ⚠ Une DÉSIGNATION n'est jamais testée comme lot : la détection lit le CONTENU, qu'un
+      // pseudo-fichier n'a pas (le serveur, lui, a le fichier).
       if (cfg.batch && cfg.batch.detectAndHandle) {
         if ((cfg.batchScope || 'single') === 'each') {
           var restants = [];
           for (var b = 0; b < files.length; b++) {
-            if (!(await cfg.batch.detectAndHandle(files[b]))) restants.push(files[b]);
+            if (designated(files[b]) || !(await cfg.batch.detectAndHandle(files[b]))) restants.push(files[b]);
           }
           files = restants;
           if (!files.length) return;
-        } else if (files.length === 1) {
+        } else if (files.length === 1 && !designated(files[0])) {
           if (await cfg.batch.detectAndHandle(files[0])) return;
         }
       }
@@ -282,10 +307,15 @@
             if (inp && accepte(inp, f)) { cible = inp; break; }
           }
           if (!cible) { restes.push(f); return; }
+          // Une DÉSIGNATION rejoint le port par son chemin (`WamaApp.designateInto`) — y compris
+          // quand l'input de la zone EST le port : elle n'y est pas encore, contrairement à un
+          // fichier. Le formulaire de création la poste par `WamaApp.appendInput`.
           // L'input de la zone peut ÊTRE le port (avatarizer : `audio_input` est à la fois
           // le sélecteur de la dropzone et le slot audio) : le fichier y est déjà, on ne le
           // ré-injecte pas (un `change` de plus rebouclerait ici). Sinon : injection.
-          if (cible !== el(cfg.fileInputId) && global.WamaApp && WamaApp.injectFiles) {
+          if (designated(f)) {
+            if (global.WamaApp && WamaApp.designateInto) WamaApp.designateInto(cible, f);
+          } else if (cible !== el(cfg.fileInputId) && global.WamaApp && WamaApp.injectFiles) {
             WamaApp.injectFiles(cible, [f]);
           }
           // `afterAttach(input, file)` : l'app pose son ÉTAT (imager rafraîchit l'appariement,
@@ -446,8 +476,21 @@
       brancher();
     }
 
-    return { handleFiles: handleFiles, ingestText: ingestText, brancher: brancher };
+    /** Fichiers DÉSIGNÉS (`[{path, name?, type?}]`) : le même chemin qu'un dépôt, sans octets. */
+    function handleDesignations(items) {
+      return handleFiles((items || []).filter(function (i) { return i && i.path; }).map(toDesignation));
+    }
+
+    var api = { handleFiles: handleFiles, handleDesignations: handleDesignations,
+                ingestText: ingestText, brancher: brancher };
+    if (cfg.fileInputId) REGISTRY[cfg.fileInputId] = api;
+    if (cfg.dropZoneId) REGISTRY[cfg.dropZoneId] = api;
+    return api;
   }
+
+  /** La voie d'import d'une card, par l'id de sa zone de dépôt ou de son input fichier. */
+  WamaImport.forElement = function (id) { return (id && REGISTRY[id]) || null; };
+  WamaImport.DESIGNATION_SUFFIX = DESIGNATION_SUFFIX;
 
   // ⚠ Les helpers « chemin serveur → File → input » (drag depuis l'explorateur, montages)
   // vivent dans wama-app-base.js (`WamaApp.filesFromServerPaths` / `injectFiles`) : ce
