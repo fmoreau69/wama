@@ -10,8 +10,8 @@ catalogue (`/model-manager/functions/`, Studio) s'y auto-déclarent en fin de mo
 
 Repère caméra : X-droite, Y-BAS, Z-avant (mètres). La normale-sol unitaire est orientée
 vers le HAUT, donc `ny < 0`. Le signe du pitch (piqué caméra, >0 = vers le bas) suit
-`atan2(nz, -ny)` — convention à confirmer au 1er run GPU (la métrique `placement_spread`
-en console le révèle : un signe faux fait exploser l'étalement monde).
+`atan2(-nz, -ny)` — corrigé et gardé le 2026-09-28 (voir `plane_pitch_height`).
+Les pixels ne sont pas forcément carrés : `focal_y_px` porte la focale verticale.
 
 Aucune dépendance app : un module de `common/` qui importerait cam_analyzer serait une
 inversion de dépendance (cf. skill cam-analyzer §3).
@@ -29,11 +29,15 @@ from wama.common.catalog.function_catalog import (FunctionSpec, PortSpec, ParamS
 
 # ── Primitives PURES (numpy) ──────────────────────────────────────────────────
 
-def deproject_depth(depth_m, focal_px, mask=None, *, cx=None, cy=None,
+def deproject_depth(depth_m, focal_px, mask=None, *, cx=None, cy=None, focal_y_px=None,
                     z_min=1.5, z_max=60.0, max_points=4000):
     """Nuage de points 3D (N,3) en repère caméra depuis une carte de profondeur métrique.
 
-    `depth_m` : raster HxW en mètres. `focal_px` : focale en pixels (repli ~0.8·W en amont).
+    `depth_m` : raster HxW en mètres. `focal_px` : focale HORIZONTALE en pixels (repli ~0.8·W
+    en amont). `focal_y_px` : focale VERTICALE, si elle diffère — None = pixels carrés, la même
+    que `focal_px`. ⚠ Elle diffère sur le rig ENA (2026-09-28) : 110° H / 61° V sur ~384×248
+    donnent fx ≈ 134 px et fy ≈ 210 px ; déprojeter avec fx seul exagère la hauteur des points
+    d'un facteur ~1,6 et fausse le pitch du plan de sol qu'on en tire.
     `mask` : booléen HxW restreignant les pixels retenus (ex. zone roulable) ; None = tout.
     Filtre la plage utile [z_min, z_max] et sous-échantillonne à `max_points` pour le budget.
     Retourne un tableau float32 (N,3) [x, y, z], éventuellement vide (0,3)."""
@@ -44,7 +48,8 @@ def deproject_depth(depth_m, focal_px, mask=None, *, cx=None, cy=None,
     if cy is None:
         cy = h / 2.0
     f = float(focal_px) if focal_px else (0.8 * w)
-    if f <= 1e-6:
+    fy = float(focal_y_px) if focal_y_px else f
+    if f <= 1e-6 or fy <= 1e-6:
         return np.empty((0, 3), dtype=np.float32)
 
     if mask is not None:
@@ -63,7 +68,7 @@ def deproject_depth(depth_m, focal_px, mask=None, *, cx=None, cy=None,
         return np.empty((0, 3), dtype=np.float32)
     us, vs, z = us[valid], vs[valid], z[valid]
     x = (us - cx) * z / f
-    y = (vs - cy) * z / f
+    y = (vs - cy) * z / fy
     return np.stack([x, y, z], axis=1).astype(np.float32)
 
 
@@ -112,24 +117,32 @@ def fit_plane_ransac(points, *, iters=250, thresh=0.10, min_inliers=100, seed=20
 
 def plane_pitch_height(normal, offset):
     """(pitch_deg, height_m) depuis un plan-sol (normale vers le haut, `n·p + offset = 0`).
-    Pitch (piqué caméra, >0 = vers le bas) = atan2(nz, -ny) ; hauteur caméra = |offset|."""
+    Pitch (piqué caméra, >0 = vers le bas, la convention de `GroundProjector` et de la calib 2a)
+    = atan2(−nz, −ny) ; hauteur caméra = |offset|.
+
+    ⚠ Corrigé le 2026-09-28 : la formule était atan2(+nz, −ny), qui rend une caméra penchée VERS
+    LE BAS avec un pitch NÉGATIF. Une caméra penchée de θ vers le bas voit le haut du monde selon
+    (0, −cos θ, −sin θ) : nz < 0. La « validation » du 2026-08-05 générait sa route synthétique
+    avec la même convention qu'elle vérifiait — circulaire. La garde vit désormais dans
+    `tests_depth_geometry`, sur une route construite par ROTATION de la caméra."""
     n = np.asarray(normal, dtype=np.float64)
-    pitch_deg = math.degrees(math.atan2(float(n[2]), -float(n[1])))
+    pitch_deg = math.degrees(math.atan2(-float(n[2]), -float(n[1])))
     height_m = abs(float(offset))
     return pitch_deg, height_m
 
 
 def ground_plane_from_depth(depth_m, drivable_mask, focal_px, *, cx=None, cy=None,
-                            z_min=1.5, z_max=60.0, max_points=4000,
+                            focal_y_px=None, z_min=1.5, z_max=60.0, max_points=4000,
                             ransac_thresh=0.10, min_inliers=100):
     """Cœur PUR usage 4 : (pitch_deg, height_m) du plan de sol depuis UNE carte de profondeur
     restreinte à la zone roulable. Compose déprojection → RANSAC → pitch/hauteur.
+    `focal_y_px` : focale verticale si les pixels ne sont pas carrés (cf. `deproject_depth`).
 
     Retourne un dict {pitch_deg, height_m, n_inliers, n_points, rms_m} ou None (nuage/plan
     insuffisant). N'APPLIQUE AUCUN garde-fou physique (plage rig) : l'appelant décide de
     retenir ou de replier — la géométrie pure reste agnostique du véhicule."""
     pts = deproject_depth(depth_m, focal_px, mask=drivable_mask, cx=cx, cy=cy,
-                          z_min=z_min, z_max=z_max, max_points=max_points)
+                          focal_y_px=focal_y_px, z_min=z_min, z_max=z_max, max_points=max_points)
     if len(pts) < min_inliers:
         return None
     fit = fit_plane_ransac(pts, thresh=ransac_thresh, min_inliers=min_inliers)

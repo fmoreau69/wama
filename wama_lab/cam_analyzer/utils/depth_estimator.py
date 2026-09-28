@@ -25,8 +25,9 @@ Piste documentée dans `CAM_ANALYZER_CHAINE_TRAITEMENT.md` §[E]. Chaîne en 3 �
 
 ⚠ GPU interdit sous WSL2 sur ce poste (crashs hôte) : SEUL l'étage 1 infère, côté runtime/R760xa.
    Les étages 2 (lecture db, numpy) sont sûrs en CPU/WSL2. Le 1er run réel valide (a) l'API
-   `transformers` de Depth Pro et (b) le gain `placement_spread` ; la convention de signe du pitch
-   `atan2(nz, -ny)` est déjà VALIDÉE (test CPU pur, plan synthétique).
+   `transformers` de Depth Pro et (b) le gain `placement_spread`. ⚠ La convention de signe du
+   pitch annoncée « VALIDÉE » ici le 2026-08-05 était INVERSÉE (validation circulaire) : corrigée
+   et gardée le 2026-09-28 (`depth_geometry.plane_pitch_height`, `tests_depth_geometry`).
 
 Modèle : `apple/DepthPro-hf` déposé par `pull_model` dans `models/vision/depth-pro/`. Retenu vs DA3
 car intégration `AutoModelForDepthEstimation` sans package custom, et focale estimée qui sert
@@ -244,7 +245,8 @@ def estimate_ground_plane_ph(session, position):
     pure), cumule le nuage, ajuste le plan (RANSAC + SVD, brique pure), en tire pitch/hauteur.
 
     Convention : repère caméra X-droite, Y-bas, Z-avant. Normale-sol orientée haut (ny<0). Pitch
-    (piqué caméra, >0 = vers le bas) = atan2(nz, -ny) ; hauteur = |offset|. Signe VALIDÉ (test CPU pur).
+    (piqué caméra, >0 = vers le bas) = atan2(−nz, −ny) ; hauteur = |offset|. Signe corrigé et
+    gardé le 2026-09-28 (il était inversé) ; déprojection avec fx ET fy du rig.
     """
     cam = session.cameras.filter(position=position).first()
     if cam is None:
@@ -257,6 +259,13 @@ def estimate_ground_plane_ph(session, position):
                      .filter(frame_number__in=[d.frame_number for d in dframes])
                      .values_list('frame_number', 'detections'))
     ow, oh = (cam.width or 0), (cam.height or 0)
+    # Focales RÉELLES du rig (source unique `camera_geometry`), horizontale ET verticale : elles
+    # diffèrent (110° H / 61° V avant-arrière → fx ≈ 134, fy ≈ 210 px). Jusqu'au 2026-09-28 la
+    # déprojection prenait la focale unique ESTIMÉE par le modèle (`df.focal_px`) pour les deux
+    # axes — mesuré ce jour-là : Depth Pro l'estime ~2× trop grande sur ce rig grand-angle.
+    # Repli sur la focale stockée si la géométrie de la caméra est inconnue.
+    from .prediction_adapter import camera_geometry
+    geo = camera_geometry(session).get(position) or {}
     all_pts = []
     frames_used = 0
     for df in dframes:
@@ -264,14 +273,19 @@ def estimate_ground_plane_ph(session, position):
         if depth is None:
             continue
         h, w = depth.shape[:2]
-        focal_px = df.focal_px or (0.8 * w)   # focale DÉJÀ à l'échelle de la carte stockée
+        if geo.get('fov_h') and geo.get('fov_v'):
+            focal_px = w / (2.0 * math.tan(math.radians(geo['fov_h']) / 2.0))
+            focal_y_px = h / (2.0 * math.tan(math.radians(geo['fov_v']) / 2.0))
+        else:
+            focal_px = df.focal_px or (0.8 * w)   # focale DÉJÀ à l'échelle de la carte stockée
+            focal_y_px = None
         # Masque roulable à l'échelle de la carte : polygones en px d'origine → (sx, sy).
         if ow and oh:
             drivable = _rasterize_drivable(det_by_fn.get(df.frame_number), h, w,
                                            sx=w / float(ow), sy=h / float(oh))
         else:
             drivable = _rasterize_drivable([], h, w)   # dims caméra inconnues → proxy bas d'image
-        pts = deproject_depth(depth, focal_px, mask=drivable,
+        pts = deproject_depth(depth, focal_px, mask=drivable, focal_y_px=focal_y_px,
                               z_min=1.5, z_max=60.0, max_points=4000)
         if len(pts) < 50:
             continue
