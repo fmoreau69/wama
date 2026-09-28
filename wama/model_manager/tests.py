@@ -449,6 +449,108 @@ class DesinstallationTest(TestCase):
         res = uninstall_model('proposed:hf:X/Y')
         self.assertFalse(res['ok'])
 
+    # ── 2026-09-28 : modèles d'APP (sans chemin au catalogue) et poids PARTAGÉS ──────────────
+
+    def _uninstall(self, root, key, **kwargs):
+        from django.test import override_settings
+
+        from .services.model_installer import uninstall_model
+        with override_settings(AI_MODELS_DIR=root):
+            return uninstall_model(key, **kwargs)
+
+    def _app_row(self, key, hf_id, **extra):
+        return AIModel.objects.create(model_key=key, name=key.split(':', 1)[1],
+                                      model_type='diffusion', source='imager', hf_id=hf_id,
+                                      is_downloaded=True, local_path='', **extra)
+
+    def test_an_app_model_without_a_path_is_found_by_its_hf_id_and_uninstalled(self):
+        """The imager case: `local_path` empty, the snapshot is found by `hf_id` — as
+        `persist_weights` finds it. Before 2026-09-28 this was refused outright."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = _faux_snapshot(root, 'diffusion', 'fam', 'Org', 'App')
+            row = self._app_row('imager:app', 'Org/App')
+            res = self._uninstall(root, 'imager:app')
+            self.assertTrue(res['ok'], res)
+            self.assertFalse(repo.exists())
+        row.refresh_from_db()
+        self.assertFalse(row.is_downloaded)
+
+    def test_shared_weights_are_refused_until_confirmed_then_every_sharing_row_is_marked(self):
+        """Two catalogue rows on ONE set of weights (LTX full / fp8): removing one removes the
+        other — the server must name it and wait for an explicit confirmation."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = _faux_snapshot(root, 'diffusion', 'ltx', 'Org', 'Video')
+            full = self._app_row('imager:video', 'Org/Video')
+            quantized = self._app_row('imager:video-fp8', 'Org/Video')
+            res = self._uninstall(root, 'imager:video')
+            self.assertFalse(res['ok'])
+            self.assertTrue(res.get('needs_confirmation'))
+            self.assertEqual(['video-fp8'], res['sharing'])
+            self.assertTrue(repo.exists(), "nothing may be removed before the confirmation")
+            res = self._uninstall(root, 'imager:video', include_shared=True)
+            self.assertTrue(res['ok'], res)
+            self.assertFalse(repo.exists())
+            self.assertEqual(['video-fp8'], res['also_marked'])
+        for row in (full, quantized):
+            row.refresh_from_db()
+            self.assertFalse(row.is_downloaded, row.model_key)
+
+    def test_a_row_using_the_model_as_backbone_is_named_and_stays_installed(self):
+        """The logo LoRA loads FLUX.1-dev as its base: removing FLUX must say so. The LoRA's own
+        weights stay, so its row stays installed."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _faux_snapshot(root, 'diffusion', 'flux', 'Org', 'Base')
+            _faux_snapshot(root, 'diffusion', 'flux', 'Org', 'Lora')
+            self._app_row('imager:base', 'Org/Base', extra_info={'base_model': 'Org/Base'})
+            lora = self._app_row('imager:lora', 'Org/Lora', extra_info={'base_model': 'Org/Base'})
+            res = self._uninstall(root, 'imager:base')
+            self.assertTrue(res.get('needs_confirmation'), res)
+            self.assertEqual(['lora'], res['dependents'])
+            res = self._uninstall(root, 'imager:base', include_shared=True)
+            self.assertTrue(res['ok'], res)
+            self.assertEqual(['lora'], res['affected'])
+        lora.refresh_from_db()
+        self.assertTrue(lora.is_downloaded, "the LoRA's own weights were not touched")
+
+    def test_a_declared_folder_below_a_family_is_uninstalled(self):
+        """Non-HuggingFace layout (bark: `speech/bark/suno/bark_v0`): the declared folder."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            weights = root / 'models' / 'speech' / 'bark' / 'suno' / 'bark_v0'
+            weights.mkdir(parents=True)
+            (weights / 'text_2.pt').write_bytes(b'0' * 1024)
+            AIModel.objects.create(model_key='synthesizer:bark', name='Bark', model_type='speech',
+                                   source='synthesizer', hf_id='suno/bark', is_downloaded=True,
+                                   local_path=str(weights))
+            res = self._uninstall(root, 'synthesizer:bark')
+            self.assertTrue(res['ok'], res)
+            self.assertEqual('weights_dir', res['kind'])
+            self.assertFalse(weights.exists())
+            self.assertTrue(weights.parent.exists(), "only the declared folder goes")
+
+    def test_a_family_root_is_never_removed(self):
+        """`speech/qwen_asr` is declared by BOTH Qwen3-ASR sizes: a family root holds other
+        models and must never be the target of a rm, whatever the catalogue says."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            family = root / 'models' / 'speech' / 'qwen_asr'
+            family.mkdir(parents=True)
+            (family / 'config.json').write_text('{}')
+            AIModel.objects.create(model_key='transcriber:asr', name='ASR', model_type='speech',
+                                   source='transcriber', hf_id='Org/Absent', is_downloaded=True,
+                                   local_path=str(family))
+            res = self._uninstall(root, 'transcriber:asr')
+            self.assertFalse(res['ok'])
+            self.assertTrue(family.exists())
+
 
 class CompositionTest(TestCase):
     """Un modèle MULTI-COMPOSANTS déclare son anatomie UNE fois (manifeste `model`,

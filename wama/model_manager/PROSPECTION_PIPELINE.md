@@ -648,6 +648,27 @@ supprimée — elle porte l'historique (stats runtime, ETA, identité/licence). 
 modèle chargé → refus (décharger d'abord) ; candidat → refus (ça se rejette) ; chemin hors
 de `models_root()` → refus (le rm -rf est BORNÉ, quoi que dise la base).
 
+**2bis. Modèles d'APP et poids PARTAGÉS (2026-09-28, demande de Fabien : « désinstaller depuis
+le model_manager, comme on y installe »).** Jusque-là seuls Ollama et les lignes dont
+`local_path` nommait un `models--*` passaient : **tout modèle d'app était refusé** — l'imager
+laisse `local_path` vide (il retrouve son snapshot dans sa propre découverte), bark pointe un
+dossier de `.pt`, VibeVoice sa racine de famille. Mesuré sur les candidats au retrait du jour :
+2 acceptés sur 6. Le dossier se résout désormais par `weights_dir_of`, **même lien que
+`persist_weights`** (aucune règle de plus) : `local_path` s'il nomme un `models--*`, sinon
+`model_locations.installed_snapshots()[hf_id]`, en dernier recours le dossier déclaré s'il est
+au moins un cran SOUS une famille — **jamais une racine de catégorie ou de famille** (`speech/qwen_asr`
+est déclaré par les deux tailles de Qwen3-ASR), jamais un poids-fichier (`.pt` YOLO : son app).
+Le cache HF PARTAGÉ reste hors d'atteinte : il est hors de `models_root()`.
+Garde NOUVELLE, `rows_depending_on` : deux lignes sur UN jeu de poids (LTX / LTX-fp8, même
+dépôt) ou une ligne qui charge ce modèle comme dorsale (`extra_info['base_model']` : LoRA logo
+→ FLUX.1-dev) → **refus qui les nomme** (`needs_confirmation`, HTTP 409), repris avec
+`include_shared` après une seconde confirmation dans l'UI ; les lignes qui partagent les
+fichiers sont marquées ensemble, les dépendantes restent installées et sont citées.
+Vérifié sur le catalogue réel en simulation (LTX-fp8 → partage avec LTX ; FLUX.1-dev → LoRA
+logo dépendante), 5 tests + contre-épreuve (3 mutations → 3 rouges). Premier usage : qwen-image-2
+(53,7 Go), hunyuan-image-2.1 (49,5), bark (12,2), qwen3.6:35b (23) — poids conservés dans le
+backup distant, backends conservés ; D: de 16 à 154 Go libres ; `verify_models` sans nouvel écart.
+
 **3. Choix de variante AVANT installation** (`options_installation`/`spec_pour_choix` +
 `api_prospect_install_options` + dialogue radio à la place du `confirm()`) — poids pleins
 ET variantes quantisées, chacune avec Go disque / note VRAM / téléchargements. Le vice de
