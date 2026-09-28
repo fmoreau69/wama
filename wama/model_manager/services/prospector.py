@@ -321,7 +321,9 @@ _NOISE_MARKERS = ('lora', 'gguf', 'comfyui', 'repackaged', 'fp8', 'bnb',
 #: vrais modèles ONNX (ce Kokoro, les 6 YOLO/ONNX de l'anonymizer, les upscalers de l'enhancer) :
 #: pour eux l'ONNX n'est pas la copie d'un autre moteur, c'est LE modèle.
 #: *Une extension absente d'une liste ne produit pas d'erreur — elle produit un zéro.*
-_WEIGHT_EXTS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth', '.onnx')
+#: ⚠ `.nemo` AJOUTÉ le 2026-09-28 : l'archive NeMo EST le modèle (canary-1b-v2, parakeet-tdt,
+#: 6,4 et 2,5 Go installés) — sans elle, le prédicat de complétude les aurait dits « sans poids ».
+_WEIGHT_EXTS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth', '.onnx', '.nemo')
 
 
 def _siblings(hf_id: str):
@@ -422,6 +424,39 @@ def local_inventory(snapshot_root):
         if current is None or depth < current[0]:
             seen[blob] = (depth, rel, size)
     return sorted((rel, size) for _, rel, size in seen.values())
+
+
+def installed_weights_complete(snapshot_root) -> bool:
+    """Un modèle installé porte-t-il des POIDS complets ? — LE jugement « téléchargé » (2026-09-28).
+
+    POURQUOI. Deux jugements coexistaient et aucun ne regardait les poids : la découverte des apps
+    (`model_registry._check_hf_model_downloaded`) se contentait d'un dossier muni de `snapshots/`
+    ou `blobs/`, le balayage générique ajoutait seulement « pas de blob `.incomplete` ». Cas
+    mesuré : Qwen3-ASR-1.7B, dont le chargement avorté du 25/09 (architecture inconnue de
+    transformers) avait laissé un `snapshots/` de CONFIG seule (4 Mo) — catalogué « ready », donc
+    ni signalé par `verify_models`, ni annoncé par `model_readiness` avant un premier lancement
+    qui aurait tiré 4,7 Go en silence.
+
+    Composé de ce qui existe, sans règle neuve : la règle `.incomplete` du balayage, l'inventaire
+    LOCAL (`local_inventory`, la même lecture que la pesée par composant) et la liste d'extensions
+    de poids de ce module (`_WEIGHT_EXTS`, que `model_anatomy` lit aussi). Accepte une racine
+    `models--org--nom` ou un dossier de poids direct (CTranslate2, `.pt` d'une famille).
+
+    ⚠ Ne dit PAS où sont les poids : c'est `model_locations.installed_snapshots`, qui retient
+    exprès un dossier incomplet — la désinstallation doit pouvoir le trouver pour le retirer.
+    ⚠ Une RECETTE sans poids propres (pipeline pyannote : un `config.yaml`, ses poids sont ses
+    composants) n'a rien à y faire : l'appelant la déclare comme telle.
+    """
+    from pathlib import Path
+
+    root = Path(snapshot_root) if snapshot_root else None
+    if root is None or not root.is_dir():
+        return False
+    blobs = root / 'blobs'
+    if blobs.is_dir() and any(blobs.glob('*.incomplete')):
+        return False
+    files = local_inventory(root)
+    return bool(files) and any(rel.lower().endswith(_WEIGHT_EXTS) for rel, _ in files)
 
 
 def safetensors_facts(path):

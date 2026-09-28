@@ -665,7 +665,24 @@ dépôt) ou une ligne qui charge ce modèle comme dorsale (`extra_info['base_mod
 `include_shared` après une seconde confirmation dans l'UI ; les lignes qui partagent les
 fichiers sont marquées ensemble, les dépendantes restent installées et sont citées.
 Vérifié sur le catalogue réel en simulation (LTX-fp8 → partage avec LTX ; FLUX.1-dev → LoRA
-logo dépendante), 5 tests + contre-épreuve (3 mutations → 3 rouges). Premier usage : qwen-image-2
+logo dépendante), 5 tests + contre-épreuve (3 mutations → 3 rouges).
+
+**2ter. « Téléchargé » = des POIDS complets, UN seul jugement (2026-09-28).** Deux jugements
+coexistaient et aucun ne regardait les poids : la découverte des apps
+(`_check_hf_model_downloaded`, 13 appels) se contentait d'un dossier muni de `snapshots/` ou
+`blobs/` ; le balayage générique ajoutait seulement « pas de blob `.incomplete` ». Cas mesuré :
+**Qwen3-ASR-1.7B affiché « ready » avec sa seule config** (4 Mo, laissée par le chargement avorté
+du 25/09) — donc invisible de `verify_models` et SANS l'annonce de `model_readiness` avant un
+premier lancement de 4,7 Go. Prédicat commun `prospector.installed_weights_complete`, composé de
+l'existant (règle `.incomplete`, `local_inventory`, `_WEIGHT_EXTS`) et appliqué par les DEUX
+jugements ; exemption DÉCLARÉE pour la recette pyannote (`weights_required=False`).
+`installed_snapshots` n'en tient pas compte : il dit OÙ, pas SI — la désinstallation doit trouver
+un dossier incomplet. `.nemo` rejoint `_WEIGHT_EXTS` (canary, parakeet : sans lui, jugés « sans
+poids » — l'erreur a d'abord été la MIENNE, au relevé). Mesuré sur le parc : un seul verdict
+change, Qwen3-ASR ; 3 tests + contre-épreuve (2 mutations → 3 rouges). ⚠ Au passage :
+`sync_models --source X` lance une synchro COMPLÈTE (journal `full`) — l'option ne filtre pas.
+
+Premier usage de la désinstallation étendue : qwen-image-2
 (53,7 Go), hunyuan-image-2.1 (49,5), bark (12,2), qwen3.6:35b (23) — poids conservés dans le
 backup distant, backends conservés ; D: de 16 à 154 Go libres ; `verify_models` sans nouvel écart.
 
