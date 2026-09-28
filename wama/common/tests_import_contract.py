@@ -232,14 +232,14 @@ class UploadViewsReceiveDesignationsTest(TestCase):
     def _designate(self, app, roles, champ, ext, contenu, extra):
         from django.conf import settings
         from wama.common.utils.file_references import direct_references
-        from wama.common.utils.media_paths import DESIGNATION_FIELD
+        from wama.common.utils.media_paths import designation_field
         user = self._user_for(app, roles)
         self.client.force_login(user)
         rel = f'users/{user.id}/temp/wama_temoin_designe_{app}{ext}'
         path = Path(settings.MEDIA_ROOT) / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(contenu())
-        rep = self.client.post(reverse(f'{app}:upload'), {DESIGNATION_FIELD: rel, **extra})
+        rep = self.client.post(reverse(f'{app}:upload'), {designation_field(champ): rel, **extra})
         ok = rep.status_code == 200 and not (rep.json() if rep.headers.get('Content-Type', '')
                                             .startswith('application/json') else {}).get('error')
         pointed = ok and bool(identifiants(rep.json())) and bool(direct_references(rel))
@@ -255,12 +255,12 @@ class UploadViewsReceiveDesignationsTest(TestCase):
         self.assertTrue(adopted, 'aucune app ne reçoit de désignation : le contrat serait à vide')
 
     def test_a_designation_the_user_cannot_read_is_refused(self):
-        from wama.common.utils.media_paths import DESIGNATION_FIELD
+        from wama.common.utils.media_paths import designation_field
         for app, roles, champ, ext, contenu, extra in PORTEES:
             with self.subTest(app=app):
                 self.client.force_login(self._user_for(app, roles))
                 rep = self.client.post(reverse(f'{app}:upload'),
-                                       {DESIGNATION_FIELD: '../../etc/passwd', **extra})
+                                       {designation_field(champ): '../../etc/passwd', **extra})
                 self.assertGreaterEqual(rep.status_code, 400, rep.content[:200])
 
 

@@ -157,7 +157,13 @@ def create(request):
     # une entrée AUDIO (fichier/URL — matériau explicite) prime, sinon le texte déclenche
     # le pipeline TTS→animation. Un `mode` encore posté n'est plus l'autorité.
     text_content = request.POST.get('text_content', '').strip()
-    audio_file = request.FILES.get('audio_input')
+    # Les deux PORTS (audio, image d'avatar) reçoivent un fichier téléversé ou DÉSIGNÉ
+    # (médiathèque, arbre) — brique `received_inputs` (2026-09-28) : une désignation se POINTE.
+    from wama.common.utils.media_paths import received_inputs
+    audio_received = received_inputs(request, user, 'avatarizer', field='audio_input')
+    audio_file = audio_received[0] if audio_received else None
+    if audio_received.refusal and not audio_file:
+        return JsonResponse({'error': audio_received.refusal}, status=400)
     source_url = request.POST.get('source_url', '').strip()
     mode = 'standalone' if (audio_file or source_url) else 'pipeline'
     job = AvatarJob(user=user, mode=mode)
@@ -190,13 +196,14 @@ def create(request):
                 validator(audio_file)
             except ValidationError as e:
                 return JsonResponse({'error': str(e)}, status=400)
-            job.audio_input = audio_file
+            job.audio_input = audio_file.value
         else:
             job.source_url = source_url
 
     # --- Source de l'avatar ---
     avatar_source = request.POST.get('avatar_source', 'gallery')
     job.avatar_source = avatar_source
+    avatar_file = None
 
     if avatar_source == 'gallery':
         avatar_name = request.POST.get('avatar_gallery_name', '')
@@ -204,15 +211,17 @@ def create(request):
             return JsonResponse({'error': 'Sélectionnez un avatar dans la galerie.'}, status=400)
         job.avatar_gallery_name = avatar_name
     else:
-        avatar_file = request.FILES.get('avatar_upload')
+        avatar_received = received_inputs(request, user, 'avatarizer', field='avatar_upload')
+        avatar_file = avatar_received[0] if avatar_received else None
         if not avatar_file:
-            return JsonResponse({'error': "Importez une image avatar."}, status=400)
+            return JsonResponse({'error': avatar_received.refusal or "Importez une image avatar."},
+                                status=400)
         validator = FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp'])
         try:
             validator(avatar_file)
         except ValidationError as e:
             return JsonResponse({'error': str(e)}, status=400)
-        job.avatar_upload = avatar_file
+        job.avatar_upload = avatar_file.value
 
     # --- Paramètres pipeline MuseTalk ---
     job.use_enhancer = request.POST.get('use_enhancer', str(prefs['use_enhancer']).lower()) == 'true'
@@ -225,6 +234,11 @@ def create(request):
         job.bbox_shift = 0
 
     job.save()
+    # Provenance des ports réellement employés (rien pour un téléversement).
+    for received, field in ((audio_file if mode == 'standalone' else None, 'audio_input'),
+                            (avatar_file, 'avatar_upload')):
+        if received:
+            received.record(job, field)
     derniers = {'use_enhancer': job.use_enhancer, 'bbox_shift': job.bbox_shift}
     if mode == 'pipeline':
         # Les réglages TTS ne se mémorisent que lorsqu'ils ont réellement servi.

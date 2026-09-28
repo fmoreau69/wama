@@ -276,10 +276,13 @@ def generate(request):
         'model': model_id, 'duration': duration,
         'output_format': gen.output_format, 'output_quality': gen.output_quality})
 
-    # Melody reference (musicgen-melody only)
-    if model_id == 'musicgen-melody' and 'melody_reference' in request.FILES:
-        gen.melody_reference = request.FILES['melody_reference']
-        gen.save(update_fields=['melody_reference'])
+    # Melody reference (musicgen-melody only) — téléversée ou DÉSIGNÉE (médiathèque, arbre),
+    # brique `received_inputs` (2026-09-28) : une désignation se POINTE.
+    if model_id == 'musicgen-melody':
+        from wama.common.utils.media_paths import received_inputs
+        melody = received_inputs(request, user, 'composer', field='melody_reference')
+        if melody:
+            melody[0].assign(gen, 'melody_reference')
 
     # Wrap in batch-of-1
     _wrap_generation_in_batch(gen)

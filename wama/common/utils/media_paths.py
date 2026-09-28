@@ -363,10 +363,18 @@ def readable_by(rel_path, user) -> bool:
     return bool(user_id) and (in_user_home(rel, user_id) or is_system_asset_file(rel))
 
 
-#: Champ POST d'une DÉSIGNATION : le chemin (relatif à `MEDIA_ROOT`) d'un fichier que la card
-#: reçoit sans qu'on le lui téléverse — choisi dans la médiathèque, glissé depuis l'arbre. Répété
-#: pour plusieurs fichiers. Même vue d'upload que le dépôt, mêmes champs de volet à côté.
-DESIGNATION_FIELD = 'designated_path'
+#: Suffixe du champ POST d'une DÉSIGNATION : le chemin (relatif à `MEDIA_ROOT`) d'un fichier que
+#: la card reçoit sans qu'on le lui téléverse — choisi dans la médiathèque, glissé depuis l'arbre.
+#: La désignation du champ fichier `X` s'appelle `X__designated` (`file__designated`,
+#: `reference_image__designated`…) : UNE règle, sans exception, qui rattache chaque désignation
+#: au champ qu'elle remplace — une vue à plusieurs ports (avatarizer : audio ET image) les
+#: distingue ainsi. Répété pour plusieurs fichiers ; mêmes champs de volet à côté.
+DESIGNATION_SUFFIX = '__designated'
+
+
+def designation_field(field: str) -> str:
+    """Le champ POST qui porte la désignation du champ fichier `field`."""
+    return f'{field}{DESIGNATION_SUFFIX}'
 
 
 class ReceivedInput:
@@ -413,6 +421,20 @@ class ReceivedInput:
                     return
                 yield block
 
+    def assign(self, instance, field):
+        """Pose ce fichier dans le champ `field` d'un élément DÉJÀ créé, puis sa provenance.
+
+        Pour les ports écrits APRÈS la création (`element.<port>.save(nom, fichier)`, imager,
+        avatarizer…) : un téléversement est enregistré par son `upload_to` comme avant ; une
+        désignation POSE le chemin — l'appel `.save(nom, fichier)` la recopierait.
+        """
+        if self.designated:
+            setattr(instance, field, self.value)
+            instance.save(update_fields=[field])
+        else:
+            getattr(instance, field).save(self.name, self.value)
+        self.record(instance, field)
+
     def record(self, instance, field):
         """La PROVENANCE, une fois l'élément créé. Rien pour un téléversement : il n'a pas de
         source dans WAMA (`MEDIA_STORAGE_TIERING §8.6` D21)."""
@@ -456,7 +478,7 @@ def designate(path, user, app_name: str, subfolder: str = 'input') -> ReceivedIn
 def received_inputs(request, user, app_name: str, field: str = 'file',
                     subfolder: str = 'input') -> ReceivedInputs:
     """Ce qu'une vue d'upload reçoit : les fichiers TÉLÉVERSÉS sous `field`, puis les fichiers
-    DÉSIGNÉS sous `DESIGNATION_FIELD` — dans cet ordre.
+    DÉSIGNÉS sous `designation_field(field)` — dans cet ordre.
 
     Une désignation passe trois gardes avant d'être reçue : le confinement dans `MEDIA_ROOT`
     (`resolve_under_media_root`, traversée `..` comprise), l'existence du fichier, et la
@@ -465,7 +487,7 @@ def received_inputs(request, user, app_name: str, field: str = 'file',
     Ne lève jamais : un refus est rangé dans `refusal`.
     """
     received = ReceivedInputs(ReceivedInput(f.name, f) for f in request.FILES.getlist(field))
-    for raw in request.POST.getlist(DESIGNATION_FIELD):
+    for raw in request.POST.getlist(designation_field(field)):
         try:
             received.append(designate(raw, user, app_name, subfolder))
         except InputRefused as exc:
