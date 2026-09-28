@@ -606,11 +606,20 @@ def handle_file2img(request, user):
         os.unlink(tmp_path)
 
 
+def _reference_image(request, user):
+    """L'image de RÉFÉRENCE reçue par le port — téléversée ou DÉSIGNÉE (médiathèque, arbre),
+    brique `received_inputs` (2026-09-28) : une désignation se POINTE. Rend `(reçue, refus)`."""
+    from wama.common.utils.media_paths import received_inputs
+    received = received_inputs(request, user, 'imager', field='reference_image',
+                               subfolder='input/references')
+    return (received[0] if received else None), received.refusal
+
+
 def handle_describe2img(request, user):
     """Handle describe-to-image: auto-generate prompt from reference image using BLIP"""
-    reference_image = request.FILES.get('reference_image')
+    reference_image, refusal = _reference_image(request, user)
     if not reference_image:
-        return JsonResponse({'error': 'No reference image provided'}, status=400)
+        return JsonResponse({'error': refusal or 'No reference image provided'}, status=400)
 
     # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
     # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
@@ -638,7 +647,7 @@ def handle_describe2img(request, user):
         guidance_scale=guidance_scale,
         status='PENDING'
     )
-    generation.reference_image.save(reference_image.name, reference_image)
+    reference_image.assign(generation, 'reference_image')
 
     # Generate auto-prompt from image
     try:
@@ -682,10 +691,10 @@ def handle_img2img(request, user, mode):
     Référence par FICHIER ou par URL (WAMA_INGEST, contrat composer 307b9fb) : un fichier
     joint PRIME ; sinon `source_url` est téléchargée EN TÊTE DE TÂCHE par ensure_local_input.
     """
-    reference_image = request.FILES.get('reference_image')
+    reference_image, refusal = _reference_image(request, user)
     source_url = request.POST.get('source_url', '').strip()
     if not reference_image and not source_url:
-        return JsonResponse({'error': 'No reference image provided'}, status=400)
+        return JsonResponse({'error': refusal or 'No reference image provided'}, status=400)
 
     prompt = request.POST.get('prompt', '').strip()
     negative_prompt = request.POST.get('negative_prompt', '').strip()
@@ -731,7 +740,7 @@ def handle_img2img(request, user, mode):
         status='PENDING'
     )
     if reference_image:
-        generation.reference_image.save(reference_image.name, reference_image)
+        reference_image.assign(generation, 'reference_image')
 
     logger.info(f"Created {mode} generation #{generation.id} for user {user.username}")
 
@@ -793,10 +802,10 @@ def handle_img2vid(request, user):
 
     Référence par FICHIER ou par URL (WAMA_INGEST) — même contrat que handle_img2img.
     """
-    reference_image = request.FILES.get('reference_image')
+    reference_image, refusal = _reference_image(request, user)
     source_url = request.POST.get('source_url', '').strip()
     if not reference_image and not source_url:
-        return JsonResponse({'error': 'Reference image is required'}, status=400)
+        return JsonResponse({'error': refusal or 'Reference image is required'}, status=400)
 
     prompt = request.POST.get('prompt', '').strip()
     negative_prompt = request.POST.get('negative_prompt', '').strip()
@@ -830,7 +839,7 @@ def handle_img2vid(request, user):
         status='PENDING'
     )
     if reference_image:
-        generation.reference_image.save(reference_image.name, reference_image)
+        reference_image.assign(generation, 'reference_image')
 
     logger.info(f"Created img2vid generation #{generation.id} for user {user.username}")
 
@@ -844,9 +853,9 @@ def handle_img2vid(request, user):
 @require_http_methods(["POST"])
 def generate_auto_prompt(request):
     """Generate prompt from uploaded image using BLIP (AJAX endpoint)"""
-    reference_image = request.FILES.get('reference_image')
+    reference_image, refusal = _reference_image(request, _qm_user(request))
     if not reference_image:
-        return JsonResponse({'error': 'No image provided'}, status=400)
+        return JsonResponse({'error': refusal or 'No image provided'}, status=400)
 
     prompt_style = request.POST.get('prompt_style', 'detailed')
 

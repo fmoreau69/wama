@@ -30,6 +30,7 @@ from .params import PARAMS_JSON as _SYNTH_PARAMS_JSON
 from wama.common.utils.auto_model import read_quality_intent
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels as _input_labels
+from wama.common.utils.media_paths import received_inputs
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
 
@@ -267,7 +268,6 @@ def upload(request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
         # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs` : une
         # désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
-        from wama.common.utils.media_paths import received_inputs
         received = received_inputs(request, user, 'synthesizer')
         if not received:
             return JsonResponse({
@@ -303,8 +303,9 @@ def upload(request):
                 'error': f'Paramètres invalides: {str(e)}'
             }, status=400)
 
-        # Voice reference (optionnel)
-        voice_reference = request.FILES.get('voice_reference')
+        # Voice reference (optionnel) — téléversée ou DÉSIGNÉE (médiathèque, arbre) : pointée.
+        voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
+        voice_reference = voice_received[0].value if voice_received else None
 
         # Créer l'objet VoiceSynthesis
         synthesis = VoiceSynthesis.objects.create(
@@ -324,6 +325,8 @@ def upload(request):
             quality_intent=quality_intent,
         )
         text_file.record(synthesis, 'text_file')
+        if voice_received:
+            voice_received[0].record(synthesis, 'voice_reference')
 
         # Extraire le texte et mettre à jour les métadonnées
         try:
@@ -461,11 +464,12 @@ def upload_text(request):
                 'error': f'Paramètres invalides: {str(e)}'
             }, status=400)
 
-        # Voice reference (optionnel)
-        voice_reference = request.FILES.get('voice_reference')
-
         # Récupérer l'utilisateur
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+        # Voice reference (optionnel) — téléversée ou DÉSIGNÉE (médiathèque, arbre) : pointée.
+        voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
+        voice_reference = voice_received[0].value if voice_received else None
 
         # Créer l'objet VoiceSynthesis
         synthesis = VoiceSynthesis.objects.create(
@@ -484,6 +488,8 @@ def upload_text(request):
             output_quality=output_quality,
             quality_intent=quality_intent,
         )
+        if voice_received:
+            voice_received[0].record(synthesis, 'voice_reference')
 
         # Mettre à jour les métadonnées
         try:
@@ -943,6 +949,7 @@ def start_all(request):
     except Exception as e:
         return JsonResponse({'error': f'TTS worker functions not available: {str(e)}'}, status=500)
 
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     # Récupérer les nouvelles options depuis le formulaire
     try:
         tts_model = request.POST.get('tts_model')
@@ -950,7 +957,10 @@ def start_all(request):
         voice_preset = request.POST.get('voice_preset')
         speed = request.POST.get('speed')
         pitch = request.POST.get('pitch')
-        voice_reference = request.FILES.get('voice_reference')
+        # Voix de référence téléversée ou DÉSIGNÉE (médiathèque, arbre) : une désignation est
+        # POINTÉE par toutes les synthèses, au lieu d'une copie par ligne.
+        voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
+        voice_reference = voice_received[0].value if voice_received else None
         multi_speaker_raw = request.POST.get('multi_speaker')
         scene_description_raw = request.POST.get('scene_description')
     except Exception as e:
@@ -959,7 +969,6 @@ def start_all(request):
         }, status=400)
 
     # Récupérer toutes les synthèses (sauf celles en cours)
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     qs = VoiceSynthesis.objects.filter(user=user).exclude(status='RUNNING')
     started = []
     updated_options = []
@@ -1119,12 +1128,15 @@ def update_settings(request, pk: int):
     if 'scene_description' in data:
         synthesis.scene_description = data['scene_description']
 
-    # Voice reference
-    if 'voice_reference' in request.FILES:
-        synthesis.voice_reference = request.FILES['voice_reference']
+    # Voice reference — téléversée ou DÉSIGNÉE (médiathèque, arbre) : pointée.
+    voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
+    if voice_received:
+        synthesis.voice_reference = voice_received[0].value
 
     synthesis.update_metadata()
     synthesis.save()
+    if voice_received:
+        voice_received[0].record(synthesis, 'voice_reference')
 
     return JsonResponse({
         'success': True,

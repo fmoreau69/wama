@@ -14,7 +14,7 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase, override_settings
 
-from wama.common.utils.media_paths import (DESIGNATION_FIELD, SYSTEM_ASSET_ROOT, readable_by,
+from wama.common.utils.media_paths import (SYSTEM_ASSET_ROOT, designation_field, readable_by,
                                            received_inputs)
 
 
@@ -54,7 +54,7 @@ class ReceivedInputsTest(TestCase):
 
     def test_a_file_designated_in_the_users_own_tree_is_pointed_not_copied(self):
         rel = self._write(f'users/{self.user.id}/media_library/assets/interview.wav')
-        got = received_inputs(self._post({DESIGNATION_FIELD: rel}), self.user, 'transcriber')
+        got = received_inputs(self._post({designation_field('file'): rel}), self.user, 'transcriber')
         self.assertEqual(1, len(got), got.refusal)
         self.assertTrue(got[0].designated)
         self.assertEqual(rel, got[0].value, "la valeur assignée est le chemin : c'est le pointage")
@@ -66,7 +66,7 @@ class ReceivedInputsTest(TestCase):
         from wama.media_library.models import SystemAsset
         rel = self._write(f'{SYSTEM_ASSET_ROOT}/voice/narrator.wav')
         SystemAsset.objects.create(name='narrator', asset_type='voice', file=rel, is_active=True)
-        got = received_inputs(self._post({DESIGNATION_FIELD: rel}), self.user, 'synthesizer')
+        got = received_inputs(self._post({designation_field('file'): rel}), self.user, 'synthesizer')
         self.assertEqual([rel], [r.value for r in got], got.refusal)
         self.assertEqual([], self._app_files('synthesizer'))
 
@@ -80,7 +80,7 @@ class ReceivedInputsTest(TestCase):
         for designation in (theirs, inactive, loose, '../../etc/passwd',
                             f'users/{self.user.id}/temp/missing.wav'):
             with self.subTest(designation=designation):
-                got = received_inputs(self._post({DESIGNATION_FIELD: designation}),
+                got = received_inputs(self._post({designation_field('file'): designation}),
                                       self.user, 'transcriber')
                 self.assertEqual([], list(got))
                 self.assertTrue(got.refusal, 'un refus se DIT')
@@ -89,7 +89,7 @@ class ReceivedInputsTest(TestCase):
     def test_uploads_and_designations_arrive_together_in_that_order(self):
         rel = self._write(f'users/{self.user.id}/temp/b.wav')
         upload = SimpleUploadedFile('a.wav', b'RIFF')
-        got = received_inputs(self._post({'files': [upload], DESIGNATION_FIELD: [rel]}),
+        got = received_inputs(self._post({'files': [upload], designation_field('files'): [rel]}),
                               self.user, 'reader', field='files')
         self.assertEqual(['a.wav', 'b.wav'], [r.name for r in got])
         self.assertEqual([False, True], [r.designated for r in got])
@@ -107,7 +107,7 @@ class ReceivedInputsTest(TestCase):
         from wama.transcriber.models import Transcript
 
         rel = self._write(f'users/{self.user.id}/media_library/assets/talk.wav')
-        got = received_inputs(self._post({DESIGNATION_FIELD: rel}), self.user, 'transcriber')
+        got = received_inputs(self._post({designation_field('file'): rel}), self.user, 'transcriber')
         item = _instance(Transcript, self.user)
         item.audio = got[0].value
         item.save()
