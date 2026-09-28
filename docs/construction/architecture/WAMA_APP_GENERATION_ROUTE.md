@@ -3278,10 +3278,15 @@ l'utilisateur puisse savoir où en est sa tâche*. Brique `common/services/globa
   les traitements des autres en blocs anonymes « GPU occupé » (couche de l'instance).
 - Gardes : `tests_global_queue` (15 ; contre-épreuves : comptes de test réintégrés → rouge, durée
   ignorée face aux plages → rouge).
-- ⚠ **Relevés en chemin, non traités** : (1) `settings.py` réaffecte `CELERY_BROKER_TRANSPORT_OPTIONS`
-  (l.767) et PERD le `visibility_timeout` de 6 h posé l.707 ; (2) le Redis que joint `venv_win` porte
-  **446 messages `gpu`** qu'aucun worker ne consomme — la file réelle (Redis de WSL) était vide au même
-  moment. Décisions d'exploitation, signalées.
+- ✅ **Relevés en chemin, TRAITÉS le même soir (GO de Fabien)** : (1) `settings.py` réaffectait
+  `CELERY_BROKER_TRANSPORT_OPTIONS` depuis `8360b3e2` (29/07) et PERDAIT le `visibility_timeout` de
+  6 h — redélivrance au défaut Redis d'une heure, sous la durée de la suite nocturne GPU : le bloc
+  des priorités FUSIONNE désormais, garde `tests_calendar.BrokerTransportOptionsTest` (le délai doit
+  dépasser la plus longue plage réservée ; contre-épreuve : réaffectation → rouge) ; effectif au
+  redémarrage des workers. (2) Le Redis que joint `venv_win` (Redis 5 pour Windows, distinct de celui
+  de WSL où tournent les workers) portait **446 messages `gpu`** jamais consommés (444
+  `synthesize_voice`, 2 `compose_task`) : listes `gpu*` vidées, contenu SAUVEGARDÉ avant. ⚠ Le même
+  Redis porte encore 1 399 messages `default` et 27 `celery`, NON touchés.
 
 ---
 

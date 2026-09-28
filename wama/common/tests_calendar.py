@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 from celery.schedules import crontab
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -139,6 +139,25 @@ class ReservedNightlyWindowTest(TestCase):
         for w in windows:
             local = w.start.astimezone(PARIS)
             self.assertEqual((local.hour, local.minute), (4, 15))
+
+
+class BrokerTransportOptionsTest(SimpleTestCase):
+    """Le délai de redélivrance COUVRE la plus longue campagne planifiée.
+
+    Mesuré le 2026-09-28 : le bloc des priorités réaffectait `CELERY_BROKER_TRANSPORT_OPTIONS` et
+    perdait le `visibility_timeout` de 6 h depuis le 29/07 — Redis relivrait alors toute tâche non
+    confirmée au bout d'une heure, pendant que la suite nocturne GPU (2 h 16) tournait encore.
+    """
+
+    def test_the_priority_options_did_not_erase_the_visibility_timeout(self):
+        options = settings.CELERY_BROKER_TRANSPORT_OPTIONS
+        self.assertEqual(options.get('queue_order_strategy'), 'priority')
+        self.assertEqual(options.get('visibility_timeout'), 6 * 3600)
+
+    def test_the_timeout_outlasts_the_longest_reserved_window(self):
+        longest = max(cal.window_minutes(name)[0] for name in cal.BEAT_WINDOWS)
+        self.assertGreater(settings.CELERY_BROKER_TRANSPORT_OPTIONS['visibility_timeout'],
+                           longest * 60, 'une campagne relivrée en cours d’exécution tournerait deux fois')
 
 
 class MeasuredDurationTest(TestCase):
