@@ -174,6 +174,19 @@ def pipeline_manifest() -> dict:
     }
 
 
+def calc_chain_key(session_id) -> str:
+    """Clé de cache du verrou « une chaîne ▶ Calculs est en file ou en cours » pour cette session :
+    posé par `views.run_passes` au lancement, retiré par `tasks.release_calc_chain_task` en fin de
+    chaîne (ou sur erreur), expiré au pire après `CALC_CHAIN_TTL_S`. Mesuré le 2026-09-29 : deux
+    clics à 19 s d'intervalle, la 1re chaîne attendant derrière une autre tâche du worker GPU —
+    aucune passe « running » donc aucun refus, et deux chaînes entrelacées (chaque passe jouée
+    deux fois)."""
+    return f"cam_analyzer_calc_chain_{session_id}"
+
+
+CALC_CHAIN_TTL_S = 4 * 3600
+
+
 def topological_order(keys) -> list:
     """Sous-ensemble `keys` trié pour que tout amont précède son aval (Kahn, STABLE : à égalité,
     l'ordre de déclaration). Les amonts ABSENTS de `keys` sont ignorés — on ordonne ce qu'on

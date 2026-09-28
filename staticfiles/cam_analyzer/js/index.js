@@ -1029,6 +1029,7 @@ document.addEventListener('DOMContentLoaded', function () {
             panel.querySelectorAll('[data-rp-stage]').forEach(btn => {
                 btn.addEventListener('click', () => runStage(btn.dataset.rpStage));
             });
+            calcChainQueued = !!data.chain_queued;
             return data.passes || [];
         } catch (e) {
             console.error('loadPipelinePanel:', e);
@@ -1049,6 +1050,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function stopPassesPolling() {
         if (passesPollTimer) { clearInterval(passesPollTimer); passesPollTimer = null; }
     }
+    let calcChainQueued = false;   // verrou serveur : une chaîne ▶ Calculs est en file ou en cours
     function startPassesPolling() {
         stopPassesPolling();
         let seenRunning = false, ticks = 0;
@@ -1057,7 +1059,10 @@ document.addEventListener('DOMContentLoaded', function () {
             ticks += 1;
             const passes = await loadPipelinePanel();   // re-render + état frais
             if (passes === null) return;                // erreur transitoire → on réessaie
-            if (passes.some(p => p.status === 'running')) { seenRunning = true; return; }
+            // Une chaîne encore EN FILE (derrière une autre tâche du worker GPU) n'a aucune passe
+            // « running » : sans ce test, le suivi s'arrêtait au bout de ~10 s et le panneau
+            // invitait à relancer — d'où deux chaînes entrelacées (2026-09-29).
+            if (passes.some(p => p.status === 'running') || calcChainQueued) { seenRunning = true; return; }
             if (seenRunning || ticks >= 4) {            // fini (ou jamais démarré après ~10 s)
                 stopPassesPolling();
                 loadAllDetections(currentSessionId);    // données ré-annotées fraîches
@@ -2579,6 +2584,41 @@ document.addEventListener('DOMContentLoaded', function () {
     const TRAIL_LEN = 25;              // longueur de trace (frames)
     const EGO_LENGTH_M = 4.75, EGO_WIDTH_M = 2.11;   // Navya Autonom (défaut)
 
+    // Fonds IGN d'une carte Leaflet : orthophoto (`preferOrtho`) ou Plan IGN v2, même fournisseur
+    // (Géoplateforme, sans clé). Si l'ortho échoue à répétition (tuiles en erreur, aucune reçue),
+    // on bascule SEUL sur le plan et on le dit une fois en console ; `onFallback` est prévenu.
+    // Rend { show(ortho) } pour le bouton de bascule.
+    function addIgnBase(map, preferOrtho, onFallback) {
+        const wmts = (layer, fmt) => L.tileLayer(
+            'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'
+            + `&LAYER=${layer}&STYLE=normal&TILEMATRIXSET=PM&FORMAT=${fmt}`
+            + '&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
+            attribution: '&copy; <a href="https://www.ign.fr/">IGN</a>',
+            maxNativeZoom: 19,   // z20 non servi partout (404 → fond vide) ; au-delà, tuiles z19 étirées
+            maxZoom: 24,
+        });
+        const ortho = wmts('ORTHOIMAGERY.ORTHOPHOTOS', 'image/jpeg');
+        const plan = wmts('GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2', 'image/png');
+        let errors = 0, loaded = 0, fellBack = false;
+        ortho.on('tileload', () => { loaded += 1; });
+        ortho.on('tileerror', () => {
+            errors += 1;
+            if (fellBack || errors < 6 || errors <= 2 * loaded || !map.hasLayer(ortho)) return;
+            fellBack = true;
+            map.removeLayer(ortho); plan.addTo(map);
+            console.warn('[carte] orthophoto IGN indisponible — repli sur le Plan IGN');
+            if (onFallback) onFallback();
+        });
+        const show = (wantOrtho) => {
+            const on = wantOrtho ? ortho : plan, off = wantOrtho ? plan : ortho;
+            if (map.hasLayer(off)) map.removeLayer(off);
+            if (!map.hasLayer(on)) on.addTo(map);
+            if (wantOrtho) { errors = 0; loaded = 0; fellBack = false; }
+        };
+        show(preferOrtho);
+        return { show };
+    }
+
     function initMiniMap() {
         const container = document.getElementById('camAnalyzerMiniMap');
         if (!container || miniMap) return;
@@ -2592,48 +2632,34 @@ document.addEventListener('DOMContentLoaded', function () {
         miniMap = L.map(container, { zoomControl: true, attributionControl: false, maxZoom: 24,
                                      rotate: true, rotateControl: false })
                    .setView([46.5, 2.3], 6);
-        // CartoDB dark tiles — no Referer-based blocking (unlike tile.openstreetmap.org)
-        // and matches the WAMA dark theme. Same provider as the profile editor map.
-        // maxNativeZoom 19 = zoom réel des tuiles ; maxZoom 24 = overzoom (tuiles étirées,
-        // un peu floues) pour ÉTALER les objets de la vue de dessus (sinon empilés à z19).
-        // Deux fonds commutables (bouton 🛰, persisté) :
-        // - CARTO dark : lisible, thème WAMA, mais largeurs de voies SYMBOLIQUES
-        //   (style raster : pixels fixes par classe de route, jamais métriques) ;
-        // - Orthophoto IGN (Géoplateforme, BD ORTHO 20 cm/px, z20 natif) : géométrie
-        //   RÉELLE des voies — la seule vérité métrique en fond de carte (discussion
-        //   2026-07-20 « largeurs du fond ne coïncident pas »).
-        const _baseDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-            subdomains: 'abcd',
-            maxNativeZoom: 19,
-            maxZoom: 24,
-        });
-        const _baseOrtho = L.tileLayer(
-            'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'
-            + '&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM'
-            + '&FORMAT=image/jpeg&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
-            attribution: '&copy; <a href="https://www.ign.fr/">IGN</a>',
-            maxNativeZoom: 19,   // z20 non servi sur toutes les zones (404 → fond vide) ;
-            maxZoom: 24,         // au-delà : tuiles z19 étirées (comme le fond sombre)
-        });
-        let _orthoOn = localStorage.getItem('cam_analyzer_td_ortho') === '1';
-        (_orthoOn ? _baseOrtho : _baseDark).addTo(miniMap);
+        // Fonds IGN (Géoplateforme) : ORTHOPHOTO par défaut — la seule vérité métrique des voies
+        // (discussion 2026-07-20) — et PLAN IGN en secours automatique si l'ortho ne se charge pas.
+        // Le fond sombre CARTO a été RETIRÉ le 2026-09-29 : il ne sert plus que l'image « API KEY
+        // REQUIRED », à tous les zooms (mesuré : 2 513 octets identiques à z15 et z19).
+        // Bouton 🛰 = ortho ↔ plan, persisté.
+        let _orthoOn = localStorage.getItem('cam_analyzer_td_ortho') !== '0';
+        const _base = addIgnBase(miniMap, _orthoOn, () => { _orthoOn = false; _paintBaseBtn(); });
+        let _baseBtn = null;
+        const _paintBaseBtn = () => {
+            if (!_baseBtn) return;
+            _baseBtn.style.outline = _orthoOn ? '2px solid #ffb300' : 'none';
+            _baseBtn.title = _orthoOn ? 'Fond : orthophoto IGN (clic → Plan IGN)'
+                                      : 'Fond : Plan IGN (clic → orthophoto IGN)';
+        };
         const _BaseSwitch = L.Control.extend({
             options: { position: 'topleft' },
             onAdd: () => {
                 const b = L.DomUtil.create('a', 'leaflet-bar');
                 b.href = '#'; b.textContent = '🛰';
-                b.title = "Fond orthophoto IGN (20 cm/px — largeurs de voies réelles) / fond sombre";
                 b.style.cssText = 'width:26px;height:26px;line-height:26px;text-align:center;'
-                    + 'background:#222;display:block;font-size:14px;'
-                    + (_orthoOn ? 'outline:2px solid #ffb300;' : '');
+                    + 'background:#222;display:block;font-size:14px;';
+                _baseBtn = b; _paintBaseBtn();
                 L.DomEvent.on(b, 'click', (ev) => {
                     L.DomEvent.stop(ev);
                     _orthoOn = !_orthoOn;
                     localStorage.setItem('cam_analyzer_td_ortho', _orthoOn ? '1' : '0');
-                    miniMap.removeLayer(_orthoOn ? _baseDark : _baseOrtho);
-                    (_orthoOn ? _baseOrtho : _baseDark).addTo(miniMap);
-                    b.style.outline = _orthoOn ? '2px solid #ffb300' : 'none';
+                    _base.show(_orthoOn);
+                    _paintBaseBtn();
                 });
                 return b;
             },
@@ -4241,11 +4267,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function _initIntersectionMap() {
         if (intersectionMap) return;  // already initialized
         intersectionMap = L.map('intersectionMap', { zoomControl: true }).setView([46.5, 2.3], 6);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-            subdomains: 'abcd',
-            maxZoom: 19,
-        }).addTo(intersectionMap);
+        addIgnBase(intersectionMap, true);   // ortho IGN (placer une balise au mètre), plan en secours
 
         // Click on map → place marker + fill fields
         intersectionMap.on('click', (e) => {

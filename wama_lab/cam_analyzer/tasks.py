@@ -1949,6 +1949,16 @@ def compute_depth_calc_task(self, session_id: str):
         return {'error': str(e), 'session_id': session_id}
 
 
+@shared_task
+def release_calc_chain_task(session_id: str):
+    """Dernier maillon (et errback) de la chaîne ▶ Calculs : lève le verrou anti-double-lancement
+    posé par `views.run_passes` (`pass_tracking.calc_chain_key`)."""
+    from django.core.cache import cache
+    from .utils.pass_tracking import calc_chain_key
+    cache.delete(calc_chain_key(session_id))
+    return {'session_id': session_id, 'released': True}
+
+
 @shared_task(bind=True)
 def compute_lane_map_recalage_task(self, session_id: str):
     """Passe « Recalage voie + carte » (CALCUL, CPU + réseau IGN) : correction LATÉRALE et de CAP
