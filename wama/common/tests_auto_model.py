@@ -87,11 +87,22 @@ class UneVoixCloneeExigeUnMoteurQuiCloneTest(TestCase):
 
     def test_les_deux_workers_portent_l_exigence_au_tirage(self):
         from pathlib import Path
+        from unittest import mock
         from django.conf import settings
-        for rel in ('wama/synthesizer/workers.py', 'wama/avatarizer/workers.py'):
-            src = (Path(settings.BASE_DIR) / rel).read_text(encoding='utf-8')
-            self.assertIn("['supports_cloning'] if is_cloned_voice(", src, rel)
-            self.assertIn('requires=exigences', src, rel)
+        # Synthesizer : le tirage vit dans `utils/speech_render.resolve_tts_model` depuis le
+        # 2026-09-28 (le worker ET l'aperçu de voix l'appellent) — on mesure le COMPORTEMENT, plus
+        # une phrase du worker.
+        from wama.synthesizer import workers
+        from wama.synthesizer.utils import speech_render
+        self.assertIs(workers.resolve_tts_model, speech_render.resolve_tts_model)
+        with mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                        return_value='synthesizer:tts-cloneur') as draw:
+            speech_render.resolve_tts_model('auto', 'ua_1', 50, fallback='r')
+        self.assertEqual(['supports_cloning'], draw.call_args.kwargs['requires'])
+        # Avatarizer : le tirage est encore écrit dans son worker.
+        src = (Path(settings.BASE_DIR) / 'wama/avatarizer/workers.py').read_text(encoding='utf-8')
+        self.assertIn("['supports_cloning'] if is_cloned_voice(", src)
+        self.assertIn('requires=exigences', src)
 
     def test_auto_n_est_jamais_grise_par_la_brique_d_appariement(self):
         from pathlib import Path
