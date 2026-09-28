@@ -85,6 +85,25 @@ class SourceJournal:
         return LIBELLES_MONDES.get(self.monde, self.monde)
 
 
+def app_queue_url(app):
+    """Page de file d'une app (`APP_CATALOG[app]['url_name']`), `''` si elle n'en déclare pas.
+
+    Cible du clic du journal ET du calendrier (2026-09-28) — un seul endroit, sinon les deux
+    surfaces n'amèneraient pas au même endroit le jour où une app change de route.
+    """
+    from django.urls import NoReverseMatch, reverse
+
+    from ..app_registry import APP_CATALOG
+
+    spec = APP_CATALOG.get(app) or {}
+    if not spec.get('url_name'):
+        return ''
+    try:
+        return reverse(spec['url_name'])
+    except NoReverseMatch:
+        return ''
+
+
 def enregistrer_source(app, model, *, monde, champ_date=None, champ_user='user'):
     """
     Ajoute une source hors `detail_registry` — point d'extension des mondes studio/lab/data.
@@ -188,17 +207,7 @@ class Entree:
         évidence, avec TOUTES les actions de l'app disponibles. `wama-queue.js` documente
         lui-même ce passage inter-pages ; on ne réinvente rien.
         """
-        from django.urls import NoReverseMatch, reverse
-
-        from ..app_registry import APP_CATALOG
-
-        spec = APP_CATALOG.get(self.app) or {}
-        if not spec.get('url_name'):
-            return ''
-        try:
-            return reverse(spec['url_name'])
-        except NoReverseMatch:
-            return ''
+        return app_queue_url(self.app)
 
     @property
     def url_detail(self):

@@ -307,7 +307,7 @@ travail (VM + forge institutionnelle + IDE distant).
 | MLflow **Models** + **Registry** | `AIModel`, `model_manager`, kind `model`, `select_model()` | **fort — danger de duplication** |
 | MLflow **Projects** (Docker/conda + CLI) | manifestes `pipeline`, chaînage studio à ports typés | **fort — à ne PAS adopter** |
 | pratiques dev (gitflow, venv, tests, lint, RGPD/licences) | 1029 tests (relevé 27/08), conformité mesurée sur 82 critères (relevé 26/08), tests nocturnes, `LICENSING.md`, audit secrets + vulnérabilités | **fort — WAMA est en avance** |
-| **VM + GPU institutionnel, forge institutionnelle** | une RTX 4090, **crashs hôte non résolus** | **nul — et c'est l'apport le plus concret** |
+| **VM + GPU institutionnel, forge institutionnelle** | une RTX 4090 (crashs hôte **résolus** le 2026-09-28 — alimentation remplacée — mais un poste unique) | **nul — et c'est l'apport le plus concret** |
 
 ### Ce qu'il faut demander (et pas « faites-nous du ML »)
 

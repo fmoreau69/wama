@@ -122,7 +122,8 @@ def refresh_registry(key: str):
 def run_nightly_tests_task(app=None, stage=None):
     """
     Joue la suite de tests fonctionnels nocturnes (sérialisée, VRAM-aware).
-    Planifiée par Celery beat la nuit (entrée gated par NIGHTLY_TESTS_ENABLED dans settings).
+    Planifiée par Celery beat dans la plage RÉSERVÉE des tests nocturnes (settings, 04:15 puis
+    04:30 ; `NIGHTLY_TESTS_ENABLED=0` retire la suite fonctionnelle).
     Filtrable par `app` / `stage`. Retourne le résumé.
     """
     from wama.common.services.nightly_tests import REGISTRY, run_all

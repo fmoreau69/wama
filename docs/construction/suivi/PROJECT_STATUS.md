@@ -16110,6 +16110,10 @@ premier lancement se fait **seul, surveillé, un modèle à la fois** — si un 
 (l'autre signature du dossier, gel au churn VRAM) reste ouverte.
 ✅ **Levée le 2026-09-22 à la demande de Fabien** : `WAMA_GPU_SAFE_MODE=0` dans `.env`. Lue au démarrage
 seulement (`settings.py`) — **effective après redémarrage de gunicorn et des workers Celery**.
+✅ **Confirmé le 2026-09-28 : Fabien déclare l'instabilité RÉSOLUE.** La suite fonctionnelle nocturne
+GPU est planifiée par défaut (le gate `NIGHTLY_TESTS_ENABLED` est inversé : `=0` la retire), dans une
+plage RÉSERVÉE après la maintenance (04:15 cohérence, 04:30 fonctionnelle) — `§PALIER 2026-09-28
+« CALENDRIER »`. La ligne 1 de la file ci-dessous est donc **câblée**, effective au redémarrage de beat.
 ⚠ Le même jour, les secrets de `.env` ont été retirés des traces locales de Claude Code (journaux clos,
 sauvegardes `file-history`) ; dépôt vérifié propre. Reste : le journal d'une instance encore ouverte à ce
 moment — détail dans la mémoire « secrets ».
@@ -18397,3 +18401,44 @@ nuit (`WAMA_VERIFICATION §Geste 14`, ce fichier plus haut). Rien ajouté ici, p
 
 🔚 **Point d'entrée** : aucun chantier ouvert par cette session. Les instances suivantes ont le hook
 d'office ; si une sortie Bash paraît tronquée, le préfixe `rtk proxy <cmd>` rend la sortie brute.
+
+## §PALIER — 2026-09-28, « CALENDRIER » — étape 1 livrée + plage réservée des tests nocturnes
+
+**Demande de Fabien** : un calendrier général à WAMA (activités de chacun, codes couleurs,
+planification des tâches et process inter-mondes, un jour mails et posts programmés — « le
+gouverneur appliqué au temps »). Plan ACTÉ, décisions ①②③ de Fabien consignées :
+la VUE à `WAMA_MEMORY §9bis.1`, le QUAND à `WAMA_APP_GENERATION_ROUTE §10.6` point 13.
+
+**Livré (étape 1)** :
+- `/common/calendar/` — menu du profil « Mon calendrier » (avant « Mon journal »). Service
+  `common/services/calendar.py` : **projette, n'écrit rien** — couche observée = les sources du
+  journal (`detail_registry`), intervalle = `RunOutcome` `produit`/`echec` − `processing_seconds` ;
+  couche maintenance = entrées `crontab` de beat, commutable. Couleur = identité d'app, état au
+  liseré. Export `.ics` (session). FullCalendar 6.1.15 MIT vendorisé (`tools/update_vendors.sh`,
+  `LICENSING §3`). `journal.app_queue_url()` extraite : cible unique des deux surfaces.
+- **Plage réservée des tests nocturnes** (décision de Fabien) : `calendar.BEAT_WINDOWS` (durée
+  réservée MESURÉE sur les rapports × 1,25) ; `settings.py` déplace la cohérence 02:30 → **04:15**
+  (elle partait avec le miroir NAS) et la fonctionnelle → **04:30** (réservée jusqu'à ~07:30) ;
+  `tests_calendar` rougit si une entrée planifiée entre dans une plage réservée (contre-épreuve
+  incluse).
+- **Instabilité de l'hôte déclarée RÉSOLUE** (Fabien) : la suite fonctionnelle GPU est planifiée
+  par défaut (`NIGHTLY_TESTS_ENABLED=0` la retire). Corrigés là où elle était dite non résolue :
+  `settings.py`, `common/tasks.py`, `INFRA_WSL_VS_WINDOWS` (bloc d'état en tête de l'enquête),
+  `WAMA_VERIFICATION` (×2), `WAMA_LLM` (×3), `WAMA_APPRENTISSAGE`, `§NOTE 2026-09-21` ci-dessus.
+
+**Validé** : `tests_calendar` 20/20 ; contre-épreuve à la main (filtre utilisateur neutralisé →
+rouge) ; `tests_catalogues`, `tests_check_docs`, `tests_registries`, `tests_docs_catalog`,
+`tests_process_states`, `tests_status_ui` verts ; smoke navigateur sur serveur de dev 8011 (menu →
+page, semaine/mois, plages hachurées 04:15-07:30, bascule maintenance, clic → card sélectionnée
+dans sa file). Mesuré : même semaine, calendrier = journal = 7 items.
+
+⚠ **Rouge NON attribuable à ce palier** : `tests_identifier_language` (4 échecs) — noms de
+méthodes de test 1315 > 1311 et budget de code 2688 ≠ 2689, issus du WIP d'autres instances
+(`tests_port_designation.py` non suivi, `check_identifier_language.py` modifié) ; aucun
+identifiant des fichiers de ce palier n'est relevé.
+
+**Effectif au redémarrage** : beat (nouveaux horaires, suite fonctionnelle) et gunicorn (gabarit
+neuf `common/calendar.html` → sans HUP, 500 ; mémoire « gabarit neuf en prod »).
+
+🔚 **Étape suivante** : étape 2 (couche prévue : fin estimée par l'ETA, expiration de rétention),
+puis l'étape 3 (`ScheduledAction`, distributeur, « Programmer… » sur ▶, flux `.ics` à jeton).

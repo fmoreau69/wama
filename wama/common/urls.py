@@ -113,6 +113,11 @@ urlpatterns = [
     # Journal transversal de l'utilisateur (WAMA_MEMORY.md §9bis) — dérive de detail_registry,
     # aucune ligne dans les apps.
     path('journal/', views.journal_view, name='journal'),
+    # Calendrier (WAMA_MEMORY.md §9bis.1) — la même activité que le journal, sur l'axe du temps,
+    # plus la maintenance planifiée de l'instance (fenêtres réservées des tests nocturnes).
+    path('calendar/', views.calendar_view, name='calendar'),
+    path('calendar/events/', views.calendar_events, name='calendar_events'),
+    path('calendar/export.ics', views.calendar_ics, name='calendar_ics'),
 
     # Notifications DANS WAMA (WAMA_COLLABORATION.md §2.3, §5.3) — badge de l'en-tête.
     path('notifications/', views.notifications_view, name='notifications'),

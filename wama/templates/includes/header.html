@@ -221,6 +221,14 @@
                         Les souvenirs manquaient ici jusqu'au 2026-09-09 : la page existait sans
                         qu'aucun chemin d'interface n'y mène — une page qu'on ne peut atteindre
                         que par son URL n'est pas une surface.{% endcomment %}
+                        {% comment %}Le calendrier (2026-09-28, WAMA_MEMORY §9bis.1) est le JUMEAU
+                        du journal — la même activité, sur l'axe du temps : il le précède (ordre
+                        alphabétique) sans entrer dans le trio.{% endcomment %}
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:calendar' %}">
+                                <i class="fas fa-calendar-days me-2 text-primary"></i> Mon calendrier
+                            </a>
+                        </li>
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'common:journal' %}">
                                 <i class="fas fa-clock-rotate-left me-2 text-info"></i> Mon journal

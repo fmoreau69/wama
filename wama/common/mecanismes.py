@@ -484,6 +484,13 @@ MECHANISMS = (
     Mechanism('journal', "Journal transversal de l'utilisateur",
               "Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune ligne par app",
               'wama/common/services/journal.py', 'docs/construction/ia/WAMA_MEMORY.md §9bis'),
+    Mechanism('calendar', "Calendrier de l'utilisateur et plages réservées",
+              "Le journal sur l'axe du TEMPS — mêmes sources, intervalle d'exécution reconstruit "
+              "de RunOutcome + processing_seconds — plus la maintenance planifiée (beat) et ses "
+              "plages RÉSERVÉES à durée mesurée (tests nocturnes). Projette, n'écrit rien",
+              'wama/common/services/calendar.py', 'docs/construction/ia/WAMA_MEMORY.md §9bis.1',
+              annexes=('wama/common/static/common/js/wama-calendar.js',
+                       'wama/common/tests_calendar.py')),
     Mechanism('rag_gesture', "Ajout au RAG (geste explicite)",
               "Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, "
               "aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision",

@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**161 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**162 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -515,6 +515,24 @@ Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclaré
 
 - **Domicile** : `wama/common/static/common/js/wama-filter-bar.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
+### Calendrier de l'utilisateur et plages réservées
+
+Le journal sur l'axe du TEMPS — mêmes sources, intervalle d'exécution reconstruit de RunOutcome + processing_seconds — plus la maintenance planifiée (beat) et ses plages RÉSERVÉES à durée mesurée (tests nocturnes). Projette, n'écrit rien
+
+- **Domicile** : `wama/common/services/calendar.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §9bis.1](../construction/ia/WAMA_MEMORY.md)
+- **Module** : Calendrier — l'activité de WAMA posée sur l'axe du TEMPS. Doc : `WAMA_MEMORY.md §9bis.1` (la vue) ; plan d'ensemble — trois natures de temps, actions programmées, placement — : `WAMA_APP_GENERATION_ROUTE.md §10.6` point 13 (« le QUAND »).
+- **API publique** (10) :
+  - `app_identity(app) -> tuple[str, str]` — `(libellé, couleur d'identité)` d'une app, pour les événements ET la légende.
+  - `class CalendarEvent` — Un événement du calendrier. Volontairement MINCE, comme l'entrée du journal : le détail
+  - `observed_events(user, start, end) -> list[CalendarEvent]` — Items de l'utilisateur dont l'exécution ou le dépôt tombe dans `[start, end)`.
+  - `measured_nightly_minutes(stage=None, reports_dir=None) -> float | None` — Plus longue durée récente d'une campagne nocturne, en minutes — `None` sans mesure.
+  - `window_minutes(entry_name) -> tuple[int, str]` — Durée réservée pour une entrée beat : `(minutes, 'measured' | 'declared')`.
+  - `maintenance_windows(start, end) -> list[CalendarEvent]` — Occurrences des entrées beat À HORAIRE (`crontab`) dans `[start, end)`.
+  - `reserved_windows(start, end, resource=None) -> list[CalendarEvent]` — Fenêtres qui RÉSERVENT une ressource (`gpu`, `cpu`), ou toutes si `resource` est `None`.
+  - `reserved_window_conflicts(start, end) -> list[tuple[CalendarEvent, CalendarEvent]]` — Paires `(fenêtre réservée, autre entrée planifiée qui la chevauche)` dans `[start, end)`.
+  - `events_for(user, start, end, *, with_maintenance=True) -> list[CalendarEvent]`
+  - `to_ics(events, *, host='wama', now=None) -> str` — Les événements au format iCalendar. `host` qualifie les UID (uniques et STABLES : un
+
 ### Captation générique des gestes
 
 Middleware : telecharge/supprime/relance lus de resolver_match — zéro ligne par app
@@ -654,8 +672,9 @@ Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune lign
 
 - **Domicile** : `wama/common/services/journal.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §9bis](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Journal de l'utilisateur — agrégat transversal de ce qu'il a lancé dans WAMA. Doc : `WAMA_MEMORY.md §9bis`.
-- **API publique** (6) :
+- **API publique** (7) :
   - `class SourceJournal` — Un modèle dont les items entrent au journal.
+  - `app_queue_url(app)` — Page de file d'une app (`APP_CATALOG[app]['url_name']`), `''` si elle n'en déclare pas.
   - `enregistrer_source(app, model, *, monde, champ_date=None, champ_user='user')` — Ajoute une source hors `detail_registry` — point d'extension des mondes studio/lab/data.
   - `sources()` — Toutes les sources du journal. Dérivées de `detail_registry` + les inscriptions explicites.
   - `class Entree` — Un item au journal. Volontairement MINCE — le détail vient des endpoints transversaux.
