@@ -25,8 +25,9 @@ urlpatterns = [
     path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
     path('upload-text/', views.upload_text, name='upload_text'),
     path('text-preview/<int:pk>/', views.text_preview, name='text_preview'),
+    # L'aperçu rend un FICHIER en une requête (chaîne de la synthèse) ; l'ancien flux SSE
+    # `voice-preview-stream/` est retiré le 2026-09-28.
     path('voice-preview/', views.voice_preview, name='voice_preview'),
-    path('voice-preview-stream/<str:preview_id>/', views.voice_preview_stream, name='voice_preview_stream'),
     path('start/<int:pk>/', views.start, name='start'),
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('progress/<int:pk>/', views.progress, name='progress'),

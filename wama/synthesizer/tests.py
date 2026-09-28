@@ -339,69 +339,85 @@ class PanelVoiceFieldIsGeneratedTest(TestCase):
                         'le rendu du champ de voix n\'est plus dans un script en ligne')
 
 
-class VoicePreviewPlayerTest(TestCase):
-    """L'aperçu de voix pose sa source sur un lecteur qui n'a PAS de balise `<source>`.
+class VoicePreviewSharesTheSynthesisChainTest(TestCase):
+    """L'aperçu de voix passe par LA chaîne de la synthèse (2026-09-28).
 
-    Défaut signalé par Fabien le 2026-09-27 en testant une voix enfant avec XTTS v2 :
-    « Erreur lors de l'assemblage de l'audio: Cannot set properties of null (setting 'src') ».
-    Le code écrivait dans `audioPlayer.querySelector('source').src`, mais le lecteur de l'aperçu
-    (dans la card d'entrée à l'époque, au volet depuis le 2026-09-28) n'en a aucune — seul celui
-    de la modale en a une. La
-    fonction est donc rejouée ICI sur un lecteur NU, c'est-à-dire sur le cas qui cassait.
-
-    ⚠ `py_mini_racer` n'est installé que dans venv_win : ce test SKIPPE sous venv_linux.
+    Il avait la sienne (préparation en cache + flux SSE + WAV recollés par le navigateur) et
+    n'entendait donc pas ce que la synthèse produirait : texte non nettoyé, « auto » envoyé tel
+    quel au service, options Higgs ignorées (CARD_DESIGN §11.11 Étape 3, note sur l'aperçu).
+    Le service TTS est SIMULÉ (un vrai WAV d'une demi-seconde) : on mesure ce que la vue lui
+    envoie et la forme de ce qu'elle rend, pas la voix.
     """
 
-    JS_DOM = """
-    var window = this; var revoked = [];
-    function atob(s) { return s; }
-    function Blob(parts, opts) { this.parts = parts; this.type = opts && opts.type; }
-    var URL = { createObjectURL: function (b) { return 'blob:wama/' + b.parts.length; } };
-    function bareplayer() {
-      return { src: null, loaded: 0, played: 0, style: {},
-               querySelector: function () { return null; },      // AUCUNE balise <source>
-               load: function () { this.loaded++; },
-               play: function () { this.played++; return { catch: function () {} }; } };
-    }
-    function box() { return { style: {} }; }
-    var console = { log: function () {}, error: function () {} };
-    var WamaApp = { toast: function (m) { this.said = m; } };
-    """
+    def setUp(self):
+        self.client = Client()
+        self.user = _utilisateur_autorise('voice_preview_user')
+        self.client.force_login(self.user)
+        self.calls = []
 
-    def _function_source(self):
-        import re
-        from pathlib import Path
+    def _fake_service(self, text, model, **kwargs):
+        import wave
+        self.calls.append({'text': text, 'model': model, **kwargs})
+        handle, path = tempfile.mkstemp(suffix='.wav')
+        os.close(handle)
+        with wave.open(path, 'wb') as out:
+            out.setnchannels(1)
+            out.setsampwidth(2)
+            out.setframerate(8000)
+            out.writeframes(b'\x00\x10' * 4000)
+        return path
 
-        from django.conf import settings
-        source = (Path(settings.BASE_DIR) / 'wama' / 'synthesizer' / 'static' / 'synthesizer'
-                  / 'js' / 'index.js').read_text(encoding='utf-8')
-        found = re.search(r'\n    async function assembleAndPlayAudio\(.*?\n    \}\n', source, re.S)
-        self.assertIsNotNone(found, "`assembleAndPlayAudio` a disparu ou changé de forme")
-        return found.group(0)
+    def _post(self, **fields):
+        from unittest import mock
+        data = {'text_content': 'Bonjour 🎧 à tous.', 'tts_model': 'synthesizer:kokoro',
+                'voice_preset': 'default', 'language': 'fr', 'speed': '1.0', 'pitch': '1.0'}
+        data.update(fields)
+        with mock.patch('wama.synthesizer.utils.speech_render.tts_via_service',
+                        side_effect=self._fake_service), \
+                mock.patch('wama.common.services.resource_governor.release_in_progress',
+                           return_value=False):
+            return self.client.post(reverse('synthesizer:voice_preview'), data)
 
-    def test_a_player_without_a_source_tag_still_receives_the_audio(self):
-        try:
-            from py_mini_racer import MiniRacer
-        except ImportError:
-            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
-        ctx = MiniRacer()
-        ctx.eval(self.JS_DOM + self._function_source())
-        ctx.eval("var p = bareplayer(); var c = box(); var l = box();"
-                 " assembleAndPlayAudio(['AAA'], p, c, l);")
-        self.assertTrue(ctx.eval('p.src && p.src.indexOf("blob:") === 0'),
-                        "la source doit être posée sur le lecteur lui-même")
-        self.assertEqual(1, ctx.eval('p.loaded'))
-        # ⚠ Comparer DANS V8 : une valeur absente revient en `JSUndefined`, qui n'est pas
-        # `None` — un `assertIsNone` échouerait sur le comportement correct.
-        self.assertTrue(ctx.eval('WamaApp.said === undefined'),
-                        "aucune erreur ne doit être annoncée sur le cas nominal")
-        self.assertEqual('block', ctx.eval('c.style.display'))
-        self.assertEqual('none', ctx.eval('l.style.display'))
+    def test_the_preview_answers_with_a_common_preview_payload(self):
+        response = self._post()
+        self.assertEqual(200, response.status_code, response.content[:300])
+        data = response.json()
+        self.assertEqual('audio/wav', data['mime_type'])
+        self.assertIn('/partials/voice_preview.wav?v=', data['url'])
+        self.assertTrue(data['peaks'], 'sans pics, le lecteur commun retéléchargerait le fichier')
 
-    def test_the_single_and_multi_chunk_paths_are_one(self):
-        """Les deux branches d'origine étaient identiques au caractère près : une condition qui
-        ne décide de rien double seulement le code à corriger."""
-        self.assertNotIn('audioBuffers.length === 1', self._function_source())
+    def test_the_text_is_cleaned_like_the_synthesis(self):
+        self._post()
+        self.assertNotIn('🎧', self.calls[0]['text'], 'text_for_speech non appliqué')
+
+    def test_auto_is_resolved_before_reaching_the_service(self):
+        from unittest import mock
+        with mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                        return_value='synthesizer:kokoro') as resolve:
+            self._post(tts_model='auto')
+        resolve.assert_called_once()
+        self.assertEqual('synthesizer:kokoro', self.calls[0]['model'])
+
+    def test_higgs_options_reach_the_service(self):
+        self._post(multi_speaker='1', scene_description='[S1] une femme')
+        self.assertTrue(self.calls[0]['multi_speaker'])
+        self.assertEqual('[S1] une femme', self.calls[0]['scene_description'])
+
+    def test_worker_and_preview_share_one_render_function(self):
+        from wama.synthesizer import workers
+        from wama.synthesizer.utils import speech_render
+        self.assertIs(workers.render_speech, speech_render.render_speech)
+        self.assertIs(workers.resolve_tts_model, speech_render.resolve_tts_model)
+        self.assertFalse(hasattr(workers, '_synthesize_via_service'),
+                         'une 2ᵉ chaîne de rendu est revenue dans le worker')
+
+    def test_the_segment_limit_reads_the_full_catalog_key(self):
+        """La table est indexée par le nom NU : une clé entière la ratait (800 pour tous)."""
+        from wama.synthesizer.utils.speech_render import chunk_limit, split_text_into_chunks
+        self.assertEqual(400, chunk_limit('synthesizer:kokoro'))
+        chunks = split_text_into_chunks('Une phrase. ' * 60, 400)
+        self.assertTrue(all(len(c) <= 400 for c in chunks))
+        self.assertGreater(len(chunks), 1)
 
 
 class TheEntryCardKeepsOneHomePerSettingTest(TestCase):
@@ -459,8 +475,7 @@ class TheEntryCardKeepsOneHomePerSettingTest(TestCase):
 
         from django.conf import settings
         page = self._page()
-        for dom_id in ('previewTextBtn', 'previewLoader', 'previewProgress', 'previewStatus',
-                       'previewAudioContainer', 'previewAudioPlayer'):
+        for dom_id in ('previewTextBtn', 'previewAudioContainer'):
             self.assertEqual(1, page.count(f'id="{dom_id}"'), dom_id)
         card_zone = (Path(settings.BASE_DIR) / 'wama' / 'synthesizer' / 'templates' / 'synthesizer'
                      / '_new_item_extra.html').read_text(encoding='utf-8')

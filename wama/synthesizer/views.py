@@ -1548,181 +1548,80 @@ def batch_update_settings(request, pk: int):
 
 @require_POST
 def voice_preview(request):
+    """Aperçu de la voix : les premiers mots du texte, rendus par LA chaîne de la synthèse.
+
+    Depuis le 2026-09-28 (CARD_DESIGN §11.11 Étape 3, note sur l'aperçu) : même nettoyage du
+    texte (`text_for_speech`), même tirage « auto », même voix, mêmes segments par moteur, même
+    assemblage et même vitesse/hauteur que le worker (`utils/speech_render`) — l'aperçu fait donc
+    entendre ce que la synthèse produira. Il remplace une chaîne à part (préparation en cache +
+    flux SSE de WAV en base64 recollés par le navigateur, en-têtes compris).
+
+    Le résultat est un FICHIER servi par URL, rangé comme les aperçus « pendant » des autres apps
+    (`output/partials/`, nom fixe réécrit à chaque aperçu), et la réponse a la forme d'un aperçu
+    commun (`url`, `mime_type`, `name`, `peaks`) : la page le rend par `renderInlinePreview` —
+    lecteur `WamaAudioPlayer`, onde dessinée des pics serveur, comme le transcriber.
     """
-    Prépare un aperçu vocal et retourne un preview_id pour le streaming.
-    """
+    from wama.common.services.resource_governor import release_in_progress
+    from wama.common.tts.service_client import TTSServiceLoadingError
+    from wama.common.tts.voice_refs import speaker_wav_for
+    from wama.common.utils.media_paths import get_app_media_path
+    from wama.common.utils.tts_text import text_for_speech
+    from wama.common.utils.waveform import compute_peaks
+    from .utils.speech_render import preview_text, render_speech, resolve_tts_model
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    text = preview_text(text_for_speech(request.POST.get('text_content', '')))
+    if not text:
+        return JsonResponse({'error': 'Le texte ne peut pas être vide'}, status=400)
     try:
-        text_content = request.POST.get('text_content', '').strip()
-        tts_model = request.POST.get('tts_model', 'coqui-xtts')
-        language = request.POST.get('language', 'fr')
-        voice_preset = request.POST.get('voice_preset', 'male_1')
         speed = float(request.POST.get('speed', 1.0))
         pitch = float(request.POST.get('pitch', 1.0))
+    except ValueError:
+        return JsonResponse({'error': 'Vitesse ou hauteur invalide'}, status=400)
+    # Fenêtre de libération de la carte (B1) : pas de voix — même garde que la vocalisation.
+    if release_in_progress():
+        return JsonResponse({'error': 'La carte graphique se libère : réessayez dans un instant.',
+                             'busy': True}, status=503)
 
-        if not text_content:
-            return JsonResponse({
-                'error': 'Le texte ne peut pas être vide'
-            }, status=400)
+    default_model = VoiceSynthesis._meta.get_field('tts_model').get_default()
+    voice_preset = request.POST.get('voice_preset') or 'default'
+    language = request.POST.get('language') or 'fr'
+    try:
+        model = resolve_tts_model(request.POST.get('tts_model') or default_model, voice_preset,
+                                  request.POST.get('quality_intent'), fallback=default_model)
+        speaker_wav = speaker_wav_for(model, voice_preset, user, language=language)
+        folder = Path(get_app_media_path('synthesizer', user.id, 'output')) / 'partials'
+        folder.mkdir(parents=True, exist_ok=True)
+        final = render_speech(
+            text, str(folder / 'voice_preview.wav'),
+            model=model, language=language, voice_preset=voice_preset, speaker_wav=speaker_wav,
+            multi_speaker=request.POST.get('multi_speaker') == '1',
+            scene_description=request.POST.get('scene_description', ''),
+            speed=speed, pitch=pitch, read_timeout=60)
+    except TTSServiceLoadingError:
+        return JsonResponse({'error': 'Le service de synthèse vocale démarre : réessayez dans '
+                                      'quelques secondes.', 'busy': True}, status=503)
+    except (RuntimeError, ValueError) as exc:
+        # La brique commune uniformise connexion/HTTP/délai en RuntimeError ; un moteur sans
+        # backend enregistré lève ValueError. Un aperçu ne réessaie pas : il le dit, vite.
+        return JsonResponse({'error': str(exc)}, status=502)
 
-        # Limiter le texte à environ 50 mots pour un aperçu rapide
-        words = text_content.split()
-        preview_words = words[:50]
-        preview_text = ' '.join(preview_words)
-
-        if len(words) > 50:
-            preview_text += '...'
-
-        # Créer un identifiant unique pour ce preview
-        import hashlib
-        import time
-        preview_id = hashlib.md5(f"{text_content}{time.time()}".encode()).hexdigest()[:8]
-
-        # Résoudre la voix de clonage (ua_<id>/cv_<id>/preset) → speaker_wav, comme la
-        # synthèse complète — par LA porte commune, décidée par la capacité du moteur.
-        # Sinon la preview XTTS ignorait la voix custom (voix par défaut).
-        from wama.common.tts.voice_refs import speaker_wav_for
-        speaker_wav = speaker_wav_for(tts_model, voice_preset, request.user, language=language)
-
-        # Stocker les paramètres dans le cache pour le traitement
-        cache.set(f'voice_preview_{preview_id}', {
-            'text': preview_text,
-            'tts_model': tts_model,
-            'language': language,
-            'voice_preset': voice_preset,
-            'speaker_wav': speaker_wav,
-            'speed': speed,
-            'pitch': pitch,
-            'status': 'pending',
-        }, timeout=300)  # 5 minutes
-
-        from django.urls import reverse
-
-        stream_url = reverse('synthesizer:voice_preview_stream', kwargs={'preview_id': preview_id})
-
-        return JsonResponse({
-            'status': 'ready',
-            'preview_id': preview_id,
-            'preview_text': preview_text,
-            'word_count': len(preview_words),
-            'stream_url': stream_url
-        })
-
-    except Exception as e:
-        return JsonResponse({
-            'error': f'Erreur lors de la génération de l\'aperçu: {str(e)}'
-        }, status=500)
-
-
-def voice_preview_stream(request, preview_id):
-    """
-    Génère et stream l'audio en temps réel via SSE (Server-Sent Events).
-    Uses the TTS microservice for instant generation (model already preloaded).
-    """
-    from django.http import StreamingHttpResponse
-    import json
-    import base64
-    import re
-
-    logger.info(f"voice_preview_stream called with preview_id: {preview_id}")
-
-    # Récupérer les paramètres depuis le cache
-    preview_data = cache.get(f'voice_preview_{preview_id}')
-
-    if not preview_data:
-        logger.error(f"Preview data not found for id: {preview_id}")
-        return JsonResponse({'error': 'Preview not found or expired'}, status=404)
-
-    def generate_audio_stream():
-        """
-        Générateur qui produit l'audio par chunks via le TTS microservice.
-        Format SSE: data: {json}\n\n
-        """
-        try:
-            # Marquer comme en cours
-            preview_data['status'] = 'generating'
-            cache.set(f'voice_preview_{preview_id}', preview_data, timeout=300)
-
-            # Envoyer un événement de début
-            yield f"data: {json.dumps({'event': 'start', 'message': 'Génération audio...'})}\n\n"
-
-            tts_model_name = preview_data.get('tts_model', 'coqui-xtts')
-            language = preview_data.get('language', 'fr')
-            voice_preset = preview_data.get('voice_preset', 'default')
-            speaker_wav = preview_data.get('speaker_wav')  # résolu côté voice_preview (clonage XTTS)
-            speed = preview_data.get('speed', 1.0)
-            pitch = preview_data.get('pitch', 1.0)
-
-            yield f"data: {json.dumps({'event': 'progress', 'progress': 10, 'sentence': f'Modèle {tts_model_name} (service TTS)'})}\n\n"
-
-            # Diviser le texte en phrases
-            text = preview_data['text']
-            sentences = re.split(r'(?<=[.!?])\s+', text)
-            sentences = [s.strip() for s in sentences if s.strip()]
-
-            # Générer l'audio phrase par phrase via le TTS service
-            for i, sentence in enumerate(sentences):
-                progress = int(10 + ((i + 1) / len(sentences)) * 80)
-                yield f"data: {json.dumps({'event': 'progress', 'progress': progress, 'sentence': sentence[:80]})}\n\n"
-
-                try:
-                    # Client COMMUN du microservice TTS (2026-08-28 — 4ᵉ exemplaire du
-                    # même POST /tts résorbé) ; bytes bruts, aucun fichier intermédiaire.
-                    from wama.common.tts.service_client import tts_via_service
-                    wav_bytes = tts_via_service(
-                        sentence, tts_model_name, language=language,
-                        voice_preset=voice_preset,
-                        speaker_wav=speaker_wav,  # clonage XTTS : voix résolue (ua_/cv_)
-                        read_timeout=60, raw=True)
-
-                    # Apply speed/pitch post-processing if needed
-                    if speed != 1.0 or pitch != 1.0:
-                        import tempfile
-                        from .utils.audio_processor import process_audio_output
-                        tmp_in = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-                        tmp_in.write(wav_bytes)
-                        tmp_in.close()
-                        processed_path = process_audio_output(tmp_in.name, speed=speed, pitch=pitch)
-                        with open(processed_path, 'rb') as pf:
-                            wav_bytes = pf.read()
-                        # Cleanup
-                        for p in [tmp_in.name, processed_path]:
-                            try:
-                                os.remove(p)
-                            except OSError:
-                                pass
-
-                    audio_base64 = base64.b64encode(wav_bytes).decode('utf-8')
-                    yield f"data: {json.dumps({'event': 'audio', 'data': audio_base64, 'format': 'wav', 'index': i})}\n\n"
-
-                except RuntimeError as e:
-                    # La brique commune uniformise connexion/HTTP/délai en RuntimeError
-                    # (et 503 « loading » en TTSServiceLoadingError, couvert par le
-                    # except générique : une preview ne réessaie pas, elle échoue vite).
-                    yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
-                    return
-                except Exception as tts_error:
-                    yield f"data: {json.dumps({'event': 'error', 'message': f'Erreur génération phrase {i+1}: {str(tts_error)}'})}\n\n"
-                    return
-
-            yield f"data: {json.dumps({'event': 'progress', 'progress': 95, 'sentence': 'Finalisation...'})}\n\n"
-            yield f"data: {json.dumps({'event': 'end', 'message': f'Génération terminée: {len(sentences)} phrases'})}\n\n"
-
-        except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            logger.error(f"Error in voice_preview_stream: {error_details}")
-            yield f"data: {json.dumps({'event': 'error', 'message': f'Erreur: {str(e)}'})}\n\n"
-        finally:
-            logger.info(f"Stream generator completed for preview_id: {preview_id}")
-
-    response = StreamingHttpResponse(
-        generate_audio_stream(),
-        content_type='text/event-stream'
-    )
-    response['Cache-Control'] = 'no-cache'
-    response['X-Accel-Buffering'] = 'no'  # Disable buffering for nginx
-
-    return response
+    import time
+    rel = os.path.relpath(final, settings.MEDIA_ROOT).replace('\\', '/')
+    peaks, duration = compute_peaks(final, buckets=400, dtype='uint8', with_duration=True)
+    label = dict(VoiceSynthesis._meta.get_field('tts_model').flatchoices).get(model, model)
+    return JsonResponse({
+        # `?v=` : le nom est fixe, le navigateur ne doit pas resservir l'aperçu précédent.
+        'url': f'{settings.MEDIA_URL}{rel}?v={int(time.time() * 1000)}',
+        'mime_type': 'audio/wav',
+        # Légende du lecteur commun (renderInlinePreview) : le moteur RÉEL, « auto » résolu.
+        'name': f'Aperçu — {label} · {len(text.split())} mots',
+        'peaks': peaks or [],
+        'duration': duration,
+        'model': model,
+        'model_label': label,
+        'word_count': len(text.split()),
+    })
 
 
 # ── Manipulation directe de la file (fabrique COMMUNE, variante liaison) ──────

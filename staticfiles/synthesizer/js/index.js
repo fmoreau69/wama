@@ -106,6 +106,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Les réglages du VOLET, tels que la synthèse les reçoit — UNE lecture pour le bouton
+    // « Ajouter », l'aperçu et l'import (2026-09-28 : trois copies de la même liste). Lecteur
+    // gardé : un champ absent donne son défaut, jamais une exception dans un `async`.
+    function appendPanelSettings(fd) {
+        const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
+        fd.append('tts_model', v('tts_model', 'coqui-xtts'));
+        fd.append('quality_intent', v('quality_intent', '50'));
+        fd.append('language', v('language', 'fr'));
+        fd.append('voice_preset', v('voice_preset', 'default'));
+        fd.append('speed', v('speed', '1.0'));
+        fd.append('pitch', v('pitch', '1.0'));
+        fd.append('output_format', v('output_format', '') || 'original');
+        fd.append('output_quality', v('output_quality', '') || 'balanced');
+        appendHiggsFields(fd);
+    }
+
     // Helper: append Higgs-specific fields to FormData
     function appendHiggsFields(formData) {
         const multiSpeaker = document.getElementById('multi_speaker');
@@ -429,15 +445,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const formData = new FormData();
                 formData.append('text_content', textContent);
                 formData.append('title', title);
-                formData.append('tts_model', document.getElementById('tts_model').value);
-                formData.append('quality_intent', (document.getElementById('quality_intent') || { value: '50' }).value);
-                formData.append('language', document.getElementById('language').value);
-                formData.append('voice_preset', document.getElementById('voice_preset').value);
-                formData.append('speed', document.getElementById('speed').value);
-                formData.append('pitch', document.getElementById('pitch').value);
-                formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
-                formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
-                appendHiggsFields(formData);
+                appendPanelSettings(formData);
 
 
                 const response = await fetch(URLS.uploadText, {
@@ -492,238 +500,58 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     })();
 
-    // Preview text button with streaming support
+    // ── Aperçu de la voix — alignée sur le COMMUN le 2026-09-28 ────────────────────────────
+    // Le serveur rend les premiers mots par LA chaîne de la synthèse (`utils/speech_render`) et
+    // renvoie un aperçu de la forme COMMUNE (`url`, `mime_type`, `peaks`) ; la page ne fait que :
+    //   • réserver le canal de parole (`WamaApp.Speech.claim`) — un 2ᵉ clic ABANDONNE la requête
+    //     en vol, et une réponse périmée n'est jamais rendue ;
+    //   • rendre par `WamaInspector.renderInlinePreview` — lecteur `WamaAudioPlayer`, onde
+    //     dessinée des pics serveur, exclusivité (page, onglets, voix) comprise ;
+    //   • lancer la lecture (`WamaAudioPlayer.play`), geste demandé par le clic.
+    // La légende du lecteur (`name`) dit le moteur RÉEL — « auto » résolu — et le nombre de mots.
+    // Ce qui vivait ici : flux SSE, WAV base64 recollés EN-TÊTES COMPRIS, `<audio>` nu.
     const previewTextBtn = document.getElementById('previewTextBtn');
-    let currentEventSource = null;
+    const PREVIEW_PLAYER = 'synthVoicePreview';
 
     if (previewTextBtn) {
         previewTextBtn.addEventListener('click', async () => {
             const textContent = document.getElementById('textContent').value.trim();
-
             if (!textContent) {
                 WamaApp.toast('Veuillez entrer du texte pour générer un aperçu.', 'warning');
                 return;
             }
-
-            // Close any existing EventSource
-            if (currentEventSource) {
-                currentEventSource.close();
-                currentEventSource = null;
-            }
-
-            const previewLoader = document.getElementById('previewLoader');
-            const previewContainer = document.getElementById('previewAudioContainer');
-            const previewProgress = document.getElementById('previewProgress');
-            const previewStatus = document.getElementById('previewStatus');
-
-            // Show loader, hide audio container
-            previewLoader.style.display = 'block';
-            previewContainer.style.display = 'none';
-
-            // Reset progress
-            previewProgress.style.width = '0%';
-            previewProgress.textContent = '0%';
-            previewStatus.textContent = 'Préparation...';
-
-            // Disable preview button
+            const host = document.getElementById('previewAudioContainer');
+            const turn = WamaApp.Speech.claim();
+            const label = previewTextBtn.innerHTML;
             previewTextBtn.disabled = true;
             previewTextBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Génération...';
-
             try {
-                // Step 1: Initialize the preview
                 const formData = new FormData();
                 formData.append('text_content', textContent);
-                formData.append('tts_model', document.getElementById('tts_model').value);
-                formData.append('quality_intent', (document.getElementById('quality_intent') || { value: '50' }).value);
-                formData.append('language', document.getElementById('language').value);
-                formData.append('voice_preset', document.getElementById('voice_preset').value);
-                formData.append('speed', document.getElementById('speed').value);
-                formData.append('pitch', document.getElementById('pitch').value);
-                formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
-                formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
-                appendHiggsFields(formData);
-
-
+                appendPanelSettings(formData);
                 const response = await fetch(URLS.voicePreview, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': csrfToken },
-                    body: formData
+                    method: 'POST', headers: { 'X-CSRFToken': csrfToken },
+                    body: formData, signal: turn.signal,
                 });
-
                 const data = await response.json();
-
-                if (!response.ok || !data.stream_url) {
-                    throw new Error(data.error || 'Échec de l\'initialisation de l\'aperçu');
+                if (!turn.valid()) return;
+                if (!response.ok || !data.url) {
+                    WamaApp.toast(data.error || "Échec de l'aperçu", data.busy ? 'warning' : 'error');
+                    return;
                 }
-
-                console.log('Preview initialized:', data);
-                console.log('Stream URL:', data.stream_url);
-                previewStatus.textContent = `Génération de ${data.word_count} mots...`;
-
-                // Step 2: Connect to the streaming endpoint
-                currentEventSource = new EventSource(data.stream_url);
-
-                // Buffer pour collecter les chunks audio
-                const audioChunks = [];
-                const previewPlayer = document.getElementById('previewAudioPlayer');
-
-                currentEventSource.onmessage = (event) => {
-                    try {
-                        const eventData = JSON.parse(event.data);
-                        console.log('Stream event:', eventData);
-
-                        switch (eventData.event) {
-                            case 'start':
-                                previewStatus.textContent = eventData.message;
-                                previewProgress.style.width = '5%';
-                                previewProgress.textContent = '5%';
-                                break;
-
-                            case 'info':
-                                previewStatus.textContent = eventData.message;
-                                break;
-
-                            case 'progress':
-                                const progress = eventData.progress || 0;
-                                previewProgress.style.width = progress + '%';
-                                previewProgress.textContent = progress + '%';
-                                if (eventData.sentence) {
-                                    previewStatus.textContent = `Génération: "${eventData.sentence.substring(0, 50)}..."`;
-                                }
-                                break;
-
-                            case 'audio':
-                                // Décoder et collecter le chunk audio base64
-                                if (eventData.data) {
-                                    audioChunks.push(eventData.data);
-                                    previewStatus.textContent = `Réception de l'audio (${audioChunks.length} chunks)...`;
-                                }
-                                break;
-
-                            case 'end':
-                                previewProgress.style.width = '100%';
-                                previewProgress.textContent = '100%';
-                                previewStatus.textContent = 'Assemblage de l\'audio...';
-
-                                // Assembler et jouer tous les chunks audio
-                                if (audioChunks.length > 0) {
-                                    assembleAndPlayAudio(audioChunks, previewPlayer, previewContainer, previewLoader);
-                                } else {
-                                    previewStatus.textContent = eventData.message;
-                                    setTimeout(() => {
-                                        previewLoader.style.display = 'none';
-                                    }, 1000);
-                                }
-
-                                currentEventSource.close();
-                                currentEventSource = null;
-                                break;
-
-                            case 'error':
-                                console.error('Server error:', eventData.message);
-                                if (eventData.details) {
-                                    console.error('Error details:', eventData.details);
-                                }
-                                previewLoader.style.display = 'none';
-                                WamaApp.toast('Erreur: ' + eventData.message, 'error');
-                                if (currentEventSource) {
-                                    currentEventSource.close();
-                                    currentEventSource = null;
-                                }
-                                break;
-                        }
-                    } catch (parseError) {
-                        console.error('Error parsing stream event:', parseError);
-                        console.error('Raw event data:', event.data);
-                    }
-                };
-
-                currentEventSource.onerror = (error) => {
-                    console.error('EventSource error:', error);
-                    console.error('EventSource readyState:', currentEventSource ? currentEventSource.readyState : 'null');
-                    previewLoader.style.display = 'none';
-
-                    // Show more detailed error information
-                    const errorMsg = 'Erreur de streaming. Vérifiez la console pour plus de détails.';
-                    WamaApp.toast(errorMsg, 'error');
-
-                    if (currentEventSource) {
-                        currentEventSource.close();
-                        currentEventSource = null;
-                    }
-                };
-
+                host.dataset.playerId = PREVIEW_PLAYER;
+                host.style.display = 'block';
+                WamaInspector.renderInlinePreview(host, data, true);
+                WamaAudioPlayer.play(PREVIEW_PLAYER);
             } catch (error) {
-                console.error('Voice preview error:', error);
+                // Abandon par un 2ᵉ clic ou une autre lecture : rien à signaler.
+                if (error && error.name === 'AbortError') return;
                 WamaApp.toast('Erreur: ' + error.message, 'error');
-                previewLoader.style.display = 'none';
             } finally {
                 previewTextBtn.disabled = false;
-                previewTextBtn.innerHTML = '<i class="fas fa-play-circle"></i> Preview';
+                previewTextBtn.innerHTML = label;
             }
         });
-    }
-
-    // Function to assemble and play audio chunks
-    async function assembleAndPlayAudio(base64Chunks, audioPlayer, containerElement, loaderElement) {
-        try {
-            console.log(`Assembling ${base64Chunks.length} audio chunks...`);
-
-            // Décoder tous les chunks base64 en ArrayBuffer
-            const audioBuffers = [];
-
-            for (const base64Data of base64Chunks) {
-                // Décoder base64
-                const binaryString = atob(base64Data);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                audioBuffers.push(bytes.buffer);
-            }
-
-            console.log(`Decoded ${audioBuffers.length} chunks`);
-
-            // Créer un blob avec tous les buffers WAV concaténés
-            // Note: Pour une vraie concaténation WAV, il faudrait merger les headers
-            // Pour simplifier, on va créer un blob avec le premier chunk (qui contient le header)
-            // et ajouter uniquement les données audio des chunks suivants
-
-            // ⚠ UNE seule branche depuis le 2026-09-27 : les deux qui vivaient ici (« un seul
-            // chunk » / « plusieurs ») étaient IDENTIQUES au caractère près — `new Blob([x])`
-            // et `new Blob(x)` font le même objet pour une liste d'un élément. La condition
-            // n'a jamais rien décidé ; elle doublait seulement le code à corriger.
-            // (La concaténation de WAV garde leurs en-têtes successifs : imparfait, connu,
-            // inchangé ici — ce correctif porte sur la POSE de la source, pas sur le montage.)
-            const blob = new Blob(audioBuffers, { type: 'audio/wav' });
-            const audioUrl = URL.createObjectURL(blob);
-
-            // ⚠ DÉFAUT SIGNALÉ PAR FABIEN le 2026-09-27 : « Cannot set properties of null
-            // (setting 'src') ». Le code écrivait dans `querySelector('source').src`, mais le
-            // lecteur de la card d'entrée (`_new_item_extra.html`) n'a PAS de balise `<source>`
-            // — seul celui de la modale en a une. L'aperçu de voix était donc cassé depuis que
-            // la zone est passée dans ce partial. L'attribut `src` de `<audio>` se pose
-            // directement et vaut pour les deux formes ; la `<source>` est mise à jour quand
-            // elle existe, pour qu'un rechargement ne reserve pas l'ancienne URL.
-            const declaredSource = audioPlayer.querySelector('source');
-            if (declaredSource) declaredSource.src = audioUrl;
-            audioPlayer.src = audioUrl;
-            audioPlayer.load();
-
-            // Afficher le lecteur, masquer le loader
-            loaderElement.style.display = 'none';
-            containerElement.style.display = 'block';
-
-            // Auto-play
-            audioPlayer.play().catch(e => console.log('Autoplay prevented:', e));
-
-            console.log('Audio assembled and ready to play');
-
-        } catch (error) {
-            console.error('Error assembling audio:', error);
-            WamaApp.toast('Erreur lors de l\'assemblage de l\'audio: ' + error.message, 'error');
-            loaderElement.style.display = 'none';
-        }
     }
 
     // Helper functions
@@ -792,18 +620,7 @@ document.addEventListener('DOMContentLoaded', function() {
             folderInputId:    'synthFolderInput',
             batch:            _batchImport,
             batchScope:       'each',
-            extraFields:      function (fd) {
-                const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
-                fd.append('tts_model', v('tts_model', 'coqui-xtts'));
-                fd.append('quality_intent', v('quality_intent', '50'));
-                fd.append('language', v('language', 'fr'));
-                fd.append('voice_preset', v('voice_preset', 'default'));
-                fd.append('speed', v('speed', '1.0'));
-                fd.append('pitch', v('pitch', '1.0'));
-                fd.append('output_format', v('output_format', '') || 'original');
-                fd.append('output_quality', v('output_quality', '') || 'balanced');
-                appendHiggsFields(fd);
-            },
+            extraFields:      appendPanelSettings,
         });
     } else {
         // Défaut le plus silencieux qui soit (une zone de dépôt que rien n'écoute) → on le DIT.

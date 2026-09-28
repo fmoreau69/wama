@@ -21,15 +21,15 @@ from django.core.files.base import ContentFile
 from .models import VoiceSynthesis
 from wama.common.utils.console_utils import push_console_line
 from .utils.text_extractor import extract_text_from_file
-from .utils.audio_processor import process_audio_output
+from .utils.speech_render import render_speech, resolve_tts_model
 
 logger = logging.getLogger(__name__)
 
 # Client du microservice TTS : brique COMMUNE (`common/tts/service_client.py`, extraite
 # 2026-08-28 — cette implémentation en était la souche ; 4 exemplaires du même POST /tts
-# vivaient dans le dépôt). La POLITIQUE de retry sur 503 « loading » reste ici (Celery).
-from wama.common.tts.service_client import (TTSServiceLoadingError,
-                                            tts_via_service as _tts_via_service)
+# vivaient dans le dépôt). Il est appelé par `utils/speech_render` ; la POLITIQUE de retry sur
+# 503 « loading » reste ici (Celery).
+from wama.common.tts.service_client import TTSServiceLoadingError
 
 
 @shared_task(name='wama.synthesizer.download_voice_refs', ignore_result=False)
@@ -69,32 +69,6 @@ def _console(user_id: int, message: str, level: str = None) -> None:
     except Exception:
         pass
 
-
-def _split_text_into_chunks(text, max_chars):
-    """
-    Divise un texte en chunks de taille maximale.
-    Essaie de couper aux limites de phrases.
-    """
-    import re
-
-    # Diviser en phrases
-    sentences = re.split(r'(?<=[.!?])\s+', text)
-
-    chunks = []
-    current_chunk = ""
-
-    for sentence in sentences:
-        if len(current_chunk) + len(sentence) + 1 <= max_chars:
-            current_chunk += sentence + " "
-        else:
-            if current_chunk:
-                chunks.append(current_chunk.strip())
-            current_chunk = sentence + " "
-
-    if current_chunk:
-        chunks.append(current_chunk.strip())
-
-    return chunks
 
 
 def _apply_output_format(synthesis):
@@ -176,21 +150,18 @@ def synthesize_voice(self, synthesis_id: int):
         # (un batch résout chaque élément avec l'état GPU de son tour). Le domaine du
         # tirage est CELUI que le schéma déclare pour les options (`params.py`) ; la
         # prévision affichée sous le select était une photo, on dit ici le choix réel.
-        from wama.common.utils.auto_model import is_auto, read_quality_intent, resolve_model_choice
+        # Le tirage vit dans `speech_render.resolve_tts_model`, que l'APERÇU appelle aussi.
+        from wama.common.utils.auto_model import is_auto, read_quality_intent
         if is_auto(synthesis.tts_model):
-            quality = read_quality_intent(getattr(synthesis, 'quality_intent', None))
-            # Une voix CLONÉE exige un moteur qui clone : « auto » reste compatible dans
-            # l'UI (jamais grisé), la contrainte est portée ICI, au tirage (Fabien, 13/09).
-            from wama.common.tts.voice_refs import is_cloned_voice
-            exigences = ['supports_cloning'] if is_cloned_voice(synthesis.voice_preset) else None
-            synthesis.tts_model = resolve_model_choice(
-                synthesis.tts_model, app_id='synthesizer', quality_intent=quality,
-                requires=exigences,
+            quality_intent = getattr(synthesis, 'quality_intent', None)
+            synthesis.tts_model = resolve_tts_model(
+                synthesis.tts_model, synthesis.voice_preset, quality_intent,
                 fallback=VoiceSynthesis._meta.get_field('tts_model').get_default())
             synthesis.save(update_fields=['tts_model'])
             _console(synthesis.user_id,
                      f"Choix automatique du moteur → {synthesis.get_tts_model_display()} "
-                     f"(capacités + VRAM libre au lancement, curseur qualité {quality}/100)")
+                     f"(capacités + VRAM libre au lancement, curseur qualité "
+                     f"{read_quality_intent(quality_intent)}/100)")
 
         # Étape 2: Génération audio via le service TTS
         _console(synthesis.user_id, f"Envoi au service TTS (modèle: {synthesis.tts_model})...")
@@ -221,23 +192,20 @@ def synthesize_voice(self, synthesis_id: int):
             reference_path=synthesis.voice_reference.path if synthesis.voice_reference else None,
             language=synthesis.language or '')
 
-        # Generate audio via TTS service (with chunking for long texts)
-        _synthesize_via_service(
-            synthesis, text_content, temp_output,
-            speaker_wav, _set_progress, _console,
+        # Segments par moteur → service TTS → assemblage → vitesse/hauteur : LA chaîne de
+        # rendu (`utils/speech_render`), la même que celle de l'aperçu de voix.
+        _set_progress(synthesis, 40)
+        final_output = render_speech(
+            text_content, temp_output,
+            model=synthesis.tts_model, language=synthesis.language,
+            voice_preset=synthesis.voice_preset, speaker_wav=speaker_wav,
+            multi_speaker=getattr(synthesis, 'multi_speaker', False),
+            scene_description=getattr(synthesis, 'scene_description', ''),
+            speed=synthesis.speed, pitch=synthesis.pitch,
+            on_segment=lambda i, n: _set_progress(synthesis, 40 + int(i / n * 35)),
+            console=lambda m: _console(synthesis.user_id, m),
         )
-
-        _set_progress(synthesis, 80)
-
-        # Étape 4: Post-traitement audio (ajustement vitesse, pitch)
-        _console(synthesis.user_id, "Post-traitement audio...")
         _set_progress(synthesis, 85)
-
-        final_output = process_audio_output(
-            temp_output,
-            speed=synthesis.speed,
-            pitch=synthesis.pitch
-        )
 
         # Étape 5: Sauvegarde du résultat
         _console(synthesis.user_id, "Sauvegarde du fichier audio...")
@@ -343,92 +311,6 @@ def synthesize_voice(self, synthesis_id: int):
 
         return {'ok': False, 'error': str(e)}
 
-
-def _synthesize_via_service(synthesis, text, output_path, speaker_wav,
-                            progress_fn, console_fn):
-    """
-    Generate audio by calling the TTS microservice.
-    Handles text chunking and concatenation for long texts.
-    """
-    from pydub import AudioSegment
-
-    model = synthesis.tts_model
-    language = synthesis.language
-    voice_preset = synthesis.voice_preset
-    multi_speaker = getattr(synthesis, 'multi_speaker', False)
-    scene_description = getattr(synthesis, 'scene_description', '')
-
-    # Determine chunk size based on model
-    chunk_limits = {  # wama:redondance-ok — limites de chunk par moteur (info nouvelle)
-        'bark': 200,
-        'kokoro': 400,   # EspeakG2P (FR/ES/IT/PT) truncates long texts — keep short
-        'higgs-audio': 500,
-        'coqui-xtts': 1000,
-    }
-    # ⚠ Indexée par le nom NU du moteur ; `model` porte la clé catalogue entière depuis la
-    # migration 0018 — sans cette traduction la table ne matchait JAMAIS (800 pour tous,
-    # kokoro compris, qui tronque au-delà de 400). Mesuré le 13/09 en retirant le test mort
-    # `tts_model == 'coqui-xtts'`, de la même famille.
-    from .backends import local_model_name
-    max_chars = chunk_limits.get(local_model_name(model), 800)
-
-    # Split text into chunks if needed
-    if len(text) > max_chars:
-        console_fn(synthesis.user_id, f"Texte long détecté, division en segments...")
-        chunks = _split_text_into_chunks(text, max_chars)
-    else:
-        chunks = [text]
-
-    console_fn(synthesis.user_id, f"Génération audio: {len(chunks)} segment(s) via service TTS...")
-    progress_fn(synthesis, 40)
-
-    chunk_files = []
-    progress_start = 40
-    progress_end = 75
-    progress_range = progress_end - progress_start
-
-    for i, chunk in enumerate(chunks):
-        progress = progress_start + int((i / len(chunks)) * progress_range)
-        progress_fn(synthesis, progress)
-        console_fn(synthesis.user_id, f"Génération segment {i+1}/{len(chunks)}...")
-
-        # Call the TTS service
-        wav_path = _tts_via_service(
-            text=chunk,
-            model=model,
-            language=language,
-            voice_preset=voice_preset,
-            speaker_wav=speaker_wav,
-            multi_speaker=multi_speaker,
-            scene_description=scene_description if i == 0 else '',
-        )
-        chunk_files.append(wav_path)
-
-    progress_fn(synthesis, 75)
-
-    # Concatenate chunks
-    if len(chunk_files) == 1:
-        # Single chunk: just move the file
-        import shutil
-        shutil.move(chunk_files[0], output_path)
-    else:
-        console_fn(synthesis.user_id, "Assemblage des segments audio...")
-        combined = AudioSegment.empty()
-        for chunk_file in chunk_files:
-            audio = AudioSegment.from_wav(chunk_file)
-            combined += audio
-            combined += AudioSegment.silent(duration=200)  # 200ms silence between chunks
-
-        combined.export(output_path, format='wav')
-
-        # Cleanup temp chunk files
-        for chunk_file in chunk_files:
-            try:
-                os.remove(chunk_file)
-            except OSError:
-                pass
-
-    console_fn(synthesis.user_id, f"Audio généré: {output_path}")
 
 
 def _update_audio_properties(synthesis):

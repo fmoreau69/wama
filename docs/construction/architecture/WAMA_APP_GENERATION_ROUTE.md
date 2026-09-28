@@ -192,6 +192,19 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   que *rendre* la donnée qu'on lui passe. Le trou réel n'est pas le front mais l'**émission** :
   **1 app sur 10** (composer) publie un partiel ; les 9 autres n'ont rien à afficher. Mesuré par le
   critère `during_preview` (F3), qui exige émission app **ET** consommation front commune.
+  🔄 **Remesuré le 2026-09-28** (question de Fabien : « la preview pendant le process ») —
+  **7 apps publient** : texte qui se construit (transcriber, reader, describer :
+  `publish_partial_text`), image courante toutes les ~2 s (anonymizer, enhancer : `publish_partial`),
+  sortie une fois écrite (converter), et le **composer ne publie l'onde qu'UNE fois, À LA FIN**
+  (`audiocraft_backend.py` et `audiocpp_backend.py` appellent `on_audio` sur l'audio FINAL ; le
+  commentaire du backend le dit : un vrai flux demanderait le rappel par jeton de MusicGen).
+  **Aucune émission** : synthesizer, imager, avatarizer. **Seul l'inspecteur la lit** (`_startDuring`) :
+  les cards de la file n'affichent pas la face « pendant » (`CARD_DESIGN` « zone de preview
+  permanente » = orientation, pas un câblage). Et les pics d'onde qu'elle transporte n'étaient
+  **jamais dessinés** jusqu'à ce jour (`setPeaks` sans effet sur un lecteur pas encore initialisé,
+  corrigé dans `wama-audio-player.js`). Ce qui existe pour aller plus loin : les backends de
+  diffusion image et vidéo ont déjà un `callback_on_step_end` (progression) qui voit les latents.
+  Rien n'est tranché pour l'image ni la vidéo.
 - **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct.
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
