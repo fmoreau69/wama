@@ -429,6 +429,30 @@ class ReceivedInputs(list):
     refusal = ''
 
 
+class InputRefused(ValueError):
+    """Une désignation refusée : hors `MEDIA_ROOT`, absente, ou illisible pour cet utilisateur."""
+
+
+def designate(path, user, app_name: str, subfolder: str = 'input') -> ReceivedInput:
+    """UN fichier DÉSIGNÉ par son chemin (relatif à `MEDIA_ROOT`, ou absolu dessous), reçu pour
+    `app_name` — LA fonction de désignation, partagée par les vues d'upload (`received_inputs`)
+    et les outils de l'assistant (`tool_api.add_to_*`, 2026-09-28) : un fichier déposé au sas
+    sans intention est POINTÉ par toutes les tâches qu'on lance dessus, quelle que soit la voie.
+
+    Trois gardes : confinement (`resolve_under_media_root`, `..` compris), existence, lisibilité
+    pour CET utilisateur (`readable_by`) ; puis `reference_or_copy` décide pointer ou copier.
+    Lève `InputRefused` avec un motif lisible.
+    """
+    try:
+        abs_path, rel = resolve_under_media_root(path)
+    except (OutsideMediaRoot, FileNotFoundError) as exc:
+        raise InputRefused(str(exc)) from exc
+    if not readable_by(rel, user):
+        raise InputRefused(f"Fichier non accessible : {os.path.basename(rel)}")
+    local, value = reference_or_copy(abs_path, app_name, user.id, subfolder)
+    return ReceivedInput(os.path.basename(rel), value, local_path=str(local), designation=rel)
+
+
 def received_inputs(request, user, app_name: str, field: str = 'file',
                     subfolder: str = 'input') -> ReceivedInputs:
     """Ce qu'une vue d'upload reçoit : les fichiers TÉLÉVERSÉS sous `field`, puis les fichiers
@@ -443,16 +467,9 @@ def received_inputs(request, user, app_name: str, field: str = 'file',
     received = ReceivedInputs(ReceivedInput(f.name, f) for f in request.FILES.getlist(field))
     for raw in request.POST.getlist(DESIGNATION_FIELD):
         try:
-            abs_path, rel = resolve_under_media_root(raw)
-        except (OutsideMediaRoot, FileNotFoundError) as exc:
+            received.append(designate(raw, user, app_name, subfolder))
+        except InputRefused as exc:
             received.refusal = received.refusal or str(exc)
-            continue
-        if not readable_by(rel, user):
-            received.refusal = received.refusal or f"Fichier non accessible : {os.path.basename(rel)}"
-            continue
-        path, value = reference_or_copy(abs_path, app_name, user.id, subfolder)
-        received.append(ReceivedInput(os.path.basename(rel), value,
-                                      local_path=str(path), designation=rel))
     return received
 
 
