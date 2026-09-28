@@ -902,7 +902,11 @@ def list_passes(request, session_id):
         recompute_stale(session)
     except Exception as exc:
         logger.warning(f"recompute_stale failed: {exc}")
-    return JsonResponse({'passes': get_passes_status(session)})
+    # `chain_queued` : une chaîne de calculs est en FILE ou en cours (verrou de `run_passes`) —
+    # le panneau continue de suivre même si aucune passe n'a encore démarré.
+    from .utils.pass_tracking import calc_chain_key as _calc_chain_key
+    return JsonResponse({'passes': get_passes_status(session),
+                         'chain_queued': bool(cache.get(_calc_chain_key(session.id)))})
 
 
 @login_required
@@ -998,6 +1002,13 @@ def run_passes(request, session_id):
                 'error': "Aucune détection en base : lancer l'ANALYSE d'abord — les calculs "
                          "dérivent des détections, ils n'ont rien à lire.",
             }, status=409)
+        from .utils.pass_tracking import calc_chain_key, CALC_CHAIN_TTL_S
+        if cache.get(calc_chain_key(session.id)):
+            return JsonResponse({
+                'success': False,
+                'error': "Des calculs sont déjà en file ou en cours pour cette session — ils se "
+                         "dérouleront seuls ; attendre leur fin avant de relancer.",
+            }, status=409)
         _pause_live(session_id)
         cache.delete(f"stop_cam_analyzer_{request.user.id}")
 
@@ -1017,7 +1028,10 @@ def run_passes(request, session_id):
             names.append(task_fn.__name__)
             needs_run.discard(pt)
         if sigs:
-            result = chain(*sigs).apply_async()
+            from .tasks import release_calc_chain_task
+            release = release_calc_chain_task.si(str(session.id))
+            cache.set(calc_chain_key(session.id), names, timeout=CALC_CHAIN_TTL_S)
+            result = chain(*sigs, release).apply_async(link_error=release)
             cache.set(f"cam_analyzer_task_{session.id}", result.id, timeout=86400)
             launched.extend(names)
 
