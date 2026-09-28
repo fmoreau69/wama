@@ -307,13 +307,19 @@ def upload(request):
 
     # Check for URL upload first
     media_url = request.POST.get('media_url', '').strip()
-    file = request.FILES.get('file')
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs` : une
+    # désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
+    from wama.common.utils.media_paths import received_inputs
+    received = received_inputs(request, user, 'enhancer')
+    file = received[0] if received else None
 
     if not file and not media_url:
         logger.error("Upload failed: No file or URL provided")
+        if received.refusal:
+            return JsonResponse({'error': received.refusal}, status=400)
         return HttpResponseBadRequest('Missing file or URL')
 
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     logger.info(f"Upload by user: {user.username} (ID: {user.id})")
 
     image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic']
@@ -411,9 +417,10 @@ def upload(request):
     enhancement = Enhancement.objects.create(
         user=user,
         media_type=media_type,
-        input_file=file,
+        input_file=file.value,
         **_deposit_settings(user, request.POST),
     )
+    file.record(enhancement, 'input_file')
     logger.info(f"Created Enhancement ID: {enhancement.id}")
 
     # Wrap in batch-of-1

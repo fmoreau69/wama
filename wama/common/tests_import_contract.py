@@ -219,17 +219,13 @@ class ContratUploadDesAppsPorteesTest(TestCase):
                 self.assertGreaterEqual(rep.status_code, 400, f'{app} : un dépôt vide a été accepté')
 
 
-#: Apps dont la vue d'upload ne reçoit PAS encore une désignation (`media_paths.received_inputs`,
-#: 2026-09-28). Budget qui ne peut que DESCENDRE : une app qui passe le contrat alors qu'elle y
-#: figure fait rougir le test (l'exemption est devenue inutile, on la retire).
-NOT_YET_RECEIVING_DESIGNATIONS = {'anonymizer', 'converter', 'describer', 'enhancer', 'reader',
-                                  'synthesizer'}
-
-
 class UploadViewsReceiveDesignationsTest(TestCase):
     """Un fichier DÉSIGNÉ (tuile Médiathèque, glisser depuis l'arbre) arrive par la MÊME vue
     d'upload que le dépôt, avec les mêmes champs de volet, et l'élément créé POINTE le fichier —
-    aucune copie (plan de la card v4, étape 1, 2026-09-28 ; brique `received_inputs`)."""
+    aucune copie (plan de la card v4, étape 1, 2026-09-28 ; brique `received_inputs`).
+
+    Les 7 apps « crée » dérivées par `PORTEES` l'ont adoptée le même jour (transcriber d'abord,
+    budget d'exemption descendu de 6 à 0 puis retiré). Une app ajoutée au parc entre ici seule."""
 
     _utilisateur = ContratUploadDesAppsPorteesTest._utilisateur
 
@@ -254,10 +250,6 @@ class UploadViewsReceiveDesignationsTest(TestCase):
         for app, roles, champ, ext, contenu, extra in PORTEES:
             with self.subTest(app=app):
                 rep, pointed = self._designate(app, roles, champ, ext, contenu, extra)
-                if app in NOT_YET_RECEIVING_DESIGNATIONS:
-                    self.assertFalse(pointed, f'{app} reçoit désormais une désignation : '
-                                              f'la retirer de NOT_YET_RECEIVING_DESIGNATIONS')
-                    continue
                 self.assertTrue(pointed, f'{app}:upload → {rep.status_code} {rep.content[:200]!r}')
                 adopted.append(app)
         self.assertTrue(adopted, 'aucune app ne reçoit de désignation : le contrat serait à vide')
@@ -265,8 +257,6 @@ class UploadViewsReceiveDesignationsTest(TestCase):
     def test_a_designation_the_user_cannot_read_is_refused(self):
         from wama.common.utils.media_paths import DESIGNATION_FIELD
         for app, roles, champ, ext, contenu, extra in PORTEES:
-            if app in NOT_YET_RECEIVING_DESIGNATIONS:
-                continue
             with self.subTest(app=app):
                 self.client.force_login(self._utilisateur(app, roles))
                 rep = self.client.post(reverse(f'{app}:upload'),

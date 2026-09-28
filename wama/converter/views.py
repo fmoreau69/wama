@@ -223,7 +223,6 @@ class IndexView(View):
 def upload(request):
     """Accept a file upload and create a ConversionJob (PENDING)."""
     user        = request.user
-    file_obj    = request.FILES.get('file')
     output_fmt  = request.POST.get('output_format', '').strip().lower()
 
     # Note : l'import par URL depuis la card d'entrée NE passe PAS par ici. Il
@@ -231,8 +230,13 @@ def upload(request):
     # → batch_create, qui télécharge via upload_media_from_url et consolide). Voir
     # WamaBatchImport.ingestText (JS) câblé dans converter/index.html.
 
-    if not file_obj:
-        return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
+    # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs` : une
+    # désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
+    from wama.common.utils.media_paths import received_inputs
+    received = received_inputs(request, user, 'converter')
+    if not received:
+        return JsonResponse({'error': received.refusal or 'Aucun fichier fourni'}, status=400)
+    file_obj = received[0]
 
     media_type = detect_media_type(file_obj.name)
     if media_type is None:
@@ -266,12 +270,13 @@ def upload(request):
 
     job = ConversionJob.objects.create(
         user=user,
-        input_file=file_obj,
+        input_file=file_obj.value,
         input_filename=file_obj.name,
         media_type=media_type,
         output_format=output_fmt,
         status='PENDING',
     )
+    file_obj.record(job, 'input_file')
     # MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09, ROADMAP §23.2quater) : l'élément naît COMPLET —
     # les défauts applicables du schéma sont ÉCRITS en base à la création, le POST de la
     # zone de composition par-dessus (le geste de l'utilisateur prime). Les chips d'une card

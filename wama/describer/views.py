@@ -251,10 +251,14 @@ def upload(request):
 
     # Check for URL upload first
     media_url = request.POST.get('media_url', '').strip()
-    uploaded_file = request.FILES.get('file')
+    # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs` : une
+    # désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
+    from wama.common.utils.media_paths import received_inputs
+    received = received_inputs(request, user, 'describer')
+    uploaded_file = received[0] if received else None
 
     if not uploaded_file and not media_url:
-        return JsonResponse({'error': 'No file or URL provided'}, status=400)
+        return JsonResponse({'error': received.refusal or 'No file or URL provided'}, status=400)
     from wama.common.app_registry import accepts_file
     if uploaded_file and not accepts_file('describer', uploaded_file.name):
         return JsonResponse({'error': f'Format non pris en charge : '
@@ -349,7 +353,7 @@ def upload(request):
     # Create description record
     description = Description.objects.create(
         user=user,
-        input_file=uploaded_file,
+        input_file=uploaded_file.value,
         filename=filename,
         file_size=uploaded_file.size,
         detected_type=detected_type,
@@ -357,6 +361,7 @@ def upload(request):
         output_language=output_language,
         max_length=max_length,
     )
+    uploaded_file.record(description, 'input_file')
 
     # Get file properties
     properties = get_file_properties(description)
