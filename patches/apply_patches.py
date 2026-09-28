@@ -398,4 +398,48 @@ else:
         )
 print()
 
+print("=== 7. qwen-asr: import nagisa (japonais seul) rendu paresseux ===")
+# qwen-asr==0.0.6 s'installe en --no-deps (backend QwenASRBackend, PIP_NO_DEPS) : il EPINGLE
+# accelerate==1.12.0 (le code ne l'importe pas) et des dependances de demo/langues (gradio,
+# flask, vllm, soynlp, nagisa). Mesure du 2026-09-28 : le chemin transformers tourne avec NOTRE
+# transformers 4.57.6 et accelerate 1.6.0 — le seul blocage est `import nagisa` EN TETE de
+# l'aligneur (tokenizer japonais, tire DyNet en C++), charge par `import qwen_asr` alors qu'il ne
+# sert qu'a l'alignement du japonais. Sans ce patch : ModuleNotFoundError: nagisa.
+qwen_aligner = site / "qwen_asr/inference/qwen3_forced_aligner.py"
+if not qwen_aligner.exists():
+    print(f"  [SKIP] {qwen_aligner} not found")
+else:
+    apply_patch(
+        qwen_aligner,
+        search="import nagisa\n",
+        replace=(
+            "try:\n"
+            "    import nagisa  # PATCH WAMA : japonais seul — absent en --no-deps\n"
+            "except ImportError:\n"
+            "    nagisa = None\n"
+        ),
+        description="7. qwen_asr qwen3_forced_aligner.py: import nagisa paresseux (tokenizer japonais, inutile hors japonais)",
+    )
+print()
+
+print("=== 8. NeMo: nv-one-logger face a notre Lightning 2.6.1 ===")
+# nemo_toolkit[asr]==3.0.0 s'installe en --no-deps (backend NemoASRBackend, PIP_NO_DEPS) :
+# honorer ses pins RETROGRADERAIT lightning 2.6.1 -> 2.4.0, protobuf 7 -> 6 et fsspec (mesure du
+# 2026-09-28, `pip install --dry-run`). Avec NOS versions, un seul blocage : la telemetrie
+# nv-one-logger declare `save_checkpoint(weights_only: bool = False)` la ou Lightning 2.6 declare
+# `Optional[bool]` — le decorateur `overrides` verifie la signature A L'IMPORT et refuse
+# (TypeError), ce qui empeche `import nemo.collections.asr`. Mesure apres ce patch : import OK,
+# transcription francaise juste sur CPU (parakeet-tdt-0.6b-v3).
+one_logger_ptl = site / "nv_one_logger/training_telemetry/integration/pytorch_lightning.py"
+if not one_logger_ptl.exists():
+    print(f"  [SKIP] {one_logger_ptl} not found")
+else:
+    apply_patch(
+        one_logger_ptl,
+        search="weights_only: bool = False, storage_options",
+        replace="weights_only: Optional[bool] = None, storage_options",
+        description="8. nv_one_logger pytorch_lightning.py: save_checkpoint(weights_only: Optional[bool]) (signature de Lightning 2.6)",
+    )
+print()
+
 print("Done.")

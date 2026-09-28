@@ -72,6 +72,13 @@ class TranscriberBackendManager:
         except ImportError as e:
             logger.warning(f"[TranscriberManager] Could not import QwenASRBackend: {e}")
 
+        try:
+            from wama.common.backends.nemo_asr_backend import NemoASRBackend
+            self._backends['nemo'] = NemoASRBackend
+            logger.debug("[TranscriberManager] Registered: nemo")
+        except ImportError as e:
+            logger.warning(f"[TranscriberManager] Could not import NemoASRBackend: {e}")
+
         logger.info(f"[TranscriberManager] Registered backends: {list(self._backends.keys())}")
 
     def check_availability(self, force: bool = False) -> Dict[str, bool]:
@@ -133,7 +140,16 @@ class TranscriberBackendManager:
         if name is None or name == 'auto':
             return self._get_best_backend()
 
-        # Check if requested backend exists and is available
+        # Un nom de MODÈLE du catalogue (`qwen3-asr-1.7b`, `transcriber:vibevoice-asr`) désigne
+        # son moteur par la même table que le catalogue (`_backend_for_model_key`). Sans cette
+        # traduction, l'essai de l'assistant du 2026-09-28 aurait transcrit en WHISPER, sans une
+        # erreur, une demande faite pour Qwen3-ASR : un nom inconnu retombait sur le meilleur
+        # moteur disponible. *Un repli silencieux sur une demande explicite est une réponse fausse.*
+        if name not in self._backends:
+            translated = self._backend_for_model_key(name)
+            if translated in self._backends:
+                logger.info(f"[TranscriberManager] '{name}' is a catalogue model → backend '{translated}'")
+                name = translated
         if name not in self._backends:
             logger.warning(f"[TranscriberManager] Unknown backend: {name}")
             return self._get_best_backend()
@@ -165,7 +181,33 @@ class TranscriberBackendManager:
             return 'qwen_asr'
         if 'whisper' in mk:
             return 'whisper'
+        if 'canary' in mk or 'parakeet' in mk:
+            return 'nemo'
         return None
+
+    @staticmethod
+    def model_for_request(backend, requested: str) -> Optional[str]:
+        """`model_id` du catalogue que la demande `requested` désigne pour `backend` — quand c'est
+        l'un des modèles que ce backend SERT (`SUPPORTED_MODELS`), sinon None (nom de moteur,
+        `auto`, inconnu : le backend charge son défaut).
+
+        POURQUOI (2026-09-28) : le worker appelait `backend.load()` SANS dire quel modèle. Un
+        moteur qui en sert plusieurs (Qwen3-ASR 0.6B / 1.7B, NeMo canary / parakeet) chargeait
+        donc toujours son défaut — demander le 0.6B donnait le 1.7B, sans un mot."""
+        if not requested:
+            return None
+        model_id = requested.split(':', 1)[-1].strip().lower()
+        served = getattr(backend, 'SUPPORTED_MODELS', None) or {}
+        return model_id if model_id in served else None
+
+    @classmethod
+    def honours(cls, backend, requested: str) -> bool:
+        """Le backend retenu est-il celui que la demande désignait (nom de moteur OU modèle du
+        catalogue) ? Faux = un vrai repli, à dire à l'utilisateur. Comparer les noms seuls
+        disait « indisponible — repli » pour `transcriber:qwen3-asr-1.7b` servi… par Qwen3-ASR."""
+        if not requested:
+            return True
+        return backend.name == requested or cls._backend_for_model_key(requested) == backend.name
 
     @classmethod
     def catalogue_key_for(cls, backend_name: str, loaded_model: str = '') -> str:
@@ -315,6 +357,28 @@ class TranscriberBackendManager:
 
 
 # Module-level convenience functions
+
+def backend_choice_values() -> List[str]:
+    """Domaine SERVEUR du select « Moteur de transcription » (`transcriber/params.py`, déclaré
+    `options_domain`) : les moteurs ENREGISTRÉS, puis les clés de catalogue qu'ils servent
+    (`transcriber:qwen3-asr-1.7b`) — `get_backend` traduit les secondes vers leur moteur.
+
+    POURQUOI (essai de l'assistant du 2026-09-28) : le schéma ne rend en statique que « auto »,
+    les moteurs arrivent par le navigateur ; la porte des outils prenait ce préfixe pour le
+    domaine entier et refusait à l'assistant TOUT moteur explicite. Enregistrés, pas seulement
+    disponibles : la disponibilité se juge au lancement, où un moteur absent est remplacé par
+    le meilleur disponible (journalisé)."""
+    manager = TranscriberBackendManager.get_instance()
+    values = list(manager._backends)
+    try:
+        from wama.model_manager.models import AIModel
+        for key in AIModel.objects.filter(source='transcriber').values_list('model_key', flat=True):
+            if manager._backend_for_model_key(key) in manager._backends:
+                values.append(key)
+    except Exception as e:
+        logger.debug(f"[TranscriberManager] catalogue unreadable for the choice domain: {e}")
+    return values
+
 
 def get_backend(name: str = None) -> SpeechToTextBackend:
     """

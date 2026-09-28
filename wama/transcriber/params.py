@@ -38,6 +38,9 @@ PARAMS = derive_from_model(
             icon="fa-microchip", dom_id={"panel": "backendSelect", "item": "settingsBackend"},
             # « auto » rendu en statique (1ʳᵉ option) ; loadBackendsAsync append les modèles ensuite.
             choices=[("auto", "Auto (meilleur disponible)")],
+            # Domaine SERVEUR des options ajoutées par le navigateur : sans lui, la porte des
+            # outils (assistant, API, studio) ne connaissait que « auto » (2026-09-28).
+            options_domain="wama.transcriber.backends.manager.backend_choice_values",
             help="",   # pas d'aide statique : le descriptif du moteur (backendHelp) s'affiche juste dessous
         ),
         "hotwords": dict(

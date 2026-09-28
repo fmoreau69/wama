@@ -101,6 +101,11 @@ MODEL_PATHS = {
         'higgs': AI_MODELS_DIR / "models" / "speech" / "higgs",
         'vibevoice': AI_MODELS_DIR / "models" / "speech" / "vibevoice",
         'qwen_asr': AI_MODELS_DIR / "models" / "speech" / "qwen_asr",
+        # ASR NVIDIA NeMo (transcriber, `NemoASRBackend`, 2026-09-28) — les dossiers où les
+        # poids étaient DÉJÀ rangés par l'installeur générique ; les déclarer les rend au
+        # transcriber (le balayage générique ne couvre que les familles non revendiquées).
+        'canary': AI_MODELS_DIR / "models" / "speech" / "canary-1b-v2",
+        'parakeet': AI_MODELS_DIR / "models" / "speech" / "parakeet-tdt-0.6b-v3",
         'diarization': AI_MODELS_DIR / "models" / "speech" / "diarization",
         # Aligneurs acoustiques (alignement forcé, étage B — `Wav2Vec2AlignerBackend`).
         'alignment': AI_MODELS_DIR / "models" / "speech" / "alignment",
@@ -764,7 +769,13 @@ if ENABLE_CELERY:
     # passe donc en premier. `sep` doit aussi correspondre des deux côtés.
     from wama.common.services.resource_governor import PRIORITY_STEPS as _STEPS
 
+    # ⚠ FUSION, jamais réaffectation (corrigé le 2026-09-28) : depuis `8360b3e2` (29/07) ce bloc
+    # REMPLAÇAIT le dict posé plus haut, et le `visibility_timeout` de 6 h disparaissait sans un
+    # mot — la redélivrance retombait au défaut Redis d'une heure, sous la durée de la suite
+    # nocturne GPU (2 h 16 mesurées) et des longues passes cam_analyzer. Garde :
+    # `tests_calendar.BrokerTransportOptionsTest`.
     CELERY_BROKER_TRANSPORT_OPTIONS = {
+        **CELERY_BROKER_TRANSPORT_OPTIONS,
         'queue_order_strategy': 'priority',
         'priority_steps': list(_STEPS),
         'sep': ':',

@@ -1253,14 +1253,29 @@ class ModelRegistry:
                     is_downloaded = _check_hf_model_downloaded(vibevoice_dir, hf_id)
                     name = "VibeVoice ASR"
                     fmt = 'safetensors'
-                    extra = {'hf_id': hf_id, 'path': str(vibevoice_dir)}
+                    # `install_dir` (2026-09-28) : ce que `spec_for_catalog_row` exige pour le geste
+                    # « Installer » (bouton et outil `install_model` de l'assistant) — le transcriber
+                    # ne le déclarait pas, essai de l'assistant du 28/09 : « no_install_location ».
+                    extra = {'hf_id': hf_id, 'path': str(vibevoice_dir),
+                             'install_dir': str(vibevoice_dir)}
 
                 elif model_id.startswith('qwen3-asr-'):
                     # HuggingFace hub format in qwen_asr/
                     is_downloaded = _check_hf_model_downloaded(qwen_asr_dir, hf_id)
                     name = hf_id.split('/')[-1]   # "Qwen3-ASR-0.6B" / "Qwen3-ASR-1.7B"
                     fmt = 'safetensors'
-                    extra = {'hf_id': hf_id, 'path': str(qwen_asr_dir)}
+                    extra = {'hf_id': hf_id, 'path': str(qwen_asr_dir),
+                             'install_dir': str(qwen_asr_dir)}
+
+                elif config.get('engine') == 'nemo':
+                    # ASR NeMo (canary, parakeet — 2026-09-28) : snapshot HF dans le dossier de
+                    # famille DÉCLARÉ par le modèle ; poids = une archive `.nemo` (comptée par
+                    # `_WEIGHT_EXTS`, sinon le jugement commun les dirait « sans poids »).
+                    nemo_dir = Path(config['dir'])
+                    is_downloaded = _check_hf_model_downloaded(nemo_dir, hf_id)
+                    name = hf_id.split('/')[-1]
+                    fmt = 'nemo'
+                    extra = {'hf_id': hf_id, 'path': str(nemo_dir), 'install_dir': str(nemo_dir)}
 
                 elif model_id == 'pyannote-diarization':
                     # La RECETTE (config.yaml, 0 octet de poids) ; ses poids sont ses
@@ -1271,7 +1286,8 @@ class ModelRegistry:
                                                                weights_required=False)
                     name = "pyannote 3.1 (diarisation)"
                     fmt = 'pytorch'
-                    extra = {'hf_id': hf_id, 'path': str(diarization_dir)}
+                    extra = {'hf_id': hf_id, 'path': str(diarization_dir),
+                             'install_dir': str(diarization_dir)}
 
                 elif config.get('type') == 'alignment':
                     # Aligneur acoustique (étage B de l'alignement forcé) : même constat par le
@@ -1279,7 +1295,11 @@ class ModelRegistry:
                     is_downloaded = _check_hf_model_downloaded(Path(ALIGNMENT_DIR), hf_id)
                     name = f"{hf_id.split('/')[-1]} (alignement)"
                     fmt = 'safetensors'
-                    extra = {'hf_id': hf_id, 'path': str(ALIGNMENT_DIR)}
+                    extra = {'hf_id': hf_id, 'path': str(ALIGNMENT_DIR),
+                             'install_dir': str(ALIGNMENT_DIR)}
+                # ⚠ Whisper ne reçoit PAS d'`install_dir` : sa ligne déclare `openai/whisper-large-v3`
+                # quand le moteur charge `Systran/faster-whisper-*` — installer depuis la ligne
+                # tirerait le MAUVAIS dépôt. Il garde le téléchargement au premier usage.
 
                 else:
                     # Whisper : plusieurs formats possibles sur disque. On CONSTATE le
@@ -1332,6 +1352,10 @@ class ModelRegistry:
                         'supports_diarization': _cls.supports_diarization,
                         'task': 'transcription', 'modalities': ['audio'],
                         'inputs_required': ['work_audio']}
+                if config.get('languages') and isinstance(config['languages'], (list, tuple)):
+                    # Langues DÉCLARÉES par l'app (NeMo : les 25 européennes de la carte) — la
+                    # sélection automatique filtre par elles ; « * » les aurait dits universels.
+                    caps['languages'] = list(config['languages'])
                 if model_id == 'pyannote-diarization':
                     # Sa TÂCHE n'est pas la transcription : il dit QUI parle et QUAND, il ne
                     # produit aucun texte. Le déclarer 'transcription' le ferait remonter dans

@@ -246,6 +246,8 @@ apply_patch(
 | 4 | `start_wama_prod.sh` | In-repo (vérification seulement) |
 | 5 | `site-packages/xformers/ops/seqpar.py` | torch 2.9.x — `GroupName` supprimé |
 | 6 | `site-packages/vibevoice/.../modeling_vibevoice_asr.py` | lm_head : overflow int32 du GEMM CUDA sur audio long → `cudaErrorUnknown` (logits sur dernier token seulement) |
+| 7 | `site-packages/qwen_asr/inference/qwen3_forced_aligner.py` | `import nagisa` (tokenizer japonais) en tête : `qwen-asr` s'installe en `--no-deps`, l'import paresseux suffit (2026-09-28) |
+| 8 | `site-packages/nv_one_logger/training_telemetry/integration/pytorch_lightning.py` | `save_checkpoint(weights_only: bool)` refusé par `overrides` face à Lightning 2.6 (`Optional[bool]`) : bloquait `import nemo.collections.asr` ; NeMo en `--no-deps` pour ne pas rétrograder lightning/protobuf/fsspec (2026-09-28) |
 
 ---
 

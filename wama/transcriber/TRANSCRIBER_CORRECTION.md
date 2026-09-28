@@ -67,8 +67,42 @@ chaque étape (diarisation, résumé, cohérence) se relance seule au lieu de to
   d'ordre d'implémentation** (placé devant pour sa diarisation native, redondante avec
   pyannote ; 16 GB vs 10 GB ; qualité jugée moindre).
 - **word_timestamps** : *fait* (capture des `words`).
-- **VibeVoice** : option (diarisation native). **Qwen3-ASR** : cassé (compat) → à réparer
-  (intérêt = context biasing / hotwords).
+- **VibeVoice** : option (diarisation native).
+- **Qwen3-ASR** : ✅ **en service depuis le 2026-09-28** (intérêt = context biasing / hotwords ;
+  banc FR 5,68 % contre 6,24 % pour Whisper large-v3). Le « cassé (compat) » d'avant venait de
+  DEUX causes : l'architecture `qwen3_asr` est fournie par le runtime officiel `qwen-asr` (pas par
+  transformers), et le backend appelait une API de style Whisper que ce modèle n'a pas. Runtime
+  installé en `--no-deps` (`PIP_NO_DEPS`, son pin `accelerate==1.12.0` est inutile au code) avec UN
+  patch (`apply_patches.py` n°7 : `import nagisa` paresseux) ; poids chargés par CHEMIN
+  (`hf_weights.poids_locaux`, le runtime ne passe pas `cache_dir` à son processeur) ; segments de
+  30 s par le découpage commun (`max_audio_seconds`), heure au mot = alignement acoustique.
+  **Éprouvé de bout en bout PAR L'ASSISTANT** (qwen3.8, conversation n° 17) : diagnostic →
+  `install_model` → `add_to_transcriber` → `start_transcriber` → lecture ; item 737,
+  `used_backend=qwen_asr`, `model_key=transcriber:qwen3-asr-1.7b`, texte exact. L'essai a fait
+  tomber TROIS trous de chaîne, corrigés : ① la découverte du transcriber ne déclarait pas
+  `install_dir` (`install_model` → « no_install_location ») ; ② un nom de modèle du catalogue
+  passé comme moteur retombait EN SILENCE sur Whisper (`get_backend` le traduit désormais) ;
+  ③ la porte des outils ne connaissait que « auto » — les moteurs arrivent par le navigateur ;
+  l'app DÉCLARE maintenant leur domaine serveur (`Param.options_domain`, lu par
+  `param_schema.choice_values` pour la porte ET l'annonce à l'assistant).
+- **NVIDIA NeMo — Canary 1B v2 et Parakeet TDT 0.6B v3** : ✅ **en service depuis le 2026-09-28**,
+  les deux meilleurs du banc FR ouvert (4,79 % / 5,38 %), poids installés depuis septembre sans
+  moteur. Backend commun `NemoASRBackend` (`ENGINE='nemo'`, deux modèles déclarés dans
+  `SUPPORTED_MODELS` avec leur langue exigée et leur passe maximale) ; runtime `nemo_toolkit==3.0.0`
+  en `--no-deps` avec ses 28 dépendances NOUVELLES listées (ses pins rétrogradaient lightning,
+  protobuf, fsspec) + patch venv n°8 ; **heure au MOT native** (22 mots datés sur l'extrait d'essai).
+  Même essai par l'assistant (items 738 canary, 739 parakeet) : texte exact, `used_backend=nemo`,
+  bonne clé de modèle. Deux défauts trouvés en chemin, corrigés : ④ le worker appelait
+  `backend.load()` SANS dire quel modèle — un moteur à plusieurs modèles chargeait son défaut
+  (`TranscriberBackendManager.model_for_request`), et il annonçait « indisponible — repli » pour un
+  modèle servi par son propre moteur (`honours`) ; ⑤ **Canary a TRADUIT au lieu de transcrire** : le
+  transcriber ne connaît pas la langue d'un élément avant de le transcrire, et le repli sur la langue
+  du site (`LANGUAGE_CODE = 'en-us'`) a sorti un extrait français EN ANGLAIS. La langue est désormais
+  ENTENDUE (brique `common/utils/spoken_language.py`, faster-whisper `tiny` sur CPU, déjà sur disque)
+  et une langue que le moteur ne transcrit pas est REFUSÉE, jamais traduite.
+  ⚠ Constat sur l'assistant (qwen3.8) : il atteint la limite d'itérations d'outils en suivant une
+  tâche longue (sa réponse finit par un appel d'outil écrit en texte), et il a INVENTÉ une cause
+  (« les poids ne sont pas encore en cache ») à une lenteur qui venait de l'import de NeMo à froid.
 - **À évaluer plus tard** (perf vs gain) : **WhisperX** (alignement mot wav2vec2 + pyannote,
   idéal éditeur), **NVIDIA Canary-Qwen-2.5B** (n°1 HF Open ASR, FR), **IBM Granite Speech 3.3**
   (FR). Variante rapide : **large-v3-turbo**.

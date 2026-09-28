@@ -369,7 +369,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (27) :
+- **API publique** (29) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -385,7 +385,9 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `disk_space_guard(ref: str, *, reclaim_gb: float=0.0, force: bool=False, needed_gb: float | None=None)` — Refuse une installation qui saturerait le volume. Retourne None si l'installation peut
   - `request_install(model_key: str, *, force: bool=False, variant_ref: str='', variant_file: str='', user=None) -> dict` — DEMANDE d'installation par CLÉ — corps unique du geste « Installer » : choix de variante,
   - `install_candidate(cand, progress=None, token=None) -> dict` — Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
-  - `uninstall_model(model_key: str) -> dict` — DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
+  - `weights_dir_of(model, index: dict | None=None) -> Path | None` — Dossier des POIDS d'une ligne de catalogue installée, ou None s'il ne se désigne pas.
+  - `rows_depending_on(model, target: Path, index: dict | None=None) -> tuple[list, list]` — Les AUTRES lignes installées que retirer `target` toucherait — `(sharing, dependents)`.
+  - `uninstall_model(model_key: str, include_shared: bool=False) -> dict` — DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
   - `spec_for_catalog_row(model) -> dict | None` — Spec d'installation DÉRIVÉ d'une ligne de catalogue non téléchargée — le geste « Installer »
   - `patterns_from_composition(composition) -> list | None` — `allow_patterns` DÉRIVÉS d'une `composition` déclarée (manifeste `model`,
   - `install_from_spec(spec: dict, token=None) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
@@ -414,12 +416,13 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)
 
 - **Domicile** : `wama/model_manager/services/prospector.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Prospection de modèles — version DÉTERMINISTE (sans LLM, sans scraping).
-- **API publique** (17) :
+- **API publique** (18) :
   - `hf_task_to_wama(pipeline_tag: str, tags=())` — (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
   - `card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str='') -> dict` — Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
   - `prospect_hf(task: str, limit: int=15, library: str | None=None, min_downloads: int=0, search: str | None=None, sort: str='downloads')` — Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
   - `local_revision(snapshot_root)` — Le dossier dont les chemins de `local_inventory` sont RELATIFS : la révision la plus
   - `local_inventory(snapshot_root)` — `[(chemin relatif, taille)]` d'un modèle INSTALLÉ — le jumeau LOCAL de `_siblings`
+  - `installed_weights_complete(snapshot_root) -> bool` — Un modèle installé porte-t-il des POIDS complets ? — LE jugement « téléchargé » (2026-09-28).
   - `safetensors_facts(path)` — `{'params': nombre de paramètres, 'dtypes': [...]}` lus dans l'EN-TÊTE seul d'un
   - `precision_of_files(revision, files_by_role) -> dict` — `{rôle: {'params', 'dtypes'}}` — la PRÉCISION de chaque composant, lue dans les en-têtes
   - `remote_precision(hf_id: str, files_by_role) -> dict` — JUMEAU DISTANT de `precision_of_files`, même forme `{rôle: {params, dtypes,
@@ -1707,7 +1710,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (22) :
+- **API publique** (23) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
   - `class ParamGroup` — Groupe d'affichage d'une surface de saisie (modale ⚙ / volet) — l'app le déclare,
@@ -1726,6 +1729,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `schema_model_kwargs(app_id: str, params: dict) -> dict` — Sous-ensemble de `params` qui est À LA FOIS déclaré au schéma de l'app ET un champ
   - `schema_extra_params(app_id: str, params: dict) -> dict` — Symétrique de `schema_model_kwargs` : les params DÉCLARÉS au schéma qui ne sont PAS des
   - `schema_arg_names(app_id: str) -> set` — Noms de params qu'une app DÉCLARE — surface d'arguments acceptable d'un outil `**params`.
+  - `choice_values(p) -> List[str]` — Valeurs VALIDES d'un select/radio : ses `choices` statiques, puis — quand l'app DÉCLARE
   - `invalid_choice_values(schema, data) -> dict` — {nom: (valeurs_refusées, choices_valides_triés)} pour chaque valeur PRÉSENTE hors
   - `unapplicable_numeric_values(schema, data) -> dict` — {nom: (valeur_refusée, explication)} pour chaque nombre PRÉSENT que le schéma ne peut
   - `schema_choice_values(app_id, name) -> set` — Valeurs valides d'un param à `choices`, DÉRIVÉES du schéma — jamais recopiées.
@@ -1762,7 +1766,7 @@ Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, mo
 
 ### Sélecteur de médiathèque
 
-Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta
+Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta (`onSelect`), ou de l'asset SEUL, sans téléchargement, pour qui le DÉSIGNE (`onPick`, 2026-09-28 — la tuile de card)
 
 - **Domicile** : `wama/common/static/common/js/media-picker.js`
 
@@ -1789,7 +1793,7 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
 
 ### Voie d'import (front)
 
-Envoi d'un fichier vers l'endpoint upload de l'app (dépôt, clic — la médiathèque y ARRIVE par la card d'entrée, qui injecte le fichier dans le même input), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension)
+Envoi d'un fichier vers l'endpoint upload de l'app (dépôt, clic), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension). ⭐ Depuis le 2026-09-28 elle DÉSIGNE aussi (`handleDesignations` : médiathèque, arbre — `<champ>__designated`, pointé par le serveur) et se retrouve par l'id de sa zone ou de son input (`forElement`)
 
 - **Domicile** : `wama/common/static/common/js/wama-import.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 
@@ -1909,11 +1913,11 @@ Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AV
 
 ### Chemins média
 
-Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la brique décide aussi POINTER ou COPIER (`reference_or_copy`, décision de Fabien, cible annoncée le 12/09) : une source déjà sous `users/<uid>/` du MÊME utilisateur est désignée telle quelle — un `FileField` est déjà un pointeur, l'aperçu commun sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) garde la copie, et son site le dit. ⭐ Depuis le 2026-09-28 : un asset SYSTÈME actif se pointe aussi, `readable_by` est LA règle de ce qu'un utilisateur peut désigner, et `received_inputs` est ce qu'une vue d'upload REÇOIT — un fichier téléversé ou DÉSIGNÉ (`designated_path` : médiathèque, arbre), par la même vue, avec l'état du volet
+Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la brique décide aussi POINTER ou COPIER (`reference_or_copy`, décision de Fabien, cible annoncée le 12/09) : une source déjà sous `users/<uid>/` du MÊME utilisateur est désignée telle quelle — un `FileField` est déjà un pointeur, l'aperçu commun sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) garde la copie, et son site le dit. ⭐ Depuis le 2026-09-28 : un asset SYSTÈME actif se pointe aussi, `readable_by` est LA règle de ce qu'un utilisateur peut désigner, et `received_inputs` est ce qu'une vue d'upload REÇOIT — un fichier téléversé ou DÉSIGNÉ (`<champ>__designated` : médiathèque, arbre), par la même vue, avec l'état du volet ; `designate` est la même désignation pour les outils de l'assistant (`tool_api.add_to_*`)
 
 - **Domicile** : `wama/common/utils/media_paths.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : WAMA Common - Media Path Utilities
-- **API publique** (22) :
+- **API publique** (25) :
   - `get_app_media_path(app_name: str, user_id: Union[int, str], subfolder: str='input') -> Path` — Get the absolute path for an app's user-specific media folder.
   - `class OutsideMediaRoot(ValueError)` — Le chemin demandé sort de MEDIA_ROOT (traversée `..`, dossier frère, absolu étranger).
   - `resolve_under_media_root(candidate, *, must_exist: bool=True)` — Résout un chemin — absolu, ou RELATIF à MEDIA_ROOT — et GARANTIT qu'il y reste.
@@ -1927,8 +1931,11 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
   - `reference_or_copy(source_path, app_name: str, user_id, subfolder: str='input', allowed_exts=None, *, for_instance=None, field=None, provenance_kind=None, prove…` — POINTER le fichier s'il est déjà dans l'arbre de l'utilisateur, le COPIER sinon.
   - `is_system_asset_file(rel_path) -> bool` — Ce chemin est-il le fichier d'un asset SYSTÈME actif de la médiathèque ?
   - `readable_by(rel_path, user) -> bool` — Cet utilisateur peut-il DÉSIGNER ce fichier comme entrée d'une card ?
+  - `designation_field(field: str) -> str` — Le champ POST qui porte la désignation du champ fichier `field`.
   - `class ReceivedInput` — UN fichier reçu par une vue d'upload : téléversé, ou DÉSIGNÉ.
   - `class ReceivedInputs(list)` — Les entrées reçues, plus `refusal` : le motif du premier refus (désignation illisible,
+  - `class InputRefused(ValueError)` — Une désignation refusée : hors `MEDIA_ROOT`, absente, ou illisible pour cet utilisateur.
+  - `designate(path, user, app_name: str, subfolder: str='input') -> ReceivedInput` — UN fichier DÉSIGNÉ par son chemin (relatif à `MEDIA_ROOT`, ou absolu dessous), reçu pour
   - `received_inputs(request, user, app_name: str, field: str='file', subfolder: str='input') -> ReceivedInputs` — Ce qu'une vue d'upload reçoit : les fichiers TÉLÉVERSÉS sous `field`, puis les fichiers
   - `class UploadToUserPath` — Callable class for Django FileField upload_to that generates user-specific paths.
   - `system_asset_relpath(asset_type: str, filename: str) -> str` — Chemin relatif (sous `MEDIA_ROOT`) d'un asset système : un sous-dossier par NATURE.
@@ -2097,10 +2104,13 @@ Moteur unique de miroir (modèles, base, médias, secrets) et restauration
 
 - **Domicile** : `wama/common/services/mirror_sync.py`
 - **Module** : Miroir incrémental d'une arborescence locale vers un espace distant — brique COMMUNE.
-- **API publique** (7) :
+- **API publique** (10) :
   - `resolve_remote_root(subdir: str, env_var: str | None=None) -> str` — Chemin de l'espace distant pour un domaine (`MODELS`, `DB`, `MEDIAS`…).
   - `remote_is_available(remote_path) -> bool` — L'espace distant est-il utilisable EN ÉCRITURE, sans effet de bord ?
   - `copy_file(source: Path, dest: Path) -> tuple[bool, float, str | None]` — PRIMITIVE DE COPIE UNIQUE du projet : crée les dossiers parents et copie.
+  - `internal_link(path: Path, source_root: Path) -> str | None` — Valeur RELATIVE du lien si `path` est un lien symbolique vers un fichier situé DANS
+  - `read_links_manifest(path: Path) -> dict`
+  - `write_links_manifest(dest_root: Path, links: dict) -> None` — FUSIONNE `links` dans le manifeste de `dest_root` — cumulatif comme le reste de
   - `new_summary(remote_path) -> dict` — Squelette de compte rendu, partagé par les appelants pour publier un état initial
   - `mirror_tree(source_root, dest_root, *, overwrite: bool=False, exclude=None, dry_run: bool=False, progress_cb=None, on_file=None, progress_every: int=PROGRESS_E…` — Réplique `source_root` vers `dest_root` en conservant l'arborescence relative.
   - `purge_keep_latest(directory, pattern: str, keep: int) -> list[str]` — Ne conserve que les `keep` fichiers les plus récents de `directory` correspondant à
@@ -2147,7 +2157,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (17) :
+- **API publique** (19) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d') d'un chemin
@@ -2157,6 +2167,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `app_supports_during_preview(app_id)` — True si l'app déclare la capacité de preview « pendant » (progressive/temporaire pendant le
   - `studio_node_ports(app_id)` — Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
   - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
+  - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
   - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
   - `extra_link_for(app: str) -> tuple[str, dict] | None` — `(catégorie, lien)` d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —
   - `derive_category(entry) -> str` — Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation

@@ -379,22 +379,32 @@ class AutoriteDuMoteurSurLeClonageTest(TestCase):
 
 class QwenAsrAvailabilityTest(TestCase):
     """Card #49 (2026-09-25): Qwen3-ASR said « available » while every load failed — transformers
-    does not know the `qwen3_asr` architecture. Available means: the architecture is known."""
+    does not know the `qwen3_asr` architecture. Since 2026-09-28 the backend runs on the official
+    `qwen_asr` runtime, which REGISTERS the architecture: available means that runtime is there
+    (declared in `REQUIRED_PACKAGES`, installed `--no-deps` through `PIP_PACKAGES`)."""
 
-    def _available(self, known):
+    def _available(self, missing):
         from unittest import mock
         from wama.common.backends.qwen_asr_backend import QwenASRBackend
-
-        def find_spec(name, *args):
-            return object() if name in known else None
-
-        with mock.patch.object(QwenASRBackend, 'missing_packages', return_value=[]), \
-                mock.patch('importlib.util.find_spec', side_effect=find_spec):
+        with mock.patch.object(QwenASRBackend, 'missing_packages', return_value=missing):
             return QwenASRBackend.is_available()
 
-    def test_packages_alone_do_not_make_the_engine_available(self):
-        self.assertFalse(self._available(set()))
+    def test_without_the_runtime_the_engine_is_not_available(self):
+        self.assertFalse(self._available(['qwen_asr']))
 
-    def test_the_architecture_known_by_transformers_or_by_qwen_asr_does(self):
-        self.assertTrue(self._available({'transformers.models.qwen3_asr'}))
-        self.assertTrue(self._available({'qwen_asr'}))
+    def test_with_the_runtime_it_is(self):
+        self.assertTrue(self._available([]))
+
+    def test_the_runtime_is_declared_and_installed_without_its_pins(self):
+        """`qwen-asr` pins accelerate==1.12.0 (unused by its code) and demo deps: honouring them
+        would move SHARED venv packages. The declaration is what `ensure_backend_deps` reads."""
+        from wama.common.backends.qwen_asr_backend import QwenASRBackend
+        self.assertIn('qwen_asr', QwenASRBackend.REQUIRED_PACKAGES)
+        self.assertEqual(['qwen-asr==0.0.6'], QwenASRBackend.pip_install_spec())
+        self.assertTrue(QwenASRBackend.PIP_NO_DEPS)
+
+    def test_wama_language_codes_map_to_runtime_names_and_back(self):
+        from wama.common.backends.qwen_asr_backend import QwenASRBackend as Q
+        self.assertEqual('fr', Q._wama_language('French'))
+        self.assertEqual('fr', Q._wama_language('French,English'), "a merged detection keeps the first")
+        self.assertEqual('', Q._wama_language(''))

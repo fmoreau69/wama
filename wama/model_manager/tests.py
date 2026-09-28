@@ -279,6 +279,26 @@ class SnapshotsInstallesTest(TestCase):
             full = _faux_snapshot(root, 'speech', 'qwen_asr', 'Org', 'Full')
             self.assertTrue(_check_hf_model_downloaded(full.parent, 'Org/Full'))
 
+    def test_transcriber_rows_state_where_they_install_except_whisper(self):
+        """The assistant test of 2026-09-28: `install_model('transcriber:qwen3-asr-1.7b')` answered
+        « no_install_location » — the transcriber discovery never declared `install_dir`, so neither
+        the Install button nor the tool could fetch its weights. Whisper stays without: its row
+        names `openai/whisper-large-v3` while the engine loads `Systran/faster-whisper-*`."""
+        from .services.model_installer import spec_for_catalog_row
+        registry = ModelRegistry()
+        registry._models = {}
+        registry._discover_transcriber_models()
+        rows = {k: m for k, m in registry._models.items() if k.startswith('transcriber:')}
+        self.assertIn('transcriber:qwen3-asr-1.7b', rows)
+        for key, info in rows.items():
+            row = AIModel(model_key=key, hf_id=info.hf_id, extra_info=info.extra_info)
+            if key == 'transcriber:whisper':
+                self.assertIsNone(spec_for_catalog_row(row), 'whisper would pull the wrong repo')
+                continue
+            spec = spec_for_catalog_row(row)
+            self.assertIsNotNone(spec, f'{key} cannot be installed from the catalogue')
+            self.assertEqual('speech', spec['category'], key)
+
     def test_a_nemo_archive_counts_as_weights(self):
         """canary-1b-v2 / parakeet-tdt ship a single `.nemo` — it IS the model."""
         import tempfile
@@ -1069,10 +1089,12 @@ class FaitsDeLaCarteTest(TestCase):
     def test_la_carte_donne_les_langues_et_le_moteur_sans_rien_inventer(self):
         from .services.prospector import card_facts
         facts = card_facts('automatic-speech-recognition', ['audio', 'bg', 'cs'],
-                           {'language': ['bg', 'cs', 'da'], 'license': 'cc-by-4.0'}, 'nemo')
+                           {'language': ['bg', 'cs', 'da'], 'license': 'cc-by-4.0'}, 'espnet')
         self.assertEqual({'task': 'transcription', 'languages': ['bg', 'cs', 'da']},
                          facts['capabilities'])
-        self.assertIsNone(facts['engine'], "`nemo` n'est servi par aucun backend : rien de posé")
+        self.assertIsNone(facts['engine'], "`espnet` n'est servi par aucun backend : rien de posé")
+        # `nemo` servait d'exemple de moteur NON servi jusqu'au 2026-09-28 — `NemoASRBackend` le sert.
+        self.assertEqual('nemo', card_facts('automatic-speech-recognition', [], {}, 'nemo')['engine'])
         self.assertEqual('transformers',
                          card_facts('object-detection', [], {}, 'transformers')['engine'])
         self.assertEqual(['en'], card_facts('text-to-image', [], {'language': 'en'})['capabilities']['languages'])

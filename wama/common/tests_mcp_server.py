@@ -82,6 +82,32 @@ class SchemaArgumentsTest(SimpleTestCase):
         self.assertGreater(vus, 0, "aucun enum mesuré : la garde tournerait à vide")
 
 
+def _declared_domain():
+    """A server-side option domain, as an app declares it (`Param.options_domain`)."""
+    return ['engine_a', 'engine_b']
+
+
+class DeclaredOptionDomainTest(SimpleTestCase):
+    """`choice_values` — ONE reading of a select's valid values for the door and the announcement.
+    A select whose options the browser appends renders a static PREFIX only (« auto »); its app
+    declares the rest (`options_domain`), or the door refuses every real option (2026-09-28)."""
+
+    PARAM = {'name': 'engine', 'type': 'select', 'choices': [('auto', 'Auto')],
+             'options_source': 'engines',
+             'options_domain': 'wama.common.tests_mcp_server._declared_domain'}
+
+    def test_the_door_accepts_the_declared_domain_and_still_rejects_the_rest(self):
+        from wama.common.utils.param_schema import choice_values, invalid_choice_values
+        self.assertEqual(['auto', 'engine_a', 'engine_b'], choice_values(self.PARAM))
+        self.assertEqual({}, invalid_choice_values([self.PARAM], {'engine': 'engine_b'}))
+        self.assertIn('engine', invalid_choice_values([self.PARAM], {'engine': 'engine_z'}))
+
+    def test_an_unreadable_domain_falls_back_to_the_static_choices(self):
+        from wama.common.utils.param_schema import choice_values
+        broken = dict(self.PARAM, options_domain='wama.common.does_not_exist.nothing')
+        self.assertEqual(['auto'], choice_values(broken))
+
+
 class ProtocoleTest(TestCase):
     """Le contrat vu du CLIENT : session MCP réelle, en mémoire."""
 

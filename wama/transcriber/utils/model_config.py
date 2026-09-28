@@ -36,7 +36,15 @@ QWEN_ASR_DIR = MODEL_PATHS.get('speech', {}).get('qwen_asr',
 ALIGNMENT_DIR = MODEL_PATHS.get('speech', {}).get('alignment',
     settings.AI_MODELS_DIR / "models" / "speech" / "alignment")
 
+# ASR NVIDIA NeMo — un dossier de famille par modèle (là où l'installeur générique les a rangés)
+CANARY_DIR = MODEL_PATHS.get('speech', {}).get('canary',
+    settings.AI_MODELS_DIR / "models" / "speech" / "canary-1b-v2")
+PARAKEET_DIR = MODEL_PATHS.get('speech', {}).get('parakeet',
+    settings.AI_MODELS_DIR / "models" / "speech" / "parakeet-tdt-0.6b-v3")
+
 # Ensure directories exist
+Path(CANARY_DIR).mkdir(parents=True, exist_ok=True)
+Path(PARAKEET_DIR).mkdir(parents=True, exist_ok=True)
 WHISPER_DIR.mkdir(parents=True, exist_ok=True)
 VIBEVOICE_DIR.mkdir(parents=True, exist_ok=True)
 QWEN_ASR_DIR.mkdir(parents=True, exist_ok=True)
@@ -97,9 +105,11 @@ QWEN_ASR_MODELS = {
         'vram_gb': 2,
         # Description PAR-MODÈLE (2 tailles pour un même moteur) — la VRAM vient du catalogue
         # (vram_gb), jamais du texte.
-        'description': 'Qwen3-ASR 0.6B — rapide, context biasing, 52 langues',
+        'description': 'Qwen3-ASR 0.6B — rapide, context biasing, 30 langues',
         # `supports_*` retirés — données mortes (cf. VIBEVOICE_MODELS ci-dessus).
-        'languages': '52',
+        # 30 = `qwen_asr.inference.utils.SUPPORTED_LANGUAGES` (runtime 0.0.6) ; « 52 » était
+        # l'annonce de la carte du modèle, que le runtime ne tient pas (2026-09-28).
+        'languages': '30',
     },
     'qwen3-asr-1.7b': {
         'engine': 'transformers',
@@ -108,9 +118,41 @@ QWEN_ASR_MODELS = {
         'type': 'speech-to-text',
         'size_gb': 3.5,
         'vram_gb': 4,
-        'description': 'Qwen3-ASR 1.7B — précis, context biasing, 52 langues',
+        'description': 'Qwen3-ASR 1.7B — précis, context biasing, 30 langues',
         # `supports_*` retirés — données mortes (cf. VIBEVOICE_MODELS ci-dessus).
-        'languages': '52',
+        'languages': '30',
+    },
+}
+
+
+# ASR NVIDIA NeMo (2026-09-28) — les DEUX meilleurs du banc Open ASR français parmi les modèles
+# ouverts qui tiennent sur la carte (moyenne FLEURS/MCV/MLS : canary 4,79 %, parakeet 5,38 %, contre
+# 6,24 % pour Whisper large-v3). Poids = une archive `.nemo` ; moteur `nemo` (`NemoASRBackend`),
+# runtime `nemo_toolkit` installé en --no-deps (patch venv n°8). Langues : les 25 européennes
+# des deux cartes. `dir` = dossier de famille (découverte + installation).
+from wama.common.backends.nemo_asr_backend import NEMO_LANGUAGES  # noqa: E402 — la vérité du moteur
+NEMO_ASR_MODELS = {
+    'canary-1b-v2': {
+        'engine': 'nemo',
+        'model_id': 'nvidia/canary-1b-v2',
+        'hf_model_id': 'nvidia/canary-1b-v2',
+        'type': 'speech-to-text',
+        'size_gb': 6.4,
+        'vram_gb': 7.6,
+        'dir': CANARY_DIR,
+        'description': 'Canary 1B v2 (NVIDIA) — 25 langues européennes, meilleur banc FR ouvert',
+        'languages': list(NEMO_LANGUAGES),
+    },
+    'parakeet-tdt-0.6b-v3': {
+        'engine': 'nemo',
+        'model_id': 'nvidia/parakeet-tdt-0.6b-v3',
+        'hf_model_id': 'nvidia/parakeet-tdt-0.6b-v3',
+        'type': 'speech-to-text',
+        'size_gb': 2.5,
+        'vram_gb': 3,
+        'dir': PARAKEET_DIR,
+        'description': 'Parakeet TDT 0.6B v3 (NVIDIA) — très rapide, 25 langues, langue détectée',
+        'languages': list(NEMO_LANGUAGES),
     },
 }
 
@@ -173,6 +215,7 @@ TRANSCRIBER_MODELS = {
     **TRANSCRIBER_MODELS,
     **VIBEVOICE_MODELS,
     **QWEN_ASR_MODELS,
+    **NEMO_ASR_MODELS,
     **DIARIZATION_MODELS,
     **ALIGNMENT_MODELS,
 }

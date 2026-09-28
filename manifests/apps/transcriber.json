@@ -1247,6 +1247,8 @@
     },
     "models": {
       "catalog_keys": [
+        "transcriber:canary-1b-v2",
+        "transcriber:parakeet-tdt-0.6b-v3",
         "transcriber:pyannote-diarization",
         "transcriber:qwen3-asr-0.6b",
         "transcriber:qwen3-asr-1.7b",
@@ -1316,6 +1318,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": "wama.transcriber.backends.manager.backend_choice_values",
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1361,6 +1364,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1406,6 +1410,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1461,6 +1466,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1506,6 +1512,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1551,6 +1558,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1602,6 +1610,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1650,6 +1659,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -2019,7 +2029,7 @@
       "descriptions": {
         "add_to_transcriber": {
           "args": {
-            "backend": "select — Moteur de transcription (choix : auto) (défaut : 'auto')",
+            "backend": "select — Moteur de transcription (choix : auto | whisper | vibevoice | qwen_asr | nemo | transcriber:qwen3-asr-0.6b | transcriber:qwen3-asr-1.7b | transcriber:vibevoice-asr …) (défaut : 'auto')",
             "enable_diarization": "toggle — Séparation des locuteurs (pyannote) (défaut : True)",
             "file_path": "str (requis)",
             "generate_summary": "toggle — Générer un résumé (défaut : False)",
@@ -2052,6 +2062,14 @@
   "name": "Transcriber",
   "projects": [],
   "requires": [
+    {
+      "key": "transcriber:canary-1b-v2",
+      "kind": "model"
+    },
+    {
+      "key": "transcriber:parakeet-tdt-0.6b-v3",
+      "kind": "model"
+    },
     {
       "key": "transcriber:pyannote-diarization",
       "kind": "model"

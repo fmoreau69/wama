@@ -1209,7 +1209,9 @@ def add_to_transcriber(
     Args:
         user:               Django User instance
         file_path:          Path relative to MEDIA_ROOT (audio or video file)
-        backend:            'auto' | 'whisper' | 'vibevoice'
+        backend:            'auto' | 'whisper' | 'vibevoice' | 'qwen_asr' — or a catalogue model
+                            key of the transcriber ('transcriber:qwen3-asr-1.7b'), resolved to its
+                            engine; an unknown name falls back to the best available engine
         preprocess_audio:   Apply audio preprocessing before transcription
         hotwords:           Domain-specific terms to improve recognition
         enable_diarization: Enable speaker diarization (VibeVoice only)
@@ -3634,8 +3636,8 @@ def _arg_text(entry, sig_param):
         label = (entry.get('help') or entry.get('label') or '').strip()
         if label:
             bits.append('— ' + label)
-        raw = entry.get('choices') or []
-        vals = [str(c[0]) if isinstance(c, (list, tuple)) else str(c) for c in raw]
+        from wama.common.utils.param_schema import choice_values
+        vals = choice_values(entry)
         if vals:
             bits.append('(choix : ' + ' | '.join(vals[:8]) + (' …' if len(vals) > 8 else '') + ')')
         if entry.get('min') is not None or entry.get('max') is not None:
@@ -3732,9 +3734,8 @@ def _json_property(entry, sig_param) -> dict:
         if json_type:
             prop['type'] = json_type
         if entry.get('type') in ('select', 'radio'):
-            values = [str(c[0] if isinstance(c, (list, tuple)) else c)
-                      for c in (entry.get('choices') or [])]
-            values = [v for v in values if v != '']      # '' = « défaut », jamais un choix
+            from wama.common.utils.param_schema import choice_values
+            values = [v for v in choice_values(entry) if v != '']   # '' = « défaut », jamais un choix
             if values:
                 prop['enum'] = values
         if json_type == 'number':

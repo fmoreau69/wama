@@ -320,11 +320,51 @@ class TroisiemeVoieTest(SimpleTestCase):
         from unittest.mock import patch
 
         from wama.common.utils.hf_weights import poids_locaux
-        with patch('huggingface_hub.snapshot_download') as faux:
-            faux.side_effect = ['/local']
-            poids_locaux('org/modele', self.famille)
-        self.assertTrue(faux.call_args_list[0].kwargs.get('local_files_only'),
+        local = self._snapshot(weights=True)
+        with patch('huggingface_hub.snapshot_download') as fake:
+            fake.side_effect = [local]
+            path = poids_locaux('org/modele', self.famille)
+        self.assertTrue(fake.call_args_list[0].kwargs.get('local_files_only'),
                         'le premier essai doit être purement local')
+        self.assertEqual((path, 1), (local, len(fake.call_args_list)),
+                         'un snapshot local COMPLET se suffit : aucun aller-retour réseau')
+
+    def _snapshot(self, *, weights: bool) -> str:
+        """A real local revision folder: config only, or config + a weight file."""
+        from pathlib import Path
+        rev = Path(self.famille) / 'models--org--modele' / 'snapshots' / 'rev'
+        rev.mkdir(parents=True, exist_ok=True)
+        (rev / 'config.json').write_text('{}')
+        if weights:
+            (rev / 'model.safetensors').write_bytes(b'0' * 16)
+        return str(rev)
+
+    def test_a_local_snapshot_holding_only_its_config_goes_to_the_network(self):
+        """What an aborted load leaves (Qwen3-ASR-1.7B, 25/09): `local_files_only` hands back the
+        revision folder without looking inside — it must not pass for the weights."""
+        from unittest.mock import patch
+
+        from wama.common.utils.hf_weights import poids_locaux
+        partial = self._snapshot(weights=False)
+        with patch('huggingface_hub.snapshot_download') as fake:
+            fake.side_effect = [partial, '/downloaded']
+            path = poids_locaux('org/modele', self.famille)
+        self.assertEqual(path, '/downloaded')
+        self.assertFalse(fake.call_args_list[1].kwargs.get('local_files_only'))
+
+    def test_requested_patterns_are_checked_in_the_local_snapshot(self):
+        from unittest.mock import patch
+
+        from wama.common.utils.hf_weights import poids_locaux
+        partial = self._snapshot(weights=False)
+        with patch('huggingface_hub.snapshot_download') as fake:
+            fake.side_effect = [partial, '/downloaded']
+            self.assertEqual('/downloaded', poids_locaux('org/modele', self.famille,
+                                                         patterns=['sam3.pt', 'config.json']))
+        with patch('huggingface_hub.snapshot_download') as fake:
+            fake.side_effect = [partial]
+            self.assertEqual(partial, poids_locaux('org/modele', self.famille,
+                                                   patterns=['config.json']))
 
     def test_le_reseau_prend_le_relais_si_les_poids_manquent(self):
         from unittest.mock import patch
