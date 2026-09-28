@@ -65,7 +65,10 @@ de chaque caméra** (front 384×248, left 408×244, rear 408×248, right 384×24
 - Piste GPS ~1 fixe / 2,7 s. **Cap = bearing entre fixes consécutifs** (maintenu si
   déplacement < 0,30 m) → **bruité à faible vitesse** (±10-25°), c'est LA source d'erreur
   angulaire dominante (bras de levier : 8 m × 15° ≈ 2 m d'arc sur les objets).
-- Synchro vidéo↔GPS : `ts = t_vidéo × gps_time_scale + gps_time_offset` (par session).
+- Synchro vidéo↔GPS : `ts = t_vidéo × gps_time_scale + gps_time_offset` (par session). Tout
+  consommateur de la pose navette convertit par `prediction_adapter.video_to_gps_time` — la calib
+  sol 2a et les marquages monde passaient le temps vidéo brut jusqu'au 2026-09-28 (~20 s à ~5 min
+  d'écart ; garde AST `tests_gps_time_base`).
 - Interpolation backend : `_shuttle_pose_at` (prediction_adapter) — position lerp, **cap
   en interpolation CIRCULAIRE** (plus court arc ; l'ancien lerp linéaire passait par 180°
   au wrap 359°→1° — navette plein nord = wrap permanent).

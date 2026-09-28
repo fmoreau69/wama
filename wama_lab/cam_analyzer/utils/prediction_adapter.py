@@ -301,6 +301,19 @@ def _ensure_endpoint(hist, t0):
     return np.vstack([hist, pt])
 
 
+def video_to_gps_time(session, t_video):
+    """Temps VIDÉO (DetectionFrame.timestamp = frame / fps) → temps GPS, la base de temps de la
+    trajectoire navette (`shuttle_trajectory`, `p['ts']`) : t_gps = t × gps_time_scale + offset.
+
+    Le tracker et la prédiction le calculent en ligne (`fn / fps * scale + off`) ; la calib sol 2a
+    et les marquages monde interrogeaient la pose avec le temps VIDÉO jusqu'au 2026-09-28 — avec
+    scale 0,961 l'erreur vaut ~20 s à 8 min de vidéo et ~5 min en fin de session (même défaut que
+    les fenêtres, corrigé le 2026-07-18, `41bef1a`)."""
+    scale = float(getattr(session, 'gps_time_scale', None) or 1.0) or 1.0
+    off = float(getattr(session, 'gps_time_offset', None) or 0.0)
+    return float(t_video) * scale + off
+
+
 def _shuttle_pose_at(shuttle_traj, ts):
     """Interpolation linéaire de la pose navette (east, north, heading) à ts."""
     t = shuttle_traj[:, 0]
