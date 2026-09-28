@@ -1031,23 +1031,111 @@ def install_candidate(cand, progress=None, token=None) -> dict:
     return {'ok': True, 'installed': installed_name}
 
 
-def uninstall_model(model_key: str) -> dict:
+def weights_dir_of(model, index: dict | None = None) -> Path | None:
+    """
+    Dossier des POIDS d'une ligne de catalogue installée, ou None s'il ne se désigne pas.
+
+    Même lien que `model_sync.persist_weights` — aucune règle de plus : `local_path` (ou
+    `extra_info['path']`) s'il nomme un dépôt `models--*`, sinon l'index des snapshots
+    installés par `hf_id` (`model_locations.installed_snapshots`). C'est ce qui rend
+    désinstallables les modèles d'APP, qui ne portent pas leur chemin (l'imager retrouve le
+    sien dans sa propre découverte : `local_path` vide).
+
+    Dernier recours, pour une disposition hors HuggingFace (bark : `speech/bark/suno/bark_v0`) :
+    le dossier DÉCLARÉ lui-même, à condition d'être au moins un cran SOUS une famille
+    (`<catégorie>/<famille>/<x>`). ⚠ Jamais une racine de catégorie ou de famille : elle porte
+    d'autres modèles (`speech/qwen_asr` est déclaré par les DEUX tailles de Qwen3-ASR).
+
+    Un chemin déclaré hors de `models_root()` est rendu tel quel : c'est la garde de
+    l'appelant qui le refuse, pas ce résolveur qui le masque.
+    """
+    from wama.common.utils.model_locations import installed_snapshots, models_root
+
+    declared = model.local_path or (model.extra_info or {}).get('path') or ''
+    path = Path(declared) if declared else None
+    if path is not None and path.name.startswith('models--'):
+        return path
+    hf_id = (model.hf_id or '').strip().lower()
+    if hf_id:
+        index = installed_snapshots() if index is None else index
+        if hf_id in index:
+            return index[hf_id]
+    if path is not None:
+        try:
+            relative = path.resolve().relative_to(models_root().resolve())
+        except (ValueError, OSError):
+            return path
+        # Un DOSSIER seulement : un poids-fichier (les `.pt` YOLO de l'anonymizer) se retire par
+        # son app, pas par un rm de dossier.
+        if len(relative.parts) >= 3 and path.is_dir():
+            return path
+    return None
+
+
+def _same_or_nested(a: Path, b: Path) -> bool:
+    """Deux dossiers désignent-ils les mêmes fichiers (égaux, ou l'un dans l'autre) ?"""
+    try:
+        a, b = a.resolve(), b.resolve()
+    except OSError:
+        return False
+    return a == b or a in b.parents or b in a.parents
+
+
+def rows_depending_on(model, target: Path, index: dict | None = None) -> tuple[list, list]:
+    """
+    Les AUTRES lignes installées que retirer `target` toucherait — `(sharing, dependents)`.
+
+    - `sharing` : leurs poids SONT ces fichiers. Deux lignes de catalogue sur un seul jeu de
+      poids existent déjà (`ltx-…-distilled` et `…-distilled-fp8`, même dépôt : c'est la
+      quantification qui les sépare). Retirer l'une retire l'autre — elles seront marquées ensemble.
+    - `dependents` : leurs poids sont ailleurs, mais elles chargent CE modèle comme dorsale
+      (`extra_info['base_model']` : la LoRA logo sur FLUX.1-dev). Elles restent installées,
+      et deviennent inutilisables.
+    """
+    from wama.common.utils.model_locations import installed_snapshots
+
+    from ..models import AIModel, EXECUTION_LOCAL
+
+    index = installed_snapshots() if index is None else index
+    hf_id = (model.hf_id or '').strip().lower()
+    sharing, dependents = [], []
+    others = (AIModel.objects.filter(is_downloaded=True, is_proposed=False,
+                                     execution=EXECUTION_LOCAL)
+              .exclude(pk=model.pk).exclude(source='ollama'))
+    for other in others:
+        other_dir = weights_dir_of(other, index)
+        if other_dir is not None and _same_or_nested(other_dir, target):
+            sharing.append(other)
+        elif hf_id and str((other.extra_info or {}).get('base_model') or '').strip().lower() == hf_id:
+            dependents.append(other)
+    return sharing, dependents
+
+
+def uninstall_model(model_key: str, include_shared: bool = False) -> dict:
     """
     DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
     (léger et réutilisable — décision Fabien 2026-08-27), et recalage du catalogue dans le
     même geste. Miroir de `install_from_spec` : dispatch par nature du stockage.
 
-      • ollama       → `DELETE /api/delete` (driver existant `delete_ollama_model`) ;
-      • snapshot HF  → suppression du dossier `models--org--nom` + ses verrous `.locks` ;
-      • autre        → refus explicite (un fichier de poids d'app déclarée se retire par
-                       l'app, pas par un rm générique).
+      • ollama   → `DELETE /api/delete` (driver existant `delete_ollama_model`) ;
+      • fichiers → suppression du dossier résolu par `weights_dir_of` (+ ses verrous `.locks`).
+                   Couvre depuis le 2026-09-28 les modèles d'APP (imager, synthesizer,
+                   transcriber…), qui étaient refusés faute de porter leur chemin — décision
+                   de Fabien : désinstaller depuis le model_manager, comme on y installe.
+
+    POIDS PARTAGÉS (2026-09-28) : si d'autres lignes installées vivent sur ces mêmes fichiers
+    ou s'en servent de dorsale (`rows_depending_on`), le retrait est REFUSÉ en les nommant
+    (`needs_confirmation`) tant que `include_shared` n'est pas donné. Une fois confirmé, les
+    lignes qui partagent les fichiers sont marquées avec celle-ci ; les dépendantes, non (leurs
+    poids restent), mais elles sont citées dans le résultat.
 
     La ligne de catalogue est MARQUÉE (`is_downloaded=False`), jamais supprimée : elle porte
     l'historique (statistiques de runtime, ETA appris, identité/licence) — même doctrine que
     le remplacement de `install_candidate`. Un modèle déclaré par une app revient d'ailleurs
     au prochain sync (non téléchargé) ; un snapshot générique reste en mémoire de catalogue.
 
-    Retourne {'ok': True, 'freed_gb': X, 'kind': …} ou {'ok': False, 'error': …}.
+    Retourne {'ok': True, 'freed_gb': X, 'kind': …, 'also_marked': […], 'affected': […]}
+    ou {'ok': False, 'error': …} (+ `needs_confirmation`, `sharing`, `dependents`).
     """
     import shutil
 
@@ -1071,59 +1159,85 @@ def uninstall_model(model_key: str) -> dict:
         return {'ok': False, 'error': f"« {model.name} » n'a pas de poids sur cette machine."}
 
     freed_gb = float(model.disk_gb or 0)
+    marked = [model]
+    dependents = []
 
     if model.source == 'ollama':
-        nom = model.model_key.split(':', 1)[1] if ':' in model.model_key else model.name
-        res = delete_ollama_model(nom)
+        name = model.model_key.split(':', 1)[1] if ':' in model.model_key else model.name
+        res = delete_ollama_model(name)
         if not res.get('ok'):
             return {'ok': False, 'error': f"retrait Ollama impossible : {res.get('error')}"}
         kind = 'ollama'
     else:
-        # Snapshot HF : le chemin vient du catalogue (posé par la découverte). GARDE-FOUS
-        # avant tout rm -rf : le dossier doit être un `models--*` SOUS la racine canonique —
-        # jamais de suppression hors de `AI-models/models/`, quoi que dise la base.
-        from wama.common.utils.model_locations import models_root
-        chemin = Path(model.local_path or (model.extra_info or {}).get('path') or '')
-        if not chemin.name.startswith('models--'):
+        # GARDE-FOUS avant tout rm -rf : le dossier doit être SOUS la racine canonique —
+        # jamais de suppression hors de `AI-models/models/`, quoi que dise la base. Le cache HF
+        # PARTAGÉ (`AI-models/cache/…`, sous-dépendances de plusieurs modèles) est donc hors
+        # d'atteinte même quand l'index y résout un `hf_id`.
+        from wama.common.utils.model_locations import installed_snapshots, models_root
+        index = installed_snapshots()
+        declared = weights_dir_of(model, index)
+        if declared is None:
             return {'ok': False,
-                    'error': f"stockage non pris en charge ({model.source}) : seuls les "
-                             "snapshots HuggingFace et les modèles Ollama se désinstallent "
-                             "d'ici — retrait manuel pour le reste."}
+                    'error': f"aucun dossier de poids désinstallable pour « {model.name} » : ni "
+                             "snapshot HuggingFace installé, ni dossier déclaré sous une famille "
+                             "(un poids-fichier se retire par son app)."}
         try:
-            racine = models_root().resolve()
-            cible = chemin.resolve()
-            cible.relative_to(racine)          # ValueError si hors racine
+            root = models_root().resolve()
+            target = declared.resolve()
+            target.relative_to(root)           # ValueError si hors racine
         except (ValueError, OSError):
-            return {'ok': False, 'error': f"chemin hors de la racine des modèles : {chemin}"}
-        if not cible.is_dir():
-            return {'ok': False, 'error': f"dossier de poids introuvable : {cible}"}
+            return {'ok': False, 'error': f"chemin hors de la racine des modèles : {declared}"}
+        if not target.is_dir():
+            return {'ok': False, 'error': f"dossier de poids introuvable : {target}"}
 
-        if not freed_gb:
-            try:
-                # ⚠ `not f.is_symlink()` — sans lui, l'espace annoncé est le DOUBLE du
-                # réel (2026-09-04) : dans un cache HF, chaque poids existe une fois dans
-                # `blobs/` et une fois comme LIEN dans `snapshots/`, et `rglob` + `is_file()`
-                # suit les liens. Trouvé en commettant l'erreur moi-même sur le nettoyage des
-                # résidus : j'ai annoncé 6 Go récupérés là où le disque en rendait 2,9.
-                # (`model_registry` ne l'a jamais eue : elle ne somme que `blobs/`.)
-                freed_gb = sum(f.stat().st_size for f in cible.rglob('*')
-                               if f.is_file() and not f.is_symlink()) / (1024 ** 3)
-            except OSError:
-                freed_gb = 0.0
-        shutil.rmtree(cible)
-        verrous = cible.parent / '.locks' / cible.name
-        if verrous.is_dir():
-            shutil.rmtree(verrous, ignore_errors=True)
-        kind = 'hf_snapshot'
+        sharing, dependents = rows_depending_on(model, target, index)
+        if (sharing or dependents) and not include_shared:
+            names = [m.name for m in sharing]
+            users = [m.name for m in dependents]
+            parts = []
+            if names:
+                parts.append("ces poids sont AUSSI ceux de : " + ', '.join(names)
+                             + " — ils seront désinstallés ensemble")
+            if users:
+                parts.append("s'en servent comme modèle de base : " + ', '.join(users)
+                             + " — ils resteront installés mais ne pourront plus tourner")
+            return {'ok': False, 'needs_confirmation': True, 'sharing': names,
+                    'dependents': users, 'error': ' ; '.join(parts) + '.'}
+        loaded = [m.name for m in sharing if m.is_loaded]
+        if loaded:
+            return {'ok': False, 'error': f"« {', '.join(loaded)} » partage ces poids et est "
+                                          "chargé en mémoire — le décharger d'abord."}
+        marked += sharing
+
+        # ⚠ `not f.is_symlink()` — sans lui, l'espace annoncé est le DOUBLE du réel
+        # (2026-09-04) : dans un cache HF, chaque poids existe une fois dans `blobs/` et une
+        # fois comme LIEN dans `snapshots/`, et `rglob` + `is_file()` suit les liens. Mesuré
+        # sur le dossier plutôt que lu dans `disk_gb`, que les modèles d'app laissent à 0.
+        try:
+            measured = sum(f.stat().st_size for f in target.rglob('*')
+                           if f.is_file() and not f.is_symlink()) / (1024 ** 3)
+            freed_gb = measured or freed_gb
+        except OSError:
+            pass
+        shutil.rmtree(target)
+        locks = target.parent / '.locks' / target.name
+        if locks.is_dir():
+            shutil.rmtree(locks, ignore_errors=True)
+        kind = 'hf_snapshot' if target.name.startswith('models--') else 'weights_dir'
 
     # Recalage IMMÉDIAT du catalogue (le sync ne re-mesure ces lignes qu'à sa prochaine
     # passe, et un snapshot générique disparu n'est simplement plus re-découvert).
-    info = dict(model.extra_info or {})
-    info['uninstalled_at'] = timezone.now().isoformat()
-    AIModel.objects.filter(pk=model.pk).update(
-        is_downloaded=False, is_loaded=False, extra_info=info)
-    logger.info("[uninstall] %s (%s) — %.1f Go rendus", model_key, kind, freed_gb)
-    return {'ok': True, 'freed_gb': round(freed_gb, 1), 'kind': kind, 'name': model.name}
+    stamp = timezone.now().isoformat()
+    for row in marked:
+        info = dict(row.extra_info or {})
+        info['uninstalled_at'] = stamp
+        AIModel.objects.filter(pk=row.pk).update(
+            is_downloaded=False, is_loaded=False, extra_info=info)
+    logger.info("[uninstall] %s (%s) — %.1f Go rendus%s", model_key, kind, freed_gb,
+                f" ; aussi marqués : {[m.model_key for m in marked[1:]]}" if len(marked) > 1 else '')
+    return {'ok': True, 'freed_gb': round(freed_gb, 1), 'kind': kind, 'name': model.name,
+            'also_marked': [m.name for m in marked[1:]],
+            'affected': [m.name for m in dependents]}
 
 
 def spec_for_catalog_row(model) -> dict | None:

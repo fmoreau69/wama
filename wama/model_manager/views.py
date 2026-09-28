@@ -1977,18 +1977,25 @@ def api_prospect_reject(request):
 def api_model_uninstall(request):
     """Désinstalle un modèle INSTALLÉ : retrait des poids (Ollama ou snapshot HF), catalogue
     recalé, backend jamais touché. Miroir de l'installation — corps dans
-    `model_installer.uninstall_model` (gardes : chargé → refus, candidat → refus)."""
+    `model_installer.uninstall_model` (gardes : chargé → refus, candidat → refus ; poids
+    PARTAGÉS avec d'autres lignes → 409 `needs_confirmation`, repris avec `include_shared`)."""
     from .services.model_installer import uninstall_model
     try:
         data = json.loads(request.body or '{}')
         model_id = data.get('model_id')
         if not model_id:
             return JsonResponse({'success': False, 'error': 'model_id required'}, status=400)
-        res = uninstall_model(model_id)
+        res = uninstall_model(model_id, include_shared=bool(data.get('include_shared')))
         if not res.get('ok'):
+            if res.get('needs_confirmation'):
+                return JsonResponse({'success': False, 'needs_confirmation': True,
+                                     'error': res.get('error'), 'sharing': res.get('sharing'),
+                                     'dependents': res.get('dependents')}, status=409)
             return JsonResponse({'success': False, 'error': res.get('error')}, status=400)
         return JsonResponse({'success': True, 'freed_gb': res.get('freed_gb'),
-                             'name': res.get('name'), 'kind': res.get('kind')})
+                             'name': res.get('name'), 'kind': res.get('kind'),
+                             'also_marked': res.get('also_marked') or [],
+                             'affected': res.get('affected') or []})
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:

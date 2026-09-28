@@ -31,6 +31,10 @@
         border-left: 4px solid #6c757d;
         opacity: 0.7;
     }
+    /* Modèle DISTANT (execution = cloud) : rien à télécharger — ni grisé, ni « non téléchargé ». */
+    .model-card.remote {
+        border-left: 4px solid #6f8fd6;
+    }
     .memory-card {
         background: linear-gradient(135deg, #1a1a2e 0%, #2b3035 100%);
         border: 1px solid #495057;
@@ -582,6 +586,7 @@
                     <option value="loaded">Loaded</option>
                     <option value="downloaded">Downloaded</option>
                     <option value="not-downloaded">Not Downloaded</option>
+                    <option value="remote">Distants (cloud)</option>
                     <option value="needs-conversion">Needs Conversion</option>
                     <option value="proposed">✨ Proposés par IA</option>
                 </select>
@@ -1054,6 +1059,7 @@ document.addEventListener('DOMContentLoaded', function() {
                  data-format="${model.format || ''}"
                  data-loaded="${model.is_loaded}"
                  data-downloaded="${model.is_downloaded}"
+                 data-remote="${model.execution === 'cloud' ? 'true' : 'false'}"
                  data-needs-conversion="${needsConversion(model)}"
                  data-model-id="${model.id}"
                  data-id="${model.id}"
@@ -1062,7 +1068,7 @@ document.addEventListener('DOMContentLoaded', function() {
                  data-description="${(model.description || '').replace(/"/g, '&quot;')}"
                  data-model-key="${(model.model_key || '').replace(/"/g, '&quot;')}"
                  ${sortAttributes(model)}>
-                <div class="model-card ${model.is_loaded ? 'loaded' : (model.is_downloaded ? 'downloaded' : 'not-downloaded')} ${selectedModels.has(model.id) ? 'selected' : ''}">
+                <div class="model-card ${model.is_loaded ? 'loaded' : (model.execution === 'cloud' ? 'remote' : (model.is_downloaded ? 'downloaded' : 'not-downloaded'))} ${selectedModels.has(model.id) ? 'selected' : ''}">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div class="d-flex align-items-center">
                             <input type="checkbox" class="form-check-input model-checkbox me-2 model-select-cb"
@@ -1074,10 +1080,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             `<span class="badge" style="background:#6f42c1"><i class="fas fa-wand-magic-sparkles fa-xs me-1"></i>${model.proposal_kind === 'update' ? 'MAJ proposée' : 'Nouveau'}</span>` :
                             (model.is_loaded ?
                             '<span class="badge bg-success"><i class="fas fa-circle fa-xs me-1"></i>Loaded</span>' :
+                            (model.execution === 'cloud' ?
+                                '<span class="badge bg-primary" title="Exécuté par un service distant : rien à télécharger"><i class="fas fa-cloud fa-xs me-1"></i>Distant</span>' :
                             (model.is_downloaded ?
                                 '<span class="badge bg-info"><i class="fas fa-download fa-xs me-1"></i>Ready</span>' :
-                                '<span class="badge bg-secondary"><i class="fas fa-cloud fa-xs me-1"></i>Not downloaded</span>'
-                            ))
+                                '<span class="badge bg-secondary"><i class="fas fa-circle-down fa-xs me-1"></i>Not downloaded</span>'
+                            )))
                         }
                     </div>
 
@@ -1406,8 +1414,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             return [
                 m.is_loaded ? '<span class="badge bg-info">en mémoire</span>'
+                    : (m.execution === 'cloud' ? '<span class="badge bg-primary">distant — rien à télécharger</span>'
                     : (m.is_downloaded ? '<span class="badge bg-success">téléchargé</span>'
-                        : '<span class="badge bg-secondary">non téléchargé</span>'),
+                        : '<span class="badge bg-secondary">non téléchargé</span>')),
                 m.is_available ? '<span class="badge bg-success-subtle text-success border border-success">disponible</span>'
                     : '<span class="badge bg-warning-subtle text-warning border border-warning">indisponible</span>',
             ];
@@ -1652,15 +1661,28 @@ document.addEventListener('DOMContentLoaded', function() {
             + '(historique, statistiques). Une réinstallation reste possible à tout moment.')) return;
         showLoading('Désinstallation…');
         try {
-            const r = await fetch('{% url "model_manager:api_model_uninstall" %}', {
+            const send = (includeShared) => fetch('{% url "model_manager:api_model_uninstall" %}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                body: JSON.stringify({ model_id: m.model_key || m.id })
+                body: JSON.stringify({ model_id: m.model_key || m.id, include_shared: includeShared })
             });
-            const data = await r.json();
+            let r = await send(false);
+            let data = await r.json();
+            {% comment %} Poids PARTAGÉS (2026-09-28) : le serveur nomme les autres lignes touchées
+            (même jeu de poids, ou dorsale d'une LoRA) et attend une seconde confirmation. {% endcomment %}
+            if (!data.success && data.needs_confirmation) {
+                hideLoading();
+                if (!confirm(`Attention — ${data.error}\n\nDésinstaller quand même ?`)) return;
+                showLoading('Désinstallation…');
+                r = await send(true);
+                data = await r.json();
+            }
             if (data.success) {
                 loadModels();
-                if (data.freed_gb) showToastOrAlert(`« ${data.name} » désinstallé — ${data.freed_gb} Go rendus.`);
+                let msg = `« ${data.name} » désinstallé — ${data.freed_gb} Go rendus.`;
+                if ((data.also_marked || []).length) msg += ` Aussi désinstallé(s) : ${data.also_marked.join(', ')}.`;
+                if ((data.affected || []).length) msg += ` Sans modèle de base désormais : ${data.affected.join(', ')}.`;
+                showToastOrAlert(msg);
             } else { alert('Échec : ' + (data.error || 'inconnu')); }
         } catch (err) { alert('Erreur : ' + err.message); }
         finally { hideLoading(); }
@@ -2097,7 +2119,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     visible = false;
                 } else if (statusFilter === 'downloaded' && item.dataset.downloaded !== 'true') {
                     visible = false;
-                } else if (statusFilter === 'not-downloaded' && item.dataset.downloaded !== 'false') {
+                } else if (statusFilter === 'not-downloaded'
+                           && (item.dataset.downloaded !== 'false' || item.dataset.remote === 'true')) {
+                    visible = false;
+                } else if (statusFilter === 'remote' && item.dataset.remote !== 'true') {
                     visible = false;
                 } else if (statusFilter === 'needs-conversion' && item.dataset.needsConversion !== 'true') {
                     visible = false;
