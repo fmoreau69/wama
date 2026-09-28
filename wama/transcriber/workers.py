@@ -633,12 +633,9 @@ def _transcribe_item(t, ctx):
 
         _set_status_message(t, '')                            # plus d'action en cours
 
-        # Mesure contre la RÉFÉRENCE, si l'élément en porte une (brique commune, best-effort :
-        # une mesure manquée ne fait jamais échouer une transcription réussie).
-        if t.reference_result:
-            from wama.common.services.result_evaluation import evaluate
-            if evaluate('transcriber', t):
-                _console(t.user_id, "Évaluation contre la référence enregistrée ✓")
+        # La mesure contre la RÉFÉRENCE est faite par le squelette commun, APRÈS le SUCCESS
+        # (`task_skeleton._measure_against_reference`) : ici, l'item n'est pas encore terminé,
+        # et la lecture du résultat le refuse — elle ne mesurait plus rien depuis le 25/09.
 
         # Apprentissage ETA (eta_estimator) : durées RÉELLES (chargement à froid + traitement)
         # rapportées à la durée audio → affine le seed des prochains runs (par modèle × hardware).

@@ -1,0 +1,49 @@
+{
+  "manifest_kind": "dataset",
+  "key": "summ-re",
+  "schema_version": "1.0",
+  "name": "SUMM-RE - French spontaneous meetings (ASR evaluation corpus)",
+  "description": "Recorded French meetings (3-4 speakers, 20 min each), one close-talk track per speaker with a manual verbatim transcription. Used by WAMA as an ASR evaluation corpus: each meeting is MIXED into one recording (the real use case: a room recording), its reference is the speakers' segments merged in time order. Prepared on demand by `manage.py asr_eval_corpus summ-re` (WAMA_QUALITE 9bis). Oral-corpus marks (`_` word links, `+` pauses, `*`, `@`) are neutralised by the measurement protocol `text_v2`, hesitations are kept (verbatim).",
+  "world": "data",
+  "visibility": "private",
+  "projects": [],
+  "source": {
+    "type": "url",
+    "ref": "https://huggingface.co/datasets/linagora/SUMM-RE"
+  },
+  "body": {
+    "source": {
+      "type": "parquet",
+      "ref": "hf://datasets/linagora/SUMM-RE",
+      "repo_id": "linagora/SUMM-RE",
+      "revision": "47cb4ec3437ef5497b6092b8c6d1e0b5b1d86dc0",
+      "license": "CC-BY-SA-4.0",
+      "language": "fr",
+      "splits": {"example": "4 tracks, 1 meeting (5 min)", "test": "45 tracks", "dev": "50 tracks", "train": "45 tracks"}
+    },
+    "axes": [
+      {
+        "key": "meeting",
+        "role": "observation",
+        "label": "Meeting (one recording, all speakers mixed)"
+      },
+      {
+        "key": "speaker",
+        "role": "factor",
+        "label": "Speaker track inside a meeting",
+        "crosses": "meeting",
+        "manipulated": false
+      }
+    ],
+    "signals": [
+      {"id": "track_audio", "data_type": "signal", "acquired": true,
+       "description": "One close-talk track per speaker, WAV 48 kHz mono 16 bit"},
+      {"id": "track_segments", "data_type": "segments", "acquired": true,
+       "description": "Manual verbatim transcription of a track, timed segments with word timings"},
+      {"id": "meeting_mix", "data_type": "signal", "acquired": false,
+       "description": "DERIVED: the tracks of a meeting resampled to 16 kHz, summed and peak-normalised (media library nature `speech`)"},
+      {"id": "meeting_reference", "data_type": "segments", "acquired": false,
+       "description": "DERIVED: the segments of all tracks merged by start time, SRT with `[Locuteur NNN]` labels (media library nature `document`)"}
+    ]
+  }
+}

@@ -143,6 +143,9 @@ class TranscriberConfig(AppConfig):
             # La diarisation, le résumé, la cohérence ne touchent pas le texte mesuré.
             config_params=('preprocess_audio', 'vad_mode', 'hotwords'),
             disagreement=_disagreement,
+            # Langue ENTENDUE par le moteur (posée par le worker) : `text_v2` y écrit les nombres
+            # en chiffres des deux côtés (« vingt_quatre » d'un corpus contre « 24 »).
+            language=lambda item: item.language or '',
         ))
 
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md).

@@ -41,7 +41,7 @@ class UploadToByNatureTest(TestCase):
         self.assertTrue(Path(asset.file.path).is_file())
 
     def test_replacing_a_voice_keeps_it_in_the_voice_folder_with_a_clean_name(self):
-        """`ingest_voice_file` passe par l'`upload_to`, et `_settle_file_name` reprend le nom
+        """`ingest_voice_file` passe par l'`upload_to`, et `settle_file_name` (médiathèque) reprend le nom
         propre dans le dossier COURANT : le remplacement ne doit ni sortir de `voice/` ni suffixer."""
         import tempfile
 
@@ -57,6 +57,28 @@ class UploadToByNatureTest(TestCase):
         asset.refresh_from_db()
         self.assertEqual('media_library/system/voice/male_adult_5_en.wav', asset.file.name)
         self.assertEqual(b'second-take', Path(asset.file.path).read_bytes())
+
+
+class IngestSystemFileTest(TestCase):
+    """`system_files.ingest_system_file` — la brique commune (voix, parole, documents)."""
+
+    def test_a_refused_row_leaves_no_file_behind(self):
+        """Refus d'un attribut hors vocabulaire : le fichier écrit juste avant est retiré, sinon
+        il garde le nom propre et le prochain essai prend un suffixe de collision (vécu le 28/09)."""
+        import tempfile
+
+        from wama.media_library.system_files import ingest_system_file
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'refused_meeting.wav'
+            source.write_bytes(b'riff')
+            with self.assertRaises(ValueError):
+                ingest_system_file('speech', 'refused_meeting', source,
+                                   attributes={'speakers': 'not-a-number'})
+            asset = ingest_system_file('speech', 'refused_meeting', source,
+                                       attributes={'speakers': 3, 'split': 'example'})
+        self.assertEqual('media_library/system/speech/refused_meeting.wav', asset.file.name)
+        self.assertEqual(['refused_meeting.wav'],
+                         [p.name for p in Path(asset.file.path).parent.iterdir()])
 
 
 class OrganizeCommandTest(TestCase):

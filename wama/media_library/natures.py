@@ -99,6 +99,24 @@ ASSET_NATURES: Dict[str, Nature] = {
                              label='Variante'),
         },
     ),
+    # PAROLE ENREGISTRÉE (2026-09-28) — une réunion, un entretien : ce qu'on TRANSCRIT, et en
+    # particulier les jeux d'ÉVALUATION des moteurs ASR (SUMM-RE, `WAMA_QUALITE §9bis`). Pas une
+    # `voice` : celle-ci est une voix de CLONAGE du synthétiseur, et une réunion de 21 min rangée
+    # là remonterait dans ses menus de voix (`voice_reference_groups` interroge `voice`).
+    'speech': Nature(
+        label='Parole enregistrée', category='audio', icon='fa-comments', pivot='wav',
+        extensions=AUDIO_EXTENSIONS,
+        attributes={
+            'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…)",
+                             label='Langue', labels=_LANGUAGE_LABELS),
+            'speakers': Attr('int', 'nombre de locuteurs', label='Locuteurs'),
+            'corpus':   Attr('str', "corpus d'origine (clé de son manifeste `dataset`)", label='Corpus'),
+            # Liste OUVERTE : chaque corpus nomme ses partitions (`example`, `validation`…).
+            'split':    Attr('str', 'partition du corpus (test, dev, train…)', label='Partition'),
+            'recording': Attr('str', "identifiant de l'enregistrement dans son corpus",
+                              label='Enregistrement'),
+        },
+    ),
     'audio_music': Nature(
         label='Musique', category='audio', icon='fa-music',
         extensions=AUDIO_EXTENSIONS,
@@ -121,7 +139,9 @@ ASSET_NATURES: Dict[str, Nature] = {
     ),
     'document': Nature(
         label='Document', category='document', icon='fa-file-alt',
-        extensions=('pdf', 'txt', 'docx', 'md', 'csv'),
+        # `srt`/`vtt` (2026-09-28) : une transcription horodatée — les RÉFÉRENCES des jeux
+        # d'évaluation ASR, que le transcriber lit déjà (`transcript_documents`).
+        extensions=('pdf', 'txt', 'docx', 'md', 'csv', 'srt', 'vtt'),
     ),
     'avatar': Nature(
         label='Avatar', category='image', icon='fa-user-circle',

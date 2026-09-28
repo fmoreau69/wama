@@ -47,6 +47,26 @@ class WordErrorRateTest(SimpleTestCase):
                           'errors': 1}, d)
 
 
+class ProtocolV2Test(SimpleTestCase):
+    """`text_v2` (2026-09-28) — for the SUMM-RE evaluation: oral-corpus annotation is not speech."""
+
+    def test_an_underscore_links_words_it_is_not_one(self):
+        """`du_coup`, `parce_que`: an annotation convention of oral corpora."""
+        self.assertEqual(0.0, word_error_rate('du_coup parce_que', 'du coup parce que').rate)
+
+    def test_numbers_read_the_same_on_both_sides_in_the_given_language(self):
+        self.assertEqual(0.0, word_error_rate('le vingt_quatre mai', 'le 24 mai', language='fr').rate)
+        self.assertEqual(0.0, character_error_rate('quatre vingt dix', '90', language='fr').rate)
+
+    def test_without_a_language_numbers_are_left_as_written(self):
+        """The conversion depends on the language: unknown, the text is compared as is."""
+        self.assertGreater(word_error_rate('vingt quatre', '24').rate, 0)
+        self.assertGreater(word_error_rate('vingt quatre', '24', language='xx').rate, 0)
+
+    def test_hesitations_are_still_counted(self):
+        self.assertEqual(0.25, word_error_rate('oui euh je crois', 'oui je crois', language='fr').rate)
+
+
 class CharacterErrorRateTest(SimpleTestCase):
 
     def test_a_nearly_right_word_costs_less_in_characters_than_in_words(self):

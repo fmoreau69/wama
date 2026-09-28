@@ -378,72 +378,21 @@ def ingest_voice_file(name: str, path, *, source_url: str = '', license: str = '
     """
     import wave
 
-    from django.core.files import File
+    from wama.media_library.system_files import ingest_system_file
 
-    from wama.media_library.models import SystemAsset
-
-    path = Path(path)
-    existing = SystemAsset.objects.filter(asset_type='voice', name=name).first()
-    if existing is not None and not replace:
-        return existing
-
+    # Le remplacement, le retrait de l'ancien fichier et le nom propre sont COMMUNS à tout
+    # élément système (`media_library/system_files.py`, extrait le 2026-09-28) ; la voix ne
+    # garde que ce qui est à elle : ses attributs, lus dans son id, et la durée d'un WAV.
     duration = None
     try:
         with wave.open(str(path), 'rb') as w:
             duration = w.getnframes() / float(w.getframerate() or 1)
     except Exception:
         pass
-
-    asset = existing or SystemAsset(name=name, asset_type='voice')
-    old_file = asset.file.name if (existing is not None and asset.file) else ''
-    asset.attributes = attributes_from_voice_id(name)
-    asset.mime_type = 'audio/wav'
-    asset.file_size = path.stat().st_size
-    asset.duration = duration
-    if source_url:
-        asset.source_url = source_url
-    if license:
-        asset.license = license
-    if description:
-        asset.description = description
-    with open(path, 'rb') as fh:
-        # `upload_to` décide du domicile (`media_library/system/`) — on ne compose aucun chemin.
-        asset.file.save(path.name, File(fh), save=False)
-    asset.save()
-    # REMPLACER, c'est aussi retirer l'ancien fichier — sinon chaque remplacement laisse un
-    # orphelin. Mesuré le 2026-09-22 : 3 passages de retéléchargement avaient laissé 14 WAV que
-    # plus aucune ligne ne référençait. Ordre : la ligne d'abord (posée ci-dessus), le fichier
-    # ensuite ; et jamais s'il est encore référencé ailleurs.
-    # ⚠ PAS `safe_delete_file` : c'est la brique des CARDS, et depuis le 22/09 elle exige aussi la
-    # PROPRIÉTÉ — le fichier doit vivre dans `users/<uid>/<app>/`. Un `SystemAsset` n'a PAS de
-    # propriétaire, par conception (`MEDIA_STORAGE_TIERING §8bis`) : elle refuserait toujours, en
-    # silence. Seule la règle de PARTAGE vaut ici — sa moitié nommée à part, `is_shared_elsewhere`,
-    # livrée par l'instance sœur à cette fin (`bd22e20a`) après que les tests de remplacement ont
-    # révélé l'interaction.
-    if old_file and old_file != asset.file.name:
-        from wama.common.utils.queue_duplication import is_shared_elsewhere
-        if not is_shared_elsewhere(asset, 'file', old_file):
-            asset.file.storage.delete(old_file)
-    _settle_file_name(asset, path.name)
-    return asset
-
-
-def _settle_file_name(asset, wanted: str) -> None:
-    """Rend au fichier son nom propre quand le stockage a dû le suffixer.
-
-    En remplacement, le nouveau fichier s'écrit PENDANT que l'ancien existe encore (la ligne
-    d'abord, le fichier ensuite) : Django évite la collision par un suffixe aléatoire
-    (`male_adult_1_en_HtZSn0F.wav`). Une fois l'ancien retiré, le nom propre est libre : on le
-    reprend. Constat de Fabien, 22/09 : *« les médias sont en vrac »*.
-    """
-    import os
-    current = Path(asset.file.path)
-    target = current.with_name(wanted)
-    if current.name == wanted or target.exists():
-        return
-    os.replace(current, target)
-    asset.file.name = str(Path(asset.file.name).with_name(wanted)).replace('\\', '/')
-    asset.save(update_fields=['file'])
+    return ingest_system_file(
+        'voice', name, path, attributes=attributes_from_voice_id(name), mime_type='audio/wav',
+        duration=duration, source_url=source_url, license=license, description=description,
+        replace=replace)
 
 
 # ---------------------------------------------------------------------------

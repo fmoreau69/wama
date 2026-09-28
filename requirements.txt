@@ -46,6 +46,10 @@ markdown-it-py>=4.0
 # dans les deux venvs comme dépendance de `python-doctr` ; déclaré parce que WAMA l'importe
 # désormais directement. Distance d'édition en C++ (MIT) : ~10⁸ cases en Python pur sur 1 h d'audio.
 rapidfuzz>=3.14
+# Protocole de mesure `text_v2` (2026-09-28) : nombres écrits en chiffres des deux côtés d'une
+# comparaison (« vingt_quatre » d'un corpus oral contre « 24 » d'un ASR). MIT. Déjà présent dans
+# venv_linux comme dépendance de NeMo ; déclaré parce que `text_metrics` l'importe directement.
+text2num==3.1.0
 # ── Chaîne des VOIX DE RÉFÉRENCE (médiathèque) — déclarées le 2026-09-27 ────────────────────
 # Les trois étaient installées dans les deux venvs et IMPORTÉES par WAMA sans figurer nulle
 # part : `common/tts/voice_refs.py` les prend dans des `try/except ImportError` qui dégradent
