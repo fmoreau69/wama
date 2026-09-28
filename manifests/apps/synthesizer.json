@@ -11,7 +11,7 @@
       "accepts_url": true,
       "anti_race": true,
       "batch_type": "pipe",
-      "during_preview": false,
+      "during_preview": true,
       "has_batch": true,
       "has_url_import": false,
       "has_youtube": false,

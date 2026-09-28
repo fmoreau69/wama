@@ -1192,6 +1192,8 @@ APP_CATALOG = {
             layout=True,               # wama-queue-{{ card_layout }} sur #synthesisQueue
             toast=True,                # 42 alert() (JS + template) → WamaApp.toast typés ; couleurs
                                        # boutons card alignées outline
+            during_preview=True,       # audio qui GRANDIT segment par segment (workers._during_preview →
+                                       #   publish_partial + pics → face ?side=during, 2026-09-28)
             # KO restants : modales hand-built (params.py ne ponte que les dom_id — P1 BLOCKER),
             # _new_item_card/_batch_card/_queue_toolbar — port complet de la file à faire.
         ),

@@ -420,6 +420,66 @@ class VoicePreviewSharesTheSynthesisChainTest(TestCase):
         self.assertGreater(len(chunks), 1)
 
 
+class SynthesisIsHeardWhileItGrowsTest(TestCase):
+    """Aperçu « PENDANT » (2026-09-28) : l'audio déjà synthétisé est publié après chaque segment
+    d'un texte long, par la brique commune (`publish_partial` + pics → face `?side=during`)."""
+
+    def _wav(self, frames):
+        import wave
+        handle, path = tempfile.mkstemp(suffix='.wav')
+        os.close(handle)
+        with wave.open(path, 'wb') as out:
+            out.setnchannels(1)
+            out.setsampwidth(2)
+            out.setframerate(8000)
+            out.writeframes(b'\x00\x10' * frames)
+        return path
+
+    def _render(self, text, on_partial):
+        from unittest import mock
+        from wama.synthesizer.utils import speech_render
+        out = tempfile.mkdtemp()
+        with mock.patch.object(speech_render, 'tts_via_service',
+                               side_effect=lambda *a, **k: self._wav(8000)):
+            return speech_render.render_speech(
+                text, os.path.join(out, 'final.wav'), model='synthesizer:kokoro',
+                language='fr', voice_preset='default', on_partial=on_partial)
+
+    def test_a_long_text_is_published_segment_after_segment(self):
+        from pydub import AudioSegment
+        seen = []
+        final = self._render('Une phrase assez longue pour remplir. ' * 30,
+                             lambda audio, done, total: seen.append((len(audio), done, total)))
+        total = seen[0][2]
+        self.assertGreater(total, 2, 'le texte devait tenir en plusieurs segments')
+        self.assertEqual([done for _, done, _ in seen], list(range(1, total)),
+                         'un partiel après chaque segment, SAUF le dernier (le résultat le remplace)')
+        self.assertTrue(all(a < b for (a, _, _), (b, _, _) in zip(seen, seen[1:])), "l'audio doit grandir")
+        # Le fichier final est inchangé : chaque segment d'une seconde suivi de 200 ms de silence.
+        self.assertEqual(total * 1200, len(AudioSegment.from_wav(final)))
+
+    def test_a_single_segment_has_nothing_to_show_before_its_result(self):
+        seen = []
+        self._render('Bonjour.', lambda *args: seen.append(args))
+        self.assertEqual([], seen)
+
+    def test_the_worker_publishes_the_during_face_then_clears_it(self):
+        from types import SimpleNamespace
+        from django.test import RequestFactory
+        from pydub import AudioSegment
+        from wama.common.utils.preview_utils import _during_preview_data
+        from wama.synthesizer import workers
+        synthesis = SimpleNamespace(id=987654, user_id=987654, speed=1.0, pitch=1.0)
+        workers._during_preview(synthesis)(AudioSegment.from_wav(self._wav(8000)), 1, 3)
+        request = RequestFactory().get('/')
+        data = _during_preview_data('synthesizer', SimpleNamespace(pk=synthesis.id), request)
+        self.assertIsNotNone(data, 'la capacité est déclarée et un partiel est publié : la face doit exister')
+        self.assertIn('/partials/during_987654', data['url'])
+        self.assertTrue(data['peaks'])
+        workers._clear_during(synthesis)
+        self.assertIsNone(_during_preview_data('synthesizer', SimpleNamespace(pk=synthesis.id), request))
+
+
 class TheEntryCardKeepsOneHomePerSettingTest(TestCase):
     """La card d'entrée ne duplique plus les réglages du volet (constat de Fabien, 2026-09-27).
 
