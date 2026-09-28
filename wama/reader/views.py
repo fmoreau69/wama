@@ -289,9 +289,12 @@ class IndexView(View):
 def upload(request):
     """Upload one or more files to the reading queue."""
     user = _get_user(request)
-    files = request.FILES.getlist('files')
+    # Fichiers TÉLÉVERSÉS et/ou DÉSIGNÉS (médiathèque, arbre) — brique `received_inputs` : une
+    # désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
+    from wama.common.utils.media_paths import received_inputs
+    files = received_inputs(request, user, 'reader', field='files')
     if not files:
-        return JsonResponse({'error': 'Aucun fichier reçu'}, status=400)
+        return JsonResponse({'error': files.refusal or 'Aucun fichier reçu'}, status=400)
 
     # Réglages persistés (brique user_settings, clés = noms de params.py) : le POST prime,
     # sinon DERNIER réglage utilisé (pattern converter). Sert surtout aux créations sans
@@ -321,7 +324,7 @@ def upload(request):
 
         item = ReadingItem.objects.create(
             user=user,
-            input_file=f,
+            input_file=f.value,
             original_filename=f.name,
             backend=backend,
             mode=mode,
@@ -329,6 +332,7 @@ def upload(request):
             language=language,
             status='PENDING',
         )
+        f.record(item, 'input_file')
 
         # Count PDF pages immediately (quick, synchronous)
         if ext == '.pdf':

@@ -74,11 +74,17 @@ class IndexView(View):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
         try:
-            media_file = request.FILES.get('file')
+            # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs` :
+            # une désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
+            from wama.common.utils.media_paths import received_inputs
+            received = received_inputs(request, user, 'anonymizer')
+            media_file = received[0] if received else None
+            if received.refusal and not media_file and not request.POST.get('media_url'):
+                raise ValueError(received.refusal)
 
             # Case 1: text file containing paths or URLs
             if media_file and media_file.name.endswith(('.txt', '.csv', '.log')):
-                lines = media_file.read().decode('utf-8').splitlines()
+                lines = b''.join(media_file.chunks()).decode('utf-8').splitlines()
                 added, failed = [], []
 
                 for line in lines:
@@ -121,12 +127,14 @@ class IndexView(View):
                 return JsonResponse({'success': True, 'added': added, 'errors': failed})
 
             # Case 2: direct upload (file or URL)
-            video_path = upload_from_url(request, user)
+            video_path = upload_from_url(request, user, media_file)
             media_result = process_media(
                 video_path, user,
                 post=request.POST,
             )
             if isinstance(media_result, dict) and media_result.get('is_valid'):
+                if media_file:
+                    media_file.record(Media.objects.get(pk=media_result['id']), 'file')
                 return JsonResponse({'success': True, 'media': media_result})
             else:
                 return JsonResponse({'success': False, 'error': media_result}, status=400)
@@ -205,9 +213,9 @@ def process_media(video_path, user, post=None):
         return str(e)
 
 
-def upload_from_url(request, user):
-    """Handle media from either an uploaded file or a form URL."""
-    media_file = request.FILES.get('file')
+def upload_from_url(request, user, media_file=None):
+    """Handle media from either a received file (`media_paths.ReceivedInput` : téléversé ou
+    désigné) or a form URL."""
     media_url = request.POST.get('media_url')
 
     # Use user-specific input directory
@@ -215,23 +223,32 @@ def upload_from_url(request, user):
     output_path.mkdir(parents=True, exist_ok=True)
     output_path = str(output_path)
 
+    if media_file and media_file.designated:
+        # Déjà pointé (ou copié) par la brique : même filtre de types qu'un téléversement.
+        _check_media_type(media_file.name)
+        return media_file.local_path
     if media_file:
-        return handle_uploaded_media_file(media_file, output_path)
+        return handle_uploaded_media_file(media_file.value, output_path)
     elif media_url:
         return upload_media_from_url(media_url, output_path)
 
     raise ValueError("No media file or URL provided.")
 
 
-def handle_uploaded_media_file(media_file, output_path):
-    """Save uploaded media file to disk with a unique name."""
+def _check_media_type(name):
+    """Le filtre de types de l'anonymizer — pour un fichier téléversé comme désigné."""
     allowed_mime_types = [
         'video/mp4', 'video/x-msvideo', 'video/quicktime', 'video/x-matroska',
         'image/jpeg', 'image/png', 'image/jpg', 'image/bmp'
     ]
-    mime_type, _ = mimetypes.guess_type(media_file.name)
+    mime_type, _ = mimetypes.guess_type(name)
     if mime_type not in allowed_mime_types:
         raise ValueError(f"Unsupported file type: {mime_type}")
+
+
+def handle_uploaded_media_file(media_file, output_path):
+    """Save uploaded media file to disk with a unique name."""
+    _check_media_type(media_file.name)
 
     filename = get_unique_filename(output_path, media_file.name)
     save_path = os.path.join(output_path, filename)

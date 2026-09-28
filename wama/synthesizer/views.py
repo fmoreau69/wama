@@ -263,11 +263,17 @@ def upload(request):
     Upload d'un fichier texte à synthétiser.
     """
     try:
-        text_file = request.FILES.get('file')
-        if not text_file:
+        # Récupérer l'utilisateur (authentifié ou anonyme)
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+        # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs` : une
+        # désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
+        from wama.common.utils.media_paths import received_inputs
+        received = received_inputs(request, user, 'synthesizer')
+        if not received:
             return JsonResponse({
-                'error': 'Aucun fichier fourni'
+                'error': received.refusal or 'Aucun fichier fourni'
             }, status=400)
+        text_file = received[0]
 
         # Valider l'extension
         allowed_extensions = ['txt', 'pdf', 'docx', 'csv', 'md']
@@ -300,13 +306,10 @@ def upload(request):
         # Voice reference (optionnel)
         voice_reference = request.FILES.get('voice_reference')
 
-        # Récupérer l'utilisateur (authentifié ou anonyme)
-        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
         # Créer l'objet VoiceSynthesis
         synthesis = VoiceSynthesis.objects.create(
             user=user,
-            text_file=text_file,
+            text_file=text_file.value,
             tts_model=tts_model,
             language=language,
             voice_preset=voice_preset,
@@ -320,6 +323,7 @@ def upload(request):
             output_quality=output_quality,
             quality_intent=quality_intent,
         )
+        text_file.record(synthesis, 'text_file')
 
         # Extraire le texte et mettre à jour les métadonnées
         try:
