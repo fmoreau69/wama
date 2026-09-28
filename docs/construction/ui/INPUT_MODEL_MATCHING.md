@@ -181,11 +181,15 @@ C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse
 | # | geste | preuve attendue |
 |---|---|---|
 | ~~P0~~ | ~~`prompt_file` → brique de lot commune~~ | ✅ **fait le 2026-09-10** |
-| P0′ | séparer les axes restants : `prompt.port` → `prompt`, sortir `url`, classer `negative_prompt` | ports inchangés hors `prompt` ; v4 et studio d'accord |
-| P1 | accesseur d'union `app_input_ports(app, domain)` — **réutiliser `input_match.auto_entry()`**, qui en calcule déjà une variante | table des écarts union ↔ ports actuels, sans changer un comportement |
-| P2 | `studio_node_ports` le consomme (repli si union vide) | `studio_redundancy` : imager `narrowed_by_declaration` → `derived` ; roundtrip fidèle ; corpus ré-exporté |
-| P3 | la card v4 suit seule | batteries `converter_01` et `imager_01` |
-| P4 | câblage de l'imager : l'attache d'image devient un dépôt de TRAVAIL | `imager_01.import` : `skip` → OK |
+| ~~P0′~~ | ~~séparer les axes restants : `prompt.port` → `prompt`, sortir `url`, classer `negative_prompt`~~ | ✅ **fait le 2026-09-10** — `app_modes.py:89-97` (`prompt` → port `prompt`), `:138-140` (`url` et `negative_prompt` retirés du vocabulaire) |
+| ~~P1~~ | ~~accesseur d'union `app_input_ports(app, domain)`~~ | ✅ **fait** — `app_registry.py:325` ; gardes `tests_catalogues` (`app_input_ports`, domaines image/vidéo) |
+| ~~P2~~ | ~~`studio_node_ports` le consomme (repli si union vide)~~ | ✅ **fait le 2026-09-10** — `app_registry.py:256-259`, repli explicite `:261-301` (converter) |
+| ~~P3~~ | ~~la card v4 suit seule~~ | ✅ **de fait** — le tag `input_slots` lit `studio_node_ports` (donc l'union) et en tire l'OBLIGATION de chaque port (`wama_actions.py:189-206`, 11/09) |
+| P4 | câblage de l'imager : l'attache d'image devient un dépôt de TRAVAIL | ⏳ **non revérifié** — `imager_01.import` : `skip` → OK |
+
+> ⚠ **Rectifié le 2026-09-28** : ce tableau donnait encore P0′→P3 « à faire » ; relevé en
+> confrontant au code avant de reprendre la card v4 (`CARD_DESIGN §11.11`). Le code avait
+> avancé le 10-11/09 sans que la table suive.
 
 ### 6.6 Points ouverts, nommés
 

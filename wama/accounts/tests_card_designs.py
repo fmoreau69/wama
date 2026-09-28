@@ -68,6 +68,18 @@ class CardDesignDeclarationTest(TestCase):
         unknown = {v: p for v, p in seen.items() if v not in _declared()}
         self.assertEqual(unknown, {})
 
+    def test_no_design_hides_the_feeding_zone_of_the_input_card(self):
+        # Décision de Fabien (2026-09-28) : en Affiné comme en Compact, la card d'ENTRÉE se
+        # REPLIE et toute interaction l'ouvre. Une règle de densité qui masque sa zone
+        # d'alimentation la laisse sans tuile d'import même ouverte (cas de l'ex-règle v2).
+        offending = []
+        for path in _sources('*.css'):
+            css = re.sub(r'/\*.*?\*/', '', path.read_text(encoding='utf-8'), flags=re.S)
+            for selector in re.findall(r'([^{}]+)\{', css):
+                if CSS_SELECTOR.search(selector) and 'wama-input-preview' in selector:
+                    offending.append((str(path.relative_to(ROOT)), selector.strip()))
+        self.assertEqual(offending, [])
+
     def test_every_design_other_than_the_default_has_its_own_rules(self):
         # Le défaut est le rendu de BASE (règles sans sélecteur) ; une autre densité sans aucune
         # règle serait une option de menu qui ne change rien.
