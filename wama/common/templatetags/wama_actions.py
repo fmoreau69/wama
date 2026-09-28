@@ -162,7 +162,15 @@ def domain_route_prefix(app, domain=None):
 
 
 @register.simple_tag
-def input_slots(app, live=False):
+def live_input_declared(app):
+    """L'app déclare-t-elle la capture EN DIRECT (`has_live_input`) ? — pour la card v3, qui
+    affichait le bouton Speak sur le seul littéral `show_live` de la page (2026-09-28)."""
+    from wama.common.app_registry import app_has_live_input
+    return app_has_live_input(app)
+
+
+@register.simple_tag
+def input_slots(app):
     """Les SLOT-ROWS de la card d'entrée v4 — une par PORT déclaré, avec ses modalités.
 
     Le gabarit ne reçoit plus des littéraux par app (`show_url`, `show_media_library`,
@@ -178,10 +186,9 @@ def input_slots(app, live=False):
       - `folder`  : seulement si le port est `multi` — importer un dossier dans un slot qui
                     n'accepte qu'un fichier n'a aucun sens ;
       - `url`     : sur tout port FICHIER (l'ingest distant est commun, `ensure_local_input`) ;
-      - `live`    : passé par l'appelant, pas dérivé. Le drapeau DÉCLARATIF qui remplacera le
-                    littéral `show_live` s'ajoutera avec sa déclaration — « jamais une
-                    déclaration sans consommateur » vaut aussi dans l'autre sens : pas de
-                    lecteur qui invente sa clé.
+      - `live`    : la CAPACITÉ d'app `has_live_input` (`app_registry.app_has_live_input`,
+                    2026-09-28) — déclarée au catalogue, lue ici ; plus de littéral `show_live`
+                    passé par la page.
 
     Le port `prompt` est EXCLU : ce n'est pas un slot de la zone de preview, c'est la cellule
     primaire au-dessus (§11.9 C — le seul élément autorisé à grandir).
@@ -236,7 +243,8 @@ def input_slots(app, live=False):
             'description': textes.get(port.get('id'), '') or port.get('description', ''),
             'modalities': mods,
         })
-    if live:
+    from wama.common.app_registry import app_has_live_input
+    if app_has_live_input(app):
         # LE LIVE EST UN PORT, pas une modalité (décision Fabien 05/09, CARD_DESIGN §11.11 D) :
         # « en direct » est une SOURCE alternative au fichier de travail, pas une façon de le
         # fournir. Sa modalité unique ARME ; ▶ démarre (deux temps, §11.9 A).

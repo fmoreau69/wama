@@ -1338,6 +1338,70 @@ class ResultPortsComeFromAppCapabilitiesTest(TestCase):
         self.assertIs(False, target['has_result_import'])
 
 
+class LivePortComesFromAnAppCapabilityTest(TestCase):
+    """The LIVE port (Speak) is a DECLARATION, `has_live_input` (2026-09-28, CARD_DESIGN §11.11 D).
+
+    It replaced the literal `show_live` that the transcriber page alone posted: both input cards
+    now read the catalogue — v3 through `live_input_declared`, v4 through `input_slots`.
+    ⚠ LOCAL witness entry, never the real catalogue (same rule as the result ports).
+    """
+
+    APP = 'app_live_witness'
+
+    def _catalog(self, **capabilities):
+        from unittest.mock import patch
+        from wama.common.app_registry import APP_CATALOG
+        entry = {'label': 'Witness', 'input_types': ('audio',), 'output_types': ('txt',),
+                 **capabilities}
+        return patch.dict(APP_CATALOG, {self.APP: entry})
+
+    def test_the_v4_card_offers_the_live_port_only_when_declared(self):
+        from wama.common.templatetags import wama_actions
+        with self._catalog():
+            silent = [s['id'] for s in wama_actions.input_slots(self.APP)]
+        with self._catalog(has_live_input=True):
+            slots = {s['id']: s for s in wama_actions.input_slots(self.APP)}
+        self.assertNotIn('live', silent)
+        self.assertEqual('live', slots['live']['kind'])
+        self.assertEqual(['arm'], slots['live']['modalities'], 'the click ARMS, ▶ starts')
+        self.assertFalse(slots['live']['required'])
+
+    def test_the_v3_card_shows_speak_only_when_declared(self):
+        from django.template.loader import render_to_string
+        context = {'drop_zone_id': 'dz', 'file_input_id': 'fi', 'live_btn_id': 'speakBtn',
+                   'app_id': self.APP}
+        with self._catalog():
+            silent = render_to_string('common/_new_item_card.html', context)
+        with self._catalog(has_live_input=True):
+            declared = render_to_string('common/_new_item_card.html', context)
+        self.assertNotIn('id="speakBtn"', silent)
+        self.assertIn('id="speakBtn"', declared)
+
+    def test_the_studio_never_exposes_a_live_port(self):
+        """A live capture has no meaning inside a pipeline."""
+        from wama.common.app_registry import studio_node_ports
+        with self._catalog(has_live_input=True):
+            ids = [p['id'] for p in studio_node_ports(self.APP)['inputs']]
+        self.assertNotIn('live', ids)
+
+    def test_the_manifest_carries_the_capability_both_ways(self):
+        from wama.common.manifests.builtin.app import _capabilities, _capabilities_target
+        declared = _capabilities({'has_live_input': True}, self.APP)
+        silent = _capabilities({}, self.APP)
+        self.assertTrue(declared['has_live_input'])
+        self.assertNotIn('has_live_input', silent)
+        self.assertIs(True, _capabilities_target({'body': {'capabilities': declared}})['has_live_input'])
+
+    def test_the_transcriber_declares_it_and_its_page_posts_no_literal_any_more(self):
+        from pathlib import Path
+        from django.conf import settings
+        from wama.common.app_registry import app_has_live_input
+        self.assertTrue(app_has_live_input('transcriber'))
+        page = (Path(settings.BASE_DIR) / 'wama/transcriber/templates/transcriber/index.html'
+                ).read_text(encoding='utf-8')
+        self.assertNotIn('show_live=', page)
+
+
 class ObligationDesSlotsVientDesModelesTest(TestCase):
     """Un slot ne s'annonce « requis » que si TOUS les modèles retenus l'exigent.
 

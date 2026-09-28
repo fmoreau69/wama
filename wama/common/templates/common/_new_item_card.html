@@ -31,8 +31,10 @@ Variables :
   url_hint         — aide sous le champ (optionnel)
   url_icon         — classe d'icône (défaut: 'fas fa-link')
   url_icon_class   — classe couleur de l'icône (défaut: 'text-info')
-  show_live        — (bool) afficher l'affordance « en direct » (bouton Speak/live, modalité d'entrée)
-  live_btn_id      — id du bouton live (REQUIS si show_live ; ex: 'transcriber-speak-btn')
+  app_id           — (option) nom de l'app : c'est lui qui dit si la capture EN DIRECT existe
+                     (capacité `has_live_input`, 2026-09-28 — remplace le littéral `show_live`,
+                     CARD_DESIGN §11.11 D : le live est un PORT, donc une DÉCLARATION)
+  live_btn_id      — id du bouton live (REQUIS si l'app déclare `has_live_input` ; ex: 'transcriber-speak-btn')
   live_label       — libellé du bouton (défaut: 'Speak')
   live_icon        — classe d'icône (défaut: 'fas fa-microphone')
   live_hint        — aide sous le bouton (optionnel)
@@ -146,7 +148,8 @@ lisait les deux comme un échec. Ce n'est pas une heuristique de DOM qui peut tr
             </div>
             {% endif %}
         </div>
-        {% if show_live %}
+        {% load wama_actions %}{% live_input_declared app_id as live_declared %}
+        {% if live_declared %}
         <div class="mt-2 pt-2 border-top border-secondary text-center">
             <span class="small text-white-50 me-2"><i class="fas fa-bolt text-warning"></i> ou en direct</span>
             <button id="{{ live_btn_id }}" class="btn btn-warning btn-sm" type="button">

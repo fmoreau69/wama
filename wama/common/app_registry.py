@@ -473,6 +473,20 @@ RESULT_CAPABILITY_TOKENS = (
 )
 
 
+def app_has_live_input(app_id) -> bool:
+    """L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
+
+    Une CAPACITÉ d'app déclarée (`has_live_input`), comme celles du résultat : aucun modèle ne
+    déclarera jamais une capture au micro, c'est l'app qui sait la faire (2026-09-28, CARD_DESIGN
+    §11.11 D). Lue par les DEUX cards d'entrée (v3 : le bouton Speak ; v4 : l'onglet « En
+    direct »), qui ne reçoivent plus de littéral `show_live`. ⚠ Pas un port du STUDIO : une
+    capture en direct n'a pas de sens dans un pipeline — `studio_node_ports` ne l'expose pas.
+    Une DÉCLARATION lue reste LITTÉRALE (frontière du bac à sable, CARD_DESIGN §11.11) : une
+    jumelle porte la capacité si son manifeste la projette, comme `app_result_ports`.
+    """
+    return bool((APP_CATALOG.get(app_id) or {}).get('has_live_input'))
+
+
 def app_result_ports(app_id):
     """Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
 
@@ -1201,6 +1215,10 @@ APP_CATALOG = {
         # Reprise d'une transcription faite ailleurs (port `work_result`) : `import_result` de la
         # même déclaration — elle tient lieu de transcription et se compare comme un modèle.
         'has_result_import': True,
+        # Capture EN DIRECT (Speak) — le port `live` de la card d'entrée (2026-09-28,
+        # CARD_DESIGN §11.11 D) : une DÉCLARATION, lue par la card v3 et la card v4, au lieu du
+        # littéral `show_live` que seule la page du transcriber posait.
+        'has_live_input': True,
         'output_types': ('txt', 'srt', 'vtt', 'json'),
         'conventions': _conv(
             settings_modal_item=True,
@@ -1212,8 +1230,8 @@ APP_CATALOG = {
                                   #   brique publish_partial_text → face ?side=during, 2026-08-13)
             inspector=True,   # référence : volet contextuel card/batch/file ET modale item/batch
                               # GÉNÉRÉS depuis le schéma unique (transcriber/params.py + WamaParams)
-            modes=None,       # N/A — Speak (temps réel) = AFFORDANCE de la card (show_live,
-                              # _new_item_card), PAS un switch WamaModes (design card-centric
+            modes=None,       # N/A — Speak (temps réel) = PORT de la card (`has_live_input`
+                              # ci-dessus, ex-`show_live`), PAS un switch WamaModes (design card-centric
                               # intentionnel, cf. transcriber/index.html:321,352). La clause « à
                               # repasser à True si realtime devient un mode » est MORTE le
                               # 2026-08-30 : Fabien a retranché — pas de mode temps réel, la
