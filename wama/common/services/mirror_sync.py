@@ -37,17 +37,22 @@ horloges et les résolutions de mtime diffèrent entre ext4, 9p et le NAS : comp
 les dates produisait des recopies fantômes. Un fichier modifié à taille identique
 échappe donc au miroir ; c'est un compromis assumé, `overwrite=True` force le resync.
 
-LIENS SYMBOLIQUES INTERNES — DÉCRITS, JAMAIS RECOPIÉS (2026-09-28)
-==================================================================
+LIENS SYMBOLIQUES INTERNES — REPRODUITS COMME LIENS, JAMAIS RECOPIÉS (2026-09-28)
+================================================================================
 Un cache HuggingFace porte chaque poids UNE fois dans `blobs/`, et une fois comme LIEN dans
-`snapshots/<rev>/`. `is_file()` suit les liens : le miroir recopiait donc chaque poids DEUX
-fois — mesuré sur qwen-image, 115 Go distants pour 54 Go locaux, et la moitié du temps d'une
-sauvegarde passée à recopier ce qui était déjà parti. Désormais un lien dont la cible est un
-fichier DE LA SOURCE n'est pas copié : il est inscrit dans `LINKS_MANIFEST`, à la racine du
-miroir (fusionné, jamais réécrit à vide — même doctrine cumulative), et le chemin inverse
-(le TIRAGE, `restore_backup`) relit ces manifestes pour RECRÉER les liens — faute de quoi une
-restauration rendrait des snapshots vides. Un lien vers l'EXTÉRIEUR de la source garde l'ancien
-comportement (son contenu est copié) : il n'y a pas d'autre copie de ce fichier dans l'archive.
+`snapshots/<rev>/`. `is_file()` suit les liens : un dépôt sauvegardé pour la première fois par ce
+moteur voyait donc chaque poids recopié une SECONDE fois (mesuré au distant : 58 Go de copies
+pleines sur 4 dépôts — FastWan, MiniMax-Music3, ACE-Step, Minimax-h3). Les dépôts plus anciens,
+eux, y portaient déjà de VRAIS liens, que le test « même taille » (qui suit le lien) sautait.
+Désormais un lien dont la cible est un fichier DE LA SOURCE est REPRODUIT comme lien à la
+destination — le partage distant les porte (montage 9p `metadata`), et c'est ce qui permet au
+tirage de restaurer des liens et non des doubles. Si la destination refuse un lien, il est
+inscrit dans `LINKS_MANIFEST` à sa racine (fusionné, jamais vidé), que le tirage relit pour le
+recréer. Un lien vers l'EXTÉRIEUR de la source garde l'ancien comportement (contenu copié) : il
+n'y a pas d'autre copie de ce fichier dans l'archive.
+⚠ Rectification du même jour : la première version DÉCRIVAIT tous les liens au lieu de les
+reproduire, sur la foi d'une mesure fausse (« 115 Go distants pour 54 » — un `stat()` qui suivait
+les liens distants). Appliquée au tirage, elle aurait laissé des snapshots VIDES.
 """
 
 from __future__ import annotations
@@ -174,7 +179,7 @@ def internal_link(path: Path, source_root: Path) -> str | None:
     return os.path.relpath(target, path.parent.resolve())
 
 
-def _read_manifest(path: Path) -> dict:
+def read_links_manifest(path: Path) -> dict:
     import json
     try:
         data = json.loads(path.read_text(encoding='utf-8'))
@@ -183,12 +188,12 @@ def _read_manifest(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _write_manifest(dest_root: Path, links: dict) -> None:
+def write_links_manifest(dest_root: Path, links: dict) -> None:
     """FUSIONNE `links` dans le manifeste de `dest_root` — cumulatif comme le reste de
     l'archive : une entrée n'en sort jamais, même si le lien a disparu en local."""
     import json
     target = dest_root / LINKS_MANIFEST
-    merged = _read_manifest(target)
+    merged = read_links_manifest(target)
     merged.update(links)
     scratch = target.with_name(target.name + '.tmp')
     scratch.write_text(json.dumps(merged, indent=0, sort_keys=True), encoding='utf-8')
@@ -240,10 +245,10 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
                      action ∈ {'copied', 'skipped', 'failed', 'linked'}. Permet à un appelant
                      de produire un compte rendu détaillé sans réécrire le parcours.
 
-    Liens symboliques INTERNES (docstring du module) : décrits dans `LINKS_MANIFEST` au lieu
-    d'être recopiés ; les manifestes trouvés dans la SOURCE (cas du tirage) font recréer les
-    liens dans la destination, et leurs chemins ne sont PAS recopiés même si une ancienne
-    sauvegarde les y avait déposés comme fichiers pleins.
+    Liens symboliques INTERNES (docstring du module) : reproduits comme liens, décrits dans
+    `LINKS_MANIFEST` seulement si la destination les refuse ; les manifestes trouvés dans la
+    SOURCE (cas du tirage) font recréer les liens, et leurs chemins ne sont PAS recopiés même
+    si une ancienne sauvegarde les y avait déposés comme fichiers pleins.
 
     Returns: dict de synthèse (clés de `new_summary`).
     """
@@ -272,7 +277,7 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
             # à la racine de SON dossier).
             if path.is_file():
                 base = relative.parent
-                for link_path, value in _read_manifest(path).items():
+                for link_path, value in read_links_manifest(path).items():
                     to_relink[(base / link_path).as_posix()] = value
             continue
         value = internal_link(path, source_root)
@@ -336,18 +341,32 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
                 current = source.name
             progress_cb(dict(summary, phase='copy', current=current))
 
-    # Phase 3 — liens internes : décrits (sauvegarde), puis recréés (tirage).
-    if links:
-        summary['linked'] += len(links)
-        if not dry_run:
-            try:
-                _write_manifest(dest_root, links)
-            except OSError as exc:
-                summary['failed'] += len(links)
-                summary['errors'].append(f"{LINKS_MANIFEST}: {exc}")
+    # Phase 3 — liens internes : REPRODUITS comme liens (le partage distant les porte : montage
+    # 9p `metadata`, mesuré le 28/09) ; DÉCRITS au manifeste seulement là où la destination en
+    # refuse la création. Un lien déjà présent — ou une copie pleine laissée par une ancienne
+    # passe, que `dedup_remote_links` traite — n'est pas touché.
+    refused = {}
+    for relative, value in links.items():
+        dest = dest_root / relative
+        if dest.is_symlink() or dest.exists():
+            continue
+        summary['linked'] += 1
         if on_file:
-            for relative in links:
-                on_file(source_root / relative, dest_root / relative, 'linked', 0.0, None)
+            on_file(source_root / relative, dest, 'linked', 0.0, None)
+        if dry_run:
+            continue
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            os.symlink(value, dest)
+        except OSError:
+            refused[relative] = value
+    if refused:
+        try:
+            write_links_manifest(dest_root, refused)
+        except OSError as exc:
+            summary['failed'] += len(refused)
+            summary['errors'].append(f"{LINKS_MANIFEST}: {exc}")
+    # Tirage : les liens qu'une destination n'avait pas pu porter reviennent depuis le manifeste.
     for relative, value in to_relink.items():
         dest = dest_root / relative
         if dest.exists() or dest.is_symlink():

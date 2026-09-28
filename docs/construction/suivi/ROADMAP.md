@@ -880,16 +880,26 @@ chaud, traduction→Ollama.
   l'autre sens) et `manage.py restore_db` (destructif, CLI uniquement).
 - Garde-fous conservés : chemin UNC hors Windows non monté → sauvegarde **désactivée** sans créer
   de dossier-poubelle (constater, pas créer) ; jamais de suppression distante (archive cumulative).
-- **Liens symboliques internes — décrits, plus recopiés (2026-09-28)**. `is_file()` suivant les
-  liens, chaque poids d'un cache HF partait DEUX fois (le blob, puis le lien `snapshots/` qui le
-  désigne) : mesuré **480 liens = 333 Go recopiés pour rien, pour 293 Go de vrais fichiers**
-  (qwen-image : 115 Go distants pour 54 locaux). Un lien vers un fichier DE la source s'inscrit
-  désormais dans `.wama_links.json` à la racine du miroir (fusionné, jamais vidé) ; le tirage relit
-  ces manifestes, **recrée les liens** (repli copie sans droit de lien) et ne rapatrie PAS les copies
-  pleines laissées par les anciennes passes. Un lien vers l'EXTÉRIEUR reste copié (seule copie de
-  sa cible). Passe suivante : 1 225 fichiers au lieu de 1 857. Tenu par `tests_mirror_sync` (5,
-  contre-épreuve 2 mutations → 5 rouges). ⏳ Les copies doubles DÉJÀ au distant y restent (archive
-  cumulative, pas de purge) ; les récupérer serait un geste ponctuel et explicite — non fait.
+- **Liens symboliques internes — reproduits comme liens, plus recopiés (2026-09-28)**.
+  `is_file()` suivant les liens, un dépôt HF sauvegardé pour la PREMIÈRE fois par `mirror_tree`
+  voyait chaque poids recopié une seconde fois via son lien `snapshots/` : **58,3 Go mesurés au
+  distant, sur 4 dépôts** (FastWan 24,2, MiniMax-Music3 20,6, ACE-Step 10,1, Minimax-h3 3,3). Les
+  dépôts plus anciens y portaient déjà de VRAIS liens (le partage les accepte : montage 9p
+  `metadata`), que le test « même taille » sautait. Un lien vers un fichier DE la source est
+  désormais **reproduit comme lien** ; décrit dans `.wama_links.json` seulement si la destination
+  refuse les liens ; le tirage recrée les liens des deux formes et ne rapatrie PAS les copies
+  pleines d'anciennes passes. Un lien vers l'EXTÉRIEUR reste copié (seule copie de sa cible).
+  Tenu par `tests_mirror_sync` (7). Nettoyage des doubles déjà partis : `manage.py
+  dedup_remote_links` (simulation par défaut ; un double n'est retiré que PROUVÉ — manifeste, ou
+  blob unique de même taille ET mêmes octets de tête/queue —, remplacé par un lien après
+  inscription au manifeste ; `tests_dedup_remote_links`, 6). Simulation du 28/09 : **58,3 Go
+  retirables** (77 fichiers), 2 gardés (Kokoro : seule copie ; un GGUF MiniMax : blob désigné
+  d'une autre taille). ⏳ `--apply` : décision de Fabien.
+  ⚠ **Rectification du même jour** : ce paragraphe annonçait d'abord « 480 liens = 333 Go
+  recopiés pour rien, qwen-image 115 Go distants pour 54 » — FAUX : mon relevé faisait un `stat()`
+  qui suivait les liens DISTANTS et comptait deux fois chaque poids. La première version du
+  correctif, bâtie sur ce chiffre, décrivait tous les liens au lieu de les reproduire : appliquée
+  au tirage, elle aurait rendu des snapshots VIDES pour tous les dépôts anciens.
 - ⚠ Le dossier `llm/ollama` (lien vers `D:\.ollama`) n'est pas parcouru : `rglob` ne suit pas un
   dossier-lien. Voulu (Fabien, 2026-09-28) : les modèles Ollama se retirent de leur registre.
 - Détail et procédure de réinstallation : **`PROJECT_STATUS.md` §42**.
