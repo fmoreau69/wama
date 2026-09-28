@@ -431,6 +431,9 @@
     d'une autre app. Après `wama-share.js` (elle réutilise son lecteur de coordonnées) et avant
     le menu, qui n'offre l'entrée que si `WamaSendTo` existe.{% endcomment %}
     <script src="{% static_v 'common/js/wama-send-to.js' %}"></script>
+    {% comment %}« Programmer… » (calendrier, étape 3) — AVANT le menu, qui n'offre l'entrée que
+    si `WamaSchedule` existe. Pose aussi les pastilles des cards programmées.{% endcomment %}
+    <script src="{% static_v 'common/js/wama-schedule.js' %}"></script>
     <script src="{% static_v 'common/js/wama-card-menu.js' %}"></script>
 
     {% block javascript %}

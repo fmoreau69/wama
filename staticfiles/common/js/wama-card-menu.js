@@ -567,6 +567,35 @@
             entrees.push.apply(entrees, entreesGarder(WamaShare.coordonnees(card)));
         }
 
+        // PROGRAMMER — le lancement à une autre heure (calendrier, étape 3 — ROUTE §10.6 point 13 ;
+        // arbitrage de Fabien, 2026-09-28 : ici et pas sur le ▶, qui garde UNE action). Offert si
+        // la file porte `data-schedule-url` (un outil de lancement existe) : une card, la
+        // sélection multiple, ou le LOT — dont on programme chacun des éléments.
+        if (d.scheduleUrl && d.scheduleTool && global.WamaSchedule) {
+            var toSchedule = estLot
+                ? $$('.wama-card[data-id]', card.closest('.batch-group') || card)
+                      .filter(function (c) { return c !== card; })
+                : cibles.filter(function (c) { return c.dataset.id; });
+            if (toSchedule.length) {
+                entrees.push({
+                    icone: 'fas fa-clock',
+                    libelle: estLot ? 'Programmer le lot…'
+                        : (toSchedule.length > 1 ? 'Programmer (' + toSchedule.length + ')…' : 'Programmer…'),
+                    agir: function () {
+                        WamaSchedule.open({
+                            url: d.scheduleUrl, tool: d.scheduleTool,
+                            ids: toSchedule.map(function (c) { return c.dataset.id; }),
+                            // Le NOM d'entrée de la card v3 (anatomie commune), pas tout son texte.
+                            subject: toSchedule.length > 1
+                                ? toSchedule.length + ' éléments'
+                                : ((toSchedule[0].querySelector('.wcv3-in-name') || {}).title
+                                   || (card.textContent || '').trim()).slice(0, 80),
+                        });
+                    },
+                });
+            }
+        }
+
         // RÉSULTAT DE RÉFÉRENCE — le port `reference_result` (2026-09-23, WAMA_QUALITE Q6).
         // Offert SEULEMENT quand la file porte `data-result-reference-url`, que le serveur n'émet
         // que pour une surface ÉVALUABLE (`queue_dnd_attrs`). Sur la card MÈRE, la référence va

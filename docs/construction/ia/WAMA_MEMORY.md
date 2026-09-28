@@ -422,7 +422,7 @@ sauvegarde déplacée à 04:20 → rouge).
 |---|---|---|
 | 1 | calendrier observé + maintenance + plages réservées + couleurs + export `.ics` | ✅ 2026-09-28 |
 | 2 | couche prévue : fin des traitements en cours (débit observé), passages de purge ; + Lab et Studio, lots, champs de fin, barre de filtrage commune | ✅ 2026-09-28 |
-| 3 | `ScheduledAction` + distributeur + « Programmer… » sur ▶ + flux `.ics` à jeton | ⏳ |
+| 3 | `ScheduledAction` + distributeur + « Programmer… » au menu de card (pas sur le ▶, arbitrage de Fabien) + programmation par le fichier batch + abonnement `.ics` à jeton — le tout depuis UN schéma (`ROUTE §10.6` 13.7) | ✅ 2026-09-28 |
 | 4 | placement automatique (le « gouverneur du temps ») | ⏳ |
 | 5 | mails et posts — des OUTILS de `tool_api`, programmables sans code propre | ⏳ (quand les outils existeront) |
 

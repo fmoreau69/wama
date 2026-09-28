@@ -804,6 +804,14 @@ if ENABLE_CELERY:
             'schedule': 3600.0,
             'options': {'queue': 'default'},
         },
+        # Actions PROGRAMMÉES (calendrier, étape 3 — ROUTE §10.6 point 13) : UNE entrée pour
+        # toutes, qui lance ce qui est dû par `tool_api`. Pas de `DatabaseScheduler` : les
+        # programmations vivent dans `ScheduledAction`, beat ne fait que battre la minute.
+        'dispatch-scheduled-actions': {
+            'task': 'common.dispatch_scheduled_actions',
+            'schedule': 60.0,
+            'options': {'queue': 'default'},  # appelle un outil, ne charge aucun modèle
+        },
         # Rétention : purge quotidienne des médias expirés (no-op si aucun user n'a de rétention).
         'purge-expired-media': {
             'task': 'common.purge_expired_media',

@@ -146,6 +146,41 @@
         });
     }
 
+    // ABONNEMENT : le lien à jeton, créé au premier clic, régénérable (= révocation).
+    var subscribe = document.getElementById('wama-calendar-subscribe');
+    var feedModal = document.getElementById('wama-calendar-feed-modal');
+    function requestFeed(regenerate) {
+        var body = new FormData();
+        if (regenerate) { body.append('regenerate', '1'); }
+        var token = (window.WamaApp && WamaApp.csrfToken) ? WamaApp.csrfToken() : '';
+        return fetch(subscribe.dataset.feedUrl, {
+            method: 'POST', credentials: 'same-origin', headers: { 'X-CSRFToken': token }, body: body,
+        }).then(function (r) { return r.json(); }).then(function (res) {
+            document.getElementById('wama-calendar-feed-url').value = res.url || '';
+            return res;
+        });
+    }
+    if (subscribe && feedModal && window.bootstrap) {
+        subscribe.addEventListener('click', function () {
+            requestFeed(false).then(function () {
+                bootstrap.Modal.getOrCreateInstance(feedModal).show();
+            });
+        });
+        document.getElementById('wama-calendar-feed-copy').addEventListener('click', function () {
+            var input = document.getElementById('wama-calendar-feed-url');
+            if (navigator.clipboard) { navigator.clipboard.writeText(input.value); }
+            else { input.select(); document.execCommand('copy'); }
+            if (window.WamaApp && WamaApp.toast) { WamaApp.toast('Lien copié', 'success'); }
+        });
+        document.getElementById('wama-calendar-feed-regenerate').addEventListener('click', function () {
+            requestFeed(true).then(function () {
+                if (window.WamaApp && WamaApp.toast) {
+                    WamaApp.toast('Nouveau lien : l’ancien ne fonctionne plus', 'warning');
+                }
+            });
+        });
+    }
+
     calendar.render();
     window.WamaCalendar = calendar;
 })();

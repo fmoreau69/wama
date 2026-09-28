@@ -798,10 +798,25 @@ def build_batch_template(fields, example, *, app_label=''):
         "#  1) TABLEUR à ligne d'en-têtes — délimiteur , ; | ou tabulation ; ordre des colonnes LIBRE",
         "#  2) BALISES style CLI : -i entrée · -p \"prompt\" · -r référence · -o sortie · --option valeur",
         "#  3) POSITIONNEL hérité : valeurs séparées par | dans l'ordre ci-dessous, SANS en-tête",
+        *_schedule_template_lines(),
         "# Les lignes commençant par # sont des commentaires.",
         *lignes_de_donnees,
     ]
     return '\n'.join(lines) + '\n'
+
+
+def _schedule_template_lines():
+    """Les options de PROGRAMMATION d'une ligne, lues au SCHÉMA de la programmation
+    (`scheduled_actions.schedule_params`) — les noms et les valeurs ne sont pas réécrits ici."""
+    try:
+        from wama.common.services.scheduled_actions import (FIELD_AT, FIELD_WHEN,
+                                                             schedule_params)
+        when = next(p for p in schedule_params() if p.name == FIELD_WHEN)
+    except Exception:
+        return []
+    values = '|'.join(v for v, _ in when.choices or ())
+    return [f"#  Programmer une ligne (syntaxes 1 et 2) : --{FIELD_WHEN} {values} · "
+            f"--{FIELD_AT} AAAA-MM-JJTHH:MM (colonnes « {FIELD_WHEN} » / « {FIELD_AT} »)"]
 
 
 def apply_indexed_output_names(tasks, source_name, default_ext, *, key='output_filename'):

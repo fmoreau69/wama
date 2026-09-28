@@ -3169,7 +3169,13 @@ Cette route (§0, F5, F8, §10.4, §11 #6 et #32-#35) ; `WAMA_MANIFEST_ARCHITECT
 > ce qui relève de l'EXÉCUTION : **quand** une instance de pipeline part. Le gouverneur actuel
 > décide **si** un process peut partir maintenant ; ce point décide **quand** il part.
 
-**13.1 La seule table neuve : `ScheduledAction`** (étape 3, ⏳). Tout le reste du calendrier dérive.
+> ✅ **Étape 3 LIVRÉE le 2026-09-28** (`common/services/scheduled_actions.py`, modèles
+> `ScheduledAction` + `CalendarFeed`, migration additive `common/0016`). Arbitrage de Fabien sur la
+> surface : **« Programmer… » vit dans le menu de card** (clic droit et « … »), pas sur le ▶, qui garde
+> UNE action ; le ▶ lance maintenant et **annule la programmation sans confirmation**. Détail et
+> gardes : 13.7 ci-dessous.
+
+**13.1 La seule table neuve : `ScheduledAction`** (étape 3, ✅). Tout le reste du calendrier dérive.
 - `user` + `ScopedVisibility` (un planning de projet ou d'équipe se partage comme le reste) ;
 - **le QUOI = un nom d'outil `tool_api` + ses arguments** (`start_transcriber`, `run_studio_pipeline`,
   plus tard `send_mail`, `post_to_<canal>`). La programmation **n'embarque aucun code de lancement** :
@@ -3213,6 +3219,38 @@ migration que l'étape 3.
 
 **13.6 Dépendances.** L'historique complet des exécutions sur le calendrier attend la ligne
 d'exécution par process (4.1, moteur P3) ; tout le reste est indépendant de P3.
+
+**13.7 Ce que l'étape 3 a posé (2026-09-28) — et comment elle reste schéma-driven.**
+- **UN schéma, trois surfaces** (demande de Fabien : *« on le fait bien schéma-driven »*). Les deux
+  champs de la programmation — `when` (placement, choix LUS du modèle) et `at` (date et heure) — sont
+  déclarés une fois (`scheduled_actions.schedule_params`, des `param_schema.Param`). La fenêtre est
+  RENDUE par `WamaParams.render` (nouveau type générique `datetime`, posé par `registerRenderer`),
+  l'API les lit par `read_schedule` (bornes de choix = `invalid_choice_values`, la brique
+  d'`execute_tool`), et le FICHIER BATCH les porte comme options de ligne.
+- **Le fichier batch programme ses lignes** (remarque de Fabien) : `--when off_peak`,
+  `--at 2026-10-01T22:00`, ou les colonnes `when` / `at` d'un CSV (`BATCH_FORMAT.md §Programmer une
+  ligne`). **Aucune ligne par app** : le middleware des gestes reconnaît la création d'un lot par son
+  CONTRAT DE DONNÉES — un POST qui envoie `batch_file` et rend `batch_id` (mesuré : onze apps, quatre
+  noms de route) —, relit le fichier archivé et les éléments DANS L'ORDRE DES LIGNES
+  (`batch_common.batch_elements`). ⚠ Si l'app a écarté des lignes, l'alignement n'est plus sûr : rien
+  n'est programmé et l'utilisateur est notifié (viser le mauvais élément serait pire). Le gabarit de
+  fichier batch de chaque app documente ces options d'office (`build_batch_template`, lu au schéma).
+- **L'outil** est dérivé une fois (`start_tool_for`) — par la file (`queue_dnd_attrs` émet
+  `data-schedule-url`/`-tool`, jamais pour une jumelle de bac à sable) et par le fichier batch. Son
+  argument d'identifiant vient de sa signature (`tool_api.primary_arg_name`).
+- **Le distributeur** (`dispatch_due`, entrée beat `dispatch-scheduled-actions`, 60 s) verrouille les
+  lignes dues et les marque AVANT tout appel (jamais deux lancements), passe par `execute_tool` au nom
+  de l'utilisateur, **ne relance jamais un élément lancé à la main depuis** (`skipped` — filet des
+  routes que le middleware ne reconnaît pas : lots, file audio), notifie un échec DANS WAMA, et
+  reprogramme une récurrence (`rrule`, RFC 5545 — le champ existe, l'interface ne l'offre pas encore).
+- **Surfaces** : entrée « Programmer… » / « Programmer (N)… » / « Programmer le lot… » du menu commun ;
+  pastille « Programmé · … » (Modifier, Annuler) posée dans la section État par `wama-schedule.js`
+  (observateur de mutations : elle suit les cards redessinées) ; couche **Programmé** du calendrier ;
+  abonnement `.ics` à jeton régénérable (`CalendarFeed` — régénérer révoque).
+- Gardes : `tests_scheduled_actions` (30, dont le vrai `batch_create` du describer ; contre-épreuve :
+  branchement batch neutralisé → rouge).
+- ⏳ Reste : étape 4 (placement MESURÉ sur l'activité au lieu des heures creuses déclarées) ; la
+  récurrence à l'interface ; les mails et posts quand leurs outils existeront.
 
 ---
 

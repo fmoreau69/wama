@@ -495,6 +495,16 @@ MECHANISMS = (
               'wama/common/services/calendar.py', 'docs/construction/ia/WAMA_MEMORY.md §9bis.1',
               annexes=('wama/common/static/common/js/wama-calendar.js',
                        'wama/common/tests_calendar.py')),
+    Mechanism('scheduled_actions', "Actions programmées (le QUAND)",
+              "Programmer le lancement d'une card, d'une sélection ou d'un lot — menu commun, "
+              "pastille sur la card, fichier batch (`--when`/`--at`) — depuis UN schéma "
+              "(`schedule_params`). L'heure venue, `execute_tool` au nom de l'utilisateur (même "
+              "porte que l'assistant) ; placement hors plages RÉSERVÉES ; le ▶ annule sans "
+              "confirmation ; jamais de relance d'un élément lancé à la main entre-temps",
+              'wama/common/services/scheduled_actions.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
+              annexes=('wama/common/static/common/js/wama-schedule.js',
+                       'wama/common/tests_scheduled_actions.py')),
     Mechanism('rag_gesture', "Ajout au RAG (geste explicite)",
               "Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, "
               "aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision",

@@ -164,3 +164,9 @@
 
 .wama-cm-plus { line-height: 1; }
 .wama-cm-plus > i { pointer-events: none; }
+
+/* Pastille « Programmé · … » d'une card (wama-schedule.js, calendrier étape 3). Ambre : c'est une
+   INTENTION à venir, pas un état de traitement — la pastille d'état de la card reste inchangée. */
+.wama-schedule-chip { color: #ffc107; line-height: 1.3; }
+.wama-schedule-chip .btn-link { font-size: inherit; color: #9ec5fe; text-decoration: none; vertical-align: baseline; }
+.wama-schedule-chip .btn-link.text-danger { color: #ea868f !important; }

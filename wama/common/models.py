@@ -947,6 +947,90 @@ class ResultEvaluation(models.Model):
                 f"{self.value} ({self.model_key or '?'})")
 
 
+class ScheduledAction(ScopedVisibility):
+    """
+    Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
+    (`WAMA_APP_GENERATION_ROUTE.md §10.6` point 13, étape 3, 2026-09-28).
+
+    ⚠ LE QUOI N'EST PAS DU CODE : c'est le nom d'un outil `tool_api` et ses arguments. L'heure
+    venue, le distributeur appelle `execute_tool` au nom de l'utilisateur — la MÊME porte que
+    l'assistant, l'API et le studio (droits, nettoyage des arguments, bornes du schéma). Une
+    programmation n'embarque donc aucun code de lancement, et un futur outil (`send_mail`…) est
+    programmable le jour où il existe.
+
+    ⚠ LES RÉGLAGES SE LISENT AU LANCEMENT (décision de Fabien) : on programme un GESTE sur une
+    card, pas une photo de ses réglages — la card reste modifiable jusque-là.
+
+    ⚠ PAS UN ÉTAT DE TRAITEMENT : la card programmée reste « En attente ». `state` est le cycle de
+    la PROGRAMMATION, pas du process.
+    """
+
+    STATE_SCHEDULED, STATE_DISPATCHED = 'scheduled', 'dispatched'
+    STATE_CANCELLED, STATE_SKIPPED, STATE_FAILED = 'cancelled', 'skipped', 'failed'
+    STATE_CHOICES = [
+        (STATE_SCHEDULED, 'Programmée'),
+        (STATE_DISPATCHED, 'Lancée'),
+        (STATE_CANCELLED, 'Annulée'),
+        (STATE_SKIPPED, 'Sans objet'),        # l'élément a été lancé à la main entre-temps
+        (STATE_FAILED, 'Échec du lancement'),
+    ]
+    PLACEMENT_MANUAL, PLACEMENT_ASAP, PLACEMENT_OFF_PEAK = 'manual', 'asap', 'off_peak'
+    PLACEMENT_CHOICES = [
+        (PLACEMENT_MANUAL, 'À une date'),
+        (PLACEMENT_ASAP, 'Dès que possible'),
+        (PLACEMENT_OFF_PEAK, 'En heures creuses'),
+    ]
+
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE,
+                             related_name='scheduled_actions')
+    tool = models.CharField(max_length=64)
+    args = models.JSONField(default=dict, blank=True)
+    #: Cible — même convention que `RunOutcome` (app + type + id, pas de FK générique). Vide
+    #: pour une action sans élément (un envoi de mail, plus tard).
+    app = models.CharField(max_length=32, blank=True, default='', db_index=True)
+    object_type = models.CharField(max_length=64, blank=True, default='')
+    object_id = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    title = models.CharField(max_length=255, blank=True, default='')
+
+    placement = models.CharField(max_length=12, choices=PLACEMENT_CHOICES,
+                                 default=PLACEMENT_MANUAL)
+    run_at = models.DateTimeField(db_index=True)
+    #: Récurrence RFC 5545 (`FREQ=WEEKLY;BYDAY=MO`) ; vide = une seule fois.
+    rrule = models.CharField(max_length=255, blank=True, default='')
+
+    state = models.CharField(max_length=12, choices=STATE_CHOICES, default=STATE_SCHEDULED,
+                             db_index=True)
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    last_result = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['run_at']
+        indexes = [models.Index(fields=['state', 'run_at']),
+                   models.Index(fields=['app', 'object_id', 'state'])]
+        verbose_name = 'Action programmée'
+        verbose_name_plural = 'Actions programmées'
+
+    def __str__(self):
+        return f'{self.tool}({self.object_id or "-"}) @ {self.run_at:%Y-%m-%d %H:%M} [{self.state}]'
+
+
+class CalendarFeed(models.Model):
+    """Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
+
+    Un client de calendrier (Outlook, Thunderbird) ne porte pas de cookie de session : il lui faut
+    une URL à jeton. Elle se RÉGÉNÈRE (l'ancien jeton meurt aussitôt) — c'est la révocation.
+    """
+    user = models.OneToOneField('auth.User', on_delete=models.CASCADE,
+                                related_name='calendar_feed')
+    token = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'calendar feed of {self.user_id}'
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Mémoire & RAG — doc de référence : WAMA_MEMORY.md
 #
