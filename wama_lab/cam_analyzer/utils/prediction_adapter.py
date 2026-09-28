@@ -119,6 +119,9 @@ def camera_geometry(session):
         geo[pos] = {
             'yaw': yaw[pos],
             'fov_h': real_h,
+            # FOV V réel : calculé ici depuis toujours (dist_scale), exposé depuis le 2026-09-28
+            # pour la déprojection de profondeur — la focale verticale diffère de l'horizontale.
+            'fov_v': real_v,
             'dist_scale': (math.tan(math.radians(used) / 2) / math.tan(math.radians(real_v) / 2)
                            if feat.get('fov_dist_correction', True) else 1.0),
             'mount': (float(m[0]), float(m[1])) if feat.get('mount_lever_arm', True) else (0.0, 0.0),

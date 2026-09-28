@@ -549,9 +549,14 @@ homographie vs pinhole.
   `tasks.py` déclenche/**recalcule** la calib dès que la **source stockée diffère de la voulue** (plus
   seulement « calib absente ») ; le tracker (`multicam_tracker.py`) consomme la calib sous ⚑ `auto_ground_calib`
   **OU** `depth_estimation`. Console `plan de sol : profondeur | homographie | pinhole`.
-- ✅ **Convention de signe du pitch VALIDÉE** (`atan2(nz, -ny)`) par test pur CPU (plan synthétique
-  pitch +8,00°/hauteur 1,501 m récupérés, fit direct + round-trip carte de profondeur). Reste à confirmer
-  au run la **qualité réelle** de la profondeur Depth Pro (API `transformers` + gain `placement_spread`).
+- 🔴 ~~Convention de signe du pitch VALIDÉE (`atan2(nz, -ny)`)~~ — **FAUX, rectifié le 2026-09-28** :
+  la formule rendait une caméra penchée VERS LE BAS avec un pitch NÉGATIF, alors que `GroundProjector`,
+  la calib 2a et le garde-fou `−10…35°` supposent « positif = vers le bas ». La validation du 05/08
+  générait sa route synthétique avec la convention qu'elle vérifiait (circulaire). Correctif :
+  `atan2(−nz, −ny)`, gardé par `wama_data/functions/geometry/tests_depth_geometry.py` sur une route
+  construite par ROTATION de la caméra. Même jour : la déprojection prend **fx ET fy** du rig
+  (`camera_geometry` expose désormais `fov_v`) — avec la focale seule, une caméra à 22° / 2,4 m
+  ressortait à 32,3° / 3,43 m.
 - **Usages 3 + 1 (mesure-et-rapport)** : `depth_estimator.depth_distance_report(session)` est désormais
   **pure lecture** du champ `depth_distance_m` déjà écrit par l'ÉTAGE 1 (plus d'inférence propre : l'ancienne
   passe Depth Pro ad hoc de `_run_global_tracking` est supprimée au profit de la passe `depth` amont).
