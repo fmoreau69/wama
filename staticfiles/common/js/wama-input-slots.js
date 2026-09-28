@@ -42,6 +42,11 @@
         var title = pane.querySelector('[data-files-title]');
         var tab = card.querySelector('[data-port-tab="' + pane.dataset.portPane + '"] [data-port-count]');
         var files = (input && input.files) ? Array.prototype.slice.call(input.files) : [];
+        // Un fichier DÉSIGNÉ (médiathèque, arbre — pointé, pas téléversé) s'affiche comme un
+        // fichier joint : même chip, même ✕ (2026-09-28, `WamaApp.designateInto`).
+        var designation = (!files.length && global.WamaApp && WamaApp.designationOf)
+            ? WamaApp.designationOf(input) : null;
+        if (designation) files = [{ name: designation.name, size: 0, designated: true }];
         if (tab) tab.textContent = files.length ? '· ' + files.length : '';
         if (!list) return;
         list.textContent = '';
@@ -68,6 +73,13 @@
     function removeAt(card, pane, index) {
         var input = inputOf(pane);
         if (!input || !input.files) return;
+        if (!input.files.length && global.WamaApp && WamaApp.designationOf
+                && WamaApp.designationOf(input)) {
+            WamaApp.clearDesignation(input);          // la désignation affichée est la seule entrée
+            renderFiles(card, pane);
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            return;
+        }
         try {
             var dt = new DataTransfer();
             Array.prototype.forEach.call(input.files, function (f, i) { if (i !== index) dt.items.add(f); });
@@ -90,18 +102,15 @@
         // geste. La v4 change la PRÉSENTATION des modalités, jamais qui les traite.
 
         // Tuile MÉDIATHÈQUE — filtrée PAR PORT (exigence 5 du §11.8) : le filtre vient du
-        // port, plus de la card. Le File choisi entre dans l'input du port (le geste commun).
+        // port, plus de la card. L'asset est DÉSIGNÉ par la voie d'import du port (même geste
+        // que la tuile v3, `WamaApp.pickFromLibrary`, 2026-09-28) — pointé, jamais re-téléversé.
         var lib = pane.querySelector('[data-mod-library-btn]');
         if (lib && input) {
             lib.addEventListener('click', function () {
-                if (typeof global.MediaPicker === 'undefined') return;
-                MediaPicker.open({
-                    type: pane.dataset.portLibrary || 'all',
-                    onSelect: function (f) {
-                        if (!f) return;
-                        if (global.WamaApp && WamaApp.injectFiles) WamaApp.injectFiles(input, [f]);
-                    }
-                });
+                if (global.WamaApp && WamaApp.pickFromLibrary) {
+                    WamaApp.pickFromLibrary({ type: pane.dataset.portLibrary || 'all',
+                                              fileInputId: input.id });
+                }
             });
         }
 

@@ -113,10 +113,10 @@ lisait les deux comme un échec. Ce n'est pas une heuristique de DOM qui peut tr
                     {% endif %}
                 </div>
                 {% if show_media_library %}
-                {# Import MÉDIATHÈQUE : MediaPicker → injecte le File dans le file input → handler d'upload de l'app. #}
+                {# Import MÉDIATHÈQUE : l'asset est DÉSIGNÉ (pointé, jamais re-téléversé) par la voie d'import de la card — `WamaApp.pickFromLibrary`, 2026-09-28. #}
                 <button type="button" class="btn btn-sm btn-outline-info w-100 mt-1 py-0"
                         title="Importer depuis la médiathèque"
-                        onclick="MediaPicker.open({type:'{{ media_library_type|default:'all' }}', onSelect:function(f){var i=document.getElementById('{{ file_input_id }}'); if(i&&f){try{var dt=new DataTransfer();dt.items.add(f);i.files=dt.files;}catch(e){} i.dispatchEvent(new Event('change',{bubbles:true}));}}});">
+                        onclick="WamaApp.pickFromLibrary({type:'{{ media_library_type|default:'all' }}', fileInputId:'{{ file_input_id }}'});">
                     <i class="fas fa-photo-film"></i> Médiathèque
                 </button>
                 {% endif %}

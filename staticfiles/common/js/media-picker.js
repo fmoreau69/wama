@@ -5,8 +5,14 @@
  * Usage:
  *   MediaPicker.open({
  *     type:     'image',          // asset_type à filtrer
- *     onSelect: (file, asset) => { ... }  // callback avec File + meta
+ *     onSelect: (file, asset) => { ... }  // callback avec File + meta (le fichier est TÉLÉCHARGÉ)
+ *     onPick:   (asset) => { ... }        // OU : l'asset seul, SANS téléchargement — pour qui
+ *                                         // le DÉSIGNE (`asset.path`) au lieu de le re-téléverser
  *   });
+ *
+ * `onPick` (2026-09-28, D10 de MEDIA_STORAGE_TIERING §8.6) : le téléchargement du fichier avant
+ * `onSelect` servait à le re-téléverser — une copie. Une card qui POINTE l'asset n'a besoin que de
+ * son chemin ; `onPick` prime sur `onSelect` quand les deux sont donnés.
  *
  * Prérequis: window.ML_LIST_URL doit être défini avant l'appel
  *   <script>const ML_LIST_URL = "{% url 'media_library:api_list' %}";</script>
@@ -172,6 +178,13 @@ const MediaPicker = (() => {
   async function _selectAsset(asset) {
     const modal = bootstrap.Modal.getInstance(document.getElementById(MODAL_ID));
 
+    // Désignation : rien à télécharger, l'appelant pointe l'asset par son chemin.
+    if (_options.onPick) {
+      _options.onPick(asset);
+      modal.hide();
+      return;
+    }
+
     // Show loading state on card
     try {
       const resp = await fetch(asset.file_url);
@@ -221,3 +234,10 @@ const MediaPicker = (() => {
 
   return { open };
 })();
+
+// ⚠ Une `const` de haut niveau n'est PAS une propriété de `window` (binding lexical global) :
+// `window.MediaPicker` valait `undefined`. Trois consommateurs le lisaient ainsi et sortaient EN
+// SILENCE — la tuile Médiathèque de la card v4 (`wama-input-slots.js`) et le bouton médiathèque de
+// `wama-modes.js` n'ont jamais rien ouvert (mesuré au navigateur le 2026-09-28) ; le studio le
+// savait et contournait sur place (`wama-studio.js:414`). Exposé ici, une fois, pour tous.
+window.MediaPicker = MediaPicker;

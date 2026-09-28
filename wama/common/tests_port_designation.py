@@ -74,7 +74,7 @@ class PortsReceiveDesignationsTest(TestCase):
                 refs = [r for r in direct_references(rel) if r['field'] == port]
                 self.assertTrue(refs, f'{app} : le port `{port}` ne POINTE pas le fichier désigné')
 
-    def test_a_port_refuses_someone_elses_file(self):
+    def test_a_port_rejects_someone_elses_file(self):
         from wama.common.utils.file_references import direct_references
         from django.contrib.auth.models import User
         other = User.objects.create_user('port_someone_else', password='x')

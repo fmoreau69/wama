@@ -1388,3 +1388,25 @@ lecteur — il existe désormais).
 3. les **4 `extra_zone_template`** (galerie d'avatars, sélecteur de modèle imager, réglages
    rapides synthesizer, aperçu de voix) doivent trouver leur case déclarative (§11.9 D) — sinon
    ces 4 apps ne seront pas portables vers la v4.
+   ⚠ **Précision du 2026-09-28** : cette question est DÉJÀ tranchée par §11.9 D (`quick=True`,
+   option de modèle déclarée, case « actif visuel », aperçu de voix au port de référence) — le
+   travail est de l'IMPLÉMENTER (`quick` n'existe pas encore dans `param_schema.py`).
+
+#### ✅ Étape 1 du plan du 2026-09-28 — les modalités DÉSIGNENT au lieu de recopier
+
+Plan validé par Fabien le 2026-09-28 (0 → 5 : constats, pointage de la médiathèque, port `live`,
+§11.9 D, mesure des 96 px, adoption app par app). L'étape 1 est livrée, côté serveur et navigateur :
+- **une désignation** (`<champ>__designated`) arrive par la MÊME vue d'upload qu'un dépôt, avec
+  l'état du volet, et se POINTE (`media_paths.received_inputs`) — 7 apps « crée », les ports des
+  apps « attache » (imager, avatarizer, composer, synthesizer), les outils de l'assistant ;
+- **la tuile Médiathèque** (v3 et v4) et **le glisser depuis l'arbre** désignent
+  (`WamaApp.pickFromLibrary`, `WamaImport.handleDesignations`) ; en mode attache la désignation
+  rejoint le port (`WamaApp.designateInto`), s'affiche dans la face « fichiers » de la v4 et dans la
+  chip de `WamaInputMatch`, se retire par le même ✕ ;
+- 🔴 **la tuile Médiathèque de la v4 n'avait JAMAIS rien ouvert** : elle testait
+  `global.MediaPicker`, or `const MediaPicker` n'est pas une propriété de `window` — sortie
+  silencieuse (même défaut dans `wama-modes.js`). Corrigé à la source (`media-picker.js` s'expose).
+  *Une brique « globale » déclarée en `const` ne l'est pas pour qui la lit par `window`.*
+- Détail, mesures et gardes : `MEDIA_STORAGE_TIERING §8.2` (note du 28/09) et les tests
+  `tests_received_inputs`, `tests_import_contract`, `tests_port_designation`,
+  `tests_tool_api_designation`, `tests_designation_js`.

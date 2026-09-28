@@ -93,8 +93,13 @@
     }
 
     // ── Entrées fournies (état) ─────────────────────────────────────────────
+    // Un input fichier est fourni par un fichier JOINT ou DÉSIGNÉ (médiathèque, arbre — pointé,
+    // `WamaApp.designateInto`, 2026-09-28) : les deux se voient et s'appareillent pareil.
+    const designationOf = (inp) =>
+      (global.WamaApp && WamaApp.designationOf) ? WamaApp.designationOf(inp) : null;
     const hasValue = (s, inp) =>
-      s.isProvided ? !!s.isProvided(inp) : !!(inp.files && inp.files.length);
+      s.isProvided ? !!s.isProvided(inp)
+                   : !!((inp.files && inp.files.length) || designationOf(inp));
 
     function provided() {
       const out = [];
@@ -114,7 +119,8 @@
         if (!chip || !inp) return;
         if (hasValue(s, inp)) {
           const name = s.describe ? String(s.describe(inp) || '')
-                                  : (inp.files && inp.files.length ? inp.files[0].name : '');
+                                  : (inp.files && inp.files.length ? inp.files[0].name
+                                     : ((designationOf(inp) || {}).name || ''));
           chip.innerHTML =
             '<span class="badge bg-info text-dark d-inline-flex align-items-center gap-1">' +
             '<i class="fas fa-paperclip"></i> ' + name.replace(/[<>&]/g, '') +
@@ -213,7 +219,14 @@
       clear: (sid) => {
         const s = slots[sid];
         const inp = s && document.getElementById(s.inputId);
-        if (inp) { if (s.clear) s.clear(inp); else inp.value = ''; refresh(); }
+        if (inp) {
+          if (s.clear) s.clear(inp);
+          else {
+            inp.value = '';
+            if (global.WamaApp && WamaApp.clearDesignation) WamaApp.clearDesignation(inp);
+          }
+          refresh();
+        }
       },
     });
     bindClearOnce();

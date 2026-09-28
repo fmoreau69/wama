@@ -157,6 +157,7 @@
             audioFile = null;
             audioInfo.classList.add('d-none');
             audioInput.value = '';
+            WamaApp.clearDesignation(audioInput);
             updateGenerateButton();
         });
     }
@@ -313,7 +314,8 @@
         const promptText = textArea ? textArea.value.trim() : '';
         if (promptText) fd.append('text_content', promptText);
         if (audioFile) {
-            fd.append('audio_input', audioFile);
+            // Fichier joint OU désigné (médiathèque, arbre — pointé, jamais re-téléversé).
+            WamaApp.appendFile(fd, 'audio_input', audioFile);
         } else if (avatarizerUrlInput && avatarizerUrlInput.value.trim()) {
             fd.append('source_url', avatarizerUrlInput.value.trim());
         }
@@ -322,7 +324,7 @@
         if (selectedAvatarSource === 'gallery') {
             fd.append('avatar_gallery_name', selectedAvatarName);
         } else {
-            fd.append('avatar_upload', avatarUploadFile);
+            WamaApp.appendFile(fd, 'avatar_upload', avatarUploadFile);
         }
         fd.append('bbox_shift', bboxSlider ? bboxSlider.value : '0');
         fd.append('use_enhancer', $('#use_enhancer') && $('#use_enhancer').checked ? 'true' : 'false');

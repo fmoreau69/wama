@@ -162,10 +162,17 @@
             });
         }
 
+        // Une référence est un fichier JOINT ou DÉSIGNÉ (médiathèque, arbre — pointé, jamais
+        // re-téléversé : `WamaApp.designateInto`, 2026-09-28).
+        function refProvided() {
+            return !!(refInput && ((refInput.files && refInput.files.length)
+                                   || (window.WamaApp && WamaApp.designationOf(refInput))));
+        }
+
         // ── Dérivation du generation_mode (contrat backend INCHANGÉ) ──
         function deriveMode() {
             const hasPrompt = (promptEl.value || '').trim().length > 0;
-            const hasRefFile = !!(refInput && refInput.files && refInput.files.length);
+            const hasRefFile = refProvided();
             const hasRef = hasRefFile || !!refUrl();
             if (d.domain === 'video') return hasRef ? 'img2vid' : 'txt2vid';
             if (batchFile) return 'file2img';
@@ -179,7 +186,7 @@
         // ── Soumission ──
         btn.addEventListener('click', function () {
             const mode = deriveMode();
-            const hasRefFile = !!(refInput && refInput.files && refInput.files.length);
+            const hasRefFile = refProvided();
             const hasRef = hasRefFile || !!refUrl();
             // Garde de dernier recours (le bouton est déjà gaté par onState).
             if (matcher && !matcher.isLaunchable()) {
@@ -231,7 +238,7 @@
                 fd.append('height', hEl.value);
             }
             if (batchFile) fd.append('prompt_file', batchFile);
-            if (hasRefFile) fd.append('reference_image', refInput.files[0]);
+            if (hasRefFile) WamaApp.appendInput(fd, refInput, 'reference_image');
             // Un fichier joint PRIME sur l'URL (ensure_local_input ne télécharge que si vide).
             if (!hasRefFile && refUrl()) fd.append('source_url', refUrl());
 

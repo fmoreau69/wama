@@ -1320,7 +1320,8 @@ MECHANISMS = (
                        'wama_lab/cam_analyzer/tests_live_follow.py')),
     Mechanism('media_picker', 'Sélecteur de médiathèque',
               "Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue "
-              "à l'appelant sous forme de File + méta",
+              "à l'appelant sous forme de File + méta (`onSelect`), ou de l'asset SEUL, sans "
+              "téléchargement, pour qui le DÉSIGNE (`onPick`, 2026-09-28 — la tuile de card)",
               'wama/common/static/common/js/media-picker.js', '',
               symbol='MediaPicker'),        # global de base.html : compté par son symbole
     Mechanism('fm_notify', 'Signalement au gestionnaire de fichiers',
@@ -1354,10 +1355,11 @@ MECHANISMS = (
     # Chaque app réécrivait sa boucle `handleFiles` (converter.js, reader.js…), donc une app
     # GÉNÉRÉE n'en avait aucune et ne pouvait créer aucune card, sans erreur console.
     Mechanism('import_front', "Voie d'import (front)",
-              "Envoi d'un fichier vers l'endpoint upload de l'app (dépôt, clic — la "
-              "médiathèque y ARRIVE par la card d'entrée, qui injecte le fichier dans le "
-              "même input), délégation du LOT à batch_import, consolidation et "
-              "rafraîchissement — agnostique du monde (ni MIME ni extension)",
+              "Envoi d'un fichier vers l'endpoint upload de l'app (dépôt, clic), délégation du "
+              "LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni "
+              "MIME ni extension). ⭐ Depuis le 2026-09-28 elle DÉSIGNE aussi "
+              "(`handleDesignations` : médiathèque, arbre — `<champ>__designated`, pointé par le "
+              "serveur) et se retrouve par l'id de sa zone ou de son input (`forElement`)",
               'wama/common/static/common/js/wama-import.js', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/templates/common/_app_scripts.html',),
               # ⚠ SYMBOLE, pas nom de fichier (2026-09-06) : une brique chargée GLOBALEMENT
