@@ -1078,6 +1078,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     laneMapRecalage = (d.results_summary && d.results_summary.lane_map_recalage) || null;
                     stationaryAnchors = (d.results_summary && d.results_summary.stationary_anchors) || {};
                     sessionAnalyzedRanges = (d.config && d.config.analyzed_ranges) || {};
+                    // Corrections de trajectoire fraîches → ré-ingérer la trace (sinon la carte gardait
+                    // l'ancienne jusqu'au rechargement de la page). Vue conservée.
+                    renderMiniMap(rawGpsTrack, lastMiniMapWindows, { keepView: true });
+                    topDownLastRender = -999; updateMiniMapShuttle(playheadT());
                 } catch (e) { /* prochaine sélection de session fera foi */ }
             }
         }, 2500);
@@ -2520,7 +2524,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
                 // Une bascule de TRAJECTOIRE change la trace elle-même : la ré-ingérer (sinon
                 // la carte montrait l'ancienne jusqu'au rechargement de la page).
-                if (TRACK_FEATURES.has(f.key)) renderMiniMap(rawGpsTrack, lastMiniMapWindows, { keepView: true });
+                if (TRACK_FEATURES.has(f.key)) {
+                    renderMiniMap(rawGpsTrack, lastMiniMapWindows, { keepView: true });
+                    // Carte FIXE sur cette image : avec le suivi 🎯, le recentrage sur la navette
+                    // corrigée masquait le saut (c'est le fond qui bougeait, pas la navette).
+                    skipFollowPanOnce = true;
+                }
                 {
                     const _t = playheadT();
                     topDownLastRender = -999;
@@ -2565,6 +2574,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let topDownLastTime = -999;        // détection de saut (reset traces)
     let topDownLastRender = -999;      // throttle ~10 Hz
     let topDownAutoFollow = true;      // recentrage auto en lecture (zoom tactique)
+    let skipFollowPanOnce = false;     // une bascule ⚑ de trajectoire : la vue ne suit pas CETTE image
     const TOPDOWN_ZOOM_MIN = 17;       // seuil d'apparition des objets
     const TRAIL_LEN = 25;              // longueur de trace (frames)
     const EGO_LENGTH_M = 4.75, EGO_WIDTH_M = 2.11;   // Navya Autonom (défaut)
@@ -2939,8 +2949,9 @@ document.addEventListener('DOMContentLoaded', function () {
             miniMapShuttleMarker.setLatLng([_ant.lat, _ant.lon]);
             // Suivi : recentrer la navette à TOUT zoom (avant, le panTo était dans
             // updateTopDown, APRÈS le return early zoom<17 → pas de suivi dézoomé).
-            if (topDownAutoFollow) miniMap.panTo([p.lat, p.lon], { animate: false });
+            if (topDownAutoFollow && !skipFollowPanOnce) miniMap.panTo([p.lat, p.lon], { animate: false });
         }
+        skipFollowPanOnce = false;
         updateBuildingsLayer(p);
         updateMiniMapPassHighlight(currentTime);
         updateTopDown(currentTime);
@@ -3586,8 +3597,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (!w) return;
 
+        // Fenêtres en temps VIDÉO (`window_recompute`), trace en temps GPS : convertir les bornes,
+        // sinon on surligne un tronçon décalé d'environ 20 s de trajet.
+        const g0 = w.t_enter * gpsTimeScale + gpsTimeOffset, g1 = w.t_exit * gpsTimeScale + gpsTimeOffset;
         const segment = cachedGpsTrack
-            .filter(p => p.ts >= w.t_enter && p.ts <= w.t_exit)
+            .filter(p => p.ts >= g0 && p.ts <= g1)
             .map(p => { const c = antennaCorrect(p); return [c.lat, c.lon]; });
 
         if (segment.length >= 2) {
@@ -3620,26 +3634,36 @@ document.addEventListener('DOMContentLoaded', function () {
             return 2 * R * Math.asin(Math.sqrt(x));
         };
 
+        // On s'accroche au tracé DESSINÉ (centre véhicule, `antennaCorrect`), pas au point GPS
+        // brut (l'antenne, ~1 m à côté) : c'est sur le tracé que l'utilisateur clique.
         const click = { lat, lon: lng };
-        let best = null, bestD = Infinity;
+        let best = null, bestPt = null, bestD = Infinity;
         for (const p of cachedGpsTrack) {
-            const d = dToM(p, click);
-            if (d < bestD) { bestD = d; best = p; }
+            const c = antennaCorrect(p);
+            const d = dToM(c, click);
+            if (d < bestD) { bestD = d; best = p; bestPt = c; }
         }
         if (!best || bestD > SNAP_THRESHOLD_M) return;
 
         // Visual feedback
         if (miniMapClickMarker) miniMap.removeLayer(miniMapClickMarker);
-        miniMapClickMarker = L.circleMarker([best.lat, best.lon], {
+        miniMapClickMarker = L.circleMarker([bestPt.lat, bestPt.lon], {
             radius: 9, color: '#0dcaf0', weight: 3, fillColor: 'transparent',
         }).addTo(miniMap);
 
-        // Seek the players to the GPS timestamp; sync the seekbar manually
-        // (syncSeek already sets it but we also need updateMiniMapShuttle to
-        // run even when the proximity timeline isn't visible yet)
-        syncSeek(best.ts);
-        updateMiniMapShuttle(best.ts);
-        updatePassInfo(best.ts);
+        // `best.ts` est un temps GPS ; la lecture, la barre et la pose navette parlent en temps
+        // VIDÉO (t_gps = t_vidéo × gpsTimeScale + gpsTimeOffset). Passer le temps GPS tel quel
+        // décalait la navette d'environ 20 s de trajet (jusqu'à plusieurs minutes en fin de
+        // session) : `findGpsAtTime` le reconvertissait une seconde fois.
+        const tVideo = gpsToVideoTime(best.ts);
+        syncSeek(tVideo);
+        updateMiniMapShuttle(tVideo);
+        updatePassInfo(tVideo);
+    }
+
+    // Inverse de `t_gps = t_vidéo × gpsTimeScale + gpsTimeOffset` (cf. `findGpsAtTime`).
+    function gpsToVideoTime(tGps) {
+        return (tGps - gpsTimeOffset) / (gpsTimeScale || 1);
     }
 
     // Update the right-panel info box to show details of the current pass
@@ -4731,7 +4755,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         const sd = await r.json();
                         if (sd && sd.intersection_windows) {
                             renderIntersectionWindows(sd.intersection_windows);
-                            renderMiniMap(sd.gps_track || cachedGpsTrack || [], sd.intersection_windows);
+                            renderMiniMap(sd.gps_track || rawGpsTrack, sd.intersection_windows, { keepView: true });
                         }
                     } catch (refreshErr) {
                         console.warn('Could not refresh session windows after profile save:', refreshErr);
@@ -5641,7 +5665,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         + `moy ${rep.mean_shift_m} m, max ${rep.max_shift_m} m\n`
                         + `Atténuation moyenne (masquage satellite) : ×${rep.mean_alpha}\n\n`
                         + `Bascule ⚑ ON/OFF pour comparer avec la trace brute.`);
-                    if (typeof reloadSessionData === 'function') reloadSessionData();
+                    // (appelait `reloadSessionData`, qui n'a jamais existé : la trace n'était pas
+                    // ré-ingérée et la correction n'apparaissait qu'au rechargement de la page)
+                    renderMiniMap(rawGpsTrack, lastMiniMapWindows, { keepView: true });
+                    topDownLastRender = -999; updateMiniMapShuttle(playheadT());
                     return;
                 }
             }
