@@ -344,8 +344,9 @@ class VoicePreviewPlayerTest(TestCase):
 
     Défaut signalé par Fabien le 2026-09-27 en testant une voix enfant avec XTTS v2 :
     « Erreur lors de l'assemblage de l'audio: Cannot set properties of null (setting 'src') ».
-    Le code écrivait dans `audioPlayer.querySelector('source').src`, mais le lecteur de la card
-    d'entrée (`_new_item_extra.html`) n'en a aucune — seul celui de la modale en a une. La
+    Le code écrivait dans `audioPlayer.querySelector('source').src`, mais le lecteur de l'aperçu
+    (dans la card d'entrée à l'époque, au volet depuis le 2026-09-28) n'en a aucune — seul celui
+    de la modale en a une. La
     fonction est donc rejouée ICI sur un lecteur NU, c'est-à-dire sur le cas qui cassait.
 
     ⚠ `py_mini_racer` n'est installé que dans venv_win : ce test SKIPPE sous venv_linux.
@@ -449,3 +450,20 @@ class TheEntryCardKeepsOneHomePerSettingTest(TestCase):
             js = path.read_text(encoding='utf-8')
             for dead in ('textVoiceQuick', 'textSpeedQuick', 'cloneVoiceOptions'):
                 self.assertNotIn(dead, js, f'{dead} dans {path.name}')
+
+    def test_the_voice_preview_lives_once_in_the_panel(self):
+        """L'aperçu fait entendre des RÉGLAGES : il a suivi la voix et la vitesse au volet
+        (2026-09-28, CARD_DESIGN §11.11 Étape 3 (b)). Un seul exemplaire, hors de la card, et
+        tout ce que `index.js` en lit est rendu — un id perdu rendrait l'aperçu muet."""
+        from pathlib import Path
+
+        from django.conf import settings
+        page = self._page()
+        for dom_id in ('previewTextBtn', 'previewLoader', 'previewProgress', 'previewStatus',
+                       'previewAudioContainer', 'previewAudioPlayer'):
+            self.assertEqual(1, page.count(f'id="{dom_id}"'), dom_id)
+        card_zone = (Path(settings.BASE_DIR) / 'wama' / 'synthesizer' / 'templates' / 'synthesizer'
+                     / '_new_item_extra.html').read_text(encoding='utf-8')
+        self.assertNotIn('previewTextBtn', card_zone, "l'aperçu est revenu dans la card d'entrée")
+        self.assertNotIn('volet de droite', card_zone.split('{% endcomment %}')[-1],
+                         'la card commune le dit pour toutes les apps — pas de phrase par app')

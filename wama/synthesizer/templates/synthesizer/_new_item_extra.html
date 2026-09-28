@@ -1,11 +1,13 @@
 {% comment %}
 Zone étendue de la card d'entrée synthesizer — injectée dans le corps dépliable de
-common/_new_item_card.html (extra_zone_template). Ids CONSERVÉS : titre, aperçu SSE
-(index.js les consomme tels quels).
+common/_new_item_card.html (extra_zone_template). Id CONSERVÉ : `textTitle` (index.js le lit).
+
+Le TITRE reste ici : il nomme l'ENTRÉE (le `.docx` créé à partir du texte, `upload_text`), il
+n'est pas un réglage. Au volet, il deviendrait une valeur de composition collante, appliquée à
+TOUS les éléments suivants (CARD_DESIGN §11.11 Étape 3, sous-étape (b), 2026-09-28).
 
 ⚠ Les MIROIRS voix et vitesse ont été RETIRÉS le 2026-09-27 (constat de Fabien). Ils
-dupliquaient les contrôles canoniques du volet droit, que cette card annonce elle-même
-(« Modèle, langue et options avancées : volet de droite ») — deux domiciles pour un même
+dupliquaient les contrôles canoniques du volet droit — deux domiciles pour un même
 réglage. Trois raisons, dont une mesurée :
   • le miroir n'avait pas de source propre, il RECOPIAIT le volet : il est resté figé quand
     le select généré a commencé à recharger ses options en asynchrone (recâblé le 23/09 sur
@@ -13,6 +15,10 @@ réglage. Trois raisons, dont une mesurée :
   • il ne pouvait pas filtrer : sans sélecteur de langue à côté, il montre toutes les voix,
     même quand le volet saura n'offrir que celles de la langue choisie ;
   • aucun envoi ne le lisait — tous les `submit` lisent `#voice_preset` et `#speed`.
+L'APERÇU DE LA VOIX les a suivis au volet le 2026-09-28 : il fait entendre des RÉGLAGES (voix,
+vitesse, hauteur), il vit donc à côté d'eux. La phrase « Voix, modèle, langue et options : volet
+de droite » écrite ici est retirée le même jour : la card COMMUNE la dit pour toutes les apps
+(`common/_settings_hint.html`).
 {% endcomment %}
 <div class="row g-2 mb-2">
     <div class="col-12">
@@ -20,15 +26,4 @@ réglage. Trois raisons, dont une mesurée :
                class="form-control form-control-sm bg-dark text-light border-secondary"
                placeholder="Titre (optionnel — nom du fichier)">
     </div>
-</div>
-<small class="text-white-50 d-block mb-2">Voix, modèle, langue et options : volet de droite.</small>
-<button type="button" class="btn btn-outline-info btn-sm mb-2" id="previewTextBtn">
-    <i class="fas fa-headphones"></i> Aperçu de la voix
-</button>
-<div id="previewLoader" style="display:none;" class="mb-2">
-    <div class="wama-progress-track"><div class="wama-progress-fill" id="previewProgress" style="width:0%"></div></div>
-    <small id="previewStatus" class="text-white-50"></small>
-</div>
-<div id="previewAudioContainer" style="display:none;" class="mb-2">
-    <audio id="previewAudioPlayer" controls class="w-100"></audio>
 </div>

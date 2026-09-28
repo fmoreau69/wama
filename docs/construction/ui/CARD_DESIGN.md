@@ -1459,6 +1459,32 @@ non. Garde `tests_catalogues.LivePortComesFromAnAppCapabilityTest`.
 sur 6 apps) ; en mode simplifié, où le volet est masqué, la phrase devient « Réglages : ⚙ de
 l'élément ajouté ». Garde `tests_catalogues.InputCardSaysWhereSettingsLiveTest` (les deux cards
 la rendent, le mode simplifié la bascule, aucune app ne l'écrit à la main) ; (b) titre et aperçu de
-voix du synthesizer au volet ; (c) modèle et prompt négatif de l'imager hors de la card,
-appariement rebranché sur le select du volet ; (d) la galerie d'avatars, avec l'adoption v4 de
-l'avatarizer.
+voix du synthesizer au volet — 🔄 **2026-09-28, révisé à la mesure** : l'APERÇU est passé au volet
+(sous vitesse/hauteur, hors du groupe voix que Higgs masque ; ids conservés, vérifié au navigateur),
+la phrase « volet de droite » propre à l'app est retirée. Le TITRE **reste dans la card** : il nomme
+l'ENTRÉE (le `.docx` créé du texte par `upload_text`), ce n'est pas un réglage — au volet il
+deviendrait une valeur collante appliquée aux éléments suivants. ⚠ **Relevé au passage (Fabien) :
+l'aperçu est une mécanique LOCALE**, alignement sur le commun à faire — cf. la note sous cette
+liste ; (c) modèle et prompt négatif de l'imager hors de la card, appariement rebranché sur le
+select du volet ; (d) la galerie d'avatars, avec l'adoption v4 de l'avatarizer.
+
+> **L'aperçu de voix du synthesizer ne passe par AUCUN chemin commun côté lecture, ni par le
+> chemin de la synthèse côté serveur** (mesuré le 2026-09-28, `synthesizer/views.py::voice_preview`
+> + `voice_preview_stream`, `index.js` « Preview text button ») — il n'entend donc pas ce que la
+> synthèse produira :
+> - texte NON passé par `text_for_speech` (la synthèse l'est, via `extract_text_from_file`) ;
+> - modèle « auto » envoyé tel quel au service, sans `resolve_model_choice` ni l'exigence
+>   `supports_cloning` d'une voix clonée ;
+> - `multi_speaker` / `scene_description` (Higgs) postés par le JS mais IGNORÉS par la vue ;
+> - découpage par phrase maison, sans la limite PAR MOTEUR du worker (kokoro tronque > 400 car.) ;
+> - WAV concaténés EN-TÊTES COMPRIS côté client (défaut connu, écrit dans le code) au lieu de
+>   l'assemblage pydub + 200 ms du worker ;
+> - lecture sur un `<audio>` nu : ni canal de parole `WamaApp.Speech` (jeton de tour, abandon de la
+>   requête en vol au 2ᵉ clic, exclusivité inter-onglets), ni lecteur `WamaAudioPlayer`.
+>
+> Cible (en attente de GO) : UNE fonction de rendu extraite du worker (résolution auto, voix,
+> découpage par moteur, assemblage, vitesse/hauteur) appelée par la synthèse ET par l'aperçu sur
+> les ~50 premiers mots ; côté page, `WamaApp.Speech.claim()` pour la requête et `WamaAudioPlayer`
+> pour l'écoute. Le flux SSE + cache disparaît (un aperçu de 50 mots n'a pas besoin de progression
+> par phrase). ⚠ L'avatarizer fait UN appel TTS sans découpage : même troncature possible, candidat
+> à la même fonction (qui irait alors dans `common/tts/`).

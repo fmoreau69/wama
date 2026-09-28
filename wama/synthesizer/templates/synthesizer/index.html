@@ -126,6 +126,22 @@
     <input type="range" class="form-range" id="pitch" name="pitch" min="0.5" max="2.0" step="0.1" value="1.0">
 </div>
 
+{% comment %}APERÇU DE LA VOIX — venu de la card d'entrée le 2026-09-28 (CARD_DESIGN §11.11 Étape 3 (b)) :
+il fait entendre les RÉGLAGES au-dessus (voix, vitesse, hauteur) sur le texte de la card. Hors de
+`#voicePresetGroup`, que Higgs masque : l'aperçu vaut pour tous les moteurs. Ids conservés (index.js).{% endcomment %}
+<div class="mb-3">
+    <button type="button" class="btn btn-outline-info btn-sm w-100" id="previewTextBtn">
+        <i class="fas fa-headphones"></i> Aperçu de la voix
+    </button>
+    <div id="previewLoader" style="display:none;" class="mt-2">
+        <div class="wama-progress-track"><div class="wama-progress-fill" id="previewProgress" style="width:0%"></div></div>
+        <small id="previewStatus" class="text-white-50"></small>
+    </div>
+    <div id="previewAudioContainer" style="display:none;" class="mt-2">
+        <audio id="previewAudioPlayer" controls class="w-100"></audio>
+    </div>
+</div>
+
 <!-- Format + qualité de sortie (early-binding : réglés avant génération, per-item ; modale + inspecteur) -->
 <div class="mb-2">
     <label for="output_format" class="form-label small fw-bold text-light">
@@ -168,7 +184,7 @@
 <div style="overflow-x:clip;">
 
 {% comment %}Card d'entrée COMMUNE PROMPT-FIRST (repliée, dépliage clic/focus/drag) —
-le prompt reste visible replié ; titre/voix/vitesse/aperçu dans la zone étendue.{% endcomment %}
+le prompt reste visible replié ; le titre dans la zone étendue (voix, vitesse et aperçu : volet).{% endcomment %}
 {% url 'synthesizer:batch_template' as synth_batch_template_url %}
 {% include 'common/_new_item_card.html' with drop_zone_id='dropZoneSynthesizer' file_input_id='fileInput' folder_input_id='synthFolderInput' file_accept='.txt,.pdf,.docx,.csv,.md' formats_label='Texte à synthétiser — TXT · PDF · DOCX · CSV · MD (batch : une ligne par synthèse)' show_batch_bar=True batch_template_url=synth_batch_template_url show_media_library=True media_library_type='document' show_prompt=True prompt_input_id='textContent' prompt_rows=2 prompt_placeholder='✍️ Écrivez le texte à synthétiser — clic pour les options' primary_btn_id='submitTextBtn' primary_btn_label='Ajouter à la file' primary_btn_icon='fa-plus' extra_zone_template='synthesizer/_new_item_extra.html' collapsible=True %}
 
