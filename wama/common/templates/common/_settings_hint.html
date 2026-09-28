@@ -1,0 +1,16 @@
+{% comment %}
+WAMA — « Réglages : volet de droite » : l'indication COMMUNE de la card d'entrée (CARD_DESIGN
+§11.11 Étape 3, règle 2 — décision de Fabien, 2026-09-28). La card porte les ENTRÉES, le volet
+droit et la modale ⚙ portent les RÉGLAGES : l'utilisateur doit le lire, sur toutes les apps, dans
+la même phrase. Inclus par les deux cards communes (`_new_item_card.html`, `_new_item_card_v4.html`),
+jamais par une app.
+
+Deux textes, un seul affiché — choisi par CSS (`wama-inspector.css`) : en mode SIMPLIFIÉ le volet
+droit est masqué (`body.wama-simple #wama-right-panel`, base.html), les réglages se font alors par
+le ⚙ de l'élément, une fois ajouté à la file.
+{% endcomment %}
+<span class="wama-settings-hint small text-muted text-nowrap" title="Modèle, voix, formats… : ils se règlent hors de cette card, avant de lancer le traitement.">
+    <i class="fas fa-sliders-h"></i>
+    <span class="wama-settings-hint--panel">Réglages : volet de droite</span>
+    <span class="wama-settings-hint--simple">Réglages : ⚙ de l'élément ajouté</span>
+</span>

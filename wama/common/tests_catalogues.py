@@ -1402,6 +1402,45 @@ class LivePortComesFromAnAppCapabilityTest(TestCase):
         self.assertNotIn('show_live=', page)
 
 
+class InputCardSaysWhereSettingsLiveTest(TestCase):
+    """« Réglages : volet de droite » is written by the COMMON input card, never by an app.
+
+    Decision of 2026-09-28 (CARD_DESIGN §11.11 Étape 3, rule 2): the card carries the INPUTS, the
+    right panel and the ⚙ modal carry the SETTINGS — and the user is told so, in the same words on
+    every app. In simplified mode the panel is hidden, so the sentence points to the item's ⚙.
+    """
+
+    PHRASE = 'Réglages : volet de droite'
+
+    def test_both_common_cards_say_it(self):
+        from django.template.loader import render_to_string
+        for template in ('common/_new_item_card.html', 'common/_new_item_card_v4.html'):
+            html = render_to_string(template, {'app_id': 'describer', 'drop_zone_id': 'z',
+                                               'file_input_id': 'f', 'collapsible': True,
+                                               'formats_label': 'x'})
+            self.assertIn(self.PHRASE, html, template)
+            self.assertIn('wama-settings-hint--simple', html,
+                          f'{template}: no wording for the simplified mode, where the panel is hidden')
+
+    def test_the_simplified_mode_swaps_the_wording(self):
+        from pathlib import Path
+        from django.conf import settings
+        css = (Path(settings.BASE_DIR) / 'wama/common/static/common/css/wama-inspector.css'
+               ).read_text(encoding='utf-8')
+        self.assertIn('body.wama-simple .wama-settings-hint--panel { display: none; }', css)
+        self.assertIn('body.wama-simple .wama-settings-hint--simple { display: inline; }', css)
+
+    def test_no_app_writes_it_by_hand(self):
+        from pathlib import Path
+        from django.conf import settings
+        base = Path(settings.BASE_DIR)
+        offenders = [str(p.relative_to(base)) for root in ('wama', 'wama_lab', 'wama_data')
+                     for p in (base / root).rglob('templates/**/*.html')
+                     if p.name != '_settings_hint.html'
+                     and self.PHRASE in p.read_text(encoding='utf-8', errors='replace')]
+        self.assertEqual([], offenders, 'the sentence belongs to common/_settings_hint.html only')
+
+
 class ObligationDesSlotsVientDesModelesTest(TestCase):
     """Un slot ne s'annonce « requis » que si TOUS les modèles retenus l'exigent.
 
