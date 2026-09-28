@@ -16,8 +16,9 @@ import math
 import numpy as np
 from django.test import SimpleTestCase
 
-from wama_data.functions.geometry.depth_geometry import (deproject_depth, fit_plane_ransac,
-                                                          ground_plane_from_depth, plane_pitch_height)
+from wama_data.functions.geometry.depth_geometry import (anchor_depth_scale, deproject_depth,
+                                                          fit_plane_ransac, ground_plane_from_depth,
+                                                          plane_pitch_height)
 
 W, H, FX, FY = 384, 248, 134.0, 210.0
 
@@ -76,3 +77,34 @@ class VerticalFocalTest(SimpleTestCase):
                                       z_min=0.5, max_points=20000)
         self.assertAlmostEqual(res['pitch_deg'], 22.0, delta=0.1)
         self.assertAlmostEqual(res['height_m'], 2.4, delta=0.01)
+
+
+class ScaleAnchoringTest(SimpleTestCase):
+    """Un modèle qui rend la FORME juste à un facteur d'échelle près (ZoeDepth sur le rig ENA,
+    ×0,33 mesuré le 2026-09-28) : le pitch ne bouge pas, la hauteur ajustée porte le facteur."""
+
+    def test_a_global_depth_scale_leaves_the_pitch_and_scales_the_height(self):
+        pitch, height = fit_camera_orientation(synthetic_road_depth(22.0, 2.4) * 0.33, FX, FY)
+        self.assertAlmostEqual(pitch, 22.0, delta=0.1)
+        self.assertAlmostEqual(height, 2.4 * 0.33, delta=0.01)
+
+    def test_the_known_camera_height_recovers_the_scale(self):
+        _, height = fit_camera_orientation(synthetic_road_depth(22.0, 2.4) * 0.33, FX, FY)
+        self.assertAlmostEqual(anchor_depth_scale(height, 2.4), 1 / 0.33, delta=0.02)
+
+    def test_an_absurd_factor_or_a_missing_height_is_refused(self):
+        self.assertIsNone(anchor_depth_scale(0.05, 2.4))     # ×48 : une carte fausse
+        self.assertIsNone(anchor_depth_scale(None, 2.4))
+        self.assertIsNone(anchor_depth_scale(0.8, 0))
+        self.assertAlmostEqual(anchor_depth_scale(0.8, 2.4), 3.0)
+
+
+class LargeCloudTest(SimpleTestCase):
+    def test_a_large_clean_cloud_fits_without_building_an_n_by_n_matrix(self):
+        # 80 000 points tous inliers : la SVD pleine demandait U en 80 000² (~25 Go) → MemoryError.
+        depth = synthetic_road_depth(22.0, 2.4, w=640, h=400, fx=224.0, fy=339.0)
+        pts = deproject_depth(depth, 224.0, focal_y_px=339.0, z_min=0.5, max_points=80000)
+        self.assertGreater(len(pts), 60000)
+        normal, offset, n_inl, _ = fit_plane_ransac(pts, min_inliers=100)
+        self.assertGreater(n_inl, 60000)
+        self.assertAlmostEqual(plane_pitch_height(normal, offset)[0], 22.0, delta=0.1)

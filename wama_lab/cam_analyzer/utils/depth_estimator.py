@@ -1,5 +1,6 @@
 """
-Estimation de profondeur monoculaire pour cam_analyzer — modèle Apple Depth Pro.
+Estimation de profondeur monoculaire pour cam_analyzer — ZoeDepth KITTI par défaut (2026-09-28),
+Apple Depth Pro au choix (`config['depth_model']`). Modèles déclarés par `backends/depth_engine`.
 
 Piste documentée dans `CAM_ANALYZER_CHAINE_TRAITEMENT.md` §[E]. Chaîne en 3 ÉTAGES DÉCOUPLÉS
 (décision Fabien 2026-08-05 : « l'analyse d'abord, les calculs ensuite, l'affichage en ON/OFF ») :
@@ -120,24 +121,29 @@ def _load_depth_map(depth_frame):
         with np.load(abs_path) as z:
             return z['depth'].astype(np.float32)
     except Exception:
-        logger.warning('[DepthPro] carte de profondeur illisible : %s', abs_path, exc_info=True)
+        logger.warning('[profondeur] carte de profondeur illisible : %s', abs_path, exc_info=True)
         return None
 
 
 def run_depth_analysis(session, *, max_frames_per_cam: int = 24,
                        downsample_long: int = 384, device: str = 'cuda'):
-    """ÉTAGE 1 (ANALYSE) — inférence Depth Pro sur des frames échantillonnées des 4 caméras.
+    """ÉTAGE 1 (ANALYSE) — inférence de profondeur sur des frames échantillonnées des 4 caméras.
 
+    Modèle : `depth_model_for(session)` (ZoeDepth KITTI par défaut depuis le 2026-09-28).
     STOCKE la donnée BRUTE ré-utilisable, sans AUCUN calcul dérivé (plan, A/B = étage 2) :
-      · une carte de profondeur métrique par frame (disque, float16 sous-échantillonné) → DepthFrame ;
-      · la focale estimée, mise à l'échelle de la carte stockée → DepthFrame.focal_px ;
-      · la profondeur de contact par détection (PLEINE résolution) → `depth_distance_m` (JSON additif).
-    Retourne {'maps', 'contacts', 'cameras'}, ou None si indisponible.
+      · une carte de profondeur par frame (disque, float16 sous-échantillonné) → DepthFrame —
+        BRUTE, c'est-à-dire à l'échelle du modèle : l'étage 2 l'ancre si le modèle ne rend pas de
+        mètres exploitables tels quels ;
+      · la focale estimée (repli ~0,8·W si le modèle n'en rend pas), à l'échelle de la carte ;
+      · la profondeur de contact par détection (PLEINE résolution) → `depth_distance_m` (JSON
+        additif, même échelle brute).
+    Retourne {'maps', 'contacts', 'cameras', 'model'}, ou None si indisponible.
 
     ⚠ SEUL point d'inférence GPU de la chaîne profondeur (interdit sous WSL2 ici → runtime/R760xa).
     """
-    if not is_available():
-        logger.info('[DepthPro] analyse ignorée : poids Depth Pro absents')
+    model_key = depth_model_for(session)
+    if not is_available(model_key):
+        logger.info('[profondeur] analyse ignorée : poids absents (%s)', model_key)
         return None
     try:
         import cv2
@@ -176,9 +182,9 @@ def run_depth_analysis(session, *, max_frames_per_cam: int = 24,
                     continue
                 h, w = frame.shape[:2]
                 try:
-                    depth_m, focal_px = estimate_depth(frame, device)
+                    depth_m, focal_px = estimate_depth(frame, device, model_key=model_key)
                 except Exception:
-                    logger.warning('[DepthPro] estimate_depth a échoué (frame %s)', fn, exc_info=True)
+                    logger.warning('[profondeur] estimate_depth a échoué (frame %s)', fn, exc_info=True)
                     continue
                 if depth_m is None:
                     continue
@@ -202,7 +208,7 @@ def run_depth_analysis(session, *, max_frames_per_cam: int = 24,
                         try:
                             obj.save(update_fields=['detections'])
                         except Exception:
-                            logger.warning('[DepthPro] save detections %s échoué', fn, exc_info=True)
+                            logger.warning('[profondeur] save detections %s échoué', fn, exc_info=True)
 
                 # (b) Carte sous-échantillonnée (long-côté ≤ downsample_long) → disque + DepthFrame.
                 s = min(1.0, float(downsample_long) / max(h, w)) if max(h, w) > 0 else 1.0
@@ -231,29 +237,56 @@ def run_depth_analysis(session, *, max_frames_per_cam: int = 24,
         finally:
             cap.release()
         cams_done += 1
-        logger.info('[DepthPro] analyse %s : cumul %d cartes, %d contacts', cam.position,
-                    n_maps, n_contacts)
+        logger.info('[profondeur] analyse %s (%s) : cumul %d cartes, %d contacts', cam.position,
+                    model_key, n_maps, n_contacts)
 
-    return {'maps': n_maps, 'contacts': n_contacts, 'cameras': cams_done}
+    return {'maps': n_maps, 'contacts': n_contacts, 'cameras': cams_done, 'model': model_key}
 
 
-def estimate_ground_plane_ph(session, position):
-    """ÉTAGE 2 (CALCUL) — (pitch_deg, height_m) du plan de sol, ou None (repli homographie).
+def depth_model_for(session) -> str:
+    """Le modèle de profondeur de la session : `config['depth_model']` s'il est déclaré au moteur,
+    sinon le défaut du moteur (ZoeDepth KITTI depuis le 2026-09-28)."""
+    from wama.common.backends.depth_engine import DEFAULT_DEPTH_MODEL, DEPTH_MODELS
+    key = ((getattr(session, 'config', None) or {}).get('depth_model') or '').strip()
+    return key if key in DEPTH_MODELS else DEFAULT_DEPTH_MODEL
 
-    Relit les cartes de profondeur DÉJÀ stockées par l'étage 1 (`run_depth_analysis` → DepthFrame) :
-    AUCUNE inférence GPU ici (sûr en CPU/WSL2). Déprojette la zone roulable de chaque carte (brique
-    pure), cumule le nuage, ajuste le plan (RANSAC + SVD, brique pure), en tire pitch/hauteur.
 
-    Convention : repère caméra X-droite, Y-bas, Z-avant. Normale-sol orientée haut (ny<0). Pitch
-    (piqué caméra, >0 = vers le bas) = atan2(−nz, −ny) ; hauteur = |offset|. Signe corrigé et
-    gardé le 2026-09-28 (il était inversé) ; déprojection avec fx ET fy du rig.
+def stored_depth_model(session) -> str:
+    """Le modèle qui a produit les cartes STOCKÉES (écrit par l'étage 1 depuis le 2026-09-28).
+    Absent = cartes antérieures, toutes produites par Depth Pro."""
+    return ((getattr(session, 'results_summary', None) or {}).get('depth_model') or 'depthpro')
+
+
+def _has_road_mask(detections) -> bool:
+    return any(d.get('type') == 'road_mask' and len(d.get('polygon') or []) >= 3
+               for d in (detections or []))
+
+
+def ground_plane_from_stored_depth(session, position):
+    """ÉTAGE 2 (CALCUL) — plan de sol d'UNE caméra depuis les cartes stockées, échelle ANCRÉE.
+
+    Rend {pitch_deg, height_m, height_fit_m, scale, anchored, frames, n_inliers} ou
+    {'skipped': raison}. AUCUNE inférence (sûr en CPU/WSL2) : relit `DepthFrame`, déprojette la
+    zone roulable avec fx ET fy du rig, ajuste le plan (briques pures), puis :
+      • modèle à échelle métrique déclarée (Depth Pro) : hauteur = hauteur ajustée, `scale` = 1 ;
+      • modèle à échelle à ancrer (ZoeDepth) : le PITCH ne dépend pas de l'échelle, la hauteur
+        ajustée si — `scale` = hauteur de référence du rig / hauteur ajustée, et la hauteur rendue
+        EST la référence. La profondeur reste ainsi indépendante du pinhole (`§E.2`).
+
+    Seules les images portant un VRAI masque de route (YOLOPv2) comptent : le repli « bas d'image »
+    prenait carrosserie et habitacle (mesuré le 2026-09-28) — pas de masque, pas de plan.
+    Convention : pitch > 0 = caméra penchée vers le bas (corrigée le 2026-09-28).
     """
+    from wama.common.backends.depth_engine import depth_model_spec
+    from wama_data.functions.geometry.depth_geometry import anchor_depth_scale
+    from .prediction_adapter import camera_geometry
+
     cam = session.cameras.filter(position=position).first()
     if cam is None:
-        return None
+        return {'skipped': 'caméra absente'}
     dframes = list(cam.depth_frames.order_by('frame_number'))
     if not dframes:
-        return None   # étage 1 pas encore lancé → repli homographie
+        return {'skipped': 'aucune carte stockée'}   # étage 1 pas encore lancé
 
     det_by_fn = dict(cam.detections
                      .filter(frame_number__in=[d.frame_number for d in dframes])
@@ -264,11 +297,13 @@ def estimate_ground_plane_ph(session, position):
     # déprojection prenait la focale unique ESTIMÉE par le modèle (`df.focal_px`) pour les deux
     # axes — mesuré ce jour-là : Depth Pro l'estime ~2× trop grande sur ce rig grand-angle.
     # Repli sur la focale stockée si la géométrie de la caméra est inconnue.
-    from .prediction_adapter import camera_geometry
     geo = camera_geometry(session).get(position) or {}
     all_pts = []
     frames_used = 0
     for df in dframes:
+        dets = det_by_fn.get(df.frame_number)
+        if not (ow and oh and _has_road_mask(dets)):
+            continue
         depth = _load_depth_map(df)
         if depth is None:
             continue
@@ -280,35 +315,49 @@ def estimate_ground_plane_ph(session, position):
             focal_px = df.focal_px or (0.8 * w)   # focale DÉJÀ à l'échelle de la carte stockée
             focal_y_px = None
         # Masque roulable à l'échelle de la carte : polygones en px d'origine → (sx, sy).
-        if ow and oh:
-            drivable = _rasterize_drivable(det_by_fn.get(df.frame_number), h, w,
-                                           sx=w / float(ow), sy=h / float(oh))
-        else:
-            drivable = _rasterize_drivable([], h, w)   # dims caméra inconnues → proxy bas d'image
+        drivable = _rasterize_drivable(dets, h, w, sx=w / float(ow), sy=h / float(oh))
         pts = deproject_depth(depth, focal_px, mask=drivable, focal_y_px=focal_y_px,
-                              z_min=1.5, z_max=60.0, max_points=4000)
+                              z_min=0.5, z_max=60.0, max_points=4000)
         if len(pts) < 50:
             continue
         all_pts.append(pts)
         frames_used += 1
 
     if frames_used < 2 or not all_pts:
-        return None
-    pts = np.concatenate(all_pts, axis=0)
-    fit = fit_plane_ransac(pts, min_inliers=300)   # brique pure (RANSAC + raffinement SVD)
+        return {'skipped': 'moins de 2 cartes avec un masque de route', 'frames': frames_used}
+    fit = fit_plane_ransac(np.concatenate(all_pts, axis=0), min_inliers=300)
     if fit is None:
-        return None
+        return {'skipped': 'aucun plan (RANSAC)', 'frames': frames_used}
     normal, offset, n_inl, _rms = fit
-    pitch_deg, height_m = plane_pitch_height(normal, offset)   # brique pure
+    pitch_deg, height_fit = plane_pitch_height(normal, offset)   # brique pure
 
+    spec = depth_model_spec(stored_depth_model(session))
+    if spec['metric_scale']:
+        scale, height_m, anchored = 1.0, height_fit, False
+        plausible = 1.0 <= height_m <= 4.0
+    else:
+        height_m = float(geo.get('height_m') or 0.0)
+        scale = anchor_depth_scale(height_fit, height_m)
+        anchored, plausible = True, scale is not None
+    out = {'pitch_deg': round(pitch_deg, 2), 'height_m': round(height_m, 3),
+           'height_fit_m': round(height_fit, 3), 'scale': round(scale, 4) if scale else None,
+           'anchored': anchored, 'frames': frames_used, 'n_inliers': int(n_inl)}
     # Garde-fous physiques (rig ENA) : hors plage → repli homographie plutôt qu'une calib absurde.
-    if not (1.0 <= height_m <= 4.0) or not (-10.0 <= pitch_deg <= 35.0):
-        logger.info('[DepthPro] plan de sol hors plage (pitch=%.1f°, h=%.2f m) — repli homographie',
-                    pitch_deg, height_m)
+    if not plausible or not (-10.0 <= pitch_deg <= 35.0):
+        logger.info('[profondeur] plan de sol %s hors plage (%s) — repli homographie', position, out)
+        return {'skipped': 'hors plage physique', **out}
+    logger.info('[profondeur] plan de sol %s : %s', position, out)
+    return out
+
+
+def estimate_ground_plane_ph(session, position):
+    """ÉTAGE 2 (CALCUL) — (pitch_deg, height_m) du plan de sol, ou None (repli homographie) : la
+    graine que `store_ground_calib` fait scorer par `estimate_camera`. Détail et ancrage de
+    l'échelle : `ground_plane_from_stored_depth`."""
+    res = ground_plane_from_stored_depth(session, position)
+    if 'skipped' in res:
         return None
-    logger.info('[DepthPro] plan de sol %s : pitch=%.2f° h=%.2f m (%d inliers, %d cartes stockées)',
-                position, pitch_deg, height_m, n_inl, frames_used)
-    return (round(pitch_deg, 2), round(height_m, 3))
+    return (res['pitch_deg'], res['height_m'])
 
 
 def _usable_det(d):
@@ -324,7 +373,7 @@ def _usable_det(d):
     return bool(d.get('distance_m'))
 
 
-def depth_distance_report(session, max_frames=12):
+def depth_distance_report(session, max_frames=12, scales=None):
     """ÉTAGE 2 (CALCUL) — cross-check distance MULTI-USAGE, MESURE-ET-RAPPORT. Lecture PURE.
 
     N'infère RIEN : agrège les `depth_distance_m` DÉJÀ stockés par l'étage 1 (`run_depth_analysis`)
@@ -339,18 +388,32 @@ def depth_distance_report(session, max_frames=12):
         des détections marquées `artifact` vs propres (un reflet de vitrage projette une
         profondeur incohérente avec un objet réel à cette position image).
 
+    `scales` : {position: facteur} ancré par l'étage 2 (`ground_plane_from_stored_depth`). Les
+    profondeurs STOCKÉES sont brutes : si le modèle qui les a produites ne rend pas de mètres
+    exploitables tels quels, une caméra SANS facteur est écartée (et comptée) — comparer au pinhole
+    une profondeur à un facteur 3 près mesurerait le facteur, pas le désaccord.
+
     Retourne un dict de métriques (aussi persisté par l'appelant dans
     results_summary['depth_report']), ou None si indisponible/insuffisant.
     """
+    from wama.common.backends.depth_engine import depth_model_spec
+    model_key = stored_depth_model(session)
+    metric = depth_model_spec(model_key)['metric_scale']
+    scales = dict(scales or {})
     diffs_pin, diffs_hom = [], []          # usage 3 : |profondeur − pinhole| / − homographie
     art_pin, clean_pin = [], []            # usage 1 : |profondeur − pinhole| reflets vs propres
     frames_used = 0
     n_obj = 0
+    cams_unscaled = []
 
     # Lecture PURE : n'agrège que ce que l'étage 1 (`run_depth_analysis`) a déjà écrit
     # (`depth_distance_m` sur les détections). Aucune inférence GPU, aucune écriture — sûr en
     # CPU/WSL2, re-jouable à volonté. Sans analyse préalable → aucune donnée → None (repli).
     for cam in session.cameras.all():
+        k = scales.get(cam.position) or (1.0 if metric else None)
+        if k is None:
+            cams_unscaled.append(cam.position)
+            continue
         for fn, det in (cam.detections.order_by('frame_number')
                         .values_list('frame_number', 'detections')):
             hit = False
@@ -360,7 +423,7 @@ def depth_distance_report(session, max_frames=12):
                     continue
                 hit = True
                 n_obj += 1
-                dd = float(dd)
+                dd = float(dd) * k
                 pin = d.get('distance_m')
                 if pin:
                     e = abs(dd - float(pin))
@@ -373,13 +436,17 @@ def depth_distance_report(session, max_frames=12):
                 frames_used += 1
 
     if frames_used < 1 or not diffs_pin:
-        logger.info('[DepthPro] cross-check distance : pas assez d\'observations')
+        logger.info('[profondeur] cross-check distance : pas assez d\'observations '
+                    '(caméras sans échelle ancrée : %s)', cams_unscaled or 'aucune')
         return None
 
     def _med(xs):
         return round(float(np.median(xs)), 2) if xs else None
 
     report = {
+        'model': model_key,
+        'scales': {p: round(v, 4) for p, v in scales.items()},
+        'cameras_unscaled': cams_unscaled,
         'frames': frames_used,
         'n_obj': n_obj,
         'disagree_pinhole_m': _med(diffs_pin),
@@ -391,14 +458,14 @@ def depth_distance_report(session, max_frames=12):
         'clean_n': len(clean_pin),
     }
     # ── Lignes A/B console (une par usage) ────────────────────────────────────────────────
-    logger.info('[DepthPro] Distance (usage 3) : désaccord médian profondeur↔pinhole = %s m '
+    logger.info('[profondeur] Distance (usage 3) : désaccord médian profondeur↔pinhole = %s m '
                 '(%d obj, %d frames) ; ↔homographie = %s m (%d obj)',
                 report['disagree_pinhole_m'], n_obj, frames_used,
                 report['disagree_homography_m'], report['n_homography'])
     if art_pin:
         verdict = ('reflets PLUS incohérents' if (report['reflet_pinhole_m'] or 0)
                    > (report['clean_pinhole_m'] or 0) else 'signal non concluant')
-        logger.info('[DepthPro] Reflets (usage 1) : désaccord profondeur↔pinhole reflets=%s m (%d) '
+        logger.info('[profondeur] Reflets (usage 1) : désaccord profondeur↔pinhole reflets=%s m (%d) '
                     'vs propres=%s m (%d) — %s', report['reflet_pinhole_m'], report['reflet_n'],
                     report['clean_pinhole_m'], report['clean_n'], verdict)
     return report

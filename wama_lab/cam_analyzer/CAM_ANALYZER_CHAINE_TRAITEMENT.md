@@ -414,6 +414,17 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 > ANCRER** — de préférence par la hauteur connue de la caméra, pour que la profondeur reste
 > indépendante du pinhole (§E.2). ⚠ Le rig a une focale **anisotrope** (fx ≈ 134, fy ≈ 210 px) que
 > `deproject_depth` ne sait pas porter (une seule focale) : défaut aussi de la production.
+>
+> ✅ **BRANCHÉ le même jour** (détail : CHANGELOG 2026-09-28) : `depth_engine.DEPTH_MODELS` porte
+> Depth Pro ET ZoeDepth (**défaut**), choix par `config['depth_model']` ; l'étage 1 écrit
+> `results_summary['depth_model']` ; l'étage 2 (`ground_plane_from_stored_depth`) n'ajuste le plan
+> que sur un vrai masque de route, en tire le pitch (indépendant de l'échelle) et, pour un modèle
+> non métrique, **ancre l'échelle sur la hauteur de caméra** (`camera_geometry()['height_m']`,
+> 2,4 m **estimée**, surchargeable `config['camera_height']`) ; le cross-check distance applique le
+> facteur par caméra. Simulé en lecture seule : **pitch avant 16,3° vs 17,0° (calib 2a)**, facteur
+> ×3,19 ; arbitrage G354 : ZoeDepth ancré ≈ projection sol, le pinhole surestime ×1,5-2,5 au-delà
+> de 15 m. ⚠ Seule la caméra AVANT porte un masque de route (YOLOPv2 1 vue) : les 3 autres n'ont
+> ni plan ni facteur tant que `yolopv2_all_views` n'est pas activé au profil.
 
 > 🧱 **DÉCOUPLAGE EN 3 ÉTAGES (2026-08-05, recadrage Fabien « analyse d'abord, calculs ensuite »).**
 > La profondeur n'est plus un bloc monolithique greffé dans `global_tracking` (invisible) mais une

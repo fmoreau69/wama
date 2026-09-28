@@ -197,9 +197,10 @@ _spec('placement_spread', 'Cohérence de placement (étalement stationnés)',
 # `geometry.depth_ground_plane` / `geometry.depth_contact_distance` (patron placement_spread :
 # la brique pure est cataloguée à part, ces entrées décrivent la passe qui l'emploie).
 # Chaîne en 3 étages : ANALYSE (inférence+stockage) → CALCULS (lecture db, CPU) → AFFICHAGE (flag).
-_spec('depth_analysis', 'Analyse de profondeur (Depth Pro)',
+_spec('depth_analysis', 'Analyse de profondeur (monoculaire)',
       "ÉTAGE 1 de la chaîne profondeur : passe `depth` du volet (session-wide, 4 caméras). Infère la "
-      "profondeur métrique (Apple Depth Pro) sur des frames échantillonnées et STOCKE la donnée brute "
+      "profondeur (ZoeDepth KITTI par défaut, Depth Pro au choix de la session — l'échelle d'un "
+      "modèle non métrique est ancrée à l'étage 2) sur des frames échantillonnées et STOCKE la donnée brute "
       "ré-utilisable — carte par frame (disque float16 → DepthFrame) + profondeur de contact par "
       "détection (champ additif depth_distance_m). SEUL point d'inférence GPU ; les CALCULS "
       "(depth_ground_plane, depth_distance_report) la relisent SANS ré-inférer.",

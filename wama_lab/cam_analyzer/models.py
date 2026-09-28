@@ -356,8 +356,10 @@ class DetectionFrame(models.Model):
 class DepthFrame(models.Model):
     """
     Étage 1 (ANALYSE) de la chaîne profondeur monoculaire : une carte de
-    profondeur métrique (Depth Pro) par frame échantillonnée, STOCKÉE sur
-    disque (npz float16, long-côté sous-échantillonné) et référencée ici.
+    profondeur par frame échantillonnée, STOCKÉE sur disque (npz float16,
+    long-côté sous-échantillonné) et référencée ici. BRUTE, à l'échelle du
+    modèle qui l'a produite (`results_summary['depth_model']`) : l'étage 2
+    ancre l'échelle d'un modèle non métrique (ZoeDepth, défaut depuis 2026-09-28).
 
     Découplage « analyse d'abord, calculs ensuite » : cette table est la donnée
     BRUTE ré-utilisable. Les calculs (plan de sol par RANSAC, cross-check
@@ -376,7 +378,8 @@ class DepthFrame(models.Model):
     )
     frame_number = models.IntegerField()
     timestamp = models.FloatField(default=0.0)
-    # Focale estimée par Depth Pro (px), nécessaire à la déprojection.
+    # Focale estimée par le modèle (px) — repli ~0,8·W s'il n'en rend pas. La déprojection du
+    # plan de sol prend depuis le 2026-09-28 les focales fx/fy du RIG, pas celle-ci.
     focal_px = models.FloatField(null=True, blank=True)
     # Chemin RELATIF à MEDIA_ROOT du .npz (clé 'depth' = carte float16 HxW en
     # mètres). Sur disque, jamais en blob Postgres (cf. MEDIA_STORAGE_TIERING).
@@ -446,7 +449,7 @@ class AnalysisPass(models.Model):
         LANE_EVENTS = 'lane_events', 'Évènements de voie'
         TEMPORAL_SEGMENTS = 'temporal_segments', 'Segments temporels'
         DISTANCE = 'distance', 'Distance / vitesse / TTC'
-        DEPTH = 'depth', 'Profondeur (Depth Pro)'
+        DEPTH = 'depth', 'Profondeur (monoculaire)'
         DEPTH_CALC = 'depth_calc', 'Calculs profondeur (plan de sol / distances)'
         GLOBAL_TRACKING = 'global_tracking', 'Tracking 360° (gids + trajectoires)'
         INDICATORS = 'indicators', 'Indicateurs (TTC/PET + insertions)'

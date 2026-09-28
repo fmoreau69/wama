@@ -66,6 +66,10 @@ MODEL_PATHS = {
         # cam_analyzer §[E]. Choix Depth Pro (vs DA3) : natif transformers + intrinsèque estimé,
         # ce que le re-calage du plan de sol consomme directement (2026-08-05).
         'depth': AI_MODELS_DIR / "models" / "vision" / "depth-pro",
+        # ZoeDepth KITTI (MIT) — défaut de la chaîne profondeur depuis le 2026-09-28 : sur les
+        # images ENA, forme juste et échelle constante à ancrer, là où Depth Pro rend des
+        # cartes aberrantes (banc consigné dans CAM_ANALYZER_CHANGELOG).
+        'zoedepth': AI_MODELS_DIR / "models" / "vision" / "zoedepth",
         # Reconstruction image → objet 3D (TripoSR, MIT — ROADMAP §17ter trou 4, 2026-09-13) :
         # `config.yaml` + `model.ckpt` tirés de `stabilityai/TripoSR` par `hf_hub_download(
         # cache_dir=…)` au premier chargement. Retenu vs TRELLIS / Hunyuan3D-2 / SF3D parce que
