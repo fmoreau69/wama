@@ -77,7 +77,7 @@ def aggregate_markings(session, min_obs=3, max_pts=6000):
     from ..models import DetectionFrame
     from .prediction_adapter import (make_local_frame, shuttle_trajectory,
                                      antenna_offset, camera_geometry,
-                                     ego_to_world, _shuttle_pose_at)
+                                     ego_to_world, _shuttle_pose_at, video_to_gps_time)
 
     from .ego_pose import effective_gps_track   # ⚑ shuttle_filter : filtrée si ON, sinon brute
     gt = effective_gps_track(session)
@@ -128,7 +128,8 @@ def aggregate_markings(session, min_obs=3, max_pts=6000):
                     and _LABEL_KIND.get((d.get('label') or d.get('class_name') or '').lower())]
             if not dets:
                 continue
-            se, sn, sh = _shuttle_pose_at(sh_traj, df.timestamp)
+            # Pose au temps GPS (base de `sh_traj`), pas au temps vidéo — `video_to_gps_time`.
+            se, sn, sh = _shuttle_pose_at(sh_traj, video_to_gps_time(session, df.timestamp))
             for d in dets:
                 kind = _LABEL_KIND[(d.get('label') or d.get('class_name') or '').lower()]
                 pts = d.get('polygon') or []

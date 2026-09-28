@@ -31,8 +31,9 @@ Y_MIN, Y_MAX = 2.0, 15.0
 
 
 def _collect_static_obs(session, position, max_gids=40, max_per_gid=120):
-    """Observations bas-de-bbox des STATIONNÉS sur une caméra : (u, v, t, dist_pinhole)."""
+    """Observations bas-de-bbox des STATIONNÉS sur une caméra : (u, v, t_gps, dist_pinhole)."""
     from ..models import DetectionFrame
+    from .prediction_adapter import video_to_gps_time
     stat = set((session.results_summary or {}).get('stationary_global_tracks') or [])
     if not stat:
         return {}, (384, 248)
@@ -60,7 +61,10 @@ def _collect_static_obs(session, position, max_gids=40, max_per_gid=120):
             if touches_side_edge(bb, size[0], size[1], margin_px=6.0):
                 continue
             if len(obs[gid]) < max_per_gid:
-                obs[gid].append(((bb[0] + bb[2]) / 2.0, bb[3], df.timestamp, float(dist)))
+                # Temps GPS (base de la trajectoire navette), pas le temps vidéo : cf.
+                # `video_to_gps_time` — l'écart atteint ~5 min en fin de session ENA.
+                obs[gid].append(((bb[0] + bb[2]) / 2.0, bb[3],
+                                 video_to_gps_time(session, df.timestamp), float(dist)))
     obs = dict(sorted(obs.items(), key=lambda kv: -len(kv[1]))[:max_gids])
     return {g: v for g, v in obs.items() if len(v) >= 8}, size
 
