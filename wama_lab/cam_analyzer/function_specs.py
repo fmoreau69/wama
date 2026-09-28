@@ -270,6 +270,24 @@ _spec('depth_calc', 'Calculs profondeur (passe)',
                         description="Sortie de `depth_distance_report`, même raison.")],
       cost={'cpu_bound': True})
 
+_spec('lane_map_recalage', 'Recalage voie + carte (passe)',
+      "La PASSE `lane_map_recalage` du volet (session-wide, CPU + réseau IGN) : projette au sol "
+      "les lignes YOLOPv2 de la caméra avant (repère véhicule), collecte les tronçons BD TOPO le "
+      "long du parcours, et appelle la brique pure `lane_map_recalage` (rattachement continu de "
+      "`gps_map_match`). Écrit la correction latérale + cap de la navette ; appliquée sous "
+      "⚑ lane_map_recalage au point d'ingestion unique de la pose.",
+      FC.ENRICHER, 'cam_analyzer.tasks:compute_lane_map_recalage_task', ['geo', 'gnss', 'lanes', 'ign'],
+      inputs=[PortSpec('track', DT.GEO_TRACK, required_fields=['ts', 'lat', 'lon'],
+                       description='Trace GPS de la session (filtrée si ⚑ shuttle_filter).'),
+              PortSpec('lanes', DT.DETECTIONS, required_fields=['polygon'],
+                       description='Lignes de voie YOLOPv2 (road_mask) de la caméra avant.',
+                       group='reference')],
+      outputs=[PortSpec('track', DT.GEO_TRACK,
+                        produced_fields=['de_m', 'dn_m', 'dh_deg', 'anchored'],
+                        description="Correction de la pose navette (est, nord, cap) par instant, "
+                                    "stockée dans `results_summary['lane_map_recalage']`.")],
+      cost={'cpu_bound': True, 'network': True})
+
 _spec('depth_distance_report', 'Cross-check distance & reflets par profondeur (usages 3+1)',
       "ÉTAGE 2 (CALCUL, CPU) : LECTURE PURE des depth_distance_m déjà stockés par depth_analysis. "
       "MESURE-ET-RAPPORT (ne bascule AUCUNE source) : 3ᵉ source de distance indépendante (désaccord "

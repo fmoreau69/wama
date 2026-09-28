@@ -21,7 +21,10 @@
           "nature",
           "nom",
           "sens",
-          "largeur"
+          "largeur",
+          "id",
+          "nb_voies",
+          "reserve_bus"
         ],
         "required_fields": []
       }

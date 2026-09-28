@@ -82,6 +82,19 @@
         "min": 0.0,
         "type": "float",
         "unit": "°"
+      },
+      {
+        "choices": [
+          "nearest",
+          "continuous"
+        ],
+        "default": "nearest",
+        "description": "'nearest' : segment le plus proche, point par point (portage d'origine) ; 'continuous' : Viterbi distance + cap + continuité, qui ne saute pas sur une route parallèle ni à un carrefour.",
+        "key": "method",
+        "max": null,
+        "min": null,
+        "type": "enum",
+        "unit": ""
       }
     ],
     "projects": [

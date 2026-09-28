@@ -1950,6 +1950,43 @@ def compute_depth_calc_task(self, session_id: str):
 
 
 @shared_task(bind=True)
+def compute_lane_map_recalage_task(self, session_id: str):
+    """Passe « Recalage voie + carte » (CALCUL, CPU + réseau IGN) : correction LATÉRALE et de CAP
+    de la navette par la voie vue (lignes YOLOPv2 de la caméra avant) et l'axe BD TOPO, stockée
+    dans `results_summary['lane_map_recalage']` ; appliquée à la lecture sous ⚑ lane_map_recalage
+    (`ego_pose.effective_gps_track`). Détail : `utils.lane_map_recalage`."""
+    close_old_connections()
+    from .models import AnalysisSession
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
+    from .utils.lane_map_recalage import compute_lane_map_recalage
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        mark_started(session, 'lane_map_recalage', session.profile)
+        _console(session.user_id, "Recalage voie + carte : lignes de voie + BD TOPO…")
+        report = compute_lane_map_recalage(session)
+        if report.get('skipped'):
+            mark_failed(session, 'lane_map_recalage', report['skipped'])
+            _console(session.user_id, f"Recalage voie + carte : {report['skipped']}")
+            return {'session_id': session_id, **report}
+        mark_completed(session, 'lane_map_recalage', output_summary=report)
+        _console(session.user_id,
+                 f"Recalage voie + carte : {report.get('anchors')} ancres sur "
+                 f"{report.get('lane_observations')} observations de voie, "
+                 f"{round(100 * (report.get('anchored_share') or 0))} % de la trace corrigée, "
+                 f"correction médiane {report.get('correction_median_m')} m "
+                 f"(p95 {report.get('correction_p95_m')}), cap {report.get('heading_correction_median_deg')}° "
+                 f"— appliquée si ⚑ Recalage voie + carte est ON")
+        return {'session_id': session_id, **report}
+    except Exception as e:
+        logger.error(f"compute_lane_map_recalage_task failed: {e}", exc_info=True)
+        try:
+            mark_failed(AnalysisSession.objects.get(pk=session_id), 'lane_map_recalage', str(e))
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
+
+
+@shared_task(bind=True)
 def live_analysis_task(self, session_id: str):
     """Analyse AU FIL DE LA LECTURE (étape 3 analyse incrémentale) : boucle qui suit le
     CURSEUR de lecture (posé en cache par l'endpoint `live_cursor`) et analyse les

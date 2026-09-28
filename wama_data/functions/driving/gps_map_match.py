@@ -26,14 +26,24 @@ from wama.common.catalog.function_catalog import (FunctionSpec, PortSpec, ParamS
 _M_PER_DEG_LAT = 111320.0
 
 
-def _local_frame(center_lat, center_lon):
-    """Projection plane ENU simple centrée (x=Est, y=Nord), en mètres. Suffisant à
-    l'échelle d'un parcours ; cohérent avec `make_local_frame` de cam_analyzer."""
+def local_frame(center_lat, center_lon):
+    """Projection plane ENU simple centrée (x=Est, y=Nord), en mètres — et son inverse.
+    Suffisant à l'échelle d'un parcours ; cohérent avec `make_local_frame` de cam_analyzer.
+    Rend (to_xy(lat, lon) → (x, y), to_ll(x, y) → (lat, lon)). Publique depuis le 2026-09-28 :
+    `lane_map_matching` en a besoin, et la recopier en ferait une seconde projection à tenir."""
     m_lon = _M_PER_DEG_LAT * math.cos(math.radians(center_lat))
 
     def to_xy(lat, lon):
         return ((lon - center_lon) * m_lon, (lat - center_lat) * _M_PER_DEG_LAT)
-    return to_xy
+
+    def to_ll(x, y):
+        return (center_lat + y / _M_PER_DEG_LAT, center_lon + x / m_lon)
+    return to_xy, to_ll
+
+
+def _local_frame(center_lat, center_lon):
+    """Aller seul de `local_frame` (appelants historiques du module)."""
+    return local_frame(center_lat, center_lon)[0]
 
 
 def _bearing_deg(lat1, lon1, lat2, lon2):
@@ -45,9 +55,12 @@ def _bearing_deg(lat1, lon1, lat2, lon2):
     return math.degrees(math.atan2(y, x)) % 360.0
 
 
-def _angle_diff(a, b):
+def angle_diff(a, b):
     """Différence signée repliée dans [-180, 180] — comme UTL_AngleDiff."""
     return (a - b + 180.0) % 360.0 - 180.0
+
+
+_angle_diff = angle_diff   # nom historique du module
 
 
 def _dist2_point_segment(px, py, ax, ay, bx, by):
@@ -118,11 +131,151 @@ def _build_segments(road_map: TypedFrame):
     return segments, to_xy
 
 
+# ── Rattachement CONTINU (Viterbi) — ajouté le 2026-09-28 ────────────────────────────────
+# Le plus-proche-segment ci-dessus saute sur une route PARALLÈLE ou PERPENDICULAIRE dès que le
+# GPS dérive (mesuré sur la session ENA : +11 à +15 m sur une parallèle, Δcap −78° à une
+# intersection). Le Viterbi choisit la SUITE de tronçons la plus vraisemblable : distance, cap
+# (au sens de circulation le plus proche, ignoré à l'arrêt où le cap est TENU) et continuité.
+
+def road_segments(roads, to_xy):
+    """Tronçons [{'coords': [(lon, lat)…], …}] → segments [{ax, ay, bx, by, bearing, road}]
+    (bearing = cap du segment a→b ; `road` = index du tronçon dans `roads`)."""
+    segs = []
+    for ri, r in enumerate(roads):
+        pts = [to_xy(lat, lon) for lon, lat in (r.get('coords') or [])]
+        for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+            if math.hypot(bx - ax, by - ay) < 0.05:
+                continue
+            segs.append({'ax': ax, 'ay': ay, 'bx': bx, 'by': by, 'road': ri,
+                         'bearing': math.degrees(math.atan2(bx - ax, by - ay)) % 360.0})
+    return segs
+
+
+def _project(px, py, s):
+    """(distance, latéral signé à DROITE du sens a→b, dépassement) du point sur le segment.
+    Le dépassement (m) est la distance, le long du segment, au-delà de l'extrémité la plus
+    proche quand la projection tombe HORS du segment : le « latéral » n'est alors que la distance
+    au bout, pas un écart perpendiculaire (vécu : l'impasse d'un parking, 2026-09-28)."""
+    dx, dy = s['bx'] - s['ax'], s['by'] - s['ay']
+    L2 = dx * dx + dy * dy
+    t_raw = ((px - s['ax']) * dx + (py - s['ay']) * dy) / L2
+    t = max(0.0, min(1.0, t_raw))
+    d = math.hypot(px - s['ax'] - t * dx, py - s['ay'] - t * dy)
+    cross = dx * (py - s['ay']) - dy * (px - s['ax'])        # > 0 : à GAUCHE de a→b
+    return d, (-d if cross > 0 else d), abs(t_raw - t) * math.sqrt(L2)
+
+
+def _connected(s1, s2, tol=2.0):
+    ends1 = ((s1['ax'], s1['ay']), (s1['bx'], s1['by']))
+    ends2 = ((s2['ax'], s2['ay']), (s2['bx'], s2['by']))
+    return any(math.hypot(a[0] - b[0], a[1] - b[1]) <= tol for a in ends1 for b in ends2)
+
+
+def match_track(points, segments, *, radius_m=25.0, sigma_d_m=4.0, sigma_h_deg=20.0,
+                switch_cost=6.0, connected_cost=0.5):
+    """Rattachement CONTINU d'une trace aux segments — Viterbi.
+
+    `points` : [(x, y, heading_deg | None, moving: bool)]. Émission (d/σd)² + (Δcap/σh)² ;
+    transition 0 sur le même tronçon, `connected_cost` vers un tronçon qui le touche,
+    `switch_cost` sinon. Un point sans candidat dans `radius_m` coupe la chaîne (None).
+    Rend, par point, None ou {'segment', 'road', 'dist_m', 'forward' (circulation dans le sens
+    a→b du segment), 'lateral_m' (à droite du sens de CIRCULATION), 'bearing_deg' (axe orienté
+    dans le sens de circulation), 'overshoot_m' (au-delà du bout du segment : 0 si la projection
+    tombe dessus)}."""
+    n = len(points)
+    cands = []
+    for x, y, h, mv in points:
+        cs = []
+        for si, s in enumerate(segments):
+            d, lat_ab, over = _project(x, y, s)
+            if d > radius_m:
+                continue
+            fwd, dh = True, 0.0
+            if h is not None:
+                d_ab = abs(angle_diff(h, s['bearing']))
+                fwd = d_ab <= 90.0
+                dh = d_ab if fwd else 180.0 - d_ab
+            cost = (d / sigma_d_m) ** 2 + ((dh / sigma_h_deg) ** 2 if (mv and h is not None) else 0.0)
+            cs.append((si, cost, d, lat_ab, fwd, over))
+        cands.append(cs)
+
+    out = [None] * n
+    i = 0
+    while i < n:
+        if not cands[i]:
+            i += 1
+            continue
+        j = i
+        while j < n and cands[j]:
+            j += 1
+        back = [[(c[1], None) for c in cands[i]]]
+        for k in range(i + 1, j):
+            cur = []
+            for c in cands[k]:
+                sc = segments[c[0]]
+                best = None
+                for pi, pc in enumerate(cands[k - 1]):
+                    sp = segments[pc[0]]
+                    tr = 0.0 if sp['road'] == sc['road'] else (
+                        connected_cost if _connected(sp, sc) else switch_cost)
+                    v = back[-1][pi][0] + tr
+                    if best is None or v < best[0]:
+                        best = (v, pi)
+                cur.append((best[0] + c[1], best[1]))
+            back.append(cur)
+        idx = min(range(len(back[-1])), key=lambda q: back[-1][q][0])
+        for k in range(j - 1, i - 1, -1):
+            si, _, d, lat_ab, fwd, over = cands[k][idx]
+            s = segments[si]
+            out[k] = {'segment': si, 'road': s['road'], 'dist_m': round(d, 3), 'forward': fwd,
+                      'overshoot_m': round(over, 3),
+                      'lateral_m': lat_ab if fwd else -lat_ab,
+                      'bearing_deg': s['bearing'] if fwd else (s['bearing'] + 180.0) % 360.0}
+            if k > i:
+                idx = back[k - i][idx][1]
+        i = j
+    return out
+
+
+def _map_match_continuous(out, road_map, max_dist_m):
+    """`map_match(method='continuous')` : mêmes colonnes que le plus-proche-segment."""
+    rows = road_map.df.to_dict('records')
+    all_pts = [p for r in rows for p in (r.get('geometry') or [])]
+    clat = sum(p[0] for p in all_pts) / len(all_pts)
+    clon = sum(p[1] for p in all_pts) / len(all_pts)
+    to_xy, _ = local_frame(clat, clon)
+    roads = [{'coords': [(p[1], p[0]) for p in (r.get('geometry') or [])]} for r in rows]
+    segs = road_segments(roads, to_xy)
+    has_heading = 'heading' in out.columns
+    pts = []
+    for r in out.itertuples(index=False):
+        lat, lon = getattr(r, 'lat'), getattr(r, 'lon')
+        h = getattr(r, 'heading') if has_heading else None
+        if lat is None or lon is None or lat != lat or lon != lon:
+            pts.append((1e12, 1e12, None, False))
+            continue
+        v = getattr(r, 'speed_kmh', None)
+        pts.append((*to_xy(lat, lon), None if h is None or h != h else float(h),
+                    bool(v is None or (v == v and v > 3.6))))
+    m = match_track(pts, segs, radius_m=max_dist_m)
+    out['section_id'] = [rows[x['road']].get('id') if x else None for x in m]
+    out['direction'] = [(1 if x['forward'] else -1) if (x and has_heading) else 0 for x in m]
+    out['matched_bearing'] = [round(segs[x['segment']]['bearing'], 1) if x else None for x in m]
+    out['match_dist_m'] = [round(x['dist_m'], 2) if x else None for x in m]
+    return out
+
+
 def map_match(track: TypedFrame, road_map: TypedFrame, *, max_dist_m=20.0,
-              angle_same_deg=60.0, angle_opp_deg=120.0) -> TypedFrame:
+              angle_same_deg=60.0, angle_opp_deg=120.0, method='nearest') -> TypedFrame:
     """Map-matching : enrichit `track` (geo_track) avec section_id / direction /
-    matched_bearing / match_dist_m. Enricher — ne retire aucune colonne."""
+    matched_bearing / match_dist_m. Enricher — ne retire aucune colonne.
+
+    `method` : 'nearest' (défaut, le portage d'origine, point par point) ou 'continuous'
+    (Viterbi : distance + cap + continuité — ne saute pas sur une parallèle ni à un carrefour)."""
     out = track.df.copy()
+    if method == 'continuous' and not road_map.df.empty:
+        return TypedFrame(_map_match_continuous(out, road_map, max_dist_m), DataType.GEO_TRACK,
+                          meta=track.meta)
     segments, to_xy = _build_segments(road_map)
     if not segments:
         for c in ('section_id', 'direction', 'matched_bearing', 'match_dist_m'):
@@ -195,6 +348,10 @@ SPEC = register(FunctionSpec(
                   description='Écart de cap sous lequel le sens = +1 (même sens).'),
         ParamSpec('angle_opp_deg', 'float', 120.0, 0.0, 180.0, unit='°',
                   description='Écart de cap au-dessus duquel le sens = −1 (sens inverse).'),
+        ParamSpec('method', 'enum', 'nearest', choices=['nearest', 'continuous'],
+                  description="'nearest' : segment le plus proche, point par point (portage "
+                              "d'origine) ; 'continuous' : Viterbi distance + cap + continuité, "
+                              "qui ne saute pas sur une route parallèle ni à un carrefour."),
     ],
     cost={'cpu_bound': True},
     projects=['ENA'],
