@@ -125,6 +125,44 @@ def _load_depth_map(depth_frame):
         return None
 
 
+DEFAULT_DEPTH_WINDOW_FPS = 2.0
+
+
+def depth_window_fps(session) -> float:
+    """Cadence de la profondeur DANS les fenêtres d'intersection (`config['depth_window_fps']`,
+    défaut 2 images/s ; 0 = seulement l'échantillon global du plan de sol)."""
+    try:
+        return max(0.0, float((getattr(session, 'config', None) or {}).get(
+            'depth_window_fps', DEFAULT_DEPTH_WINDOW_FPS)))
+    except (TypeError, ValueError):
+        return DEFAULT_DEPTH_WINDOW_FPS
+
+
+def frames_in_windows(rows, windows, fps):
+    """Numéros de frames à ~`fps` images/s À L'INTÉRIEUR des fenêtres d'intersection.
+
+    `rows` : [(frame_number, timestamp)] triés ; `windows` : `session.intersection_windows`
+    ([{t_enter, t_exit}] en temps VIDÉO, convention `41bef1a`). Pur, sans ORM."""
+    if not fps or fps <= 0 or not windows:
+        return []
+    spans = sorted((float(w['t_enter']), float(w['t_exit'])) for w in windows
+                   if w.get('t_enter') is not None and w.get('t_exit') is not None)
+    period, out, last, j = 1.0 / float(fps), [], None, 0
+    for fn, ts in rows:
+        if ts is None:
+            continue
+        while j < len(spans) and ts > spans[j][1]:
+            j += 1
+        if j >= len(spans):
+            break
+        if ts < spans[j][0]:
+            continue
+        if last is None or ts - last >= period - 1e-6:
+            out.append(fn)
+            last = ts
+    return out
+
+
 def run_depth_analysis(session, *, max_frames_per_cam: int = 24,
                        downsample_long: int = 384, device: str = 'cuda'):
     """ÉTAGE 1 (ANALYSE) — inférence de profondeur sur des frames échantillonnées des 4 caméras.
@@ -137,7 +175,11 @@ def run_depth_analysis(session, *, max_frames_per_cam: int = 24,
       · la focale estimée (repli ~0,8·W si le modèle n'en rend pas), à l'échelle de la carte ;
       · la profondeur de contact par détection (PLEINE résolution) → `depth_distance_m` (JSON
         additif, même échelle brute).
-    Retourne {'maps', 'contacts', 'cameras', 'model'}, ou None si indisponible.
+    Deux échantillons (2026-09-28) : `max_frames_per_cam` images réparties sur tout le parcours ;
+    plus, dans les fenêtres d'intersection, `depth_window_fps` images/s portant au moins un objet.
+    Toutes voient leur carte stockée (~84 Ko l'une : ~0,6 Go pour les 7 143 images de la session
+    de référence à 2 images/s) — la donnée brute une fois, les calculs la relisent sans GPU.
+    Retourne {'maps', 'contacts', 'cameras', 'model', 'window_frames', 'window_fps'}, ou None.
 
     ⚠ SEUL point d'inférence GPU de la chaîne profondeur (interdit sous WSL2 ici → runtime/R760xa).
     """
@@ -156,29 +198,50 @@ def run_depth_analysis(session, *, max_frames_per_cam: int = 24,
     if not cams:
         return None
 
-    n_maps = n_contacts = cams_done = 0
+    fps_win = depth_window_fps(session)
+    windows = getattr(session, 'intersection_windows', None) or []
+    n_maps = n_contacts = cams_done = n_window = 0
     for cam in cams:
         try:
             video_path = cam.video_file.path
         except Exception:
             continue
-        rows = list(cam.detections.order_by('frame_number').values_list('frame_number', flat=True))
+        rows = list(cam.detections.order_by('frame_number').values_list('frame_number', 'timestamp'))
         if not rows:
             continue
         step = max(1, len(rows) // max(1, max_frames_per_cam))
-        chosen = rows[::step][:max_frames_per_cam]
+        chosen = [fn for fn, _ in rows[::step][:max_frames_per_cam]]
+        map_frames = set(chosen)
+        window_fns = frames_in_windows(rows, windows, fps_win)
         objs = {o.frame_number: o for o in
-                cam.detections.filter(frame_number__in=chosen)
+                cam.detections.filter(frame_number__in=set(chosen) | set(window_fns))
                    .only('frame_number', 'detections', 'timestamp')}
+        # Une image de fenêtre sans objet n'apporte rien (pas de carte stockée) : pas d'inférence.
+        window_fns = [fn for fn in window_fns if fn not in map_frames and objs.get(fn) is not None
+                      and any(_has_bbox_obj(d) for d in (objs[fn].detections or []))]
+        plan = sorted(map_frames | set(window_fns))
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             continue
-        try:
-            for fn in chosen:
+        pos = [None]   # dernière frame lue : avancer SÉQUENTIELLEMENT dans une fenêtre
+
+        def _read(fn):
+            if pos[0] is None or fn <= pos[0] or fn - pos[0] > 48:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, int(fn))
-                ok, frame = cap.read()
-                if not ok or frame is None:
+                pos[0] = fn - 1
+            while pos[0] < fn - 1:
+                if not cap.grab():
+                    return None
+                pos[0] += 1
+            ok, fr = cap.read()
+            pos[0] = fn
+            return fr if ok else None
+
+        try:
+            for fn in plan:
+                frame = _read(fn)
+                if frame is None:
                     continue
                 h, w = frame.shape[:2]
                 try:
@@ -210,6 +273,8 @@ def run_depth_analysis(session, *, max_frames_per_cam: int = 24,
                         except Exception:
                             logger.warning('[profondeur] save detections %s échoué', fn, exc_info=True)
 
+                if fn not in map_frames:
+                    n_window += 1
                 # (b) Carte sous-échantillonnée (long-côté ≤ downsample_long) → disque + DepthFrame.
                 s = min(1.0, float(downsample_long) / max(h, w)) if max(h, w) > 0 else 1.0
                 if s < 1.0:
@@ -237,10 +302,11 @@ def run_depth_analysis(session, *, max_frames_per_cam: int = 24,
         finally:
             cap.release()
         cams_done += 1
-        logger.info('[profondeur] analyse %s (%s) : cumul %d cartes, %d contacts', cam.position,
-                    model_key, n_maps, n_contacts)
+        logger.info('[profondeur] analyse %s (%s) : cumul %d cartes, %d images de fenêtre, '
+                    '%d contacts', cam.position, model_key, n_maps, n_window, n_contacts)
 
-    return {'maps': n_maps, 'contacts': n_contacts, 'cameras': cams_done, 'model': model_key}
+    return {'maps': n_maps, 'contacts': n_contacts, 'cameras': cams_done, 'model': model_key,
+            'window_frames': n_window, 'window_fps': fps_win}
 
 
 def depth_model_for(session) -> str:
@@ -255,6 +321,9 @@ def stored_depth_model(session) -> str:
     """Le modèle qui a produit les cartes STOCKÉES (écrit par l'étage 1 depuis le 2026-09-28).
     Absent = cartes antérieures, toutes produites par Depth Pro."""
     return ((getattr(session, 'results_summary', None) or {}).get('depth_model') or 'depthpro')
+
+
+PLANE_MAX_FRAMES = 60
 
 
 def _has_road_mask(detections) -> bool:
@@ -298,12 +367,16 @@ def ground_plane_from_stored_depth(session, position):
     # axes — mesuré ce jour-là : Depth Pro l'estime ~2× trop grande sur ce rig grand-angle.
     # Repli sur la focale stockée si la géométrie de la caméra est inconnue.
     geo = camera_geometry(session).get(position) or {}
+    # Au plus `PLANE_MAX_FRAMES` cartes, réparties dans le temps : depuis l'échantillon des
+    # fenêtres (2026-09-28) une caméra en porte ~2 000, et le plan n'en demande pas tant.
+    usable = [df for df in dframes if ow and oh and _has_road_mask(det_by_fn.get(df.frame_number))]
+    if len(usable) > PLANE_MAX_FRAMES:
+        step = len(usable) / float(PLANE_MAX_FRAMES)
+        usable = [usable[int(i * step)] for i in range(PLANE_MAX_FRAMES)]
     all_pts = []
     frames_used = 0
-    for df in dframes:
+    for df in usable:
         dets = det_by_fn.get(df.frame_number)
-        if not (ow and oh and _has_road_mask(dets)):
-            continue
         depth = _load_depth_map(df)
         if depth is None:
             continue
