@@ -106,6 +106,31 @@ def _wama_settle_dead_predecessor(sender=None, **_kwargs):
         pass
 
 
+# ---------------------------------------------------------------------------
+# Un envoi depuis WINDOWS ne part nulle part — et le dit (2026-09-29)
+# ---------------------------------------------------------------------------
+# Règle de Fabien : tout passe côté WSL, rien côté Windows (`common/services/runtime_side.py`).
+# Hors de WSL, `settings` pose le broker en mémoire : la tâche ne quitte pas le processus. Le
+# 02/09, une installation lancée d'un shell Windows « avait réussi » sans jamais s'exécuter, sans
+# un mot (INFRA §Deux Redis) : on l'écrit donc au journal, avec le geste qui marche. Les tests,
+# eux, restent silencieux — ne rien envoyer y est le comportement attendu.
+from celery.signals import before_task_publish  # noqa: E402
+
+
+@before_task_publish.connect
+def _wama_warn_undispatched(sender=None, **_kwargs):
+    try:
+        from django.conf import settings
+        if getattr(settings, 'WAMA_TASKS_DISPATCHED', True) or settings.WAMA_RUNNING_TESTS:
+            return
+        import logging
+        logging.getLogger('wama.celery').warning(
+            "Tâche %s NON envoyée : ce processus tourne côté Windows, où WAMA ne met rien en file "
+            "(les workers vivent dans WSL). La relancer depuis WSL.", sender)
+    except Exception:
+        pass
+
+
 @app.task(bind=True)
 def debug_task(self):
     print(f'Request: {self.request!r}')

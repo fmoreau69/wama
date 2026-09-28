@@ -95,7 +95,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 ---
 
 <!-- WAMA:FAITS(mecanismes) — généré par « python manage.py doc_facts », ne pas éditer -->
-#### Ressources & exécution (14)
+#### Ressources & exécution (15)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
@@ -103,6 +103,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Cache par empreinte de fichier** | Garde une valeur calculée depuis un fichier (lecture AST, rendu markdown, compte de lignes) tant que son empreinte — date de modification, taille — n'a pas changé : un fichier modifié est relu, jamais servi périmé. Extrait le 2026-09-14 : le catalogue des docs portait le geste en dur, et l'inventaire des backends relisait 6 237 fois des fichiers pour UNE extraction de manifeste (48 résolutions d'un même vivier). ⚠ Ne convient qu'à ce qui ne dépend QUE du fichier | `wama/common/file_cache.py` | — | 3 |
 | **Client du service TTS** | L'appel POST /tts UNIQUE vers le microservice TTS (payload contractuel, 503 « loading » → TTSServiceLoadingError, WAV temporaire ou bytes) ; les POLITIQUES (retry Celery, chunking, replis) restent aux appelants — extrait 2026-08-28 : 4 exemplaires vivaient dans le dépôt, un seul détectait le 503 | `wama/common/tts/service_client.py` | `docs/construction/ui/MODES_QUEUE_UX.md §2bis` | 4 |
 | **Contrat de backend** | Cycle de vie commun des porteurs de modèle — ALIMENTATION du gouverneur (enveloppe load/unload/process à toute profondeur d'héritage) et CAPACITÉS déclarées par le moteur (supports_*), lues par le catalogue | `wama/common/backends/base.py` | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` | 84 |
+| **Côté d'exécution (qui met une tâche en file)** | Tout passe côté WSL, rien côté Windows, sauf les tests à la demande (règle de Fabien, 2026-09-29) : sous tests et hors WSL le broker est EN MÉMOIRE, l'envoi Windows est écrit au journal, la synchro de démarrage n'est pas dispatchée. Une décision, lue par `settings`, `wama/celery.py` et `model_manager` | `wama/common/services/runtime_side.py` | `docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md` | 1 |
 | **ETA auto-apprenante** | Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel | `wama/model_manager/services/eta_estimator.py` | `docs/construction/suivi/PROJECT_STATUS.md §10` | 21 |
 | **Gardes de process** | Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ; solde des tâches d'un worker MORT (preuve : processus disparu) au démarrage du worker relancé (`worker_ready`) et par la surveillance des workers (`scripts/worker_watchdog.sh` → `manage.py worker_died`) | `wama/common/utils/process_control.py` | `docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md` | 47 |
 | **Gouverneur de ressources** | Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités | `wama/common/services/resource_governor.py` | `docs/construction/suivi/PROJECT_STATUS.md §0` | 24 |
@@ -304,7 +305,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `docs/construction/mondes/STUDIO_VISION.md` | 9 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` | 24 |
 
-**Mécanismes déclarés : 164** · domiciles absents : 0 · sans consommateur : 1 (+ 2 autonomes DÉCLARÉS) · assumés locaux : 17 · modules balayés non rattachés : 45 · **de niveau app sans critère de grille : 48**
+**Mécanismes déclarés : 165** · domiciles absents : 0 · sans consommateur : 1 (+ 2 autonomes DÉCLARÉS) · assumés locaux : 17 · modules balayés non rattachés : 47 · **de niveau app sans critère de grille : 49**
 - ❌ **Assumé ET déclaré** (contradiction, retirer d'un des deux) : `wama/common/utils/voice_options.py`
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `mcp_client` (wama/common/services/mcp_client.py)
 - ℹ️ **Sans consommateur, et c'est DÉCLARÉ** (point d'entrée de process, ou intention consignée — pas du code mort) :

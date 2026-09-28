@@ -340,9 +340,18 @@ CACHES = {
 # cache Redis — mesuré : des clés de réglages pour 217 comptes de test (pk 114 à 43 902), dont
 # les identifiants recouvrent ceux des comptes réels. Depuis que `user_settings` lit le cache
 # DEVANT la base, un test pouvait masquer le réglage d'un vrai compte pendant 30 jours.
-import sys as _sys
-if len(_sys.argv) > 1 and _sys.argv[1] == 'test':
+from wama.common.services.runtime_side import running_tests as _running_tests
+from wama.common.services.runtime_side import tasks_dispatched as _tasks_dispatched
+WAMA_RUNNING_TESTS = _running_tests()
+if WAMA_RUNNING_TESTS:
     CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+
+# Tâches Celery : seul un processus WSL hors tests atteint le VRAI broker (règle de Fabien,
+# 2026-09-29 — `common/services/runtime_side.py`). Les tests (où qu'ils tournent) et tout processus
+# Windows gardent leurs envois EN MÉMOIRE : jusque-là, un test lancé depuis WSL envoyait ses tâches
+# aux workers de production (salves de `refresh_registry` des 27-28/09), et un `manage.py` Windows
+# remplissait un Redis que personne ne lit. Garde : `common/tests_runtime_side.py`.
+WAMA_TASKS_DISPATCHED = _tasks_dispatched()
 
 # Configuration LDAP
 if ENABLE_LDAP:
@@ -704,8 +713,11 @@ STATICFILES_DIRS = [
 if ENABLE_CELERY:
     CELERY_TIMEZONE = "Europe/Paris"
     CELERY_TASK_TRACK_STARTED = True
-    CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
-    CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/1"
+    # `memory://` hors du côté autorisé (`WAMA_TASKS_DISPATCHED`, plus haut) : l'envoi reste
+    # dans le processus et s'y perd — c'est voulu, et `wama/celery.py` le DIT au journal.
+    CELERY_BROKER_URL = "redis://127.0.0.1:6379/0" if WAMA_TASKS_DISPATCHED else "memory://"
+    CELERY_RESULT_BACKEND = ("redis://127.0.0.1:6379/1" if WAMA_TASKS_DISPATCHED
+                             else "cache+memory://")
     # 6h covers long-running cam_analyzer / batch jobs. Below the wall-time
     # ceiling and Redis won't redeliver mid-flight, but still bounded so a
     # truly orphaned task (worker crash + lost ack) eventually gets requeued.
