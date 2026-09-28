@@ -73,6 +73,27 @@ class TaskSkeletonOutcomeContractTest(TestCase):
                 if hasattr(item, 'processing_seconds'):
                     self.assertIsNotNone(item.processing_seconds, 'processing time not recorded')
 
+    def test_an_element_with_a_reference_is_measured_once_it_is_a_success(self):
+        """The measurement against the reference reads a FINISHED element. Until 2026-09-29 the
+        transcriber measured inside its glue, before the skeleton set SUCCESS: its result reader
+        refused the element, and no transcription measured itself — silently, for four days."""
+        from wama.common.services.result_evaluation import evaluation_spec
+        measured = []
+        adopters = [(a, m) for a, m in _adopters() if evaluation_spec(a) is not None]
+        self.assertTrue(adopters, 'no skeleton adopter declares an evaluation')
+        for app, model in adopters:
+            spec = evaluation_spec(app)
+
+            def glue(item, ctx, model=model, field=spec.reference_field):
+                model.objects.filter(pk=item.pk).update(**{field: 'reference.srt'})
+                return {}
+            with self.subTest(app=app), mock.patch(
+                    'wama.common.services.result_evaluation.evaluate',
+                    side_effect=lambda surface, item: measured.append(
+                        (surface, item.status)) or []):
+                self._run(app, model, glue)
+                self.assertIn((app, 'SUCCESS'), measured)
+
     def test_a_glue_that_raises_ends_in_failure_with_its_message(self):
         def glue(item, ctx):
             raise RuntimeError('panne du contrat')

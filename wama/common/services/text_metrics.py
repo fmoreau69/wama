@@ -29,9 +29,10 @@ from dataclasses import asdict, dataclass
 from typing import Optional, Sequence
 
 
-def comparable_words(text: str) -> list:
+def comparable_words(text: str, language: Optional[str] = None) -> list:
     """
-    Mots comparables : minuscules, sans ponctuation, **apostrophe traitée en séparateur**.
+    Mots comparables : minuscules, sans ponctuation, **apostrophe et soulignement traités en
+    séparateurs**, et — quand la `language` est donnée — **nombres écrits en chiffres**.
 
     La ponctuation est une DÉCISION de transcription, pas un désaccord d'écoute — la compter
     ferait diverger deux systèmes qui ont entendu la même chose.
@@ -41,8 +42,35 @@ def comparable_words(text: str) -> list:
     33 % de divergence alors que les deux systèmes ont entendu la même chose (mesuré le
     2026-08-13). On la coupe donc : les deux graphies rendent `['aujourd', 'hui']`. Même effet sur
     « m'appelle » vs « m appelle », et sur les élisions que les ASR écrivent différemment.
+
+    PROTOCOLE `text_v2` (2026-09-28, décision de Fabien pour l'évaluation sur SUMM-RE) :
+      • le SOULIGNEMENT sépare : les corpus oraux lient les locutions (`du_coup`, `parce_que`) —
+        une convention d'ANNOTATION, pas un mot entendu ; `\\w` le gardait dans le mot ;
+      • les NOMBRES s'écrivent pareil des deux côtés (`text2num`, MIT) : « vingt_quatre » d'un
+        corpus contre « 24 » d'un ASR n'est pas un désaccord d'écoute. Seulement si la langue est
+        connue (la conversion en dépend) : sans elle, le texte reste tel quel.
+    Les hésitations (« euh », « mh ») restent COMPTÉES — doctrine verbatim, inchangée.
     """
-    return re.findall(r'\w+', re.sub(r"['’]", ' ', (text or '').lower()))
+    text = re.sub(r"['’_]", ' ', text or '')
+    if language:
+        text = _numbers_as_digits(text, language)
+    return re.findall(r'\w+', text.lower())
+
+
+#: Langues que `text2num` sait lire — une autre langue passe sans conversion.
+NUMBER_LANGUAGES = frozenset({'fr', 'en', 'es', 'pt', 'de', 'nl', 'it'})
+
+
+def _numbers_as_digits(text: str, language: str) -> str:
+    """« vingt quatre » → « 24 » (même règle des deux côtés d'une comparaison)."""
+    lang = (language or '').split('-')[0].lower()
+    if lang not in NUMBER_LANGUAGES:
+        return text
+    try:
+        from text_to_num import alpha2digit
+        return alpha2digit(text, lang)
+    except Exception:
+        return text
 
 
 @dataclass(frozen=True)
@@ -65,16 +93,18 @@ class ErrorRate:
         return {**asdict(self), 'errors': self.errors}
 
 
-def word_error_rate(reference: str, hypothesis: str) -> ErrorRate:
+def word_error_rate(reference: str, hypothesis: str, language: Optional[str] = None) -> ErrorRate:
     """WER — taux d'erreur par MOT de `hypothesis` (la sortie) contre `reference`."""
-    return _error_rate(comparable_words(reference), comparable_words(hypothesis), 'word')
+    return _error_rate(comparable_words(reference, language),
+                       comparable_words(hypothesis, language), 'word')
 
 
-def character_error_rate(reference: str, hypothesis: str) -> ErrorRate:
+def character_error_rate(reference: str, hypothesis: str,
+                         language: Optional[str] = None) -> ErrorRate:
     """CER — taux d'erreur par CARACTÈRE, sur le même texte normalisé que le WER (mots séparés
     par une espace). Plus indulgent qu'un WER pour un mot presque juste (accord, élision)."""
-    return _error_rate(' '.join(comparable_words(reference)),
-                       ' '.join(comparable_words(hypothesis)), 'character')
+    return _error_rate(' '.join(comparable_words(reference, language)),
+                       ' '.join(comparable_words(hypothesis, language)), 'character')
 
 
 def _error_rate(reference: Sequence, hypothesis: Sequence, unit: str) -> ErrorRate:

@@ -32,7 +32,10 @@ logger = logging.getLogger(__name__)
 
 #: Version du protocole de mesure texte : normalisation de `text_metrics` (casse, ponctuation,
 #: apostrophe séparatrice, hésitations conservées). La changer change l'ÉCHELLE.
-TEXT_PROTOCOL = 'text_v1'
+#: `text_v2` (2026-09-28) : + soulignement séparateur, + nombres en chiffres dans la langue de
+#: l'élément. Les mesures `text_v1` déjà écrites restent sur leur échelle (une autre population,
+#: `internal_quality` ne les mêle pas) ; un élément remesuré passe en v2.
+TEXT_PROTOCOL = 'text_v2'
 
 #: Préfixe d'un résultat produit hors de WAMA : mesurable, jamais agrégé comme un modèle du parc.
 EXTERNAL_PREFIX = 'external:'
@@ -78,6 +81,9 @@ class EvaluationSpec:
     #: un schéma mêle réglages, ENTRÉES (le prompt d'un composer diffère d'un élément à l'autre
     #: sans en faire deux configurations) et options sans effet sur le résultat (un résumé).
     config_params: Tuple[str, ...] = ()
+    #: Langue du résultat (élément → code ISO ou '') — facultatif : la normalisation `text_v2`
+    #: écrit les nombres en chiffres DANS cette langue (`text_metrics.comparable_words`).
+    language: Optional[Callable[[object], str]] = None
 
 
 _REGISTRY: Dict[str, EvaluationSpec] = {}
@@ -158,19 +164,20 @@ def evaluate(surface: str, item) -> List:
         sha = _file_sha256(path)
         name = os.path.basename(reference.name)
         model_key = spec.model_key(item) or ''
+        language = (spec.language(item) or '') if spec.language else ''
 
         from wama.common.models import ResultEvaluation
         written = []
         known = _text_metrics()
         for metric in spec.metrics:
-            measure = known[metric][1](reference_text, hypothesis)
+            measure = known[metric][1](reference_text, hypothesis, language=language or None)
             row, _ = ResultEvaluation.objects.update_or_create(
                 app=surface, object_type=type(item).__name__, object_id=item.pk, metric=metric,
                 defaults={
                     'user': getattr(item, 'user', None), 'model_key': model_key,
                     'value': measure.rate, 'direction': 'lower', 'protocol': spec.protocol,
                     'reference_sha256': sha, 'reference_name': name,
-                    'detail': {**measure.as_dict(), 'reading': reading},
+                    'detail': {**measure.as_dict(), 'reading': reading, 'language': language},
                 })
             written.append(row)
         # Une métrique qui n'est plus déclarée ne doit pas survivre à côté des autres.

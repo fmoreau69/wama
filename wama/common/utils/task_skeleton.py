@@ -250,6 +250,32 @@ class _time_guard:
         return False
 
 
+def _measure_against_reference(app_id: str, model, item_id: int, ctx) -> None:
+    """Mesure l'item contre sa RÉFÉRENCE s'il en porte une (`result_evaluation`) — APRÈS le
+    SUCCESS, jamais dans la glu.
+
+    ⚠ Déplacé ici le 2026-09-29 : le transcriber mesurait À LA FIN DE SA GLU, donc AVANT que ce
+    squelette ne pose SUCCESS — et sa lecture du résultat refuse, à raison, un item non terminé.
+    Depuis son passage au squelette (25/09), aucune transcription ne se mesurait plus en fin de
+    tâche, SANS le moindre signal (la mesure est best-effort). Vu sur le lot SUMM-RE : card
+    réussie, référence posée, zéro ligne `ResultEvaluation`. Ici, l'ordre est garanti pour toute
+    app qui déclare une évaluation, et l'item est RELU (la glu a écrit en base, pas dans `item`).
+    """
+    try:
+        from wama.common.services.result_evaluation import evaluate, evaluation_spec
+        spec = evaluation_spec(app_id)
+        if spec is None:
+            return
+        fresh = model.objects.get(pk=item_id)
+        if not getattr(fresh, spec.reference_field, None):
+            return
+        if evaluate(app_id, fresh):
+            ctx.console("Évaluation contre la référence enregistrée ✓", level='info')
+    except Exception as exc:          # une mesure manquée ne fait jamais échouer un succès
+        logger.warning("[%s] mesure contre la référence de #%s impossible : %s",
+                       app_id, item_id, exc)
+
+
 def run_item_task(task, *, app_id: str, model, item_id: int, process,
                   vram_needed=None, model_key=None,
                   error_field: str = 'error_message', ingest_derive=None,
@@ -359,6 +385,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
             fields['processing_seconds'] = round(time.time() - t0, 1)
         model.objects.filter(pk=item_id).update(**fields)
         ctx.progress(100)
+        _measure_against_reference(app_id, model, item_id, ctx)
         nom = res.get('label') or _item_label(item, item_id)
         ctx.console(res.get('console_success') or f"✓ Terminé : {nom}", level='info')
         logger.info(f"=== {app_id} task DONE | item={item_id} ===")

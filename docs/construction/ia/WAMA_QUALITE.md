@@ -578,7 +578,9 @@ deux échelles qui **s'ajoutent**. Rien ne se substitue à rien — comme les ba
 interne coexistent au lieu de se remplacer.
 **Deux surfaces, un seul mécanisme de mesure** : les audios de Fabien par le port
 `reference_result` de la CARD (Q6, déjà tranchée) ; les jeux open data par les **tests nocturnes**,
-pour ne pas encombrer les tâches utilisateur.
+pour ne pas encombrer les tâches utilisateur. *(Révisé le 2026-09-28 par Fabien : **à la demande
+seulement** pour l'instant, par les LOTS du transcriber — voir « SUMM-RE évalué à la demande »
+plus bas. Le nocturne reste une piste.)*
 *J'avais écrit « ça change la source de vérité annoncée » — faux, et corrigé par Fabien.*
 
 #### Ce qu'il faut d'un corpus pour COMPARER des moteurs : du LONG
@@ -629,7 +631,7 @@ mémoire n'avaient atteints. Vérifiés ensuite par l'API HF, un par un :
 
 | jeu | ce que c'est | licence | volumes |
 |---|---|---|---|
-| **`linagora/SUMM-RE`** | **conversations de RÉUNION en français** (corpus Linagora, article HAL/Inria) — le registre exact du transcriber | ✅ **CC-BY-SA-4.0**, non *gated* | 15,5 Go · **45 réunions au split `test`** (+ 45 train, 50 dev) · colonnes `meeting_id`, `speaker_id`, `audio`, `segments`, `transcript` |
+| **`linagora/SUMM-RE`** | **conversations de RÉUNION en français** (corpus Linagora, article HAL/Inria) — le registre exact du transcriber | ✅ **CC-BY-SA-4.0**, non *gated* | 15,5 Go · **45 PISTES au split `test`** (+ 45 train, 50 dev) — ⚠ *corrigé le 2026-09-29 : une ligne est une piste de LOCUTEUR (micro-cravate, 48 kHz, ~21 min), pas une réunion ; 3-4 pistes par réunion, soit une douzaine de réunions au test* · colonnes `meeting_id`, `speaker_id`, `audio`, `segments`, `transcript` |
 | `ggfox00000/stt-summre-fr-test` | miroir du split test de SUMM-RE, prêt pour l'ASR | CC-BY-SA-4.0 | 13,8 Go · 124 items |
 | `ggfox00000/stt-cefc-fr-test` | miroir long format de **CEFC-Orfeo** (français parlé) | ⚠ `other` — à lire avant usage | 19,8 Go · 901 items · porte `duration_sec`, `n_segments`, `n_speakers` |
 
@@ -647,6 +649,42 @@ résultat de recherche.
 
 🔚 **Reste ouvert** : l'anglais est réglé par `earnings22` (1,92 Go) ⚠ **licence non déclarée en
 `cardData`**, à lire avant usage ; et la licence `other` du miroir CEFC-Orfeo.
+
+#### ✅ SUMM-RE ÉVALUÉ À LA DEMANDE, PAR LES LOTS DU TRANSCRIBER (construit le 2026-09-29)
+
+**Quatre décisions de Fabien (2026-09-28)** : *l'unité est la RÉUNION MIXÉE* (le cas d'usage réel
+est un enregistrement de salle, pas une piste de micro-cravate) ; *à la demande SEULEMENT* — la
+cadence nocturne écrite plus haut n'est pas retenue pour l'instant ; *normaliser les marques du
+corpus ET les nombres* ; *stocker en médiathèque SYSTÈME*. Et une consigne : *« tout existe dans
+le Transcriber pour évaluer les modèles. Il faut réutiliser l'existant. Ça fonctionne par
+batch. »*
+
+**Rien d'inventé en aval** — la commande `manage.py asr_eval_corpus summ-re` ne fait que préparer
+des ENTRÉES et poser des cards ; le reste est la chaîne existante :
+
+| étape | brique RÉUTILISÉE |
+|---|---|
+| plan : quelles pistes dans quels parquets, **sans télécharger l'audio** | lecture par plages HTTP (`HfFileSystem`) des seules colonnes `meeting_id`/`speaker_id` |
+| mixage : pistes → 16 kHz, sommées, normalisées en crête ; référence = segments de toutes les pistes triés par début, SRT `[Locuteur NNN]` | le lecteur de référence du transcriber (`transcript_documents.parse_cues`) retire l'étiquette du texte mesuré |
+| stockage : audio = nature **`speech`** (neuve : langue, locuteurs, corpus, partition, enregistrement), référence = nature `document` (`srt`/`vtt` admis) | `media_library/system_files.ingest_system_file` — **extrait** de `voice_refs.ingest_voice_file` (remplacement, retrait de l'ancien fichier, nom propre), la voix y délègue |
+| comparaison : **un LOT par réunion**, une card par moteur, toutes DÉSIGNANT le même audio système (pas de copie) | `tool_api.add_to_transcriber` (→ `designate`), `batch_common.attach_to_batch`, `tool_api.start_transcriber` |
+| mesure : référence posée sur le lot, mesurée à la fin de chaque card | `result_evaluation.attach_reference` → `evaluate` → `ResultEvaluation` → `internal_quality` (section « Qualité » du model_manager) |
+| description du corpus | manifeste `dataset` écrit à la main, `manifests/datasets/summ-re.json` (source, révision épinglée, licence, langue, axes, signaux dérivés) |
+
+**Protocole de mesure `text_v2`** (`common/services/text_metrics.py`) : le `_` du corpus lie des
+mots (`du_coup`, `vingt_quatre`) sans en être un ; les nombres sont écrits en chiffres des DEUX
+côtés dans la langue ENTENDUE (`text2num`, MIT) ; les hésitations restent COMPTÉES (verbatim).
+Les lignes `text_v1` restent sur leur échelle — `§4.1` : un indice n'est comparable qu'à
+l'intérieur de son protocole.
+
+⚠ **Biais connu, commun à tous les moteurs d'un lot** : sur la parole SUPERPOSÉE, la référence
+ordonne les mots par début de segment ; un moteur qui les rend autrement y perd des mots. Il
+déplace le NIVEAU, pas le classement.
+⚠ **Diarisation coupée** sur ces cards : elle ne change pas le texte mesuré, seulement le temps.
+⚠ **Le Hub limite les appels** (429 vécu au 2ᵉ fichier, jeton compris) : la commande attend et
+reprend ; la préparation est idempotente (une réunion déjà en médiathèque n'est pas retéléchargée,
+un lot déjà posé sur un audio ne l'est pas deux fois sans `--again`). Les parquets sont
+téléchargés un par un dans un dossier temporaire et supprimés après usage.
 
 ---
 
