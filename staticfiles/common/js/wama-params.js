@@ -348,6 +348,14 @@
       api.idAttr + ' value="' + esc(api.value) + '">';
   });
 
+  // Date et heure LOCALES (2026-09-28, programmation d'une card — `scheduled_actions.
+  // schedule_params`). La valeur lue est celle du navigateur (`AAAA-MM-JJTHH:MM`, sans fuseau) :
+  // le serveur la lit à l'heure de l'instance, comme le reste de l'interface.
+  registerRenderer('datetime', function (p, api) {
+    return '<input type="datetime-local" class="form-control form-control-sm w-auto" id="' +
+      api.id + '" ' + api.idAttr + ' value="' + esc(api.value || '') + '">';
+  });
+
   function controlHtml(p, ctx, value, resolver) {
     // dom_id : pont de MIGRATION — réutilise l'ID legacy d'un volet existant pour ne pas casser
     // le JS qui le référence (read/apply/save/async). Sinon ID schéma-driven 'wp-{ctx}-{name}'.

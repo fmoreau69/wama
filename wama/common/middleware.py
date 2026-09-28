@@ -60,7 +60,37 @@ class RunOutcomeCaptureMiddleware:
         except Exception:
             # Jamais de remontée : la réponse de l'utilisateur prime sur la télémétrie.
             logger.debug('[run_outcome_capture] captation impossible', exc_info=True)
+        try:
+            self._schedule_batch(request, response)
+        except Exception:
+            logger.debug('[run_outcome_capture] programmation du lot impossible', exc_info=True)
         return response
+
+    @staticmethod
+    def _schedule_batch(request, response):
+        """Un FICHIER BATCH peut programmer ses lignes (`--when`, `--at` ; calendrier, étape 3).
+
+        Même lecture générique que les gestes, pour la même raison : les onze apps créent leur lot
+        par un POST qui envoie `batch_file` et rend `batch_id` — mesuré, sous QUATRE noms de route
+        (`batch_create`, `audio_batch_create`, `batch_import`, `import_batch`). C'est ce contrat
+        de données, pas le nom de la route, qui déclenche.
+        """
+        if request.method != 'POST' or response.status_code >= 400:
+            return
+        if 'batch_file' not in getattr(request, 'FILES', {}):
+            return
+        if not getattr(request, 'user', None) or not request.user.is_authenticated:
+            return
+        if 'json' not in (response.get('Content-Type') or ''):
+            return
+        import json
+        batch_id = (json.loads(response.content or b'{}') or {}).get('batch_id')
+        match = getattr(request, 'resolver_match', None)
+        app = match and (match.app_name or match.namespace)
+        if not batch_id or not app:
+            return
+        from .services.scheduled_actions import schedule_from_batch
+        schedule_from_batch(request.user, app, match.url_name, batch_id)
 
     def _capter(self, request, response):
         match = getattr(request, 'resolver_match', None)
@@ -99,6 +129,13 @@ class RunOutcomeCaptureMiddleware:
         instance = model.objects.filter(pk=pk).first()
         if instance is None:
             return
+        if url_name in ('start', 'restart'):
+            # Le ▶ lance MAINTENANT : une programmation de cet élément n'a plus d'objet
+            # (décision de Fabien, 2026-09-28 : sans confirmation). Même lecture de route que
+            # les signaux — aucune app n'a de ligne à écrire. Filet : `dispatch_due` ne relance
+            # jamais un élément lancé depuis sa programmation.
+            from .services.scheduled_actions import cancel_for_item
+            cancel_for_item(app, pk)
         if signal is None:
             signal = self._signal_start(app, model.__name__, int(pk), request.user)
             if signal is None:

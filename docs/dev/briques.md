@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**162 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**163 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -476,6 +476,29 @@ Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité
 
 ## Qualité & auto-amélioration
 
+### Actions programmées (le QUAND)
+
+Programmer le lancement d'une card, d'une sélection ou d'un lot — menu commun, pastille sur la card, fichier batch (`--when`/`--at`) — depuis UN schéma (`schedule_params`). L'heure venue, `execute_tool` au nom de l'utilisateur (même porte que l'assistant) ; placement hors plages RÉSERVÉES ; le ▶ annule sans confirmation ; jamais de relance d'un élément lancé à la main entre-temps
+
+- **Domicile** : `wama/common/services/scheduled_actions.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : Actions PROGRAMMÉES — le QUAND du calendrier, étape 3 (2026-09-28). Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` point 13 ; la vue : `WAMA_MEMORY.md §9bis.1`.
+- **API publique** (15) :
+  - `class ScheduleError(ValueError)` — Une programmation refusée — le message est montré à l'utilisateur.
+  - `schedule_params()` — Le schéma de programmation (liste de `Param`).
+  - `parse_moment(value)` — Instant demandé → aware, ou None. Formes acceptées : ISO 8601 (avec ou sans fuseau), la
+  - `read_schedule(data)` — `(placement, instant demandé)` depuis des valeurs NOMMÉES PAR LE SCHÉMA (`when`, `at`).
+  - `reserved_window_at(moment)` — La plage réservée qui CONTIENT `moment`, ou None.
+  - `place(placement, requested, now)` — `(instant, plage en conflit)` d'une programmation.
+  - `start_tool_for(app, prefix='')` — Outil `start_*` d'une FILE, ou None. La file d'un domaine a le sien
+  - `target_of(tool)` — `(clé d'app, modèle, argument d'identifiant)` d'un outil `start_<app>`.
+  - `schedule_items(user, tool, ids, placement, requested=None, *, now=None)` — Programme le lancement des éléments `ids` par `tool`. Rend `{actions, conflict}`.
+  - `reschedule(user, action_id, placement, requested=None, *, now=None)` — Déplace une programmation. Même règle de placement ; un conflit ne change rien.
+  - `schedule_from_batch(user, app, route_name, batch_id, *, now=None) -> dict | None` — Programme les lignes d'un FICHIER BATCH qui portent `when` / `at` (`BATCH_FORMAT.md`).
+  - `cancel(user, action_id) -> bool`
+  - `cancel_for_item(app, object_id) -> int` — Le ▶ a lancé l'élément : sa programmation n'a plus d'objet (décision de Fabien : sans
+  - `active_for(user)`
+  - `dispatch_due(now=None) -> dict` — Lance ce qui est dû. Rend `{dispatched, skipped, failed}`.
+
 ### Ajout au RAG (geste explicite)
 
 Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision
@@ -521,7 +544,7 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
 
 - **Domicile** : `wama/common/services/calendar.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §9bis.1](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Calendrier — l'activité de WAMA posée sur l'axe du TEMPS. Doc : `WAMA_MEMORY.md §9bis.1` (la vue) ; plan d'ensemble — trois natures de temps, actions programmées, placement — : `WAMA_APP_GENERATION_ROUTE.md §10.6` point 13 (« le QUAND »).
-- **API publique** (13) :
+- **API publique** (14) :
   - `app_identity(app) -> tuple[str, str]` — `(libellé, couleur d'identité)` d'une app, pour les événements ET la légende.
   - `class CalendarEvent` — Un événement du calendrier. Volontairement MINCE, comme l'entrée du journal : le détail
   - `predicted_end(started_at, progress, now) -> datetime | None` — Fin prévue par le DÉBIT OBSERVÉ — la même règle que `wama-eta.js` côté navigateur :
@@ -533,6 +556,7 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
   - `maintenance_windows(start, end) -> list[CalendarEvent]` — Occurrences des entrées beat À HORAIRE (`crontab`) dans `[start, end)`.
   - `reserved_windows(start, end, resource=None) -> list[CalendarEvent]` — Fenêtres qui RÉSERVENT une ressource (`gpu`, `cpu`), ou toutes si `resource` est `None`.
   - `reserved_window_conflicts(start, end) -> list[tuple[CalendarEvent, CalendarEvent]]` — Paires `(fenêtre réservée, autre entrée planifiée qui la chevauche)` dans `[start, end)`.
+  - `declared_events(user, start, end) -> list[CalendarEvent]` — Les programmations ACTIVES de l'utilisateur (`ScheduledAction`, étape 3) — nature `voulu`.
   - `events_for(user, start, end, *, with_maintenance=True) -> list[CalendarEvent]`
   - `to_ics(events, *, host='wama', now=None) -> str` — Les événements au format iCalendar. `host` qualifie les UID (uniques et STABLES : un
 
@@ -1452,7 +1476,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (29) :
+- **API publique** (31) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -1476,6 +1500,8 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
+  - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
+  - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
   - `class Embedded(models.Model)` — Socle vectoriel commun au souvenir et au fragment. ABSTRAIT — aucune table.
   - `class MemoryItem(Embedded, ScopedVisibility)` — LE SOUVENIR — un fait, un événement ou une procédure. NON re-dérivable.
   - `class RagChunk(Embedded, ScopedVisibility)` — LE FRAGMENT — un morceau d'un document source. RE-DÉRIVABLE : la source fait foi, donc une
@@ -2191,7 +2217,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (29) :
+- **API publique** (31) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2215,6 +2241,8 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
+  - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
+  - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
   - `class Embedded(models.Model)` — Socle vectoriel commun au souvenir et au fragment. ABSTRAIT — aucune table.
   - `class MemoryItem(Embedded, ScopedVisibility)` — LE SOUVENIR — un fait, un événement ou une procédure. NON re-dérivable.
   - `class RagChunk(Embedded, ScopedVisibility)` — LE FRAGMENT — un morceau d'un document source. RE-DÉRIVABLE : la source fait foi, donc une

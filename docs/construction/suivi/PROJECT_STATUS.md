@@ -18483,3 +18483,44 @@ journal 200 sur `?app=cam_analyzer|face_analyzer|studio`.
 
 🔚 **Étape suivante** : étape 3 — `ScheduledAction` (outil `tool_api` + arguments, distributeur beat
 unique, « Programmer… » sur ▶, flux `.ics` à jeton révocable), `ROUTE §10.6` point 13.
+
+## §PALIER — 2026-09-28 (soir), « CALENDRIER » — étape 3 : PROGRAMMER, schéma-driven, jusqu'au fichier batch
+
+**Décisions de Fabien** : « Programmer… » au **menu de card** (clic droit et « … »), pas sur le ▶ ;
+le ▶ lance maintenant et **annule sans confirmation** ; *« on le fait bien schéma-driven »* ; *« les
+fichiers batch devraient pouvoir paramétrer la programmation »*.
+
+**Livré** (`ROUTE §10.6` 13.7, `WAMA_MEMORY §9bis.1`, `BATCH_FORMAT §Programmer une ligne`) :
+- `common.ScheduledAction` (outil `tool_api` + arguments, cible app/type/id, placement, `run_at`,
+  `rrule`, état de la PROGRAMMATION) et `common.CalendarFeed` (jeton `.ics` régénérable) — migration
+  **additive `common/0016`, APPLIQUÉE à la base live** le 28/09 (deux CREATE TABLE, `sqlmigrate` lu,
+  aucun DROP DEFAULT) ;
+- `services/scheduled_actions.py` : **UN schéma** (`schedule_params` : `when` — choix lus du modèle —,
+  `at`) lu par la fenêtre (`WamaParams.render`, type générique `datetime` ajouté par
+  `registerRenderer`), par l'API (`read_schedule`, bornes = `invalid_choice_values`) et par le
+  fichier batch ; placement hors **plages réservées** (manuel : refus + fin de plage proposée) ;
+  distributeur `dispatch_due` (entrée beat `dispatch-scheduled-actions`, 60 s, verrou + marquage avant
+  appel, `execute_tool` au nom de l'utilisateur, jamais de relance d'un élément lancé à la main,
+  échec notifié, récurrence) ;
+- ▶ = annulation par le middleware des gestes (`start`/`restart`) ; **fichier batch** = même
+  middleware, déclenché par le CONTRAT DE DONNÉES (POST avec `batch_file`, réponse `batch_id` — onze
+  apps, quatre noms de route), lignes relues dans l'ordre (`batch_elements`), alignement vérifié ;
+- file : `queue_dnd_attrs` émet `data-schedule-url`/`-tool` (outil dérivé par `start_tool_for`) ;
+  menu commun « Programmer… / (N)… / le lot… » ; `wama-schedule.js` (fenêtre + pastille « Programmé ·
+  … » Modifier/Annuler, suit les cards redessinées) ; calendrier : couche **Programmé**, bouton
+  « S'abonner » (lien `.ics` à jeton) ; gabarit batch de chaque app : options documentées d'office.
+
+**Validé** : `tests_scheduled_actions` 30 (dont le VRAI `batch_create` du describer) ; contre-épreuve :
+branchement batch neutralisé → rouge ; 1132 tests des modules des briques touchées : **4 rouges NON
+attribuables** (aucun ne passe par ces fichiers ; aucune ligne relevée par la langue n'est de ce
+palier) — `tests_tool_api_designation` (`add_to_converter`, désignation en cours d'une autre
+instance), `tests_tool_api_lectures.AddItemToMediaLibraryTest`, `tests_mcp_dev_tools.TachesTest`
+×2 (tâches en sous-processus qui expirent) ; smoke navigateur (serveur 8011, compte de test, témoin
+supprimé) : clic droit → « Programmer… » → fenêtre rendue du schéma (3 radios + date) → 05:00 refusé
+« Tests nocturnes — fonctionnels (GPU) », fin proposée 07:30 → 14:00 accepté → pastille → événement
+« Programmé » au calendrier → Annuler → pastille retirée, plus rien d'actif ; console propre.
+
+**Effectif au redémarrage** : beat (nouvelle entrée), gunicorn (vues, middleware, gabarits, statics).
+
+🔚 **Étape suivante** : étape 4 — placement MESURÉ sur l'activité (histogramme de `RunOutcome`) au
+lieu des heures creuses déclarées ; la récurrence à l'interface.

@@ -44,7 +44,7 @@ SCOPE_INSTANCE = 'instance'
 #: Facette « nature » de la barre de filtrage commune. La maintenance de l'instance a sa propre
 #: valeur : c'est une couche, pas une nature de temps (ses occurrences sont `predicted`).
 NATURE_LABELS = {NATURE_OBSERVED: 'Réalisé', NATURE_PREDICTED: 'Prévu',
-                 'maintenance': 'Maintenance de WAMA'}
+                 NATURE_DECLARED: 'Programmé', 'maintenance': 'Maintenance de WAMA'}
 
 #: Bloc minimal d'un événement ponctuel : un item jamais exécuté (seul son dépôt est daté), ou
 #: une exécution dont la durée n'a pas été persistée. Sans lui, l'événement serait invisible
@@ -564,9 +564,35 @@ def reserved_window_conflicts(start, end) -> list[tuple[CalendarEvent, CalendarE
     return conflicts
 
 
+def declared_events(user, start, end) -> list[CalendarEvent]:
+    """Les programmations ACTIVES de l'utilisateur (`ScheduledAction`, étape 3) — nature `voulu`."""
+    if not getattr(user, 'is_authenticated', False):
+        return []
+    from ..models import ScheduledAction
+    from .journal import app_queue_url, sources
+
+    worlds = {src.app: src.monde for src in sources()}
+    events = []
+    for action in (ScheduledAction.objects
+                   .filter(user=user, state=ScheduledAction.STATE_SCHEDULED,
+                           run_at__gte=start, run_at__lt=end)[:MAX_ITEMS_PER_SOURCE]):
+        _label, color = app_identity(action.app) if action.app else ('', MAINTENANCE_COLOR)
+        item_id = int(action.object_id) if action.object_id.isdigit() else None
+        events.append(CalendarEvent(
+            key=f'schedule:{action.pk}', title=f'Programmé : {action.title or action.tool}',
+            start=action.run_at, end=action.run_at + timedelta(minutes=POINT_MINUTES),
+            nature=NATURE_DECLARED, scope=SCOPE_USER, app=action.app,
+            world=worlds.get(action.app, ''), status='PENDING', color=color,
+            url=app_queue_url(action.app) if action.app else '', item_id=item_id,
+            duration_source='declared',
+            extra={'kind': 'schedule', 'scheduleId': action.pk, 'placement': action.placement},
+        ))
+    return events
+
+
 def events_for(user, start, end, *, with_maintenance=True) -> list[CalendarEvent]:
     events = (observed_events(user, start, end) + batch_events(user, start, end)
-              + expiry_events(user, start, end))
+              + expiry_events(user, start, end) + declared_events(user, start, end))
     if with_maintenance:
         events += maintenance_windows(start, end)
     return events

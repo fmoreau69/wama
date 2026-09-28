@@ -139,6 +139,18 @@ def run_nightly_tests_task(app=None, stage=None):
     return report.get('summary')
 
 
+@shared_task(name='common.dispatch_scheduled_actions')
+def dispatch_scheduled_actions_task():
+    """Lance les actions PROGRAMMÉES dues (`services/scheduled_actions.py`). Planifiée par beat
+    toutes les minutes ; ne charge aucun modèle — elle appelle l'outil de lancement, qui met la
+    vraie tâche dans SA file (le gouverneur reste seul juge de l'admission)."""
+    from wama.common.services.scheduled_actions import dispatch_due
+    summary = dispatch_due()
+    if any(summary.values()):
+        logger.info("[schedule] %s", summary)
+    return summary
+
+
 @shared_task(name='common.purge_expired_media')
 def purge_expired_media_task(dry_run=False):
     """

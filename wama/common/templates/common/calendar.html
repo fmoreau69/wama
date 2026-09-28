@@ -70,6 +70,10 @@ Couleurs : l'IDENTITÉ de l'app (`APP_CATALOG[…]['color']`, dérivée par cat�
     #wama-calendar .fc-event.wama-cal-predicted.wama-cal-scope-user {
         border-style: dashed !important; border-width: 2px !important; opacity: .9;
     }
+    /* PROGRAMMÉ (`ScheduledAction`) : liseré pointillé ambre — une intention, pas une exécution. */
+    #wama-calendar .fc-event.wama-cal-declared {
+        border: 2px dotted #ffc107 !important;
+    }
     .calendar-empty { color: #adb5bd; font-size: .85rem; }
 </style>
 {% endblock %}
@@ -104,6 +108,38 @@ Couleurs : l'IDENTITÉ de l'app (`APP_CATALOG[…]['color']`, dérivée par cat�
        href="{% url 'common:calendar_ics' %}" title="Exporter au format iCalendar (Outlook, Thunderbird…)">
       <i class="fas fa-file-export me-1"></i> Exporter (.ics)
     </a>
+    {% comment %}ABONNEMENT (étape 3) : un client de calendrier ne porte pas la session, il lui
+    faut une URL à JETON — régénérable, ce qui révoque l'ancienne (`common.CalendarFeed`).{% endcomment %}
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="wama-calendar-subscribe"
+            data-feed-url="{% url 'common:calendar_feed' %}"
+            title="Lien à ajouter dans Outlook, Thunderbird… — votre calendrier s'y met à jour seul">
+      <i class="fas fa-rss me-1"></i> S'abonner
+    </button>
+  </div>
+
+  <div class="modal fade" id="wama-calendar-feed-modal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark text-light border-secondary">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title"><i class="fas fa-rss me-2"></i>S'abonner à mon calendrier</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-secondary">Ajoutez ce lien comme « calendrier Internet » dans votre
+            client (Outlook, Thunderbird, Agenda…). Il est personnel : quiconque le possède voit vos
+            activités. Régénérez-le pour révoquer l'ancien.</p>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control" id="wama-calendar-feed-url" readonly>
+            <button class="btn btn-outline-secondary" type="button" id="wama-calendar-feed-copy">
+              <i class="fas fa-copy"></i></button>
+          </div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-sm btn-outline-danger" id="wama-calendar-feed-regenerate">Régénérer</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="wama-calendar"

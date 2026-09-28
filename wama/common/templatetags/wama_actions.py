@@ -135,6 +135,14 @@ def queue_dnd_attrs(app, domain=None):
         # « Résultat existant… » (port `work_result`) : seulement si l'app sait le reprendre.
         ('data-result-import-url', _result_import_url(app)),
     ]
+    # « Programmer… » (calendrier, étape 3 — ROUTE §10.6 point 13) : seulement si la file a un
+    # OUTIL de lancement dans `tool_api` — c'est lui que le distributeur appellera (dérivation
+    # unique, partagée avec le fichier batch : `scheduled_actions.start_tool_for`).
+    from wama.common.services.scheduled_actions import start_tool_for
+    tool = start_tool_for(app, p)
+    if tool:
+        paires += [('data-schedule-url', reverse('common:schedule_create')),
+                   ('data-schedule-tool', tool)]
     presents = [(k, v) for k, v in paires if v]
     if not presents:
         return ''

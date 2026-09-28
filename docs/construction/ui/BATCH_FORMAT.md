@@ -143,6 +143,32 @@ prompt,voice,speed,output
   `is_structured_batch_text()` = CSV à en-têtes **ou** balises ; `parse_unified_batch()`
   et `parse_structured_batch_text()` dispatchent automatiquement.
 
+## Programmer une ligne (`--when`, `--at`) — 2026-09-28
+
+Une ligne peut programmer le lancement de son élément (calendrier, `WAMA_APP_GENERATION_ROUTE
+§10.6` 13.7) — deux options, les noms du SCHÉMA de la programmation
+(`scheduled_actions.schedule_params`) :
+
+```
+-i https://exemple.org/a.jpg --when off_peak          # en heures creuses
+-i https://exemple.org/b.jpg --when asap              # dès que possible, hors plages réservées
+-i https://exemple.org/c.jpg --at 2026-10-01T22:00    # à cette date (heure de l'instance)
+```
+
+```csv
+input,at
+https://exemple.org/d.jpg,2026-10-01T22:00
+```
+
+- `when` ∈ `manual | asap | off_peak` ; `at` seul vaut `manual`. ⚠ Écrire la date **sans espace**
+  (`T` entre jour et heure) ou entre guillemets : `--at 2026-10-01 22:00` couperait la valeur.
+- Une date dans une **plage réservée** (tests nocturnes) est refusée ; le refus arrive en
+  notification DANS WAMA, avec la ligne concernée. Les autres lignes sont programmées.
+- ⚠ **Syntaxes 1 et 2 seulement** : le positionnel hérité n'a pas d'options.
+- Aucune app n'a de code à écrire : le lien se fait APRÈS la création du lot, par le middleware des
+  gestes, qui relit le fichier archivé ligne à ligne. Si l'app a écarté des lignes, rien n'est
+  programmé (l'alignement ligne ↔ élément ne serait plus sûr) et c'est notifié.
+
 ## Comment sait-on qu'un fichier texte est un LOT ? (règle de décision, 2026-08-22)
 
 C'est LA question qui bloquait, et elle ne se pose que pour le texte : un `.mp4` n'est

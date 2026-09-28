@@ -25,7 +25,9 @@ ALL_CONTEXTS = ("item", "batch", "panel")
 class Param:
     """Description d'UN paramètre, indépendante de la surface de rendu."""
     name: str
-    type: str                                   # toggle|select|radio|text|textarea|number|range|intent
+    type: str                                   # toggle|select|radio|text|textarea|number|range|intent|datetime
+                                                # (`datetime` = date et heure locales, 2026-09-28 :
+                                                #  programmation d'une card)
                                                 # (`intent` = le curseur rapide/qualité commun,
                                                 #  `auto_model.intent_param` ; borné par coerce_params)
     label: str = ""

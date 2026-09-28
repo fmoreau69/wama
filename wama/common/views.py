@@ -937,6 +937,129 @@ def calendar_ics(request):
     return response
 
 
+def _json_body(request):
+    import json
+    try:
+        return json.loads(request.body or b'{}')
+    except ValueError:
+        return {}
+
+
+def _action_json(action):
+    """Une programmation, avec ses valeurs NOMMÉES PAR LE SCHÉMA (`when`, `at`) : la fenêtre
+    « Modifier » les rend telles quelles par `WamaParams.render`."""
+    from django.utils import timezone
+
+    from .services.scheduled_actions import FIELD_AT, FIELD_WHEN
+    return {'id': action.pk, 'tool': action.tool, 'app': action.app,
+            'objectId': action.object_id, 'title': action.title,
+            'runAt': action.run_at.isoformat(),
+            'values': {FIELD_WHEN: action.placement,
+                       FIELD_AT: timezone.localtime(action.run_at).strftime('%Y-%m-%dT%H:%M')}}
+
+
+def _conflict_json(window):
+    return {'title': window.title, 'start': window.start.isoformat(),
+            'end': window.end.isoformat(), 'suggested': window.end.isoformat()}
+
+
+@login_required
+@require_POST
+def schedule_create(request):
+    """Programme le lancement d'une ou plusieurs cards (menu « Programmer… », ROUTE §10.6 13).
+
+    Corps JSON : `{tool, ids, when, at?}` — les noms du SCHÉMA (`schedule_params`), ceux d'une
+    ligne de fichier batch. Un placement manuel qui tombe dans une plage réservée ne crée rien :
+    la réponse porte `conflict` (la plage, et sa fin proposée)."""
+    from .services.scheduled_actions import ScheduleError, read_schedule, schedule_items
+
+    data = _json_body(request)
+    try:
+        placement, requested = read_schedule(data)
+        result = schedule_items(request.user, data.get('tool', ''), data.get('ids') or [],
+                                placement, requested)
+    except ScheduleError as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=400)
+    if result['conflict'] is not None:
+        return JsonResponse({'ok': False, 'conflict': _conflict_json(result['conflict'])})
+    return JsonResponse({'ok': True, 'actions': [_action_json(a) for a in result['actions']]})
+
+
+@login_required
+@require_POST
+def schedule_update(request, pk):
+    from .services.scheduled_actions import ScheduleError, read_schedule, reschedule
+
+    data = _json_body(request)
+    try:
+        placement, requested = read_schedule(data)
+        result = reschedule(request.user, pk, placement, requested)
+    except ScheduleError as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=400)
+    if result['conflict'] is not None:
+        return JsonResponse({'ok': False, 'conflict': _conflict_json(result['conflict'])})
+    return JsonResponse({'ok': True, 'actions': [_action_json(result['action'])]})
+
+
+@login_required
+@require_POST
+def schedule_cancel(request, pk):
+    from .services.scheduled_actions import cancel
+    return JsonResponse({'ok': cancel(request.user, pk)})
+
+
+@login_required
+@require_GET
+def schedule_active(request):
+    """Programmations actives de l'utilisateur (les pastilles des cards se posent d'après elles)
+    et le SCHÉMA de la fenêtre « Programmer… » — une seule requête au chargement de la file."""
+    from .services.scheduled_actions import active_for, schedule_params
+    from .utils.param_schema import schema_to_dicts
+    return JsonResponse({'actions': [_action_json(a) for a in active_for(request.user)],
+                         'schema': schema_to_dicts(schedule_params())})
+
+
+@login_required
+@require_POST
+def calendar_feed(request):
+    """Crée — ou RÉGÉNÈRE (`regenerate=1`) — le jeton d'abonnement `.ics`. Régénérer tue l'ancien
+    lien aussitôt : c'est la révocation."""
+    import secrets
+
+    from django.urls import reverse
+
+    from .models import CalendarFeed
+
+    feed = CalendarFeed.objects.filter(user=request.user).first()
+    if feed is None or request.POST.get('regenerate') == '1':
+        token = secrets.token_urlsafe(32)
+        feed, _ = CalendarFeed.objects.update_or_create(user=request.user,
+                                                        defaults={'token': token})
+    url = request.build_absolute_uri(reverse('common:calendar_feed_ics', args=[feed.token]))
+    return JsonResponse({'ok': True, 'url': url})
+
+
+@require_GET
+def calendar_feed_ics(request, token):
+    """Le calendrier d'un utilisateur pour un client qui s'ABONNE : authentifié par le jeton, pas
+    par la session. 90 jours passés, 60 à venir."""
+    from datetime import timedelta
+
+    from django.http import Http404, HttpResponse
+    from django.utils import timezone
+
+    from .models import CalendarFeed
+    from .services.calendar import events_for, to_ics
+
+    feed = CalendarFeed.objects.select_related('user').filter(token=token).first()
+    if feed is None or not feed.user.is_active:
+        raise Http404
+    now = timezone.now()
+    events = events_for(feed.user, now - timedelta(days=90), now + timedelta(days=60))
+    return HttpResponse(to_ics(events, host=request.get_host() or 'wama'),
+                        content_type='text/calendar; charset=utf-8')
+
+
 @login_required
 def notifications_view(request):
     """Les notifications DANS WAMA du compte connecté — `WAMA_COLLABORATION.md §2.3` et §5.3 :

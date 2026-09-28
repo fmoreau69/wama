@@ -118,6 +118,13 @@ urlpatterns = [
     path('calendar/', views.calendar_view, name='calendar'),
     path('calendar/events/', views.calendar_events, name='calendar_events'),
     path('calendar/export.ics', views.calendar_ics, name='calendar_ics'),
+    path('calendar/feed/', views.calendar_feed, name='calendar_feed'),
+    path('calendar/feed/<str:token>.ics', views.calendar_feed_ics, name='calendar_feed_ics'),
+    # Actions PROGRAMMÉES (étape 3, ROUTE §10.6 point 13) — menu « Programmer… » des cards.
+    path('schedule/', views.schedule_create, name='schedule_create'),
+    path('schedule/active/', views.schedule_active, name='schedule_active'),
+    path('schedule/<int:pk>/', views.schedule_update, name='schedule_update'),
+    path('schedule/<int:pk>/cancel/', views.schedule_cancel, name='schedule_cancel'),
 
     # Notifications DANS WAMA (WAMA_COLLABORATION.md §2.3, §5.3) — badge de l'en-tête.
     path('notifications/', views.notifications_view, name='notifications'),
