@@ -452,6 +452,8 @@ class AnalysisPass(models.Model):
         DEPTH = 'depth', 'Profondeur (monoculaire)'
         DEPTH_CALC = 'depth_calc', 'Calculs profondeur (plan de sol / distances)'
         LANE_MAP_RECALAGE = 'lane_map_recalage', 'Recalage voie + carte (latéral + cap navette)'
+        ORTHO_RECALAGE = 'ortho_recalage', 'Recalage ortho (passages piétons IGN, mesure)'
+        ORTHO_CORRECTION = 'ortho_correction', 'Correction de trajectoire ortho (ancres)'
         GLOBAL_TRACKING = 'global_tracking', 'Tracking 360° (gids + trajectoires)'
         INDICATORS = 'indicators', 'Indicateurs (TTC/PET + insertions)'
         CONFLICTS = 'conflicts', 'Conflits'

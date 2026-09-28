@@ -355,7 +355,9 @@ _spec('ortho_recalage', 'Recalage absolu ortho', "Segmente les passages piétons
                                      'note': 'dispersion par intersection dans le rapport'},
                         derived_from=['orthophoto', 'segmentation'])])
 _spec('ortho_correction', 'Correction de trajectoire (ortho)',
-      "APPLIQUE le recalage mesuré à la trajectoire, derrière la bascule ⚑ ortho_correction. "
+      "CALCULE les ancres de correction tirées du recalage mesuré ; la bascule ⚑ ortho_correction "
+      "choisit à la lecture de les appliquer (serveur : `ego_pose.effective_gps_track` ; affichage : "
+      "même interpolation). "
       "La médiane globale est tenue pour un biais de PROJECTION caméra et n'est PAS appliquée ; "
       "seul l'écart LOCAL par intersection corrige le GPS, interpolé entre repères et atténué "
       "là où le ciel est dégagé (masquage satellite BD TOPO). Séparée de la mesure : "

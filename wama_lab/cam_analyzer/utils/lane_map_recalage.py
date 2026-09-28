@@ -150,7 +150,7 @@ def compute_lane_map_recalage(session, *, persist=True):
     from wama_data.functions.driving.lane_map_matching import lane_map_recalage
     from .ego_pose import effective_gps_track
 
-    gt = effective_gps_track(session, lane_map=False)   # jamais la correction sur elle-même
+    gt = effective_gps_track(session, lane_map=False)   # ni elle-même ni l'ortho (appliquée après)
     frames = {}
     lanes, source = lane_observations(session, frames)
     report = {'lane_observations': len(lanes), 'projection': source, 'lane_frames': frames}

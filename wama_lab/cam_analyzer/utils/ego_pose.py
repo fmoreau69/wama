@@ -310,13 +310,17 @@ def compute_shuttle_filter(session):
     return report
 
 
-def effective_gps_track(session, lane_map=True):
+def effective_gps_track(session, lane_map=True, ortho=True):
     """Trace navette EFFECTIVE pour le POSITIONNEMENT — point d'accès UNIQUE côté serveur.
 
-    Deux corrections, dans cet ordre, chacune derrière SA bascule : ⚑ `shuttle_filter` (Kalman +
-    RTS) puis ⚑ `lane_map_recalage` (latéral + cap par la voie vue et l'axe IGN, 2026-09-28 —
-    `utils.lane_map_recalage`). `lane_map=False` rend la trace SANS la seconde : c'est ce que lit
-    son propre calcul, qui ne doit jamais se corriger lui-même.
+    Trois corrections, dans cet ordre (celui de l'affichage), chacune derrière SA bascule :
+    ⚑ `shuttle_filter` (Kalman + RTS), ⚑ `lane_map_recalage` (latéral + cap par la voie vue et
+    l'axe IGN, `utils.lane_map_recalage`) puis ⚑ `ortho_correction` (ancres 2b, passages piétons
+    de l'orthophoto — appliquée côté serveur depuis le 2026-09-28 : elle ne l'était qu'à
+    l'affichage). `lane_map=False` / `ortho=False` rendent la trace SANS la correction nommée
+    NI CELLES D'APRÈS : c'est ce que lit le calcul de chacune, qui ne doit jamais se corriger
+    lui-même (le recalage ortho MESURE sur les marquages monde, donc `marking_world` lit
+    `ortho=False`).
 
     ⚑ `shuttle_filter` ON et calcul présent → trace dont `lat`/`lon`/`heading` sont les valeurs
     FILTRÉES (les brutes restent en `*_raw`, et `heading_held` dit si le cap est tenu — ce
@@ -333,6 +337,7 @@ def effective_gps_track(session, lane_map=True):
         from .features import enabled
         use_filter = enabled(session, 'shuttle_filter')
         use_lane = lane_map and enabled(session, 'lane_map_recalage')
+        use_ortho = lane_map and ortho and enabled(session, 'ortho_correction')
     except Exception:
         return gt
     out = gt
@@ -355,6 +360,33 @@ def effective_gps_track(session, lane_map=True):
     corr = ((session.results_summary or {}).get('lane_map_recalage') or {}).get('track') or []
     if use_lane and corr:
         out = apply_lane_map_correction(out, corr)
+    anchors = ((session.results_summary or {}).get('ortho_correction') or {}).get('anchors') or []
+    if use_ortho and anchors:
+        out = apply_ortho_correction(out, anchors)
+    return out
+
+
+def apply_ortho_correction(track, anchors):
+    """Applique les ancres ortho 2b (`trajectory_offset.offset_at`, interpolation pondérée, jamais
+    d'extrapolation) — une TRANSLATION par ts. Miroir de `_applyOrthoCorrection` (JS) ; les
+    valeurs d'avant restent en `*_preortho` (le JS les nomme `*_raw`, que le filtre navette
+    occupe déjà côté serveur)."""
+    from wama_data.functions.driving.trajectory_offset import offset_at
+    out = []
+    for p in track:
+        if p.get('ts') is None or p.get('lat') is None:
+            out.append(p)
+            continue
+        de, dn = offset_at(anchors, float(p['ts']))
+        if not de and not dn:
+            out.append(p)
+            continue
+        q = dict(p)
+        q['lat_preortho'], q['lon_preortho'] = p['lat'], p['lon']
+        q['lat'] = p['lat'] + dn / 111320.0
+        q['lon'] = p['lon'] + de / (111320.0 * max(math.cos(math.radians(p['lat'])), 1e-6))
+        q['corr_de_m'], q['corr_dn_m'] = de, dn
+        out.append(q)
     return out
 
 

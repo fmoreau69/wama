@@ -54,6 +54,9 @@ document.addEventListener('DOMContentLoaded', function () {
     let showLaneVideo = false;       // projeter le gabarit de voie SUR la vidéo (calibration)
     let laneCamHeightM = 2.4;        // hauteur caméra (m) — rig ENA : ~2 m au-dessus du plancher + châssis ≈ 0,4 m
     let miniMapLaneLayer = null;     // calque du gabarit de voie
+    let miniMapBuildingsLayer = null; // emprises BD TOPO (⚑ map_buildings), chargées par zone
+    let buildingsCenter = null;      // centre [lat, lon] de la dernière zone demandée
+    let buildingsLoading = false;
     let topDown360 = false;          // fusion multi-caméra dans le repère véhicule (toggle)
     let usePrediction = false;         // coloration Prédiction (trajectoire) vs ttc_s naïf (toggle)
     let hideParked = false;            // masquer les véhicules stationnés/garés (toggle)
@@ -1234,7 +1237,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Re-render windows everywhere — dropdown, seek-bar markers, mini-map.
             const windows = data.intersection_windows || [];
             renderIntersectionWindows(windows);
-            renderMiniMap(cachedGpsTrack || [], windows);
+            renderMiniMap(rawGpsTrack, windows, { keepView: true });
         } catch (e) {
             console.error('recomputeWindows failed:', e);
             alert('Erreur réseau lors du recalcul');
@@ -2428,7 +2431,13 @@ document.addEventListener('DOMContentLoaded', function () {
     let miniMapClickMarker = null;
     let miniMapPassHighlight = null;   // polyline showing the current pass in its colour
     let miniMapHighlightedPassIdx = -1; // last rendered pass — avoids 60Hz polyline rebuilds
-    let cachedGpsTrack = [];           // [{ts, lat, lon}, ...] downsampled
+    let cachedGpsTrack = [];           // [{ts, lat, lon}, ...] downsampled — trace CORRIGÉE (⚑)
+    // Trace telle que servie, AVANT les corrections ⚑ : c'est elle qu'on ré-ingère quand une
+    // bascule de trajectoire change — ré-ingérer `cachedGpsTrack` empilerait les corrections.
+    let rawGpsTrack = [];
+    let lastMiniMapWindows = [];
+    const TRACK_FEATURES = new Set(['shuttle_filter', 'lane_map_recalage', 'ortho_correction',
+                                    'antenna_lever']);
 
     // ── Vue de dessus (couche objets sur la carte, zoom sémantique) ─────────
     let miniMapObjectLayer = null;     // marqueurs objets (X,Y → lat/lon)
@@ -2509,9 +2518,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 camFeat[f.key] = cb.checked;
                 rebuildCamGeo();
                 topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
+                // Une bascule de TRAJECTOIRE change la trace elle-même : la ré-ingérer (sinon
+                // la carte montrait l'ancienne jusqu'au rechargement de la page).
+                if (TRACK_FEATURES.has(f.key)) renderMiniMap(rawGpsTrack, lastMiniMapWindows, { keepView: true });
                 {
                     const _t = playheadT();
                     topDownLastRender = -999;
+                    if (f.key === 'map_buildings') { buildingsCenter = null; updateBuildingsLayer(findGpsAtTime(_t)); }
                     updateMiniMapShuttle(_t);
                     updateDetectionOverlay(_t);
                 }
@@ -2773,7 +2786,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function renderMiniMap(gpsTrack, intersectionWindows) {
+    function renderMiniMap(gpsTrack, intersectionWindows, opts) {
         initMiniMap();
         if (!miniMap) return;
         addMapControls();   // boutons Calibrer/Suivi sur la carte (pas sur le viewport)
@@ -2781,9 +2794,20 @@ document.addEventListener('DOMContentLoaded', function () {
         // Point d'ingestion UNIQUE de la trace : corriger ici propage à tout l'aval
         // (trace, pose ego, projections caméra) sans toucher aux consommateurs.
         // Ordre : filtre navette (⚑ shuttle_filter), recalage voie + carte (⚑ lane_map_recalage),
-        // PUIS correction ortho (⚑ ortho_correction) — les deux premiers comme le serveur.
+        // PUIS correction ortho (⚑ ortho_correction) — le même que `ego_pose.effective_gps_track`.
+        // On corrige toujours la trace SERVIE (`rawGpsTrack`) : un appelant qui repasse la trace
+        // déjà corrigée ne doit pas voir les corrections s'empiler.
+        if (gpsTrack !== cachedGpsTrack) {
+            const fresh = Array.isArray(gpsTrack) ? gpsTrack : [];
+            if (fresh !== rawGpsTrack) {           // autre session / autre trace : zone à recharger
+                buildingsCenter = null;
+                if (miniMapBuildingsLayer) miniMapBuildingsLayer.clearLayers();
+            }
+            rawGpsTrack = fresh;
+        }
+        lastMiniMapWindows = intersectionWindows || [];
         cachedGpsTrack = _applyOrthoCorrection(_applyLaneMapRecalage(_applyShuttleFilter(
-            Array.isArray(gpsTrack) ? gpsTrack.filter(p => p.lat && p.lon) : [])));
+            rawGpsTrack.filter(p => p.lat && p.lon))));
 
         // Clear previous layers
         if (miniMapPolyline) { miniMap.removeLayer(miniMapPolyline); miniMapPolyline = null; }
@@ -2828,8 +2852,11 @@ document.addEventListener('DOMContentLoaded', function () {
             }).addTo(miniMap);
         }
 
-        // Fit map to data
-        if (miniMapPolyline) {
+        // Fit map to data — sauf quand on ne fait que redessiner la trace (bascule ⚑) : la vue
+        // de l'utilisateur ne doit pas sauter.
+        if (opts && opts.keepView) {
+            /* vue conservée */
+        } else if (miniMapPolyline) {
             miniMap.fitBounds(miniMapPolyline.getBounds(), { padding: [12, 12] });
         } else if (miniMapIntersectionLayers.length > 0) {
             const grp = L.featureGroup(miniMapIntersectionLayers);
@@ -2914,8 +2941,47 @@ document.addEventListener('DOMContentLoaded', function () {
             // updateTopDown, APRÈS le return early zoom<17 → pas de suivi dézoomé).
             if (topDownAutoFollow) miniMap.panTo([p.lat, p.lon], { animate: false });
         }
+        updateBuildingsLayer(p);
         updateMiniMapPassHighlight(currentTime);
         updateTopDown(currentTime);
+    }
+
+    // ⚑ map_buildings — emprises BD TOPO autour de la navette, chargées par ZONE (rayon 250 m,
+    // nouvelle zone quand la navette s'est éloignée de 120 m) par `session_buildings` (cache
+    // serveur 24 h). Groupe PROPRE (le gabarit de voie est effacé à chaque image) et renvoyé au
+    // fond de l'overlayPane — surtout pas de pane personnalisé : la mini-carte est pivotée.
+    function updateBuildingsLayer(pose) {
+        if (!miniMap || typeof L === 'undefined') return;
+        if (!(camFeat && camFeat['map_buildings'])) {
+            if (miniMapBuildingsLayer) miniMapBuildingsLayer.clearLayers();
+            buildingsCenter = null;
+            return;
+        }
+        if (!pose || !currentSessionId || buildingsLoading) return;
+        if (buildingsCenter && Math.hypot((pose.lat - buildingsCenter[0]) * 111320,
+                (pose.lon - buildingsCenter[1]) * 111320 * Math.cos(pose.lat * Math.PI / 180)) < 120) return;
+        // Le centre est posé AVANT la réponse : un échec ne relance pas une requête par image.
+        const c = [pose.lat, pose.lon];
+        buildingsCenter = c;
+        buildingsLoading = true;
+        fetch(`${config.urls.deleteSession}${currentSessionId}/buildings/?lat=${c[0]}&lon=${c[1]}&radius=250`)
+            .then(r => r.json())
+            .then(d => {
+                if (!d.success) { console.warn('[buildings]', d.error); return; }
+                if (!(camFeat && camFeat['map_buildings'])) return;   // décochée pendant la requête
+                if (!miniMapBuildingsLayer) miniMapBuildingsLayer = L.layerGroup().addTo(miniMap);
+                miniMapBuildingsLayer.clearLayers();
+                (d.buildings || []).forEach(b => (b.rings || []).forEach(ring => {
+                    if (Array.isArray(ring) && ring.length >= 3) {
+                        L.polygon(ring, { color: '#9e9e9e', weight: 1, opacity: 0.8,
+                            fillColor: '#757575', fillOpacity: 0.35, interactive: false })
+                            .addTo(miniMapBuildingsLayer);
+                    }
+                }));
+                miniMapBuildingsLayer.eachLayer(l => { if (l.bringToBack) l.bringToBack(); });
+            })
+            .catch(e => console.warn('[buildings] chargement échoué', e))
+            .finally(() => { buildingsLoading = false; });
     }
 
     // ── Vue de dessus : objets (X,Y) égo → lat/lon sur la carte ──────────────
@@ -5542,11 +5608,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // segmentation ortho. C'est tout l'intérêt d'avoir séparé mesure et application.
     async function runOrthoCorrection() {
         if (!currentSessionId) { alert('Aucune session sélectionnée.'); return; }
-        if (!(camFeat && camFeat['ortho_correction'])) {
-            alert('La bascule ⚑ « Recalage GPS par marquages ortho » est désactivée : '
-                  + 'active-la dans le panneau ⚑ Modes, sinon la correction ne sera pas appliquée.');
-            return;
-        }
+        // La correction se CALCULE bascule ON ou OFF (2026-09-28) : c'est la bascule qui choisit
+        // ensuite de l'appliquer — avant, OFF empêchait le calcul, et ON sans calcul ne faisait rien.
         const btn = document.getElementById('orthoCorrectionBtn');
         const label = btn ? btn.innerHTML : '';
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Correction…'; }
@@ -5569,7 +5632,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (cor && cor.report) {
                     orthoCorrection = cor;
                     const rep = cor.report, cb = cor.camera_bias || {};
-                    alert(`Correction de trajectoire appliquée.\n\n`
+                    alert(`Correction de trajectoire calculée`
+                        + ((camFeat && camFeat['ortho_correction']) ? ` et appliquée.\n\n`
+                           : ` — active ⚑ « Recalage GPS par marquages ortho » pour l'appliquer.\n\n`)
                         + `Biais caméra écarté (projection, non appliqué) : `
                         + `E ${(cb.de_m || 0).toFixed(1)} / N ${(cb.dn_m || 0).toFixed(1)} m\n`
                         + `Correction GPS locale : ${rep.n_anchors} repères, `

@@ -33,6 +33,16 @@
         "to_port": null
       },
       {
+        "from": "sam3_markings",
+        "to": "ortho_recalage",
+        "to_port": null
+      },
+      {
+        "from": "global_tracking",
+        "to": "ortho_recalage",
+        "to_port": null
+      },
+      {
         "from": "yolo_detect",
         "to": "lane_events",
         "to_port": null
@@ -65,6 +75,11 @@
       {
         "from": "yolopv2_lanes",
         "to": "lane_map_recalage",
+        "to_port": null
+      },
+      {
+        "from": "ortho_recalage",
+        "to": "ortho_correction",
         "to_port": null
       },
       {
@@ -191,6 +206,19 @@
       },
       {
         "app": null,
+        "function": "cam_analyzer.ortho_recalage",
+        "id": "ortho_recalage",
+        "kind": "function",
+        "params": {
+          "gpu": true,
+          "per_camera": false,
+          "stage": "analyse",
+          "task": "compute_ortho_recalage_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
         "function": "cam_analyzer.lane_events",
         "id": "lane_events",
         "kind": "function",
@@ -254,6 +282,19 @@
           "per_camera": false,
           "stage": "calcul",
           "task": "compute_lane_map_recalage_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.ortho_correction",
+        "id": "ortho_correction",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_ortho_correction_task",
           "watched": []
         }
       },

@@ -52,8 +52,16 @@ FEATURES = [
             "donner. La médiane globale est tenue pour un biais de PROJECTION caméra et "
             "n'est PAS appliquée ; seul l'écart LOCAL par intersection corrige le GPS, "
             "interpolé entre intersections et atténué là où le ciel est dégagé (hauteurs "
-            "BD TOPO). OFF = trajectoire brute, l'offset restant mesuré et rapporté.",
+            "BD TOPO). Calculé par la passe « Correction de trajectoire ortho » ; la bascule "
+            "choisit de l'appliquer, au tracking comme à l'affichage. OFF = trajectoire "
+            "brute, l'offset restant mesuré et rapporté.",
             default=False, scope='compute'),
+    Feature('map_buildings', 'Bâtiments sur la carte',
+            "Dessine les emprises des bâtiments BD TOPO autour de la navette sur la vue de "
+            "dessus (IGN, chargées par zone). Ce sont eux qui dévient le GPS en canyon urbain "
+            "et qui fondent le masquage satellite de la correction ortho : les voir aide à "
+            "juger une trace. Affichage seul.",
+            default=False, scope='live'),
     Feature('shuttle_filter', 'Filtre de trajectoire navette (Kalman+RTS)',
             "Position et cap de la NAVETTE lissés par Kalman vitesse-constante + lisseur RTS "
             "(sans retard de phase) ; cap dérivé de la vitesse lissée, tenu à l'arrêt. Appliqué "

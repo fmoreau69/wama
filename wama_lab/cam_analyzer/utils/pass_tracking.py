@@ -80,6 +80,11 @@ PASSES: tuple = (
     # Profondeur (Depth Pro) : lit les bbox (profondeur de contact) → dépend de la détection.
     Pass('depth', 'analyse', depends_on=('yolo_detect',), task='compute_depth_task', gpu=True,
          function='cam_analyzer.depth_analysis'),
+    # Recalage ortho 2b (2026-09-28, ex-bouton du panneau Calibration seul) : REGARDE l'orthophoto
+    # (SAM3, GPU + réseau) et l'apparie aux passages piétons caméra agrégés en monde par le
+    # tracking (`marking_world`, dans `global_tracking`) — d'où ses deux amonts, dont un calcul.
+    Pass('ortho_recalage', 'analyse', depends_on=('sam3_markings', 'global_tracking'),
+         task='compute_ortho_recalage_task', gpu=True),
     # ── CALCUL (dérivation, CPU, rejouable) ─────────────────────────────────────
     Pass('lane_events', 'calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
          task='compute_lane_events_task'),
@@ -94,6 +99,11 @@ PASSES: tuple = (
     # rendrait PÉRIMÉ le tracking de toute session qui ne l'a jamais jouée.
     Pass('lane_map_recalage', 'calcul', depends_on=('yolopv2_lanes',),
          task='compute_lane_map_recalage_task'),
+    # Correction ortho (calcul pur + masque satellite BD TOPO) : ancres tirées de la MESURE
+    # `ortho_recalage`, appliquées par ⚑ ortho_correction. Avant le tracking, même raison que
+    # `lane_map_recalage` (et même absence de dépendance déclarée du tracking vers elle).
+    Pass('ortho_correction', 'calcul', depends_on=('ortho_recalage',),
+         task='compute_ortho_correction_task'),
     Pass('global_tracking', 'calcul', depends_on=('yolo_detect', 'distance'),
          task='compute_global_tracking_task'),
     Pass('indicators', 'calcul', depends_on=('global_tracking', 'distance'),
