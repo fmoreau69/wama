@@ -104,7 +104,10 @@ def fit_plane_ransac(points, *, iters=250, thresh=0.10, min_inliers=100, seed=20
     inl = pts[dist < thresh]
     if len(inl) >= 3:
         c0 = inl.mean(axis=0)
-        _, _, vt = np.linalg.svd(inl - c0)
+        # `full_matrices=False` : seul Vᵀ (3×3) sert. Par défaut numpy calcule aussi U en N×N —
+        # 2 Go à 22 000 inliers, MemoryError au-delà (mesuré le 2026-09-28 sur des cartes
+        # ZoeDepth, dont les routes propres donnent bien plus d'inliers que Depth Pro).
+        _, _, vt = np.linalg.svd(inl - c0, full_matrices=False)
         best_n = vt[-1] / np.linalg.norm(vt[-1])
         best_d = -float(best_n.dot(c0))
         dist = np.abs(inl.dot(best_n) + best_d)
@@ -129,6 +132,25 @@ def plane_pitch_height(normal, offset):
     pitch_deg = math.degrees(math.atan2(-float(n[2]), -float(n[1])))
     height_m = abs(float(offset))
     return pitch_deg, height_m
+
+
+def anchor_depth_scale(height_fitted_m, height_ref_m, *, bounds=(0.1, 10.0)):
+    """Facteur d'échelle d'une profondeur monoculaire, ancré sur la hauteur CONNUE de la caméra.
+
+    Un facteur d'échelle global sur la profondeur multiplie la hauteur du plan de sol ajusté par
+    ce même facteur et laisse le pitch inchangé (le plan passe par l'origine à l'échelle près).
+    D'où `scale = hauteur de référence / hauteur ajustée`, à MULTIPLIER aux profondeurs. None si
+    une hauteur manque ou si le facteur sort de `bounds` (un facteur × 20 dit une carte fausse,
+    pas une échelle). Une erreur sur la hauteur de référence se reporte, relative et identique,
+    sur toutes les distances : 10 cm sur 2,4 m = 4 %."""
+    try:
+        hf, hr = float(height_fitted_m), float(height_ref_m)
+    except (TypeError, ValueError):
+        return None
+    if hf <= 1e-6 or hr <= 1e-6:
+        return None
+    scale = hr / hf
+    return scale if bounds[0] <= scale <= bounds[1] else None
 
 
 def ground_plane_from_depth(depth_m, drivable_mask, focal_px, *, cx=None, cy=None,

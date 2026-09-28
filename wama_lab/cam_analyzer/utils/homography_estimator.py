@@ -186,7 +186,7 @@ def estimate_camera(session, position='front', with_k1=False, seed=None):
 
 
 def store_ground_calib(session, positions=('front', 'rear', 'left', 'right'),
-                       min_objects=6, max_spread_m=2.5):
+                       min_objects=6, max_spread_m=2.5, depth_seeds=None):
     """Estime et PERSISTE la calibration sol par caméra dans
     `session.config['ground_calib']` = {pos: {pitch_deg, height_m, spread_m,
     scale_err_m, n_objects}}. N'écrit QUE les caméras FIABLES : ≥ min_objects
@@ -196,6 +196,9 @@ def store_ground_calib(session, positions=('front', 'rear', 'left', 'right'),
 
     Étape 2a du plan de calibration sol (CAM_ANALYZER_CHAINE_TRAITEMENT.md) :
     l'ANGLE seul (le gain sûr, ×5 mesuré). L'échelle absolue viendra de 2b (ortho).
+
+    `depth_seeds` : {pos: (pitch_deg, height_m) | None} déjà calculées par l'appelant (passe
+    `depth_calc`, qui ajuste chaque plan UNE fois) ; absent → calculées ici sous ⚑ depth_estimation.
     """
     cfg = session.config or {}
     calib = dict(cfg.get('ground_calib') or {})
@@ -213,8 +216,11 @@ def store_ground_calib(session, positions=('front', 'rear', 'left', 'right'),
         try:
             seed = None
             if _use_depth:
-                from .depth_estimator import estimate_ground_plane_ph
-                seed = estimate_ground_plane_ph(session, pos)  # (pitch_deg, height_m) | None
+                if depth_seeds is not None:
+                    seed = depth_seeds.get(pos)
+                else:
+                    from .depth_estimator import estimate_ground_plane_ph
+                    seed = estimate_ground_plane_ph(session, pos)  # (pitch_deg, height_m) | None
             # seed None (depth OFF ou échec) → repli sur la recherche homographique par grille.
             r = estimate_camera(session, pos, with_k1=False, seed=seed)
         except Exception:

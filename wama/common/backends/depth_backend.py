@@ -32,6 +32,8 @@ class DepthProBackend(BaseModelBackend):
     #: Le lien FIN : `transformers` est partagé par 4 backends de 4 apps, le moteur seul ne
     #: tranche pas. La clé est le `model_id` du catalogue (`huggingface:depthpro`).
     SUPPORTED_MODELS = {'depthpro': {}}
+    #: La clé de `depth_engine.DEPTH_MODELS` que CE backend charge — un backend, un modèle.
+    MODEL_KEY = 'depthpro'
     REQUIRED_PACKAGES = ['transformers', 'torch']
     #: Déclaré au catalogue par `_discover_depth_models` — même valeur, une seule vérité.
     recommended_vram_gb = 8.0
@@ -45,11 +47,11 @@ class DepthProBackend(BaseModelBackend):
         return self._charge
 
     def load(self, model: Optional[str] = None, *, device: str = 'cuda') -> bool:
-        """`model` est ignoré : le dépôt est déclaré par le module (`DEPTH_MODEL_ID`)."""
+        """`model` est ignoré : le dépôt est celui de `MODEL_KEY`, déclaré par le moteur."""
         if self._charge:
             return True
         from .depth_engine import load
-        load(device=device)
+        load(device=device, model_key=self.MODEL_KEY)
         self._charge = True
         return True
 
@@ -65,4 +67,17 @@ class DepthProBackend(BaseModelBackend):
         from .depth_engine import estimate_depth
         if not self._charge:
             self.load(device=device)
-        return estimate_depth(frame_bgr, device=device)
+        return estimate_depth(frame_bgr, device=device, model_key=self.MODEL_KEY)
+
+
+class ZoeDepthBackend(DepthProBackend):
+    """ZoeDepth (KITTI), au contrat commun — même moteur, autre modèle déclaré.
+
+    Retenu le 2026-09-28 sur les images du projet ENA : forme de la scène juste, échelle à
+    ANCRER (le modèle rend des « mètres » à un facteur constant près sur ce rig) — l'ancrage
+    vit chez l'appelant, qui connaît le véhicule (`cam_analyzer.utils.depth_estimator`)."""
+
+    SUPPORTED_MODELS = {'zoedepth-kitti': {}}
+    MODEL_KEY = 'zoedepth-kitti'
+    recommended_vram_gb = 2.0
+    description = "Profondeur monoculaire, échelle à ancrer (ZoeDepth KITTI, MIT)"

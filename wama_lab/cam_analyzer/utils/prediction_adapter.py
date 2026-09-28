@@ -81,6 +81,13 @@ LEGACY_FOV_V = {'front': 60.0, 'right': 90.0, 'rear': 60.0, 'left': 90.0}
 # par le levier GPS_ANTENNA dans shuttle_trajectory(). Navya ≈ 4,75 m × 2,11 m.
 CAMERA_MOUNT = {'front': (0.0, 4.5), 'right': (1.0, 3.4),
                 'rear': (0.0, 0.0), 'left': (-1.0, 3.4)}
+# Hauteur du centre optique AU-DESSUS DE LA ROUTE (m). ⚠ ESTIMÉE, pas mesurée : 2,4 m est le
+# défaut du schéma pré-projet (le même que `marking_world` et la recherche 2a, bornée à
+# 2,3-2,5 m) ; un ancien ajustement libre avait rendu 1,5-1,6 m. Surchargeable par session
+# (`config['camera_height'] = {pos: m}`) — une mesure au ruban sur la navette la remplacerait.
+# Sert d'ancre d'échelle à la profondeur monoculaire (2026-09-28) : son erreur relative se
+# reporte, identique, sur toutes les distances issues de la profondeur.
+CAMERA_HEIGHT_M = {'front': 2.4, 'right': 2.4, 'rear': 2.4, 'left': 2.4}
 
 
 def camera_geometry(session):
@@ -98,6 +105,7 @@ def camera_geometry(session):
     # (tan(used/2)/tan(réel/2)) → les distances affichées/traquées se recalent SANS
     # ré-annotation. Éditable depuis le bouton Yaw de la vue de dessus.
     fov_over = cfg.get('camera_fov') or {}
+    height_over = cfg.get('camera_height') or {}
     # Bascules de comparaison (⚑ Modes) : appliquées ICI et nulle part ailleurs —
     # camera_geometry est la source unique de la géométrie, donc couper une bascule
     # neutralise le levier partout (tracking, prédiction… le JS a son miroir camGeo).
@@ -116,12 +124,17 @@ def camera_geometry(session):
         except (TypeError, ValueError):
             real_h, real_v = CAMERA_FOV_H[pos], CAMERA_FOV_V[pos]
         m = mounts.get(pos) or CAMERA_MOUNT[pos]
+        try:
+            height = float(height_over.get(pos, CAMERA_HEIGHT_M[pos]))
+        except (TypeError, ValueError):
+            height = CAMERA_HEIGHT_M[pos]
         geo[pos] = {
             'yaw': yaw[pos],
             'fov_h': real_h,
             # FOV V réel : calculé ici depuis toujours (dist_scale), exposé depuis le 2026-09-28
             # pour la déprojection de profondeur — la focale verticale diffère de l'horizontale.
             'fov_v': real_v,
+            'height_m': height,
             'dist_scale': (math.tan(math.radians(used) / 2) / math.tan(math.radians(real_v) / 2)
                            if feat.get('fov_dist_correction', True) else 1.0),
             'mount': (float(m[0]), float(m[1])) if feat.get('mount_lever_arm', True) else (0.0, 0.0),

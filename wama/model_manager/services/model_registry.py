@@ -1137,6 +1137,26 @@ class ModelRegistry:
                 capabilities={'task': 'depth-estimation', 'modalities': ['image', 'video'],
                               'inputs_required': ['work_file']},
             )
+            # ZoeDepth KITTI — défaut de la chaîne profondeur depuis le 2026-09-28 (banc sur les
+            # images ENA : forme juste, échelle constante à ancrer ; Depth Pro aberrant sur ce rig).
+            zoe_cfg = (settings.MODEL_PATHS.get('vision', {}) or {}).get('zoedepth')
+            if zoe_cfg:
+                zoe_root = Path(zoe_cfg)
+                self._models['huggingface:zoedepth-kitti'] = ModelInfo(
+                    id='huggingface:zoedepth-kitti',
+                    name='ZoeDepth (KITTI)',
+                    model_type=ModelType.VISION,
+                    source=ModelSource.HUGGINGFACE,
+                    description='Profondeur monoculaire entraînée sur de la conduite (KITTI), natif '
+                                'transformers (MIT). Échelle à ancrer par l\'appelant (hauteur de '
+                                'caméra) ; défaut de cam_analyzer §[E] depuis le 2026-09-28.',
+                    hf_id='Intel/zoedepth-kitti',
+                    composition={'runtime': {'engine': 'transformers'}},
+                    vram_gb=2.0,
+                    is_downloaded=zoe_root.exists() and any(zoe_root.rglob('*.safetensors')),
+                    capabilities={'task': 'depth-estimation', 'modalities': ['image', 'video'],
+                                  'inputs_required': ['work_file']},
+                )
         except Exception as e:
             logger.debug(f"Could not discover depth models: {e}")
 

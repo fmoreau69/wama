@@ -1817,7 +1817,7 @@ def compute_distance_task(self, session_id: str):
 
 @shared_task(bind=True)
 def compute_depth_task(self, session_id: str):
-    """Passe ANALYSE profondeur (ÉTAGE 1, Depth Pro) : inférence sur les 4 caméras → STOCKE cartes
+    """Passe ANALYSE profondeur (ÉTAGE 1, modèle de la session) : inférence sur les 4 caméras → STOCKE cartes
     (DepthFrame) + profondeur de contact (`depth_distance_m` sur les détections). Session-wide
     (une seule ligne dans le volet, pas de sous-division par caméra).
 
@@ -1832,8 +1832,10 @@ def compute_depth_task(self, session_id: str):
 
     try:
         session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
-        if not depth_estimator.is_available():
-            msg = 'Poids Depth Pro absents (pull_model apple/DepthPro-hf)'
+        model_key = depth_estimator.depth_model_for(session)
+        if not depth_estimator.is_available(model_key):
+            from wama.common.backends.depth_engine import depth_model_spec
+            msg = f"Poids absents pour {model_key} (pull_model {depth_model_spec(model_key)['hf_id']})"
             mark_failed(session, 'depth', msg)
             _console(session.user_id, f"Profondeur : {msg}")
             return {'error': 'depth weights missing', 'session_id': session_id}
@@ -1843,13 +1845,19 @@ def compute_depth_task(self, session_id: str):
             return {'error': err, 'session_id': session_id}
 
         mark_started(session, 'depth', session.profile)
-        _console(session.user_id, "Analyse profondeur (Depth Pro) : inférence sur les caméras…")
+        _console(session.user_id, f"Analyse profondeur ({model_key}) : inférence sur les caméras…")
         rep = depth_estimator.run_depth_analysis(session)
         if not rep or not rep.get('maps'):
             msg = 'Analyse profondeur sans résultat (aucune frame exploitable)'
             mark_failed(session, 'depth', msg)
             _console(session.user_id, f"Profondeur : {msg}")
             return {'error': 'no depth output', 'session_id': session_id}
+        # Le modèle qui a produit les cartes : l'étage 2 en lit l'échelle (métrique ou à ancrer).
+        session.refresh_from_db(fields=['results_summary'])
+        rs = session.results_summary or {}
+        rs['depth_model'] = rep.get('model')
+        session.results_summary = rs
+        session.save(update_fields=['results_summary'])
         mark_completed(session, 'depth', output_summary=rep)
         _console(session.user_id,
                  f"Profondeur : {rep.get('maps', 0)} cartes, {rep.get('contacts', 0)} contacts "
@@ -1862,6 +1870,17 @@ def compute_depth_task(self, session_id: str):
         except Exception:
             pass
         return {'error': str(e), 'session_id': session_id}
+
+
+def _depth_planes_label(planes):
+    """« front pitch=22.1° ×3.02, rear : moins de 2 cartes… » — la ligne console des plans."""
+    parts = []
+    for pos, p in planes.items():
+        if 'skipped' in p:
+            parts.append(f"{pos} : {p['skipped']}")
+        else:
+            parts.append(f"{pos} pitch={p['pitch_deg']}° ×{p['scale']}")
+    return ', '.join(parts) or 'aucun'
 
 
 @shared_task(bind=True)
@@ -1890,23 +1909,35 @@ def compute_depth_calc_task(self, session_id: str):
         mark_started(session, 'depth_calc', session.profile)
         _console(session.user_id, "Calculs profondeur (ÉTAGE 2, CPU) : plan de sol + cross-check distance…")
 
-        # (a) Plan de sol par caméra depuis la profondeur (repli homographie si depth OFF/échec).
-        calib = store_ground_calib(session)
+        # (0) Plan de sol par caméra, UNE fois : pitch (indépendant de l'échelle) + facteur
+        # d'échelle ancré sur la hauteur de caméra quand le modèle ne rend pas de mètres.
+        planes = {pos: depth_estimator.ground_plane_from_stored_depth(session, pos)
+                  for pos in ('front', 'rear', 'left', 'right')}
+        seeds = {pos: (p['pitch_deg'], p['height_m']) for pos, p in planes.items() if 'skipped' not in p}
+        scales = {pos: p['scale'] for pos, p in planes.items() if 'skipped' not in p and p.get('scale')}
+
+        # (a) Calib sol (repli homographie si ⚑ depth_estimation OFF ou plan écarté).
+        calib = store_ground_calib(session, depth_seeds=seeds)
         n_depth = sum(1 for v in (calib or {}).values()
                       if isinstance(v, dict) and v.get('source') == 'depth')
 
-        # (b) Cross-check distance (pure lecture du champ `depth_distance_m` stocké à l'ÉTAGE 1).
-        rep = depth_estimator.depth_distance_report(session)
+        # (b) Cross-check distance (lecture du champ `depth_distance_m` stocké à l'ÉTAGE 1, mis à
+        # l'échelle par caméra).
+        rep = depth_estimator.depth_distance_report(session, scales=scales)
+        session.refresh_from_db(fields=['results_summary'])
         rs = session.results_summary or {}
+        rs['depth_planes'] = planes
         if rep:
             rs['depth_report'] = rep
-            session.results_summary = rs
-            session.save(update_fields=['results_summary'])
+        session.results_summary = rs
+        session.save(update_fields=['results_summary'])
 
-        summary = {'ground_calib': calib, 'planes_from_depth': n_depth, 'depth_report': rep}
+        summary = {'ground_calib': calib, 'planes_from_depth': n_depth, 'depth_planes': planes,
+                   'depth_report': rep}
         mark_completed(session, 'depth_calc', output_summary=summary)
         _console(session.user_id,
-                 f"Calculs profondeur : {n_depth} plan(s) de sol issus de la profondeur ; "
+                 f"Calculs profondeur : plans {_depth_planes_label(planes)} ; "
+                 f"{n_depth} plan(s) de sol retenus par la calib ; "
                  f"cross-check distance {'écrit' if rep else 'sans donnée'} — le tracking consommera la calib")
         return {'session_id': session_id, **summary}
     except Exception as e:
