@@ -269,9 +269,10 @@ APP_MODES = {
         ],
     },
 
-    # ── TRANSCRIBER (mono-domaine ; Speak = MODALITÉ de la card, pas un mode) ──
+    # ── TRANSCRIBER (mono-domaine ; Speak = PORT de la card, pas un mode) ──
     # ⚠ Le mode `realtime` est PARTI le 2026-08-30 (même décision que le synthesizer
-    # ci-dessus) : Speak est une AFFORDANCE de la card d'entrée (`show_live`), la session
+    # ci-dessus) : Speak est le PORT « en direct » de la card d'entrée, DÉCLARÉ au catalogue
+    # (`has_live_input`, 2026-09-28 — ex-littéral `show_live`), la session
     # live s'affiche via la preview « during » de la card créée — cf. CARD_DESIGN §11.8
     # exigence 6. Aucune UI ne consommait ces modes (0 WamaModes dans l'app, mesuré).
     'transcriber': {

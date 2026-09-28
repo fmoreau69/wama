@@ -364,9 +364,10 @@ def _capabilities(cat: dict, app_id: str) -> dict:
         # Vrai si l'app importe depuis une URL OU déclare un ingest WAMA_INGEST.
         'accepts_url': bool(cat.get('has_url_import')) or _ingest(app_id) is not None,
     }
-    # Capacités du RÉSULTAT (`app_registry.app_result_ports`) — écrites seulement si DÉCLARÉES :
-    # absentes, elles valent « non », et les manifestes des apps qui ne les ont pas ne bougent pas.
-    for c in RESULT_CAPABILITY_FIELDS:
+    # Capacités du RÉSULTAT (`app_registry.app_result_ports`) et capture EN DIRECT — écrites
+    # seulement si DÉCLARÉES : absentes, elles valent « non », et les manifestes des apps qui ne
+    # les ont pas ne bougent pas.
+    for c in DECLARED_ONLY_CAPABILITY_FIELDS:
         if cat.get(c):
             caps[c] = True
     # Accesseur PARTAGÉ app_capabilities(app_id) = point de bascule UNIQUE (contrat multi-instances,
@@ -871,12 +872,16 @@ def _project_access(app_id: str, access: dict, *, apply: bool) -> dict:
 CATALOG_FIELD_ORDER = ('label', 'category', 'icon', 'url_name', 'description',
                        'input_extensions', 'input_types', 'batch_type', 'has_batch',
                        'has_url_import', 'has_youtube', 'has_result_import',
-                       'has_reference_result', 'output_types')
+                       'has_reference_result', 'has_live_input', 'output_types')
 IDENTITY_FIELDS = ('label', 'category', 'icon', 'url_name', 'description', 'input_extensions')
 PORTS_FIELDS = ('input_types', 'output_types')
 #: Capacités qui ouvrent les ports du RÉSULTAT (`app_registry.RESULT_CAPABILITY_TOKENS`).
 RESULT_CAPABILITY_FIELDS = ('has_result_import', 'has_reference_result')
-CAPABILITY_FIELDS = ('has_batch', 'batch_type', 'has_url_import', 'has_youtube') + RESULT_CAPABILITY_FIELDS
+#: Capacités qui ouvrent un port d'APP qu'aucun modèle ne déclare, écrites SEULEMENT si vraies :
+#: celles du résultat, et la capture EN DIRECT (`has_live_input`, 2026-09-28 — remplace le
+#: littéral `show_live` de la card, `CARD_DESIGN §11.11 D` : le live est un PORT).
+DECLARED_ONLY_CAPABILITY_FIELDS = RESULT_CAPABILITY_FIELDS + ('has_live_input',)
+CAPABILITY_FIELDS = ('has_batch', 'batch_type', 'has_url_import', 'has_youtube') + DECLARED_ONLY_CAPABILITY_FIELDS
 _GEN_MARK = '[manifest-gen app:{app_id}]'
 
 
@@ -921,7 +926,7 @@ def _capabilities_target(manifest: dict) -> dict:
         'batch_type': caps.get('batch_type'),
         'has_url_import': bool(caps.get('has_url_import')),
         'has_youtube': bool(caps.get('has_youtube')),
-        **{c: bool(caps.get(c)) for c in RESULT_CAPABILITY_FIELDS},
+        **{c: bool(caps.get(c)) for c in DECLARED_ONLY_CAPABILITY_FIELDS},
     }
 
 

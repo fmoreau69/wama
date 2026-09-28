@@ -21,8 +21,8 @@ et `folder_input_id` + son lien `#<id>Btn`, `#batchTemplateLink`, `url_input_id`
 
 Variables — celles de la v3, plus :
   app_id       — (REQUIS) nom de l'app : c'est LUI qui donne les ports.
-  show_live    — (option) ajoute le PORT « En direct » (littéral, tant que sa déclaration
-                 n'existe pas — jamais un lecteur qui invente sa clé).
+  (le PORT « En direct » vient de la capacité d'app `has_live_input` — lue par `input_slots`
+   depuis le 2026-09-28 ; l'ancien littéral `show_live` est retiré)
 Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url`,
 `show_media_library`, `media_library_type`, `show_reference`, `reference_accept`, `reference_label`.
 {% endcomment %}
@@ -30,7 +30,7 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
 {% if collapsible %}<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>{% endif %}
 <script src="{% static_v 'common/js/wama-input-slots.js' %}"></script>
 <link rel="stylesheet" href="{% static_v 'common/css/wama-input-slots.css' %}">
-{% input_slots app_id show_live as ports %}
+{% input_slots app_id as ports %}
 <div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}"
      data-wama-depot="{% if depot_cree is False %}attache{% else %}cree{% endif %}"
      data-wama-ports="{{ ports|length }}"

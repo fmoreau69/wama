@@ -13,6 +13,7 @@
       "batch_type": "media_list",
       "during_preview": true,
       "has_batch": true,
+      "has_live_input": true,
       "has_reference_result": true,
       "has_result_import": true,
       "has_url_import": true,
