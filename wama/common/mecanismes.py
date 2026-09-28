@@ -106,6 +106,14 @@ def _domain(name: str, mechanisms: tuple) -> tuple:
 #: ⚠ ORDRE : par domaine (= ordre des sous-tables de la carte) ; alphabétique à la génération.
 MECHANISMS = (
     *_domain('Ressources & exécution', (
+    Mechanism('runtime_side', "Côté d'exécution (qui met une tâche en file)",
+              "Tout passe côté WSL, rien côté Windows, sauf les tests à la demande (règle de "
+              "Fabien, 2026-09-29) : sous tests et hors WSL le broker est EN MÉMOIRE, l'envoi "
+              "Windows est écrit au journal, la synchro de démarrage n'est pas dispatchée. Une "
+              "décision, lue par `settings`, `wama/celery.py` et `model_manager`",
+              'wama/common/services/runtime_side.py',
+              'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
+              annexes=('wama/common/tests_runtime_side.py',)),
     Mechanism('resource_governor', 'Gouverneur de ressources',
               "Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités",
               'wama/common/services/resource_governor.py', 'docs/construction/suivi/PROJECT_STATUS.md §0'),

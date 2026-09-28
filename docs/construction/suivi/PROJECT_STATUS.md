@@ -18570,3 +18570,27 @@ mails et posts quand leurs outils existeront.
    distinct de celui de WSL — dont les files `gpu*` étaient vides avant et après). Sauvegarde JSON
    prise avant suppression (bloc-notes de la session). ⚠ Restent sur ce Redis **1 399 messages
    `default` et 27 `celery`**, non touchés — décision de Fabien.
+
+## §PALIER — 2026-09-29 (nuit), « TOUT CÔTÉ WSL, RIEN CÔTÉ WINDOWS » — les tests n'atteignent plus le vrai broker
+
+**Règle de Fabien** : *« tout doit passer côté WSL, rien côté Windows, sauf les tests à la demande
+durant l'implémentation par commodité »*. Détail : `INFRA_WSL_VS_WINDOWS §Deux Redis` (bloc TRANCHÉ).
+
+**Livré** : `common/services/runtime_side.py` — broker et résultats EN MÉMOIRE sous tests et hors
+WSL ; envoi Windows écrit au journal (`wama/celery.py`) ; synchro de démarrage du catalogue coupée
+hors WSL (`model_manager/apps.py`). Remplace l'« ordre sûr » ②-④ (unifier les Redis). Redis Windows
+vidé (1 872 messages morts, sauvegardés). Garde `tests_runtime_side` (5 ; contre-épreuve : vrai
+broker forcé → rouge).
+
+**Vérifié CÔTÉ WSL** : shell → vrai broker ; tests → mémoire ; `tests_registries` lancé depuis WSL
+→ **0** `refresh_registry` reçu par les workers (il en envoyait 3 par passage) ; **suite complète
+WSL : 3 891 tests, 21 échecs, 82 sautés — AUCUN attribuable à ce palier** : médiathèque 12
+(`natures.py` en cours d'édition ailleurs), budgets de langue 3, notifications 3 (les alias
+d'adresses d'administration de l'environnement WSL que ces tests supposent absents),
+`tests_auto_model` 1 (`synthesizer/workers.py` modifié ailleurs), cam_analyzer `tests_ortho_correction` 1.
+
+**Effectif au redémarrage** (gunicorn, workers, beat).
+
+🔚 **Proposé, en attente** : regrouper les 139 tests de `wama/common` dans `wama/common/tests/`
+(noms de fichiers gardés ; `registries_coverage.py:38` écrit un chemin en dur à suivre) — à faire
+à un moment sans autre instance sur ces fichiers.

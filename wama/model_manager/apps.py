@@ -46,6 +46,12 @@ class ModelManagerConfig(AppConfig):
 
         if any(cmd in sys.argv for cmd in self._SKIP_CMDS):
             return
+        # Hors du côté autorisé (Windows, tests), aucune tâche ne part : ne rien dispatcher du tout
+        # plutôt que d'écrire à chaque démarrage une synchro qui n'atteindra aucun worker (706 dans
+        # le Redis Windows vidé le 28/09). `runtime_side` est LA règle, lue ici sans la recopier.
+        from django.conf import settings
+        if not getattr(settings, 'WAMA_TASKS_DISPATCHED', True):
+            return
 
         # Sync au démarrage — prod-compatible (NE dépend PAS de RUN_MAIN, contrairement
         # au watcher), non bloquant (dispatch Celery), dédupliqué via un verrou cache.

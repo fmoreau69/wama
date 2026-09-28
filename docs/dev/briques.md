@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**164 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**165 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -48,6 +48,16 @@ Cycle de vie commun des porteurs de modèle — ALIMENTATION du gouverneur (enve
   - `refresh_live_reservations() -> int` — Rafraîchit le TTL de la ligne de registre de chaque backend résident de CE process.
   - `start_reservation_heartbeat() -> bool` — Lance, UNE fois par process, le battement qui garde vivantes les lignes des résidents.
   - `class BaseModelBackend(ABC)` — Backend de modèle local (chargement/déchargement + traitement).
+
+### Côté d'exécution (qui met une tâche en file)
+
+Tout passe côté WSL, rien côté Windows, sauf les tests à la demande (règle de Fabien, 2026-09-29) : sous tests et hors WSL le broker est EN MÉMOIRE, l'envoi Windows est écrit au journal, la synchro de démarrage n'est pas dispatchée. Une décision, lue par `settings`, `wama/celery.py` et `model_manager`
+
+- **Domicile** : `wama/common/services/runtime_side.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
+- **Module** : QUEL PROCESSUS a le droit de mettre une tâche Celery en file — une décision, un seul endroit. Doc : `INFRA_WSL_VS_WINDOWS.md §Deux Redis`.
+- **API publique** (2) :
+  - `running_tests(argv=None) -> bool` — Le processus est-il une suite de tests (`manage.py test …`) ?
+  - `tasks_dispatched(argv=None, os_name=None) -> bool` — Ce processus met-il ses tâches dans le VRAI broker ? Seulement côté WSL, hors tests.
 
 ### ETA auto-apprenante
 
