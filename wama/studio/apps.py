@@ -14,3 +14,7 @@ class StudioConfig(AppConfig):
             register_scenarios()
         except Exception:
             pass
+        # Les exécutions de pipelines entrent au journal et au calendrier (WAMA_MEMORY §9bis.1).
+        from wama.common.services.journal import MONDE_STUDIO, enregistrer_source
+        from .models import StudioRun
+        enregistrer_source('studio', StudioRun, monde=MONDE_STUDIO)

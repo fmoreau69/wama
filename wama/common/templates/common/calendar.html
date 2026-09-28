@@ -65,6 +65,11 @@ Couleurs : l'IDENTITÉ de l'app (`APP_CATALOG[…]['color']`, dérivée par cat�
     #wama-calendar .fc-daygrid-event.wama-cal-status-running { box-shadow: inset 4px 0 0 #0dcaf0; }
     #wama-calendar .fc-timegrid-event.wama-cal-status-stale,
     #wama-calendar .fc-daygrid-event.wama-cal-status-stale { box-shadow: inset 4px 0 0 #ffc107; }
+    /* PRÉVU (fin d'un traitement en cours, passage de la purge) : liseré pointillé — on distingue
+       ce qui a eu lieu de ce qui est annoncé, sans toucher à la couleur d'identité. */
+    #wama-calendar .fc-event.wama-cal-predicted.wama-cal-scope-user {
+        border-style: dashed !important; border-width: 2px !important; opacity: .9;
+    }
     .calendar-empty { color: #adb5bd; font-size: .85rem; }
 </style>
 {% endblock %}
@@ -76,6 +81,11 @@ Couleurs : l'IDENTITÉ de l'app (`APP_CATALOG[…]['color']`, dérivée par cat�
     Ce que vous avez lancé dans WAMA, sur l'axe du temps, et les tâches planifiées de la plateforme.
     Cliquez un élément pour retrouver sa card dans son application.
   </p>
+
+  {% comment %}Barre de filtrage COMMUNE en cible VIVANTE (`_filter_bar.html`) : FullCalendar
+  redessine les événements à chaque vue, `wama-calendar.js` pose leurs `data-f-*` et appelle
+  `WamaFilterBar.refresh` après chaque rendu. Aucune barre propre au calendrier.{% endcomment %}
+  {% include 'common/_filter_bar.html' with facettes=facettes cible='#wama-calendar .fc-event' cible_vivante=True mode='client' placeholder='Rechercher dans mon calendrier…' %}
 
   <div class="calendar-tools">
     <div class="calendar-legend" aria-label="Légende">

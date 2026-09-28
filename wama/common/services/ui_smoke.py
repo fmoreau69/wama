@@ -372,6 +372,24 @@ def register_ui_scenarios():
             timeout_s=120, vram_gb=0.0,
         )
 
+    # Pages TRANSVERSES de « Mon espace » (2026-09-28) : aucune n'est une app à `<label>:index`,
+    # donc la découverte ci-dessus ne les voyait pas — le journal n'avait jamais été mesuré au
+    # navigateur la nuit. Le sélecteur du calendrier exige un ÉVÉNEMENT RENDU : la maintenance
+    # planifiée en fournit chaque semaine, donc son absence dit que FullCalendar ou l'endpoint
+    # des événements est tombé — pas que l'utilisateur de test n'a rien fait.
+    from django.urls import reverse
+    for key, url_name, selector in (
+            ('calendar', 'common:calendar', '#wama-calendar .fc-event'),
+            ('journal', 'common:journal', '.journal-page')):
+        register(
+            id=f"common.{key}.ui", app='common', stage="ui",
+            description=f"Page {key} : HTTP 200, zéro erreur console JS, contenu rendu",
+            run=(lambda p=reverse(url_name), s=selector: (
+                lambda ctx: check_app_page('common', p, selector=s)
+            ))(),
+            timeout_s=120, vram_gb=0.0,
+        )
+
 
 # ── Scénario d'IMPORT : la page est saine, mais fait-elle quelque chose ? ───────────────
 #

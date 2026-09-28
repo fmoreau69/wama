@@ -18442,3 +18442,44 @@ neuf `common/calendar.html` → sans HUP, 500 ; mémoire « gabarit neuf en prod
 
 🔚 **Étape suivante** : étape 2 (couche prévue : fin estimée par l'ETA, expiration de rétention),
 puis l'étape 3 (`ScheduledAction`, distributeur, « Programmer… » sur ▶, flux `.ics` à jeton).
+
+## §PALIER — 2026-09-28 (suite), « CALENDRIER » — étape 2 + mondes Lab/Studio + barre de filtrage commune
+
+**Demandes de Fabien** (WAMA relancé) : faire et ajouter les tests nécessaires, vérifier les lots
+signalés, poursuivre ; puis *« la barre de recherche/filtrage […] aligné sur le fonctionnement de
+WAMA, ne rien réinventer »*.
+
+**Les lots, vérifiés** : #443/#444/#445 sont bien à Fabien (privés) mais rassemblent des
+transcriptions de **mars à juillet**, regroupées les 24-25/09 ; ce jour-là il n'y a eu qu'un import
+de résultat externe (#177, `finished_at`, sans `RunOutcome` — à raison) et des évaluations
+d'« accord entre moteurs » (`ResultEvaluation`). D'où trois corrections GÉNÉRIQUES, aucune par app.
+
+**Livré** (`WAMA_MEMORY §9bis.1`, étape 2 ✅) :
+- champs d'exécution du modèle DÉTECTÉS par le journal (`START_FIELDS`/`END_FIELDS`) ; la fin la
+  plus récente gagne ; `processing_seconds` ne se soustrait que d'une fin produite ;
+- **création des lots** (≥ 2 éléments) = événement, modèles `BatchMixin` dérivés des apps sources ;
+- **mondes Lab et Studio** inscrits par leur propre `ready()` (`enregistrer_source`), identité lue
+  aux `extra_links` d'`APP_CATEGORIES` (`app_registry.extra_link_for`) ; `StudioRun.__str__` nomme
+  le pipeline ;
+- 🔴 **défaut trouvé en chemin** : une session Lab (clé UUID, hors `detail_registry`) faisait lever
+  `reverse('common:unified_preview')` → **toute la page du journal en 500**. `Entree.url_preview/
+  url_detail` rendent `''` hors `detail_registry` ;
+- **couche prévue** : fin des traitements EN COURS au débit observé (début lu au gouverneur,
+  `running_tasks()`) ; passages de la purge de rétention (`retention.expirations_for`) ;
+- **barre de filtrage COMMUNE** sur le calendrier (Application · Nature · État + recherche) : la brique
+  `wama-filter-bar.js` reçoit l'option générique `data-cible-vivante` + `WamaFilterBar.refresh()`
+  pour une liste re-rendue par un composant ;
+- scénarios nocturnes navigateur **`common.calendar.ui`** et **`common.journal.ui`** : ces pages
+  transverses n'étaient mesurées par aucun scénario `ui` (la découverte ne voit que `<app>:index`).
+
+**Validé** : `tests_calendar` 32 + `tests_filter_bar_live` 4 (V8) ; contre-épreuves : relecture
+vivante neutralisée → rouge, garde du journal neutralisée → 2 erreurs ; 386 tests des suites
+touchées verts (+ cam_analyzer 95) ; les deux scénarios `ui` VERTS contre le WAMA en service ;
+smoke navigateur sur serveur de dev 8011 : #176/#177 et lots #442-#445/#489 visibles, filtre
+« Transcriber » = 13 sur 61, filtre et recherche conservés en changeant de semaine, console propre ;
+journal 200 sur `?app=cam_analyzer|face_analyzer|studio`.
+
+**Effectif au redémarrage de gunicorn** (vues, `apps.py`, gabarits).
+
+🔚 **Étape suivante** : étape 3 — `ScheduledAction` (outil `tool_api` + arguments, distributeur beat
+unique, « Programmer… » sur ▶, flux `.ics` à jeton révocable), `ROUTE §10.6` point 13.

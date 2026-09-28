@@ -16,10 +16,11 @@ l'inspecteur : il ne rend qu'un rang minimal (titre, date, statut) et DÉLÈGUE 
 endpoints transversaux existants — `/common/preview/<app>/<pk>/` et `/common/detail/<app>/<pk>/`.
 Écrire ici un rendu d'item maison créerait la 4e vue qu'on veut éviter, et elle dériverait.
 
-MONDES. `WAMA_DATA_WORLD.md` découpe WAMA en mondes (Médias, Data, Lab, Transversal). Seul le
-monde MÉDIA est peuplé aujourd'hui, mais l'ajout d'un monde doit rester une INSCRIPTION, pas une
-modification de ce module ni de la page : `enregistrer_source()` existe pour ça (studio, wama-lab,
-wama-data quand ils auront leurs modèles).
+MONDES. `WAMA_DATA_WORLD.md` découpe WAMA en mondes (Médias, Data, Lab, Transversal). L'ajout
+d'un monde reste une INSCRIPTION, pas une modification de ce module ni de la page :
+`enregistrer_source()`, appelée par le `ready()` du monde. Depuis le 2026-09-28 le Lab
+(cam_analyzer, face_analyzer : sessions d'analyse) et le Studio (exécutions de pipelines) sont
+inscrits ; reste le monde Data. Ces sources n'ont pas d'inspecteur : leurs entrées mènent à l'app.
 """
 from __future__ import annotations
 
@@ -47,6 +48,13 @@ LIBELLES_MONDES = {
 #: table à tenir à jour — et une app qui n'aurait aucun de ces champs est SIGNALÉE, pas ignorée
 #: en silence (un trou silencieux est la façon dont un journal devient faux).
 CHAMPS_DATE = ('created_at', 'uploaded_at', 'added_at', 'date_created')
+
+#: Début et fin d'EXÉCUTION portés par le modèle lui-même, détectés comme `CHAMPS_DATE`
+#: (2026-09-28, calendrier). Le Lab les porte (`started_at`/`completed_at`), le transcriber pose
+#: `finished_at` sur un import de résultat externe — une exécution que `RunOutcome` ne voit pas,
+#: à raison (WAMA n'a rien produit). Sans eux, ces exécutions manquaient au calendrier.
+START_FIELDS = ('started_at',)
+END_FIELDS = ('finished_at', 'completed_at')
 
 #: Sources hors `detail_registry` (autres mondes). Vide aujourd'hui — c'est le point d'extension.
 _SOURCES_EXPLICITES: list = []
@@ -79,6 +87,8 @@ class SourceJournal:
     model: type
     champ_date: str
     champ_user: str = 'user'
+    start_field: str | None = None
+    end_field: str | None = None
 
     @property
     def libelle_monde(self):
@@ -86,20 +96,24 @@ class SourceJournal:
 
 
 def app_queue_url(app):
-    """Page de file d'une app (`APP_CATALOG[app]['url_name']`), `''` si elle n'en déclare pas.
+    """Page de file d'une app, `''` si elle n'en déclare pas.
 
     Cible du clic du journal ET du calendrier (2026-09-28) — un seul endroit, sinon les deux
-    surfaces n'amèneraient pas au même endroit le jour où une app change de route.
+    surfaces n'amèneraient pas au même endroit le jour où une app change de route. La route vient
+    d'`APP_CATALOG`, ou de l'identité déclarée hors catalogue (`extra_link_for` : Lab, Studio).
     """
     from django.urls import NoReverseMatch, reverse
 
-    from ..app_registry import APP_CATALOG
+    from ..app_registry import APP_CATALOG, extra_link_for
 
-    spec = APP_CATALOG.get(app) or {}
-    if not spec.get('url_name'):
+    url_name = (APP_CATALOG.get(app) or {}).get('url_name')
+    if not url_name:
+        declared = extra_link_for(app)
+        url_name = declared[1].get('url_name') if declared else None
+    if not url_name:
         return ''
     try:
-        return reverse(spec['url_name'])
+        return reverse(url_name)
     except NoReverseMatch:
         return ''
 
@@ -110,18 +124,26 @@ def enregistrer_source(app, model, *, monde, champ_date=None, champ_user='user')
 
     À n'utiliser QUE pour un modèle qui n'a pas d'inspecteur : si l'app est dans
     `detail_registry`, elle est déjà au journal et l'inscrire ici la dupliquerait.
+    Idempotent : un `ready()` rejoué n'inscrit pas deux fois la même source.
     """
     champ_date = champ_date or _detecter_champ_date(model)
     if champ_date is None:
         logger.warning("[journal] %s sans champ de date connu — source ignorée", model.__name__)
         return
-    _SOURCES_EXPLICITES.append(SourceJournal(app=app, monde=monde, model=model,
-                                             champ_date=champ_date, champ_user=champ_user))
+    if any(s.app == app and s.model is model for s in _SOURCES_EXPLICITES):
+        return
+    _SOURCES_EXPLICITES.append(SourceJournal(
+        app=app, monde=monde, model=model, champ_date=champ_date, champ_user=champ_user,
+        start_field=_detect_field(model, START_FIELDS), end_field=_detect_field(model, END_FIELDS)))
+
+
+def _detect_field(model, candidates):
+    names = {f.name for f in model._meta.get_fields() if hasattr(f, 'attname')}
+    return next((c for c in candidates if c in names), None)
 
 
 def _detecter_champ_date(model):
-    champs = {f.name for f in model._meta.get_fields() if hasattr(f, 'attname')}
-    return next((c for c in CHAMPS_DATE if c in champs), None)
+    return _detect_field(model, CHAMPS_DATE)
 
 
 def sources():
@@ -149,7 +171,9 @@ def sources():
                            app, model.__name__, ', '.join(CHAMPS_DATE))
             continue
         trouvees.append(SourceJournal(app=app, monde=MONDE_MEDIA, model=model,
-                                      champ_date=champ_date))
+                                      champ_date=champ_date,
+                                      start_field=_detect_field(model, START_FIELDS),
+                                      end_field=_detect_field(model, END_FIELDS)))
     return trouvees + list(_SOURCES_EXPLICITES)
 
 
@@ -222,13 +246,26 @@ class Entree:
 
         Non utilisé par le clic du journal, qui emmène sur la page de l'app (cf. `url_app`).
         """
+        if not self._has_unified_views:
+            return ''
         from django.urls import reverse
         return reverse('common:unified_detail', args=[self.app, self.pk])
 
     @property
     def url_preview(self):
+        if not self._has_unified_views:
+            return ''
         from django.urls import reverse
         return reverse('common:unified_preview', args=[self.app, self.pk])
+
+    @property
+    def _has_unified_views(self):
+        """Les endpoints transversaux ne servent que les apps de `detail_registry`, par clé
+        ENTIÈRE. Une source inscrite hors de lui (Lab, Studio — 2026-09-28) n'en a pas : le Lab
+        a des clés UUID, et `reverse` levait alors, ce qui faisait tomber TOUTE la page du
+        journal. L'inspecteur reste vide pour ces entrées ; le bouton mène à l'app."""
+        from ..utils.detail_registry import DetailRegistry
+        return self.app in DetailRegistry._registry and isinstance(self.pk, int)
 
 
 #: Tris du journal. Vocabulaire ALIGNÉ sur `_queue_toolbar.html` pour que le geste soit le même

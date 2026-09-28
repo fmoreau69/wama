@@ -878,15 +878,26 @@ def calendar_view(request):
     La MÊME activité que le journal, sur l'axe du temps : la page ne porte aucune donnée, elle
     charge ses événements par `calendar_events` à chaque changement de fenêtre.
     """
-    from .services.calendar import MAINTENANCE_COLOR, app_identity
-    from .services.journal import compter_par_app
+    from .services.calendar import MAINTENANCE_COLOR, NATURE_LABELS, app_identity
+    from .services.journal import STATUTS, compter_par_app
 
     legend = []
     for row in compter_par_app(request.user):
         label, color = app_identity(row['app'])
         legend.append({'app': row['app'], 'label': label, 'color': color})
+    # Barre de filtrage COMMUNE (`common/_filter_bar.html`) en cible VIVANTE : le calendrier
+    # redessine ses événements à chaque vue, les facettes sont donc DÉCLARÉES — les mêmes
+    # valeurs que les `data-f-*` posés par `wama-calendar.js`. Les états sont ceux du journal.
+    facettes = [
+        {'cle': 'app', 'label': 'Application', 'tous': 'Toutes les applications',
+         'options': {row['app']: row['label'] for row in legend}},
+        {'cle': 'nature', 'label': 'Nature', 'tous': 'Tout', 'options': NATURE_LABELS},
+        {'cle': 'statut', 'label': 'État', 'tous': STATUTS['all'],
+         'options': {k: v for k, v in STATUTS.items() if k != 'all'}},
+    ]
     return render(request, 'common/calendar.html', {
         'legend': legend,
+        'facettes': facettes,
         'maintenance_color': MAINTENANCE_COLOR,
     })
 

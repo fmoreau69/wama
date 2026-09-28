@@ -26,6 +26,10 @@ Variables :
   cible_dans — (option, 2026-09-08) sélecteur d'un élément qui BORNE la recherche. Sans lui, le
                sélecteur balaie tout le document — ce qui convient à une liste par page, mais
                pas à deux listes sur une même page.
+  cible_vivante — (option, 2026-09-28) la liste est RE-RENDUE par un composant (calendrier) :
+               les éléments sont relus à chaque application, le composant appelle
+               `WamaFilterBar.refresh(barre)` après chaque rendu, et les facettes se DÉCLARENT
+               (`options`), le DOM étant vide au montage.
   mode       — 'client' (défaut) | 'server'
   placeholder, recherche (valeur courante), nom_recherche (défaut 'q'), url_reset
 

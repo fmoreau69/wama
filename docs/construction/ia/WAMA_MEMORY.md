@@ -281,8 +281,15 @@ Le champ de date est détecté (`created_at`, sinon `uploaded_at`…), les chips
 `card_chips` (générés du schéma params), le titre est le `__str__` du modèle — un titre médiocre
 est un défaut de `__str__` à corriger dans le modèle, où il profitera aussi à l'admin.
 
-**Mondes.** Seul `media` est peuplé, mais l'ajout d'un monde (studio, lab, data) est une
-**inscription** (`journal.enregistrer_source()`), jamais une modification de la page.
+**Mondes.** L'ajout d'un monde est une **inscription** (`journal.enregistrer_source()`, appelée par
+le `ready()` du monde), jamais une modification de la page. ✅ **2026-09-28** : le **Lab**
+(cam_analyzer, face_analyzer — `AnalysisSession`) et le **Studio** (`StudioRun`) sont inscrits ;
+reste le monde **Data**. Leur identité (libellé, route, couleur) vient des `extra_links` déjà
+déclarés à `APP_CATEGORIES` (`app_registry.extra_link_for`), rien n'est redéclaré. ⚠ Ces sources
+n'ont PAS d'inspecteur : `unified_preview`/`unified_detail` ne servent que `detail_registry`, par
+clé entière — et le Lab a des clés UUID. Mesuré le jour même : `reverse` levait et **toute la page
+du journal tombait**. `Entree.url_preview` rend donc `''` hors `detail_registry` (le bouton mène à
+l'app) ; garde : `tests_calendar.OtherWorldsTest`.
 
 **Le clic ne réinvente pas de volet** : il pose `sessionStorage['wama_focus_card']` puis navigue
 vers la page de l'app — passage inter-pages que `wama-queue.js` documente lui-même, et le sélecteur
@@ -345,16 +352,38 @@ déjà, horodaté. Le calendrier **projette** ; il n'écrit rien :
 
 | nature | ce que c'est | source | stockage |
 |---|---|---|---|
-| **observé** | ce qui a eu lieu | les **sources du journal** (`journal.sources()`, donc `detail_registry` + `enregistrer_source()`) ; intervalle d'exécution = instant `produit`/`echec` de `RunOutcome` moins `processing_seconds` | aucun ✅ |
-| **prévu** | ce qui aura lieu par construction | occurrences des entrées `crontab` de `CELERY_BEAT_SCHEDULE` ✅ ; à venir (étape 2) : fin estimée d'un RUNNING par l'ETA, expiration de rétention d'un média | aucun (calculé à la lecture) |
+| **observé** | ce qui a eu lieu | les **sources du journal** (`journal.sources()`, donc `detail_registry` + `enregistrer_source()` — Médias, Lab, Studio) ; intervalle d'exécution = instant `produit`/`echec` de `RunOutcome` moins `processing_seconds`, ou les champs `started_at`/`completed_at`/`finished_at` du modèle ; la **création des lots** (≥ 2 éléments) | aucun ✅ |
+| **prévu** | ce qui aura lieu par construction | occurrences des entrées `crontab` de `CELERY_BEAT_SCHEDULE` ✅ ; fin d'un traitement EN COURS par le débit observé ✅ ; passage de la purge qui effacera un média ✅ | aucun (calculé à la lecture) |
 | **voulu** | ce que quelqu'un a programmé | `ScheduledAction` (étape 3, `ROUTE §10.6` point 13) | la SEULE table neuve du plan |
 
 **Règles tenues par le code :**
-- **Une card = un événement, sa DERNIÈRE exécution.** Aucun modèle d'item ne porte de début/fin :
+- **Une card = un événement, sa DERNIÈRE exécution.** Les apps Médias ne portent pas de début/fin :
   l'intervalle est reconstruit (fin = `RunOutcome`, durée = `ProcessingTimeMixin`, sinon un bloc de
-  15 min marqué « durée indicative »). Un item jamais exécuté apparaît à son dépôt. L'historique des
-  exécutions viendra de la ligne d'exécution par process (`ROUTE §10.6 4.1`, moteur P3) — ce jour-là
-  seule `_executions()` change.
+  15 min marqué « durée indicative »). Le Lab porte `started_at`/`completed_at`, et le transcriber
+  pose `finished_at` sur un **import de résultat externe** — une exécution sans `RunOutcome`, à raison
+  (WAMA n'a rien produit). Ces champs sont DÉTECTÉS (`journal.START_FIELDS`/`END_FIELDS`) et **la fin
+  la plus récente gagne** ; `processing_seconds` ne se soustrait que d'une fin PRODUITE. Un item jamais
+  exécuté apparaît à son dépôt. L'historique des exécutions viendra de la ligne d'exécution par
+  process (`ROUTE §10.6 4.1`, moteur P3) — ce jour-là seule `_interval()` change.
+- **Les lots** : leur création est un événement (un lot d'un seul élément non — il s'affiche en card
+  unique). Mesuré le 2026-09-28, question de Fabien : les lots #443 à #445 du transcriber, créés les
+  24 et 25/09, rassemblaient des transcriptions de **mars à juillet** ; le calendrier n'en montrait
+  rien parce que leurs éléments n'avaient pas été exécutés ces jours-là — seule la relance #177
+  (import externe, `finished_at`) et les évaluations d'« accord entre moteurs » (`ResultEvaluation`,
+  non projetées : ce sont des MESURES d'un résultat, pas des exécutions) y avaient eu lieu.
+- **En cours** (nature `prévu`, liseré pointillé) : début MESURÉ au gouverneur (`running_tasks()`,
+  horodatage posé par le squelette au démarrage), fin par le **débit observé** — progression du
+  cache du squelette, la même règle que `wama-eta.js` — ; sans progression, aucune fin inventée.
+- **Rétention** : un média qui expire est effacé au **passage suivant de la purge** planifiée ;
+  l'événement est posé là, un par app (`retention.expirations_for`, même règle que la purge).
+- **Barre de recherche/filtrage** (demande de Fabien, 2026-09-28 : *« aligné sur le fonctionnement de
+  WAMA, ne rien réinventer »*) : la brique COMMUNE `common/_filter_bar.html`, facettes Application ·
+  Nature · État déclarées par la vue (les états sont ceux du journal). Le calendrier redessine ses
+  événements à chaque vue : la brique a reçu une option générique **« cible vivante »**
+  (`data-cible-vivante`, éléments relus à chaque application, `WamaFilterBar.refresh(barre)` appelé
+  après rendu). Filtre et recherche tiennent à travers la navigation (mesuré au navigateur).
+  Gardes : `tests_filter_bar_live` (V8, contre-épreuve : sans l'option, rien n'est filtré après un
+  re-rendu), `tests_calendar.CalendarFilterBarTest`.
 - **Rien d'un autre utilisateur** : la couche observée est PERSONNELLE, comme le journal (mesuré :
   même semaine, calendrier = journal = 7 items ; contre-épreuve : filtre utilisateur neutralisé →
   rouge).
@@ -392,7 +421,7 @@ sauvegarde déplacée à 04:20 → rouge).
 | # | étape | état |
 |---|---|---|
 | 1 | calendrier observé + maintenance + plages réservées + couleurs + export `.ics` | ✅ 2026-09-28 |
-| 2 | couche prévue : fin estimée (ETA) des RUNNING, expiration de rétention | ⏳ |
+| 2 | couche prévue : fin des traitements en cours (débit observé), passages de purge ; + Lab et Studio, lots, champs de fin, barre de filtrage commune | ✅ 2026-09-28 |
 | 3 | `ScheduledAction` + distributeur + « Programmer… » sur ▶ + flux `.ics` à jeton | ⏳ |
 | 4 | placement automatique (le « gouverneur du temps ») | ⏳ |
 | 5 | mails et posts — des OUTILS de `tool_api`, programmables sans code propre | ⏳ (quand les outils existeront) |

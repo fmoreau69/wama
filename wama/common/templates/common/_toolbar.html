@@ -40,7 +40,8 @@ y est remis à 0 par la brique : conserver l'offset sur un filtre changé affich
 <div class="wama-filter-bar" data-wama-filter-bar
      data-mode="{{ mode|default:'client' }}"
      {% if cible %}data-cible="{{ cible }}"{% endif %}
-     {% if cible_dans %}data-cible-dans="{{ cible_dans }}"{% endif %}>
+     {% if cible_dans %}data-cible-dans="{{ cible_dans }}"{% endif %}
+     {% if cible_vivante %}data-cible-vivante="1"{% endif %}>
   {% comment %}⚠ `placeholder_defaut` est posé dans LES DEUX enveloppes, jamais laissé absent :
   un argument de filtre qui est une variable non définie LÈVE (`Failed lookup for key`), il ne
   vaut pas la chaîne vide. Mesuré ici même — la barre de registre partait en 500 pendant que

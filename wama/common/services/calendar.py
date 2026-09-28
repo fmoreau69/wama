@@ -11,14 +11,17 @@ La seule table neuve du plan, celle des actions PROGRAMMÉES, n'arrive qu'à l'�
 
 TROIS NATURES DE TEMPS (§10.6 point 13) :
 - `observed` — ce qui a eu lieu : dérivé, aucune table ;
-- `predicted` — ce qui aura lieu par construction (occurrences beat, et à l'étape 2 : fin
-  estimée par l'ETA, expiration de rétention) : calculé à la lecture ;
+- `predicted` — ce qui aura lieu par construction : occurrences beat ; fin d'un traitement EN
+  COURS par le débit observé (début mesuré au gouverneur) ; passage de la purge de rétention
+  (étape 2, 2026-09-28) — calculé à la lecture ;
 - `declared` — ce que quelqu'un a voulu (étape 3, `ScheduledAction`).
 
-⚠ UNE CARD = UN ÉVÉNEMENT, SA DERNIÈRE EXÉCUTION. Aucun modèle d'item ne porte de début/fin
+⚠ UNE CARD = UN ÉVÉNEMENT, SA DERNIÈRE EXÉCUTION. Les apps Médias ne portent pas de début/fin
 d'exécution : l'intervalle est reconstruit de l'instant `produit`/`echec` (`RunOutcome`) moins la
-durée persistée (`ProcessingTimeMixin`). L'historique complet des exécutions viendra de la ligne
-d'exécution par process (§10.6 4.1, moteur commun P3) : ce jour-là, seule `_executions()` change.
+durée persistée (`ProcessingTimeMixin`). Le Lab, lui, les porte (`started_at`/`completed_at`), et
+un import de résultat externe pose `finished_at` : ces champs sont DÉTECTÉS par le journal
+(`START_FIELDS`/`END_FIELDS`) et la fin la plus récente gagne. L'historique complet des exécutions
+viendra de la ligne d'exécution par process (§10.6 4.1, moteur P3) : seule `_interval()` changera.
 """
 from __future__ import annotations
 
@@ -37,6 +40,11 @@ NATURE_DECLARED = 'declared'
 
 SCOPE_USER = 'user'
 SCOPE_INSTANCE = 'instance'
+
+#: Facette « nature » de la barre de filtrage commune. La maintenance de l'instance a sa propre
+#: valeur : c'est une couche, pas une nature de temps (ses occurrences sont `predicted`).
+NATURE_LABELS = {NATURE_OBSERVED: 'Réalisé', NATURE_PREDICTED: 'Prévu',
+                 'maintenance': 'Maintenance de WAMA'}
 
 #: Bloc minimal d'un événement ponctuel : un item jamais exécuté (seul son dépôt est daté), ou
 #: une exécution dont la durée n'a pas été persistée. Sans lui, l'événement serait invisible
@@ -92,9 +100,15 @@ def app_identity(app) -> tuple[str, str]:
     mesuré le 2026-09-28) : elle reçoit la couleur de la catégorie PLATEFORME plutôt que le bleu
     par défaut de FullCalendar, qui la ferait passer pour une autre app.
     """
-    from ..app_registry import APP_CATALOG, category_color
+    from ..app_registry import APP_CATALOG, category_color, extra_link_for
 
     spec = APP_CATALOG.get(app) or {}
+    if not spec:
+        # Lab, Studio : identité déclarée hors catalogue (`extra_links` de leur catégorie).
+        declared = extra_link_for(app)
+        if declared:
+            category, link = declared
+            return link.get('label') or app, link.get('color') or category_color(category)
     label = spec.get('label') or app.replace('_', ' ').capitalize()
     return label, spec.get('color') or category_color('platform')
 
@@ -167,54 +181,250 @@ def _executions(user, start, end) -> dict:
     return latest
 
 
-def observed_events(user, start, end) -> list[CalendarEvent]:
-    """Items de l'utilisateur dont l'exécution ou le dépôt tombe dans `[start, end)`.
+def _running_starts() -> dict:
+    """`(app, item_id) → instant de démarrage` des tâches EN COURS, lu au gouverneur.
+
+    Le squelette commun déclare chaque tâche au démarrage (`task_started`, horodatage `ts`) :
+    c'est le seul début d'exécution MESURÉ qu'une app Médias possède. Le gouverneur vit dans
+    Redis ; injoignable, il rend une table vide et le calendrier retombe sur les dates du modèle.
+    """
+    try:
+        from .resource_governor import running_tasks
+        rows = running_tasks()
+    except Exception:
+        logger.debug('[calendar] gouverneur injoignable', exc_info=True)
+        return {}
+    starts = {}
+    for row in rows:
+        try:
+            starts[(row['app'], str(row['item']))] = datetime.fromtimestamp(
+                float(row['ts']), tz=dt_timezone.utc)
+        except (KeyError, TypeError, ValueError):
+            continue
+    return starts
+
+
+def _progress_of(app, obj) -> float | None:
+    """Progression 0-100 d'un item en cours : le cache du squelette (`<app>_progress_<pk>`),
+    sinon le champ `progress` du modèle. None si rien d'exploitable."""
+    try:
+        from django.core.cache import cache
+        value = cache.get(f'{app}_progress_{obj.pk}')
+    except Exception:
+        value = None
+    if value is None:
+        value = getattr(obj, 'progress', None)
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return None
+    return value if 0 < value < 100 else None
+
+
+def predicted_end(started_at, progress, now) -> datetime | None:
+    """Fin prévue par le DÉBIT OBSERVÉ — la même règle que `wama-eta.js` côté navigateur :
+    le temps écoulé pour `progress` % donne le temps qui reste. None sans progression."""
+    if progress is None or started_at is None or started_at >= now:
+        return None
+    elapsed = (now - started_at).total_seconds()
+    return now + timedelta(seconds=elapsed * (100.0 - progress) / progress)
+
+
+def _interval(obj, src, run, running_start, now):
+    """`(début, fin, nature, source de la durée, exécuté)` de l'événement d'un item.
+
+    Règle : la FIN LA PLUS RÉCENTE gagne — c'est la dernière exécution, qu'elle vienne de
+    `RunOutcome` (produit par WAMA) ou d'un champ du modèle (`completed_at`, `finished_at` : Lab,
+    import d'un résultat externe). `processing_seconds` ne date que la dernière exécution
+    PRODUITE : on ne le soustrait pas d'une fin qui vient d'ailleurs.
+    """
+    from ..models import JOB_RUNNING, normalize_job_status
+
+    point = timedelta(minutes=POINT_MINUTES)
+    status = normalize_job_status(getattr(obj, 'status', '') or getattr(obj, 'state', ''))
+    model_start = getattr(obj, src.start_field, None) if src.start_field else None
+    model_end = getattr(obj, src.end_field, None) if src.end_field else None
+
+    if status == JOB_RUNNING:
+        began = running_start or model_start
+        if began is not None:
+            end = predicted_end(began, _progress_of(src.app, obj), now)
+            return (began, end or max(now, began + point), NATURE_PREDICTED,
+                    'measured' if end else 'declared', True)
+
+    run_end = run[0] if run else None
+    if run_end is not None and (model_end is None or run_end >= model_end):
+        if model_start is not None and model_start <= run_end:
+            return model_start, run_end, NATURE_OBSERVED, 'measured', True
+        seconds = float(getattr(obj, 'processing_seconds', 0) or 0)
+        if seconds > 0:
+            return run_end - timedelta(seconds=seconds), run_end, NATURE_OBSERVED, 'measured', True
+        return run_end - point, run_end, NATURE_OBSERVED, 'declared', True
+    if model_end is not None:
+        if model_start is not None and model_start <= model_end:
+            return model_start, model_end, NATURE_OBSERVED, 'measured', True
+        return model_end - point, model_end, NATURE_OBSERVED, 'declared', True
+    # Jamais exécuté (ou exécuté hors fenêtre) : seul le DÉPÔT est daté.
+    created = getattr(obj, src.champ_date)
+    return created, created + point, NATURE_OBSERVED, 'declared', False
+
+
+def observed_events(user, start, end, *, now=None) -> list[CalendarEvent]:
+    """Items de l'utilisateur dont le dépôt, l'exécution ou la fin tombe dans `[start, end)`, plus
+    ceux EN COURS (leur fin est une prévision : nature `predicted`).
 
     Les sources sont CELLES DU JOURNAL (`journal.sources()`) : une app qui entre au journal entre
-    au calendrier, sans une ligne de plus — et un monde inscrit par `enregistrer_source()` aussi.
+    au calendrier, sans une ligne de plus — et un monde inscrit par `enregistrer_source()` aussi
+    (Lab, Studio : 2026-09-28).
     """
     if not getattr(user, 'is_authenticated', False):
         return []
 
     from django.db.models import Q
+    from django.utils import timezone
 
-    from ..models import normalize_job_status
+    from ..models import JOB_RUNNING, normalize_job_status
     from .journal import app_queue_url, sources
 
+    now = now or timezone.now()
     executions = _executions(user, start, end)
+    running = _running_starts()
     events = []
     for src in sources():
         model_name = src.model.__name__
         executed_ids = [oid for (app, otype, oid) in executions
                         if app == src.app and otype == model_name]
-        in_window = Q(**{f'{src.champ_date}__gte': start, f'{src.champ_date}__lt': end})
+        wanted = (Q(**{f'{src.champ_date}__gte': start, f'{src.champ_date}__lt': end})
+                  | Q(pk__in=executed_ids))
+        for name in (src.start_field, src.end_field):
+            if name:
+                wanted |= Q(**{f'{name}__gte': start, f'{name}__lt': end})
+        if _has_field(src.model, 'status'):
+            wanted |= Q(status__in=_running_values(src.model))
         qs = (src.model.objects
               .filter(**{src.champ_user: user})
-              .filter(in_window | Q(pk__in=executed_ids))
+              .filter(wanted)
               .order_by(f'-{src.champ_date}')[:MAX_ITEMS_PER_SOURCE])
         _label, color = app_identity(src.app)
         url = app_queue_url(src.app)
         for obj in qs:
             status = normalize_job_status(getattr(obj, 'status', '') or getattr(obj, 'state', ''))
             run = executions.get((src.app, model_name, obj.pk))
-            if run:
-                ended_at, _signal = run
-                seconds = float(getattr(obj, 'processing_seconds', 0) or 0)
-                began_at = ended_at - timedelta(seconds=seconds) if seconds > 0 else None
-                duration_source = 'measured' if began_at else 'declared'
-                began_at = began_at or ended_at - timedelta(minutes=POINT_MINUTES)
-            else:
-                # Jamais exécuté (ou exécuté hors fenêtre) : seul le DÉPÔT est daté.
-                began_at = getattr(obj, src.champ_date)
-                ended_at = began_at + timedelta(minutes=POINT_MINUTES)
-                duration_source = 'declared'
+            began, ended, nature, duration_source, executed = _interval(
+                obj, src, run, running.get((src.app, str(obj.pk))), now)
+            if ended <= start or began >= end:
+                continue                     # un item EN COURS lancé hors fenêtre, par exemple
             events.append(CalendarEvent(
                 key=f'{src.app}:{model_name}:{obj.pk}', title=str(obj),
-                start=began_at, end=ended_at, nature=NATURE_OBSERVED, scope=SCOPE_USER,
+                start=began, end=ended, nature=nature, scope=SCOPE_USER,
                 app=src.app, world=src.monde, status=status, color=color, url=url,
                 item_id=obj.pk, duration_source=duration_source,
-                extra={'executed': bool(run)},
+                extra={'executed': executed, 'running': status == JOB_RUNNING},
             ))
+    return events
+
+
+def _has_field(model, name) -> bool:
+    return any(getattr(f, 'name', None) == name for f in model._meta.get_fields())
+
+
+def _running_values(model) -> list:
+    """Les graphies EN BASE qui veulent dire « en cours » pour ce modèle : `RUNNING` pour les
+    files, `running`/`processing`… pour le Lab (alias lus à la lecture, la base ne bouge pas)."""
+    from ..models import JOB_RUNNING, normalize_job_status
+
+    field_obj = model._meta.get_field('status')
+    values = [value for value, _ in (field_obj.choices or [])]
+    matching = [v for v in values if normalize_job_status(v) == JOB_RUNNING]
+    return matching or [JOB_RUNNING]
+
+
+# ── Les LOTS : un regroupement est une activité datée ────────────────────────────────────────
+
+def _batch_models(apps_wanted) -> list:
+    """Modèles de lot (`BatchMixin`) des apps sources, DÉRIVÉS des modèles installés."""
+    from django.apps import apps as django_apps
+
+    from ..models import BatchMixin
+
+    found = []
+    for model in django_apps.get_models():
+        if not issubclass(model, BatchMixin) or model._meta.app_label not in apps_wanted:
+            continue
+        if _has_field(model, 'user') and _has_field(model, 'created_at'):
+            found.append(model)
+    return found
+
+
+def batch_events(user, start, end) -> list[CalendarEvent]:
+    """La création des LOTS de l'utilisateur dans `[start, end)`.
+
+    POURQUOI (mesuré le 2026-09-28) : trois lots du transcriber créés les 24 et 25/09
+    rassemblaient des transcriptions de mars à juillet. La file les montre à leur date de lot, le
+    calendrier n'en disait rien — leurs éléments n'ont pas été exécutés ces jours-là. Un lot d'UN
+    élément s'affiche en card unique : l'événement de l'élément suffit, il n'est pas répété.
+    """
+    if not getattr(user, 'is_authenticated', False):
+        return []
+    from .journal import app_queue_url, sources
+
+    worlds = {src.app: src.monde for src in sources()}
+    events = []
+    for model in _batch_models(set(worlds)):
+        app = model._meta.app_label
+        _label, color = app_identity(app)
+        qs = (model.objects.filter(user=user, created_at__gte=start, created_at__lt=end)
+              .order_by('-created_at')[:MAX_ITEMS_PER_SOURCE])
+        for batch in qs:
+            total = getattr(batch, 'total', None)
+            if total is not None and total <= 1:
+                continue
+            count = f'{total} éléments' if total is not None else 'lot'
+            events.append(CalendarEvent(
+                key=f'{app}:{model.__name__}:{batch.pk}', title=f'Lot #{batch.pk} · {count}',
+                start=batch.created_at, end=batch.created_at + timedelta(minutes=POINT_MINUTES),
+                nature=NATURE_OBSERVED, scope=SCOPE_USER, app=app, world=worlds[app],
+                color=color, url=app_queue_url(app), duration_source='declared',
+                extra={'batchId': batch.pk, 'kind': 'batch'},
+            ))
+    return events
+
+
+# ── Couche PRÉVUE de l'utilisateur : les expirations de rétention ────────────────────────────
+
+def expiry_events(user, start, end) -> list[CalendarEvent]:
+    """Les purges de rétention qui toucheront l'utilisateur dans `[start, end)`.
+
+    Un média expire à `date + rétention`, mais il n'est EFFACÉ qu'au passage suivant de la purge
+    planifiée (`purge-expired-media`) : l'événement est posé à ce passage, un par app — c'est ce
+    jour-là que l'utilisateur perd quelque chose, pas l'instant théorique de l'expiration.
+    """
+    if not getattr(user, 'is_authenticated', False):
+        return []
+    from django.conf import settings
+
+    from .journal import app_queue_url
+    from .retention import expirations_for
+
+    purge = (getattr(settings, 'CELERY_BEAT_SCHEDULE', {}) or {}).get('purge-expired-media')
+    tz = _beat_timezone()
+    groups = {}
+    for item in expirations_for(user, start - timedelta(days=2), end):
+        at = item['expires_at']
+        if purge is not None:
+            at = next(_crontab_occurrences(purge['schedule'], at, at + timedelta(days=32), tz), at)
+        if start <= at < end:
+            groups.setdefault((item['app'], at), []).append(item['id'])
+    events = []
+    for (app, at), ids in sorted(groups.items(), key=lambda kv: kv[0][1]):
+        label, color = app_identity(app)
+        events.append(CalendarEvent(
+            key=f'expiry:{app}:{at.isoformat()}',
+            title=f'Purge : {len(ids)} élément{"s" if len(ids) > 1 else ""} {label}',
+            start=at, end=at + timedelta(minutes=POINT_MINUTES), nature=NATURE_PREDICTED,
+            scope=SCOPE_USER, app=app, color=color, url=app_queue_url(app),
+            duration_source='declared', extra={'kind': 'expiry', 'itemIds': ids[:50]},
+        ))
     return events
 
 
@@ -355,7 +565,8 @@ def reserved_window_conflicts(start, end) -> list[tuple[CalendarEvent, CalendarE
 
 
 def events_for(user, start, end, *, with_maintenance=True) -> list[CalendarEvent]:
-    events = observed_events(user, start, end)
+    events = (observed_events(user, start, end) + batch_events(user, start, end)
+              + expiry_events(user, start, end))
     if with_maintenance:
         events += maintenance_windows(start, end)
     return events

@@ -682,6 +682,21 @@ APP_CATEGORIES = {
 _DOCUMENT_OUTPUTS = {'txt', 'markdown', 'md', 'srt', 'vtt', 'json', 'docx', 'pdf'}
 
 
+def extra_link_for(app: str) -> tuple[str, dict] | None:
+    """`(catégorie, lien)` d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —
+    par son `gate`, ou None.
+
+    Ces apps ont DÉJÀ leur identité déclarée ici (libellé, route, icône, couleur) dans les
+    `extra_links` des catégories. Le journal et le calendrier la lisent au lieu d'en redéclarer
+    une (2026-09-28 : sans elle, une passe du Lab apparaissait sans couleur ni route).
+    """
+    for cid, meta in APP_CATEGORIES.items():
+        for link in meta.get('extra_links') or ():
+            if link.get('gate') == app:
+                return cid, link
+    return None
+
+
 def derive_category(entry) -> str:
     """Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation
     sert de défaut ET de garde-fou manifeste (une app qui sort du texte = Comprendre ;

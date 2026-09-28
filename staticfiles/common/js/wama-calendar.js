@@ -19,6 +19,19 @@
     var exportLink = document.getElementById('wama-calendar-ics');
     var VIEW_KEY = 'wama_calendar_view';
 
+    // La barre de filtrage commune (cible vivante) : ré-appliquée UNE fois par rendu, pas une
+    // fois par événement — `eventDidMount` est appelé pour chacun.
+    var filterBar = document.querySelector('[data-wama-filter-bar][data-cible-vivante]');
+    var refreshPending = false;
+    function scheduleFilterRefresh() {
+        if (!filterBar || refreshPending || !window.WamaFilterBar) { return; }
+        refreshPending = true;
+        setTimeout(function () {
+            refreshPending = false;
+            WamaFilterBar.refresh(filterBar);
+        }, 0);
+    }
+
     function withMaintenance() {
         return !toggle || toggle.checked;
     }
@@ -44,13 +57,19 @@
         var parts = [event.title];
         if (p.app) { parts.push('App : ' + p.app); }
         if (p.status) { parts.push('État : ' + p.status); }
+        if (p.running) {
+            parts.push(p.durationSource === 'measured' ? 'En cours — fin prévue au débit observé'
+                                                       : 'En cours — fin non estimable');
+        }
+        if (p.kind === 'expiry') { parts.push('Passage de la purge de rétention'); }
+        if (p.kind === 'batch') { parts.push('Création du lot'); }
         if (p.reserves && p.reserves.length) {
             parts.push('Plage réservée (' + p.reserves.join(', ') + ')');
         }
         if (p.durationSource === 'measured') {
             parts.push(p.scope === 'instance' ? 'Durée mesurée sur les dernières exécutions'
                                               : 'Durée d\'exécution mesurée');
-        } else if (p.durationSource === 'declared') {
+        } else if (p.durationSource === 'declared' && !p.kind && !p.running) {
             parts.push('Durée indicative (non mesurée)');
         }
         return parts.join('\n');
@@ -93,16 +112,26 @@
             syncExportLink(info);
         },
         eventDidMount: function (info) {
+            var p = info.event.extendedProps || {};
             info.el.setAttribute('title', tooltipOf(info.event));
+            // Contrat de la barre de filtrage COMMUNE : facettes en `data-f-<clé>`, texte en
+            // `data-f-text`. Les valeurs sont celles que la vue DÉCLARE (`calendar_view`).
+            info.el.setAttribute('data-f-app', p.app || '');
+            info.el.setAttribute('data-f-nature', p.scope === 'instance' ? 'maintenance' : (p.nature || ''));
+            info.el.setAttribute('data-f-statut', p.status || '');
+            info.el.setAttribute('data-f-text', [info.event.title, p.app, p.status].join(' '));
+            scheduleFilterRefresh();
         },
         eventClick: function (info) {
             var p = info.event.extendedProps || {};
-            if (!p.appUrl || p.itemId == null) { return; }   // maintenance : rien à ouvrir
+            if (!p.appUrl) { return; }                       // maintenance : rien à ouvrir
             info.jsEvent.preventDefault();
-            try {
-                sessionStorage.setItem('wama_focus_card', '.wama-card[data-id="' + p.itemId + '"]');
-                sessionStorage.setItem('wama_focus_select', '1');
-            } catch (e) { /* stockage indisponible : on navigue quand même */ }
+            if (p.itemId != null) {                          // lot, purge : la file suffit
+                try {
+                    sessionStorage.setItem('wama_focus_card', '.wama-card[data-id="' + p.itemId + '"]');
+                    sessionStorage.setItem('wama_focus_select', '1');
+                } catch (e) { /* stockage indisponible : on navigue quand même */ }
+            }
             window.location.href = p.appUrl;
         }
     });
