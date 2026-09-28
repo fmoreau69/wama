@@ -1421,13 +1421,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = detectionData[pos];
             if (data && data.frames.length) {
                 const offset  = camCfg.time_offset || 0;
-                const camTime = video.currentTime - offset;
-                const frame   = findClosestFrame(data.frames, camTime);
-                if (frame && frame.detections && frame.detections.length > 0) {
-                    drawDetections(pos, withSam3Interp(data.frames, camTime, frame.detections), data.width, data.height);
-                } else {
-                    clearCanvas(pos);
-                }
+                drawOverlayAt(pos, data, video.currentTime - offset);
             }
         });
         } catch (e) {
@@ -1971,22 +1965,47 @@ document.addEventListener('DOMContentLoaded', function () {
             const camCfg = cameras[pos];
             if (!data || !data.frames.length) { clearCanvas(pos); return; }
 
-            // When paused, adjust for the camera's own time offset
-            const offset     = (camCfg && camCfg.time_offset) || 0;
-            const camTime    = currentTime + offset - offset; // = currentTime (offset applied in syncSeek)
-            const targetFrame = findClosestFrame(data.frames, currentTime);
-            if (!targetFrame || !targetFrame.detections || targetFrame.detections.length === 0) {
-                clearCanvas(pos);
-                return;
-            }
-
-            drawDetections(pos, withSam3Interp(data.frames, currentTime, targetFrame.detections), data.width, data.height);
+            // (offset déjà appliqué dans syncSeek : currentTime est le temps de la caméra)
+            drawOverlayAt(pos, data, currentTime);
         });
         // Ré-afficher l'overlay du test SAM3 s'il correspond à la frame courante
         // (drawDetections vient d'effacer le canvas front).
         if (lastSam3TestOverlay && Math.abs(currentTime - lastSam3TestOverlay.time) < 0.35) {
             drawSam3TestMarkings(lastSam3TestOverlay.res);
         }
+    }
+
+    // Overlay d'UNE caméra à l'instant t — point unique pour la lecture (rafLoop) et le seek.
+    // Une exception de rendu EFFACE le canvas au lieu de le laisser sur la dernière image
+    // réussie : le try/finally de la boucle (2026-07-20) la faisait survivre, mais l'overlay
+    // restait FIGÉ pendant que la vidéo avançait (2026-09-28 : sam3Interpolated levait dès
+    // qu'on sortait des fenêtres SAM3). Un seul avertissement par caméra, pas 60 par seconde.
+    const _overlayErrorWarned = {};
+    function drawOverlayAt(pos, data, t) {
+        try {
+            const frame = findClosestFrame(data.frames, t);
+            if (frame && frame.detections && frame.detections.length > 0) {
+                drawDetections(pos, withSam3Interp(data.frames, t, frame.detections), data.width, data.height);
+            } else {
+                clearCanvas(pos);
+            }
+        } catch (e) {
+            clearCanvas(pos);
+            if (!_overlayErrorWarned[pos]) {
+                _overlayErrorWarned[pos] = true;
+                console.warn(`[cam_analyzer] overlay ${pos} : erreur de rendu, canvas effacé :`, e);
+            }
+        }
+    }
+
+    // Premier indice dont le timestamp est ≥ t (frames triées par timestamp croissant).
+    function firstFrameAtOrAfter(frames, t) {
+        let lo = 0, hi = frames.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (frames[mid].timestamp < t) lo = mid + 1; else hi = mid;
+        }
+        return lo;
     }
 
     function findClosestFrame(frames, time) {
@@ -2041,17 +2060,23 @@ document.addEventListener('DOMContentLoaded', function () {
         return [x0, y0, x1, y1];
     }
     function sam3Interpolated(frames, t) {
-        // keyframes SAM3 encadrantes (fenêtre de recherche ±1.2 s)
+        // keyframes SAM3 encadrantes (fenêtre de recherche ±1.2 s). Le parcours part de
+        // t − 1,2 s par dichotomie : il partait de la 1re image, à CHAQUE rafraîchissement —
+        // négligeable tant que seules les fenêtres étaient analysées, coûteux sur un parcours
+        // analysé en entier (~100 000 images par caméra). Une keyframe plus ancienne serait
+        // écartée plus bas de toute façon : le résultat est le même.
         let kf1 = null, kf2 = null;
-        for (let i = 0; i < frames.length; i++) {
+        for (let i = firstFrameAtOrAfter(frames, t - 1.2); i < frames.length; i++) {
             const fr = frames[i];
             if (fr.timestamp > t + 1.2) break;
             if (fr.timestamp <= t + 0.02 && _sam3Of(fr).length) kf1 = fr;
             else if (fr.timestamp > t + 0.02 && !kf2 && _sam3Of(fr).length &&
                      fr.timestamp <= t + 1.2) { kf2 = fr; break; }
         }
-        if (!kf1 && !kf2) return null;
         if (kf1 && t - kf1.timestamp > 1.2) kf1 = null;
+        // Ni keyframe récente, ni keyframe à venir (hors des fenêtres SAM3) : pas de marquage à
+        // interpoler. Ce test était AVANT l'éviction ci-dessus, d'où `kf2.timestamp` sur null.
+        if (!kf1 && !kf2) return null;
         if (!kf1) {   // fondu d'entrée sur la keyframe à venir
             const a = Math.max(0, 1 - (kf2.timestamp - t) / 0.6);
             return a <= 0 ? [] : _sam3Of(kf2).map(d => ({ ...d, _alpha: a }));
