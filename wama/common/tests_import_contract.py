@@ -227,13 +227,13 @@ class UploadViewsReceiveDesignationsTest(TestCase):
     Les 7 apps « crée » dérivées par `PORTEES` l'ont adoptée le même jour (transcriber d'abord,
     budget d'exemption descendu de 6 à 0 puis retiré). Une app ajoutée au parc entre ici seule."""
 
-    _utilisateur = ContratUploadDesAppsPorteesTest._utilisateur
+    _user_for = ContratUploadDesAppsPorteesTest._utilisateur
 
     def _designate(self, app, roles, champ, ext, contenu, extra):
         from django.conf import settings
         from wama.common.utils.file_references import direct_references
         from wama.common.utils.media_paths import DESIGNATION_FIELD
-        user = self._utilisateur(app, roles)
+        user = self._user_for(app, roles)
         self.client.force_login(user)
         rel = f'users/{user.id}/temp/wama_temoin_designe_{app}{ext}'
         path = Path(settings.MEDIA_ROOT) / rel
@@ -258,7 +258,7 @@ class UploadViewsReceiveDesignationsTest(TestCase):
         from wama.common.utils.media_paths import DESIGNATION_FIELD
         for app, roles, champ, ext, contenu, extra in PORTEES:
             with self.subTest(app=app):
-                self.client.force_login(self._utilisateur(app, roles))
+                self.client.force_login(self._user_for(app, roles))
                 rep = self.client.post(reverse(f'{app}:upload'),
                                        {DESIGNATION_FIELD: '../../etc/passwd', **extra})
                 self.assertGreaterEqual(rep.status_code, 400, rep.content[:200])

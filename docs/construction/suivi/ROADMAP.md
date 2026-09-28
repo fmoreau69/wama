@@ -4093,6 +4093,18 @@ consulte pas les ports » — c'est faux : elle le fait, dans UN outil sur 59.* 
 un **raccordement**, pas une construction : brancher les `add_to_*` sur ce que `inspect_user_file`
 sait déjà lire. ⚠ À faire **après** le chantier 1, ou avec lui — pas contre lui.
 
+✅ **SOLDÉ le 2026-09-28, avec le chantier 1** (étape 1 du plan card v4, demande de Fabien :
+*« ajoute l'assistant à l'étape 1 […] autant rendre les choses uniformes »*). Les deux niveaux :
+- **ce qu'il accepte** : les listes d'extensions en dur sont RETIRÉES ; les outils lisent le
+  catalogue (`accepts_file`, `category_of_path`) — l'anonymizer, le même filtre que sa vue ;
+- **comment il copie** : il ne copie plus — `add_to_*` passe par `media_paths.designate`, la
+  brique des vues d'upload (`received_inputs`) : un fichier du sas est POINTÉ, avec sa provenance.
+- 🔴 **Et un trou de sécurité fermé au passage** : `_resolve_user_path` ne vérifiait que le
+  confinement dans `MEDIA_ROOT`, où `users/<autre>/…` se trouve — l'assistant recopiait ou lisait
+  (`inspect_user_file`, `look_at_image`) le fichier d'un AUTRE utilisateur. Garde :
+  `media_paths.readable_by`. Contrat générique `tests_tool_api_designation` (les outils à
+  `file_path` sont trouvés, pas nommés), contre-épreuve 2 mutations / 2 rouges.
+
 **① ter — ce que les TESTS disent qu'il manque** (suggestion de Fabien : les scénarios
 utilisateurs guident l'API). `run_nightly_tests --list` catalogue **14 familles de gestes ×
 17 apps**. Recoupées avec les 59 outils :

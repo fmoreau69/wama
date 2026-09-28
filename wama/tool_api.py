@@ -22,7 +22,6 @@ HTTP endpoints (login_required, GET/POST JSON):
 import json
 import logging
 import os
-import shutil
 from pathlib import Path
 
 from django.conf import settings
@@ -36,29 +35,11 @@ from wama.common.utils.param_schema import schema_model_kwargs, schema_extra_par
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# File extension sets
-# ---------------------------------------------------------------------------
-_VIDEO_EXTS = {'.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.m4v'}
-_IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.gif'}
-_AUDIO_EXTS = {'.mp3', '.wav', '.flac', '.ogg', '.m4a'}
-_MEDIA_EXTS = _VIDEO_EXTS | _IMAGE_EXTS | _AUDIO_EXTS
-
-# Describer: all accepted extensions → detected content type
-_DESCRIBER_EXTS = (
-    _IMAGE_EXTS
-    | _VIDEO_EXTS
-    | _AUDIO_EXTS
-    | {'.txt', '.pdf', '.docx', '.md', '.csv'}
-)
-# _DESCRIBER_TYPE_MAP SUPPRIMÉE (2026-08-30, geste taxonomie) : c'était la 4ᵉ classification
-# du même fait — le détecteur unique est `describer.views.detect_type_from_extension`.
-
-# Transcriber: audio + video
-_TRANSCRIBER_EXTS = _AUDIO_EXTS | _VIDEO_EXTS
-
-# Reader: PDF + images
-_READER_EXTS = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp'}
+# Les listes d'extensions qui vivaient ici (`_MEDIA_EXTS`, `_DESCRIBER_EXTS`, `_TRANSCRIBER_EXTS`,
+# `_READER_EXTS`, `_AUDIO_ENHANCER_EXTS`…) sont RETIRÉES le 2026-09-28 (`ROADMAP §24.4 ① bis`) :
+# un modèle installé ou un port ajouté n'y changeait rien. Les outils `add_to_*` lisent le
+# CATALOGUE (`app_registry.accepts_file`, `category_of_path`) et désignent par la brique commune
+# (`media_paths.designate`), comme les vues d'upload.
 
 # ---------------------------------------------------------------------------
 # Folder mapping: logical name → MEDIA_ROOT-relative path template
@@ -163,32 +144,20 @@ def add_to_anonymizer(
         if not valid:
             return {'error': f'SAM3 prompt invalide : {err}'}
 
-    # Resolve source path
-    src, err = _resolve_user_path(user, file_path)
-    if err:
-        return err
-    if src.suffix.lower() not in _MEDIA_EXTS:
-        return {'error': f'Format non supporté : {src.suffix}'}
-
-    # Copy to anonymizer input if not already there
-    from wama.common.utils.media_paths import app_media_dir
-    dest_dir = Path(settings.MEDIA_ROOT) / app_media_dir('anonymizer', user.id, 'input')
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / src.name
-
-    if src.resolve() != dest.resolve():
-        # Avoid name collisions
-        stem, suffix = src.stem, src.suffix
-        counter = 1
-        while dest.exists():
-            dest = dest_dir / f'{stem}_{counter}{suffix}'
-            counter += 1
-        shutil.copy2(str(src), str(dest))
+    # Le fichier est DÉSIGNÉ (2026-09-28) : même brique que la vue d'upload — pointé s'il est
+    # dans l'espace de l'utilisateur (le sas où l'assistant dépose), jamais recopié à la main ;
+    # même filtre de types que le dépôt de l'app (`_check_media_type`), pas une liste de plus.
+    from wama.anonymizer.views import _check_media_type, process_media
+    from wama.common.utils.media_paths import InputRefused, designate
+    try:
+        received = designate(file_path, user, 'anonymizer')
+        _check_media_type(received.name)
+    except (InputRefused, ValueError) as e:
+        return {'error': str(e)}
 
     # Create Media DB entry via anonymizer's process_media()
     try:
-        from wama.anonymizer.views import process_media
-        result = process_media(str(dest), user)
+        result = process_media(received.local_path, user)
     except Exception as e:
         return {'error': f'Erreur création Media : {e}'}
 
@@ -203,6 +172,7 @@ def add_to_anonymizer(
     from wama.anonymizer.models import Media
     try:
         media = Media.objects.get(pk=media_id)
+        received.record(media, 'file')
         media.precision_level = max(0, min(100, int(precision_level)))
         if classes:
             media.classes2blur = classes
@@ -539,35 +509,33 @@ def add_to_enhancer(
 
     blend_factor = max(0.0, min(1.0, float(blend_factor)))
 
-    # Resolve and validate source file
-    src, err = _resolve_user_path(user, file_path)
-    if err:
-        return err
-
-    ext = src.suffix.lower()
-    if ext in _IMAGE_EXTS:
-        media_type = 'image'
-    elif ext in _VIDEO_EXTS:
-        media_type = 'video'
-    else:
-        return {'error': f'Format non supporté pour l\'enhancer : {ext}'}
+    # Le fichier est DÉSIGNÉ (2026-09-28) : pointé s'il est dans l'espace de l'utilisateur, jamais
+    # recopié ; format et nature lus au CATALOGUE (`accepts_file`, `category_of_path`), pas dans
+    # une liste d'extensions de plus.
+    from wama.common.app_registry import accepts_file, category_of_path
+    from wama.common.utils.media_paths import InputRefused, designate
+    try:
+        received = designate(file_path, user, 'enhancer')
+    except InputRefused as e:
+        return {'error': str(e)}
+    media_type = category_of_path(received.name)
+    if not accepts_file('enhancer', received.name) or media_type not in ('image', 'video'):
+        return {'error': f"Format non supporté pour l'enhancer : {Path(received.name).suffix}"}
 
     try:
-        from django.core.files import File
         from wama.enhancer.models import Enhancement
         from wama.common.utils.video_utils import get_media_info
 
-        with open(str(src), 'rb') as f:
-            django_file = File(f, name=src.name)
-            enhancement = Enhancement.objects.create(
-                user=user,
-                media_type=media_type,
-                input_file=django_file,
-                ai_model=ai_model,
-                denoise=bool(denoise),
-                blend_factor=blend_factor,
-                status='PENDING',
-            )
+        enhancement = Enhancement.objects.create(
+            user=user,
+            media_type=media_type,
+            input_file=received.value,
+            ai_model=ai_model,
+            denoise=bool(denoise),
+            blend_factor=blend_factor,
+            status='PENDING',
+        )
+        received.record(enhancement, 'input_file')
 
         # Analyse dimensions / durée
         try:
@@ -586,7 +554,7 @@ def add_to_enhancer(
     return {
         'enhancement_id': enhancement.id,
         'item_id': enhancement.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION 2026-07-12)
-        'name': src.name,
+        'name': received.name,
         'media_type': media_type,
         'ai_model': ai_model,
         'status': 'pending',
@@ -681,7 +649,6 @@ def get_enhancer_status(user) -> dict:
 
 _AUDIO_ENHANCER_ENGINES = {'resemble', 'deepfilternet'}
 _AUDIO_ENHANCER_MODES = {'both', 'denoise', 'enhance'}
-_AUDIO_ENHANCER_EXTS = {'.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.wma'}
 
 
 def add_to_audio_enhancer(
@@ -714,34 +681,36 @@ def add_to_audio_enhancer(
     denoising_strength = max(0.0, min(1.0, float(denoising_strength)))
     quality = max(32, min(128, int(quality)))
 
-    src, err = _resolve_user_path(user, file_path)
-    if err:
-        return err
-    if src.suffix.lower() not in _AUDIO_ENHANCER_EXTS:
-        return {'error': f'Format audio non supporté : {src.suffix}. Formats acceptés : {", ".join(sorted(_AUDIO_ENHANCER_EXTS))}'}
+    # Désigné, pointé, nature lue au catalogue (2026-09-28) — cf. `add_to_enhancer`.
+    from wama.common.app_registry import accepts_file, category_of_path
+    from wama.common.utils.media_paths import InputRefused, designate
+    try:
+        received = designate(file_path, user, 'enhancer', 'input/audio')
+    except InputRefused as e:
+        return {'error': str(e)}
+    if not accepts_file('enhancer', received.name) or category_of_path(received.name) != 'audio':
+        return {'error': f'Format audio non supporté : {Path(received.name).suffix}'}
 
     try:
-        from django.core.files import File
         from wama.enhancer.models import AudioEnhancement
 
-        with open(str(src), 'rb') as f:
-            django_file = File(f, name=src.name)
-            ae = AudioEnhancement.objects.create(
-                user=user,
-                input_file=django_file,
-                file_size=src.stat().st_size,
-                engine=engine,
-                mode=mode,
-                denoising_strength=denoising_strength,
-                quality=quality,
-                status='PENDING',
-            )
+        ae = AudioEnhancement.objects.create(
+            user=user,
+            input_file=received.value,
+            file_size=received.size,
+            engine=engine,
+            mode=mode,
+            denoising_strength=denoising_strength,
+            quality=quality,
+            status='PENDING',
+        )
+        received.record(ae, 'input_file')
     except Exception as e:
         return {'error': f'Erreur création AudioEnhancement : {e}'}
 
     return {
         'audio_enhancement_id': ae.id,
-        'name': src.name,
+        'name': received.name,
         'engine': engine,
         'mode': mode,
         'status': 'pending',
@@ -1173,41 +1142,42 @@ def add_to_describer(
         return {'error': f"Style invalide : '{output_style}'. "
                          f"Disponibles : {', '.join(sorted(valid_styles))}"}
 
-    src, err = _resolve_user_path(user, file_path)
-    if err:
-        return err
-
-    ext = src.suffix.lower()
-    if ext not in _DESCRIBER_EXTS:
+    # Désigné, pointé, format lu au catalogue (2026-09-28) — cf. `add_to_enhancer`.
+    from wama.common.app_registry import accepts_file
+    from wama.common.utils.media_paths import InputRefused, designate
+    try:
+        received = designate(file_path, user, 'describer')
+    except InputRefused as e:
+        return {'error': str(e)}
+    ext = Path(received.name).suffix.lower()
+    if not accepts_file('describer', received.name):
         return {'error': f'Format non supporté par le Describer : {ext}'}
 
     from wama.describer.views import detect_type_from_extension
     detected_type = detect_type_from_extension(ext.lstrip('.'))
 
     try:
-        from django.core.files import File
         from wama.describer.models import Description
 
-        with open(str(src), 'rb') as f:
-            django_file = File(f, name=src.name)
-            description = Description.objects.create(
-                user=user,
-                input_file=django_file,
-                filename=src.name,
-                file_size=src.stat().st_size,
-                detected_type=detected_type,
-                output_style=output_style,
-                output_language=output_language,
-                max_length=int(max_length),
-                **schema_model_kwargs('describer', params),
-            )
+        description = Description.objects.create(
+            user=user,
+            input_file=received.value,
+            filename=received.name,
+            file_size=received.size,
+            detected_type=detected_type,
+            output_style=output_style,
+            output_language=output_language,
+            max_length=int(max_length),
+            **schema_model_kwargs('describer', params),
+        )
+        received.record(description, 'input_file')
     except Exception as e:
         return {'error': f'Erreur création Description : {e}'}
 
     return {
         'description_id': description.id,
         'item_id': description.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION)
-        'filename': src.name,
+        'filename': received.name,
         'detected_type': detected_type,
         'output_style': output_style,
         'output_language': output_language,
@@ -1251,30 +1221,29 @@ def add_to_transcriber(
     Returns:
         {"transcript_id": int, "filename": str, "duration_display": str, "status": "pending"}
     """
-    src, err = _resolve_user_path(user, file_path)
-    if err:
-        return err
-
-    ext = src.suffix.lower()
-    if ext not in _TRANSCRIBER_EXTS:
-        exts_str = ', '.join(sorted(_TRANSCRIBER_EXTS))
-        return {'error': f'Format non supporté par le Transcriber : {ext}. Formats acceptés : {exts_str}'}
+    # Désigné, pointé, format lu au catalogue (2026-09-28) — cf. `add_to_enhancer`.
+    from wama.common.app_registry import accepts_file
+    from wama.common.utils.media_paths import InputRefused, designate
+    try:
+        received = designate(file_path, user, 'transcriber')
+    except InputRefused as e:
+        return {'error': str(e)}
+    if not accepts_file('transcriber', received.name):
+        return {'error': f'Format non supporté par le Transcriber : {Path(received.name).suffix}'}
 
     try:
-        from django.core.files import File
         from wama.transcriber.models import Transcript
 
-        with open(str(src), 'rb') as f:
-            django_file = File(f, name=src.name)
-            transcript = Transcript.objects.create(
-                user=user,
-                audio=django_file,
-                backend=backend,
-                preprocess_audio=bool(preprocess_audio),
-                hotwords=hotwords or '',
-                enable_diarization=bool(enable_diarization),
-                **schema_model_kwargs('transcriber', params),
-            )
+        transcript = Transcript.objects.create(
+            user=user,
+            audio=received.value,
+            backend=backend,
+            preprocess_audio=bool(preprocess_audio),
+            hotwords=hotwords or '',
+            enable_diarization=bool(enable_diarization),
+            **schema_model_kwargs('transcriber', params),
+        )
+        received.record(transcript, 'audio')
 
         # Populate duration / properties via ffprobe
         try:
@@ -1421,32 +1390,32 @@ def add_to_reader(
         {"item_id": int, "filename": str, "page_count": int, "status": "PENDING"}
     """
     from pathlib import Path
-    src, err = _resolve_user_path(user, file_path)
-    if err:
-        return err
-
-    ext = src.suffix.lower()
-    if ext not in _READER_EXTS:
-        exts_str = ', '.join(sorted(_READER_EXTS))
-        return {'error': f'Format non supporté par le Reader : {ext}. Formats acceptés : {exts_str}'}
+    # Désigné, pointé, format lu au catalogue (2026-09-28) — cf. `add_to_enhancer`.
+    from wama.common.app_registry import accepts_file
+    from wama.common.utils.media_paths import InputRefused, designate
+    try:
+        received = designate(file_path, user, 'reader')
+    except InputRefused as e:
+        return {'error': str(e)}
+    ext = Path(received.name).suffix.lower()
+    if not accepts_file('reader', received.name):
+        return {'error': f'Format non supporté par le Reader : {ext}'}
 
     try:
-        from django.core.files import File
         from wama.reader.models import ReadingItem
         from wama.reader.tasks import _count_pdf_pages
 
-        with open(str(src), 'rb') as f:
-            django_file = File(f, name=src.name)
-            item = ReadingItem.objects.create(
-                user=user,
-                input_file=django_file,
-                original_filename=src.name,
-                backend=backend,
-                mode=mode,
-                output_format=output_format,
-                language=language or '',
-                status='PENDING',
-            )
+        item = ReadingItem.objects.create(
+            user=user,
+            input_file=received.value,
+            original_filename=received.name,
+            backend=backend,
+            mode=mode,
+            output_format=output_format,
+            language=language or '',
+            status='PENDING',
+        )
+        received.record(item, 'input_file')
 
         # Count PDF pages immediately (quick, synchronous)
         if ext == '.pdf':
@@ -1668,14 +1637,23 @@ def _resolve_user_path(user, file_path: str):
     ⚠ Cette garde existait depuis longtemps et **huit sites du même fichier ne l'appelaient
     pas** — chacun recopiait son `startswith(str(media_root))`, contrôle par PRÉFIXE DE
     CHAÎNE qu'un dossier frère (`media_backup/`) traverse. Tous y passent désormais.
+
+    🔴 Et la PROPRIÉTÉ, depuis le 2026-09-28 : le confinement seul laissait un utilisateur
+    désigner le fichier d'un AUTRE (`users/<autre>/…` est bien sous MEDIA_ROOT) — les outils
+    l'auraient recopié chez lui (`add_to_*`) ou lu (`inspect_user_file`, `look_at_image`). La
+    règle est celle de toute désignation, `media_paths.readable_by` : son arbre, ou un asset
+    système actif.
     """
-    from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+    from wama.common.utils.media_paths import (OutsideMediaRoot, readable_by,
+                                               resolve_under_media_root)
     try:
-        src, _rel = resolve_under_media_root(file_path)
+        src, rel = resolve_under_media_root(file_path)
     except OutsideMediaRoot:
         return None, {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
     except FileNotFoundError:
         return None, {'error': f'Fichier introuvable : {file_path}'}
+    if not readable_by(rel, user):
+        return None, {'error': "Accès refusé : ce fichier n'est pas dans votre espace."}
     return src, None
 
 
@@ -1906,8 +1884,14 @@ def add_to_avatarizer(
     Returns:
         {"job_id": int, "mode": str, "status": "pending"}
     """
-    from django.core.files import File
     from wama.avatarizer.models import AvatarJob
+    from wama.common.app_registry import category_of_path
+    from wama.common.utils.media_paths import InputRefused, designate
+
+    # Les deux ports (audio, image d'avatar) sont DÉSIGNÉS (2026-09-28) : pointés s'ils sont
+    # dans l'espace de l'utilisateur, jamais recopiés ; nature lue par `category_of_path`. La
+    # provenance s'écrit après la sauvegarde du job (elle exige un élément qui existe).
+    designated = []
 
     # Le mode se DÉRIVE des entrées (2026-08-28) — règle UNIQUE partagée avec la vue
     # `create` et la ligne de batch : l'AUDIO (matériau explicite) prime, sinon le texte
@@ -1923,14 +1907,14 @@ def add_to_avatarizer(
         job.language = language or 'fr'
         job.voice_preset = voice_preset or 'default'
     else:  # standalone (audio_path fourni — c'est lui qui a dérivé le mode)
-        src, err = _resolve_user_path(user, audio_path)
-        if err:
-            return err
-        if src.suffix.lower() not in ('.wav', '.mp3', '.ogg', '.flac'):
-            return {'error': f'Format audio non supporté : {src.suffix}. Attendu : wav, mp3, ogg, flac.'}
-        with open(str(src), 'rb') as f:
-            job.audio_input = File(f, name=src.name)
-            job.save()  # persiste le fichier audio avant de continuer
+        try:
+            received = designate(audio_path, user, 'avatarizer')
+        except InputRefused as e:
+            return {'error': str(e)}
+        if category_of_path(received.name) != 'audio':
+            return {'error': f'Format audio non supporté : {Path(received.name).suffix}.'}
+        job.audio_input = received.value
+        designated.append((received, 'audio_input'))
 
     avatar_source = avatar_source if avatar_source in ('gallery', 'upload') else 'gallery'
     job.avatar_source = avatar_source
@@ -1941,14 +1925,14 @@ def add_to_avatarizer(
     else:
         if not avatar_image_path:
             return {'error': "Fournissez une image avatar (avatar_image_path)."}
-        asrc, err = _resolve_user_path(user, avatar_image_path)
-        if err:
-            return err
-        if asrc.suffix.lower() not in ('.jpg', '.jpeg', '.png', '.webp'):
-            return {'error': f'Format image non supporté : {asrc.suffix}. Attendu : jpg, jpeg, png, webp.'}
-        with open(str(asrc), 'rb') as f:
-            job.avatar_upload = File(f, name=asrc.name)
-            job.save()
+        try:
+            image = designate(avatar_image_path, user, 'avatarizer')
+        except InputRefused as e:
+            return {'error': str(e)}
+        if category_of_path(image.name) != 'image':
+            return {'error': f'Format image non supporté : {Path(image.name).suffix}.'}
+        job.avatar_upload = image.value
+        designated.append((image, 'avatar_upload'))
 
     job.quality_mode = quality_mode if quality_mode in ('fast', 'quality') else 'fast'
     job.use_enhancer = bool(use_enhancer)
@@ -1961,6 +1945,8 @@ def add_to_avatarizer(
         job.save()
     except Exception as e:
         return {'error': f'Erreur création AvatarJob : {e}'}
+    for received, field in designated:
+        received.record(job, field)
 
     return {'job_id': job.id, 'item_id': job.id, 'mode': job.mode, 'status': 'pending'}
 
