@@ -42,6 +42,77 @@ class CatalogueKeyOfTheModelActuallyUsedTest(TestCase):
                          TranscriberBackendManager.catalogue_key_for('qwen_asr', ''))
 
 
+class ACatalogueModelNameSelectsItsEngineTest(TestCase):
+    """Assistant test of 2026-09-28: the tool docstring listed whisper/vibevoice only, and an
+    unknown `backend` fell back to the best engine — a request made for Qwen3-ASR by its catalogue
+    name would have been transcribed by WHISPER, with no error anywhere."""
+
+    def _resolved(self, name):
+        from unittest import mock
+        manager = TranscriberBackendManager()
+        manager._register_backends()
+        availability = {n: True for n in manager._backends}
+        with mock.patch.object(manager, 'check_availability', return_value=availability), \
+                mock.patch.object(manager, '_get_best_backend', return_value='FALLBACK'):
+            manager._instances = {}
+            backend = manager.get_backend(name)
+        return backend if backend == 'FALLBACK' else backend.name
+
+    def test_a_catalogue_key_or_model_id_reaches_its_engine(self):
+        self.assertEqual('qwen_asr', self._resolved('transcriber:qwen3-asr-1.7b'))
+        self.assertEqual('qwen_asr', self._resolved('qwen3-asr-0.6b'))
+        self.assertEqual('vibevoice', self._resolved('vibevoice-asr'))
+
+    def test_engine_names_are_unchanged_and_nonsense_still_falls_back(self):
+        self.assertEqual('whisper', self._resolved('whisper'))
+        self.assertEqual('FALLBACK', self._resolved('does-not-exist'))
+
+    def test_the_requested_MODEL_reaches_the_load_not_only_its_engine(self):
+        """The worker called `backend.load()` with no model: asking for the 0.6B loaded the 1.7B."""
+        from wama.common.backends.qwen_asr_backend import QwenASRBackend
+        qwen = QwenASRBackend()
+        M = TranscriberBackendManager
+        self.assertEqual('qwen3-asr-0.6b', M.model_for_request(qwen, 'transcriber:qwen3-asr-0.6b'))
+        self.assertIsNone(M.model_for_request(qwen, 'qwen_asr'), 'an engine name keeps the default')
+        self.assertIsNone(M.model_for_request(qwen, None))
+        self.assertEqual('Qwen/Qwen3-ASR-0.6B', QwenASRBackend.hf_id_for('qwen3-asr-0.6b'))
+        self.assertEqual('Qwen/Qwen3-ASR-1.7B', QwenASRBackend.hf_id_for(None))
+
+    def test_a_catalogue_request_served_by_its_engine_is_not_reported_as_a_fallback(self):
+        """Item 737 (2026-09-28) was told « indisponible — repli sur Qwen3-ASR » while Qwen3-ASR
+        served it: the worker compared the request with the engine NAME."""
+        from wama.common.backends.qwen_asr_backend import QwenASRBackend
+        from wama.common.backends.whisper_backend import WhisperBackend
+        M = TranscriberBackendManager
+        self.assertTrue(M.honours(QwenASRBackend(), 'transcriber:qwen3-asr-1.7b'))
+        self.assertTrue(M.honours(QwenASRBackend(), 'qwen_asr'))
+        self.assertFalse(M.honours(WhisperBackend(), 'transcriber:qwen3-asr-1.7b'))
+
+
+class TheToolDoorKnowsTheEnginesTest(TestCase):
+    """Second finding of the same assistant test: the tool door answered « valides : auto » — the
+    schema renders « auto » statically and the browser appends the engines, so the door took the
+    prefix for the whole domain and refused ANY explicit engine, Whisper included."""
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        for key in ('whisper', 'qwen3-asr-1.7b', 'vibevoice-asr'):
+            AIModel.objects.create(model_key=f'transcriber:{key}', name=key, source='transcriber')
+
+    def test_engines_and_catalogue_keys_pass_the_door_nonsense_does_not(self):
+        from wama.common.utils.param_schema import invalid_choice_values, schema_for_app
+        schema = schema_for_app('transcriber')
+        for value in ('auto', 'whisper', 'qwen_asr', 'transcriber:qwen3-asr-1.7b'):
+            with self.subTest(value=value):
+                self.assertEqual({}, invalid_choice_values(schema, {'backend': value}))
+        self.assertIn('backend', invalid_choice_values(schema, {'backend': 'qwen3-asr-9b'}))
+
+    def test_the_assistant_is_told_the_same_values(self):
+        from wama.tool_api import tool_input_schema
+        enum = tool_input_schema('add_to_transcriber')['properties']['backend'].get('enum') or []
+        self.assertTrue({'auto', 'whisper', 'qwen_asr', 'transcriber:qwen3-asr-1.7b'} <= set(enum), enum)
+
+
 class TranscriberEvaluationTest(TestCase):
 
     def setUp(self):

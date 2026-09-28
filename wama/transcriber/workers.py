@@ -442,11 +442,15 @@ def _transcribe_item(t, ctx):
 
         backend_name = t.backend if t.backend and t.backend != 'auto' else None
         backend = get_backend(backend_name)
+        # Le MODÈLE demandé, quand la demande en nomme un que ce moteur sert (`transcriber:
+        # qwen3-asr-0.6b`) — sans lui, un moteur à plusieurs modèles chargeait son défaut.
+        from wama.transcriber.backends.manager import TranscriberBackendManager
+        requested_model = TranscriberBackendManager.model_for_request(backend, backend_name)
 
         # Repli transparent : l'utilisateur a demandé un moteur précis mais il est
         # indisponible (ex. VibeVoice KO) → on le signale clairement au lieu d'un
         # changement silencieux. used_backend (enregistré plus bas) reflète le réel.
-        if backend_name and backend.name != backend_name:
+        if backend_name and not TranscriberBackendManager.honours(backend, backend_name):
             _console(
                 t.user_id,
                 f"⚠ Moteur « {backend_name} » indisponible — repli sur {backend.display_name}.",
@@ -461,7 +465,7 @@ def _transcribe_item(t, ctx):
 
         # Step 3: Load model (chronométré pour l'apprentissage du seed ETA : chargement à froid).
         _t_load0 = time.time()
-        if not backend.load():
+        if not (backend.load(requested_model) if requested_model else backend.load()):
             raise RuntimeError(f"Failed to load {backend.display_name}")
         _load_seconds = time.time() - _t_load0
         _t_proc0 = time.time()   # début du traitement réel (hors chargement)

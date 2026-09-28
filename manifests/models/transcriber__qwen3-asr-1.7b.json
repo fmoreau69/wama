@@ -22,6 +22,12 @@
     },
     "extra_info": {
       "hf_id": "Qwen/Qwen3-ASR-1.7B",
+      "vram_measured": {
+        "at": "2026-09-28T17:35:43+00:00",
+        "last_gb": 3.8,
+        "max_gb": 3.8,
+        "n": 1
+      },
       "vram_provenance": "declared"
     },
     "formats": {
@@ -55,7 +61,7 @@
       "vram_gb": 4.0
     }
   },
-  "description": "Qwen3-ASR (Alibaba) : transcription multilingue (52 langues) avec context biasing natif — les mots-clés/hotwords fournis sont injectés dans le décodage pour mieux reconnaître le vocabulaire métier. Pas de diarisation native (pyannote en post-traitement). Statut expérimental dans WAMA. ~2–4 Go VRAM.",
+  "description": "Qwen3-ASR (Alibaba) : transcription multilingue (30 langues, dont le français) avec context biasing natif — les mots-clés fournis entrent dans le contexte du modèle pour mieux reconnaître le vocabulaire métier. Pas de diarisation native (pyannote en post-traitement) ; segments de 30 s, l'heure de chaque mot vient de l'alignement acoustique. ~2–4 Go VRAM.",
   "key": "transcriber:qwen3-asr-1.7b",
   "manifest_kind": "model",
   "name": "Qwen3-ASR-1.7B",

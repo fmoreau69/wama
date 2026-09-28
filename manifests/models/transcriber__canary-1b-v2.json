@@ -34,58 +34,65 @@
       "modalities": [
         "audio"
       ],
+      "supports_diarization": false,
+      "supports_hotwords": false,
+      "supports_timestamps": true,
       "task": "transcription"
     },
     "composition": {
       "runtime": {
-        "engine": "transformers"
+        "engine": "nemo"
       }
     },
     "extra_info": {
-      "category": "speech",
-      "family": "canary-1b-v2",
-      "vram_provenance": "estimated"
+      "hf_id": "nvidia/canary-1b-v2",
+      "vram_measured": {
+        "at": "2026-09-28T18:38:01+00:00",
+        "last_gb": 9.59,
+        "max_gb": 9.59,
+        "n": 2
+      },
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],
-      "format": null,
-      "preferred_format": null
+      "format": "nemo",
+      "preferred_format": "onnx"
     },
     "identity": {
-      "author": "nvidia",
-      "description_short": "Snapshot HF canary-1b-v2 — installé, en attente d'intégration",
-      "gated": "no",
+      "author": null,
+      "description_short": "Canary 1B v2 (NVIDIA) — 25 langues européennes, meilleur banc FR ouvert",
       "hf_id": "nvidia/canary-1b-v2",
-      "license": "cc-by-4.0",
+      "license": null,
       "model_type": "speech",
-      "platform_ref": "huggingface:nvidia/canary-1b-v2",
-      "source": "huggingface"
+      "platform_ref": null,
+      "source": "transcriber"
     },
     "prompts": {
       "contract": null
     },
     "provenance": {
-      "backend_ref": null,
+      "backend_ref": "transcriber",
       "confidence": null,
       "is_proposed": false,
       "proposal_kind": null,
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 5.924350557848811,
+      "disk_gb": 0.0,
       "ram_gb": 0.0,
       "vram_gb": 7.6
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/canary-1b-v2) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
-  "key": "huggingface:nvidia/canary-1b-v2",
+  "description": "Moteurs ASR NVIDIA : Canary 1B v2 (le plus précis en français parmi les modèles ouverts, langue à préciser) et Parakeet TDT 0.6B v3 (très rapide, langue détectée). 25 langues européennes, horodatage au mot natif. Diarisation via pyannote. ~3–8 Go VRAM.",
+  "key": "transcriber:canary-1b-v2",
   "manifest_kind": "model",
   "name": "canary-1b-v2",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "AIModel:huggingface:nvidia/canary-1b-v2",
+    "ref": "AIModel:transcriber:canary-1b-v2",
     "type": "extract"
   },
   "visibility": "public",

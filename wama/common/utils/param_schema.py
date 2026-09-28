@@ -52,6 +52,15 @@ class Param:
     max_label: str = ""                         #   — priment sur min/max bruts à l'affichage (P2-bis)
     contexts: Tuple[str, ...] = ALL_CONTEXTS
     options_source: Optional[str] = None        # clé d'options dynamiques (ex. "backends")
+    options_domain: Optional[str] = None        # chemin POINTÉ d'une fonction rendant les valeurs
+                                                # VALIDES côté serveur, quand `choices` n'est qu'un
+                                                # PRÉFIXE statique (« auto ») que le navigateur
+                                                # complète (`options_source`). Lu par `choice_values`
+                                                # — la porte des outils ET leur annonce aux
+                                                # assistants. ⚠ Sans lui, la porte prenait le
+                                                # préfixe pour le domaine entier : le transcriber
+                                                # refusait TOUT moteur explicite à l'assistant, Whisper
+                                                # compris (essai du 2026-09-28 : « valides : auto »).
     options_query: Optional[dict] = None        # DOMAINE d'une source d'options qui en demande un :
                                                 # {"task": "text-to-speech"} → querystring de l'endpoint.
                                                 # Requis par `options_source="catalog"` : une clé ne porte
@@ -541,9 +550,29 @@ def schema_arg_names(app_id: str) -> set:
     return {_pget(p, 'name') for p in schema_for_app(app_id)}
 
 
+def choice_values(p) -> List[str]:
+    """Valeurs VALIDES d'un select/radio : ses `choices` statiques, puis — quand l'app DÉCLARE
+    le domaine serveur d'options arrivant par le navigateur (`options_domain`) — les valeurs de
+    ce domaine. UNE fonction pour la porte (`invalid_choice_values`), l'annonce aux assistants
+    (`tool_api` : enum JSON et ligne « choix ») et `schema_choice_values` : les trois ne peuvent
+    plus diverger (garde `tests_mcp_server` : un enum n'est jamais plus strict que la porte).
+    Un domaine illisible ne rend rien de plus — on retombe sur les choix statiques."""
+    values = [str(c[0]) if isinstance(c, (list, tuple)) else str(c)
+              for c in (_pget(p, 'choices') or [])]
+    domain = _pget(p, 'options_domain')
+    if domain:
+        try:
+            from django.utils.module_loading import import_string
+            extra = import_string(domain)() or []
+        except Exception:
+            extra = []
+        values += [str(v) for v in extra if str(v) not in values]
+    return values
+
+
 def invalid_choice_values(schema, data) -> dict:
     """{nom: (valeurs_refusées, choices_valides_triés)} pour chaque valeur PRÉSENTE hors
-    des `choices` déclarés du schéma.
+    des valeurs valides du schéma (`choice_values` : choix déclarés + domaine déclaré).
 
     Pendant de `coerce_params` pour les selects : la coercition borne les nombres, ceci
     borne les énumérations — au point d'exécution unique (`execute_tool`), pour que les
@@ -551,10 +580,12 @@ def invalid_choice_values(schema, data) -> dict:
     toujours (absence / « défaut ») ; les listes sont validées élément par élément."""
     out = {}
     for p in schema:
-        name, choices = _pget(p, 'name'), _pget(p, 'choices')
-        if not choices or name not in data:
+        name = _pget(p, 'name')
+        if name not in data:
             continue
-        valides = {str(c[0]) if isinstance(c, (list, tuple)) else str(c) for c in choices}
+        valides = set(choice_values(p))
+        if not valides:
+            continue
         v = data[name]
         if v is None or v == '':
             continue
@@ -630,8 +661,7 @@ def schema_choice_values(app_id, name) -> set:
     dans tool_api. Ensemble vide si le param n'existe pas ou n'a pas de choices —
     l'appelant décide alors de ne pas valider (plutôt que de tout refuser)."""
     p = next((p for p in schema_for_app(app_id) if _pget(p, 'name') == name), None)
-    return {str(c[0]) if isinstance(c, (list, tuple)) else str(c)
-            for c in ((_pget(p, 'choices') if p else None) or [])}
+    return set(choice_values(p)) if p else set()
 
 
 _TRUTHY = ('1', 'true', 'on', 'oui', 'yes')

@@ -2,21 +2,30 @@
 Qwen3-ASR Backend for Transcriber
 
 Alibaba Qwen3-ASR — open-source ASR models with:
-- Context biasing: hotwords injected as initial prompt to steer transcription
-- 52 languages with auto-detection
+- Context biasing: hotwords passed as the official `context` of the prompt
+- 30 languages with auto-detection (named in English by the runtime: "French")
 - Noise robustness (RL-trained on noisy data)
-- Word-level timestamps (via decoder timestamp tokens)
 - Low VRAM: 0.6B ≈ 2 GB, 1.7B ≈ 4 GB
 
 Models (HuggingFace):
   - Qwen/Qwen3-ASR-0.6B   — fast, low VRAM
   - Qwen/Qwen3-ASR-1.7B   — best accuracy (default)
+
+RUNTIME (réécrit le 2026-09-28). L'architecture `qwen3_asr` n'est pas dans transformers : elle est
+fournie par le paquet officiel `qwen-asr`, qui l'ENREGISTRE auprès de transformers à l'import. La
+version précédente de ce backend appelait une API de style Whisper (`forced_decoder_ids`, jetons
+`<|0.00|>`) que ce modèle n'a pas — elle n'a jamais tourné (card #49 du 25/09 : « Transformers
+does not recognize this architecture »).
+
+INSTALLATION MESURÉE : `qwen-asr==0.0.6` épingle `accelerate==1.12.0` (que son code n'importe pas)
+et des dépendances de démo et de langues (gradio, flask, vllm, soynlp, nagisa). En `--no-deps`, il
+tourne avec NOTRE transformers 4.57.6 et accelerate 1.6.0 — un seul patch, `import nagisa`
+rendu paresseux (`patches/apply_patches.py` n°7 ; tokenizer japonais, inutile ailleurs).
 """
 
 import gc
 import logging
-import re
-from typing import List, Optional
+from typing import Optional
 
 from .speech_to_text_base import SpeechToTextBackend, TranscriptionResult, TranscriptionSegment
 
@@ -27,10 +36,10 @@ DEFAULT_MODEL = 'Qwen/Qwen3-ASR-1.7B'
 
 class QwenASRBackend(SpeechToTextBackend):
     """
-    Speech-to-text backend using Alibaba Qwen3-ASR.
+    Speech-to-text backend using Alibaba Qwen3-ASR (official `qwen_asr` runtime).
 
-    Key differentiator: native context biasing — pass domain-specific terms
-    as hotwords and the model will favour them during transcription.
+    Key differentiator: native context biasing — domain terms passed as the prompt context
+    are favoured during transcription.
 
     Diarization is handled externally by pyannote_diarizer (same as Whisper).
     """
@@ -44,24 +53,40 @@ class QwenASRBackend(SpeechToTextBackend):
     #: Les clés sont les `model_id` du catalogue (segment après `<source>:`), vocabulaire
     #: PARTAGÉ avec `SUPPORTED_MODELS` des backends imager — une graphie différente rouvrirait
     #: le trou qu'on ferme.
-    SUPPORTED_MODELS = {'qwen3-asr-0.6b': {}, 'qwen3-asr-1.7b': {}}
+    #: La valeur porte le dépôt HF : c'est ce que `load()` charge quand le worker lui passe l'id
+    #: du catalogue (`TranscriberBackendManager.model_for_request`, 2026-09-28).
+    SUPPORTED_MODELS = {'qwen3-asr-0.6b': {'hf_id': 'Qwen/Qwen3-ASR-0.6B'},
+                        'qwen3-asr-1.7b': {'hf_id': 'Qwen/Qwen3-ASR-1.7B'}}
     name = "qwen_asr"
     display_name = "Qwen3-ASR (Alibaba)"
-    description = "Qwen3-ASR — multilingue (52 langues), context biasing des mots-clés (expérimental). Diarisation via pyannote."
+    description = "Qwen3-ASR — multilingue, context biasing des mots-clés. Diarisation via pyannote."
     description_long = (
-        "Qwen3-ASR (Alibaba) : transcription multilingue (52 langues) avec context "
-        "biasing natif — les mots-clés/hotwords fournis sont injectés dans le décodage "
-        "pour mieux reconnaître le vocabulaire métier. Pas de diarisation native "
-        "(pyannote en post-traitement). Statut expérimental dans WAMA. ~2–4 Go VRAM."
+        "Qwen3-ASR (Alibaba) : transcription multilingue (30 langues, dont le français) avec "
+        "context biasing natif — les mots-clés fournis entrent dans le contexte du modèle pour "
+        "mieux reconnaître le vocabulaire métier. Pas de diarisation native (pyannote en "
+        "post-traitement) ; segments de 30 s, l'heure de chaque mot vient de l'alignement "
+        "acoustique. ~2–4 Go VRAM."
     )
 
     supports_diarization = False   # pyannote post-processing in workers.py
-    supports_timestamps  = True    # timestamp tokens in decoder output
-    supports_hotwords    = True    # context biasing via initial prompt
+    #: Horodatage au SEGMENT (le vocabulaire commun dit « mot/segment ») : les segments sont datés
+    #: par le DÉCOUPAGE commun (`max_audio_seconds` ci-dessous). Pas d'heure par MOT — le runtime
+    #: ne la donne qu'avec son aligneur dédié, non intégré ; l'alignement acoustique la fournit.
+    supports_timestamps  = True
+    supports_hotwords    = True    # context biasing via the official prompt context
     supports_streaming   = False
 
-    # Dépendances (contrat commun) — le téléchargement du modèle, lui, est vérifié dans load().
-    REQUIRED_PACKAGES = ['transformers', 'soundfile']
+    #: Découpage COMMUN (`workers._transcribe_maybe_chunked`) : chaque morceau devient un segment
+    #: daté par son décalage. 30 s = la fenêtre qu'un lecteur corrige d'un coup d'œil ; le modèle
+    #: accepterait 20 min d'une traite, mais sans aucune heure intermédiaire.
+    max_audio_seconds = 30
+
+    # Dépendances (contrat commun) — le téléchargement du modèle, lui, est fait dans load().
+    REQUIRED_PACKAGES = ['transformers', 'soundfile', 'librosa', 'qwen_asr']
+    #: `--no-deps` OBLIGATOIRE (cf. l'en-tête) : honorer le pin `accelerate==1.12.0` déplacerait
+    #: une dépendance PARTAGÉE du venv pour rien. Tout le reste du chemin transformers est déjà là.
+    PIP_PACKAGES = ['qwen-asr==0.0.6']
+    PIP_NO_DEPS = True
 
     min_vram_gb         = 2
     recommended_vram_gb = 4
@@ -73,10 +98,9 @@ class QwenASRBackend(SpeechToTextBackend):
 
     def __init__(self):
         super().__init__()
-        self._model     = None
-        self._processor = None
-        self._device    = None
-        self._dtype     = None
+        self._model  = None
+        self._device = None
+        self._dtype  = None
 
     # ------------------------------------------------------------------
     # Availability
@@ -84,230 +108,132 @@ class QwenASRBackend(SpeechToTextBackend):
 
     @classmethod
     def is_available(cls) -> bool:
-        """Le moteur ne tourne que si l'ARCHITECTURE `qwen3_asr` est connue — de transformers, ou
-        de la bibliothèque officielle `qwen-asr`. Le défaut du contrat (paquets présents) disait
-        « disponible » alors que tout chargement échouait (« Transformers does not recognize this
-        architecture », card #49, 2026-09-25) : l'interface proposait un moteur qui ne pouvait pas
-        partir.
+        """Disponible quand le runtime officiel `qwen_asr` est installé (contrat commun :
+        `missing_packages`, par `find_spec` sur des RACINES — aucun import lourd).
 
-        ⚠⚠ **`find_spec` d'un nom POINTÉ IMPORTE ses paquets parents** — la version précédente de
-        cette méthode promettait « sans importer transformers » et faisait exactement l'inverse :
-        `find_spec('transformers.models.qwen3_asr')` mesuré à **34,1 s** (et `transformers` présent
-        dans `sys.modules` juste après). Le coût était invisible ici et se payait ailleurs : la
-        page du transcriber demande l'inventaire des moteurs au chargement, cette réponse restait
-        en vol **~40 s** à chaque expiration du cache, et le scénario nocturne « Envoyer vers » du
-        transcriber SAUTAIT toutes les nuits sur un délai de navigation (2026-09-26).
-        *Une promesse de légèreté n'est pas une mesure.*
-
-        La mesure JUSTE ne demande rien à l'import : `find_spec` sur la RACINE (pas de parent à
-        importer, 0,00 s, `transformers` absent de `sys.modules` ensuite), puis l'existence du
-        dossier de l'architecture dans le paquet installé (1 ms). `qwen_asr` est une racine : son
-        `find_spec` est légitime.
+        ⚠⚠ **`find_spec` d'un nom POINTÉ IMPORTE ses paquets parents** — la version du 25/09
+        testait `transformers.models.qwen3_asr` et payait **34,1 s** à chaque expiration du cache
+        de la page (le scénario nocturne « Envoyer vers » du transcriber sautait sur ce délai).
+        Les racines seules restent à 0,00 s. *Une promesse de légèreté n'est pas une mesure.*
         """
-        import importlib.util
-        from pathlib import Path
-
-        if cls.missing_packages():
-            return False
-        try:
-            racine = importlib.util.find_spec('transformers')
-            for folder in list(getattr(racine, 'submodule_search_locations', None) or []):
-                if (Path(folder) / 'models' / 'qwen3_asr').is_dir():
-                    return True
-        except (ImportError, ValueError):
-            pass
-        try:
-            return importlib.util.find_spec('qwen_asr') is not None
-        except (ImportError, ValueError):
-            return False
+        return not cls.missing_packages()
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     def _get_device_and_dtype(self):
-        """Auto-select device and torch dtype."""
+        """Auto-select device and torch dtype — bfloat16 on CUDA when supported (the dtype of the
+        official examples; float16 overflows more easily on Qwen3 activations)."""
         try:
             import torch
             if torch.cuda.is_available():
-                return 'cuda', torch.float16
-            if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-                return 'mps', torch.float16
+                return 'cuda', (torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16)
         except ImportError:
             pass
         return 'cpu', None
 
-    def _get_cache_dir(self) -> Optional[str]:
-        """Return centralized model cache directory, or None."""
-        try:
-            # Étape 2 (complétée le 06/09) : dossier lu à sa SOURCE. Ces constantes dérivaient
-            # déjà de `settings.MODEL_PATHS` ; l'import d'app n'ajoutait qu'une indirection —
-            # et il était RELATIF, donc invisible à la 1ʳᵉ version de la garde, qui ne
-            # cherchait que les imports ABSOLUS. *Une garde ne couvre que la forme qu'elle
-            # sait lire.*
-            from django.conf import settings
-            return str(settings.MODEL_PATHS.get('speech', {}).get('qwen_asr') or '')
-        except Exception:
-            return None
+    def _get_cache_dir(self) -> str:
+        """Dossier de famille des poids (`settings.MODEL_PATHS['speech']['qwen_asr']`)."""
+        from django.conf import settings
+        return str(settings.MODEL_PATHS.get('speech', {}).get('qwen_asr')
+                   or settings.AI_MODELS_DIR / 'models' / 'speech' / 'qwen_asr')
 
     def _load_audio(self, audio_path: str):
-        """
-        Load audio as a mono float32 numpy array at 16 kHz.
-
-        Returns:
-            (audio_array: np.ndarray, sample_rate: int)
-        """
+        """Load audio as a mono float32 numpy array at 16 kHz → (array, 16000)."""
         import numpy as np
         import soundfile as sf
 
         audio, sr = sf.read(audio_path, dtype='float32', always_2d=True)
-        # Stereo → mono
-        if audio.shape[1] > 1:
-            audio = audio.mean(axis=1)
-        else:
-            audio = audio[:, 0]
-
+        audio = audio.mean(axis=1) if audio.shape[1] > 1 else audio[:, 0]
         if sr != 16000:
-            audio = self._resample(audio, sr, 16000)
+            import librosa
+            audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
             sr = 16000
-
         return audio.astype(np.float32), sr
 
-    def _resample(self, audio, orig_sr: int, target_sr: int):
-        """Resample audio to target_sr using best available library."""
-        import numpy as np
+    @staticmethod
+    def _runtime_language(language: Optional[str]) -> Optional[str]:
+        """Code WAMA (`fr`) → nom attendu par le runtime (`French`), None si inconnu de lui
+        (détection automatique plutôt qu'un refus). Table générique `LANGUAGE_NAMES_EN`."""
+        if not language:
+            return None
+        from qwen_asr.inference.utils import SUPPORTED_LANGUAGES
 
-        try:
-            import resampy
-            return resampy.resample(audio, orig_sr, target_sr)
-        except ImportError:
-            pass
-        try:
-            import librosa
-            return librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr)
-        except ImportError:
-            pass
-        try:
-            import torchaudio
-            import torch
-            t = torch.from_numpy(audio).unsqueeze(0)
-            t_resampled = torchaudio.functional.resample(t, orig_sr, target_sr)
-            return t_resampled.squeeze(0).numpy()
-        except Exception:
-            pass
+        from wama.common.tts.constants import LANGUAGE_NAMES_EN
+        name = LANGUAGE_NAMES_EN.get(str(language).lower())
+        return name if name in SUPPORTED_LANGUAGES else None
 
-        # Linear interpolation fallback
-        ratio = target_sr / orig_sr
-        new_len = int(len(audio) * ratio)
-        x_old = np.linspace(0, len(audio) - 1, len(audio))
-        x_new = np.linspace(0, len(audio) - 1, new_len)
-        return np.interp(x_new, x_old, audio).astype(np.float32)
+    @staticmethod
+    def _wama_language(runtime_name: str) -> str:
+        """Nom du runtime (`French`, ou `French,English` fusionné) → code WAMA du premier."""
+        from wama.common.tts.constants import LANGUAGE_NAMES_EN
+        first = (runtime_name or '').split(',')[0].strip()
+        return next((code for code, name in LANGUAGE_NAMES_EN.items() if name == first), '')
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
+    @classmethod
+    def hf_id_for(cls, model_name: Optional[str]) -> str:
+        """Dépôt HF d'une demande : id du catalogue (`qwen3-asr-0.6b`) → son dépôt déclaré ; un
+        dépôt HF passe tel quel ; rien → le défaut."""
+        if not model_name:
+            return DEFAULT_MODEL
+        declared = cls.SUPPORTED_MODELS.get(str(model_name).lower())
+        return declared['hf_id'] if declared else model_name
+
     def load(self, model_name: str = None) -> bool:
-        """
-        Load a Qwen3-ASR model.
-
-        Args:
-            model_name: HuggingFace model ID (default: 'Qwen/Qwen3-ASR-1.7B').
-
-        Returns:
-            True if loaded successfully.
-        """
-        model_id = model_name or DEFAULT_MODEL
+        """Load a Qwen3-ASR model — catalogue id or HuggingFace id, default Qwen/Qwen3-ASR-1.7B."""
+        model_id = self.hf_id_for(model_name)
 
         if self._loaded and self._current_model == model_id:
             logger.info(f"[QwenASR] '{model_id}' already loaded — reusing")
             return True
 
         try:
-            import os
-            import torch
-
             if self._model is not None:
                 self.unload()
 
             self._device, self._dtype = self._get_device_and_dtype()
-            cache_dir = self._get_cache_dir()
 
-            # Env NON muté (ROADMAP §5b, 2026-09-04) : `cache_dir` est déjà passé aux deux
-            # `from_pretrained` (proc_kwargs / model_kwargs ci-dessous), ce qui route le
-            # modèle PRINCIPAL. La mutation emportait en plus ses SOUS-DÉPENDANCES hors du
-            # cache partagé — c'est le défaut, pas la fonctionnalité.
+            # Levier B de `hf_weights` (chemin local) : le runtime transmet `cache_dir` au MODÈLE
+            # mais pas à son PROCESSEUR (`Qwen3ASRModel.from_pretrained`, qwen3_asr.py:208) — ses
+            # fichiers seraient partis au cache partagé. On télécharge DANS le dossier de famille
+            # et on charge par CHEMIN : tout est lu là, aucune variable d'environnement touchée.
+            from wama.common.utils.hf_weights import poids_locaux
+            local = poids_locaux(model_id, self._get_cache_dir())
 
-            from transformers import AutoProcessor
+            from qwen_asr import Qwen3ASRModel   # enregistre l'architecture qwen3_asr
 
-            logger.info(
-                f"[QwenASR] Loading '{model_id}' on {self._device}"
-                + (f" → {cache_dir}" if cache_dir else "")
-            )
-
-            # Processor
-            proc_kwargs = {'trust_remote_code': True}
-            if cache_dir:
-                proc_kwargs['cache_dir'] = cache_dir
-
-            self._processor = AutoProcessor.from_pretrained(model_id, **proc_kwargs)
-
-            # Model — try specific seq2seq class first, fall back to generic AutoModel
-            # AutoModelForSpeechSeq2Seq may not have qwen3_asr in its mapping on
-            # older transformers versions; AutoModel works with trust_remote_code
-            # for any architecture.
-            model_kwargs = {'trust_remote_code': True}
-            if cache_dir:
-                model_kwargs['cache_dir'] = cache_dir
+            logger.info(f"[QwenASR] Loading '{model_id}' on {self._device} from {local}")
+            kwargs = {}
             if self._dtype is not None:
-                model_kwargs['torch_dtype'] = self._dtype
-            if self._device != 'cpu':
-                model_kwargs['device_map'] = 'auto'
+                kwargs['dtype'] = self._dtype
+            if self._device == 'cuda':
+                kwargs['device_map'] = 'cuda:0'
+            self._model = Qwen3ASRModel.from_pretrained(
+                local, max_inference_batch_size=1, max_new_tokens=512, **kwargs)
 
-            # Qwen3-ASR uses a causal architecture — AutoModelForCausalLM is the
-            # correct class and works with trust_remote_code on any transformers
-            # version. AutoModelForSpeechSeq2Seq is tried first for forward
-            # compatibility if transformers ever registers qwen3_asr natively.
-            try:
-                from transformers import AutoModelForSpeechSeq2Seq
-                self._model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id, **model_kwargs)
-            except (ValueError, OSError) as exc:
-                if 'does not recognize this architecture' in str(exc) or 'qwen3_asr' in str(exc):
-                    logger.warning(
-                        f"[QwenASR] AutoModelForSpeechSeq2Seq unavailable for '{model_id}', "
-                        "falling back to AutoModelForCausalLM (trust_remote_code)"
-                    )
-                    from transformers import AutoModelForCausalLM
-                    self._model = AutoModelForCausalLM.from_pretrained(model_id, **model_kwargs)
-                else:
-                    raise
-
-            if self._device == 'cpu':
-                self._model = self._model.to('cpu')
-
-            self._model.eval()
             self._loaded        = True
             self._current_model = model_id
-
             vram = self.MODEL_VRAM.get(model_id, self.recommended_vram_gb)
             logger.info(f"[QwenASR] '{model_id}' loaded ✓ (≈{vram} GB VRAM)")
             return True
 
         except Exception as e:
             logger.error(f"[QwenASR] Failed to load '{model_id}': {e}")
-            self._model     = None
-            self._processor = None
-            self._loaded    = False
+            self._model  = None
+            self._loaded = False
             return False
 
     def unload(self) -> None:
         """Unload model and free VRAM."""
-        if self._model is not None or self._processor is not None:
+        if self._model is not None:
             logger.info("[QwenASR] Unloading model…")
             del self._model
-            del self._processor
-            self._model     = None
-            self._processor = None
+            self._model = None
             try:
                 import torch
                 if torch.cuda.is_available():
@@ -331,177 +257,35 @@ class QwenASRBackend(SpeechToTextBackend):
         **kwargs,
     ) -> TranscriptionResult:
         """
-        Transcribe an audio file with Qwen3-ASR.
+        Transcribe an audio file (≤ `max_audio_seconds` — the common chunking cuts longer ones).
 
         Args:
             audio_path:  Path to the audio file.
-            language:    ISO 639-1 code (e.g. 'fr', 'en') or None for auto-detect.
-            hotwords:    Comma-separated domain terms for context biasing.
-                         Example: "WAMA, anonymizer, transcriber"
-            **kwargs:
-                beam_size (int, default 1):        Beam search width.
-                max_new_tokens (int, default 4096): Max generated tokens.
-                enable_timestamps (bool, default True)
+            language:    WAMA code (e.g. 'fr', 'en') or None for auto-detect.
+            hotwords:    Comma-separated domain terms, passed as the prompt context.
 
         Returns:
-            TranscriptionResult — segments have empty speaker_id (filled by
+            TranscriptionResult — one segment spanning the chunk; empty speaker_id (filled by
             pyannote post-processing in workers.py if diarization is enabled).
         """
         if not self._loaded or self._model is None:
             if not self.load():
-                return TranscriptionResult(
-                    success=False, text='',
-                    error="Failed to load Qwen3-ASR model",
-                )
-
+                return TranscriptionResult(success=False, text='',
+                                           error="Failed to load Qwen3-ASR model")
         try:
-            import torch
-            logger.info(f"[QwenASR] Transcribing: {audio_path}")
-
-            # Load audio
-            audio_array, sample_rate = self._load_audio(audio_path)
-
-            # Processor inputs
-            inputs = self._processor(
-                audio_array,
-                sampling_rate=sample_rate,
-                return_tensors='pt',
-            )
-            inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
-
-            # Generation parameters
-            gen_kwargs: dict = {
-                'max_new_tokens':   int(kwargs.get('max_new_tokens', 4096)),
-                'num_beams':        int(kwargs.get('beam_size', 1)),
-                'return_timestamps': bool(kwargs.get('enable_timestamps', True)),
-            }
-
-            # Language hint
-            if language and hasattr(self._processor, 'tokenizer'):
-                try:
-                    lang_token = f'<|{language}|>'
-                    if lang_token in self._processor.tokenizer.get_vocab():
-                        forced_ids = self._processor.tokenizer.convert_tokens_to_ids([lang_token])
-                        gen_kwargs['forced_decoder_ids'] = [[1, forced_ids[0]]]
-                except Exception:
-                    pass
-
-            # Context biasing: inject hotwords as initial prompt
-            # This steers the decoder toward the provided vocabulary
-            if hotwords and hotwords.strip():
-                context = hotwords.strip()
+            audio, sr = self._load_audio(audio_path)
+            context = (hotwords or '').strip()
+            if context:
                 logger.info(f"[QwenASR] Context biasing active: {context[:80]}…")
-                try:
-                    if hasattr(self._processor, 'get_prompt_ids'):
-                        prompt_ids = self._processor.get_prompt_ids(context, return_tensors='pt')
-                        gen_kwargs['prompt_ids'] = prompt_ids.to(self._model.device)
-                except Exception as e:
-                    logger.debug(f"[QwenASR] Could not set prompt_ids: {e}")
-
-            # Generate
-            with torch.inference_mode():
-                generated_ids = self._model.generate(**inputs, **gen_kwargs)
-
-            # Decode — skip special tokens for clean text
-            transcription = self._processor.batch_decode(
-                generated_ids,
-                skip_special_tokens=True,
-            )
-            full_text = transcription[0].strip() if transcription else ''
-
-            # Extract timestamped segments from raw decoder output
-            segments = self._extract_segments(generated_ids, full_text)
-
-            logger.info(
-                f"[QwenASR] Done — {len(full_text)} chars, "
-                f"{len(segments)} segments"
-            )
-
-            return TranscriptionResult(
-                success  = True,
-                text     = full_text,
-                language = language or '',
-                segments = segments,
-            )
+            result = self._model.transcribe(audio=(audio, sr), context=context,
+                                            language=self._runtime_language(language))[0]
+            text = (result.text or '').strip()
+            detected = self._wama_language(result.language) or (language or '')
+            segments = [TranscriptionSegment(speaker_id='', start_time=0.0,
+                                             end_time=round(len(audio) / sr, 2), text=text)] if text else []
+            logger.info(f"[QwenASR] Done — {len(text)} chars, language={detected or '?'}")
+            return TranscriptionResult(success=True, text=text, language=detected, segments=segments)
 
         except Exception as e:
-            import traceback
-            logger.error(f"[QwenASR] Transcription failed: {e}")
-            logger.debug(traceback.format_exc())
+            logger.error(f"[QwenASR] Transcription failed: {e}", exc_info=True)
             return TranscriptionResult(success=False, text='', error=str(e))
-
-    # ------------------------------------------------------------------
-    # Segment extraction
-    # ------------------------------------------------------------------
-
-    def _extract_segments(
-        self,
-        generated_ids,
-        full_text: str,
-    ) -> List[TranscriptionSegment]:
-        """
-        Extract timestamped segments from raw decoder output.
-
-        Handles Whisper-style timestamp tokens: <|0.00|> text <|1.50|>
-
-        Falls back to a single segment covering the entire transcript if
-        timestamp tokens are not present in the output.
-        """
-        try:
-            raw_with_tokens = self._processor.batch_decode(
-                generated_ids,
-                skip_special_tokens=False,
-            )
-            if raw_with_tokens:
-                segs = self._parse_timestamp_tokens(raw_with_tokens[0], full_text)
-                if segs:
-                    return segs
-        except Exception as e:
-            logger.debug(f"[QwenASR] Timestamp extraction skipped: {e}")
-
-        # Fallback: single segment
-        if full_text:
-            return [TranscriptionSegment(
-                speaker_id = '',
-                start_time = 0.0,
-                end_time   = 0.0,
-                text       = full_text,
-                confidence = None,
-            )]
-        return []
-
-    def _parse_timestamp_tokens(self, raw: str, full_text: str) -> List[TranscriptionSegment]:
-        """
-        Parse Whisper-style timestamp tokens.
-
-        Format:  <|0.00|> Hello world <|1.50|> How are you <|3.20|>
-        """
-        # Match: <|timestamp|> text (non-greedy until next token or end)
-        pattern = r'<\|(\d+\.\d+)\|>\s*([^<]*)'
-        matches = re.findall(pattern, raw)
-
-        if not matches:
-            return []
-
-        segments: List[TranscriptionSegment] = []
-
-        for i, (start_str, text) in enumerate(matches):
-            text = text.strip()
-            if not text:
-                continue
-
-            start = float(start_str)
-            if i + 1 < len(matches):
-                end = float(matches[i + 1][0])
-            else:
-                end = start + 2.0  # last segment: +2 s estimate
-
-            segments.append(TranscriptionSegment(
-                speaker_id = '',
-                start_time = start,
-                end_time   = end,
-                text       = text,
-                confidence = None,
-            ))
-
-        return segments

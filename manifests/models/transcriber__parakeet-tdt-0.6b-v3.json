@@ -5,17 +5,16 @@
         "work_audio"
       ],
       "languages": [
-        "en",
-        "es",
-        "fr",
-        "de",
         "bg",
         "hr",
         "cs",
         "da",
         "nl",
+        "en",
         "et",
         "fi",
+        "fr",
+        "de",
         "el",
         "hu",
         "it",
@@ -27,6 +26,7 @@
         "ro",
         "sk",
         "sl",
+        "es",
         "sv",
         "ru",
         "uk"
@@ -34,58 +34,59 @@
       "modalities": [
         "audio"
       ],
+      "supports_diarization": false,
+      "supports_hotwords": false,
+      "supports_timestamps": true,
       "task": "transcription"
     },
     "composition": {
       "runtime": {
-        "engine": "transformers"
+        "engine": "nemo"
       }
     },
     "extra_info": {
-      "category": "speech",
-      "family": "parakeet-tdt-0.6b-v3",
-      "vram_provenance": "estimated"
+      "hf_id": "nvidia/parakeet-tdt-0.6b-v3",
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],
-      "format": null,
-      "preferred_format": null
+      "format": "nemo",
+      "preferred_format": "onnx"
     },
     "identity": {
-      "author": "nvidia",
-      "description_short": "Snapshot HF parakeet-tdt-0.6b-v3 — installé, en attente d'intégration",
-      "gated": "no",
+      "author": null,
+      "description_short": "Parakeet TDT 0.6B v3 (NVIDIA) — très rapide, 25 langues, langue détectée",
       "hf_id": "nvidia/parakeet-tdt-0.6b-v3",
-      "license": "cc-by-4.0",
+      "license": null,
       "model_type": "speech",
-      "platform_ref": "huggingface:nvidia/parakeet-tdt-0.6b-v3",
-      "source": "huggingface"
+      "platform_ref": null,
+      "source": "transcriber"
     },
     "prompts": {
       "contract": null
     },
     "provenance": {
-      "backend_ref": null,
+      "backend_ref": "transcriber",
       "confidence": null,
       "is_proposed": false,
       "proposal_kind": null,
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 2.3381202034652233,
+      "disk_gb": 0.0,
       "ram_gb": 0.0,
       "vram_gb": 3.0
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/parakeet-tdt-0.6b-v3) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
-  "key": "huggingface:nvidia/parakeet-tdt-0.6b-v3",
+  "description": "Moteurs ASR NVIDIA : Canary 1B v2 (le plus précis en français parmi les modèles ouverts, langue à préciser) et Parakeet TDT 0.6B v3 (très rapide, langue détectée). 25 langues européennes, horodatage au mot natif. Diarisation via pyannote. ~3–8 Go VRAM.",
+  "key": "transcriber:parakeet-tdt-0.6b-v3",
   "manifest_kind": "model",
   "name": "parakeet-tdt-0.6b-v3",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "AIModel:huggingface:nvidia/parakeet-tdt-0.6b-v3",
+    "ref": "AIModel:transcriber:parakeet-tdt-0.6b-v3",
     "type": "extract"
   },
   "visibility": "public",

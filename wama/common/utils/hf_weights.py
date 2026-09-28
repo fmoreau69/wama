@@ -69,6 +69,12 @@ def poids_locaux(hf_id: str, dossier: str | Path, *,
     si les poids manquent. Sans cela, un modèle déjà présent ferait quand même un aller-retour
     HTTP à chaque chargement — et un incident réseau ferait échouer un chargement qui n'avait
     besoin de rien.
+
+    ⚠ « Présent » se VÉRIFIE (2026-09-28) : `snapshot_download(local_files_only=True)` rend le
+    dossier de la révision dès que sa référence existe, SANS regarder ce qu'il contient. Un
+    chargement avorté laisse une config seule (cas Qwen3-ASR-1.7B, 4 Mo) : ce snapshot passait
+    pour « les poids », et le chargement échouait sans jamais tirer le reste. Le résultat local
+    n'est retenu que s'il porte ce qu'on a demandé (`_holds`).
     """
     from huggingface_hub import snapshot_download
 
@@ -79,7 +85,21 @@ def poids_locaux(hf_id: str, dossier: str | Path, *,
         commun['allow_patterns'] = list(patterns)
 
     try:
-        return snapshot_download(local_files_only=True, **commun)
+        local = snapshot_download(local_files_only=True, **commun)
+        if _holds(local, patterns):
+            return local
+        logger.info('[hf_weights] %s incomplet dans %s — téléchargement du reste', hf_id, dossier)
     except Exception:
         logger.info('[hf_weights] %s absent de %s — téléchargement', hf_id, dossier)
     return snapshot_download(token=token, **commun)
+
+
+def _holds(snapshot: str | Path, patterns: Optional[Sequence[str]]) -> bool:
+    """Le snapshot local porte-t-il ce qu'on a demandé ? Avec `patterns` : chacun désigne au
+    moins un fichier. Sans : des POIDS complets, au sens du jugement commun de « téléchargé »
+    (`prospector.installed_weights_complete` — le même que la découverte du catalogue)."""
+    root = Path(snapshot)
+    if patterns:
+        return all(any(root.glob(p)) or any(root.rglob(p)) for p in patterns)
+    from wama.model_manager.services.prospector import installed_weights_complete
+    return installed_weights_complete(root)
