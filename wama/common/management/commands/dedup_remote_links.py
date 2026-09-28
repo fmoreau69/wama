@@ -10,9 +10,12 @@ anciens portaient déjà de vrais liens au distant). Le moteur reproduit désorm
 est cumulative, le miroir ne purge JAMAIS.
 
 Cette commande est donc un geste PONCTUEL et EXPLICITE, hors du miroir — et elle ne perd rien :
-chaque double est d'abord inscrit dans `LINKS_MANIFEST` (à la racine distante), puis remplacé par
-un VRAI lien vers son blob, qui reste. Le tirage (`restore_backup`) rend un lien dans les deux cas —
-y compris pour un modèle déjà désinstallé en local.
+chaque double est d'abord inscrit dans `LINKS_MANIFEST` (à la racine distante), puis retiré ; son
+blob, lui, reste. Elle tente ensuite d'y poser un vrai lien — ⚠ le partage distant REFUSE d'en
+créer depuis WSL (`EPERM`, mesuré au 1er `--apply` du 28/09 : 0 lien posé sur 77), c'est donc le
+manifeste qui fait foi, et le tirage (`restore_backup`) en recrée les liens. Aucun BLOB n'est jamais
+retiré : un modèle désinstallé en local reste entier dans l'archive (décision de Fabien : garder
+de quoi réinstaller vite et sûrement).
 
 RÈGLES DE SÉCURITÉ — un fichier n'est retiré que s'il est PROUVÉ doublon d'un blob du même dépôt :
   • `described` : le manifeste le décrit déjà comme lien, et le blob visé existe à la même taille ;
@@ -172,6 +175,7 @@ class Command(BaseCommand):
         if 'applied' in report:
             a = report['applied']
             self.stdout.write(f"APPLIQUÉ : {a['removed']} retirés, {gb(a['freed_bytes'])} rendus, "
+                              f"{a['linked']} liens posés (le reste : décrits au manifeste), "
                               f"{len(a['errors'])} erreurs {a['errors'][:5]}")
         else:
             self.stdout.write("SIMULATION — rien écrit, rien retiré (--apply pour exécuter).")

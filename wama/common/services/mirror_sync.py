@@ -45,10 +45,12 @@ moteur voyait donc chaque poids recopié une SECONDE fois (mesuré au distant : 
 pleines sur 4 dépôts — FastWan, MiniMax-Music3, ACE-Step, Minimax-h3). Les dépôts plus anciens,
 eux, y portaient déjà de VRAIS liens, que le test « même taille » (qui suit le lien) sautait.
 Désormais un lien dont la cible est un fichier DE LA SOURCE est REPRODUIT comme lien à la
-destination — le partage distant les porte (montage 9p `metadata`), et c'est ce qui permet au
-tirage de restaurer des liens et non des doubles. Si la destination refuse un lien, il est
-inscrit dans `LINKS_MANIFEST` à sa racine (fusionné, jamais vidé), que le tirage relit pour le
-recréer. Un lien vers l'EXTÉRIEUR de la source garde l'ancien comportement (contenu copié) : il
+destination quand elle l'accepte (le disque local : c'est ce qui permet au tirage de restaurer
+des liens et non des doubles) ; sinon il est inscrit dans `LINKS_MANIFEST` à sa racine
+(fusionné, jamais vidé), que le tirage relit pour le recréer.
+⚠ MESURÉ le 28/09 : le partage distant (`\\vrlescot\SAVES`, 9p depuis WSL) EXPOSE les liens
+anciens mais REFUSE d'en créer (`EPERM`) — pour la sauvegarde, le manifeste n'y est donc pas un
+repli, c'est LE mécanisme. Un lien vers l'EXTÉRIEUR de la source garde l'ancien comportement (contenu copié) : il
 n'y a pas d'autre copie de ce fichier dans l'archive.
 ⚠ Rectification du même jour : la première version DÉCRIVAIT tous les liens au lieu de les
 reproduire, sur la foi d'une mesure fausse (« 115 Go distants pour 54 » — un `stat()` qui suivait
@@ -341,10 +343,10 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
                 current = source.name
             progress_cb(dict(summary, phase='copy', current=current))
 
-    # Phase 3 — liens internes : REPRODUITS comme liens (le partage distant les porte : montage
-    # 9p `metadata`, mesuré le 28/09) ; DÉCRITS au manifeste seulement là où la destination en
-    # refuse la création. Un lien déjà présent — ou une copie pleine laissée par une ancienne
-    # passe, que `dedup_remote_links` traite — n'est pas touché.
+    # Phase 3 — liens internes : REPRODUITS comme liens là où la destination l'accepte (disque
+    # local), DÉCRITS au manifeste là où elle le refuse (le partage distant : `EPERM`, mesuré le
+    # 28/09). Un lien déjà présent — ou une copie pleine laissée par une ancienne passe, que
+    # `dedup_remote_links` traite — n'est pas touché.
     refused = {}
     for relative, value in links.items():
         dest = dest_root / relative
