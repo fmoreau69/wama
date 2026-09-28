@@ -1062,6 +1062,7 @@
             "options_abilities": false,
             "options_auto": true,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": {
@@ -1110,6 +1111,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1220,6 +1222,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1266,6 +1269,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1312,6 +1316,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1358,6 +1363,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1435,6 +1441,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1492,6 +1499,7 @@
             "options_abilities": false,
             "options_auto": false,
             "options_cloud": false,
+            "options_domain": null,
             "options_group": "",
             "options_mode": null,
             "options_query": null,
@@ -1595,8 +1603,7 @@
         "upload",
         "upload_custom_voice",
         "upload_text",
-        "voice_preview",
-        "voice_preview_stream"
+        "voice_preview"
       ],
       "extra_routes": [
         {
@@ -1613,11 +1620,6 @@
           "name": "voice_preview",
           "pattern": "voice-preview/",
           "view": "views.voice_preview"
-        },
-        {
-          "name": "voice_preview_stream",
-          "pattern": "voice-preview-stream/<str:preview_id>/",
-          "view": "views.voice_preview_stream"
         },
         {
           "name": "start",

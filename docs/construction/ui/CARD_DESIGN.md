@@ -1482,9 +1482,23 @@ select du volet ; (d) la galerie d'avatars, avec l'adoption v4 de l'avatarizer.
 > - lecture sur un `<audio>` nu : ni canal de parole `WamaApp.Speech` (jeton de tour, abandon de la
 >   requête en vol au 2ᵉ clic, exclusivité inter-onglets), ni lecteur `WamaAudioPlayer`.
 >
-> Cible (en attente de GO) : UNE fonction de rendu extraite du worker (résolution auto, voix,
-> découpage par moteur, assemblage, vitesse/hauteur) appelée par la synthèse ET par l'aperçu sur
-> les ~50 premiers mots ; côté page, `WamaApp.Speech.claim()` pour la requête et `WamaAudioPlayer`
-> pour l'écoute. Le flux SSE + cache disparaît (un aperçu de 50 mots n'a pas besoin de progression
-> par phrase). ⚠ L'avatarizer fait UN appel TTS sans découpage : même troncature possible, candidat
-> à la même fonction (qui irait alors dans `common/tts/`).
+> ✅ **ALIGNÉ le 2026-09-28 (GO de Fabien)** : `synthesizer/utils/speech_render.py` porte LA chaîne
+> (`resolve_tts_model`, `chunk_limit`, `split_text_into_chunks`, `render_speech`), appelée par le
+> worker ET par la vue `voice_preview` sur les `PREVIEW_WORDS` (50) premiers mots nettoyés par
+> `text_for_speech`. L'aperçu est un FICHIER (`output/partials/voice_preview.wav`, même rangement
+> que les aperçus « pendant » de l'enhancer et de l'anonymizer) et la réponse a la forme d'un
+> aperçu commun (`url`, `mime_type`, `name`, `peaks` de `waveform.compute_peaks`) ; la page réserve
+> le canal (`WamaApp.Speech.claim`), rend par `WamaInspector.renderInlinePreview` et joue par
+> `WamaAudioPlayer.play` — le patron du transcriber (lecture par URL, onde des pics serveur).
+> Retirés : la vue et la route SSE `voice-preview-stream`, `assembleAndPlayAudio`, la barre et
+> l'`<audio>` maison ; les trois copies de la liste des réglages du volet (bouton, aperçu, import)
+> sont une seule fonction, `appendPanelSettings`.
+> ⚠ **Deux défauts du lecteur COMMUN mesurés et corrigés au passage** (`wama-audio-player.js`,
+> garde `common/tests_audio_player_js`) : un conteneur RECONSTRUIT sous le même id rejouait l'audio
+> du précédent (inspecteur : un seul id `insp` pour toute card ; card rafraîchie), et `setPeaks`
+> juste après `create` ne faisait rien — les pics serveur envoyés à l'inspecteur et aux cards
+> n'étaient jamais dessinés. ⚠ Reste, non touché : `renderInlinePreview` reçoit l'`autoplay` de
+> l'inspecteur (`WAMA_INSPECTOR_AUTOPLAY`) mais `WamaAudioPlayer.create` l'ignore — l'honorer
+> changerait ce qui se passe à la simple sélection d'une card audio, décision à prendre.
+> ⚠ L'avatarizer fait UN appel TTS sans découpage : même troncature possible, candidat à la même
+> fonction (qui irait alors dans `common/tts/`).

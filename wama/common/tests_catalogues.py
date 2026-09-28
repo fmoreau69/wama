@@ -1392,7 +1392,7 @@ class LivePortComesFromAnAppCapabilityTest(TestCase):
         self.assertNotIn('has_live_input', silent)
         self.assertIs(True, _capabilities_target({'body': {'capabilities': declared}})['has_live_input'])
 
-    def test_the_transcriber_declares_it_and_its_page_posts_no_literal_any_more(self):
+    def test_the_transcriber_carries_it_and_its_page_posts_no_literal_any_more(self):
         from pathlib import Path
         from django.conf import settings
         from wama.common.app_registry import app_has_live_input

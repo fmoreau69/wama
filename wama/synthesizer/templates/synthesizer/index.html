@@ -128,18 +128,14 @@
 
 {% comment %}APERÇU DE LA VOIX — venu de la card d'entrée le 2026-09-28 (CARD_DESIGN §11.11 Étape 3 (b)) :
 il fait entendre les RÉGLAGES au-dessus (voix, vitesse, hauteur) sur le texte de la card. Hors de
-`#voicePresetGroup`, que Higgs masque : l'aperçu vaut pour tous les moteurs. Ids conservés (index.js).{% endcomment %}
+`#voicePresetGroup`, que Higgs masque : l'aperçu vaut pour tous les moteurs.
+Rendu COMMUN depuis le même jour : `previewAudioContainer` est l'hôte de `renderInlinePreview`
+(lecteur `WamaAudioPlayer` + onde des pics serveur) — plus de barre ni d'`<audio>` maison.{% endcomment %}
 <div class="mb-3">
     <button type="button" class="btn btn-outline-info btn-sm w-100" id="previewTextBtn">
         <i class="fas fa-headphones"></i> Aperçu de la voix
     </button>
-    <div id="previewLoader" style="display:none;" class="mt-2">
-        <div class="wama-progress-track"><div class="wama-progress-fill" id="previewProgress" style="width:0%"></div></div>
-        <small id="previewStatus" class="text-white-50"></small>
-    </div>
-    <div id="previewAudioContainer" style="display:none;" class="mt-2">
-        <audio id="previewAudioPlayer" controls class="w-100"></audio>
-    </div>
+    <div id="previewAudioContainer" style="display:none;" class="mt-2"></div>
 </div>
 
 <!-- Format + qualité de sortie (early-binding : réglés avant génération, per-item ; modale + inspecteur) -->

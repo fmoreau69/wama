@@ -97,25 +97,52 @@
         ctx.fillRect(cx, 2, 1, H - 4);                    // tête de lecture
     }
 
+    /* Pics serveur → amplitudes 0-1. Transport CANONIQUE = uint8 (0-255, cf.
+       common/utils/waveform.compute_peaks, format du transcriber) ; accepte aussi des floats
+       0-1 (max <= 1 → inchangé), donc robuste aux deux échelles. */
+    function normalizePeaks(peaks) {
+        var mx = 0, i;
+        for (i = 0; i < peaks.length; i++) { if (peaks[i] > mx) mx = peaks[i]; }
+        return mx > 1 ? peaks.map(function (v) { return v / 255; }) : peaks;
+    }
+
+    /* Oublie l'état d'un player SANS toucher au DOM (≠ destroy, qui retire l'élément portant
+       cet id — ce serait ici le NOUVEAU conteneur). */
+    function forget(playerId) {
+        var s = registry.get(playerId);
+        if (s && s.audio) { s.audio.pause(); s.audio.src = ''; }
+        registry.delete(playerId);
+    }
+
     /* ── Initialisation d'un player ─────────────────────────────────── */
 
-    function initPlayer(container, autoplay) {
+    // `peaks` (option) : pics serveur — l'onde est dessinée tout de suite, SANS télécharger ni
+    // décoder le fichier, et l'audio n'est chargé qu'à la lecture (preload 'none').
+    function initPlayer(container, autoplay, peaks) {
         var playerId = container.id.replace('audioPlayer_', '');
         var audioUrl = container.dataset.audioUrl;
         if (!audioUrl) return;
 
-        // Déjà initialisé → play/pause direct
         if (registry.has(playerId)) {
-            if (autoplay) {
-                var existing = registry.get(playerId);
-                if (existing.audio.paused) {
-                    pauseOthers(playerId);
-                    existing.audio.play().catch(function() {});
-                } else {
-                    existing.audio.pause();
+            var existing = registry.get(playerId);
+            // ⚠ Un conteneur RECONSTRUIT sous le même id (inspecteur : un seul id `insp` pour
+            // toute card ; card rafraîchie par refreshCard) n'est PAS le player enregistré.
+            // Mesuré au navigateur le 2026-09-28 : le 2ᵉ rendu rejouait l'audio du 1ᵉʳ, et son
+            // onde était dessinée sur un canvas sorti du DOM. On repart de zéro.
+            if (existing.container !== container) {
+                forget(playerId);
+            } else {
+                // Déjà initialisé → play/pause direct
+                if (autoplay) {
+                    if (existing.audio.paused) {
+                        pauseOthers(playerId);
+                        existing.audio.play().catch(function() {});
+                    } else {
+                        existing.audio.pause();
+                    }
                 }
+                return;
             }
-            return;
         }
 
         var height      = parseInt(container.dataset.waveformHeight, 10) || 48;
@@ -135,10 +162,12 @@
         }
 
         /* Audio natif --------------------------------------------------- */
+        var havePeaks = Array.isArray(peaks) && peaks.length > 0;
         var audio = new Audio();
-        audio.preload = 'metadata';
+        audio.preload = (havePeaks && !autoplay) ? 'none' : 'metadata';
 
-        var state = { audio: audio, canvas: canvas, channelData: null, height: height };
+        var state = { audio: audio, canvas: canvas, channelData: null, height: height,
+                      container: container };
         registry.set(playerId, state);
 
         function sizeCanvas() {
@@ -154,9 +183,15 @@
             if (loadingEl) loadingEl.style.display = 'none';
         }
 
-        /* Décodage waveform (fetch séparé pour ne pas bloquer la lecture) */
+        /* Décodage waveform (fetch séparé pour ne pas bloquer la lecture) — sauf si les pics
+           sont déjà là : les dessiner suffit, retélécharger le fichier pour les recalculer non. */
         var MAX_DECODE_BYTES = 30 * 1024 * 1024;  // au-delà → pas de décodage onde
-        fetch(audioUrl)
+        if (havePeaks) {
+            state.channelData = normalizePeaks(peaks);
+            sizeCanvas();
+            drawWaveform(canvas, state.channelData, 0);
+            if (loadingEl) loadingEl.style.display = 'none';
+        } else fetch(audioUrl)
             .then(function(r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 var len = parseInt(r.headers.get('content-length') || '0', 10);
@@ -325,14 +360,17 @@
          *  - streaming « pendant » : appeler à répétition avec des pics qui grandissent → onde qui se
          *    construit (effet « Suno »). Les pics [0..1] SONT des amplitudes → drawWaveform les gère tel quel. */
         setPeaks: function(playerId, peaks) {
-            var s = registry.get(String(playerId));
-            if (!s || !s.canvas || !Array.isArray(peaks) || !peaks.length) return;
-            // Transport CANONIQUE = uint8 (0-255, cf. common/utils/waveform.compute_peaks, format du
-            // transcriber). drawWaveform attend des amplitudes ~0-1 → on normalise. Accepte aussi des
-            // floats 0-1 (max <= 1 → inchangé), donc robuste aux deux échelles.
-            var mx = 0, i;
-            for (i = 0; i < peaks.length; i++) { if (peaks[i] > mx) mx = peaks[i]; }
-            var data = mx > 1 ? peaks.map(function (v) { return v / 255; }) : peaks;
+            var id = String(playerId);
+            if (!Array.isArray(peaks) || !peaks.length) return;
+            // Player pas encore initialisé (l'init est paresseuse, au 1er clic) ou conteneur
+            // reconstruit : on l'initialise AVEC ces pics. Avant le 2026-09-28 l'appel ne
+            // faisait rien dans ce cas — donc jamais, juste après `create` : les pics envoyés
+            // par le serveur à l'inspecteur et aux cards n'étaient pas dessinés (mesuré).
+            var c = getContainer(id);
+            var s = registry.get(id);
+            if (c && (!s || s.container !== c)) { initPlayer(c, false, peaks); return; }
+            if (!s || !s.canvas) return;
+            var data = normalizePeaks(peaks);
             s.fallback = false;                 // on a une onde → plus de repli timeline
             s.channelData = data;
             if (!s.canvas.width)  s.canvas.width  = s.canvas.offsetWidth || 400;
