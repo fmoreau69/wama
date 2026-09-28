@@ -880,6 +880,18 @@ chaud, traduction→Ollama.
   l'autre sens) et `manage.py restore_db` (destructif, CLI uniquement).
 - Garde-fous conservés : chemin UNC hors Windows non monté → sauvegarde **désactivée** sans créer
   de dossier-poubelle (constater, pas créer) ; jamais de suppression distante (archive cumulative).
+- **Liens symboliques internes — décrits, plus recopiés (2026-09-28)**. `is_file()` suivant les
+  liens, chaque poids d'un cache HF partait DEUX fois (le blob, puis le lien `snapshots/` qui le
+  désigne) : mesuré **480 liens = 333 Go recopiés pour rien, pour 293 Go de vrais fichiers**
+  (qwen-image : 115 Go distants pour 54 locaux). Un lien vers un fichier DE la source s'inscrit
+  désormais dans `.wama_links.json` à la racine du miroir (fusionné, jamais vidé) ; le tirage relit
+  ces manifestes, **recrée les liens** (repli copie sans droit de lien) et ne rapatrie PAS les copies
+  pleines laissées par les anciennes passes. Un lien vers l'EXTÉRIEUR reste copié (seule copie de
+  sa cible). Passe suivante : 1 225 fichiers au lieu de 1 857. Tenu par `tests_mirror_sync` (5,
+  contre-épreuve 2 mutations → 5 rouges). ⏳ Les copies doubles DÉJÀ au distant y restent (archive
+  cumulative, pas de purge) ; les récupérer serait un geste ponctuel et explicite — non fait.
+- ⚠ Le dossier `llm/ollama` (lien vers `D:\.ollama`) n'est pas parcouru : `rglob` ne suit pas un
+  dossier-lien. Voulu (Fabien, 2026-09-28) : les modèles Ollama se retirent de leur registre.
 - Détail et procédure de réinstallation : **`PROJECT_STATUS.md` §42**.
 
 ### Sélection centralisée — `services/model_selector.py` (FAIT, étape 3 ⏳)
