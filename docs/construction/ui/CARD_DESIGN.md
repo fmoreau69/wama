@@ -1104,6 +1104,13 @@ modalité, pas pour l'édition (exigence 3). Slots NATIFS sous le prompt : chips
 (`wama-prompt-chips`, plus jamais montées par l'app) et **déclencheur ✨ porté par la brique**
 (`wama-prompt-enrich` gagne son bouton — ferme le défaut « attaché sans déclencheur »).
 
+> ⚠ **D est DÉPASSÉ pour les réglages — décision de Fabien du 2026-09-28** (précédée du retrait
+> des miroirs voix/vitesse du synthesizer le 27/09, `b23010ab`) : **la card porte les ENTRÉES, les
+> RÉGLAGES vivent au volet et dans la modale ⚙** — un seul domicile, inter-mondes. Plus de
+> `quick=True`, plus de sélecteur de modèle dans la card. Règle complète et sous-étapes :
+> §11.11, « Étape 3 ». Ce qui reste vrai de D : la galerie d'avatars n'est pas un type de case
+> spécial — c'est la modalité Médiathèque du port de TRAVAIL (`work_image`).
+
 **D. Absorption des 4 extra-zones par la DÉCLARATION** (le risque de blocage mesuré §11.8) :
 réglages rapides = liste de N params DÉCLARÉS `quick=True` (synthesizer voix/vitesse/titre) ;
 sélecteur de modèle en card = option DÉCLARÉE (imager, avec Auto + `WamaModelHelp`) ; galerie
@@ -1420,3 +1427,33 @@ relue (`DECLARED_ONLY_CAPABILITY_FIELDS`). Lue par les DEUX cards — v3 (`live_
 `show_live` est retiré de la page du transcriber. **Pas un port du studio** : une capture en direct
 n'a pas de sens dans un pipeline. Vérifié sur la page RÉELLE : transcriber rend Speak, converter
 non. Garde `tests_catalogues.LivePortComesFromAnAppCapabilityTest`.
+
+#### 🔒 Étape 3 — LA CARD PORTE LES ENTRÉES, LE VOLET PORTE LES RÉGLAGES (décision de Fabien, 2026-09-28)
+
+> Question née de l'imager VIDÉO, où le prompt négatif et le choix du modèle vivaient à la fois
+> dans la card d'entrée et dans l'inspecteur : *« il faut que ça sorte de la card d'entrée comme
+> pour les autres apps […] être aligné et uniforme sur tout le fonctionnement de WAMA
+> inter-mondes »*. Elle remplace le §11.9 D pour les réglages.
+
+1. **La card d'entrée porte les ENTRÉES** : ports (travail · référence · en direct), leurs
+   modalités (importer · médiathèque · URL · armer) et le prompt. **Les RÉGLAGES** — modèle,
+   prompt négatif, voix, vitesse, formats… — **vivent au volet droit et dans la modale ⚙**, un
+   seul domicile, générés du schéma dans tous les mondes. La card les MONTRE (section Réglages,
+   étiquettes, lecture seule). Précédent : le retrait des miroirs voix/vitesse du synthesizer
+   (27/09, `b23010ab`). Le prompt négatif est un RÉGLAGE (`INPUT_MODEL_MATCHING §6.1`).
+2. **L'utilisateur est prévenu, explicitement** : « Réglages : volet de droite » est écrit dans la
+   card d'entrée COMMUNE, jamais par app.
+3. **On AJOUTE à la file ; on règle ; puis on lance.** La card créée est modifiable (modale,
+   inspecteur) avant tout traitement — c'est la règle des deux temps (§11.9 A : toute modalité
+   remplit ou crée, aucune ne lance). Le bouton de la card v4 dit « Ajouter à la file d'attente »,
+   jamais « Générer ». ⚠ **Mesuré le 2026-09-28, à corriger au portage** : trois créations
+   LANCENT encore le traitement — `composer:generate` (`compose_task.apply_async`),
+   `avatarizer:create` (`_generate_avatar.delay`), l'outil `convert_file` (`auto_start`).
+4. **Une modalité n'est jamais un port** (précision de Fabien) : la galerie d'avatars est la
+   modalité Médiathèque (filtrée sur les avatars) du port de TRAVAIL `work_image` de
+   l'avatarizer — ce que sa déclaration dit depuis le 28/08 (`app_modes.py:266-267`).
+
+**Sous-étapes, dans l'ordre (GO de Fabien)** : (a) l'indication commune ; (b) titre et aperçu de
+voix du synthesizer au volet ; (c) modèle et prompt négatif de l'imager hors de la card,
+appariement rebranché sur le select du volet ; (d) la galerie d'avatars, avec l'adoption v4 de
+l'avatarizer.
