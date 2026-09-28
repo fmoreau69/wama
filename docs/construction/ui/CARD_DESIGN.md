@@ -890,9 +890,16 @@ Deux pièges rencontrés, tous deux visibles seulement à l'écran :
   libellé de `v3` change. `v3np` = « v3, no preview ».
 - **La vignette d'ENTRÉE reste en Affiné** : elle identifie la card, elle ne prévisualise pas son
   résultat (la v2 la garde aussi).
-- **La card d'entrée n'est PAS concernée** : sa zone de preview v4 porte aussi les modalités
-  d'import (§11.11) — la masquer retirerait le geste. À trancher avec la v4 (§11.11 G), comme la
-  règle `[data-card-design="v2"] .wama-input-preview` déjà posée, qui a le même effet en Compact.
+- **La card d'ENTRÉE : repli, jamais masquage** (décision de Fabien, 2026-09-28) — en Affiné
+  comme en Compact, elle se REPLIE et toute interaction l'ouvre (écrire dans le prompt, glisser
+  un fichier, cliquer) : c'est le repli de `wama-new-item-card.js`, dont le corps contient déjà
+  la zone de preview v4. La règle `[data-card-design="v2"] .wama-input-preview { display: none }`
+  est RETIRÉE : elle masquait cette zone même card OUVERTE, et avec elle les tuiles d'import —
+  en Compact, la card v4 ne savait plus rien recevoir. L'aperçu que ces densités retirent est
+  celui du RÉSULTAT (cards de file), pas la surface d'alimentation. Garde :
+  `test_no_design_hides_the_feeding_zone_of_the_input_card` (contre-épreuve : la règle
+  réintroduite en `v3np` la fait rougir).
+  ⚠ Ce point supplante §11.10-5 (« en Compact les slot-rows se condensent en chips »).
 - **Mesuré au navigateur** (serveur éphémère, compte `ui_smoke_v3`, une card par app) — hauteur
   Détaillé → Affiné → Compact : reader 143 → 102 → 62 px, describer 195 → 154 → 116, converter
   351 → 276 → 168 ; les étiquettes restent en Affiné (5), l'aperçu sort (2 → 0 au converter) ;

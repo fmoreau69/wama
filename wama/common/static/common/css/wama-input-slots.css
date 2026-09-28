@@ -83,5 +83,11 @@
 .wama-queue-mosaic .wama-mod { flex-direction: row; justify-content: flex-start; gap: .4rem; padding: .2rem .45rem; }
 .wama-queue-mosaic .wama-mod small { display: none; }
 
-/* ── Densité v2 « Compact » : la preview se replie (§11.6 — la v2 RETIRE l'aperçu) ────── */
-[data-card-design="v2"] .wama-input-preview { display: none; }
+/* ── Densités Affiné / Compact : la preview de la card d'ENTRÉE ne se masque PAS ──────────
+   Décision de Fabien (2026-09-28, CARD_DESIGN §11.6bis) : en Affiné comme en Compact, la card
+   d'entrée se REPLIE et toute interaction l'ouvre (écrire dans le prompt, glisser un fichier,
+   cliquer) — c'est le repli de `wama-new-item-card.js`, qui contient déjà cette zone. Ici se
+   trouvait `[data-card-design="v2"] .wama-input-preview { display: none }` : il la masquait
+   même card OUVERTE, et avec elle les tuiles d'import — la card de Compact ne savait plus
+   rien recevoir. L'aperçu RETIRÉ par ces densités est celui des cards de FILE (le résultat),
+   pas cette zone, qui est la surface d'alimentation. */
