@@ -3252,6 +3252,37 @@ d'exécution par process (4.1, moteur P3) ; tout le reste est indépendant de P3
 - ⏳ Reste : étape 4 (placement MESURÉ sur l'activité au lieu des heures creuses déclarées) ; la
   récurrence à l'interface ; les mails et posts quand leurs outils existeront.
 
+**13.8 Étape 4 (2026-09-28) — la FILE GLOBALE : placer d'après elle, et dire où en est chaque tâche.**
+Demande de Fabien : *programmer automatiquement en fonction de la file globale de WAMA, et que
+l'utilisateur puisse savoir où en est sa tâche*. Brique `common/services/global_queue.py`.
+- **La file se LIT, elle ne se devine pas** : ce qui tourne au gouverneur (`running_tasks`, départ
+  horodaté par le squelette) ; ce qui attend dans les listes du broker, dans l'ORDRE de consommation
+  (un palier de priorité après l'autre, `priority_steps`/`sep` des settings ; dans un palier, le plus
+  ancien d'abord). Message → élément par son `task_id`.
+- **Heures prévues = somme de durées MESURÉES** : la file GPU est SÉRIELLE (`--pool=solo`,
+  `scripts/wama_services.sh:87`) ; durée typique = médiane des `processing_seconds` récents du même
+  modèle ; ce qui tourne finit au débit observé ; une campagne nocturne dure sa plage réservée.
+- **Confidentialité** : la PLACE et la DURÉE des traitements des autres, jamais leur titre.
+- **Placement `auto`** (nouveau, par défaut dans la fenêtre — le schéma le déclare, la fenêtre,
+  l'API et le fichier batch le reçoivent sans autre changement) : pas avant que la carte se libère ;
+  une tâche LONGUE (≥ 30 min typiques) part en heures creuses ; et **aucune tâche ne DÉBORDE sur une
+  plage réservée, sa durée entière comprise** (l'étape 3 ne regardait que l'heure de départ — le
+  manuel aussi est refusé s'il déborde).
+- **Heures creuses MESURÉES** sur l'activité des VRAIS utilisateurs (`TEST_USERNAMES` exclus : ils
+  travaillent la nuit par construction) — gestes `RunOutcome` + dépôts d'éléments — ; une heure est
+  creuse à ≤ 10 % de l'heure la plus chargée. ⚠ Mesuré le 2026-09-28 : 48 gestes et 29 dépôts réels
+  en 60 jours, sous le seuil de 100 → **repli déclaré (22 h – 07 h)**, et la fenêtre le DIT. La mesure
+  prendra le relais d'elle-même avec l'usage.
+- **Où en est ma tâche** : pastille « ⏳ En file · N tâches avant · début ~… · fin ~… » sur la card
+  (relue toutes les 15 s tant qu'un élément attend) ; au calendrier, l'élément à son heure PRÉVUE et
+  les traitements des autres en blocs anonymes « GPU occupé » (couche de l'instance).
+- Gardes : `tests_global_queue` (15 ; contre-épreuves : comptes de test réintégrés → rouge, durée
+  ignorée face aux plages → rouge).
+- ⚠ **Relevés en chemin, non traités** : (1) `settings.py` réaffecte `CELERY_BROKER_TRANSPORT_OPTIONS`
+  (l.767) et PERD le `visibility_timeout` de 6 h posé l.707 ; (2) le Redis que joint `venv_win` porte
+  **446 messages `gpu`** qu'aucun worker ne consomme — la file réelle (Redis de WSL) était vide au même
+  moment. Décisions d'exploitation, signalées.
+
 ---
 
 ## 11. Trous prioritaires (liste actionnable, confrontée au code)

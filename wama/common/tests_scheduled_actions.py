@@ -288,7 +288,9 @@ class ScheduleSchemaTest(SimpleTestCase):
     def test_the_batch_template_documents_the_schedule_options(self):
         from wama.common.utils.batch_parsers import build_batch_template
         template = build_batch_template(['input'], {'input': 'x.jpg'}, app_label='describer')
-        self.assertIn('--when manual|asap|off_peak', template)
+        # Les valeurs sont celles du MODÈLE, lues par le schéma — jamais recopiées : l'étape 4 a
+        # ajouté `auto` et le gabarit l'a documenté sans qu'on y touche.
+        self.assertIn('--when ' + '|'.join(v for v, _ in SA.PLACEMENT_CHOICES), template)
         self.assertIn('--at AAAA-MM-JJTHH:MM', template)
 
 

@@ -230,7 +230,7 @@ def predicted_end(started_at, progress, now) -> datetime | None:
     return now + timedelta(seconds=elapsed * (100.0 - progress) / progress)
 
 
-def _interval(obj, src, run, running_start, now):
+def _interval(obj, src, run, running_start, now, queued=None):
     """`(début, fin, nature, source de la durée, exécuté)` de l'événement d'un item.
 
     Règle : la FIN LA PLUS RÉCENTE gagne — c'est la dernière exécution, qu'elle vienne de
@@ -251,6 +251,11 @@ def _interval(obj, src, run, running_start, now):
             end = predicted_end(began, _progress_of(src.app, obj), now)
             return (began, end or max(now, began + point), NATURE_PREDICTED,
                     'measured' if end else 'declared', True)
+        if queued is not None:
+            # Lancé mais pas encore commencé : il ATTEND dans la file GPU (étape 4) — l'heure
+            # vient de la file globale, qui additionne les durées de ce qui le précède.
+            return (queued.expected_start, queued.expected_end, NATURE_PREDICTED,
+                    queued.duration_source, True)
 
     run_end = run[0] if run else None
     if run_end is not None and (model_end is None or run_end >= model_end):
@@ -269,7 +274,7 @@ def _interval(obj, src, run, running_start, now):
     return created, created + point, NATURE_OBSERVED, 'declared', False
 
 
-def observed_events(user, start, end, *, now=None) -> list[CalendarEvent]:
+def observed_events(user, start, end, *, now=None, queue=None) -> list[CalendarEvent]:
     """Items de l'utilisateur dont le dépôt, l'exécution ou la fin tombe dans `[start, end)`, plus
     ceux EN COURS (leur fin est une prévision : nature `predicted`).
 
@@ -289,6 +294,8 @@ def observed_events(user, start, end, *, now=None) -> list[CalendarEvent]:
     now = now or timezone.now()
     executions = _executions(user, start, end)
     running = _running_starts()
+    waiting = {(e.app, str(e.item_id)): e for e in (queue or [])
+               if e.state == 'queued' and e.item_id is not None}
     events = []
     for src in sources():
         model_name = src.model.__name__
@@ -310,16 +317,19 @@ def observed_events(user, start, end, *, now=None) -> list[CalendarEvent]:
         for obj in qs:
             status = normalize_job_status(getattr(obj, 'status', '') or getattr(obj, 'state', ''))
             run = executions.get((src.app, model_name, obj.pk))
+            in_queue = waiting.get((src.app, str(obj.pk)))
             began, ended, nature, duration_source, executed = _interval(
-                obj, src, run, running.get((src.app, str(obj.pk))), now)
+                obj, src, run, running.get((src.app, str(obj.pk))), now, queued=in_queue)
             if ended <= start or began >= end:
                 continue                     # un item EN COURS lancé hors fenêtre, par exemple
+            extra = {'executed': executed, 'running': status == JOB_RUNNING}
+            if in_queue is not None:
+                extra['queuePosition'] = in_queue.position
             events.append(CalendarEvent(
                 key=f'{src.app}:{model_name}:{obj.pk}', title=str(obj),
                 start=began, end=ended, nature=nature, scope=SCOPE_USER,
                 app=src.app, world=src.monde, status=status, color=color, url=url,
-                item_id=obj.pk, duration_source=duration_source,
-                extra={'executed': executed, 'running': status == JOB_RUNNING},
+                item_id=obj.pk, duration_source=duration_source, extra=extra,
             ))
     return events
 
@@ -590,10 +600,39 @@ def declared_events(user, start, end) -> list[CalendarEvent]:
     return events
 
 
+def queue_events(user, start, end, entries) -> list[CalendarEvent]:
+    """Les traitements des AUTRES dans la file GPU — couche de l'instance, ANONYME (étape 4).
+
+    Sans eux, un utilisateur verrait sa tâche partir à 14:20 sans comprendre pourquoi pas
+    maintenant. On montre la PLACE et la DURÉE qu'ils occupent, jamais leur titre ; ses propres
+    éléments, eux, sont déjà dans la couche observée, à leur heure prévue.
+    """
+    events = []
+    for entry in entries:
+        if entry.user_id == getattr(user, 'pk', None) and entry.item_id is not None:
+            continue
+        if entry.expected_end <= start or entry.expected_start >= end:
+            continue
+        title = (entry.title if entry.user_id is None
+                 else 'GPU occupé — traitement d’un autre utilisateur')
+        events.append(CalendarEvent(
+            key=f'queue:{entry.task_id or entry.position}', title=title,
+            start=entry.expected_start, end=entry.expected_end,
+            nature=NATURE_PREDICTED if entry.state == 'queued' else NATURE_OBSERVED,
+            scope=SCOPE_INSTANCE, color=MAINTENANCE_COLOR, duration_source=entry.duration_source,
+            extra={'kind': 'queue', 'queuePosition': entry.position, 'queueState': entry.state},
+        ))
+    return events
+
+
 def events_for(user, start, end, *, with_maintenance=True) -> list[CalendarEvent]:
-    events = (observed_events(user, start, end) + batch_events(user, start, end)
+    from .global_queue import snapshot
+
+    queue = snapshot()
+    events = (observed_events(user, start, end, queue=queue) + batch_events(user, start, end)
               + expiry_events(user, start, end) + declared_events(user, start, end))
     if with_maintenance:
+        events += queue_events(user, start, end, queue)
         events += maintenance_windows(start, end)
     return events
 
