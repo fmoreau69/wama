@@ -1410,3 +1410,13 @@ Plan validé par Fabien le 2026-09-28 (0 → 5 : constats, pointage de la média
 - Détail, mesures et gardes : `MEDIA_STORAGE_TIERING §8.2` (note du 28/09) et les tests
   `tests_received_inputs`, `tests_import_contract`, `tests_port_designation`,
   `tests_tool_api_designation`, `tests_designation_js`.
+
+#### ✅ Étape 2 (2026-09-28) — le port LIVE est une DÉCLARATION (D ci-dessus, « le seul vrai écart »)
+
+Capacité d'app **`has_live_input`** au catalogue (transcriber), sur le patron des capacités du
+RÉSULTAT (`INPUT_MODEL_MATCHING §6.7`) : déclarée seulement si vraie, exportée au manifeste et
+relue (`DECLARED_ONLY_CAPABILITY_FIELDS`). Lue par les DEUX cards — v3 (`live_input_declared` +
+`app_id`, le bouton Speak) et v4 (`input_slots`, l'onglet « En direct ») — et le littéral
+`show_live` est retiré de la page du transcriber. **Pas un port du studio** : une capture en direct
+n'a pas de sens dans un pipeline. Vérifié sur la page RÉELLE : transcriber rend Speak, converter
+non. Garde `tests_catalogues.LivePortComesFromAnAppCapabilityTest`.
