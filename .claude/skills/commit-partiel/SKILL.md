@@ -48,8 +48,12 @@ git add <fichier propre> ...
 # e. VÉRIFIER — tout ce qui s'affiche doit être à moi (fichiers ET hunks)
 git diff --cached --stat
 git diff --cached -U0 | grep '^@@'
-# f. commiter DEPUIS l'index vérifié — sans pathspec, c'est voulu ; le message le DIT
-git commit -F <scratchpad>/msg.txt
+# f. commiter DEPUIS l'index vérifié — sans pathspec, c'est voulu ; le message le DIT.
+#    ⚠ Avec un INDEX TEMPORAIRE, jamais `git commit` : il prendrait pour parent un HEAD qui a pu
+#    bouger depuis le read-tree, et ANNULERAIT les commits intermédiaires (vécu 2026-09-28, §3).
+#    BASE = le HEAD lu au read-tree ; l'update-ref échoue si la branche a bougé.
+NEW=$(git commit-tree "$(git write-tree)" -p "$BASE" -F <scratchpad>/msg.txt)
+git update-ref "refs/heads/$(git branch --show-current)" "$NEW" "$BASE"
 # g. l'index est redevenu vide, HEAD ne porte que mes fichiers
 git diff --cached --stat | wc -l    # 0
 git show --stat --format='%h %s' HEAD
@@ -159,10 +163,27 @@ mais c'est défaire son geste dans son dos.
   ✅ Relire `git log -1 --format=%h` **après le dernier amendement**, et pour retrouver un commit
   amendé, le chercher par son MESSAGE (`git log --format='%h %s' | grep <ancre>`), jamais par le
   sha noté plus tôt.
+- 🔴🔴 **2026-09-28 — L'INDEX TEMPORAIRE A SA PROPRE FENÊTRE : il ANNULE les commits qui
+  arrivent entre `read-tree HEAD` et `git commit`.** L'index est construit depuis le HEAD de
+  l'instant T ; `git commit` prend pour PARENT le HEAD de l'instant T+n. Vécu : deux commits
+  d'autres instances (calendrier, import — 15:52) entre mon `read-tree` et mon `commit` (16:03) →
+  mon commit avait leur commit pour parent et l'ANCIEN arbre pour contenu : il **défaisait tout
+  leur travail dans HEAD** (`fullcalendar` supprimé, planification nocturne revenue en arrière,
+  vues de 4 apps rétablies). Rien ne l'a signalé : le `--stat` vérifié AVANT le commit était juste,
+  c'est le parent qui avait bougé. Vu en relisant `git show HEAD -- wama/settings.py`.
+  ✅ **La forme ATOMIQUE** : noter le HEAD lu (`BASE=$(git rev-parse HEAD)` au moment du
+  `read-tree`), puis `TREE=$(git write-tree)`, `NEW=$(git commit-tree $TREE -p $BASE -F msg)`,
+  `git update-ref refs/heads/<branche> $NEW $BASE` — l'`update-ref` à valeur attendue **échoue**
+  si la branche a bougé : on reconstruit sur le nouveau HEAD, on ne défait rien.
+  ✅ **Le contrôle qui l'attrape après coup** : `git show --stat HEAD` doit lister MES seuls
+  fichiers ; une suppression ou un fichier inconnu = parent déplacé. Réparation : reconstruire
+  l'arbre sur `HEAD~1` (leur commit) + mes fichiers, puis remplacer par `commit-tree` +
+  `update-ref <nouveau> <commit fautif>` — jamais `--amend`, qui remplacerait HEAD quel qu'il soit.
 - **2026-09-26 — l'index partagé n'est PAS vide (WIP stagé d'autrui) mais on doit commiter
   quand même.** Voie sûre : un INDEX TEMPORAIRE — `GIT_INDEX_FILE=<scratchpad>/tmp.index`,
-  `git read-tree HEAD`, `git apply --cached` du patch, `git add` de ses fichiers propres,
-  `git commit`, puis `unset GIT_INDEX_FILE`. ⚠⚠ **ET ENSUITE** : l'index partagé garde, pour
+  `BASE=$(git rev-parse HEAD)` puis `git read-tree $BASE`, `git apply --cached` du patch,
+  `git add` de ses fichiers propres, **`commit-tree -p $BASE` + `update-ref … $BASE`** (jamais
+  `git commit` : voir le piège du 2026-09-28 ci-dessus), puis `unset GIT_INDEX_FILE`. ⚠⚠ **ET ENSUITE** : l'index partagé garde, pour
   les chemins commités, les blobs de l'ANCIEN HEAD — `git status` les montre alors en `M`/`D`
   en 1ʳᵉ colonne, c'est-à-dire comme un RETOUR ARRIÈRE STAGÉ que le prochain `git commit` de
   l'autre instance emporterait. Réaligner **ces seuls chemins** : `git reset -q HEAD -- <mes
