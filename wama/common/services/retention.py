@@ -140,6 +140,40 @@ def purge_expired_media(dry_run=False):
     return summary
 
 
+def retention_days_for(user):
+    """Rétention EFFECTIVE d'un utilisateur, en jours (plafond global inclus) ; 0 = aucune."""
+    return _users_with_retention().get(getattr(user, 'pk', None), 0)
+
+
+def expirations_for(user, start, end):
+    """Médias de `user` qui EXPIRENT dans `[start, end)` : `[{app, model, id, expires_at}]`.
+
+    Même règle que la purge (`date + rétention`, épinglés exemptés) — c'est ce qui les rend
+    affichables au calendrier sans deuxième définition de l'expiration (2026-09-28).
+    """
+    days = retention_days_for(user)
+    if not days:
+        return []
+    delta = timezone.timedelta(days=days)
+    out = []
+    for entry in RETENTION_MODELS:
+        try:
+            Model = django_apps.get_model(entry['model'])
+        except Exception:
+            continue
+        date_field = entry.get('date', 'created_at')
+        qs = Model.objects.filter(**{
+            f"{entry.get('user', 'user')}_id": user.pk,
+            f'{date_field}__gte': start - delta, f'{date_field}__lt': end - delta,
+        })
+        if entry.get('pin'):
+            qs = qs.exclude(**{entry['pin']: True})
+        for pk, created in qs.values_list('pk', date_field)[:1000]:
+            out.append({'app': Model._meta.app_label, 'model': entry['model'], 'id': pk,
+                        'expires_at': created + delta})
+    return out
+
+
 def upcoming_expirations(days_ahead):
     """
     {user_id: [(model_label, count), ...]} des médias expirant dans <= days_ahead jours.

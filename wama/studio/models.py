@@ -61,4 +61,7 @@ class StudioRun(ProcessingTimeMixin, models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"run #{self.pk} [{self.status}]"
+        # Titre lu au journal et au calendrier (`str(obj)`) : le NOM du pipeline dit ce qui a
+        # tourné, « run #14 [FAILURE] » ne le disait pas — et l'état est déjà affiché à côté.
+        name = self.pipeline.name if self.pipeline_id and self.pipeline else 'Pipeline'
+        return f"{name} — exécution #{self.pk}"

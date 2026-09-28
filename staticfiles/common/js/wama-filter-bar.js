@@ -140,6 +140,12 @@
             return null;
         }
         var elements = selCible ? $$(selCible, racine || document) : [];
+        // CIBLE VIVANTE (2026-09-28, calendrier) : la liste est RE-RENDUE par un composant (le
+        // calendrier redessine ses événements à chaque changement de vue), donc la photo prise au
+        // montage périme. Les éléments sont alors relus à chaque application, et le composant
+        // appelle `WamaFilterBar.refresh(bar)` après chaque rendu. Les facettes d'une telle liste
+        // se DÉCLARENT (le DOM est vide au montage), comme en mode server.
+        var liveTarget = bar.getAttribute('data-cible-vivante') === '1';
 
         // Mode client : les facettes se remplissent de ce qui est réellement affiché.
         if (mode === 'client') {
@@ -154,6 +160,7 @@
         }
 
         function appliquerClient() {
+            if (liveTarget && selCible) { elements = $$(selCible, racine || document); }
             var q = recherche ? recherche.value.toLowerCase().trim() : '';
             var visibles = 0;
             elements.forEach(function (el) {
@@ -250,7 +257,20 @@
         bar.classList.toggle('is-filtered', actif());
         if (mode === 'client') { appliquerClient(); }
 
-        return { appliquer: surChangement, elements: elements };
+        var api = { appliquer: surChangement, elements: elements };
+        mounted.set(bar, api);
+        return api;
+    }
+
+    // Barres montées, pour `refresh` : un composant qui re-rend sa liste n'a pas à connaître
+    // l'instance, seulement la barre.
+    var mounted = new WeakMap();
+
+    /** Ré-applique le filtre d'une barre en mode client — après un re-rendu de sa liste. */
+    function refresh(bar) {
+        var element = typeof bar === 'string' ? $(bar) : bar;
+        var api = element && mounted.get(element);
+        if (api && (element.getAttribute('data-mode') || 'client') === 'client') { api.appliquer(true); }
     }
 
     function autoInit() {
@@ -261,7 +281,7 @@
         });
     }
 
-    global.WamaFilterBar = { init: init, autoInit: autoInit, sort: sortElements };
+    global.WamaFilterBar = { init: init, autoInit: autoInit, sort: sortElements, refresh: refresh };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', autoInit);

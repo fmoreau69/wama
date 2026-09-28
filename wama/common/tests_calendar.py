@@ -218,3 +218,160 @@ class CalendarRoutesTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response['Content-Type'].startswith('text/calendar'))
         self.assertIn('attachment', response['Content-Disposition'])
+
+
+class ExecutionIntervalTest(TestCase):
+    """`_interval` : la fin la plus RÉCENTE gagne, et chaque source de durée est la bonne."""
+
+    def _src(self, start_field=None, end_field=None):
+        from types import SimpleNamespace
+        return SimpleNamespace(app='transcriber', champ_date='created_at',
+                               start_field=start_field, end_field=end_field)
+
+    def _obj(self, **fields):
+        from types import SimpleNamespace
+        base = {'pk': 1, 'status': 'SUCCESS', 'processing_seconds': 0,
+                'created_at': datetime(2026, 7, 1, 9, 0, tzinfo=PARIS)}
+        base.update(fields)
+        return SimpleNamespace(**base)
+
+    def test_an_external_import_end_is_not_hidden_by_an_older_production(self):
+        # Mesuré le 2026-09-28 : transcription #177, produite en juillet, puis un résultat
+        # EXTERNE importé le 25/09 (`finished_at`, aucun `RunOutcome`). C'est l'import qui est
+        # la dernière exécution — et la durée de la production de juillet ne s'y applique pas.
+        produced = datetime(2026, 7, 25, 12, 0, tzinfo=PARIS)
+        imported = datetime(2026, 9, 25, 0, 42, tzinfo=PARIS)
+        obj = self._obj(finished_at=imported, processing_seconds=3600)
+        began, ended, nature, source, executed = cal._interval(
+            obj, self._src(end_field='finished_at'), (produced, 'produit'), None, imported)
+        self.assertEqual(ended, imported)
+        self.assertEqual(began, imported - timedelta(minutes=cal.POINT_MINUTES))
+        self.assertEqual((nature, source, executed), (cal.NATURE_OBSERVED, 'declared', True))
+
+    def test_a_lab_session_spans_its_own_start_and_completion(self):
+        started = datetime(2026, 9, 20, 10, 0, tzinfo=PARIS)
+        completed = datetime(2026, 9, 20, 11, 30, tzinfo=PARIS)
+        obj = self._obj(status='completed', started_at=started, completed_at=completed)
+        began, ended, _nature, source, _executed = cal._interval(
+            obj, self._src('started_at', 'completed_at'), None, None, completed)
+        self.assertEqual((began, ended, source), (started, completed, 'measured'))
+
+    def test_a_running_item_ends_where_the_observed_rate_predicts(self):
+        now = datetime(2026, 9, 28, 12, 0, tzinfo=PARIS)
+        began_at = now - timedelta(minutes=10)
+        obj = self._obj(status='RUNNING', progress=25)
+        began, ended, nature, source, _executed = cal._interval(
+            obj, self._src(), None, began_at, now)
+        self.assertEqual(began, began_at)
+        self.assertEqual(ended, now + timedelta(minutes=30), '10 min pour 25 % → 30 min restantes')
+        self.assertEqual((nature, source), (cal.NATURE_PREDICTED, 'measured'))
+
+    def test_a_running_item_without_progress_is_not_given_a_fake_end(self):
+        now = datetime(2026, 9, 28, 12, 0, tzinfo=PARIS)
+        obj = self._obj(status='RUNNING', progress=0)
+        _began, ended, nature, source, _executed = cal._interval(
+            obj, self._src(), None, now - timedelta(hours=2), now)
+        self.assertEqual((nature, source), (cal.NATURE_PREDICTED, 'declared'))
+        self.assertEqual(ended, now, 'sans progression, la fin affichée est « maintenant »')
+
+
+class OtherWorldsTest(TestCase):
+    """Le Lab et le Studio entrent au journal ET au calendrier par leur propre `ready()`."""
+
+    def test_lab_and_studio_are_sources_with_their_world_and_dates(self):
+        from wama.common.services.journal import MONDE_LAB, MONDE_STUDIO, sources
+        found = {s.app: s for s in sources()}
+        for app, world in (('cam_analyzer', MONDE_LAB), ('face_analyzer', MONDE_LAB),
+                           ('studio', MONDE_STUDIO)):
+            with self.subTest(app=app):
+                self.assertIn(app, found)
+                self.assertEqual(found[app].monde, world)
+        self.assertEqual((found['cam_analyzer'].start_field, found['cam_analyzer'].end_field),
+                         ('started_at', 'completed_at'))
+        self.assertEqual(found['transcriber'].end_field, 'finished_at')
+
+    def test_an_app_outside_the_catalog_keeps_its_declared_identity(self):
+        from wama.common.services.journal import app_queue_url
+        self.assertEqual(cal.app_identity('cam_analyzer'), ('Cam Analyzer', '#ffc107'))
+        self.assertEqual(app_queue_url('cam_analyzer'), reverse('wama_lab:cam_analyzer:index'))
+
+    def test_the_journal_renders_a_lab_session_with_a_uuid_key(self):
+        # Mesuré le 2026-09-28 : une session Lab (clé UUID, hors `detail_registry`) faisait
+        # lever `reverse('common:unified_preview')` — et TOUTE la page du journal tombait.
+        from wama_lab.cam_analyzer.models import AnalysisSession
+        user = User.objects.create_user('cal_lab', password='x')
+        session = AnalysisSession.objects.create(user=user)
+        self.client.force_login(user)
+        for path in (reverse('common:journal'), reverse('common:journal') + '?app=cam_analyzer'):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, f'data-id="{session.pk}"')
+        events = self.client.get(reverse('common:calendar_events'), {'maintenance': '0'}).json()
+        self.assertIn(f'cam_analyzer:AnalysisSession:{session.pk}', {e['id'] for e in events})
+
+    def test_a_registration_replayed_by_ready_is_not_duplicated(self):
+        from wama.common.services.journal import MONDE_STUDIO, enregistrer_source, sources
+        from wama.studio.models import StudioRun
+        before = len(sources())
+        enregistrer_source('studio', StudioRun, monde=MONDE_STUDIO)
+        self.assertEqual(len(sources()), before)
+
+
+class BatchAndExpiryEventsTest(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user('cal_batches', password='x')
+
+    def test_a_batch_creation_is_an_event_but_a_batch_of_one_is_not(self):
+        from wama.describer.models import BatchDescription
+        grouped = BatchDescription.objects.create(user=self.user, total=3)
+        single = BatchDescription.objects.create(user=self.user, total=1)
+        when = datetime(2026, 9, 29, 9, 0, tzinfo=PARIS)
+        BatchDescription.objects.filter(pk__in=[grouped.pk, single.pk]).update(created_at=when)
+        keys = {e.key: e for e in cal.batch_events(self.user, *_week())}
+        event = keys.get(f'describer:BatchDescription:{grouped.pk}')
+        self.assertIsNotNone(event, 'le regroupement de trois éléments est une activité datée')
+        self.assertEqual(event.start, when)
+        self.assertNotIn(f'describer:BatchDescription:{single.pk}', keys)
+
+    def test_an_expiry_is_placed_on_the_purge_run_that_deletes_it(self):
+        from wama.accounts.models import UserProfile
+        from wama.transcriber.models import Transcript
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        profile.media_retention_days = 10
+        profile.save()
+        item = Transcript.objects.create(user=self.user, audio='transcriber/x.wav')
+        # Créé le 20/09 à 10:00 → expire le 30/09 à 10:00 → effacé au passage de 04:00 le 01/10.
+        Transcript.objects.filter(pk=item.pk).update(
+            created_at=datetime(2026, 9, 20, 10, 0, tzinfo=PARIS))
+        with override_settings(WAMA_MAX_RETENTION_DAYS=0):
+            events = cal.expiry_events(self.user, *_week())
+        self.assertEqual(len(events), 1, [e.title for e in events])
+        purge = events[0]
+        self.assertEqual(purge.start.astimezone(PARIS), datetime(2026, 10, 1, 4, 0, tzinfo=PARIS))
+        self.assertEqual(purge.nature, cal.NATURE_PREDICTED)
+        self.assertIn(item.pk, purge.extra['itemIds'])
+
+    def test_no_retention_means_no_expiry(self):
+        from wama.transcriber.models import Transcript
+        Transcript.objects.create(user=self.user, audio='transcriber/y.wav')
+        with override_settings(WAMA_MAX_RETENTION_DAYS=0):
+            self.assertEqual(cal.expiry_events(self.user, *_week()), [])
+
+
+class CalendarFilterBarTest(TestCase):
+    """La page porte la barre de filtrage COMMUNE, en cible vivante, facettes déclarées."""
+
+    def test_the_page_mounts_the_common_filter_bar_on_the_rendered_events(self):
+        user = User.objects.create_user('cal_filter', password='x')
+        self.client.force_login(user)
+        html = self.client.get(reverse('common:calendar')).content.decode()
+        self.assertIn('data-wama-filter-bar', html)
+        self.assertIn('data-cible="#wama-calendar .fc-event"', html)
+        self.assertIn('data-cible-vivante="1"', html)
+        for facet in ('data-f-facette="app"', 'data-f-facette="nature"',
+                      'data-f-facette="statut"'):
+            self.assertIn(facet, html)
+        self.assertIn('value="maintenance"', html)

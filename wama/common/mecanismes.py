@@ -374,7 +374,9 @@ MECHANISMS = (
               "Masquage PAR CLASSE (`.wama-f-hors-filtre`) et non par `style.display` : une "
               "cible à `display` inline (l'entrée unitaire de file est en `display:contents`) "
               "ne survivait pas à la restauration. `data-cible-dans` BORNE la recherche — sans "
-              "quoi deux files sur une même page se filtreraient l'une l'autre",
+              "quoi deux files sur une même page se filtreraient l'une l'autre. `data-cible-vivante` "
+              "(2026-09-28, calendrier) : une liste RE-RENDUE par un composant est relue à chaque "
+              "application, et le composant appelle `WamaFilterBar.refresh(barre)` après rendu",
               'wama/common/static/common/js/wama-filter-bar.js', 'docs/construction/ui/CARD_DESIGN.md',
               annexes=('wama/common/templates/common/_filter_bar.html',),
               symbol='WamaFilterBar'),      # global de base.html : compté par son symbole
@@ -485,9 +487,11 @@ MECHANISMS = (
               "Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune ligne par app",
               'wama/common/services/journal.py', 'docs/construction/ia/WAMA_MEMORY.md §9bis'),
     Mechanism('calendar', "Calendrier de l'utilisateur et plages réservées",
-              "Le journal sur l'axe du TEMPS — mêmes sources, intervalle d'exécution reconstruit "
-              "de RunOutcome + processing_seconds — plus la maintenance planifiée (beat) et ses "
-              "plages RÉSERVÉES à durée mesurée (tests nocturnes). Projette, n'écrit rien",
+              "Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), intervalle "
+              "d'exécution reconstruit de RunOutcome + processing_seconds ou des champs de fin du "
+              "modèle, création des lots ; PRÉVU : fin des traitements en cours (débit observé, "
+              "début lu au gouverneur) et passages de purge ; plus la maintenance planifiée (beat) "
+              "et ses plages RÉSERVÉES à durée mesurée (tests nocturnes). Projette, n'écrit rien",
               'wama/common/services/calendar.py', 'docs/construction/ia/WAMA_MEMORY.md §9bis.1',
               annexes=('wama/common/static/common/js/wama-calendar.js',
                        'wama/common/tests_calendar.py')),

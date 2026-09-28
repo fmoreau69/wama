@@ -15,3 +15,8 @@ class CamAnalyzerConfig(AppConfig):
             import logging
             logging.getLogger(__name__).warning(
                 'cam_analyzer function_specs non enregistrées', exc_info=True)
+        # Le monde Lab entre au journal et au calendrier (WAMA_MEMORY §9bis.1) : une card du
+        # cam_analyzer est une SESSION d'analyse, datée de bout en bout (started/completed_at).
+        from wama.common.services.journal import MONDE_LAB, enregistrer_source
+        from .models import AnalysisSession
+        enregistrer_source('cam_analyzer', AnalysisSession, monde=MONDE_LAB)
