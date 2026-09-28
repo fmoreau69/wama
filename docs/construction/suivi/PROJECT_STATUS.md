@@ -18558,3 +18558,15 @@ smoke navigateur (réponse `schedule/active/` interceptée, rien poussé au brok
 
 🔚 **Suite possible** : la récurrence à l'interface (le modèle et le distributeur la portent) ; les
 mails et posts quand leurs outils existeront.
+
+### ↳ suite du palier « étape 4 » (même soir) — les deux relevés TRAITÉS (GO de Fabien)
+
+1. **`visibility_timeout` restauré** : le bloc des priorités (`8360b3e2`, 29/07) réaffectait
+   `CELERY_BROKER_TRANSPORT_OPTIONS` et perdait les 6 h — il FUSIONNE désormais. Garde
+   `tests_calendar.BrokerTransportOptionsTest` (délai > plus longue plage réservée ; contre-épreuve :
+   réaffectation → rouge). **Effectif au redémarrage des workers Celery et de beat.**
+2. **Redis Windows vidé de ses listes `gpu*`** : 446 messages jamais consommés (444
+   `synthesize_voice`, 2 `compose_task`), serveur identifié avant d'agir (Redis 5 pour Windows,
+   distinct de celui de WSL — dont les files `gpu*` étaient vides avant et après). Sauvegarde JSON
+   prise avant suppression (bloc-notes de la session). ⚠ Restent sur ce Redis **1 399 messages
+   `default` et 27 `celery`**, non touchés — décision de Fabien.
