@@ -27,10 +27,20 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-#: Heures creuses DÉCLARÉES : de 22 h à 7 h (heure locale). Mesuré le 2026-09-28 : aucune activité
-#: utilisateur entre 05:00 et 08:00, activité jusqu'à 01:00 — l'étape 4 dérivera la tranche de
-#: l'histogramme de `RunOutcome` au lieu de la déclarer.
+#: Heures creuses DÉCLARÉES — le REPLI seulement, quand l'activité mesurée ne suffit pas
+#: (`QUIET_MIN_SAMPLES`). Depuis l'étape 4 (2026-09-28) elles se MESURENT (`quiet_hours`).
 OFF_PEAK_HOURS = (22, 7)
+
+#: Heures creuses MESURÉES : une heure est creuse si l'activité des VRAIS utilisateurs (`RunOutcome`
+#: des `QUIET_LOOKBACK_DAYS` derniers jours, comptes de test exclus — ils travaillent la nuit par
+#: construction) y est au plus `QUIET_SHARE` de l'heure la plus chargée.
+QUIET_LOOKBACK_DAYS = 60
+QUIET_SHARE = 0.10
+QUIET_MIN_SAMPLES = 100
+
+#: Une tâche est LONGUE au-delà de cette durée typique : le placement automatique l'envoie en
+#: heures creuses plutôt que de la laisser occuper la carte aux heures chargées.
+LONG_TASK_SECONDS = 30 * 60
 
 #: Horizon de recherche d'un créneau : au-delà, une plage réservée mal déclarée bouclerait.
 _SEARCH_DAYS = 8
@@ -60,12 +70,16 @@ def schedule_params():
     from ..models import ScheduledAction as SA
     from ..utils.param_schema import Param
 
+    hours, source = quiet_hours()
+    measured = 'mesurées sur l’activité des %d derniers jours' % QUIET_LOOKBACK_DAYS
     return [
         Param(name=FIELD_WHEN, type='radio', label='Quand', choices=list(SA.PLACEMENT_CHOICES),
-              default=SA.PLACEMENT_MANUAL, contexts=('item',),
-              help=('« Dès que possible » et « en heures creuses » évitent d’eux-mêmes les plages '
-                    'réservées aux tests nocturnes ; heures creuses : de %d h à %d h.'
-                    % OFF_PEAK_HOURS)),
+              default=SA.PLACEMENT_AUTO, contexts=('item',),
+              help=('« Automatique » tient compte de la file de WAMA : la tâche part quand la carte '
+                    'se libère, et une tâche longue part en heures creuses. Aucun placement '
+                    'automatique n’empiète sur les plages réservées aux tests nocturnes. Heures '
+                    'creuses : %s (%s).' % (hours_label(hours),
+                                            measured if source == 'measured' else 'déclarées'))),
         Param(name=FIELD_AT, type='datetime', label='Date et heure', contexts=('item',),
               show_if={'field': FIELD_WHEN, 'in': [SA.PLACEMENT_MANUAL]}),
     ]
@@ -126,35 +140,136 @@ def reserved_window_at(moment):
     return None
 
 
-def _out_of_reserved(moment):
-    """`moment` repoussé à la fin de toute plage réservée qui le contient (en chaîne)."""
-    for _ in range(20):
-        window = reserved_window_at(moment)
+def overlapping_window(start, end):
+    """La première plage réservée qui CHEVAUCHE `[start, end)`, ou None.
+
+    ⚠ C'est TOUTE la durée de la tâche qui doit rester hors plage, pas son seul départ : une tâche
+    d'une heure lancée à 04:00 déborderait sur les tests de 04:15 — exactement ce que la décision
+    de Fabien veut éviter (étape 4 ; l'étape 3 ne regardait que l'instant de départ)."""
+    for window in _reserved(start - timedelta(days=1), end + timedelta(days=1)):
+        if window.start < end and window.end > start:
+            return window
+    return None
+
+
+def _fit(moment, seconds):
+    """Premier instant ≥ `moment` où une tâche de `seconds` secondes ne touche aucune plage."""
+    duration = timedelta(seconds=seconds or 0)
+    for _ in range(40):
+        window = overlapping_window(moment, moment + max(duration, timedelta(seconds=1)))
         if window is None:
             return moment
         moment = window.end
     return moment
 
 
-def _is_off_peak(moment):
-    from django.utils import timezone
-    hour = timezone.localtime(moment).hour
+def _out_of_reserved(moment):
+    """`moment` repoussé à la fin de toute plage réservée qui le contient (en chaîne)."""
+    return _fit(moment, 0)
+
+
+def quiet_hours(*, refresh=False):
+    """`(heures creuses, 'measured' | 'declared')` — heures LOCALES 0-23.
+
+    Mesurées sur `RunOutcome` (comptes de test exclus), mises en cache une heure : l'activité d'un
+    labo ne change pas d'une requête à l'autre, et la fenêtre « Programmer… » les affiche.
+    """
+    from django.core.cache import cache
+
+    key = 'wama:schedule:quiet_hours'
+    cached = None if refresh else cache.get(key)
+    if cached is not None:
+        return frozenset(cached[0]), cached[1]
+    result = _measure_quiet_hours()
+    cache.set(key, (sorted(result[0]), result[1]), 3600)
+    return result
+
+
+def _declared_quiet_hours():
     begin, end = OFF_PEAK_HOURS
-    return hour >= begin or hour < end
+    return frozenset(h for h in range(24) if h >= begin or h < end), 'declared'
 
 
-def _next_off_peak_start(moment):
+def _measure_quiet_hours():
+    from django.db.models import Count
+    from django.db.models.functions import ExtractHour
     from django.utils import timezone
-    local = timezone.localtime(moment)
-    start = local.replace(hour=OFF_PEAK_HOURS[0], minute=0, second=0, microsecond=0)
-    return start if start > local else start + timedelta(days=1)
+
+    from ..models import RunOutcome
+    from .nightly_tests import TEST_USERNAMES
+
+    # DEUX signaux d'activité, cumulés : les gestes (`RunOutcome`) et les DÉPÔTS d'éléments (dates
+    # de création des sources du journal). Mesuré le 2026-09-28 sur 60 jours : 48 gestes réels et 29
+    # dépôts — ni l'un ni l'autre ne suffit seul, et le repli déclaré reste la réponse honnête tant
+    # que le cumul n'atteint pas `QUIET_MIN_SAMPLES`.
+    from .journal import sources
+
+    try:
+        since = timezone.now() - timedelta(days=QUIET_LOOKBACK_DAYS)
+        tz = timezone.get_current_timezone()
+        rows = (RunOutcome.objects.filter(occurred_at__gte=since, user__isnull=False)
+                .exclude(user__username__in=TEST_USERNAMES)
+                .annotate(hour=ExtractHour('occurred_at', tzinfo=tz))
+                .values('hour').annotate(n=Count('id')))
+        counts = {r['hour']: r['n'] for r in rows}
+        for src in sources():
+            deposits = (src.model.objects.filter(**{f'{src.champ_date}__gte': since})
+                        .exclude(**{f'{src.champ_user}__username__in': TEST_USERNAMES})
+                        .annotate(hour=ExtractHour(src.champ_date, tzinfo=tz))
+                        .values('hour').annotate(n=Count('pk')))
+            for r in deposits:
+                counts[r['hour']] = counts.get(r['hour'], 0) + r['n']
+    except Exception:
+        logger.debug('[schedule] activité illisible', exc_info=True)
+        return _declared_quiet_hours()
+    if sum(counts.values()) < QUIET_MIN_SAMPLES:
+        return _declared_quiet_hours()
+    busiest = max(counts.values())
+    quiet = frozenset(h for h in range(24) if counts.get(h, 0) <= QUIET_SHARE * busiest)
+    return (quiet, 'measured') if quiet else _declared_quiet_hours()
 
 
-def place(placement, requested, now):
-    """`(instant, plage en conflit)` d'une programmation.
+def hours_label(hours):
+    """« 05 h – 11 h » : les tranches contiguës d'un ensemble d'heures (le tour de minuit compris)."""
+    hours = sorted(hours)
+    if not hours:
+        return 'aucune'
+    if len(hours) == 24:
+        return 'toute la journée'
+    starts = [h for h in hours if (h - 1) % 24 not in hours]
+    parts = []
+    for start in sorted(starts):
+        end = start
+        while (end + 1) % 24 in hours:
+            end = (end + 1) % 24
+        parts.append('%02d h – %02d h' % (start, (end + 1) % 24))
+    return ', '.join(parts)
+
+
+def _is_quiet(moment, hours):
+    from django.utils import timezone
+    return timezone.localtime(moment).hour in hours
+
+
+def _next_quiet(moment, hours):
+    """Prochain début d'heure creuse ≥ `moment` (lui-même s'il est creux)."""
+    from django.utils import timezone
+    if _is_quiet(moment, hours):
+        return moment
+    local = timezone.localtime(moment).replace(minute=0, second=0, microsecond=0)
+    for step in range(1, 25 * _SEARCH_DAYS):
+        candidate = local + timedelta(hours=step)
+        if candidate.hour in hours:
+            return candidate
+    return moment
+
+
+def place(placement, requested, now, *, seconds=0, queue_free=None):
+    """`(instant, plage en conflit)` d'une programmation d'une tâche de `seconds` secondes.
 
     Seul le placement MANUEL peut rendre un conflit : l'utilisateur a choisi une heure, on ne la
     change pas dans son dos — on la refuse en lui proposant la fin de la plage.
+    `queue_free` : instant où la file GPU se vide (`global_queue.free_at`), pour `auto`.
     """
     from ..models import ScheduledAction as SA
 
@@ -163,18 +278,33 @@ def place(placement, requested, now):
             raise ScheduleError('Choisissez une date et une heure.')
         if requested < now - timedelta(minutes=1):
             raise ScheduleError('Cette date est déjà passée.')
-        return requested, reserved_window_at(requested)
+        window = overlapping_window(requested, requested + timedelta(seconds=max(seconds, 1)))
+        return requested, window
     if placement == SA.PLACEMENT_ASAP:
-        return _out_of_reserved(now), None
+        return _fit(now, seconds), None
+    hours, _source = quiet_hours()
     if placement == SA.PLACEMENT_OFF_PEAK:
-        moment = now if _is_off_peak(now) else _next_off_peak_start(now)
-        for _ in range(_SEARCH_DAYS):
-            moment = _out_of_reserved(moment)
-            if _is_off_peak(moment):
-                return moment, None
-            moment = _next_off_peak_start(moment)
-        raise ScheduleError('Aucun créneau en heures creuses hors des plages réservées.')
+        return _quiet_slot(now, seconds, hours), None
+    if placement == SA.PLACEMENT_AUTO:
+        # 1. pas avant que la carte se libère (la file GPU est sérielle) ;
+        # 2. une tâche LONGUE part en heures creuses, une courte dès que la carte est libre ;
+        # 3. et jamais sur une plage réservée, toute sa durée comprise.
+        moment = max(now, queue_free or now)
+        if seconds >= LONG_TASK_SECONDS:
+            return _quiet_slot(moment, seconds, hours), None
+        return _fit(moment, seconds), None
     raise ScheduleError(f'Placement inconnu : {placement}')
+
+
+def _quiet_slot(moment, seconds, hours):
+    """Premier départ en heure creuse, hors plages réservées pour toute la durée de la tâche."""
+    moment = _next_quiet(moment, hours)
+    for _ in range(_SEARCH_DAYS * 4):
+        fitted = _fit(moment, seconds)
+        if _is_quiet(fitted, hours):
+            return fitted
+        moment = _next_quiet(fitted, hours)
+    raise ScheduleError('Aucun créneau en heures creuses hors des plages réservées.')
 
 
 # ── Cible : l'outil de lancement d'une card ─────────────────────────────────────────────────
@@ -216,6 +346,23 @@ def target_of(tool):
     return key, entry['model'], arg
 
 
+def _placement_inputs(placement, model, now, count=1):
+    """`(durée prévue en secondes, instant de libération de la file)` d'une programmation.
+
+    La durée est MESURÉE (`global_queue.typical_seconds`, médiane du même modèle) — celle de TOUTES
+    les tâches programmées ensemble, qui s'exécuteront l'une après l'autre sur la file sérielle.
+    La file n'est lue que pour `auto` : c'est le seul placement qui en dépend.
+    """
+    from ..models import ScheduledAction as SA
+    from .global_queue import free_at, typical_seconds
+
+    seconds = 0.0
+    if model is not None:
+        seconds = typical_seconds(model)[0] * max(1, count)
+    queue_free = free_at(now) if placement == SA.PLACEMENT_AUTO else None
+    return seconds, queue_free
+
+
 def schedule_items(user, tool, ids, placement, requested=None, *, now=None):
     """Programme le lancement des éléments `ids` par `tool`. Rend `{actions, conflict}`.
 
@@ -232,7 +379,8 @@ def schedule_items(user, tool, ids, placement, requested=None, *, now=None):
     if not tool_accessible(user, tool):
         raise ScheduleError('Accès non autorisé à cette application.')
     key, model, _arg = target_of(tool)
-    run_at, conflict = place(placement, requested, now)
+    seconds, queue_free = _placement_inputs(placement, model, now, count=len(ids or []))
+    run_at, conflict = place(placement, requested, now, seconds=seconds, queue_free=queue_free)
     if conflict is not None:
         return {'actions': [], 'conflict': conflict}
 
@@ -260,7 +408,10 @@ def reschedule(user, action_id, placement, requested=None, *, now=None):
     action = SA.objects.filter(pk=action_id, user=user, state=SA.STATE_SCHEDULED).first()
     if action is None:
         raise ScheduleError('Cette programmation n’existe plus.')
-    run_at, conflict = place(placement, requested, now or timezone.now())
+    now = now or timezone.now()
+    model = target_of(action.tool)[1] if action.app else None
+    seconds, queue_free = _placement_inputs(placement, model, now)
+    run_at, conflict = place(placement, requested, now, seconds=seconds, queue_free=queue_free)
     if conflict is not None:
         return {'action': action, 'conflict': conflict}
     action.placement, action.run_at = placement, run_at

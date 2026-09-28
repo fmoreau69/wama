@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**163 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**164 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -482,13 +482,16 @@ Programmer le lancement d'une card, d'une sélection ou d'un lot — menu commun
 
 - **Domicile** : `wama/common/services/scheduled_actions.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Actions PROGRAMMÉES — le QUAND du calendrier, étape 3 (2026-09-28). Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` point 13 ; la vue : `WAMA_MEMORY.md §9bis.1`.
-- **API publique** (15) :
+- **API publique** (18) :
   - `class ScheduleError(ValueError)` — Une programmation refusée — le message est montré à l'utilisateur.
   - `schedule_params()` — Le schéma de programmation (liste de `Param`).
   - `parse_moment(value)` — Instant demandé → aware, ou None. Formes acceptées : ISO 8601 (avec ou sans fuseau), la
   - `read_schedule(data)` — `(placement, instant demandé)` depuis des valeurs NOMMÉES PAR LE SCHÉMA (`when`, `at`).
   - `reserved_window_at(moment)` — La plage réservée qui CONTIENT `moment`, ou None.
-  - `place(placement, requested, now)` — `(instant, plage en conflit)` d'une programmation.
+  - `overlapping_window(start, end)` — La première plage réservée qui CHEVAUCHE `[start, end)`, ou None.
+  - `quiet_hours(*, refresh=False)` — `(heures creuses, 'measured' | 'declared')` — heures LOCALES 0-23.
+  - `hours_label(hours)` — « 05 h – 11 h » : les tranches contiguës d'un ensemble d'heures (le tour de minuit compris).
+  - `place(placement, requested, now, *, seconds=0, queue_free=None)` — `(instant, plage en conflit)` d'une programmation d'une tâche de `seconds` secondes.
   - `start_tool_for(app, prefix='')` — Outil `start_*` d'une FILE, ou None. La file d'un domaine a le sien
   - `target_of(tool)` — `(clé d'app, modèle, argument d'identifiant)` d'un outil `start_<app>`.
   - `schedule_items(user, tool, ids, placement, requested=None, *, now=None)` — Programme le lancement des éléments `ids` par `tool`. Rend `{actions, conflict}`.
@@ -544,11 +547,11 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
 
 - **Domicile** : `wama/common/services/calendar.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §9bis.1](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Calendrier — l'activité de WAMA posée sur l'axe du TEMPS. Doc : `WAMA_MEMORY.md §9bis.1` (la vue) ; plan d'ensemble — trois natures de temps, actions programmées, placement — : `WAMA_APP_GENERATION_ROUTE.md §10.6` point 13 (« le QUAND »).
-- **API publique** (14) :
+- **API publique** (15) :
   - `app_identity(app) -> tuple[str, str]` — `(libellé, couleur d'identité)` d'une app, pour les événements ET la légende.
   - `class CalendarEvent` — Un événement du calendrier. Volontairement MINCE, comme l'entrée du journal : le détail
   - `predicted_end(started_at, progress, now) -> datetime | None` — Fin prévue par le DÉBIT OBSERVÉ — la même règle que `wama-eta.js` côté navigateur :
-  - `observed_events(user, start, end, *, now=None) -> list[CalendarEvent]` — Items de l'utilisateur dont le dépôt, l'exécution ou la fin tombe dans `[start, end)`, plus
+  - `observed_events(user, start, end, *, now=None, queue=None) -> list[CalendarEvent]` — Items de l'utilisateur dont le dépôt, l'exécution ou la fin tombe dans `[start, end)`, plus
   - `batch_events(user, start, end) -> list[CalendarEvent]` — La création des LOTS de l'utilisateur dans `[start, end)`.
   - `expiry_events(user, start, end) -> list[CalendarEvent]` — Les purges de rétention qui toucheront l'utilisateur dans `[start, end)`.
   - `measured_nightly_minutes(stage=None, reports_dir=None) -> float | None` — Plus longue durée récente d'une campagne nocturne, en minutes — `None` sans mesure.
@@ -557,6 +560,7 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
   - `reserved_windows(start, end, resource=None) -> list[CalendarEvent]` — Fenêtres qui RÉSERVENT une ressource (`gpu`, `cpu`), ou toutes si `resource` est `None`.
   - `reserved_window_conflicts(start, end) -> list[tuple[CalendarEvent, CalendarEvent]]` — Paires `(fenêtre réservée, autre entrée planifiée qui la chevauche)` dans `[start, end)`.
   - `declared_events(user, start, end) -> list[CalendarEvent]` — Les programmations ACTIVES de l'utilisateur (`ScheduledAction`, étape 3) — nature `voulu`.
+  - `queue_events(user, start, end, entries) -> list[CalendarEvent]` — Les traitements des AUTRES dans la file GPU — couche de l'instance, ANONYME (étape 4).
   - `events_for(user, start, end, *, with_maintenance=True) -> list[CalendarEvent]`
   - `to_ics(events, *, host='wama', now=None) -> str` — Les événements au format iCalendar. `host` qualifie les UID (uniques et STABLES : un
 
@@ -663,6 +667,20 @@ Une balise `WAMA:FAIT(registre/clé/champ)` dans un .md va chercher sa valeur da
   - `render_value(valeur) -> str` — Une VALEUR en texte d'une ligne. Une structure (dict) est refusée : une balise cite une
   - `resolve(chemin: str) -> str` — La valeur ACTUELLE que désigne un chemin de balise.
   - `refresh_text(texte: str) -> Tuple[str, int, List[Tuple[str, str]]]` — Régénère toutes les balises d'un texte : `(texte neuf, nombre de balises, erreurs)`.
+
+### File globale GPU (où en est chaque tâche)
+
+Lue, jamais devinée : ce qui tourne au gouverneur, ce qui attend dans les listes du broker dans l'ordre de consommation. Heures prévues = somme de durées MESURÉES (file sérielle) ; place et durée des traitements des autres, jamais leur titre. Nourrit le placement `auto`, la pastille « En file » et le calendrier
+
+- **Domicile** : `wama/common/services/global_queue.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : La FILE GLOBALE de WAMA — où en est chaque traitement GPU, pour tous (calendrier, étape 4). Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` point 13.8 ; la vue : `WAMA_MEMORY.md §9bis.1`.
+- **API publique** (6) :
+  - `class QueueEntry`
+  - `broker_messages(queue=GPU_QUEUE, client=None) -> list[dict]` — Messages en ATTENTE sur `queue`, dans l'ordre où le worker les prendra.
+  - `typical_seconds(model, _cache=None) -> tuple[float, str]` — Durée TYPIQUE d'un traitement de `model` : `(secondes, 'measured' | 'declared')`.
+  - `snapshot(now=None, *, running=None, queued=None) -> list[QueueEntry]` — La file GPU telle qu'elle s'exécutera : en cours, puis en attente, avec des heures PRÉVUES.
+  - `free_at(now=None, entries=None)` — Instant où la file GPU sera VIDE, d'après l'instantané.
+  - `for_user(user, now=None, entries=None) -> list[dict]` — Les éléments de `user` dans la file, avec leur place et le nombre de tâches devant eux.
 
 ### Fuites de secrets
 

@@ -1013,10 +1013,17 @@ def schedule_cancel(request, pk):
 def schedule_active(request):
     """Programmations actives de l'utilisateur (les pastilles des cards se posent d'après elles)
     et le SCHÉMA de la fenêtre « Programmer… » — une seule requête au chargement de la file."""
+    from .services.global_queue import for_user, snapshot
     from .services.scheduled_actions import active_for, schedule_params
     from .utils.param_schema import schema_to_dicts
+
+    # « Où en est ma tâche ? » (étape 4) : la place de SES éléments dans la file GPU globale,
+    # le nombre de tâches devant eux et les heures prévues — la même lecture que le calendrier.
+    entries = snapshot()
     return JsonResponse({'actions': [_action_json(a) for a in active_for(request.user)],
-                         'schema': schema_to_dicts(schedule_params())})
+                         'schema': schema_to_dicts(schedule_params()),
+                         'queue': for_user(request.user, entries=entries),
+                         'queueLength': len(entries)})
 
 
 @login_required

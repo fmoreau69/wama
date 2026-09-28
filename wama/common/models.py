@@ -975,10 +975,13 @@ class ScheduledAction(ScopedVisibility):
         (STATE_FAILED, 'Échec du lancement'),
     ]
     PLACEMENT_MANUAL, PLACEMENT_ASAP, PLACEMENT_OFF_PEAK = 'manual', 'asap', 'off_peak'
+    #: Étape 4 (2026-09-28) : WAMA choisit d'après la file globale et l'activité MESURÉE.
+    PLACEMENT_AUTO = 'auto'
     PLACEMENT_CHOICES = [
-        (PLACEMENT_MANUAL, 'À une date'),
+        (PLACEMENT_AUTO, 'Automatique'),
         (PLACEMENT_ASAP, 'Dès que possible'),
         (PLACEMENT_OFF_PEAK, 'En heures creuses'),
+        (PLACEMENT_MANUAL, 'À une date'),
     ]
 
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE,

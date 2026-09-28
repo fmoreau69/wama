@@ -505,6 +505,14 @@ MECHANISMS = (
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/static/common/js/wama-schedule.js',
                        'wama/common/tests_scheduled_actions.py')),
+    Mechanism('global_queue', "File globale GPU (où en est chaque tâche)",
+              "Lue, jamais devinée : ce qui tourne au gouverneur, ce qui attend dans les listes du "
+              "broker dans l'ordre de consommation. Heures prévues = somme de durées MESURÉES "
+              "(file sérielle) ; place et durée des traitements des autres, jamais leur titre. "
+              "Nourrit le placement `auto`, la pastille « En file » et le calendrier",
+              'wama/common/services/global_queue.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
+              annexes=('wama/common/tests_global_queue.py',)),
     Mechanism('rag_gesture', "Ajout au RAG (geste explicite)",
               "Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, "
               "aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision",

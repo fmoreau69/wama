@@ -18524,3 +18524,37 @@ supprimé) : clic droit → « Programmer… » → fenêtre rendue du schéma (
 
 🔚 **Étape suivante** : étape 4 — placement MESURÉ sur l'activité (histogramme de `RunOutcome`) au
 lieu des heures creuses déclarées ; la récurrence à l'interface.
+
+## §PALIER — 2026-09-28 (soir), « CALENDRIER » — étape 4 : la FILE GLOBALE, placer d'après elle et dire où en est chaque tâche
+
+**Demande de Fabien** : programmer automatiquement en fonction de la file globale de WAMA, et que
+l'utilisateur puisse savoir où en est sa tâche. Détail : `ROUTE §10.6` 13.8.
+
+**Livré** :
+- `services/global_queue.py` — la file GPU LUE (gouverneur + listes du broker dans l'ordre de
+  consommation), heures prévues = somme de durées MESURÉES (file sérielle, `--pool=solo`), place et
+  durée des autres sans leur titre ;
+- placement **`auto`** (défaut de la fenêtre ; migration `common/0017`, sans effet SQL, appliquée) :
+  après libération de la carte, tâche longue en heures creuses, et **plages réservées tenues sur
+  toute la durée** — asap / heures creuses / manuel compris ;
+- **heures creuses MESURÉES** (gestes + dépôts des vrais utilisateurs, comptes de test exclus),
+  repli déclaré sous 100 signaux — c'est le cas aujourd'hui (77 en 60 jours), la fenêtre le dit ;
+- « où en est ma tâche » : pastille « ⏳ En file · N tâches avant · début ~… · fin ~… » (relue 15 s),
+  élément à son heure prévue au calendrier, blocs anonymes « GPU occupé ».
+
+**Validé** : `tests_global_queue` 15 + suites calendrier/programmation (309 verts) ; contre-épreuves :
+comptes de test réintégrés dans la mesure → rouge, durée ignorée face aux plages → rouge ; lecture
+LIVE depuis WSL (file vide ; `auto` describer 63 s et transcriber 12 min mesurées → départ immédiat) ;
+smoke navigateur (réponse `schedule/active/` interceptée, rien poussé au broker) : pastille « En file ·
+2 tâches avant · début ~14:20 · fin ~14:35 », fenêtre à 4 choix, « Automatique » coché, date masquée.
+
+⚠ **Relevés, NON traités (décisions d'exploitation)** :
+1. `settings.py` l.767 réaffecte `CELERY_BROKER_TRANSPORT_OPTIONS` et PERD le `visibility_timeout`
+   de 6 h posé l.707 (la redélivrance retombe au défaut Redis d'une heure) ;
+2. le Redis que joint `venv_win` porte **446 messages `gpu`** qu'aucun worker ne consomme — la file
+   réelle (Redis de WSL) était vide au même moment (« deux Redis », mémoire d'infra).
+
+**Effectif au redémarrage** : gunicorn (vues, statics) ; aucune nouvelle entrée beat.
+
+🔚 **Suite possible** : la récurrence à l'interface (le modèle et le distributeur la portent) ; les
+mails et posts quand leurs outils existeront.

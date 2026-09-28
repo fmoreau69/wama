@@ -62,6 +62,11 @@
                                                        : 'En cours — fin non estimable');
         }
         if (p.kind === 'expiry') { parts.push('Passage de la purge de rétention'); }
+        if (p.queuePosition != null) {
+            parts.push(p.queueState === 'running' || p.queuePosition === 0
+                ? 'File GPU : en cours'
+                : 'File GPU : ' + p.queuePosition + (p.queuePosition === 1 ? 're' : 'e') + ' en attente');
+        }
         if (p.kind === 'batch') { parts.push('Création du lot'); }
         if (p.reserves && p.reserves.length) {
             parts.push('Plage réservée (' + p.reserves.join(', ') + ')');

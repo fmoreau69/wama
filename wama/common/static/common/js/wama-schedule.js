@@ -110,8 +110,10 @@
         var feedback = el.querySelector('.wama-schedule-feedback');
         var fields = el.querySelector('.wama-schedule-fields');
         var modal = bootstrap.Modal.getOrCreateInstance(el);
+        // `when` n'est PAS posé ici : son défaut est celui du SCHÉMA (`auto` depuis l'étape 4).
+        // Seule la date proposée, dans une heure, est une valeur de la fenêtre.
         var values = opts.action ? opts.action.values
-            : { when: 'manual', at: localInput(new Date(Date.now() + 60 * 60 * 1000)) };
+            : { at: localInput(new Date(Date.now() + 60 * 60 * 1000)) };
         WamaParams.render(fields, schema, { context: 'item', values: values });
 
         function submit(overrideAt) {
@@ -182,20 +184,44 @@
         return div;
     }
 
-    function decorate(actions) {
+    /** « Où en est ma tâche ? » (étape 4) — un élément lancé qui ATTEND dans la file GPU. */
+    function queueChip(entry) {
+        var div = document.createElement('div');
+        div.className = 'wama-schedule-chip wama-queue-chip small mt-1';
+        var ahead = entry.ahead === 1 ? '1 tâche avant' : entry.ahead + ' tâches avant';
+        div.innerHTML = '<i class="fas fa-hourglass-half me-1"></i>En file · ' + ahead
+            + ' · début ~' + label(entry.expectedStart).split(' ').pop()
+            + ' · fin ~' + label(entry.expectedEnd).split(' ').pop();
+        div.title = 'File GPU de WAMA : début prévu ' + label(entry.expectedStart)
+            + ', fin prévue ' + label(entry.expectedEnd)
+            + (entry.durationSource === 'measured' ? ' (durées mesurées)' : ' (durée indicative)');
+        return div;
+    }
+
+    function slotOf(card) {
+        return $('.wcv3-sec--state .wcv3-state', card) || $('.wcv3-sec--state', card) || card;
+    }
+
+    function decorate(actions, queued) {
         decorating = true;
         try {
             $$('[data-schedule-tool]').forEach(function (queue) {
                 var url = queue.getAttribute('data-schedule-url');
                 var tool = queue.getAttribute('data-schedule-tool');
-                var byId = {};
+                var byId = {}, waiting = {};
                 actions.forEach(function (a) { if (a.tool === tool) { byId[String(a.objectId)] = a; } });
+                // L'outil d'une file est `start_<clé d'app>` : c'est ainsi qu'une entrée de la file
+                // globale retrouve SA file, sans table par app.
+                (queued || []).forEach(function (e) {
+                    if (e.state === 'queued' && e.itemId != null && 'start_' + e.app === tool) {
+                        waiting[String(e.itemId)] = e;
+                    }
+                });
                 $$('.wama-card[data-id]', queue).forEach(function (card) {
                     $$('.wama-schedule-chip', card).forEach(function (old) { old.remove(); });
-                    var action = byId[String(card.getAttribute('data-id'))];
-                    if (!action) { return; }
-                    var slot = $('.wcv3-sec--state .wcv3-state', card) || $('.wcv3-sec--state', card) || card;
-                    slot.appendChild(chip(action, url));
+                    var id = String(card.getAttribute('data-id'));
+                    if (byId[id]) { slotOf(card).appendChild(chip(byId[id], url)); }
+                    else if (waiting[id]) { slotOf(card).appendChild(queueChip(waiting[id])); }
                 });
             });
         } finally {
@@ -215,8 +241,15 @@
 
     function refresh() {
         // Pastilles absentes si la lecture échoue : la programmation, elle, tient.
-        loadActive().then(function (res) { decorate(res.actions || []); });
+        loadActive().then(function (res) { decorate(res.actions || [], res.queue || []); });
     }
+
+    // Une place dans la file AVANCE toute seule : on la relit toutes les 15 s tant qu'un élément
+    // de la page attend (onglet visible) — et plus du tout quand rien n'attend.
+    var QUEUE_POLL_MS = 15000;
+    setInterval(function () {
+        if (document.querySelector('.wama-queue-chip') && !document.hidden) { refresh(); }
+    }, QUEUE_POLL_MS);
 
     function scheduleRefresh() {
         if (decorating) { return; }
