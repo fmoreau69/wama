@@ -96,6 +96,15 @@ FEATURES = [
             "rien à voir avec le lissage RTS, qui voit le futur. OFF = le script d'origine, "
             "comportement historique.",
             default=False, scope='compute'),
+    Feature('lane_map_recalage', "Recalage voie + carte (latéral + cap navette)",
+            "Corrige la position LATÉRALE et le CAP de la navette par la voie vue (lignes YOLOPv2 "
+            "projetées au sol, caméra avant) et l'axe routier IGN BD TOPO (largeur, nombre de "
+            "voies, sens), rattachés en continu (Viterbi). Le longitudinal reste au GPS et au "
+            "recalage ortho. Calcul stocké par la passe « Recalage voie + carte » ; appliqué au "
+            "point d'ingestion UNIQUE de la pose, après ⚑ shuttle_filter. Mesure fondatrice : "
+            "GPS ≈ 2 m trop à droite et cap figé à −5,9° à Roumanille-Poincaré (2026-09-28). "
+            "OFF = pose GPS (filtrée ou brute), comportement historique.",
+            default=False, scope='compute'),
     Feature('imu_command', "Accéléromètre en commande du filtre navette",
             "Le filtre de trajectoire navette (⚑ `shuttle_filter`) cesse de supposer "
             "« accélération inconnue ±0,8 m/s² » et prend l'accélération MESURÉE par "

@@ -1,0 +1,173 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "Trace du véhicule (heading et speed_kmh servent le rattachement).",
+        "group": "travail",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "ts",
+          "lat",
+          "lon"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "road_map",
+        "description": "Tronçons de référence ((lat, lon), nb_voies, largeur_m, sens, type — les natures non roulables sont écartées).",
+        "group": "reference",
+        "key": "road_map",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "geometry"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Observations de voie : écart au centre de voie et cap relatif, par instant (même base de temps que la trace).",
+        "group": "reference",
+        "key": "lanes",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "ts",
+          "offset_m",
+          "rel_heading_deg"
+        ]
+      }
+    ],
+    "key": "lane_map_recalage",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "derived_from": [
+          "road_map",
+          "segmentation",
+          "gps"
+        ],
+        "description": "La MÊME trace, enrichie de la correction (est, nord, cap) à appliquer et du rattachement routier ; `lane_anchored` dit si la correction s'appuie sur une mesure proche (sinon elle vaut 0).",
+        "estimate_field": "corr_de_m",
+        "estimates": "offset",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [
+          "corr_de_m",
+          "corr_dn_m",
+          "corr_dh_deg",
+          "road_lateral_m",
+          "road_bearing_deg",
+          "lane_anchored"
+        ],
+        "required_fields": [],
+        "uncertainty": {
+          "model": "declared",
+          "note": "σ à mesurer contre le recalage ortho 2b"
+        }
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": "m",
+        "default": 25.0,
+        "description": "",
+        "key": "radius_m",
+        "max": 100.0,
+        "min": 5.0,
+        "type": "float",
+        "unit": "Rayon des tronçons candidats."
+      },
+      {
+        "choices": "°",
+        "default": 15.0,
+        "description": "",
+        "key": "max_heading_dev_deg",
+        "max": 45.0,
+        "min": 1.0,
+        "type": "float",
+        "unit": "Écart de cap max navette ↔ voie, et cap GPS ↔ axe, pour qu'une observation devienne ancre."
+      },
+      {
+        "choices": "m",
+        "default": 15.0,
+        "description": "",
+        "key": "max_correction_m",
+        "max": 30.0,
+        "min": 0.5,
+        "type": "float",
+        "unit": "Correction latérale max acceptée (au-delà : rattachement ou ligne faux). Mesuré en canyon urbain : dérive GPS locale jusqu'à 12 m."
+      },
+      {
+        "choices": "s",
+        "default": 20.0,
+        "description": "",
+        "key": "max_gap_s",
+        "max": 120.0,
+        "min": 1.0,
+        "type": "float",
+        "unit": "Écart max entre deux ancres pour interpoler."
+      },
+      {
+        "choices": "m",
+        "default": 2.0,
+        "description": "",
+        "key": "max_overshoot_m",
+        "max": 20.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "Au-delà du bout d'un tronçon de plus de tant, l'écart n'est pas latéral : pas d'ancre."
+      },
+      {
+        "choices": "×",
+        "default": 0.0,
+        "description": "",
+        "key": "lateral_scale",
+        "max": 5.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "Échelle latérale de la projection (largeur vue / largeur réelle) ; 0 = mesurée contre la carte."
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "timeseries",
+      "requires-road-map",
+      "lanes"
+    ],
+    "visibility": "public"
+  },
+  "description": "Corrige la position LATÉRALE et le CAP d'une trace GPS de véhicule par la voie vue (lignes de voie projetées au sol) et l'axe routier de référence (largeur, nombre de voies, sens) : rattachement continu (Viterbi), centre attendu de la voie de droite, écart mesuré au centre de voie → correction, interpolée entre ancres. Le longitudinal n'est pas touché. N'APPLIQUE rien : la trace sort enrichie.",
+  "key": "lane_map_recalage",
+  "manifest_kind": "function",
+  "name": "Recalage latéral par voie + carte",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:lane_map_recalage",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

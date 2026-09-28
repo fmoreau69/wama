@@ -87,6 +87,13 @@ PASSES: tuple = (
          watched=('target_classes', 'confidence'), task='compute_temporal_segments_task'),
     Pass('distance', 'calcul', depends_on=('lane_events',), task='compute_distance_task'),
     Pass('depth_calc', 'calcul', depends_on=('depth',), task='compute_depth_calc_task'),
+    # Recalage voie + carte (2026-09-28) : lit les lignes YOLOPv2 et la BD TOPO (réseau IGN),
+    # écrit une correction de POSE navette — déclarée AVANT le tracking pour que le ▶ Calculs
+    # la joue avant lui (ordre topologique stable). Pas de dépendance déclarée du tracking vers
+    # elle : son effet passe par ⚑ lane_map_recalage (OFF par défaut) ; en faire une amont
+    # rendrait PÉRIMÉ le tracking de toute session qui ne l'a jamais jouée.
+    Pass('lane_map_recalage', 'calcul', depends_on=('yolopv2_lanes',),
+         task='compute_lane_map_recalage_task'),
     Pass('global_tracking', 'calcul', depends_on=('yolo_detect', 'distance'),
          task='compute_global_tracking_task'),
     Pass('indicators', 'calcul', depends_on=('global_tracking', 'distance'),

@@ -1,0 +1,86 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true,
+      "network": true
+    },
+    "impl": "cam_analyzer.tasks:compute_lane_map_recalage_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "Trace GPS de la session (filtrée si ⚑ shuttle_filter).",
+        "group": "travail",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "ts",
+          "lat",
+          "lon"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Lignes de voie YOLOPv2 (road_mask) de la caméra avant.",
+        "group": "reference",
+        "key": "lanes",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "polygon"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.lane_map_recalage",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "Correction de la pose navette (est, nord, cap) par instant, stockée dans `results_summary['lane_map_recalage']`.",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [
+          "de_m",
+          "dn_m",
+          "dh_deg",
+          "anchored"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "gnss",
+      "lanes",
+      "ign"
+    ],
+    "visibility": "public"
+  },
+  "description": "La PASSE `lane_map_recalage` du volet (session-wide, CPU + réseau IGN) : projette au sol les lignes YOLOPv2 de la caméra avant (repère véhicule), collecte les tronçons BD TOPO le long du parcours, et appelle la brique pure `lane_map_recalage` (rattachement continu de `gps_map_match`). Écrit la correction latérale + cap de la navette ; appliquée sous ⚑ lane_map_recalage au point d'ingestion unique de la pose.",
+  "key": "cam_analyzer.lane_map_recalage",
+  "manifest_kind": "function",
+  "name": "Recalage voie + carte (passe)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.lane_map_recalage",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

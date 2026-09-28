@@ -310,8 +310,13 @@ def compute_shuttle_filter(session):
     return report
 
 
-def effective_gps_track(session):
+def effective_gps_track(session, lane_map=True):
     """Trace navette EFFECTIVE pour le POSITIONNEMENT — point d'accès UNIQUE côté serveur.
+
+    Deux corrections, dans cet ordre, chacune derrière SA bascule : ⚑ `shuttle_filter` (Kalman +
+    RTS) puis ⚑ `lane_map_recalage` (latéral + cap par la voie vue et l'axe IGN, 2026-09-28 —
+    `utils.lane_map_recalage`). `lane_map=False` rend la trace SANS la seconde : c'est ce que lit
+    son propre calcul, qui ne doit jamais se corriger lui-même.
 
     ⚑ `shuttle_filter` ON et calcul présent → trace dont `lat`/`lon`/`heading` sont les valeurs
     FILTRÉES (les brutes restent en `*_raw`, et `heading_held` dit si le cap est tenu — ce
@@ -326,25 +331,50 @@ def effective_gps_track(session):
     gt = session.gps_track or []
     try:
         from .features import enabled
-        if not enabled(session, 'shuttle_filter'):
-            return gt
+        use_filter = enabled(session, 'shuttle_filter')
+        use_lane = lane_map and enabled(session, 'lane_map_recalage')
     except Exception:
         return gt
+    out = gt
     rows = ((session.results_summary or {}).get('shuttle_filter') or {}).get('track') or []
-    if not rows:
-        return gt
-    by_ts = {round(float(r['ts']), 4): r for r in rows if r.get('ts') is not None}
+    if use_filter and rows:
+        by_ts = {round(float(r['ts']), 4): r for r in rows if r.get('ts') is not None}
+        out = []
+        for p in gt:
+            f = by_ts.get(round(float(p['ts']), 4)) if p.get('ts') is not None else None
+            if not f or f.get('lat_f') is None:
+                out.append(p)
+                continue
+            q = dict(p)
+            q['lat_raw'], q['lon_raw'], q['heading_raw'] = p.get('lat'), p.get('lon'), p.get('heading')
+            q['lat'], q['lon'] = f['lat_f'], f['lon_f']
+            if f.get('heading_f') is not None:
+                q['heading'] = f['heading_f']
+            q['heading_held'] = bool(f.get('heading_f_held'))
+            out.append(q)
+    corr = ((session.results_summary or {}).get('lane_map_recalage') or {}).get('track') or []
+    if use_lane and corr:
+        out = apply_lane_map_correction(out, corr)
+    return out
+
+
+def apply_lane_map_correction(track, corr_rows):
+    """Applique la correction voie + carte (`de_m`, `dn_m`, `dh_deg` par `ts`) à une trace — une
+    TRANSLATION (identique pour l'antenne et le centre) et un décalage de cap. Miroir exact de
+    `_applyLaneMapRecalage` (JS) : toute divergence ferait afficher autre chose que ce que le
+    tracking calcule. Les valeurs d'avant restent en `*_prelane`."""
+    by_ts = {round(float(r['ts']), 4): r for r in corr_rows if r.get('ts') is not None}
     out = []
-    for p in gt:
-        f = by_ts.get(round(float(p['ts']), 4)) if p.get('ts') is not None else None
-        if not f or f.get('lat_f') is None:
+    for p in track:
+        c = by_ts.get(round(float(p['ts']), 4)) if p.get('ts') is not None else None
+        if not c or not (c.get('de_m') or c.get('dn_m') or c.get('dh_deg')):
             out.append(p)
             continue
         q = dict(p)
-        q['lat_raw'], q['lon_raw'], q['heading_raw'] = p.get('lat'), p.get('lon'), p.get('heading')
-        q['lat'], q['lon'] = f['lat_f'], f['lon_f']
-        if f.get('heading_f') is not None:
-            q['heading'] = f['heading_f']
-        q['heading_held'] = bool(f.get('heading_f_held'))
+        q['lat_prelane'], q['lon_prelane'], q['heading_prelane'] = p.get('lat'), p.get('lon'), p.get('heading')
+        q['lat'] = p['lat'] + float(c.get('dn_m') or 0.0) / 111320.0
+        q['lon'] = p['lon'] + float(c.get('de_m') or 0.0) / (111320.0 * max(math.cos(math.radians(p['lat'])), 1e-6))
+        if p.get('heading') is not None:
+            q['heading'] = (p['heading'] + float(c.get('dh_deg') or 0.0)) % 360.0
         out.append(q)
     return out

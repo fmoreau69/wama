@@ -18,7 +18,7 @@ from wama_lab.cam_analyzer.utils.prediction_adapter import video_to_gps_time
 APP_DIR = Path(__file__).resolve().parent
 
 
-def raw_timestamp_pose_calls(root=APP_DIR):
+def raw_timestamp_position_calls(root=APP_DIR):
     """[(fichier, ligne)] des appels `_shuttle_pose_at(traj, <x>.timestamp)` — temps vidéo brut."""
     found = []
     for path in root.rglob('*.py'):
@@ -41,8 +41,8 @@ class GpsTimeBaseTest(SimpleTestCase):
     def test_a_session_without_sync_keeps_the_video_time(self):
         self.assertEqual(video_to_gps_time(SimpleNamespace(gps_time_scale=None, gps_time_offset=None), 12.5), 12.5)
 
-    def test_no_shuttle_pose_is_queried_with_a_raw_video_timestamp(self):
-        self.assertEqual(raw_timestamp_pose_calls(), [])
+    def test_no_shuttle_position_is_queried_with_a_raw_video_timestamp(self):
+        self.assertEqual(raw_timestamp_position_calls(), [])
 
     def test_the_ground_calibration_stores_gps_time_for_its_static_observations(self):
         # Le balayage ci-dessus ne voit PAS ce site : le temps y transitait par un tuple
@@ -58,4 +58,4 @@ class GpsTimeBaseTest(SimpleTestCase):
         with tempfile.TemporaryDirectory() as d:
             Path(d, 'bad.py').write_text('def f(df, t):\n    return _shuttle_pose_at(t, df.timestamp)\n',
                                          encoding='utf-8')
-            self.assertEqual(raw_timestamp_pose_calls(Path(d)), [('bad.py', 2)])
+            self.assertEqual(raw_timestamp_position_calls(Path(d)), [('bad.py', 2)])

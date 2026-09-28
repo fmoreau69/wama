@@ -22,7 +22,9 @@
           "type",
           "nom",
           "sens",
-          "largeur_m"
+          "largeur_m",
+          "nb_voies",
+          "reserve_bus"
         ],
         "required_fields": []
       }

@@ -113,7 +113,10 @@ def fetch_roads(lat: float, lon: float, radius_m: float = 300.0):
     """Tronçons de route BD TOPO autour d'un point.
 
     Retourne [{'coords': [(lon, lat), …], 'nature': str|None, 'name': str|None,
-               'sens': str|None, 'largeur': m|None}].
+               'sens': str|None, 'largeur': m|None, 'id': cleabs, 'nb_voies': int|None,
+               'reserve_bus': str|None}].
+    `id`/`nb_voies`/`reserve_bus` ajoutés le 2026-09-28 pour le recalage latéral voie + carte
+    (`driving.lane_map_matching`) : la largeur seule ne dit pas où est la voie de droite.
     """
     out = []
     for f in _wfs_features(LAYER_ROADS, lat, lon, radius_m):
@@ -130,6 +133,9 @@ def fetch_roads(lat: float, lon: float, radius_m: float = 300.0):
                     "nom": p.get("nom_1_gauche") or p.get("nom_collaborateur"),
                     "sens": p.get("sens_de_circulation"),
                     "largeur": p.get("largeur_de_chaussee"),
+                    "id": p.get("cleabs"),
+                    "nb_voies": p.get("nombre_de_voies"),
+                    "reserve_bus": p.get("reserve_aux_bus"),
                 })
     return out
 
@@ -175,9 +181,12 @@ def road_map_frame(lat: float, lon: float, radius_m: float = 300.0):
             "nom": r.get("nom"),
             "sens": r.get("sens"),
             "largeur_m": r.get("largeur"),
+            "nb_voies": r.get("nb_voies"),
+            "reserve_bus": r.get("reserve_bus"),
         })
     return TypedFrame(pd.DataFrame(rows, columns=[
-        "id", "type", "geometry", "nom", "sens", "largeur_m"]), DataType.ROAD_MAP,
+        "id", "type", "geometry", "nom", "sens", "largeur_m", "nb_voies", "reserve_bus"]),
+        DataType.ROAD_MAP,
         meta={"source": f"ign:{LAYER_ROADS}", "center": (lat, lon), "radius_m": radius_m})
 
 
@@ -366,7 +375,8 @@ SPEC_ROADS = register(FunctionSpec(
     # `section_id=None` sur toute la trace, SANS erreur. Un manifeste qui promet un port
     # qu'il ne sert pas est pire qu'un port absent.
     outputs=[PortSpec('roads', DataType.TABLE,
-                      produced_fields=['coords', 'nature', 'nom', 'sens', 'largeur'],
+                      produced_fields=['coords', 'nature', 'nom', 'sens', 'largeur', 'id',
+                                       'nb_voies', 'reserve_bus'],
                       cardinality='many',
                       description='Tronçons bruts : coords en (lon, lat) + attributs.')],
     params=_LOC_PARAMS,
@@ -387,7 +397,8 @@ SPEC_ROAD_MAP = register(FunctionSpec(
     tags=['geo', 'ign', 'reference', 'network', 'france', 'map-matching'],
     inputs=[],
     outputs=[PortSpec('road_map', DataType.ROAD_MAP,
-                      produced_fields=['id', 'geometry', 'type', 'nom', 'sens', 'largeur_m'],
+                      produced_fields=['id', 'geometry', 'type', 'nom', 'sens', 'largeur_m',
+                                       'nb_voies', 'reserve_bus'],
                       cardinality='many',
                       description='Polylignes (lat, lon) + attributs, prêtes pour le map-matching.')],
     params=_LOC_PARAMS,

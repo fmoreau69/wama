@@ -96,6 +96,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let orthoRecalage = null;      // offset de recalage mesuré (global + par fenêtre)
     let orthoCorrection = null;    // ancres de correction GPS (étape 2b appliquée, ⚑ ortho_correction)
     let shuttleFilter = null;      // trace navette FILTRÉE (Kalman+RTS serveur, ⚑ shuttle_filter)
+    let laneMapRecalage = null;    // correction latérale + cap par voie + carte (⚑ lane_map_recalage)
     const camFovUsed = {};    // FOV V utilisé à l'annotation (config.fov_v_used, sinon legacy)
     // Bascules ⚑ Modes (miroir de utils/features.py) : comparer AVEC/SANS chaque
     // amélioration. Surchargées par le catalogue serveur au chargement de session.
@@ -492,6 +493,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 orthoRecalage = (data.results_summary && data.results_summary.ortho_recalage) || null;
                 orthoCorrection = (data.results_summary && data.results_summary.ortho_correction) || null;
                 shuttleFilter = (data.results_summary && data.results_summary.shuttle_filter) || null;
+                laneMapRecalage = (data.results_summary && data.results_summary.lane_map_recalage) || null;
                 stationaryAnchors = (data.results_summary && data.results_summary.stationary_anchors) || {};
                 sessionAnalyzedRanges = (data.config && data.config.analyzed_ranges) || {};
             } catch (e) { stationaryGids = new Set(); stationaryAnchors = {}; sessionAnalyzedRanges = {}; }
@@ -1070,6 +1072,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     orthoRecalage = (d.results_summary && d.results_summary.ortho_recalage) || null;
                     orthoCorrection = (d.results_summary && d.results_summary.ortho_correction) || null;
                     shuttleFilter = (d.results_summary && d.results_summary.shuttle_filter) || null;
+                    laneMapRecalage = (d.results_summary && d.results_summary.lane_map_recalage) || null;
                     stationaryAnchors = (d.results_summary && d.results_summary.stationary_anchors) || {};
                     sessionAnalyzedRanges = (d.config && d.config.analyzed_ranges) || {};
                 } catch (e) { /* prochaine sélection de session fera foi */ }
@@ -2699,6 +2702,31 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // ⚑ lane_map_recalage — correction latérale + cap par la voie vue et l'axe IGN, calculée côté
+    // serveur (`utils.lane_map_recalage`) et servie en `results_summary.lane_map_recalage.track`
+    // ({ts, de_m, dn_m, dh_deg}). Une TRANSLATION + un décalage de cap, appariés par ts. Gardée
+    // par la bascule (OFF ⇒ rien, même si un calcul traîne). Miroir EXACT de
+    // `ego_pose.apply_lane_map_correction` : appliquée APRÈS le filtre navette, AVANT l'ortho.
+    function _applyLaneMapRecalage(track) {
+        const on = camFeat && camFeat['lane_map_recalage'];
+        const rows = laneMapRecalage && laneMapRecalage.track;
+        if (!on || !rows || !rows.length) return track;
+        const byTs = new Map();
+        rows.forEach(r => { if (r.ts != null) byTs.set(Math.round(r.ts * 1e4), r); });
+        const M_LAT = 111320;
+        return track.map(p => {
+            const c = (p.ts == null) ? null : byTs.get(Math.round(p.ts * 1e4));
+            if (!c || !(c.de_m || c.dn_m || c.dh_deg)) return p;
+            const mLon = M_LAT * Math.max(Math.cos(p.lat * Math.PI / 180), 1e-6);
+            return Object.assign({}, p, {
+                lat: p.lat + (c.dn_m || 0) / M_LAT,
+                lon: p.lon + (c.de_m || 0) / mLon,
+                heading: (p.heading != null) ? (((p.heading + (c.dh_deg || 0)) % 360) + 360) % 360 : p.heading,
+                lat_prelane: p.lat, lon_prelane: p.lon, heading_prelane: p.heading,
+            });
+        });
+    }
+
     // ⚑ ortho_correction — offset (est, nord) au temps ts, interpolé entre ancres et pondéré
     // par la fiabilité (nombre d'appariements). Port fidèle de `offset_at()`
     // (wama_data/functions/driving/trajectory_offset.py) : PAS d'extrapolation hors bornes,
@@ -2752,9 +2780,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Point d'ingestion UNIQUE de la trace : corriger ici propage à tout l'aval
         // (trace, pose ego, projections caméra) sans toucher aux consommateurs.
-        // Ordre : filtre navette (⚑ shuttle_filter) PUIS correction ortho (⚑ ortho_correction).
-        cachedGpsTrack = _applyOrthoCorrection(_applyShuttleFilter(
-            Array.isArray(gpsTrack) ? gpsTrack.filter(p => p.lat && p.lon) : []));
+        // Ordre : filtre navette (⚑ shuttle_filter), recalage voie + carte (⚑ lane_map_recalage),
+        // PUIS correction ortho (⚑ ortho_correction) — les deux premiers comme le serveur.
+        cachedGpsTrack = _applyOrthoCorrection(_applyLaneMapRecalage(_applyShuttleFilter(
+            Array.isArray(gpsTrack) ? gpsTrack.filter(p => p.lat && p.lon) : [])));
 
         // Clear previous layers
         if (miniMapPolyline) { miniMap.removeLayer(miniMapPolyline); miniMapPolyline = null; }

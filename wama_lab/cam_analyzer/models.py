@@ -451,6 +451,7 @@ class AnalysisPass(models.Model):
         DISTANCE = 'distance', 'Distance / vitesse / TTC'
         DEPTH = 'depth', 'Profondeur (monoculaire)'
         DEPTH_CALC = 'depth_calc', 'Calculs profondeur (plan de sol / distances)'
+        LANE_MAP_RECALAGE = 'lane_map_recalage', 'Recalage voie + carte (latéral + cap navette)'
         GLOBAL_TRACKING = 'global_tracking', 'Tracking 360° (gids + trajectoires)'
         INDICATORS = 'indicators', 'Indicateurs (TTC/PET + insertions)'
         CONFLICTS = 'conflicts', 'Conflits'
