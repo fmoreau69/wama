@@ -884,17 +884,21 @@ chaud, traduction→Ollama.
   `is_file()` suivant les liens, un dépôt HF sauvegardé pour la PREMIÈRE fois par `mirror_tree`
   voyait chaque poids recopié une seconde fois via son lien `snapshots/` : **58,3 Go mesurés au
   distant, sur 4 dépôts** (FastWan 24,2, MiniMax-Music3 20,6, ACE-Step 10,1, Minimax-h3 3,3). Les
-  dépôts plus anciens y portaient déjà de VRAIS liens (le partage les accepte : montage 9p
-  `metadata`), que le test « même taille » sautait. Un lien vers un fichier DE la source est
-  désormais **reproduit comme lien** ; décrit dans `.wama_links.json` seulement si la destination
-  refuse les liens ; le tirage recrée les liens des deux formes et ne rapatrie PAS les copies
-  pleines d'anciennes passes. Un lien vers l'EXTÉRIEUR reste copié (seule copie de sa cible).
-  Tenu par `tests_mirror_sync` (7). Nettoyage des doubles déjà partis : `manage.py
-  dedup_remote_links` (simulation par défaut ; un double n'est retiré que PROUVÉ — manifeste, ou
-  blob unique de même taille ET mêmes octets de tête/queue —, remplacé par un lien après
-  inscription au manifeste ; `tests_dedup_remote_links`, 6). Simulation du 28/09 : **58,3 Go
-  retirables** (77 fichiers), 2 gardés (Kokoro : seule copie ; un GGUF MiniMax : blob désigné
-  d'une autre taille). ⏳ `--apply` : décision de Fabien.
+  dépôts plus anciens y portaient déjà de VRAIS liens (créés hors WSL), que le test « même
+  taille » sautait. Un lien vers un fichier DE la source est désormais **reproduit comme lien**
+  là où la destination l'accepte (disque local), **décrit dans `.wama_links.json`** là où elle le
+  refuse — ⚠ c'est le cas du partage distant : il EXPOSE les liens anciens mais refuse d'en créer
+  depuis WSL (`EPERM`, mesuré) ; pour la sauvegarde, le manifeste EST le mécanisme. Le tirage
+  recrée les liens des deux formes et ne rapatrie PAS les copies pleines d'anciennes passes. Un
+  lien vers l'EXTÉRIEUR reste copié (seule copie de sa cible). Tenu par `tests_mirror_sync` (7).
+  Nettoyage des doubles déjà partis : `manage.py dedup_remote_links` (simulation par défaut ; un
+  double n'est retiré que PROUVÉ — manifeste, ou blob unique de même taille ET mêmes octets de
+  tête/queue — après inscription au manifeste ; **aucun blob n'est jamais retiré** : les modèles
+  désinstallés restent entiers dans l'archive, décision de Fabien ; `tests_dedup_remote_links`,
+  6). ✅ **`--apply` du 28/09 : 77 doubles retirés, 58,3 Go rendus, 0 erreur** ; 2 gardés (Kokoro :
+  seule copie ; un GGUF MiniMax : blob désigné d'une autre taille). Revérifié après : les 73 liens
+  locaux des 4 dépôts ont une entrée de manifeste vers un blob présent de même taille ; qwen-image,
+  hunyuan, bark, chatterbox intacts au distant (54 / 50 / 13 / 13 Go).
   ⚠ **Rectification du même jour** : ce paragraphe annonçait d'abord « 480 liens = 333 Go
   recopiés pour rien, qwen-image 115 Go distants pour 54 » — FAUX : mon relevé faisait un `stat()`
   qui suivait les liens DISTANTS et comptait deux fois chaque poids. La première version du
