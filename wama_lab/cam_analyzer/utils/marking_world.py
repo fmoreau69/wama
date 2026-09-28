@@ -80,7 +80,9 @@ def aggregate_markings(session, min_obs=3, max_pts=6000):
                                      ego_to_world, _shuttle_pose_at, video_to_gps_time)
 
     from .ego_pose import effective_gps_track   # ⚑ shuttle_filter : filtrée si ON, sinon brute
-    gt = effective_gps_track(session)
+    # ortho=False : le recalage ortho MESURE sur ces marquages — les placer avec sa propre
+    # correction lui ferait mesurer un résidu, et la correction suivante oscillerait
+    gt = effective_gps_track(session, ortho=False)
     wins = session.intersection_windows or []
     if len(gt) < 2 or not wins:
         return {}

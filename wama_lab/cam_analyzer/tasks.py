@@ -1974,7 +1974,8 @@ def compute_lane_map_recalage_task(self, session_id: str):
                  f"{report.get('lane_observations')} observations de voie, "
                  f"{round(100 * (report.get('anchored_share') or 0))} % de la trace corrigée, "
                  f"correction médiane {report.get('correction_median_m')} m "
-                 f"(p95 {report.get('correction_p95_m')}), cap {report.get('heading_correction_median_deg')}° "
+                 f"(p95 {report.get('correction_p95_m')}), cap {report.get('heading_correction_median_deg')}°, "
+                 f"échelle latérale caméra ×{report.get('lateral_scale')} "
                  f"— appliquée si ⚑ Recalage voie + carte est ON")
         return {'session_id': session_id, **report}
     except Exception as e:
@@ -2594,13 +2595,17 @@ def compute_ortho_recalage_task(self, session_id: str):
     """Étape 2b — recalage ABSOLU par marquages ortho : segmente les passages piétons
     sur l'orthophoto IGN (SAM3, GPU + réseau), les matche avec les crossings caméra
     (marking_world) et mesure l'offset de recalage par intersection. RAPPORT seul —
-    l'offset est stocké mais PAS appliqué au positionnement (validation d'abord)."""
+    l'offset est stocké mais PAS appliqué au positionnement (validation d'abord).
+    Passe `ortho_recalage` du pipeline depuis le 2026-09-28 (elle n'était qu'un bouton du panneau
+    Calibration, invisible du volet des passes)."""
     close_old_connections()
     from .models import AnalysisSession
     from .utils.ortho_markings import segment_ortho_crossings, match_recalage
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
     try:
-        session = AnalysisSession.objects.get(pk=session_id)
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
         uid = session.user_id
+        mark_started(session, 'ortho_recalage', session.profile)
         _console(uid, "Recalage ortho : segmentation SAM3 des passages piétons sur l'orthophoto…")
         oc = segment_ortho_crossings(session)
         n_cross = sum(len(v) for v in {tuple(sorted(w)): v for w, v in oc.items()}.values())
@@ -2611,6 +2616,9 @@ def compute_ortho_recalage_task(self, session_id: str):
         session.results_summary = rs
         session.save(update_fields=['results_summary'])
         g = rec.get('global')
+        mark_completed(session, 'ortho_recalage', output_summary={
+            'ortho_crossings': n_cross, 'matched': (g or {}).get('n', 0),
+            'windows': len(rec.get('per_window') or {})})
         if g:
             import math as _m
             _console(uid, f"Recalage ortho : offset mesuré {_m.hypot(g['de_m'], g['dn_m']):.1f} m "
@@ -2623,8 +2631,9 @@ def compute_ortho_recalage_task(self, session_id: str):
     except Exception as e:
         logger.error(f"compute_ortho_recalage_task failed: {e}", exc_info=True)
         try:
-            _console(AnalysisSession.objects.get(pk=session_id).user_id,
-                     f"Recalage ortho : échec ({e})")
+            _s = AnalysisSession.objects.get(pk=session_id)
+            mark_failed(_s, 'ortho_recalage', str(e))
+            _console(_s.user_id, f"Recalage ortho : échec ({e})")
         except Exception:
             pass
         return {'error': str(e), 'session_id': session_id}
@@ -2632,7 +2641,12 @@ def compute_ortho_recalage_task(self, session_id: str):
 
 @shared_task(bind=True)
 def compute_ortho_correction_task(self, session_id: str):
-    """Étape 2b (2/2) — APPLIQUE le recalage mesuré à la trajectoire, derrière la bascule ⚑.
+    """Étape 2b (2/2) — CALCULE les ancres de correction tirées du recalage mesuré ; la bascule
+    ⚑ `ortho_correction` choisit, à la LECTURE, de les appliquer (`ego_pose.effective_gps_track`
+    côté serveur, `_applyOrthoCorrection` côté affichage). Patron « calculer, stocker, basculer ».
+    ⚠ Jusqu'au 2026-09-28 la tâche sortait SANS RIEN CALCULER quand la bascule était OFF — et le
+    serveur n'appliquait la correction nulle part : activer la bascule n'avait d'effet que sur
+    l'affichage, et encore seulement après un calcul lancé bascule ON.
 
     Séparée de la mesure à dessein : la mesure coûte SAM3 + GPU + réseau raster, alors que
     l'application est du calcul pur. Recalibrer `full_trust_mask_deg` ne doit pas relancer la
@@ -2642,23 +2656,22 @@ def compute_ortho_correction_task(self, session_id: str):
     On ne stocke que les ANCRES (quelques entrées), jamais une trace dupliquée : tout
     consommateur rejoue `offset_at()`.
     """
+    close_old_connections()
     from .models import AnalysisSession
-    from .utils.features import effective as _feff
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
     from wama_data.functions.driving.trajectory_offset import (
         decompose, build_anchors, correction_report)
     from wama_data.functions.geo.ign_vector import sky_mask_at
 
-    session = AnalysisSession.objects.get(pk=session_id)
+    session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
     uid = session.user_id
     try:
-        if not _feff(session).get('ortho_correction', False):
-            _console(uid, "Correction de trajectoire : bascule ⚑ désactivée — trajectoire brute.")
-            return {'session_id': session_id, 'applied': False}
-
+        mark_started(session, 'ortho_correction', session.profile)
         rec = (session.results_summary or {}).get('ortho_recalage') or {}
         if not rec.get('per_window'):
+            mark_failed(session, 'ortho_correction', "aucun recalage ortho mesuré")
             _console(uid, "Correction de trajectoire : aucun recalage mesuré "
-                          "(lancer d'abord « Recalage absolu ortho »).")
+                          "(lancer d'abord la passe « Recalage ortho »).")
             return {'session_id': session_id, 'applied': False, 'reason': 'no_recalage'}
 
         dec = decompose(rec)
@@ -2684,17 +2697,20 @@ def compute_ortho_correction_task(self, session_id: str):
         }
         session.results_summary = rs
         session.save(update_fields=['results_summary'])
+        mark_completed(session, 'ortho_correction', output_summary=rep)
 
-        _console(uid, f"Correction de trajectoire ⚑ : biais caméra E {dec['camera']['de_m']:+.1f} / "
+        _console(uid, f"Correction de trajectoire : biais caméra E {dec['camera']['de_m']:+.1f} / "
                       f"N {dec['camera']['dn_m']:+.1f} m écarté (projection, non appliqué) ; "
                       f"correction GPS locale sur {rep['n_anchors']} repères — "
                       f"moy {rep['mean_shift_m']:.1f} m, max {rep['max_shift_m']:.1f} m, "
                       f"atténuation moyenne ×{rep['mean_alpha']:.2f} "
-                      f"({len(masks)}/{len(dec.get('gps_local') or {})} masques satellite obtenus).")
+                      f"({len(masks)}/{len(dec.get('gps_local') or {})} masques satellite obtenus) "
+                      f"— appliquée si ⚑ Recalage GPS par marquages ortho est ON.")
         return {'session_id': session_id, 'applied': True, **rep}
     except Exception as e:
         logger.error(f"compute_ortho_correction_task failed: {e}", exc_info=True)
         try:
+            mark_failed(session, 'ortho_correction', str(e))
             _console(uid, f"Correction de trajectoire : échec ({e})")
         except Exception:
             pass

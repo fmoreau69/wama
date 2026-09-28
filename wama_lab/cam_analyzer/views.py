@@ -1205,6 +1205,36 @@ def ortho_correction(request, session_id):
 
 @login_required
 @require_http_methods(["GET"])
+def session_buildings(request, session_id):
+    """Emprises des bâtiments BD TOPO autour d'un point (⚑ map_buildings — AFFICHAGE seul).
+
+    Le centre est calé sur une grille de 0,001° (~100 m) pour que les requêtes voisines
+    partagent le cache (24 h) : le WFS IGN est lent, et la vue de dessus redemande une zone à
+    chaque déplacement de 120 m. Rend {success, buildings: [{rings: [[[lat, lon], …]], h}]}."""
+    from django.core.cache import cache
+    get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    try:
+        lat, lon = float(request.GET['lat']), float(request.GET['lon'])
+        radius = min(max(float(request.GET.get('radius', 250)), 50.0), 400.0)
+    except (KeyError, ValueError):
+        return JsonResponse({'success': False, 'error': 'lat et lon requis'}, status=400)
+    lat, lon = round(lat, 3), round(lon, 3)
+    key = f"cam_analyzer_buildings:{lat:.3f}:{lon:.3f}:{int(radius)}"
+    data = cache.get(key)
+    if data is None:
+        from wama_data.functions.geo.ign_vector import fetch_buildings
+        try:
+            found = fetch_buildings(lat, lon, radius)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': f"WFS IGN : {e}"}, status=502)
+        data = [{'rings': [[[pt[1], pt[0]] for pt in ring] for ring in b['rings']], 'h': b.get('hauteur')}
+                for b in found]
+        cache.set(key, data, 86400)
+    return JsonResponse({'success': True, 'buildings': data})
+
+
+@login_required
+@require_http_methods(["GET"])
 def get_session_status(request, session_id):
     """Get session status and progress."""
     from django.core.cache import cache
