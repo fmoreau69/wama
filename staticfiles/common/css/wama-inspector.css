@@ -62,6 +62,13 @@
 /* Card dépliable (wama-new-item-card.js) : chevron qui pivote avec l'état. */
 .wama-new-item-card .wama-nic-chevron { transition: transform .2s ease; }
 .wama-new-item-card.is-deployed .wama-nic-chevron { transform: rotate(180deg); }
+/* « Réglages : volet de droite » (common/_settings_hint.html, CARD_DESIGN §11.11 Étape 3) :
+   poussé à droite de l'en-tête (le chevron le suit) ; en mode simplifié le volet est masqué,
+   la phrase renvoie alors au ⚙ de l'élément. */
+.wama-new-item-card .wama-settings-hint { margin-left: auto; font-size: .72rem; opacity: .85; }
+.wama-settings-hint--simple { display: none; }
+body.wama-simple .wama-settings-hint--panel { display: none; }
+body.wama-simple .wama-settings-hint--simple { display: inline; }
 
 /* ── Solitaire 🃏 : batch REPLIÉ = pile de cartes (deck) ; clic = désempile ──────────────
    Globalisé du pilote transcriber (2026-07-05, audit A1-3) — ne cible QUE le contrat commun

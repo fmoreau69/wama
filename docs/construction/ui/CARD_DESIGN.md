@@ -1453,7 +1453,12 @@ non. Garde `tests_catalogues.LivePortComesFromAnAppCapabilityTest`.
    modalité Médiathèque (filtrée sur les avatars) du port de TRAVAIL `work_image` de
    l'avatarizer — ce que sa déclaration dit depuis le 28/08 (`app_modes.py:266-267`).
 
-**Sous-étapes, dans l'ordre (GO de Fabien)** : (a) l'indication commune ; (b) titre et aperçu de
+**Sous-étapes, dans l'ordre (GO de Fabien)** : (a) l'indication commune — ✅ **2026-09-28** :
+`common/_settings_hint.html`, inclus par l'en-tête des DEUX cards communes (v3 et v4, donc les
+10 apps d'un seul geste), à droite, sans hauteur ajoutée (en-tête mesuré à 21 px au navigateur
+sur 6 apps) ; en mode simplifié, où le volet est masqué, la phrase devient « Réglages : ⚙ de
+l'élément ajouté ». Garde `tests_catalogues.InputCardSaysWhereSettingsLiveTest` (les deux cards
+la rendent, le mode simplifié la bascule, aucune app ne l'écrit à la main) ; (b) titre et aperçu de
 voix du synthesizer au volet ; (c) modèle et prompt négatif de l'imager hors de la card,
 appariement rebranché sur le select du volet ; (d) la galerie d'avatars, avec l'adoption v4 de
 l'avatarizer.
