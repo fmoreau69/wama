@@ -1476,14 +1476,19 @@ def convert_file(
     from wama.converter.utils.format_router import detect_media_type, get_output_formats
     from wama.converter.utils.quality_presets import PRESET_CHOICES, DEFAULT_PRESET
 
-    src, err = _resolve_user_path(user, file_path)
-    if err:
-        return err
-    rel_path = src.relative_to(Path(settings.MEDIA_ROOT).resolve())
+    # Désigné, pointé, provenance posée (2026-09-28) — cf. `add_to_enhancer`. Le chemin était
+    # recomposé à la main (`str(rel_path)`) : sous Windows il s'écrivait avec des `\`, que la
+    # brique des références (`file_references.direct_references`) ne reconnaît pas, et aucune
+    # provenance n'était posée. Mesuré par `tests_tool_api_designation` (venv_win).
+    from wama.common.utils.media_paths import InputRefused, designate
+    try:
+        received = designate(file_path, user, 'converter')
+    except InputRefused as e:
+        return {'error': str(e)}
 
-    media_type = detect_media_type(src.name)
+    media_type = detect_media_type(received.name)
     if media_type is None:
-        return {'error': f'Type de fichier non supporté par le Converter : {src.suffix}'}
+        return {'error': f'Type de fichier non supporté par le Converter : {Path(received.name).suffix}'}
 
     out_fmt = (output_format or '').strip().lower()
     allowed = get_output_formats(media_type)
@@ -1498,8 +1503,8 @@ def convert_file(
     try:
         job = ConversionJob.objects.create(
             user=user,
-            input_file=str(rel_path),
-            input_filename=src.name,
+            input_file=received.value,
+            input_filename=received.name,
             media_type=media_type,
             output_format=out_fmt,
             quality_preset=preset,
@@ -1509,6 +1514,7 @@ def convert_file(
             **{k: v for k, v in schema_model_kwargs('converter', params).items()
                if k != 'media_type'},
         )
+        received.record(job, 'input_file')
         # Réglages (resize/rotation/fps/bitrate…) : un réglage = une COLONNE depuis le
         # 2026-09-01 — écrits par le point d'entrée unique du modèle, qui coerce selon le
         # type déclaré au schéma. (Avant : un blob `options=` passé à `create()`.)
@@ -1523,7 +1529,7 @@ def convert_file(
 
     return {
         'job_id':        job.id,
-        'filename':      src.name,
+        'filename':      received.name,
         'media_type':    media_type,
         'output_format': out_fmt,
         'quality_preset': preset,
