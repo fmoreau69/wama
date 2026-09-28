@@ -190,6 +190,18 @@ mais c'est défaire son geste dans son dos.
   chemins>` (jamais un `git reset` global), puis vérifier que `git diff --cached --stat` est
   revenu à l'état d'autrui d'avant.
 
+- 🔴🔴 **2026-09-28 — l'INDEX TEMPORAIRE a sa propre fenêtre de course : HEAD qui BOUGE.** Construit
+  par `git read-tree HEAD`, il photographie le HEAD de CET instant. Une autre instance a commité
+  `f5150548` quarante secondes avant mon `git commit` : le commit, posé sur le NOUVEAU HEAD avec
+  l'arbre construit sur l'ANCIEN, a **défait ses deux fichiers** (`e0ae60dc`, 33 fichiers annoncés
+  pour 31 construits — le seul signe). Rattrapé par un commit correctif à pathspec (`1b9d9752`),
+  contenu vérifié identique à `f5150548`.
+  ✅ **Le contrôle** : noter `BASE=$(git rev-parse HEAD)` au `read-tree`, et juste avant le commit
+  exiger `[ "$(git rev-parse HEAD)" = "$BASE" ]` — sinon RECONSTRUIRE l'index (relancer le script),
+  jamais commiter. Et après : `git show --stat HEAD` doit compter EXACTEMENT les fichiers de l'index
+  temporaire ; un fichier de plus est un changement d'autrui défait.
+  ⭐ *Un index isolé protège de l'index des autres, pas de leurs commits.*
+
 ## 4. Docs générées
 
 Un bloc régénéré (`doc_facts`) projette le REGISTRE tel qu'il est dans l'arbre, WIP d'autrui
