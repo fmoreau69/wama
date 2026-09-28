@@ -3160,6 +3160,60 @@ Cette route (§0, F5, F8, §10.4, §11 #6 et #32-#35) ; `WAMA_MANIFEST_ARCHITECT
 `studio/services/launch.py`, `wama-studio.js`, `studio/models.py`, `common/utils/task_skeleton.py`,
 `cam_analyzer/utils/pass_tracking.py`, `cam_analyzer/models.py`) ; notes mémoire.
 
+#### 13. Le QUAND — actions programmées, placement, plages réservées (plan ACTÉ le 2026-09-28)
+
+> Demande de Fabien (2026-09-28) : un calendrier général à WAMA pour planifier tâches et process
+> inter-mondes, *« comme dans l'idée du gouverneur […] mais appliqué au temps et à la
+> planification »*, et qui puisse un jour programmer l'envoi de mails ou de posts. La **VUE**
+> (projection de ce qui existe, étape 1 livrée le 28/09) vit à `WAMA_MEMORY §9bis.1`. Ce point porte
+> ce qui relève de l'EXÉCUTION : **quand** une instance de pipeline part. Le gouverneur actuel
+> décide **si** un process peut partir maintenant ; ce point décide **quand** il part.
+
+**13.1 La seule table neuve : `ScheduledAction`** (étape 3, ⏳). Tout le reste du calendrier dérive.
+- `user` + `ScopedVisibility` (un planning de projet ou d'équipe se partage comme le reste) ;
+- **le QUOI = un nom d'outil `tool_api` + ses arguments** (`start_transcriber`, `run_studio_pipeline`,
+  plus tard `send_mail`, `post_to_<canal>`). La programmation **n'embarque aucun code de lancement** :
+  elle passe par la triade `add/start/status` (`tool_api.tool_role`), donc par les MÊMES contrôles
+  d'accès que l'assistant (`app_id_for_tool`) — une seule porte d'entrée pour la main, l'assistant et
+  l'horloge ;
+- **le QUAND** : `run_at` ou une récurrence `rrule` (RFC 5545, `dateutil`), et une fenêtre
+  `not_before` / `deadline` ;
+- **`placement` ∈ `manual | asap | off_peak`** — le motif « auto + curseur + manuel », jamais un faux
+  choix ;
+- **les réglages se lisent AU LANCEMENT** (décision de Fabien, 28/09) : la card reste éditable
+  jusque-là ; programmer n'en fige pas une photo.
+
+**13.2 Le distributeur.** UNE entrée beat `common.dispatch_due_actions` (toutes les 60 s, queue
+`default`) appelle l'outil au nom de l'utilisateur ; ensuite la card vit sa vie ordinaire (`PENDING`,
+`AWAITING_RESOURCES` si la VRAM manque — le gouverneur reste seul juge de l'admission). On garde le
+`PersistentScheduler` : pas de bascule vers `DatabaseScheduler`, pas de deuxième ordonnanceur (le
+verdict déjà rendu pour Letta et Hermes, `WAMA_MEMORY §9`, vaut ici aussi : un 2ᵉ ordonnanceur à
+côté du `resource_governor` est un corps étranger).
+
+**13.3 Les PLAGES RÉSERVÉES** (✅ posées le 28/09). Une entrée beat peut déclarer les ressources
+qu'elle retient (`calendar.BEAT_WINDOWS[...]['reserves']`) ; sa durée réservée est MESURÉE sur ses
+exécutions quand une mesure existe. Aujourd'hui : les deux campagnes nocturnes (cohérence : `cpu` ;
+fonctionnelle : `gpu`, `cpu`). **Règles pour les étapes 3-4** : le placement automatique n'entre
+jamais dans une plage réservée ; une programmation manuelle qui y tombe est **signalée** et propose
+la fin de la plage — décision de Fabien : les tests nocturnes ne se partagent pas, une tâche
+superposée les rallonge et fausse leurs durées. `calendar.reserved_windows()` et
+`calendar.reserved_window_conflicts()` sont les deux lectures que le placement consommera.
+
+**13.4 Le placement automatique — le « gouverneur du temps »** (étape 4, ⏳). Il choisit un créneau
+à partir de ce qui est déjà mesuré : durée prévue (`eta_estimator`, `ModelRuntimeStat`), empreinte
+VRAM mesurée et `fits_alone`, plages réservées, et activité habituelle des utilisateurs (histogramme
+de `RunOutcome`). ⚠ **Il ne réserve pas la VRAM à l'avance** : l'admission reste celle du
+gouverneur au moment du départ — une réservation temporelle de VRAM serait une seconde vérité qui
+divergerait de la mesure.
+
+**13.5 Ce qui en découle sans code propre.** Mails et posts = des outils `tool_api` ; dès qu'ils
+existent ils sont programmables. Une relance périodique d'un pipeline = une `ScheduledAction`
+récurrente sur `run_studio_pipeline`. L'abonnement `.ics` (jeton révocable) s'appuie sur la même
+migration que l'étape 3.
+
+**13.6 Dépendances.** L'historique complet des exécutions sur le calendrier attend la ligne
+d'exécution par process (4.1, moteur P3) ; tout le reste est indépendant de P3.
+
 ---
 
 ## 11. Trous prioritaires (liste actionnable, confrontée au code)

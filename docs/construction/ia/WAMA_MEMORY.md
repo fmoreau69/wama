@@ -324,6 +324,85 @@ la page). Le tri inter-modèles se fait en Python — une union SQL sur 12 table
 casserait à la première app ajoutée, exactement ce qu'on veut éviter. ⚠ Les entrées sont fabriquées
 **après** le tri et la tranche : les fabriquer avant coûtait 73 requêtes pour 20 lignes.
 
+### 9bis.1 Le calendrier — le journal sur l'axe du TEMPS (étape 1 ✅ livrée le 2026-09-28)
+
+> Demande de Fabien (2026-09-28) : *« un système de calendrier pour la planification des tâches et
+> process inter-mondes. Chaque utilisateur a accès à son calendrier où il peut retrouver ses
+> activités (cards, pipelines, ajout modèles, app, librairies) avec des codes couleurs. […] ça
+> pourrait servir à programmer l'envoi de mails ou de posts […] comme dans l'idée du gouverneur
+> […] mais appliqué au temps et à la planification. »* Ce § porte la **VUE** ; le **QUAND**
+> (actions programmées, placement, plages réservées) est une couche d'exécution et vit à
+> `WAMA_APP_GENERATION_ROUTE.md §10.6` point 13. L'intention existait déjà :
+> `WAMA_VISION_COMPLET §1.4`, « planification heures creuses ⏳ ».
+
+`/common/calendar/` (menu utilisateur → « Mon calendrier », juste avant « Mon journal »).
+Domicile : `common/services/calendar.py` ; vues `calendar_view` / `calendar_events` (JSON) /
+`calendar_ics` ; rendu FullCalendar 6.1.15 (MIT, vendorisé, `tools/update_vendors.sh`) monté par
+`common/js/wama-calendar.js`.
+
+**Ce n'est pas un nouveau stock d'événements.** Presque tout ce qu'un calendrier affiche existe
+déjà, horodaté. Le calendrier **projette** ; il n'écrit rien :
+
+| nature | ce que c'est | source | stockage |
+|---|---|---|---|
+| **observé** | ce qui a eu lieu | les **sources du journal** (`journal.sources()`, donc `detail_registry` + `enregistrer_source()`) ; intervalle d'exécution = instant `produit`/`echec` de `RunOutcome` moins `processing_seconds` | aucun ✅ |
+| **prévu** | ce qui aura lieu par construction | occurrences des entrées `crontab` de `CELERY_BEAT_SCHEDULE` ✅ ; à venir (étape 2) : fin estimée d'un RUNNING par l'ETA, expiration de rétention d'un média | aucun (calculé à la lecture) |
+| **voulu** | ce que quelqu'un a programmé | `ScheduledAction` (étape 3, `ROUTE §10.6` point 13) | la SEULE table neuve du plan |
+
+**Règles tenues par le code :**
+- **Une card = un événement, sa DERNIÈRE exécution.** Aucun modèle d'item ne porte de début/fin :
+  l'intervalle est reconstruit (fin = `RunOutcome`, durée = `ProcessingTimeMixin`, sinon un bloc de
+  15 min marqué « durée indicative »). Un item jamais exécuté apparaît à son dépôt. L'historique des
+  exécutions viendra de la ligne d'exécution par process (`ROUTE §10.6 4.1`, moteur P3) — ce jour-là
+  seule `_executions()` change.
+- **Rien d'un autre utilisateur** : la couche observée est PERSONNELLE, comme le journal (mesuré :
+  même semaine, calendrier = journal = 7 items ; contre-épreuve : filtre utilisateur neutralisé →
+  rouge).
+- **Couleur = IDENTITÉ de l'app** (`APP_CATALOG[…]['color']`, dérivée par catégorie) ; l'**état** se lit
+  au liseré (échec, en cours, périmé), jamais au fond (`CARD_DESIGN §9`). Une source sans entrée au
+  catalogue (`audio_enhancer`) prend la couleur de la catégorie plateforme (`app_identity`).
+- **Maintenance de l'instance** = couche grise commutable (« Tâches planifiées de WAMA »), visible de
+  tous : dire quand le GPU est réservé est utile à chacun. Seules les entrées **à horaire** sont
+  dessinées — les battements à intervalle (10 min, 1 h) noieraient la grille sans rien dire.
+- **Le clic** reprend le geste du journal (`wama_focus_card` + `wama_focus_select`) : on atterrit sur
+  la card sélectionnée dans sa file ; rien n'est réimplémenté. `journal.app_queue_url()` est la cible
+  UNIQUE des deux surfaces.
+- **Export `.ics`** (RFC 5545, UID stables, lignes repliées) authentifié par la SESSION : c'est un
+  téléchargement. L'**abonnement** d'un client (Outlook, Thunderbird) exige un jeton propre à
+  l'utilisateur et **révocable**, donc une table : il arrive avec l'étape 3.
+
+**La PLAGE RÉSERVÉE des tests nocturnes (décision de Fabien, 2026-09-28).** *« Il faut réserver la
+plage de temps des tests nocturnes pour ne pas superposer des tâches et rallonger la durée des
+tests. »* Une entrée beat ne peut rien porter de plus (`ScheduleEntry(**entry)` a une signature
+fermée), la déclaration vit donc dans `calendar.BEAT_WINDOWS` : libellé, durée DÉCLARÉE, mesure qui
+la remplace, ressources RÉSERVÉES. La durée réservée d'une campagne est **la plus longue récente**
+(rapports `logs/nightly_tests/`, somme des `duration_s`, campagne sérielle) × 1,25, arrondie au quart
+d'heure — la plus longue et non la moyenne, sinon la campagne complète déborde. Mesuré le 28/09 :
+cohérence 6,1 min → 15 min réservées ; fonctionnelle 136 min → 180 min.
+Conséquence dans `settings.py` : la cohérence partait à 02:30 **avec** le miroir NAS, la
+fonctionnelle aurait couru sous la sauvegarde de 03:30 et la purge de 04:00 — elles passent **après
+toute la maintenance**, 04:15 puis 04:30 (jusqu'à ~07:30), dans la seule tranche sans aucune activité
+utilisateur (histogramme de `RunOutcome` par heure : rien entre 05:00 et 08:00).
+`tests_calendar.ReservedNightlyWindowTest` échoue si une autre entrée planifiée entre dans une plage
+réservée — ou si une campagne s'allonge jusqu'à l'entrée suivante —, avec sa contre-épreuve (une
+sauvegarde déplacée à 04:20 → rouge).
+
+**Étapes** (plan acté le 2026-09-28 ; détail du QUAND : `ROUTE §10.6` point 13) :
+
+| # | étape | état |
+|---|---|---|
+| 1 | calendrier observé + maintenance + plages réservées + couleurs + export `.ics` | ✅ 2026-09-28 |
+| 2 | couche prévue : fin estimée (ETA) des RUNNING, expiration de rétention | ⏳ |
+| 3 | `ScheduledAction` + distributeur + « Programmer… » sur ▶ + flux `.ics` à jeton | ⏳ |
+| 4 | placement automatique (le « gouverneur du temps ») | ⏳ |
+| 5 | mails et posts — des OUTILS de `tool_api`, programmables sans code propre | ⏳ (quand les outils existeront) |
+
+**Décisions de Fabien (2026-09-28)** : ① ce domicile (la vue ici, le QUAND à `§10.6`) ;
+② les installations de modèles et de librairies restent dans la couche **instance** — `AIModel` et
+`Library` n'ont qu'un `created_at`, sans auteur ; les rendre personnelles demandera un champ
+`installed_by` ; ③ une action programmée lit les réglages de sa card **au lancement** (la card reste
+éditable jusque-là).
+
 ## 9ter. tool_api — la lecture est générique, l'écriture ne l'est pas ✅ **CONSTRUIT le 2026-09-11**
 
 > ✅ **`list_my_items` et `get_item_detail` sont livrés** (`wama/tool_api.py`), 13 gardes dans

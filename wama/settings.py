@@ -838,25 +838,36 @@ if ENABLE_CELERY:
     WAMA_MAX_RETENTION_DAYS = int(os.environ.get('WAMA_MAX_RETENTION_DAYS', '0') or 0)
     WAMA_RETENTION_NOTICE_DAYS = int(os.environ.get('WAMA_RETENTION_NOTICE_DAYS', '3') or 0)
 
-    # Contrôles de CONSISTANCE nocturnes (docs↔code, conformité, corpus manifestes,
-    # redondances, CVE OSV, secrets gitleaks) : CPU pur, aucun modèle — planifiés SANS gate
-    # depuis le 2026-08-13 (stage validé 8/8 depuis WSL2 le jour même). Les dépendances
-    # d'outillage/réseau absentes côté worker (proxy, binaire) sortent en SKIP, pas en rouge.
+    # ── TESTS NOCTURNES : une PLAGE RÉSERVÉE, après toute la maintenance (2026-09-28) ──────
+    # Décision de Fabien : la plage des tests nocturnes est réservée — une tâche qui s'y
+    # superpose rallonge les tests et fausse leurs durées. Jusqu'ici la cohérence partait à
+    # 02:30 EN MÊME TEMPS que le miroir NAS des médias, et la suite fonctionnelle (≈ 2 h 15
+    # mesurées, rapport `nightly_20260926_233909`) aurait couru sous la sauvegarde de 03:30 et
+    # la purge de 04:00. Elles passent donc APRÈS la purge : 04:15 puis 04:30 — la tranche
+    # 05:00-08:00 est la seule sans aucune activité utilisateur (histogramme de `RunOutcome`
+    # par heure, mesuré le même jour). La durée RÉSERVÉE est mesurée sur les rapports et
+    # déclarée dans `common/services/calendar.py::BEAT_WINDOWS` ; `tests_calendar` échoue si une
+    # autre entrée planifiée entre dans une plage réservée.
+    #
+    # Contrôles de CONSISTANCE (docs↔code, conformité, corpus manifestes, redondances, CVE
+    # OSV, secrets gitleaks) : CPU pur, aucun modèle. Les dépendances d'outillage/réseau
+    # absentes côté worker (proxy, binaire) sortent en SKIP, pas en rouge.
     CELERY_BEAT_SCHEDULE['nightly-consistency'] = {
         'task': 'common.run_nightly_tests',
-        'schedule': crontab(hour=2, minute=30),
+        'schedule': crontab(hour=4, minute=15),
         'kwargs': {'stage': 'consistency'},
         'options': {'queue': 'default'},        # CPU pur — JAMAIS la queue gpu
     }
 
-    # Suite fonctionnelle complète (model_loaded/output, GPU) : planifiée UNIQUEMENT si
-    # activée explicitement (env NIGHTLY_TESTS_ENABLED=1) — pas de job GPU nocturne tant
-    # que l'instabilité hôte n'est pas résolue (crashs à faible charge, cf. mémoire).
-    if os.environ.get('NIGHTLY_TESTS_ENABLED') == '1':
+    # Suite fonctionnelle complète (model_loaded/output, GPU). Elle était retenue derrière
+    # `NIGHTLY_TESTS_ENABLED=1` à cause des crashs de l'hôte : l'alimentation a été remplacée le
+    # 2026-09-21 et Fabien a déclaré l'instabilité RÉSOLUE le 2026-09-28 — elle est planifiée par
+    # défaut. `NIGHTLY_TESTS_ENABLED=0` la retire (interrupteur d'exploitation, plus de sécurité).
+    if os.environ.get('NIGHTLY_TESTS_ENABLED', '1') != '0':
         CELERY_BEAT_SCHEDULE['nightly-functional-tests'] = {
             'task': 'common.run_nightly_tests',
-            'schedule': crontab(hour=3, minute=0),  # 03:00 (heure locale TZ)
-            'options': {'queue': 'gpu'},            # scénarios chargent des modèles
+            'schedule': crontab(hour=4, minute=30),  # heure locale (CELERY_TIMEZONE)
+            'options': {'queue': 'gpu'},             # scénarios chargent des modèles
         }
 
     # Logging : les loggers wama.* propagent vers le handler Celery (logfile)

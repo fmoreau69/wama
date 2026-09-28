@@ -28,6 +28,10 @@ JSTREE_VER=3.3.16
 # PAS garantie compatible : ne pas la monter sans revérifier l'exemple en amont.
 THREE_VER=0.180.0
 TALKINGHEAD_VER=1.7
+# FullCalendar (MIT) — le calendrier de WAMA (WAMA_MEMORY §9bis.1). Le paquet `fullcalendar`
+# regroupe cœur + daygrid + timegrid + list + interaction ; ses plugins PREMIUM (resource,
+# timeline) sont sous licence commerciale : ne pas les ajouter.
+FULLCALENDAR_VER=6.1.15
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 V="$ROOT/wama/static/vendors"
@@ -111,6 +115,12 @@ for m in talkinghead.mjs retargeter.mjs dynamicbones.mjs \
          lipsync-fr.mjs lipsync-en.mjs lipsync-de.mjs lipsync-fi.mjs lipsync-lt.mjs; do
   dl "https://raw.githubusercontent.com/met4citizen/TalkingHead/main/modules/$m" "$V/talkinghead-$TALKINGHEAD_VER/$m"
 done
+
+echo "== FullCalendar $FULLCALENDAR_VER (bundle global + locale fr) =="
+mkdir -p "$V/fullcalendar-$FULLCALENDAR_VER/locales"
+dl "https://cdn.jsdelivr.net/npm/fullcalendar@$FULLCALENDAR_VER/index.global.min.js"           "$V/fullcalendar-$FULLCALENDAR_VER/index.global.min.js"
+dl "https://cdn.jsdelivr.net/npm/@fullcalendar/core@$FULLCALENDAR_VER/locales/fr.global.min.js" "$V/fullcalendar-$FULLCALENDAR_VER/locales/fr.global.min.js"
+dl "https://cdn.jsdelivr.net/npm/fullcalendar@$FULLCALENDAR_VER/LICENSE.md"                      "$V/fullcalendar-$FULLCALENDAR_VER/LICENSE.md"
 
 echo "== Avatar de test (GLB) — NON COMMITÉ =="
 # 4,7 Mo de binaire : téléchargé comme MuseTalk l'est par setup_avatarizer.sh, PAS versionné

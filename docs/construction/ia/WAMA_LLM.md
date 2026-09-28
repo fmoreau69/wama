@@ -129,7 +129,8 @@ locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True
   `qwen3.5:9b`). **Choix mesuré** (bench 2026-07-29) : `qwen3.5:4b` est plus léger/rapide mais viole
   la clause de langue 3/3 sur prompt court et dérive le sujet → ne pas basculer. Détail dans le
   docstring de `prompt_enrichment.py`.
-- `WAMA_GPU_SAFE_MODE` (env, défaut OFF — activé dans `.env` de l'hôte fragile, 2026-08-28) —
+- `WAMA_GPU_SAFE_MODE` (env, défaut OFF — activé dans `.env` de l'hôte fragile le 2026-08-28,
+  **levé le 2026-09-22** ; instabilité de l'hôte déclarée résolue le 2026-09-28) —
   mode « dépannage GPU » (domicile : `resource_governor` 2 bis, contexte :
   `INFRA_WSL_VS_WINDOWS §crashs`). Effet côté pipeline : traduction et enrichissement passent
   `keep_alive=pipeline_keep_alive()` → `'0'` (Ollama décharge sitôt la réponse) au lieu du défaut
@@ -875,6 +876,9 @@ distillats en RAG (proposée à la clôture, jamais auto) — ⏳.
 **Gouvernance** : chaque investigation = plusieurs passes LLM/VLM sur le GPU hôte (le
 déclencheur des crashs d'août) — user-déclenchée seulement, routée gouverneur sous
 `WAMA_GPU_SAFE_MODE`, aucune boucle de fond avant stabilisation hôte.
+✅ *2026-09-28 : la stabilisation est acquise (instabilité déclarée résolue par Fabien) — la
+condition est levée ; la gouvernance reste (passes routées par le gouverneur, et une boucle de
+fond se place hors de la plage réservée aux tests nocturnes, `WAMA_MEMORY §9bis.1`).*
 
 ### Vérification de la chaîne multi-surface (tracée au code le 2026-08-29, agent Explore)
 
@@ -1190,7 +1194,8 @@ sont des étiquettes BRUITÉES, jamais une vérité terrain ;
 le juge est une passe LLM AUTOMATIQUE → GOUVERNÉE obligatoirement (leçon prospection +
 crashs), nocturne plutôt qu'au fil de l'eau, et JAMAIS de rétroaction automatique sur les
 paramètres sans métrique validée (un juge non calibré qui pilote une boucle DÉRIVE).
-Chantier à ouvrir quand Fabien le décide — pas avant la stabilisation hôte.
+Chantier à ouvrir quand Fabien le décide — pas avant la stabilisation hôte *(acquise le
+2026-09-28 : il ne reste que la décision de Fabien)*.
 
 ## Cartographie de l'assistant et de wama-dev-ai — préalable à l'app TRANSVERSALE (MESURÉE 2026-09-15)
 

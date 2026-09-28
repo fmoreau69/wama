@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_static %}
+
+{% comment %}
+Calendrier de l'utilisateur — WAMA_MEMORY.md §9bis.1 ; plan d'ensemble : ROUTE §10.6 point 13.
+La MÊME activité que le journal (mêmes sources, dérivées de `detail_registry`), posée sur l'axe
+du temps, plus la maintenance planifiée de l'instance. La page ne porte AUCUNE donnée : elle
+charge ses événements par `common:calendar_events` à chaque changement de fenêtre.
+
+Couleurs : l'IDENTITÉ de l'app (`APP_CATALOG[…]['color']`, dérivée par catégorie) ; l'ÉTAT se lit
+à la pastille et au liseré, jamais à la couleur de fond (CARD_DESIGN §9 : identité ≠ état).
+{% endcomment %}
+
+{% block title %}WAMA — Mon calendrier{% endblock %}
+
+{% block extra_css %}
+<style>
+    .calendar-page { padding: 2rem 0; }
+    .calendar-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: .25rem; }
+    .calendar-page .subtitle { color: #adb5bd; font-size: .9rem; margin-bottom: 1rem; }
+    .calendar-tools { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center;
+                      margin-bottom: 1rem; color: #ced4da; font-size: .85rem; }
+    .calendar-legend { display: flex; flex-wrap: wrap; gap: .35rem .9rem; align-items: center; }
+    .calendar-legend .swatch { display: inline-block; width: .8rem; height: .8rem;
+                               border-radius: 3px; margin-right: .35rem; vertical-align: -1px; }
+    .calendar-legend .reserved-swatch {
+        background: repeating-linear-gradient(135deg, #6c757d 0 4px, #343a40 4px 8px);
+    }
+    .calendar-tools .ms-auto { margin-left: auto; }
+
+    /* FullCalendar injecte sa feuille : on ne règle que ses VARIABLES, au thème sombre. */
+    #wama-calendar {
+        --fc-page-bg-color: #12121f;
+        --fc-neutral-bg-color: #1a1a2e;
+        --fc-border-color: #2d2d4e;
+        --fc-today-bg-color: rgba(13, 110, 253, .12);
+        --fc-list-event-hover-bg-color: #16213e;
+        --fc-button-bg-color: #1a1a2e;
+        --fc-button-border-color: #2d2d4e;
+        --fc-button-hover-bg-color: #16213e;
+        --fc-button-hover-border-color: #4a4a7a;
+        --fc-button-active-bg-color: #0d6efd;
+        --fc-button-active-border-color: #0d6efd;
+        --fc-event-text-color: #fff;
+        color: #e9ecef;
+        background: #12121f;
+        border-radius: .5rem;
+        padding: .75rem;
+    }
+    #wama-calendar a { color: inherit; text-decoration: none; }
+    #wama-calendar .fc-col-header-cell-cushion,
+    #wama-calendar .fc-daygrid-day-number { color: #ced4da; }
+    #wama-calendar .fc-event { cursor: pointer; }
+    #wama-calendar .fc-event.wama-cal-scope-instance { cursor: default; opacity: .85; }
+    /* Fenêtre RÉSERVÉE (tests nocturnes) : hachurée — rien ne doit s'y placer. */
+    #wama-calendar .fc-event.wama-cal-reserved {
+        background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.14) 0 6px,
+                                                    transparent 6px 12px) !important;
+    }
+    /* L'état se lit au LISERÉ gauche, pas au fond (identité ≠ état). */
+    #wama-calendar .fc-timegrid-event.wama-cal-status-failure,
+    #wama-calendar .fc-daygrid-event.wama-cal-status-failure { box-shadow: inset 4px 0 0 #dc3545; }
+    #wama-calendar .fc-timegrid-event.wama-cal-status-running,
+    #wama-calendar .fc-daygrid-event.wama-cal-status-running { box-shadow: inset 4px 0 0 #0dcaf0; }
+    #wama-calendar .fc-timegrid-event.wama-cal-status-stale,
+    #wama-calendar .fc-daygrid-event.wama-cal-status-stale { box-shadow: inset 4px 0 0 #ffc107; }
+    .calendar-empty { color: #adb5bd; font-size: .85rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid calendar-page px-4">
+  <h1>Mon calendrier</h1>
+  <p class="subtitle">
+    Ce que vous avez lancé dans WAMA, sur l'axe du temps, et les tâches planifiées de la plateforme.
+    Cliquez un élément pour retrouver sa card dans son application.
+  </p>
+
+  <div class="calendar-tools">
+    <div class="calendar-legend" aria-label="Légende">
+      {% for l in legend %}
+        <span><span class="swatch" style="background: {{ l.color }}"></span>{{ l.label }}</span>
+      {% empty %}
+        <span class="calendar-empty">Aucune activité pour l'instant.</span>
+      {% endfor %}
+      <span><span class="swatch reserved-swatch"></span>Plage réservée (tests nocturnes)</span>
+    </div>
+    <div class="form-check form-switch ms-auto mb-0">
+      <input class="form-check-input" type="checkbox" id="wama-calendar-maintenance" checked>
+      <label class="form-check-label" for="wama-calendar-maintenance">Tâches planifiées de WAMA</label>
+    </div>
+    <a class="btn btn-sm btn-outline-secondary" id="wama-calendar-ics"
+       href="{% url 'common:calendar_ics' %}" title="Exporter au format iCalendar (Outlook, Thunderbird…)">
+      <i class="fas fa-file-export me-1"></i> Exporter (.ics)
+    </a>
+  </div>
+
+  <div id="wama-calendar"
+       data-events-url="{% url 'common:calendar_events' %}"
+       data-ics-url="{% url 'common:calendar_ics' %}"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendors/fullcalendar-6.1.15/index.global.min.js' %}"></script>
+<script src="{% static 'vendors/fullcalendar-6.1.15/locales/fr.global.min.js' %}"></script>
+<script src="{% static_v 'common/js/wama-calendar.js' %}"></script>
+{% endblock %}

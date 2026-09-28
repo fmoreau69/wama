@@ -1275,7 +1275,8 @@ soit exactement la gradation « sans GPU → chargement de modèle → générat
 **Pourquoi c'est ainsi (Fabien, 2026-08-25) — deux raisons, aucune n'est un oubli :**
 1. **Les crashs hôte interdisent de laisser tourner une charge GPU** (1 à 2 arrêts non prévus par
    jour, cf. §4 ci-dessus). Les étages `model_loaded` et `output` sont donc *bloqués par l'infra*,
-   pas par un manque d'écriture de tests.
+   pas par un manque d'écriture de tests. ✅ *Levé le 2026-09-28 : instabilité déclarée résolue
+   (alimentation remplacée le 21/09) — la raison 1 ne tient plus, la raison 2 reste.*
 2. **Les tests servent aujourd'hui à TERMINER LE PORTAGE des apps** — éprouver la chaîne
    d'auto-génération et clore cette marche est la priorité en cours. Or c'est précisément ce que
    le niveau `ui` mesure. Le déséquilibre est donc l'image fidèle de l'objectif du moment.
@@ -1322,9 +1323,15 @@ gouverneur **par construction** : `common/backends/base.py` enveloppe `load`/`un
 `__init_subclass__` à n'importe quelle profondeur d'héritage (« sans ce module, le gouverneur ne
 verrait rien »), registre Redis **cross-process**.
 `--with-gpu` / `--max-vram` est un choix d'**ORDONNANCEMENT** (quels scénarios jouer), pas le
-mécanisme de sécurité ; et le gate `NIGHTLY_TESTS_ENABLED` répond à l'**instabilité hôte**.
+mécanisme de sécurité ; et le gate `NIGHTLY_TESTS_ENABLED` répondait à l'**instabilité hôte**.
 *Preuve empirique que la campagne GPU n'a jamais tourné ici : le fichier d'état du
 `PersistentScheduler` ne porte que 9 entrées, et `nightly-functional-tests` n'en fait pas partie.*
+✅ **2026-09-28 — instabilité déclarée RÉSOLUE par Fabien** (alimentation remplacée le 21/09,
+`INFRA_WSL_VS_WINDOWS §ÉTAT AU 2026-09-28`) : la suite fonctionnelle est planifiée **par défaut**
+(`NIGHTLY_TESTS_ENABLED=0` la retire), dans une **plage réservée** placée après toute la
+maintenance — cohérence 04:15, fonctionnelle 04:30, durée réservée MESURÉE sur les rapports
+(`common/services/calendar.py::BEAT_WINDOWS`) ; `tests_calendar` rougit si une autre entrée
+planifiée y entre. Effectif au prochain redémarrage de beat.
 
 **Forme proposée, NON décidée** (elle appelle un GO) : un champ déclaratif `cadence`
 (`daily`/`weekly`/`monthly`) sur `Scenario` — qui n'en porte aucun aujourd'hui —, son filtre posé

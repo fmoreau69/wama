@@ -839,6 +839,93 @@ def journal_view(request):
     })
 
 
+def _calendar_range(request, default_days_back=31, default_days_ahead=31, max_days=400):
+    """Fenêtre `[start, end)` lue de la requête (FullCalendar envoie `start`/`end` en ISO 8601).
+
+    Bornée à `max_days` : la fenêtre vient de l'URL, et une fenêtre de dix ans lirait tout
+    l'historique de chaque source pour rien.
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+    from django.utils.dateparse import parse_date, parse_datetime
+
+    def _parse(value):
+        if not value:
+            return None
+        moment = parse_datetime(value)
+        if moment is None:
+            day = parse_date(value[:10])
+            moment = timezone.datetime(day.year, day.month, day.day) if day else None
+        if moment is not None and timezone.is_naive(moment):
+            moment = timezone.make_aware(moment)
+        return moment
+
+    now = timezone.now()
+    start = _parse(request.GET.get('start')) or now - timedelta(days=default_days_back)
+    end = _parse(request.GET.get('end')) or now + timedelta(days=default_days_ahead)
+    if end <= start:
+        end = start + timedelta(days=1)
+    if end - start > timedelta(days=max_days):
+        end = start + timedelta(days=max_days)
+    return start, end
+
+
+@login_required
+def calendar_view(request):
+    """Calendrier de l'utilisateur — `WAMA_MEMORY.md §9bis.1`.
+
+    La MÊME activité que le journal, sur l'axe du temps : la page ne porte aucune donnée, elle
+    charge ses événements par `calendar_events` à chaque changement de fenêtre.
+    """
+    from .services.calendar import MAINTENANCE_COLOR, app_identity
+    from .services.journal import compter_par_app
+
+    legend = []
+    for row in compter_par_app(request.user):
+        label, color = app_identity(row['app'])
+        legend.append({'app': row['app'], 'label': label, 'color': color})
+    return render(request, 'common/calendar.html', {
+        'legend': legend,
+        'maintenance_color': MAINTENANCE_COLOR,
+    })
+
+
+@login_required
+@require_GET
+def calendar_events(request):
+    """Événements de `[start, end)` au format FullCalendar. `maintenance=0` masque la couche de
+    l'instance (tâches planifiées de WAMA, dont les fenêtres réservées aux tests nocturnes)."""
+    from .services.calendar import events_for
+
+    start, end = _calendar_range(request)
+    with_maintenance = request.GET.get('maintenance', '1') != '0'
+    events = events_for(request.user, start, end, with_maintenance=with_maintenance)
+    return JsonResponse([e.as_fullcalendar() for e in events], safe=False)
+
+
+@login_required
+@require_GET
+def calendar_ics(request):
+    """Export iCalendar de SON calendrier (90 jours passés, 30 à venir par défaut).
+
+    Authentifié par la SESSION : c'est un téléchargement, pas un abonnement. Un flux auquel un
+    client (Outlook, Thunderbird) s'abonne ne porte pas de cookie — il lui faut un jeton propre à
+    l'utilisateur et RÉVOCABLE, donc une table : il arrive avec l'étape 3 (§9bis.1).
+    """
+    from django.http import HttpResponse
+
+    from .services.calendar import events_for, to_ics
+
+    start, end = _calendar_range(request, default_days_back=90, default_days_ahead=30)
+    events = events_for(request.user, start, end,
+                        with_maintenance=request.GET.get('maintenance', '1') != '0')
+    response = HttpResponse(to_ics(events, host=request.get_host() or 'wama'),
+                            content_type='text/calendar; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="wama-calendrier.ics"'
+    return response
+
+
 @login_required
 def notifications_view(request):
     """Les notifications DANS WAMA du compte connecté — `WAMA_COLLABORATION.md §2.3` et §5.3 :
