@@ -228,6 +228,19 @@ détectée ; la card ne gardait que la langue du **premier** passage (`workers._
     langue que Canary ne transcrit pas → toute la card en échec. ⏳ Piste : un passage dont la
     détection est incertaine ou hors langues du moteur prend la langue du passage précédent (ou
     celle de la sonde) au lieu de faire échouer la card.
+- ✅ **Les deux pistes CORRIGÉES et REMESURÉES le 2026-09-29 au soir** (`db0e7886`, `6f4271ef` ;
+  les mêmes 135 cards rejouées, les 45 autres n'étant pas concernées) : sonde en fenêtres de
+  **10 s** (24 au plus), une langue n'est retenue que si elle gagne **au moins 2 fenêtres** (une
+  fenêtre isolée « es » d'une réunion toute française, `012c`, suffisait sinon) ; un passage
+  Canary incertain ou hors de ses langues prend la langue du passage précédent (ou de la sonde).
+  Résultat : **« Auto » détecte les bascules sur 88 cards sur 90** (contre 50) et vaut désormais
+  « Plusieurs » ; erreur en Auto : Qwen3-ASR 42,1 → **39,8 %**, Whisper 45,1 → 41,9 %, Canary
+  46,3 → 44,7 % ; **plus aucun échec Canary** (0/15). Avec le **nivellement**, Qwen3-ASR tombe à
+  **32,8 %** (Whisper 37,2 %) — sur ces audios, chaque phrase vient d'un locuteur différent.
+  Sur les 3 réunions SUMM-RE, la nouvelle sonde n'entend que le français (résultats inchangés).
+  ⚠ Coût : la sonde prend ~45 s par fichier (24 fenêtres décodées une à une) — plus que la
+  transcription d'un fichier de 5 min ; plafonné pour un long fichier. Rapport de présentation :
+  Claude Docs « Évaluation des moteurs de transcription WAMA ».
 - ⏳ **Ce qui ne lit encore qu'UNE langue** : résumé, cohérence, aligneur acoustique (choisi par
   langue) et mesure `text_v2` (nombres en chiffres dans la langue de la card). Les faire lire la
   langue PAR SEGMENT est l'étape suivante ; et Canary serait plus sûr découpé AUX CHANGEMENTS de
