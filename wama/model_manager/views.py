@@ -1879,7 +1879,9 @@ def api_prospect_install_options(request):
 def api_manifest_proposals(request):
     """Propositions de manifestes EN ATTENTE (bac à sable du magasin), chacune avec son PLAN :
     champs comblés, divergences non appliquées, erreurs. Rien n'est écrit (`proposals.plan`)."""
-    from wama.common.manifests import proposals
+    # Forme `import <module> as …` : le détecteur de consommateurs de la carte des mécanismes
+    # ne reconnaît pas `from wama.common.manifests import proposals` (doc_facts, 19/08).
+    import wama.common.manifests.proposals as proposals
     items = []
     for obj in proposals.pending(request.GET.get('kind') or None):
         try:
@@ -1889,7 +1891,7 @@ def api_manifest_proposals(request):
                           'errors': [f"plan impossible : {type(e).__name__}: {e}"]})
     # Backends proposés par le rôle `backend` (marche B2) : même geste, autre nature — du CODE,
     # que « Valider » écrit dans wama/common/backends/ (`backend_proposals.apply`).
-    from wama.common.services import backend_proposals
+    import wama.common.services.backend_proposals as backend_proposals
     return JsonResponse({'success': True, 'proposals': items,
                          'backends': backend_proposals.pending()})
 
@@ -1902,7 +1904,7 @@ def api_manifest_proposal_decide(request):
     (`WAMA_MANIFEST_ARCHITECTURE §4`). Corps JSON : `{"id": <pk>, "decision": "apply"|"reject"}`."""
     import json as _json
 
-    from wama.common.manifests import proposals
+    import wama.common.manifests.proposals as proposals
     from wama.common.models import Manifest
     try:
         data = _json.loads(request.body or '{}')
@@ -1912,7 +1914,7 @@ def api_manifest_proposal_decide(request):
     if data.get('file'):
         # Backend proposé (`{"file": "backend_….json"}`) : Valider ÉCRIT le module — la règle
         # « l'agent n'écrit jamais dans wama/ » est levée pour CE geste (Fabien, 2026-09-29).
-        from wama.common.services import backend_proposals
+        import wama.common.services.backend_proposals as backend_proposals
         try:
             if decision == 'reject':
                 return JsonResponse({'success': backend_proposals.reject(data['file'],

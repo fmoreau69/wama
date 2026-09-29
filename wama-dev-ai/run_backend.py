@@ -124,7 +124,7 @@ def main():
     args = ap.parse_args()
 
     from wama.common.manifests.builtin.model import extract_model
-    from wama.common.services import backend_proposals as bp
+    import wama.common.services.backend_proposals as bp
     from wama.model_manager.models import AIModel
 
     row = AIModel.objects.filter(model_key=args.catalog).first()
