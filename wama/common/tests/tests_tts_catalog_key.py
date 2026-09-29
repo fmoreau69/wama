@@ -5,7 +5,8 @@ Le défaut vivait en littéral dans ~12 sites, la plupart au nom court `coqui-xt
 résolution du moteur, mais la clé stockée n'était plus celle du catalogue. Une constante
 (`DEFAULT_TTS_MODEL`) et une normalisation à l'ENTRÉE (`tts_catalog_key`) la tiennent.
 """
-from django.test import SimpleTestCase
+from django.contrib.auth.models import User
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
 
@@ -38,3 +39,18 @@ class TtsCatalogKeyTest(SimpleTestCase):
         self.assertEqual(row({**line, 'options': {'tts': 'coqui-xtts'}})['tts_model'],
                          'synthesizer:coqui-xtts')
         self.assertEqual(row({**line, 'options': {}})['tts_model'], DEFAULT_TTS_MODEL)
+
+
+class AssistantToolStoresTheCatalogKeyTest(TestCase):
+    """La voie de l'ASSISTANT : un modèle cité par son nom court est stocké en clé de catalogue."""
+
+    def test_synthesize_text_normalises_a_short_name(self):
+        from wama.synthesizer.models import VoiceSynthesis
+        from wama.tool_api import synthesize_text
+        user = User.objects.create_user('tts_key_user', password='x')
+        result = synthesize_text(user, 'Bonjour à tous.', tts_model='coqui-xtts')
+        synthesis = VoiceSynthesis.objects.get(pk=result['synthesis_id'])
+        try:
+            self.assertEqual(synthesis.tts_model, 'synthesizer:coqui-xtts')
+        finally:
+            synthesis.text_file.delete(save=False)
