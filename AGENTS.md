@@ -915,6 +915,17 @@ tant que la fiabilité n'est pas éprouvée sur plus de runs.
 - Faire des commits git
 - Appliquer des changements sans validation humaine
 
+> 🔓 **Levée ciblée, décision de Fabien le 2026-09-29 — l'INTÉGRATION DE MODÈLES, et elle
+> seule.** *« Il faut lever la règle. On va devoir progressivement s'appuyer sur le cœur IA de
+> WAMA pour les tâches courantes, mais il ne faut pas se précipiter. »* Le geste **Valider** du
+> model manager (section « Propositions à valider ») APPLIQUE ce qu'un rôle a proposé : un
+> manifeste `model` (projeté au catalogue, `common/manifests/proposals.py`) et un **backend**
+> (écrit dans `wama/common/backends/`, `common/services/backend_proposals.py`). Ce qui reste :
+> un HUMAIN décide (compte admin/dev), les contrôles sont REFAITS à l'écriture, aucun module
+> existant n'est écrasé, **rien n'est commité**. Hors de ce périmètre (apps média, code d'app,
+> glu `codegen`), la règle ci-dessus vaut entière. Chaîne et trous : `PROSPECTION_PIPELINE.md
+> §Session du 2026-09-29`.
+
 ### Format des rapports
 Voir `wama-dev-ai/README.md` §Format des sorties — objet plat `{status, role, **payload}`, statut
 toujours `PENDING_HUMAN_VALIDATION` (l'ex-`AUDIT_FORMAT.md`, jamais conforme au code, est archivé).

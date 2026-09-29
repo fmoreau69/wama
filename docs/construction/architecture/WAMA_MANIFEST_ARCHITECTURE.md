@@ -170,6 +170,16 @@ stateDiagram-v2
 Propriétés garanties (testées) : **idempotent** (kind+key), **transactionnel** (@atomic),
 **réversible** (un_ingest), **traçable** (source + `_manifest_key` sur dérivés à venir).
 
+✅ **Premier appelant en production : 2026-09-29** (`common/manifests/proposals.py`). Jusque-là
+cette machine à états n'était appelée par aucun code : un rôle LLM déposait son manifeste dans
+`wama-dev-ai/outputs/`, projetable seulement au terminal. Désormais « LLM skill → Sandbox » =
+`proposals.propose` (appelé par `run_model_manifest.py`), « Verified » = `proposals.plan` (champs
+comblés, divergences, dry-run du write-back), « Promoted » = `proposals.apply`, derrière le geste
+« Valider » du model manager. ⚠ Deux écarts ASSUMÉS au diagramme : l'application SUPERPOSE la
+proposition à l'extraction courante en ne comblant que des vides (un manifeste brut effaçait la
+licence — les champs projetés rendent `''` pour une clé absente) ; et « Rejeter » ne passe PAS par
+`un_ingest`, qui défait une projection que la proposition n'a jamais faite.
+
 ---
 
 ## 5. Où se branche l'auto-génération d'application — plan d'origine, EN COURS DE LIVRAISON

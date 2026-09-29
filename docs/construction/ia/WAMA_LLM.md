@@ -990,6 +990,29 @@ l'adaptateur. Les deux se contredisent d'ailleurs : 25 entrant, 24 sortant, deux
 sans rapport. ⏳ Décision à prendre : **qui filtre** — le cœur avec une borne générique, ou
 l'adaptateur avec la borne que son protocole DÉCLARE ?
 
+#### 2026-09-29 — un tour SANS outil qui cite un résultat est un tour INVENTÉ (contrôle, pas consigne)
+
+> Fabien, depuis Discord : « l'image n'arrive plus, j'ai un lien qui ne marche pas ». Lu au fil
+> persisté (skill `diagnostic-assistant`) : trois tours du 27/09, **zéro appel d'outil**, et
+> pourtant « je lance l'anonymisation », « la tâche 648 est terminée », un lien. Aucune tâche
+> n'existait ; « 648 » venait d'une erreur du 23/09 restée dans l'historique. Le « lien qui ne
+> marche pas » était le libellé laissé par `_strip_unsourced_urls` — le garde-fou fonctionnait,
+> mais le RESTE de la réponse partait. Modèle : `qwen3.5:4b`, tiré au curseur 50.
+
+Deux contrôles, dans `assistant_engine` et `development_models` (commit `cf644976`) :
+1. **Plancher de l'assistant OUTILLÉ** (`AGENT_CODING_FLOOR = 30`, décision de Fabien) : le tirage
+   AUTOMATIQUE d'un tour connecté écarte un modèle MESURÉ sous le plancher (sous-indice coding du
+   banc AA, qui inclut Terminal-Bench) — `qwen3.5:4b` (22,6) et `gemma4:e4b` (9,4) sortent,
+   `gemma4:12b` (31) et `qwen3.8` (58,2) restent. Même domicile que le plancher dev, seuil plus bas ;
+   un modèle NON mesuré n'est pas condamné, un choix MANUEL est respecté.
+2. **Reprise d'un tour inventé** (`_invented_turn`) : aucun `tool_step` ET un lien retiré ⇒ le
+   tour est rejoué UNE fois par un modèle mieux noté au banc (`escalation_model`) ; sans lui, ou si
+   la reprise invente aussi, la réponse ENTIÈRE est remplacée par un aveu (« je n'ai exécuté aucune
+   action »). Le signal est mesuré, pas deviné dans la langue — un tour sans outil qui ne cite rien
+   (« bonjour ») n'est pas visé.
+⚠ Limite connue : « je lance l'anonymisation » SANS lien ni outil n'est pas attrapé par (2) —
+c'est le plancher (1) qui le prévient, a priori.
+
 **Chaîne prouvée de bout en bout le 23/09 sur l'item réel 647** : `start_anonymizer` →
 `RUNNING` → `SUCCESS` (`users/1/anonymizer/output/IMG-…_blurred_sam3.jpg`) →
 `get_anonymizer_status` porte l'`output_url` → `_produced_files` ne rend QUE ce fichier-là
