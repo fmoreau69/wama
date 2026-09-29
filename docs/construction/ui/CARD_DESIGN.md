@@ -1508,7 +1508,17 @@ l'adoption v4 de l'avatarizer — ✅ **2026-09-29**, en trois paliers :
     `composer:generate` et `convert_file`). Grille 89/94, mêmes trois rouges qu'avant
     (`during_preview`, `backend_routes`, `task_skeleton`) ; les critères `new_item_card` et
     `media_library_slot` reconnaissent la v4. Gestes nocturnes de la card : verdicts identiques
-    à ceux du matin. Le NOM de galerie reste reçu des lots, du Studio et de l'API de l'assistant.
+    à ceux du matin. Le NOM d'un avatar reste reçu des lots, du Studio et de l'API de
+    l'assistant ; il se RÉSOUT parmi les avatars que l'utilisateur voit et se DÉSIGNE comme depuis
+    la card (`MEDIA_STORAGE_TIERING §8.6` D28) ;
+  - **la fenêtre médiathèque MONTRE avant de choisir** (demande du 2026-09-29 : « sinon on ne
+    sait pas de quoi il s'agit ») : un clic ouvre l'aperçu dans le volet de la fenêtre — le rendu
+    INLINE commun (`WamaInspector.renderInlinePreview` : image, vidéo, lecteur audio commun,
+    PDF, texte), avec provenance, durée et description ; « Choisir » confirme, un double-clic
+    choisit directement. Les vignettes suivent la nature (1ʳᵉ image d'une vidéo, icône par
+    famille) — tout ce qui n'était pas une image portait l'icône « fichier audio ». Le type
+    d'aperçu est résolu par le serveur (`preview_mime` : le type stocké, sinon celui du
+    fichier). Vérifié au navigateur (avatar système, voix de 5 min).
 
 > **L'aperçu de voix du synthesizer ne passe par AUCUN chemin commun côté lecture, ni par le
 > chemin de la synthèse côté serveur** (mesuré le 2026-09-28, `synthesizer/views.py::voice_preview`

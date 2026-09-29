@@ -641,6 +641,55 @@ def gallery_path(name: str):
     return a.file.path if (a and a.file) else None
 
 
+# ── Un asset désigné par son NOM, parmi ce que l'utilisateur VOIT (2026-09-29) ────────────────
+# Un fichier de lot (`-r avatar1.png`), un nœud du Studio ou l'assistant désignent un asset par
+# son NOM. Ce nom ne se cherchait que dans la galerie système : les avatars de l'utilisateur et
+# ceux qu'on lui partage étaient introuvables par ces voies, alors que la card les propose. Une
+# règle, trois provenances, dans l'ordre de confiance : les siens, les partagés, le système.
+
+def _named(queryset, name):
+    from django.db.models import Q
+    return queryset.filter(Q(name=name) | Q(file__endswith='/' + name))
+
+
+def resolve_visible_asset(user, asset_type: str, name: str) -> str:
+    """Chemin (relatif à MEDIA_ROOT) de l'asset `name` de cette nature que `user` voit, ou ''.
+
+    Le nom se compare au nom de l'asset ET à celui de son fichier (un lot écrit le fichier).
+    Les siens priment, puis ceux qu'on lui partage (`listable_by`), puis le système."""
+    from .models import SystemAsset, UserAsset
+    from wama.common.utils.scoping import listable_by
+    name = (name or '').strip()
+    if not name:
+        return ''
+    candidates = []
+    if user is not None and getattr(user, 'id', None):
+        visible = listable_by(UserAsset.objects.filter(asset_type=asset_type), user)
+        candidates += [_named(visible.filter(user=user), name).order_by('-id'),
+                       _named(visible.exclude(user=user), name).order_by('name')]
+    candidates.append(_named(SystemAsset.objects.filter(asset_type=asset_type, is_active=True),
+                             name).order_by('name'))
+    for qs in candidates:
+        a = qs.first()
+        if a and a.file:
+            return a.file.name
+    return ''
+
+
+def visible_asset_names(user, asset_type: str) -> list:
+    """Les NOMS des assets de cette nature que `user` voit (siens, partagés, système), sans doublon
+    — la liste d'un sélecteur qui désigne par nom (Studio)."""
+    from .models import SystemAsset, UserAsset
+    from wama.common.utils.scoping import listable_by
+    names = []
+    if user is not None and getattr(user, 'id', None):
+        names += list(listable_by(UserAsset.objects.filter(asset_type=asset_type), user)
+                      .order_by('name').values_list('name', flat=True))
+    names += list(SystemAsset.objects.filter(asset_type=asset_type, is_active=True)
+                  .order_by('name').values_list('name', flat=True))
+    return list(dict.fromkeys(names))
+
+
 # ── RENDRE un asset système à son auteur (2026-09-29, MEDIA_STORAGE_TIERING §8.6 D27) ──────────
 # Le versement de la galerie (12/09) a fait des photos PERSONNELLES d'un utilisateur des assets
 # SYSTÈME : sans propriétaire, leur auteur ne pouvait plus ni les supprimer ni les ranger. Le geste

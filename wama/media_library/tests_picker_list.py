@@ -61,3 +61,30 @@ class PickerListTest(TestCase):
         exact = self._get(type='image', exact='1', scope='visible', with_system='1')
         self.assertEqual(4, grouped['total'])
         self.assertEqual(['my_photo'], [a['name'] for a in exact['assets']])
+
+
+class PreviewMimeForThePickerTest(TestCase):
+    """La fenêtre de sélection MONTRE l'asset avant le choix (2026-09-29) : elle a besoin d'un type
+    même quand celui stocké manque ou ne dit rien — le serveur le résout du FICHIER."""
+
+    def setUp(self):
+        self.me = User.objects.create_user('picker_mime', password='x')
+        self.client.force_login(self.me)
+
+    def _preview_mime(self, name, stored):
+        UserAsset.objects.create(user=self.me, name=name, asset_type='audio_music',
+                                 file=f'users/1/media_library/assets/{name}', mime_type=stored)
+        data = self.client.get(reverse('media_library:api_list'), {'type': 'all'}).json()
+        return next(a for a in data['assets'] if a['name'] == name)
+
+    def test_an_empty_stored_type_is_resolved_from_the_file(self):
+        asset = self._preview_mime('track.mp3', '')
+        self.assertEqual('audio/mpeg', asset['preview_mime'])
+        self.assertEqual('', asset['mime_type'], 'la donnée stockée ne change pas')
+
+    def test_a_generic_stored_type_is_resolved_from_the_file(self):
+        self.assertEqual('audio/wav', self._preview_mime('voice.wav', 'application/octet-stream')['preview_mime'])
+
+    def test_a_meaningful_stored_type_is_kept(self):
+        """Contre-épreuve : un type stocké qui dit quelque chose prime sur l'extension."""
+        self.assertEqual('audio/ogg', self._preview_mime('odd.mp3', 'audio/ogg')['preview_mime'])
