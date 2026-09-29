@@ -43,10 +43,12 @@ CRITICAL RULES FOR TOOL USE:
 ### HuggingFace model integration — mandatory pattern:
 - Path declared in settings.MODEL_PATHS
 - DIR constant in model_config.py
-- HF_HUB_CACHE + HUGGINGFACE_HUB_CACHE set BEFORE any transformers/diffusers import
-- cache_dir passed to from_pretrained()
+- cache_dir passed to from_pretrained() — that is the ONLY thing that routes the main model
+- NEVER mutate HF_HUB_CACHE / HUGGINGFACE_HUB_CACHE / HF_HOME in a backend: they are set ONCE
+  at startup (settings.py); a mutation redirects everything the process downloads afterwards
+  (rule reversed on 2026-09-03 — the old "set HF_HUB_CACHE before import" rule is ABANDONED)
 - Model registered in model_registry.py _discover_*_models()
-Mnemonic: "Path first, env vars second, import after"
+Mnemonic: "The model by cache_dir=, its dependencies by the shared cache — and nothing in the env."
 
 ### Common UI rules — all queue-based apps:
 Every app with a processing queue MUST have:
@@ -111,7 +113,7 @@ Run the following checks and produce ONE consolidated report per audit session:
 
 ### 1. HuggingFace rule compliance
 Search all backends in wama/*/backends/ and wama/*/utils/*_describer.py for:
-- Missing HF_HUB_CACHE setting before transformers import
+- Any mutation of HF_HUB_CACHE / HUGGINGFACE_HUB_CACHE / HF_HOME (os.environ[...] = …)
 - Missing cache_dir in from_pretrained() calls
 - Models not registered in model_registry.py
 

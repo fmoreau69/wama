@@ -37,6 +37,10 @@ CE QUE LE BRIDAGE CHANGE, ET RIEN D'AUTRE :
 
 Ne touche PAS aux autres domaines de l'assistant ni aux apps : `resolve_model_choice` et le
 curseur commun restent ce qu'ils sont.
+
+SECOND PLANCHER, MÊME DOMICILE (2026-09-29) : `AGENT_CODING_FLOOR`, plus bas, borne le tirage
+automatique de TOUT tour d'assistant outillé — cf. la section « Plancher de l'assistant OUTILLÉ »
+plus bas. Une seule mesure, deux seuils, un seul fichier qui dit ce qu'un modèle « vaut ».
 """
 from __future__ import annotations
 
@@ -98,13 +102,12 @@ def dev_cloud_keys(user) -> set:
     return keys
 
 
-def development_candidates(user) -> list:
-    """`model_key` des modèles de conversation de niveau dev que `user` peut lancer : locaux
-    installés, distants qu'il autorise (`dev_cloud_keys`)."""
+def _graded_candidates(cloud: set, grade) -> list:
+    """`model_key` des modèles de conversation lançables (locaux installés, distants de `cloud`)
+    qui passent `grade(model)`. Le lot est commun aux deux planchers — seul le prédicat change."""
     from django.db.models import Q
-    from wama.model_manager.models import AIModel, EXECUTION_CLOUD, EXECUTION_LOCAL
+    from wama.model_manager.models import AIModel, EXECUTION_LOCAL
 
-    cloud = dev_cloud_keys(user)
     qs = AIModel.objects.filter(is_available=True, is_proposed=False, model_type='llm')
     qs = qs.filter(Q(execution=EXECUTION_LOCAL, is_downloaded=True) | Q(model_key__in=list(cloud)))
     # `is_cloud` plutôt que la comparaison de champ : depuis le 2026-09-26 le sélecteur pose la
@@ -112,7 +115,13 @@ def development_candidates(user) -> list:
     # pour un même prédicat sont deux occasions de diverger — la leçon de `subscription_allowed`.
     from wama.model_manager.services.model_selector import is_cloud
     return [m.model_key for m in qs if not is_cloud(m) or m.model_key in cloud
-            if is_development_grade(m)]
+            if grade(m)]
+
+
+def development_candidates(user) -> list:
+    """`model_key` des modèles de conversation de niveau dev que `user` peut lancer : locaux
+    installés, distants qu'il autorise (`dev_cloud_keys`)."""
+    return _graded_candidates(dev_cloud_keys(user), is_development_grade)
 
 
 def development_model(user, requested: str = None) -> str | None:
@@ -153,6 +162,76 @@ def development_refusal(user=None) -> str:
             f"au banc, ou {unscored}) : installez un modèle local qui l'atteint, ou ouvrez Albert "
             "dans votre profil (le niveau « cloud si WAMA est saturé » suffit pour le "
             "développement).")
+
+
+# ── Plancher de l'assistant OUTILLÉ (2026-09-29) ─────────────────────────────────────────────
+#
+# LE DÉFAUT MESURÉ (Discord, 27/09, fil 11, tours 88-92). Tirage « auto », curseur 50 →
+# `qwen3.5:4b`. Trois tours, ZÉRO appel d'outil, et pourtant : « je lance l'anonymisation »,
+# « la tâche 648 est terminée », un lien de résultat. Aucune tâche n'existait ; « 648 » venait
+# d'une erreur du 23/09 restée dans l'historique. Même modèle, même fabulation les 22 et 23/09 ;
+# `qwen3.8` (26/09) a appelé l'outil de statut et joint l'image.
+#
+# UN TOUR CONNECTÉ EST UN TOUR OUTILLÉ, et on ne sait pas d'avance s'il lancera une tâche : le
+# plancher vaut donc pour le TIRAGE AUTOMATIQUE de tout tour qui a des outils. Même mesure que le
+# niveau dev (sous-indice coding du banc AA, qui inclut Terminal-Bench, épreuve agentique), seuil
+# plus bas — décision de Fabien le 29/09 : 30 admet gemma4:12b (31, jamais éprouvé comme
+# assistant) et exclut qwen3.5:4b (22,6) et gemma4:e4b (9,4).
+#
+# CE QUI DIFFÈRE DU NIVEAU DEV, À DESSEIN :
+#   • un modèle NON MESURÉ n'est pas écarté — le plancher exclut ce qu'une mesure CONDAMNE ; les
+#     distants frontière (Claude…) ne portent pas de sous-indice coding et ne sont pas le défaut ;
+#   • le choix MANUEL est respecté (règle commune du sélecteur) ; c'est le contrôle de sortie
+#     (`assistant_engine`, reprise d'un tour inventé) qui rattrape un modèle faible choisi à la main ;
+#   • lot vide → le tirage commun reprend, avec un avertissement au journal : le repli dev
+#     (refuser) laisserait sans assistant une installation qui n'a qu'un petit modèle.
+
+#: Score coding minimal pour le tirage automatique d'un tour d'assistant outillé.
+AGENT_CODING_FLOOR = 30.0
+
+
+def is_agent_grade(model) -> bool:
+    """Ce modèle peut-il servir un tour outillé ? Seule une mesure SOUS le plancher l'exclut."""
+    score = coding_score(model)
+    return score is None or score >= AGENT_CODING_FLOOR
+
+
+def agent_candidates(user, cloud_keys=None) -> list:
+    """`model_key` des modèles au plancher de l'assistant outillé que `user` peut lancer.
+    `cloud_keys` : les distants autorisés au tirage (défaut : `allowed_cloud_keys(user)`)."""
+    if cloud_keys is None:
+        from wama.model_manager.services.cloud_models import allowed_cloud_keys
+        cloud_keys = allowed_cloud_keys(user)
+    return _graded_candidates(set(cloud_keys or ()), is_agent_grade)
+
+
+def escalation_model(user, current_key: str = None) -> str | None:
+    """Le modèle vers lequel REPRENDRE un tour inventé : au plancher, plus fort au banc que
+    `current_key` quand celui-ci est mesuré, tiré au curseur « Qualité ». None s'il n'y en a pas
+    — l'appelant dit alors qu'il n'a rien exécuté, il ne rejoue pas avec un modèle équivalent."""
+    from wama.model_manager.models import AIModel
+    from wama.model_manager.services.cloud_models import allowed_cloud_keys
+
+    cloud = allowed_cloud_keys(user)
+    lot = [k for k in agent_candidates(user, cloud_keys=cloud) if k != current_key]
+    current = AIModel.objects.filter(model_key=current_key).first() if current_key else None
+    floor = coding_score(current) if current is not None else None
+    if floor is not None:
+        scores = {m.model_key: coding_score(m)
+                  for m in AIModel.objects.filter(model_key__in=lot)}
+        lot = [k for k in lot if (scores.get(k) or 0) > floor]
+    if not lot:
+        return None
+    try:
+        from wama.model_manager.services.model_selector import select_model
+        chosen = select_model(None, model_type='llm', requires=['completion'], candidates=lot,
+                              quality_intent=DEV_QUALITY_INTENT, benchmark_family='coding',
+                              prefer_loaded=False, cloud_keys=cloud or None)
+        if chosen is not None:
+            return chosen.model_key
+    except Exception:
+        logger.debug("[development_models] tirage de reprise indisponible", exc_info=True)
+    return lot[0]
 
 
 def is_development_step(step: dict) -> bool:

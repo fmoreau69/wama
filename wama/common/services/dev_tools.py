@@ -53,10 +53,14 @@ ROLES = {
                    'args': {'dist': str, 'repo': str}},
     'model':      {'script': 'run_model_manifest.py',
                    'args': {'catalog': str, 'hf': str, 'force': bool}},
+    # `seed_candidate` / `candidate` (2026-09-29) : les deux options qui branchent le scout et
+    # l'integrator sur la ROUTE D'INSTALLATION (candidat `proposed:` → bouton « Installer »)
+    # existent en CLI depuis le 19/09 ; la surface dev ne les admettait pas, et l'assistant ne
+    # pouvait donc produire que des fichiers d'`outputs/` qui se périment.
     'scout':      {'script': 'run_scout.py',
-                   'args': {'hf': str, 'dry_run': bool}},
+                   'args': {'hf': str, 'dry_run': bool, 'seed_candidate': bool}},
     'integrator': {'script': 'run_integrator.py',
-                   'args': {'manifest': str, 'besoin': str, 'dry_run': bool}},
+                   'args': {'manifest': str, 'candidate': str, 'besoin': str, 'dry_run': bool}},
     'codegen':    {'script': 'run_codegen.py',
                    'args': {'app': str, 'task': str, 'truth': str}},
 }

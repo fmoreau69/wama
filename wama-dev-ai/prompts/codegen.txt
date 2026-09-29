@@ -17,9 +17,11 @@ RÈGLES STRICTES :
    Une exception = FAILURE, gérée par le squelette. Ton nettoyage d'échec (fichiers
    temporaires…) reste DANS la glu (try/finally ou except-reraise).
 3. Imports LOURDS (torch, transformers, diffusers, librairies de modèles) À L'INTÉRIEUR de
-   la fonction, jamais en tête de bloc. JAMAIS d'import transformers / diffusers /
-   huggingface_hub avant d'avoir posé os.environ['HF_HUB_CACHE'] (et HUGGINGFACE_HUB_CACHE)
-   sur le dossier dédié du modèle ; TOUJOURS passer cache_dir= à from_pretrained().
+   la fonction, jamais en tête de bloc. TOUJOURS passer cache_dir= (le dossier dédié du
+   modèle) à from_pretrained(). JAMAIS muter os.environ['HF_HUB_CACHE'],
+   HUGGINGFACE_HUB_CACHE ni HF_HOME : ces variables sont posées UNE fois au démarrage, et
+   les muter redirige tout ce que le process télécharge ensuite (AGENTS.md, depuis le
+   2026-09-03).
 4. Vocabulaire de statuts canonique WAMA : PENDING / RUNNING / SUCCESS / FAILURE. Tu ne les
    ÉCRIS jamais (règle 2) ; ils ne peuvent apparaître que si tu LIS un état.
 5. Tu n'utilises QUE ce que le manifeste composé et les exemples PROUVENT : champs du modèle

@@ -510,11 +510,11 @@
                 <div class="row">
                     <div class="col-md-4">
                         <small class="text-muted d-block mb-1">Process RSS</small>
-                        <span id="process-rss" class="text-info">-</span> GB
+                        <span id="process-rss" class="text-info">-</span>
                     </div>
                     <div class="col-md-4">
                         <small class="text-muted d-block mb-1">Tracked Models</small>
-                        <span id="tracked-total" class="text-warning">-</span> MB
+                        <span id="tracked-total" class="text-warning">-</span>
                     </div>
                     <div class="col-md-4">
                         <small class="text-muted d-block mb-1">Idle Threshold</small>
@@ -2690,7 +2690,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="idle-model-item d-flex justify-content-between align-items-center">
                 <div>
                     <span class="text-light">${m.model_id}</span>
-                    <br><small class="text-muted">${m.size_mb.toFixed(1)} MB · Idle ${m.idle_time_minutes.toFixed(0)} min</small>
+                    <br><small class="text-muted">${WamaApp.formatSize(m.size_mb, 'MB')} · Idle ${m.idle_time_minutes.toFixed(0)} min</small>
                 </div>
                 <button class="btn btn-sm btn-outline-warning btn-unload-idle" data-model="${m.model_id}" title="Unload">
                     <i class="fas fa-eject"></i>
@@ -2736,7 +2736,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch('{% url "model_manager:api_memory_detailed" %}');
             const data = await response.json();
             if (data.success) {
-                document.getElementById('process-rss').textContent = data.ram.process_rss_gb.toFixed(2);
+                document.getElementById('process-rss').textContent = WamaApp.formatSize(data.ram.process_rss_gb, 'GB');
             }
         } catch (err) {
             console.error('Error loading detailed memory:', err);
@@ -2748,7 +2748,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch('{% url "model_manager:api_tracked_models" %}');
             const data = await response.json();
             if (data.success) {
-                document.getElementById('tracked-total').textContent = data.total_tracked_mb.toFixed(0);
+                document.getElementById('tracked-total').textContent = WamaApp.formatSize(data.total_tracked_mb, 'MB');
             }
         } catch (err) {
             console.error('Error loading tracked models:', err);

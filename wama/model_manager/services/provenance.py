@@ -131,7 +131,8 @@ def identity_for_spec(spec: dict) -> Optional[dict]:
 
 
 def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
-                   engine: str = None, apply: bool = True, export: bool = True) -> dict:
+                   engine: str = None, composition: dict = None, apply: bool = True,
+                   export: bool = True) -> dict:
     """
     Pose l'identité — et les capacités DÉCLARÉES — sur un modèle DU CATALOGUE, en passant
     par son manifeste.
@@ -145,6 +146,8 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
     `engine` : le moteur déclaré par la carte (`library_name` reconnu par un backend), posé
     dans `composition.runtime.engine` seulement s'il n'y en a pas — c'est ce que
     `plan_model_integration` réclamait à la main (« aucun moteur déclaré »).
+    `composition` : l'anatomie JUGÉE en amont (le `spec.composition` d'un candidat semé par le
+    scout). Même règle : `components` et `runtime.engine` ne comblent qu'un vide.
 
     Retourne un compte rendu : `{model, applied, posed, projected, corpus, error?}` (clés
     passées en anglais le 2026-09-19).
@@ -155,7 +158,8 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
     from wama.common.manifests.ingest import extract, validate, write_back
 
     capabilities = dict(capabilities or {})
-    if not identity and not capabilities and not engine:
+    composition = dict(composition or {})
+    if not identity and not capabilities and not engine and not composition:
         return {'model': model_key, 'applied': False, 'error': 'aucune identité à poser'}
     identity = identity or {}
 
@@ -189,6 +193,16 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
         if value not in (None, '', [], {}) and not caps.get(key):
             caps[key] = value
             posed.append(f'capabilities.{key}')
+    # Anatomie JUGÉE en amont (2026-09-29) : le scout la déclare sur le candidat, l'installation
+    # s'en servait pour tirer les bons fichiers (`allow_patterns`)… puis la PERDAIT — elle
+    # n'atteignait ni `AIModel.composition` ni le corpus. Même règle que le reste : un vide.
+    engine = engine or (composition.get('runtime') or {}).get('engine')
+    if composition.get('components'):
+        current = manifest['body'].get('composition') or {}
+        if not current.get('components'):
+            manifest['body']['composition'] = {**current, 'components': composition['components']}
+            posed.append('composition.components')
+
     # Moteur déclaré : même règle, on ne comble qu'un vide (le manifeste d'un modèle composé,
     # ou la déclaration d'une app, priment sur ce que la carte laisse deviner).
     if engine:
@@ -292,6 +306,10 @@ def record_after_install(spec: dict, appeared_keys) -> dict:
     declared = dict(card.get('capabilities') or {})
     if task:
         declared.update({'task': task, **default_inputs_for(task)})
-    posed = [set_identity(c, identity, capabilities=declared, engine=card.get('engine'))
+    # Le moteur de la carte ne vaut qu'à défaut de celui qu'un rôle a JUGÉ sur le candidat.
+    judged = spec.get('composition') or {}
+    posed = [set_identity(c, identity, capabilities=declared,
+                          engine=(judged.get('runtime') or {}).get('engine') or card.get('engine'),
+                          composition=judged)
              for c in targets]
     return {'identity': identity, 'models': posed, **({'task': task} if task else {})}
