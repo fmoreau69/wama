@@ -18828,3 +18828,11 @@ consigné en `WAMA_MEMORY §9bis.1`. Les deux points sont SOLDÉS.
   composer, enhancer, port_designation, identifier_language OK.
 - Pendings inchangés : relancer WAMA (gunicorn + celery) · puis R83 · push (mes commits locaux
   s'ajoutent aux 7 déjà annoncés : `d5642d48`, `300d1b00`, et ce bloc).
+
+**Tests de `model_manager` et `media_library` rangés** (`634f1c60`, décision de Fabien, 2026-09-29
+soir) : 19 + 14 fichiers dans leur paquet `tests/` (modules `wama.<app>.tests.tests_<sujet>`),
+même geste que `wama/common` — instances prévenues avant (toutes d'accord) et après. Vérifié côté
+WSL : 699 tests, seul rouge `tests_picker_list`, déjà rouge avant (médiathèque) ; `check_docs`
+sans référence cassée du fait du déplacement (le `tests.py` NU de `model_manager`, cité par chemin
+dans ce fichier, a demandé une règle à part). Seul `cam_analyzer` (20) reste à ranger — Fabien
+attend, la garde `tests_test_layout` le tient en attente.
