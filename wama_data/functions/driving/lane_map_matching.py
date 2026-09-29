@@ -40,26 +40,34 @@ from wama.common.catalog.function_catalog import (FunctionSpec, PortSpec, ParamS
 from wama_data.functions.driving.gps_map_match import angle_diff, local_frame, match_track, road_segments
 
 
-def expected_lane_offset(road, default_lane_width_m=3.0):
-    """(écart du centre de la voie de DROITE à l'axe du tronçon, largeur de voie) — dans le sens
-    de circulation, latéral positif à droite. L'axe BD TOPO est le milieu de la chaussée :
-    centre de la voie la plus à droite = W/2 − l/2, l = W / nombre de voies. Tronçon à une voie
-    (même à double sens) : 0. Largeur inconnue : `nombre de voies × default_lane_width_m`."""
+def carriageway_width(road, default_lane_width_m=3.0):
+    """(largeur de chaussée W, nombre de voies n) d'un tronçon BD TOPO. Nombre de voies inconnu :
+    2 à double sens, 1 sinon ; largeur absente : `n × default_lane_width_m`.
+    ⚠ Une largeur NaN (ce que rend un DataFrame pour une valeur manquante) n'est PAS « absente »
+    ici : elle se propage, et l'ancre qui en dépend tombe à la porte `correction_too_big`. C'est
+    le comportement historique du recalage voie + carte, gardé tel quel ; un appelant qui veut la
+    largeur par défaut passe None (cf. `geo.road_zones`)."""
     n = road.get('nb_voies')
     try:
         n = int(n) if n else None
     except (TypeError, ValueError):
         n = None
-    sens = (road.get('sens') or '').lower()
     if not n:
-        n = 2 if 'double' in sens else 1
+        n = 2 if 'double' in (road.get('sens') or '').lower() else 1
     W = road.get('largeur')
     try:
         W = float(W) if W else None
     except (TypeError, ValueError):
         W = None
-    if not W:
-        W = n * default_lane_width_m
+    return (W or n * default_lane_width_m), n
+
+
+def expected_lane_offset(road, default_lane_width_m=3.0):
+    """(écart du centre de la voie de DROITE à l'axe du tronçon, largeur de voie) — dans le sens
+    de circulation, latéral positif à droite. L'axe BD TOPO est le milieu de la chaussée :
+    centre de la voie la plus à droite = W/2 − l/2, l = W / nombre de voies. Tronçon à une voie
+    (même à double sens) : 0. Largeur inconnue : `nombre de voies × default_lane_width_m`."""
+    W, n = carriageway_width(road, default_lane_width_m)
     lane_w = W / n
     return (W / 2.0 - lane_w / 2.0 if n > 1 else 0.0), lane_w
 

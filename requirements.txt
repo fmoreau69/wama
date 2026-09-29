@@ -74,6 +74,10 @@ datasets>=4.7
 librosa>=0.11
 safetensors>=0.4.0
 scipy>=1.16
+# Emprise de chaussée (union des axes routiers élargis, `wama_data/functions/geo/road_zones.py`).
+# Déjà présent en 2.0.7 dans les deux venvs, tiré par ultralytics/easyocr/doctr : déclaré parce
+# que WAMA l'importe désormais lui-même (2026-09-29).
+shapely>=2.0
 soundfile>=0.13
 # Attestation des .js SANS navigateur (AGENTS.md §« Le JS aussi ») : V8 embarqué, parse un fichier
 # servi sans l'exécuter. N'était présent que sous venv_win (0.14.1) — ajouté à venv_linux le

@@ -1249,6 +1249,35 @@ def session_buildings(request, session_id):
 
 @login_required
 @require_http_methods(["GET"])
+def session_road_zones(request, session_id):
+    """Emprise de CHAUSSÉE autour d'un point (⚑ map_road_zones — AFFICHAGE) : axes BD TOPO élargis
+    de leur largeur puis unis (`wama_data.functions.geo.road_zones`). Même grille et même cache que
+    `session_buildings`. Rend {success, zones: [{rings: [[[lat, lon], …], …], area_m2}]}."""
+    from django.core.cache import cache
+    get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    try:
+        lat, lon = float(request.GET['lat']), float(request.GET['lon'])
+        radius = min(max(float(request.GET.get('radius', 250)), 50.0), 400.0)
+    except (KeyError, ValueError):
+        return JsonResponse({'success': False, 'error': 'lat et lon requis'}, status=400)
+    lat, lon = round(lat, 3), round(lon, 3)
+    key = f"cam_analyzer_road_zones:{lat:.3f}:{lon:.3f}:{int(radius)}"
+    data = cache.get(key)
+    if data is None:
+        from wama_data.functions.geo.ign_vector import road_map_frame
+        from wama_data.functions.geo.road_zones import road_zones
+        try:
+            zones = road_zones(road_map_frame(lat, lon, radius))
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': f"WFS IGN : {e}"}, status=502)
+        data = [{'rings': [[list(pt) for pt in ring] for ring in z['rings']], 'area_m2': z['area_m2']}
+                for z in zones.df.to_dict('records')]
+        cache.set(key, data, 86400)
+    return JsonResponse({'success': True, 'zones': data})
+
+
+@login_required
+@require_http_methods(["GET"])
 def get_session_status(request, session_id):
     """Get session status and progress."""
     from django.core.cache import cache

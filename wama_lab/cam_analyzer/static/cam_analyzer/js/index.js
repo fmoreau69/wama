@@ -54,9 +54,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let showLaneVideo = false;       // projeter le gabarit de voie SUR la vidéo (calibration)
     let laneCamHeightM = 2.4;        // hauteur caméra (m) — rig ENA : ~2 m au-dessus du plancher + châssis ≈ 0,4 m
     let miniMapLaneLayer = null;     // calque du gabarit de voie
-    let miniMapBuildingsLayer = null; // emprises BD TOPO (⚑ map_buildings), chargées par zone
-    let buildingsCenter = null;      // centre [lat, lon] de la dernière zone demandée
-    let buildingsLoading = false;
+    let zoneLayers = null;           // couches IGN chargées par zone (bâtiments, chaussée) — `zoneLayerList()`
     let topDown360 = false;          // fusion multi-caméra dans le repère véhicule (toggle)
     let usePrediction = false;         // coloration Prédiction (trajectoire) vs ttc_s naïf (toggle)
     let hideParked = false;            // masquer les véhicules stationnés/garés (toggle)
@@ -2141,6 +2139,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             used2.add(bi);
+            // Même OBJET ? SAM3 ne segmente pas toujours la même chose d'une keyframe à l'autre
+            // (mesuré frame 7164 → 7170 : les 3 bandes gauches d'un passage piéton, puis UNE bande
+            // du milieu) : morpher l'un vers l'autre faisait GLISSER le polygone sur la route.
+            // L'approche agrandit un marquage à peu près UNIFORMÉMENT ; une autre segmentation
+            // change son rapport largeur/hauteur. Forme incohérente → pas de morphing : on montre
+            // la keyframe la plus proche, telle quelle (exacte, sans glissement).
+            const rw = (best[2] - best[0]) / Math.max(1, b1[2] - b1[0]);
+            const rh = (best[3] - best[1]) / Math.max(1, b1[3] - b1[1]);
+            if (Math.abs(Math.log(rw / rh)) > Math.log(1.5) || rw < 0.4 || rw > 2.5 || rh < 0.4 || rh > 2.5) {
+                out.push(f < 0.5 ? d1 : m2[bi]);
+                return;
+            }
             const c2 = [(best[0] + best[2]) / 2, (best[1] + best[3]) / 2];
             const cx = c1[0] + (c2[0] - c1[0]) * f, cy = c1[1] + (c2[1] - c1[1]) * f;
             const sx = 1 + ((best[2] - best[0]) / Math.max(1, b1[2] - b1[0]) - 1) * f;
@@ -2554,7 +2564,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 {
                     const _t = playheadT();
                     topDownLastRender = -999;
-                    if (f.key === 'map_buildings') { buildingsCenter = null; updateBuildingsLayer(findGpsAtTime(_t)); }
+                    const _zl = zoneLayerList().find(z => z.feature === f.key);
+                    if (_zl) { _zl.reset(); _zl.update(findGpsAtTime(_t)); }
                     updateMiniMapShuttle(_t);
                     updateDetectionOverlay(_t);
                 }
@@ -2851,9 +2862,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // déjà corrigée ne doit pas voir les corrections s'empiler.
         if (gpsTrack !== cachedGpsTrack) {
             const fresh = Array.isArray(gpsTrack) ? gpsTrack : [];
-            if (fresh !== rawGpsTrack) {           // autre session / autre trace : zone à recharger
-                buildingsCenter = null;
-                if (miniMapBuildingsLayer) miniMapBuildingsLayer.clearLayers();
+            if (fresh !== rawGpsTrack) {           // autre session / autre trace : zones à recharger
+                zoneLayerList().forEach(z => z.reset());
             }
             rawGpsTrack = fresh;
         }
@@ -2997,48 +3007,69 @@ document.addEventListener('DOMContentLoaded', function () {
             if (topDownAutoFollow && !skipFollowPanOnce) miniMap.panTo([p.lat, p.lon], { animate: false });
         }
         skipFollowPanOnce = false;
-        updateBuildingsLayer(p);
+        updateZoneLayers(p);
         updateMiniMapPassHighlight(currentTime);
         updateTopDown(currentTime);
     }
 
-    // ⚑ map_buildings — emprises BD TOPO autour de la navette, chargées par ZONE (rayon 250 m,
-    // nouvelle zone quand la navette s'est éloignée de 120 m) par `session_buildings` (cache
-    // serveur 24 h). Groupe PROPRE (le gabarit de voie est effacé à chaque image) et renvoyé au
-    // fond de l'overlayPane — surtout pas de pane personnalisé : la mini-carte est pivotée.
-    function updateBuildingsLayer(pose) {
-        if (!miniMap || typeof L === 'undefined') return;
-        if (!(camFeat && camFeat['map_buildings'])) {
-            if (miniMapBuildingsLayer) miniMapBuildingsLayer.clearLayers();
-            buildingsCenter = null;
-            return;
-        }
-        if (!pose || !currentSessionId || buildingsLoading) return;
-        if (buildingsCenter && Math.hypot((pose.lat - buildingsCenter[0]) * 111320,
-                (pose.lon - buildingsCenter[1]) * 111320 * Math.cos(pose.lat * Math.PI / 180)) < 120) return;
-        // Le centre est posé AVANT la réponse : un échec ne relance pas une requête par image.
-        const c = [pose.lat, pose.lon];
-        buildingsCenter = c;
-        buildingsLoading = true;
-        fetch(`${config.urls.deleteSession}${currentSessionId}/buildings/?lat=${c[0]}&lon=${c[1]}&radius=250`)
-            .then(r => r.json())
-            .then(d => {
-                if (!d.success) { console.warn('[buildings]', d.error); return; }
-                if (!(camFeat && camFeat['map_buildings'])) return;   // décochée pendant la requête
-                if (!miniMapBuildingsLayer) miniMapBuildingsLayer = L.layerGroup().addTo(miniMap);
-                miniMapBuildingsLayer.clearLayers();
+    // Couches de RÉFÉRENCE IGN autour de la navette, chargées par ZONE (rayon 250 m, nouvelle zone
+    // quand la navette s'est éloignée de 120 m ; cache serveur 24 h), chacune derrière SA bascule ⚑.
+    // Groupe PROPRE par couche (le gabarit de voie est effacé à chaque image), renvoyé au fond de
+    // l'overlayPane — surtout pas de pane personnalisé : la mini-carte est pivotée.
+    // (Une seule mécanique pour les deux couches : la couche bâtiments avait son chargeur à elle.)
+    function makeZoneLayer(feature, endpoint, draw) {
+        const z = { feature, layer: null, center: null, loading: false };
+        z.reset = () => { z.center = null; if (z.layer) z.layer.clearLayers(); };
+        z.update = pose => {
+            if (!miniMap || typeof L === 'undefined') return;
+            if (!(camFeat && camFeat[feature])) { z.reset(); return; }
+            if (!pose || !currentSessionId || z.loading) return;
+            if (z.center && Math.hypot((pose.lat - z.center[0]) * 111320,
+                    (pose.lon - z.center[1]) * 111320 * Math.cos(pose.lat * Math.PI / 180)) < 120) return;
+            // Le centre est posé AVANT la réponse : un échec ne relance pas une requête par image.
+            const c = [pose.lat, pose.lon];
+            z.center = c;
+            z.loading = true;
+            fetch(`${config.urls.deleteSession}${currentSessionId}/${endpoint}/?lat=${c[0]}&lon=${c[1]}&radius=250`)
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.success) { console.warn(`[${endpoint}]`, d.error); return; }
+                    if (!(camFeat && camFeat[feature])) return;   // décochée pendant la requête
+                    if (!z.layer) z.layer = L.layerGroup().addTo(miniMap);
+                    z.layer.clearLayers();
+                    draw(d, z.layer);
+                    z.layer.eachLayer(l => { if (l.bringToBack) l.bringToBack(); });
+                })
+                .catch(e => console.warn(`[${endpoint}] chargement échoué`, e))
+                .finally(() => { z.loading = false; });
+        };
+        return z;
+    }
+    function zoneLayerList() {
+        if (!zoneLayers) zoneLayers = [
+            // ⚑ map_buildings — emprises BD TOPO (`session_buildings`)
+            makeZoneLayer('map_buildings', 'buildings', (d, layer) =>
                 (d.buildings || []).forEach(b => (b.rings || []).forEach(ring => {
                     if (Array.isArray(ring) && ring.length >= 3) {
                         L.polygon(ring, { color: '#9e9e9e', weight: 1, opacity: 0.8,
-                            fillColor: '#757575', fillOpacity: 0.35, interactive: false })
-                            .addTo(miniMapBuildingsLayer);
+                            fillColor: '#757575', fillOpacity: 0.35, interactive: false }).addTo(layer);
                     }
-                }));
-                miniMapBuildingsLayer.eachLayer(l => { if (l.bringToBack) l.bringToBack(); });
-            })
-            .catch(e => console.warn('[buildings] chargement échoué', e))
-            .finally(() => { buildingsLoading = false; });
+                }))),
+            // ⚑ map_road_zones — emprise de CHAUSSÉE : axes IGN élargis de leur largeur puis UNIS
+            // (`session_road_zones`, brique `geo.road_zones`) → bords de voie, carrefours ouverts.
+            // Mêmes couleurs de bord que le gabarit de la voie navette.
+            makeZoneLayer('map_road_zones', 'road-zones', (d, layer) =>
+                (d.zones || []).forEach(zn => {
+                    const rings = (zn.rings || []).filter(r => Array.isArray(r) && r.length >= 3);
+                    if (rings.length) {
+                        L.polygon(rings, { color: '#e0e0e0', weight: 1.5, opacity: 0.9,
+                            fillColor: '#b0bec5', fillOpacity: 0.12, interactive: false }).addTo(layer);
+                    }
+                })),
+        ];
+        return zoneLayers;
     }
+    function updateZoneLayers(pose) { zoneLayerList().forEach(z => z.update(pose)); }
 
     // ── Vue de dessus : objets (X,Y) égo → lat/lon sur la carte ──────────────
     // Position d'un objet dans le monde depuis sa position égo (X latéral droite+,
@@ -3268,6 +3299,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     });
                 }
+                // ⚑ map_road_zones : la chaussée est dessinée par sa couche (bords de voie IGN) —
+                // plus de bande violette, qui disait « il y a une croisante » sans dire OÙ.
+                if (camFeat.map_road_zones) return;
                 const _learned = sessionBranches[String(_wi)];
                 if (Array.isArray(_learned) && _learned.length) {
                     _learned.forEach(br => {
