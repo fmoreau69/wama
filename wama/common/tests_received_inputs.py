@@ -101,6 +101,33 @@ class ReceivedInputsTest(TestCase):
         self.assertFalse(readable_by(f'users/{self.user.id}0/temp/x.wav', self.user),
                          'le préfixe est un SEGMENT : users/12 ne lit pas users/120')
 
+    def _asset_of_other(self, visibility):
+        from wama.media_library.models import UserAsset
+        rel = self._write(f'users/{self.other.id}/media_library/assets/shared_face.png', b'PNG')
+        UserAsset.objects.create(user=self.other, name='shared_face', asset_type='avatar',
+                                 file=rel, visibility=visibility)
+        return rel
+
+    def test_an_asset_shared_by_someone_else_is_pointed_not_copied(self):
+        """Décision du 2026-09-29 : ce qu'un autre met à disposition (labo, projet, public) est
+        DÉSIGNABLE par les personnes concernées — un lien en lecture, jamais une copie."""
+        rel = self._asset_of_other('public')
+        got = received_inputs(self._post({designation_field('file'): rel}), self.user, 'avatarizer')
+        self.assertEqual([rel], [r.value for r in got], got.refusal)
+        self.assertEqual([], self._app_files('avatarizer'), "aucune copie : c'est un pointeur")
+
+    def test_an_asset_kept_private_stays_unreadable(self):
+        """Contre-épreuve : le même asset NON partagé reste illisible pour autrui."""
+        rel = self._asset_of_other('private')
+        self.assertFalse(readable_by(rel, self.user))
+        got = received_inputs(self._post({designation_field('file'): rel}), self.user, 'avatarizer')
+        self.assertEqual([], list(got))
+
+    def test_the_anonymous_service_account_inherits_nothing_shared(self):
+        from wama.accounts.views import get_or_create_anonymous_user
+        rel = self._asset_of_other('public')
+        self.assertFalse(readable_by(rel, get_or_create_anonymous_user()))
+
     def test_record_writes_the_provenance_of_a_designation(self):
         from wama.common.tests_queue_delete_contract import _instance
         from wama.common.utils.provenance import provenance_of

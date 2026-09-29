@@ -1665,7 +1665,10 @@ MECHANISMS = (
               "de ce qu'un utilisateur peut désigner, et `received_inputs` est ce qu'une vue "
               "d'upload REÇOIT — un fichier téléversé ou DÉSIGNÉ (`<champ>__designated` : "
               "médiathèque, arbre), par la même vue, avec l'état du volet ; `designate` est la "
-              "même désignation pour les outils de l'assistant (`tool_api.add_to_*`)",
+              "même désignation pour les outils de l'assistant (`tool_api.add_to_*`). ⭐ Depuis "
+              "le 2026-09-29 : un asset de médiathèque PARTAGÉ (labo, projet, public) est "
+              "désignable et POINTÉ par les personnes concernées — même règle de visibilité que "
+              "la liste (`scoping.listable_by`), le compte anonyme n'en hérite pas",
               'wama/common/utils/media_paths.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md'),
     Mechanism('scoped_visibility', 'Visibilité et portée',

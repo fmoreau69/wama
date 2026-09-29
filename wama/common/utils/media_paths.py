@@ -272,7 +272,7 @@ def in_user_home(rel_path, user_id) -> bool:
 
 def reference_or_copy(source_path, app_name: str, user_id, subfolder: str = 'input',
                       allowed_exts=None, *, for_instance=None, field=None,
-                      provenance_kind=None, provenance_ref=None):
+                      provenance_kind=None, provenance_ref=None, user=None):
     """POINTER le fichier s'il est déjà dans l'arbre de l'utilisateur, le COPIER sinon.
 
     Décision de Fabien du 2026-09-23 (`MEDIA_STORAGE_TIERING §Cible`, jalon annoncé le 12/09 :
@@ -296,7 +296,9 @@ def reference_or_copy(source_path, app_name: str, user_id, subfolder: str = 'inp
       * une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) — elle garde son appel à
         `copy_into_app_input`, et le site le dit.
     Ce qui se POINTE en plus de l'arbre de l'utilisateur (2026-09-28) : un asset SYSTÈME actif
-    (`is_system_asset_file`) — zone commune en lecture, jamais supprimée par une card.
+    (`is_system_asset_file`) — zone commune en lecture, jamais supprimée par une card ; et
+    (2026-09-29, `user` fourni) un asset de médiathèque qu'un autre lui PARTAGE — un lien en
+    lecture, que `owns_file` ne tient jamais pour le fichier d'une card (il vit chez son auteur).
 
     Returns:
         `(path: Path, relative_path: str)` — pointé : le chemin de la SOURCE ; copié : la copie.
@@ -314,7 +316,8 @@ def reference_or_copy(source_path, app_name: str, user_id, subfolder: str = 'inp
         # Un asset SYSTÈME (zone commune, sans propriétaire, hors du chiffrement par utilisateur)
         # se pointe aussi (2026-09-28) : `owns_file` ne le tient jamais pour le fichier d'une
         # card, aucune suppression de card ne l'atteint donc.
-        if in_user_home(rel_candidat, user_id) or is_system_asset_file(rel_candidat):
+        if in_user_home(rel_candidat, user_id) or is_system_asset_file(rel_candidat) \
+                or (user is not None and _is_shared_asset_file(rel_candidat, user)):
             rel = rel_candidat
     except (OutsideMediaRoot, FileNotFoundError):
         rel = None
@@ -353,14 +356,28 @@ def readable_by(rel_path, user) -> bool:
     """Cet utilisateur peut-il DÉSIGNER ce fichier comme entrée d'une card ?
 
     Son propre arbre (`users/<uid>/…` : temporaire, médiathèque, entrées et sorties de ses
-    apps) ou un asset système actif. ⚠ Le fichier d'un AUTRE utilisateur n'est PAS lisible ici,
-    même partagé : le pointer ou le recopier dépend du modèle de clés du chiffrement par
-    utilisateur, pas encore décidé (`WAMA_COLLABORATION §9`, cadre du 2026-09-28). Le jour où il
-    l'est, c'est CETTE fonction qui s'étend (objet visible qui le désigne) — et nulle autre.
+    apps), un asset système actif, ou — depuis le 2026-09-29 — **un asset de médiathèque qu'un
+    autre lui PARTAGE** (son labo, un projet, le public). Décision de Fabien : *« les niveaux de
+    droits sont déjà gérés ; si l'utilisateur met à disposition de son labo ou en public, il doit
+    être partagé par les groupes de personnes concernées »* (`WAMA_COLLABORATION §9`). La règle
+    de visibilité est celle qui LISTE (`scoping.listable_by`) : aucune seconde règle, et le compte
+    anonyme de service n'en hérite pas. Le chiffrement par utilisateur viendra plus tard ; il
+    devra donner aux groupes concernés l'accès aux clés de ce qui leur est partagé.
+    ⚠ Le fichier d'un autre utilisateur qui n'est PAS un asset partagé (sortie d'app, temporaire)
+    reste illisible ici.
     """
     rel = str(rel_path or '').replace('\\', '/').lstrip('/')
     user_id = getattr(user, 'id', None)
-    return bool(user_id) and (in_user_home(rel, user_id) or is_system_asset_file(rel))
+    if not user_id:
+        return False
+    return in_user_home(rel, user_id) or is_system_asset_file(rel) or _is_shared_asset_file(rel, user)
+
+
+def _is_shared_asset_file(rel, user) -> bool:
+    """Ce chemin est-il le fichier d'un asset de médiathèque VISIBLE par `user` (partagé) ?"""
+    from wama.common.utils.scoping import listable_by
+    from wama.media_library.models import UserAsset
+    return listable_by(UserAsset.objects.filter(file=rel), user).exists()
 
 
 #: Suffixe du champ POST d'une DÉSIGNATION : le chemin (relatif à `MEDIA_ROOT`) d'un fichier que
@@ -471,7 +488,7 @@ def designate(path, user, app_name: str, subfolder: str = 'input') -> ReceivedIn
         raise InputRefused(str(exc)) from exc
     if not readable_by(rel, user):
         raise InputRefused(f"Fichier non accessible : {os.path.basename(rel)}")
-    local, value = reference_or_copy(abs_path, app_name, user.id, subfolder)
+    local, value = reference_or_copy(abs_path, app_name, user.id, subfolder, user=user)
     return ReceivedInput(os.path.basename(rel), value, local_path=str(local), designation=rel)
 
 
