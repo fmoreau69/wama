@@ -8,9 +8,16 @@ jamais par une app.
 Deux textes, un seul affiché — choisi par CSS (`wama-inspector.css`) : en mode SIMPLIFIÉ le volet
 droit est masqué (`body.wama-simple #wama-right-panel`, base.html), les réglages se font alors par
 le ⚙ de l'élément, une fois ajouté à la file.
+
+Rien n'est affiché sur une page qui DÉCLARE n'avoir pas de section Paramètres (`volet`,
+`common/utils/volet.py` — la médiathèque, 2026-09-29) : la phrase y renverrait à un volet absent.
+`is not False` et non `if volet.parametres` : une page qui ne déclare rien (ou un rendu sans
+contexte de requête) garde l'indication — c'est le défaut des 10 apps.
 {% endcomment %}
+{% if volet.parametres is not False %}
 <span class="wama-settings-hint small text-muted text-nowrap" title="Modèle, voix, formats… : ils se règlent hors de cette card, avant de lancer le traitement.">
     <i class="fas fa-sliders-h"></i>
     <span class="wama-settings-hint--panel">Réglages : volet de droite</span>
     <span class="wama-settings-hint--simple">Réglages : ⚙ de l'élément ajouté</span>
 </span>
+{% endif %}

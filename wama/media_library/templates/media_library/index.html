@@ -52,22 +52,6 @@
 .ml-search input:focus { background: #1e1e2e; border-color: #555; color: #fff; box-shadow: none; }
 .ml-search input::placeholder { color: #555; }
 
-/* ── Zone upload ────────────────────────────────────────────────── */
-.upload-zone {
-    border: 2px dashed #3a3a5e; border-radius: 8px;
-    padding: 1.4rem; text-align: center; color: #777;
-    cursor: pointer; transition: border-color .2s, color .2s;
-    margin-bottom: 1rem; background: #0e0e1a;
-}
-.upload-zone:hover, .upload-zone.drag-over { border-color: #0d6efd; color: #ccc; }
-.upload-zone i { font-size: 1.6rem; margin-bottom: .4rem; display: block; }
-.upload-form-panel {
-    background: #161625; border: 1px solid #2a2a4a;
-    border-radius: 8px; padding: .9rem 1rem;
-    margin-bottom: 1rem; display: none;
-}
-#uploadProgress { display: none; margin-top: .5rem; }
-
 /* ── Grille ─────────────────────────────────────────────────────── */
 .asset-grid {
     display: grid;
@@ -254,55 +238,18 @@
             <span class="input-group-text"><i class="fas fa-search"></i></span>
             <input type="text" id="searchInput" class="form-control" placeholder="Rechercher par nom ou tag…">
         </div>
-        <!-- Upload -->
-        <button class="btn btn-primary btn-sm" id="openUploadBtn">
-            <i class="fas fa-plus me-1"></i> Ajouter
-        </button>
         <small class="text-muted ms-auto" id="resultCount"></small>
     </div>
 
-    <!-- Zone upload (masquée par défaut) -->
-    <div id="uploadZoneWrap" style="display:none;">
-        <div class="upload-zone" id="uploadZone">
-            <i class="fas fa-cloud-upload-alt"></i>
-            <div>Glissez un fichier ici ou <strong>cliquez pour sélectionner</strong></div>
-            <small id="uploadHint" class="d-block mt-1 text-muted">WAV, MP3, FLAC, OGG</small>
-        </div>
-        <input type="file" id="fileInput" style="display:none;">
-
-        <div class="upload-form-panel" id="uploadFormPanel">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label mb-1">Nom *</label>
-                    <input type="text" class="form-control form-control-sm" id="assetName" placeholder="Nom de l'asset"
-                           style="background:#1e1e2e;border-color:#3a3a5e;color:#e0e0e0;">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label mb-1">Description</label>
-                    <input type="text" class="form-control form-control-sm" id="assetDescription" placeholder="Optionnel"
-                           style="background:#1e1e2e;border-color:#3a3a5e;color:#e0e0e0;">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label mb-1">Tags</label>
-                    <input type="text" class="form-control form-control-sm" id="assetTags" placeholder="tag1, tag2"
-                           style="background:#1e1e2e;border-color:#3a3a5e;color:#e0e0e0;">
-                </div>
-                <div class="col-md-2 d-flex gap-1">
-                    <button class="btn btn-primary btn-sm flex-fill" id="confirmUploadBtn">
-                        <i class="fas fa-upload me-1"></i>Enregistrer
-                    </button>
-                    <button class="btn btn-outline-secondary btn-sm" id="cancelUploadBtn" title="Annuler">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-            <div id="uploadFileName" class="text-muted small mt-1"></div>
-            <div id="uploadProgress">
-                <div class="progress mt-2" style="height:3px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
-                </div>
-            </div>
-        </div>
+    {% comment %}Card d'entrée COMMUNE (2026-09-29, demande de Fabien) — remplace la zone « Ajouter »
+    propre à la page (un fichier à la fois, puis un formulaire nom/description/tags). Les gestes
+    de toutes les apps : déposer un ou plusieurs fichiers, un dossier, glisser depuis l'arbre.
+    La NATURE est celle de l'onglet ouvert (jamais devinée) ; le nom est celui du fichier et se
+    corrige ensuite par « Modifier » — on ajoute, puis on règle. Voie : `WamaImport` →
+    `api_upload` → `services.add_file_to_library`. Pas d'indication de réglages : la page n'a pas
+    de volet (`VOLET_AUCUN`). ⚠ JAMAIS de {# #} multi-ligne ici.{% endcomment %}
+    <div id="mlNewItemWrap">
+    {% include 'common/_new_item_card.html' with card_id='mlNewItem' drop_zone_id='mlDropZone' file_input_id='mlFileInput' folder_input_id='mlFolderInput' file_accept='' formats_label='' collapsible=True %}
     </div>
 
     <!-- ── Panneau Mots-clés de prompt (tronc commun + perso) ──── -->
@@ -450,5 +397,6 @@ const NATURES = {{ natures_json|safe }};
 </script>
 <link rel="stylesheet" href="{% static_v 'common/css/wama-prompt-chips.css' %}">
 <script src="{% static_v 'common/js/wama-prompt-chips.js' %}"></script>
+<script src="{% static_v 'common/js/wama-import.js' %}"></script>  {# voie d'import COMMUNE de la card d'entrée (WamaImport) #}
 <script src="{% static_v 'media_library/js/media-library.js' %}"></script>
 {% endblock %}

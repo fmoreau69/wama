@@ -29,7 +29,6 @@
     let currentPage          = 1;
     let hasMore              = false;
     let searchTimer          = null;
-    let pendingFile          = null;
     let editingAsset         = null;
     let currentAssets        = [];   // assets visibles dans la grille (pour navigation)
     let currentSearchResults = [];   // résultats de recherche provider (pour navigation)
@@ -40,19 +39,10 @@
     const searchInput     = document.getElementById('searchInput');
     const resultCount     = document.getElementById('resultCount');
     const loadMoreBtn     = document.getElementById('loadMoreBtn');
-    const openUploadBtn   = document.getElementById('openUploadBtn');
-    const uploadZoneWrap  = document.getElementById('uploadZoneWrap');
-    const uploadZone      = document.getElementById('uploadZone');
-    const uploadHint      = document.getElementById('uploadHint');
-    const fileInput       = document.getElementById('fileInput');
-    const uploadFormPanel = document.getElementById('uploadFormPanel');
-    const uploadFileName  = document.getElementById('uploadFileName');
-    const uploadProgress  = document.getElementById('uploadProgress');
-    const assetNameInput  = document.getElementById('assetName');
-    const assetDescInput  = document.getElementById('assetDescription');
-    const assetTagsInput  = document.getElementById('assetTags');
-    const confirmUploadBtn = document.getElementById('confirmUploadBtn');
-    const cancelUploadBtn  = document.getElementById('cancelUploadBtn');
+    // Card d'entrée COMMUNE (`common/_new_item_card.html`, 2026-09-29) : elle remplace la zone
+    // « Ajouter » propre à la page. La nature est celle de l'onglet ouvert.
+    const newItemWrap     = document.getElementById('mlNewItemWrap');
+    const newItemInput    = document.getElementById('mlFileInput');
 
     // NB : la prévisualisation passe par le composant commun
     // (window.showPreviewModalWithNav) — pas de modal local.
@@ -99,8 +89,7 @@
 
     function showLibraryMode() {
         document.querySelector('.ml-toolbar').style.display = '';
-        document.getElementById('uploadZoneWrap').style.display =
-            openUploadBtn.dataset.wasOpen ? 'block' : 'none';
+        newItemWrap.style.display = '';
         document.getElementById('assetGrid').style.display = '';
         document.getElementById('loadMoreBtn').parentElement.style.display = '';
         searchPanel.style.display = 'none';
@@ -109,7 +98,7 @@
 
     function showSearchMode() {
         document.querySelector('.ml-toolbar').style.display = 'none';
-        document.getElementById('uploadZoneWrap').style.display = 'none';
+        newItemWrap.style.display = 'none';
         document.getElementById('assetGrid').style.display = 'none';
         document.getElementById('loadMoreBtn').parentElement.style.display = 'none';
         searchPanel.style.display = 'block';
@@ -119,7 +108,7 @@
 
     function showKeywordsMode() {
         document.querySelector('.ml-toolbar').style.display = 'none';
-        document.getElementById('uploadZoneWrap').style.display = 'none';
+        newItemWrap.style.display = 'none';
         document.getElementById('assetGrid').style.display = 'none';
         document.getElementById('loadMoreBtn').parentElement.style.display = 'none';
         searchPanel.style.display = 'none';
@@ -152,9 +141,8 @@
                 showKeywordsMode();
             } else {
                 showLibraryMode();
-                uploadHint.textContent = TYPE_HINTS[currentType] || '';
+                describeNewItemCard();
                 searchInput.value = '';
-                resetUploadPanel();
                 resetGrid();
                 loadAssets(true);
             }
@@ -173,14 +161,6 @@
     searchInput.addEventListener('input', () => {
         clearTimeout(searchTimer);
         searchTimer = setTimeout(() => { resetGrid(); loadAssets(true); }, 300);
-    });
-
-    // ── Bouton upload toggle ──────────────────────────────────────────────────
-
-    openUploadBtn.addEventListener('click', () => {
-        const visible = uploadZoneWrap.style.display !== 'none';
-        uploadZoneWrap.style.display = visible ? 'none' : 'block';
-        if (visible) resetUploadPanel();
     });
 
     // ── Chargement des assets ─────────────────────────────────────────────────
@@ -613,90 +593,41 @@
         }
     }
 
-    // ── Upload ────────────────────────────────────────────────────────────────
-
-    uploadZone.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', () => { if (fileInput.files[0]) openUploadForm(fileInput.files[0]); });
-
-    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
-    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
-    uploadZone.addEventListener('drop', e => {
-        e.preventDefault();
-        uploadZone.classList.remove('drag-over');
-        if (e.dataTransfer.files[0]) openUploadForm(e.dataTransfer.files[0]);
-    });
-
-    function openUploadForm(file) {
-        const ext = file.name.split('.').pop().toLowerCase();
-        if (!(ALLOWED_EXT[currentType] || []).includes(ext)) {
-            toast(`Format .${ext} non autorisé. Attendu : ${TYPE_HINTS[currentType]}`, 'error');
-            return;
-        }
-        pendingFile = file;
-        assetNameInput.value = file.name.replace(/\.[^.]+$/, '');
-        uploadFileName.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} Ko)`;
-        uploadFormPanel.style.display = 'block';
-        assetNameInput.focus();
-        uploadZone.style.display = 'none';
+    // ── Ajout : la voie d'import COMMUNE (WamaImport) ─────────────────────────
+    // Ce qui vivait ici (zone de dépôt, un fichier à la fois, formulaire nom/description/tags,
+    // POST, insertion de la card) est le contrat de la brique. La page ne DÉCLARE que la nature
+    // (l'onglet ouvert) et ce qu'il faut rafraîchir ; le nom se corrige ensuite par « Modifier ».
+    // Glisser depuis l'arbre de fichiers arrive par la MÊME voie (désignation → `api_upload`, qui
+    // DÉPLACE le fichier dans la médiathèque).
+    function describeNewItemCard() {
+        const ext = ALLOWED_EXT[currentType] || [];
+        if (newItemInput) newItemInput.accept = ext.map(e => '.' + e).join(',');
+        const label = document.querySelector('#mlDropZone small');
+        if (label) label.textContent = (natures[currentType] || {}).label
+            ? `${natures[currentType].label} — ${TYPE_HINTS[currentType] || ''}` : '';
     }
+    describeNewItemCard();
 
-    cancelUploadBtn.addEventListener('click', resetUploadPanel);
-
-    function resetUploadPanel() {
-        pendingFile = null;
-        uploadFormPanel.style.display = 'none';
-        uploadZone.style.display = '';
-        uploadProgress.style.display = 'none';
-        assetNameInput.value = '';
-        assetDescInput.value = '';
-        assetTagsInput.value = '';
-        uploadFileName.textContent = '';
-        fileInput.value = '';
+    if (typeof window.WamaImport === 'function') {
+        WamaImport({
+            uploadUrl:     ML_URLS.upload,
+            csrfToken:     CSRF_TOKEN,
+            dropZoneId:    'mlDropZone',
+            fileInputId:   'mlFileInput',
+            folderInputId: 'mlFolderInput',
+            extraFields:   fd => fd.append('asset_type', currentType),
+            beforeFile:    file => {
+                if (file.designation) return true;          // le serveur juge (format, provenance)
+                const ext = (file.name || '').split('.').pop().toLowerCase();
+                if ((ALLOWED_EXT[currentType] || []).includes(ext)) return true;
+                toast(`Format .${ext} non admis ici. Attendu : ${TYPE_HINTS[currentType]}`, 'error');
+                return false;
+            },
+            afterImport:   () => { resetGrid(); loadAssets(true); loadCounts(); },
+        });
+    } else {
+        console.error('[media_library] wama-import.js absent : la card d’entrée est inerte');
     }
-
-    confirmUploadBtn.addEventListener('click', async () => {
-        if (!pendingFile) return;
-        const name = assetNameInput.value.trim();
-        if (!name) { assetNameInput.focus(); return; }
-
-        const fd = new FormData();
-        fd.append('file', pendingFile);
-        fd.append('name', name);
-        fd.append('asset_type', currentType);
-        fd.append('description', assetDescInput.value.trim());
-        fd.append('tags', assetTagsInput.value.trim());
-
-        confirmUploadBtn.disabled = true;
-        uploadProgress.style.display = 'block';
-
-        try {
-            const resp = await fetch(ML_URLS.upload, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': CSRF_TOKEN },
-                body: fd,
-            });
-            const data = await resp.json();
-            if (resp.ok && data.id) {
-                toast(`"${data.name}" enregistré`);
-                resetUploadPanel();
-                uploadZoneWrap.style.display = 'none';
-                // Insérer la carte en tête des assets utilisateur
-                const firstUserCard = assetGrid.querySelector('.asset-card:not(.system-asset)');
-                const newCard = buildCard(data, false);
-                if (firstUserCard) assetGrid.insertBefore(newCard, firstUserCard);
-                else assetGrid.appendChild(newCard);
-                assetGrid.querySelector('.empty-state')?.remove();
-                loadCounts();
-            } else {
-                toast(data.error || "Erreur lors de l'upload", 'error');
-            }
-        } catch (_) {
-            toast('Erreur réseau', 'error');
-        } finally {
-            confirmUploadBtn.disabled = false;
-            uploadProgress.style.display = 'none';
-        }
-    });
 
     // ── Provider search ───────────────────────────────────────────────────────
 
