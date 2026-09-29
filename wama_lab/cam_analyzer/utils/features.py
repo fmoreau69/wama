@@ -99,6 +99,13 @@ FEATURES = [
             "et qui fondent le masquage satellite de la correction ortho : les voir aide à "
             "juger une trace. Affichage seul.",
             default=False, scope='live'),
+    Feature('sam3_label_arbitration', 'SAM3 : un marquage, un seul label',
+            "Les prompts SAM3 sont interrogés séparément : un même marquage pouvait sortir sous "
+            "deux labels (une rangée de triangles vue comme « triangles » ET « passage piéton »). "
+            "Deux masques de labels différents qui se recouvrent à plus de 50 % du plus petit sont "
+            "le même objet : seul le plus confiant est gardé. Compté en console. Agit à la passe "
+            "SAM3 (à relancer).",
+            default=True, scope='compute'),
     Feature('map_road_zones', 'Chaussée IGN sur la carte',
             "Dessine l'emprise de la CHAUSSÉE autour de la navette : axes BD TOPO élargis de leur "
             "largeur puis unis — bords de voie, carrefours et giratoires ouverts. Remplace les "

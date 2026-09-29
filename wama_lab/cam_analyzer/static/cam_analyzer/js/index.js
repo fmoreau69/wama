@@ -2172,6 +2172,14 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         return out;
     }
+    // Couleur d'un marquage SAM3 par label — overlay caméra ET vue de dessus : passage piéton
+    // cyan, rangée de triangles (ralentisseur) orange, ligne d'arrêt / autre jaune.
+    function sam3MarkingRgb(label) {
+        const l = String(label || '');
+        if (/shark/i.test(l)) return '255, 145, 0';
+        if (/cross/i.test(l)) return '0, 229, 255';
+        return '255, 213, 0';
+    }
     function withSam3Interp(frames, t, dets) {
         if (camFeat.sam3_interp === false) return dets;
         const interp = sam3Interpolated(frames, t);
@@ -2282,7 +2290,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const _isSam3 = det.type === 'sam3_marking';
             if (_hasPoly && (_isRoad || _isSam3 || !Array.isArray(det.bbox))) {
                 let rgb = '255, 64, 192';   // road_mask = magenta
-                if (_isSam3) rgb = /cross/i.test(det.label || det.class_name || '') ? '0, 229, 255' : '255, 213, 0';
+                if (_isSam3) rgb = sam3MarkingRgb(det.label || det.class_name);
                 // _alpha : fondu d'interpolation SAM3 (entrée/sortie de champ)
                 const _fa = (typeof det._alpha === 'number') ? det._alpha : 1;
                 ctx.beginPath();
@@ -2336,7 +2344,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const isSam3 = det.type === 'sam3_marking';
             const inShuttleLane = det.in_shuttle_lane === true;
             const color = isSam3
-                ? (det.class_name && /cross/i.test(det.class_name) ? '#00ffff' : '#ffd700')
+                ? `rgb(${sam3MarkingRgb(det.label || det.class_name)})`
                 : (classColors[det.class_name] || defaultColor);
 
             // Draw bbox — thicker + filled-glow for objects in the shuttle lane
@@ -3271,15 +3279,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _mk = sessionMarkings[String(_wi)];
                 if (Array.isArray(_mk) && w.lat != null) {
                     const _mLon = 111320 * Math.cos(w.lat * Math.PI / 180);
-                    _mk.filter(mk => (mk.label === 'stop_line' || mk.label === 'crossing')
+                    _mk.filter(mk => (mk.label === 'stop_line' || mk.label === 'crossing' || mk.label === 'shark_teeth')
                             && _okLL(mk.a) && _okLL(mk.b)
                             && Math.hypot(((mk.a[0] + mk.b[0]) / 2 - w.lat) * 111320,
                                           ((mk.a[1] + mk.b[1]) / 2 - w.lon) * _mLon) <= 18)
                         .forEach(mk => {
-                            const col = mk.label === 'stop_line' ? '#ffffff' : '#00e5ff';
+                            const col = mk.label === 'stop_line' ? '#ffffff'
+                                      : `rgb(${sam3MarkingRgb(mk.label)})`;
                             L.polyline([mk.a, mk.b], {
                                 color: col, weight: 3, opacity: mk.calibrated ? 0.9 : 0.55,
-                                dashArray: mk.label === 'crossing' ? '3,3' : null,
+                                dashArray: mk.label === 'crossing' ? '3,3' : (mk.label === 'shark_teeth' ? '1,4' : null),
                             }).addTo(miniMapLaneLayer);
                         });
                 }
