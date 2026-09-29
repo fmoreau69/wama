@@ -25,9 +25,9 @@ from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 
-from .models import AIModel
-from .services.model_registry import ModelRegistry
-from .services.model_sync import ModelSyncService
+from ..models import AIModel
+from ..services.model_registry import ModelRegistry
+from ..services.model_sync import ModelSyncService
 
 
 def _decouverte(erreurs=(), modeles=None):
@@ -108,7 +108,7 @@ class SupersededSnapshotTest(TestCase):
     HF_ID = 'org/relayed-model'
 
     def setUp(self):
-        from .services.model_registry import ModelInfo, ModelSource, ModelType
+        from ..services.model_registry import ModelInfo, ModelSource, ModelType
         self.snapshot = AIModel.objects.create(
             model_key=f'huggingface:{self.HF_ID}', name='relayed-model', model_type='diffusion',
             source='huggingface', hf_id=self.HF_ID, is_downloaded=True,
@@ -220,8 +220,8 @@ class SnapshotsInstallesTest(TestCase):
         """L'entrée d'app (backend, VRAM, capacités) fait autorité — le balayage se tait."""
         import tempfile
 
-        from .models import ModelSource, ModelType
-        from .services.model_registry import ModelInfo
+        from ..models import ModelSource, ModelType
+        from ..services.model_registry import ModelInfo
         declare = ModelInfo(id='musicgen-small', name='MusicGen', model_type=ModelType.MUSIC,
                             source=ModelSource.WAMA_COMPOSER, hf_id='facebook/musicgen-small')
         with tempfile.TemporaryDirectory() as tmp:
@@ -269,7 +269,7 @@ class SnapshotsInstallesTest(TestCase):
         """Two judgements of « downloaded » existed; the app one only wanted a `snapshots/`."""
         import tempfile
 
-        from .services.model_registry import _check_hf_model_downloaded
+        from ..services.model_registry import _check_hf_model_downloaded
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             repo = self._config_only_snapshot(root, 'speech', 'qwen_asr', 'Org', 'Asr')
@@ -284,7 +284,7 @@ class SnapshotsInstallesTest(TestCase):
         « no_install_location » — the transcriber discovery never declared `install_dir`, so neither
         the Install button nor the tool could fetch its weights. Whisper stays without: its row
         names `openai/whisper-large-v3` while the engine loads `Systran/faster-whisper-*`."""
-        from .services.model_installer import spec_for_catalog_row
+        from ..services.model_installer import spec_for_catalog_row
         registry = ModelRegistry()
         registry._models = {}
         registry._discover_transcriber_models()
@@ -303,7 +303,7 @@ class SnapshotsInstallesTest(TestCase):
         """canary-1b-v2 / parakeet-tdt ship a single `.nemo` — it IS the model."""
         import tempfile
 
-        from .services.prospector import installed_weights_complete
+        from ..services.prospector import installed_weights_complete
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._config_only_snapshot(Path(tmp), 'speech', 'canary', 'nvidia', 'canary')
             (repo / 'snapshots' / 'rev0' / 'canary.nemo').write_bytes(b'0' * 64)
@@ -464,7 +464,7 @@ class DesinstallationTest(TestCase):
 
         from django.test import override_settings
 
-        from .services.model_installer import uninstall_model
+        from ..services.model_installer import uninstall_model
         with tempfile.TemporaryDirectory() as tmp:
             racine = Path(tmp)
             modele, depot = self._modele_avec_snapshot(racine)
@@ -480,7 +480,7 @@ class DesinstallationTest(TestCase):
         self.assertIn('uninstalled_at', modele.extra_info)
 
     def test_un_modele_charge_ne_se_desinstalle_pas(self):
-        from .services.model_installer import uninstall_model
+        from ..services.model_installer import uninstall_model
         AIModel.objects.create(model_key='huggingface:Org/Charge', name='Chargé',
                                model_type='music', source='huggingface',
                                is_downloaded=True, is_loaded=True)
@@ -494,7 +494,7 @@ class DesinstallationTest(TestCase):
 
         from django.test import override_settings
 
-        from .services.model_installer import uninstall_model
+        from ..services.model_installer import uninstall_model
         with tempfile.TemporaryDirectory() as tmp:
             racine = Path(tmp)
             (racine / 'models').mkdir()
@@ -509,7 +509,7 @@ class DesinstallationTest(TestCase):
             self.assertTrue(ailleurs.exists(), "rien ne doit être supprimé hors racine")
 
     def test_un_candidat_de_prospection_se_rejette_il_ne_se_desinstalle_pas(self):
-        from .services.model_installer import uninstall_model
+        from ..services.model_installer import uninstall_model
         AIModel.objects.create(model_key='proposed:hf:X/Y', name='Y', model_type='music',
                                source='huggingface', is_proposed=True, is_downloaded=False)
         res = uninstall_model('proposed:hf:X/Y')
@@ -520,7 +520,7 @@ class DesinstallationTest(TestCase):
     def _uninstall(self, root, key, **kwargs):
         from django.test import override_settings
 
-        from .services.model_installer import uninstall_model
+        from ..services.model_installer import uninstall_model
         with override_settings(AI_MODELS_DIR=root):
             return uninstall_model(key, **kwargs)
 
@@ -694,7 +694,7 @@ class CompositionTest(TestCase):
     def test_l_installation_derive_ses_allow_patterns_de_la_composition(self):
         """La moitié « installation » du contrat : jeu COHÉRENT dérivé de l'anatomie —
         jamais le dépôt entier d'un repack multi-quantisations."""
-        from .services.model_installer import patterns_from_composition
+        from ..services.model_installer import patterns_from_composition
         patterns = patterns_from_composition(self.COMPO)
         self.assertIn('*-language_model-Q8_0.gguf', patterns)
         self.assertIn('*-vocoder-F32.gguf', patterns)
@@ -788,7 +788,7 @@ class InstallDepuisLeCatalogueTest(TestCase):
 
         from django.test import override_settings
 
-        from .services.model_installer import spec_for_catalog_row
+        from ..services.model_installer import spec_for_catalog_row
         with tempfile.TemporaryDirectory() as tmp:
             racine = Path(tmp)
             (racine / 'models' / 'music' / 'musicgen').mkdir(parents=True)
@@ -806,7 +806,7 @@ class InstallDepuisLeCatalogueTest(TestCase):
                          "sa découverte (_check_hf_model_downloaded) ne les verra jamais")
 
     def test_sans_declaration_d_emplacement_pas_de_spec_invente(self):
-        from .services.model_installer import spec_for_catalog_row
+        from ..services.model_installer import spec_for_catalog_row
         sans_dir = AIModel.objects.create(
             model_key='composer:x', name='X', model_type='music', source='composer',
             hf_id='org/x')
@@ -821,7 +821,7 @@ class InstallDepuisLeCatalogueTest(TestCase):
 
         from django.test import override_settings
 
-        from .services.model_installer import spec_for_catalog_row
+        from ..services.model_installer import spec_for_catalog_row
         with tempfile.TemporaryDirectory() as tmp:
             racine = Path(tmp)
             (racine / 'models').mkdir()
@@ -837,7 +837,7 @@ class InstallDepuisLeCatalogueTest(TestCase):
 
         from django.test import override_settings
 
-        from .services.model_installer import spec_for_catalog_row
+        from ..services.model_installer import spec_for_catalog_row
         compo = {'components': [{'role': 'lm', 'pattern': 'lm_q8.gguf'}]}
         with tempfile.TemporaryDirectory() as tmp:
             racine = Path(tmp)
@@ -869,14 +869,14 @@ class ChoixDeVarianteTest(TestCase):
         )
 
     def test_le_choix_des_poids_pleins_rend_le_spec_canonique_inchange(self):
-        from .services.prospector import spec_for_choice
+        from ..services.prospector import spec_for_choice
         spec = spec_for_choice(self._candidat(), 'Org/Grand', None)
         self.assertEqual(spec, {'kind': 'hf', 'ref': 'Org/Grand', 'category': 'music'})
 
     def test_le_choix_d_un_fichier_gguf_restreint_le_telechargement_a_ce_fichier(self):
         """Un dépôt GGUF porte PLUSIEURS niveaux de quantisation : installer le dépôt entier
         tirerait tous les fichiers — le spec doit descendre au fichier choisi."""
-        from .services.prospector import spec_for_choice
+        from ..services.prospector import spec_for_choice
         spec = spec_for_choice(self._candidat(), 'Repack/Grand-GGUF', 'grand-q4.gguf')
         self.assertEqual(spec['ref'], 'Repack/Grand-GGUF')
         self.assertIn('grand-q4.gguf', spec['allow_patterns'])
@@ -886,7 +886,7 @@ class ChoixDeVarianteTest(TestCase):
 
     def test_un_choix_hors_options_est_refuse(self):
         """On n'installe JAMAIS un dépôt qui n'a pas été proposé à l'utilisateur."""
-        from .services.prospector import spec_for_choice
+        from ..services.prospector import spec_for_choice
         cand = self._candidat()
         self.assertIsNone(spec_for_choice(cand, 'Pirate/Autre-GGUF', None))
         self.assertIsNone(spec_for_choice(cand, 'Repack/Grand-GGUF', 'inexistant.gguf'))
@@ -901,7 +901,7 @@ class TaxonomieDeProspectionTest(TestCase):
     """
 
     def test_les_tags_de_la_carte_departagent_les_tags_hf_ambigus(self):
-        from .services.prospector import hf_task_to_wama
+        from ..services.prospector import hf_task_to_wama
         # Édition : le cas mesuré (FLUX.2-dev taggé `image-editing`, Qwen-Image-Edit sans tag fin)
         self.assertEqual(hf_task_to_wama('image-to-image', ['diffusers', 'image-editing']),
                          ('image-to-image', 'diffusion'))
@@ -923,7 +923,7 @@ class TaxonomieDeProspectionTest(TestCase):
         `pipeline_tag: image-text-to-text` — c'est un VLM par son architecture — et tague
         `object-detection` : il LOCALISE des objets décrits en texte. Sans cette branche il
         entrait en `captioning`/`vlm`, donc mauvais métier, mauvais banc, mauvaise sélection."""
-        from .services.prospector import hf_task_to_wama
+        from ..services.prospector import hf_task_to_wama
         self.assertEqual(hf_task_to_wama('image-text-to-text', ['object-detection']),
                          ('detect', 'vision'))
         self.assertEqual(hf_task_to_wama('image-text-to-text', ['zero-shot-object-detection']),
@@ -935,8 +935,8 @@ class TaxonomieDeProspectionTest(TestCase):
     def test_la_tache_ecrite_est_une_tache_du_catalogue(self):
         """Toute tâche rendue doit être une valeur `ModelTask` : sinon `check_model_taxonomy`
         la refuserait et `_local_categories` ne la trouverait dans aucun banc."""
-        from .models import ModelTask
-        from .services.prospector import HF_TASKS, hf_task_to_wama
+        from ..models import ModelTask
+        from ..services.prospector import HF_TASKS, hf_task_to_wama
         connues = {t.value for t in ModelTask}
         for tache in HF_TASKS:
             for tags in ([], ['image-editing'], ['super-resolution'], ['image-captioning']):
@@ -959,13 +959,13 @@ class UneSeuleTableTacheCategorieTest(TestCase):
     def test_les_tags_composites_de_plateforme_gardent_leur_reponse(self):
         """Les 3 tags que seule la table de la prospection connaissait sont désormais des
         ALIAS déclarés au catalogue — mêmes réponses, un seul domicile."""
-        from .services.prospector import hf_task_to_wama
+        from ..services.prospector import hf_task_to_wama
         self.assertEqual(hf_task_to_wama('image-text-to-text', []), ('captioning', 'vlm'))
         self.assertEqual(hf_task_to_wama('image-text-to-video', []), ('image-to-video', 'diffusion'))
         self.assertEqual(hf_task_to_wama('text-to-audio-video', []), ('text-to-video', 'diffusion'))
 
     def test_un_alias_se_traduit_aussi_hors_prospection(self):
-        from .models import canonical_task, model_type_for_task, wama_task
+        from ..models import canonical_task, model_type_for_task, wama_task
         self.assertEqual(canonical_task('image-text-to-text'), 'captioning')
         self.assertEqual(model_type_for_task('image-text-to-text'), 'vlm')
         self.assertEqual(wama_task('image-text-to-text'), 'captioning')
@@ -973,13 +973,13 @@ class UneSeuleTableTacheCategorieTest(TestCase):
     def test_un_tag_inconnu_ne_devient_pas_une_tache(self):
         """`canonical_task` rend l'entrée INCHANGÉE quand elle est inconnue ; qui ÉCRIT une
         tâche a besoin de `wama_task`, sinon un tag d'éditeur non traduit entrerait en base."""
-        from .models import canonical_task, wama_task
+        from ..models import canonical_task, wama_task
         self.assertEqual(canonical_task('tabular-classification'), 'tabular-classification')
         self.assertIsNone(wama_task('tabular-classification'))
         self.assertIsNone(wama_task(''))
 
     def test_la_categorie_repond_pour_les_taches_que_la_prospection_ignorait(self):
-        from .models import ModelTask, model_type_for_task
+        from ..models import ModelTask, model_type_for_task
         muettes = [t.value for t in ModelTask if not model_type_for_task(t.value)]
         self.assertEqual(muettes, [], "toute tâche doit rendre sa catégorie")
         # Les cas qui ne passaient PAS par la table de la prospection (aucune entrée pour eux) :
@@ -989,7 +989,7 @@ class UneSeuleTableTacheCategorieTest(TestCase):
 
     def test_la_prospection_ne_garde_aucune_table_parallele(self):
         """Garde anti-régression : c'est la COEXISTENCE qui était le défaut, pas son contenu."""
-        from .services import prospector
+        from ..services import prospector
         for mort in ('_TASK_MODEL_TYPE', '_HF_TAG_TASK'):
             self.assertFalse(hasattr(prospector, mort),
                              f"{mort} est revenu : tâche → catégorie se dit dans models.py")
@@ -1011,7 +1011,7 @@ class EntreesParDefautDeLaTacheTest(TestCase):
     def test_toute_tache_declare_ses_defauts_dans_le_vocabulaire(self):
         from wama.common.utils.app_modes import INPUT_TYPES
         from wama.common.utils.model_capabilities import MODALITIES
-        from .models import TASK_DEFAULT_INPUTS, ModelTask
+        from ..models import TASK_DEFAULT_INPUTS, ModelTask
         for t in ModelTask:
             with self.subTest(tache=t.value):
                 self.assertIn(t, TASK_DEFAULT_INPUTS)
@@ -1022,7 +1022,7 @@ class EntreesParDefautDeLaTacheTest(TestCase):
 
     def test_les_defauts_redisent_ce_que_le_registre_ecrit_en_dur(self):
         """La table n'invente rien : elle reprend les valeurs des 13 sites de `model_registry`."""
-        from .models import default_inputs_for
+        from ..models import default_inputs_for
         self.assertEqual({'modalities': ['audio'], 'inputs_required': ['work_audio']},
                          default_inputs_for('transcription'))
         self.assertEqual({'modalities': ['image', 'video'], 'inputs_required': ['work_file']},
@@ -1040,7 +1040,7 @@ class EntreesParDefautDeLaTacheTest(TestCase):
     def test_l_installation_pose_les_defauts_sans_ecraser_une_declaration(self):
         """Le spec porte la tâche ; l'installation en déduit modalités et entrées, par le
         manifeste, et ne touche pas à ce qu'une ligne déclare déjà (SAM3 : `prompt` en plus)."""
-        from .services import provenance as pv
+        from ..services import provenance as pv
         nu = AIModel.objects.create(
             model_key='huggingface:Org/Asr', name='Asr', model_type='speech', source='huggingface',
             is_downloaded=True, hf_id='Org/Asr', capabilities={})
@@ -1065,7 +1065,7 @@ class EntreesParDefautDeLaTacheTest(TestCase):
         self.assertEqual(['image', 'video'], declare.capabilities['modalities'], "le vide est comblé")
 
     def test_un_modele_distant_qui_voit_ajoute_l_image_a_ses_modalites(self):
-        from .services.cloud_models import model_info_for
+        from ..services.cloud_models import model_info_for
         chat = model_info_for('albert', {'id': 'g', 'type': 'image-text-to-text', 'aliases': []})
         self.assertEqual(['text', 'image'], chat.capabilities['modalities'])
         self.assertEqual(['prompt'], chat.capabilities['inputs_required'])
@@ -1082,12 +1082,12 @@ class FaitsDeLaCarteTest(TestCase):
     """
 
     def test_les_tags_de_musique_separent_musique_et_ambiance(self):
-        from .services.prospector import hf_task_to_wama
+        from ..services.prospector import hf_task_to_wama
         self.assertEqual(('text-to-music', 'music'), hf_task_to_wama('text-to-audio', ['music', 'text2music']))
         self.assertEqual(('text-to-audio', 'music'), hf_task_to_wama('text-to-audio', ['audio']))
 
     def test_la_carte_donne_les_langues_et_le_moteur_sans_rien_inventer(self):
-        from .services.prospector import card_facts
+        from ..services.prospector import card_facts
         facts = card_facts('automatic-speech-recognition', ['audio', 'bg', 'cs'],
                            {'language': ['bg', 'cs', 'da'], 'license': 'cc-by-4.0'}, 'espnet')
         self.assertEqual({'task': 'transcription', 'languages': ['bg', 'cs', 'da']},
@@ -1119,7 +1119,7 @@ class FaitsDeLaCarteTest(TestCase):
         return _Info()
 
     def test_l_identite_huggingface_rapporte_aussi_ce_que_la_carte_declare(self):
-        from .services import provenance as pv
+        from ..services import provenance as pv
         info = self._card(pipeline_tag='text-to-audio', tags=['music'], library_name='transformers',
                           card={'license': 'mit', 'language': 'en'})
         with patch('huggingface_hub.HfApi') as api:
@@ -1130,7 +1130,7 @@ class FaitsDeLaCarteTest(TestCase):
                           'engine': 'transformers'}, ident['declared'])
 
     def test_l_installation_pose_les_faits_de_la_carte_sans_ecraser_ni_le_spec_ni_l_existant(self):
-        from .services import provenance as pv
+        from ..services import provenance as pv
         blank = AIModel.objects.create(
             model_key='huggingface:Org/Asr', name='Asr', model_type='speech', source='huggingface',
             is_downloaded=True, hf_id='Org/Asr', capabilities={})
@@ -1166,7 +1166,7 @@ class FaitsDeLaCarteTest(TestCase):
         """2026-09-29 : le scout déclare l'anatomie sur le candidat, l'installation s'en servait
         pour tirer les bons fichiers… puis la perdait — ni `AIModel.composition`, ni le corpus.
         Le moteur JUGÉ prime sur celui que la carte laisse deviner ; l'existant, sur les deux."""
-        from .services import provenance as pv
+        from ..services import provenance as pv
         judged = {'components': [{'role': 'dit', 'pattern': 'dit/model.onnx', 'format': 'onnx'}],
                   'runtime': {'engine': 'onnxruntime'}}
         blank = AIModel.objects.create(
@@ -1198,7 +1198,7 @@ class RestesTechniquesDuSoirTest(TestCase):
 
     def test_un_suffixe_date_ne_fait_pas_un_nouveau_modele(self):
         """`Qwen-Image-Edit-2509` proposé alors que l'imager déclare `-2511` : même famille."""
-        from .services.prospector import _sans_suffixe_date
+        from ..services.prospector import _sans_suffixe_date
         self.assertEqual(_sans_suffixe_date('Qwen/Qwen-Image-Edit-2511'), 'qwen/qwen-image-edit')
         self.assertEqual(_sans_suffixe_date('Qwen/Qwen-Image-Edit-2509'),
                          _sans_suffixe_date('Qwen/Qwen-Image-Edit-2511'))
@@ -1208,7 +1208,7 @@ class RestesTechniquesDuSoirTest(TestCase):
 
     def test_seul_le_jumeau_bin_d_un_safetensors_est_ecarte(self):
         """table-transformer et Qwen3-TTS tirés en double ; les voix `.pt` de Kokoro restent."""
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         fichiers = ['config.json', 'model.safetensors', 'pytorch_model.bin',      # jumeaux
                     'voices/af_bella.pt',                                          # pas de jumeau → gardé
                     'transformer/diffusion_pytorch_model.safetensors',
@@ -1230,7 +1230,7 @@ class RestesTechniquesDuSoirTest(TestCase):
         `(chemin, taille)` de `prospector._siblings`, donc un second lecteur (le poids PAR
         COMPOSANT) l'applique sans payer un aller-retour HTTP de plus. Aucun réseau ici — le
         test ne monte AUCUN mock de `HfApi`, c'est ce qui l'atteste."""
-        from .services.model_installer import duplicate_weight_files
+        from ..services.model_installer import duplicate_weight_files
         couples = [('config.json', 12), ('model.safetensors', 4_200_000_000),
                    ('pytorch_model.bin', 4_200_000_000), ('voices/af_bella.pt', 523_000)]
         self.assertEqual(duplicate_weight_files(couples), ['pytorch_model.bin'])
@@ -1241,7 +1241,7 @@ class RestesTechniquesDuSoirTest(TestCase):
     def test_components_split_the_weight_by_role_without_the_network(self):
         """Les DEUX chiffres de la decision A : la somme (plein GPU) et le plus gros composant
         (dechargement). Aucun mock de `HfApi` — la derivation est pure."""
-        from .services.model_installer import components_of_files
+        from ..services.model_installer import components_of_files
         go = 1024 ** 3
         r = components_of_files([
             ('model_index.json', 900),
@@ -1263,7 +1263,7 @@ class RestesTechniquesDuSoirTest(TestCase):
         cote). Ce qu'on pese doit etre ce que le chargeur TIRE — donc l'anatomie DECLAREE
         (`AIModel.composition`), la meme que `patterns_from_composition` transforme en
         `allow_patterns`. Une declaration, deux lectures."""
-        from .services.model_installer import components_of_files, patterns_from_composition
+        from ..services.model_installer import components_of_files, patterns_from_composition
         go = 1024 ** 3
         files = [('model.safetensors', 3 * go),
                  ('speech_tokenizer/model.safetensors', 1 * go),
@@ -1294,7 +1294,7 @@ class RestesTechniquesDuSoirTest(TestCase):
     def test_a_quantized_variant_is_not_summed_with_the_full_one(self):
         """Sommer une variante fp8 avec sa version pleine compterait deux fois les memes
         tenseurs — mais un depot ENTIEREMENT quantise pese bien ce qu'il pese."""
-        from .services.model_installer import components_of_files
+        from ..services.model_installer import components_of_files
         go = 1024 ** 3
         mixed = components_of_files([('transformer/model.safetensors', 10 * go),
                                      ('transformer/model.fp8.safetensors', 5 * go)])
@@ -1306,7 +1306,7 @@ class RestesTechniquesDuSoirTest(TestCase):
 
     def test_components_say_nothing_rather_than_zero(self):
         """Un inventaire sans tailles rend `{}` : `0.0` se lirait « ca ne pese rien »."""
-        from .services.model_installer import components_of_files
+        from ..services.model_installer import components_of_files
         self.assertEqual(components_of_files(['transformer/model.safetensors']), {})
         self.assertEqual(components_of_files([('transformer/model.safetensors', 0)]), {})
         self.assertEqual(components_of_files(None), {})
@@ -1324,7 +1324,7 @@ class RestesTechniquesDuSoirTest(TestCase):
         dispatch. Ollama/YOLO ne livrent pas de composition — un seul composant, dit
         explicitement, jamais `{}` (l'appelant doit pouvoir distinguer « indivisible » de
         « inconnu »)."""
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         with patch.object(mi, 'weight_for_spec', return_value=4.7):
             r = mi.components_for_spec({'kind': 'ollama', 'ref': 'qwen3:8b'})
         self.assertEqual(r, {'components': {'model': 4.7}, 'total_gb': 4.7, 'largest_gb': 4.7,
@@ -1350,7 +1350,7 @@ class RestesTechniquesDuSoirTest(TestCase):
         déclarations du catalogue s'en servent (pyannote-diarization, codeformer, les 3
         DeepFace) et rendaient « aucun poids » — leur dépôt principal ne porte que des
         fichiers de configuration. Une composition VALIDE et un relevé VIDE."""
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         compo = {'components': [{'role': 'segmentation', 'repo': 'org/segmentation-3.0'},
                                 {'role': 'embedding', 'repo': 'org/wespeaker-resnet34'}],
                  'runtime': {'engine': 'pyannote'}}
@@ -1367,7 +1367,7 @@ class RestesTechniquesDuSoirTest(TestCase):
         """Un dépôt gated (pyannote l'est), injoignable, ou pas HF du tout (TripoSR déclare une
         URL GitHub) laisse un rôle SANS poids. `unresolved` le NOMME, et aucun `total_gb` n'est
         rendu : une somme incomplète prise pour une empreinte est pire qu'un trou déclaré."""
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         compo = {'components': [{'role': 'code',
                                  'repo': 'https://github.com/VAST-AI-Research/TripoSR'}]}
         r = mi.components_for_spec({'kind': 'hf', 'ref': 'stabilityai/TripoSR',
@@ -1387,7 +1387,7 @@ class RestesTechniquesDuSoirTest(TestCase):
         cette distinction. Vécu le 19/09 sur ma propre contre-épreuve : une salve d'appels HF a
         échoué en silence et 8 déclarations VÉRIFIÉES ont été rapportées « motif sans fichier ».
         *Un relevé qui dépend du réseau doit dire quand le réseau a manqué.*"""
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         with patch('wama.model_manager.services.prospector._siblings', return_value=None):
             panne = mi.components_for_spec({'kind': 'hf', 'ref': 'org/x'})
         self.assertEqual(panne, {'unreachable': 'org/x'})
@@ -1410,8 +1410,8 @@ class RestesTechniquesDuSoirTest(TestCase):
         """`.onnx` manquait aux extensions de poids : la composition de Kokoro-ONNX déclarait
         son rôle principal sur `onnx/model.onnx` et ce rôle pesait ZÉRO. Une extension absente
         d'une liste ne produit pas d'erreur, elle produit un zéro."""
-        from .services.prospector import _WEIGHT_EXTS
-        from .services.model_installer import components_of_files
+        from ..services.prospector import _WEIGHT_EXTS
+        from ..services.model_installer import components_of_files
         self.assertIn('.onnx', _WEIGHT_EXTS)
         compo = {'components': [{'role': 'acoustic_model', 'pattern': 'onnx/model.onnx'},
                                 {'role': 'voices', 'pattern': 'voices/*.bin'}]}
@@ -1423,7 +1423,7 @@ class RestesTechniquesDuSoirTest(TestCase):
     def test_le_pull_hf_transmet_les_doublons_en_ignore_patterns_sauf_si_le_spec_restreint(self):
         """`pull_hf_model` passe les jumeaux à `snapshot_download(ignore_patterns=…)` ; un spec
         qui restreint déjà (`allow_patterns`, ex. `.nemo` seul) ne déclenche pas le listing."""
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         vus = {}
 
         def faux_snapshot(repo_id, cache_dir, allow_patterns=None, ignore_patterns=None,
@@ -1444,8 +1444,8 @@ class RestesTechniquesDuSoirTest(TestCase):
 
     def test_un_candidat_ollama_porte_sa_tache(self):
         """26 propositions Ollama sans `task` : chaque RÔLE déclare désormais la sienne."""
-        from .models import ModelTask
-        from .services.prospect_ollama import ROLES
+        from ..models import ModelTask
+        from ..services.prospect_ollama import ROLES
         connues = {t.value for t in ModelTask}
         for nom, role in ROLES.items():
             with self.subTest(role=nom):
@@ -1469,7 +1469,7 @@ class LicenceHeriteeTest(TestCase):
         return None
 
     def test_un_derive_permissif_herite_du_verdict_territorial_de_sa_base(self):
-        from .services import prospector as p
+        from ..services import prospector as p
         with patch.object(p, '_analyze_license_text', side_effect=self._texte):
             v = p.analyze_license('lightx2v/Minimax-h3-Turbo', 'apache-2.0', ['MiniMaxAI/MiniMax-H3'])
         self.assertEqual(v['verdict'], 'exclusion_ue')
@@ -1482,7 +1482,7 @@ class LicenceHeriteeTest(TestCase):
         self.assertEqual(v2['verdict'], 'exclusion_ue')
 
     def test_sans_base_declaree_ou_avec_une_base_saine_rien_ne_change(self):
-        from .services import prospector as p
+        from ..services import prospector as p
         with patch.object(p, '_analyze_license_text', side_effect=self._texte):
             self.assertIsNone(p.analyze_license('Qwen/Qwen3-TTS', 'apache-2.0', None))
             self.assertIsNone(p.analyze_license('Distil/Whisper', 'mit', ['openai/whisper-large-v3']))
@@ -1517,7 +1517,7 @@ class TacheHeriteeALInstallationTest(TestCase):
     def test_la_tache_du_spec_entre_par_le_manifeste_avant_l_export(self):
         """La chaîne RÉELLE (extract → validate → write_back) tourne ; seuls le réseau (identité
         HF) et l'écriture du corpus sont remplacés — et l'export voit la tâche déjà posée."""
-        from .services import provenance as pv
+        from ..services import provenance as pv
         vierge = self._vierge()
         vues_a_l_export = []
 
@@ -1537,7 +1537,7 @@ class TacheHeriteeALInstallationTest(TestCase):
 
     def test_un_spec_sans_tache_ne_touche_a_rien(self):
         """Ancien candidat, ou installation par l'assistant sans tâche : rien n'est inventé."""
-        from .services import provenance as pv
+        from ..services import provenance as pv
         vierge = self._vierge()
         with patch.object(pv, 'identity_for_spec', return_value=dict(self.IDENTITE)), \
                 patch('django.core.management.call_command'):
@@ -1548,7 +1548,7 @@ class TacheHeriteeALInstallationTest(TestCase):
         self.assertNotIn('task', vierge.capabilities)
 
     def test_une_tache_etablie_n_est_jamais_ecrasee_par_celle_du_spec(self):
-        from .services import provenance as pv
+        from ..services import provenance as pv
         etabli = AIModel.objects.create(
             model_key='huggingface:Org/Segmenteur', name='Segmenteur', model_type='vision',
             source='huggingface', is_downloaded=True, hf_id='Org/Segmenteur',
@@ -1616,13 +1616,13 @@ class ProvenanceSurTousLesCheminsTest(TestCase):
     """
 
     def _sync(self, *cles):
-        from .services.model_sync import SyncResult
+        from ..services.model_sync import SyncResult
         return SyncResult(success=True, added=len(cles), added_keys=list(cles))
 
     def test_un_candidat_ollama_installe_recoit_sa_provenance_et_sa_tache(self):
         """La TÂCHE du candidat voyage avec le descripteur (2026-09-19) : la découverte par
         rôle la connaît, la découverte générique d'un tag Ollama ne la devine pas."""
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         cand = AIModel.objects.create(
             model_key='proposed:ollama:nouveau:latest', name='nouveau:latest', model_type='llm',
             source='ollama', is_proposed=True, proposal_kind='new',
@@ -1640,7 +1640,7 @@ class ProvenanceSurTousLesCheminsTest(TestCase):
         self.assertFalse(AIModel.objects.filter(pk=cand.pk).exists(), "candidat retiré")
 
     def test_install_from_spec_passe_par_le_meme_corps(self):
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         with patch.object(mi, 'pull_hf_model', return_value={'ok': True, 'path': '/p'}), \
                 patch.object(mi, 'register_after_install',
                              return_value=self._sync('huggingface:Org/X')), \
@@ -1654,7 +1654,7 @@ class ProvenanceSurTousLesCheminsTest(TestCase):
                                       'task': 'detect'}, ['huggingface:Org/X'])
 
     def test_une_provenance_manquee_ne_fait_pas_echouer_l_installation(self):
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         with patch.object(mi, 'pull_hf_model', return_value={'ok': True}), \
                 patch.object(mi, 'register_after_install', side_effect=RuntimeError('base')):
             res = mi.install_from_spec({'kind': 'hf', 'ref': 'Org/Y', 'category': 'vision'})
@@ -1703,7 +1703,7 @@ class RouteUniqueDInstallationTest(TestCase):
         inst.assert_not_called()
 
     def test_un_candidat_s_installe_par_sa_cle_en_tache_de_fond(self):
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         cand = self._candidat_hf()
         with patch.object(mi, 'disk_space_guard', return_value=None) as garde, \
                 patch('wama.common.utils.task_progress.progression_en_cours',
@@ -1719,7 +1719,7 @@ class RouteUniqueDInstallationTest(TestCase):
         self.assertEqual(garde.call_args.kwargs['needed_gb'], 0.4)
 
     def test_la_garde_d_espace_refuse_avant_d_engager_le_telechargement(self):
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         cand = self._candidat_hf()
         refus = {'success': False, 'error': 'Espace insuffisant', 'force_possible': True,
                  'reason': 'espace_insuffisant', 'needed_gb': 50.0}
@@ -1731,7 +1731,7 @@ class RouteUniqueDInstallationTest(TestCase):
         delay.assert_not_called()
 
     def test_la_vue_rend_le_refus_d_espace_en_507_forcable(self):
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         cand = self._candidat_hf()
         refus = {'success': False, 'error': 'Espace insuffisant', 'force_possible': True}
         with patch.object(mi, 'disk_space_guard', return_value=refus):
@@ -1743,7 +1743,7 @@ class RouteUniqueDInstallationTest(TestCase):
     def test_un_nom_de_poids_yolo_devient_un_candidat_puis_suit_la_meme_route(self):
         """Le raccourci YOLO n'installe plus en direct : il PROPOSE, puis installe le candidat
         — donc avec garde d'espace, tâche de fond et provenance, comme tout le reste."""
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         self._admin('admin_yolo')
         with patch.object(mi, 'weight_for_spec', return_value=0.02), \
                 patch.object(mi, 'disk_space_guard', return_value=None), \
@@ -1782,7 +1782,7 @@ class RouteUniqueDInstallationTest(TestCase):
         un appelant qui n'en connaissait qu'un. *Trois réponses à une même question ne divergent
         pas bruyamment : elles se répartissent entre des appelants qui s'ignorent.*
         """
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         with patch('wama.model_manager.services.prospector._repo_weight_gb',
                    return_value=12.5) as hf:
             self.assertEqual(mi.weight_for_spec({'kind': 'hf', 'ref': 'Org/X'}), 12.5)
@@ -1803,8 +1803,8 @@ class RouteUniqueDInstallationTest(TestCase):
     def test_the_yolo_candidate_is_weighed_on_the_spec_it_carries(self):
         """Le spec écrit sur le candidat et celui qu'on pèse sont le MÊME objet : peser autre
         chose que ce qu'on va tirer est précisément ce que le descripteur évite."""
-        from .services import model_installer as mi
-        from .services.prospector import seed_yolo_candidate
+        from ..services import model_installer as mi
+        from ..services.prospector import seed_yolo_candidate
         with patch.object(mi, 'weight_for_spec', return_value=0.021) as peser:
             pose = seed_yolo_candidate('yolo26s-seg')
         self.assertTrue(pose['ok'])
@@ -1813,18 +1813,18 @@ class RouteUniqueDInstallationTest(TestCase):
         self.assertEqual(cand.disk_gb, 0.021)
 
     def test_une_cle_inconnue_ne_s_installe_pas(self):
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         res = mi.request_install('proposed:hf:Org/Fantome')
         self.assertEqual(res['reason'], 'not_found')
 
     def test_un_modele_deja_telecharge_ne_se_reinstalle_pas(self):
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         AIModel.objects.create(model_key='imager:deja', name='Déjà', model_type='diffusion',
                                source='imager', is_downloaded=True)
         self.assertEqual(mi.request_install('imager:deja')['reason'], 'already_downloaded')
 
     def test_un_re_clic_rejoint_l_installation_en_cours(self):
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         cand = self._candidat_hf()
         with patch.object(mi, 'disk_space_guard', return_value=None), \
                 patch('wama.common.utils.task_progress.progression_en_cours',
@@ -1892,7 +1892,7 @@ class RouteUniqueDInstallationTest(TestCase):
     def test_un_manifeste_de_scout_devient_un_candidat_installable(self):
         """Les capacités JUGÉES par le scout mouraient dans `outputs/` : elles vivent
         désormais sur le candidat, donc l'installation les retrouve."""
-        from .services.prospector import seed_candidate_from_manifest
+        from ..services.prospector import seed_candidate_from_manifest
         pose = seed_candidate_from_manifest(self._manifeste_scout())
         self.assertTrue(pose['ok'])
         cand = AIModel.objects.get(model_key='proposed:hf:Org/Juge')
@@ -1912,15 +1912,15 @@ class RouteUniqueDInstallationTest(TestCase):
     def test_un_manifeste_sans_type_ne_fait_pas_de_candidat(self):
         """Sans `model_type`, le candidat n'aurait ni catégorie d'installation ni
         référentiel de concurrence : on refuse au lieu d'écrire une ligne boiteuse."""
-        from .services.prospector import seed_candidate_from_manifest
+        from ..services.prospector import seed_candidate_from_manifest
         pose = seed_candidate_from_manifest(self._manifeste_scout(model_type=None))
         self.assertFalse(pose['ok'])
         self.assertFalse(AIModel.objects.filter(model_key='proposed:hf:Org/Juge').exists())
 
     def test_un_candidat_du_scout_s_installe_par_la_route_commune(self):
         """Bout en bout, sans LLM : manifeste jugé → candidat → `request_install`."""
-        from .services import model_installer as mi
-        from .services.prospector import seed_candidate_from_manifest
+        from ..services import model_installer as mi
+        from ..services.prospector import seed_candidate_from_manifest
         pose = seed_candidate_from_manifest(self._manifeste_scout())
         with patch.object(mi, 'disk_space_guard', return_value=None), \
                 patch('wama.common.utils.task_progress.progression_en_cours',
@@ -1949,7 +1949,7 @@ class _SourcesFactices:
         `par_categorie` = {catégorie de banc: [entrées]} — plusieurs catégories, parce qu'un
         modèle à plusieurs métiers doit être cherché dans plusieurs leaderboards.
         """
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
 
         def aa():
             return dict(par_categorie), {}
@@ -1989,7 +1989,7 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
         l'autre, et un modèle à ALIAS placé EN PREMIER faisait tomber la passe entière en
         `NameError`. Ce modèle est ici le seul du catalogue, donc nécessairement le premier.
         """
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         AIModel.objects.create(
             model_key='imager:fantome', name='Fantome', model_type='diffusion',
             source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'})
@@ -2002,7 +2002,7 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
         self.assertEqual(r['without_identity'], [])
 
     def test_une_identite_illisible_est_comptee_et_distinguee_du_sans_banc(self):
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         AIModel.objects.create(
             model_key='synthesizer:kokoro', name='Kokoro 82M', model_type='speech',
             source='synthesizer', is_downloaded=True,
@@ -2015,7 +2015,7 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
     def test_les_quatre_issues_couvrent_tout_le_catalogue_examine(self):
         """Somme des issues == lignes examinées. C'est CE contrôle qui manquait : sans lui,
         une cinquième issue ajoutée demain se perdrait de la même façon, en silence."""
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         commun = dict(source='imager', is_downloaded=True, model_type='diffusion')
         AIModel.objects.create(model_key='imager:widget-2', name='Widget 2',
                                capabilities={'task': 'text-to-image'}, **commun)   # apparié
@@ -2046,7 +2046,7 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
         *Une ligne exclue du QUERYSET ne disparaît pas d'un compteur : elle disparaît de la
         question.*
         """
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         distant = AIModel.objects.create(
             model_key='anthropic:widget-2', name='Widget 2', model_type='llm',
             source='anthropic', execution='cloud', is_downloaded=False, is_available=True,
@@ -2060,7 +2060,7 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
     def test_un_modele_cloud_RETIRE_reste_hors_de_la_passe(self):
         """Une ligne que la source ne liste plus est MARQUÉE (`is_available=False`) et garde son
         historique : la noter reviendrait à classer un modèle qu'on ne peut plus appeler."""
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         retire = AIModel.objects.create(
             model_key='anthropic:widget-1', name='Widget 1', model_type='llm',
             source='anthropic', execution='cloud', is_downloaded=False, is_available=False,
@@ -2073,7 +2073,7 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
 
     def test_le_dry_run_n_ecrit_jamais_l_indice(self):
         """Garde-fou du mode dry-run : le rapport se lit sans toucher au catalogue."""
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         m = AIModel.objects.create(
             model_key='imager:widget-2', name='Widget 2', model_type='diffusion',
             source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'})
@@ -2093,7 +2093,7 @@ class AppariementSansTailleTest(TestCase):
     """
 
     def _compat(self, a, b, nom_local, nom_tiers):
-        from .services.benchmark_sync import _compatible
+        from ..services.benchmark_sync import _compatible
         return _compatible(a, b, True, nom_local, nom_tiers)
 
     def test_un_nom_tiers_sans_mot_etranger_est_apparie(self):
@@ -2122,7 +2122,7 @@ class AppariementSansTailleTest(TestCase):
                                      'nemotron-3.5-lightning:latest', 'Nemotron 3.5 Lightning'))
 
     def test_les_modalites_media_gardent_la_taille_optionnelle(self):
-        from .services.benchmark_sync import _compatible
+        from ..services.benchmark_sync import _compatible
         self.assertTrue(_compatible(('hunyuanimage', (2, 1), None),
                                      ('hunyuanimage', (2, 1), None), False))
 
@@ -2153,7 +2153,7 @@ class RegistreDesSourcesTest(TestCase):
             source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'})
 
     def test_une_source_ajoutee_traverse_toute_la_chaine(self):
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         m = self._modele()
         panel = self._source_fictive(priorite=3)
         with patch.object(bs, 'SOURCES_BY_PRIORITY', (panel,)):
@@ -2173,7 +2173,7 @@ class RegistreDesSourcesTest(TestCase):
         """Les valeurs ne se melangent jamais : la source prioritaire porte l'index, les
         autres n'ajoutent que leur meta. Une source de repli ne doit pas ecraser une mesure
         d'une autre echelle."""
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         m = self._modele()
 
         def aa():
@@ -2206,7 +2206,7 @@ class RangCentileTest(TestCase):
         return [{'value': v} for v in valeurs]
 
     def test_le_rang_est_le_pourcentage_de_la_population_en_dessous(self):
-        from .services.benchmark_sync import percentile_rank
+        from ..services.benchmark_sync import percentile_rank
         pop = self._pop(10, 20, 30, 40)
         self.assertEqual(percentile_rank(30, pop, lambda e: e['value']), 50.0)
         self.assertEqual(percentile_rank(10, pop, lambda e: e['value']), 0.0)
@@ -2214,20 +2214,20 @@ class RangCentileTest(TestCase):
     def test_deux_echelles_incommensurables_donnent_des_rangs_comparables(self):
         """LE point : 42,9 (Intelligence Index) et 919 (Elo TTS) ne se comparent pas ;
         leurs rangs dans leurs bancs respectifs, si."""
-        from .services.benchmark_sync import percentile_rank
+        from ..services.benchmark_sync import percentile_rank
         llm = percentile_rank(42.9, self._pop(1, 5, 12, 20, 30, 42.9), lambda e: e['value'])
         tts = percentile_rank(919, self._pop(919, 1200, 1300), lambda e: e['value'])
         self.assertGreater(llm, tts)
 
     def test_une_population_vide_ou_une_valeur_absente_rend_None(self):
         """Null plutôt que plausible : pas de rang inventé sur une population inconnue."""
-        from .services.benchmark_sync import percentile_rank
+        from ..services.benchmark_sync import percentile_rank
         self.assertIsNone(percentile_rank(30, [], lambda e: e['value']))
         self.assertIsNone(percentile_rank(None, self._pop(1, 2), lambda e: e['value']))
 
     def test_le_rang_n_ecrase_jamais_la_valeur_mesuree(self):
         """Le centile s'AJOUTE : `benchmark_index` reste la mesure, avec son échelle."""
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
 
         def aa():
             return {'text-to-image': [
@@ -2255,7 +2255,7 @@ class FamilleSansConditionnementTest(TestCase):
     """`base`/`instruct`/`chat` nomment un TIRAGE, pas un modèle — hors de la famille."""
 
     def test_le_mot_base_du_hf_id_ne_change_plus_la_famille(self):
-        from .services.benchmark_sync import _identity
+        from ..services.benchmark_sync import _identity
         # Notre `hf_id` dit `...-xl-base-1.0`, AA dit « Stable Diffusion XL 1.0 » : un seul
         # mot d'écart faisait rater un appariement juste (882 sur aa_elo_text_to_image).
         self.assertEqual(_identity('stable-diffusion-xl-base-1.0'),
@@ -2264,7 +2264,7 @@ class FamilleSansConditionnementTest(TestCase):
     def test_les_familles_deja_correctes_ne_bougent_pas(self):
         """Contre-épreuve : la concaténation existait pour SÉPARER `qwenimage` de `gptimage`
         (faux appariement mesuré le 19/08). Elle doit continuer."""
-        from .services.benchmark_sync import _identity
+        from ..services.benchmark_sync import _identity
         self.assertEqual(_identity('hunyuan-image-2.1'), ('hunyuanimage', (2, 1), None))
         self.assertNotEqual(_identity('qwen-image-2'), _identity('GPT Image 2'))
         self.assertEqual(_identity('stable-diffusion-v1-5'), ('stablediffusion', (1, 5), None))
@@ -2272,7 +2272,7 @@ class FamilleSansConditionnementTest(TestCase):
     def test_la_version_apres_un_point_se_lit_comme_apres_un_tiret(self):
         """« FLUX.1-schnell » (nom HF) et « flux-1-dev » (notre clé) sont la même famille :
         5 candidats FLUX étaient « sans identité » le 02/09 — le point n'était pas lu."""
-        from .services.benchmark_sync import _identity
+        from ..services.benchmark_sync import _identity
         self.assertEqual(_identity('FLUX.1-schnell'), ('flux', (1,), None))
         self.assertEqual(_identity('FLUX.2-klein-9B'), ('flux', (2,), 9.0))
         self.assertEqual(_identity('FLUX.1-schnell')[:2], _identity('flux-1-dev')[:2])
@@ -2283,7 +2283,7 @@ class FamilleSansConditionnementTest(TestCase):
     def test_an_active_size_alone_is_the_size(self):
         """The 5B candidate took the arena Elo of `wan-v2.2-a14b` (2026-09-23): « A14B » was
         not read, so the size was unknown, so compatible with any size."""
-        from .services.benchmark_sync import _compatible, _identity
+        from ..services.benchmark_sync import _compatible, _identity
         self.assertEqual(_identity('wan-v2.2-a14b'), ('wan', (2, 2), 14.0))
         self.assertEqual(_identity('Wan2.2-I2V-A14B'), ('wan', (2, 2), 14.0))
         self.assertFalse(_compatible(_identity('Wan2.2-TI2V-5B-Diffusers'),
@@ -2294,7 +2294,7 @@ class FamilleSansConditionnementTest(TestCase):
     def test_a_hosted_tier_never_pairs_with_open_weights(self):
         """`Lightricks/LTX-2.3` took the Elo of « LTX-2.3 Pro », the publisher's API tier
         (2026-09-23). A tier the local name does not carry refuses the pairing."""
-        from .services.benchmark_sync import _compatible, _identity
+        from ..services.benchmark_sync import _compatible, _identity
         local = _identity('LTX-2.3')
         self.assertFalse(_compatible(local, _identity('LTX-2.3 Pro'), False,
                                      'LTX-2.3', 'LTX-2.3 Pro'))
@@ -2307,7 +2307,7 @@ class FamilleSansConditionnementTest(TestCase):
     def test_un_add_on_n_a_jamais_de_banc(self):
         """Une LoRA porte le nom de son modèle de base : rendue lisible, elle en prenait
         l'Elo (flux-lora-logo-design → 1083, mesuré le 02/09). Hors catégorie, par nature."""
-        from .services.benchmark_sync import _local_categories
+        from ..services.benchmark_sync import _local_categories
         lora = AIModel.objects.create(
             model_key='imager:flux-lora-logo-design', name='FLUX LoRA Logo', model_type='diffusion',
             source='imager', is_downloaded=True, hf_id='Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
@@ -2338,7 +2338,7 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
 
     def test_un_seul_metier_donne_exactement_le_comportement_d_avant(self):
         """La non-régression qui compte : les modèles mono-métier ne bougent PAS."""
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         m = self._ltx(['text-to-video'])
         with self._sources({'text-to-video': [
                 self._entree('LTX Video v0.9.8 13B', ('ltxvideo', (0, 9, 8), 13.0), valeur=900.0,
@@ -2351,7 +2351,7 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
         self.assertEqual(len(m.benchmark_meta['benchmarks']), 1)
 
     def test_deux_metiers_donnent_deux_bancs_l_index_restant_sur_le_principal(self):
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         m = self._ltx(['text-to-video', 'image-to-video'])
         with self._sources({
                 'text-to-video': [self._entree('LTX Video v0.9.8 13B', ('ltxvideo', (0, 9, 8), 13.0),
@@ -2372,7 +2372,7 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
         """`canonical_task` est le résolveur EXISTANT : une tâche en vocabulaire HF ne doit
         pas rester sans catégorie (leçon du 31/08 — deux vocabulaires se rejoignent sur un
         repli qui a l'air de marcher)."""
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         self.assertEqual(bs._local_categories(self._ltx(['text-to-video'])), ['text-to-video'])
         m = AIModel.objects.create(
             model_key='transcriber:whisper', name='Whisper', model_type='speech',
@@ -2390,7 +2390,7 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
         découverte n'a pas encore écrit de capacités. Les `vlm` restent éligibles (AA classe
         MiniCPM-V dans son leaderboard LLM) ; un `llm` proposé sans caps aussi (ses faux
         appariements meurent par la taille requise)."""
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
 
         def _propose(nom, model_type):
             return AIModel.objects.create(
@@ -2429,19 +2429,19 @@ class EchellesComparablesTest(_SourcesFactices, TestCase):
             benchmark_index=index, benchmark_meta={'scale': echelle} if echelle else {})
 
     def test_deux_echelles_dans_le_lot_ne_sont_pas_comparables(self):
-        from .services.benchmark_sync import benchmarks_comparable
+        from ..services.benchmark_sync import benchmarks_comparable
         lot = [self._modele('a', 1077.0, 'aa_elo_text_to_image'),
                self._modele('b', 1125.76, 'arena_elo_text_to_image')]
         self.assertFalse(benchmarks_comparable(lot))
 
     def test_une_echelle_unique_et_tout_le_lot_mesure_est_comparable(self):
-        from .services.benchmark_sync import benchmarks_comparable
+        from ..services.benchmark_sync import benchmarks_comparable
         lot = [self._modele('a', 1077.0, 'aa_elo_text_to_image'),
                self._modele('b', 1038.0, 'aa_elo_text_to_image')]
         self.assertTrue(benchmarks_comparable(lot))
 
     def test_un_seul_modele_non_mesure_suffit_a_refuser_le_lot(self):
-        from .services.benchmark_sync import benchmarks_comparable
+        from ..services.benchmark_sync import benchmarks_comparable
         lot = [self._modele('a', 1077.0, 'aa_elo_text_to_image'), self._modele('b')]
         self.assertFalse(benchmarks_comparable(lot))
 
@@ -2490,7 +2490,7 @@ class EspaceDeClesDuTirageTest(TestCase):
                                              'inputs_required': ['prompt']})
 
     def test_par_capacite_la_cle_rendue_est_ENTIERE(self):
-        from .services import select_model_id
+        from ..services import select_model_id
         self._modele('synthesizer:moteur-a', 'text-to-speech', vram=4.0)
         cle = select_model_id(None, task='text-to-speech')
         self.assertEqual(
@@ -2500,13 +2500,13 @@ class EspaceDeClesDuTirageTest(TestCase):
 
     def test_par_source_la_cle_rendue_reste_NUE(self):
         """La voie historique ne bouge pas — imager et composer stockent des ids nus."""
-        from .services import select_model_id
+        from ..services import select_model_id
         self._modele('synthesizer:moteur-b', 'text-to-speech', vram=4.0)
         self.assertEqual(select_model_id('synthesizer', task='text-to-speech'), 'moteur-b')
 
     def test_un_choix_EXPLICITE_traverse_intact(self):
         """`requested` est respecté tel quel — dans l'espace de clés que l'appelant emploie."""
-        from .services import select_model_id
+        from ..services import select_model_id
         self._modele('synthesizer:moteur-c', 'text-to-speech')
         self.assertEqual(
             select_model_id(None, task='text-to-speech', requested='synthesizer:moteur-c'),
@@ -2539,7 +2539,7 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
     # ── (1) métiers dérivés et taille stricte ───────────────────────────────────────────
 
     def test_les_metiers_derives_des_nouvelles_categories(self):
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         llm_vision = AIModel.objects.create(
             model_key='ollama:gemma4:12b', name='gemma4:12b', model_type='llm', source='ollama',
             is_downloaded=True,
@@ -2560,7 +2560,7 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
     def test_l_arene_vision_exige_la_taille_comme_le_banc_llm(self):
         """`gemma4:12b` a DEUX identités locales : (gemma,(4,),12) par le tag, (gemma,(4,),None)
         par le nom. Sans taille stricte, la seconde apparie `gemma-4-31b` — mesuré le 02/09."""
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         m = AIModel.objects.create(
             model_key='ollama:gemma4:12b', name='Gemma 4', model_type='llm', source='ollama',
             is_downloaded=True,
@@ -2585,7 +2585,7 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
 
     def test_charger_aa_ne_requete_pas_les_categories_sans_endpoint(self):
         """`vision`, `document` et l'ASR n'ont pas d'endpoint AA : ni requête, ni motif."""
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         urls = []
 
         def faux_http(url, headers=None, timeout=45):
@@ -2602,7 +2602,7 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
     # ── (2) le sens de l'échelle ────────────────────────────────────────────────────────
 
     def test_un_taux_d_erreur_se_lit_a_l_envers(self):
-        from .services.benchmark_sync import _choose_variant, percentile_rank, orderable_value
+        from ..services.benchmark_sync import _choose_variant, percentile_rank, orderable_value
         pop = [{'v': x} for x in (2.0, 4.0, 6.0, 8.0)]
         # 5 % de WER bat les 6 et 8 : 50ᵉ centile — pas 25ᵉ comme pour un score.
         self.assertEqual(percentile_rank(5.0, pop, lambda e: e['v'], direction='lower'), 50.0)
@@ -2622,7 +2622,7 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
         self.assertIsNone(orderable_value(AIModel(model_key='d')))
 
     def test_un_banc_a_sens_bas_traverse_la_chaine_et_ordonne_a_l_endroit(self):
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         bon = AIModel.objects.create(
             model_key='transcriber:bon-2', name='Bon 2', model_type='speech',
             source='transcriber', is_downloaded=True, capabilities={'task': 'transcription'})
@@ -2652,7 +2652,7 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
         des `* WER`) ; `RTFx=-1` = non mesuré ; une entrée sans identité est sautée."""
         import tempfile
         from pathlib import Path
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         with tempfile.TemporaryDirectory() as tmp:
             en = Path(tmp) / 'en.csv'
             en.write_text(
@@ -2704,7 +2704,7 @@ class QuatriemeBancMtebTest(_SourcesFactices, TestCase):
     def _faux_index(self, marqueurs=()):
         # Chemin EXACT par (modèle, tâche) — une tâche peut vivre sous une autre révision
         # que les autres (mesuré sur bge-m3 : `AlloprofRetrieval` → 404 sous la 1ʳᵉ révision).
-        from .services.benchmark_sync import CATEGORIES
+        from ..services.benchmark_sync import CATEGORIES
         taches = [t for t, _, _ in CATEGORIES['embedding']['mteb']]
         def chemins(dossier, rev, sauf=()):
             return {t: f'results/{dossier}/{rev}/{t}.json' for t in taches if t not in sauf}
@@ -2724,7 +2724,7 @@ class QuatriemeBancMtebTest(_SourcesFactices, TestCase):
         import json as _json
         import re
         from unittest.mock import Mock
-        from .services.benchmark_sync import CATEGORIES
+        from ..services.benchmark_sync import CATEGORIES
         m = re.search(r'/results/([^/]+)/[^/]+/([^/]+)\.json$', url)
         dossier, tache = m.group(1), m.group(2)
         if dossier == 'Org__incomplet-2' and tache == 'BelebeleRetrieval':
@@ -2745,7 +2745,7 @@ class QuatriemeBancMtebTest(_SourcesFactices, TestCase):
     def test_charger_mteb_moyenne_le_jeu_declare_et_ignore_un_modele_incomplet(self):
         import tempfile
         from pathlib import Path
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.object(bs, '_mteb_index', side_effect=self._faux_index), \
                 patch.object(bs, '_mteb_markers', return_value=set()), \
@@ -2776,7 +2776,7 @@ class QuatriemeBancMtebTest(_SourcesFactices, TestCase):
         dossiers absents de `paths.json` ET portant un marqueur du catalogue."""
         import json as _json
         from unittest.mock import Mock
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         jeu = [t for t, _, _ in bs.CATEGORIES['embedding']['mteb']]
         paths = {'BAAI__bge-m3': [f'results/BAAI__bge-m3/revA/{jeu[0]}.json',
                                   f'results/BAAI__bge-m3/revB/{jeu[1]}.json',        # autre révision
@@ -2814,7 +2814,7 @@ class QuatriemeBancMtebTest(_SourcesFactices, TestCase):
         self.assertEqual(len(appels), 4)
 
     def test_bge_m3_du_rag_prend_son_banc_par_alias_et_les_embeddings_proposes_ont_une_categorie(self):
-        from .services import benchmark_sync as bs
+        from ..services import benchmark_sync as bs
         bge = AIModel.objects.create(
             model_key='ollama:bge-m3:latest', name='bge-m3:latest', model_type='embedding',
             source='ollama', is_downloaded=True,
@@ -2870,7 +2870,7 @@ class BancDeGenerationTest(TestCase):
                 'load_duration': load_ns, 'total_duration': load_ns + prefill_ns + generation_ns}
 
     def test_le_debit_vient_des_temps_natifs_et_chaque_passe_nourrit_l_eta(self):
-        from .services import bench, eta_estimator
+        from ..services import bench, eta_estimator
         # chauffe (chargement à froid 4,2 s) puis 3 passes : 150 jetons en 1,5 s = 100 jetons/s
         reponses = ([self._reponse(3, 30_000_000, load_ns=4_200_000_000)]
                     + [self._reponse(150, 1_500_000_000)] * 3)
@@ -2900,7 +2900,7 @@ class BancDeGenerationTest(TestCase):
         self.assertEqual([kw['load_seconds'] for _, kw in appels], [4.2, None, None])
 
     def test_un_modele_deja_resident_n_apprend_pas_de_chargement(self):
-        from .services import bench, eta_estimator
+        from ..services import bench, eta_estimator
         reponses = ([self._reponse(3, 30_000_000, load_ns=12_000_000)]
                     + [self._reponse(100, 1_000_000_000)] * 3)
         appels = []
@@ -2911,7 +2911,7 @@ class BancDeGenerationTest(TestCase):
         self.assertTrue(all(k['load_seconds'] is None for k in appels))
 
     def test_atteindre_le_plafond_a_chaque_passe_est_une_saturation(self):
-        from .services import bench, eta_estimator
+        from ..services import bench, eta_estimator
         reponses = ([self._reponse(3, 30_000_000)]
                     + [self._reponse(bench.TOKEN_CAP, 2_000_000_000)] * 3)
         with patch.object(bench, '_ollama_generate', side_effect=reponses), \
@@ -2922,7 +2922,7 @@ class BancDeGenerationTest(TestCase):
 
     def test_le_prompt_peut_etre_un_fichier_texte(self):
         import tempfile
-        from .services import bench, eta_estimator
+        from ..services import bench, eta_estimator
         with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as f:
             f.write("  Décris le cycle de l'eau.\n")
         reponses = [self._reponse(3, 30_000_000)] + [self._reponse(50, 500_000_000)] * 3
@@ -2932,7 +2932,7 @@ class BancDeGenerationTest(TestCase):
         self.assertEqual(http.call_args_list[1].args[1], "Décris le cycle de l'eau.")
 
     def test_un_modele_hors_ollama_est_un_resultat_en_erreur_pas_une_casse(self):
-        from .services import bench
+        from ..services import bench
         AIModel.objects.create(
             model_key='huggingface:org/llm', name='org/llm', model_type='llm', source='huggingface',
             is_downloaded=True, capabilities={'task': 'text-generation'})
@@ -2943,7 +2943,7 @@ class BancDeGenerationTest(TestCase):
         self.assertIn('Ollama seulement', mesures[0]['error'])
 
     def test_en_mode_depannage_gpu_le_protocole_refuse_avant_tout_appel(self):
-        from .services import bench
+        from ..services import bench
         with override_settings(WAMA_GPU_SAFE_MODE=True), \
              patch.object(bench, '_ollama_generate') as http:
             with self.assertRaises(RuntimeError) as cm:
@@ -2958,7 +2958,7 @@ class BancDeGenerationTest(TestCase):
         # moteur, jamais une constante locale au banc.
         from unittest.mock import MagicMock
         import torch
-        from .services import bench
+        from ..services import bench
         from wama.common.backends.depth_engine import DEPTH_MODEL_DIR
         candidat = AIModel.objects.create(
             model_key='huggingface:org/depth-candidat', name='org/depth-candidat',
@@ -3001,8 +3001,8 @@ class BancDeGenerationTest(TestCase):
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
         from django.core.management import call_command
         from wama.common.utils import ollama_host
-        from .models import ModelRuntimeStat
-        from .services import eta_estimator
+        from ..models import ModelRuntimeStat
+        from ..services import eta_estimator
 
         recus = []
 
@@ -3072,7 +3072,7 @@ class BancDeGenerationTest(TestCase):
     def test_le_legendage_lit_le_dict_de_la_sonde_et_rapporte_son_echec(self):
         # Régression corrigée le 14/09 : `_bench_description` appelait `.strip()` sur le dict
         # rendu par `describe_image_ollama` → chaque modèle de légendage sortait « en erreur ».
-        from .services import bench, vision_probe
+        from ..services import bench, vision_probe
         with patch.object(vision_probe, 'describe_image_ollama',
                           return_value={'ok': True, 'description': 'un chat sur un mur'}):
             mesure = bench._bench_description(self.m, 'image.jpg')
@@ -3093,7 +3093,7 @@ class ProspectChainTest(TestCase):
     """
 
     def _run(self, *, auto=True, safe=False, running=None):
-        from . import tasks, views
+        from .. import tasks, views
         with override_settings(PROSPECT_ASSESS_AUTO=auto, WAMA_GPU_SAFE_MODE=safe), \
                 patch.object(tasks, 'sync_benchmarks_task') as bench, \
                 patch.object(tasks, 'assess_proposed_task') as assess, \
@@ -3134,7 +3134,7 @@ class RejudgeOnNewFactsTest(TestCase):
     """
 
     def setUp(self):
-        from .services import prospect_agents
+        from ..services import prospect_agents
         self.pa = prospect_agents
         self.cand = AIModel.objects.create(
             model_key='proposed:hf:org/video-5b', name='video-5b', model_type='diffusion',
@@ -3199,7 +3199,7 @@ class RejudgeOnNewFactsTest(TestCase):
     def test_a_new_prospection_keeps_the_readings_so_nothing_is_rejudged(self):
         """write_candidate rewrote extra_info wholesale: weights and variants vanished at every
         click on « Prospecter », the facts' fingerprint changed, and EVERYTHING was re-judged."""
-        from .services.prospect_ollama import write_candidate
+        from ..services.prospect_ollama import write_candidate
         self._judge_all()
         prospect = dict(self.cand.extra_info['prospect'])
         write_candidate(self.cand.model_key, nom='video-5b', model_type='diffusion',
@@ -3216,7 +3216,7 @@ class RejudgeOnNewFactsTest(TestCase):
         (Wan) keeps its weights in subfolders, so each retained file's header is read."""
         from types import SimpleNamespace
 
-        from .services.prospector import remote_precision
+        from ..services.prospector import remote_precision
         headers = {'text_encoder/model-00001.safetensors': {'F32': 3},
                    'text_encoder/model-00002.safetensors': {'F32': 2, 'I64': 1},
                    'transformer/diffusion_pytorch_model.safetensors': {'BF16': 7}}
@@ -3256,7 +3256,7 @@ class DownloadTokenTest(TestCase):
     token in their place. Without a user (sync, scheduled task), the instance token."""
 
     def test_the_download_token_is_passed_to_the_hub(self):
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
         seen = {}
 
         def fake_snapshot(**kw):
@@ -3268,7 +3268,7 @@ class DownloadTokenTest(TestCase):
                       "« no token » must reach the library, or it falls back on HF_TOKEN")
 
     def test_an_access_refusal_says_where_to_set_the_token(self):
-        from .services import model_installer as mi
+        from ..services import model_installer as mi
 
         class GatedRepoError(Exception):
             pass
@@ -3280,7 +3280,7 @@ class DownloadTokenTest(TestCase):
     def test_the_task_reads_the_launching_user_token_and_nobody_elses(self):
         from django.contrib.auth import get_user_model
         from wama.accounts.models import UserApiKey
-        from .tasks import _download_token
+        from ..tasks import _download_token
         with self.settings(SECRET_KEY='k' * 50, SECRET_KEY_FALLBACKS=[]):
             owner = get_user_model().objects.create_user('hf_owner', password='x')
             other = get_user_model().objects.create_user('hf_other', password='x')

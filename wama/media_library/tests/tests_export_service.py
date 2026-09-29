@@ -413,7 +413,7 @@ class RoleDeclareParLAppTest(TestCase):
         from pathlib import Path
         from wama.media_library.models import ASSET_TYPES
         connus = {t for t, _ in ASSET_TYPES}
-        racine = Path(__file__).resolve().parent.parent
+        racine = Path(__file__).resolve().parent.parent.parent
         inconnus = []
         for f in sorted(racine.glob('*/apps.py')):
             src = f.read_text(encoding='utf-8', errors='ignore')
@@ -463,7 +463,7 @@ class GardienAntiCopieTest(TestCase):
         import ast
         from pathlib import Path
 
-        racine = Path(__file__).resolve().parent.parent
+        racine = Path(__file__).resolve().parent.parent.parent
         coupables = []
         for vues in sorted(racine.glob('*/views.py')):
             if vues.parent.name == 'media_library':
@@ -865,7 +865,7 @@ class RoleDeclareCoherentPourTOUTESLesAppsTest(TestCase):
         from wama.common.utils.export_formats import is_late_binding
 
         moi = _utilisateur('roles_toutes_apps')
-        racine = Path(__file__).resolve().parent.parent
+        racine = Path(__file__).resolve().parent.parent.parent
         exercees, declarantes, ecarts, non_instanciables = set(), set(), [], []
         for app in DetailRegistry.registered_apps():
             if is_late_binding(app):

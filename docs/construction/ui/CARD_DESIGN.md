@@ -181,7 +181,7 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   (ownership, rôle non deviné). *Trois surfaces d'un geste ne sont une dette que si chacune a
   son propre chemin serveur.*
   Un **gardien AST** refuse qu'une vue d'app recopie la copie de fichier
-  (`media_library/tests_export_service.py`) — par AST et non par grep, parce qu'une 1ʳᵉ version
+  (`media_library/tests/tests_export_service.py`) — par AST et non par grep, parce qu'une 1ʳᵉ version
   par motif accusait la docstring qui explique la correction.
 - ⚠ **Le bouton DÉDIÉ du composer est retiré** (2026-09-18, demande de Fabien). La card composer
   portait encore, dans sa rangée, un bouton « Exporter vers médiathèque » (`.export-btn`, plus une

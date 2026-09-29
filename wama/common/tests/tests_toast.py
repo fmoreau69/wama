@@ -9,7 +9,7 @@ et un clic qui ferme — sans rien ajouter dans le toast, dont le texte est LU p
 Brique COMMUNE montée par `base.html` : ce qui change ici change dans les dix apps. D'où cette
 garde, alors qu'un toast n'a l'air de rien.
 
-Même patron que `media_library/tests_preview_mime.py` : V8 embarqué, la fonction extraite et
+Même patron que `media_library/tests/tests_preview_mime.py` : V8 embarqué, la fonction extraite et
 exécutée seule (le module entier touche au DOM au chargement).
 ⚠ `py_mini_racer` n'est installé que dans venv_win : ces tests SKIPPENT sous venv_linux.
 

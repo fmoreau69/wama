@@ -276,7 +276,7 @@ MECHANISMS = (
               "catalogue) : elle n'entre dans aucun tri tant que Q3 n'est pas tranchée, et "
               "`sync_benchmarks`, qui remplace `benchmark_meta`, ne peut pas l'effacer",
               'wama/model_manager/services/internal_quality.py', 'docs/construction/ia/WAMA_QUALITE.md',
-              annexes=('wama/model_manager/tests_internal_quality.py',),
+              annexes=('wama/model_manager/tests/tests_internal_quality.py',),
               depends_on=('result_evaluation',)),
     Mechanism('bench', 'Banc de comparaison',
               "Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation) ; "
@@ -612,7 +612,7 @@ MECHANISMS = (
               "`select_model(cloud_keys=…)`",
               'wama/model_manager/services/cloud_models.py',
               'docs/construction/suivi/ROADMAP.md §8d',
-              annexes=('wama/model_manager/tests_cloud_models.py',)),
+              annexes=('wama/model_manager/tests/tests_cloud_models.py',)),
     Mechanism('secret_crypto', "Chiffrement RÉVERSIBLE des secrets d'utilisateur",
               "Les clés d'API de fournisseurs cloud sont chiffrées en base, pas hachées : WAMA doit "
               "les RELIRE pour appeler le fournisseur à la place de l'utilisateur. Clé DÉRIVÉE de "
@@ -1607,7 +1607,7 @@ MECHANISMS = (
               'wama/media_library/natures.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9',
               annexes=('wama/media_library/models.py',
                        'wama/media_library/services.py',
-                       'wama/media_library/tests_natures.py')),
+                       'wama/media_library/tests/tests_natures.py')),
     Mechanism('voice_refs', 'Voix de référence (médiathèque) et voix de clonage',
               "LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur, "
               "jamais par un nom de moteur, et qui TRANSMET la langue depuis le 2026-09-27), "
