@@ -907,13 +907,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 const dataPayload = p.camera
                     ? `data-rp-run="${p.pass_type}" data-rp-camera="${p.camera}"`
                     : `data-rp-run="${p.pass_type}"`;
+                // Bouton de CYCLE (décision 2026-06-30) : ▶ jamais lancée, ⏳ en cours (pas d'arrêt
+                // par passe côté serveur, d'où un sablier désactivé plutôt qu'un ⏹), ↻ sinon.
+                const _running = p.status === 'running';
+                const _cycle = _running ? '⏳' : (p.status === 'never' ? '▶' : '↻');
+                const _cycleTip = _running ? 'En cours…'
+                    : (p.status === 'never' ? 'Lancer ce passage seul' : 'Relancer ce passage seul');
                 return `
                     <div class="d-flex align-items-center gap-2 py-1" title="${tip}">
                         <span style="width:16px;text-align:center">${icon}</span>
                         <span class="flex-grow-1 text-light" style="font-size:0.78rem;">${escapeHtml(p.label)}${camSuffix}</span>
-                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
-                                ${dataPayload} title="Lancer ce passage seul"
-                                style="font-size:0.7rem;">▶</button>
+                        <button type="button" class="btn btn-sm btn-outline-success py-0 px-1"
+                                ${dataPayload} title="${_cycleTip}" ${_running ? 'disabled' : ''}
+                                style="font-size:0.7rem;">${_cycle}</button>
                     </div>`;
             };
             // Scinde le pipeline en deux étages lisibles : perception (« Analyse ») puis
@@ -1030,6 +1036,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 btn.addEventListener('click', () => runStage(btn.dataset.rpStage));
             });
             calcChainQueued = !!data.chain_queued;
+            // Des passes tournent (ou une chaîne attend en file) sans que CETTE page les suive —
+            // page rechargée en cours de chaîne, lancement depuis un autre onglet : suivre. Sans
+            // cela le panneau restait sur l'instantané du chargement jusqu'au rafraîchissement.
+            if (!passesPollTimer && (calcChainQueued || _passes.some(p => p.status === 'running'))) {
+                startPassesPolling();
+            }
             return data.passes || [];
         } catch (e) {
             console.error('loadPipelinePanel:', e);
@@ -1053,7 +1065,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let calcChainQueued = false;   // verrou serveur : une chaîne ▶ Calculs est en file ou en cours
     function startPassesPolling() {
         stopPassesPolling();
-        let seenRunning = false, ticks = 0;
+        let seenRunning = false, ticks = 0, idleTicks = 0;
         passesPollTimer = setInterval(async () => {
             if (!currentSessionId) { stopPassesPolling(); return; }
             ticks += 1;
@@ -1062,8 +1074,12 @@ document.addEventListener('DOMContentLoaded', function () {
             // Une chaîne encore EN FILE (derrière une autre tâche du worker GPU) n'a aucune passe
             // « running » : sans ce test, le suivi s'arrêtait au bout de ~10 s et le panneau
             // invitait à relancer — d'où deux chaînes entrelacées (2026-09-29).
-            if (passes.some(p => p.status === 'running') || calcChainQueued) { seenRunning = true; return; }
-            if (seenRunning || ticks >= 4) {            // fini (ou jamais démarré après ~10 s)
+            if (passes.some(p => p.status === 'running') || calcChainQueued) { seenRunning = true; idleTicks = 0; return; }
+            // Entre deux passes d'une chaîne, AUCUNE n'est « running » le temps que la suivante
+            // démarre : un seul relevé inactif arrêtait le suivi en pleine chaîne. On en exige 3
+            // consécutifs (~7,5 s).
+            idleTicks += 1;
+            if ((seenRunning && idleTicks >= 3) || (!seenRunning && ticks >= 4)) {   // fini (ou jamais démarré)
                 stopPassesPolling();
                 loadAllDetections(currentSessionId);    // données ré-annotées fraîches
                 loadSessions();

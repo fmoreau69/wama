@@ -184,6 +184,37 @@ _BORNES_HISTO = {'duree': 60.0, 'spread_first': 20.0, 'spread_robuste': 20.0,
                  'pas_median': 5.0, 'net_sur_chemin': 1.0}
 
 
+def reanchor_ghosts(ghost_links, smoothed, shuttle_at, *, use_smoothed=True, ego_length_m=4.75,
+                  ego_width_m=2.11):
+    """Repose les fantômes sur la trajectoire LISSÉE et retire ceux tombés dans l'emprise navette.
+
+    `ghost_links` : [(frame, détection fantôme, gid, f0, f1, a, fn)] — le fantôme de l'image `fn`
+    est à la fraction `a` du trou entre les observations réelles `f0` et `f1` ; `smoothed` :
+    {(gid, fn): (e, n)} des observations RÉELLES lissées ; `shuttle_at(fn)` → (e, n, cap) de la
+    navette (centre arrière). Modifie les détections en place ; rend (sauts au bord du trou en m,
+    nombre retirés). Sans les deux points lissés, le fantôme garde l'interpolation brute."""
+    jumps, removed = [], 0
+    for fr, det, gid, f0, f1, a, fn in ghost_links:
+        s0, s1 = smoothed.get((gid, f0)), smoothed.get((gid, f1))
+        lat, lon = det['vehicle_xy']
+        if use_smoothed and s0 and s1:
+            we, wn = s0[0] + a * (s1[0] - s0[0]), s0[1] + a * (s1[1] - s0[1])
+            se, sn, sh = shuttle_at(fn)
+            lat, lon = world_to_vehicle(we, wn, se, sn, sh)
+            det['world_en'] = [round(we, 2), round(wn, 2)]
+            det['vehicle_xy'] = [round(lat, 3), round(lon, 3)]
+            det['dist_euclid_m'] = round(math.hypot(lat, lon), 1)
+        # saut d'affichage au bord du trou (métrique A/B de la bascule)
+        for edge, sp in ((f0 + 1, s0), (f1 - 1, s1)):
+            if fn == edge and sp:
+                jumps.append(math.hypot(det['world_en'][0] - sp[0], det['world_en'][1] - sp[1]))
+        # emprise : origine = centre arrière, la silhouette s'étend vers l'avant (cf. JS)
+        if abs(lat) < ego_width_m / 2 + 0.2 and -0.5 < lon < ego_length_m - 0.1:
+            fr.detections.remove(det)
+            removed += 1
+    return jumps, removed
+
+
 def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                            frame_range=None, spread_max_m=6.0, path_ratio_max=None):
     """
@@ -669,6 +700,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     front_frames = per_cam.get('front', (None, None, {}))[2]
     max_gap_frames = int(6.0 * fps)   # aligné stitching : INTERPOLATION entre 2 mesures réelles   # ~1,2 s max
     ghosts = 0
+    ghost_links = []   # (frame, détection, gid, f0, f1, a, fn) — repris après le lissage
     if front_frames:
         # Retirer les anciens fantômes (idempotence si on recalcule).
         for fr in front_frames.values():
@@ -722,6 +754,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     })
                     dirty.add(fr)
                     ghosts += 1
+                    ghost_links.append((fr, fr.detections[-1], gid, f0, f1, a, fn))
 
     # ── Trajectoires LISSÉES des mobiles (Kalman + RTS, 2026-07-19) ─────────────────
     # Agrège TOUTES les observations monde d'un même gid (toutes caméras, toute la
@@ -746,6 +779,26 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             v = by_t.get(round(t, 4))
             if v:
                 smoothed[(gid, fn)] = v
+
+    # ── Fantômes REPOSÉS sur la trajectoire LISSÉE (⚑ ghost_on_smoothed, 2026-09-29) ─────
+    # Un fantôme interpolait entre les positions BRUTES encadrant le trou, alors que les
+    # détections réelles s'affichent sur la trajectoire LISSÉE (`world_en`, bloc ci-dessus) :
+    # chaque entrée/sortie de fantôme faisait SAUTER l'objet. Mesuré sur `4da52df3` : saut
+    # p50 0,56 m / p90 2,25 m / p99 9,1 m contre un pas normal p50 0,12 m. On interpole entre
+    # les deux points LISSÉS qui encadrent le trou. Et un fantôme dans l'EMPRISE de la navette
+    # est physiquement impossible (le lien entre ses deux bouts est faux) : retiré.
+    _prof = getattr(session, 'profile', None)
+    _use_smooth = _feat.get('ghost_on_smoothed', True)
+    ghost_jumps, ghosts_in_footprint = reanchor_ghosts(
+        ghost_links, smoothed, lambda fn: _shuttle_pose_at(sh_traj, fn / fps * scale + off),
+        use_smoothed=_use_smooth,
+        ego_length_m=float(getattr(_prof, 'ego_length_m', None) or 4.75),
+        ego_width_m=float(getattr(_prof, 'ego_width_m', None) or 2.11))
+    if ghost_links:
+        logger.info("[fantômes] %s posés (%s), %s retirés dans l'emprise navette · saut au bord p50 %s p90 %s",
+                    len(ghost_links) - ghosts_in_footprint,
+                    'trajectoire lissée' if _use_smooth else 'positions brutes', ghosts_in_footprint,
+                    _quantiles(ghost_jumps, (0.5,)).get('p50'), _quantiles(ghost_jumps, (0.9,)).get('p90'))
 
     # ── Classe STABLE par track (vote majoritaire pondéré confiance) ────────────────
     # YOLO fait flapper la classe (car↔truck) d'une frame à l'autre sur le même
@@ -812,4 +865,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'stationary_candidates': _stat_candidats,
             'stable_class_fragiles': _cls_fragiles,
             'stable_class_margin_median': (sorted(stable_marge.values())[len(stable_marge) // 2]
-                                           if stable_marge else None)}
+                                           if stable_marge else None),
+            'ghosts': len(ghost_links) - ghosts_in_footprint,
+            'ghosts_in_footprint_removed': ghosts_in_footprint,
+            'ghost_boundary_jump_m': _quantiles(ghost_jumps, (0.5, 0.9, 0.99))}

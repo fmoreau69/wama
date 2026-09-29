@@ -56,6 +56,14 @@ FEATURES = [
             "choisit de l'appliquer, au tracking comme à l'affichage. OFF = trajectoire "
             "brute, l'offset restant mesuré et rapporté.",
             default=False, scope='compute'),
+    Feature('ghost_on_smoothed', 'Fantômes sur la trajectoire lissée',
+            "Les fantômes (positions reconstituées dans un trou de détection) sont interpolés "
+            "entre les deux points LISSÉS qui encadrent le trou — ceux-là mêmes que "
+            "l'affichage dessine — au lieu des positions brutes : l'objet ne saute plus à "
+            "l'entrée et à la sortie du fantôme. OFF = interpolation entre positions brutes "
+            "(saut mesuré p90 2,25 m, p99 9,1 m). Les fantômes tombés dans l'emprise de la "
+            "navette sont retirés dans les deux cas (physiquement impossibles).",
+            default=True, scope='compute'),
     Feature('map_buildings', 'Bâtiments sur la carte',
             "Dessine les emprises des bâtiments BD TOPO autour de la navette sur la vue de "
             "dessus (IGN, chargées par zone). Ce sont eux qui dévient le GPS en canyon urbain "
