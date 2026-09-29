@@ -234,12 +234,19 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
                     </span>
                 </div>
 
-                <!-- Conformity bar — une jumelle bac à sable (conf = None) n'est JAMAIS
-                     notée : tampon sandbox à la place (comparée à sa source, marche S) -->
-                {% if conf %}
+                <!-- Conformity bar — une jumelle bac à sable est NOTÉE depuis le 2026-09-29, avec
+                     son ÉCART à la source ; elle reste hors de tout total (WAMA_VERIFICATION §1bis) -->
+                {% if conf.sandbox and not conf.measured %}
                 <div class="conformity-bar-wrap">
                     <div class="conformity-header">
-                        <span class="conformity-label">Conformité</span>
+                        <span class="conformity-label">Bac à sable</span>
+                        <span class="badge bg-warning text-dark">⚠ pas encore mesurée — générée depuis {{ spec.generated_from }} (« Re-mesurer »)</span>
+                    </div>
+                </div>
+                {% elif conf %}
+                <div class="conformity-bar-wrap">
+                    <div class="conformity-header">
+                        <span class="conformity-label">{% if conf.sandbox %}Bac à sable{% else %}Conformité{% endif %}</span>
                         <span class="conformity-score {% if conf.pct >= 80 %}c-high{% elif conf.pct >= 50 %}c-medium{% else %}c-low{% endif %}">
                             {{ conf.score }}/{{ conf.total }}&nbsp;({{ conf.pct }}%)
                         </span>
@@ -248,18 +255,19 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
                         <div class="conformity-bar-fill {% if conf.pct >= 80 %}c-fill-high{% elif conf.pct >= 50 %}c-fill-medium{% else %}c-fill-low{% endif %}"
                              style="width:{{ conf.pct }}%;"></div>
                     </div>
+                    {% if conf.sandbox %}
+                    <div class="conformity-issues" title="Cible : un écart explicable, nul pour une jumelle fraîchement générée">
+                        <i class="fas fa-code-compare me-1"></i>générée depuis {{ conf.generated_from }}
+                        {% if conf.source_pct is not None %}({{ conf.source_pct }} %) — écart
+                        <strong>{% if conf.gap > 0 %}+{% endif %}{{ conf.gap }} pt{{ conf.gap|pluralize }}</strong>{% endif %}
+                        · hors du total
+                    </div>
+                    {% endif %}
                     {% if conf.issues %}
                     <div class="conformity-issues">
                         <i class="fas fa-exclamation-triangle me-1"></i>{{ conf.issues|join:", " }}
                     </div>
                     {% endif %}
-                </div>
-                {% else %}
-                <div class="conformity-bar-wrap">
-                    <div class="conformity-header">
-                        <span class="conformity-label">Bac à sable</span>
-                        <span class="badge bg-warning text-dark">⚠ non notée — générée depuis {{ spec.generated_from }}</span>
-                    </div>
                 </div>
                 {% endif %}
 
@@ -378,14 +386,15 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
                     <td class="text-center">{% if conv.drag_drop == None %}<span class="check-na">—</span>{% elif conv.drag_drop %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
                     <!-- batch -->
                     <td class="text-center">{% if conv.batch == None %}<span class="check-na">—</span>{% elif conv.batch %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
-                    <!-- score badge (jumelle bac à sable : estampillée, pas de note) -->
+                    <!-- score badge (jumelle bac à sable : notée, marquée, écart à sa source) -->
                     <td class="text-center">
-                        {% if conf %}
+                        {% if conf and not conf.sandbox or conf.measured %}
                         <span class="mini-badge badge {% if conf.pct >= 80 %}bg-success{% elif conf.pct >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
                             {{ conf.pct }}%
                         </span>
-                        {% else %}
-                        <span class="mini-badge badge bg-warning text-dark" title="Jumelle bac à sable — comparée à {{ spec.generated_from }}, jamais notée">sandbox</span>
+                        {% endif %}
+                        {% if conf.sandbox %}
+                        <span class="mini-badge badge bg-warning text-dark" title="Jumelle bac à sable — générée depuis {{ spec.generated_from }}{% if conf.source_pct is not None %} ({{ conf.source_pct }} %), écart {{ conf.gap }} pt{% endif %} ; hors du total">sandbox</span>
                         {% endif %}
                     </td>
                 </tr>
