@@ -582,3 +582,90 @@ def gallery_path(name: str):
         return None
     a = gallery_assets().filter(name=name).first()
     return a.file.path if (a and a.file) else None
+
+
+# ── RENDRE un asset système à son auteur (2026-09-29, MEDIA_STORAGE_TIERING §8.6 D27) ──────────
+# Le versement de la galerie (12/09) a fait des photos PERSONNELLES d'un utilisateur des assets
+# SYSTÈME : sans propriétaire, leur auteur ne pouvait plus ni les supprimer ni les ranger. Le geste
+# inverse d'un versement : l'asset redevient un `UserAsset` PRIVÉ de l'utilisateur, son fichier
+# rejoint la médiathèque de celui-ci (`move_into_library` : domicile décidé par `upload_to`,
+# références par CHEMIN repointées), la ligne système disparaît.
+#
+# Les références par NOM ne se voient pas par le chemin (l'avatarizer stocke le NOM d'un avatar de
+# galerie, `AvatarJob.avatar_gallery_name`). Chaque app qui en tient les DÉCLARE ici — le registre
+# ne connaît jamais ses producteurs, même règle que `function_catalog` (`AGENTS.md`, mondes).
+
+_SYSTEM_ASSET_NAME_HOLDERS = []
+
+
+class SystemAssetStillNamed(RuntimeError):
+    """Un AUTRE utilisateur cite encore l'asset par son nom : le rendre à un seul casserait ses
+    travaux. Rien n'est fait ; le message dit qui cite, et combien."""
+
+
+def register_system_asset_name_holder(asset_type: str, holder) -> None:
+    """Déclare une référence PAR NOM à un asset système d'une nature donnée.
+
+    `holder(name, user, new_path, apply) -> {'label', 'mine', 'others'}` : `mine` = références de
+    `user` (repointées vers `new_path` quand `apply`), `others` = références d'autres utilisateurs
+    (jamais touchées). Appelé une première fois SANS `apply` pour le plan. Idempotent : un
+    `ready()` rejoué n'inscrit pas deux fois le même holder (ses comptes seraient doublés)."""
+    if (asset_type, holder) not in _SYSTEM_ASSET_NAME_HOLDERS:
+        _SYSTEM_ASSET_NAME_HOLDERS.append((asset_type, holder))
+
+
+def return_system_asset(asset, user, *, apply: bool = False) -> dict:
+    """Rend l'asset système `asset` à `user` : un `UserAsset` privé, fichier déplacé chez lui.
+
+    Sans `apply`, rend le PLAN seul (rien n'est écrit). Lève `SystemAssetStillNamed` si un autre
+    utilisateur le cite par son nom, `ValueError` si `user` a déjà un asset de ce nom et de cette
+    nature. Le fichier est remis en place si une étape après le déplacement échoue."""
+    import shutil
+    from pathlib import Path
+
+    from django.conf import settings
+    from django.db import transaction
+
+    from .models import UserAsset
+
+    holders = [h for kind, h in _SYSTEM_ASSET_NAME_HOLDERS if kind == asset.asset_type]
+    references = [h(asset.name, user, None, False) for h in holders]
+    plan = {'asset': asset.name, 'asset_type': asset.asset_type, 'from': asset.file.name,
+            'to_user': user.username, 'references': references}
+    others = sum(r.get('others', 0) for r in references)
+    if others:
+        raise SystemAssetStillNamed(
+            f"« {asset.name} » est encore cité par son nom par {others} élément(s) d'autres "
+            f"utilisateurs : {references}")
+    if UserAsset.objects.filter(user=user, name=asset.name, asset_type=asset.asset_type).exists():
+        raise ValueError(f"{user.username} a déjà un asset « {asset.name} » de cette nature")
+    if not apply:
+        return plan
+
+    source = Path(asset.file.path)
+    with transaction.atomic():
+        returned = UserAsset.objects.create(
+            user=user, name=asset.name, asset_type=asset.asset_type,
+            attributes=dict(asset.attributes or {}), mime_type=asset.mime_type,
+            file_size=asset.file_size, duration=asset.duration, description=asset.description,
+            tags=asset.tags, license=asset.license, author=asset.author,
+            source_url=asset.source_url)
+        target = move_into_library(returned, source, source.name)
+        if target is None:
+            raise RuntimeError(f"déplacement impossible : {source}")
+        try:
+            # Un RETOUR n'est pas un rangement : pas d'origine où « rendre » le fichier plus tard
+            # (`_move_back_to_origin` le renverrait dans la zone système, sans ligne pour l'offrir).
+            attributes = dict(returned.attributes or {})
+            attributes.pop('moved_from', None)
+            returned.attributes = attributes
+            returned.save(update_fields=['attributes'])
+            for h in holders:
+                h(asset.name, user, target, True)
+            asset.delete()
+        except Exception:
+            shutil.move(str(Path(settings.MEDIA_ROOT) / target), str(source))
+            raise
+    plan['to'] = target
+    plan['user_asset_id'] = returned.id
+    return plan
