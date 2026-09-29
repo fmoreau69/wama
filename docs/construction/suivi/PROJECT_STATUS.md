@@ -18798,3 +18798,9 @@ projections du travail non commité des autres instances).
 - Migrations `common/0016`, `0017` non versionnées, comme tout le dépôt (décision en attente).
 - Rouges d'AUTRES chantiers : notifications ×3, `tool_api_lectures`, `picker_list`,
   `codegen_lot`, plan de doc dérivée. Rien de la session n'est poussé.
+
+**Suite de la clôture du 2026-09-29 (soir)** : WAMA relancé à 20:33 — gunicorn, workers `gpu`,
+`default` (parent neuf : le correctif ETA est actif partout), `studio`, beat ; vérifié par les
+heures de démarrage. **Décision de Fabien** sur le point laissé ouvert : un lancement MANUEL peut
+passer avant la campagne nocturne, la réservation ne protège que du placement automatique —
+consigné en `WAMA_MEMORY §9bis.1`. Les deux points sont SOLDÉS.

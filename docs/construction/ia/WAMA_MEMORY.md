@@ -414,6 +414,11 @@ médiane vers le bas et la campagne complète déborderait. Mesuré le 28/09 : c
 29/09, la file GPU occupée par des lots lancés à la main a fait durer la campagne 5 h 27 (scénarios
 expirés en attente), et la réservation était montée à 270 min — une seule nuit anormale réservait
 la matinée de toutes les suivantes.
+**Ce que la réservation protège, et ce qu'elle ne protège pas (décision de Fabien, 2026-09-29)** :
+elle écarte le placement AUTOMATIQUE et refuse une heure MANUELLE programmée qui déborderait
+dessus ; elle n'empêche PAS un lancement manuel immédiat de passer avant la campagne dans la file
+GPU. C'est voulu : *« un lancement manuel peut passer avant les tests nocturnes, pas de souci »*.
+Une campagne retardée ainsi dure plus longtemps ; la médiane en absorbe l'effet sur la plage.
 Conséquence dans `settings.py` : la cohérence partait à 02:30 **avec** le miroir NAS, la
 fonctionnelle aurait couru sous la sauvegarde de 03:30 et la purge de 04:00 — elles passent **après
 toute la maintenance**, 04:15 puis 04:30 (jusqu'à ~07:30), dans la seule tranche sans aucune activité
