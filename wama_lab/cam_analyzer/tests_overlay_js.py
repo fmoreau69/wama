@@ -7,7 +7,7 @@ faisait survivre, mais le canvas n'était plus ni effacé ni redessiné : l'over
 dernière image réussie pendant que la vidéo avançait, dès la sortie d'une fenêtre d'intersection.
 
 Les fonctions sont EXTRAITES du fichier servi (`staticfiles/`) — le module est un IIFE qui touche
-au DOM, on n'exécute que ce qu'on teste. Même patron que `common/tests_wama_params_options.py`.
+au DOM, on n'exécute que ce qu'on teste. Même patron que `common/tests/tests_wama_params_options.py`.
 ⚠ `py_mini_racer` n'est installé que dans venv_win : ces tests SKIPPENT sous venv_linux.
 """
 import json

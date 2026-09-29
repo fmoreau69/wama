@@ -419,7 +419,7 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
    - **Le store n'a pas eu besoin d'un autre contrat** : le tour PERSISTE comme avant, à la fin ;
      le flux ne fait que montrer plus tôt ce qui sera écrit. Un tour interrompu à mi-flux laisse
      donc le fil exactement dans l'état d'un tour interrompu tout court.
-   - Gardes : `common/tests_assistant_stream.py` (16).
+   - Gardes : `common/tests/tests_assistant_stream.py` (16).
 
 **Et un rendu de chat au lieu de deux (26/09).** L'accueil portait SON propre rendu (282 lignes
 de JavaScript écrit à la main) à côté de la brique du volet droit, pour le MÊME fil : deux
@@ -435,7 +435,7 @@ les respirations ; `synthesizer/utils/text_extractor.py` avait les URL et les e-
 deux n'était faux ; ensemble ils faisaient un demi-vocabulaire, et le synthesizer — dont tout le
 métier est de lire un document à voix haute — n'avait ni retrait d'emoji ni pause de fin de
 ligne. ⚠ C'est le NOM DUPLIQUÉ qui rendait la chose invisible à un `grep`. Les six appelants du
-synthesizer sont conservés : ce nom DÉLÈGUE. Gardes : `common/tests_tts_text.py` (17), là où il
+synthesizer sont conservés : ce nom DÉLÈGUE. Gardes : `common/tests/tests_tts_text.py` (17), là où il
 n'y en avait **aucune** — le défaut ne se voit qu'à l'oreille, le serveur répondant 200.
 
 #### 1ter. L'assistant agit sur le CODE — pour les développeurs et administrateurs (22/09)
@@ -948,7 +948,7 @@ n'avait pas — ou qu'il avait reçue sous une forme illisible. **Un petit modè
 
 | # | mesure | ce qui n'allait pas | levé par |
 |---|---|---|---|
-| 5 | `start_anonymizer` → `property 'processed' of 'Media' object has no setter` | l'outil écrivait encore `media.processed = False` et filtrait `filter(processed=False)`, alors que l'**audit du 2026-07-11** a remplacé ce booléen par `status` en ne laissant `processed` qu'en property DÉRIVÉE. **Les DEUX branches étaient mortes** (AttributeError à l'unité, FieldError en lot) : l'assistant n'a jamais pu lancer une anonymisation. Le défaut #1 le cachait — on n'atteignait pas l'outil | l'outil passe par `begin_processing`, **la brique du bouton ▶ de la card** (anti-race obligatoire), et parle le vocabulaire canonique `status`. `wama/common/tests_tool_api_start.py` : gardes ciblées + un contrôle GÉNÉRIQUE (« aucun `start_*` ne LÈVE sur file vide ») qui traverse les dix apps |
+| 5 | `start_anonymizer` → `property 'processed' of 'Media' object has no setter` | l'outil écrivait encore `media.processed = False` et filtrait `filter(processed=False)`, alors que l'**audit du 2026-07-11** a remplacé ce booléen par `status` en ne laissant `processed` qu'en property DÉRIVÉE. **Les DEUX branches étaient mortes** (AttributeError à l'unité, FieldError en lot) : l'assistant n'a jamais pu lancer une anonymisation. Le défaut #1 le cachait — on n'atteignait pas l'outil | l'outil passe par `begin_processing`, **la brique du bouton ▶ de la card** (anti-race obligatoire), et parle le vocabulaire canonique `status`. `wama/common/tests/tests_tool_api_start.py` : gardes ciblées + un contrôle GÉNÉRIQUE (« aucun `start_*` ne LÈVE sur file vide ») qui traverse les dix apps |
 | 6 | le lien inventé est REVENU après le correctif #3, dans un tour **sans aucun appel d'outil** | ses propres fabrications sont dans l'historique du fil, qui lui est resservi à chaque tour. *Une règle de prompt ne défait pas un exemple qu'on remet sous les yeux du modèle* | `_strip_unsourced_urls` : une URL ne sort de la boucle que si elle figure dans un résultat d'outil **du tour** ou dans le message de l'utilisateur — jamais depuis l'historique, qui est ce qui recycle le mensonge. Le libellé reste, la mention « lien non vérifié — retiré » le dit, le retrait est journalisé |
 
 ⭐⭐ **Le vrai enseignement du 23/09 : une consigne de prompt n'est pas un contrôle.** Les
@@ -1069,7 +1069,7 @@ ancien, et le premier signal rencontré l'emporte — `charger_competence` REPRE
 outil de la **triade d'app** (`add_` / `start_` / `get_*_status`) la RELÂCHE. Le signal est
 DÉRIVÉ de `tool_role`, jamais listé : une app portée à la triade le fournit sans qu'on touche
 à ce code. Se servir de WAMA n'est pas en écrire le code. Vérifié sur le fil réel : `'dev'`
-→ `''`. 6 gardes (`wama/common/tests_domain_memory.py`), dont la contre-épreuve de bout en
+→ `''`. 6 gardes (`wama/common/tests/tests_domain_memory.py`), dont la contre-épreuve de bout en
 bout (le tour suivant change effectivement de modèle) et celle qui protège l'inverse (parler
 du code sans lancer de tâche ne relâche rien).
 

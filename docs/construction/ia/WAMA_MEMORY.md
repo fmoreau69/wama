@@ -435,7 +435,7 @@ sauvegarde déplacée à 04:20 → rouge).
 ## 9ter. tool_api — la lecture est générique, l'écriture ne l'est pas ✅ **CONSTRUIT le 2026-09-11**
 
 > ✅ **`list_my_items` et `get_item_detail` sont livrés** (`wama/tool_api.py`), 13 gardes dans
-> `wama/common/tests_tool_api_lectures.py`. La proposition ci-dessous n'a **pas été reconçue** :
+> `wama/common/tests/tests_tool_api_lectures.py`. La proposition ci-dessous n'a **pas été reconçue** :
 > elle a été cherchée avant de coder, et suivie telle quelle — accesseurs compris
 > (`journal.entrees()` pour le listing, l'adapter de `detail_registry` pour le détail).
 >

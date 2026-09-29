@@ -3213,7 +3213,7 @@ par une autre instance pendant cette session.
 | contrôle | valeur mesurée |
 |---|---|
 | `check_docs` | 34 docs, 13 skills, **1102 références** — **7 cassées, 0 périmée**, mais **1 SEULE cible distincte** (`common/_result_tabs.html`, partial jamais créé). ⚠ C'est la cible distincte qui est le critère, pas le 7 : il monte dès qu'un `.md` recite la même cible. |
-| tests du périmètre | `wama.common.tests_volet` → **13/13 OK** (6,3 s). `wama.filemanager` → **0 test** (l'app n'en a aucun — dette nommée, pas un vert). |
+| tests du périmètre | `wama.common.tests.tests_volet` → **13/13 OK** (6,3 s). `wama.filemanager` → **0 test** (l'app n'en a aucun — dette nommée, pas un vert). |
 | nocturne complet | `--stage ui` → **92/158 OK, 1 échec, 65 skips**, `witness_files_swept: 20`. L'échec attendu est `common.rights_anonymous` **tant que l'arbitrage n'est pas rendu** — un second échec = vraie dérive. |
 | balayage disque | **0 témoin résiduel** sous `media/` après passe. |
 
@@ -6646,7 +6646,7 @@ les smokes audio, à garder).
 (110)** · `manifest_roundtrip` fidélité OK ×10 · `doc_facts` **4/4 à jour** · `check_js` **55
 fichiers 0 erreur, 54 paires 0 divergente** · grille : converter 100, anonymizer/avatarizer/
 describer/transcriber 98, composer/enhancer/reader/synthesizer 97, imager 96 · `manage.py test
-wama.common.tests_capabilities_languages` **19/19**.
+wama.common.tests.tests_capabilities_languages` **19/19**.
 
 ---
 
@@ -6717,7 +6717,7 @@ touche pas `PROMPT_TARGETS` d'une app en cours de portage.
 ### Contrôles attendus au prochain /reprise
 `check_docs` **2 CASSÉ / 0 périmée sur 457** · `manifest_export --check` **corpus à jour (110)**
 · `doc_facts` **5/5 à jour** (le 5ᵉ, `wama_data`, vient de l'instance sœur) · `manage.py test
-wama.common.tests_memory` **41/41** · `tests_capabilities_languages` **19/19** (instance sœur) ·
+wama.common.tests.tests_memory` **41/41** · `tests_capabilities_languages` **19/19** (instance sœur) ·
 `check_js` **56 fichiers 0 erreur, 55 paires 0 divergente**.
 
 ---
@@ -7083,7 +7083,7 @@ instance) ET `Domaines → modes` **14** (instance sœur). ⚠ Réserve d'origin
 la règle vaut toujours : « sa régénération mêlait ma ligne et celle de l'instance sœur,
 `app_modes.py` en vol ; un bloc généré ne s'édite pas à la main, donc à régénérer sur un arbre
 propre » · `wama_data` **411 tests OK** ·
-`wama.common.tests_nightly` **5 OK** · `wama.common.tests_registries` **46 OK** ·
+`wama.common.tests.tests_nightly` **5 OK** · `wama.common.tests.tests_registries` **46 OK** ·
 `check_redundancy` **15 trouvailles, AUCUNE dans les fichiers de cette session** (la seule ligne
 `wama_data`, `calculation.py:78 _verifier()`, est un **faux positif préexistant** — collision de
 nom avec `verifier_url`, pas une duplication).
@@ -8189,7 +8189,7 @@ cassé recopié dans un §REPRISE *devient une référence cassée de plus*. Pi�
 14/08 et 22/08 — et **une TROISIÈME fois le 24/08** : le bloc « Contrôles attendus » de ce jour a
 fait passer le compte de **4 à 5** en décrivant les 4. Le seuil de `/reprise` (« 4 CASSÉ sur 518 »)
 est donc **périmé par sa propre consignation** · `manage.py test wama_data` : **649 OK** ·
-`wama.common.tests_manifest_axes` : **20 OK** · `manifests/datasets/` : **1 manifeste**, valide
+`wama.common.tests.tests_manifest_axes` : **20 OK** · `manifests/datasets/` : **1 manifeste**, valide
 enveloppe + corps.
 
 ### Artefacts de session (hors git, jetables)
@@ -8249,7 +8249,7 @@ trouvé quatre défauts réels en une heure.
 
 `check_docs` : **5 références cassées / 0 périmée sur 542**, pour **1 cible distincte** — le partial
 d'onglets de résultat jamais créé (chemin volontairement non réécrit, cf. `/cloture §2c`) ·
-`manage.py test wama_data wama.common.tests_manifest_axes` : **669 OK** ·
+`manage.py test wama_data wama.common.tests.tests_manifest_axes` : **669 OK** ·
 `check_app_conformity` : **82 critères**, dénominateurs 67–82 selon l'app ·
 `grep` d'unicité des numéros de décision dans `WAMA_DATA_WORLD` : **aucun doublon**.
 
@@ -8340,7 +8340,7 @@ l'expérience ne conclura sur rien, comme la corrélation « onduleur » déjà 
 > (ligne ~2473, commit `d5a57507`). Périmètres **disjoints**, aucun fichier commun.
 >
 > **Partition tenue ici** : `wama/synthesizer/tests.py`, `wama/common/runners.py`,
-> `wama/common/tests_queue_sort.py`, `wama/avatarizer/views.py`, `wama/common/services/ui_smoke.py`,
+> `wama/common/tests/tests_queue_sort.py`, `wama/avatarizer/views.py`, `wama/common/services/ui_smoke.py`,
 > `WAMA_VERIFICATION.md`, `REMOVAL_LEDGER.md`, `AGENTS.md`. **Non touchés, laissés à l'instance
 > GARDES** : `wama/accounts/*`, `wama/common/mecanismes.py`, `wama/common/nightly_scenarios.py`,
 > `WAMA_MECANISMES.md`, `check_templates`.
@@ -8379,7 +8379,7 @@ d'abord**, à défaut **clic DOM** — en le DISANT dans le détail (`[clic DOM 
 
 > **Une mesure faible qui se présente comme forte est pire que pas de mesure.**
 
-**Tri MORT** — `wama/common/tests_queue_sort.py` (17 tests) ajoute une **garde textuelle** :
+**Tri MORT** — `wama/common/tests/tests_queue_sort.py` (17 tests) ajoute une **garde textuelle** :
 quatre vues triaient leur `batches_list` juste avant d'appeler la brique commune, qui re-trie
 **inconditionnellement**. Ce code s'exécutait, coûtait, et n'avait aucun effet. `c9408354` en a
 retiré 3, `a318b7f3` le 4ᵉ ; rien n'empêchait le 5ᵉ. **Un tri mort ne se détecte pas à
@@ -8801,7 +8801,7 @@ aussi LE test le plus instrumenté possible du nouveau pilote.
 
 ### Contrôles attendus au prochain /reprise (MESURÉS cette session, clôture ~13:30)
 
-- tests périmètre : `wama.composer` + `wama.common.tests_gpu_safe_mode` = **17/17 OK** ;
+- tests périmètre : `wama.composer` + `wama.common.tests.tests_gpu_safe_mode` = **17/17 OK** ;
 - `check_docs` : **7 cassées = toujours 1 cible distincte** (le partial d'onglets, préexistant ;
   7ᵉ référence ajoutée par le chantier verif en cours, pas par cette instance) + 1 PÉRIMÉ
   `WAMA_VERIFICATION.md:244` — appartient à l'instance gestes, son fichier était en cours d'édition ;
@@ -8857,7 +8857,7 @@ avant tout écrivain `.wds`. Lire `WAMA_DATA_WORLD §11.8-§11.9` avant tout cod
 
 ### Contrôles attendus au prochain /reprise (MESURÉS cette session)
 
-- tests périmètre : `wama_data` + `wama.common.tests_units` = **689 OK** (676 + 13) ;
+- tests périmètre : `wama_data` + `wama.common.tests.tests_units` = **689 OK** (676 + 13) ;
 - `check_docs` : **1 cible distincte** (le partial d'onglets préexistant), 7 références = bruit ;
 - unicité `D<n>` de `WAMA_DATA_WORLD` : **0 doublon** (grep uniq -d vide) ;
 - garde D28 : `wama_data.core.tests_naming` passe (et attrape réellement — 2 prises vécues).
@@ -8924,7 +8924,7 @@ en entrée** ».
    sélectionnable**, libellé marqué ⚠, raison en `title` — doctrine `INPUT_MODEL_MATCHING` :
    on informe, on ne cache pas) et `langFilter(selectId)`, qui **résorbe un prédicat recopié**
    dans les deux gabarits. Aucun bandeau ne renaît : le champ dit lui-même ce qu'il accepte.
-5. **+9 invariants** (`common/tests_capabilities_languages.py`, 28 dans le module).
+5. **+9 invariants** (`common/tests/tests_capabilities_languages.py`, 28 dans le module).
 
 **⚠⚠ Deux leçons, et la seconde n'est pas dans le code**
 - **Un prédicat BOOLÉEN ne peut pas dire une COUVERTURE, qui est un ENSEMBLE.**
@@ -9368,7 +9368,7 @@ fait porter le menu à la première app `early` gagnant un 2ᵉ format.
 re-dérivé en prose un critère écrit en tête du module que je venais de renommer : *une prose
 dérive même quand le code, lui, est juste.*
 ✅ **Rien à durcir** : `late ⟺ formats déclarés` est déjà un invariant mécanique
-(`common/tests_catalogues.py:349`), donc `entries_for_app()` rend vide sur une app `early`.
+(`common/tests/tests_catalogues.py:349`), donc `entries_for_app()` rend vide sur une app `early`.
 
 **Adoption sur le BON dénominateur : 1 sur 3** (pas 1/12). Les 2 restantes sont bloquées **côté
 SERVEUR** : `?format=` n'est lu que par leur download d'ITEM (`reader/views.py:441`,
@@ -9560,7 +9560,7 @@ pas ») ; **gunicorn a été HUP-rechargé**
 pendant la session (PID master 122327) — WAMA relancé par Fabien depuis.
 
 **Contrôles attendus au prochain /reprise (MESURÉS à cette clôture, 30/08)** :
-- `wama.common.tests_downloads` : **9 tests OK** (dont 6 neufs) ;
+- `wama.common.tests.tests_downloads` : **9 tests OK** (dont 6 neufs) ;
 - `check_docs` : **1 CIBLE DISTINCTE** (partial d'onglets assumé) / 8 réf / **0 périmée** sur
   **1196** (34 docs + 14 skills — remesuré APRÈS la rectification ⑤, qui a ajouté 4 références
   toutes résolvantes) ; 0 chiffre sans source ;
@@ -10245,7 +10245,7 @@ n'aurait été vu par personne :
   du skill, cinquième récidive.* Le RÉSULTAT est consigné (`ROADMAP.md` §19.3), pas le script.
 
 ### Contrôles attendus au prochain /reprise — MESURÉS le 2026-08-31
-- `test wama.accounts wama.gateway wama.common.tests_qr wama.common.tests_claude_subscription
+- `test wama.accounts wama.gateway wama.common.tests.tests_qr wama.common.tests.tests_claude_subscription
   wama.anonymizer` → **71 OK, 0 rouge**.
 - `check_docs` → **8 cassées / 0 périmée sur ~1284 vérifiées** (dont du WIP non commité d'une
   autre instance au moment de la mesure), et surtout **1 SEULE cible
@@ -11059,7 +11059,7 @@ les 11 gabarits de card + point d'état orange à pulsation lente + libellés CE
 Deux dettes soldées, MESURÉES au smoke : le bord d'état tricolore ne GAGNAIT JAMAIS contre le
 `border-secondary !important` de Bootstrap (4px gris au getComputedStyle) — domicile unique
 `.wama-card.*` avec !important, qui couvre aussi reader/converter, jusqu'ici sans état.
-Garde : `wama/common/tests_status_ui.py` (5 tests sur les sources, dont l'ÉGALITÉ
+Garde : `wama/common/tests/tests_status_ui.py` (5 tests sur les sources, dont l'ÉGALITÉ
 staticfiles/=source — le geste de resynchro devient un invariant testé).
 
 **Palier 2 — curseur d'INTENTION rapide↔qualité** : 3 politiques nommées (`fast`/`balanced`/
@@ -11449,7 +11449,7 @@ partagé.* Depuis le retrait, le backbone vient du cache partagé ; la copie dan
 `start_wama_prod.sh:271` (`--workers 1` du service TTS déclaré **STRUCTURANT** à cause de cette
 course) et `dedup_models.py:3` (commande écrite comme « séquelle de la course »).
 
-**Garde livré** — `wama/common/tests_hf_cache_routing.py` : compte les mutations **par AST**
+**Garde livré** — `wama/common/tests/tests_hf_cache_routing.py` : compte les mutations **par AST**
 (un grep compterait les mentions en commentaire, nombreuses), budget **37**, **ne peut que
 descendre**, + un test qui vérifie que le socle pose bien les 3 variables. ⚠ Il **trie**, il ne
 conclut pas : « pas de `cache_dir=` dans la fonction » ne veut pas dire « non retirable » —
@@ -12144,7 +12144,7 @@ du générateur. ⚠ Touche leurs tables : demander le GO à Fabien avant.
 ### ✅ CE QUE MON RESSERREMENT DE SEUIL A CASSÉ — SOLDÉ avant la fermeture
 
 Descendre `CIBLES_ASSUMEES` de 1 à 0 (commit `df48f1e0`) **casse 2 tests** de
-`wama/common/tests_check_docs.py` : ils assertaient le VERDICT (`ok`) là où ils ne testent que
+`wama/common/tests/tests_check_docs.py` : ils assertaient le VERDICT (`ok`) là où ils ne testent que
 le COMPTAGE, donc ils étaient liés au budget. **Mesuré : 27 OK avec le correctif, 2 échecs
 sans.** Le correctif (découpler comptage et politique) a été écrit par une AUTRE instance et
 est **désormais dans HEAD** (porté par son commit `47606901`) : vérifié à la fermeture,
@@ -12199,7 +12199,7 @@ sans rien dire. **Toute cible distincte est désormais une dérive.**
 > d'origine, pas de jumelle** (consigne Fabien : « surtout rien casser au Transcriber »). Partition
 > tenue : `wama/transcriber/{static/transcriber/js/index.js, templates/transcriber/index.html}`,
 > `wama/common/static/common/js/wama-import.js`, `common/services/conformity_checker.py`,
-> `common/tests_import_wired.py`, `staticfiles/{common,transcriber}/js/`. ⚠ Deux autres instances
+> `common/tests/tests_import_wired.py`, `staticfiles/{common,transcriber}/js/`. ⚠ Deux autres instances
 > actives dans l'arbre (cam_analyzer ; régénération du corpus `manifests/`) — aucun fichier commun.
 
 ### Ce qui a été fait
@@ -12279,7 +12279,7 @@ anonymizer/composer/enhancer 94, imager 92. Le 2ᵉ tableau (vrais restes) est i
 `backend_routes` ×7, `task_skeleton` ×7, `detail_spec`/`triad_specs` 🔶, `model_options_catalog`
 ×5, `model_caps_ui` ×3, `during_preview` ×3, `recursive_import` imager (à passer N/A pour une
 card d'attache), `user_settings` anonymizer/enhancer (§23.3), `btn_order` imager.
-**Mesure** : `wama/common/tests_conformity_backends.py` (20 tests : résolution statique semée,
+**Mesure** : `wama/common/tests/tests_conformity_backends.py` (20 tests : résolution statique semée,
 repli par imports, bases métier, harnais et commentaires jamais preuves, mutation condamne,
 message de `backend_routes`) ; familles inventaire + adoption + import_wired + hf_cache +
 auto_model : **107 OK** ; `check_app_conformity` relancé ; `doc_facts --only conformite` régénéré.
@@ -12315,7 +12315,7 @@ révélés, aucun n'avait d'appelant avant :
    le cas même que la route F4b existe pour rendre choisissable — se serait affiché en **clé
    technique** sur la card. Les plaques statiques gardent la priorité, aucun libellé ne change.
 
-**Mesure** : `wama/common/tests_model_options_catalog.py` (16 tests : borne de catégorie avec
+**Mesure** : `wama/common/tests/tests_model_options_catalog.py` (16 tests : borne de catégorie avec
 source, non-réélargissement, domaines des 2 apps, clés = valeurs stockées, invariants « tout
 `catalog` porte un domaine » et « aucun domaine ne porte de capacité requise » — lus sur TOUS les
 schémas déclarés, pas seulement le principal : trou #10) ; model_manager + reader + enhancer +
@@ -12484,7 +12484,7 @@ cards orphelines (`PROFILES §3bis`) · triades déclaratives, specs de détail,
 | grille | converter **100**, describer **100**, reader **96**, transcriber **95**, synthesizer **95** ; anonymizer **91** / enhancer **92** en BAISSE par le chantier backends d'une autre instance (`backend_packages`, `hf_cache_isolation`…), pas par le portage |
 | familles nocturnes après portage | transcriber 13/13 · converter 13/14 + skip anti-bouclage · describer 12/12 · synthesizer 12/13 + skip « pas d'URL » · enhancer 11/12 + skip anti-bouclage · reader 11/12 + skip « pas d'URL » · anonymizer 11/12 + skip anti-bouclage ; parc `.import` **0 échec** |
 | push | `dev` non poussée par moi (6 commits de portage : `18a6266c`, `401bd9a0`, `90984b25` + 3 suivants) — mesurer contre `origin/dev` avant de conclure |
-| **`wama.common.tests_import_contract`** (ajouté après relecture demandée par Fabien) | **4 OK** — pour les 7 apps portées : la vue d'upload accepte le multipart de la brique (`file` / `files`) et répond une forme lisible par `identifiants()` (transcription Python du lecteur JS) ; un dépôt vide est REFUSÉ ; critère `import_front` vert sur l'arbre RÉEL ; `wama-import.js` chargé AVANT le script qui l'instancie — **garde contre la déconstruction** d'un portage |
+| **`wama.common.tests.tests_import_contract`** (ajouté après relecture demandée par Fabien) | **4 OK** — pour les 7 apps portées : la vue d'upload accepte le multipart de la brique (`file` / `files`) et répond une forme lisible par `identifiants()` (transcription Python du lecteur JS) ; un dépôt vide est REFUSÉ ; critère `import_front` vert sur l'arbre RÉEL ; `wama-import.js` chargé AVANT le script qui l'instancie — **garde contre la déconstruction** d'un portage |
 
 ### ✅ Trouvé par ces tests et CORRIGÉ (demande Fabien : « il faut régler ça »)
 
@@ -12913,7 +12913,7 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
   avec le contenu par défaut de `base.html` ne l'est pas*. L'invariant survit à ce qu'une page
   ouvre ou ferme une section, et couvre les pages qu'aucune liste ne cite ; le test est scindé
   en deux (cadres vides / cohérence aside+classe), 14 tests `OK` ;
-- ⚠ **PARTITION** : une autre instance travaille dans `wama/common/tests_catalogues.py`, le
+- ⚠ **PARTITION** : une autre instance travaille dans `wama/common/tests/tests_catalogues.py`, le
   fichier de mon palier ① — 66 lignes NON commitées dans l'arbre au moment où j'écris (un
   inventaire des kinds qui projettent, et un défaut qu'elle a mesuré : `apply_manifests --kind
   function` annonce « inchangés 62 » alors que les 62 sont REFUSÉS). Je ne l'ai pas touché après
@@ -12967,7 +12967,7 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
 
 > Session ouverte par `/reprise`, poursuivie sur le monde Data et la couche `function`. C'est
 > l'instance que le §CLÔTURE cam_analyzer ci-dessus désigne comme « une autre instance travaille
-> dans `wama/common/tests_catalogues.py` » : les 66 lignes qu'il voyait non commitées sont
+> dans `wama/common/tests/tests_catalogues.py` » : les 66 lignes qu'il voyait non commitées sont
 > devenues `8e321021`. **Partition tenue** : aucun fichier de l'instance CARDS/UI
 > (`codegen/templates_gen.py`, `codegen/views_gen.py`, `tests_codegen_*`, `CARD_DESIGN.md`,
 > `staticfiles/`) n'a été touché ni commité.
@@ -13076,7 +13076,7 @@ la donnée de sa source.
 
 ### Contrôles attendus au prochain /reprise — tous MESURÉS le 2026-09-09 en clôture
 
-- `manage.py test wama.common.tests_catalogues wama.studio wama_data wama_lab.cam_analyzer`
+- `manage.py test wama.common.tests.tests_catalogues wama.studio wama_data wama_lab.cam_analyzer`
   (venv_linux, `--keepdb`) : **848 tests, `OK`** — 843 avant les 5 gardes de clôture.
   ⚠ Le verdict est `OK` dans la SORTIE, jamais le code de retour ;
 - `check_docs` : **0 cassée / 0 périmée sur 1538** — et surtout **0 CIBLE DISTINCTE**, qui est
@@ -13714,7 +13714,7 @@ Registre des bascules : **17 → 21** (`imu_command`, `prediction_kalman`, `pred
 ### Contrôles attendus au prochain `/reprise` — MESURÉS le 2026-09-12, après la dernière écriture
 
 - **Tests de mon périmètre** (`wama_lab.cam_analyzer` + `wama_data` + `wama.studio` +
-  `wama.common.tests_catalogues` + `wama.common.tests_media_paths`) : **956 `OK`, 0 skipped**
+  `wama.common.tests.tests_catalogues` + `wama.common.tests.tests_media_paths`) : **956 `OK`, 0 skipped**
   (venv_win). ⚠ Les **4 skips** du run précédent étaient `CorpusReelTest` — ils sont soldés, pas
   écartés. *Un skip nouveau après une migration est plus grave qu'un rouge : c'est un vert qui a
   cessé de tester quelque chose.*
@@ -14772,7 +14772,7 @@ médiathèque + manifestes **230 OK** ; sonde à blanc OK sous WSL ; `check_docs
   recopie pas la taxonomie, il la REÇOIT (`wama-studio.js:51`, `:785`). Et **aucun autre validateur de
   type de port n'existe** : le kind `function` ne contrôle pas `data_type`, l'ingestion d'une
   `UserFunction` non plus, le JS apparie par intersection. Pas de seconde liste qui divergerait.
-- **Gardes AJOUTÉES** — `wama/common/tests_port_types.py`, **10 tests** : l'accesseur = les constantes ;
+- **Gardes AJOUTÉES** — `wama/common/tests/tests_port_types.py`, **10 tests** : l'accesseur = les constantes ;
   les deux prédicats qui coexistaient donnent le même ensemble (ce test rougira le jour où la classe
   portera autre chose) ; **garde AST contre une 6ᵉ copie** ; le vocabulaire des ports = exactement
   l'union des trois ; il refuse une extension ; **les deux taxonomies gardent une intersection VIDE** ;
@@ -14866,7 +14866,7 @@ des deux côtés ; ce que le converter sait écrire est une FACETTE de la nature
 `<pluriel anglais>_catalog` pour le nom d'une page de registre — mon `common:media_formats` a été
 refusé, renommé `media_formats_catalog`. *La norme du 01/09 tient toute seule, un an après.*
 
-**Gardes ajoutées** — `wama/common/tests_media_formats.py` (11) : toutes les natures rendues même
+**Gardes ajoutées** — `wama/common/tests/tests_media_formats.py` (11) : toutes les natures rendues même
 vides · extensions sans point et triées · **la carte est lue à l'appel** (poussée d'une extension
 après import, puis état restauré) · nature inconnue refusée à la poussée · registre DÉRIVÉ sans
 rafraîchisseur · **clé en ANGLAIS**, libellé en français · compte et fiches par nature · page 200
@@ -14954,7 +14954,7 @@ P2**, et P2 est le vocabulaire d'états. Le tableau des 6 états est ACTÉ depui
 (`§10.6 4.2`) ; le commun n'en portait que 5 — `STALE` manquait, alors que le Lab l'avait déjà et
 que sa propre docstring portait la consigne d'alignement (`cam_analyzer/models.py:436-437`).
 Livré : `JOB_STALE` + `PROCESS_STATUS_CHOICES` (`common/models.py`) et **6 gardes**
-(`common/tests_process_states.py`), dont la correspondance 1-1 avec les cinq états du Lab.
+(`common/tests/tests_process_states.py`), dont la correspondance 1-1 avec les cinq états du Lab.
 ⚠ **Deux frontières tenues par les tests** : `STALE` n'entre PAS dans les `choices` des FILES
 (13 modèles les déclarent — 13 migrations pour une valeur qu'aucune file ne sait produire ; elles
 le recevront à **P6**), et il n'est **ni « pas commencé » ni « terminal »** — il a produit un
@@ -15033,7 +15033,7 @@ ENSEMBLE — c'est par leur divergence que `WAMA_INGEST` s'était déjà perdu u
 échoué sur un chemin que je n'avais pas mesuré.*
 
 **⑧ Ce qui est GARDÉ** (règle « tout livrable est gardé ou déclaré ») — 4 gardes neuves dans
-`common/tests_process_states.py` : les libellés de génération viennent du commun ; les deux
+`common/tests/tests_process_states.py` : les libellés de génération viennent du commun ; les deux
 chemins de rendu déclarent les cinq états ; l'exécuteur n'écrit plus de littéral ; **et un runner
 qui répond `DONE` termine le nœud** — celle-ci patche le délai de nœud à **zéro**, pour qu'une
 régression échoue en une seconde au lieu de faire tourner la boucle une demi-heure.
@@ -15085,7 +15085,7 @@ pulsation dit « vivant », l'appliquer ferait croire à un traitement en cours)
 Il propose désormais ↻ « Recalculer ce qui est périmé » — même endpoint qu'un terminé, libellé
 distinct, dans les DEUX écritures (gabarit serveur au chargement, `stateFor` au poll).
 
-**⑫ Gardes** — `common/tests_status_ui.py` porte maintenant deux familles SYMÉTRIQUES (attente de
+**⑫ Gardes** — `common/tests/tests_status_ui.py` porte maintenant deux familles SYMÉTRIQUES (attente de
 ressources / périmé), la seconde se lisant comme la **liste de contrôle du prochain état**. Dont
 une **contre-épreuve** : un `SUCCESS` doit continuer de dire « Relancer », sans quoi un libellé
 changé partout passerait le test en cassant le sens.
@@ -16139,7 +16139,7 @@ moment — détail dans la mémoire « secrets ».
 > déclare dans le handoff*). Deux instances ne touchent jamais le même fichier.
 
 **Cette instance possède** : les NOUVEAUX modules `wama/common/tests_*.py` qu'elle crée, et
-`wama/common/tests_queue_delete_contract.py`, `wama/common/tests_media_paths.py`,
+`wama/common/tests/tests_queue_delete_contract.py`, `wama/common/tests/tests_media_paths.py`,
 `wama/common/utils/queue_duplication.py`, `wama/common/management/commands/check_media_integrity.py`,
 `wama/common/services/retention.py`, `docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §8.6`
 (lignes D13-D19 et suivantes).
@@ -16159,7 +16159,7 @@ corrige SEULEMENT si l'app n'est pas en cours de portage ; sinon elle le TRANSME
 **Pour une session qui reprend le chantier 1 du harnais** (borner les résultats d'outil de l'assistant) :
 la spécification MESURÉE est dans `docs/construction/ia/WAMA_HARNESS.md §9 Chantier 1` (5 choix
 recommandés, NON validés) ; fichiers `wama/common/services/assistant_engine.py` +
-`wama/common/tests_assistant_surfaces.py` — disjoints de cette instance.
+`wama/common/tests/tests_assistant_surfaces.py` — disjoints de cette instance.
 
 ---
 
@@ -16483,7 +16483,7 @@ synthèse — solde **D19** et la décision « is_public → visibility »), 2 r
 15 fonctions sans appelant. ⚠ **Les homonymes des autres apps masquaient 5 de ces noms** dans un
 relevé par motif — vérifié import par import ; et deux fonctions n'avaient d'appelant que leurs TESTS.
 
-**Preuves** : `common/tests_file_references.py`, **15 tests génériques** (aucune app nommée, témoins
+**Preuves** : `common/tests/tests_file_references.py`, **15 tests génériques** (aucune app nommée, témoins
 fabriqués sur les 12 surfaces) ; **contre-épreuve à blanc des trois câblages** (chacun neutralisé →
 rouge) ; JS attesté par V8 sur la copie SERVIE ; 245 tests verts sur le périmètre touché.
 

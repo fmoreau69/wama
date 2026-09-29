@@ -936,7 +936,7 @@ Fabien le 15/09 :
   (ex-`synthesis_card_html`, route `card/<pk>/html/` de `urls_gen`) ; la jumelle `converter_01`
   reçoit `BatchMixin` (glue commune invisible au rendu depuis la facette `data`) ;
 - retirés : `batch_changed`, `batch_utils.find_member_batch` (REMOVAL_LEDGER).
-Tenu par `common/tests_queue_delete_contract.py` (vue par vue, 11 surfaces + le jumeau
+Tenu par `common/tests/tests_queue_delete_contract.py` (vue par vue, 11 surfaces + le jumeau
 gabarit↔JS de l'entrée unitaire) et le geste navigateur `<app>.delete_from_batch`.
 **Et par la GRILLE** (demande de Fabien : « s'il manque des critères dans la grille il faut les
 rajouter ») — `delete_wiring` attestait le bouton, jamais la réponse : 5 critères F5 ajoutés,
@@ -1039,7 +1039,7 @@ sur la même liste.
 > décision d'APP, « ce n'est pas un reste, c'est la frontière » — mais dit la vraie raison
 > (« N backends résolus au substrat, aucune ROUTES déclarée » au lieu de « moteur enfoui »).
 > Après : les 6 critères verts sur 9 apps applicables (converter N/A), 7 rouges
-> `backend_routes` = le vrai reste. Tenu par `wama/common/tests_conformity_backends.py`.
+> `backend_routes` = le vrai reste. Tenu par `wama/common/tests/tests_conformity_backends.py`.
 
 **Palier `params` (soir, sur dev)** : extract MULTI-SCHÉMAS — tous les attributs `*PARAMS_JSON`
 (trou #10 résorbé : imager IMAGE+VIDEO, enhancer MEDIA+AUDIO étaient invisibles), facette
@@ -1201,7 +1201,7 @@ outillé avant d'ouvrir cette marche.
   > **Gate d'acceptation** : la batterie UI auto-dérivée `run_nightly_tests --id <label>.`
   > (11 scénarios) — `converter_01` 11/11, `describer_01` 11/11. Un scénario qui SKIPPE n'est
   > pas un scénario qui passe : lire le motif, il nomme la cause côté app.
-  > **Tests de ces gardes** : `wama/common/tests_sandbox_coherence.py` (14) +
+  > **Tests de ces gardes** : `wama/common/tests/tests_sandbox_coherence.py` (14) +
   > `wama/filemanager/tests.py` (invariant importeurs).
 
   **✅ S1 LIVRÉE (2026-08-18)** — jumelle TÉMOIN opérationnelle : `manage.py app_sandbox
@@ -1344,7 +1344,7 @@ outillé avant d'ouvrir cette marche.
      **CONTRAINTE à ce vocabulaire**, dans **LES DEUX** chemins de création (`upload` et
      `batch_create` — n'en doter qu'un est ce qui a produit les trois défauts ci-dessus) ; une
      extension hors vocabulaire laisse le champ VIDE et le DIT (`warning`), au lieu d'écrire une
-     valeur plausible. 4 tests dans `common/tests_codegen_lot.py` (dont un qui mute le manifeste
+     valeur plausible. 4 tests dans `common/tests/tests_codegen_lot.py` (dont un qui mute le manifeste
      pour distinguer « dérivé » de « écrit en dur avec la bonne valeur ce jour-là »).
      *Un trou de formalisme s'annonce APRÈS avoir cherché la déclaration, jamais avant : poser un
      formalisme neuf par-dessus une déclaration existante en crée une seconde, qui divergera.*
@@ -1378,7 +1378,7 @@ outillé avant d'ouvrir cette marche.
      `('prompt',)→()`, synthesizer `('audio','prompt')→('audio',)`, avatarizer
      `('audio','image','prompt')→('audio','image')`. Correction : on saute `group == 'prompt'` et
      on ne retient qu'un jeton de `MEDIA_CATEGORIES` (repli `accepts` : même filtre + exclusion
-     explicite de `text`). 2 tests (12→14 dans `common/tests_codegen_lot.py`), **vérifiés
+     explicite de `text`). 2 tests (12→14 dans `common/tests/tests_codegen_lot.py`), **vérifiés
      DISCRIMINANTS** en rejouant l'ancienne logique sur les mêmes manifestes mutés.
      ⏳ **Ce qui reste réellement ouvert** — reformulé le 2026-08-30 après une objection de Fabien
      (« je ne comprends pas ta formulation ») et **RECADRÉ par la mesure**, car la version
@@ -1424,7 +1424,7 @@ outillé avant d'ouvrir cette marche.
        compte relevé à la main : 15 extensions manquaient, pas 14** — `.qt` (extension vidéo
        DÉCLARÉE) manquait aussi au littéral et avait échappé au relevé. *Même un constat de
        dérive se recompte à l'instrument.* Et le geste demandé (« un contrôle mécanique, pas
-       10 patchs ») est en place : `common/tests_catalogues.py::CardEntreeConformiteTest`
+       10 patchs ») est en place : `common/tests/tests_catalogues.py::CardEntreeConformiteTest`
        confronte les `file_accept` des 12 cards au catalogue **dans les deux sens** (la card
        n'OFFRE rien d'indéclaré ; ne GRISE rien de déclaré), avec 2 écarts ASSUMÉS à faire
        décroître — avatarizer (slot voix = politique `VOICE_SAMPLE_EXTENSIONS`, avatar via
@@ -1563,7 +1563,7 @@ outillé avant d'ouvrir cette marche.
      vrai `<a href>` au lieu du bouton `disabled` par construction (`composer/index.html:87` le
      faisait déjà — la variable existait, une seule app l'utilisait). Routes résolues par
      `resolve_route()` (point 2), jamais supposées.
-     **Vérification** : `common/tests_codegen_templates.py` (module neuf — `templates_gen` n'en avait
+     **Vérification** : `common/tests/tests_codegen_templates.py` (module neuf — `templates_gen` n'en avait
      aucun), **prouvés DISCRIMINANTS en les rejouant dans un worktree sur HEAD** : 6/11 rouges avant
      correctif. Le 7ᵉ passait **à vide** (il bouclait sur une liste d'URLs vide = l'état défectueux)
      → assertion de cardinalité ajoutée. *Un test qui ne boucle sur rien atteste le néant.*
@@ -1625,7 +1625,7 @@ outillé avant d'ouvrir cette marche.
      rendu est inchangé à l'octet près**, donc aucune app n'a eu à bouger.
      Le dropdown JS du transcriber (4 formats **codés en dur**, URL par
      `replace('start_all','download_all')`) est SUPPRIMÉ ; les formats viennent du catalogue.
-     Attesté : 46 tests verts (dont 6 neufs, `common/tests_downloads.py`), 112 gabarits compilés,
+     Attesté : 46 tests verts (dont 6 neufs, `common/tests/tests_downloads.py`), 112 gabarits compilés,
      grille inchangée, et **fumée serveur** — les 4 `?format=` sont dans le HTML servi, les 10 apps
      répondent 200.
      ⚠ Deux gardes neuves plutôt qu'un commentaire : un test refuse `dropdown-toggle-split` sur la
@@ -1651,7 +1651,7 @@ outillé avant d'ouvrir cette marche.
      CONSÉQUENCE, `export_binding` est la CAUSE, et il est DÉCLARÉ (`app_registry.py`, défaut
      `'early'`) — donc il n'y avait pas à le déduire.
      ✅ **Rien à durcir dans le code** : l'équivalence `late ⟺ des formats déclarés` est déjà un
-     INVARIANT MÉCANIQUE (`common/tests_catalogues.py:349`), donc `entries_for_app()` rend
+     INVARIANT MÉCANIQUE (`common/tests/tests_catalogues.py:349`), donc `entries_for_app()` rend
      naturellement une liste vide sur une app `early` et le tag retombe sur le lien simple. Ajouter
      une garde ici mettrait la même règle à deux endroits. Et `common/utils/export_formats.py`
      énonce la distinction dès son 1ᵉʳ paragraphe : **c'est ma prose qui avait dérivé, pas le code**
@@ -2730,7 +2730,7 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 
 > ✅ **P2, 1ʳᵉ pièce LIVRÉE le 2026-09-17** — le vocabulaire commun porte enfin les SIX états.
 > `JOB_STALE` + `PROCESS_STATUS_CHOICES` sont déclarés dans `common/models.py` ; gardes dans
-> `common/tests_process_states.py` (dont la correspondance 1-1 avec les cinq états du Lab, d'où
+> `common/tests/tests_process_states.py` (dont la correspondance 1-1 avec les cinq états du Lab, d'où
 > `STALE` est repris). **Deux frontières tenues par les tests** : `STALE` n'entre PAS dans les
 > `choices` des FILES — ces `choices` sont ceux de 13 modèles, y ajouter une valeur qu'aucune file
 > ne sait produire ferait naître 13 migrations pour rien (les files le recevront à **P6**) — et il
@@ -2781,7 +2781,7 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 > de `wama-inspector.css`, le compteur de lot, le filtre de file et son option de barre, plus la
 > resynchro de `staticfiles/` (le dossier réellement SERVI). *Compter les surfaces AVANT d'annoncer
 > un reste : c'est le même relevé qui avait fait dire « deux » là où il y en avait huit.*
-> **Gardes** : `common/tests_status_ui.py` porte désormais deux familles SYMÉTRIQUES — celle de
+> **Gardes** : `common/tests/tests_status_ui.py` porte désormais deux familles SYMÉTRIQUES — celle de
 > l'attente de ressources et celle du périmé —, la seconde se lisant comme la liste de contrôle du
 > prochain état. Dont une **contre-épreuve** : un `SUCCESS` doit continuer de dire « Relancer »,
 > sans quoi un libellé changé partout passerait le test en cassant le sens.
@@ -3109,7 +3109,7 @@ possible **sans aucun process**.
    ✅ **TRANCHÉE le 2026-09-17 (Fabien).** `STALE` s'affiche en **violet `#9b59b6`** ; le bouton de
    cycle garde l'action ↻ d'un terminé avec un **libellé distinct** (« Recalculer ce qui est
    périmé ») ; la **règle d'agrégation de 4.4 est validée telle quelle**. L'AFFICHAGE est livré le
-   jour même (8 surfaces, gardes dans `common/tests_status_ui.py`) ; la brique d'agrégation reste
+   jour même (8 surfaces, gardes dans `common/tests/tests_status_ui.py`) ; la brique d'agrégation reste
    à écrire — c'est le dernier morceau de P2.
 5. Data : « connecter » ou « importer » — que fait-on d'une source qui change sous la card
    (`wama_data/modules.py:103-107`) ?
@@ -3358,7 +3358,7 @@ l'utilisateur puisse savoir où en est sa tâche*. Brique `common/services/globa
 | 15 | **`system_tools` non déclarés** (chromium, ffmpeg, rsvg…) — le volet **librairies** du manifeste est CLOS (2026-08-03/11 : `requires:{kind:library}` dans l'enveloppe, résolu et bloquant, kind + registre `Library` + `write_back_library` livrés, 1er lien transcriber→faster-whisper) ; ce qui manque encore est la déclaration des **outils système** et leur provisionneur commun (cf. `PROJECT_STATUS` §23.6, qui annonçait ce trou sans qu'il ait été reporté ici) | F4/F5 | manifeste |
 | 20 | ✅ **clos (2026-08-13, le jour de sa découverte)** — Routes par-outil `/api/tools/*` NON gardées par le gating F7 : les **10** vues individuelles de `wama/tool_api.py` (« for manual testing ») appelaient les fonctions d'outil DIRECTEMENT — sans `execute_tool`, donc sans `tool_accessible` — et `app_id_for_path('/api/tools/…')` → None (segment `api`) : le middleware ne les couvrait pas non plus. Seul `@login_required` s'appliquait : tier + rôles contournés — **jumeau exact du trou #7** (même mécanique, autre surface). **Correctif** : les 10 vues passent par un adaptateur unique `_vue_outil` → `execute_tool` (LA porte : gating, sanitisation, coercition, bornes de choix), `forbidden` → 403. Mesuré : user sans rôle → 403 sur anonymizer/status, 200 sur converter (ouvert) et list-files (transverse) | F7 | ✅ |
 | 21 | **Couche JS d'APPLICATION non générée** (mesuré 2026-08-22, converter_01) : le gabarit généré n'émet AUCUN bloc `app_scripts`, alors que le socle l'offre (`app_modern_base.html:294`). Le JS de l'app existe dans `static/` mais n'est jamais chargé → aucun écouteur posé, aucune voie d'import n'émet de requête, **zéro erreur console** (rien ne plante quand rien n'est chargé). C'est ce silence qui l'a rendu invisible au banc codegen, qui ne compare que des facettes projetables. Brique livrée : `common/_app_scripts.html` (noyau mesuré sur 10 apps + options). → ✅ **CLOS — confirmé le 2026-08-22** : `templates_gen.py:116-117` émet désormais `{% block app_scripts %}` + l'inclusion de `common/_app_scripts.html`, suivis des seules URL propres à l'app (lot, progression globale). L'avertissement « le générateur ne l'émet toujours pas » est PÉRIMÉ — il décrivait l'état d'avant le portage dans `templates_gen`. | F1/F3 | ✅ |
-| 22 | ~~**`batch_create` encore bouchonné (501)**~~ → ✅ **CLOS le 2026-08-22**. Vue conventionnelle rendue par la fabrique (parse → création → `group_into_batches_by_nature`), zéro brique nouvelle. **Une URL n'y est PAS téléchargée** : la source est enregistrée et `ensure_local_input` la résout en tête de tâche — la requête ne part pas chercher N fichiers distants, et le seul chemin de téléchargement reste celui qui passe par la garde SSRF. Mesuré de bout en bout sur `converter_01` : 2 éléments créés, rattachés à un lot (`wama/common/tests_codegen_lot.py`, 8 tests). **Deux défauts trouvés en le câblant** : ① la 2ᵉ passe d'assemblage (`extra_routes`) ne consultait pas les corps conventionnels — une route déclarée en extra recevait un 501 alors que la fabrique savait la rendre (3ᵉ occurrence du motif « deux chemins, deux apps », après `WAMA_INGEST` et le `pk` de `batch_preview`) ; ② la clé d'ingest est `source`, pas `source_field`. | F1 | codegen |
+| 22 | ~~**`batch_create` encore bouchonné (501)**~~ → ✅ **CLOS le 2026-08-22**. Vue conventionnelle rendue par la fabrique (parse → création → `group_into_batches_by_nature`), zéro brique nouvelle. **Une URL n'y est PAS téléchargée** : la source est enregistrée et `ensure_local_input` la résout en tête de tâche — la requête ne part pas chercher N fichiers distants, et le seul chemin de téléchargement reste celui qui passe par la garde SSRF. Mesuré de bout en bout sur `converter_01` : 2 éléments créés, rattachés à un lot (`wama/common/tests/tests_codegen_lot.py`, 8 tests). **Deux défauts trouvés en le câblant** : ① la 2ᵉ passe d'assemblage (`extra_routes`) ne consultait pas les corps conventionnels — une route déclarée en extra recevait un 501 alors que la fabrique savait la rendre (3ᵉ occurrence du motif « deux chemins, deux apps », après `WAMA_INGEST` et le `pk` de `batch_preview`) ; ② la clé d'ingest est `source`, pas `source_field`. | F1 | codegen |
 | 23 | **`auto_wrap_orphans` sans variante FK-DIRECTE** : la brique commune suppose un modèle de LIAISON ; converter est la seule app à FK directe et réécrit une boucle de 6 lignes, désormais reproduite dans le gabarit généré. Motif écrit à 4 endroits (converter, avatarizer, synthesizer, codegen) → extraction justifiée. Même angle mort pour `build_batches_list`, que 9 apps sur 10 utilisent et qui ne couvre pas la FK directe (prefetch `items__work_attr`). | F1/F5 | brique |
 | 24 | **Contrat de réponse d'`upload` non normalisé** : converter renvoie `job_id`, le gabarit généré `id`, d'autres `pk`. `converter.js` lisait `data.job_id` là où la vue générée renvoyait `id` → identifiant `undefined`, liste vide, pas de rechargement, **aucune card, sans erreur**. `wama-import.js` lit désormais les trois graphies (filet), mais la normalisation des vues reste à faire — l'affichage ne doit pas dépendre d'un nom de clé. **Précisé le 2026-08-22 :** le trou n'est plus côté GÉNÉRATEUR — `views_gen.py` renvoie uniformément `{'id': …}` sur toutes ses vues. → ✅ **CLOS côté parc aussi (constaté à l'audit du 2026-08-31)** : `grep "'job_id':" wama/*/views.py` = 0 occurrence — le converter a TRADUIT vers `id` avec la justification écrite (`converter/views.py:261-272`). Le filet à trois graphies de `wama-import.js` n'a plus de cas connu ; il reste comme ceinture, plus comme nécessité. | F1 | ✅ |
 | 25 | **8 doubles inclusions de JS** (mesuré 2026-08-22) : `wama-model-help` ×4 (composer, converter, reader, transcriber), `wama-queue` ×2 (composer, describer), `wama-cycle-button` ×1 (composer), `console` ×1 (anonymizer) — tous DÉJÀ chargés globalement par `base.html`/`app_modern_base.html`. Même famille que le bug du player audio muet du 18/08 (deux BroadcastChannel). Disparaissent à l'adoption de `_app_scripts.html` — ⚠ **adoption à 0/10 dans le parc réel au 31/08** (le partial ne vit que dans le gabarit GÉNÉRÉ) : ce trou ne se refermera pas tout seul, il attend le portage. | F3 | dette |

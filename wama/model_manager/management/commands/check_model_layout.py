@@ -22,7 +22,7 @@ CONSÉQUENCE, quel que soit le backend fautif, sans GPU et sans poids chargés. 
 permet de porter les sites restants (`ROADMAP §5b`) en le rejouant après un lancement réel.
 
 CE QU'IL NE FAIT PAS : il ne nomme pas le coupable. Un dépôt étranger dit qu'un backend a
-muté l'environnement, pas lequel — `wama/common/tests_hf_cache_routing.py` tient la liste des
+muté l'environnement, pas lequel — `wama/common/tests/tests_hf_cache_routing.py` tient la liste des
 sites restants.
 
 ⚠ Un composant LÉGITIME (pipeline pyannote, tokenizer publié à part) se DÉCLARE dans

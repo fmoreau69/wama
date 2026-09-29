@@ -558,7 +558,7 @@ def text_preview(request, pk: int):
     ⚠ `get_object_or_404` vivait DANS le `try/except Exception` ci-dessous jusqu'au 2026-09-22 :
     `Http404` est une exception, elle était avalée et rendue en **500** — un identifiant inexistant
     répondait « erreur serveur ». Trouvé par le parcours générique des adresses
-    (`common/tests_endpoints.py`). La recherche est sortie du `try`, et un fichier texte ABSENT du
+    (`common/tests/tests_endpoints.py`). La recherche est sortie du `try`, et un fichier texte ABSENT du
     disque (référence morte, cf. `check_media_integrity`) répond 404, pas 500.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()

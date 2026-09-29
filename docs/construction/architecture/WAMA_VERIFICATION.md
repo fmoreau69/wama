@@ -120,13 +120,13 @@ avoir rien lancé**. Un scénario qui se fierait au code retour serait VERT sur 
 vert qui n'a rien exécuté éteint la surveillance en silence. Aucun « Ran N tests » ⇒ `SkipScenario`.
 Mesure contraire à l'attente : un **label erroné** n'est PAS silencieux (Django fabrique un
 `_FailedTest`) — le scénario rougit et nomme le module, ce qui est mieux qu'un skip.
-Les rouges sont **NOMMÉS** dans le détail (mesuré : `wama.common.tests_doc_plans : 16 tests en
+Les rouges sont **NOMMÉS** dans le détail (mesuré : `wama.common.tests.tests_doc_plans : 16 tests en
 1.468s → FAILED (failures=1) — test_chaque_fichier_derive_est_ce_que_son_plan_produit`) : sans les
 noms, il faudrait relancer la suite à la main pour savoir quoi regarder.
 
 Lancement : `manage.py run_nightly_tests --stage suite` (CPU pur, aucun GPU — mais long : ~500 s
 pour `wama.common` seule, d'où un stage à part pour que `--stage ui` reste instantané).
-Tenu par `common/tests_nightly_suite.py` (9 tests : vert, rouge nommé, code retour 0 qui ne fait
+Tenu par `common/tests/tests_nightly_suite.py` (9 tests : vert, rouge nommé, code retour 0 qui ne fait
 pas un succès, rien-lancé skippé, verdict illisible, timeout, tierces écartées, substrat séparé).
 
 #### ⚠ Le SUBSTRAT n'est pas une app — et une page dédiée reste une décision DIFFÉRÉE
@@ -182,7 +182,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 12b | Un **worker meurt** pendant un traitement → la card passe en **échec relançable**, **sans rechargement de la page** | ✅ `<app>.worker_death` (24/09) — **10 apps sur 10**, aucun GPU : l'état de crash est posé en base (tâche `STARTED` par un processus disparu, nom de worker FICTIF pour que la réconciliation au chargement ne le solde pas), puis la brique du worker relancé (`reconcile_dead_worker_tasks`) le solde. ⚠⚠ **A trouvé deux défauts RÉELS** : describer et synthesizer reprenaient leur suivi sur la classe `.processing`, retirée des cards le 18/09 — une card en cours à l'ouverture de la page n'était plus jamais suivie | non |
 | 13 | Démarrer tout / télécharger tout (lot) | ✅ **JOUÉ** sur le converter · **ÉCRIT et ÉCARTÉ** sur les 16 autres — `<app>.batch_processing` (07/09) : « Démarrer tout » → paliers → « Télécharger tout » avec ZIP **vérifié** (signature `PK` + octets non nuls, un 200 rendant une page d'erreur n'étant pas une archive). ⚠⚠ **Ce scénario a trouvé un défaut RÉEL et visible** — voir l'encadré plus bas. ⚠⚠ **Et un second, COMMUN, le 2026-09-24** (joué au GPU sur describer et describer_01) : la card MÈRE gardait les compteurs de son dernier rendu serveur pendant tout le traitement (« 0 réussi » jusqu'au rechargement), et son ZIP n'apparaissait qu'au rechargement — le converter ne passait que parce que ses jobs finissent AVANT le rechargement de « Démarrer tout ». Corrigé dans `queue-actions.js` (compteurs relus sur le `data-status` des filles) et `_batch_card.html` (ZIP rendu, masqué sans sortie) ; la sonde visait le 1ᵉʳ lien du groupe, celui d'une fille | non |
 | 15 | **Sélection multiple** d'une file (clic / Ctrl / Maj / Ctrl+A / Échap) | ✅ `<app>.queue_dnd` (06/09) — **12 OK / 4 skips / 1 échec**, l'échec étant RÉEL (jumelle périmée) | non |
-| 16 | **Glisser-déposer** : entrer dans un lot · en former un · en sortir · ordonner | ⚠️ **MOITIÉ** — `<app>.queue_dnd` mesure la **décision** de dépôt (le seuil : tiers médian = appartenance, tiers haut/bas = ordre) et le nettoyage du retour visuel. Le **dépôt lui-même** n'est pas joué au navigateur (il recomposerait des lots sur le compte de test) ; sa moitié SERVEUR est tenue par `wama.common.tests_queue_dnd` (14 tests, dont le refus de fusion entre natures exercé en base) | non |
+| 16 | **Glisser-déposer** : entrer dans un lot · en former un · en sortir · ordonner | ⚠️ **MOITIÉ** — `<app>.queue_dnd` mesure la **décision** de dépôt (le seuil : tiers médian = appartenance, tiers haut/bas = ordre) et le nettoyage du retour visuel. Le **dépôt lui-même** n'est pas joué au navigateur (il recomposerait des lots sur le compte de test) ; sa moitié SERVEUR est tenue par `wama.common.tests.tests_queue_dnd` (14 tests, dont le refus de fusion entre natures exercé en base) | non |
 | 17 | **Annuler / rétablir** (page de correction transcriber, canvas studio) | ✅ `common.history.studio` (06/09) — les DEUX moitiés : le CÂBLAGE du consommateur (ajouter, annuler, rétablir, Ctrl+Z, « vider » en UN cran donc annulable) **et** la SÉMANTIQUE de la brique sur un modèle jetable (plafond, abandon de la branche redo, `silence`, référence recalée). ⚠ Un seul consommateur est jouable : la page de correction AUTO-ENREGISTRE (`markDirty` → save 800 ms), y annuler écrirait sur une transcription réelle ; le studio ne persiste qu'en `localStorage`. Le câblage transcriber reste donc dû | non |
 | 14 | Import dossier récursif · URL · **fichier de lot** · **« Envoyer vers »** | ✅ **ENTIER** (28/08) — `<app>.batch_import` (27/08) le **fichier de lot** ; `<app>.send_to` **« Envoyer vers »** (**8 OK / 6 skips**, dont 3 qui NOMMENT une dette : pas d'importeur) ; `<app>.url_import` l'**URL** (**2 OK / 12 skips** — la garde SSRF rend « témoin local » et « l'app télécharge » exclusifs par construction) ; `<app>.folder_import` le **DOSSIER récursif** (**7 OK / 7 skips** — traversée sur le code de production + vrai dossier imbriqué, la BASE comptant les éléments) | non |
 
@@ -289,7 +289,7 @@ voir aucun palier : il faudra une entrée plus longue) **et le câblage transcri
 > justifie jamais un échec (le travail a été fait ; seuls `FAILURE`/`REVOKED` et l'orphelinat
 > PROUVÉ le justifient) ; ② on **relit la ligne** avant d'écrire — c'est cette fenêtre qui
 > laissait un `FAILURE` écraser un `SUCCESS` écrit une fraction de seconde plus tôt. Tenu par
-> `wama/common/tests_reconcile.py` (4 tests), parce qu'un défaut pareil ne se retrouve qu'en le
+> `wama/common/tests/tests_reconcile.py` (4 tests), parce qu'un défaut pareil ne se retrouve qu'en le
 > cherchant.
 >
 > ⚠ Et il a fallu **trois** corrections d'instrument avant d'y arriver — le scénario visait le
@@ -1250,7 +1250,7 @@ n'écrit pas n'existera jamais ; un scénario écrit et non joué attend.*
 ⚠ Le filtre porte sur ce qui est **DÉCLARÉ**. Il ne peut pas deviner qu'un scénario à `0`
 touche le GPU par un chemin détourné — le triage VLM d'une batterie UI a provoqué deux crashs
 hôte le 02/09 en étant parfaitement « sans VRAM déclarée ». La déclaration engage son auteur ;
-`wama/common/tests_nightly_modes.py` (6 tests) vérifie que le filtre agit, qu'il le dit, et
+`wama/common/tests/tests_nightly_modes.py` (6 tests) vérifie que le filtre agit, qu'il le dit, et
 qu'aucun scénario d'étage `model_loaded` ne part à `0`. ⚠ L'étage `output` n'est PAS soumis à
 la même exigence : `studio.pipeline.converter` va au résultat en ffmpeg pur — **c'est la CHARGE
 qui décide, pas la profondeur**.
@@ -1562,7 +1562,7 @@ déclarées les deux particularités qu'aucune déclaration ne porte, `UPLOAD_QU
 
 **Tests d'app retirés parce que tenus par un générique** : reader (2), synthesizer (`ViewsTest` ×7,
 `PerformanceTest` ×2 — il testait l'ORM de Django), transcriber (2), converter (1), imager (2) ;
-les tests du backend COMMUN audio.cpp quittent le fichier de tests du composer pour `common/tests_audiocpp_backend.py`.
+les tests du backend COMMUN audio.cpp quittent le fichier de tests du composer pour `common/tests/tests_audiocpp_backend.py`.
 Chaque fichier d'app garde son SPÉCIFIQUE et le dit en tête.
 
 **⏳ Restes** : le ZIP de lot contient les sorties (converter seul — il faut de vraies sorties) ;

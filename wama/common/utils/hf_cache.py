@@ -26,7 +26,7 @@ ce que la lib télécharge pendant la fenêtre reste dans le dossier du modèle 
 sous-dépendances, qui devraient aller au cache PARTAGÉ (seconde moitié de ROADMAP §5b). C'est
 le mécanisme exact qui a déposé `timm/resnet18` dans le dossier de table-transformer.
 
-Tout emploi se DÉCLARE dans `RECOURS_ASSUMES` (`common/tests_hf_cache_routing.py`) : la garde
+Tout emploi se DÉCLARE dans `RECOURS_ASSUMES` (`common/tests/tests_hf_cache_routing.py`) : la garde
 n'interdit pas le recours, elle interdit le recours SILENCIEUX. `settings.py` pose déjà le
 défaut global UNE fois au démarrage (`HF_DEFAULT_CACHE`) ; cette brique reste le pont sûr,
 JAMAIS un permis de muter.

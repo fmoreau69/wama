@@ -320,7 +320,7 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   `group_key=` à la fabrique de manipulation — jamais une seconde règle.
 - Cela force à la **nommer** : une lambda inline ne se partage pas, et c'est sous cette forme
   qu'elle vivait dans 3 apps. Vérifié par **AST** (jamais grep) :
-  `wama/common/tests_queue_dnd.py::JumelageNatureGroupKeyTest`. Le codegen émet la même paire,
+  `wama/common/tests/tests_queue_dnd.py::JumelageNatureGroupKeyTest`. Le codegen émet la même paire,
   donc une app générée naît avec la garde.
 
 ### Ce qui n'existait pas et qu'il a fallu créer

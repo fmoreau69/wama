@@ -107,7 +107,7 @@
   ① **tri mort** — 4 vues triaient leur `batches_list` juste avant d'appeler
   `apply_queue_sort_filter`, qui re-trie **inconditionnellement** ; `c9408354` en avait retiré 3,
   `a318b7f3` le 4ᵉ, **et rien n'empêchait le 5ᵉ** → garde **textuelle** posée
-  (`wama/common/tests_queue_sort.py`, 17 tests). ⚠ Un tri mort ne se détecte **pas** à l'exécution :
+  (`wama/common/tests/tests_queue_sort.py`, 17 tests). ⚠ Un tri mort ne se détecte **pas** à l'exécution :
   par définition son effet est écrasé — seule une garde sur le SOURCE le voit.
   ② **`try/except` avatarizer** autour d'`apply_queue_sort_filter` (`wama/avatarizer/views.py`),
   retombant sur `q_sort, q_filter = '', ''` avec un journal en `debug` seul : **seul des 12 sites**
