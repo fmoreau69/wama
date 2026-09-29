@@ -121,6 +121,21 @@ wama/<app>/
 
 **Important :** Après toute modification JS/CSS, copier dans `staticfiles/<app>/`.
 
+### 1.1 Où vivent les TESTS (règle posée le 2026-09-29, décision de Fabien)
+
+- **Nom de fichier** : `tests_<sujet>.py` (ou `tests.py` pour une app qui n'en a qu'un). C'est le
+  PRÉFIXE qui fait un test pour l'outillage — scanner des mécanismes (`HARNESS_PREFIXES`), grille de
+  conformité, découverte nocturne (`nightly_scenarios`, `nightly_suite`) : **il ne change pas**.
+- **Emplacement** : à la racine de l'app tant qu'elle en compte peu ; **au-delà d'une dizaine**, dans
+  un paquet `tests/` (avec `__init__.py`) — les tests ne doivent pas noyer le code qu'ils gardent.
+  On y garde les MÊMES noms de fichiers (`tests/tests_calendar.py`) : les ~490 mentions de noms nus
+  dans les docs et les skills restent justes, seuls les chemins et les modules pointés changent.
+- **Cas en attente** : `wama/common` compte 139 fichiers de test pour 28 fichiers de code (mesuré le
+  2026-09-29). Déplacement DIFFÉRÉ à un moment sans autre instance sur ces fichiers (collisions de
+  WIP), en un commit dédié, vérifié sur HEAD puis par la suite complète côté WSL. À suivre au passage :
+  ~88 chemins cités (`check_docs` les signale), 45 modules pointés, 11 fichiers aux imports relatifs
+  (`from .` → `from ..`), et `registries_coverage.py:38`, qui écrit un chemin de test EN DUR.
+
 ---
 
 ## 2. Modèle de Données Standard
