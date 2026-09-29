@@ -65,7 +65,7 @@ class JsMirrorTest(SimpleTestCase):
             from py_mini_racer import MiniRacer
         except ImportError:
             self.skipTest('py_mini_racer absent de ce venv : pas de V8')
-        from wama_lab.cam_analyzer.tests_overlay_js import extract_function
+        from wama_lab.cam_analyzer.tests.tests_overlay_js import extract_function
         src = (Path(settings.BASE_DIR) / 'staticfiles/cam_analyzer/js/index.js').read_text(encoding='utf-8')
         ctx = MiniRacer()
         ctx.eval('var camFeat = {ortho_correction: true}; var orthoCorrection = {anchors: %s};'

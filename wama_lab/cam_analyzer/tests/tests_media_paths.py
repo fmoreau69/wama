@@ -28,7 +28,7 @@ from pathlib import Path
 
 from django.test import SimpleTestCase
 
-RACINE_APP = Path(__file__).resolve().parent
+RACINE_APP = Path(__file__).resolve().parent.parent
 
 
 class DepthOutputDirTest(SimpleTestCase):
@@ -39,7 +39,7 @@ class DepthOutputDirTest(SimpleTestCase):
 
         from django.contrib.auth import get_user_model
 
-        from .models import AnalysisSession, CameraView, depth_output_dir
+        from ..models import AnalysisSession, CameraView, depth_output_dir
 
         session = AnalysisSession()
         session.id = uuid.uuid4()
@@ -67,7 +67,7 @@ class DepthOutputDirTest(SimpleTestCase):
         *Un repli ne se lit pas, il se mesure : celui-ci ne protège rien, c'est le SCHÉMA
         qui protège.*
         """
-        from .models import AnalysisSession
+        from ..models import AnalysisSession
 
         champ = AnalysisSession._meta.get_field('user')
         self.assertFalse(

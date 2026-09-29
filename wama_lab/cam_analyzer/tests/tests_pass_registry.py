@@ -5,7 +5,7 @@ source des libellés et des valeurs persistées, le registre celle du graphe ; s
 passe existe pour la base et pas pour le panneau (ou l'inverse) — exactement la dérive que six
 copies du même graphe rendaient possible sans qu'aucun test ne la voie.
 
-    python manage.py test wama_lab.cam_analyzer.tests_pass_registry
+    python manage.py test wama_lab.cam_analyzer.tests.tests_pass_registry
 """
 import unittest
 

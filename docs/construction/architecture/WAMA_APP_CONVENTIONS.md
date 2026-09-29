@@ -143,8 +143,8 @@ wama/<app>/
 - **Tenu par un contrôle** : `wama/common/tests/tests_test_layout.py` — une app qui a un paquet
   `tests/` n'a plus de test à sa racine, et aucune app ne dépasse 10 fichiers de test à sa racine.
   **Rangés depuis** : `wama/model_manager` (19 fichiers) et `wama/media_library` (14), le soir du
-  2026-09-29 (décision de Fabien, même geste). **En attente** (budget qui ne peut que descendre) :
-  `wama_lab/cam_analyzer` (20) — Fabien attend encore, une instance y travaille.
+  2026-09-29 (décision de Fabien, même geste), puis `wama_lab/cam_analyzer` (20) le même soir.
+  Plus aucune app en attente : la liste `PENDING` du contrôle est vide.
 
 ---
 

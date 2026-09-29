@@ -15,7 +15,7 @@ from django.test import SimpleTestCase
 
 from wama_lab.cam_analyzer.utils.prediction_adapter import video_to_gps_time
 
-APP_DIR = Path(__file__).resolve().parent
+APP_DIR = Path(__file__).resolve().parent.parent
 
 
 def raw_timestamp_position_calls(root=APP_DIR):
