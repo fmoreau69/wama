@@ -192,6 +192,29 @@ CLASS_FAMILY = {'motorcycle': 'two_wheel', 'bicycle': 'two_wheel',
                 'person': 'person'}
 
 
+def box_iou(a, b):
+    """IoU de deux boîtes [x0, y0, x1, y1] (0 si l'une manque)."""
+    if not a or not b or len(a) < 4 or len(b) < 4:
+        return 0.0
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
+
+
+#: Au-delà de ce recouvrement, deux boîtes d'une même image sont UN objet détecté deux fois
+#: (YOLO produit « truck » et « car » de même contour) : elles peuvent partager un gid.
+DUPLICATE_BOX_IOU = 0.3
+
+
+def claims_distinct_box(claimed_boxes, bbox):
+    """⚑ same_camera_exclusion : ce gid porte-t-il déjà, dans cette image et cette caméra, une
+    boîte d'un AUTRE objet (recouvrement < `DUPLICATE_BOX_IOU`) ? Deux boîtes distinctes d'une
+    même image sont deux objets ; un doublon de détection, lui, reste le même objet."""
+    return any(box_iou(b, bbox) < DUPLICATE_BOX_IOU for b in (claimed_boxes or []))
+
+
 def dominant_family(votes, min_weight=2.0, min_share=0.7):
     """Famille DOMINANTE d'un track d'après ses votes de classe pondérés, ou None tant qu'elle
     n'est pas établie (poids total < `min_weight` ou part < `min_share`) — une image isolée mal
@@ -292,6 +315,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     from .features import effective as _features_effective
     _feat = _features_effective(session)
     _family_gate = _feat.get('class_family_gate', True)
+    _same_cam_excl = _feat.get('same_camera_exclusion', True)
     # ── Artefacts collés à l'image (reflets de vitrage) — chantier 1, 2026-07-19 ──
     # Détectés par cinématique pure AVANT l'association : bbox quasi immobile pendant
     # que la navette avance = pas un objet du monde. Marqués (jamais supprimés) et
@@ -420,6 +444,11 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         # le gate fixe + gap 1 s cassait la continuité (perte du G entre avant et
         # latérale, constat #537/G313). On tolère un trou plus long, avec une exigence
         # de proximité qui se relâche avec l'incertitude (~1,5 m/s de dérive).
+        # ⚑ same_camera_exclusion : les gids déjà pris DANS CETTE IMAGE par une détection de la
+        # même caméra — deux boîtes d'une même image sont deux objets (la fusion de doublons
+        # voulue plus haut est INTER-caméras). Mesuré le 2026-09-29 : trois voitures garées en
+        # file vues à gauche, toutes G4712 (2,3 / 4,3 / 4,7 m).
+        _claimed = defaultdict(dict)     # pos -> {gid: [bbox, ...]}
         for f, d, e, n, pos, relaxed in dets_here:
             _tid = d.get('track_id')
             ck = (pos, _tid) if _tid is not None else None
@@ -431,6 +460,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             # Le plus-proche-voisin ne sert plus qu'à apparier les chaînes NOUVELLES.
             if ck and ck in chain and (t - chain[ck]['t']) <= 4.0:
                 best = by_gid.get(chain[ck]['gid'])
+                if _same_cam_excl and best is not None and \
+                        claims_distinct_box(_claimed[pos].get(best['id']), d.get('bbox')):
+                    best = None          # le gid est déjà pris par un AUTRE objet de cette caméra
             if best is None:
                 # NN — STRICT pour les mesures dégradées (ratio < 0.7, jamais de
                 # création) : c'est le pont physique du dépassement — le véhicule qui
@@ -445,6 +477,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     # ⚑ class_family_gate : une nouvelle chaîne d'un deux-roues ne rejoint pas un
                     # track établi de quatre-roues (et inversement)
                     if _dfam and families_conflict(_dfam, tr.get('fam')):
+                        continue
+                    if _same_cam_excl and claims_distinct_box(_claimed[pos].get(tr['id']), d.get('bbox')):
                         continue
                     pe = tr['e'] + tr['ve'] * dt
                     pn = tr['n'] + tr['vn'] * dt
@@ -475,6 +509,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     best['vn'] = 0.7 * best['vn'] + 0.3 * rvn
                     best['e'], best['n'], best['last_t'] = e, n, t
             d['global_track_id'] = best['id']
+            _claimed[pos].setdefault(best['id'], []).append(d.get('bbox'))
             if ck:
                 chain[ck] = {'gid': best['id'], 't': t}   # verrou de chaîne (voir plus haut)
             _bb = d.get('bbox')
@@ -493,6 +528,19 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 # famille dominante tenue À JOUR sur le track (lue en O(1) par l'association)
                 best['fam'] = dominant_family(cls_votes[best['id']])
             dirty.add(f)
+
+    # Métrique A/B de ⚑ same_camera_exclusion (avant recollement) : images×caméras où un même gid
+    # porte deux boîtes réelles ou plus.
+    _same_camera_shared = 0
+    for (_iw, _ih, _frames) in per_cam.values():
+        for _f in _frames.values():
+            _by = defaultdict(list)
+            for d in (_f.detections or []):
+                if d.get('global_track_id') is not None and not d.get('predicted') and not d.get('artifact'):
+                    _by[d['global_track_id']].append(d.get('bbox'))
+            if any(len(bs) > 1 and any(box_iou(bs[0], b) < DUPLICATE_BOX_IOU for b in bs[1:])
+                   for bs in _by.values()):
+                _same_camera_shared += 1
 
     # ── RECOLLEMENT DE TRACKLETS (stitching) ─────────────────────────────────────
     # Cas dépassement (audit 2026-07-17, G432) : le véhicule qui double traverse la
@@ -929,6 +977,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'stable_class_margin_median': (sorted(stable_marge.values())[len(stable_marge) // 2]
                                            if stable_marge else None),
             'mixed_family_gids': _mixed_family_gids(cls_votes),
+            'same_camera_shared_gids': _same_camera_shared,
             'stitch_refused_by_family': _stitch_refused,
             'ghosts': len(ghost_links) - ghosts_in_footprint,
             'ghosts_in_footprint_removed': ghosts_in_footprint,

@@ -72,6 +72,11 @@ FEATURES = [
             "interpolée entre ancres proches, nulle loin d'elles. Relancer la passe « Recalage "
             "voie + carte ».",
             default=True, scope='compute'),
+    Feature('same_camera_exclusion', "Une boîte par véhicule et par image (tracking)",
+            "Dans une même image d'une même caméra, deux détections sont deux objets : le tracking "
+            "360° ne les fond plus dans le même véhicule (la fusion de doublons reste permise ENTRE "
+            "caméras). OFF = une file de voitures garées proches pouvait porter un seul numéro.",
+            default=True, scope='compute'),
     Feature('class_family_gate', 'Porte de famille de classe (tracking)',
             "Le tracking 360° ne relie jamais un deux-roues (moto, vélo) à un quatre-roues "
             "(voiture, camion, bus) ni à un piéton : ni au rattachement d'une nouvelle chaîne, "

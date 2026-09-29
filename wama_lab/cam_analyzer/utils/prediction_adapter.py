@@ -269,9 +269,18 @@ def ground_projector_for(session, position, geo):
 def ground_ego(projector, bbox):
     """Position ego (latéral, longitudinal) par PROJECTION SOL du bas de bbox
     (point de contact) via le pitch estimé — alternative au pinhole (hauteur de bbox).
-    Retourne None hors de portée utile → l'appelant garde le pinhole."""
+    Retourne None hors de portée utile → l'appelant garde le pinhole.
+    ⚠ Boîte coupée en BAS : le point de contact sol est hors image, la projection ne mesure que
+    le bord de l'image (mesuré le 2026-09-29, G4712 : 1,9-2,5 m au lieu de ~5 m vus par la
+    caméra gauche) ; coupée sur un CÔTÉ : le centre latéral est faux. Refusée dans les deux cas
+    (même règle que `pinhole_ego` pour les côtés) — l'appelant passe au chemin dégradé."""
     if projector is None or not bbox or len(bbox) < 4:
         return None
+    size = getattr(projector, 'image_size', None)
+    if size:
+        from wama_data.functions.geometry.frame_edges import bbox_edges
+        if bbox_edges(bbox, size[0], size[1], margin_px=4.0) & {'bottom', 'left', 'right'}:
+            return None
     bcx = (bbox[0] + bbox[2]) / 2.0
     xy = projector.project(bcx, bbox[3])
     if not xy:

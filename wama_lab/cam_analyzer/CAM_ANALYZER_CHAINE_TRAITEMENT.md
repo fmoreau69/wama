@@ -702,6 +702,10 @@ Fabien. `live_analysis_task`
 10bis. **Marquages SAM3 en monde** (`marking_world`, 2026-09-29) : projection par la calibration 2a
    (puis DLT sous ⚑ `sam3_homography`), plus jamais à pitch 0° ; passages piétons calés sur le
    corridor (⚑ `marking_axis_snap`) — écart d'orientation au zébra de l'orthophoto 35° → 6°.
+10ter. **Une boîte par véhicule et par image** (⚑ `same_camera_exclusion`, ON, 2026-09-29) : deux
+   boîtes distinctes (IoU < 0,3) d'une même image d'une même caméra ne partagent plus un gid ;
+   reflet couvrant > 90 % de l'image écarté quelle que soit sa confiance ; boîte coupée en bas ou sur
+   un côté jamais projetée au sol. Rejoué : gids couvrant des objets distincts 46 181 → 446.
 10. **Porte de famille de classe** (⚑ `class_family_gate`, ON, 2026-09-29) : un deux-roues n'est jamais
    relié à un quatre-roues ni à un piéton — ni au rattachement d'une nouvelle chaîne, ni au recollement
    (famille DOMINANTE du track, établie au-delà d'un seuil). Rejoué sur `4da52df3` : tracks mêlant deux

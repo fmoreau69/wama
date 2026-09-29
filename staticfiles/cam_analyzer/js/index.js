@@ -2942,11 +2942,14 @@ document.addEventListener('DOMContentLoaded', function () {
         // forte confiance. Complète le filtre cinématique (bbox fixe) pour les reflets
         // fragmentés qui bougent trop pour être « statiques en image ».
         if (det.type === 'sam3_marking' || det.type === 'road_mask') return false;
-        if (typeof det.confidence !== 'number' || det.confidence >= 0.55) return false;
+        if (typeof det.confidence !== 'number') return false;
         const b = det.bbox;
         if (!Array.isArray(b) || b.length < 4 || !iw || !ih) return false;
         const frac = ((b[2] - b[0]) * (b[3] - b[1])) / (iw * ih);
-        return frac > 0.5;   // > 50 % de l'image + conf < 0.55 → reflet quasi certain
+        // > 90 % de l'image : aucune géométrie exploitable, quelle que soit la confiance
+        // (miroir de `artifact_filter.is_giant_reflection`, 2026-09-29)
+        if (frac > 0.9) return true;
+        return det.confidence < 0.55 && frac > 0.5;   // > 50 % + conf < 0.55 → reflet quasi certain
     }
 
     function antennaPoint(pc) {
