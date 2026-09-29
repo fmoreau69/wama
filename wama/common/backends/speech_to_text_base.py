@@ -38,6 +38,9 @@ class TranscriptionSegment:
     # Timing mot-à-mot (si dispo) : liste de {word, start, end, probability}.
     # Alimente la synchro fine onde↔texte et la granularité de la heatmap.
     words: Optional[List[dict]] = None
+    # Langue PARLÉE dans ce segment (code ISO 639-1) — un audio peut changer de langue
+    # (2026-09-29). Posée par le moteur quand il la sait par passage, sinon par le worker.
+    language: Optional[str] = None
 
     def to_dict(self) -> dict:
         d = {
@@ -49,6 +52,8 @@ class TranscriptionSegment:
         }
         if self.words:
             d['words'] = self.words
+        if self.language:
+            d['language'] = self.language
         return d
 
 

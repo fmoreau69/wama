@@ -141,7 +141,7 @@ class TranscriberConfig(AppConfig):
             # Les réglages qui changent les MOTS transcrits : deux cards Whisper, avec et sans
             # prétraitement, sont deux configurations à comparer (lots #442/#443, 2026-09-25).
             # La diarisation, le résumé, la cohérence ne touchent pas le texte mesuré.
-            config_params=('preprocess_audio', 'vad_mode', 'hotwords'),
+            config_params=('preprocess_audio', 'vad_mode', 'language_mode', 'hotwords'),
             disagreement=_disagreement,
             # Langue ENTENDUE par le moteur (posée par le worker) : `text_v2` y écrit les nombres
             # en chiffres des deux côtés (« vingt_quatre » d'un corpus contre « 24 »).

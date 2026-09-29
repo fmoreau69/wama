@@ -449,6 +449,7 @@ document.addEventListener('DOMContentLoaded', function () {
       hotwords: btn.dataset.hotwords || '',
       preprocess_audio: btn.dataset.preprocessAudio === 'true',
       vad_mode: btn.dataset.vadMode || 'auto',
+      language_mode: btn.dataset.languageMode || 'auto',
       enable_diarization: btn.dataset.enableDiarization !== 'false',
       generate_summary: btn.dataset.generateSummary === 'true',
       summary_type: btn.dataset.summaryType || 'structured',

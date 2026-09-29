@@ -353,6 +353,8 @@ def _transcribe_maybe_chunked(backend, audio_path: str, duration: float, kwargs:
             if not r.success:
                 return r
             lang = lang or (r.language or '')
+            for seg in r.segments:           # la langue de CE passage, si le moteur ne l'a pas posée
+                seg.language = seg.language or r.language or None
             merged.extend(_offset_segments(r.segments, offset))
             if r.text:
                 texts.append(r.text)
@@ -412,6 +414,36 @@ def _vad_filter_for(t, audio_path: str) -> bool:
                  level='warning')
         return False
     return True
+
+
+def _language_plan(t, audio_path: str, backend) -> tuple:
+    """Le réglage `language_mode` de la card → (« single » | « multi », langue imposée ou None).
+
+    « auto » : la sonde écoute des fenêtres réparties sur TOUT l'audio ; deux langues entendues
+    avec assurance → « multi ». « single » : une langue pour tout — imposée aux moteurs qui
+    transcrivent par PASSAGES (Canary, Qwen3-ASR : sinon chacun redétecte la sienne, et Canary
+    TRADUIT un passage mal détecté). Whisper décide seul d'une langue unique, comme avant. Une
+    sonde qui échoue garde le comportement d'avant ce réglage.
+    """
+    mode = getattr(t, 'language_mode', 'auto') or 'auto'
+    if mode == 'multi':
+        return 'multi', None
+    cap = getattr(backend, 'max_audio_seconds', None)
+    in_passes = isinstance(cap, (int, float)) and cap > 0
+    if mode == 'single' and not in_passes:
+        return 'single', None
+    try:
+        from wama.common.utils.spoken_language import languages_heard, probe_languages
+        heard = languages_heard(probe_languages(audio_path, float(t.duration_seconds or 0)))
+    except Exception as exc:
+        _console(t.user_id, f"Sonde des langues impossible ({exc}) — une langue par passage.",
+                 level='warning')
+        return 'single', None
+    if mode == 'auto' and len(heard) >= 2:
+        _console(t.user_id, f"Plusieurs langues entendues ({', '.join(heard)}) : chaque passage "
+                            "est transcrit dans la sienne.")
+        return 'multi', None
+    return 'single', (heard[0] if heard and in_passes else None)
 
 
 def _transcribe_item(t, ctx):
@@ -488,6 +520,11 @@ def _transcribe_item(t, ctx):
             transcribe_kwargs['hotwords'] = t.hotwords
         if backend.name == 'whisper':      # seul moteur qui filtre par VAD avant de transcrire
             transcribe_kwargs['vad_filter'] = _vad_filter_for(t, cleaned_path)
+        language_mode, forced_language = _language_plan(t, cleaned_path, backend)
+        if language_mode == 'multi' and backend.name == 'whisper':
+            transcribe_kwargs['multilingual'] = True
+        elif forced_language:
+            transcribe_kwargs['language'] = forced_language
 
         # Progression intermédiaire pendant l'ASR (30 → 75 %) → l'ETA peut s'estimer.
         def _asr_progress(ratio: float) -> None:
@@ -501,6 +538,19 @@ def _transcribe_item(t, ctx):
 
         if not result.success:
             raise RuntimeError(result.error or "Transcription failed")
+
+        # Chaque segment porte sa langue ; la card garde la plus PARLÉE (et plus celle du 1er
+        # passage) — c'est elle que lisent résumé, cohérence, aligneur et mesure.
+        from wama.common.utils.spoken_language import dominant_language, language_shares
+        for seg in result.segments:
+            seg.language = seg.language or result.language or None
+        result.language = dominant_language(result.segments, fallback=result.language or '')
+        shares = language_shares(result.segments)
+        if len(shares) > 1:
+            total = sum(shares.values()) or 1.0
+            _console(t.user_id, "Langues entendues : " + ', '.join(
+                f"{lang} {100 * sec / total:.0f} %"
+                for lang, sec in sorted(shares.items(), key=lambda kv: -kv[1])))
 
         _set_progress(t, 75)
 

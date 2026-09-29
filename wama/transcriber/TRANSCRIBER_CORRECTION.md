@@ -137,6 +137,38 @@ nivellement du signal n'y a rien changé : c'est le filtre qu'il faut lever, pas
 - ⏳ Le choix par défaut selon l'usage relève des **profils** (§8.4) : un profil entretien
   fixerait « auto » ou « désactivé », un profil sous-titrage pourrait garder le filtre.
 
+## 5quater. Plusieurs langues dans un même audio — `language_mode` auto / une seule / plusieurs (2026-09-29)
+
+Question de Fabien : *« si les locuteurs changent de langue au cours d'un enregistrement, les
+modèles gèrent-ils l'appariement de la langue au texte ? »* **État lu dans le code avant ce
+chantier** : Whisper décidait sa langue UNE fois, sur les 30 premières secondes, et l'imposait à
+tout le fichier (`language=None` sans `multilingual`) ; Canary et Qwen3-ASR, découpés en passages
+de 30 s, redétectaient à chaque passage — et **Canary TRADUIT** un passage dont la langue est mal
+détectée ; la card ne gardait que la langue du **premier** passage (`workers._transcribe_maybe_chunked`).
+
+- **Réglage de card et de lot** `language_mode` (schéma `params.py`), jumeau de `vad_mode`, et
+  réglage de CONFIGURATION pour l'évaluation (`config_params`).
+- **auto** : la sonde commune `spoken_language.probe_languages` écoute jusqu'à **8 fenêtres de
+  30 s RÉPARTIES sur tout l'audio** (modèle `tiny`, CPU). Une fenêtre ne vote que si elle est sûre
+  (p ≥ 0,7 — bruit, rires, parole superposée ne votent pas). Deux langues entendues → comme
+  « plusieurs » ; une seule → comme « une seule ». Sonde en échec → comportement d'avant.
+- **plusieurs** : Whisper passe en mode `multilingual` de faster-whisper (langue redécidée par
+  fenêtre de 30 s) ; les moteurs par passages redétectent à chaque passage (comme avant).
+- **une seule** : Whisper décide seul, comme avant ; les moteurs par passages reçoivent **la même
+  langue pour tous** (celle de la sonde) — un passage bruité ne fait plus traduire Canary.
+- **Chaque segment porte sa langue** (`TranscriptionSegment.language` → `segments_json`).
+  faster-whisper ne la rend PAS par segment : `WhisperBackend._label_window_languages` la
+  redemande au MÊME modèle, une fois par fenêtre de 30 s de l'audio ORIGINAL (les fenêtres
+  internes de Whisper sont décalées par le filtre de parole, qui décode un audio condensé). Les
+  moteurs par passages : la langue du passage.
+- **La card garde la langue la plus PARLÉE** (`dominant_language`, en durée), plus celle du
+  premier passage ; la console affiche la répartition (« Langues entendues : fr 82 %, en 18 % »).
+- ⏳ **Ce qui ne lit encore qu'UNE langue** : résumé, cohérence, aligneur acoustique (choisi par
+  langue) et mesure `text_v2` (nombres en chiffres dans la langue de la card). Les faire lire la
+  langue PAR SEGMENT est l'étape suivante ; et Canary serait plus sûr découpé AUX CHANGEMENTS de
+  langue qu'à intervalle fixe. ⏳ **Rien n'est encore MESURÉ** sur un audio réellement multilingue :
+  il faut un corpus de bascules de langue, licence vérifiée (comme SUMM-RE, `WAMA_QUALITE §9bis`).
+
 ## 5ter. Forme d'onde — fichiers longs & overlay (décision d'archi)
 
 - Le lecteur commun décode tout le PCM en mémoire → **échoue sur les fichiers longs**

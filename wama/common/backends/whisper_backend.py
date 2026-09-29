@@ -179,6 +179,34 @@ class WhisperBackend(SpeechToTextBackend):
     # Transcription
     # ------------------------------------------------------------------
 
+    #: Fenêtre de décision de langue de Whisper (la sienne, en mode multilingue).
+    LANGUAGE_WINDOW_SECONDS = 30
+
+    def _label_window_languages(self, audio_path: str, segments: list, fallback: str) -> None:
+        """Pose sa langue sur chaque segment, fenêtre de 30 s par fenêtre de 30 s.
+
+        faster-whisper redétecte la langue à chaque fenêtre en mode multilingue mais ne la rend
+        PAS par segment (champs de `Segment` : aucun `language`). On la redemande donc au MÊME
+        modèle, sur la fenêtre de l'audio ORIGINAL qui contient le milieu du segment — pas sur ses
+        fenêtres internes, décalées par le filtre de parole (il décode un audio condensé). Une
+        seule détection par fenêtre qui porte au moins un segment ; échec → langue globale.
+        """
+        from wama.common.utils.audio_decode import decode_window
+        span = self.LANGUAGE_WINDOW_SECONDS
+        by_window = {}
+        for s in segments:
+            by_window.setdefault(int(((s.start_time + s.end_time) / 2) // span), []).append(s)
+        for index, members in by_window.items():
+            language = fallback
+            try:
+                audio, _ = decode_window(audio_path, start_s=index * span, duration_s=span)
+                if len(audio):
+                    language = self._model.detect_language(audio=audio)[0] or fallback
+            except Exception as exc:
+                logger.warning(f"[Whisper] langue de la fenêtre {index} illisible : {exc}")
+            for s in members:
+                s.language = language
+
     def transcribe(
         self,
         audio_path: str,
@@ -192,6 +220,7 @@ class WhisperBackend(SpeechToTextBackend):
         Supported kwargs:
             enable_timestamps (bool, default True)
             vad_filter        (bool, default True)
+            multilingual      (bool, default False) — langue redétectée par fenêtre de 30 s
             beam_size         (int,  default 5)
             temperature       (float)
 
@@ -217,6 +246,11 @@ class WhisperBackend(SpeechToTextBackend):
             }
             if 'temperature' in kwargs:
                 transcribe_opts['temperature'] = float(kwargs['temperature'])
+            # Plusieurs langues dans l'audio : faster-whisper redétecte la langue à CHAQUE
+            # fenêtre de 30 s au lieu de décider une fois sur les 30 premières secondes.
+            multilingual = bool(kwargs.get('multilingual')) and not language
+            if multilingual:
+                transcribe_opts['multilingual'] = True
 
             # Mots-clés contextuels → param NATIF `hotwords` de faster-whisper.
             # ⚠️ NE PAS utiliser initial_prompt : un prompt sans ponctuation fait que
@@ -270,6 +304,11 @@ class WhisperBackend(SpeechToTextBackend):
                 text_parts.append(seg.text.strip())
 
             full_text = ' '.join(text_parts).strip()
+            if multilingual:
+                self._label_window_languages(audio_path, segments, info.language)
+            else:
+                for s in segments:
+                    s.language = info.language
             logger.info(
                 f"[Whisper] Done — {len(full_text)} chars, "
                 f"{len(segments)} segments, lang={info.language}"

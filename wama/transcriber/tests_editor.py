@@ -193,12 +193,17 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         self.item.save()
         self.addCleanup(lambda: self.item.audio.delete(save=False))
 
+    #: Ce que la sonde des langues « entend » (jamais le vrai modèle `tiny` dans un test).
+    heard = [('fr', 0.95)]
+
     def _run(self, asr):
         from unittest import mock
         from wama.transcriber import workers
         with mock.patch.object(workers, 'get_backend', return_value=asr), \
                 mock.patch.object(workers, 'compute_waveform_peaks'), \
                 mock.patch.object(workers, '_save_output_files'), \
+                mock.patch('wama.common.utils.spoken_language.probe_languages',
+                           return_value=self.heard) as self.probed, \
                 mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
             workers.transcribe_without_preprocessing.run(self.item.pk)
         self.item.refresh_from_db()
@@ -256,6 +261,45 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         asr = self._asr()
         self._run(asr)
         self.assertNotIn('vad_filter', asr.transcribe.call_args.kwargs)
+
+    def _language_kwargs(self, mode, engine='whisper', heard=None, in_passes=False):
+        Transcript.objects.filter(pk=self.item.pk).update(language_mode=mode, status='RUNNING')
+        asr = self._asr()
+        asr.name = engine
+        asr.max_audio_seconds = 30 if in_passes else None
+        self.heard = heard or [('fr', 0.95)]
+        self._run(asr)
+        kwargs = asr.transcribe.call_args.kwargs
+        return kwargs.get('multilingual'), kwargs.get('language'), self.probed.called
+
+    def test_several_languages_heard_switch_whisper_to_multilingual(self):
+        self.assertEqual((True, None, True), self._language_kwargs(
+            'auto', heard=[('fr', 0.9), ('en', 0.92), ('fr', 0.8)]))
+
+    def test_an_unsure_window_does_not_count_as_a_second_language(self):
+        """Une fenêtre à 0,5 (bruit, rires) ne vote pas : l'audio reste monolingue."""
+        self.assertEqual((None, None, True), self._language_kwargs(
+            'auto', heard=[('fr', 0.9), ('en', 0.5)]))
+
+    def test_multi_needs_no_probe_and_single_whisper_decides_alone(self):
+        self.assertEqual((True, None, False), self._language_kwargs('multi'))
+        self.assertEqual((None, None, False), self._language_kwargs('single'))
+
+    def test_an_engine_in_passes_gets_one_language_for_all_of_them(self):
+        """Sans elle, Canary redétecte à chaque passage — et TRADUIT un passage mal détecté."""
+        self.assertEqual((None, 'fr', True), self._language_kwargs(
+            'single', engine='nemo', in_passes=True))
+
+    def test_each_segment_keeps_its_language_and_the_card_the_most_spoken(self):
+        from wama.common.backends.speech_to_text_base import TranscriptionSegment
+        asr = self._asr()
+        asr.transcribe.return_value.segments = [
+            TranscriptionSegment('', 0.0, 2.0, 'hello everyone', language='en'),
+            TranscriptionSegment('', 2.0, 9.0, 'bonjour à tous'),
+        ]
+        self._run(asr)
+        self.assertEqual(['en', 'fr'], [s.get('language') for s in self.item.segments_json])
+        self.assertEqual('fr', self.item.language)
 
     def test_a_failed_transcription_is_a_failure_with_its_message(self):
         self._run(self._asr(fail=True))
