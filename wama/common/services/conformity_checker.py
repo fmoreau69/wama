@@ -1046,7 +1046,11 @@ def _btn_order(f: _AppFiles):
                r'fa-copy|fa-clone', r'fa-trash']
     best = None
     for path in f.glob('templates/**/*card*.html') + f.glob('templates/**/index.html'):
-        text = path.read_text(encoding='utf-8', errors='replace')
+        # Commentaires NEUTRALISÉS (2026-09-29) : l'en-tête de la card de l'imager DÉCRIT ses
+        # contrats (« ⬇ = brique commune `_download_button.html` ») avant les boutons — la
+        # 1ʳᵉ occurrence de ⬇ tombait dans ce commentaire et la card, dans le bon ordre, sortait
+        # « ordre non canonique ». Même faux positif que celui que `_sans_commentaires` règle ailleurs.
+        text = _sans_commentaires(path.read_text(encoding='utf-8', errors='replace'), '.html')
         pos = [re.search(m, text) and re.search(m, text).start() for m in markers]
         if all(p is not None for p in pos):
             rel = path.relative_to(WAMA_ROOT).as_posix()

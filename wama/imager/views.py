@@ -1654,6 +1654,16 @@ def get_generation_settings(request, generation_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@require_http_methods(["GET", "POST"])
+def generation_settings(request, pk):
+    """Réglages d'UN élément à l'adresse conventionnelle `settings/<pk>/` (2026-09-29) : GET les
+    LIT (`get_generation_settings`), POST les ENREGISTRE (`update_settings`). Les deux vues
+    vivaient à deux adresses, l'écriture sous `save/` — le seul écart au chemin de la convention."""
+    if request.method == 'POST':
+        return update_settings(request, pk)
+    return get_generation_settings(request, pk)
+
+
 @require_http_methods(["POST"])
 def update_settings(request, pk):
     """Save settings for a specific generation"""

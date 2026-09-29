@@ -41,9 +41,10 @@ urlpatterns = [
     # Console and settings
     path('console-content/', views.console_content, name='console_content'),
 
-    # Individual generation settings
-    path('settings/<int:generation_id>/', views.get_generation_settings, name='get_settings'),
-    path('settings/<int:pk>/save/', views.update_settings, name='update_settings'),
+    # Réglages d'UN élément — route conventionnelle (`WAMA_APP_CONVENTIONS §3.1`, 2026-09-29) :
+    # GET lit, POST enregistre, à la même adresse. La lecture occupait `settings/<id>/` et
+    # l'écriture avait dû prendre `settings/<pk>/save/` ; les deux vues sont aiguillées ici.
+    path('settings/<int:pk>/', views.generation_settings, name='update_settings'),
     path('force-reset/<int:generation_id>/', views.force_reset_generation, name='force_reset'),
 
     # Multi-modal generation endpoints

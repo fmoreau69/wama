@@ -2446,7 +2446,6 @@
         "download_all",
         "duplicate",
         "force_reset",
-        "get_settings",
         "global_progress",
         "help",
         "import_batch",
@@ -2529,14 +2528,9 @@
           "view": "views.console_content"
         },
         {
-          "name": "get_settings",
-          "pattern": "settings/<int:generation_id>/",
-          "view": "views.get_generation_settings"
-        },
-        {
           "name": "update_settings",
-          "pattern": "settings/<int:pk>/save/",
-          "view": "views.update_settings"
+          "pattern": "settings/<int:pk>/",
+          "view": "views.generation_settings"
         },
         {
           "name": "force_reset",
