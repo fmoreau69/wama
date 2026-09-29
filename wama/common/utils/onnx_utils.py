@@ -18,6 +18,32 @@ from typing import Optional, Dict, Any, Tuple, List
 logger = logging.getLogger(__name__)
 
 
+def onnx_providers(device_id: int = 0, cpu_only: bool = False) -> list:
+    """Fournisseurs d'exécution onnxruntime, par ordre de préférence — CPU toujours en repli.
+
+    Extrait d'`AIUpscaler._load_model` (2026-09-29) au moment où un SECOND backend onnxruntime
+    arrivait (texte→image, marche B2) : la liste s'écrivait dans le backend, elle aurait été
+    recopiée. CUDA (Linux/WSL), DirectML (Windows), CoreML (macOS), puis CPU.
+    `cpu_only` : aucun GPU — le smoke d'un backend proposé tourne ainsi, pour ne jamais
+    disputer la carte à un traitement en cours.
+    """
+    import onnxruntime as ort
+    if cpu_only:
+        return ['CPUExecutionProvider']
+    available = ort.get_available_providers()
+    providers = []
+    if 'CUDAExecutionProvider' in available:
+        providers.append(('CUDAExecutionProvider', {'device_id': device_id}))
+    if 'DmlExecutionProvider' in available:
+        providers.append(('DmlExecutionProvider', {'device_id': device_id}))
+    if 'CoreMLExecutionProvider' in available:
+        providers.append('CoreMLExecutionProvider')
+    providers.append('CPUExecutionProvider')
+    if len(providers) == 1:
+        logger.warning("[onnx] aucun fournisseur GPU disponible — CPU seul (lent)")
+    return providers
+
+
 def convert_yolo_to_onnx(
     model_path: str,
     output_path: Optional[str] = None,

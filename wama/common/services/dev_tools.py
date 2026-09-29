@@ -63,6 +63,10 @@ ROLES = {
                    'args': {'manifest': str, 'candidate': str, 'besoin': str, 'dry_run': bool}},
     'codegen':    {'script': 'run_codegen.py',
                    'args': {'app': str, 'task': str, 'truth': str}},
+    # Marche B2 (2026-09-29) : écrit le BACKEND d'un modèle installé ; sa proposition se valide
+    # au model manager, qui seul l'écrit dans wama/common/backends/.
+    'backend':    {'script': 'run_backend.py',
+                   'args': {'catalog': str, 'dry_run': bool, 'no_smoke': bool}},
 }
 SANDBOX_ACTIONS = ('create', 'substitute', 'revert', 'drop', 'list')
 

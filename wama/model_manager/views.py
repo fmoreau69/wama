@@ -1887,7 +1887,11 @@ def api_manifest_proposals(request):
         except Exception as e:
             items.append({'id': obj.pk, 'kind': obj.manifest_kind, 'key': obj.key,
                           'errors': [f"plan impossible : {type(e).__name__}: {e}"]})
-    return JsonResponse({'success': True, 'proposals': items})
+    # Backends proposés par le rôle `backend` (marche B2) : même geste, autre nature — du CODE,
+    # que « Valider » écrit dans wama/common/backends/ (`backend_proposals.apply`).
+    from wama.common.services import backend_proposals
+    return JsonResponse({'success': True, 'proposals': items,
+                         'backends': backend_proposals.pending()})
 
 
 @login_required
@@ -1904,10 +1908,27 @@ def api_manifest_proposal_decide(request):
         data = _json.loads(request.body or '{}')
     except ValueError:
         return JsonResponse({'success': False, 'error': 'JSON invalide'}, status=400)
+    decision = data.get('decision')
+    if data.get('file'):
+        # Backend proposé (`{"file": "backend_….json"}`) : Valider ÉCRIT le module — la règle
+        # « l'agent n'écrit jamais dans wama/ » est levée pour CE geste (Fabien, 2026-09-29).
+        from wama.common.services import backend_proposals
+        try:
+            if decision == 'reject':
+                return JsonResponse({'success': backend_proposals.reject(data['file'],
+                                                                          request.user)})
+            if decision == 'apply':
+                res = backend_proposals.apply(data['file'], request.user)
+                return JsonResponse({'success': bool(res.get('applied')), **res},
+                                    status=200 if res.get('applied') else 400)
+        except FileNotFoundError:
+            return JsonResponse({'success': False, 'error': 'proposition introuvable'},
+                                status=404)
+        return JsonResponse({'success': False, 'error': f"décision inconnue : {decision!r}"},
+                            status=400)
     obj = Manifest.objects.filter(pk=data.get('id'), visibility='private').first()
     if obj is None:
         return JsonResponse({'success': False, 'error': 'proposition introuvable'}, status=404)
-    decision = data.get('decision')
     if decision == 'reject':
         return JsonResponse({'success': proposals.reject(obj)})
     if decision != 'apply':

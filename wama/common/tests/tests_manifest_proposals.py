@@ -115,6 +115,32 @@ class ManifestProposalTest(TestCase):
         page = self.client.get(reverse('model_manager:index'))
         self.assertContains(page, 'id="mmProposals"')
 
+    def test_the_same_gesture_carries_backend_proposals(self):
+        """Marche B2 : la liste porte aussi les backends proposés, et la décision les reconnaît
+        par leur fichier — sans jamais sortir d'`outputs/`."""
+        import json
+        from unittest import mock
+
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+        self.client.force_login(get_user_model().objects.create_user(
+            'backend_admin', password='x', is_superuser=True))
+        pending = [{'file': 'backend_x.json', 'module': 'x_backend'}]
+        with mock.patch('wama.common.services.backend_proposals.pending', return_value=pending):
+            listing = self.client.get(reverse('model_manager:api_manifest_proposals')).json()
+        self.assertEqual(pending, listing['backends'])
+        decide = reverse('model_manager:api_manifest_proposal_decide')
+        with mock.patch('wama.common.services.backend_proposals.apply',
+                        return_value={'applied': True, 'written': 'w'}) as apply:
+            res = self.client.post(decide, json.dumps({'file': 'backend_x.json',
+                                                       'decision': 'apply'}),
+                                   content_type='application/json').json()
+        self.assertTrue(res['success'])
+        self.assertEqual('backend_x.json', apply.call_args.args[0])
+        r = self.client.post(decide, json.dumps({'file': '../../etc/passwd', 'decision': 'apply'}),
+                             content_type='application/json')
+        self.assertEqual(404, r.status_code)
+
     def test_the_gesture_is_refused_to_an_ordinary_account(self):
         from django.contrib.auth import get_user_model
         from django.urls import reverse
