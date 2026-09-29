@@ -149,6 +149,17 @@ class ManifestProposalTest(TestCase):
         r = self.client.get(reverse('model_manager:api_manifest_proposals'))
         self.assertNotEqual(200, r.status_code)
 
+    def test_a_setting_declared_as_an_input_makes_the_proposal_invalid(self):
+        """Vécu au 1er passage réel (gpt-oss-120b, 29/09) : `inputs_optional: [seed, steps, cfg]`
+        passait pour VALIDE. Le plan le dit désormais, et Valider est refusé."""
+        m = _llm_manifest()
+        m['body']['capabilities'] = {'task': 'text-to-image', 'inputs_optional': ['seed', 'steps']}
+        obj = proposals.propose(m)
+        self.assertTrue(any('INPUT_TYPES' in e for e in proposals.plan(obj)['errors']))
+        self.assertFalse(proposals.apply(obj)['applied'])
+        self.row.refresh_from_db()
+        self.assertEqual({}, self.row.composition)
+
     def test_fill_empty_treats_lists_as_values(self):
         merged, filled, diverged = proposals.fill_empty(
             {'a': [], 'b': ['x'], 'c': {'d': ''}}, {'a': ['y'], 'b': ['z'], 'c': {'d': 'e'}})
