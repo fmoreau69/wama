@@ -28,6 +28,17 @@ class MediaLibraryPageContractTest(TestCase):
                 tab = page.split(f'data-type="{key}"', 1)[1].split('</a>', 1)[0]
                 self.assertIn(nature.icon, tab, f'onglet {key} sans son icône déclarée')
 
+    def test_the_page_adds_through_the_common_input_card(self):
+        """La zone « Ajouter » propre est remplacée par la card d'entrée commune ; la page n'a pas
+        de volet (`VOLET_AUCUN`), la card n'y renvoie donc pas au « volet de droite »."""
+        user = get_user_model().objects.create_user('page_card', password='x')
+        self.client.force_login(user)
+        page = self.client.get(reverse('media_library:index')).content.decode('utf-8')
+        self.assertIn('id="mlNewItem"', page)
+        self.assertIn('id="mlDropZone"', page)
+        self.assertNotIn('id="uploadZoneWrap"', page)
+        self.assertNotIn('Réglages : volet de droite', page)
+
     def test_the_asset_card_uses_the_common_action_row_and_menu(self):
         js = (Path(settings.BASE_DIR) / 'wama' / 'media_library' / 'static' / 'media_library'
               / 'js' / 'media-library.js').read_text(encoding='utf-8')

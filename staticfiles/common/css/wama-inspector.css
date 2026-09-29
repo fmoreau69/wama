@@ -66,6 +66,9 @@
    poussé à droite de l'en-tête (le chevron le suit) ; en mode simplifié le volet est masqué,
    la phrase renvoie alors au ⚙ de l'élément. */
 .wama-new-item-card .wama-settings-hint { margin-left: auto; font-size: .72rem; opacity: .85; }
+/* Le chevron est `ms-auto` : poussé à droite quand l'indication est absente (page sans volet,
+   la médiathèque) ; juste après elle quand elle est là. */
+.wama-new-item-card .wama-settings-hint + .wama-nic-chevron { margin-left: .5rem !important; }
 .wama-settings-hint--simple { display: none; }
 body.wama-simple .wama-settings-hint--panel { display: none; }
 body.wama-simple .wama-settings-hint--simple { display: inline; }

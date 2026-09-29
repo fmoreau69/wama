@@ -73,6 +73,63 @@ def candidate_asset_types(nom_fichier: str) -> list:
     return [t for t, _ in ASSET_TYPES if ext in ALLOWED_EXTENSIONS.get(t, [])]
 
 
+class LibraryAddRefused(ValueError):
+    """Ajout refusé (nature inconnue, format non admis, nom déjà pris, déplacement impossible) —
+    le message est lisible tel quel par l'utilisateur ; `status` est le code HTTP qui le dit
+    (409 pour un nom déjà pris, 400 sinon)."""
+
+    def __init__(self, message, status=400):
+        super().__init__(message)
+        self.status = status
+
+
+def add_file_to_library(user, asset_type: str, *, uploaded=None, source=None, name: str = '',
+                        description: str = '', tags: str = ''):
+    """Ajoute UN fichier à la médiathèque de `user`, comme asset de la nature `asset_type`.
+
+    LE geste d'ajout (2026-09-29), partagé par la card d'entrée de la page médiathèque
+    (`api_upload`) et l'outil de l'assistant (`tool_api.add_to_media_library`), qui l'écrivait
+    seul. Deux provenances :
+      • `uploaded` — un fichier TÉLÉVERSÉ depuis le poste : il est enregistré par le champ
+        (`upload_to`), comme avant ;
+      • `source`   — un fichier de l'ARBRE de l'utilisateur (temporaire, sortie d'app, glissé
+        depuis l'explorateur) : il est DÉPLACÉ dans la médiathèque et ses porteurs le suivent
+        (`move_into_library`, décision de Fabien du 2026-09-27 — D24). L'appelant a confiné le
+        chemin ; déplacer le fichier d'un AUTRE (asset système, partagé) n'a pas de sens ici.
+    La nature n'est JAMAIS devinée : elle est fournie (l'onglet ouvert, le rôle demandé). Le nom
+    par défaut est celui du fichier. Rend l'asset ; lève `LibraryAddRefused` avec un motif."""
+    from pathlib import Path
+
+    from .models import ALLOWED_EXTENSIONS, ASSET_TYPES, UserAsset
+
+    if asset_type not in dict(ASSET_TYPES):
+        raise LibraryAddRefused(f"Type d'asset invalide : « {asset_type} ». "
+                                f"Valides : {', '.join(dict(ASSET_TYPES))}")
+    filename = uploaded.name if uploaded is not None else Path(str(source)).name
+    ext = Path(filename).suffix.lstrip('.').lower()
+    allowed = ALLOWED_EXTENSIONS.get(asset_type, [])
+    if ext not in allowed:
+        raise LibraryAddRefused(f"Extension .{ext} non admise pour « {asset_type} ». "
+                                f"Formats : {', '.join(allowed)}")
+    asset_name = (name or '').strip() or Path(filename).stem
+    if UserAsset.objects.filter(user=user, name=asset_name, asset_type=asset_type).exists():
+        raise LibraryAddRefused(f'Un asset « {asset_name} » de ce type existe déjà.', status=409)
+
+    if uploaded is not None:
+        asset = UserAsset.objects.create(user=user, name=asset_name, asset_type=asset_type,
+                                         file=uploaded, description=description, tags=tags)
+    else:
+        asset = UserAsset.objects.create(user=user, name=asset_name, asset_type=asset_type,
+                                         description=description, tags=tags)
+        if move_into_library(asset, Path(str(source)), filename) is None:
+            asset.delete()
+            raise LibraryAddRefused("Ajout impossible : le fichier n'a pas pu rejoindre la médiathèque.")
+    # MIME, taille et `attributes` lus du FICHIER (sonde commune), quel que soit le chemin d'entrée.
+    enrich_asset_from_file(asset)
+    asset.save(update_fields=['mime_type', 'file_size', 'attributes', 'duration'])
+    return asset
+
+
 def admissible_roles(detail: dict, nom_fichier: str) -> list:
     """Les rôles que le geste PROPOSE pour cette sortie — et donc les seuls qu'il accepte.
 

@@ -262,42 +262,44 @@ def api_list(request):
 @login_required
 @require_POST
 def api_upload(request):
-    """POST /media-library/api/assets/upload/"""
+    """POST /media-library/api/assets/upload/ — la vue d'ajout de la CARD D'ENTRÉE commune.
+
+    Reçoit un fichier TÉLÉVERSÉ (`file`) ou DÉSIGNÉ (`file__designated` : glissé depuis l'arbre,
+    même contrat que les vues d'upload des apps). La nature est celle de l'onglet ouvert
+    (`asset_type`), jamais devinée ; le nom est facultatif — celui du fichier par défaut, il se
+    corrige ensuite (« on ajoute, puis on règle », comme une card de file). Le geste est LA brique
+    `services.add_file_to_library` (2026-09-29) : un fichier désigné est DÉPLACÉ dans la
+    médiathèque (D24), ce qui n'a de sens que pour un fichier de l'espace de l'utilisateur."""
+    from wama.common.utils.media_paths import (OutsideMediaRoot, designation_field, in_user_home,
+                                               resolve_under_media_root)
+    from .services import LibraryAddRefused, add_file_to_library
+
     user = _get_user(request)
-
-    name        = request.POST.get('name', '').strip()
-    asset_type  = request.POST.get('asset_type', '').strip()
-    description = request.POST.get('description', '').strip()
-    tags        = request.POST.get('tags', '').strip()
-    file        = request.FILES.get('file')
-
-    if not name:
-        return JsonResponse({'error': 'Le nom est requis'}, status=400)
-    if asset_type not in dict(ASSET_TYPES):
-        return JsonResponse({'error': "Type d'asset invalide"}, status=400)
-    if not file:
+    asset_type = request.POST.get('asset_type', '').strip()
+    uploaded = request.FILES.get('file')
+    source = None
+    designated = request.POST.get(designation_field('file'), '').strip()
+    if uploaded is None and designated:
+        try:
+            source, rel = resolve_under_media_root(designated)
+        except (OutsideMediaRoot, FileNotFoundError):
+            return JsonResponse({'error': 'Fichier introuvable'}, status=400)
+        if not in_user_home(rel, user.id):
+            return JsonResponse({'error': "Seul un fichier de votre espace rejoint votre médiathèque ; "
+                                          "un asset partagé ou système se désigne depuis une card."},
+                                status=400)
+        if UserAsset.objects.filter(file=rel).exists():
+            return JsonResponse({'error': 'Ce fichier est déjà dans la médiathèque.'}, status=409)
+    if uploaded is None and source is None:
         return JsonResponse({'error': 'Fichier requis'}, status=400)
 
-    ext     = Path(file.name).suffix.lstrip('.').lower()
-    allowed = ALLOWED_EXTENSIONS.get(asset_type, [])
-    if ext not in allowed:
-        return JsonResponse({
-            'error': f'Extension .{ext} non autorisée. Formats : {", ".join(allowed)}'
-        }, status=400)
-
-    if UserAsset.objects.filter(user=user, name=name, asset_type=asset_type).exists():
-        return JsonResponse({'error': f'Un asset "{name}" de ce type existe déjà'}, status=409)
-
-    asset = UserAsset.objects.create(
-        user=user, name=name, asset_type=asset_type,
-        file=file, description=description, tags=tags,
-    )
-    # MIME, taille et `attributes` lus du FICHIER (sonde commune) — même geste que le rangement
-    # d'une sortie d'app (`export_item_to_library`) : un objet 3D arrive avec ses faces et son rig.
-    from .services import enrich_asset_from_file
-    enrich_asset_from_file(asset)
-    asset.save(update_fields=['mime_type', 'file_size', 'attributes', 'duration'])
-
+    try:
+        asset = add_file_to_library(
+            user, asset_type, uploaded=uploaded, source=source,
+            name=request.POST.get('name', ''), description=request.POST.get('description', '').strip(),
+            tags=request.POST.get('tags', '').strip())
+    except LibraryAddRefused as exc:
+        return JsonResponse({'error': str(exc)}, status=exc.status)
     return JsonResponse(_serialize_user_asset(asset, user))
 
 

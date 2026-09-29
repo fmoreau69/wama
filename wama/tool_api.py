@@ -1756,42 +1756,19 @@ def add_to_media_library(user, file_path: str, asset_type: str,
     src, err = _resolve_user_path(user, file_path)
     if err:
         return err
+    # ⭐ DÉPLACEMENT, plus une copie (décision de Fabien, 2026-09-27 : *« un fichier ajouté à la
+    # médiathèque doit aller dans la médiathèque »*). Le geste est LA brique commune
+    # `add_file_to_library` depuis le 2026-09-29 — la card d'entrée de la page médiathèque
+    # l'appelle aussi ; la validation (nature, format, nom) n'est plus écrite ici.
+    from wama.media_library.services import LibraryAddRefused, add_file_to_library
     try:
-        import mimetypes
-        from wama.media_library.models import (
-            ALLOWED_EXTENSIONS, ASSET_TYPES, UserAsset,
-        )
-
-        if asset_type not in dict(ASSET_TYPES):
-            valides = ', '.join(dict(ASSET_TYPES).keys())
-            return {'error': f"Type d'asset invalide : '{asset_type}'. Valides : {valides}"}
-        ext = src.suffix.lstrip('.').lower()
-        allowed = ALLOWED_EXTENSIONS.get(asset_type, [])
-        if ext not in allowed:
-            return {'error': f"Extension .{ext} non admise pour '{asset_type}'. "
-                             f"Formats : {', '.join(allowed)}"}
-        asset_name = (name or '').strip() or src.stem
-        if UserAsset.objects.filter(user=user, name=asset_name, asset_type=asset_type).exists():
-            return {'error': f'Un asset « {asset_name} » de ce type existe déjà.'}
-
-        # ⭐ DÉPLACEMENT, plus une copie (décision de Fabien, 2026-09-27 : *« un fichier ajouté à la
-        # médiathèque doit aller dans la médiathèque »*) — même brique que le rangement d'une sortie
-        # d'app, donc la même règle et le même repointage des porteurs. Le fichier vient du dossier
-        # de l'utilisateur (`_resolve_user_path` l'a confiné) : il change de place chez lui.
-        from wama.media_library.services import move_into_library
-
-        size = src.stat().st_size
-        asset = UserAsset.objects.create(user=user, name=asset_name, asset_type=asset_type,
-                                        description=description)
-        if move_into_library(asset, src, src.name) is None:
-            asset.delete()
-            return {'error': 'Ajout impossible : le fichier n’a pas pu rejoindre la médiathèque.'}
-        asset.mime_type = mimetypes.guess_type(src.name)[0] or ''
-        asset.file_size = size
-        asset.save(update_fields=['mime_type', 'file_size'])
-        return {'id': asset.id, 'name': asset.name, 'asset_type': asset.asset_type}
+        asset = add_file_to_library(user, asset_type, source=src, name=name,
+                                    description=description)
+    except LibraryAddRefused as e:
+        return {'error': str(e)}
     except Exception as e:
         return {'error': f'Ajout impossible : {e}'}
+    return {'id': asset.id, 'name': asset.name, 'asset_type': asset.asset_type}
 
 
 # ===========================================================================

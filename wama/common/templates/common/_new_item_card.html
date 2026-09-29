@@ -73,7 +73,7 @@ lisait les deux comme un échec. Ce n'est pas une heuristique de DOM qui peut tr
             <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>
             <span class="text-muted">{% if show_prompt %}— décrivez, glissez ou collez{% else %}— glissez un fichier{% if show_url %}, ou collez une URL{% endif %}{% endif %}</span>
             {% include 'common/_settings_hint.html' %}
-            {% if collapsible %}<i class="fas fa-chevron-down ms-2 wama-nic-chevron"></i>{% endif %}
+            {% if collapsible %}<i class="fas fa-chevron-down ms-auto wama-nic-chevron"></i>{% endif %}
         </div>
         {% if show_prompt %}
         {# PROMPT = entrée primaire des apps génératives (INPUT_MODEL_MATCHING.md) — dans la CARD, #}
