@@ -2616,6 +2616,12 @@ def compute_ortho_recalage_task(self, session_id: str):
         session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
         uid = session.user_id
         mark_started(session, 'ortho_recalage', session.profile)
+        # Marquages caméra agrégés en monde : la passe les (re)calcule elle-même — elle ne dépend
+        # plus du tracking pour cela (2026-09-29, cf. `pass_tracking.PASSES`).
+        from .utils.marking_world import aggregate_markings
+        rs0 = session.results_summary or {}
+        rs0['intersection_markings'] = aggregate_markings(session)
+        session.results_summary = rs0
         _console(uid, "Recalage ortho : segmentation SAM3 des passages piétons sur l'orthophoto…")
         oc = segment_ortho_crossings(session)
         n_cross = sum(len(v) for v in {tuple(sorted(w)): v for w, v in oc.items()}.values())

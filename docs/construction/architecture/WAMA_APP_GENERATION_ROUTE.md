@@ -2636,7 +2636,17 @@ n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANT
 refusé par `studio/tasks.py::topo_order` ; une rétroaction se DÉROULE en nœuds successifs,
 `STUDIO_VISION §2bis`). Deux sources d'extraction : le canvas (`StudioPipeline`) et les registres de
 code (`register_pipeline_source`, 1er cas `cam_analyzer.PASSES` → `manifests/pipelines/cam_analyzer.json`,
-13 process, 18 liens, avec branches et jonctions).
+13 process, 18 liens, avec branches et jonctions — **16 process, 22 liens au 2026-09-29**, mesuré).
+**Ouvrir au studio un pipeline déclaré** — ✅ **2026-09-29** : `pipeline.body_to_graph` (inverse de
+`graph_to_body` : disposition automatique en colonnes par profondeur quand le manifeste n'a pas de
+`layout`, port d'arrivée résolu par TYPE quand un lien n'en dit pas), routes
+`studio/api/declared-pipelines/` ; la liste « Charger un pipeline… » du studio propose les
+« Pipelines des apps ». Vus en LECTURE (le code reste l'éditeur du registre) ; les sauvegarder au
+studio en fait un pipeline personnel. ⚠ Les liens d'un registre sont des DÉPENDANCES d'ordre, pas des
+flux de données : 3 liens du cam_analyzer relient des types incompatibles (`sam3_markings →
+ortho_recalage`, `intersection_windows → temporal_segments`, `lane_events → distance`) — dessinés,
+mais qu'un utilisateur ne pourrait pas tracer lui-même ; les typer est un travail de spécification
+des passes, non fait.
 **À ajouter : le type de nœud `pipeline`** — un nœud qui RÉFÉRENCE un pipeline enregistré (clé +
 version), sans le recopier. C'est le sous-graphe de ComfyUI, en plus simple : pas de « groupe »
 visuel à part, un pipeline est un nœud comme un autre. Pas de nouveau KIND de manifeste (décision du
@@ -2664,6 +2674,11 @@ la lecture).
 `cam_analyzer.json` lignes 105 et 195) devient une STRUCTURE : deux pipelines (« analyse d'image »,
 « calculs ») chaînés et enregistrés comme un pipeline complet. Lancer un étage = lancer un
 sous-pipeline.
+🔄 **2026-09-29** : les deux étages sont DÉCLARÉS comme pipelines (`cam_analyzer.analyse`,
+`cam_analyzer.calcul`, `pass_tracking.PIPELINES`) à côté du complet, et une analyse ne dépend plus
+d'aucun calcul (`ortho_recalage` dépendait de `global_tracking` pour ses seuls marquages monde ; elle
+les agrège elle-même) — garde `studio/tests_declared_pipelines`. ⏳ Le complet reste À PLAT tant que le
+type de nœud `pipeline` (3.1) n'existe pas pour le composer de ses deux étages.
 
 **3.5 Où vivent les pipelines.** Dans le code (registre, pour ceux qu'une app propose), en base
 (`StudioPipeline`, ceux d'un utilisateur), au corpus (`manifests/pipelines/`). Une app DÉCLARE son ou

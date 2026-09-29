@@ -38,7 +38,7 @@
         "to_port": null
       },
       {
-        "from": "global_tracking",
+        "from": "intersection_windows",
         "to": "ortho_recalage",
         "to_port": null
       },
@@ -342,7 +342,7 @@
   "description": "Pipeline déclaré en code (`pass_tracking.PASSES`) : étage ANALYSE (perception, GPU) puis CALCUL (dérivation CPU rejouable) ; chaque passe est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "cam_analyzer",
   "manifest_kind": "pipeline",
-  "name": "Cam Analyzer — chaîne d’analyse (13 passes)",
+  "name": "Cam Analyzer — chaîne complète (16 passes)",
   "owner": null,
   "projects": [
     "ENA"

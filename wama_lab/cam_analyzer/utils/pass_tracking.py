@@ -81,9 +81,11 @@ PASSES: tuple = (
     Pass('depth', 'analyse', depends_on=('yolo_detect',), task='compute_depth_task', gpu=True,
          function='cam_analyzer.depth_analysis'),
     # Recalage ortho 2b (2026-09-28, ex-bouton du panneau Calibration seul) : REGARDE l'orthophoto
-    # (SAM3, GPU + réseau) et l'apparie aux passages piétons caméra agrégés en monde par le
-    # tracking (`marking_world`, dans `global_tracking`) — d'où ses deux amonts, dont un calcul.
-    Pass('ortho_recalage', 'analyse', depends_on=('sam3_markings', 'global_tracking'),
+    # (SAM3, GPU + réseau) et l'apparie aux passages piétons caméra agrégés en monde
+    # (`marking_world`). Elle les agrège ELLE-MÊME depuis le 2026-09-29 : elle dépendait de
+    # `global_tracking` pour cela seul, et cette dépendance d'une ANALYSE envers un CALCUL
+    # empêchait de chaîner les deux étages en sous-pipelines (ROUTE §10.6 3.4).
+    Pass('ortho_recalage', 'analyse', depends_on=('sam3_markings', 'intersection_windows'),
          task='compute_ortho_recalage_task', gpu=True),
     # ── CALCUL (dérivation, CPU, rejouable) ─────────────────────────────────────
     Pass('lane_events', 'calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
@@ -137,40 +139,60 @@ def dispatch_table():
     return {p.key: getattr(_tasks, p.task) for p in PASSES if p.task}
 
 
-def pipeline_graph() -> dict:
+def pipeline_graph(stage: str = None) -> dict:
     """Le registre sous la forme CANVAS du Studio (`{nodes, links}`) : une passe = un nœud
     `function` (clé du catalogue), une dépendance = un lien. C'est la forme que `graph_to_body`
     traduit en manifeste et que le Studio sait charger (« UNE représentation, DEUX éditeurs »,
     `WAMA_DATA_WORLD §9undecies`). Les `params` d'un nœud portent ce qui est propre à la passe
-    et n'existe pas dans le `FunctionSpec` : étage, par-caméra, GPU, paramètres surveillés."""
+    et n'existe pas dans le `FunctionSpec` : étage, par-caméra, GPU, paramètres surveillés.
+    `stage` restreint à un ÉTAGE (sous-pipeline, ROUTE §10.6 3.4) : ses passes et ses seuls
+    liens internes — les amonts de l'autre étage sont ses ENTRÉES, pas des nœuds."""
     from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
+    kept = [p for p in PASSES if stage is None or p.stage == stage]
+    keys = {p.key for p in kept}
     nodes = [{'id': p.key, 'app': f'{FUNCTION_NODE_PREFIX}{p.function_key}',
               'params': {'stage': p.stage, 'per_camera': p.per_camera, 'gpu': p.gpu,
                          'watched': list(p.watched), 'task': p.task}}
-             for p in PASSES]
-    links = [{'from': d, 'to': p.key, 'to_port': None} for p in PASSES for d in p.depends_on]
+             for p in kept]
+    links = [{'from': d, 'to': p.key, 'to_port': None}
+             for p in kept for d in p.depends_on if d in keys]
     return {'nodes': nodes, 'links': links}
 
 
-def pipeline_manifest() -> dict:
-    """Manifeste `pipeline` complet du registre — inscrit sous la clé `cam_analyzer` par
-    `function_specs.py` (`register_pipeline_source`), exporté par `manifest_export --kind
-    pipeline` vers `manifests/pipelines/`."""
+#: Les pipelines déclarés par le registre : le complet et ses deux étages (ROUTE §10.6 3.4).
+#: ⏳ Le complet deviendra DEUX nœuds `pipeline` chaînés quand ce type de nœud existera
+#: (§10.6 3.1) ; en attendant il reste à plat.
+PIPELINES = {
+    'cam_analyzer': (None, 'Cam Analyzer — chaîne complète'),
+    'cam_analyzer.analyse': ('analyse', "Cam Analyzer — analyse d'image (perception)"),
+    'cam_analyzer.calcul': ('calcul', 'Cam Analyzer — calculs (dérivation)'),
+}
+
+
+def pipeline_manifest(key: str = 'cam_analyzer') -> dict:
+    """Manifeste `pipeline` du registre sous la clé `key` (le complet ou un étage, cf.
+    `PIPELINES`) — inscrit par `function_specs.py` (`register_pipeline_source`), exporté par
+    `manifest_export --kind pipeline` vers `manifests/pipelines/`. Le nom compte les passes
+    (il disait « 13 passes » en dur, 16 depuis le 2026-09-28)."""
     from wama.common.manifests.builtin.pipeline import graph_to_body
+    stage, label = PIPELINES[key]
+    body = graph_to_body(pipeline_graph(stage))
+    what = ("étage ANALYSE (perception, GPU) puis CALCUL (dérivation CPU rejouable)" if stage is None
+            else f"étage {stage.upper()} seul — ses amonts de l'autre étage sont ses entrées")
     return {
         'manifest_kind': 'pipeline',
-        'key': 'cam_analyzer',
+        'key': key,
         'schema_version': '1.0',
-        'name': 'Cam Analyzer — chaîne d’analyse (13 passes)',
-        'description': "Pipeline déclaré en code (`pass_tracking.PASSES`) : étage ANALYSE "
-                       "(perception, GPU) puis CALCUL (dérivation CPU rejouable) ; chaque passe "
-                       "est un nœud `function` du catalogue, chaque dépendance un lien.",
+        'name': f"{label} ({len(body['nodes'])} passes)",
+        'description': f"Pipeline déclaré en code (`pass_tracking.PASSES`) : {what} ; chaque "
+                       "passe est un nœud `function` du catalogue, chaque dépendance un lien.",
         'world': 'lab',
         'owner': None,
         'visibility': 'public',
         'projects': ['ENA'],
-        'source': {'type': 'extract', 'ref': 'cam_analyzer.utils.pass_tracking:PASSES'},
-        'body': graph_to_body(pipeline_graph()),
+        'source': {'type': 'extract', 'ref': 'cam_analyzer.utils.pass_tracking:PASSES'
+                                              + (f'[stage={stage}]' if stage else '')},
+        'body': body,
     }
 
 

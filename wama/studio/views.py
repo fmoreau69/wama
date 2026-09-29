@@ -170,6 +170,45 @@ def api_pipeline_detail(request, pk):
     return JsonResponse({'id': pipe.pk, 'name': pipe.name, 'graph': pipe.graph})
 
 
+# ── Pipelines DÉCLARÉS par les apps (registre de code) — les ouvrir au studio ─────────
+# ROUTE §10.6 2.2 : « tout ce qui s'exécute dans une file doit pouvoir s'ouvrir au studio ».
+# Source : les pipelines inscrits par `register_pipeline_source` (le kind ne connaît pas ses
+# producteurs), rendus sous la forme canvas par `body_to_graph`. Lecture seule côté code : les
+# modifier au studio puis sauvegarder en fait un pipeline PERSONNEL (StudioPipeline).
+
+def _declared_pipeline(key):
+    from wama.common.manifests.builtin.pipeline import PIPELINE_SOURCES, registered_pipeline_keys
+    if key not in registered_pipeline_keys():
+        return None
+    m = PIPELINE_SOURCES[key]()
+    return m if m and m.get('visibility', 'public') == 'public' else None
+
+
+@login_required
+def api_declared_pipelines(request):
+    """GET : les pipelines déclarés par les apps (clé, nom, monde, nombre de nœuds)."""
+    from wama.common.manifests.builtin.pipeline import registered_pipeline_keys
+    out = []
+    for key in registered_pipeline_keys():
+        m = _declared_pipeline(key)
+        if m:
+            out.append({'key': key, 'name': m.get('name') or key, 'world': m.get('world'),
+                        'nodes': len((m.get('body') or {}).get('nodes') or [])})
+    return JsonResponse({'pipelines': out})
+
+
+@login_required
+def api_declared_pipeline_detail(request, key):
+    """GET : le graphe CANVAS d'un pipeline déclaré (disposition automatique s'il n'en a pas)."""
+    from wama.common.manifests.builtin.pipeline import body_to_graph
+    m = _declared_pipeline(key)
+    if not m:
+        return JsonResponse({'error': 'Pipeline déclaré introuvable'}, status=404)
+    return JsonResponse({'key': key, 'name': m.get('name') or key, 'declared': True,
+                         'description': m.get('description', ''),
+                         'graph': body_to_graph(m.get('body') or {})})
+
+
 @login_required
 def api_run_options(request):
     """Options d'exécution métadonnée-driven : params_spec par app exécutable +

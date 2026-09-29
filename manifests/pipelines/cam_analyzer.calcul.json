@@ -1,0 +1,174 @@
+{
+  "body": {
+    "layout": {},
+    "links": [
+      {
+        "from": "lane_events",
+        "to": "distance",
+        "to_port": null
+      },
+      {
+        "from": "distance",
+        "to": "global_tracking",
+        "to_port": null
+      },
+      {
+        "from": "global_tracking",
+        "to": "indicators",
+        "to_port": null
+      },
+      {
+        "from": "distance",
+        "to": "indicators",
+        "to_port": null
+      },
+      {
+        "from": "lane_events",
+        "to": "conflicts",
+        "to_port": null
+      },
+      {
+        "from": "distance",
+        "to": "conflicts",
+        "to_port": null
+      }
+    ],
+    "nodes": [
+      {
+        "app": null,
+        "function": "cam_analyzer.lane_events",
+        "id": "lane_events",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_lane_events_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.temporal_segments",
+        "id": "temporal_segments",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_temporal_segments_task",
+          "watched": [
+            "target_classes",
+            "confidence"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.distance",
+        "id": "distance",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_distance_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.depth_calc",
+        "id": "depth_calc",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_depth_calc_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.lane_map_recalage",
+        "id": "lane_map_recalage",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_lane_map_recalage_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.ortho_correction",
+        "id": "ortho_correction",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_ortho_correction_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.global_tracking",
+        "id": "global_tracking",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_global_tracking_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.indicators",
+        "id": "indicators",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_indicators_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.conflicts",
+        "id": "conflicts",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_conflict_events_task",
+          "watched": []
+        }
+      }
+    ]
+  },
+  "description": "Pipeline déclaré en code (`pass_tracking.PASSES`) : étage CALCUL seul — ses amonts de l'autre étage sont ses entrées ; chaque passe est un nœud `function` du catalogue, chaque dépendance un lien.",
+  "key": "cam_analyzer.calcul",
+  "manifest_kind": "pipeline",
+  "name": "Cam Analyzer — calculs (dérivation) (9 passes)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "cam_analyzer.utils.pass_tracking:PASSES[stage=calcul]",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "lab"
+}

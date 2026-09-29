@@ -461,9 +461,15 @@ _spec('indicators', 'Indicateurs prédiction (TTC/PET)', "TTC/PET par prédictio
 from wama.common.manifests.builtin.pipeline import register_pipeline_source  # noqa: E402
 
 
-def _cam_analyzer_pipeline():
-    from wama_lab.cam_analyzer.utils.pass_tracking import pipeline_manifest
-    return pipeline_manifest()
+def _pipeline_factory(key):
+    def factory():
+        from wama_lab.cam_analyzer.utils.pass_tracking import pipeline_manifest
+        return pipeline_manifest(key)
+    return factory
 
 
-register_pipeline_source('cam_analyzer', _cam_analyzer_pipeline)
+# Le complet et ses deux étages (sous-pipelines, ROUTE §10.6 3.4) — les clés de
+# `pass_tracking.PIPELINES`, recopiées ici : importer `pass_tracking` au chargement du catalogue
+# est évité (cf. ci-dessus) ; `tests_pass_registry` garde l'égalité des deux listes.
+for _key in ('cam_analyzer', 'cam_analyzer.analyse', 'cam_analyzer.calcul'):
+    register_pipeline_source(_key, _pipeline_factory(_key))
