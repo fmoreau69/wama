@@ -144,10 +144,10 @@ class Command(BaseCommand):
             ('backend_unserved', backend_unserved,
              "moteur DÉCLARÉ qu'aucun inventaire ne sert → grisé, exclu du tirage auto"),
             ('backend_out_of_scope', backend_out_of_scope,
-             "ni moteur déclaré ni backend_ref → HORS du périmètre du verdict (garde "
-             "permissive, voulue). ⚠ N'ÉQUIVAUT PAS À « cassé » : ces modèles sont soit "
-             "non rattachés à une app (absents des selects, filtrés par `source`), soit "
-             "routés par le gestionnaire de backends propre à leur app"),
+             "ni moteur déclaré ni app qui le porte → aucune route d'exécution : GRISÉ dans "
+             "les selects et exclu du tirage depuis le 2026-09-29 (la permissivité ne tenait "
+             "qu'à un compte périmé). Remède : déclarer `composition.runtime.engine` (rôle "
+             "`model`), puis écrire le backend si le moteur n'en a pas (marche B2)"),
         )
         for key, items, _ in axes:
             report['axes'][key] = [m.model_key for m in items]

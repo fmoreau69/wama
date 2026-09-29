@@ -34,7 +34,8 @@ from wama.model_manager.models import AIModel
 
 def _installe(model_key, **extra):
     return AIModel.objects.create(
-        model_key=model_key, name=model_key, model_type='speech', source='synthesizer',
+        model_key=model_key, name=model_key, model_type='speech',
+        source=extra.pop('source', 'synthesizer'),
         vram_gb=extra.pop('vram_gb', 4.0), is_downloaded=True, is_available=True,
         license=extra.pop('license', 'mit'),
         capabilities=extra.pop('capabilities', {'task': 'text-to-speech'}),
@@ -52,15 +53,17 @@ def _rapport(**kwargs):
 class CompletenessTest(TestCase):
 
     def test_un_modele_sans_moteur_ni_backend_ref_sort_du_perimetre_du_verdict(self):
-        """`backend_missing()` rend None (pas de verdict, par permissivité VOULUE) : ni le
-        select ni le tirage n'ont rien à dire de ce modèle. Ce n'est pas un défaut du
-        grisage — c'est son périmètre. Le rapport est le seul endroit où cette population
-        se COMPTE, ce qui permet de la décomposer (non rattachée à une app / routée par
-        l'app elle-même) plutôt que de la découvrir au cas par cas."""
-        _installe('test:sans-moteur', composition={})
+        """Axe `backend_out_of_scope` = « ni moteur déclaré ni app qui le porte ». Jusqu'au
+        2026-09-29, `backend_missing()` rendait None pour lui (permissivité justifiée par 159
+        modèles sur 174 sans moteur) ; depuis, il est GRISÉ — aucune route d'exécution. Le
+        rapport le compte toujours À PART de `backend_unserved` : le remède n'est pas le même
+        (déclarer le moteur d'abord, écrire le backend ensuite)."""
+        from wama.common.backends.manager import backend_missing
+        m = _installe('test:sans-moteur', composition={}, source='huggingface')
         axes = _rapport()['axes']
         self.assertIn('test:sans-moteur', axes['backend_out_of_scope'])
         self.assertNotIn('test:sans-moteur', axes['backend_unserved'])
+        self.assertIn('aucune route', backend_missing(m) or '')
 
     def test_un_backend_ref_pose_sort_le_modele_du_hors_verdict(self):
         """`backend_ref` = « l'app assume son moteur » (doctrine de `backend_missing`).
