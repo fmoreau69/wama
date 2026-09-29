@@ -1911,3 +1911,51 @@ Mesuré au dry-run : 47 appariés avant et après, aucune perte ; LTX-2.3 → «
 (1147), LTX-2.5 → « LTX-2.5 Fast » (1214) — toujours des versions hébergées (AA ne classe pas les
 poids ouverts d'LTX-2), à lire comme un PLAFOND. `LTX Video v0.9.7 13B` (1030) est au classement ;
 notre 0.9.8 ne s'y apparie pas (version différente) — par décision.
+
+## Session du 2026-09-29 : intégrer un modèle SANS Claude — les trous de la chaîne, et ce qui les comble
+
+**Demande de Fabien** : *« faire tout ça via les mécanismes de WAMA […] être autonome sans
+forcément devoir utiliser Claude »* — le rôle LLM écrit le manifeste, WAMA l'ingère, le backend
+s'écrit, par l'assistant ou l'installation du model manager. Cas réel : `Supra2-IMG`
+(texte→image, 104 M paramètres, 256×256), installé depuis le model manager.
+
+**Ce que la mesure a trouvé** (inventaire lu au code avant d'écrire) :
+- l'installé était `huggingface:Bartholomheow/Supra2-IMG-ONNX`, un **reconditionnement tiers**
+  (0 téléchargement, `base_model: SupraLabs/Supra2-IMG` sur sa carte) : l'officiel (0,4 Go) avait
+  été ÉCARTÉ par le plancher de poids du texte→image (1 Go), et trois recherches par URL collée
+  rendaient 0 résultat ;
+- installé, il n'avait ni anatomie ni moteur (`composition={}`), donc aucun backend, donc absent de
+  l'imager — mais **proposé** au select texte→image par la route F4b (permissivité de
+  `backend_missing` sans moteur) ;
+- la chaîne avait cinq trous : ① l'anatomie jugée par le scout se PERDAIT à l'installation ;
+  ② aucun geste hors terminal ne validait une proposition de rôle (le magasin `Manifest` +
+  `promote()` existaient, sans appelant) ; ③ aucun rôle n'écrivait de backend (marche B2, prévue
+  au `ROUTE §10.3` depuis le 03/09) ; ④ l'imager ne lit pas le catalogue ; ⑤ la surface dev
+  n'admettait pas `scout --seed-candidate` / `integrator --candidate`.
+
+**Livré** (commits `cf644976`, `a405f7b`, `3e51a06`, `e233ec3`, `95ea980`) :
+1. `prospector.named_repo` : une URL de page HF ou `org/nom` DÉSIGNE le dépôt (en tête des
+   résultats), et un dépôt nommé passe le plancher de poids — `tests_named_search` ;
+2. `provenance.record_after_install` transmet `spec.composition` à `set_identity` (ne comble
+   qu'un vide) ;
+3. `backend_missing` grise un modèle SANS moteur issu du balayage générique (décision Fabien :
+   2 lignes sur tout le catalogue, les deux inexécutables — la permissivité ne tenait qu'au compte
+   du 05/09, 159/174) ;
+4. le geste **Valider** (`common/manifests/proposals.py`, section « Propositions à valider » du
+   model manager) : bac à sable → plan (comblés, divergences NON appliquées) → application qui ne
+   COMBLE que des vides (un manifeste brut effaçait la licence) → promotion + corpus ;
+   `run_model_manifest.py` y dépose sa proposition ;
+5. le rôle **`backend`** (`wama-dev-ai/run_backend.py` + `prompts/backend.txt`, le LLM de la
+   marche B2) et `common/services/backend_proposals.py` : contrôles de forme, résolution SIMULÉE
+   par l'inventaire, smoke CPU ; « Valider » ÉCRIT le module dans `wama/common/backends/` — la
+   règle « l'agent n'écrit jamais dans `wama/` » est **levée pour ce geste** (Fabien) ; jamais
+   par-dessus un module existant, rien n'est commité ;
+6. briques extraites avant qu'un LLM ne les recopie : `utils/model_components.component_paths`
+   (clé → fichiers des composants déclarés) et `onnx_utils.onnx_providers` (sortie d'`AIUpscaler`).
+
+**Reste, dans l'ordre** : jouer la chaîne par qwen3.8 quand la carte est libre (rôle `model` →
+Valider → rôle `backend` → Valider) ; ④ porter l'imager sur la route F4b (clés entières — un
+chantier, comme le synthesizer) ; la provenance d'un reconditionnement (décision de schéma :
+`base_model` désigne déjà la dorsale d'une LoRA) ; puis l'option (b), les poids officiels.
+⚠ Relevé en passant : `Flux2KleinBackend.generate` lit `params.num_inference_steps`, absent de
+`GenerationParams` (le champ est `steps`) — toute génération FLUX.2 Klein lève.
