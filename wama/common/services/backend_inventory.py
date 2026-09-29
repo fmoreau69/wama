@@ -641,7 +641,52 @@ def resolvable_entries() -> List[BackendEntry]:
     return [e for a in inventory() if not a.generated_from for e in a.entries]
 
 
-def resolve_entry(engine: str, model_id: str = '', entries=None) -> Optional[BackendEntry]:
+#: CONTRAT d'une tâche : `tâche → (module du paquet backends, classe, LIANT ?)`. Sert deux fois :
+#: la base qu'un backend ÉCRIT pour cette tâche doit implémenter (rôle `backend`, marche B2), et,
+#: quand il est LIANT, un filtre de la résolution (2026-09-29, décision de Fabien).
+#: POURQUOI LE FILTRE. Un moteur de niveau BIBLIOTHÈQUE (`onnxruntime`) est partagé entre tâches :
+#: le 1ᵉʳ modèle texte→image ONNX (Supra2-IMG) déclaré avant son backend était routé vers
+#: `AIUpscaler`, seul backend `onnxruntime` et sans liste de modèles — la règle « un seul backend
+#: déclare ce moteur → c'est lui » ne regardait pas CE QUE le backend sait faire.
+#: POURQUOI « LIANT » ET PAS TOUS. Mesuré sur le catalogue avant d'écrire la règle : 49 routages
+#: conformes, et 3 modèles `detect` servis — légitimement — par des backends qui dérivent
+#: directement du contrat commun (LocateAnything, Table Transformer). `detect` choisit la base
+#: d'un NOUVEAU backend ; il n'a pas le droit d'en refuser un existant.
+TASK_CONTRACTS = {
+    'text-to-image': ('image_generation_base', 'ImageGenerationBackend', True),
+    'text-to-video': ('image_generation_base', 'ImageGenerationBackend', True),
+    'image-to-video': ('image_generation_base', 'ImageGenerationBackend', True),
+    'text-to-speech': ('tts_base', 'TTSBackend', True),
+    'transcription': ('speech_to_text_base', 'SpeechToTextBackend', True),
+    'detect': ('detection_base', 'DetectionBackend', False),
+}
+
+
+def _class_lineage(entry) -> Optional[set]:
+    """Ancêtres (noms) de la classe d'une entrée, lus par AST dans le paquet de son module —
+    None si la classe n'y est pas trouvée (on ne conclut pas d'une absence)."""
+    if not entry.module or not entry.name:
+        return None
+    import wama
+    package = Path(wama.__file__).resolve().parent.parent.joinpath(*entry.module.split('.')[:-1])
+    bases = {}
+    for f in sorted(package.glob('*.py')):
+        classes, _ = _FICHIERS_BACKENDS.get(f, _file_classes)
+        for nom, info in classes.items():
+            bases.setdefault(nom, set()).update(info['bases'])
+    if entry.name not in bases:
+        return None
+    seen, todo = set(), [entry.name]
+    while todo:
+        for b in bases.get(todo.pop(), ()):
+            if b not in seen:
+                seen.add(b)
+                todo.append(b)
+    return seen
+
+
+def resolve_entry(engine: str, model_id: str = '', entries=None,
+                  task: str = '') -> Optional[BackendEntry]:
     """ENTRÉE du vivier qui sait exécuter `model_id` avec `engine` — ou None. STATIQUE :
     rien n'est importé, c'est la moitié « décision » de `resolve_backend`, séparée le
     2026-09-08 pour que la grille de conformité puisse lire les FICHIERS d'un backend résolu
@@ -660,12 +705,24 @@ def resolve_entry(engine: str, model_id: str = '', entries=None) -> Optional[Bac
 
     `entries` : le vivier déjà lu, pour un appelant qui résout en série (une lecture AST
     par appel coûterait N balayages du paquet pour N modèles).
+
+    `task` (2026-09-29) : la tâche du modèle. Quand son contrat est LIANT (`TASK_CONTRACTS`), un
+    backend qui n'en dérive pas est écarté AVANT les trois règles — un upscaler n'exécute pas
+    un modèle texte→image, même s'il est le seul à piloter `onnxruntime`.
     """
     if not engine:
         return None
     if entries is None:
         entries = resolvable_entries()
     candidats = [e for e in entries if e.engine == engine]
+    contract = TASK_CONTRACTS.get(task or '')
+    if candidats and contract and contract[2]:
+        kept = [e for e in candidats if _class_lineage(e) is None
+                or contract[1] in _class_lineage(e) or e.name == contract[1]]
+        if len(kept) < len(candidats):
+            logger.debug("[engines] %s / %s : %d backend(s) écarté(s), hors contrat %s", engine,
+                         model_id, len(candidats) - len(kept), contract[1])
+        candidats = kept
     if not candidats:
         return None
     if len(candidats) == 1:
@@ -688,11 +745,11 @@ def resolve_entry(engine: str, model_id: str = '', entries=None) -> Optional[Bac
     return None
 
 
-def resolve_backend(engine: str, model_id: str = '', entries=None):
+def resolve_backend(engine: str, model_id: str = '', entries=None, task: str = ''):
     """Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
     La DÉCISION est `resolve_entry` (statique) ; ici on ne fait qu'importer ce qu'elle a choisi.
     `entries` : le vivier déjà lu (`resolvable_entries()`), pour une résolution en série."""
-    entree = resolve_entry(engine, model_id, entries)
+    entree = resolve_entry(engine, model_id, entries, task=task)
     return _resoudre_classe(entree) if entree is not None else None
 
 
