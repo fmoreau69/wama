@@ -101,6 +101,7 @@ def _serialize_system_asset(a):
 # Page principale
 # ---------------------------------------------------------------------------
 
+@login_required
 def index(request):
     tab = request.GET.get('tab', 'voice')
     # Compteur de mots-clés visibles (tronc commun partagé + perso de l'utilisateur).
@@ -133,6 +134,7 @@ def index(request):
 # API — Compteurs par type (badges sur les onglets)
 # ---------------------------------------------------------------------------
 
+@login_required
 def api_counts(request):
     """GET /media-library/api/counts/"""
     user = _get_user(request)
@@ -160,6 +162,7 @@ def api_counts(request):
 # API — Assets utilisateur
 # ---------------------------------------------------------------------------
 
+@login_required
 def api_list(request):
     """GET /media-library/api/assets/?type=voice&q=fab&page=1"""
     user       = _get_user(request)
@@ -193,6 +196,7 @@ def api_list(request):
     })
 
 
+@login_required
 @require_POST
 def api_upload(request):
     """POST /media-library/api/assets/upload/"""
@@ -234,6 +238,7 @@ def api_upload(request):
     return JsonResponse(_serialize_user_asset(asset, user))
 
 
+@login_required
 @require_POST
 def api_edit(request, pk: int):
     """POST /media-library/api/assets/<pk>/edit/  — mise à jour nom/description/tags"""
@@ -281,6 +286,7 @@ def api_edit(request, pk: int):
     return JsonResponse(_serialize_user_asset(asset, user))
 
 
+@login_required
 @require_POST
 def api_delete(request, pk: int):
     """POST /media-library/api/assets/<pk>/delete/"""
@@ -308,6 +314,7 @@ def api_delete(request, pk: int):
 # API — Assets système
 # ---------------------------------------------------------------------------
 
+@login_required
 def api_system_list(request):
     """GET /media-library/api/system/?type=voice&q=homme"""
     asset_type = request.GET.get('type', '')
@@ -336,6 +343,7 @@ def api_system_list(request):
 # API — Providers (Phase 3)
 # ---------------------------------------------------------------------------
 
+@login_required
 def api_providers_list(request):
     """GET /media-library/api/providers/?type=image
     Retourne les providers actifs supportant le type donné.
@@ -376,6 +384,7 @@ def api_providers_list(request):
     return JsonResponse({'providers': result})
 
 
+@login_required
 def api_provider_search(request):
     """GET /media-library/api/search/?provider=wikimedia&type=image&q=paris&page=1
     Appelle le provider côté serveur et retourne des SearchResult normalisés.
