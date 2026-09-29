@@ -18804,3 +18804,27 @@ projections du travail non commité des autres instances).
 heures de démarrage. **Décision de Fabien** sur le point laissé ouvert : un lancement MANUEL peut
 passer avant la campagne nocturne, la réservation ne protège que du placement automatique —
 consigné en `WAMA_MEMORY §9bis.1`. Les deux points sont SOLDÉS.
+
+## §SUITE — 2026-09-29 (soir), « PORTAGE CARD v4 » — trois restes de la clôture soldés, un déclaré — 🔚 inchangé : relancer WAMA, puis portage
+
+> Suite du bloc « §CLÔTURE — 2026-09-29, PORTAGE CARD v4 (plan d) » ci-dessus, à la demande de
+> Fabien (« terminer ça avant de repartir »).
+
+- ✅ **Enhancer** : format et qualité de sortie du volet rendus du SCHÉMA (comme la modale) et
+  ré-affichés depuis la mémoire du volet — `d5642d48`.
+- ✅ **Composer** : le bouton AJOUTE sans lancer (« Ajouter à la file d'attente ») ; la vue
+  `generate` n'expédie plus rien, le ▶ de la card lance — `300d1b00`. Polling au chargement
+  (composer ET avatarizer) : RUNNING ou AWAITING_RESOURCES seulement.
+- ✅ **Geste nocturne `avatarizer.url_import`** : il remplit désormais les AUTRES ports requis de
+  la card v4 (l'avatar) avant de coller l'URL → SKIP devenu **OK** (2 créations, 0 lancement,
+  0 résidu) — `300d1b00`. ⚠ Piège : un témoin supprimé juste après `set_input_files` fait
+  échouer l'envoi (« Failed to fetch »), le navigateur relit le fichier à l'envoi.
+- ⏳ **Reste l'outil `convert_file`** (assistant + Studio), qui lance encore à la création —
+  **raison mesurée, pas un oubli** : le Studio le déclare `auto_start` et saute `start_converter`,
+  et le relais `relay_next_step` (« l'ajout n'a rien lancé, appelle start_* ») ne reconnaît que
+  les `add_to_*`. Le cesser de lancer sans étendre le relais referait le défaut du 23/09. À faire
+  avec le relais, éprouvé par l'assistant réel (`CARD_DESIGN §11.11` Étape 3, point 3).
+- Gestes de card composer/avatarizer rejoués sur 8011 : verdicts identiques au matin ; suites
+  composer, enhancer, port_designation, identifier_language OK.
+- Pendings inchangés : relancer WAMA (gunicorn + celery) · puis R83 · push (mes commits locaux
+  s'ajoutent aux 7 déjà annoncés : `d5642d48`, `300d1b00`, et ce bloc).
