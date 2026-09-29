@@ -18621,3 +18621,11 @@ vrais échantillons — `converter:image:jpg` (19,7 s/Mo, n=45), `converter:audi
 0,29 sur l'autre ligne), `synthesizer:synthesizer:coqui-xtts` (4,4 s/car. contre 0,57 ; clé au
 préfixe DOUBLÉ — défaut distinct). Et : deux transcriptions « en cours » à la fois au gouverneur sur
 un worker GPU `solo` (tenants 734725 et 747349), à regarder.
+
+**Suite du palier « ETA empoisonnée » (2026-09-29, GO Fabien)** : les trois lignes laissées à
+décision sont REMISES À ZÉRO (valeurs sauvegardées) — `converter:image:jpg` et `converter:audio:mp3`
+(cpu), `synthesizer:synthesizer:coqui-xtts`. Et la clé doublée est corrigée À LA BRIQUE :
+`eta_estimator.make_key` rend tel quel un identifiant qui porte déjà son préfixe
+(`VoiceSynthesis.tts_model` stocke la clé du catalogue) — le synthesizer apprend et estime
+désormais sous `synthesizer:coqui-xtts`, la clé que lit aussi l'a priori du catalogue. Mesuré : plus
+aucune clé à préfixe doublé en base (26 clés). Garde : `tests_eta_test_accounts.ModelKeyTest`.
