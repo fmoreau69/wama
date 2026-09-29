@@ -1742,8 +1742,7 @@ def import_to_synthesizer(source_path, user, app_label='synthesizer'):
 
     # Create VoiceSynthesis record with user-specific path
     synthesis = VoiceSynthesis.objects.create(
-        user=user,
-        tts_model='coqui-xtts',
+        user=user,                     # tts_model : défaut du modèle (DEFAULT_TTS_MODEL)
         language='fr',
         voice_preset='default',
         speed=1.0,

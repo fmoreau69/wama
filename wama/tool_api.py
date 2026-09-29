@@ -31,6 +31,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 # Réglages déclarés au schéma d'une app (`wama/<app>/params.py`) → kwargs de son modèle.
 # Permet aux outils `add_to_<app>` d'accepter TOUT ce que l'UI règle sans recopier la liste.
+from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
 from wama.common.utils.param_schema import schema_model_kwargs, schema_extra_params
 
 logger = logging.getLogger(__name__)
@@ -807,7 +808,7 @@ def synthesize_text(
     user,
     text: str,
     language: str = 'fr',
-    tts_model: str = 'coqui-xtts',
+    tts_model: str = DEFAULT_TTS_MODEL,
     voice_preset: str = 'default',
     speed: float = 1.0,
     pitch: float = 1.0,
@@ -853,7 +854,7 @@ def synthesize_text(
         synthesis = VoiceSynthesis.objects.create(
             user=user,
             text_file=txt_file,
-            tts_model=tts_model,
+            tts_model=tts_catalog_key(tts_model),
             language=language,
             voice_preset=voice_preset,
             speed=speed,
@@ -1836,7 +1837,7 @@ def add_to_avatarizer(
     user,
     mode: str = 'pipeline',
     text_content: str = '',
-    tts_model: str = 'coqui-xtts',
+    tts_model: str = DEFAULT_TTS_MODEL,
     language: str = 'fr',
     voice_preset: str = 'default',
     audio_path: str = '',
@@ -1889,7 +1890,7 @@ def add_to_avatarizer(
         if not (text_content or '').strip():
             return {'error': "Fournissez un texte (text_content) ou un audio (audio_path)."}
         job.text_content = text_content.strip()
-        job.tts_model = tts_model or 'coqui-xtts'
+        job.tts_model = tts_catalog_key(tts_model or DEFAULT_TTS_MODEL)
         job.language = language or 'fr'
         job.voice_preset = voice_preset or 'default'
     else:  # standalone (audio_path fourni — c'est lui qui a dérivé le mode)
