@@ -683,8 +683,28 @@ déplace le NIVEAU, pas le classement.
 ⚠ **Diarisation coupée** sur ces cards : elle ne change pas le texte mesuré, seulement le temps.
 ⚠ **Le Hub limite les appels** (429 vécu au 2ᵉ fichier, jeton compris) : la commande attend et
 reprend ; la préparation est idempotente (une réunion déjà en médiathèque n'est pas retéléchargée,
-un lot déjà posé sur un audio ne l'est pas deux fois sans `--again`). Les parquets sont
+une CONFIGURATION — moteur × prétraitement × filtre de parole — déjà posée sur un audio ne
+l'est pas deux fois ; `--preprocess` / `--vad` en AJOUTENT au lot de la réunion). Les parquets sont
 téléchargés un par un dans un dossier temporaire et supprimés après usage.
+
+**Premières mesures (2026-09-29, réunion `007a_ECRH`, 20 min, 4 locuteurs, `text_v2`)** — partielles,
+une réunion, sans prétraitement : Whisper **28,5 %** · Qwen3-ASR 1.7B **30,2 %** · Canary 1B v2
+**34,8 %** · Parakeet TDT 0.6B v3 **98,7 %**.
+- **Ce que contient l'erreur de Whisper** (décomposée, #740) : 1 747 erreurs sur 6 121 mots, dont
+  **72 % de SUPPRESSIONS** ; les substitutions — les mots réellement mal entendus — ne font que
+  **5,7 %** des mots. Les mots perdus sont d'abord des acquiescements et hésitations (`ouais` 82,
+  `euh` 78, `ben` 38, `mh` 27, `ah` 24, `quoi` 23, `hein` 16) : la référence en porte 262
+  hésitations, Whisper 50. Les retirer des DEUX côtés ne ramène qu'à 25,8 % (diagnostic, pas un
+  protocole) : le reste tient à la **parole superposée — 17 % du temps de parole** (2,9 min sur
+  17,2), où un moteur ne rend qu'une voix — et au style « propre » de Whisper (il AJOUTE le `ne` de
+  négation que le locuteur n'a pas dit, 14 fois). ⇒ Le chiffre est juste au sens VERBATIM
+  (doctrine du transcriber) ; il mesure surtout l'écart entre une transcription verbatim et le
+  style normalisé des moteurs, beaucoup moins des erreurs d'audition.
+- **Parakeet v3 décroche sur ce registre** — ce n'est PAS le découpage de WAMA : mesuré sur CPU, même
+  extrait de 120 s, **99,7 % en une passe, 97,8 % en passes de 30 s** ; il glisse en ANGLAIS (*« For
+  the bibliothek municipality… »*) et perd l'essentiel. Sa langue est DÉTECTÉE, sans consigne
+  possible (seul Canary reçoit la sienne, `nemo_asr_backend.py:234`). Ses 5,38 % annoncés sont
+  mesurés sur de la parole LUE ; sur de la réunion spontanée mixée, il n'est pas utilisable en l'état.
 
 ---
 

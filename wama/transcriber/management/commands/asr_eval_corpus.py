@@ -17,6 +17,10 @@ le reste est la chaîne existante :
     # et poser un lot par réunion dans la file de <login>, puis lancer
     python manage.py asr_eval_corpus summ-re --meetings 3 --user <login> --start
 
+    # ajouter des CONFIGURATIONS au lot de chaque réunion (prétraitement, filtre de parole)
+    python manage.py asr_eval_corpus summ-re --meetings 3 --user <login> --preprocess --start
+    python manage.py asr_eval_corpus summ-re --meetings 3 --user <login> --engines whisper --vad off --start
+
 UNE RÉUNION MIXÉE, PAS DES PISTES. SUMM-RE livre une piste micro-cravate par locuteur ; le cas
 d'usage réel est un enregistrement de salle. Les pistes sont rééchantillonnées à 16 kHz,
 sommées, normalisées en crête ; la référence fusionne leurs segments par instant de début.
@@ -120,9 +124,11 @@ class Command(BaseCommand):
                             help="Nombre de réunions (dans l'ordre du corpus). Défaut : 3.")
         parser.add_argument('--user', help="Login : pose un lot par réunion dans SA file.")
         parser.add_argument('--engines', nargs='+', default=list(DEFAULT_ENGINES))
+        parser.add_argument('--preprocess', action='store_true',
+                            help="Cards avec le prétraitement audio (débruitage IA DeepFilterNet).")
+        parser.add_argument('--vad', choices=('auto', 'on', 'off'), default='auto',
+                            help="Filtre de parole de Whisper (sans effet sur les autres moteurs).")
         parser.add_argument('--start', action='store_true', help="Lance les cards posées.")
-        parser.add_argument('--again', action='store_true',
-                            help="Pose un lot même si la file en a déjà un sur cet audio.")
         parser.add_argument('--dry-run', action='store_true',
                             help="Plan seulement : quelles réunions, quels fichiers, rien d'écrit.")
 
@@ -137,7 +143,8 @@ class Command(BaseCommand):
             return
         assets = self.prepare(o['corpus'], source, o['split'], meetings)
         if o['user']:
-            self.post_batches(o['user'], assets, o['engines'], o['start'], o['again'])
+            self.post_batches(o['user'], assets, o['engines'], o['start'],
+                              preprocess=o['preprocess'], vad=o['vad'])
 
     # ── plan : quelles pistes, dans quels fichiers — sans rien télécharger ──────────────────
     def plan(self, source, split, count):
@@ -250,8 +257,13 @@ class Command(BaseCommand):
         meeting.tracks.clear()
         self.stdout.write(self.style.SUCCESS(f"  {name} versé en médiathèque ({len(mix) / SAMPLE_RATE / 60:.1f} min)"))
 
-    # ── lots : un par réunion, un moteur par card, la référence sur le lot ─────────────────
-    def post_batches(self, login, assets, engines, start, again):
+    # ── lots : un par réunion, une CONFIGURATION par card, la référence sur le lot ──────────
+    def post_batches(self, login, assets, engines, start, *, preprocess=False, vad='auto'):
+        """Une configuration = moteur × prétraitement × filtre de parole — exactement les
+        réglages que l'évaluation distingue (`config_params` du transcriber). Un nouvel appel
+        avec d'autres options AJOUTE ses cards au lot de la réunion : toutes les configurations
+        d'une réunion se comparent au même endroit. Une configuration déjà posée ne l'est pas
+        deux fois."""
         from django.contrib.auth import get_user_model
         from django.core.files import File
 
@@ -265,31 +277,47 @@ class Command(BaseCommand):
         if user is None:
             raise CommandError(f"utilisateur inconnu : {login}")
         for asset in assets:
-            if not again and Transcript.objects.filter(user=user, audio=asset.file.name).exists():
-                self.stdout.write(f"  {asset.name} : déjà dans la file de {login} (--again pour reposer)")
-                continue
-            reference = SystemAsset.objects.get(asset_type='document',
-                                                name=f'{asset.name}_reference')
-            batch = BatchTranscript.objects.create(user=user, total=len(engines))
-            cards = []
-            for row, engine in enumerate(engines):
+            on_audio = Transcript.objects.filter(user=user, audio=asset.file.name)
+            link = (BatchTranscriptItem.objects.filter(transcript__in=on_audio)
+                    .select_related('batch').order_by('batch_id').first())
+            batch = link.batch if link else BatchTranscript.objects.create(user=user, total=0)
+            row = (batch.items.order_by('-row_index').values_list('row_index', flat=True)
+                   .first() or -1) + 1
+            new_cards = []
+            for engine in engines:
+                # Le filtre de parole n'existe que chez Whisper (`workers._vad_filter_for`) :
+                # le varier sur un autre moteur poserait deux fois la même configuration.
+                engine_vad = vad if engine == 'whisper' else 'auto'
+                if on_audio.filter(backend=engine, preprocess_audio=preprocess,
+                                   vad_mode=engine_vad).exists():
+                    continue
                 # Diarisation coupée : elle ne change pas le texte mesuré, seulement le temps.
                 result = add_to_transcriber(user, asset.file.name, backend=engine,
-                                            enable_diarization=False)
+                                            enable_diarization=False,
+                                            preprocess_audio=preprocess, vad_mode=engine_vad)
                 if 'error' in result:
                     raise CommandError(f"{asset.name} / {engine} : {result['error']}")
                 card = Transcript.objects.get(pk=result['transcript_id'])
                 attach_to_batch(card, batch, row, item_model=BatchTranscriptItem,
                                 fk_name='transcript')
-                cards.append(card)
+                row += 1
+                new_cards.append(card)
+            if not new_cards:
+                self.stdout.write(f"  {asset.name} : configuration déjà posée (lot #{batch.pk})")
+                continue
+            reference = SystemAsset.objects.get(asset_type='document',
+                                                name=f'{asset.name}_reference')
+            # Toutes les cards du lot : le fichier de référence reste UN, partagé (le poser sur
+            # les seules nouvelles en ferait une seconde copie).
+            cards = [item.transcript for item in batch.items.select_related('transcript')]
             with open(reference.file.path, 'rb') as fh:
                 attach_reference('transcriber', cards,
                                  File(fh, name=Path(reference.file.name).name))
             self.stdout.write(self.style.SUCCESS(
-                f"  lot #{batch.pk} : {asset.name}, {len(cards)} cards "
-                f"(#{cards[0].pk}–#{cards[-1].pk})"))
+                f"  lot #{batch.pk} : {asset.name}, +{len(new_cards)} cards "
+                f"(#{new_cards[0].pk}–#{new_cards[-1].pk})"))
             if start:
-                for card in cards:
+                for card in new_cards:
                     started = start_transcriber(user, card.pk)
                     if 'error' in started:
                         self.stderr.write(f"    #{card.pk} : {started['error']}")
