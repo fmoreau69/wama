@@ -290,6 +290,47 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         self.assertEqual((None, 'fr', True), self._language_kwargs(
             'single', engine='nemo', in_passes=True))
 
+    def test_canary_in_multi_gets_the_probe_language_as_fallback(self):
+        """#904 : un passage incertain faisait échouer la card — le repli vient de la sonde."""
+        Transcript.objects.filter(pk=self.item.pk).update(language_mode='multi', status='RUNNING')
+        asr = self._asr()
+        asr.name = 'nemo'
+        asr.max_audio_seconds = 30
+        self.heard = [('fr', 0.95), ('en', 0.9), ('fr', 0.9)]
+        self._run(asr)
+        kwargs = asr.transcribe.call_args.kwargs
+        self.assertEqual(('fr', None), (kwargs.get('fallback_language'), kwargs.get('language')))
+        self.assertTrue(self.probed.called)
+
+    def test_a_forced_language_needs_no_fallback(self):
+        Transcript.objects.filter(pk=self.item.pk).update(language_mode='single', status='RUNNING')
+        asr = self._asr()
+        asr.name = 'nemo'
+        asr.max_audio_seconds = 30
+        self._run(asr)
+        kwargs = asr.transcribe.call_args.kwargs
+        self.assertEqual(('fr', None), (kwargs.get('language'), kwargs.get('fallback_language')))
+
+    def test_each_pass_hands_its_language_to_the_next_one(self):
+        from types import SimpleNamespace
+        from unittest import mock
+        from wama.common.backends.speech_to_text_base import TranscriptionResult, TranscriptionSegment
+        from wama.transcriber import workers
+        seen = []
+
+        def transcribe(audio_path, **kwargs):
+            seen.append(kwargs.get('fallback_language'))
+            lang = ['en', 'fr'][len(seen) - 1]
+            return TranscriptionResult(True, 'x', language=lang,
+                                       segments=[TranscriptionSegment('', 0.0, 1.0, 'x')])
+        backend = SimpleNamespace(max_audio_seconds=30, transcribe=transcribe)
+        with mock.patch.object(workers, '_split_audio_chunks',
+                               return_value=[('a.wav', 0.0), ('b.wav', 30.0)]):
+            result = workers._transcribe_maybe_chunked(backend, 'x.wav', 60.0,
+                                                       {'fallback_language': 'de'})
+        self.assertEqual(['de', 'en'], seen, "le 2ᵉ passage reprend la langue du 1ᵉʳ")
+        self.assertEqual(['en', 'fr'], [s.language for s in result.segments])
+
     def test_each_segment_keeps_its_language_and_the_card_the_most_spoken(self):
         from wama.common.backends.speech_to_text_base import TranscriptionSegment
         asr = self._asr()
