@@ -447,13 +447,23 @@ class BackendRefNAbsoutPlusTest(SimpleTestCase):
         self.assertIsNotNone(verdict, "backend_ref ne doit plus absoudre")
         self.assertIn('moteur-qui-n-existe-pas', verdict)
 
-    def test_l_absence_de_moteur_declare_reste_NON_condamnee(self):
-        """La contrepartie : on ne condamne pas ce qu'on ne sait pas mesurer. Sans cette
-        moitié, retirer le court-circuit aurait grisé 159 modèles d'un coup."""
+    def test_without_an_engine_only_a_model_no_app_carries_is_condemned(self):
+        """La contrepartie, RÉÉCRITE le 2026-09-29 (décision Fabien). Elle disait « l'absence de
+        moteur reste NON condamnée » : 159 modèles sur 174 n'en déclaraient pas, les griser
+        aurait vidé des listes. Remesuré : 2 sur tout le catalogue, les deux inexécutables
+        (lignes du balayage générique, aucune app). Sans moteur, on condamne désormais la seule
+        situation SANS ROUTE ; une app, un candidat, un distant restent sans verdict."""
         from types import SimpleNamespace
         from wama.common.backends.manager import backend_missing
-        self.assertIsNone(backend_missing(SimpleNamespace(backend_ref='une_app', composition={})))
-        self.assertIsNone(backend_missing(SimpleNamespace(backend_ref='', composition={})))
+        scanned = dict(backend_ref='', composition={}, source='huggingface')
+        self.assertIn('aucune route', backend_missing(SimpleNamespace(**scanned)) or '')
+        # `backend_ref` n'absout pas davantage ici qu'ailleurs : c'est la SOURCE qui dit la route.
+        self.assertIn('aucune route', backend_missing(
+            SimpleNamespace(**{**scanned, 'backend_ref': 'une_app'})) or '')
+        self.assertIsNone(backend_missing(SimpleNamespace(**{**scanned, 'source': 'imager'})))
+        self.assertIsNone(backend_missing(SimpleNamespace(**{**scanned, 'source': 'ollama'})))
+        self.assertIsNone(backend_missing(SimpleNamespace(**scanned, is_proposed=True)))
+        self.assertIsNone(backend_missing(SimpleNamespace(**scanned, execution='cloud')))
 
     def test_aucun_court_circuit_sur_backend_ref_ne_subsiste_dans_le_verdict(self):
         """Garde par AST : le motif retiré ne doit pas réapparaître dans le CODE de la fonction.

@@ -303,7 +303,13 @@ class CurseurDeQualiteTest(TestCase):
         self.assertIn('moteur-fantome', backend_missing(fantome))
         self.assertIsNone(backend_missing(
             SimpleNamespace(backend_ref='', composition={'runtime': {'engine': 'kokoro'}})))
-        self.assertIsNone(backend_missing(SimpleNamespace(backend_ref='', composition={})))
+        # ⚠ ASSERTION INVERSÉE le 2026-09-29 (décision Fabien) : sans moteur ET sans app, il n'y
+        # a aucune route d'exécution — la permissivité ne tenait qu'à un compte périmé (159/174
+        # le 05/09, 2/144 le 29/09). Cf. `BackendRefNAbsoutPlusTest` pour la contrepartie.
+        self.assertIn('aucune route', backend_missing(
+            SimpleNamespace(backend_ref='', composition={}, source='huggingface')) or '')
+        self.assertIsNone(backend_missing(SimpleNamespace(backend_ref='', composition={})),
+                          "sans source de balayage générique, pas de verdict sans moteur")
         # ⚠ ASSERTION INVERSÉE le 2026-09-05, DÉLIBÉRÉMENT. Elle attendait `None` : un
         # `backend_ref` renseigné suffisait à absoudre un moteur introuvable. C'était le
         # court-circuit de `backend_missing`, et il contredisait le nom même de ce test —
