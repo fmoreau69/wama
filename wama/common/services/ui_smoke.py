@@ -2823,7 +2823,11 @@ def _monter_un_lot_par_gabarit(page, app: str = ''):
     # WamaBatchImport — composer : #batchFileInput), ou le champ ORDINAIRE de la card, l'app
     # routant elle-même les .txt/.csv vers la brique (imager : `routeFile` → `detectAndHandle` ;
     # avatarizer : même geste sur la zone audio). Au-delà, on ne devine pas.
-    champ = (page.query_selector('input[type=file][id*="atch"]')
+    # Depuis le 2026-09-29 la card v4 a un onglet LOT (`[data-lot-input]`) : c'est LE champ
+    # dédié, déclaré par `has_batch` — il passe en premier, sans quoi le geste mesurerait
+    # encore la voie implicite (fichier de lot posé sur le port de travail).
+    champ = (page.query_selector('[data-lot-input]')
+             or page.query_selector('input[type=file][id*="atch"]')
              or page.query_selector(
                  f'[data-wama-nic] input[type=file]:not({_CHAMPS_DE_REFERENCE})'))
     if not champ:

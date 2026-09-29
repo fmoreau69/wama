@@ -217,11 +217,15 @@ def input_slots(app):
     # Les ports du RÉSULTAT (`app_result_ports`) portent leur propre obligation — jamais requis :
     # sans eux ici, le repli par groupe annoncerait « requis » le `work_result` (groupe travail).
     from wama.common.app_registry import app_input_ports, app_result_ports
-    known = (app_input_ports(app) or []) + app_result_ports(app)
+    result_ports = app_result_ports(app)
+    known = (app_input_ports(app) or []) + result_ports
     oblig = {p['id']: p['required'] for p in known}
     textes = {p['id']: p.get('description', '') for p in known}
+    # Un port du RÉSULTAT n'entre pas par l'upload mais par l'ÉVALUATION : ses formats sont
+    # ceux qu'elle déclare savoir lire (`reference_extensions`), pas `input_extensions`.
+    result_ids = {p['id'] for p in result_ports}
 
-    mimes = {'image': 'image/*', 'video': 'video/*', 'audio': 'audio/*'}
+    from wama.common.app_registry import port_accept
     from wama.common.utils.app_modes import library_nature_for
     slots = []
     primary_seen = False
@@ -229,7 +233,10 @@ def input_slots(app):
         if port.get('group') == 'prompt':
             continue
         types = port.get('types') or []
-        accept = ','.join(mimes[t] for t in types if t in mimes) or '*/*'
+        # Ce que l'app DÉCLARE pour les natures du port — la liste que l'upload vérifie ; pour
+        # un port du résultat, celle que l'évaluation lit.
+        accept = ((port.get('id') in result_ids and _result_reference_accept(app))
+                  or port_accept(app, types))
         travail = port.get('group') == 'travail'
         # IMPORT = UN SEUL GESTE (décision Fabien 05/09) : fichier(s) ET dossier(s), dépôt ET
         # clic — `drop` et `folder` ne sont plus deux modalités. Le sélecteur de dossier reste
@@ -275,3 +282,26 @@ def input_slots(app):
             'modalities': ['arm'],
         })
     return slots
+
+
+@register.simple_tag
+def lot_slot(app):
+    """L'onglet « Lot » de la card v4 — `None` si l'app ne déclare pas le lot (`has_batch`).
+
+    Ce n'est PAS un port (décision de Fabien, 2026-09-29) : un port est une entrée d'un nœud
+    Studio (`studio_node_ports`), qui passe dans les manifestes et les pipelines. Un fichier de
+    lot n'est l'entrée d'aucun nœud : chacune de ses lignes remplit une card ENTIÈRE — fichier de
+    travail, prompt, référence, sortie, réglages, programmation (`BATCH_FORMAT.md`). D'où un
+    onglet de la card, rendu comme les ports, jamais déclaré parmi eux.
+
+    Il donne à la règle 1 de BATCH_FORMAT (« l'intention déclarée prime ») son geste : un
+    `.txt` posé sur le port de travail est un CONTENU (converter, describer) ou un prompt
+    (composer, imager), posé ici c'est un LOT. Et une app SANS port de travail (composer,
+    synthesizer) garde son import de lot.
+    """
+    from wama.common.app_registry import APP_CATALOG
+    from wama.common.utils.batch_parsers import SUPPORTED_BATCH_EXTENSIONS
+    if not (APP_CATALOG.get(app) or {}).get('has_batch'):
+        return None
+    return {'accept': ','.join('.' + e for e in SUPPORTED_BATCH_EXTENSIONS),
+            'formats': ' · '.join(e.upper() for e in SUPPORTED_BATCH_EXTENSIONS)}

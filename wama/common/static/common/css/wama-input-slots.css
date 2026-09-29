@@ -60,6 +60,11 @@
 .wama-mod.wama-mod-arm { flex: 1; cursor: pointer; }
 .wama-mod.wama-mod-arm:hover { border-color: #ffc107; background: rgba(255, 193, 7, .06); }
 
+/* ── Onglet LOT (2026-09-29) — pas un port : il se tient À DROITE des ports, à l'écart ──── */
+.wama-port-tab.wama-port-tab-lot { margin-left: auto; }
+.wama-mod.wama-mod-template { text-decoration: none; cursor: pointer; }
+.wama-mod.wama-mod-template:hover { border-color: #0dcaf0; color: #e9ecef; background: rgba(13, 202, 240, .07); }
+
 /* Face FICHIERS — un seul : aperçu ; plusieurs : liste qui défile (§11.11 E) */
 .wama-port-face-files { flex-direction: column; gap: .2rem; }
 .wama-files-head { display: flex; align-items: center; gap: .4rem; font-size: .66rem; color: #6c757d; flex-shrink: 0; }

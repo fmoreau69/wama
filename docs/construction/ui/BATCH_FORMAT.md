@@ -196,7 +196,10 @@ si **toutes** ses lignes utiles le sont : une seule ligne non adressable suffit 
 > Discriminant : `ligne_est_une_reference()` (`batch_parsers.py`).
 
 Ordre de décision, du plus explicite au plus inféré :
-1. **l'intention déclarée** par l'utilisateur (modalité de la card d'entrée) prime ;
+1. **l'intention déclarée** par l'utilisateur (modalité de la card d'entrée) prime — depuis le
+   2026-09-29 elle a son geste : l'onglet **« Lot »** de la card v4 (`CARD_DESIGN §11.11`,
+   « Adoption v4 »). Un fichier posé là EST un lot, `.pdf`/`.docx` compris, et un fichier qui
+   n'en donne aucun élément est SIGNALÉ (`WamaBatchImport.previewFile`) ;
 2. sinon la **structure** : balises → CSV/à-en-têtes → liste d'adresses ;
 3. sinon c'est du **contenu**.
 

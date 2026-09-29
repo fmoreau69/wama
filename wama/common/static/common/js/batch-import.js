@@ -45,6 +45,7 @@ function WamaBatchImport(cfg) {
   // Override per-app with cfg.batchExtensions if needed (rare edge case).
   const BATCH_EXTS = cfg.batchExtensions || ['txt', 'md', 'csv'];
   let _file = null;
+  let _lastError = '';
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,14 @@ function WamaBatchImport(cfg) {
 
   // ── Bar visibility ─────────────────────────────────────────────────────────
 
+  // La barre ANNONCE son ouverture et sa fermeture (2026-09-29) : l'onglet « Lot » de la card
+  // v4 bascule dessus quelle que soit la voie qui a apporté le fichier (onglet Lot, dépôt sur
+  // le port de travail, texte collé). Événement DOM qui remonte à la card : aucune app à câbler.
+  function announce(bar, name, detail) {
+    if (bar) bar.dispatchEvent(new CustomEvent(name, { bubbles: true,
+      detail: Object.assign({ base: ID_BASE }, detail || {}) }));
+  }
+
   function showBar(count) {
     const bar = el('batchDetectBar');
     const cnt = el('batchDetectedCount');
@@ -81,6 +90,7 @@ function WamaBatchImport(cfg) {
     if (cnt) cnt.textContent = count;
     if (prv) prv.style.display = 'none';
     bar.style.display = '';
+    announce(bar, 'wama:batch-shown', { count: count, name: _file ? _file.name : '' });
   }
 
   function hideBar() {
@@ -89,6 +99,7 @@ function WamaBatchImport(cfg) {
     const prv = el('batchDetectPreview');
     if (bar) bar.style.display = 'none';
     if (prv) prv.style.display = 'none';
+    announce(bar, 'wama:batch-hidden');
   }
 
   // ── Preview ────────────────────────────────────────────────────────────────
@@ -124,6 +135,7 @@ function WamaBatchImport(cfg) {
 
   async function doPreview(file) {
     _file = file;
+    _lastError = '';
     const fd = new FormData();
     fd.append('batch_file', file);
     fd.append('csrfmiddlewaretoken', cfg.csrfToken);
@@ -140,10 +152,12 @@ function WamaBatchImport(cfg) {
 
     if (data.error) {
       _file = null;
+      _lastError = String(data.error);
       return false;
     }
 
     if (!data.count) {
+      _lastError = (data.warnings || []).join(' · ');
       // Server found 0 valid items — file is not a usable batch descriptor.
       // Fall back to direct media upload (e.g. a PDF OCR document, not a URL list).
       _file = null;
@@ -303,6 +317,23 @@ function WamaBatchImport(cfg) {
     return detectAndHandle(file);
   }
 
+  /**
+   * previewFile(file) — l'utilisateur a DIT que ce fichier est un lot (onglet « Lot » de la
+   * card v4, 2026-09-29). C'est la règle 1 de BATCH_FORMAT (« l'intention déclarée prime ») :
+   * pas de devinette par extension ni par type MIME, donc un `.pdf`/`.docx` de lot passe
+   * (le serveur les lit, `SUPPORTED_BATCH_EXTENSIONS`), et un refus se DIT — alors que la
+   * voie implicite (`detectAndHandle`) se tait exprès pour retomber sur l'upload direct.
+   */
+  async function previewFile(file) {
+    if (!file) return false;
+    const ok = await doPreview(file);
+    if (ok === true) return true;
+    const msg = 'Ce fichier n\'a donné aucun élément de lot'
+      + (_lastError ? ' — ' + _lastError : ' : aucune ligne reconnue (voir le gabarit de lot).');
+    if (window.WamaApp && window.WamaApp.toast) window.WamaApp.toast(msg, 'error'); else alert(msg);
+    return false;
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────────
 
   function init() {
@@ -323,5 +354,11 @@ function WamaBatchImport(cfg) {
     init();
   }
 
-  return { detectAndHandle, ingestText };
+  const api = { detectAndHandle, ingestText, previewFile };
+  // Chaque instance s'INSCRIT sous la base d'ids de sa barre : la card commune la retrouve par
+  // `batch_bid`, qu'elle connaît déjà, sans savoir sous quel nom l'app l'a rangée
+  // (`_batchImport`, `_batchImportVideo`, `_converterBatchImport`, variable locale…).
+  WamaBatchImport.instances[ID_BASE] = api;
+  return api;
 }
+WamaBatchImport.instances = {};

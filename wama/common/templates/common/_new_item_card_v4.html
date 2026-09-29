@@ -31,6 +31,7 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
 <script src="{% static_v 'common/js/wama-input-slots.js' %}"></script>
 <link rel="stylesheet" href="{% static_v 'common/css/wama-input-slots.css' %}">
 {% input_slots app_id as ports %}
+{% lot_slot app_id as lot %}
 <div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}"
      data-wama-depot="{% if depot_cree is False %}attache{% else %}cree{% endif %}"
      data-wama-ports="{{ ports|length }}"
@@ -69,6 +70,14 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
                 <span class="wama-port-n" data-port-count></span>
             </span>
         {% endfor %}
+        {% comment %}Onglet LOT (2026-09-29, décision de Fabien) — rendu comme un port, jamais
+        déclaré parmi eux : une ligne de lot remplit une card ENTIÈRE (tag `lot_slot`).{% endcomment %}
+        {% if lot %}
+            <span class="wama-port-tab wama-port-tab-lot{% if not ports %} is-active{% endif %}" role="tab" data-port-tab="lot"
+                  title="Un fichier de lot : une ligne = un élément de la file">
+                📋 Lot<span class="wama-port-n" data-port-count></span>
+            </span>
+        {% endif %}
         </div>
 
         {% comment %}ZONE DE PREVIEW — 4ᵉ face `compose` (§11.11 A). Une face MODALITÉS et une face
@@ -145,16 +154,20 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
                             Le format de LOT est étiqueté comme tel : il décrit un geste, pas ce
                             port. `firstof` et non `default:formats_label` : un argument de filtre
                             ABSENT du contexte lève VariableDoesNotExist (même piège qu'au port de
-                            référence, 2026-09-22 ; revu le 2026-09-29).{% endcomment %}
+                            référence, 2026-09-22 ; revu le 2026-09-29).
+                            Le format de LOT et le gabarit ont quitté cette tuile le 2026-09-29 :
+                            ils vivent dans l'onglet Lot (un lot remplit la card, pas ce port).
+                            Plusieurs fichiers ou un dossier restent ICI : ce sont N fichiers de
+                            travail, pas un fichier de lot. Sans onglet Lot (app sans `has_batch`),
+                            le gabarit reste sous la tuile, comme avant.{% endcomment %}
                             <small>{% firstof p.description formats_label %}</small>
-                            {% if batch_format %}<small class="text-muted">lot : <code style="font-size:.65rem">{{ batch_format }}</code></small>{% endif %}
                             <input type="file" id="{{ file_input_id }}" multiple accept="{{ p.accept }}" style="display:none">
                             {% if folder_input_id %}
                             <input type="file" id="{{ folder_input_id }}" webkitdirectory multiple style="display:none">
                             <small><a href="#" id="{{ folder_input_id }}Btn"
                                       onclick="event.preventDefault();event.stopPropagation();document.getElementById('{{ folder_input_id }}').click();">
-                                <i class="fas fa-folder-open"></i> ou un dossier</a>{% if batch_template_url %} · <a href="{{ batch_template_url }}" id="{{ batch_template_id|default:'batchTemplateLink' }}" download onclick="event.stopPropagation();"><i class="fas fa-download"></i> gabarit de lot</a>{% endif %}</small>
-                            {% elif batch_template_url %}
+                                <i class="fas fa-folder-open"></i> ou un dossier</a>{% if batch_template_url and not lot %} · <a href="{{ batch_template_url }}" id="{{ batch_template_id|default:'batchTemplateLink' }}" download onclick="event.stopPropagation();"><i class="fas fa-download"></i> gabarit de lot</a>{% endif %}</small>
+                            {% elif batch_template_url and not lot %}
                             <small><a href="{{ batch_template_url }}" id="{{ batch_template_id|default:'batchTemplateLink' }}" download onclick="event.stopPropagation();"><i class="fas fa-download"></i> gabarit de lot</a></small>
                             {% endif %}
                         </div>
@@ -199,7 +212,11 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
                         <div class="wama-mod wama-mod-url" data-mod="url">
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text bg-dark border-secondary text-info px-2"><i class="fas fa-link"></i></span>
-                                <input type="text" class="form-control bg-dark text-white border-secondary" placeholder="https://…" data-port-url>
+                                {% comment %}Id DÉCLARABLE (2026-09-29) : sans id, personne ne lisait ce champ — une
+                                URL de référence tapée ici était ignorée. L'app le lit comme en v3
+                                (composer : `#melodyUrlInput`, `source_url` du payload).{% endcomment %}
+                                <input type="text" class="form-control bg-dark text-white border-secondary" placeholder="https://…" data-port-url
+                                       id="{% firstof reference_url_id rid|add:'Url' %}">
                             </div>
                             <small>téléchargée au lancement — un fichier joint prime</small>
                         </div>
@@ -227,13 +244,50 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
             {% endwith %}
             {% endif %}
         {% empty %}
+            {% if not lot %}
             <div class="wama-port-pane is-active"><div class="wama-port-face is-active">
                 <small class="text-muted">L'app « {{ app_id }} » ne déclare aucun port d'entrée : rien à alimenter.</small>
             </div></div>
+            {% endif %}
         {% endfor %}
+        {% if lot %}
+            {% comment %}Pane LOT — le fichier va à `WamaBatchImport` de la barre de CETTE card
+            (`batch_bid`, instance inscrite par la brique), en intention DÉCLARÉE (`previewFile`) :
+            aucune devinette, un refus se dit. La barre de détection reste SOUS la zone (elle ne
+            tient pas dans 96 px) ; la face « fichiers » dit ce qu'elle a reconnu. Ids de contrat
+            conservés : `#batchTemplateLink` (gestes nocturnes) vit désormais ici.{% endcomment %}
+            {% with lid=card_id|default:'newItemCard'|add:'-lot' %}
+            <div class="wama-port-pane{% if not ports %} is-active{% endif %}" id="{{ lid }}-pane"
+                 data-port-pane="lot" data-port-kind="lot" data-lot-base="{{ batch_bid|default:'batch' }}">
+                <div class="wama-port-face wama-port-face-mods is-active" data-port-face="mods">
+                    <div class="wama-mods">
+                        <div class="drop-zone wama-mod wama-mod-import" data-mod="import" data-lot-import>
+                            <i class="fas fa-file-lines text-info wama-mod-g"></i>
+                            <span>Fichier de lot</span>
+                            <small>une ligne = un élément : fichier, prompt, référence, réglages, date</small>
+                            <small class="text-muted">{{ lot.formats }}{% if batch_format %} · <code style="font-size:.65rem">{{ batch_format }}</code>{% endif %}</small>
+                            <input type="file" id="{{ lid }}-input" accept="{{ lot.accept }}" style="display:none" data-lot-input>
+                        </div>
+                        {% if batch_template_url %}
+                        <a class="wama-mod wama-mod-template" href="{{ batch_template_url }}" id="{{ batch_template_id|default:'batchTemplateLink' }}" download>
+                            <i class="fas fa-download text-info wama-mod-g"></i>
+                            <span>Gabarit de lot</span>
+                            <small>{% firstof batch_hint 'le fichier modèle à remplir' %}</small>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="wama-port-face wama-port-face-files" data-port-face="files">
+                    <div class="wama-files-head"><span class="wama-files-back" data-files-back>‹ modalités</span> · <span data-files-title>lot</span></div>
+                    <div class="wama-files-list" data-files-list></div>
+                    <div class="wama-files-meta" data-files-meta>aperçu et création : barre ci-dessous</div>
+                </div>
+            </div>
+            {% endwith %}
+        {% endif %}
         </div>
 
-        {% if show_batch_bar %}{% include 'common/batch_detect_bar.html' %}{% endif %}
+        {% if show_batch_bar or lot %}{% include 'common/batch_detect_bar.html' with bid=batch_bid label=batch_label %}{% endif %}
         {% if extra_zone_template %}{% include extra_zone_template %}{% endif %}
 
         {% if collapsible %}</div>{% endif %}

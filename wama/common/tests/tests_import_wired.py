@@ -193,3 +193,25 @@ class ImportFrontTests(SimpleTestCase):
         etat, preuve = _mesure('appfictive', fichiers, '_import_front')
         self.assertIsNone(etat)
         self.assertIn("aucune card d'entrée", preuve)
+
+    V4 = "{% include 'common/_new_item_card_v4.html' with app_id='appfictive' %}\n"
+
+    def _slots(self, *groups):
+        return mock.patch('wama.common.templatetags.wama_actions.input_slots',
+                          return_value=[{'id': g, 'group': g} for g in groups])
+
+    def test_a_v4_card_without_a_work_port_is_not_applicable(self):
+        """The composer (2026-09-29): its inputs go through the common tiles of its tabs —
+        reference port and Lot — so there is no drop zone to hand to `WamaImport`."""
+        with self._slots('reference'):
+            state, proof = _mesure('appfictive', {'templates/appfictive/index.html': self.V4},
+                                   '_import_front')
+        self.assertIsNone(state)
+        self.assertIn('SANS port de travail', proof)
+
+    def test_a_v4_card_WITH_a_work_port_still_owes_WamaImport(self):
+        """Counter-proof: the exemption is the missing work port, never the v4 card itself."""
+        with self._slots('travail', 'reference'):
+            state, _ = _mesure('appfictive', {'templates/appfictive/index.html': self.V4},
+                               '_import_front')
+        self.assertIs(state, False)

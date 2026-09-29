@@ -1529,6 +1529,67 @@ l'adoption v4 de l'avatarizer — ✅ **2026-09-29**, en trois paliers :
     d'aperçu est résolu par le serveur (`preview_mime` : le type stocké, sinon celui du
     fichier). Vérifié au navigateur (avatar système, voix de 5 min).
 
+**Adoption v4 par les autres apps (à partir du 2026-09-29)** — relevé fait AVANT de choisir
+l'ordre, sur les ports que `input_slots` rend pour chaque app :
+- ✅ **2026-09-29, prérequis levé : l'`accept` d'un port = ce que l'app DÉCLARE pour ses
+  natures.** Le tag ne traduisait que `image`/`video`/`audio` ; `document`, `archive`, `3d`…
+  étaient PERDUS (le port du reader, `document` + `image`, rendait `image/*` : sa card v4 aurait
+  refusé les PDF). ⚠ **Première correction FAUSSE, reprise le jour même** (question de Fabien :
+  « est-ce aligné avec la philosophie de WAMA ? ») : elle prenait les extensions au REGISTRE,
+  donc proposait des formats que la vue d'upload refuse (`accepts_file` vérifie
+  `input_extensions`), et elle doublait une règle que le générateur avait déjà
+  (`templates_gen.render_index`, 2026-08-30). Règle unique désormais :
+  `app_registry.accept_for_types` / `port_accept` — déclaré ∩ natures du port, repli sur la
+  nature quand l'app n'en énumère aucune (la mélodie du composer), lue par la card v4 ET le
+  générateur (port de travail comme de référence). Un port du RÉSULTAT prend les formats de
+  l'évaluation (`reference_extensions`). Gardes : `tests_catalogues.PortAcceptKeepsEveryNatureTest`
+  — dont `test_no_v4_card_offers_a_format_missing_from_its_app_extensions`, mesuré sur les 10
+  apps (contre-épreuve : 56 échecs si la déclaration est ignorée).
+- ✅ **2026-09-29, anonymizer en v4** (2ᵉ app, 1ʳᵉ à un seul port) : un onglet « Fichier de
+  travail » (`work_file`, images et vidéos), les littéraux `file_accept`/`show_media_library`/
+  `show_url` retirés de la page, ids historiques conservés. Gestes de card rejoués sur 8011 :
+  page, import, URL, dossier, lot — tous OK, aucun lancement ; tuile Médiathèque → fenêtre
+  commune, 0 erreur JS. Grille inchangée (96 %). La DESCRIPTION des objets à flouter (port
+  `prompt`) reste au volet : c'est le réglage du mode Description, pas une entrée de la card.
+- ✅ **2026-09-29, onglet « LOT » (décision de Fabien)** — un fichier de lot n'est PAS un port :
+  une ligne remplit une card ENTIÈRE (travail, prompt, référence, sortie, réglages,
+  programmation — `BATCH_FORMAT.md`), alors qu'un port est l'entrée d'un nœud Studio. D'où un
+  onglet rendu comme les ports mais tenu À DROITE, dérivé de `has_batch` (tag `lot_slot`),
+  jamais dans `studio_node_ports`. Il porte le fichier de lot (TXT·MD·CSV·PDF·DOCX,
+  `SUPPORTED_BATCH_EXTENSIONS`) et le gabarit ; la barre de détection reste SOUS la zone (elle
+  ne tient pas dans 96 px) et l'onglet bascule dessus quelle que soit la voie qui a apporté le
+  lot (événements `wama:batch-shown`/`-hidden` de la brique). Le fichier va à
+  `WamaBatchImport.previewFile` : intention DÉCLARÉE (règle 1 de `BATCH_FORMAT` §« Comment
+  sait-on… »), donc un `.pdf` de lot passe et un refus se DIT — la voie implicite (fichier posé
+  sur le port de travail) reste muette exprès, pour retomber sur l'upload direct. Chaque
+  instance s'inscrit sous la base d'ids de sa barre (`WamaBatchImport.instances[bid]`) : la card
+  la retrouve sans connaître l'app. Plusieurs fichiers ou un dossier restent au port de travail
+  (N fichiers de travail, pas un lot). Le geste nocturne `<app>.batch_import` passe désormais
+  par ce champ (`[data-lot-input]`). Gardes : `tests_lot_tab` (gabarit + V8).
+- ✅ **2026-09-29, composer en v4** (3ᵉ app, 1ʳᵉ SANS port de travail) : le prompt au-dessus,
+  onglets « Mélodie de référence » (importer, médiathèque filtrée audio, URL) et « Lot ». La
+  zone v3 qui recevait lot ET mélodie (`composerBatchDrop`/`batchFileInput`) et son instance
+  `WamaImport` sont retirées. Deux trous de la v4 COMMUNE bouchés au passage : le champ URL d'un
+  port de référence n'avait PAS d'id (une URL de mélodie tapée là était ignorée — id déclarable
+  `reference_url_id`) ; la tuile Importer d'un port prenait n'importe quel fichier DÉPOSÉ
+  (`injectFiles` ne regarde pas `accept`) — elle refuse maintenant avec la règle de la voie
+  d'import, extraite et exposée (`WamaImport.accepts`, qui lit enfin « tout type » `*/*`
+  comme tout). Gestes : mêmes verdicts qu'avant le portage (page, lot OK ; import/URL/dossier
+  SKIP déclarés) ; au navigateur, un `.txt` sur la mélodie est refusé avec un message, un `.mp3`
+  y entre. Grille : `drag_drop` reconnaît la v4 (comme `media_library_slot`) ; `import_front`
+  est NON APPLICABLE à une card v4 sans port de travail (repli, même forme que
+  `recursive_import`) — composer 94 %, total 900/941 (un critère vert de moins : exemption
+  déclarée, pas défaut).
+- ⏳ **Reste avant l'imager et l'enhancer** : `input_slots(app)` ignore le DOMAINE
+  (`app_input_ports` l'accepte) — leurs deux cards (image/vidéo, média/audio) recevraient les
+  mêmes ports ; l'imager lit en plus son image par les ids de RÉFÉRENCE (`imgRefInput`,
+  `input_card.js`) alors que la v4 en fait un port de travail. Le reader, le describer et le
+  converter n'ont plus d'obstacle (un port de travail, natures couvertes). Le synthesizer est
+  dans le cas du composer (prompt + voix de référence).
+- ⏳ **Question ouverte (lots)** : les colonnes du lot nomment des RÔLES (`-i`, `-r`), pas des
+  ports — l'avatar de l'avatarizer est `-r` au lot et `work_image` à la card. À terme : des
+  colonnes au nom du port, `-i`/`-r` en alias.
+
 > **L'aperçu de voix du synthesizer ne passe par AUCUN chemin commun côté lecture, ni par le
 > chemin de la synthèse côté serveur** (mesuré le 2026-09-28, `synthesizer/views.py::voice_preview`
 > + `voice_preview_stream`, `index.js` « Preview text button ») — il n'entend donc pas ce que la

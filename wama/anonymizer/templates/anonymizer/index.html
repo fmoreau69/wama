@@ -10,7 +10,7 @@
 
 {% comment %}
 Volet droit « médias » : plus rien ici — l'import (drag&drop, URL, batch,
-médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de la file
+médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête de la file
 (ordre canonique). Le block reste défini (vide) pour écraser un éventuel défaut.
 {% endcomment %}
 {% block app_right_panel_media %}{% endblock %}
@@ -393,10 +393,14 @@ if (window.WamaModelCaps) {
 {% block anonymizer_content %}
 <div style="overflow-x:clip;">
 
-{% comment %} Card d'entrée commune (drag&drop + URL + batch + médiathèque), repliable.
-Modalité principale = fichier → repliée avec en-tête quand la file n'est pas vide. {% endcomment %}
+{% comment %} Card « Nouvel élément » v4 (2026-09-29, CARD_DESIGN §11.11) : un onglet par PORT,
+dérivé des modèles — ici le seul port de travail `work_file` (images, vidéos). Ses modalités
+(importer fichier ou dossier, médiathèque, URL) viennent du port : `file_accept`,
+`show_media_library` et `show_url` ne sont plus des littéraux de la page. Ids historiques
+conservés (upload.js, appariement, gestes nocturnes). Repliable : repliée avec en-tête quand
+la file n'est pas vide. La DESCRIPTION des objets à flouter reste un réglage du volet. {% endcomment %}
 {% url 'anonymizer:batch_template' as anon_batch_template_url %}
-{% include 'common/_new_item_card.html' with card_id='anonNewItem' drop_zone_id='dropZoneAnonymizer' file_input_id='fileupload' folder_input_id='anonFolderInput' file_accept='image/*,video/*' formats_label='Images · Vidéos — JPG, PNG, MP4, AVI, MKV…' show_batch_bar=True batch_template_url=anon_batch_template_url show_media_library=True show_url=True url_input_id='anonUrlInput' url_submit_id='anonUrlSubmit' url_placeholder='https://… ou YouTube' collapsible=True %}
+{% include 'common/_new_item_card_v4.html' with app_id='anonymizer' card_id='anonNewItem' drop_zone_id='dropZoneAnonymizer' file_input_id='fileupload' folder_input_id='anonFolderInput' formats_label='Images · Vidéos — JPG, PNG, MP4, AVI, MKV…' show_batch_bar=True batch_template_url=anon_batch_template_url url_input_id='anonUrlInput' url_submit_id='anonUrlSubmit' url_placeholder='https://… ou YouTube' collapsible=True %}
 
 {% comment %} Barre de progression globale — composant commun (wama-global-progress.js). {% endcomment %}
 <div class="mb-3 mt-3">

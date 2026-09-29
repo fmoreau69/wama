@@ -587,9 +587,8 @@ class CardEntreeConformiteTest(TestCase):
       - la card OFFRE ce que l'app ne déclare pas → promesse fausse (le serveur refusera) ;
       - la card GRISE ce que l'app déclare → capacité invisible (le défaut du converter).
 
-    ⚠ Un slot peut légitimement RESTREINDRE : la card de l'avatarizer prend la VOIX
-    (politique déclarée `VOICE_SAMPLE_EXTENSIONS`), l'avatar s'importe par la galerie.
-    Ces écarts sont ASSUMÉS dans `_ecarts_assumes()` — un compte à faire DÉCROÎTRE, jamais
+    ⚠ Un slot peut légitimement RESTREINDRE (c'était le cas de la card v3 de l'avatarizer,
+    voix seule, jusqu'à son passage en v4). Ces écarts sont ASSUMÉS dans `_ecarts_assumes()` — un compte à faire DÉCROÎTRE, jamais
     à relever machinalement ; la vraie case déclarative du slot est le chantier
     ROUTE §S2bis.6 (b) (déclaration d'entrées PAR SLOT), pas un littéral de plus.
     """
@@ -613,14 +612,11 @@ class CardEntreeConformiteTest(TestCase):
         entrée ici, sinon le contrôle échoue — c'est ce qui empêche la liste de monter seule
         (leçon `CIBLES_ASSUMEES`, 2026-08-27).
         """
-        from wama.common.app_registry import (AUDIO_EXTENSIONS, IMAGE_EXTENSIONS,
-                                              VOICE_SAMPLE_EXTENSIONS)
         return {
-            # Slot voix : la restriction SUIT la politique déclarée (pas un littéral orphelin) ;
-            # l'avatar (image) n'a pas d'input fichier sur la card (galerie d'avatars).
-            'avatarizer': ((set(AUDIO_EXTENSIONS)
-                            - {'.' + e for e in VOICE_SAMPLE_EXTENSIONS})
-                           | set(IMAGE_EXTENSIONS)),
+            # (L'entrée `avatarizer` — slot voix restreint, avatar par la galerie — est RETIRÉE
+            # le 2026-09-29 : elle décrivait sa card v3. En v4 depuis `8c21d489`, ses deux ports
+            # offrent ce qu'il déclare, et le relevé, qui ignorait les cards v4, ne la confrontait
+            # plus à rien.)
             # La card annonce « fichier de prompts .txt/.csv » alors que TEXT_EXTENSIONS est
             # déclaré en entier et que les parsers batch lisent aussi md/pdf/docx — écart réel,
             # à trancher avec la déclaration PAR SLOT (§S2bis.6 (b)), pas par un patch de plus.
@@ -643,6 +639,12 @@ class CardEntreeConformiteTest(TestCase):
                     continue
                 for gabarit in sorted(dossier.rglob('*.html')):
                     for ligne in gabarit.read_text(encoding='utf-8').splitlines():
+                        # Card v4 : `accept` DÉRIVÉ par port de la déclaration (`port_accept`,
+                        # 2026-09-29), tenu par `PortAcceptKeepsEveryNatureTest` — relevée comme
+                        # un littéral dérivé (None), sinon ce relevé fond à chaque portage v4.
+                        if "include 'common/_new_item_card_v4.html'" in ligne:
+                            releves.append((str(gabarit.relative_to(base)), None))
+                            continue
                         if '_new_item_card.html' not in ligne:
                             continue
                         m = cls._RE_ACCEPT.search(ligne)
@@ -1402,6 +1404,85 @@ class LivePortComesFromAnAppCapabilityTest(TestCase):
         self.assertNotIn('show_live=', page)
 
 
+class PortAcceptKeepsEveryNatureTest(TestCase):
+    """A port's `accept` is what the app DECLARES for the port's natures (2026-09-29).
+
+    Two defects this guards: `input_slots` only knew `image`/`video`/`audio`, so the reader's
+    port (`document` + `image`) rendered `image/*` and its v4 card would have refused PDFs; and
+    the first fix took the extensions from the REGISTRY, offering files the upload view then
+    refuses (`accepts_file` checks `input_extensions`). One rule now, `accept_for_types`, read
+    by the v4 card and by the generator (`templates_gen.render_index`).
+    ⚠ LOCAL witness entries for the fallbacks, the real catalogue for the declaration guard.
+    """
+
+    APP = 'app_accept_witness'
+
+    def _catalog(self, *input_types, **extra):
+        from unittest.mock import patch
+        from wama.common.app_registry import APP_CATALOG
+        entry = {'label': 'Witness', 'input_types': input_types, 'output_types': ('txt',), **extra}
+        return patch.dict(APP_CATALOG, {self.APP: entry})
+
+    def test_the_declaration_restricts_the_offer_to_the_port_natures(self):
+        from wama.common.app_registry import accept_for_types
+        accept = accept_for_types(('.pdf', '.png', '.mp3'), ['document', 'image']).split(',')
+        self.assertEqual(['.pdf', '.png'], accept, 'declared ∩ natures, nothing else')
+
+    def test_a_nature_the_app_does_not_enumerate_falls_back_to_the_nature(self):
+        """The composer's melody: audio, while its `input_extensions` are text only."""
+        from wama.common.app_registry import accept_for_types
+        self.assertEqual('audio/*', accept_for_types(('.txt',), ['audio']))
+        without = accept_for_types((), ['document', 'image']).split(',')
+        self.assertIn('image/*', without)
+        self.assertIn('.pdf', without)
+        self.assertIn('.zip', accept_for_types((), ['archive']).split(','))
+
+    def test_no_known_nature_still_accepts_everything(self):
+        from wama.common.app_registry import accept_for_types
+        self.assertEqual('*/*', accept_for_types((), []))
+        self.assertEqual('*/*', accept_for_types(('.txt',), ['prompt']))
+
+    def test_the_v4_card_of_a_document_app_accepts_pdf(self):
+        from wama.common.templatetags import wama_actions
+        with self._catalog('document', input_extensions=('.pdf', '.docx')):
+            slots = wama_actions.input_slots(self.APP)
+        work = [s for s in slots if s['group'] == 'travail']
+        self.assertTrue(work, slots)
+        self.assertEqual(['.pdf', '.docx'], work[0]['accept'].split(','))
+
+    def test_no_v4_card_offers_a_format_missing_from_its_app_extensions(self):
+        """The v3 guard (`test_la_card_n_offre_rien_que_l_app_ne_declare`) reads v3 includes
+        only: nothing covered the v4 card, whose `accept` is computed. Measured on every real
+        app, whether or not it is on v4 yet — the port it WILL get is the one computed here."""
+        from wama.common.app_registry import APP_CATALOG, app_result_ports, category_of_path
+        from wama.common.services.result_evaluation import evaluation_spec
+        from wama.common.templatetags import wama_actions
+        measured = 0
+        for app, spec in sorted(APP_CATALOG.items()):
+            declared = {e.lower() for e in spec.get('input_extensions') or ()}
+            if spec.get('generated_from') or not declared:
+                continue
+            # A RESULT port is read by the evaluation: its declaration is the evaluation's.
+            result_ids = {p['id'] for p in app_result_ports(app)}
+            evaluation = evaluation_spec(app)
+            read_back = {e.lower() for e in (evaluation.reference_extensions if evaluation else ())}
+            for slot in wama_actions.input_slots(app):
+                if slot['group'] != 'travail':
+                    continue
+                own = read_back if slot['id'] in result_ids else declared
+                for token in filter(None, slot['accept'].split(',')):
+                    with self.subTest(app=app, port=slot['id'], token=token):
+                        if token.endswith('/*'):
+                            family = token[:-2]
+                            self.assertFalse(any(category_of_path('x' + e) == family
+                                                 for e in own),
+                                             'a family is only the fallback of an undeclared nature')
+                        else:
+                            self.assertIn(token, own)
+                        measured += 1
+        self.assertGreater(measured, 20, 'the guard measured almost nothing')
+
+
 class InputCardSaysWhereSettingsLiveTest(TestCase):
     """« Réglages : volet de droite » is written by the COMMON input card, never by an app.
 
@@ -1576,7 +1657,8 @@ class LaCardDIT_A_QuoiSertChaqueEntreeTest(TestCase):
 
     def test_le_format_de_LOT_est_etiquete_comme_tel(self):
         """Il décrit un GESTE, pas ce port — le lire comme le format du port était la seconde
-        moitié du mensonge de la tuile."""
+        moitié du mensonge de la tuile. Depuis le 2026-09-29 il vit dans l'onglet LOT, qui le
+        nomme par lui-même, et plus du tout dans la tuile du port de travail."""
         from unittest.mock import patch
         from django.template.loader import render_to_string
         port = {'id': 'work_file', 'label': 'Fichier', 'group': 'travail',
@@ -1587,8 +1669,11 @@ class LaCardDIT_A_QuoiSertChaqueEntreeTest(TestCase):
                 'drop_zone_id': 'z', 'formats_label': 'x', 'batch_format': 'prompt|modele',
             })
         self.assertIn('prompt|modele', html, 'le format de lot n’est plus rendu du tout')
-        self.assertIn('lot :', html,
-                      'le format de lot est affiché sans dire que c’est celui du LOT')
+        lot_pane = html[html.index('data-port-pane="lot"'):]
+        work_tile = html[html.index('id="z"'):html.index('data-port-pane="lot"')]
+        self.assertIn('prompt|modele', lot_pane, 'le format de lot doit vivre dans l’onglet Lot')
+        self.assertNotIn('prompt|modele', work_tile,
+                         'le format de lot est encore affiché comme celui du port de travail')
 
 
 class SeveralWorkPortsTest(TestCase):

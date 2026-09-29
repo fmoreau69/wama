@@ -1289,6 +1289,47 @@ def accepts_file(app_name: str, filename: str) -> bool:
     return os.path.splitext(filename or '')[1].lower() in wanted
 
 
+#: Natures qu'un navigateur filtre par famille MIME — utilisées seulement quand l'app ne
+#: déclare aucune extension de la nature (repli ci-dessous).
+_MIME_FAMILIES = {'image': 'image/*', 'video': 'video/*', 'audio': 'audio/*'}
+
+
+def port_accept(app_name: str, types) -> str:
+    """L'attribut `accept` d'un PORT d'entrée — ce que la tuile Importer propose.
+
+    Source : ce que l'app DÉCLARE (`input_extensions`), restreint aux natures du port — la
+    même liste que le serveur vérifie (`accepts_file`) : la card ne propose rien que l'upload
+    refuserait. C'était la règle du générateur (`templates_gen.render_index`, 2026-08-30),
+    extraite ici le 2026-09-29 pour que la card v4 et le générateur la partagent.
+
+    Repli PAR NATURE quand l'app n'en déclare aucune extension — cas des ports de RÉFÉRENCE
+    (la mélodie du composer est de l'audio, son `input_extensions` n'a que du texte) : famille
+    MIME pour image/vidéo/audio, extensions du registre (`media_extensions`) pour les autres.
+    Avant cette fonction, `document`, `archive`… y étaient simplement PERDUS (le port du
+    reader, `document` + `image`, rendait `image/*` : sa card v4 aurait refusé les PDF).
+    Aucune nature connue ⇒ `*/*`.
+    """
+    declared = (APP_CATALOG.get(app_name) or {}).get('input_extensions') or ()
+    return accept_for_types(declared, types)
+
+
+def accept_for_types(declared, types) -> str:
+    """Le cœur de `port_accept`, sur une liste d'extensions DONNÉE — pour le générateur, qui
+    lit la déclaration d'un MANIFESTE (une app pas encore au catalogue n'a pas d'entrée ici)."""
+    by_nature = media_extensions()
+    dotted = [e.lower() if e.startswith('.') else f'.{e.lower()}' for e in (declared or ())]
+    parts = []
+    for t in (t for t in (types or []) if t):
+        own = [e for e in dotted if category_of_path('x' + e) == t]
+        if own:
+            parts.extend(own)
+        elif t in _MIME_FAMILIES:
+            parts.append(_MIME_FAMILIES[t])
+        else:
+            parts.extend('.' + e for e in by_nature.get(t) or [])
+    return ','.join(dict.fromkeys(parts)) or '*/*'
+
+
 def get_app_extensions_for_filemanager() -> dict:
     """
     Returns a dict suitable for FileManager JS APP_EXTENSIONS:
