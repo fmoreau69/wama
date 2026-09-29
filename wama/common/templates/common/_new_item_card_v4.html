@@ -90,10 +90,42 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
                     </div>
                 </div>
             </div>
+            {% elif p.group == 'travail' and not p.primary %}
+            {% comment %}Port de travail SECONDAIRE (2026-09-29 — l'avatarizer : l'audio est le port
+            principal, l'image d'avatar le second). Les ids historiques restent au port PRINCIPAL
+            (`WamaImport`, gestes nocturnes) ; celui-ci reçoit des ids DÉRIVÉS de son port, et sa
+            tuile Importer est câblée par `wama-input-slots.js` (`data-port-import-self`) : pas
+            d'URL, de dossier ni de lot ici — ce sont des gestes du port principal.{% endcomment %}
+            {% with pid=card_id|default:'newItemCard'|add:'-'|add:p.id %}
+            <div class="wama-port-pane{% if forloop.first %} is-active{% endif %}{% if p.required %} is-required{% endif %}"
+                 id="{{ pid }}-pane" data-port-pane="{{ p.id }}" data-port-kind="file" data-port-input="{{ pid }}-input"
+                 data-port-library="{{ p.library_type }}"{% if p.library_prefer %} data-port-library-prefer="{{ p.library_prefer }}"{% endif %}>
+                <div class="wama-port-face wama-port-face-mods is-active" data-port-face="mods">
+                    <div class="wama-mods">
+                        <div class="drop-zone wama-mod wama-mod-import" id="{{ pid }}-drop" data-mod="import" data-port-import-self>
+                            <i class="fas fa-cloud-upload-alt text-primary wama-mod-g"></i>
+                            <span>Importer</span>
+                            <small>{% firstof p.description 'depuis le poste' %}</small>
+                            <input type="file" id="{{ pid }}-input" accept="{{ p.accept }}" style="display:none">
+                        </div>
+                        <div class="wama-mod wama-mod-library" data-mod="library" data-mod-library-btn title="Choisir dans la médiathèque">
+                            <i class="fas fa-photo-film wama-mod-g text-info"></i>
+                            <span>Médiathèque</span>
+                            <small>{% if p.library_prefer %}onglet : {{ p.library_prefer }}{% elif p.library_type != 'all' %}filtrée : {{ p.library_type }}{% else %}tous types{% endif %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="wama-port-face wama-port-face-files" data-port-face="files">
+                    <div class="wama-files-head"><span class="wama-files-back" data-files-back>‹ modalités</span> · <span data-files-title>fichier</span></div>
+                    <div class="wama-files-list" data-files-list></div>
+                    <div class="wama-files-meta" data-files-meta></div>
+                </div>
+            </div>
+            {% endwith %}
             {% elif p.group == 'travail' %}
             <div class="wama-port-pane{% if forloop.first %} is-active{% endif %}{% if p.required %} is-required{% endif %}"
                  data-port-pane="{{ p.id }}" data-port-kind="file" data-port-input="{{ file_input_id }}"
-                 data-port-library="{{ p.library_type }}">
+                 data-port-library="{{ p.library_type }}"{% if p.library_prefer %} data-port-library-prefer="{{ p.library_prefer }}"{% endif %}>
                 <div class="wama-port-face wama-port-face-mods is-active" data-port-face="mods">
                     <div class="wama-mods">
                         {% comment %}IMPORTER = la dropzone (ids v3 : la brique s'y lie). Fichiers ET
@@ -111,8 +143,10 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
                             viennent des modèles — c'est un port de TRAVAIL (`work_image`), et le lot a
                             sa propre barre. `formats_label` reste le repli des apps sans description.
                             Le format de LOT est étiqueté comme tel : il décrit un geste, pas ce
-                            port.{% endcomment %}
-                            <small>{{ p.description|default:formats_label }}</small>
+                            port. `firstof` et non `default:formats_label` : un argument de filtre
+                            ABSENT du contexte lève VariableDoesNotExist (même piège qu'au port de
+                            référence, 2026-09-22 ; revu le 2026-09-29).{% endcomment %}
+                            <small>{% firstof p.description formats_label %}</small>
                             {% if batch_format %}<small class="text-muted">lot : <code style="font-size:.65rem">{{ batch_format }}</code></small>{% endif %}
                             <input type="file" id="{{ file_input_id }}" multiple accept="{{ p.accept }}" style="display:none">
                             {% if folder_input_id %}
@@ -169,7 +203,7 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
                             </div>
                             <small>téléchargée au lancement — un fichier joint prime</small>
                         </div>
-                        <div class="drop-zone wama-mod wama-mod-import" data-mod="import" style="flex:1.2">
+                        <div class="drop-zone wama-mod wama-mod-import" data-mod="import" data-port-import-self style="flex:1.2">
                             <i class="fas fa-paperclip text-info wama-mod-g"></i>
                             <span>Importer</span>
                             {# Même règle que le port de travail : le JETON dit à quoi il sert. #}

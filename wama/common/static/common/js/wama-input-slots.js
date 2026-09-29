@@ -104,13 +104,40 @@
         // Tuile MÉDIATHÈQUE — filtrée PAR PORT (exigence 5 du §11.8) : le filtre vient du
         // port, plus de la card. L'asset est DÉSIGNÉ par la voie d'import du port (même geste
         // que la tuile v3, `WamaApp.pickFromLibrary`, 2026-09-28) — pointé, jamais re-téléversé.
+        // `prefer` = l'ONGLET d'ouverture que l'app déclare pour ce port (`library_natures` du
+        // domaine : l'image de l'avatarizer s'ouvre sur « avatar », 2026-09-29).
         var lib = pane.querySelector('[data-mod-library-btn]');
+        var own = pane.querySelector('[data-port-import-self]');
         if (lib && input) {
             lib.addEventListener('click', function () {
                 if (global.WamaApp && WamaApp.pickFromLibrary) {
                     WamaApp.pickFromLibrary({ type: pane.dataset.portLibrary || 'all',
+                                              prefer: pane.dataset.portLibraryPrefer || undefined,
+                                              designate: !!own,
                                               fileInputId: input.id });
                 }
+            });
+        }
+
+        // Tuile IMPORT d'un port SANS voie d'import (`data-port-import-self` : port de travail
+        // secondaire, port de référence) — celle-là, personne d'autre ne la câble : clic =
+        // sélecteur, dépôt = fichier(s) posé(s) dans l'input du port. Le `change` fait le reste.
+        if (own && input && own.dataset.slotsImportBound !== '1') {
+            own.dataset.slotsImportBound = '1';
+            own.addEventListener('click', function (e) {
+                if (e.target && e.target.closest && e.target.closest('a, input')) return;
+                input.click();
+            });
+            own.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                own.classList.add('dragover', 'drag-over');
+            });
+            own.addEventListener('dragleave', function () { own.classList.remove('dragover', 'drag-over'); });
+            own.addEventListener('drop', function (e) {
+                e.preventDefault();
+                own.classList.remove('dragover', 'drag-over');
+                var files = (e.dataTransfer && e.dataTransfer.files) ? Array.prototype.slice.call(e.dataTransfer.files) : [];
+                if (files.length && global.WamaApp && WamaApp.injectFiles) WamaApp.injectFiles(input, files);
             });
         }
 
