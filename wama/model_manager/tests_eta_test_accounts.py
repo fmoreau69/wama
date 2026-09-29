@@ -75,3 +75,24 @@ class EveryCallerPassesTheUserTest(SimpleTestCase):
         callers = {rel for rel, _ in self._calls()}
         for rel in EXEMPT_CALLERS:
             self.assertIn(rel, callers, f'dispense devenue inutile : {rel}')
+
+
+class ModelKeyTest(SimpleTestCase):
+    """`make_key` ne double pas un préfixe déjà présent (2026-09-29 : le synthesizer apprenait
+    sous `synthesizer:synthesizer:coqui-xtts`, son `tts_model` portant déjà la clé du catalogue)."""
+
+    def test_a_catalog_key_is_kept_as_is(self):
+        from wama.model_manager.services.eta_estimator import make_key
+        self.assertEqual(make_key('synthesizer', 'synthesizer:coqui-xtts'), 'synthesizer:coqui-xtts')
+
+    def test_counter_proof_a_bare_id_is_prefixed(self):
+        from wama.model_manager.services.eta_estimator import make_key
+        self.assertEqual(make_key('transcriber', 'whisper'), 'transcriber:whisper')
+        # un id qui CONTIENT la source sans la porter en préfixe reste préfixé
+        self.assertEqual(make_key('synthesizer', 'xtts:synthesizer'), 'synthesizer:xtts:synthesizer')
+
+    def test_the_synthesizer_learns_under_its_catalog_key(self):
+        from wama.model_manager.services.eta_estimator import make_key
+        from wama.synthesizer.models import VoiceSynthesis
+        default = VoiceSynthesis._meta.get_field('tts_model').default
+        self.assertEqual(make_key('synthesizer', default).count('synthesizer:'), 1)

@@ -68,7 +68,16 @@ def hardware_fingerprint() -> str:
 
 
 def make_key(source: str, model_id: str) -> str:
-    """Construit le model_key du registre : '{source}:{model_id}'."""
+    """Construit le model_key du registre : '{source}:{model_id}'.
+
+    Un `model_id` qui porte DÉJÀ le préfixe (ex. `VoiceSynthesis.tts_model` stocke la clé du
+    catalogue, `synthesizer:coqui-xtts`) est rendu tel quel : jusqu'au 2026-09-29 il devenait
+    `synthesizer:synthesizer:coqui-xtts`, une clé que ni le catalogue (a priori) ni l'estimation
+    ne relisaient sous le même nom que l'apprentissage.
+    """
+    model_id = str(model_id)
+    if model_id.startswith(f"{source}:"):
+        return model_id
     return f"{source}:{model_id}"
 
 
