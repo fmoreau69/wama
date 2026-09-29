@@ -748,6 +748,16 @@ if ENABLE_CELERY:
         'wama.composer.tasks.*': {'queue': 'gpu', 'priority': _prio('composer')},
         'wama_lab.face_analyzer.tasks.*': {'queue': 'gpu', 'priority': _prio('face_analyzer')},
         'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu', 'priority': _prio('cam_analyzer')},
+        # Étage CALCULS du cam_analyzer : CPU pur (aucun modèle, aucun contexte CUDA) — sur
+        # `default` (prefork), à côté des traitements GPU. Sur `gpu` (solo) ils attendaient
+        # derrière chaque transcription (constat de Fabien, 2026-09-29). Un nom EXACT l'emporte
+        # sur le motif `*` ci-dessus. Liste JUMELLE du registre `pass_tracking.PASSES` (passes
+        # `calcul` sans GPU) : `tests_calc_routing` échoue si elles divergent.
+        **{f'wama_lab.cam_analyzer.tasks.{_t}': {'queue': 'default'} for _t in (
+            'compute_lane_events_task', 'compute_temporal_segments_task', 'compute_distance_task',
+            'compute_depth_calc_task', 'compute_lane_map_recalage_task',
+            'compute_ortho_correction_task', 'compute_global_tracking_task',
+            'compute_indicators_task', 'compute_conflict_events_task', 'release_calc_chain_task')},
         'wama.converter.tasks.*': {'queue': 'default'},
         # Reprise d'un résultat EXISTANT (lecture d'un document, aucun modèle) — déclarée plutôt
         # que laissée au défaut, pour la même raison que `common.refresh_registry` plus bas.
