@@ -809,13 +809,19 @@ def _parse_tool_call(text: str) -> dict | None:
     """
     # Strip reasoning tags first
     clean = _strip_think_tags(text)
-    # Look for {"tool": ..., "args": ...} anywhere in the text
-    match = re.search(r'\{[^{}]*"tool"\s*:\s*"[^"]+"\s*,\s*"args"\s*:\s*\{[^{}]*\}\s*\}', clean)
-    if match:
+    # Un DÉCODEUR JSON à partir de chaque `{"tool"` — pas un motif. Jusqu'au 2026-09-30 le motif
+    # interdisait les accolades IMBRIQUÉES dans `args` (`\{[^{}]*\}`) : un outil dont un argument
+    # est un objet — `dev_run_role(args={"catalog": …})`, la chaîne d'intégration de modèles — n'était
+    # JAMAIS reconnu, et l'appel revenait à l'utilisateur comme du texte (vécu sur Albert).
+    decoder = json.JSONDecoder()
+    for start in re.finditer(r'\{\s*"tool"\s*:', clean):
         try:
-            return json.loads(match.group())
+            call, _ = decoder.raw_decode(clean, start.start())
         except json.JSONDecodeError:
-            pass
+            continue
+        if isinstance(call, dict) and isinstance(call.get('tool'), str) \
+                and isinstance(call.get('args'), dict):
+            return call
     return None
 
 
