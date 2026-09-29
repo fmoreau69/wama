@@ -23,6 +23,9 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
 
     # Options
     preprocess_audio = models.BooleanField(default=False)
+    # Nivellement de la parole (`common/utils/speech_leveling.py`), après le débruitage s'il est
+    # demandé. Optionnel, coupé par défaut : réintégré le 2026-09-29 pour être MESURÉ.
+    level_speech = models.BooleanField(default=False, db_default=False)
 
     # Backend selection
     backend = models.CharField(max_length=32, default='auto', blank=True)  # auto, whisper, vibevoice
