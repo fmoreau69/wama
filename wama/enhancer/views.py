@@ -272,6 +272,11 @@ class IndexView(View):
             'q_sort': q_sort,
             'q_filter': q_filter,
             'panel': panel,
+            # Format et qualité de sortie du volet : options du SCHÉMA (comme la modale ⚙).
+            'output_format_groups': next(p.option_groups for p in MEDIA_PARAMS
+                                         if p.name == 'output_format'),
+            'output_quality_choices': next(p.choices for p in MEDIA_PARAMS
+                                           if p.name == 'output_quality'),
             'ai_models': Enhancement.AI_MODEL_CHOICES,
             # Schémas déclaratifs par domaine → inspecteur contextuel (WamaInspector.initFromSchema).
             'media_params_json': _json.dumps(MEDIA_PARAMS_JSON),

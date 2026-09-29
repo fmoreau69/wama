@@ -53,6 +53,14 @@ class PanelMemoryTest(TestCase):
         page = self.client.get(reverse('enhancer:index')).content.decode()
         self.assertIn('value="BSRGANx2" selected', page)
 
+    def test_the_output_format_and_quality_come_back_too(self):
+        """Format et qualité de sortie : mémorisés ET ré-affichés (rendus du schéma)."""
+        self._deposit(output_format='png', output_quality='max')
+        page = self.client.get(reverse('enhancer:index')).content.decode()
+        self.assertIn('value="png" selected', page)
+        self.assertIn('value="max" selected', page)
+        self.assertNotIn('value="original" selected', page)
+
     def test_another_user_does_not_inherit_it(self):
         """Contre-épreuve : la mémoire est celle de l'auteur, un autre repart des défauts."""
         self._deposit(ai_model='BSRGANx2', denoise='true', blend_factor='0.3')

@@ -161,21 +161,18 @@
     <label for="output_format" class="form-label small fw-bold text-light">
         <i class="fas fa-file-export"></i> Format de sortie
     </label>
+    {% comment %}Options rendues du SCHÉMA (`MEDIA_PARAMS.output_format.option_groups`, brique commune
+    des formats) — les mêmes que la modale ⚙ ; la valeur MÉMORISÉE du volet est pré-sélectionnée
+    (2026-09-29, `read_panel_settings`). La liste écrite ici à la main en était une copie plus
+    courte.{% endcomment %}
     <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_format" name="output_format">
-        <option value="original" selected>Original (conserver)</option>
-        <optgroup label="Image">
-            <option value="jpg">JPG</option>
-            <option value="png">PNG</option>
-            <option value="webp">WebP</option>
-            <option value="tiff">TIFF</option>
-            <option value="avif">AVIF</option>
+        {% for group_label, options in output_format_groups %}
+        <optgroup label="{{ group_label }}">
+            {% for value, label in options %}
+            <option value="{{ value }}" {% if value == panel.output_format|default:'original' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
         </optgroup>
-        <optgroup label="Vidéo">
-            <option value="mp4">MP4</option>
-            <option value="webm">WebM</option>
-            <option value="mkv">MKV</option>
-            <option value="mov">MOV</option>
-        </optgroup>
+        {% endfor %}
     </select>
     <small class="text-muted">Le format doit correspondre au type du média (image ou vidéo).</small>
 </div>
@@ -184,9 +181,9 @@
         <i class="fas fa-sliders-h"></i> Qualité
     </label>
     <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_quality" name="output_quality">
-        <option value="web">Web (léger)</option>
-        <option value="balanced" selected>Équilibré</option>
-        <option value="max">Maximum</option>
+        {% for value, label in output_quality_choices %}
+        <option value="{{ value }}" {% if value == panel.output_quality|default:'balanced' %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
     </select>
 </div>
 
