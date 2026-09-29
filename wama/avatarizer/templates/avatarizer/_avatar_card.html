@@ -49,7 +49,7 @@ pas la variable de gabarit.
         </span>
         <div class="wcv3-in-lines">
           <span class="wcv3-in-name">
-            {% if elem.avatar_source == 'gallery' %}{{ elem.avatar_gallery_name|default:"—"|truncatechars:24 }}{% else %}Photo importée{% endif %}
+            {{ elem.avatar_label|default:"—"|truncatechars:24 }}
           </span>
           <span class="wcv3-in-props">avatar animé</span>
         </div>

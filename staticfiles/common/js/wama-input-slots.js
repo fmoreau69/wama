@@ -65,7 +65,9 @@
             list.appendChild(chip);
         });
         if (title) title.textContent = files.length === 1 ? files[0].name : files.length + ' fichiers';
-        if (meta) meta.textContent = files.length + ' fichier(s) · ' + (total / 1048576).toFixed(1) + ' Mio';
+        // Un fichier DÉSIGNÉ n'a pas de taille côté navigateur : il est pointé, pas téléversé.
+        if (meta) meta.textContent = files.length + ' fichier(s) · ' + (designation
+            ? 'désigné (pointé, non copié)' : (total / 1048576).toFixed(1) + ' Mio');
         showFace(pane, 'files');
     }
 

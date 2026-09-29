@@ -12,10 +12,10 @@
     // -----------------------------------------------------------------------
     // State
     // -----------------------------------------------------------------------
-    let selectedAvatarSource = null;  // 'gallery' | 'upload'
-    let selectedAvatarName   = null;  // gallery filename
-    let audioFile            = null;  // File object (standalone)
-    let avatarUploadFile     = null;  // File object (avatar upload)
+    // L'état des ENTRÉES n'est plus tenu ici (2026-09-29, card v4) : il se LIT dans les inputs
+    // de port — un fichier joint ou une DÉSIGNATION (médiathèque, arbre). Tenir une copie en
+    // variable (`audioFile`, `selectedAvatarSource`…) laissait l'écran et le formulaire diverger
+    // dès qu'un geste commun (✕ de la card, désignation) passait par l'input sans elle.
     let activePollers        = {};    // {job_id: intervalId}
 
     // -----------------------------------------------------------------------
@@ -55,75 +55,39 @@
     // CodeFormer (#use_enhancer) est le SEUL contrôle de qualité, toujours visible.
 
     // -----------------------------------------------------------------------
-    // Avatar gallery selection
+    // Ports de la card v4 : l'AUDIO (port principal, ids historiques) et l'IMAGE d'avatar
     // -----------------------------------------------------------------------
-    $$('.avatar-card').forEach(card => {
-        card.addEventListener('click', () => {
-            $$('.avatar-card').forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-            selectedAvatarSource = 'gallery';
-            selectedAvatarName   = card.dataset.avatarName;
-            avatarUploadFile = null;
-            $('#avatar-upload-info').classList.add('d-none');
+    // La galerie propre à l'app et l'import d'avatar du volet droit sont RETIRÉS (2026-09-29) :
+    // l'avatar est le port `work_image`, dont la médiathèque s'ouvre sur l'onglet Avatar. Son
+    // input se lit sur le pane du port (`data-port-input`) — l'id est dérivé par la card, on ne
+    // le recompose pas ici.
+    const avatarPane  = $('#avatarizerNewCard [data-port-pane="work_image"]');
+    const avatarInput = avatarPane ? document.getElementById(avatarPane.dataset.portInput) : null;
+    const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+    /** Le port porte-t-il une entrée (fichier joint ou désignation) ? */
+    function hasEntry(input) {
+        return !!(input && ((input.files && input.files.length) || WamaApp.designationOf(input)));
+    }
+
+    /** Vide un port — même geste que le ✕ de la card, qui rafraîchit sa face « fichiers ». */
+    function clearPort(input) {
+        if (!input) return;
+        input.value = '';
+        WamaApp.clearDesignation(input);
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    if (avatarInput) {
+        avatarInput.addEventListener('change', () => {
+            const f = avatarInput.files && avatarInput.files[0];
+            if (f && !AVATAR_TYPES.includes(f.type)) {
+                WamaApp.toast('Format non supporté. Utilisez JPG, PNG ou WebP.', 'error');
+                clearPort(avatarInput);
+                return;
+            }
             updateGenerateButton();
         });
-    });
-
-    // -----------------------------------------------------------------------
-    // Avatar upload
-    // -----------------------------------------------------------------------
-    const avatarUploadZone  = $('#avatar-upload-zone');
-    const avatarUploadInput = $('#avatar_upload');
-    const avatarUploadInfo  = $('#avatar-upload-info');
-    const avatarUploadPrev  = $('#avatar-upload-preview');
-    const btnRemoveAvatar   = $('#btn-remove-avatar-upload');
-
-    if (avatarUploadZone) {
-        avatarUploadZone.addEventListener('click', () => avatarUploadInput.click());
-        avatarUploadZone.addEventListener('dragover', e => {
-            e.preventDefault();
-            avatarUploadZone.classList.add('dragover');
-        });
-        avatarUploadZone.addEventListener('dragleave', () => avatarUploadZone.classList.remove('dragover'));
-        avatarUploadZone.addEventListener('drop', e => {
-            e.preventDefault();
-            avatarUploadZone.classList.remove('dragover');
-            // Slot MONO-fichier : un dossier déposé résout de vrais fichiers (brique
-            // WamaFolderImport) et on prend le premier — avant, l'entrée dossier échouait.
-            WamaFolderImport.collect(e.dataTransfer)
-                .then(list => { const f = WamaFolderImport.files(list)[0]; if (f) handleAvatarFile(f); });
-        });
-    }
-    if (avatarUploadInput) {
-        avatarUploadInput.addEventListener('change', () => handleAvatarFile(avatarUploadInput.files[0]));
-    }
-    if (btnRemoveAvatar) {
-        btnRemoveAvatar.addEventListener('click', () => {
-            avatarUploadFile = null;
-            selectedAvatarSource = null;
-            avatarUploadInfo.classList.add('d-none');
-            avatarUploadInput.value = '';
-            updateGenerateButton();
-        });
-    }
-
-    function handleAvatarFile(file) {
-        if (!file) return;
-        const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-        if (!allowed.includes(file.type)) {
-            WamaApp.toast('Format non supporté. Utilisez JPG, PNG ou WebP.', 'error');
-            return;
-        }
-        avatarUploadFile = file;
-        selectedAvatarSource = 'upload';
-        selectedAvatarName = null;
-        $$('.avatar-card').forEach(c => c.classList.remove('selected'));
-
-        const reader = new FileReader();
-        reader.onload = e => { avatarUploadPrev.src = e.target.result; };
-        reader.readAsDataURL(file);
-        avatarUploadInfo.classList.remove('d-none');
-        updateGenerateButton();
     }
 
     // -----------------------------------------------------------------------
@@ -137,30 +101,7 @@
         const z = document.getElementById(id);
         if (z && !z.dataset.wamaApp) z.dataset.wamaApp = 'avatarizer';
     });
-    const audioInfo     = $('#audio-info');
-    const audioFilename = $('#audio-filename');
-    const btnRemoveAudio = $('#btn-remove-audio');
-
-    // Zone audio : clic, survol, drop récursif et `change` de l'input sont câblés par la brique
-    // commune WamaImport (instanciée plus bas, après la brique batch dont elle dépend — portage
-    // 2026-09-08, 10ᵉ app). Ici `audio_input` est À LA FOIS le sélecteur de la dropzone et le
-    // slot audio (mode attache sur lui-même) : la brique le sait, ne le vide pas et ne le
-    // ré-injecte pas ; `afterAttach` pose l'état de la card (`audioFile`, badge, bouton).
-
-    // Import depuis le Filemanager (drag depuis le panneau latéral) : plus rien à écouter
-    // ici (2026-09-05). La card est « attache » (`depot_cree=False`) — le filemanager
-    // matérialise le fichier et l'INJECTE dans `audio_input`, dont le `change` ci-dessus
-    // appelle déjà `handleAudioFile`. Le re-téléchargement qui vivait ici (et échouait sur un
-    // fichier de MONTAGE, non servi sous /media/) est devenu `WamaApp.filesFromServerPaths`.
-    if (btnRemoveAudio) {
-        btnRemoveAudio.addEventListener('click', () => {
-            audioFile = null;
-            audioInfo.classList.add('d-none');
-            audioInput.value = '';
-            WamaApp.clearDesignation(audioInput);
-            updateGenerateButton();
-        });
-    }
+    if (audioInput) audioInput.addEventListener('change', updateGenerateButton);
 
     // -----------------------------------------------------------------------
     // Zone prompt : drop d'un fichier texte → extraction serveur (TXT/MD/PDF/DOCX/CSV)
@@ -192,15 +133,8 @@
         });
     }
 
-    // (`handleAudioFile` — détection de lot puis état de la card — est devenu `afterAttach`
-    // de la brique WamaImport, plus bas : la détection de lot est celle de la brique.)
-    function retenirAudio(file) {
-        if (!file) return;
-        audioFile = file;
-        audioFilename.textContent = file.name;
-        audioInfo.classList.remove('d-none');
-        updateGenerateButton();
-    }
+    // (`handleAudioFile` puis `retenirAudio` — l'état de la card — sont RETIRÉS : l'audio
+    // attaché est dans `audio_input`, que la card v4 affiche et que `createJob` relit.)
 
     // -----------------------------------------------------------------------
     // Update "Generate" button state
@@ -213,7 +147,7 @@
         const urlInputEl = $('#avatarizerUrlInput');
         const hasUrl = !!(urlInputEl && urlInputEl.value.trim());
         const hasText = !!(textArea && textArea.value.trim());
-        btn.disabled = !((audioFile || hasUrl || hasText) && selectedAvatarSource);
+        btn.disabled = !((hasEntry(audioInput) || hasUrl || hasText) && hasEntry(avatarInput));
     }
 
     if (textArea) {
@@ -228,13 +162,20 @@
         e.preventDefault();
         const btn = $('#btn-generate');
         if (btn && !btn.disabled) btn.click();
-        else WamaApp.toast("URL prise en compte — choisissez aussi l'avatar (galerie ou photo).", 'info');
+        else WamaApp.toast("URL prise en compte — choisissez aussi l'avatar (onglet Image).", 'info');
     });
+    // État INITIAL du bouton (2026-09-29) : il n'était calculé qu'au premier geste, donc actif au
+    // chargement sans entrée ni avatar — un clic postait une création vouée au refus.
+    updateGenerateButton();
 
     // -----------------------------------------------------------------------
-    // Generate button → create + start job
+    // Bouton primaire → AJOUTE à la file, ne lance rien
     // -----------------------------------------------------------------------
+    // Règle des deux temps (CARD_DESIGN §11.11 Étape 3, point 3 — « on ajoute, on règle, puis
+    // on lance ») appliquée au portage v4, 2026-09-29 : ce bouton enchaînait `createJob()` puis
+    // `startJob()`. L'élément naît en attente ; le ▶ de sa card (bouton de cycle commun) le lance.
     const btnGenerate = $('#btn-generate');
+    const btnGenerateHtml = btnGenerate ? btnGenerate.innerHTML : '';
     if (btnGenerate) {
         btnGenerate.addEventListener('click', async () => {
             btnGenerate.disabled = true;
@@ -242,23 +183,23 @@
 
             try {
                 const jobId = await createJob();
-                await startJob(jobId);
+                const empty = $('#no-jobs-msg');
+                if (empty) empty.remove();
                 addJobCard(jobId);
-                startPolling(jobId);
                 updateJobsCount(1);
+                WamaApp.toast('Ajouté à la file — réglez-le si besoin, puis ▶ pour lancer.', 'success');
 
                 // Reset form
                 if (textArea) textArea.value = '';
                 if (wordCountEl) wordCountEl.textContent = '0';
-                audioFile = null;
-                if (audioInfo) audioInfo.classList.add('d-none');
-                if (audioInput) audioInput.value = '';
+                // L'AVATAR reste choisi : plusieurs vidéos d'un même visage s'enchaînent.
+                clearPort(audioInput);
                 if (avatarizerUrlInput) avatarizerUrlInput.value = '';
 
             } catch (err) {
                 WamaApp.toast('Erreur : ' + err.message, 'error');
             } finally {
-                btnGenerate.innerHTML = '<i class="fas fa-play-circle me-1"></i> Générer la vidéo';
+                btnGenerate.innerHTML = btnGenerateHtml;   // libellé du gabarit, jamais recopié ici
                 updateGenerateButton();
             }
         });
@@ -303,8 +244,10 @@
             dropZoneId:  'audio-dropzone',
             fileInputId: 'audio_input',
             batch:       batchImport,
-            attach:      ['audio_input'],
-            afterAttach: function (_input, file) { retenirAudio(file); },
+            // Les DEUX ports : une image déposée sur la zone audio rejoint l'avatar (le
+            // premier input dont l'`accept` l'admet), une désignation aussi.
+            attach:      ['audio_input'].concat(avatarInput ? [avatarInput.id] : []),
+            afterAttach: function () { updateGenerateButton(); },
         });
     }
 
@@ -313,19 +256,18 @@
         // Pas de `mode` posté : le serveur le dérive (audio/URL priment, sinon texte).
         const promptText = textArea ? textArea.value.trim() : '';
         if (promptText) fd.append('text_content', promptText);
-        if (audioFile) {
+        if (hasEntry(audioInput)) {
             // Fichier joint OU désigné (médiathèque, arbre — pointé, jamais re-téléversé).
-            WamaApp.appendFile(fd, 'audio_input', audioFile);
+            WamaApp.appendInput(fd, audioInput, 'audio_input');
         } else if (avatarizerUrlInput && avatarizerUrlInput.value.trim()) {
             fd.append('source_url', avatarizerUrlInput.value.trim());
         }
 
-        fd.append('avatar_source', selectedAvatarSource);
-        if (selectedAvatarSource === 'gallery') {
-            fd.append('avatar_gallery_name', selectedAvatarName);
-        } else {
-            WamaApp.appendFile(fd, 'avatar_upload', avatarUploadFile);
-        }
+        // L'avatar est TOUJOURS un fichier (joint, ou désigné : le sien, un partagé, un avatar
+        // système de la médiathèque — pointé). `avatar_source='gallery'` (un NOM) ne reste que
+        // pour les lots, le Studio et l'API de l'assistant.
+        fd.append('avatar_source', 'upload');
+        WamaApp.appendInput(fd, avatarInput, 'avatar_upload');
         fd.append('bbox_shift', bboxSlider ? bboxSlider.value : '0');
         fd.append('use_enhancer', $('#use_enhancer') && $('#use_enhancer').checked ? 'true' : 'false');
 
@@ -618,7 +560,10 @@
     $$('.synthesis-card').forEach(card => {
         bindJobCardEvents(card);
         const status = card.dataset.status;
-        if (status === 'RUNNING' || status === 'PENDING') {
+        // RUNNING seul : `begin_processing` pose RUNNING dès l'acceptation, un PENDING n'a donc
+        // jamais été lancé (ajouté à la file, ou créé par un lot) — l'interroger toutes les 2 s
+        // ne s'arrêtait jamais (2026-09-29, au passage à « ajouter sans lancer »).
+        if (status === 'RUNNING') {
             startPolling(card.dataset.jobId);
             // Initialise step label from progress-fill width
             const stepDesc = $('.step-desc', card);

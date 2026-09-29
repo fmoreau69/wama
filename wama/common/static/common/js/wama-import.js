@@ -131,6 +131,24 @@
       });
     }
 
+    /** L'input porte-t-il déjà CE fichier (même nom, taille, date) ? */
+    function holds(input, file) {
+      return Array.prototype.some.call(input.files || [], function (x) {
+        return x === file || (x.name === file.name && x.size === file.size
+                              && x.lastModified === file.lastModified);
+      });
+    }
+
+    /** Pose un fichier dans l'input d'un port, puis un `change` marqué `attached`. */
+    function placeInPort(input, file) {
+      try {
+        var dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+      } catch (e) { return; }
+      input.dispatchEvent(new CustomEvent('change', { bubbles: true, detail: { attached: true } }));
+    }
+
     function signaler(msg, niveau) {
       if (global.WamaApp && WamaApp.toast) WamaApp.toast(msg, niveau || 'error');
       else console.error('[WamaImport]', msg);
@@ -300,6 +318,12 @@
       // attachable — avant, un tel fichier était AVALÉ SANS TRACE (`batch-import.js:256`).
       if (cfg.attach && cfg.attach.length) {
         var restes = [];
+        // L'input de la zone, quand il est LUI-MÊME un port : un fichier choisi par son
+        // sélecteur et routé vers un AUTRE port doit le quitter (2026-09-29, avatarizer : une
+        // image choisie depuis la zone audio restait aussi dans `audio_input`, et serait partie
+        // comme audio).
+        var zoneInput = cfg.attach.indexOf(cfg.fileInputId) >= 0 ? el(cfg.fileInputId) : null;
+        var moved = [];
         files.forEach(function (f) {
           var cible = null;
           for (var a = 0; a < cfg.attach.length; a++) {
@@ -315,13 +339,30 @@
           // ré-injecte pas (un `change` de plus rebouclerait ici). Sinon : injection.
           if (designated(f)) {
             if (global.WamaApp && WamaApp.designateInto) WamaApp.designateInto(cible, f);
-          } else if (cible !== el(cfg.fileInputId) && global.WamaApp && WamaApp.injectFiles) {
-            WamaApp.injectFiles(cible, [f]);
+          } else if (cible !== el(cfg.fileInputId)) {
+            if (global.WamaApp && WamaApp.injectFiles) WamaApp.injectFiles(cible, [f]);
+            if (zoneInput && holds(zoneInput, f)) moved.push(f);
+          } else if (!holds(cible, f)) {
+            // DÉPOSÉ sur la zone dont l'input EST le port (2026-09-29) : le fichier vient du
+            // `dataTransfer`, il n'est pas encore dans l'input — la face « fichiers » de la card
+            // v4 le lit là. On l'y pose, avec un `change` MARQUÉ que la brique ignore (sinon il
+            // reviendrait ici) : les écouteurs de la page, eux, le voient.
+            placeInPort(cible, f);
           }
           // `afterAttach(input, file)` : l'app pose son ÉTAT (imager rafraîchit l'appariement,
           // avatarizer retient le fichier pour Générer) — après la détection de lot, jamais avant.
           if (typeof cfg.afterAttach === 'function') cfg.afterAttach(cible, f);
         });
+        if (moved.length) {
+          try {
+            var kept = new DataTransfer();
+            Array.prototype.forEach.call(zoneInput.files, function (x) {
+              if (!holds({ files: moved }, x)) kept.items.add(x);
+            });
+            zoneInput.files = kept.files;
+            zoneInput.dispatchEvent(new CustomEvent('change', { bubbles: true, detail: { attached: true } }));
+          } catch (e) { /* navigateur sans DataTransfer : l'app garde l'ancien état */ }
+        }
         files = restes;
         if (!files.length) return;
       }
@@ -442,7 +483,8 @@
 
       if (fi && fi.dataset.wamaImportBound !== '1') {
         fi.dataset.wamaImportBound = '1';
-        fi.addEventListener('change', function () {
+        fi.addEventListener('change', function (e) {
+          if (e.detail && e.detail.attached) return;   // posé par `placeInPort` : déjà traité
           if (this.files && this.files.length) {
             handleFiles(this.files);
             // Re-déposer le MÊME fichier doit re-déclencher → on vide l'input… SAUF s'il est

@@ -92,8 +92,6 @@ class IndexView(View):
         except Exception:
             logger.debug("[avatarizer] réconciliation des orphelins ignorée", exc_info=True)
 
-        gallery = _gallery_images()
-
         from wama.common.utils.voice_options import voice_groups_json
 
         custom_voices = CustomVoice.objects.filter(user=user)
@@ -119,7 +117,6 @@ class IndexView(View):
             'q_sort': q_sort,
             'q_filter': q_filter,
             'batches_list': batches_list,
-            'gallery_images': gallery,
             # Même inventaire que le synthesizer, et pour cause : c'est le MÊME parc, requis
             # par capacité et non par app (route F4b, 2026-09-01). L'avatarizer n'a jamais
             # possédé de moteur TTS — il les empruntait déjà via une constante partagée.
@@ -201,7 +198,11 @@ def create(request):
             job.source_url = source_url
 
     # --- Source de l'avatar ---
-    avatar_source = request.POST.get('avatar_source', 'gallery')
+    # La card v4 poste toujours un FICHIER (joint ou désigné — un avatar système de la médiathèque
+    # est pointé comme les autres, 2026-09-29). Le NOM de galerie reste reçu des autres appelants
+    # (lots, Studio) : sans `avatar_source` explicite, la source se déduit de ce qui est posté.
+    avatar_source = request.POST.get('avatar_source') or (
+        'gallery' if request.POST.get('avatar_gallery_name') else 'upload')
     job.avatar_source = avatar_source
     avatar_file = None
 
@@ -302,7 +303,7 @@ def progress(request, pk):
     if job.status == 'SUCCESS' and job.output_video:
         video_url = settings.MEDIA_URL + job.output_video.name
 
-    avatar_name = job.avatar_gallery_name if job.avatar_source == 'gallery' else 'Photo importée'
+    avatar_name = job.avatar_label
 
     estimated_seconds = 0.0
     if job.status in ('PENDING', 'RUNNING'):
@@ -685,13 +686,7 @@ def _batch_display_name(entry) -> str:
     items = entry.get('items') or []
     # `items` = lignes de LIAISON (BatchAvatarJobItem) ; la FK métier est `job`.
     job = next((getattr(it, 'job', None) for it in items if getattr(it, 'job', None)), None)
-    if job is None:
-        return ''
-    if job.avatar_gallery_name:
-        return job.avatar_gallery_name
-    if job.avatar_upload:
-        return os.path.basename(job.avatar_upload.name)
-    return ''
+    return job.avatar_label if job is not None else ''
 
 
 def _get_batches_list(user):
