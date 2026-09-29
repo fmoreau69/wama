@@ -560,10 +560,11 @@
     $$('.synthesis-card').forEach(card => {
         bindJobCardEvents(card);
         const status = card.dataset.status;
-        // RUNNING seul : `begin_processing` pose RUNNING dès l'acceptation, un PENDING n'a donc
-        // jamais été lancé (ajouté à la file, ou créé par un lot) — l'interroger toutes les 2 s
-        // ne s'arrêtait jamais (2026-09-29, au passage à « ajouter sans lancer »).
-        if (status === 'RUNNING') {
+        // Lancé seulement : `begin_processing` pose RUNNING dès l'acceptation (puis la tâche peut
+        // attendre sa VRAM : AWAITING_RESOURCES). Un PENDING n'a jamais été lancé (ajouté à la
+        // file, ou créé par un lot) — l'interroger toutes les 2 s ne s'arrêtait jamais
+        // (2026-09-29, au passage à « ajouter sans lancer »).
+        if (status === 'RUNNING' || status === 'AWAITING_RESOURCES') {
             startPolling(card.dataset.jobId);
             // Initialise step label from progress-fill width
             const stepDesc = $('.step-desc', card);

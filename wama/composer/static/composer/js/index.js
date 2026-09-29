@@ -243,9 +243,12 @@
                 formData.append('source_url', melodyUrl.value.trim());
             }
 
+            const idleHtml = generateBtn.innerHTML;   // libellé du gabarit, jamais recopié ici
             generateBtn.disabled = true;
             generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Envoi…';
 
+            // AJOUTE à la file, ne lance rien (2026-09-29, règle des deux temps) : la card
+            // arrive en attente, son ▶ (bouton de cycle commun) la lance.
             fetch(APP.generateUrl, { method: 'POST', body: formData })
                 .then(r => r.json())
                 .then(data => {
@@ -254,13 +257,13 @@
                     } else {
                         promptInput.value = '';
                         insertRenderedCard(data.id);
-                        startPolling(data.id);
+                        WamaApp.toast('Ajouté à la file — réglez-le si besoin, puis ▶ pour lancer.', 'success');
                     }
                 })
                 .catch(err => WamaApp.toast('Erreur réseau : ' + err, 'error'))
                 .finally(() => {
                     generateBtn.disabled = false;
-                    generateBtn.innerHTML = '<i class="fas fa-play me-1"></i> Générer';
+                    generateBtn.innerHTML = idleHtml;
                 });
         });
     }
@@ -459,10 +462,12 @@
         // (insertRenderedCard dans pollProgress) — l'injection de chaines HTML est supprimée (B2-5).
     }
 
-    // Auto-start du polling des items actifs au chargement — état lu sur data-status
-    // (plus de détection par TEXTE de badge, fragile/i18n — audit B2-6).
+    // Auto-start du polling des items LANCÉS au chargement — état lu sur data-status (plus de
+    // détection par TEXTE de badge — audit B2-6). ⚠ PENDING n'en fait plus partie (2026-09-29) :
+    // `begin_processing` pose RUNNING dès l'acceptation (puis AWAITING_RESOURCES si la tâche
+    // attend sa VRAM) ; un PENDING n'a jamais été lancé et l'interroger ne s'arrêtait jamais.
     document.querySelectorAll('.generation-card').forEach(card => {
-        if (card.dataset.status === 'RUNNING' || card.dataset.status === 'PENDING') {
+        if (card.dataset.status === 'RUNNING' || card.dataset.status === 'AWAITING_RESOURCES') {
             startPolling(parseInt(card.dataset.id));
         }
     });
