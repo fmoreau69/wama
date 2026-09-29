@@ -30,9 +30,10 @@ logger = logging.getLogger(__name__)
 # est RELU à chaque appel, un backend qui apparaît RÉ-AUTORISE tout seul — rien à dégriser.
 #
 # Verdict PERMISSIF par construction (même doctrine que `matches_inputs`) : on ne condamne
-# que le POSITIVEMENT inlançable — un moteur déclaré qu'aucun inventaire ne sert. Un modèle
-# sans moteur déclaré, ou porteur d'un `backend_ref` d'app, n'a pas de verdict : l'exclure
-# sur une absence d'information viderait des lots entiers (imager/composer déclaratifs).
+# que le POSITIVEMENT inlançable — un moteur déclaré qu'aucun inventaire ne sert, et depuis le
+# 2026-09-29 (décision Fabien) un modèle SANS moteur que NULLE app ne porte : aucune route
+# d'exécution, ce n'est plus une absence d'information. Un modèle porteur d'un `backend_ref`
+# d'app, un candidat, un distant n'ont toujours pas de verdict sans moteur (cf. `backend_missing`).
 #
 # Consommateurs : `select_model` (un tirage AUTO inlançable est toujours faux → exclu) et
 # `get_registry_models` (le select AFFICHE, grisé AVEC la raison — lister n'est pas
@@ -319,9 +320,34 @@ def backend_missing(model) -> Optional[str]:
     # il suppose que les 95 modèles qui le portent déclarent leur moteur (14 aujourd'hui).
     composition = getattr(model, 'composition', None) or {}
     engine = (composition.get('runtime') or {}).get('engine') or ''
-    if not engine or engine in known_engines():
+    if engine:
+        return None if engine in known_engines() else f"moteur « {engine} » sans backend installé"
+    # ⚠⚠ AUCUN MOTEUR DÉCLARÉ — la permissivité est LEVÉE pour le seul cas sans route (décision
+    # de Fabien, 2026-09-29). Elle se justifiait le 05/09 : 159 modèles sur 174 ne déclaraient
+    # pas de moteur, les condamner aurait grisé des listes entières. Remesuré le 29/09 : 2 lignes
+    # sur tout le catalogue hors candidats (109 installés, 11 non téléchargés et 24 distants en
+    # déclarent tous un) — et ce sont exactement les deux inexécutables, deux lignes du balayage
+    # générique qu'aucune app ne porte (Supra2-IMG-ONNX, Minimax-h3). La première était PROPOSÉE
+    # au select texte→image par la route F4b et pouvait gagner le tirage, puis échouer au
+    # lancement. *Une permissivité justifiée par un compte se remesure quand le compte change.*
+    #
+    # Le critère est la SOURCE, pas `backend_ref` (qui n'atteste qu'une appartenance — cf. plus
+    # haut) : seule une ligne du BALAYAGE GÉNÉRIQUE (`GENERIC_SCAN_SOURCES`) n'a, sans moteur,
+    # aucune route. Une ligne d'app est routée par le gestionnaire de son app ; une ligne Ollama
+    # a son moteur par nature ; un candidat n'est pas proposé à l'exécution ; un distant est
+    # exécuté par son fournisseur.
+    if (getattr(model, 'source', '') not in GENERIC_SCAN_SOURCES
+            or getattr(model, 'is_proposed', False)
+            or getattr(model, 'execution', '') == 'cloud'):
         return None
-    return f"moteur « {engine} » sans backend installé"
+    return "aucun moteur déclaré et aucune app ne le porte — aucune route d'exécution"
+
+
+#: Sources des lignes créées par le BALAYAGE GÉNÉRIQUE d'un snapshot (`model_registry`,
+#: « catalogué ≠ utilisable ») : aucune app ne les déclare, seul un moteur DÉCLARÉ les rend
+#: exécutables. Les autres sources sont des apps (leur gestionnaire route) ou des plateformes
+#: qui exécutent elles-mêmes (Ollama, fournisseurs distants).
+GENERIC_SCAN_SOURCES = ('huggingface', 'custom')
 
 
 class BackendManager:
