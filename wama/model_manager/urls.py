@@ -90,6 +90,10 @@ urlpatterns = [
     path('api/prospect/assess/progress/', views.api_prospect_assess_progress,
          name='api_prospect_assess_progress'),
     path('api/prospect/reject/', views.api_prospect_reject, name='api_prospect_reject'),
+    # Propositions de MANIFESTES (rôles wama-dev-ai) : plan, puis Valider / Rejeter (2026-09-29).
+    path('api/manifest-proposals/', views.api_manifest_proposals, name='api_manifest_proposals'),
+    path('api/manifest-proposals/decide/', views.api_manifest_proposal_decide,
+         name='api_manifest_proposal_decide'),
     # Performance par bancs TIERS — indicateur DISTINCT de la confiance de prospection
     # (réseau seul, aucun GPU). Cf. WAMA_APP_GENERATION_ROUTE §F4b.
     path('api/benchmarks/sync/', views.api_sync_benchmarks, name='api_sync_benchmarks'),

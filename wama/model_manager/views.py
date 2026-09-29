@@ -1875,6 +1875,51 @@ def api_prospect_install_options(request):
 
 @login_required
 @user_passes_test(is_admin_or_dev)
+@require_GET
+def api_manifest_proposals(request):
+    """Propositions de manifestes EN ATTENTE (bac à sable du magasin), chacune avec son PLAN :
+    champs comblés, divergences non appliquées, erreurs. Rien n'est écrit (`proposals.plan`)."""
+    from wama.common.manifests import proposals
+    items = []
+    for obj in proposals.pending(request.GET.get('kind') or None):
+        try:
+            items.append({'id': obj.pk, 'name': obj.name, **proposals.plan(obj)})
+        except Exception as e:
+            items.append({'id': obj.pk, 'kind': obj.manifest_kind, 'key': obj.key,
+                          'errors': [f"plan impossible : {type(e).__name__}: {e}"]})
+    return JsonResponse({'success': True, 'proposals': items})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
+def api_manifest_proposal_decide(request):
+    """VALIDER ou REJETER une proposition — le geste humain du cycle sandbox → promu
+    (`WAMA_MANIFEST_ARCHITECTURE §4`). Corps JSON : `{"id": <pk>, "decision": "apply"|"reject"}`."""
+    import json as _json
+
+    from wama.common.manifests import proposals
+    from wama.common.models import Manifest
+    try:
+        data = _json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({'success': False, 'error': 'JSON invalide'}, status=400)
+    obj = Manifest.objects.filter(pk=data.get('id'), visibility='private').first()
+    if obj is None:
+        return JsonResponse({'success': False, 'error': 'proposition introuvable'}, status=404)
+    decision = data.get('decision')
+    if decision == 'reject':
+        return JsonResponse({'success': proposals.reject(obj)})
+    if decision != 'apply':
+        return JsonResponse({'success': False, 'error': f"décision inconnue : {decision!r}"},
+                            status=400)
+    res = proposals.apply(obj, user=request.user)
+    return JsonResponse({'success': bool(res.get('applied')), **res},
+                        status=200 if res.get('applied') else 400)
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
 @require_POST
 def api_prospect_assess(request):
     """Déclenchement EXPLICITE de la passe de confiance LLM — jamais auto depuis le
