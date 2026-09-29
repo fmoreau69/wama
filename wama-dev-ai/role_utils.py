@@ -46,6 +46,92 @@ def ollama_host():
     return ollama_base()
 
 
+def model_vocabularies() -> str:
+    """Vocabulaires FERMÉS d'un manifeste `model`, SERVIS par le code (l'agent choisit dedans,
+    il n'invente pas) — accesseur UNIQUE des rôles qui écrivent un manifeste `model`.
+
+    Vivait dans `run_model_manifest.py` (`vocabulaires`). Remonté ici le 2026-09-30 : le rôle
+    frère `scout` écrit le MÊME manifeste et ne recevait AUCUN de ces vocabulaires. Vécu au
+    1er passage réel des avatars (qwen3.8, LongCat-Video-Avatar-1.5) : `inputs_required
+    ['audio']`, `inputs_optional ['image']` — manifeste invalide, exactement le défaut que
+    `e750fa74` avait corrigé pour le seul rôle `model`. *Une garde se pose avec ses jumeaux.*
+
+    Import PARESSEUX, comme `ollama_host` : Django n'est exigé qu'à l'appel.
+    """
+    from wama.common.backends.manager import known_engines
+    from wama.common.utils.app_modes import INPUT_TYPES
+    from wama.common.utils.model_capabilities import CANONICAL_CAPABILITIES
+    from wama.model_manager.models import ModelSource, ModelTask, ModelType
+
+    engines = sorted(known_engines())
+    return (
+        f"capabilities.task — valeurs autorisées : {', '.join(sorted(ModelTask.values))}\n"
+        # Servi depuis le 2026-09-29 : sans lui, gpt-oss-120b a déclaré `seed, steps, cfg`
+        # (des réglages) comme entrées d'un modèle texte→image.
+        f"capabilities.inputs_required / inputs_optional — ids d'ENTRÉES (données fournies, "
+        f"jamais des réglages) : {', '.join(sorted(INPUT_TYPES))}\n"
+        f"identity.model_type — valeurs autorisées : {', '.join(sorted(ModelType.values))}\n"
+        f"identity.source — valeurs autorisées : {', '.join(sorted(ModelSource.values))}\n"
+        f"clés canoniques de `capabilities` : {', '.join(sorted(CANONICAL_CAPABILITIES))}\n"
+        f"composition.runtime.engine — moteurs DÉJÀ SERVIS par un backend : "
+        f"{', '.join(engines) or '(aucun)'}\n"
+    )
+
+
+def diffusers_class_known(class_name) -> bool:
+    """Vrai si `class_name` est exporté par le `diffusers` INSTALLÉ.
+
+    `dir()` d'un module paresseux (`_LazyModule`) liste ses noms SANS importer les sous-modules :
+    `hasattr` les importerait (mesuré : TensorFlow et xformers chargés, plusieurs minutes).
+    """
+    if not class_name:
+        return False
+    import diffusers
+    return str(class_name) in dir(diffusers)
+
+
+def diffusers_pipeline_class(hf_id):
+    """(`_class_name` du `model_index.json` racine, ou None ; raison lisible) — fait MÉCANIQUE."""
+    import json as _json
+    from huggingface_hub import hf_hub_download
+    try:
+        path = hf_hub_download(hf_id, 'model_index.json')
+    except Exception:
+        return None, "aucun model_index.json à la racine du dépôt"
+    with open(path, encoding='utf-8') as f:
+        class_name = (_json.load(f) or {}).get('_class_name')
+    if not class_name:
+        return None, "model_index.json sans _class_name"
+    return class_name, f"model_index.json nomme {class_name!r}"
+
+
+def enforce_engine_facts(manifest, hf_id, concerns, reader=diffusers_pipeline_class):
+    """Retire `composition.runtime.engine = 'diffusers'` quand le dépôt ne le PROUVE pas.
+
+    Vécu le 2026-09-30 (qwen3.8, avatars) : LongCat-Video-Avatar-1.5 et SoulX-FlashHead portent
+    un `model_index.json` et des fichiers `diffusion_pytorch_model.safetensors`, et le rôle a
+    déclaré `diffusers` — alors que leur `_class_name` (absent, `WanModelAudioProject`) n'existe
+    pas dans `diffusers`, et que sa PROPRE remarque disait « pas un pipeline diffusers standard ».
+    La consigne alignée n'a rien changé au run suivant : *une consigne de prompt n'est pas un
+    contrôle*. Un moteur faux ne grise pas le modèle (le backend `diffusers` existe) : il le rend
+    proposable puis fait échouer le chargement. Retirer le moteur le laisse GRISÉ avec sa raison,
+    ce qui est le comportement voulu tant qu'aucun backend ne l'exécute.
+    Les faits mécaniques priment sur le jugement du LLM, comme la licence ou la taille.
+    """
+    runtime = (((manifest.get('body') or {}).get('composition') or {}).get('runtime') or {})
+    if runtime.get('engine') != 'diffusers':
+        return manifest
+    class_name, reason = reader(hf_id)
+    if diffusers_class_known(class_name):
+        return manifest
+    runtime.pop('engine', None)
+    if not runtime:
+        manifest['body']['composition'].pop('runtime', None)
+    concerns.append(f"engine 'diffusers' RETIRÉ (fait mécanique) : {reason}, "
+                    f"classe inconnue de diffusers — un backend dédié reste à écrire")
+    return manifest
+
+
 def consigne_role(nom):
     """Consigne système d'un RÔLE de wama-dev-ai (`prompts/<nom>.txt`) — accesseur UNIQUE.
 

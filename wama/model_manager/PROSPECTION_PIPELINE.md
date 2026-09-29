@@ -1959,3 +1959,50 @@ chantier, comme le synthesizer) ; la provenance d'un reconditionnement (décisio
 `base_model` désigne déjà la dorsale d'une LoRA) ; puis l'option (b), les poids officiels.
 ⚠ Relevé en passant : `Flux2KleinBackend.generate` lit `params.num_inference_steps`, absent de
 `GenerationParams` (le champ est `steps`) — toute génération FLUX.2 Klein lève.
+
+## Session du 2026-09-30 : la chaîne ÉPROUVÉE par qwen3.8 sur les avatars — deux trous du scout
+
+**Demande de Fabien** : ajouter des modèles à l'avatarizer (veille approfondie d'abord,
+`docs/construction/archive/PROSPECTION_AVATARS_2026-09-30.md`), et *« éprouver l'existant avec
+qwen3.8, sinon Albert »*. Premier maillon joué : le rôle `scout` (tirage par défaut du mécanisme
+= `qwen3.8:latest` en local, ~5 min par dépôt) sur les trois têtes de liste —
+`meituan-longcat/LongCat-Video-Avatar-1.5`, `MeiGen-AI/InfiniteTalk`,
+`Soul-AILab/SoulX-FlashHead-1_3B`. Rien n'est installé ni semé en candidat : sorties dans
+`wama-dev-ai/outputs/scout_*_2026-09-30_*.json`, `PENDING_HUMAN_VALIDATION`.
+
+**Trou ① — le scout ne recevait AUCUN vocabulaire fermé hormis `model_type`.** `e750fa74` avait
+servi `INPUT_TYPES` au seul rôle `model` ; le scout écrit le même manifeste. Mesuré : LongCat
+(`inputs_required ['audio']`, `inputs_optional ['image']`) et InfiniteTalk (`['audio','video']`)
+INVALIDES. Correctif : `role_utils.model_vocabularies()` (ex-`vocabulaires()` de
+`run_model_manifest.py`, remonté et partagé) servi aux DEUX rôles. Après : SoulX et LongCat
+VALIDES. Garde générique `tests_dev_ai_bridge.ModelVocabulariesServedToEveryRoleTest` (tout
+`run_*.py` qui valide un manifeste sert les vocabulaires, sauf `run_librarian.py` déclaré) ;
+contre-épreuve faite (appel retiré → rouge sur `run_scout.py`).
+
+**Trou ② — `engine: diffusers` déclaré sans preuve.** LongCat et SoulX portent un
+`model_index.json` et des `diffusion_pytorch_model.safetensors` ; qwen3.8 a écrit `diffusers`
+alors que sa PROPRE remarque disait « pas un pipeline diffusers standard ». La consigne du scout
+a été alignée sur celle du rôle `model` (`prompts/scout.txt` règle 7) — **le run suivant n'a RIEN
+changé** : une consigne n'est pas un contrôle. Fait mécanique mesuré : le `_class_name` de
+`model_index.json` est ABSENT (LongCat) ou `WanModelAudioProject` (SoulX), inconnu de
+`diffusers` 0.37 — témoins `StableDiffusionXLPipeline`, `LTXPipeline` connus. Contrôle :
+`role_utils.enforce_engine_facts` retire `engine: diffusers` non prouvé (le modèle reste GRISÉ
+avec sa raison, comme voulu) et le dit dans `concerns` ; appliqué par les deux rôles. ⚠ Le 1ᵉʳ
+critère envisagé (« pas de `model_index.json` ») était FAUX : les deux dépôts en ont un.
+Rejoué sur les 5 sorties réelles : 4 retraits justes, `comfyui` d'InfiniteTalk intact. Garde
+`DiffusersEngineMustBeProvenTest`, contre-épreuve faite. `dir(diffusers)` et non `hasattr` :
+`hasattr` importe les sous-modules (TensorFlow, xformers — plusieurs minutes mesurées).
+
+**Reste en travers — jugements sémantiques que le LLM rate encore** (ils relèvent du geste
+**Valider**, c'est voulu) : `task` = `image-to-video`/`text-to-video` au lieu de `lip-sync`
+(celle de MuseTalk et de l'avatarizer) ; photo en `reference_image` là où MuseTalk déclare
+`work_image` ; `vram_gb` estimé (16/24 Go) sans source publiée.
+
+**Limite STRUCTURELLE relevée — aucune route pour le CODE d'inférence.** Les trois candidats
+s'exécutent par un dépôt GitHub d'amont (les trois `concerns` le disent), comme MuseTalk et
+CodeFormer (`wama/common/backends/vendor/README.md`) : clone épinglé + sous-processus. Ce
+clonage n'a pas de route WAMA — un script par moteur (`setup_avatarizer.sh`,
+`tools/setup_triposr.sh`) —, et la route `library` le refuse PAR DÉCISION (verrous `git+`,
+`ROADMAP §16.7`). La chaîne scout → install → rôle `backend` apporte donc manifeste et poids,
+pas le moteur : **décision de Fabien** (une route « vendor » déclarée — dépôt + commit épinglé,
+comme la table du README — ou le geste humain par moteur). Signalée, pas prise.

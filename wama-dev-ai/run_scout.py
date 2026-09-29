@@ -41,8 +41,8 @@ import django
 django.setup()
 
 from role_utils import (  # noqa: E402
-    REPO_ROOT, add_llm_arguments, call_llm, extract_json, fetch, manifest_examples,
-    resolve_model, write_output)
+    REPO_ROOT, add_llm_arguments, call_llm, enforce_engine_facts, extract_json, fetch,
+    manifest_examples, model_vocabularies, resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'scout.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'models'
@@ -137,8 +137,6 @@ def main():
 
     base, inventaire = squelette(args.hf)
 
-    from wama.model_manager.models import ModelType
-    taxonomie = ', '.join(sorted(ModelType.values))
     # Exemple(s) de MÊME NATURE que la cible — un dépôt HuggingFace —, et de forme COMPOSÉE
     # quand la cible porte plusieurs fichiers de poids : c'est alors `composition` qu'il faut
     # montrer. Avant le 2026-09-19 c'était `sorted(glob)[:1]`, donc le premier par ordre
@@ -148,7 +146,11 @@ def main():
                    if ligne.strip().lower().endswith(_EXT_POIDS))
     exemples = manifest_examples(EXEMPLES_DIR, prefer_source='huggingface__',
                                  want_composed=nb_poids > 1, limit=2)
-    user_msg = (f'TAXONOMIE model_type (fermée) : {taxonomie}\n\n'
+    # Les vocabulaires FERMÉS, servis par le code et partagés avec le rôle `model` (2026-09-30) :
+    # la taxonomie `model_type` seule ne suffisait pas — sans INPUT_TYPES, qwen3.8 a déclaré
+    # `audio`/`image` comme entrées de LongCat-Video-Avatar (manifeste invalide).
+    user_msg = (f'VOCABULAIRES AUTORISÉS (choisir dedans, ne rien inventer) :\n'
+                f'{model_vocabularies()}\n\n'
                 f'EXEMPLE de manifeste `model` valide :\n{exemples}\n\n'
                 f'SQUELETTE mécanique (à COMPLÉTER, jamais contredire) :\n'
                 f'{json.dumps(base, ensure_ascii=False, indent=1)}\n\n'
@@ -186,6 +188,7 @@ def main():
         for k in chemin[:-1]:
             cible = cible.setdefault(k, {})
         cible[chemin[-1]] = valeur
+    enforce_engine_facts(manifest, args.hf, concerns)
 
     from wama.common.manifests.ingest import validate
     erreurs = list(validate(manifest) or [])

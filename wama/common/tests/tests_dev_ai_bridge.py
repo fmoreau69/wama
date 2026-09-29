@@ -129,6 +129,104 @@ class CheckSkillsTest(SimpleTestCase):
             self.fail(f"`--strict` a échoué sur un corpus sans défaut franc : {e}")
 
 
+class ModelVocabulariesServedToEveryRoleTest(SimpleTestCase):
+    """Les vocabulaires FERMÉS d'un manifeste `model` sont servis à TOUT rôle qui en écrit un.
+
+    Vécu le 2026-09-30 : `e750fa74` avait servi `INPUT_TYPES` au seul rôle `model` ; le rôle
+    frère `scout` écrit le même manifeste et, sans ce vocabulaire, qwen3.8 a déclaré `audio`/
+    `image` comme entrées de LongCat-Video-Avatar-1.5 (manifeste invalide). La garde est
+    GÉNÉRIQUE : elle part de ce que fait un rôle (valider un manifeste), pas d'une liste.
+    """
+
+    #: Rôles qui valident un manifeste d'un AUTRE kind — exemptés, avec leur raison.
+    OTHER_KINDS = {'run_librarian.py': 'écrit des manifestes `library` (vocabulaire pip)'}
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    def _validating_roles(self):
+        return sorted(p.name for p in DEV_AI.glob('run_*.py')
+                      if 'manifests.ingest import validate' in p.read_text(encoding='utf-8'))
+
+    def test_every_manifest_writing_role_receives_the_vocabularies(self):
+        roles = self._validating_roles()
+        self.assertIn('run_scout.py', roles, "garde d'instrument : le relevé ne voit plus le scout")
+        for name in roles:
+            if name in self.OTHER_KINDS:
+                continue
+            with self.subTest(role=name):
+                self.assertIn('model_vocabularies()', (DEV_AI / name).read_text(encoding='utf-8'),
+                              f"{name} valide un manifeste sans servir les vocabulaires fermés")
+
+    def test_no_exemption_outlives_its_role(self):
+        for name in self.OTHER_KINDS:
+            with self.subTest(role=name):
+                self.assertIn(name, self._validating_roles(),
+                              f"exemption devenue inutile : {name} ne valide plus de manifeste")
+
+    def test_the_vocabularies_carry_every_input_type(self):
+        from wama.common.utils.app_modes import INPUT_TYPES
+        text = self.role_utils.model_vocabularies()
+        for input_id in INPUT_TYPES:
+            with self.subTest(input_id=input_id):
+                self.assertIn(input_id, text)
+
+
+class DiffusersEngineMustBeProvenTest(SimpleTestCase):
+    """`engine: diffusers` n'est gardé que si le `_class_name` du dépôt existe dans `diffusers`.
+
+    Cas réels du 2026-09-30 (qwen3.8) : LongCat-Video-Avatar-1.5 (`model_index.json` sans
+    `_class_name`) et SoulX-FlashHead (`WanModelAudioProject`) déclarés `diffusers`. Témoins
+    réels : `StableDiffusionXLPipeline`, `LTXPipeline`.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    @staticmethod
+    def _manifest(engine='diffusers'):
+        return {'body': {'composition': {'components': [{'role': 'vae', 'pattern': 'v.pth'}],
+                                         'runtime': {'engine': engine}}}}
+
+    def _enforce(self, manifest, class_name):
+        concerns = []
+        reader = lambda _hf: (class_name, f'model_index.json nomme {class_name!r}')
+        self.role_utils.enforce_engine_facts(manifest, 'org/repo', concerns, reader=reader)
+        return manifest, concerns
+
+    def test_a_real_diffusers_pipeline_keeps_its_engine(self):
+        manifest, concerns = self._enforce(self._manifest(), 'StableDiffusionXLPipeline')
+        self.assertEqual('diffusers', manifest['body']['composition']['runtime']['engine'])
+        self.assertEqual([], concerns)
+
+    def test_an_unknown_pipeline_class_loses_the_engine_and_says_why(self):
+        manifest, concerns = self._enforce(self._manifest(), 'WanModelAudioProject')
+        composition = manifest['body']['composition']
+        self.assertNotIn('runtime', composition, "un moteur non prouvé ne doit pas survivre")
+        self.assertTrue(composition['components'], "les composants, eux, restent")
+        self.assertEqual(1, len(concerns))
+        self.assertIn('WanModelAudioProject', concerns[0])
+
+    def test_no_model_index_loses_the_engine(self):
+        manifest, _ = self._enforce(self._manifest(), None)
+        self.assertNotIn('runtime', manifest['body']['composition'])
+
+    def test_another_engine_is_left_to_its_own_judgment(self):
+        """Le contrôle ne tranche QUE ce que le fait prouve : il ne touche pas `musetalk`."""
+        manifest, concerns = self._enforce(self._manifest('musetalk'), None)
+        self.assertEqual('musetalk', manifest['body']['composition']['runtime']['engine'])
+        self.assertEqual([], concerns)
+
+    def test_both_manifest_roles_apply_it(self):
+        for name in ('run_scout.py', 'run_model_manifest.py'):
+            with self.subTest(role=name):
+                self.assertIn('enforce_engine_facts(', (DEV_AI / name).read_text(encoding='utf-8'))
+
+
 class FournisseurDesRolesTest(SimpleTestCase):
     """`role_utils.call_llm` (2026-09-15, Albert API) : les rôles choisissent leur fournisseur.
 
