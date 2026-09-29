@@ -18664,7 +18664,7 @@ français, 1313 > 1311, par DEUX de mes noms anglais contenant des mots ambigus 
   n'y publie plus (`memory://`, vérifié). Seul son CACHE (db1) sert encore à un `manage.py`
   Windows hors tests. À vider sur GO.
 
-## §CLÔTURE — 2026-09-29, « PORTAGE CARD v4 (plan d) + MÉDIATHÈQUE + GRILLE » — ✅ plan (d) TERMINÉ, 21 commits NON poussés — 🔚 relancer WAMA (gunicorn + celery) puis portage des apps suivantes en card v4
+## §CLÔTURE — 2026-09-29, « PORTAGE CARD v4 (plan d) + MÉDIATHÈQUE + GRILLE » — ✅ plan (d) TERMINÉ, 21 commits dont 6 NON poussés — 🔚 relancer WAMA (gunicorn + celery) puis portage des apps suivantes en card v4
 
 > Session du 28/09 18:50 au 29/09 17:30 (une instance, périmètre : cards d'entrée v3/v4, médiathèque
 > et sa fenêtre de sélection, avatarizer, grille de conformité, reader/enhancer/imager au
@@ -18726,7 +18726,7 @@ médiathèque, le grisage du reader — candidats pour un test V8 dans `tests_de
   `/avatarizer/` servent l'ancien code, et un gabarit neuf lu à chaud peut rendre 500.
 - **Après relance seulement** : retirer la table `enhancer.UserSettings` (R83 : modèle retiré +
   `makemigrations enhancer` + `migrate`) — la retirer avant ferait échouer l'ancien code.
-- **Push** : 21 commits à moi (plus ceux des autres instances) — à la décision de Fabien.
+- **Push** : 6 commits à moi restent locaux (`e2c821b5`, `25947526`, `4adb8820`, `96b45d8a`, `66fef5ee` + la clôture) — les 15 premiers ont été poussés par une autre instance pendant la clôture ; décision de Fabien.
 - Catalogue : lignes `avatarizer:codeformer` et `reader:*` resynchronisées à la main (script de
   scratchpad) ; la prochaine synchro complète les réécrit à l'identique.
 
