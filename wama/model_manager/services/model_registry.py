@@ -2808,8 +2808,11 @@ class ModelRegistry:
                     extra_info={'path': str(CODEFORMER_MODELS_DIR),
                                 'pipeline': 'codeformer',
                                 'model_id': 'codeformer'},
+                    # `pipeline_stage` (2026-09-29) : il restaure les images que MuseTalk produit —
+                    # une étape de la chaîne, pas une porte d'entrée de l'avatarizer. Son entrée
+                    # reste déclarée (elle est vraie pour le modèle), elle n'ouvre plus de port.
                     capabilities={'task': 'face-restoration', 'modalities': ['image', 'video'],
-                                  'inputs_required': ['work_file']},
+                                  'inputs_required': ['work_file'], 'pipeline_stage': True},
                     backend_ref='avatarizer',
                     format='pth',
                     preferred_format='pth',

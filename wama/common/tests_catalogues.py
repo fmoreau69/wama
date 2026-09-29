@@ -1441,6 +1441,40 @@ class InputCardSaysWhereSettingsLiveTest(TestCase):
         self.assertEqual([], offenders, 'the sentence belongs to common/_settings_hint.html only')
 
 
+class PipelineStageOpensNoPortTest(TestCase):
+    """Une ÉTAPE INTERNE de la chaîne d'une app n'ouvre pas de port d'entrée (2026-09-29).
+
+    CodeFormer restaure les images que MuseTalk produit ; il déclarait `inputs_required:
+    ['work_file']`, vrai pour lui, et l'union des modèles de l'avatarizer ouvrait donc un faux
+    port « Fichier de travail », dans la card comme dans le studio (question de Fabien : « je ne
+    vois pas le rapport avec codeformer pour les ports d'entrée »). La capacité `pipeline_stage`
+    le dit : ses entrées sont produites par la chaîne."""
+
+    def _model(self, key, inputs, **caps):
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(
+            model_key=f'avatarizer:{key}', name=key, model_type='vision', source='avatarizer',
+            is_available=True, is_downloaded=True,
+            capabilities={'task': 'lip-sync', 'inputs_required': inputs, **caps})
+
+    def test_a_stage_model_opens_no_port(self):
+        from wama.common.app_registry import app_input_ports
+        self._model('entry', ['work_image', 'work_audio'])
+        self._model('stage', ['work_file'], pipeline_stage=True)
+        self.assertEqual(['work_audio', 'work_image'], [p['id'] for p in app_input_ports('avatarizer')])
+
+    def test_without_the_flag_the_same_model_opens_its_port(self):
+        """Contre-épreuve : c'est bien le drapeau qui ferme le port, pas autre chose."""
+        from wama.common.app_registry import app_input_ports
+        self._model('entry', ['work_image', 'work_audio'])
+        self._model('stage', ['work_file'])
+        self.assertIn('work_file', [p['id'] for p in app_input_ports('avatarizer')])
+
+    def test_the_capability_is_in_the_canonical_vocabulary(self):
+        from wama.common.utils.model_capabilities import is_canonical_key
+        self.assertTrue(is_canonical_key('pipeline_stage'))
+
+
 class ObligationDesSlotsVientDesModelesTest(TestCase):
     """Un slot ne s'annonce « requis » que si TOUS les modèles retenus l'exigent.
 
