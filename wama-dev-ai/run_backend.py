@@ -175,7 +175,8 @@ def main():
     code = extract_code(reply)
 
     checks = bp.check_source(code, engine=engine, model_id=model_id, contract=contract)
-    resolution = (bp.simulate_resolution(code, module=module, engine=engine, model_id=model_id)
+    resolution = (bp.simulate_resolution(code, module=module, engine=engine, model_id=model_id,
+                                         task=task)
                   if checks['ok'] else None)
     smoke = None
     if checks['ok'] and not args.no_smoke:

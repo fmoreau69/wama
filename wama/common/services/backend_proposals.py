@@ -35,17 +35,9 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-#: Contrat à implémenter selon la TÂCHE du modèle — module du paquet `backends`, classe.
-#: Déclaré ici (le choix d'une base n'est pas déductible d'un manifeste) ; le reste se DÉRIVE
-#: du contrat (méthodes abstraites, lues par AST).
-CONTRACTS = {
-    'text-to-image': ('image_generation_base', 'ImageGenerationBackend'),
-    'text-to-video': ('image_generation_base', 'ImageGenerationBackend'),
-    'image-to-video': ('image_generation_base', 'ImageGenerationBackend'),
-    'text-to-speech': ('tts_base', 'TTSBackend'),
-    'transcription': ('speech_to_text_base', 'SpeechToTextBackend'),
-    'detect': ('detection_base', 'DetectionBackend'),
-}
+#: Contrat à implémenter selon la TÂCHE du modèle : la table vit dans `backend_inventory`
+#: (`TASK_CONTRACTS`), là où elle filtre aussi la résolution — une seule table, deux usages.
+#: Le reste se DÉRIVE du contrat (méthodes abstraites, lues par AST).
 DEFAULT_CONTRACT = ('base', 'BaseModelBackend')
 
 #: Mutation du cache HF dans l'environnement — interdite (AGENTS.md, 2026-09-03).
@@ -67,7 +59,10 @@ def outputs_dir() -> Path:
 
 
 def contract_for_task(task: str) -> tuple:
-    return CONTRACTS.get(task or '', DEFAULT_CONTRACT)
+    """(module, classe) du contrat qu'un backend écrit pour `task` doit implémenter."""
+    from .backend_inventory import TASK_CONTRACTS
+    spec = TASK_CONTRACTS.get(task or '')
+    return spec[:2] if spec else DEFAULT_CONTRACT
 
 
 def required_methods(contract: tuple) -> set:
@@ -148,8 +143,11 @@ def check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> d
     return {'ok': not errors, 'errors': errors, 'warnings': warnings, 'class_name': cls.name}
 
 
-def simulate_resolution(code: str, *, module: str, engine: str, model_id: str) -> dict:
-    """La résolution que l'inventaire fera APRÈS écriture : le vivier réel + cette entrée."""
+def simulate_resolution(code: str, *, module: str, engine: str, model_id: str,
+                        task: str = '') -> dict:
+    """La résolution que l'inventaire fera APRÈS écriture : le vivier réel + cette entrée.
+    ⚠ L'entrée simulée n'existe pas sur disque : sa lignée est inconnue (`_class_lineage` →
+    None), donc le filtre de contrat la GARDE — c'est `check_source` qui atteste son contrat."""
     from .backend_inventory import BackendEntry, resolvable_entries, resolve_entry
     tree = ast.parse(code)
     supported = []
@@ -161,7 +159,7 @@ def simulate_resolution(code: str, *, module: str, engine: str, model_id: str) -
     mine = BackendEntry(app='common', name=module, path=module, kind='classe', engine=engine,
                         supported_models=supported, module=f'wama.common.backends.{module}')
     rivals = [e for e in resolvable_entries() if e.engine == engine]
-    chosen = resolve_entry(engine, model_id, entries=resolvable_entries() + [mine])
+    chosen = resolve_entry(engine, model_id, entries=resolvable_entries() + [mine], task=task)
     return {'resolved': chosen is mine,
             'rivals': [e.module or e.name for e in rivals],
             'chosen': (chosen.module if chosen is not None else None)}

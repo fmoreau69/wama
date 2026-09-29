@@ -143,7 +143,7 @@ def known_engines() -> set:
 # est une décision de l'appelant.*
 
 
-def backend_for_engine(engine: str, model_id: str = '', entries=None):
+def backend_for_engine(engine: str, model_id: str = '', entries=None, task: str = ''):
     """Classe de backend qui pilote `engine` (et sert `model_id` si le moteur est partagé).
 
     None a plusieurs causes, qui ne se valent pas — `known_engines()` et `engine_backends()`
@@ -152,7 +152,7 @@ def backend_for_engine(engine: str, model_id: str = '', entries=None):
     backends candidats sans `SUPPORTED_MODELS` pour trancher ; module illisible.
     """
     from wama.common.services.backend_inventory import resolve_backend
-    classe = resolve_backend(engine, model_id, entries)
+    classe = resolve_backend(engine, model_id, entries, task=task)
     # ⚠ GARDE : `engine_backends()` peut rendre un PORTEUR qui n'est pas un backend — le
     # porteur du démon Ollama en est un. Une première version rendait cet objet, qui n'a ni
     # `load` ni `process` : l'appelant aurait cru tenir un backend. On ne rend QUE le contrat.
@@ -177,7 +177,10 @@ def backend_for_model(model, entries=None):
     # `model_key` vaut `<source>:<model_id>` — et parfois `<source>:<famille>:<id>` (yolo).
     # C'est le DERNIER segment qui porte l'identifiant qu'un `SUPPORTED_MODELS` déclarerait.
     cle = getattr(model, 'model_key', '') or ''
-    return backend_for_engine(engine, cle.rsplit(':', 1)[-1] if cle else '', entries)
+    # La TÂCHE voyage (2026-09-29) : un moteur partagé entre tâches ne suffit pas à choisir —
+    # cf. `backend_inventory.TASK_CONTRACTS`.
+    task = (getattr(model, 'capabilities', None) or {}).get('task') or ''
+    return backend_for_engine(engine, cle.rsplit(':', 1)[-1] if cle else '', entries, task=task)
 
 
 def backend_for_key(model_key: str, entries=None):

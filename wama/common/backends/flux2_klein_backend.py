@@ -179,7 +179,10 @@ class Flux2KleinBackend(ImageGenerationBackend):
 
         model_info = SUPPORTED_MODELS.get(self._current_model, {})
         guidance_scale = float(params.guidance_scale or model_info.get("default_guidance_scale", 1.0))
-        num_steps = int(params.num_inference_steps or model_info.get("default_steps", 4))
+        # `steps` : le champ de `GenerationParams`. Ce backend lisait `num_inference_steps`, qui
+        # n'existe pas — l'AttributeError levait HORS du try, donc toute génération FLUX.2 Klein
+        # échouait (relevé le 2026-09-29 en lisant ce fichier comme voisin du rôle `backend`).
+        num_steps = int(params.steps or model_info.get("default_steps", 4))
         width = int(params.width or 1024)
         height = int(params.height or 1024)
         num_images = int(params.num_images or 1)
