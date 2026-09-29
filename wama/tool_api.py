@@ -2410,8 +2410,9 @@ def plan_model_integration(user, model: str) -> dict:
     elif not moteur:
         etape = ("aucun moteur DÉCLARÉ : le modèle ne peut pas être routé vers un backend, "
                  "et le grisage automatique n'a pas de verdict à rendre")
-        geste = (f"python wama-dev-ai/run_model_manifest.py --catalog {row.model_key}"
-                 "   # puis relire, puis write_back(apply=True)")
+        geste = (f"rôle `model` (dev_run_role, ou python wama-dev-ai/run_model_manifest.py "
+                 f"--catalog {row.model_key}) — la proposition arrive au model manager, "
+                 "section « Propositions » : relire le plan, puis Valider")
     elif sans_backend:
         etape = f"{sans_backend} : le modèle est proposé GRISÉ et refusé au lancement"
         geste = (f"écrire le backend du moteur « {moteur} » sur le contrat commun "

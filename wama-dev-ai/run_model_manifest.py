@@ -20,8 +20,9 @@ Pilote BORNÉ (mêmes leçons que librarian) :
      simple, choisis mécaniquement) ;
   4. sortie validée MÉCANIQUEMENT (`ingest.validate`) puis DIFFÉE contre la vérité terrain
      (`extract_model`) sur les seuls champs que la découverte MESURE ;
-  5. écrit dans `outputs/` avec PENDING_HUMAN_VALIDATION — n'ingère JAMAIS en base.
-     La projection reste le geste explicite `ingest.write_back(apply=True)`.
+  5. écrit dans `outputs/` avec PENDING_HUMAN_VALIDATION et DÉPOSE la proposition au magasin
+     en bac à sable (`manifests.proposals.propose`, 2026-09-29) — ne PROJETTE jamais. La
+     projection est le geste « Valider » du model manager (`proposals.apply`).
 
 ⚠ GARDE GPU — le rôle COOPÈRE avec le mode dépannage, il ne s'y dérobe pas (recadrage
 Fabien, 2026-09-03) : `WAMA_GPU_SAFE_MODE` est un interrupteur de CONDITIONS (« réduire la
@@ -251,6 +252,14 @@ def main():
     })
 
     print(f'[model] → {sortie.relative_to(REPO_ROOT)}')
+    # La proposition entre au MAGASIN, en bac à sable (2026-09-29) : c'est là que le geste
+    # « Valider » du model manager la trouve (plan, puis application). Le fichier d'`outputs/`
+    # reste la trace brute du rôle ; il n'est plus le seul endroit où la proposition existe.
+    if cle:
+        from wama.common.manifests.proposals import propose
+        obj = propose(manifest, origin=str(sortie.relative_to(REPO_ROOT)))
+        print(f'[model] proposition en attente de validation : {obj.manifest_kind}:{obj.key}'
+              + (f' ({len(obj.errors)} erreur(s))' if obj.errors else ''))
     print(f'[model] validation : {len(erreurs)} erreur(s)'
           + (f' — {erreurs[:3]}' if erreurs else ' — manifeste VALIDE'))
     if verite:
@@ -260,8 +269,8 @@ def main():
         print('[model] pas de vérité terrain (modèle non catalogué) — validation humaine seule')
     moteur = ((manifest.get('body') or {}).get('composition') or {}).get('runtime') or {}
     if moteur.get('engine'):
-        print(f"[model] moteur proposé : {moteur['engine']} — projeter avec "
-              "`ingest.write_back(manifest, apply=True)` APRÈS validation humaine")
+        print(f"[model] moteur proposé : {moteur['engine']} — à valider au model manager "
+              "(section « Propositions »)")
 
 
 if __name__ == '__main__':

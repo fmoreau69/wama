@@ -825,6 +825,17 @@ qu'attendent WamaInspector (inspectorActions) et le JS de la page : ne pas renom
     </div>
     <p id="mmProspectStatus" class="small text-muted mb-0 mt-1">Détecte MAJ + modèles concurrents. Résultats sous le filtre « ✨ Proposés par IA ».</p>
 </div>
+{% comment %} Propositions de MANIFESTES (2026-09-29) : ce qu'un rôle wama-dev-ai a écrit (anatomie,
+moteur, capacités) attend ici la décision humaine — le cycle sandbox → vérifié → promu de
+WAMA_MANIFEST_ARCHITECTURE §4, qui n'avait jusqu'ici aucun geste hors terminal. Masqué s'il n'y
+a rien en attente. {% endcomment %}
+<div id="mmProposals" class="mt-3 p-2 rounded d-none" style="background:rgba(25,135,84,0.10);border:1px solid rgba(25,135,84,0.45);">
+    <div class="small text-light fw-semibold mb-1">
+        <i class="fas fa-clipboard-check me-1" style="color:#75b798"></i>Propositions à valider
+        <span id="mmProposalsCount" class="badge bg-success ms-1">0</span>
+    </div>
+    <div id="mmProposalsList"></div>
+</div>
 {# mmSystemRow (cleaner + idle models) déplacé ici par JS ; masqué quand une card est sélectionnée. #}
 <div id="mmSystemTitle" class="small text-light fw-semibold mt-3 mb-1">
     <i class="fas fa-memory me-1" style="color:#8ecae6"></i>Mémoire &amp; modèles chargés
@@ -1809,7 +1820,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // main branché sur le seul clic de la croix laissait le volet incomplet après
     // Échap. mmCatalogSection y figure car il vit hors de #media-section et n'est
     // donc pas couvert par keepMediaSection.
-    const MM_HIDE_ON_INSPECT = ['mmSystemRow', 'mmSystemTitle', 'mmProspectBar', 'mmCatalogSection'];
+    const MM_HIDE_ON_INSPECT = ['mmSystemRow', 'mmSystemTitle', 'mmProspectBar', 'mmProposals',
+                                'mmCatalogSection'];
 
     // Pendant de renderModelInspector : remise du volet à « aucune sélection ».
     function mmResetPanel() {
@@ -2001,6 +2013,58 @@ document.addEventListener('DOMContentLoaded', function() {
         if (assessBtn) assessBtn.addEventListener('click', mmRunAssess);
         const benchBtn = document.getElementById('mmBenchBtn');
         if (benchBtn) benchBtn.addEventListener('click', mmRunBench);
+        mmLoadProposals();
+    }
+
+    // ── Propositions de manifestes (2026-09-29) ─────────────────────────────────────────
+    // Le PLAN vient du serveur (`proposals.plan`) : champs comblés, divergences NON appliquées,
+    // erreurs. Valider = superposition + write-back + promotion + corpus ; Rejeter ne défait rien.
+    async function mmLoadProposals() {
+        const box = document.getElementById('mmProposals');
+        const list = document.getElementById('mmProposalsList');
+        if (!box || !list) return;
+        let items = [];
+        try {
+            const r = await fetch('{% url "model_manager:api_manifest_proposals" %}');
+            items = ((await r.json()).proposals) || [];
+        } catch (e) { console.error('Propositions indisponibles :', e); }
+        document.getElementById('mmProposalsCount').textContent = items.length;
+        box.classList.toggle('d-none', items.length === 0);
+        const esc = WamaApp.escapeHtml;
+        list.innerHTML = items.map(p => {
+            const errors = p.errors || [], filled = p.filled || [], div = p.divergences || [];
+            return `<div class="border-top border-secondary pt-1 mt-1 small">
+                <div class="text-light text-break">${esc(p.kind || '')} · <code>${esc(p.key || '')}</code></div>
+                <div class="text-muted text-break">${p.origin ? 'Origine : ' + esc(p.origin) : ''}</div>
+                ${filled.length ? `<div class="text-success">Comblé : ${filled.map(esc).join(', ')}</div>` : ''}
+                ${div.map(d => `<div class="text-warning text-break">Divergence ${esc(d.path)} : établi
+                    <code>${esc(JSON.stringify(d.current))}</code>, proposé <code>${esc(JSON.stringify(d.proposed))}</code>
+                    — non appliqué</div>`).join('')}
+                ${errors.map(e => `<div class="text-danger text-break">${esc(e)}</div>`).join('')}
+                <div class="d-flex gap-1 mt-1">
+                    <button type="button" class="btn btn-sm btn-success py-0" data-proposal="${p.id}"
+                            data-decision="apply" ${errors.length || !filled.length ? 'disabled' : ''}
+                            title="${errors.length ? 'Invalide : corriger la proposition' : (filled.length ? 'Appliquer au catalogue et au corpus' : 'Rien à combler')}">
+                        <i class="fas fa-check me-1"></i>Valider</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" data-proposal="${p.id}"
+                            data-decision="reject"><i class="fas fa-xmark me-1"></i>Rejeter</button>
+                </div></div>`;
+        }).join('');
+        list.querySelectorAll('button[data-proposal]').forEach(b => b.addEventListener('click', async () => {
+            b.disabled = true;
+            try {
+                const r = await fetch('{% url "model_manager:api_manifest_proposal_decide" %}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify({ id: Number(b.dataset.proposal), decision: b.dataset.decision })
+                });
+                const data = await r.json();
+                if (!data.success) WamaApp.toast((data.errors || [data.error || 'Échec']).join(' ; '), 'danger');
+                else WamaApp.toast(b.dataset.decision === 'apply' ? 'Proposition appliquée.' : 'Proposition rejetée.', 'success');
+            } catch (e) { WamaApp.toast('Échec : ' + e, 'danger'); }
+            mmLoadProposals();
+            loadModels();
+        }));
     }
 
     function attachUnloadHandlers() {
