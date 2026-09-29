@@ -42,21 +42,27 @@ def _shuttle_positions(session):
     return out
 
 
-def is_giant_reflection(det, iw, ih, area_frac=0.5, max_conf=0.55):
+def is_giant_reflection(det, iw, ih, area_frac=0.5, max_conf=0.55, unusable_frac=0.9):
     """Reflet « fantôme géant » (vitrage) : bbox couvrant > area_frac de l'image AVEC
     confiance < max_conf. Un vrai véhicule aussi gros serait détecté avec forte
     confiance. Complément géométrique du critère cinématique (bbox fixe) pour les
-    reflets fragmentés qui bougent trop pour être « statiques en image »."""
+    reflets fragmentés qui bougent trop pour être « statiques en image ».
+    Au-delà de `unusable_frac` de l'image, écartée QUELLE QUE SOIT la confiance (2026-09-29) :
+    une boîte qui touche les quatre bords n'a aucune géométrie exploitable (ni contact sol, ni
+    hauteur, ni centre) — mesuré : un « bus » conf 0,66 sur TOUTE la vue arrière (reflet),
+    devenu un fantôme de bus superposé à la navette."""
     if det.get('type') in ('sam3_marking', 'road_mask'):
         return False
     conf = det.get('confidence')
     bb = det.get('bbox')
-    if conf is None or conf >= max_conf or not (isinstance(bb, (list, tuple)) and len(bb) >= 4):
+    if conf is None or not (isinstance(bb, (list, tuple)) and len(bb) >= 4):
         return False
     if not iw or not ih:
         return False
     frac = ((bb[2] - bb[0]) * (bb[3] - bb[1])) / float(iw * ih)
-    return frac > area_frac
+    if frac > unusable_frac:
+        return True
+    return conf < max_conf and frac > area_frac
 
 
 def detect_static_artifacts(session, min_dur_s=10.0, max_px_drift=4.0,
