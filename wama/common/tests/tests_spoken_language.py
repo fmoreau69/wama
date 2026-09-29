@@ -33,6 +33,26 @@ class LanguageAgreementTest(SimpleTestCase):
                          language_agreement([{'start_time': 0, 'end_time': 5}], []))
 
 
+class ProbeWindowsTest(SimpleTestCase):
+    """La sonde écoute par fenêtres de 10 s (une phrase), pas 30 s (FLEURS-CS, 2026-09-29)."""
+
+    def test_a_five_minute_file_is_heard_in_24_ten_second_windows_spread_over_it(self):
+        from wama.common.utils import spoken_language
+        windows = []
+
+        def decode(path, target_sr, start_s, duration_s):
+            windows.append((start_s, duration_s))
+            return np.zeros(16000, dtype=np.float32), 16000
+        with mock.patch('wama.common.utils.audio_decode.decode_window', side_effect=decode), \
+                mock.patch.object(spoken_language, '_model') as model:
+            model.return_value.detect_language.return_value = ('fr', 0.9, [])
+            heard = spoken_language.probe_languages('x.wav', 300.0)
+        self.assertEqual(24, len(heard))
+        self.assertTrue(all(d == 10 for _, d in windows))
+        self.assertLess(windows[0][0], 10)
+        self.assertGreater(windows[-1][0], 280)
+
+
 class LanguagesHeardTest(SimpleTestCase):
 
     def test_only_confident_windows_vote_and_the_most_frequent_comes_first(self):

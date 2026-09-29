@@ -60,21 +60,26 @@ def detect_spoken_language(audio_16k, supported: Optional[Iterable[str]] = None)
 #: Probabilité à partir de laquelle une fenêtre compte comme « entendue dans cette langue ».
 #: En dessous, la fenêtre est muette ou ambiguë (bruit, rires, parole superposée) : elle ne vote pas.
 CONFIDENT_PROBABILITY = 0.7
-PROBE_WINDOWS = 8
+#: Fenêtres de la sonde : 10 s, la durée d'une phrase — PAS celle de Whisper (30 s). Mesuré le
+#: 2026-09-29 sur FLEURS-CS (bascules toutes les 8-15 s) : en fenêtres de 30 s, 40 cards « auto »
+#: sur 90 n'entendaient qu'UNE langue — une fenêtre mêlait 2-3 phrases, et le petit modèle y
+#: rendait la majoritaire ou une probabilité trop basse pour voter.
+PROBE_WINDOW_SECONDS = 10
+PROBE_WINDOWS = 24
 
 
-def probe_languages(path, duration_s: float, windows: int = PROBE_WINDOWS) -> list:
-    """[(langue, probabilité)] de fenêtres de 30 s RÉPARTIES sur tout l'audio (pas seulement le
-    début : une réunion peut s'ouvrir sur une autre langue que celle qu'elle parle). Modèle `tiny`
-    sur CPU — aucune VRAM, quelques secondes."""
+def probe_languages(path, duration_s: float, windows: int = PROBE_WINDOWS,
+                    window_s: float = PROBE_WINDOW_SECONDS) -> list:
+    """[(langue, probabilité)] de fenêtres RÉPARTIES sur tout l'audio (pas seulement le début :
+    une réunion peut s'ouvrir sur une autre langue que celle qu'elle parle). Modèle `tiny` sur
+    CPU — aucune VRAM, quelques secondes."""
     from wama.common.utils.audio_decode import decode_window
     duration_s = float(duration_s or 0)
-    count = max(1, min(windows, int(duration_s // WINDOW_SECONDS) or 1))
+    count = max(1, min(windows, int(duration_s // window_s) or 1))
     heard = []
     for i in range(count):
-        start = max(0.0, (i + 0.5) * duration_s / count - WINDOW_SECONDS / 2) if duration_s else 0.0
-        audio, _ = decode_window(path, target_sr=SAMPLE_RATE, start_s=start,
-                                 duration_s=WINDOW_SECONDS)
+        start = max(0.0, (i + 0.5) * duration_s / count - window_s / 2) if duration_s else 0.0
+        audio, _ = decode_window(path, target_sr=SAMPLE_RATE, start_s=start, duration_s=window_s)
         if audio is None or not len(audio):
             continue
         language, probability, _ = _model().detect_language(audio=audio)

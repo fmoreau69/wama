@@ -116,13 +116,31 @@ class NemoASRBackend(SpeechToTextBackend):
         from django.conf import settings
         return Path(settings.MODEL_PATHS['speech'][settings_key])
 
+    #: En dessous, la langue détectée d'un passage est INCERTAINE : on lui préfère le repli.
+    UNSURE_PROBABILITY = 0.5
+
     @staticmethod
-    def _spoken_language(audio) -> str:
+    def _spoken_language(audio, fallback: str = None) -> str:
         """Langue PARLÉE, détectée quand l'élément n'en donne pas (`spoken_language`). ⚠ Jamais
         la langue du site : c'était le repli du premier passage, et `LANGUAGE_CODE = 'en-us'` a
-        fait TRADUIRE un extrait français en anglais par Canary (2026-09-28)."""
+        fait TRADUIRE un extrait français en anglais par Canary (2026-09-28).
+
+        `fallback` (2026-09-29) : la langue du passage PRÉCÉDENT, ou celle de la sonde du worker.
+        Un passage dont la détection est hors des langues du moteur, ou incertaine, la prend —
+        vécu sur FLEURS-CS (#904) : un passage de 30 s détecté « la » (latin, p = 0,40) faisait
+        échouer TOUTE la card. Sans repli, le refus d'avant reste (jamais de langue devinée)."""
         from wama.common.utils.spoken_language import detect_spoken_language
-        return detect_spoken_language(audio, supported=NEMO_LANGUAGES)[0]
+        try:
+            language, probability = detect_spoken_language(audio, supported=NEMO_LANGUAGES)
+        except ValueError as exc:
+            if fallback:
+                logger.info(f"[NeMo] {exc} — langue du repli : {fallback}")
+                return fallback
+            raise
+        if fallback and language != fallback and probability < NemoASRBackend.UNSURE_PROBABILITY:
+            logger.info(f"[NeMo] « {language} » incertaine (p={probability:.2f}) — repli : {fallback}")
+            return fallback
+        return language
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -230,7 +248,8 @@ class NemoASRBackend(SpeechToTextBackend):
             options = {'timestamps': True}
             # Langue : donnée, sinon ENTENDUE — pour Canary qui l'exige, et pour tous parce que
             # le résultat la porte (l'aligneur acoustique est choisi par elle).
-            lang = (language or '').split('-')[0].lower() or self._spoken_language(audio)
+            lang = (language or '').split('-')[0].lower() or self._spoken_language(
+                audio, fallback=kwargs.get('fallback_language'))
             if self.SUPPORTED_MODELS[self._model_id]['multitask']:
                 # Canary : transcription = MÊME langue en entrée et en sortie (sinon il traduit).
                 options.update(source_lang=lang, target_lang=lang, pnc='yes')

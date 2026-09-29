@@ -97,6 +97,25 @@ class LanguageTest(SimpleTestCase):
         self.assertFalse(result.success)
         self.assertIn('zh', result.error)
 
+    def _heard(self, language, probability, fallback):
+        from unittest import mock
+        captured = {}
+        backend, audio = self._canary(captured)
+        with audio, mock.patch('wama.common.utils.spoken_language._model') as model:
+            model.return_value.detect_language.return_value = (language, probability, [])
+            result = backend.transcribe('clip.wav', fallback_language=fallback)
+        return result, captured.get('source_lang')
+
+    def test_an_unsupported_pass_takes_the_fallback_instead_of_failing_the_card(self):
+        """FLEURS-CS #904 : un passage détecté « la » (latin, p = 0,40) faisait échouer la card."""
+        result, source = self._heard('la', 0.40, fallback='fr')
+        self.assertTrue(result.success)
+        self.assertEqual('fr', source)
+
+    def test_an_unsure_pass_takes_the_fallback_a_sure_one_keeps_its_language(self):
+        self.assertEqual('fr', self._heard('es', 0.35, fallback='fr')[1])
+        self.assertEqual('es', self._heard('es', 0.90, fallback='fr')[1], 'une bascule sûre est suivie')
+
 
 class WiringTest(TestCase):
 
