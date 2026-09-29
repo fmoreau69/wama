@@ -38,6 +38,18 @@ class PortsReceiveDesignationsTest(TestCase):
 
     _user_for = _contract.ContratUploadDesAppsPorteesTest._utilisateur
 
+    def setUp(self):
+        # L'avatar NOMMÉ du cas avatarizer doit EXISTER : depuis le 2026-09-29 un nom se résout
+        # dans la médiathèque et se désigne (`designate_named_avatar`) ; avant, il était stocké tel
+        # quel et le job n'échouait qu'au lancement.
+        from wama.media_library.models import SystemAsset
+        ext, content = _WITNESSES['image']
+        rel = 'media_library/system/avatar/witness' + ext
+        path = Path(settings.MEDIA_ROOT) / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content())
+        SystemAsset.objects.create(name='witness.png', asset_type='avatar', file=rel)
+
     def _witness(self, owner, stem, nature):
         ext, content = _WITNESSES[nature]
         rel = f'users/{owner.id}/temp/{stem}{ext}'

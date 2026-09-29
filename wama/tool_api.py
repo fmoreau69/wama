@@ -1859,8 +1859,9 @@ def add_to_avatarizer(
         language:            Langue TTS (ex: 'fr') — mode pipeline
         voice_preset:        Voix TTS (ex: 'default') — mode pipeline
         audio_path:          Chemin (relatif à MEDIA_ROOT) d'un audio — requis si mode='standalone'
-        avatar_source:       'gallery' (galerie partagée) | 'upload' (image fournie)
-        avatar_gallery_name: Nom de l'avatar dans la galerie — requis si avatar_source='gallery'
+        avatar_source:       'gallery' (avatar NOMMÉ) | 'upload' (image fournie par son chemin)
+        avatar_gallery_name: Nom d'un avatar de la médiathèque que l'utilisateur voit (les siens,
+                             les partagés, le système) — requis si avatar_source='gallery'
         avatar_image_path:   Chemin (relatif à MEDIA_ROOT) d'une image avatar — requis si 'upload'
         quality_mode:        'fast' (MuseTalk seul) | 'quality' (MuseTalk + CodeFormer)
         use_enhancer:        Appliquer l'enhancer facial (défaut: False)
@@ -1901,23 +1902,26 @@ def add_to_avatarizer(
         job.audio_input = received.value
         designated.append((received, 'audio_input'))
 
+    # L'avatar est TOUJOURS désigné comme depuis la card (2026-09-29) : un NOM se résout parmi les
+    # avatars que l'utilisateur voit (les siens, les partagés, le système) ; un chemin se désigne.
     avatar_source = avatar_source if avatar_source in ('gallery', 'upload') else 'gallery'
-    job.avatar_source = avatar_source
-    if avatar_source == 'gallery':
-        if not avatar_gallery_name:
-            return {'error': "Sélectionnez un avatar de la galerie (avatar_gallery_name)."}
-        job.avatar_gallery_name = avatar_gallery_name
-    else:
-        if not avatar_image_path:
-            return {'error': "Fournissez une image avatar (avatar_image_path)."}
-        try:
+    try:
+        if avatar_source == 'gallery':
+            if not avatar_gallery_name:
+                return {'error': "Choisissez un avatar de la médiathèque (avatar_gallery_name)."}
+            from wama.avatarizer.system_assets import designate_named_avatar
+            image = designate_named_avatar(avatar_gallery_name, user)
+        else:
+            if not avatar_image_path:
+                return {'error': "Fournissez une image avatar (avatar_image_path)."}
             image = designate(avatar_image_path, user, 'avatarizer')
-        except InputRefused as e:
-            return {'error': str(e)}
-        if category_of_path(image.name) != 'image':
-            return {'error': f'Format image non supporté : {Path(image.name).suffix}.'}
-        job.avatar_upload = image.value
-        designated.append((image, 'avatar_upload'))
+    except InputRefused as e:
+        return {'error': str(e)}
+    if category_of_path(image.name) != 'image':
+        return {'error': f'Format image non supporté : {Path(image.name).suffix}.'}
+    job.avatar_source = 'upload'
+    job.avatar_upload = image.value
+    designated.append((image, 'avatar_upload'))
 
     job.quality_mode = quality_mode if quality_mode in ('fast', 'quality') else 'fast'
     job.use_enhancer = bool(use_enhancer)

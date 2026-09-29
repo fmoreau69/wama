@@ -199,30 +199,35 @@ def create(request):
 
     # --- Source de l'avatar ---
     # La card v4 poste toujours un FICHIER (joint ou désigné — un avatar système de la médiathèque
-    # est pointé comme les autres, 2026-09-29). Le NOM de galerie reste reçu des autres appelants
-    # (lots, Studio) : sans `avatar_source` explicite, la source se déduit de ce qui est posté.
-    avatar_source = request.POST.get('avatar_source') or (
-        'gallery' if request.POST.get('avatar_gallery_name') else 'upload')
-    job.avatar_source = avatar_source
-    avatar_file = None
-
-    if avatar_source == 'gallery':
-        avatar_name = request.POST.get('avatar_gallery_name', '')
+    # est pointé comme les autres, 2026-09-29).
+    # Un NOM posté (`avatar_gallery_name`, ou `avatar_source='gallery'`) se résout parmi les
+    # avatars que l'utilisateur voit et se DÉSIGNE (`designate_named_avatar`) : le job reçoit le
+    # fichier, comme depuis la card — aucun job neuf ne stocke plus un nom (2026-09-29).
+    avatar_name = request.POST.get('avatar_gallery_name', '').strip()
+    by_name = request.POST.get('avatar_source') == 'gallery' or (
+        avatar_name and not request.POST.get('avatar_source'))
+    if by_name:
         if not avatar_name:
-            return JsonResponse({'error': 'Sélectionnez un avatar dans la galerie.'}, status=400)
-        job.avatar_gallery_name = avatar_name
+            return JsonResponse({'error': 'Choisissez un avatar.'}, status=400)
+        from wama.common.utils.media_paths import InputRefused
+        from .system_assets import designate_named_avatar
+        try:
+            avatar_file = designate_named_avatar(avatar_name, user)
+        except InputRefused as e:
+            return JsonResponse({'error': str(e)}, status=400)
     else:
         avatar_received = received_inputs(request, user, 'avatarizer', field='avatar_upload')
         avatar_file = avatar_received[0] if avatar_received else None
         if not avatar_file:
             return JsonResponse({'error': avatar_received.refusal or "Importez une image avatar."},
                                 status=400)
-        validator = FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp'])
-        try:
-            validator(avatar_file)
-        except ValidationError as e:
-            return JsonResponse({'error': str(e)}, status=400)
-        job.avatar_upload = avatar_file.value
+    validator = FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp'])
+    try:
+        validator(avatar_file)
+    except ValidationError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    job.avatar_source = 'upload'
+    job.avatar_upload = avatar_file.value
 
     # --- Paramètres pipeline MuseTalk ---
     job.use_enhancer = request.POST.get('use_enhancer', str(prefs['use_enhancer']).lower()) == 'true'
@@ -845,6 +850,14 @@ def batch_preview(request):
         }
         for r in rows
     ]
+    # Un avatar que l'utilisateur ne voit pas se dit AVANT la création (2026-09-29) : sinon le job
+    # naît puis échoue au lancement sur « Avatar introuvable ».
+    from wama.media_library.services import resolve_visible_asset
+    user = _get_user(request)
+    for r in rows:
+        if r['avatar_gallery_name'] and not resolve_visible_asset(user, 'avatar', r['avatar_gallery_name']):
+            warnings.append(f"Ligne {r.get('line_num') or '?'} : avatar introuvable dans la "
+                            f"médiathèque — {r['avatar_gallery_name']}")
     return JsonResponse({'items': preview, 'warnings': warnings, 'count': len(rows)})
 
 
@@ -860,6 +873,14 @@ def batch_create(request):
     media_root = Path(settings.MEDIA_ROOT).resolve()
 
     def _make_job(row):
+        # L'avatar NOMMÉ par la ligne est désigné comme depuis la card (les siens, les partagés, le
+        # système — 2026-09-29) ; introuvable, le nom est gardé et l'aperçu du lot l'a signalé.
+        from wama.common.utils.media_paths import InputRefused
+        from .system_assets import designate_named_avatar
+        try:
+            avatar = designate_named_avatar(row['avatar_gallery_name'], user)
+        except InputRefused:
+            avatar = None
         job = AvatarJob(
             user=user,
             mode=row['mode'],
@@ -867,8 +888,8 @@ def batch_create(request):
             tts_model=row['tts_model'],
             language=row['language'],
             voice_preset=row['voice_preset'],
-            avatar_source='gallery',
-            avatar_gallery_name=row['avatar_gallery_name'],
+            avatar_source='upload' if avatar else 'gallery',
+            avatar_gallery_name='' if avatar else row['avatar_gallery_name'],
             use_enhancer=row['use_enhancer'],
             quality_mode='quality' if row['use_enhancer'] else 'fast',
             bbox_shift=row['bbox_shift'],
@@ -881,7 +902,11 @@ def batch_create(request):
                 job.audio_input.name = rel
             except (OutsideMediaRoot, FileNotFoundError):
                 pass
+        if avatar:
+            job.avatar_upload = avatar.value
         job.save()
+        if avatar:
+            avatar.record(job, 'avatar_upload')
         return job
 
     jobs = [_make_job(r) for r in rows]

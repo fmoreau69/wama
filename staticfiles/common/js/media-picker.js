@@ -24,6 +24,13 @@
  * `onSelect` servait à le re-téléverser — une copie. Une card qui POINTE l'asset n'a besoin que de
  * son chemin ; `onPick` prime sur `onSelect` quand les deux sont donnés.
  *
+ * APERÇU AVANT LE CHOIX (2026-09-29, demande : « sinon on ne sait pas de quoi il s'agit ») : un
+ * clic MONTRE l'asset dans le volet d'aperçu de la fenêtre — le rendu INLINE commun
+ * (`WamaInspector.renderInlinePreview` : image, vidéo, lecteur audio commun, PDF, texte), celui
+ * du volet droit des apps ; « Choisir » confirme, un DOUBLE-CLIC choisit directement. Avant, un
+ * clic choisissait à l'aveugle, et tout ce qui n'était pas une image portait la même icône
+ * « fichier audio » (vidéos, documents, modèles 3D compris).
+ *
  * Prérequis: window.ML_LIST_URL doit être défini avant l'appel
  *   <script>const ML_LIST_URL = "{% url 'media_library:api_list' %}";</script>
  */
@@ -34,6 +41,7 @@ const MediaPicker = (() => {
   let _activeType = 'all';   // l'onglet courant : catégorie ou nature
   let _activeExact = false;  // nature EXACTE (`image`, `video`, `document` sont aussi des catégories)
   let _tabsShown  = false;   // les onglets ne se demandent qu'une fois par ouverture
+  let _focused    = null;    // l'asset montré dans l'aperçu, celui que « Choisir » retiendra
 
   // ── Modal HTML ─────────────────────────────────────────────────────────────
 
@@ -58,17 +66,35 @@ const MediaPicker = (() => {
       </div>
       <div class="modal-body p-2">
         <div id="mp-tabs" class="nav nav-pills gap-1 mb-2" role="tablist"></div>
-        <div id="mp-grid"
-             class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-2">
+        <div class="row g-2">
+          <div class="col-12 col-lg-8">
+            <div id="mp-grid"
+                 class="row row-cols-2 row-cols-sm-3 row-cols-md-4 g-2">
+            </div>
+            <div id="mp-spinner" class="text-center py-5">
+              <div class="spinner-border text-info" role="status"></div>
+              <p class="text-muted small mt-2">Chargement…</p>
+            </div>
+            <div id="mp-empty" class="text-center text-muted py-5" style="display:none">
+              <i class="fas fa-inbox fa-2x mb-2"></i><br>Aucun asset trouvé
+            </div>
+            <div id="mp-error" class="alert alert-danger mt-2" style="display:none"></div>
+          </div>
+          <div class="col-12 col-lg-4">
+            <div id="mp-preview" class="border border-secondary rounded p-2 h-100">
+              <div id="mp-preview-empty" class="text-center text-muted small py-4">
+                <i class="fas fa-eye fa-lg mb-2 d-block"></i>
+                Cliquez sur un élément pour l'aperçu<br>— double-clic pour le choisir.
+              </div>
+              <div id="mp-preview-body" style="display:none">
+                <div id="mp-preview-media" class="mb-2 text-center"></div>
+                <div class="small text-light text-break" id="mp-preview-name"></div>
+                <div class="small text-muted" id="mp-preview-meta"></div>
+                <div class="small text-muted mt-1" id="mp-preview-desc"></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div id="mp-spinner" class="text-center py-5">
-          <div class="spinner-border text-info" role="status"></div>
-          <p class="text-muted small mt-2">Chargement…</p>
-        </div>
-        <div id="mp-empty" class="text-center text-muted py-5" style="display:none">
-          <i class="fas fa-inbox fa-2x mb-2"></i><br>Aucun asset trouvé
-        </div>
-        <div id="mp-error" class="alert alert-danger mt-2" style="display:none"></div>
       </div>
       <div class="modal-footer border-secondary py-2">
         <small class="text-muted me-auto" id="mp-count"></small>
@@ -77,6 +103,9 @@ const MediaPicker = (() => {
         </button>
         <button type="button" class="btn btn-secondary btn-sm"
                 data-bs-dismiss="modal">Annuler</button>
+        <button type="button" id="mp-choose" class="btn btn-info btn-sm" disabled>
+          <i class="fas fa-check me-1"></i>Choisir
+        </button>
       </div>
     </div>
   </div>
@@ -94,6 +123,67 @@ const MediaPicker = (() => {
       const btn = document.getElementById('mp-load-more');
       _load(parseInt(btn.dataset.nextPage, 10), false);
     });
+
+    document.getElementById('mp-choose').addEventListener('click', () => {
+      if (_focused) _selectAsset(_focused);
+    });
+    // Fermer la fenêtre fait taire l'aperçu (un audio continuerait sinon, sans lecteur visible).
+    document.getElementById(MODAL_ID).addEventListener('hidden.bs.modal', _clearPreview);
+  }
+
+  // ── Aperçu (volet de la fenêtre) ───────────────────────────────────────────
+
+  /** Le type pour l'aperçu : `preview_mime` (résolu par le SERVEUR, du fichier quand le type
+   *  stocké manque — `media_library/views.py::_preview_mime`), sinon celui de la nature. */
+  function _mimeOf(asset) {
+    if (asset.preview_mime) return asset.preview_mime;
+    if (asset.mime_type) return asset.mime_type;
+    if (['image', 'avatar'].includes(asset.asset_type)) return 'image/*';
+    if (asset.asset_type === 'video') return 'video/*';
+    return '';
+  }
+
+  function _clearPreview() {
+    _focused = null;
+    const media = document.getElementById('mp-preview-media');
+    if (window.WamaAudioPlayer && WamaAudioPlayer.pauseAll) WamaAudioPlayer.pauseAll();
+    if (media) media.innerHTML = '';
+    const body = document.getElementById('mp-preview-body');
+    const empty = document.getElementById('mp-preview-empty');
+    if (body) body.style.display = 'none';
+    if (empty) empty.style.display = '';
+    const choose = document.getElementById('mp-choose');
+    if (choose) choose.disabled = true;
+    document.querySelectorAll('#mp-grid .mp-asset-card.mp-focused').forEach(c => {
+      c.classList.remove('mp-focused');
+      c.style.borderColor = '';
+    });
+  }
+
+  function _focus(asset, card) {
+    _clearPreview();
+    _focused = asset;
+    card.classList.add('mp-focused');
+    card.style.borderColor = '#0dcaf0';
+    const media = document.getElementById('mp-preview-media');
+    media.dataset.playerId = 'mediapicker';
+    const data = { url: asset.file_url, name: asset.name, mime_type: _mimeOf(asset) };
+    if (window.WamaInspector && WamaInspector.renderInlinePreview) {
+      WamaInspector.renderInlinePreview(media, data, false);
+    } else if (data.mime_type.indexOf('image/') === 0) {
+      media.innerHTML = `<img src="${_esc(asset.file_url)}" alt="" style="max-width:100%;max-height:220px">`;
+    }
+    // L'aperçu commun légende déjà le média par son nom : ne le répéter que s'il n'en a rien dit.
+    document.getElementById('mp-preview-name').textContent =
+      media.querySelector('small') ? '' : (asset.name || '');
+    document.getElementById('mp-preview-meta').textContent =
+      [asset.duration, asset.origin === 'system' ? 'Ressource système'
+        : asset.origin === 'shared' ? 'Partagé par ' + (asset.owner || '—') : '']
+        .filter(Boolean).join(' · ');
+    document.getElementById('mp-preview-desc').textContent = asset.description || '';
+    document.getElementById('mp-preview-empty').style.display = 'none';
+    document.getElementById('mp-preview-body').style.display = '';
+    document.getElementById('mp-choose').disabled = false;
   }
 
   // ── Load assets ────────────────────────────────────────────────────────────
@@ -123,6 +213,7 @@ const MediaPicker = (() => {
 
     errorDiv.style.display = 'none';
     if (reset) {
+      _clearPreview();
       grid.innerHTML = '';
       spinner.style.display = '';
       empty.style.display   = 'none';
@@ -212,34 +303,51 @@ const MediaPicker = (() => {
 
   // ── Build a card ───────────────────────────────────────────────────────────
 
+  /** L'icône d'un asset sans vignette, par la famille de son type. */
+  function _iconOf(mime) {
+    if (mime.indexOf('audio/') === 0) return 'fa-music';
+    if (mime === 'application/pdf') return 'fa-file-pdf';
+    if (mime.indexOf('text/') === 0) return 'fa-file-lines';
+    if (mime.indexOf('model/') === 0) return 'fa-cube';
+    return 'fa-file';
+  }
+
+  function _thumb(asset) {
+    const mime = _mimeOf(asset);
+    const url = _esc(asset.file_url);
+    const box = 'height:80px;border-radius:4px 4px 0 0';
+    if (mime.indexOf('image/') === 0) {
+      return `<img src="${url}" class="card-img-top" style="${box};object-fit:cover" alt="" loading="lazy">`;
+    }
+    if (mime.indexOf('video/') === 0) {
+      // La 1ʳᵉ image de la vidéo (`#t=0.1`, métadonnées seules) : ce qu'elle montre, pas une icône.
+      return `<video src="${url}#t=0.1" preload="metadata" muted playsinline
+                     class="card-img-top bg-black" style="${box};object-fit:cover"></video>`;
+    }
+    return `<div class="d-flex align-items-center justify-content-center bg-secondary bg-opacity-25"
+                 style="${box}"><i class="fas ${_iconOf(mime)} fa-2x text-secondary"></i></div>`;
+  }
+
   function _buildCard(asset) {
-    const isImage = ['image', 'avatar'].includes(asset.asset_type);
     const col = document.createElement('div');
     col.className = 'col';
     col.innerHTML = `
 <div class="card bg-dark border-secondary h-100 mp-asset-card"
      style="cursor:pointer;transition:border-color .15s"
-     title="${asset.name}">
-  ${isImage
-    ? `<img src="${asset.file_url}" class="card-img-top"
-            style="height:80px;object-fit:cover;border-radius:4px 4px 0 0" alt="">`
-    : `<div class="d-flex align-items-center justify-content-center bg-secondary bg-opacity-25"
-              style="height:80px;border-radius:4px 4px 0 0">
-         <i class="fas fa-file-audio fa-2x text-secondary"></i>
-       </div>`
-  }
+     title="${_esc(asset.name)} — clic : aperçu · double-clic : choisir">
+  ${_thumb(asset)}
   <div class="card-body p-1">
-    <small class="text-light d-block text-truncate" style="font-size:.7rem"
-           title="${asset.name}">${asset.name}</small>
+    <small class="text-light d-block text-truncate" style="font-size:.7rem">${_esc(asset.name)}</small>
     ${_originBadge(asset)}
-    ${asset.duration ? `<small class="text-muted" style="font-size:.65rem">${asset.duration}</small>` : ''}
+    ${asset.duration ? `<small class="text-muted" style="font-size:.65rem">${_esc(asset.duration)}</small>` : ''}
   </div>
 </div>`;
 
     const card = col.querySelector('.mp-asset-card');
-    card.addEventListener('mouseenter', () => card.style.borderColor = '#0dcaf0');
-    card.addEventListener('mouseleave', () => card.style.borderColor = '');
-    card.addEventListener('click', () => _selectAsset(asset));
+    card.addEventListener('mouseenter', () => { if (_focused !== asset) card.style.borderColor = '#6c757d'; });
+    card.addEventListener('mouseleave', () => { if (_focused !== asset) card.style.borderColor = ''; });
+    card.addEventListener('click', () => _focus(asset, card));
+    card.addEventListener('dblclick', () => _selectAsset(asset));
     return col;
   }
 
@@ -247,6 +355,7 @@ const MediaPicker = (() => {
 
   async function _selectAsset(asset) {
     const modal = bootstrap.Modal.getInstance(document.getElementById(MODAL_ID));
+    if (window.WamaAudioPlayer && WamaAudioPlayer.pauseAll) WamaAudioPlayer.pauseAll();
 
     // Désignation : rien à télécharger, l'appelant pointe l'asset par son chemin.
     if (_options.onPick) {
@@ -301,6 +410,7 @@ const MediaPicker = (() => {
     document.getElementById('mp-error').style.display   = 'none';
     document.getElementById('mp-load-more').style.display = 'none';
     document.getElementById('mp-count').textContent = '';
+    _clearPreview();
 
     const modal = new bootstrap.Modal(document.getElementById(MODAL_ID));
     modal.show();

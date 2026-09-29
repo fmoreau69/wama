@@ -1430,7 +1430,7 @@
         "audio"
       ],
       "input_kwarg": "audio_path",
-      "io_scope": "nœud V1 = audio seul ; l'avatar vient de la galerie (fixed_kwargs), pas du port image de la card",
+      "io_scope": "nœud V1 = audio seul ; l'avatar est NOMMÉ (réglage du nœud, avatars de la médiathèque que l'utilisateur voit), pas relié au port image",
       "params_attr": "PARAMS_JSON",
       "params_module": "wama.avatarizer.params",
       "runnable": true

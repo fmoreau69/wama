@@ -243,8 +243,10 @@ def api_run_options(request):
     # fort : la médiathèque. Ce bloc RECOPIAIT le parcours de dossier de `avatarizer.views`
     # (deux scans pour une seule galerie) ; les deux lisent désormais `SystemAsset`, donc ils
     # ne peuvent plus diverger. Le studio n'a besoin que des NOMS pour sa liste d'options.
-    from wama.media_library.services import gallery_entries
-    gallery = [e['name'] for e in gallery_entries()]
+    # 2026-09-29 : la liste est celle que l'utilisateur VOIT (les siens, les partagés, le système)
+    # — la même que la card de l'avatarizer ; le nom choisi se résout par `designate_named_avatar`.
+    from wama.media_library.services import visible_asset_names
+    gallery = visible_asset_names(request.user, 'avatar')
     return JsonResponse({'params_specs': specs, 'options': {'avatar_gallery': gallery}})
 
 

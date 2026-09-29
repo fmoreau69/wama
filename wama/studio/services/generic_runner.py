@@ -73,8 +73,8 @@ GENERIC_APPS = {
     },
     'avatarizer': {
         'input_kinds': ('audio',),
-        'io_scope': "nœud V1 = audio seul ; l'avatar vient de la galerie (fixed_kwargs), "
-                    "pas du port image de la card",
+        'io_scope': "nœud V1 = audio seul ; l'avatar est NOMMÉ (réglage du nœud, avatars "
+                    "de la médiathèque que l'utilisateur voit), pas relié au port image",
         'input_kwarg': 'audio_path',                    # signature historique (déclaré)
         # `mode` n'est plus figé (2026-08-28) : il se DÉRIVE des entrées dans tool_api —
         # un nœud alimenté en audio sort standalone tout seul.

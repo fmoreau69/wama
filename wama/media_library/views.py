@@ -77,11 +77,24 @@ def _serialize_user_asset(a, user=None):
         'file_size':   a.file_size_display,
         'duration':    a.duration_display,
         'mime_type':   a.mime_type,
+        'preview_mime': _preview_mime(a),
         'description': a.description,
         'tags':        a.tags,
         'attributes':  a.attributes or {},
         'created_at':  a.created_at.strftime('%d/%m/%Y'),
     }
+
+
+def _preview_mime(a):
+    """Le type pour l'APERÇU : celui stocké, sinon celui du FICHIER (`guess_mime_type`).
+
+    Un asset ancien ou importé sans sonde a un `mime_type` vide ou générique ; la fenêtre de
+    sélection n'aurait rien su montrer (2026-09-29). `mime_type` reste la donnée STOCKÉE."""
+    stored = a.mime_type or ''
+    if stored and stored != 'application/octet-stream':
+        return stored
+    from wama.common.utils.mime_utils import guess_mime_type
+    return guess_mime_type(a.file.name) if a.file else stored
 
 
 def _serialize_system_asset(a):
@@ -95,6 +108,7 @@ def _serialize_system_asset(a):
         'file_size':   a.file_size_display,
         'duration':    a.duration_display,
         'mime_type':   a.mime_type,
+        'preview_mime': _preview_mime(a),
         'description': a.description,
         'tags':        a.tags,
         'attributes':  a.attributes or {},

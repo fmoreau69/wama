@@ -1458,15 +1458,18 @@ def check_app_url_import(app: str, url_path: str):
         # Sans message, le bouton est MORT — la brique commune l'a rendu, rien ne l'écoute,
         # et l'utilisateur clique dans le vide sans que rien ne le lui dise. Avec un message,
         # la chaîne a tourné jusqu'à un refus DÉLIBÉRÉ : l'avatarizer proxie son bouton URL
-        # vers le bouton primaire, qui exige aussi un avatar (`avatarizer/js/index.js:236`) —
-        # et ce bouton primaire CRÉE ET DÉMARRE (`createJob` puis `startJob`), donc un geste
-        # GPU, hors session. Le premier jet appelait ça un défaut : c'était l'instrument qui
-        # confondait « rien ne se passe » et « on m'a expliqué pourquoi ».
+        # vers le bouton primaire, qui exige aussi un avatar (autre port de la card). Le premier
+        # jet appelait ça un défaut : c'était l'instrument qui confondait « rien ne se passe » et
+        # « on m'a expliqué pourquoi ».
+        # ⚠ Ce motif disait jusqu'au 2026-09-29 que le bouton primaire « crée ET démarre » (geste
+        # GPU) : c'était vrai de l'avatarizer, qui ne lance plus à la création depuis son passage
+        # en card v4 (`CARD_DESIGN §11.11` Étape 3, point 3). Ce qui manque au geste, c'est de
+        # remplir l'AUTRE port requis — pas une précaution GPU.
         if dits:
             raise SkipScenario(
                 f"le clic ne poste rien, mais l'app a rendu son motif : « {dits[0][:200]} » — "
-                f"sa voie URL dépend d'un autre champ et passe par le bouton primaire, qui "
-                f"crée ET démarre. Geste GPU : non mesurable en session" + trace)
+                f"sa voie URL dépend d'un autre port requis de la card, que ce geste ne remplit "
+                f"pas : non mesuré ici" + trace)
         if reagi:
             # Le bouton a BOUGÉ (disabled + spinner de `initUrlImport`) : quelque chose
             # l'écoute, la chaîne est partie — mais rien n'en est ressorti d'observable.
