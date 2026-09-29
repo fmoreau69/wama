@@ -264,6 +264,14 @@ chez nous ne serait pas une équipe d'agents mais **une délégation par domaine
 fenêtre et son propre sous-ensemble d'outils** — ce qui répond aussi à écart 2 (un outil coûteux rend un
 résumé au lieu de son JSON). ⚠ Et ça n'exige **pas** LangGraph : la boucle existante suffit.
 
+**Une marche plus basse, avant le sous-agent** (relevé le 2026-09-30, veille AnythingLLM —
+`ROADMAP §16.2`) : **présélectionner les outils par requête** au lieu d'annoncer les 71. L'éditeur
+annonce jusqu'à −80 % de jetons — chiffre **d'éditeur, non mesuré**. Chez nous les pièces existent :
+`TOOL_REGISTRY` (les descriptions), `bge-m3` et le rappel hybride de `wama/common/memory/` (le
+classement). ⚠ Le risque est l'inverse du gain : un outil écarté à tort est un outil que le modèle
+**ne peut plus appeler** — donc un domaine forcé (celui choisi par `assistant_skills.py`) plutôt
+qu'une similarité seule, et une mesure (tours où l'outil utile manquait) avant toute bascule.
+
 ### Écart 4 — ~~L'historique diverge par surface~~ **REFERMÉ, et il l'était déjà quand je l'ai écrit**
 
 > ⚠⚠ **Corrigé le 2026-09-20. C'est une erreur de méthode, pas un détail** : le 19/09 j'ai écrit
@@ -639,6 +647,8 @@ jour où l'aiguillage par mime de `renderInlinePreview` sera un registre et non 
   Ce sont des **composants**. ⚠ Deux d'entre eux touchent quand même des axes d'ici : **Langfuse**
   (observabilité, écart 6) et **Headroom** (compression, écart 2, aujourd'hui réservé au dev) — les citer
   depuis écart 6/écart 9 le moment venu, ne pas les rapatrier.
+- **AnythingLLM** (2026-09-30) → `ROADMAP §16.2` : un produit chat + RAG, rejeté comme LibreChat ;
+  son seul apport d'ici est la présélection d'outils (écart 3).
 - **llmfit**, **YuE2 / ACE-Step** → `ROADMAP §16.2` également, mais ce sont respectivement un
   outil de mesure et un **modèle** : ils n'ont rien à faire dans une cartographie de harnais.
   *(Leur présence en §16.2 est le signe que cette section est devenue un fourre-tout ; ce n'est pas
@@ -797,5 +807,6 @@ aucune migration, aucun changement de contrat de surface.
 
 | date | ce qui a été fait |
 |---|---|
+| **2026-09-30** | **AnythingLLM évalué** (demande de Fabien) : rejeté comme composant et comme UI (`ROADMAP §16.2`), compatible comme client MCP de WAMA sans rien écrire ; une piste ajoutée à l'écart 3 (présélection d'outils). ⚠ Ma première réponse confondait le niveau `project` du RAG avec un « sac de documents » : `Project` est le **projet de recherche** inter-établissements (`common/models.py:353`), et le « sac » n'ajoutait rien au RAG par niveaux — corrigé avant consignation. |
 | **2026-09-20** | **Deux constats de la veille CORRIGÉS par la mesure, tous deux relevés par Fabien.** ① *« l'assistant détruit sans approbation »* mélangeait deux questions : **ajouter une capacité** est **déjà fermé** (`install_model` gardé `model_manager`, `AppAccessPolicy.min_tier='developpeur'`, relevé en base — 4 apps sur 19 portent ce palier), seul **agir sur ses propres données** reste sans confirmation. La règle posée en échange : *le jour où on ouvre l'ajout de capacité à un utilisateur, il faut une approbation* — et ce qui garde aujourd'hui est **une ligne en base**, donc à un clic d'admin. ② L'écart « historique » était **déjà refermé** : les trois surfaces passent par `conversation_turn` et le `localStorage` est effacé — je l'avais écrit en citant la **table §A de `WAMA_LLM` (15/09)** au lieu d'ouvrir le code, ce que la doctrine interdit explicitement. ③ Précision de vocabulaire : **l'assistant est commun et inter-mondes**, `home.html` n'est qu'une surface. ④ Les codes `E1`/`D1` deviennent **Écart N / Décision N** (illisibles autrement). ⑤ Le §9, jugé *« vaporeux »*, devient **cinq chantiers explicites** (quoi / où / contrat / ce qui l'atteste / dépendances) + quatre questions avec leur déclencheur. ⚠ *Deuxième fois dans la même passe qu'une source datée me fait écrire un constat faux : une passe de veille doit ouvrir le code, même quand une doc récente semble répondre.* |
 | **2026-09-19** | **Création.** Cartographie de 20+ produits (12 ouverts, 4 fermés, 5 frameworks, 4 standards) sur **14 axes** issus d'une taxonomie de 13 harnais lus dans leur code. État WAMA **mesuré ligne à ligne** le jour même (71 outils, 15 registres, 11 skills de prompt). **6 écarts réels** retenus (écart 1, écart 2, écart 3, écart 5, écart 6, écart 8-écart 10), **3 axes où WAMA est en avance**, **7 frontières voulues** consignées comme réponses. Hermes **déplacé mot pour mot** depuis `ROADMAP §16.7` ; **Cordis consigné pour la première fois** (décision du 2026-08-20 qui ne vivait qu'en mémoire d'agent). Deux affirmations externes reçues **corrigées par la mesure** : `wire_api` n'a plus qu'une valeur, et `sampling` MCP est **déprécié**. 6 décisions ouvertes (décision 1-décision 6). |
