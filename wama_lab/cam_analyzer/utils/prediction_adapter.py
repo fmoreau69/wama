@@ -500,6 +500,7 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
 
     count, dirty = 0, set()
     _ttc, _pet = [], []      # A/B : ce que la bascule change SE COMPTE, ne se regarde pas
+    _sh_cache = {}           # extrapolation navette par instant, commune à tous les objets
     for gid, rows in by_gid.items():
         rows.sort(key=lambda r: r[0])
         # Trajectoire monde continue ; dédupliquer les ts identiques (2 caméras) par moyenne.
@@ -522,7 +523,8 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
             if ego_long > max_range_m:
                 continue
             if idx % K == 0:
-                last = ttc_pet_shuttle_object(sh_traj, obj_traj, ts, method=method, class_name=cls)
+                last = ttc_pet_shuttle_object(sh_traj, obj_traj, ts, method=method, class_name=cls,
+                                              shuttle_cache=_sh_cache)
             changed = False
             if last['ttc'] is not None:
                 d['prediction_ttc'] = round(last['ttc'], 2); changed = True
@@ -533,8 +535,8 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
             if changed:
                 dirty.add(f)
                 count += 1
-    for f in dirty:
-        f.save(update_fields=['detections'])
+    # Par lots : un `save()` par frame faisait ~45 000 UPDATE sur la session de référence.
+    DF.objects.bulk_update(list(dirty), ['detections'], batch_size=500)
 
     def _med(v):
         return round(sorted(v)[len(v) // 2], 3) if v else None
@@ -577,35 +579,49 @@ def smooth_trajectory(traj, window=5, causal=False):
 
 
 def ttc_pet_shuttle_object(shuttle_traj, obj_traj, t0, horizon_s=5.0,
-                           method='speed_accel', class_name='car'):
+                           method='speed_accel', class_name='car', shuttle_cache=None):
     """
     Calcule TTC/PET entre la navette et un objet à l'instant t0.
     Prend l'historique jusqu'à t0, extrapole les deux sur `horizon_s`, puis collision SAT.
     Retourne dict {'ttc', 'pet'} (secondes, ou None).
+
+    `shuttle_cache` (dict, optionnel) : l'extrapolation de la NAVETTE à t0 ne dépend que de
+    (trajectoire navette, t0, méthode) — la même pour tous les objets vus à cet instant.
+    L'appelant qui évalue plusieurs objets sur UNE trajectoire navette passe un dict vide et
+    le réutilise ; ne jamais le partager entre deux trajectoires navette ou deux méthodes.
     """
-    # Fenêtre navette [t0-2s, t0] en [t, e, n]
-    st = shuttle_traj
-    mask = (st[:, 0] <= t0 + 1e-6) & (st[:, 0] >= t0 - 2.0)
-    sh_hist = st[mask][:, :3]
-    ob_hist = obj_traj[(obj_traj[:, 0] <= t0 + 1e-6) & (obj_traj[:, 0] >= t0 - 2.0)]
-    if len(sh_hist) < 3 or len(ob_hist) < 3:
-        return {'ttc': None, 'pet': None}
     dt = 0.2                       # pas plus grossier (2× moins d'étapes, résolution 0,2s)
     horizon_s = min(horizon_s, 4.0)
     n_future = int(horizon_s / dt)
     extra = extrapolate_kalman if method == 'kalman' else extrapolate_speed_accel
-    # Forcer les deux historiques à finir à t0 → grilles futures alignées (t0, t0+dt, …).
-    sh_hist = _ensure_endpoint(sh_hist, t0)
-    ob_hist = _ensure_endpoint(ob_hist, t0)
-    sh_fut = extra(sh_hist, n_future, dt=dt)
-    ob_fut = extra(ob_hist, n_future, dt=dt)
-    # Ne garder que le FUTUR (t >= t0) : TTC/PET mesurés depuis t0, et pas de collision
-    # passée parasite → moitié moins de tests SAT.
-    sh_fut = sh_fut[sh_fut[:, 0] >= t0 - 1e-6]
-    ob_fut = ob_fut[ob_fut[:, 0] >= t0 - 1e-6]
-    if len(sh_fut) < 2 or len(ob_fut) < 2:
+    key = (float(t0), n_future)
+    if shuttle_cache is not None and key in shuttle_cache:
+        sh_shape = shuttle_cache[key]
+    else:
+        # Fenêtre navette [t0-2s, t0] en [t, e, n]
+        st = shuttle_traj
+        mask = (st[:, 0] <= t0 + 1e-6) & (st[:, 0] >= t0 - 2.0)
+        sh_hist = st[mask][:, :3]
+        sh_shape = None
+        if len(sh_hist) >= 3:
+            # Forcer l'historique à finir à t0 → grilles futures alignées (t0, t0+dt, …).
+            sh_fut = extra(_ensure_endpoint(sh_hist, t0), n_future, dt=dt)
+            # Ne garder que le FUTUR (t >= t0) : TTC/PET mesurés depuis t0, et pas de
+            # collision passée parasite → moitié moins de tests SAT.
+            sh_fut = sh_fut[sh_fut[:, 0] >= t0 - 1e-6]
+            if len(sh_fut) >= 2:
+                sh_shape = point_traj_to_shape(sh_fut, *SHUTTLE_DIMS)
+        if shuttle_cache is not None:
+            shuttle_cache[key] = sh_shape
+    if sh_shape is None:
         return {'ttc': None, 'pet': None}
-    sh_shape = point_traj_to_shape(sh_fut, *SHUTTLE_DIMS)
+    ob_hist = obj_traj[(obj_traj[:, 0] <= t0 + 1e-6) & (obj_traj[:, 0] >= t0 - 2.0)]
+    if len(ob_hist) < 3:
+        return {'ttc': None, 'pet': None}
+    ob_fut = extra(_ensure_endpoint(ob_hist, t0), n_future, dt=dt)
+    ob_fut = ob_fut[ob_fut[:, 0] >= t0 - 1e-6]
+    if len(ob_fut) < 2:
+        return {'ttc': None, 'pet': None}
     ob_shape = point_traj_to_shape(ob_fut, *CLASS_DIMS.get(class_name, (2.0, 1.0)))
     res = collision_detection(sh_shape, ob_shape, max_pet_steps=12)   # PET borné (±2,4s)
     return {'ttc': res['ttc'], 'pet': res['pet']}

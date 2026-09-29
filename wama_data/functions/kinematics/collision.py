@@ -12,12 +12,7 @@ aucune collision détectée.
 """
 import numpy as np
 
-from ..geometry.shapes import rect_intersect_sat
-
-
-def _row_rect(shape_row):
-    """Ligne (9,) [t, 4 coins] → (4, 2)."""
-    return np.array(shape_row[1:9], dtype=float).reshape(4, 2)
+from ..geometry.shapes import rect_intersect_sat_matrix
 
 
 def _common_times(t1, t2, tol=1e-6):
@@ -48,12 +43,17 @@ def collision_detection(shape1, shape2, compute_pet=True, max_pet_steps=None):
         return result
 
     t0 = shape1[i1[0], 0]
+    # Toutes les paires (instant i de l'empreinte 1, instant commun k de l'empreinte 2) en UN
+    # passage numpy, puis les deux balayages ci-dessous ne lisent plus que des booléens. Même
+    # verdict que l'appel scalaire par paire (2026-09-29 : c'était 75 % de la passe Indicateurs).
+    hit = rect_intersect_sat_matrix(shape1[:, 1:9], shape2[i2, 1:9])      # (len(shape1), len(i1))
+    if not hit.any():
+        return result               # aucune intersection, à aucun décalage : ni TTC ni PET
+    hit = hit.tolist()
 
     # ── TTC : collision au même instant ──────────────────────────────────
     for k in range(len(i1)):
-        r1 = _row_rect(shape1[i1[k]])
-        r2 = _row_rect(shape2[i2[k]])
-        if rect_intersect_sat(r1, r2):
+        if hit[i1[k]][k]:
             result['ttc'] = float(shape1[i1[k], 0] - t0)
             result['t_collision'] = float(shape1[i1[k], 0])
             break
@@ -64,17 +64,16 @@ def collision_detection(shape1, shape2, compute_pet=True, max_pet_steps=None):
         max_delta = max_pet_steps if max_pet_steps is not None else n
         best_pet = None
         for k in range(n):
-            r2 = _row_rect(shape2[i2[k]])
             for delta in range(1, max_delta):
                 # empreinte 1 avancée de delta pas
                 fa = i1[k] + delta
-                if fa < len(shape1) and rect_intersect_sat(_row_rect(shape1[fa]), r2):
+                if fa < len(shape1) and hit[fa][k]:
                     pet = abs(shape1[fa, 0] - shape1[i1[k], 0])
                     best_pet = pet if best_pet is None else min(best_pet, pet)
                     break
                 # empreinte 1 reculée de delta pas
                 fb = i1[k] - delta
-                if fb >= 0 and rect_intersect_sat(_row_rect(shape1[fb]), r2):
+                if fb >= 0 and hit[fb][k]:
                     pet = abs(shape1[fb, 0] - shape1[i1[k], 0])
                     best_pet = pet if best_pet is None else min(best_pet, pet)
                     break
