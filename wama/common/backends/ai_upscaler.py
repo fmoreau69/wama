@@ -203,38 +203,11 @@ class AIUpscaler(BaseModelBackend):
         try:
             import onnxruntime as ort
 
-            # Get available providers
-            available_providers = ort.get_available_providers()
-            logger.info(f"Available ONNX providers: {available_providers}")
-
-            # Build provider list based on what's available (priority order)
-            providers = []
-
-            # CUDA (Linux/WSL with NVIDIA GPU)
-            if 'CUDAExecutionProvider' in available_providers:
-                providers.append(('CUDAExecutionProvider', {'device_id': self.device_id}))
-                logger.info(f"Using CUDA GPU (device {self.device_id})")
-
-            # TensorRT (Linux with NVIDIA GPU - fastest)
-            if 'TensorrtExecutionProvider' in available_providers:
-                # TensorRT is faster but CUDA is more compatible, keep CUDA as primary
-                pass
-
-            # DirectML (Windows with GPU)
-            if 'DmlExecutionProvider' in available_providers:
-                providers.append(('DmlExecutionProvider', {'device_id': self.device_id}))
-                logger.info(f"Using DirectML GPU (device {self.device_id})")
-
-            # CoreML (macOS)
-            if 'CoreMLExecutionProvider' in available_providers:
-                providers.append('CoreMLExecutionProvider')
-                logger.info("Using CoreML (macOS)")
-
-            # Always add CPU as fallback
-            providers.append('CPUExecutionProvider')
-
-            if len(providers) == 1:
-                logger.warning("No GPU provider available, using CPU only (slow)")
+            # Brique commune (2026-09-29) : la liste de fournisseurs vivait ici, un second
+            # backend onnxruntime l'aurait recopiée. TensorRT reste volontairement hors liste
+            # (CUDA plus compatible, comme avant).
+            from wama.common.utils.onnx_utils import onnx_providers
+            providers = onnx_providers(self.device_id)
 
             # Create inference session
             self.session = ort.InferenceSession(

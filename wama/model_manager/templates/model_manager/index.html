@@ -2023,15 +2023,37 @@ document.addEventListener('DOMContentLoaded', function() {
         const box = document.getElementById('mmProposals');
         const list = document.getElementById('mmProposalsList');
         if (!box || !list) return;
-        let items = [];
+        let items = [], backends = [];
         try {
             const r = await fetch('{% url "model_manager:api_manifest_proposals" %}');
-            items = ((await r.json()).proposals) || [];
+            const data = await r.json();
+            items = data.proposals || [];
+            backends = data.backends || [];
         } catch (e) { console.error('Propositions indisponibles :', e); }
-        document.getElementById('mmProposalsCount').textContent = items.length;
-        box.classList.toggle('d-none', items.length === 0);
+        document.getElementById('mmProposalsCount').textContent = items.length + backends.length;
+        box.classList.toggle('d-none', items.length + backends.length === 0);
         const esc = WamaApp.escapeHtml;
-        list.innerHTML = items.map(p => {
+        // Backend proposé (marche B2) : du CODE, que Valider écrit dans wama/common/backends/.
+        // Aucun contrôle ne juge la QUALITÉ de l'image : le smoke dit seulement qu'elle existe.
+        const backendHtml = b => {
+            const c = b.checks || {}, errors = c.errors || [], s = b.smoke || {}, r = b.resolution || {};
+            return `<div class="border-top border-secondary pt-1 mt-1 small">
+                <div class="text-light text-break">backend · <code>${esc(b.module || '')}</code></div>
+                <div class="text-muted text-break">${esc(b.model_key || '')} — moteur ${esc(b.engine || '?')}, écrit par ${esc(b.model || '?')}</div>
+                ${errors.map(e => `<div class="text-danger text-break">${esc(e)}</div>`).join('')}
+                ${(c.warnings || []).map(w => `<div class="text-warning text-break">${esc(w)}</div>`).join('')}
+                ${r.resolved !== undefined ? `<div class="${r.resolved ? 'text-success' : 'text-danger'}">Résolution : ${r.resolved ? 'ce backend sera choisi' : 'NON choisi (' + esc(String(r.chosen)) + ')'}</div>` : ''}
+                ${s.ran ? `<div class="${s.ok ? 'text-success' : 'text-danger'} text-break">Smoke CPU : ${s.ok ? `image ${esc((s.size || []).join('×'))} en ${esc(String(s.seconds))} s — ${esc(s.image || '')}` : esc(s.error || 'échec')}</div>` : `<div class="text-muted">Smoke : ${esc(s.reason || 'non joué')}</div>`}
+                <div class="d-flex gap-1 mt-1">
+                    <button type="button" class="btn btn-sm btn-success py-0" data-file="${esc(b.file)}"
+                            data-decision="apply" ${errors.length ? 'disabled' : ''}
+                            title="Écrire le module dans wama/common/backends/ (jamais par-dessus un existant)">
+                        <i class="fas fa-check me-1"></i>Valider</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" data-file="${esc(b.file)}"
+                            data-decision="reject"><i class="fas fa-xmark me-1"></i>Rejeter</button>
+                </div></div>`;
+        };
+        list.innerHTML = backends.map(backendHtml).join('') + items.map(p => {
             const errors = p.errors || [], filled = p.filled || [], div = p.divergences || [];
             return `<div class="border-top border-secondary pt-1 mt-1 small">
                 <div class="text-light text-break">${esc(p.kind || '')} · <code>${esc(p.key || '')}</code></div>
@@ -2050,17 +2072,20 @@ document.addEventListener('DOMContentLoaded', function() {
                             data-decision="reject"><i class="fas fa-xmark me-1"></i>Rejeter</button>
                 </div></div>`;
         }).join('');
-        list.querySelectorAll('button[data-proposal]').forEach(b => b.addEventListener('click', async () => {
+        list.querySelectorAll('button[data-proposal], button[data-file]').forEach(b => b.addEventListener('click', async () => {
             b.disabled = true;
+            const target = b.dataset.file ? { file: b.dataset.file } : { id: Number(b.dataset.proposal) };
             try {
                 const r = await fetch('{% url "model_manager:api_manifest_proposal_decide" %}', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                    body: JSON.stringify({ id: Number(b.dataset.proposal), decision: b.dataset.decision })
+                    body: JSON.stringify({ ...target, decision: b.dataset.decision })
                 });
                 const data = await r.json();
                 if (!data.success) WamaApp.toast((data.errors || [data.error || 'Échec']).join(' ; '), 'danger');
-                else WamaApp.toast(b.dataset.decision === 'apply' ? 'Proposition appliquée.' : 'Proposition rejetée.', 'success');
+                else WamaApp.toast(b.dataset.decision === 'apply'
+                    ? ('Proposition appliquée.' + (data.written ? ` ${data.written} écrit — ${data.note || ''}` : ''))
+                    : 'Proposition rejetée.', 'success');
             } catch (e) { WamaApp.toast('Échec : ' + e, 'danger'); }
             mmLoadProposals();
             loadModels();
