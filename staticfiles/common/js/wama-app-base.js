@@ -620,8 +620,11 @@
       return;
     }
     const input = document.getElementById(opts.fileInputId);
+    // `onPick` = une DÉSIGNATION : la fenêtre montre les trois provenances (miens, partagés,
+    // système) ; `prefer` = l'onglet d'ouverture (ex. `avatar` dans la catégorie `image`).
     global.MediaPicker.open({
       type: opts.type || 'all',
+      prefer: opts.prefer,
       onPick: function (asset) {
         const imp = global.WamaImport && global.WamaImport.forElement
           && global.WamaImport.forElement(opts.fileInputId);
