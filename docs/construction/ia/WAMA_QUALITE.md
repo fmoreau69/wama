@@ -707,6 +707,16 @@ DEUX réunions valides (`007a_ECRH` 20 min, `012c_EBPZ` 19 min) :
 - ⚠ **Couper le filtre de parole de Whisper est dangereux** : sur `012c`, 95,5 % — Whisper s'est
   effondré (2 min de traitement au lieu de 14, texte inventé ou en boucle). Le mode « auto » du
   filtre ne le coupe que sur une parole lointaine détectée : c'est le bon réglage par défaut.
+- **Complété le 2026-09-29 soir — 3 réunions valides (013c ajoutée) et NIVELLEMENT** (erreur par
+  mot, moyenne 007a / 012c / 013c) : Whisper **28,8 %** · Whisper nivelé 29,6 % · Qwen3-ASR nivelé
+  29,6 % · Qwen3-ASR 30,8 % · Canary nivelé 33,0 % · Canary 37,0 % · Parakeet 83-91 %. Le
+  **nivellement** : neutre pour Whisper (+0,8), léger gain pour Qwen (−1,2), net gain pour Canary
+  (−4,0). Sur FLEURS-CS (locuteurs différents, sauts de niveau entre phrases), il fait baisser
+  l'erreur par CARACTÈRE de 3-4 points pour les trois moteurs et remonte la part de parole
+  transcrite de Whisper (65 → 71 %) ; l'erreur par mot baisse pour Qwen (42,1 → 39,5 %) et
+  Canary, pas pour Whisper. ⇒ Il reste une OPTION (coupée par défaut) : utile aux moteurs autres
+  que Whisper et aux enregistrements à grands écarts de niveau. Détail FLEURS-CS (réglage des
+  langues) : `TRANSCRIBER_CORRECTION §5quater`.
 - **Pourquoi ~28 % — décomposé** (question de Fabien, 29/09 ; Whisper, Qwen, Canary sur 007a et
   012c) : les **omissions font l'essentiel** (17-24 % des mots de la référence), les mots
   réellement mal entendus seulement **6-9 %**, les ajouts 1-3 % (Canary 11 % sur 012c). Retirer
