@@ -18773,3 +18773,28 @@ et commité par l'instance du registre VRAM (`cf644976`) — une ligne dont le p
 le même espace de pid est purgée. Le Redis Windows est VIDÉ (18 messages restes). Le worker GPU
 bloqué de 13:36 à 17:33 l'était dans un envoi SMTP sans délai — corrigé par une autre instance
 (`b7ff435f`, délai de 30 s).
+
+## §CLÔTURE — 2026-09-29, session CALENDRIER → ETA → TESTS EN PAQUET
+
+**Fait depuis le palier du soir** : plage nocturne mesurée sur la MÉDIANE des campagnes complètes
+(`c8f26207`, décision de Fabien — 270 → 225 min, seules 2 campagnes complètes dans les 60 derniers
+rapports : 136 et 210 min, elle convergera) ; deux gardes qui manquaient (`1a5a41c2`) —
+`tests_test_layout` tient `WAMA_APP_CONVENTIONS §1.1` (contre-épreuve faite), et la voie de
+l'assistant stocke le moteur TTS en clé de catalogue ; blocs générés `mecanismes`, `outils`,
+`briques` régénérés DEPUIS HEAD (`de131fc2`, worktree + index temporaire — l'arbre garde les
+projections du travail non commité des autres instances).
+
+**Laissé de côté — à reprendre** :
+- 🔴 RELANCER le worker `default` : son parent date de 02:14, ses enfants forkés n'ont pas le
+  correctif ETA (le worker gpu, relancé à 17:33, l'a).
+- Tests à ranger en paquet `tests/` : `cam_analyzer` (20), `model_manager` (19), `media_library`
+  (14) — en attente déclarée dans la garde.
+- Calendrier : couche « installation de modèle / librairie », récurrence à l'écran, programmation
+  et pastille de file pour les mondes Lab et Studio.
+- Une campagne nocturne n'empêche pas un lancement MANUEL de la précéder dans la file GPU (nuit du
+  29/09) : la réservation ne protège que du placement automatique — avertir, ou différer, à décider.
+- Le cache Django d'un `manage.py` Windows hors tests écrit encore dans le Redis Windows (db1).
+- Le repli JS `'coqui-xtts'` du synthesizer reste court (normalisé côté serveur).
+- Migrations `common/0016`, `0017` non versionnées, comme tout le dépôt (décision en attente).
+- Rouges d'AUTRES chantiers : notifications ×3, `tool_api_lectures`, `picker_list`,
+  `codegen_lot`, plan de doc dérivée. Rien de la session n'est poussé.
