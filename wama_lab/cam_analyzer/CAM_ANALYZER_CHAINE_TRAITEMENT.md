@@ -699,6 +699,9 @@ Fabien. `live_analysis_task`
    deux points LISSÉS qui encadrent le trou — ceux que l'affichage dessine — et non plus entre les
    positions brutes (saut au bord p90 2,19 → 0,46 m, p99 8,73 → 0,83 m, rejoué sur `4da52df3`) ;
    un fantôme tombé dans l'EMPRISE de la navette est retiré (155 sur 78 386).
+10bis. **Marquages SAM3 en monde** (`marking_world`, 2026-09-29) : projection par la calibration 2a
+   (puis DLT sous ⚑ `sam3_homography`), plus jamais à pitch 0° ; passages piétons calés sur le
+   corridor (⚑ `marking_axis_snap`) — écart d'orientation au zébra de l'orthophoto 35° → 6°.
 10. **Porte de famille de classe** (⚑ `class_family_gate`, ON, 2026-09-29) : un deux-roues n'est jamais
    relié à un quatre-roues ni à un piéton — ni au rattachement d'une nouvelle chaîne, ni au recollement
    (famille DOMINANTE du track, établie au-delà d'un seuil). Rejoué sur `4da52df3` : tracks mêlant deux

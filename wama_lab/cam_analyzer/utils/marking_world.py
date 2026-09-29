@@ -41,10 +41,41 @@ _LABEL_KIND = {
 
 MAX_RANGE_M = 12.0    # au-delà, l'erreur de projection plan-sol explose
 MIN_RANGE_M = 2.0
+CROSSING_MAX_HALF_M = 4.0   # demi-longueur max d'un passage piéton dessiné (une chaussée)
+CROSSING_ON_ROAD_M = 3.5    # un passage PARALLÈLE à la rue ne peut pas être sur la trajectoire
+
+
+def snap_crossing(bearing, corridor_bearing, extent_m, distance_to_path_m):
+    """Axe d'un passage piéton agrégé (⚑ marking_axis_snap) : calé sur la plus proche des deux
+    directions du corridor — en travers de la rue de la navette, ou parallèle (il traverse alors
+    une rue LATÉRALE) — et demi-longueur bornée à `CROSSING_MAX_HALF_M`. Un passage PARALLÈLE posé
+    à moins de `CROSSING_ON_ROAD_M` de la trajectoire est impossible (il serait sur la chaussée de
+    la navette, dans son sens) : None. Rend (gisement mod 180, demi-longueur) ou None."""
+    along = corridor_bearing % 180.0
+    across = (corridor_bearing + 90.0) % 180.0
+
+    def gap(a, b):
+        d = abs(a - b) % 180.0
+        return min(d, 180.0 - d)
+    axis = along if gap(bearing, along) < gap(bearing, across) else across
+    if axis == along and distance_to_path_m < CROSSING_ON_ROAD_M:
+        return None
+    return axis, min(max(extent_m, 2.0) / 2.0, CROSSING_MAX_HALF_M)
 
 
 def _projector_for(camera, geo):
-    """GroundProjector : homographie calibrée si présente, sinon paramétrique défaut."""
+    """GroundProjector de la caméra, par ordre de confiance — ou None (caméra ignorée) :
+    ① la calibration sol 2a (`config['ground_calib']`, pitch/hauteur ESTIMÉS — celle que le
+    tracking utilise, `prediction_adapter.ground_projector_for`) ; ② l'homographie DLT de SAM3
+    sous ⚑ sam3_homography. ⚠ Jusqu'au 2026-09-29, à défaut d'homographie, une calibration
+    PARAMÉTRIQUE à pitch 0° (« biais assumé », écrite avant que 2a n'existe) : la caméra avant
+    est inclinée de 16°, l'arrière de 25° — les marquages des caméras sans calibration partaient
+    loin dans l'axe de visée et étiraient des « passages piétons » le long de la rue (constat de
+    Fabien). Une caméra sans calibration ne projette plus rien."""
+    from .prediction_adapter import ground_projector_for
+    gp2a = ground_projector_for(camera.session, camera.position, geo)
+    if gp2a is not None:
+        return gp2a, True
     from .ground_projection import GroundProjector
     w, h = camera.width or 384, camera.height or 288
     cal = getattr(camera, 'ground_homography', None)
@@ -57,17 +88,11 @@ def _projector_for(camera, geo):
             cal = None
     except Exception:
         pass
-    calibrated = bool(cal)
     if not cal:
-        from .calibration import intrinsics_from_fov
-        from .prediction_adapter import CAMERA_FOV_V
-        intr = intrinsics_from_fov(w, h, geo['fov_h'],
-                                   CAMERA_FOV_V.get(camera.position, 61.0))
-        cal = dict(intr, height_m=2.4, pitch_deg=0.0,
-                   hfov_deg=geo['fov_h'], lens_type='rectilinear')
+        return None, False
     try:
         gp = GroundProjector(cal, (w, h))
-        return (gp if gp.available else None), calibrated
+        return (gp if gp.available else None), True
     except Exception:
         return None, False
 
@@ -190,6 +215,11 @@ def aggregate_markings(session, min_obs=3, max_pts=6000):
     # distinctes (pas en points), (4) TOP-K par type — le vrai signal domine largement
     # (amas à 500-1100 obs vs bruit SAM3 à 3-20).
     _TOP_K = {'stop_line': 4, 'crossing': 3, 'line': 2}
+    try:
+        from .features import enabled as _feat_on
+        _snap = _feat_on(session, 'marking_axis_snap')
+    except Exception:
+        _snap = True
     out = defaultdict(list)
     for (key, kind), pts in obs.items():
         clusters = []
@@ -230,6 +260,18 @@ def aggregate_markings(session, min_obs=3, max_pts=6000):
             hi = projs[min(len(projs) - 1, int(len(projs) * 0.95))]
             if hi - lo < 1.0:            # trop court pour définir un axe fiable
                 lo, hi = -1.0, 1.0
+            if kind == 'crossing' and _snap:
+                # ⚑ marking_axis_snap : un passage piéton TRAVERSE la rue de la navette ou une rue
+                # latérale — son axe est calé sur la plus proche des deux directions du corridor
+                # (l'axe du nuage agrégé sur des dizaines de passages dérive : diagonales, axes
+                # parallèles à la rue), et sa longueur bornée à une chaussée.
+                path_m = min(math.hypot(r[1] - me, r[2] - mn) for r in sh_traj[::3])
+                snapped = snap_crossing(brg, corridor[key], hi - lo, path_m)
+                if snapped is None:
+                    continue
+                brg, half = snapped
+                ux, uy = math.sin(math.radians(brg)), math.cos(math.radians(brg))
+                lo, hi = -half, half
             a = (me + ux * lo, mn + uy * lo)
             b = (me + ux * hi, mn + uy * hi)
             # Reclassement GÉOMÉTRIQUE : le prompt SAM3 « stop_line » attrape aussi
