@@ -99,6 +99,14 @@ FEATURES = [
             "et qui fondent le masquage satellite de la correction ortho : les voir aide à "
             "juger une trace. Affichage seul.",
             default=False, scope='live'),
+    Feature('parked_off_road', 'Garés = hors des voies',
+            "Un véhicule est GARÉ si sa position médiane est HORS de l'emprise de chaussée IGN "
+            "(à plus de 0,5 m du bord) : un immobile SUR la chaussée — à un feu, dans une file, à un "
+            "carrefour — peut repartir et n'est jamais garé ; piétons exclus, et un track qui "
+            "AVANCE franchement (déplacement net / chemin > 0,8) aussi. Remplace les seuils "
+            "d'étalement en mètres, qui mesuraient le bruit de placement plus que le mouvement. "
+            "OFF = règle historique. Emprise indisponible : règle historique, dite en console.",
+            default=True, scope='compute'),
     Feature('sam3_label_arbitration', 'SAM3 : un marquage, un seul label',
             "Les prompts SAM3 sont interrogés séparément : un même marquage pouvait sortir sous "
             "deux labels (une rangée de triangles vue comme « triangles » ET « passage piéton »). "

@@ -132,6 +132,53 @@ class LeFiltreExposeSonCompteTest(SimpleTestCase):
         self.assertIn('Garés — pourquoi le filtre écarte', src)
 
 
+class OffRoadGateTest(SimpleTestCase):
+    """⚑ parked_off_road (2026-09-30) — un garé est HORS des voies ; un immobile SUR la chaussée
+    (feu, file, carrefour) peut repartir et n'est jamais garé (demande de Fabien)."""
+
+    @staticmethod
+    def _footprint():
+        from shapely.geometry import LineString
+        fp = LineString([(-100, 0), (100, 0)]).buffer(3.0, cap_style='flat')   # chaussée de 6 m
+        return fp, fp.boundary
+
+    @staticmethod
+    def _still(e, n, k=20, cls='car'):
+        return [(i, i * 0.5, e + (0.3 if i % 2 else -0.3), n, cls) for i in range(k)]
+
+    def _gate(self, hs, votes):
+        from wama_lab.cam_analyzer.utils.multicam_tracker import off_road_gate
+        fp, edge = self._footprint()
+        return off_road_gate(hs, votes, fp, edge)
+
+    def test_a_car_stopped_on_the_carriageway_is_never_parked(self):
+        self.assertEqual(self._gate(self._still(10, 1.0), {'car': 10.0}), 'sur_voie')
+
+    def test_a_car_beyond_the_kerb_is_parked(self):
+        self.assertEqual(self._gate(self._still(10, 5.0), {'car': 10.0}), 'retenu')
+
+    def test_the_doubt_margin_around_the_edge_is_not_parked(self):
+        self.assertEqual(self._gate(self._still(10, 3.2), {'car': 10.0}), 'bord_de_voie')
+        self.assertEqual(self._gate(self._still(10, 2.8), {'car': 10.0}), 'bord_de_voie')
+
+    def test_a_pedestrian_standing_on_the_pavement_is_not_a_parked_vehicle(self):
+        self.assertEqual(self._gate(self._still(10, 6.0, cls='person'), {'person': 10.0}), 'pas_un_vehicule')
+
+    def test_a_motorbike_can_be_parked(self):
+        self.assertEqual(self._gate(self._still(10, 6.0, cls='motorcycle'), {'motorcycle': 10.0}), 'retenu')
+
+    def test_the_tracker_reports_the_new_gates_and_the_rule(self):
+        from pathlib import Path
+        from django.conf import settings
+        src = (Path(settings.BASE_DIR) / 'wama_lab' / 'cam_analyzer' / 'utils'
+               / 'multicam_tracker.py').read_text(encoding='utf-8')
+        for gate in ('pas_un_vehicule', 'sur_voie', 'bord_de_voie', 'avance'):
+            with self.subTest(gate=gate):
+                self.assertIn(f"'{gate}': 0", src)
+        self.assertIn("'stationary_rule': _stationary_rule", src)
+        self.assertIn("if porte == 'retenu' and d['net_sur_chemin'] > MAX_NET_OVER_PATH:", src)
+
+
 class LaCoutureDeMesureDuChantierGaresTest(SimpleTestCase):
     """`path_ratio_max` et `_histogramme` — la couture qui a servi à RÉFUTER une candidate.
 
