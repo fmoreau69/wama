@@ -18872,3 +18872,35 @@ autre instance) sous la garde `tests_test_layout`.
 **Reste, sans urgence** : couche « installations » du calendrier (il faut d'abord une trace datée
 des installations) ; Lab après P3 ; versionnement des migrations (décision) ; carte
 `WAMA_MECANISMES.md` à régénérer par le prochain commit du registre ; rouges d'autres chantiers.
+
+## §PALIER — 2026-09-30, « PORTAGE CARD v4 » — accept unifié, anonymizer + composer en v4, onglet LOT — 🔚 porter reader/describer/converter (plus d'obstacle), puis le domaine d'`input_slots` avant imager/enhancer
+
+> Suite de `§SUITE — 2026-09-29 (soir)`. Détail décision par décision : `CARD_DESIGN §11.11`,
+> bloc « Adoption v4 par les autres apps » ; `BATCH_FORMAT` §« Comment sait-on… » (règle 1).
+
+- ✅ **`accept` d'un port = ce que l'app DÉCLARE pour ses natures** (`app_registry.accept_for_types`
+  / `port_accept`), une règle lue par la card v4 ET le générateur (`templates_gen`). ⚠ La 1ʳᵉ
+  version du jour prenait les extensions au REGISTRE (formats refusés par l'upload) et doublait la
+  règle du générateur — reprise sur la question de Fabien « est-ce aligné ? ». Port du résultat :
+  formats de l'évaluation. Garde mesurée sur les 10 apps (contre-épreuve : 56 échecs).
+- ✅ **Anonymizer en v4**, ✅ **composer en v4** (1ʳᵉ app sans port de travail), ✅ **onglet LOT**
+  (décision de Fabien : pas un port, dérivé de `has_batch`, intention déclarée →
+  `WamaBatchImport.previewFile`). Trous de la v4 commune bouchés : champ URL du port de
+  référence sans id (`reference_url_id`) ; tuile Importer qui prenait tout fichier déposé (refus
+  par `WamaImport.accepts`, extraite, qui lit enfin `*/*`). Écart assumé PÉRIMÉ retiré
+  (`_ecarts_assumes['avatarizer']`, card v3). Gardes : `tests_lot_tab`,
+  `PortAcceptKeepsEveryNatureTest`, `ImportFrontTests` (+2).
+- Gestes de card rejoués sur 8011 (anonymizer, composer, avatarizer) : verdicts identiques avant /
+  après ; `<app>.batch_import` passe par `[data-lot-input]`.
+- **Grille : 900/941** (901/942 avant) — `import_front` NON APPLICABLE au composer (card v4 sans
+  port de travail, même forme que `recursive_import`), `drag_drop` reconnaît la v4.
+- **Suite complète (WSL) : 4153 tests, 9 échecs lus un par un** — 1 à moi (relevé des cards v3,
+  corrigé : les cards v4 y entrent comme « dérivées »), 8 d'AUTRES chantiers : `tests_codegen_lot`
+  imager `generation_settings` (route de `25947526`, `render_views` rend un stub) ;
+  `tests_picker_list` (déjà rouge, médiathèque) ; `tests_notifications` ×3 (adresses d'équipe
+  lues de la configuration) ; `tests_tool_api_lectures.AddItemToMediaLibrary` ; `cam_analyzer`
+  ×2 (`tasks.py` en WIP d'une autre instance).
+- 🔚 **Suite** : reader, describer, converter en v4 (un port de travail, natures couvertes) ;
+  synthesizer comme le composer ; puis `input_slots(app, domain)` pour imager et enhancer.
+  Question ouverte : colonnes de lot au nom des PORTS (`-i`/`-r` en alias). 🔴 Relancer WAMA
+  (gunicorn HUP) pour servir ces gabarits et JS.

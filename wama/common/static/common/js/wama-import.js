@@ -67,6 +67,25 @@
              size: 0, designation: path };
   }
 
+  // Un input ACCEPTE-t-il ce fichier ? Lecture de son attribut `accept` (familles MIME
+  // `audio/*`, types exacts, extensions `.wav`) — vide ou « tout type » (étoile/étoile) = tout.
+  // Niveau MODULE et exposée (`WamaImport.accepts`, 2026-09-29) : la tuile Importer d'un port
+  // de la card v4 (`wama-input-slots.js`) refuse avec la MÊME règle qu'ici — un `.txt` déposé
+  // sur « Mélodie de référence » n'entre plus dans l'input audio. « Tout type » était lu comme
+  // « un type qui commence par étoile-barre », c'est-à-dire AUCUN fichier.
+  // (Commentaire en `//` : la graphie du jeton « tout type » fermerait un commentaire bloc.)
+  function accepts(input, file) {
+    var spec = (input.getAttribute('accept') || '').split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
+    if (!spec.length || spec.indexOf('*/*') >= 0 || spec.indexOf('*') >= 0) return true;
+    var type = (file.type || '').toLowerCase();
+    var nom = (file.name || '').toLowerCase();
+    return spec.some(function (s) {
+      if (s.charAt(0) === '.') return nom.slice(-s.length) === s;
+      if (s.slice(-2) === '/*') return type.indexOf(s.slice(0, -1)) === 0;
+      return type === s;
+    });
+  }
+
   /** Instances par id de zone de dépôt ET d'input fichier : la tuile Médiathèque et le glisser
    *  depuis l'arbre retrouvent la voie d'import de LEUR card sans connaître l'app. */
   var REGISTRY = {};
@@ -117,19 +136,6 @@
       });
     }
 
-    /** Un input ACCEPTE-t-il ce fichier ? Lecture de son attribut `accept` (familles MIME
-     *  `audio/*`, types exacts, extensions `.wav`) — vide = tout. */
-    function accepte(input, file) {
-      var spec = (input.getAttribute('accept') || '').split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
-      if (!spec.length) return true;
-      var type = (file.type || '').toLowerCase();
-      var nom = (file.name || '').toLowerCase();
-      return spec.some(function (s) {
-        if (s.charAt(0) === '.') return nom.slice(-s.length) === s;
-        if (s.slice(-2) === '/*') return type.indexOf(s.slice(0, -1)) === 0;
-        return type === s;
-      });
-    }
 
     /** L'input porte-t-il déjà CE fichier (même nom, taille, date) ? */
     function holds(input, file) {
@@ -328,7 +334,7 @@
           var cible = null;
           for (var a = 0; a < cfg.attach.length; a++) {
             var inp = el(cfg.attach[a]);
-            if (inp && accepte(inp, f)) { cible = inp; break; }
+            if (inp && accepts(inp, f)) { cible = inp; break; }
           }
           if (!cible) { restes.push(f); return; }
           // Une DÉSIGNATION rejoint le port par son chemin (`WamaApp.designateInto`) — y compris
@@ -538,5 +544,6 @@
   // vivent dans wama-app-base.js (`WamaApp.filesFromServerPaths` / `injectFiles`) : ce
   // fichier-ci n'est chargé que par les apps GÉNÉRÉES, l'explorateur est sur toutes les pages.
 
+  WamaImport.accepts = accepts;
   global.WamaImport = WamaImport;
 })(window);

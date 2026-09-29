@@ -1217,11 +1217,27 @@ def _import_front(f: _AppFiles):
     `_app_scripts.html` + bloc inline) — les deux comptent. `find_code` : un commentaire qui
     cite `WamaImport(` (celui qui explique pourquoi on ne l'a PAS encore adopté, typiquement)
     ne doit pas faire passer au vert.
+
+    NON APPLICABLE, en repli seulement (même forme que `recursive_import`) : une card v4 SANS
+    port de travail (composer, 2026-09-29). `WamaImport` est la voie d'une ZONE DE DÉPÔT de
+    travail ; une telle card n'en a pas — ses entrées passent par les tuiles COMMUNES de ses
+    onglets : le port de référence (`wama-input-slots.js`, qui refuse avec `WamaImport.accepts`)
+    et le Lot (`WamaBatchImport.previewFile`). Exiger une instance là serait exiger du code
+    mort : liée à une zone absente, elle ne branche rien.
     """
     if not _card_entree_rendue(f):
         return None, "aucune card d'entrée rendue — rien à importer"
     ev = f.find_code(TEMPLATES + JS, r'\bWamaImport\s*\(')
-    return (True, ev) if ev else (False, None)
+    if ev:
+        return True, ev
+    v4 = f.find_code(TEMPLATES, r'common/_new_item_card_v4\.html')
+    if v4:
+        from wama.common.templatetags.wama_actions import input_slots
+        if not any(s.get('group') == 'travail' for s in input_slots(f.app)):
+            return None, (f"card v4 SANS port de travail ({v4}) : ses entrées passent par les "
+                          f"tuiles communes de ses onglets (port de référence, Lot) — aucune zone "
+                          f"de dépôt à confier à `WamaImport`")
+    return False, None
 
 
 def _import_wired(f: _AppFiles):
@@ -1816,8 +1832,13 @@ CRITERIA: list[Criterion] = [
               mechanism='new_item_card'),
     Criterion('queue_entry', 'F2', 'Entrée de file commune (_queue_entry : card seule OU lot)',
               _queue_entry, mechanism='queue_entry'),
+    # En v4 (2026-09-29) chaque tuile Importer d'un port, et celle de l'onglet Lot, EST une zone
+    # de dépôt rendue par la card commune : l'include l'atteste, comme pour `media_library_slot`.
+    # Sans ce motif, une app SANS port de travail (composer) n'avait plus de `drop_zone_id` à
+    # déclarer et passait rouge alors qu'elle a deux zones de dépôt.
     Criterion('drag_drop', 'F2', 'Zone drag & drop',
-              lambda f: _present(f, TEMPLATES + JS, r'drop_zone_id|drop-zone|dragover')),
+              lambda f: _present(f, TEMPLATES + JS,
+                                 r'drop_zone_id|drop-zone|dragover|common/_new_item_card_v4\.html')),
     Criterion('url_ingest', 'F2', 'Import URL déclaratif (WAMA_INGEST + ensure_local_input)', _url_ingest,
               mechanism='source_ingest'),
     Criterion('batch_import', 'F2', 'Import batch unifié (batch-import.js + batch_parsers)', _batch_import,

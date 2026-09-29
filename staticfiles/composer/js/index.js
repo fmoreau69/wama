@@ -46,16 +46,11 @@
     const estimateDisplay  = document.getElementById('estimateDisplay');
     const promptInput    = document.getElementById('promptInput');
     const melodyInput    = document.getElementById('melodyInput');
-    const batchFileInput       = document.getElementById('batchFileInput');
     const generateBtn          = document.getElementById('generateBtn');
     const startAllBtn          = document.getElementById('startAllBtn');
     const clearAllBtn          = document.getElementById('clearAllBtn');
-    const batchDetectBar       = document.getElementById('batchDetectBar');
-    const batchDetectedCount   = document.getElementById('batchDetectedCount');
-    const batchCreateCount     = document.getElementById('batchCreateCount');
-    const batchCreateAndStartBtn = document.getElementById('batchCreateAndStartBtn');
-    const batchCreateOnlyBtn   = document.getElementById('batchCreateOnlyBtn');
-    const batchCancelBar       = document.getElementById('batchCancelBar');
+    // (La barre de lot — #batchDetectBar & co — est pilotée par la brique commune
+    //  WamaBatchImport ; ses constantes, jamais lues ici, sont retirées le 2026-09-29.)
 
     function getSelectedDuration() {
         return parseFloat(durationSlider?.value || 10);

@@ -50,13 +50,15 @@ def render_index(manifest: dict) -> tuple:
     # portée. On garde : les extensions dont la nature ∈ types du port travail, PLUS les
     # formats de FICHIER DE LOT si l'app a le batch (le même input les reçoit — détection
     # structurelle). Sans port travail (app prompt-primaire) : lot seul, sinon l'union.
+    # La règle « déclaré ∩ natures du port » est la brique commune `accept_for_types` depuis le
+    # 2026-09-29 — la card v4 (`input_slots`) la lit aussi : une règle, deux consommateurs.
     exts = [str(e) for e in (ident.get('input_extensions') or [])]
     work = next((p for p in ((body.get('ports') or {}).get('inputs') or [])
                  if p.get('group') == 'travail'), None)
     if work and exts:
-        from wama.common.app_registry import category_of_path
-        cats = set(work.get('types') or [])
-        retenues = [e for e in exts if category_of_path('x' + e) in cats]
+        from wama.common.app_registry import accept_for_types
+        retenues = accept_for_types(exts, work.get('types')).split(',')
+        retenues = [e for e in retenues if e != '*/*']
         if (body.get('capabilities') or {}).get('has_batch'):
             from wama.common.utils.batch_parsers import SUPPORTED_BATCH_EXTENSIONS
             retenues += ['.' + b for b in SUPPORTED_BATCH_EXTENSIONS
@@ -434,8 +436,9 @@ def render_index(manifest: dict) -> tuple:
         # qui la paramètrent (composer, imager). Plusieurs ports déclarés : on rend le premier
         # et on NOMME les autres (trou visible), jamais un slot silencieusement perdu.
         ref = refs[0]
-        mime = {'image': 'image/*', 'video': 'video/*', 'audio': 'audio/*'}
-        ref_accept = ','.join(mime[c] for c in (ref.get('types') or []) if c in mime) or '*/*'
+        # Même brique que le port travail : un port de référence `document` n'est plus perdu.
+        from wama.common.app_registry import accept_for_types
+        ref_accept = accept_for_types(ident.get('input_extensions'), ref.get('types'))
         ref_bits = (f" show_reference=True reference_zone_id='{app}RefSlot'"
                     f" reference_input_id='{app}RefInput' reference_chip_id='{app}RefChip'"
                     f" reference_accept='{ref_accept}'"

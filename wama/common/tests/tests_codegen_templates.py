@@ -392,6 +392,15 @@ class SlotDeReferenceGenereTest(SimpleTestCase):
                 return ligne
         self.fail('le gabarit ne rend plus la card d\'entrée commune')
 
+    def _reference_natures(self, inc):
+        """Natures proposées par le slot de référence — `audio/*` ou `.mp3,.wav…` selon que
+        l'app déclare ou non les formats de la nature (`accept_for_types`, 2026-09-29)."""
+        from wama.common.app_registry import category_of_path
+        m = re.search(r"reference_accept='([^']*)'", inc)
+        self.assertIsNotNone(m, 'aucun reference_accept émis')
+        return {t[:-2] if t.endswith('/*') else category_of_path('x' + t)
+                for t in filter(None, m.group(1).split(','))}
+
     def test_un_port_reference_declare_rend_le_slot_type(self):
         # Manifeste MUTÉ (pas l'état du jour du converter) : c'est ce qui distingue « dérivé »
         # de « écrit en dur avec la bonne valeur » (même recette que le vocabulaire d'entrée).
@@ -404,7 +413,7 @@ class SlotDeReferenceGenereTest(SimpleTestCase):
         src = self._rendu(manifest)
         inc = self._include_card(src)
         self.assertIn('show_reference=True', inc)
-        self.assertIn("reference_accept='audio/*'", inc,
+        self.assertEqual({'audio'}, self._reference_natures(inc),
                       'le slot doit être typé par les catégories du PORT')
         self.assertIn("reference_label='Voix de référence'", inc)
         self.assertIn('slot de référence RENDU', src,
@@ -427,7 +436,7 @@ class SlotDeReferenceGenereTest(SimpleTestCase):
         """
         inc = self._include_card(self._rendu(_manifeste('composer')))
         self.assertIn('show_reference=True', inc)
-        self.assertIn("reference_accept='audio/*'", inc)
+        self.assertEqual({'audio'}, self._reference_natures(inc))
         self.assertIn("reference_label='Mélodie de référence'", inc)
 
     def test_le_slot_travail_est_retreci_aux_categories_du_port(self):
@@ -473,7 +482,7 @@ class SlotDeReferenceGenereTest(SimpleTestCase):
         ])
         src = self._rendu(manifest)
         inc = self._include_card(src)
-        self.assertIn("reference_accept='image/*'", inc, 'le PREMIER port déclaré se rend')
+        self.assertEqual({'image'}, self._reference_natures(inc), 'le PREMIER port déclaré se rend')
         self.assertIn('port de référence supplémentaire NON rendu : `reference_voice`', src)
 
 
