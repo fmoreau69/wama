@@ -707,6 +707,17 @@ DEUX réunions valides (`007a_ECRH` 20 min, `012c_EBPZ` 19 min) :
 - ⚠ **Couper le filtre de parole de Whisper est dangereux** : sur `012c`, 95,5 % — Whisper s'est
   effondré (2 min de traitement au lieu de 14, texte inventé ou en boucle). Le mode « auto » du
   filtre ne le coupe que sur une parole lointaine détectée : c'est le bon réglage par défaut.
+- **Pourquoi ~28 % — décomposé** (question de Fabien, 29/09 ; Whisper, Qwen, Canary sur 007a et
+  012c) : les **omissions font l'essentiel** (17-24 % des mots de la référence), les mots
+  réellement mal entendus seulement **6-9 %**, les ajouts 1-3 % (Canary 11 % sur 012c). Retirer
+  des DEUX côtés hésitations et acquiescements (`euh`, `ben`, `ouais`, `mh`…) ne rend que 4-6
+  points. Le reste : des passages **non transcrits du tout** — 7 à 15 % du temps de parole de
+  chaque locuteur n'est recouvert par aucun segment produit (tours courts, parole superposée :
+  17 % du temps sur 007a) — et le style normalisé des moteurs (`ne` ajouté). ⚠ **Ce n'est PAS le
+  niveau** : sur 007a, le locuteur le plus FORT du mixage (−23,7 dBFS) a la plus forte erreur
+  locale (60 %), un locuteur 6 dB plus faible la plus basse (31 %). ⇒ Le chiffre mesure l'écart
+  entre une transcription VERBATIM de parole spontanée et ce que rendent les moteurs ; les 5 %
+  annoncés pour ces modèles (`nemo_asr_backend.py:5`) sont mesurés sur de la parole LUE.
 - ⚠ **`008a_EARH` ÉCARTÉE** : la piste du locuteur 028 n'est « transcrite » que par des jetons
   (`sil`, `w_1 w_2 … w_14`, 1 768 jetons) alors que sa parole est dans l'audio — tous les moteurs
   y faisaient 66-69 %. `asr_eval_corpus` écarte désormais toute réunion dont une piste est masquée
