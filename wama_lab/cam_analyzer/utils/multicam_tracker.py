@@ -17,6 +17,19 @@ from django.apps import apps
 
 logger = logging.getLogger(__name__)
 
+#: ⚑ parked_off_road — marge de doute autour du bord de chaussée IGN (m) : une médiane plus proche
+#: du bord que cela n'est ni « sur la voie » ni « garée » (placement latéral ± 0,8 m, mesuré par
+#: rangée le 2026-09-30). Dans le doute, pas garé : on ne fige jamais un véhicule qui peut partir.
+OFF_ROAD_MARGIN_M = 0.5
+#: Familles qui peuvent être GARÉES (jamais un piéton immobile sur un trottoir).
+PARKABLE_FAMILIES = ('four_wheel', 'two_wheel')
+#: Garde contre les MOBILES placés hors des voies par une erreur latérale : déplacement net /
+#: longueur du chemin (`net_sur_chemin`, sans dimension, bimodal — mode ≈ 0,95 pour ce qui roule).
+#: Mesuré le 2026-09-30 : retenus hors voies p50 0,17 mais p95 0,86 ; les vus < 4 s (signature des
+#: mobiles) p50 0,81. Ce n'est PAS le critère réfuté au §D.3 bis (séparer étalés et retenus) :
+#: seulement l'élimination des tracks qui AVANCENT franchement.
+MAX_NET_OVER_PATH = 0.8
+
 from .artifact_filter import is_giant_reflection as _giant_reflection
 
 from .prediction_adapter import (make_local_frame, shuttle_trajectory, pinhole_ego,
@@ -96,6 +109,26 @@ def _cam_to_vehicle(lateral, longitudinal, yaw_deg):
     t = math.radians(yaw_deg)
     s, c = math.sin(t), math.cos(t)
     return (longitudinal * s + lateral * c, longitudinal * c - lateral * s)
+
+
+def off_road_gate(hs, votes, footprint, edge, margin_m=OFF_ROAD_MARGIN_M):
+    """Porte de sortie d'un track sous ⚑ parked_off_road : 'pas_un_vehicule', 'sur_voie',
+    'bord_de_voie' ou 'retenu'. Médiane (composante par composante, comme les ancres) des positions
+    `hs` = [(fn, t, e, n, classe)] confrontée à l'emprise de chaussée `footprint` (même repère) :
+    dedans à plus de `margin_m` du bord → sur la voie (arrêté ou roulant, JAMAIS garé) ; dehors à
+    plus de `margin_m` → garé ; entre les deux → doute, pas garé."""
+    from shapely.geometry import Point
+    if dominant_family(votes) not in PARKABLE_FAMILIES:
+        return 'pas_un_vehicule'
+    es = sorted(h[2] for h in hs)
+    ns = sorted(h[3] for h in hs)
+    pt = Point(es[len(es) // 2], ns[len(ns) // 2])
+    signed = (-1.0 if footprint.contains(pt) else 1.0) * edge.distance(pt)   # > 0 : hors chaussée
+    if signed <= -margin_m:
+        return 'sur_voie'
+    if signed < margin_m:
+        return 'bord_de_voie'
+    return 'retenu'
 
 
 def track_descriptors(hs):
@@ -673,9 +706,32 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # source, sur les positions BRUTES que le filtre juge réellement.
     # Le compte part dans `results_summary['stationary_rejects']` et en console : un filtre qui
     # écarte 97 % de ses candidats doit DIRE par quelle porte.
+    # ⚑ parked_off_road (Fabien, 2026-09-30) : un garé est HORS DES VOIES DE CIRCULATION — l'emprise
+    # de chaussée IGN (`geo.road_zones`) — et un immobile SUR la chaussée (feu, file, carrefour)
+    # peut repartir à tout instant : il n'est jamais garé. Critère LATÉRAL, l'axe où le placement
+    # tient (± 0,8 m par rangée) ; les portes d'étalement en mètres, qui mesurent le bruit de
+    # placement (§D.3 bis), ne sont plus consultées. Emprise indisponible (réseau IGN) → portes
+    # historiques, et le rapport le dit (`stationary_rule`).
+    _footprint = _edge = None
+    _stationary_rule = 'etalement'
+    if _feat.get('parked_off_road', False):
+        try:
+            from .lane_map_recalage import road_footprint
+            _footprint = road_footprint(session, gt, to_local)
+        except Exception:
+            logger.warning('emprise de chaussée indisponible (⚑ parked_off_road)', exc_info=True)
+        if _footprint is None or _footprint.is_empty:
+            _footprint = None
+            _stationary_rule = 'etalement (emprise IGN indisponible)'
+        else:
+            _edge = _footprint.boundary
+            _stationary_rule = 'hors_voies'
     stationary_gids = []
     _rejets = {'moins_de_5_obs': 0, 'vu_moins_de_4s': 0, 'trop_etale': 0,
                'trop_rapide': 0, 'pres_intersection': 0, 'retenu': 0}
+    if _footprint is not None:
+        _rejets = {'moins_de_5_obs': 0, 'vu_moins_de_4s': 0, 'pas_un_vehicule': 0,
+                   'sur_voie': 0, 'bord_de_voie': 0, 'avance': 0, 'retenu': 0}
     _candidats = []          # descripteurs des tracks qui ATTEIGNENT la décision
     for gid, hist in track_hist.items():
         hs = sorted(hist)
@@ -688,6 +744,15 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         if dur < 4.0:
             _rejets['vu_moins_de_4s'] += 1
             d['porte'] = 'vu_moins_de_4s'
+            continue
+        if _footprint is not None:
+            porte = off_road_gate(hs, cls_votes.get(gid), _footprint, _edge)
+            if porte == 'retenu' and d['net_sur_chemin'] > MAX_NET_OVER_PATH:
+                porte = 'avance'
+            _rejets[porte] += 1
+            d['porte'] = porte
+            if porte == 'retenu':
+                stationary_gids.append(gid)
             continue
         spread = d['spread_first']
         # La porte d'ÉTALEMENT — elle écarte 45,4 % des candidats (mesuré 09/09).
@@ -973,6 +1038,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'placement_spread': placement_spread,
             'placement_sources': dict(_src_counts),
             'stationary_rejects': _rejets,
+            'stationary_rule': _stationary_rule,
             'stationary_candidates': _stat_candidats,
             'stable_class_fragiles': _cls_fragiles,
             'stable_class_margin_median': (sorted(stable_marge.values())[len(stable_marge) // 2]

@@ -2495,6 +2495,7 @@ def _run_global_tracking(session):
         # et l'ignorer a fait conclure faux DEUX fois depuis les données persistées. Un filtre
         # qui retient 1,8 % de ses candidats doit dire par quelle porte sortent les autres.
         rs['stationary_rejects'] = _gt.get('stationary_rejects') or {}
+        rs['stationary_rule'] = _gt.get('stationary_rule')
         # Métrique A/B objective de cohérence de placement (étalement monde des
         # stationnés autour de leur barycentre — 0 = idéal). Persistée pour trancher
         # la bascule ⚑ auto_ground_calib ON/OFF sur un CHIFFRE, pas « à l'œil ».
@@ -2529,7 +2530,8 @@ def _run_global_tracking(session):
         if _rej:
             _tr = sum(_rej.values()) or 1
             _console(session.user_id,
-                     "Garés — pourquoi le filtre écarte : " + ", ".join(
+                     "Garés — pourquoi le filtre écarte"
+                     f" (règle : {_gt.get('stationary_rule') or 'etalement'}) : " + ", ".join(
                          f"{k} {v} ({100.0 * v / _tr:.0f} %)"
                          for k, v in sorted(_rej.items(), key=lambda kv: -kv[1]))
                      + " — un seuil qui écarte l'essentiel de ses candidats se juge sur CETTE "

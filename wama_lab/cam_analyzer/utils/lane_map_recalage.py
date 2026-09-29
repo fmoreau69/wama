@@ -123,6 +123,43 @@ def roads_along(track, *, spacing_m=ROADS_SPACING_M, radius_m=ROADS_RADIUS_M):
     return roads
 
 
+#: Durée de vie des tronçons du parcours en cache (s) : la BD TOPO ne bouge pas d'une passe à
+#: l'autre, le réseau IGN, lui, est lent et parfois injoignable.
+ROADS_CACHE_S = 86400
+
+
+def session_roads(session, track):
+    """Tronçons BD TOPO du parcours de la session — collectés UNE fois (`roads_along`) puis gardés
+    en cache Django `ROADS_CACHE_S`. Consommateurs : le recalage voie + carte et la qualification
+    des garés hors des voies (⚑ parked_off_road). [] si le réseau IGN est injoignable (rien n'est
+    alors mis en cache : la passe suivante réessaie)."""
+    from django.core.cache import cache
+    key = f'cam_analyzer_roads_along:{session.pk}'
+    roads = cache.get(key)
+    if roads is None:
+        roads = roads_along(track)
+        if roads:
+            cache.set(key, roads, ROADS_CACHE_S)
+    return roads or []
+
+
+def road_map_rows(roads):
+    """Tronçons bruts (`fetch_roads`) → lignes du port `road_map` ((lat, lon), largeur, voies…)."""
+    return [{'geometry': [(la, lo) for lo, la in r['coords']], 'nb_voies': r.get('nb_voies'),
+             'largeur_m': r.get('largeur'), 'sens': r.get('sens'), 'type': r.get('nature')}
+            for r in roads]
+
+
+def road_footprint(session, track, to_xy):
+    """Emprise de chaussée du parcours (union des axes élargis, `geo.road_zones`) dans le repère
+    `to_xy(lat, lon) → (x, y)` de l'appelant, ou None sans tronçon."""
+    roads = session_roads(session, track)
+    if not roads:
+        return None
+    from wama_data.functions.geo.road_zones import road_zone_union
+    return road_zone_union(road_map_rows(roads), to_xy)
+
+
 def centre_track(session, track):
     """La trace au CENTRE ARRIÈRE du véhicule (le GPS mesure l'ANTENNE, `antenna_offset`) —
     même levier que `shuttle_trajectory`. Sans cap, le point reste celui de l'antenne."""
@@ -157,15 +194,13 @@ def compute_lane_map_recalage(session, *, persist=True):
     if not lanes:
         report['skipped'] = source or 'aucune observation de voie'
         return report
-    roads = roads_along(gt)
+    roads = session_roads(session, gt)
     report['roads'] = len(roads)
     if not roads:
         report['skipped'] = 'aucun tronçon BD TOPO (réseau IGN injoignable ?)'
         return report
     ctr = centre_track(session, gt)
-    rm = pd.DataFrame([{'geometry': [(la, lo) for lo, la in r['coords']], 'nb_voies': r.get('nb_voies'),
-                        'largeur_m': r.get('largeur'), 'sens': r.get('sens'), 'type': r.get('nature')}
-                       for r in roads])
+    rm = pd.DataFrame(road_map_rows(roads))
     from .features import enabled
     # ⚑ gps_bias_kalman : le biais GPS estimé comme un état lent (porte la correction dans les
     # zones sans ancre) au lieu de l'interpolation entre ancres proches
