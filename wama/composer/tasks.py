@@ -174,7 +174,8 @@ def compose_task(self, generation_id: int):
         try:
             from wama.model_manager.services.eta_estimator import record_run
             record_run(f'composer:{gen.model}', size=float(gen.duration or 0),
-                       unit='audio_sec', process_seconds=gen.processing_seconds, load_seconds=None)
+                       unit='audio_sec', process_seconds=gen.processing_seconds, load_seconds=None,
+                       user=gen.user)
         except Exception:
             pass
 

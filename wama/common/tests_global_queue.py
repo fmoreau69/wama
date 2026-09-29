@@ -129,6 +129,17 @@ class SnapshotTest(TestCase):
         self.assertEqual([e['itemId'] for e in res['queue']], [self.mine.pk])
         self.assertEqual(res['queueLength'], 3)
 
+    def test_test_accounts_do_not_shape_the_typical_duration(self):
+        from wama.common.services.nightly_tests import TEST_USERNAME
+        from wama.describer.models import Description
+        robot = User.objects.get_or_create(username=TEST_USERNAME)[0]
+        for _ in range(10):                               # 10 témoins éclair, sous le compte de test
+            Description.objects.create(user=robot, filename='t.jpg', status='SUCCESS',
+                                       processing_seconds=1)
+        seconds, source = Q.typical_seconds(Description)
+        self.assertEqual((seconds, source), (600.0, 'measured'),
+                         'la médiane doit rester celle des trois réussites réelles (10 min)')
+
     def test_a_nightly_campaign_in_the_queue_lasts_its_reserved_window(self):
         from wama.common.services.calendar import window_minutes
         entries = Q.snapshot(_at(1, 10), running=[],

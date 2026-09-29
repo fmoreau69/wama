@@ -371,7 +371,8 @@ def generate_image_task(self, generation_id):
             _steps = int(getattr(generation, 'steps', 0) or 0) * int(getattr(generation, 'num_images', 1) or 1)
             record_run(f'imager:img:{generation.model}', size=max(_steps, 1), unit='step',
                        process_seconds=gen_duration,
-                       load_seconds=(_load_seconds if _load_seconds and _load_seconds >= 2 else None))
+                       load_seconds=(_load_seconds if _load_seconds and _load_seconds >= 2 else None),
+                       user=generation.user)
         except Exception:
             pass
 
@@ -1045,7 +1046,8 @@ def generate_video_task(self, generation_id):
                            size=float(getattr(generation, 'video_duration', 0) or 0),
                            unit='video_sec',
                            process_seconds=generation_time + export_time,
-                           load_seconds=(model_load_time if model_load_time and model_load_time >= 2 else None))
+                           load_seconds=(model_load_time if model_load_time and model_load_time >= 2 else None),
+                           user=generation.user)
             except Exception:
                 pass
 

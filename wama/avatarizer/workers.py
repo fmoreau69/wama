@@ -283,7 +283,7 @@ def generate_avatar(self, job_id: int):
         try:
             from wama.model_manager.services.eta_estimator import record_run
             record_run(f'avatarizer:{job.quality_mode}', size=_dur, unit='video_sec',
-                       process_seconds=_time.time() - _t0, load_seconds=None)
+                       process_seconds=_time.time() - _t0, load_seconds=None, user=job.user)
         except Exception:
             pass
         try:

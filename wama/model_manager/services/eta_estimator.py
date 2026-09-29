@@ -143,14 +143,27 @@ def estimate(model_key: str, size: float = 1.0, unit: str = 'item',
 
 
 def record_run(model_key: str, size: float, unit: str = 'item',
-               process_seconds: float = 0.0, load_seconds: Optional[float] = None) -> None:
+               process_seconds: float = 0.0, load_seconds: Optional[float] = None,
+               user=None) -> None:
     """
     Enregistre une exécution RÉELLE pour affiner l'estimation (EMA, par hardware).
 
     Args:
         process_seconds : durée de TRAITEMENT mesurée (hors chargement).
         load_seconds    : durée de CHARGEMENT à froid mesurée ; None si le modèle était déjà résident.
+        user            : le propriétaire de l'élément. Un compte de TEST n'apprend rien
+                          (`nightly_tests.is_test_account`) : ses entrées sont des témoins
+                          synthétiques — une image de 8×8 px rapportée au mégapixel a donné
+                          828 338 s/Mpx à l'anonymizer (mesuré le 2026-09-29).
     """
+    if user is not None:
+        try:
+            from wama.common.services.nightly_tests import is_test_account
+            if is_test_account(user):
+                logger.debug("record_run ignoré (%s) : compte de test", model_key)
+                return
+        except Exception:
+            pass
     try:
         from wama.model_manager.models import ModelRuntimeStat
         s = float(size) if size and float(size) > 0 else 1.0
