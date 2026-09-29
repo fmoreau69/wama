@@ -1591,6 +1591,62 @@ class LaCardDIT_A_QuoiSertChaqueEntreeTest(TestCase):
                       'le format de lot est affiché sans dire que c’est celui du LOT')
 
 
+class SeveralWorkPortsTest(TestCase):
+    """La card v4 porte PLUSIEURS ports de travail sans collision d'ids (2026-09-29).
+
+    L'avatarizer a deux ports de travail — l'audio à dire et l'image d'avatar. La v4 rendait
+    chaque port de travail avec les MÊMES ids (`drop_zone_id`, `file_input_id`) : deux
+    dropzones au même id, et `WamaImport` n'en câblait qu'une. Le port PRINCIPAL (le premier)
+    garde les ids historiques ; les suivants reçoivent des ids dérivés de leur port.
+    """
+
+    AUDIO = {'id': 'work_audio', 'label': 'Audio', 'group': 'travail', 'types': ['audio'],
+             'multi': True, 'required': True, 'description': 'audio à dire'}
+    IMAGE = {'id': 'work_image', 'label': 'Avatar', 'group': 'travail', 'types': ['image'],
+             'multi': False, 'required': True, 'description': 'visage à animer'}
+
+    def _render(self, app, ports):
+        from unittest.mock import patch
+        from django.template.loader import render_to_string
+        with patch('wama.common.app_registry.app_input_ports', return_value=ports):
+            return render_to_string('common/_new_item_card_v4.html', {
+                'app_id': app, 'file_input_id': 'f', 'drop_zone_id': 'z',
+                'folder_input_id': 'd', 'url_input_id': 'u', 'batch_template_url': '/tpl',
+            })
+
+    def test_the_primary_port_keeps_the_historical_ids_once(self):
+        html = self._render('avatarizer', [self.AUDIO, self.IMAGE])
+        for legacy in ('id="z"', 'id="f"', 'id="d"', 'id="u"', 'id="batchTemplateLink"'):
+            self.assertEqual(html.count(legacy), 1, f'{legacy} rendu {html.count(legacy)} fois')
+
+    def test_the_secondary_port_gets_ids_derived_from_its_port(self):
+        html = self._render('avatarizer', [self.AUDIO, self.IMAGE])
+        self.assertIn('id="newItemCard-work_image-input"', html)
+        self.assertIn('id="newItemCard-work_image-drop"', html)
+        self.assertIn('data-port-input="newItemCard-work_image-input"', html)
+        # sa tuile Importer n'appartient à aucune voie d'import : la brique la câble
+        self.assertEqual(html.count('data-port-import-self'), 1)
+
+    def test_the_declared_library_nature_reaches_the_pane(self):
+        html = self._render('avatarizer', [self.AUDIO, self.IMAGE])
+        self.assertIn('data-port-library-prefer="avatar"', html)
+
+    def test_a_single_work_port_renders_as_before(self):
+        """Contre-épreuve : les apps à un seul port de travail ne voient aucune différence."""
+        port = dict(self.IMAGE, id='work_file', multi=True)
+        html = self._render('converter', [port])
+        self.assertIn('data-port-input="f"', html)
+        self.assertNotIn('newItemCard-work_file', html)
+        self.assertNotIn('data-port-library-prefer', html)
+        self.assertNotIn('data-port-import-self', html)
+
+    def test_library_nature_for_reads_the_domain_declaration(self):
+        from wama.common.utils.app_modes import library_nature_for
+        self.assertEqual(library_nature_for('avatarizer', 'work_image'), 'avatar')
+        self.assertEqual(library_nature_for('avatarizer', 'work_audio'), '')
+        self.assertEqual(library_nature_for('converter', 'work_file'), '')
+
+
 class JetonDeTransfertDeStyleTest(TestCase):
     """Le vocabulaire de `tasks` doit savoir dire « cette image GUIDE », pas seulement
     « cette image est éditée ».

@@ -263,9 +263,14 @@ APP_MODES = {
              # politique VOICE_SAMPLE_EXTENSIONS). ⚠ `work_audio`, PAS `reference_voice` :
              # l'audio EST l'entrée de travail (il pilote l'animation), déjà porté par le port
              # TRAVAIL via input_types — un slot `reference` créerait un port audio EN DOUBLE.
-             # L'AVATAR (image) passe par la galerie (`extra_zone_template`), pas par un input
-             # fichier — l'image reste au port travail, la galerie est la modalité d'app.
-             'inputs': ['prompt', 'work_audio'], 'modes': []},
+             # L'AVATAR (image) est le port de TRAVAIL `work_image` (déclaré par les modèles
+             # MuseTalk) ; la galerie d'avatars est sa modalité MÉDIATHÈQUE, ouverte sur la
+             # nature « avatar » (décision du 2026-09-28 : une modalité n'est jamais un port).
+             # ⚠ Elle passait par `extra_zone_template` avant le passage de l'app en card v4.
+             'inputs': ['prompt', 'work_audio'], 'modes': [],
+             # La NATURE de médiathèque sur laquelle s'ouvre la fenêtre de sélection, par port —
+             # une spécificité DÉCLARÉE (`library_nature_for`), lue par la card v4.
+             'library_natures': {'work_image': 'avatar'}},
         ],
     },
 
@@ -381,6 +386,18 @@ def get_domains(app: str) -> list:
 def has_domain_tabs(app: str) -> bool:
     """True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs."""
     return len(get_domains(app)) > 1
+
+
+def library_nature_for(app: str, port_id: str) -> str:
+    """La nature de médiathèque sur laquelle s'ouvre la sélection pour ce PORT ('' si aucune).
+
+    Déclarée par le domaine (`library_natures`, 2026-09-29) : l'image de travail de l'avatarizer
+    s'ouvre sur « avatar », sa galerie. Une app qui ne déclare rien garde le filtre du port."""
+    for d in get_domains(app):
+        nature = (d.get('library_natures') or {}).get(port_id)
+        if nature:
+            return nature
+    return ''
 
 
 def get_domain(app: str, domain_id: str) -> dict:

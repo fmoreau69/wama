@@ -631,6 +631,13 @@
         const item = { path: asset.path, name: (asset.path || '').split('/').pop(),
                        type: asset.mime_type || '' };
         if (imp && imp.handleDesignations && asset.path) { imp.handleDesignations([item]); return; }
+        // Un port qu'aucune voie d'import ne porte (port SECONDAIRE de la card v4, référence)
+        // le DÉCLARE (`designate`) : l'asset y est pointé, et le formulaire de l'app le poste
+        // par `appendInput` (2026-09-29). Sans cette déclaration, l'ancien geste ci-dessous.
+        if (opts.designate && input && asset.path) {
+          designateInto(input, { designation: asset.path, name: item.name });
+          return;
+        }
         filesFromServerPaths([{ path: asset.path, name: item.name, mime: item.type }])
           .then(function (files) { if (files.length) injectFiles(input, files); });
       },

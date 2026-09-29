@@ -1819,7 +1819,13 @@
                         && (WamaImport.forElement(currentDropZone.id)
                             || (cible && WamaImport.forElement(cible.id)));
                     const locaux = dragFiles.every(function (f) { return !/^mounts\//.test(f.path || ''); });
-                    if (voie && voie.handleDesignations && locaux) {
+                    // Port SANS voie d'import (card v4 : port de travail secondaire, référence —
+                    // `data-port-import-self`, 2026-09-29) : désigné dans l'input du port lui-même.
+                    const portInput = currentDropZone.hasAttribute('data-port-import-self')
+                        && currentDropZone.querySelector('input[type="file"]');
+                    if (!voie && portInput && locaux && window.WamaApp && WamaApp.designateInto) {
+                        WamaApp.designateInto(portInput, { designation: dragFiles[0].path, name: dragFiles[0].name });
+                    } else if (voie && voie.handleDesignations && locaux) {
                         voie.handleDesignations(dragFiles.map(function (f) {
                             return { path: f.path, name: f.name, type: f.mime };
                         }));

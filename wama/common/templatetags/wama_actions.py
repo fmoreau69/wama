@@ -222,7 +222,9 @@ def input_slots(app):
     textes = {p['id']: p.get('description', '') for p in known}
 
     mimes = {'image': 'image/*', 'video': 'video/*', 'audio': 'audio/*'}
+    from wama.common.utils.app_modes import library_nature_for
     slots = []
+    primary_seen = False
     for port in ports:
         if port.get('group') == 'prompt':
             continue
@@ -234,15 +236,25 @@ def input_slots(app):
         # une affordance DANS la tuile Importer (contrainte de l'<input> natif), sur les ports
         # `multi` seulement.
         mods = ['import', 'library', 'url']
+        # Le PREMIER port de travail est le port PRINCIPAL : il porte les ids historiques de la
+        # card (dropzone, input, dossier, URL, gabarit de lot) — ceux que lisent `WamaImport` et
+        # les gestes nocturnes. Les ports de travail suivants (l'avatarizer : audio ET image)
+        # reçoivent des ids dérivés de leur port (2026-09-29) : sans cela la v4 rendait N
+        # dropzones au même id.
+        primary = travail and not primary_seen
+        primary_seen = primary_seen or primary
         slots.append({
             'id': port.get('id'),
             'kind': 'file',
             'label': port.get('label') or port.get('id'),
             'group': port.get('group'),
             'accept': accept,
+            'primary': primary,
             # `media_library_type` n'accepte qu'UNE valeur : un port multi-nature (converter)
             # ouvre la médiathèque non filtrée plutôt que sur une nature arbitraire.
             'library_type': types[0] if len(types) == 1 else 'all',
+            # L'ONGLET d'ouverture de la médiathèque, quand l'app le déclare (`library_natures`).
+            'library_prefer': library_nature_for(app, port.get('id')),
             'multi': bool(port.get('multi')),
             'required': oblig.get(port.get('id'), travail),
             # Texte qui dit À QUOI sert cette entrée (demande Fabien 10/09) : deux onglets
