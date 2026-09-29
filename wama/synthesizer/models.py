@@ -8,7 +8,9 @@ from django.contrib.auth import get_user_model
 from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager, JOB_STATUS_CHOICES
 from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output, UploadToUserPath
-from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES
+from wama.common.tts.constants import (
+    DEFAULT_TTS_MODEL, TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES,
+)
 from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
 
 User = get_user_model()
@@ -81,7 +83,7 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
     # suffixe et l'appelant ne saurait plus qui il vise.
     tts_model = models.CharField(
         max_length=128,
-        default='synthesizer:coqui-xtts',
+        default=DEFAULT_TTS_MODEL,
         help_text="Clé catalogue du moteur TTS (AIModel.model_key)"
     )
 

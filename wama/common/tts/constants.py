@@ -44,6 +44,27 @@ TTS_MODEL_CHOICES = [
     ('higgs-audio',   'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)'),
 ]
 
+#: Moteur TTS par DÉFAUT d'un travail (synthèse, avatar), en CLÉ DE CATALOGUE — la forme que
+#: stocke `tts_model` depuis la route F4b (2026-09-01). Jusqu'au 2026-09-29 le défaut vivait en
+#: littéral dans ~12 sites, la plupart au nom COURT (`coqui-xtts`) : toléré par la résolution du
+#: moteur, mais la clé stockée n'était plus celle du catalogue (ETA apprise sous deux clés).
+#: Les tables ci-dessus restent au nom court : ce sont des tables de MOTEUR (`local_model_name`).
+DEFAULT_TTS_MODEL = 'synthesizer:coqui-xtts'
+
+
+def tts_catalog_key(name: str) -> str:
+    """Nom de moteur saisi (`coqui-xtts`, fichier batch, outil de l'assistant) → CLÉ DE CATALOGUE.
+
+    Une valeur qui porte déjà sa source, ou la demande de tirage automatique (`auto`, vide), est
+    rendue telle quelle. C'est la conversion de la migration `avatarizer/0012`, appliquée à
+    l'ENTRÉE pour qu'aucune nouvelle ligne ne stocke un nom court.
+    """
+    from wama.common.utils.auto_model import is_auto
+    value = (name or '').strip()
+    if is_auto(value) or ':' in value:
+        return value
+    return f"{DEFAULT_TTS_MODEL.split(':', 1)[0]}:{value}"
+
 # ---------------------------------------------------------------------------
 # Langues
 # ---------------------------------------------------------------------------

@@ -9,7 +9,9 @@ from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
 from wama.common.models import QueueOrderMixin, BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
 from wama.common.utils.media_paths import UploadToUserPath
-from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES
+from wama.common.tts.constants import (
+    DEFAULT_TTS_MODEL, TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES,
+)
 from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
 
 User = get_user_model()
@@ -64,7 +66,7 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
     # L'avatarizer EMPRUNTE le parc TTS sans en posséder aucun moteur : c'est précisément
     # pourquoi la requête d'options se fait par CAPACITÉ et non par `AIModel.source`.
     tts_model = models.CharField(
-        max_length=128, default='synthesizer:coqui-xtts',
+        max_length=128, default=DEFAULT_TTS_MODEL,
     )
 
     # Curseur de QUALITÉ du tirage « auto » — cf. `VoiceSynthesis.quality_intent` (même

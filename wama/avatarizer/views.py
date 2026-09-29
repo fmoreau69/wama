@@ -24,6 +24,7 @@ from .params import PARAMS_JSON as _AVATAR_PARAMS_JSON
 from wama.synthesizer.models import CustomVoice
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.accounts.permissions import app_access
+from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
 from wama.common.utils.batch_common import group_into_batches_by_nature
 from wama.common.utils.console_utils import get_console_lines
@@ -169,7 +170,7 @@ def create(request):
     # quand le POST ne les précise pas (dépôt rapide drag & drop sans passer par la modale).
     prefs = get_user_app_settings(user, 'avatarizer', {  # wama:redondance-ok — défauts du contrat de réglages utilisateur (décision d'app)
         'use_enhancer': False, 'bbox_shift': 0,
-        'tts_model': 'coqui-xtts', 'language': 'fr', 'voice_preset': 'default'})
+        'tts_model': DEFAULT_TTS_MODEL, 'language': 'fr', 'voice_preset': 'default'})
 
     # --- Pipeline : texte + réglages TTS (l'audio sera GÉNÉRÉ, service TTS commun) ---
     if mode == 'pipeline':
@@ -178,7 +179,8 @@ def create(request):
                 {'error': "Fournissez un texte à dire, un fichier audio ou une URL."},
                 status=400)
         job.text_content = text_content
-        job.tts_model = request.POST.get('tts_model', prefs['tts_model'])
+        # Un réglage mémorisé avant le 2026-09-29 peut porter le nom COURT : normalisé ici.
+        job.tts_model = tts_catalog_key(request.POST.get('tts_model', prefs['tts_model']))
         from wama.common.utils.auto_model import read_quality_intent
         job.quality_intent = read_quality_intent(request.POST.get('quality_intent'))
         job.language = request.POST.get('language', prefs['language'])
@@ -823,7 +825,7 @@ def _unified_item_to_avatar_row(it: dict) -> dict:
         'text_content': prompt or '',
         'audio_path': audio or '',
         'avatar_gallery_name': reference,
-        'tts_model': opts.get('tts') or opts.get('model') or 'coqui-xtts',
+        'tts_model': tts_catalog_key(opts.get('tts') or opts.get('model') or DEFAULT_TTS_MODEL),
         'language': opts.get('language', 'fr'),
         'voice_preset': opts.get('voice', 'default'),
         'use_enhancer': (str(opts.get('enhancer', '')).lower() in ('1', 'true', 'yes')
