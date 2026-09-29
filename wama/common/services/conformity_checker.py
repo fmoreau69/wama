@@ -507,12 +507,14 @@ def _has_engine_select(f: _AppFiles) -> bool:
     `*PARAMS_JSON`), depuis le 2026-09-28 : l'imager n'était reconnu que par le select de sa card
     d'entrée (signal 2). Le jour où ce select est parti au volet (CARD_DESIGN §11.11 Étape 3 (c)),
     ses trois critères seraient passés N/A — et son `model_caps_ui` ROUGE aurait disparu de la
-    grille sans que rien ne soit réparé. Le schéma, lui, déclarait toujours son select de modèle."""
+    grille sans que rien ne soit réparé. Le schéma, lui, déclarait toujours son select de modèle.
+    Lecture par le DOMICILE `param_schema.declared_param_schemas` (tous les schémas déclarés) —
+    le 28/09 elle la recopiait ici (`check_redundancy`, trouvaille corrigée le 29/09)."""
     try:
-        import importlib
-        module = importlib.import_module(f'wama.{f.app}.params')
-        schema = [p for attr in dir(module) if attr.endswith('PARAMS_JSON')
-                  for p in (getattr(module, attr) or []) if isinstance(p, dict)]
+        from wama.common.utils.param_schema import declared_param_schemas
+        declared = declared_param_schemas(f.app) or {}
+        schema = [p for params in (declared.get('schemas') or {}).values()
+                  for p in params if isinstance(p, dict)]
         engine_selects = [p['name'] for p in schema
                           if p.get('type') == 'select'
                           and (p.get('help_source')
