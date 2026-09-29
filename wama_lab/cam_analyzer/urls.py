@@ -40,6 +40,7 @@ urlpatterns = [
     path('api/sessions/<uuid:session_id>/ortho-recalage/', views.ortho_recalage, name='ortho_recalage'),
     path('api/sessions/<uuid:session_id>/ortho-correction/', views.ortho_correction, name='ortho_correction'),
     path('api/sessions/<uuid:session_id>/buildings/', views.session_buildings, name='session_buildings'),
+    path('api/sessions/<uuid:session_id>/road-zones/', views.session_road_zones, name='session_road_zones'),
     path('api/sessions/<uuid:session_id>/calibrate/', views.calibrate_homography, name='calibrate_homography'),
     path('api/sessions/<uuid:session_id>/sam3-test/', views.sam3_test_frame, name='sam3_test_frame'),
     path('api/sessions/<uuid:session_id>/sam3-test-result/', views.sam3_test_result, name='sam3_test_result'),

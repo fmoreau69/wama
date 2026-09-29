@@ -99,6 +99,13 @@ FEATURES = [
             "et qui fondent le masquage satellite de la correction ortho : les voir aide à "
             "juger une trace. Affichage seul.",
             default=False, scope='live'),
+    Feature('map_road_zones', 'Chaussée IGN sur la carte',
+            "Dessine l'emprise de la CHAUSSÉE autour de la navette : axes BD TOPO élargis de leur "
+            "largeur puis unis — bords de voie, carrefours et giratoires ouverts. Remplace les "
+            "bandes violettes des intersections (branche apprise ou bande symétrique), qui disaient "
+            "qu'une route croisait sans dire où était la chaussée. OFF = les bandes violettes. "
+            "Affichage seul.",
+            default=True, scope='live'),
     Feature('shuttle_filter', 'Filtre de trajectoire navette (Kalman+RTS)',
             "Position et cap de la NAVETTE lissés par Kalman vitesse-constante + lisseur RTS "
             "(sans retard de phase) ; cap dérivé de la vitesse lissée, tenu à l'arrêt. Appliqué "

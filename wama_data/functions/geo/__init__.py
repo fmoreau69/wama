@@ -18,7 +18,11 @@ l'étranger. ⚠ Leurs conventions d'axes sont OPPOSÉES — chaque module docum
 `spatial` : prédicats spatiaux réduits à des COLONNES DÉRIVÉES — la distance à un point devient
 une colonne, et la chaîne conditionnelle existante fait le reste. Pas de « mode spatial » : voir
 l'en-tête du module et `WAMA_DATA_WORLD.md §9septies`.
+
+`road_zones` : emprise de CHAUSSÉE (axes élargis de leur largeur, puis unis) — bords de voie en
+vue de dessus et test « sur la chaussée ».
 """
 from . import ign_vector  # noqa: F401
 from . import osm_vector  # noqa: F401
 from . import spatial     # noqa: F401
+from . import road_zones  # noqa: F401

@@ -1,0 +1,83 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {},
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "road_map",
+        "description": "Axes routiers ((lat, lon), largeur_m, nb_voies, sens, type — les natures non roulables sont écartées).",
+        "group": "travail",
+        "key": "road_map",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "geometry"
+        ]
+      }
+    ],
+    "key": "road_zones",
+    "outputs": [
+      {
+        "cardinality": "many",
+        "data_type": "table",
+        "description": "Polygones de chaussée : contour extérieur puis trous, en (lat, lon).",
+        "key": "zones",
+        "optional": false,
+        "produced_fields": [
+          "rings",
+          "area_m2"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": "m",
+        "default": 3.0,
+        "description": "",
+        "key": "default_lane_width_m",
+        "max": 5.0,
+        "min": 2.0,
+        "type": "float",
+        "unit": "Largeur de voie supposée quand la chaussée n'a pas de largeur déclarée."
+      },
+      {
+        "choices": "m",
+        "default": 0.3,
+        "description": "",
+        "key": "simplify_m",
+        "max": 5.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "Tolérance de simplification des contours."
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "geo",
+      "reference",
+      "requires-road-map"
+    ],
+    "visibility": "public"
+  },
+  "description": "Emprise de la CHAUSSÉE tirée des axes routiers de référence : chaque axe élargi de sa demi-largeur (largeur déclarée, sinon nombre de voies × 3 m), puis les emprises UNIES — le contour suit les bords de chaussée et s'ouvre aux carrefours. Sert l'affichage (bords de voie en vue de dessus) et le test « sur la chaussée ».",
+  "key": "road_zones",
+  "manifest_kind": "function",
+  "name": "Zones routières (emprise de chaussée)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:road_zones",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}
