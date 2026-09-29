@@ -18629,3 +18629,37 @@ décision sont REMISES À ZÉRO (valeurs sauvegardées) — `converter:image:jpg
 (`VoiceSynthesis.tts_model` stocke la clé du catalogue) — le synthesizer apprend et estime
 désormais sous `synthesizer:coqui-xtts`, la clé que lit aussi l'a priori du catalogue. Mesuré : plus
 aucune clé à préfixe doublé en base (26 clés). Garde : `tests_eta_test_accounts.ModelKeyTest`.
+
+## §PALIER — 2026-09-29 (midi), REVÉRIFICATION DE LA SESSION CALENDRIER + ETA
+
+**Doublon `xtts_v2`** (question de Fabien) : ce n'était PAS un second modèle — le catalogue n'a
+qu'une entrée (`synthesizer:coqui-xtts`) ; `xtts_v2` est l'ancien nom, renommé le 2026-09-01
+(`fb9ecfd9`). Restaient une ligne d'ETA orpheline (17/07, retirée) et l'aide du fichier batch de
+l'avatarizer, qui proposait `--tts xtts_v2` — refusé par `engine_for_model` : une ligne recopiée
+échouait (`a5827afb`, garde `avatarizer/tests_batch_template`).
+
+**Vérifié sur HEAD** (worktree jetable, côté WSL) : 422 tests des suites de la session, verts sauf
+(1) `tests_check_docs.CarteTests` — ARTEFACT : le git de WSL ne lit pas un worktree créé par le git
+Windows (`ls-files` → 128), vert sur l'arbre principal ; (2) le budget des noms de tests
+français, 1313 > 1311, par DEUX de mes noms anglais contenant des mots ambigus (`journal`,
+`declares`) — renommés (`58c865ab`), 1311/1311.
+
+**Constats de la nuit (campagnes du 29/09)** :
+- le worker `default` (prefork, autoscale) garde le code de son PARENT (02:14) : un enfant forké
+  après un commit n'a PAS le correctif — il a réappris `converter:image:jpg` 17 s/Mo et
+  `converter:audio:mp3` 7 s/Mo sur les témoins, remis à zéro une 2ᵉ fois. ⚠ Relancer ce worker.
+  Le worker GPU a été relancé à 12:18 (il a le correctif).
+- la campagne fonctionnelle de 04:30 a fini à 09:57 (5 h 27) : la file GPU était occupée par les
+  lots SUMM-RE lancés à la main, ses scénarios GPU ont expiré (« aucun état final en 150 s »). Et
+  la fenêtre réservée se MESURE sur la plus longue exécution récente : elle vaut désormais 270 min
+  (04:30 → 09:00) — une nuit anormale allonge la réservation. **Décision à prendre** : mesurer la
+  fenêtre autrement (médiane, ou hors exécutions dont des scénarios ont expiré), et/ou tenir la file
+  GPU libre avant 04:30.
+- le gouverneur garde une ligne « tâche en cours » d'un worker MORT jusqu'à son TTL (3 h pour le
+  transcriber) : `transcriber:741:734725`, terminé en SUCCESS, restait « en cours » — deux tâches
+  à la fois sur un worker `solo`, file globale et `gpu_is_busy` faussés. **Proposé, non fait** :
+  purger dans `running_tasks()` la ligne dont le tenant (pid local) n'existe plus.
+- le Redis Windows contient encore 18 messages RESTES (default 14, `gpu:6` 4 : sync_models,
+  refresh_registry, synthesize_voice) d'anciens processus Windows disparus ; un processus Windows
+  n'y publie plus (`memory://`, vérifié). Seul son CACHE (db1) sert encore à un `manage.py`
+  Windows hors tests. À vider sur GO.
