@@ -560,5 +560,20 @@ def refuse_crash_redelivery(task, instance, *,
         redelivered = False
     if not redelivered:
         return False
+    # Message PÉRIMÉ : l'élément a été relancé depuis sous une AUTRE tâche. On abandonne ce message
+    # sans toucher l'élément — le marquer en échec écraserait le résultat de la relance. Vécu le
+    # 2026-09-29 (card #741) : une 1ʳᵉ exécution tombée pendant une relance de WAMA (Redis coupé),
+    # la card relancée et RÉUSSIE à 02:21, puis l'ancien message re-livré à 09:57 (délai de
+    # visibilité écoulé) l'a basculée en « crash machine ». Seul le cas re-livré est concerné :
+    # comparer les identifiants de TOUT message renverrait une tâche légitime d'une app qui ne
+    # tient pas son `task_id` à jour.
+    current = getattr(instance, task_field, '') or ''
+    own = getattr(getattr(task, "request", None), "id", None)
+    if current and own and current != own:
+        import logging
+        logging.getLogger(__name__).info(
+            "message re-livré périmé pour %s #%s (tâche %s, courante %s) : abandonné",
+            type(instance).__name__, getattr(instance, 'pk', None), own, current)
+        return True
     _mark_reconciled(instance, status_field, task_field, to_status, error_field, error_message)
     return True

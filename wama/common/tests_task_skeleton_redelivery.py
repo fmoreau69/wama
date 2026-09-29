@@ -72,6 +72,35 @@ class RelivraisonApresReportTest(TestCase):
         self.assertEqual(self._lancer('RUNNING', essais=0), ['RUNNING'])
         self.assertEqual(self._statut(), 'SUCCESS')
 
+    def _redelivered(self, task_id):
+        class _T:
+            class request:
+                id = task_id
+                retries = 0
+                delivery_info = {'redelivered': True}
+        return _T
+
+    def _run_redelivered(self, current_task_id, message_task_id):
+        self.model.objects.filter(pk=self.item.pk).update(status='SUCCESS', task_id=current_task_id)
+        ran = []
+        from unittest import mock
+        with mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
+            run_item_task(self._redelivered(message_task_id), app_id='synthesizer',
+                          model=self.model, item_id=self.item.pk,
+                          process=lambda item, ctx: ran.append(1) or {})
+        return ran
+
+    def test_a_stale_redelivered_message_leaves_a_relaunched_item_untouched(self):
+        """Card #741, 2026-09-29 : relancée et RÉUSSIE sous une nouvelle tâche, puis l'ANCIEN
+        message re-livré la basculait en « crash machine »."""
+        self.assertEqual([], self._run_redelivered('new-task', 'old-task'))
+        self.assertEqual('SUCCESS', self._statut())
+
+    def test_a_redelivered_message_of_the_current_task_is_still_refused(self):
+        """Contre-épreuve : le cas que la garde protège (le message qui a tué le worker)."""
+        self.assertEqual([], self._run_redelivered('same-task', 'same-task'))
+        self.assertEqual('FAILURE', self._statut())
+
     def test_un_item_EN_ATTENTE_n_est_jamais_bascule_en_cours_par_le_squelette(self):
         """Seul un item qui revient d'un report bascule ; un PENDING garde le comportement
         d'avant (le squelette ne décide pas à la place de la vue qui l'a lancé)."""
