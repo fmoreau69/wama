@@ -61,6 +61,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const auto = panelAutoValues();
         fd.append('upscale_factor', auto.upscale_factor);
         fd.append('quality_intent', auto.quality_intent);
+        // Modèle, débruitage, blend du volet (2026-09-29) : ils ne partaient qu'avec « Tout
+        // démarrer » — l'élément naissait sur les défauts. Il naît désormais COMPLET, et le
+        // serveur MÉMORISE ce que le volet poste (brique commune `save_panel_settings`).
+        const model = document.getElementById('defaultAiModel');
+        const denoise = document.getElementById('defaultDenoise');
+        const blend = document.getElementById('defaultBlendFactor');
+        if (model && model.value) fd.append('ai_model', model.value);
+        if (denoise) fd.append('denoise', denoise.checked ? 'true' : 'false');
+        if (blend) fd.append('blend_factor', blend.value);
       },
       afterImport:      function (ids, reponses) {
         if (ids.length !== 1) { location.reload(); return; }

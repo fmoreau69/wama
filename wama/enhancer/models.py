@@ -233,7 +233,11 @@ class AudioEnhancement(ProcessingTimeMixin, ScopedVisibility):
 
 class UserSettings(models.Model):
     """
-    User-specific settings for the Enhancer app.
+    ⚠ PLUS LU NI ÉCRIT depuis le 2026-09-29 : les réglages du volet de l'enhancer sont la brique
+    commune (`common.utils.user_settings`, `UserAppSetting`). Cette table n'avait jamais été
+    ÉCRITE (seulement `get_or_create`) — ses 7 lignes portaient les défauts du modèle, aucun
+    choix. Elle reste le temps que le code en service soit rechargé (la retirer avant ferait
+    échouer la page encore servie par l'ancien code) — retrait : REMOVAL_LEDGER R83.
     """
     user = models.OneToOneField(
         User,

@@ -8,6 +8,9 @@
         "image",
         "document"
       ],
+      "params": [
+        "language"
+      ],
       "task": "ocr"
     },
     "composition": {

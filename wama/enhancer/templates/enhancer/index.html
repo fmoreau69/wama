@@ -22,7 +22,7 @@
         </label>
         <select class="form-select form-select-sm bg-dark text-white border-secondary" id="defaultAiModel">
             {% for value, label in ai_models %}
-            <option value="{{ value }}" {% if user_settings.default_ai_model == value %}selected{% endif %}>
+            <option value="{{ value }}" {% if panel.ai_model|default:'auto' == value %}selected{% endif %}>
                 {{ label }}
             </option>
             {% endfor %}
@@ -41,19 +41,19 @@
                 <i class="fas fa-expand"></i> Facteur d'agrandissement
             </label>
             <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" id="mediaUpscaleFactor">
-                <option value="2">×2</option>
-                <option value="4" selected>×4</option>
+                <option value="2" {% if panel.upscale_factor|stringformat:'s' == '2' %}selected{% endif %}>×2</option>
+                <option value="4" {% if panel.upscale_factor|stringformat:'s' != '2' %}selected{% endif %}>×4</option>
             </select>
             <label class="form-label small fw-bold text-light mb-0">
                 <i class="fas fa-gauge-high"></i> Rapide ↔ Qualité
             </label>
-            {% include 'common/_intent_slider.html' with dom_id='mediaQualityIntent' name='quality_intent' value=50 %}
+            {% include 'common/_intent_slider.html' with dom_id='mediaQualityIntent' name='quality_intent' value=panel.quality_intent|default:50 %}
         </div>
     </div>
     <div class="mb-3">
         <div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" id="defaultDenoise"
-                   {% if user_settings.default_denoise %}checked{% endif %}>
+                   {% if panel.denoise %}checked{% endif %}>
             <label class="form-check-label small text-light" for="defaultDenoise">
                 <i class="fas fa-broom"></i> Débruitage
             </label>
@@ -62,10 +62,10 @@
     </div>
     <div class="mb-3">
         <label for="defaultBlendFactor" class="form-label small fw-bold text-light">
-            <i class="fas fa-sliders-h"></i> Blend: <span id="blendValue">{{ user_settings.default_blend_factor }}</span>
+            <i class="fas fa-sliders-h"></i> Blend: <span id="blendValue">{{ panel.blend_factor|default:0.0 }}</span>
         </label>
         <input type="range" class="form-range" id="defaultBlendFactor"
-               min="0" max="1" step="0.1" value="{{ user_settings.default_blend_factor }}"
+               min="0" max="1" step="0.1" value="{{ panel.blend_factor|default:0.0 }}"
                oninput="document.getElementById('blendValue').textContent = this.value">
         <div class="d-flex justify-content-between">
             <small>100% AI</small>
