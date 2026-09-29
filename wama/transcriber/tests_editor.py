@@ -274,7 +274,7 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
 
     def test_several_languages_heard_switch_whisper_to_multilingual(self):
         self.assertEqual((True, None, True), self._language_kwargs(
-            'auto', heard=[('fr', 0.9), ('en', 0.92), ('fr', 0.8)]))
+            'auto', heard=[('fr', 0.9), ('en', 0.92), ('fr', 0.8), ('en', 0.85)]))
 
     def test_an_unsure_window_does_not_count_as_a_second_language(self):
         """Une fenêtre à 0,5 (bruit, rires) ne vote pas : l'audio reste monolingue."""
@@ -296,7 +296,7 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         asr = self._asr()
         asr.name = 'nemo'
         asr.max_audio_seconds = 30
-        self.heard = [('fr', 0.95), ('en', 0.9), ('fr', 0.9)]
+        self.heard = [('fr', 0.95), ('en', 0.9), ('fr', 0.9), ('en', 0.9), ('fr', 0.9)]
         self._run(asr)
         kwargs = asr.transcribe.call_args.kwargs
         self.assertEqual(('fr', None), (kwargs.get('fallback_language'), kwargs.get('language')))

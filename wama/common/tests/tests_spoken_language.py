@@ -56,8 +56,15 @@ class ProbeWindowsTest(SimpleTestCase):
 class LanguagesHeardTest(SimpleTestCase):
 
     def test_only_confident_windows_vote_and_the_most_frequent_comes_first(self):
-        probe = [('fr', 0.9), ('en', 0.8), ('fr', 0.95), ('de', 0.4)]
+        probe = [('fr', 0.9), ('en', 0.8), ('fr', 0.95), ('de', 0.4), ('en', 0.85)]
         self.assertEqual(['fr', 'en'], languages_heard(probe))
+
+    def test_one_stray_window_is_not_a_second_language(self):
+        """`012c_EBPZ` (réunion toute française) : une fenêtre sortie « es » avec assurance."""
+        self.assertEqual(['fr'], languages_heard([('fr', 0.9)] * 22 + [('es', 0.8)]))
+
+    def test_a_one_window_probe_keeps_its_language(self):
+        self.assertEqual(['fr'], languages_heard([('fr', 0.9)]))
 
     def test_a_silent_probe_hears_nothing(self):
         self.assertEqual([], languages_heard([('en', 0.3)]))

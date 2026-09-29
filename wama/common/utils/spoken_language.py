@@ -88,11 +88,21 @@ def probe_languages(path, duration_s: float, windows: int = PROBE_WINDOWS,
     return heard
 
 
-def languages_heard(probe: list, min_probability: float = CONFIDENT_PROBABILITY) -> list:
-    """Les langues que la sonde a entendues avec assurance, la plus fréquente d'abord."""
+#: Une langue n'est « entendue » que si elle gagne au moins autant de fenêtres sûres. Mesuré le
+#: 2026-09-29 : en fenêtres de 10 s, UNE fenêtre d'une réunion toute française (`012c_EBPZ`) est
+#: sortie « es » avec assurance — elle aurait fait transcrire la réunion en « plusieurs langues ».
+#: Le prix, assumé : une seule phrase dans une autre langue ne déclenche pas le mode multilingue.
+MIN_WINDOWS_PER_LANGUAGE = 2
+
+
+def languages_heard(probe: list, min_probability: float = CONFIDENT_PROBABILITY,
+                    min_windows: int = MIN_WINDOWS_PER_LANGUAGE) -> list:
+    """Les langues que la sonde a entendues avec assurance, la plus fréquente d'abord. Une sonde
+    d'une seule fenêtre (audio court) garde sa langue : exiger deux fenêtres l'y ferait taire."""
     from collections import Counter
     votes = Counter(lang for lang, p in probe if p >= min_probability)
-    return [lang for lang, _ in votes.most_common()]
+    floor = min(min_windows, len(probe)) or 1
+    return [lang for lang, count in votes.most_common() if count >= floor]
 
 
 def language_shares(segments) -> dict:
