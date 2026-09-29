@@ -18748,3 +18748,28 @@ médiathèque, le grisage du reader — candidats pour un test V8 dans `tests_de
 prochaine app en card v4 sur le modèle de l'avatarizer (lire `CARD_DESIGN §11.11` Étape 3 (d) ;
 contrat des ports tenu par `SeveralWorkPortsTest`) ; candidates naturelles : composer (lance encore à la
 création, groupe ses modèles) ou imager (prompt-primaire, ports déjà dérivés).
+
+## §PALIER — 2026-09-29 (soir), TESTS DE `wama/common` EN PAQUET + TTS EN CLÉ DE CATALOGUE
+
+**Tests déplacés** (`0db25a8c`, décision de Fabien, instances prévenues AVANT et APRÈS) : les 144
+fichiers de test de `wama/common` sont dans `wama/common/tests/` — modules
+`wama.common.tests.tests_<sujet>` ; `WAMA_APP_CONVENTIONS §1.1` le dit. Un commit, construit
+dans un index temporaire depuis HEAD : le travail non commité d'autres instances a suivi intact dans
+l'arbre (3 fichiers inclus tels quels à la demande de leur auteur). Vérifié côté WSL sur l'arbre
+puis sur HEAD (worktree) : 2358 tests, aucun échec dû au déplacement ; découverte nocturne 143
+modules ; `check_docs` sans chemin de test cassé. Le seul raté du 1er passage — un import de module
+voisin sous la forme `from wama.common import tests_x`, que les motifs ne couvraient pas — corrigé.
+⚠ Rouges trouvés en passant, À D'AUTRES chantiers (signalés aux sessions) : notifications ×3,
+`tool_api_lectures` (médiathèque), `picker_list`, `codegen_lot` (route imager), plan de doc dérivée,
+budgets `tests_identifier_language` à recaler vers le BAS par l'auteur de la baisse (code 2687,
+noms 1310). Les 3 blocs générés périmés (`mecanismes`, `outils`, `briques`) l'étaient déjà à 04:22.
+
+**TTS en clé de catalogue** (`8039ccd8`) : `DEFAULT_TTS_MODEL` (`common/tts/constants`) remplace
+~12 littéraux, et `tts_catalog_key` normalise à l'ENTRÉE (vues, ligne de batch, outils de
+l'assistant, réglages mémorisés). Les tables de MOTEUR gardent le nom court. Aucune migration.
+
+**Tâches fantômes du gouverneur** : le jumeau de `_dead_owners` pour `running_tasks()` est écrit
+et commité par l'instance du registre VRAM (`cf644976`) — une ligne dont le process est mort dans
+le même espace de pid est purgée. Le Redis Windows est VIDÉ (18 messages restes). Le worker GPU
+bloqué de 13:36 à 17:33 l'était dans un envoi SMTP sans délai — corrigé par une autre instance
+(`b7ff435f`, délai de 30 s).
