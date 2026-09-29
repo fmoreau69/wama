@@ -56,6 +56,15 @@ FEATURES = [
             "choisit de l'appliquer, au tracking comme à l'affichage. OFF = trajectoire "
             "brute, l'offset restant mesuré et rapporté.",
             default=False, scope='compute'),
+    Feature('gps_bias_kalman', 'Biais GPS lissé (Kalman)',
+            "Le recalage voie + carte estime le BIAIS du GPS (est, nord) comme un état lent, "
+            "observé par chaque ancre dans la seule direction perpendiculaire à la route : des "
+            "routes d'orientations différentes (virage, giratoire) rendent les deux composantes "
+            "observables, et la correction est portée dans les zones SANS ancre (boucle de "
+            "retournement, carrefour) tant que son incertitude reste faible. OFF = correction "
+            "interpolée entre ancres proches, nulle loin d'elles. Relancer la passe « Recalage "
+            "voie + carte ».",
+            default=True, scope='compute'),
     Feature('class_family_gate', 'Porte de famille de classe (tracking)',
             "Le tracking 360° ne relie jamais un deux-roues (moto, vélo) à un quatre-roues "
             "(voiture, camion, bus) ni à un piéton : ni au rattachement d'une nouvelle chaîne, "

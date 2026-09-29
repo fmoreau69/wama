@@ -166,9 +166,13 @@ def compute_lane_map_recalage(session, *, persist=True):
     rm = pd.DataFrame([{'geometry': [(la, lo) for lo, la in r['coords']], 'nb_voies': r.get('nb_voies'),
                         'largeur_m': r.get('largeur'), 'sens': r.get('sens'), 'type': r.get('nature')}
                        for r in roads])
+    from .features import enabled
+    # ⚑ gps_bias_kalman : le biais GPS estimé comme un état lent (porte la correction dans les
+    # zones sans ancre) au lieu de l'interpolation entre ancres proches
+    bias_model = 'kalman' if enabled(session, 'gps_bias_kalman') else 'interpolate'
     out = lane_map_recalage(TypedFrame(pd.DataFrame(ctr), DataType.GEO_TRACK),
                             TypedFrame(rm, DataType.ROAD_MAP),
-                            TypedFrame(pd.DataFrame(lanes), DataType.TABLE))
+                            TypedFrame(pd.DataFrame(lanes), DataType.TABLE), bias_model=bias_model)
     report.update(out.meta.get('lane_map') or {})
     rows = [{'ts': float(r.ts), 'de_m': float(r.corr_de_m), 'dn_m': float(r.corr_dn_m),
              'dh_deg': float(r.corr_dh_deg), 'anchored': bool(r.lane_anchored)}
