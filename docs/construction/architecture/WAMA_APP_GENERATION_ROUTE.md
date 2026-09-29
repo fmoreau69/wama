@@ -976,6 +976,23 @@ sur la même liste.
 > Restes B : l'étalement du preset au clic côté généré ; `quick_convert`/profils (endpoints
 > 501 de la jumelle) ; B2 (backends de modèles connus — 1er livré : Table Transformer).
 >
+> ✅ **MARCHE B2 — LE LLM QUI ÉCRIT LE BACKEND EXISTE (2026-09-29, `95ea980`, `b41a2c1`)** —
+> les trois backends B2 d'avant (Table Transformer, Audio8, Qwen3-TTS) ont été écrits à la main ;
+> le « LLM de la marche B » annoncé ci-dessous n'avait pas d'implémentation. Rôle `backend`
+> (`wama-dev-ai/run_backend.py` + `prompts/backend.txt`) : matière MÉCANIQUE (manifeste — refus
+> sans anatomie ni moteur —, contrat dérivé de la tâche, 1-2 voisins TIRÉS DU VIVIER ci-dessous,
+> code d'inférence publié avec le modèle) → UN appel LLM bridé au niveau dev → contrôles
+> (`common/services/backend_proposals.py`), résolution SIMULÉE par le vivier, smoke CPU → geste
+> « Valider » du model manager, qui ÉCRIT le module dans `wama/common/backends/` (levée ciblée
+> de la règle, `AGENTS.md §Collaboration wama-dev-ai`). **1ᵉʳ backend ainsi écrit et validé :
+> `supra2_img_onnx_backend.py`** (Supra2-IMG-ONNX, texte→image, `onnxruntime`), par
+> gpt-oss-120b (Albert) — correct à l'image, trois défauts de QUALITÉ relevés à la relecture et
+> laissés tels quels pour la mesure. Nouvelle règle de RÉSOLUTION née du cas : la tâche voyage
+> et un contrat LIANT écarte un backend qui n'en dérive pas (`TASK_CONTRACTS`). Trois briques
+> extraites AVANT qu'un LLM ne les recopie : `model_components.component_paths`,
+> `onnx_utils.onnx_providers`, `manifests/proposals.py`. Détail et trous :
+> `PROSPECTION_PIPELINE.md §Session du 2026-09-29`. ⏳ Rejouer la chaîne par qwen3.8 (comparer).
+>
 > ✅ **VIVIER DES BACKENDS — registre DÉRIVÉ (2026-09-03, demande Fabien)** — le LLM de la
 > marche B doit « piocher dans le vivier pour s'inspirer du plus approchant » : c'est
 > `common/services/backend_inventory.py` (12ᵉ registre, page `/common/backends/`, nature
@@ -2577,6 +2594,15 @@ n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANT
 > tout faire à la main, y compris l'étape que l'`integrator` outille depuis le 2026-08-27.
 > Corrigé — l'outil expose désormais `roles` et `gap`. *Un planificateur qui ignore les outils
 > disponibles fait refaire à la main du travail déjà outillé.*
+
+**La chaîne SŒUR « dépôt → MODÈLE exécutable » — bouclée hors terminal le 2026-09-29.** Un modèle
+n'a pas le trou de l'app (il ne demande pas de manifeste `app`) ; il en avait d'autres, mesurés sur
+Supra2-IMG et comblés : recherche par URL / dépôt nommé (`prospector.named_repo`) → installation
+(l'anatomie jugée par le scout y VOYAGE désormais, `record_after_install`) → rôle `model` →
+**Valider** (`manifests/proposals.py` : le cycle sandbox → promu reçoit son 1ᵉʳ appelant) → rôle
+`backend` (marche B2, §10.3) → **Valider** (écrit le module) → résolution par le vivier. Joué de bout
+en bout par gpt-oss-120b le 29/09. ⏳ Le dernier maillon est côté APP : l'imager ne lit pas le
+catalogue (route F4b non portée), un modèle texte→image validé n'y apparaît donc pas encore.
 
 ### §10.6 — LE PIPELINE, PORTEUR UNIVERSEL DES PROCESS : une card = une instance de pipeline, dans TOUS les mondes (ACTÉ 2026-09-15)
 

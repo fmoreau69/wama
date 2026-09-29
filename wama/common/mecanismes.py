@@ -115,14 +115,19 @@ MECHANISMS = (
               'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
               annexes=('wama/common/tests/tests_runtime_side.py',)),
     Mechanism('resource_governor', 'Gouverneur de ressources',
-              "Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités",
+              "Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une ligne "
+              "de réservation ou de tâche dont le process écrivain est MORT (même espace de pid) "
+              "sort sans attendre son TTL (29/09 : 4 lignes sur 8 après une relance, ~24 Go "
+              "fantômes retranchés du tirage)",
               'wama/common/services/resource_governor.py', 'docs/construction/suivi/PROJECT_STATUS.md §0'),
     Mechanism('backend_contract', 'Contrat de backend',
               "Cycle de vie commun des porteurs de modèle — ALIMENTATION du gouverneur "
               "(enveloppe load/unload/process à toute profondeur d'héritage) et CAPACITÉS "
               "déclarées par le moteur (supports_*), lues par le catalogue",
               'wama/common/backends/base.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
-              annexes=('wama/common/backends/manager.py',),
+              annexes=('wama/common/backends/manager.py',
+                       # Garde GÉNÉRIQUE du contrat de génération (29/09, défaut FLUX.2 Klein).
+                       'wama/common/tests/tests_generation_params_contract.py'),
               # ⚠ `symbole` OBLIGATOIRE ici, et pour une raison différente de `scoped_visibility` :
               # le domicile n'est pas un module partagé, c'est son NOM DE FEUILLE qui est banal.
               # Le repli « import relatif » du compteur (`from …base import`) capturait alors
@@ -654,7 +659,10 @@ MECHANISMS = (
               "petit modèle en repli. Lu par l'assistant (domaine dev, bascule en cours de tour "
               "dès qu'une compétence dev ou un outil dev_* est appelé, domaine collant au fil) et "
               "par les rôles wama-dev-ai (`role_utils.resolve_model`) — décision Fabien 22/09 "
-              "après un tour réel où qwen3.5:4b inventait des jumelles",
+              "après un tour réel où qwen3.5:4b inventait des jumelles. SECOND PLANCHER au même "
+              "domicile (29/09) : `AGENT_CODING_FLOOR` (30) borne le tirage AUTOMATIQUE de tout tour "
+              "d'assistant OUTILLÉ, et `escalation_model` choisit le modèle qui REPREND un tour "
+              "inventé (`assistant_engine._invented_turn`)",
               'wama/common/services/development_models.py',
               'docs/construction/ia/WAMA_LLM.md',
               annexes=('wama/common/tests/tests_development_models.py',)),
@@ -860,6 +868,18 @@ MECHANISMS = (
                        'wama/common/manifests/builtin/model.py',
                        'wama/common/manifests/builtin/pipeline.py',
                        'wama/common/manifests/builtin/project.py')),
+    Mechanism('manifest_proposals', 'Propositions de manifestes (geste « Valider »)',
+              "Le cycle sandbox → vérifié → promu (WAMA_MANIFEST_ARCHITECTURE §4) reçoit son "
+              "premier appelant (29/09) : un rôle LLM DÉPOSE son manifeste au magasin (bac à "
+              "sable), le model manager en montre le PLAN (champs comblés, divergences NON "
+              "appliquées, erreurs), « Valider » SUPERPOSE à l'extraction en ne comblant que des "
+              "vides (un manifeste brut effaçait la licence), projette, promeut, exporte au "
+              "corpus ; « Rejeter » ne passe pas par un_ingest, qui déferait une projection "
+              "jamais faite",
+              'wama/common/manifests/proposals.py',
+              'docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md',
+              depends_on=('manifests',),
+              annexes=('wama/common/tests/tests_manifest_proposals.py',)),
     # Entrée créée le 2026-08-31 (audit) : la chaîne était HORS carte — 5 gabarits sur 7 sans
     # domicile ni annexe, dossier hors balayage, donc AUCUN signal possible. 5ᵉ occurrence de
     # la leçon « un dossier hors balayage naît invisible » (cf. doc_facts.py, dossiers_balayes).
@@ -916,11 +936,42 @@ MECHANISMS = (
               "indifférent, préalable à leur passage au substrat transversal. "
               "⚠ Rend None plutôt qu'un tirage quand rien ne tranche — une erreur silencieuse "
               "coûte plus cher qu'un refus ; et ne rend QUE des sous-classes du contrat (le "
-              "porteur du démon Ollama n'en est pas un)",
+              "porteur du démon Ollama n'en est pas un). Depuis le 29/09 la TÂCHE voyage : un "
+              "contrat LIANT (`backend_inventory.TASK_CONTRACTS`) écarte un backend qui n'en "
+              "dérive pas — un upscaler n'exécute pas un modèle texte→image, même seul sur "
+              "`onnxruntime`",
               'wama/common/backends/manager.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               symbol='backend_for_model',
               annexes=('wama/common/management/commands/check_backend_links.py',
-                       'wama/common/tests/tests_backend_inventory.py')),
+                       'wama/common/tests/tests_backend_inventory.py',
+                       'wama/common/tests/tests_backend_contract_routing.py')),
+    Mechanism('backend_proposals', 'Backends PROPOSÉS par un rôle LLM (marche B2)',
+              "Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle "
+              "installé ; ce module le JUGE (forme : contrat, ENGINE, SUPPORTED_MODELS au niveau "
+              "module, interdits cache HF / téléchargement ; résolution SIMULÉE par le vivier ; "
+              "smoke CPU) puis, sur « Valider » au model manager, l'ÉCRIT dans "
+              "`wama/common/backends/` — contrôles REFAITS, jamais par-dessus un module, rien de "
+              "commité. Levée ciblée de la règle « l'agent n'écrit pas dans wama/ » (Fabien, "
+              "29/09). Aucun contrôle ne juge la QUALITÉ : le smoke dit qu'une image existe",
+              'wama/common/services/backend_proposals.py',
+              'wama/model_manager/PROSPECTION_PIPELINE.md',
+              depends_on=('backend_inventory', 'model_components'),
+              annexes=('wama/common/tests/tests_backend_proposals.py',)),
+    Mechanism('model_components', 'Fichiers des composants DÉCLARÉS',
+              "Une CLÉ de catalogue → `{rôle: Path}` des composants de `composition.components`, "
+              "dans la révision que désigne `refs/main` ; un manque LÈVE avec son rôle. La moitié "
+              "« exécution » de l'anatomie déclarée (l'installation en est l'autre) : un backend "
+              "généré l'appelle au lieu de réécrire la recherche de snapshot "
+              "(`kokoro_onnx_backend` la codait à la main)",
+              'wama/common/utils/model_components.py',
+              'wama/model_manager/PROSPECTION_PIPELINE.md'),
+    Mechanism('onnx_providers', "Fournisseurs d'exécution ONNX",
+              "`onnx_providers()` : CUDA, DirectML, CoreML puis CPU en repli ; `cpu_only` pour un "
+              "smoke qui ne dispute pas la carte. Extrait d'`AIUpscaler` le 29/09 au moment où un "
+              "second backend onnxruntime arrivait (texte→image) — le module porte aussi la "
+              "conversion/inspection de poids ONNX, plomberie de la chaîne modèles",
+              'wama/common/utils/onnx_utils.py', 'wama/model_manager/PROSPECTION_PIPELINE.md',
+              symbol='onnx_providers'),
     Mechanism('model_declarations', "Passe-plat des déclarations de modèle",
               "Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la "
               "convention `wama/<app>/utils/model_config.py::<APP>_MODELS`, ne connaît aucune "
@@ -1765,7 +1816,6 @@ ASSUMED_LOCAL = {
     'wama/common/utils/log_rotation.py': "décalage des journaux au démarrage (politique : on décale, on ne vide pas)",
     'wama/common/utils/mime_utils.py': "détection MIME — helper fin (filemanager/studio)",
     'wama/common/utils/model_locations.py': "chemins de modèles — plomberie model_manager",
-    'wama/common/utils/onnx_utils.py': "inspection de poids ONNX — plomberie chaîne modèles",
     'wama/common/utils/safetensors_utils.py': "inspection de poids safetensors — plomberie chaîne modèles",
     'wama/common/utils/translator.py': "brique deep-translator — sera absorbée par le Translator (ROADMAP §10)",
     'wama/common/utils/voice_options.py': "pendant VOIX d'output_formats (avatarizer) — promouvoir si adoption s'élargit",

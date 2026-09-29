@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**165 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**169 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -94,7 +94,7 @@ Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ;
 
 ### Gouverneur de ressources
 
-Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
+Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une ligne de réservation ou de tâche dont le process écrivain est MORT (même espace de pid) sort sans attendre son TTL (29/09 : 4 lignes sur 8 après une relance, ~24 Go fantômes retranchés du tirage)
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
@@ -792,7 +792,7 @@ Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE)
 
 ### Modèles de NIVEAU DÉVELOPPEMENT (bridage « qualité max »)
 
-UN domicile pour « quel modèle a le droit de travailler sur le code » : plancher sur le score coding du banc tiers (≥ 40) + déclaration explicite pour le seul distant non mesuré (albert:gpt-oss-120b), curseur imposé à 100 (réflexion), distants SOUVERAINS admis dès « cloud si saturé », et REFUS lisible plutôt qu'un petit modèle en repli. Lu par l'assistant (domaine dev, bascule en cours de tour dès qu'une compétence dev ou un outil dev_* est appelé, domaine collant au fil) et par les rôles wama-dev-ai (`role_utils.resolve_model`) — décision Fabien 22/09 après un tour réel où qwen3.5:4b inventait des jumelles
+UN domicile pour « quel modèle a le droit de travailler sur le code » : plancher sur le score coding du banc tiers (≥ 40) + déclaration explicite pour le seul distant non mesuré (albert:gpt-oss-120b), curseur imposé à 100 (réflexion), distants SOUVERAINS admis dès « cloud si saturé », et REFUS lisible plutôt qu'un petit modèle en repli. Lu par l'assistant (domaine dev, bascule en cours de tour dès qu'une compétence dev ou un outil dev_* est appelé, domaine collant au fil) et par les rôles wama-dev-ai (`role_utils.resolve_model`) — décision Fabien 22/09 après un tour réel où qwen3.5:4b inventait des jumelles. SECOND PLANCHER au même domicile (29/09) : `AGENT_CODING_FLOOR` (30) borne le tirage AUTOMATIQUE de tout tour d'assistant OUTILLÉ, et `escalation_model` choisit le modèle qui REPREND un tour inventé (`assistant_engine._invented_turn`)
 
 - **Domicile** : `wama/common/services/development_models.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 - **Module** : Modèles de NIVEAU DÉVELOPPEMENT — le bridage « qualité max » du travail sur le code (2026-09-22).
@@ -1259,6 +1259,25 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
   - `inject_sandbox_catalog(app_catalog: dict) -> None` — Entrées APP_CATALOG des jumelles : CLONE de l'app source (mêmes conventions — la
   - `non_sandbox_apps(app_catalog: dict) -> list` — Apps RÉELLES du catalogue (les jumelles sont exclues de la grille de conformité :
 
+### Backends PROPOSÉS par un rôle LLM (marche B2)
+
+Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle installé ; ce module le JUGE (forme : contrat, ENGINE, SUPPORTED_MODELS au niveau module, interdits cache HF / téléchargement ; résolution SIMULÉE par le vivier ; smoke CPU) puis, sur « Valider » au model manager, l'ÉCRIT dans `wama/common/backends/` — contrôles REFAITS, jamais par-dessus un module, rien de commité. Levée ciblée de la règle « l'agent n'écrit pas dans wama/ » (Fabien, 29/09). Aucun contrôle ne juge la QUALITÉ : le smoke dit qu'une image existe
+
+- **Domicile** : `wama/common/services/backend_proposals.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
+- **Module** : BACKENDS PROPOSÉS par le rôle `backend` (marche B2) — contrôles, résolution simulée, smoke, puis le geste « Valider » qui ÉCRIT le module dans `wama/common/backends/`.
+- **API publique** (11) :
+  - `backends_dir() -> Path`
+  - `outputs_dir() -> Path`
+  - `contract_for_task(task: str) -> tuple` — (module, classe) du contrat qu'un backend écrit pour `task` doit implémenter.
+  - `required_methods(contract: tuple) -> set` — Méthodes abstraites que le contrat laisse à implémenter — lues par AST, jamais importées
+  - `model_id_of(model_key: str) -> str` — Identifiant que `SUPPORTED_MODELS` doit déclarer — la règle de `backend_for_model`.
+  - `check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> dict` — Contrôles de FORME d'un module de backend proposé. `ok` = aucune erreur.
+  - `simulate_resolution(code: str, *, module: str, engine: str, model_id: str, task: str='') -> dict` — La résolution que l'inventaire fera APRÈS écriture : le vivier réel + cette entrée.
+  - `smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: Path) -> dict` — Exécute le backend proposé SUR CPU, sans l'écrire dans le paquet : chargement puis une
+  - `pending() -> list` — Propositions de backend en attente : `outputs/backend_*.json` au statut PENDING.
+  - `apply(name: str, user=None) -> dict` — ÉCRIT le backend validé dans `wama/common/backends/<module>.py` — contrôles REFAITS,
+  - `reject(name: str, user=None) -> bool`
+
 ### Environnement d'exécution d'un backend
 
 `ISOLATION` déclare où tourne un backend (`venv:<chemin>` | `service:<url>`, vide = venv principal). Sans elle le GRISAGE MENT : `missing_packages()` interroge `find_spec` dans CE processus, verdict muet sur un backend qui vit ailleurs. Le défaut est UN venv — l'isolement se DÉCLARE, ne se génère jamais : son coût n'est pas le disque mais la VRAM, chaque processus isolé étant un détenteur que le gouverneur ne voit pas. Zéro isolement aujourd'hui
@@ -1271,6 +1290,17 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
   - `start_reservation_heartbeat() -> bool` — Lance, UNE fois par process, le battement qui garde vivantes les lignes des résidents.
   - `class BaseModelBackend(ABC)` — Backend de modèle local (chargement/déchargement + traitement).
 
+### Fichiers des composants DÉCLARÉS
+
+Une CLÉ de catalogue → `{rôle: Path}` des composants de `composition.components`, dans la révision que désigne `refs/main` ; un manque LÈVE avec son rôle. La moitié « exécution » de l'anatomie déclarée (l'installation en est l'autre) : un backend généré l'appelle au lieu de réécrire la recherche de snapshot (`kokoro_onnx_backend` la codait à la main)
+
+- **Domicile** : `wama/common/utils/model_components.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
+- **Module** : Fichiers des COMPOSANTS DÉCLARÉS d'un modèle installé — la moitié « exécution » de l'anatomie.
+- **API publique** (3) :
+  - `class ComponentsUnavailable(RuntimeError)` — Le modèle n'est pas installé, ou un composant déclaré est absent du disque — DIT.
+  - `snapshot_dir(model) -> Path | None` — Dossier du snapshot d'une ligne de catalogue installée (révision de `refs/main`, sinon la
+  - `component_paths(model_key: str) -> dict` — `{rôle: Path}` pour chaque composant DÉCLARÉ du modèle `model_key`.
+
 ### Formats de sortie
 
 Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter)
@@ -1282,6 +1312,21 @@ Source commune des formats+qualités de fichier par domaine (réutilise le vocab
   - `get_output_qualities(domain: str | None=None) -> List[Tuple[str, str]]` — Presets de qualité (web/équilibré/max). `domain` réservé pour d'éventuelles variantes futures.
   - `output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None) -> list` — Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
   - `output_format_params_for_app(app_name: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, domain:…` — AUTO depuis APP_CATALOG : lit `multi_format_download` (early/late) + déduit le domaine des
+
+### Fournisseurs d'exécution ONNX
+
+`onnx_providers()` : CUDA, DirectML, CoreML puis CPU en repli ; `cpu_only` pour un smoke qui ne dispute pas la carte. Extrait d'`AIUpscaler` le 29/09 au moment où un second backend onnxruntime arrivait (texte→image) — le module porte aussi la conversion/inspection de poids ONNX, plomberie de la chaîne modèles
+
+- **Domicile** : `wama/common/utils/onnx_utils.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
+- **Module** : ONNX Conversion Utilities
+- **API publique** (7) :
+  - `onnx_providers(device_id: int=0, cpu_only: bool=False) -> list` — Fournisseurs d'exécution onnxruntime, par ordre de préférence — CPU toujours en repli.
+  - `convert_yolo_to_onnx(model_path: str, output_path: Optional[str]=None, imgsz: int=640, half: bool=False, dynamic: bool=True, simplify: bool=True, opset: int=12…` — Convert a YOLO model (.pt) to ONNX format using ultralytics export.
+  - `convert_pytorch_to_onnx(model: Any, output_path: str, input_shape: Tuple[int, ...], input_names: List[str]=None, output_names: List[str]=None, dynamic_axes: Di…` — Convert a generic PyTorch model to ONNX format.
+  - `batch_convert_yolo_to_onnx(models_dir: str, output_dir: Optional[str]=None, recursive: bool=True, **kwargs) -> Dict[str, Tuple[bool, str]]` — Convert multiple YOLO models in a directory to ONNX format.
+  - `verify_onnx_model(onnx_path: str) -> Tuple[bool, str, Optional[Dict]]` — Verify an ONNX model is valid and get its metadata.
+  - `get_onnx_runtime_info() -> Dict[str, Any]` — Get information about available ONNX runtime and providers.
+  - `convert_anonymizer_models_to_onnx(output_subdir: str='onnx', **kwargs) -> Dict[str, Tuple[bool, str]]` — Convert all Anonymizer YOLO models to ONNX format.
 
 ### Gabarits de génération d'app (marches S2 + B1)
 
@@ -1335,6 +1380,20 @@ Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la
   - `declarations(source: str) -> dict` — TOUTES les déclarations de modèle de l'app `source` (`{model_id: dict}`), `{}` si l'app
   - `declaration(source: str, model_id: str) -> Optional[dict]` — Déclaration de `model_id` telle que l'app `source` la porte, ou None.
 
+### Propositions de manifestes (geste « Valider »)
+
+Le cycle sandbox → vérifié → promu (WAMA_MANIFEST_ARCHITECTURE §4) reçoit son premier appelant (29/09) : un rôle LLM DÉPOSE son manifeste au magasin (bac à sable), le model manager en montre le PLAN (champs comblés, divergences NON appliquées, erreurs), « Valider » SUPERPOSE à l'extraction en ne comblant que des vides (un manifeste brut effaçait la licence), projette, promeut, exporte au corpus ; « Rejeter » ne passe pas par un_ingest, qui déferait une projection jamais faite
+
+- **Domicile** : `wama/common/manifests/proposals.py` · **doc** : [docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md](../construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md)
+- **Module** : PROPOSITIONS de manifestes — le geste de validation qui manquait entre un rôle LLM et l'ingest.
+- **API publique** (6) :
+  - `fill_empty(current, proposed, path='')` — Superpose `proposed` sur `current` en ne comblant que les VIDES — récursif sur les dicts.
+  - `propose(manifest: dict, *, origin: str='', user=None)` — Dépose un manifeste PROPOSÉ au magasin, en bac à sable. Rien n'est projeté.
+  - `pending(kind: str=None)` — Propositions en attente (bac à sable), plus récentes d'abord.
+  - `plan(obj) -> dict` — Ce que `apply()` FERAIT — sans rien écrire. `write_back` est le dry-run du kind.
+  - `apply(obj, user=None) -> dict` — Applique une proposition : superposition, write-back RÉEL, promotion, export au corpus.
+  - `reject(obj) -> bool` — Retire une proposition du magasin. N'appelle PAS `un_ingest` (cf. docstring du module).
+
 ### Routage des poids hors HuggingFace
 
 QUATRE leviers pour tenir la règle « modèle principal catégorisé, sous-dépendances au cache partagé » (ROADMAP §5b), et le choix est imposé par la LIB, pas par le goût : A `cache_dir=` — B un CHEMIN local (`poids_locaux`) — C la variable propre à la lib, posée dans settings (`DEEPFACE_HOME`, `AUDIOCRAFT_CACHE_DIR`) — D `hf_cache_scope`, DERNIER RECOURS déclaré. ⚠ D restaure l'environnement mais JAMAIS LES FICHIERS : ce que la lib télécharge pendant la fenêtre reste dans le dossier du modèle — c'est ainsi que `timm/resnet18` a atterri chez table-transformer. Zéro mutation d'environnement dans le code aujourd'hui
@@ -1346,7 +1405,7 @@ QUATRE leviers pour tenir la règle « modèle principal catégorisé, sous-dép
 
 ### Résolution de backend par DÉCLARATION
 
-Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter ce modèle » : `backend_for_model()` va de `composition.runtime.engine` (moitié modèle) à `BaseModelBackend.ENGINE` (moitié backend), départagé par `SUPPORTED_MODELS` quand le moteur est PARTAGÉ — `diffusers` est piloté par 8 backends, `transformers` par 4. L'import de la classe est CIBLÉ et TARDIF : le registre reste statique. C'est ce qui rend l'EMPLACEMENT PHYSIQUE des backends indifférent, préalable à leur passage au substrat transversal. ⚠ Rend None plutôt qu'un tirage quand rien ne tranche — une erreur silencieuse coûte plus cher qu'un refus ; et ne rend QUE des sous-classes du contrat (le porteur du démon Ollama n'en est pas un)
+Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter ce modèle » : `backend_for_model()` va de `composition.runtime.engine` (moitié modèle) à `BaseModelBackend.ENGINE` (moitié backend), départagé par `SUPPORTED_MODELS` quand le moteur est PARTAGÉ — `diffusers` est piloté par 8 backends, `transformers` par 4. L'import de la classe est CIBLÉ et TARDIF : le registre reste statique. C'est ce qui rend l'EMPLACEMENT PHYSIQUE des backends indifférent, préalable à leur passage au substrat transversal. ⚠ Rend None plutôt qu'un tirage quand rien ne tranche — une erreur silencieuse coûte plus cher qu'un refus ; et ne rend QUE des sous-classes du contrat (le porteur du démon Ollama n'en est pas un). Depuis le 29/09 la TÂCHE voyage : un contrat LIANT (`backend_inventory.TASK_CONTRACTS`) écarte un backend qui n'en dérive pas — un upscaler n'exécute pas un modèle texte→image, même seul sur `onnxruntime`
 
 - **Domicile** : `wama/common/backends/manager.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Manager de backends COMMUN — extrait du pattern Transcriber/Imager.
@@ -1355,7 +1414,7 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
   - `engine_backends() -> dict` — {moteur: classe de backend} pour tous les inventaires qui exposent leurs classes.
   - `invalidate_engine_cache() -> None` — À appeler après une installation de librairie : le prochain `known_engines()`
   - `known_engines() -> set` — Moteurs réellement EXÉCUTABLES — inventaires relus à CHAQUE appel (ré-autorisation
-  - `backend_for_engine(engine: str, model_id: str='', entries=None)` — Classe de backend qui pilote `engine` (et sert `model_id` si le moteur est partagé).
+  - `backend_for_engine(engine: str, model_id: str='', entries=None, task: str='')` — Classe de backend qui pilote `engine` (et sert `model_id` si le moteur est partagé).
   - `backend_for_model(model, entries=None)` — Classe de backend qui sait exécuter `model`, ou None.
   - `backend_for_key(model_key: str, entries=None)` — La MÊME porte que `backend_for_model`, adressée par la CLÉ de catalogue (`<source>:<id>`).
   - `invalidate_catalog_index() -> None` — Le prochain `catalog_keys_for_owner` relit le catalogue (après une synchro, un test).
@@ -1379,8 +1438,8 @@ Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations `
   - `count() -> int` — Total de backends du vivier (apps réelles) — pour le registre des registres.
   - `orphelins(entrees, servis) -> tuple` — (muets, expliqués) — backends qu'AUCUN modèle ne désigne, séparés par la RAISON.
   - `resolvable_entries() -> List[BackendEntry]` — Le vivier que la résolution consulte — jumelles de bac à sable exclues. Un appelant qui
-  - `resolve_entry(engine: str, model_id: str='', entries=None) -> Optional[BackendEntry]` — ENTRÉE du vivier qui sait exécuter `model_id` avec `engine` — ou None. STATIQUE :
-  - `resolve_backend(engine: str, model_id: str='', entries=None)` — Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
+  - `resolve_entry(engine: str, model_id: str='', entries=None, task: str='') -> Optional[BackendEntry]` — ENTRÉE du vivier qui sait exécuter `model_id` avec `engine` — ou None. STATIQUE :
+  - `resolve_backend(engine: str, model_id: str='', entries=None, task: str='')` — Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
   - `app_backend_entries(app: str) -> List[BackendEntry]` — Backends que `app` RÉSOUT réellement, par le lien du catalogue — STATIQUE, dédoublonnés
   - `app_backend_paths(app: str) -> List[Path]` — Fichiers source des backends résolus par `app` (cf. `app_backend_entries`), n'existant
 
@@ -2182,7 +2241,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (20) :
+- **API publique** (22) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d') d'un chemin
@@ -2198,6 +2257,8 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `derive_category(entry) -> str` — Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation
   - `get_apps_by_category()` — Catalogue groupé, ordonné par APP_CATEGORIES[order] — source des surfaces groupées
   - `accepts_file(app_name: str, filename: str) -> bool` — Le serveur prend-il ce fichier pour cette app ? — les extensions DÉCLARÉES
+  - `port_accept(app_name: str, types) -> str` — L'attribut `accept` d'un PORT d'entrée — ce que la tuile Importer propose.
+  - `accept_for_types(declared, types) -> str` — Le cœur de `port_accept`, sur une liste d'extensions DONNÉE — pour le générateur, qui
   - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
   - `category_color(cid: str) -> str` — Couleur de RÉFÉRENCE d'une catégorie (en-têtes de section, dossiers…).
   - `sandbox_conformity(report: dict) -> dict` — Mesure des jumelles bac à sable, chacune avec l'écart à SA source (`report['apps']`).
