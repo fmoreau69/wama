@@ -37,6 +37,12 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     VAD_MODE_CHOICES = [('auto', 'Auto'), ('on', 'Actif'), ('off', 'Désactivé')]
     vad_mode = models.CharField(max_length=8, choices=VAD_MODE_CHOICES, default='auto',
                                 db_default='auto')  # le code en service avant le redémarrage insère sans elle
+    # Langues parlées (2026-09-29) : un audio peut changer de langue. « auto » écoute des fenêtres
+    # réparties sur tout l'audio avant de transcrire (`spoken_language.probe_languages`) ;
+    # « single » fixe UNE langue ; « multi » la redécide passage par passage.
+    LANGUAGE_MODE_CHOICES = [('auto', 'Auto'), ('single', 'Une seule'), ('multi', 'Plusieurs')]
+    language_mode = models.CharField(max_length=8, choices=LANGUAGE_MODE_CHOICES, default='auto',
+                                     db_default='auto')
 
     # Advanced parameters (optional)
     temperature = models.FloatField(default=0.0)

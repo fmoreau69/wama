@@ -23,6 +23,7 @@ PARAMS = derive_from_model(
         "hotwords",
         "preprocess_audio",
         "vad_mode",
+        "language_mode",
         "enable_diarization",
         "generate_summary",
         "summary_type",
@@ -66,6 +67,12 @@ PARAMS = derive_from_model(
                  "ne rejette pas une parole lointaine (entretien enregistré à distance) et le "
                  "désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les "
                  "longs silences."),
+        "language_mode": dict(
+            type="select", label="Langues parlées", icon="fa-language",
+            help="« Auto » écoute plusieurs passages de l'audio avant de transcrire : s'il entend "
+                 "plusieurs langues, chaque passage est transcrit dans la sienne. « Une seule » "
+                 "garde la même langue partout (évite qu'un passage bruité soit traduit). "
+                 "« Plusieurs » la redécide à chaque passage de 30 s."),
         "enable_diarization": dict(
             chip=True, chip_label="Diarisation",label="Identifier les locuteurs", icon="fa-users",
             dom_id={"panel": "diarizationToggle", "item": "settingsDiarization"},
