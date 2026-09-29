@@ -392,6 +392,10 @@ disabled/title à chaque change et effaçait le verdict serveur — marqueur
 `data-backend-missing` émis par le fill, respecté par l'appariement. ⚠ Limite ASSUMÉE de
 la permissivité : un modèle SANS moteur déclaré (Qwen3-TTS fraîchement tiré) n'a pas de
 verdict — déclarer son `composition.runtime.engine` (manifeste) le fait entrer au système.
+⚠ **LEVÉE le 2026-09-29 (décision Fabien)** pour les lignes du BALAYAGE GÉNÉRIQUE : remesuré, 2
+modèles sur tout le catalogue n'ont pas de moteur, les deux inexécutables — un modèle sans moteur
+qu'aucune app ne porte est désormais GRISÉ (`backend_missing`, critère = la source, jamais
+`backend_ref`).
 
 > ### ✅ SUITE DU 2026-09-04→07 — le lien est passé du DÉCLARATIF au RÉSOLU
 >
@@ -408,7 +412,9 @@ verdict — déclarer son `composition.runtime.engine` (manifeste) le fait entre
 > `backend_missing()` est RETIRÉ (05/09) : le champ porte un nom d'APP, donc une appartenance,
 > jamais une exécutabilité. Mesuré avant de toucher — sur 174 modèles, **un seul** change de
 > verdict, et il devient juste. La contrepartie tient : un modèle SANS moteur déclaré reste NON
-> condamné (sans elle, le retrait en aurait grisé 159 d'un coup).
+> condamné (sans elle, le retrait en aurait grisé 159 d'un coup). ⚠ *Constat du 05/09 — la
+> contrepartie est LEVÉE le 2026-09-29 pour le balayage générique : 2 modèles sans moteur sur
+> tout le catalogue (cf. ci-dessus).*
 >
 > **③ Le moteur seul ne suffit pas comme CLÉ.** `diffusers` est piloté par **8** backends de
 > l'imager, `transformers` par **4** de 4 apps : résoudre par moteur rendait « le premier venu »
