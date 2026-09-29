@@ -1025,7 +1025,7 @@ Trois pièges, tous rencontrés :
 | 1 | **Modalités d'entrée** : dépôt/clic · dossier récursif (8/12) · URL (avec ou sans bouton) · médiathèque (`MediaPicker`) · lot · live/Speak (transcriber seul) · slot référence typé (3/12) · **manifeste de pipeline** (à venir — ex-« manifeste de PROCESS » ; précisé le 2026-09-15 : un pipeline de 0..N process, vide compris, `WAMA_APP_GENERATION_ROUTE.md §10.6` ; l'importeur est une modalité de la card, précision Fabien 30/08, `WAMA_MANIFEST_ARCHITECTURE.md §8` ; même geste que le fichier de lot : dépôt + détection structurelle + aperçu) | brique commune, la v3.5 change leur PRÉSENTATION (mini-onglets) | `wama/common/templates/common/_new_item_card.html` |
 | 2 | **Prompt** primaire (5/12 : composer, synthesizer, avatarizer, imager ×2) + compteur de mots et zone droppable (avatarizer seul) + **prompt négatif** (imager, en zone d'extension) | doctrine écrite : « dans la CARD, pas dans le volet » | `_new_item_card.html:76-77` |
 | 3 | **Réglages inline** : voix/vitesse/titre + **aperçu SSE de la voix** (synthesizer) ; **sélecteur de modèle avec Auto** + aide `WamaModelHelp` (imager ×2) | via `extra_zone_template`, sans contrat — 2 apps ont DÉJÀ des réglages dans la card, sans ⚙ | `wama/synthesizer/templates/synthesizer/_new_item_extra.html` ; le gabarit `_model_zone` de l'imager (retiré le 2026-09-28, R80) |
-| 4 | **Sélection visuelle d'actif** : galerie d'avatars (grille cliquable) | seul cas du parc | `wama/avatarizer/templates/avatarizer/_new_item_extra.html` |
+| 4 | **Sélection visuelle d'actif** : galerie d'avatars (grille cliquable) | seul cas du parc | la zone d'extension de l'avatarizer (retirée le 2026-09-29, R82) |
 
 > ⚠ **État au 2026-09-28** (la table ci-dessus est le relevé du 30/08) : ligne 3 résorbée pour
 > l'imager — `_model_zone.html` est RETIRÉ, modèle et prompt négatif au volet (§11.11 Étape 3 (c),
@@ -1035,6 +1035,9 @@ Trois pièges, tous rencontrés :
 > enhancer (`_audio_batch_bar.html`, qui n'est plus que la barre de lot COMMUNE avec un 2ᵉ jeu
 > d'ids et sa couleur : absorbable par `show_batch_bar` + `batch_bid`, comme la card vidéo de
 > l'imager — non fait, hors périmètre de l'étape 3).
+> ⚠ **2026-09-29** : ligne 4 résorbée — la galerie de l'avatarizer est devenue l'onglet Avatar de
+> la médiathèque, ouvert par la tuile de son port `work_image` en card v4 (Étape 3 (d),
+> REMOVAL_LEDGER R82). Restent 2 zones : synthesizer (le titre) et enhancer.
 | 5 | **Enrichissement ✨** : brique 2-états complète (champ `user`/`processed`, barre « voir mon prompt / revenir / ré-enrichir », endpoint générique, pipeline langue→traduction→enrichissement→réf→RAG, kill-switch + préférence user) | ⚠ **la brique n'émet AUCUN déclencheur** : le seul vrai bouton ✨ est FABRIQUÉ par l'imager ; composer et anonymizer attachent la brique **sans pouvoir la déclencher** | `wama/common/static/common/js/wama-prompt-enrich.js` ; `wama/common/utils/prompt_pipeline.py` ; `wama/imager/static/imager/js/input_card.js` |
 | 6 | **Chips de mots-clés suggérés** : brique commune + modèle `PromptKeyword` (tronc commun `user=None` + perso, 7 catégories, accordéon, insertion/retrait dans le prompt, glossaire préservé verbatim à l'enrichissement) | **adoption 1/10** (imager) ; le point de montage est bricolé en JS par l'app — la brique card n'offre AUCUN slot chips | `wama/common/static/common/js/wama-prompt-chips.js` ; `wama/media_library/models.py` |
 | 7 | **Appariement entrée⇄modèle** : modèles incompatibles désactivés avec raison, slots requis/suggérés surlignés, gate de lancement, chips retirables, slots non-fichier déclaratifs | 7/10 adoptent, mais **3 seulement rendent l'état DANS la card** (imager ×2, composer) — 4 l'affichent au volet, 2 fabriquent l'élément en JS ; **1 seul** (imager) pilote le bouton primaire via `onState` | `wama/common/static/common/js/wama-input-match.js` |
@@ -1485,7 +1488,27 @@ d'extension** (1 des 4 de §11.8 absorbée) : `_model_zone.html` retiré, et le 
 prompts » qu'il portait aussi (REMOVAL_LEDGER R80). Au passage, la porte de grille
 `_has_engine_select` lit tous les schémas éclatés — sans quoi les trois critères de l'imager
 passaient N/A et son `model_caps_ui` rouge disparaissait ; (d) la galerie d'avatars, avec
-l'adoption v4 de l'avatarizer.
+l'adoption v4 de l'avatarizer — ✅ **2026-09-29**, en trois paliers :
+  - **les ports** : CodeFormer, étape interne de la chaîne, n'ouvre plus de port « fichier de
+    travail » (capacité `pipeline_stage`, lue par `app_input_ports`) — les ports de l'avatarizer
+    sont `work_audio` et `work_image` ;
+  - **la card v4 à plusieurs ports de TRAVAIL** : le premier est le port PRINCIPAL (ids
+    historiques, URL, dossier, lot) ; les suivants ont des ids DÉRIVÉS de leur port
+    (`<card>-<port>-drop/-input`) et une tuile Importer câblée par `wama-input-slots.js`
+    (`data-port-import-self`, qui câble aussi la tuile du port de référence, reliée à rien
+    jusque-là). Une app DÉCLARE l'onglet de médiathèque d'un port (`library_natures` du domaine,
+    `app_modes.library_nature_for`) ; la tuile y ouvre la fenêtre commune et DÉSIGNE l'asset
+    (`pickFromLibrary({designate})` — pointé, jamais téléchargé), comme le glisser depuis l'arbre ;
+  - **l'avatarizer en v4** (1ʳᵉ app EN PLACE sur cette card) : la galerie, la zone
+    `extra_zone_template` et le bloc avatar du volet droit sont retirés (R82) — l'avatar est un
+    fichier joint ou DÉSIGNÉ (le sien, un partagé, un avatar système), posté sous `avatar_upload`.
+    `WamaImport` route chaque fichier déposé vers le port dont l'`accept` l'admet : une image
+    déposée sur la zone audio rejoint l'avatar et quitte l'audio. Le bouton dit « Ajouter à la
+    file d'attente » et **ne lance plus** (point 3 ci-dessus, soldé pour l'avatarizer ; restent
+    `composer:generate` et `convert_file`). Grille 89/94, mêmes trois rouges qu'avant
+    (`during_preview`, `backend_routes`, `task_skeleton`) ; les critères `new_item_card` et
+    `media_library_slot` reconnaissent la v4. Gestes nocturnes de la card : verdicts identiques
+    à ceux du matin. Le NOM de galerie reste reçu des lots, du Studio et de l'API de l'assistant.
 
 > **L'aperçu de voix du synthesizer ne passe par AUCUN chemin commun côté lecture, ni par le
 > chemin de la synthèse côté serveur** (mesuré le 2026-09-28, `synthesizer/views.py::voice_preview`

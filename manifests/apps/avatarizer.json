@@ -841,6 +841,9 @@
             "work_audio"
           ],
           "label": "Avatar parlant",
+          "library_natures": {
+            "work_image": "avatar"
+          },
           "modes": []
         }
       ]

@@ -14,48 +14,12 @@
 {% block console_app_name %}avatarizer{% endblock %}
 
 {% block app_styles %}
-.avatar-card {
-    cursor: pointer;
-    border: 2px solid transparent;
-    border-radius: 8px;
-    overflow: hidden;
-    transition: border-color 0.2s, transform 0.2s;
-}
-.avatar-card:hover { transform: scale(1.03); }
-.avatar-card.selected { border-color: #0dcaf0; }
-.avatar-card img { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; }
-.avatar-gallery-grid { display: flex; flex-wrap: wrap; gap: 10px; }
-.drop-zone {
-    border: 2px dashed #495057; border-radius: 8px; padding: 20px;
-    text-align: center; cursor: pointer; transition: border-color 0.2s;
-    background: #1a1d20;
-}
-.drop-zone.dragover { border-color: #0dcaf0; background: #1a2a30; }
 .video-section video { border-radius: 6px; background: #000; }
-/* Text drop zone : invisible par défaut, s'illumine sur dragover */
 {% endblock %}
 
-{# ===================================================================== #}
-{# RIGHT PANEL - Médias                                                   #}
-{# ===================================================================== #}
-{% block app_right_panel_media %}
-<div id="avatar-upload-zone" class="drop-zone drop-zone-sm mb-2">
-    <i class="fas fa-image text-info me-1"></i>
-    <p class="mb-0 small text-light mt-1">Avatar — JPG, PNG, WebP</p>
-    <input type="file" id="avatar_upload" accept=".jpg,.jpeg,.png,.webp" class="d-none">
-</div>
-<button type="button" class="btn btn-outline-info btn-sm w-100 mb-1"
-        onclick="MediaPicker.open({type:'image',onSelect:_mpInjectAvatar})">
-    <i class="fas fa-photo-video me-1"></i> Depuis Médiathèque
-</button>
-<div id="avatar-upload-info" class="d-none mt-1">
-    <img id="avatar-upload-preview" src="" alt="preview"
-         style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:2px solid #0dcaf0">
-    <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="btn-remove-avatar-upload">
-        <i class="fas fa-times"></i>
-    </button>
-</div>
-{% endblock %}
+{% comment %}RIGHT PANEL - Médias : plus de bloc propre à l'app (2026-09-29, card v4). L'AVATAR est
+le port de travail `work_image` de la card d'entrée (import, médiathèque ouverte sur l'onglet
+Avatar) ; la section Médias redevient l'aperçu commun de l'élément sélectionné.{% endcomment %}
 
 {# ===================================================================== #}
 {# RIGHT PANEL - Settings                                                 #}
@@ -132,13 +96,15 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
         {# Barre de progression globale (toujours visible) — composant commun #}
         {% include 'common/_global_progress.html' %}
 
-        {% comment %}Card « Nouvel élément » COMMUNE en tête de file (2026-07-11, alignement apps
-        portées). Prompt = texte à dire (→ TTS puis animation) ; dropzone = audio prêt ; le
-        MODE n'est plus un choix, il se dérive des entrées côté serveur (2026-08-28, précédent
-        imager — MODES_QUEUE_UX §2bis). Galerie d'avatars + badge audio via le slot déclaré
-        extra_zone_template ; ids historiques conservés (#text_content, #word-count,
-        #audio-dropzone, #audio_input, #btn-generate) → handlers de index.js intacts.{% endcomment %}
-        {% include 'common/_new_item_card.html' with collapsible=True card_id='avatarizerNewCard' depot_cree=False show_prompt=True prompt_input_id='text_content' prompt_zone_id='text-prompt-zone' prompt_counter_id='word-count' prompt_rows=2 prompt_placeholder='Texte que l’avatar doit dire (la voix sera générée)…' prompt_hint='Ou glissez un fichier texte (TXT, MD, PDF, DOCX) ici. Un audio fourni ci-dessous prime sur le texte.' drop_zone_id='audio-dropzone' file_input_id='audio_input' file_accept='.wav,.mp3,.ogg,.flac' formats_label='WAV, MP3, OGG, FLAC — la voix de l’avatar' show_media_library=True media_library_type='audio' show_url=True url_input_id='avatarizerUrlInput' url_submit_id='avatarizerUrlSubmit' url_placeholder='https://youtube.com/watch?v=… (audio de la voix)' show_batch_bar=True batch_template_url='/avatarizer/batch/template/' extra_zone_template='avatarizer/_new_item_extra.html' primary_btn_id='btn-generate' primary_btn_label='Générer la vidéo' primary_btn_icon='fa-play-circle' %}
+        {% comment %}Card « Nouvel élément » v4 (2026-09-29, étape 7 du plan (d) — CARD_DESIGN §11.11) :
+        un ONGLET PAR PORT, dérivés des modèles MuseTalk — l'AUDIO à dire (port principal : ids
+        historiques #audio-dropzone / #audio_input, URL, lot) et l'IMAGE d'avatar (port secondaire,
+        ids dérivés ; sa médiathèque s'ouvre sur l'onglet Avatar, `library_natures`). La galerie
+        propre à l'app (`extra_zone_template`) et le bloc avatar du volet droit sont retirés
+        (REMOVAL_LEDGER). Le MODE se dérive des entrées côté serveur (MODES_QUEUE_UX §2bis).
+        ⚠ Pas de `folder_input_id` : la card est mono-fichier (geste `avatarizer.folder_import`
+        non applicable, `conformity_checker` du 2026-09-24).{% endcomment %}
+        {% include 'common/_new_item_card_v4.html' with app_id='avatarizer' collapsible=True card_id='avatarizerNewCard' depot_cree=False show_prompt=True prompt_input_id='text_content' prompt_zone_id='text-prompt-zone' prompt_counter_id='word-count' prompt_rows=2 prompt_placeholder='Texte que l’avatar doit dire (la voix sera générée)…' prompt_hint='Ou glissez un fichier texte (TXT, MD, PDF, DOCX) ici. Un audio fourni prime sur le texte.' drop_zone_id='audio-dropzone' file_input_id='audio_input' formats_label='WAV, MP3, OGG, FLAC — la voix de l’avatar' url_input_id='avatarizerUrlInput' url_submit_id='avatarizerUrlSubmit' url_placeholder='https://youtube.com/watch?v=… (audio de la voix)' show_batch_bar=True batch_template_url='/avatarizer/batch/template/' primary_btn_id='btn-generate' primary_btn_label='Ajouter à la file d’attente' primary_btn_icon='fa-plus' %}
 
         {% comment %}
           Barre de tri/filtre/disposition COMMUNE — mêmes gestes que les autres files.
@@ -171,7 +137,7 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
             <div id="no-jobs-msg" class="text-center text-muted py-4">
                 <i class="fas fa-film fa-3x mb-2 d-block opacity-50"></i>
                 <p>Aucune vidéo générée pour l'instant.</p>
-                <p class="small">Configurez votre avatar et cliquez sur « Générer la vidéo ».</p>
+                <p class="small">Ajoutez un audio (ou un texte) et un avatar à la file, puis lancez-le par ▶.</p>
             </div>
             {% endif %}
         </div>
@@ -229,8 +195,8 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
         <h5>Générer un avatar parlant</h5>
         <ol class="text-light">
             <li>Glissez ou sélectionnez un fichier audio (WAV, MP3…) — la voix de l'avatar</li>
-            <li>Sélectionnez un avatar dans la galerie ou importez une photo</li>
-            <li>Cliquez sur <strong>Générer la vidéo</strong></li>
+            <li>Onglet <strong>Image de travail</strong> : importez une photo, ou choisissez un avatar dans la médiathèque (onglet Avatar)</li>
+            <li>Cliquez sur <strong>Ajouter à la file d’attente</strong>, réglez l’élément si besoin (⚙ ou volet de droite), puis lancez-le par <strong>▶</strong></li>
         </ol>
     </div>
     <div class="mb-3">
@@ -267,21 +233,6 @@ qu'il délègue (`save-settings-btn` / `save-and-restart-btn`).{% endcomment %}
 media-picker.js est une brique GLOBALE montée par base.html — la ré-inclure lève
 « Identifier 'MediaPicker' has already been declared » (pageerror). Cf. imager/index.html.
 {% endcomment %}
-<script>
-// Injecte l'image sélectionnée dans la zone d'upload avatar
-function _mpInjectAvatar(file, asset) {
-    const input = document.getElementById('avatar_upload');
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    input.files = dt.files;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    const preview = document.getElementById('avatar-upload-preview');
-    if (preview) {
-        preview.src = URL.createObjectURL(file);
-        document.getElementById('avatar-upload-info').classList.remove('d-none');
-    }
-}
-</script>
 <script>
 window.AVATARIZER_CONFIG = {
     urls: {
@@ -396,15 +347,9 @@ document.addEventListener('DOMContentLoaded', function () {
         batchSelector: '.batch-group',
         panelContainer: ph,
         schema: schema,
-        // #media-section porte ici un contenu PERMANENT — la zone d'import de l'avatar
-        // (app_right_panel_media, plus haut) — et non un aperçu : avatarizer n'a pas de
-        // #preview-container, donc `fillPreview` n'y écrit jamais. Sans cette déclaration,
-        // la brique masque la section au titre de « l'aperçu n'a de sens que pour un item »
-        // et l'import devenait INATTEIGNABLE : mesuré le 2026-08-22, `#media-section` est
-        // `display:none` DÈS LE CHARGEMENT (init → showQueueInfo → setMediaSection(false)),
-        // pas seulement après un clic. Le levier existait depuis le 19/08, une seule page
-        // (model_manager) l'utilisait.
-        keepMediaSection: true,
+        // `keepMediaSection` RETIRÉ le 2026-09-29 : la section Médias hébergeait l'import de
+        // l'avatar (masqué dès le chargement sans ce levier, mesuré le 2026-08-22). L'avatar est
+        // devenu un port de la card v4 : la section redevient l'aperçu commun de l'élément.
         itemLabel: function (id) { return "l'élément #" + id; },
         batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
         saveBatch: function (bid) { return postPanel('/avatarizer/batch/' + bid + '/update/').then(function () { window.location.reload(); }); },

@@ -121,6 +121,19 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
         a = gallery_assets().filter(name=self.avatar_gallery_name).first()
         return a.file.url if (a and a.file) else ''
 
+    @property
+    def avatar_label(self):
+        """Nom lisible de l'avatar : le nom de galerie, sinon celui du fichier (joint OU désigné).
+
+        La card v4 désigne les avatars de la médiathèque par leur FICHIER (2026-09-29) : afficher
+        « Photo importée » pour un avatar système pointé aurait été faux. Lu par la card et par le
+        tri de la file (`views._batch_display_name`)."""
+        if self.avatar_gallery_name:
+            return self.avatar_gallery_name
+        if self.avatar_upload:
+            return self.avatar_upload.name.rsplit('/', 1)[-1]
+        return ''
+
     # Paramètres pipeline MuseTalk
     # DÉRIVÉ de use_enhancer depuis 2026-08-03 (l'UI n'expose plus de mode) —
     # conservé pour les clés ETA (avatarizer:<mode>) et les données existantes.

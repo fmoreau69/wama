@@ -29,3 +29,25 @@ class EngineSelectGateReadsSplitSchemasTest(SimpleTestCase):
     def test_an_app_without_an_engine_select_stays_outside(self):
         """Contre-épreuve : lire plus de schémas ne doit pas ouvrir la porte à tout le monde."""
         self.assertFalse(cc._has_engine_select(cc._AppFiles('converter')))
+
+
+class InputCardV4CountsAsTheCommonCardTest(SimpleTestCase):
+    """Une app portée sur la card v4 garde ses critères de card d'entrée (2026-09-29).
+
+    L'avatarizer, 1ʳᵉ app en place en v4, est passé ROUGE sur `new_item_card` et
+    `media_library_slot` : la grille ne reconnaissait que l'include v3 et `show_media_library`,
+    un littéral que la v4 dérive des ports au lieu de le lire."""
+
+    def _verdict(self, key, app):
+        crit = next(c for c in cc.CRITERIA if c.key == key)
+        state, _evidence = crit.fn(cc._AppFiles(app))
+        return state
+
+    def test_the_v4_avatarizer_passes_both_card_criteria(self):
+        for key in ('new_item_card', 'media_library_slot'):
+            self.assertTrue(self._verdict(key, 'avatarizer'), key)
+
+    def test_a_v3_app_still_passes(self):
+        """Contre-épreuve : la graphie v3 reste reconnue."""
+        for key in ('new_item_card', 'media_library_slot'):
+            self.assertTrue(self._verdict(key, 'transcriber'), key)

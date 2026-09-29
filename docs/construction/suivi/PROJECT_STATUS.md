@@ -1905,7 +1905,7 @@ Demande Fabien : « la card d'entrée en en-tête de file comme pour les applica
   - bouton primaire = `#btn-generate` « Générer la vidéo » (déplacé du volet droit — action
     primaire de la card, CARD_DESIGN §2 ; passe de bleu à vert conventionnel) ;
   - galerie d'avatars + badge audio retenu via le NOUVEAU slot `extra_zone_template`
-    (`avatarizer/_new_item_extra.html`).
+    (gabarit d'app `_new_item_extra` — retiré le 2026-09-29 au passage en card v4, REMOVAL_LEDGER R82).
 - **Tous les ids historiques conservés** → les handlers de index.js (drop texte/audio,
   word count, sélection avatar, remove audio, generate) fonctionnent sans réécriture.
 - Onglets Pipeline/Standalone supprimés : le radio `workflow_mode` du volet droit était DÉJÀ

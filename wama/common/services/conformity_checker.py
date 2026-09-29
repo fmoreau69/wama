@@ -1802,8 +1802,11 @@ CRITERIA: list[Criterion] = [
     Criterion('catalog_entry', 'F1', "Identité APP_CATALOG (E/S typées + input_extensions)",
               _catalog_entry),
     # ── F2 entrée ──
+    # La card v4 (`_new_item_card_v4.html`, CARD_DESIGN §11.11) est la même card commune, en
+    # onglets de ports : 1ʳᵉ app en place le 2026-09-29 (avatarizer). Sans ce `(?:_v4)?`, porter
+    # une app en v4 la faisait passer ROUGE sur la card qu'elle venait d'adopter.
     Criterion('new_item_card', 'F2', "Card d'entrée commune _new_item_card",
-              lambda f: _present(f, TEMPLATES, r"common/_new_item_card\.html"),
+              lambda f: _present(f, TEMPLATES, r"common/_new_item_card(?:_v4)?\.html"),
               mechanism='new_item_card'),
     Criterion('queue_entry', 'F2', 'Entrée de file commune (_queue_entry : card seule OU lot)',
               _queue_entry, mechanism='queue_entry'),
@@ -1813,8 +1816,10 @@ CRITERIA: list[Criterion] = [
               mechanism='source_ingest'),
     Criterion('batch_import', 'F2', 'Import batch unifié (batch-import.js + batch_parsers)', _batch_import,
               mechanism='batch'),
+    # En v4 la tuile Médiathèque n'est plus déclarée (`show_media_library`) : chaque port fichier
+    # la porte, filtrée par son type (`input_slots`). L'include de la v4 l'atteste donc.
     Criterion('media_library_slot', 'F2', 'Slot médiathèque sur la card d’entrée',
-              lambda f: _present(f, TEMPLATES, r'show_media_library')),
+              lambda f: _present(f, TEMPLATES, r'show_media_library|common/_new_item_card_v4\.html')),
     Criterion('input_card_collapsed', 'F2', "Card d'entrée REPLIABLE (collapsible)",
               lambda f: _present(f, TEMPLATES, r'collapsible=True|collapsible=1'),
               mechanism='new_item_card'),
