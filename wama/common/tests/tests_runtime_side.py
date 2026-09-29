@@ -69,3 +69,34 @@ class StartupSyncTest(SimpleTestCase):
 
     def test_counter_proof_the_allowed_side_still_syncs(self):
         self._ready(dispatched=True).assert_called_once()
+
+
+class CacheSideTest(SimpleTestCase):
+    """Le CACHE suit la même règle : hors du côté autorisé, en mémoire du process (2026-09-29).
+
+    Un `manage.py` Windows hors tests écrivait dans le Redis WINDOWS (db1, clés `user_N_*`), que
+    WAMA ne lit pas. Les settings sont relus dans un sous-processus hors tests (`manage.py shell`),
+    la DÉCISION de `runtime_side` imposée — forcer `os.name` casserait `pathlib` sous Linux.
+    """
+
+    def _backend(self, dispatched):
+        import subprocess
+        import sys
+        code = ("import os, sys; sys.argv = ['manage.py', 'shell']; "
+                "import wama.common.services.runtime_side as side; "
+                "side.tasks_dispatched = lambda *a, **k: %r; "
+                "os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings'); "
+                "from django.conf import settings; "
+                "print(settings.CACHES['default']['BACKEND'])" % dispatched)
+        out = subprocess.run([sys.executable, '-c', code], cwd=str(settings.BASE_DIR),
+                             capture_output=True, text=True, timeout=120)
+        return out.stdout.strip().splitlines()[-1] if out.stdout.strip() else out.stderr[-300:]
+
+    def test_a_process_outside_the_allowed_side_keeps_its_cache_in_memory(self):
+        self.assertIn('LocMemCache', self._backend(False))
+
+    def test_counter_proof_the_allowed_side_keeps_the_shared_redis(self):
+        self.assertIn('RedisCache', self._backend(True))
+
+    def test_this_test_process_uses_a_private_cache(self):
+        self.assertIn('LocMemCache', settings.CACHES['default']['BACKEND'])

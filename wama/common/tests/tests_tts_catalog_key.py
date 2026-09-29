@@ -54,3 +54,45 @@ class AssistantToolStoresTheCatalogKeyTest(TestCase):
             self.assertEqual(synthesis.tts_model, 'synthesizer:coqui-xtts')
         finally:
             synthesis.text_file.delete(save=False)
+
+
+class NoSecondDefaultInTheScriptTest(SimpleTestCase):
+    """Le JS du synthesizer ne redéclare plus le défaut : vide → `DEFAULT_TTS_MODEL` côté serveur."""
+
+    def test_the_served_script_parses_and_names_no_engine_by_default(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        for base in ('wama/synthesizer/static', 'staticfiles'):
+            src = (Path(settings.BASE_DIR) / base / 'synthesizer/js/index.js').read_text(encoding='utf-8')
+            self.assertNotIn("v('tts_model', 'coqui-xtts')", src, base)
+            try:
+                from py_mini_racer import MiniRacer
+            except ImportError:
+                continue
+            MiniRacer().eval('(function(){' + src + '\n})')     # parse sans exécuter
+
+
+
+class EmptyPostedModelTest(TestCase):
+    """Le JS poste `tts_model=''` quand le select manque : la vue doit prendre le défaut, jamais
+    stocker une chaîne vide (sans `or DEFAULT_TTS_MODEL`, `tts_catalog_key('')` rendrait '')."""
+
+    def test_upload_text_with_an_empty_model_stores_the_default(self):
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        from wama.synthesizer.models import VoiceSynthesis
+        user = User.objects.create_user('tts_empty_model', password='x')
+        for role in (DEFAULT_APP_ACCESS.get('synthesizer') or {}).get('roles', []):
+            user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(user)
+        res = self.client.post(reverse('synthesizer:upload_text'),
+                               {'text_content': 'Bonjour à tous.', 'tts_model': ''})
+        self.assertEqual(res.status_code, 200, res.content[:300])
+        synthesis = VoiceSynthesis.objects.filter(user=user).latest('pk')
+        try:
+            self.assertEqual(synthesis.tts_model, DEFAULT_TTS_MODEL)
+        finally:
+            synthesis.text_file.delete(save=False)
