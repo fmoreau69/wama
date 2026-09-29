@@ -114,8 +114,13 @@ def index(request):
     if request.user.is_authenticated:
         kw_filter |= Q(user=request.user)
     keyword_count = PromptKeyword.objects.filter(kw_filter).count()
+    from .natures import ASSET_NATURES
     context = {
         'asset_types':   ASSET_TYPES,
+        # Les ONGLETS : clé, libellé et icône DÉCLARÉS par la nature (`natures.py`). Les icônes
+        # étaient écrites dans le gabarit, nature par nature — la dernière arrivée (« Parole
+        # enregistrée ») s'affichait donc sans icône (2026-09-29).
+        'asset_tabs':    [(k, n.label, n.icon) for k, n in ASSET_NATURES.items()],
         'active_tab':    tab,
         'keyword_count': keyword_count,
         # Source unique du regroupement « audio » (voice/audio_music/audio_sfx) — consommée ici

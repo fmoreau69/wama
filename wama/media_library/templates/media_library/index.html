@@ -215,18 +215,11 @@
             </div>
         </div>
         <ul class="nav ml-tabs" id="assetTypeTabs">
-            {% for type_val, type_label in asset_types %}
+            {% for type_val, type_label, type_icon in asset_tabs %}
             <li class="nav-item">
                 <a class="nav-link {% if active_tab == type_val %}active{% endif %}"
                    href="#" data-type="{{ type_val }}">
-                    {% if type_val == 'voice' %}<i class="fas fa-microphone"></i>
-                    {% elif type_val == 'audio_music' %}<i class="fas fa-music"></i>
-                    {% elif type_val == 'audio_sfx' %}<i class="fas fa-volume-up"></i>
-                    {% elif type_val == 'image' %}<i class="fas fa-image"></i>
-                    {% elif type_val == 'video' %}<i class="fas fa-film"></i>
-                    {% elif type_val == 'document' %}<i class="fas fa-file-alt"></i>
-                    {% elif type_val == 'avatar' %}<i class="fas fa-user-circle"></i>
-                    {% endif %}
+                    <i class="fas {{ type_icon }}"></i>
                     {{ type_label }}
                     <span class="ml-badge" id="badge-{{ type_val }}">0</span>
                 </a>
