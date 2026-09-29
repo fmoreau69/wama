@@ -137,7 +137,14 @@ wama/<app>/
   `from ..`), 4 chemins calculés depuis `__file__` (un cran de plus), et les références par module
   ou par chemin dans 37 fichiers — code, gabarits, docs ; les archives gardent l'ancien chemin, par
   nature. ⚠ Pour un prochain déplacement du même genre : un `Path(__file__).parents[N]` ne casse pas
-  à l'import, il casse à la LECTURE du fichier visé — seul un passage de la suite le révèle.
+  à l'import, il casse à la LECTURE du fichier visé — seul un passage de la suite le révèle ; et un
+  import de module voisin s'écrit aussi `from wama.<app> import tests_x`, forme qu'un motif sur
+  `wama.<app>.tests_x` ne voit pas.
+- **Tenu par un contrôle** : `wama/common/tests/tests_test_layout.py` — une app qui a un paquet
+  `tests/` n'a plus de test à sa racine, et aucune app ne dépasse 10 fichiers de test à sa racine.
+  **En attente** (budget qui ne peut que descendre, mesuré le 2026-09-29) : `wama_lab/cam_analyzer`
+  (20), `wama/model_manager` (19), `wama/media_library` (14) — à déplacer de la même façon, au
+  moment où aucune instance n'y travaille.
 
 ---
 
