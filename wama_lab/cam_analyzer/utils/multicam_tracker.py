@@ -947,8 +947,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             if w:
                 d['world_en'] = [round(w[0], 2), round(w[1], 2)]
 
-    for f in dirty:
-        f.save(update_fields=['detections'])
+    # Par lots, et ATOMIQUE : un `save()` par frame (~300 000) prenait ~3 min, et un worker
+    # arrêté au milieu laissait la base mi-ancienne mi-nouvelle (2026-09-29, arrêt de 21:18).
+    DF.objects.bulk_update(list(dirty), ['detections'], batch_size=500)
 
     # ── Métrique A/B objective : cohérence de placement des stationnés ────────────
     # Un objet réellement immobile doit se réduire à UN point monde ; la dispersion

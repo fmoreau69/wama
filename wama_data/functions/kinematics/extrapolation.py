@@ -62,36 +62,32 @@ def _ca_kalman_smooth(traj, q=1.0, r=0.5):
     """Filtre de Kalman à accélération constante (2D). Lisse l'observé et renvoie
     l'état final [x, y, vx, vy, ax, ay]. q = bruit process, r = bruit mesure."""
     traj = np.asarray(traj, dtype=float)
-    # État : [x, vx, ax, y, vy, ay] (2 axes indépendants).
-    x = np.zeros(6)
-    x[0], x[3] = traj[0, 1], traj[0, 2]
-    P = np.eye(6) * 10.0
-    H = np.zeros((2, 6)); H[0, 0] = 1; H[1, 3] = 1
-    R = np.eye(2) * r
+    # État par axe : [position, vitesse, accélération] ; colonnes = axes x et y.
+    # Les deux axes sont INDÉPENDANTS et partagent F, Q, H, R et la covariance initiale :
+    # leur covariance reste donc identique, un seul P 3×3 sert les deux (c'était un état
+    # 6×6 bloc-diagonal, deux fois le même bloc — 2026-09-29, 40 % de la prédiction TTC/PET).
+    X = np.zeros((3, 2))
+    X[0] = traj[0, 1], traj[0, 2]
+    P = np.eye(3) * 10.0
+    H = np.array([1.0, 0.0, 0.0])
+    I3 = np.eye(3)
     for i in range(1, len(traj)):
         dt = traj[i, 0] - traj[i - 1, 0]
         if dt <= 0:
             continue
-        F = np.eye(6)
-        for base in (0, 3):
-            F[base, base + 1] = dt
-            F[base, base + 2] = 0.5 * dt * dt
-            F[base + 1, base + 2] = dt
+        F = np.array([[1.0, dt, 0.5 * dt * dt], [0.0, 1.0, dt], [0.0, 0.0, 1.0]])
         # Bruit process (accélération aléatoire).
         G = np.array([0.5 * dt * dt, dt, 1.0])
-        Qb = np.outer(G, G) * q
-        Q = np.zeros((6, 6)); Q[0:3, 0:3] = Qb; Q[3:6, 3:6] = Qb
+        Q = np.outer(G, G) * q
         # Prédiction.
-        x = F @ x
+        X = F @ X
         P = F @ P @ F.T + Q
-        # Mise à jour.
-        z = np.array([traj[i, 1], traj[i, 2]])
-        y = z - H @ x
-        S = H @ P @ H.T + R
-        K = P @ H.T @ np.linalg.inv(S)
-        x = x + K @ y
-        P = (np.eye(6) - K @ H) @ P
-    return np.array([x[0], x[3], x[1], x[4], x[2], x[5]])   # [x,y,vx,vy,ax,ay]
+        # Mise à jour (mesure scalaire de la position sur chaque axe).
+        S = P[0, 0] + r
+        K = P[:, 0] / S
+        X = X + np.outer(K, traj[i, 1:3] - X[0])
+        P = (I3 - np.outer(K, H)) @ P
+    return np.array([X[0, 0], X[0, 1], X[1, 0], X[1, 1], X[2, 0], X[2, 1]])   # [x,y,vx,vy,ax,ay]
 
 
 def extrapolate_kalman(traj, n_future, dt=None, q=1.0, r=0.5):
