@@ -1,0 +1,48 @@
+{
+  "manifest_kind": "dataset",
+  "key": "fleurs-cs",
+  "schema_version": "1.0",
+  "name": "FLEURS code-switching test set - recordings that CHANGE language",
+  "description": "Synthetic code-switching evaluation set: read FLEURS utterances concatenated into recordings of 5 min or more, 2 to 8 languages among en, fr, es, de, ru, it, pt, nl. Every utterance carries its language and timing, so WAMA measures both the word error rate and the LANGUAGE AGREEMENT of each produced segment. Switches are synthetic (different speakers, no natural transition) and more frequent (8-15 s) than the 30 s language decision window: this set measures the LIMIT of that window. Prepared on demand by `manage.py asr_eval_corpus fleurs-cs` (TRANSCRIBER_CORRECTION 5quater, WAMA_QUALITE 9bis). Licence: none declared by the repository, INHERITED from google/fleurs (CC-BY-4.0, attribution).",
+  "world": "data",
+  "visibility": "private",
+  "projects": [],
+  "source": {
+    "type": "url",
+    "ref": "https://huggingface.co/datasets/BrunoHays/fleurs_code_switching_test"
+  },
+  "body": {
+    "source": {
+      "type": "parquet",
+      "ref": "hf://datasets/BrunoHays/fleurs_code_switching_test",
+      "repo_id": "BrunoHays/fleurs_code_switching_test",
+      "revision": "3555b5530bdeea0337f2e4973f37ba927e347bf2",
+      "license": "CC-BY-4.0",
+      "license_origin": "inherited from google/fleurs (cc-by-4.0), not declared by the derived repository",
+      "language": "mul",
+      "splits": {"test": "1000 recordings; 632 contain French, 42 French + one other language, 8 French + English only (measured 2026-09-29)"}
+    },
+    "axes": [
+      {
+        "key": "recording",
+        "role": "observation",
+        "label": "Recording (5 min or more, 2 to 8 languages)"
+      },
+      {
+        "key": "language",
+        "role": "factor",
+        "label": "Language of an utterance inside a recording",
+        "crosses": "recording",
+        "manipulated": true
+      }
+    ],
+    "signals": [
+      {"id": "recording_audio", "data_type": "signal", "acquired": true,
+       "description": "Concatenated utterances, 16 kHz mono (media library nature `speech`, attributes language + languages)"},
+      {"id": "tagged_transcription", "data_type": "segments", "acquired": true,
+       "description": "Per-utterance language, start and end, and normalised text"},
+      {"id": "reference_vtt", "data_type": "segments", "acquired": false,
+       "description": "DERIVED: WebVTT, each cue marked with its language `<lang xx>` (media library nature `document`)"}
+    ]
+  }
+}

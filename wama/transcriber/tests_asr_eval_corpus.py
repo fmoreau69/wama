@@ -41,6 +41,40 @@ class ReferenceTest(SimpleTestCase):
                          reference_name('summ-re', 'test', '007a_ECRH'))
 
 
+class TaggedCorpusTest(SimpleTestCase):
+    """FLEURS-CS : la langue de chaque phrase va jusqu'au segment de référence."""
+
+    TAGGED = ('<en><start:0.00>everyone uses transport<end:11.64>'
+              '<fr><start:11.64>la plupart des  îles<end:19.44>')
+
+    def test_the_tagged_transcription_becomes_timed_language_spans(self):
+        from wama.transcriber.management.commands.asr_eval_corpus import tagged_spans
+        self.assertEqual([(0.0, 11.64, 'en', 'everyone uses transport'),
+                          (11.64, 19.44, 'fr', 'la plupart des îles')], tagged_spans(self.TAGGED))
+
+    def test_the_vtt_reference_keeps_each_language_out_of_the_measured_text(self):
+        """Le lecteur EXISTANT du transcriber ôte `<lang xx>` du texte et le rend par segment."""
+        from wama.transcriber.management.commands.asr_eval_corpus import language_vtt, tagged_spans
+        from wama.transcriber.utils.transcript_documents import parse_cues
+        doc = parse_cues(language_vtt(tagged_spans(self.TAGGED)), 'vtt')
+        self.assertEqual('everyone uses transport la plupart des îles', doc.text)
+        self.assertEqual(['en', 'fr'], [s['language'] for s in doc.segments])
+        self.assertEqual(11.64, doc.segments[1]['start_time'])
+
+    def test_the_most_spoken_language_comes_first(self):
+        from wama.transcriber.management.commands.asr_eval_corpus import languages_by_time, tagged_spans
+        self.assertEqual(['en', 'fr'], languages_by_time(tagged_spans(self.TAGGED)))
+
+    def test_recordings_are_chosen_by_their_languages(self):
+        from wama.transcriber.management.commands.asr_eval_corpus import Recording, select_by_languages
+        pool = [Recording('a', languages=['en', 'fr']), Recording('b', languages=['de', 'fr']),
+                Recording('c', languages=['en', 'es', 'fr']), Recording('d', languages=['de', 'en'])]
+        ids = lambda rs: [r.recording_id for r in rs]
+        self.assertEqual(['a'], ids(select_by_languages(pool, {'fr', 'en'}, exact=True)))
+        self.assertEqual(['a', 'c'], ids(select_by_languages(pool, {'fr', 'en'}, exact=False)))
+        self.assertEqual(['a', 'b'], ids(select_by_languages(pool, {'fr'}, False, count=2)))
+
+
 class MixTest(SimpleTestCase):
 
     def test_tracks_are_padded_summed_and_peak_normalised(self):

@@ -20,8 +20,12 @@ from wama.media_library.models import (ALLOWED_EXTENSIONS, ASSET_TYPE_CATEGORY, 
                                        TYPE_GROUPS, SystemAsset, UserAsset)
 
 #: `models.py` au 2026-09-12 (commit e90c18de) — recopié tel quel, c'est la référence.
+#: ⚠ Nature `speech` AJOUTÉE le 2026-09-28 (décision Fabien : les jeux d'évaluation ASR vont en
+#: médiathèque SYSTÈME, `WAMA_QUALITE §9bis`) — une réunion n'est pas une voix de clonage — et
+#: `srt`/`vtt` admis en `document` (les références de ces jeux). Empreinte recalée à la mesure.
 ASSET_TYPES_AVANT = [
-    ('voice', 'Voix'), ('audio_music', 'Musique'), ('audio_sfx', 'Bruitage'),
+    ('voice', 'Voix'), ('speech', 'Parole enregistrée'), ('audio_music', 'Musique'),
+    ('audio_sfx', 'Bruitage'),
     ('image', 'Image'), ('video', 'Vidéo'), ('document', 'Document'),
     ('avatar', 'Avatar'), ('object3d', 'Objet 3D'),
 ]
@@ -30,16 +34,17 @@ ALLOWED_AVANT = {  # empreinte FIGÉE de l'ancien littéral — c'est la recopie
     # un bruitage ne peut-il pas être un .aac ? ») : elles acceptent désormais le MÊME jeu, l'union
     # des trois anciens — le rôle se choisit ou se déclare, il ne se déduit plus de l'extension.
     'voice':       ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'aiff'],  # wama:redondance-ok — empreinte figée (test)
+    'speech':      ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'aiff'],  # wama:redondance-ok — empreinte figée (test)
     'audio_music': ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'aiff'],  # wama:redondance-ok — empreinte figée (test)
     'audio_sfx':   ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'aiff'],  # wama:redondance-ok — empreinte figée (test)
     'image':       ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'],  # wama:redondance-ok — empreinte figée (test)
     'video':       ['mp4', 'webm', 'mov', 'avi', 'mkv'],  # wama:redondance-ok — empreinte figée (test)
-    'document':    ['pdf', 'txt', 'docx', 'md', 'csv'],  # wama:redondance-ok — empreinte figée (test)
+    'document':    ['pdf', 'txt', 'docx', 'md', 'csv', 'srt', 'vtt'],  # wama:redondance-ok — empreinte figée (test)
     'avatar':      ['jpg', 'jpeg', 'png', 'webp'],  # wama:redondance-ok — empreinte figée (test)
     'object3d':    ['glb', 'gltf', 'obj', 'fbx', 'stl', 'ply', 'usdz'],  # wama:redondance-ok — empreinte figée (test)
 }
 CATEGORIE_AVANT = {
-    'voice': 'audio', 'audio_music': 'audio', 'audio_sfx': 'audio',
+    'voice': 'audio', 'speech': 'audio', 'audio_music': 'audio', 'audio_sfx': 'audio',
     'image': 'image', 'avatar': 'image', 'video': 'video',
     'document': 'document', 'object3d': '3d',
 }
@@ -56,7 +61,7 @@ class LaDeclarationReproduitLesTablesDAvantTest(TestCase):
         self.assertEqual(ASSET_TYPE_CATEGORY, CATEGORIE_AVANT)
 
     def test_TYPE_GROUPS_suit_et_connait_le_3d(self):
-        self.assertEqual(TYPE_GROUPS['audio'], ['voice', 'audio_music', 'audio_sfx'])
+        self.assertEqual(TYPE_GROUPS['audio'], ['voice', 'speech', 'audio_music', 'audio_sfx'])
         self.assertEqual(TYPE_GROUPS['3d'], ['object3d'])
 
     def test_chaque_nature_se_rattache_a_une_categorie_du_vocabulaire_commun(self):

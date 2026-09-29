@@ -107,8 +107,12 @@ ASSET_NATURES: Dict[str, Nature] = {
         label='Parole enregistrée', category='audio', icon='fa-comments', pivot='wav',
         extensions=AUDIO_EXTENSIONS,
         attributes={
-            'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…)",
+            'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…) — la plus "
+                                    "parlée si l'enregistrement en mêle plusieurs",
                              label='Langue', labels=_LANGUAGE_LABELS),
+            # Un enregistrement peut CHANGER de langue (2026-09-29, jeux FLEURS-CS) : toutes ses
+            # langues, la plus parlée d'abord, séparées par des virgules.
+            'languages': Attr('str', "toutes les langues parlées ('fr,en'…)", label='Langues'),
             'speakers': Attr('int', 'nombre de locuteurs', label='Locuteurs'),
             'corpus':   Attr('str', "corpus d'origine (clé de son manifeste `dataset`)", label='Corpus'),
             # Liste OUVERTE : chaque corpus nomme ses partitions (`example`, `validation`…).

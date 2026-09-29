@@ -63,6 +63,8 @@ _CUE_TIMING = re.compile(rf'^\s*({_TIME})\s*-->\s*({_TIME})')
 _VTT_VOICE = re.compile(r'^<v(?:\.[^\s>]*)?\s+([^>]+)>(.*?)(?:</v>)?$')
 _SRT_SPEAKER_PREFIX = re.compile(r'^\[([^\]]{1,60})\]\s*(.*)$')
 _MARKUP = re.compile(r'<[^>]+>')
+# Balise de LANGUE de WebVTT (`<lang fr>…</lang>`, standard) : la langue de la réplique.
+_VTT_LANGUAGE = re.compile(r'<lang\s+([A-Za-z]{2,3})(?:-[\w-]+)?>')
 
 
 @dataclass
@@ -152,10 +154,14 @@ def parse_cues(content: str, fmt: str) -> TranscriptDocument:
             speaker, body = voice.group(1), voice.group(2)
         elif prefix:
             speaker, body = prefix.group(1), prefix.group(2)
+        language = _VTT_LANGUAGE.search(body)
         body = _MARKUP.sub('', body).strip()
         if body:
-            doc.segments.append(_segment(speaker, body, parse_timecode(match.group(1)),
-                                         parse_timecode(match.group(2))))
+            segment = _segment(speaker, body, parse_timecode(match.group(1)),
+                               parse_timecode(match.group(2)))
+            if language:        # une référence multilingue dit la langue de chaque réplique
+                segment['language'] = language.group(1).lower()
+            doc.segments.append(segment)
     return doc
 
 
