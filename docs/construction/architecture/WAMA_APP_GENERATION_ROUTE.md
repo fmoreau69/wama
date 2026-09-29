@@ -3344,6 +3344,29 @@ l'utilisateur puisse savoir où en est sa tâche*. Brique `common/services/globa
   de WSL où tournent les workers) portait **446 messages `gpu`** jamais consommés (444
   `synthesize_voice`, 2 `compose_task`) : listes `gpu*` vidées, contenu SAUVEGARDÉ avant. ⚠ Le même
   Redis porte encore 1 399 messages `default` et 27 `celery`, NON touchés.
+  *(Vidés à leur tour le 28/09 au soir, puis 18 restes le 29/09 ; depuis `4fcd037c` et `83b2def3`,
+  un processus Windows n'y écrit plus ni tâche ni cache.)*
+
+**13.9 LA RÉPÉTITION — tranchée le 2026-09-30 (Fabien) : pas d'interface de répétition sur les
+cards.** Le champ `rrule` et sa reprogrammation (`dispatch_due`) existent depuis l'étape 3 ; il
+manquait l'interface, et d'abord la question : *que veut dire répéter ?* Réponse, cas par cas :
+- **Une card** : une occurrence relance la MÊME card sur la MÊME entrée, et réécrit sa sortie —
+  sans intérêt si rien n'a changé. Programmer une fois suffit (les fichiers batch le permettent déjà,
+  `--when` / `--at`).
+- **Une publication** (réseaux sociaux du labo : un texte + un PDF ou une image) : elle change à
+  chaque fois — c'est une SUITE de publications, pas une répétition. Même auto-générée, elle passe
+  par une **validation humaine** : brouillon → validation → programmation ponctuelle, quand l'outil
+  de publication existera (13.5).
+- **Les réunions, visios** : là, la répétition a du sens — mais c'est un RENDEZ-VOUS, pas une tâche.
+  Une future couche « agenda » du calendrier, éventuellement reliée au transcriber (enregistrer puis
+  transcrire). ⏳ **Pas prioritaire** : *« on a déjà plein d'outils pour ça »*, et beaucoup à faire
+  avant.
+- **L'évaluation des modèles** (le cas principal) : on ne refait pas deux fois le même test, on
+  réévalue **ce qui a changé** — nouveau modèle intégré, nouveau corpus. Ce n'est pas une récurrence
+  mais une mise à jour : la rythmique existe déjà (la campagne nocturne), il lui manque de ne
+  recalculer que les cases PÉRIMÉES (`STALE`, §10.6). Domicile : `WAMA_QUALITE.md` P4.
+Donc : le champ `rrule` reste en base, sans interface, pour l'agenda futur ; aucune garde ni code
+de répétition n'est ajouté pour les cards.
 
 ---
 
