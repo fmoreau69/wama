@@ -1099,6 +1099,23 @@ def seed_yolo_candidate(name: str) -> dict:
     return {'ok': True, 'model_key': cand_key, 'created': created, 'task': task}
 
 
+def named_repo(query: str):
+    """Le dépôt HF qu'une requête DÉSIGNE — URL de page (`https://huggingface.co/org/nom`, avec ou
+    sans schéma, sous-chemins `/tree/main`… tolérés) ou identifiant `org/nom` —, sinon None.
+
+    ⚠ POURQUOI (2026-09-29) : trois recherches collées depuis la barre d'adresse
+    (`https://huggingface.co/SupraLabs/Supra2-IMG`) rendaient 0 résultat — HF cherchait la chaîne
+    ENTIÈRE dans les noms de dépôts. Un utilisateur qui colle l'adresse du modèle désigne un dépôt,
+    il ne fait pas une recherche plein texte.
+    """
+    import re
+    q = (query or '').strip()
+    m = re.match(r'^(?:https?://)?(?:www\.)?huggingface\.co/([\w.-]+/[\w.-]+)', q, re.I)
+    if m:
+        return m.group(1)
+    return q if re.fullmatch(r'[\w.-]+/[\w.-]+', q) else None
+
+
 def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
     """
     Prospection CIBLÉE : cherche `query` dans les noms de dépôts HF (toutes tâches de
@@ -1113,7 +1130,9 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
         `HF_TASKS` (un tag hors périmètre n'invente pas de catégorie d'installation) ;
       • `_NOISE_MARKERS` non appliqués : chercher « kokoro onnx » est un choix EXPLICITE —
         la garde anti-dérivés protège un listing subi, pas une demande nommée ;
-      • AUCUNE purge : une recherche AJOUTE des candidats, elle ne redessine pas la liste.
+      • AUCUNE purge : une recherche AJOUTE des candidats, elle ne redessine pas la liste ;
+      • un dépôt DÉSIGNÉ échappe au plancher de poids de sa tâche (2026-09-29) — cf. `named`
+        ci-dessous.
     """
     from wama.model_manager.models import AIModel
 
@@ -1122,13 +1141,30 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
     query = (query or '').strip()
     if not query:
         return {'ok': False, 'error': 'requête vide'}
+    named = named_repo(query)
+    search = named or query
     try:
         from huggingface_hub import HfApi
-        models = list(HfApi().list_models(
-            search=query, sort='downloads', limit=limit,
+        api = HfApi()
+        models = list(api.list_models(
+            search=search, sort='downloads', limit=limit,
             expand=['downloads', 'likes', 'pipeline_tag', 'cardData']))
+        # Le dépôt désigné passe EN TÊTE, même si la recherche plein texte ne le rend pas (ou le
+        # rend au-delà de `limit`) : c'est lui qu'on a demandé.
+        if named:
+            models = [m for m in models if m.id.lower() != named.lower()]
+            try:
+                models.insert(0, api.model_info(named))
+            except Exception as e:
+                return {'ok': False, 'error': f"dépôt {named} injoignable : {type(e).__name__}: {e}"}
     except Exception as e:
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
+
+    def _designated(repo_id: str) -> bool:
+        """Le dépôt a-t-il été NOMMÉ par la requête ? Son id entier (URL, `org/nom`), ou son nom
+        seul quand la requête est ce nom (« Supra2-IMG » désigne `SupraLabs/Supra2-IMG`)."""
+        rid = repo_id.lower()
+        return rid == (named or '').lower() or rid.rsplit('/', 1)[-1] == query.lower()
 
     # « Déjà chez nous » — mêmes deux identités que prospect_hf, mais lignes INSTALLÉES
     # seulement : un candidat déjà proposé doit pouvoir être RAFRAÎCHI par une nouvelle
@@ -1156,7 +1192,11 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
             deja += 1
             continue
         poids = _repo_weight_gb(m.id)   # un appel HTTP — candidats retenus seulement
-        if poids is not None and poids < regle['poids_min_go']:
+        # Le plancher écarte les LoRA et les dépôts de config d'un listing SUBI. Il ne s'applique
+        # pas au dépôt que l'utilisateur a NOMMÉ : mesuré le 2026-09-29, « Supra2-IMG » écartait
+        # l'OFFICIEL (`SupraLabs/Supra2-IMG`, 104 M paramètres, 0,4 Go < 1 Go) et ne laissait que
+        # deux reconditionnements tiers — dont l'un a été installé à sa place.
+        if poids is not None and poids < regle['poids_min_go'] and not _designated(m.id):
             ignores += 1                 # sous le plancher : LoRA/config, pas un modèle
             continue
         dl = getattr(m, 'downloads', 0) or 0

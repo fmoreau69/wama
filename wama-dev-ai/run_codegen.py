@@ -11,8 +11,8 @@ d'auto-application) :
   2. un seul appel LLM (rôle `codegen` : chaîne de repli de config.py en local, ou
      `--provider albert`) ;
   3. la sortie est contrôlée MÉCANIQUEMENT : compile(), fonction au nom imposé de signature
-     (item, ctx), drapeaux d'interdits (écriture de statut/progress, import HF avant
-     HF_HUB_CACHE, imports lourds en tête de bloc) ;
+     (item, ctx), drapeaux d'interdits (écriture de statut/progress, MUTATION du cache HF,
+     imports lourds en tête de bloc) ;
   4. écrit dans `outputs/` avec PENDING_HUMAN_VALIDATION — n'écrit JAMAIS dans wama/.
      Le juge profond reste le harnais C (`app_regen_check`) dans le worktree, après
      application HUMAINE de la glu.
@@ -216,12 +216,12 @@ def controles(code: str, nom_impose: str, app_id: str = None) -> dict:
                            None)):   # lecture tolérée — pas de warning
         if raison and re.search(motif, code):
             out['warnings'].append(raison)
-    # Ordre HF_HUB_CACHE vs import HF (règle 3) — positions textuelles dans le bloc.
-    pose = code.find('HF_HUB_CACHE')
-    for m in re.finditer(r'(?:from|import)\s+(transformers|diffusers|huggingface_hub)', code):
-        if pose < 0 or m.start() < pose:
-            out['warnings'].append(f'import {m.group(1)} avant HF_HUB_CACHE (règle 3)')
-            break
+    # Mutation du cache HF (règle 3) — INTERDITE depuis le 2026-09-03 (AGENTS.md). Ce contrôle
+    # exigeait l'INVERSE jusqu'au 2026-09-29 : il signalait « import avant HF_HUB_CACHE » quand
+    # la glu ne mutait PAS l'environnement, donc il réclamait la faute que la doctrine interdit.
+    if re.search(r"os\.(environ\s*\[\s*['\"]|environ\.setdefault\(\s*['\"]|putenv\(\s*['\"])"
+                 r"(HF_HUB_CACHE|HUGGINGFACE_HUB_CACHE|HF_HOME)", code):
+        out['warnings'].append('mutation du cache HF dans l\'environnement (règle 3)')
     return out
 
 

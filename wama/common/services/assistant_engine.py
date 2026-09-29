@@ -217,10 +217,23 @@ def resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple:
             # Le DOMAINE d'intervention déclare la compétence à privilégier (dev → 'coding') :
             # le tirage classe alors sur CE sous-indice de banc quand tout le lot le porte.
             family = resolve_domain(domain).benchmark_family or None
+            cloud = allowed_cloud_keys(user)
+            # Tour CONNECTÉ = tour OUTILLÉ : le tirage est borné au plancher de l'assistant
+            # outillé (`development_models.AGENT_CODING_FLOOR`, 29/09) — sous lui, le modèle
+            # annonce des tâches qu'il n'a pas lancées (mesuré sur Discord, 22, 23 et 27/09).
+            floor = {}
+            if user is not None:
+                from wama.common.services.development_models import agent_candidates
+                lot = agent_candidates(user, cloud_keys=cloud)
+                if lot:
+                    floor['candidates'] = lot
+                else:
+                    logger.warning("[ai_chat] aucun modèle au plancher de l'assistant outillé — "
+                                   "tirage non borné, le contrôle de sortie reste seul garde")
             cle = resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
                                        quality_intent=reglages.get('quality_intent'),
                                        benchmark_family=family,
-                                       cloud_keys=allowed_cloud_keys(user)) or ''
+                                       cloud_keys=cloud, **floor) or ''
         except Exception:
             logger.debug('[ai_chat] tirage automatique indisponible', exc_info=True)
             cle = ''
@@ -667,7 +680,8 @@ _URL_IN_TEXT = re.compile(r'(?:https?://|/media/)[^\s)\]>"\'`]+')
 _UNSOURCED_MARK = '(lien non vérifié — retiré)'
 
 
-def _strip_unsourced_urls(text: str, tool_steps: list, message: str = '') -> str:
+def _strip_unsourced_urls(text: str, tool_steps: list, message: str = '',
+                          removed: list = None) -> str:
     """Retire d'une réponse les URL dont AUCUN résultat d'outil de ce tour n'a parlé.
 
     ⚠⚠ POURQUOI UN CONTRÔLE, ET PAS UNE RÈGLE DE PROMPT (mesuré le 2026-09-23, DEUX FOIS).
@@ -684,12 +698,16 @@ def _strip_unsourced_urls(text: str, tool_steps: list, message: str = '') -> str
     (rappeler l'outil de statut), et dans un canal c'est la PIÈCE JOINTE qui compte.
 
     ⚠ Ne touche pas au reste du texte : le libellé d'un lien Markdown est conservé.
+
+    `removed` : liste que l'appelant fournit pour RECEVOIR les URL retirées — c'est le signal
+    du contrôle de tour inventé (`_invented_turn`), qui ne se lit pas dans le texte rendu.
     """
     if not text:
         return text
     sources = json.dumps(tool_steps or [], ensure_ascii=False) + '\n' + (message or '')
 
-    removed = []
+    if removed is None:
+        removed = []
 
     def _known(url):
         return url.rstrip('.,;:!?') in sources or url in sources
@@ -714,6 +732,70 @@ def _strip_unsourced_urls(text: str, tool_steps: list, message: str = '') -> str
         logger.warning("[ai_chat] %d lien(s) sans source retiré(s) de la réponse : %s",
                        len(removed), ', '.join(removed[:5]))
     return text
+
+
+#: Ce que dit un tour inventé qu'aucun modèle plus fort ne peut reprendre. Remplace TOUTE la
+#: réponse : un « c'est terminé » sans outil est faux en entier, pas seulement son lien.
+_INVENTED_TURN_NOTICE = (
+    "⚠ Je n'ai exécuté aucune action pendant ce tour : ma réponse citait un résultat qu'aucun "
+    "outil n'a produit, elle a donc été retirée. Reformulez la demande (par exemple « lance "
+    "l'anonymisation de ce fichier » ou « donne-moi le statut »), ou choisissez un modèle plus "
+    "capable dans les réglages de l'assistant.")
+
+
+def _invented_turn(user, message, *, provider, llm_model, local, etiquette, total_usage,
+                   history, domain, surface, on_event, escalated_from):
+    """Un tour SANS AUCUN appel d'outil dont la réponse citait un résultat (lien retiré par
+    `_strip_unsourced_urls`) : le modèle a INVENTÉ une action. Contrôle, pas consigne (29/09).
+
+    ⚠⚠ LE DÉFAUT MESURÉ (Discord, 27/09, fil 11). `qwen3.5:4b`, trois tours, zéro outil :
+    « je lance », « la tâche 648 est terminée », un lien. Le filtre retirait bien le lien, mais
+    le RESTE de la réponse partait — un faux « terminé » suivi d'un libellé mort, que
+    l'utilisateur a pris pour un lien de téléchargement cassé. Retirer l'adresse ne suffit pas
+    quand c'est la phrase entière qui est fausse.
+
+    Le signal est MESURÉ, pas deviné dans la langue : aucun `tool_step` ET un lien sans source.
+    Un tour sans outil qui ne cite aucun résultat (« bonjour », une explication) n'est pas visé.
+
+    Remède, dans cet ordre : reprendre UNE fois le tour avec un modèle plus fort
+    (`development_models.escalation_model`) ; sans lui, ou si la reprise invente aussi,
+    dire qu'aucune action n'a été exécutée — jamais relayer la fabrication.
+    """
+    from wama.common.services.development_models import escalation_model
+
+    source = 'ollama' if local else PROVIDER_SOURCES.get(provider, provider)
+    current_key = f'{source}:{llm_model}' if llm_model else None
+    logger.warning("[ai_chat] tour inventé (aucun outil, résultat cité) par %s%s",
+                   etiquette, f" — reprise de {escalated_from}" if escalated_from else '')
+
+    key = escalation_model(user, current_key) if escalated_from is None else None
+    if key:
+        src, _, model_id = str(key).partition(':')
+        if on_event is not None:
+            # Le web a déjà affiché la fabrication en flux : on DIT la reprise ; l'événement
+            # `done` remplace ensuite la bulle par la réponse reprise.
+            on_event({'type': 'delta',
+                      'text': f"\n\n_⟳ Réponse sans source — reprise avec {model_id}…_\n\n"})
+        retry = run_assistant_turn(user, message, provider=SOURCE_PROVIDERS.get(src, 'wama-dev-ai'),
+                                   model=model_id or None, history=history, domain=domain,
+                                   surface=surface, on_event=on_event, escalated_from=etiquette)
+        if 'error' not in retry:
+            usage = retry.setdefault('usage', {})
+            for k, v in total_usage.items():
+                usage[k] = (usage.get(k) or 0) + (v or 0)
+            retry['model'] = f"{retry.get('model', '')} · repris"
+            retry.setdefault('invented_by', etiquette)
+            return retry
+        logger.warning("[ai_chat] reprise impossible (%s) — aveu", retry.get('error'))
+
+    return {
+        'success': True,
+        'response': _INVENTED_TURN_NOTICE,
+        'model': etiquette,
+        'usage': total_usage,
+        'tool_steps': [],
+        'invented_by': etiquette,
+    }
 
 
 def _parse_tool_call(text: str) -> dict | None:
@@ -804,7 +886,8 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
 
 def run_assistant_turn(user, message: str, provider: str = None,
                        model: str = None, history: list = None,
-                       domain: str = None, surface: str = 'web', on_event=None) -> dict:
+                       domain: str = None, surface: str = 'web', on_event=None,
+                       escalated_from: str = None) -> dict:
     """
     UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
     surfaces (vue web `ai_chat`, API v1 `assistant/chat/`, adaptateurs de canaux).
@@ -833,6 +916,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
         surface:  D'où vient le tour ('web', 'api', 'discord'…). Le moteur reste le même ;
                   seule change la consigne sur CE QUE LA SURFACE SAIT FAIRE de la réponse —
                   un canal joint les fichiers produits, un client web suit des liens.
+        escalated_from: INTERNE — étiquette du tour inventé que celui-ci reprend
+                  (`_invented_turn`) ; interdit une seconde reprise.
 
     Returns:
         dict succès : {success, response, model, usage, tool_steps}
@@ -1002,7 +1087,14 @@ def run_assistant_turn(user, message: str, provider: str = None,
             # Strip any remaining reasoning tags from the displayed response
             # Contrôle de SOURCE des liens : ce que le prompt demande, la sortie le VÉRIFIE
             # (les fabrications du fil sont resservies au modèle à chaque tour).
-            clean_text = _strip_unsourced_urls(_strip_think_tags(text), tool_steps, message)
+            removed = []
+            clean_text = _strip_unsourced_urls(_strip_think_tags(text), tool_steps, message,
+                                               removed=removed)
+            if removed and not tool_steps and user is not None:
+                return _invented_turn(user, message, provider=provider, llm_model=llm_model,
+                                      local=local, etiquette=etiquette, total_usage=total_usage,
+                                      history=history, domain=domain, surface=surface,
+                                      on_event=on_event, escalated_from=escalated_from)
             return {
                 'success': True,
                 'response': clean_text,

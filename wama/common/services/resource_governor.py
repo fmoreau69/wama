@@ -142,8 +142,15 @@ _ALLOC_KEY = "wama:vram:allocated"
 #: utilisé paraissait « actif » à chaque battement, et le nettoyeur ne le voyait jamais inactif.
 _LOADED_KEY = "wama:vram:loaded_at"
 
+#: ESPACE DE PROCESSUS de l'écrivain d'une ligne : owner → "<boot_id>/<pidns>" (2026-09-29).
+#: Ne se pose que pour un owner qui porte le pid de son écrivain (`owner_pid`). C'est ce qui
+#: autorise un LECTEUR à conclure « ce détenteur est mort » : seulement s'il voit les mêmes pid
+#: (même noyau démarré, même espace de noms). Un lecteur Windows, un autre hôte partageant le
+#: Redis, une autre distribution WSL : marqueur différent → on n'en conclut rien, le TTL garde.
+_PID_SPACE_KEY = "wama:vram:pid_space"
+
 #: Ce qui vit et meurt avec une ligne de réservation.
-_SIDE_KEYS = (_USED_KEY, _ALLOC_KEY, _LOADED_KEY)
+_SIDE_KEYS = (_USED_KEY, _ALLOC_KEY, _LOADED_KEY, _PID_SPACE_KEY)
 
 # Une réservation expire seule : si un process meurt sans libérer (kernel panic,
 # kill -9), sa ligne ne doit pas bloquer le GPU pour toujours. Un détenteur VIVANT la
@@ -173,6 +180,32 @@ def _now() -> float:
     import time
 
     return time.time()
+
+
+_PID_SPACE_UNSET = object()
+_pid_space_cache = _PID_SPACE_UNSET
+
+
+def _pid_space() -> str | None:
+    """Identité de l'espace de pid de CE process — noyau démarré + espace de noms —, ou None
+    hors Linux. Constante pour la vie du process, donc lue une fois."""
+    global _pid_space_cache
+    if _pid_space_cache is _PID_SPACE_UNSET:
+        try:
+            with open('/proc/sys/kernel/random/boot_id') as fh:
+                boot = fh.read().strip()
+            _pid_space_cache = f"{boot}/{os.readlink('/proc/self/ns/pid')}"
+        except (OSError, AttributeError):
+            _pid_space_cache = None
+    return _pid_space_cache
+
+
+def owner_pid(owner: str) -> int | None:
+    """Pid porté par une clé d'owner (`<module>.<Classe>:<pid>#…`, `composer.audiocpp:<pid>`),
+    ou None (`ollama-host#…` : la ligne est posée par la synchro, pas par le détenteur)."""
+    head = owner.split(OWNER_MODEL_SEP, 1)[0]
+    _, sep, tail = head.rpartition(':')
+    return int(tail) if sep and tail.isdigit() else None
 
 
 def reserve_vram(owner: str, gb: float, *, allocated: bool = False,
@@ -210,7 +243,12 @@ def reserve_vram(owner: str, gb: float, *, allocated: bool = False,
             client.hset(_ALLOC_KEY, owner, str(os.getpid()))
         else:
             client.hdel(_ALLOC_KEY, owner)
-        for key in (_LEDGER_KEY, _ALLOC_KEY, _LOADED_KEY):
+        # Le détenteur écrit lui-même sa ligne : on note où vit son pid, pour qu'un lecteur du
+        # même espace puisse constater sa MORT sans attendre le TTL (`_reservations_raw`).
+        space = _pid_space()
+        if space and owner_pid(owner) == os.getpid():
+            client.hset(_PID_SPACE_KEY, owner, space)
+        for key in (_LEDGER_KEY, _ALLOC_KEY, _LOADED_KEY, _PID_SPACE_KEY):
             client.expire(key, RESERVATION_TTL_S * 2)
         return True
     except Exception as exc:
@@ -316,6 +354,7 @@ def _reservations_raw(exclude: str | None = None) -> dict[str, tuple[float, floa
         return {}
 
     alive, stale, now = {}, [], _now()
+    dead = _dead_owners([k.decode() if isinstance(k, bytes) else str(k) for k in raw], client)
     for key, value in raw.items():
         owner = key.decode() if isinstance(key, bytes) else str(key)
         text = value.decode() if isinstance(value, bytes) else str(value)
@@ -325,7 +364,7 @@ def _reservations_raw(exclude: str | None = None) -> dict[str, tuple[float, floa
         except ValueError:
             stale.append(owner)
             continue
-        if now - stamp > RESERVATION_TTL_S:
+        if now - stamp > RESERVATION_TTL_S or owner in dead:
             stale.append(owner)
             continue
         if owner != exclude:
@@ -336,10 +375,43 @@ def _reservations_raw(exclude: str | None = None) -> dict[str, tuple[float, floa
             client.hdel(_LEDGER_KEY, *stale)
             for key in _SIDE_KEYS:           # usage, marqueur alloué, chargement : suivent leur ligne
                 client.hdel(key, *stale)
-            logger.info(f"[ResourceGovernor] réservations périmées purgées : {stale}")
+            logger.info(f"[ResourceGovernor] réservations périmées purgées : {stale}"
+                        + (f" (process mort : {sorted(dead)})" if dead else ''))
         except Exception:
             pass
     return alive
+
+
+def _dead_owners(owners, client) -> set:
+    """Owners dont le process écrivain est MORT, constaté depuis le même espace de pid.
+
+    ⚠⚠ LE DÉFAUT MESURÉ (2026-09-29). Après une relance de WAMA, `/model_manager/` affichait
+    « 4 modèles chargés » et « 7 inactifs » : 8 lignes au registre pour 4 modèles, dont QUATRE
+    tenues par des pid morts (l'ancien worker GPU et l'ancien service TTS). Elles survivaient
+    jusqu'à `RESERVATION_TTL_S` (1 h) — et pendant cette heure elles ne faussaient pas que
+    l'affichage : ~24 Go FANTÔMES retranchés de la VRAM libre du tirage et de la garde.
+    Le TTL sanctionne un process mort, mais une heure trop tard.
+
+    Constat POSITIF seulement : même espace de pid (marqueur posé par l'écrivain), pid absent.
+    Pas de marqueur (ligne posée par un tiers, ancien code, autre hôte) → on ne conclut rien. Un
+    pid RÉUTILISÉ se lit vivant : c'est le côté sûr de l'asymétrie (`process_control._pid_alive`).
+    """
+    here = _pid_space()
+    if not here or not owners:
+        return set()
+    try:
+        spaces = {(k.decode() if isinstance(k, bytes) else str(k)):
+                  (v.decode() if isinstance(v, bytes) else str(v))
+                  for k, v in (client.hgetall(_PID_SPACE_KEY) or {}).items()}
+    except Exception:
+        return set()
+    from wama.common.utils.process_control import _pid_alive
+    dead = set()
+    for owner in owners:
+        pid = owner_pid(owner)
+        if pid and spaces.get(owner) == here and not _pid_alive(pid):
+            dead.add(owner)
+    return dead
 
 
 def reserved_gb(exclude: str | None = None) -> float:
@@ -809,12 +881,19 @@ def task_started(app_id: str, item_id, needed_gb: float = 0.0, *,
     """Déclare une tâche GPU EN COURS ; rend son jeton. Posé par le squelette commun autour de
     la glu (`run_item_task`) — un seul point, aucune app. La ligne expire d'elle-même à
     `max_s` (défaut `TASK_DEFAULT_MAX_S`) : un worker mort ne laisse pas une tâche fantôme."""
-    token = f"{app_id}:{item_id}:{tenant_id()}"
-    _hset_json(_TASKS_KEY, token, {
+    tenant = tenant_id()
+    token = f"{app_id}:{item_id}:{tenant}"
+    line = {
         'app': app_id, 'item': item_id, 'gb': round(float(needed_gb or 0.0), 3),
-        'tenant': tenant_id(), 'ts': _now(),
+        'tenant': tenant, 'ts': _now(),
         'ttl': float(max_s if max_s is not None else TASK_DEFAULT_MAX_S),
-    })
+    }
+    # Où vit le pid du `tenant` : un lecteur du même espace constate sa MORT sans attendre `ttl`
+    # (jumeau de `_dead_owners`, 2026-09-29). Posé seulement quand le tenant EST le pid de
+    # l'écrivain — même règle que `reserve_vram` : on n'atteste que ce qu'on sait de soi.
+    if tenant == str(os.getpid()):
+        line['pid_space'] = _pid_space()
+    _hset_json(_TASKS_KEY, token, line)
     return token
 
 
@@ -823,7 +902,16 @@ def task_finished(token: str) -> None:
 
 
 def running_tasks() -> list[dict]:
-    """Tâches GPU en cours, tous process confondus — lignes expirées purgées."""
+    """Tâches GPU en cours, tous process confondus — lignes expirées purgées, ET lignes dont le
+    worker est MORT (constat positif, même espace de pid).
+
+    ⚠ LE JUMEAU DE `_dead_owners` (relevé par une autre instance le 2026-09-29) : la ligne d'un
+    worker tué restait « en cours » jusqu'à son `ttl` — 3 h pour le transcriber. Mesuré :
+    `transcriber:741:734725`, tâche en SUCCESS depuis longtemps, comptée en cours ; deux tâches
+    à la fois sur le worker gpu `solo`, file globale et `gpu_is_busy()` faussés. Même règle que
+    le registre VRAM : sans marqueur d'espace, on ne conclut rien et le `ttl` garde."""
+    from wama.common.utils.process_control import _pid_alive
+    here = _pid_space()
     now, alive, stale = _now(), [], []
     for token, line in _hash_json(_TASKS_KEY).items():
         try:
@@ -831,6 +919,11 @@ def running_tasks() -> list[dict]:
                 stale.append(token)
                 continue
         except (TypeError, ValueError):
+            stale.append(token)
+            continue
+        tenant = str(line.get('tenant') or '')
+        if (here and line.get('pid_space') == here and tenant.isdigit()
+                and not _pid_alive(int(tenant))):
             stale.append(token)
             continue
         alive.append({'token': token, **line})

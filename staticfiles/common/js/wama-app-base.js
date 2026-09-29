@@ -664,7 +664,29 @@
       .catch(function () { return null; });
   }
 
+  /** Taille LISIBLE, unité choisie selon la valeur : « 512 Ko », « 3,8 Go ».
+   *
+   *  Pourquoi pas « tout en Go » (question de Fabien, 2026-09-29) : les tailles de WAMA vont
+   *  d'un fichier de voix de quelques Ko à un modèle de 50 Go — en Go fixe, les petites
+   *  s'écrivent « 0,0 Go » ; en Mo fixe (la liste « Idle Models »), 10 Go s'écrivent « 10240 MB ».
+   *  `from` dit l'unité de la valeur REÇUE, pour que l'appelant n'ait pas à reconvertir ce que
+   *  le serveur envoie déjà en Mo ou en Go. Base 1024, comme les valeurs VRAM du serveur.
+   *  Unités en français : c'est un texte affiché (règle de langue d'AGENTS.md). */
+  const SIZE_UNITS = ['o', 'Ko', 'Mo', 'Go', 'To'];
+  function formatSize(value, from) {
+    const n = Number(value);
+    if (value == null || value === '' || !isFinite(n)) return '—';
+    let i = Math.max(0, ['B', 'KB', 'MB', 'GB', 'TB'].indexOf(String(from || 'B').toUpperCase()));
+    let v = Math.abs(n);
+    while (v >= 1024 && i < SIZE_UNITS.length - 1) { v /= 1024; i++; }
+    while (v > 0 && v < 1 && i > 0) { v *= 1024; i--; }
+    const digits = (v >= 100 || i === 0) ? 0 : 1;
+    return (n < 0 ? '-' : '') + v.toFixed(digits).replace('.', ',').replace(/,0$/, '')
+      + ' ' + SIZE_UNITS[i];
+  }
+
   global.WamaApp = {
+    formatSize: formatSize,
     escapeHtml: escapeHtml,
     getUrl: getUrl,
     csrfHeaders: csrfHeaders,

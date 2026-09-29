@@ -30,7 +30,7 @@
     }
   },
   "rules": {
-    "model_integration": "Path d'abord, env vars ensuite, import après — settings.MODEL_PATHS → model_config.py → os.environ['HF_HUB_CACHE'] → from transformers import",
+    "model_integration": "Le modèle par cache_dir=, ses dépendances par le cache partagé — et rien dans l'env : settings.MODEL_PATHS → model_config.py → from_pretrained(cache_dir=…). JAMAIS muter HF_HUB_CACHE / HUGGINGFACE_HUB_CACHE / HF_HOME (AGENTS.md, 2026-09-03)",
     "common_rule": "Tout code utilisé par >1 app va dans wama/common/ — zéro duplication",
     "staticfiles": "Dupliquer wama/<app>/static/ → staticfiles/<app>/ pour tout fichier JS/CSS modifié",
     "queue_buttons": "Ordre boutons : [⚙ Params] [▶ Start] [⬇ Download] [⧉ Duplicate] [🗑 Delete]"

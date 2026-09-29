@@ -1162,6 +1162,36 @@ class FaitsDeLaCarteTest(TestCase):
         self.assertEqual('text-to-speech', rich.capabilities['task'])
         self.assertEqual('qwen3-tts', rich.composition['runtime']['engine'])
 
+    def test_the_composition_judged_on_the_candidate_reaches_the_installed_row(self):
+        """2026-09-29 : le scout déclare l'anatomie sur le candidat, l'installation s'en servait
+        pour tirer les bons fichiers… puis la perdait — ni `AIModel.composition`, ni le corpus.
+        Le moteur JUGÉ prime sur celui que la carte laisse deviner ; l'existant, sur les deux."""
+        from .services import provenance as pv
+        judged = {'components': [{'role': 'dit', 'pattern': 'dit/model.onnx', 'format': 'onnx'}],
+                  'runtime': {'engine': 'onnxruntime'}}
+        blank = AIModel.objects.create(
+            model_key='huggingface:Org/Img', name='Img', model_type='diffusion',
+            source='huggingface', is_downloaded=True, hf_id='Org/Img', capabilities={})
+        with patch.object(pv, 'identity_for_spec',
+                          return_value={'hf_id': 'Org/Img',
+                                        'declared': {'capabilities': {}, 'engine': 'transformers'}}), \
+                patch('django.core.management.call_command'):
+            pv.record_after_install({'kind': 'hf', 'ref': 'Org/Img', 'composition': judged},
+                                    ['huggingface:Org/Img'])
+        blank.refresh_from_db()
+        self.assertEqual(judged['components'], blank.composition['components'])
+        self.assertEqual('onnxruntime', blank.composition['runtime']['engine'])
+        # Contre-épreuve : une anatomie déjà établie n'est pas remplacée par celle du spec.
+        established = [{'role': 'unet', 'pattern': 'unet/*.onnx', 'format': 'onnx'}]
+        blank.composition = {'components': established, 'runtime': {'engine': 'onnxruntime'}}
+        blank.save()
+        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Img'}), \
+                patch('django.core.management.call_command'):
+            pv.record_after_install({'kind': 'hf', 'ref': 'Org/Img', 'composition': judged},
+                                    ['huggingface:Org/Img'])
+        blank.refresh_from_db()
+        self.assertEqual(established, blank.composition['components'])
+
 
 class RestesTechniquesDuSoirTest(TestCase):
     """Trois restes du 02/09, chacun mesuré avant d'être corrigé."""
