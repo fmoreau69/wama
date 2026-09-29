@@ -9,8 +9,28 @@ from django.test import SimpleTestCase
 
 from wama.common.backends.speech_to_text_base import TranscriptionSegment
 from wama.common.utils.spoken_language import (
-    dominant_language, language_shares, languages_heard,
+    dominant_language, language_agreement, language_shares, languages_heard,
 )
+
+
+class LanguageAgreementTest(SimpleTestCase):
+    REFERENCE = [{'start_time': 0.0, 'end_time': 10.0, 'language': 'en'},
+                 {'start_time': 10.0, 'end_time': 20.0, 'language': 'fr'}]
+
+    def test_time_in_the_right_language_is_agreement_the_rest_only_coverage(self):
+        """Un seul segment « fr » sur 0-20 s : la moitié française est juste, l'anglaise non."""
+        hypothesis = [{'start_time': 0.0, 'end_time': 20.0, 'language': 'fr'}]
+        self.assertEqual({'agreement': 0.5, 'covered': 1.0},
+                         language_agreement(self.REFERENCE, hypothesis))
+
+    def test_what_is_not_transcribed_is_not_covered(self):
+        hypothesis = [TranscriptionSegment('', 12.0, 20.0, 'x', language='fr')]
+        self.assertEqual({'agreement': 0.4, 'covered': 0.4},
+                         language_agreement(self.REFERENCE, hypothesis))
+
+    def test_a_reference_without_languages_has_no_agreement(self):
+        self.assertEqual({'agreement': None, 'covered': None},
+                         language_agreement([{'start_time': 0, 'end_time': 5}], []))
 
 
 class LanguagesHeardTest(SimpleTestCase):

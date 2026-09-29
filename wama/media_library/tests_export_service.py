@@ -55,9 +55,10 @@ def _audio_ameliore(user, nom_fichier='ameliore.wav'):
 
 class CandidatsDeRoleTest(TestCase):
     def test_un_mp3_a_PLUSIEURS_roles_possibles(self):
-        """C'est tout le motif du refus de deviner : l'extension ne dit pas le rôle."""
+        """C'est tout le motif du refus de deviner : l'extension ne dit pas le rôle. (`speech`,
+        parole enregistrée, s'y ajoute le 2026-09-28 : une nature audio de plus.)"""
         self.assertEqual(
-            set(candidate_asset_types('x.mp3')), {'voice', 'audio_music', 'audio_sfx'})
+            set(candidate_asset_types('x.mp3')), {'voice', 'speech', 'audio_music', 'audio_sfx'})
 
     def test_un_glb_n_en_a_qu_UN(self):
         self.assertEqual(candidate_asset_types('scene.glb'), ['object3d'])
@@ -78,7 +79,7 @@ class ExportTest(TestCase):
         ae = _audio_ameliore(self.moi)
         out = export_item_to_library(self.moi, 'audio_enhancer', ae.pk)
         self.assertIn('error', out)
-        self.assertEqual(set(out['candidates']), {'voice', 'audio_music', 'audio_sfx'})
+        self.assertEqual(set(out['candidates']), {'voice', 'speech', 'audio_music', 'audio_sfx'})
         self.assertEqual(UserAsset.objects.filter(user=self.moi).count(), 0)
 
     def test_range_quand_le_role_est_FOURNI(self):
@@ -171,7 +172,7 @@ class VueExportTest(TestCase):
         r = self.client.get(self._url('audio_enhancer', ae.pk))
         self.assertEqual(r.status_code, 200)
         d = r.json()
-        self.assertEqual(set(d['candidates']), {'voice', 'audio_music', 'audio_sfx'})
+        self.assertEqual(set(d['candidates']), {'voice', 'speech', 'audio_music', 'audio_sfx'})
         self.assertEqual(set(d['labels']), set(d['candidates']))
         self.assertTrue(all(d['labels'].values()))
         self.assertEqual(set(d['choices']), set(d['candidates']))
@@ -348,10 +349,10 @@ class RoleDeclareParLAppTest(TestCase):
     def test_admissible_roles_filtre_par_extension_PUIS_par_role_declare(self):
         from wama.media_library.services import admissible_roles
         self.assertEqual(admissible_roles({'result_role': 'audio_music'}, 'x.wav'), ['audio_music'])
-        self.assertEqual(set(admissible_roles({}, 'x.wav')), {'voice', 'audio_music', 'audio_sfx'})
+        self.assertEqual(set(admissible_roles({}, 'x.wav')), {'voice', 'speech', 'audio_music', 'audio_sfx'})
         # Déclaration non admise pour l'extension : IGNORÉE, l'utilisateur choisit.
         self.assertEqual(set(admissible_roles({'result_role': 'image'}, 'x.wav')),
-                         {'voice', 'audio_music', 'audio_sfx'})
+                         {'voice', 'speech', 'audio_music', 'audio_sfx'})
         self.assertEqual(admissible_roles({'result_role': 'image'}, 'x.zip'), [])
 
     def test_le_composer_DECLARE_musique_ou_bruitage_et_le_menu_ne_propose_que_ca(self):
@@ -385,7 +386,7 @@ class RoleDeclareParLAppTest(TestCase):
         ae.output_file.save('ameliore.wav', ContentFile(b'\x00\x01'), save=True)
         r = self.client.get(self._url('audio_enhancer', ae.pk))
         self.assertEqual(r.status_code, 200, r.content[:200])
-        self.assertEqual(set(r.json()['candidates']), {'voice', 'audio_music', 'audio_sfx'})
+        self.assertEqual(set(r.json()['candidates']), {'voice', 'speech', 'audio_music', 'audio_sfx'})
         out = export_item_to_library(self.moi, 'audio_enhancer', ae.pk)
         self.assertIn('Précisez', out.get('error', ''))
 
@@ -688,9 +689,12 @@ class LateBindingTest(TestCase):
         t = self._transcript()
         choix = export_choices('transcriber', {'result_text': t.text})
         cles = [c['key'] for c in choix]
-        self.assertEqual(cles, ['txt', 'pdf', 'docx'], 'srt n’est pas un document de médiathèque')
+        # Depuis le 2026-09-28 `srt`/`vtt` sont des documents de médiathèque (références des jeux
+        # d'évaluation ASR) : un SRT horodaté se range donc aussi — la règle est la dérivation
+        # « formats du téléchargement ADMIS comme document », pas une liste figée.
+        self.assertEqual(cles, ['txt', 'srt', 'pdf', 'docx'])
         declares = [e['value'] for e in entries_for_app('transcriber')]
-        self.assertTrue(set(cles) < set(declares))
+        self.assertTrue(set(cles) <= set(declares))
         self.assertTrue(all(c['asset_type'] == 'document' and c['format'] == c['key'] for c in choix))
         # reader : json exclu, md gardé.
         self.assertEqual([c['key'] for c in export_choices('reader', {'result_text': 'x'})],
@@ -709,7 +713,7 @@ class LateBindingTest(TestCase):
         r = self.client.get(self._url('transcriber', t.pk))
         self.assertEqual(r.status_code, 200, r.content[:200])
         d = r.json()
-        self.assertEqual(d['candidates'], ['txt', 'pdf', 'docx'])
+        self.assertEqual(d['candidates'], ['txt', 'srt', 'pdf', 'docx'])
         self.assertEqual(d['choices']['pdf'], {'key': 'pdf', 'asset_type': 'document',
                                                'format': 'pdf', 'label': 'Document · PDF'})
         self.assertEqual(d['in_library'], {})
@@ -748,8 +752,10 @@ class LateBindingTest(TestCase):
         t = self._transcript()
         out = export_item_to_library(self.moi, 'transcriber', t.pk)
         self.assertIn('Précisez', out['error'])
-        self.assertEqual(out['candidates'], ['txt', 'pdf', 'docx'])
-        out = export_item_to_library(self.moi, 'transcriber', t.pk, output_format='srt')
+        self.assertEqual(out['candidates'], ['txt', 'srt', 'pdf', 'docx'])
+        # Un format que le téléchargement du transcriber n'offre pas reste refusé (c'était `srt`
+        # jusqu'au 2026-09-28, admis depuis comme document).
+        out = export_item_to_library(self.moi, 'transcriber', t.pk, output_format='json')
         self.assertIn('error', out)
         out = export_item_to_library(self.moi, 'transcriber', t.pk, asset_type='voice', output_format='txt')
         self.assertIn('error', out, 'un rendu texte est un document, jamais une voix')

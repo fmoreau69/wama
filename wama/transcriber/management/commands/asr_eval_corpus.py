@@ -3,30 +3,43 @@
 
 RIEN D'INVENTÉ EN AVAL. La commande ne fait que PRÉPARER des entrées et poser des cards ; tout
 le reste est la chaîne existante :
-  · l'audio d'une réunion et sa référence entrent en MÉDIATHÈQUE SYSTÈME (natures `speech` et
-    `document`, brique `media_library.system_files`) — une fois, pour tous ;
+  · l'audio d'un enregistrement et sa référence entrent en MÉDIATHÈQUE SYSTÈME (natures `speech`
+    et `document`, brique `media_library.system_files`) — une fois, pour tous ;
   · « comparer N moteurs = un LOT de N cards sur le même audio » : chaque card DÉSIGNE l'audio
     système (`add_to_transcriber` → `designate`, pas de copie), le lot porte la référence
-    (`attach_reference`), le worker mesure à la fin (`result_evaluation.evaluate`) ;
+    (`attach_reference`), le squelette commun mesure à la fin (`result_evaluation.evaluate`) ;
   · les notes montent au model_manager par `internal_quality` (section « Qualité »), au
     protocole `text_v2`.
 
-    # préparer 3 réunions du test (téléchargement temporaire, supprimé après usage)
-    python manage.py asr_eval_corpus summ-re --meetings 3
+    # préparer 3 réunions de SUMM-RE (téléchargement temporaire, supprimé après usage)
+    python manage.py asr_eval_corpus summ-re --recordings 3
 
-    # et poser un lot par réunion dans la file de <login>, puis lancer
-    python manage.py asr_eval_corpus summ-re --meetings 3 --user <login> --start
+    # et poser un lot par enregistrement dans la file de <login>, puis lancer
+    python manage.py asr_eval_corpus summ-re --recordings 3 --user <login> --start
 
-    # ajouter des CONFIGURATIONS au lot de chaque réunion (prétraitement, filtre de parole)
-    python manage.py asr_eval_corpus summ-re --meetings 3 --user <login> --preprocess --start
-    python manage.py asr_eval_corpus summ-re --meetings 3 --user <login> --engines whisper --vad off --start
+    # ajouter des CONFIGURATIONS au lot de chaque enregistrement
+    python manage.py asr_eval_corpus summ-re --recordings 3 --user <login> --preprocess --start
+    python manage.py asr_eval_corpus summ-re --recordings 3 --user <login> --engines whisper --vad off --start
 
-UNE RÉUNION MIXÉE, PAS DES PISTES. SUMM-RE livre une piste micro-cravate par locuteur ; le cas
-d'usage réel est un enregistrement de salle. Les pistes sont rééchantillonnées à 16 kHz,
-sommées, normalisées en crête ; la référence fusionne leurs segments par instant de début.
-⚠ Sur la parole SUPERPOSÉE, l'ordre des mots de la référence est celui des débuts de segments :
-un moteur qui la rend dans un autre ordre y perd des mots. C'est un biais commun à tous les
-moteurs du lot — il déplace le niveau, pas le classement.
+    # FLEURS-CS : enregistrements qui CHANGENT de langue, choisis par leurs langues
+    python manage.py asr_eval_corpus fleurs-cs --require fr,en --exact --recordings 8 --user <login> --language-mode multi
+
+    # tableau des mesures des cards posées (erreur par mot, accord de langue)
+    python manage.py asr_eval_corpus fleurs-cs --require fr,en --exact --recordings 8 --user <login> --report
+
+DEUX CORPUS, DEUX LECTURES, UNE CHAÎNE :
+  · **SUMM-RE** — une RÉUNION MIXÉE, pas des pistes. Le corpus livre une piste micro-cravate par
+    locuteur ; le cas d'usage réel est un enregistrement de salle. Les pistes sont
+    rééchantillonnées à 16 kHz, sommées, normalisées en crête ; la référence fusionne leurs
+    segments par instant de début. ⚠ Sur la parole SUPERPOSÉE, l'ordre des mots de la référence
+    est celui des débuts de segments : biais commun à tous les moteurs du lot (niveau, pas classement).
+  · **FLEURS-CS** — des phrases lues de FLEURS mises bout à bout en 2 à 8 langues (≥ 5 min).
+    Chaque phrase porte sa langue et ses temps : la référence est un WebVTT dont chaque réplique
+    marque sa langue (`<lang fr>…</lang>`, balisage STANDARD de WebVTT) — le lecteur du
+    transcriber l'ôte du texte mesuré et la rend par segment, ce qui mesure l'ACCORD de langue.
+    ⚠ Bascules SYNTHÉTIQUES (locuteurs différents, aucune transition naturelle), et plus
+    fréquentes (8-15 s) que la fenêtre de décision de langue (30 s) : ce corpus mesure la LIMITE
+    de cette fenêtre, pas un usage courant.
 """
 import json
 import shutil
@@ -42,27 +55,31 @@ DEFAULT_ENGINES = ('whisper', 'transcriber:qwen3-asr-1.7b', 'transcriber:canary-
                    'transcriber:parakeet-tdt-0.6b-v3')
 
 #: Corpus déclarés : clé → manifeste `dataset` (la source, sa licence, sa langue y vivent).
-CORPORA = {'summ-re': 'manifests/datasets/summ-re.json'}
+CORPORA = {'summ-re': 'manifests/datasets/summ-re.json',
+           'fleurs-cs': 'manifests/datasets/fleurs-cs.json'}
 
 SAMPLE_RATE = 16000
 PEAK = 0.9
 
 
 @dataclass
-class Meeting:
-    meeting_id: str
-    files: set = field(default_factory=set)          # parquets qui portent ses pistes
-    speakers: set = field(default_factory=set)
-    tracks: dict = field(default_factory=dict)       # speaker → (échantillons 16 kHz, segments)
+class Recording:
+    """Un enregistrement du corpus : où le lire (fichiers, blocs), et ce qu'on en a lu."""
+    recording_id: str
+    files: set = field(default_factory=set)          # parquets qui le portent
+    speakers: set = field(default_factory=set)       # SUMM-RE : pistes attendues
+    languages: list = field(default_factory=list)    # FLEURS-CS : langues annoncées
+    row_group: tuple = None                          # FLEURS-CS : (fichier, bloc)
+    tracks: dict = field(default_factory=dict)       # SUMM-RE : speaker → (échantillons, segments)
 
 
-def asset_name(corpus: str, split: str, meeting_id: str) -> str:
-    return f'{corpus}_{split}_{meeting_id}'
+def asset_name(corpus: str, split: str, recording_id: str) -> str:
+    return f'{corpus}_{split}_{recording_id}'
 
 
-def reference_name(corpus: str, split: str, meeting_id: str) -> str:
+def reference_name(corpus: str, split: str, recording_id: str) -> str:
     """Le document de référence se retrouve par son NOM : `<nom de l'audio>_reference`."""
-    return f'{asset_name(corpus, split, meeting_id)}_reference'
+    return f'{asset_name(corpus, split, recording_id)}_reference'
 
 
 def srt_time(seconds: float) -> str:
@@ -84,6 +101,31 @@ def merged_srt(tracks: dict) -> str:
     return '\n'.join(blocks)
 
 
+def tagged_spans(tagged: str) -> list:
+    """`<fr><start:11.64>texte<end:19.44>…` (FLEURS-CS) → [(début, fin, langue, texte)]."""
+    import re
+    return [(float(start), float(end), lang, ' '.join(text.split()))
+            for lang, start, text, end in re.findall(
+                r'<([a-z]{2,3})><start:([\d.]+)>(.*?)<end:([\d.]+)>', tagged or '', re.S)]
+
+
+def language_vtt(spans: list) -> str:
+    """Les répliques d'un enregistrement multilingue en WebVTT, langue marquée `<lang xx>`."""
+    blocks = ['WEBVTT\n']
+    for i, (start, end, lang, text) in enumerate((s for s in spans if s[3]), 1):
+        blocks.append(f"{i}\n{srt_time(start).replace(',', '.')} --> "
+                      f"{srt_time(end).replace(',', '.')}\n<lang {lang}>{text}</lang>\n")
+    return '\n'.join(blocks)
+
+
+def languages_by_time(spans: list) -> list:
+    """Les langues d'un enregistrement, la plus parlée d'abord."""
+    seconds = {}
+    for start, end, lang, _ in spans:
+        seconds[lang] = seconds.get(lang, 0.0) + max(0.0, end - start)
+    return sorted(seconds, key=seconds.get, reverse=True)
+
+
 def mix_tracks(tracks: dict):
     """Somme des pistes (déjà à 16 kHz), complétées à la plus longue, normalisée en crête."""
     import numpy as np
@@ -98,7 +140,7 @@ def mix_tracks(tracks: dict):
 
 
 def decode_track(wav_bytes: bytes):
-    """WAV d'une piste → échantillons float32 mono à 16 kHz."""
+    """Audio encodé → échantillons float32 mono à 16 kHz."""
     import io
     from math import gcd
 
@@ -113,90 +155,154 @@ def decode_track(wav_bytes: bytes):
     return samples
 
 
+def select_by_languages(candidates: list, require: set, exact: bool, count: int = None) -> list:
+    """Les enregistrements dont les langues CONTIENNENT `require` (ou lui sont ÉGALES avec
+    `exact`), et en comptent `count` si donné — dans l'ordre du corpus."""
+    out = []
+    for rec in candidates:
+        langs = set(rec.languages)
+        if require and not require <= langs:
+            continue
+        if exact and langs != require:
+            continue
+        if count and len(langs) != count:
+            continue
+        out.append(rec)
+    return out
+
+
 class Command(BaseCommand):
     help = ("Prépare un corpus d'évaluation ASR ouvert en médiathèque système, et pose un lot "
-            "de cards par enregistrement (un moteur par card, la référence sur le lot).")
+            "de cards par enregistrement (une configuration par card, la référence sur le lot).")
 
     def add_arguments(self, parser):
         parser.add_argument('corpus', choices=sorted(CORPORA))
         parser.add_argument('--split', default='test')
-        parser.add_argument('--meetings', type=int, default=3,
-                            help="Nombre de réunions (dans l'ordre du corpus). Défaut : 3.")
-        parser.add_argument('--user', help="Login : pose un lot par réunion dans SA file.")
+        parser.add_argument('--recordings', '--meetings', dest='recordings', type=int, default=3,
+                            help="Nombre d'enregistrements (dans l'ordre du corpus). Défaut : 3.")
+        parser.add_argument('--require', default='',
+                            help="FLEURS-CS : langues exigées, séparées par des virgules (fr,en).")
+        parser.add_argument('--exact', action='store_true',
+                            help="FLEURS-CS : exactement les langues de --require, aucune autre.")
+        parser.add_argument('--languages-count', type=int,
+                            help="FLEURS-CS : nombre de langues de l'enregistrement.")
+        parser.add_argument('--user', help="Login : pose un lot par enregistrement dans SA file.")
         parser.add_argument('--engines', nargs='+', default=list(DEFAULT_ENGINES))
         parser.add_argument('--preprocess', action='store_true',
                             help="Cards avec le prétraitement audio (débruitage IA DeepFilterNet).")
         parser.add_argument('--vad', choices=('auto', 'on', 'off'), default='auto',
                             help="Filtre de parole de Whisper (sans effet sur les autres moteurs).")
+        parser.add_argument('--language-mode', nargs='+', choices=('auto', 'single', 'multi'),
+                            default=['auto'],
+                            help="Réglage(s) « Langues parlées » des cards posées — plusieurs "
+                                 "valeurs posent une configuration par valeur.")
         parser.add_argument('--start', action='store_true', help="Lance les cards posées.")
+        parser.add_argument('--report', action='store_true',
+                            help="Tableau des mesures des cards de --user sur ces enregistrements.")
         parser.add_argument('--dry-run', action='store_true',
-                            help="Plan seulement : quelles réunions, quels fichiers, rien d'écrit.")
+                            help="Plan seulement : quels enregistrements, quels fichiers, rien d'écrit.")
 
     def handle(self, *args, **o):
-        manifest = json.loads((Path(settings.BASE_DIR) / CORPORA[o['corpus']]).read_text('utf-8'))
+        corpus = o['corpus']
+        manifest = json.loads((Path(settings.BASE_DIR) / CORPORA[corpus]).read_text('utf-8'))
         source = manifest['body']['source']
-        meetings = self.plan(source, o['split'], o['meetings'])
-        for m in meetings:
-            self.stdout.write(f"  {m.meeting_id} : {len(m.speakers)} locuteurs, "
-                              f"{len(m.files)} fichier(s)")
+        require = {x.strip() for x in o['require'].split(',') if x.strip()}
+        if corpus == 'summ-re':
+            recordings = self.plan_meetings(source, o['split'], o['recordings'])
+        else:
+            recordings = self.plan_tagged(source, o['split'], o['recordings'], require,
+                                          o['exact'], o['languages_count'])
+        for r in recordings:
+            detail = (f"{len(r.speakers)} locuteurs" if r.speakers
+                      else f"langues {','.join(r.languages)}")
+            self.stdout.write(f"  {r.recording_id} : {detail}, {len(r.files)} fichier(s)")
         if o['dry_run']:
             return
-        assets = self.prepare(o['corpus'], source, o['split'], meetings)
+        if o['report']:
+            return self.report(o['user'], corpus, o['split'], recordings)
+        if corpus == 'summ-re':
+            assets = self.prepare_meetings(corpus, source, o['split'], recordings)
+        else:
+            assets = self.prepare_tagged(corpus, source, o['split'], recordings)
         if o['user']:
-            self.post_batches(o['user'], assets, o['engines'], o['start'],
-                              preprocess=o['preprocess'], vad=o['vad'])
+            for language_mode in o['language_mode']:
+                self.post_batches(o['user'], assets, o['engines'], o['start'],
+                                  preprocess=o['preprocess'], vad=o['vad'],
+                                  language_mode=language_mode)
 
-    # ── plan : quelles pistes, dans quels fichiers — sans rien télécharger ──────────────────
-    def plan(self, source, split, count):
-        """Lit la seule colonne `meeting_id`/`speaker_id` de chaque parquet (lecture par plages
-        HTTP : le pied du fichier et deux petites colonnes, jamais l'audio)."""
-        import pyarrow.parquet as pq
-        from huggingface_hub import HfApi, HfFileSystem
-
-        repo, revision = source['repo_id'], source.get('revision')
-        files = sorted(f for f in HfApi().list_repo_files(repo, repo_type='dataset',
-                                                         revision=revision)
-                       if f.startswith(f'data/{split}/') and f.endswith('.parquet'))
+    # ── accès au Hub ───────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _parquets(source, split):
+        from huggingface_hub import HfApi
+        files = sorted(f for f in HfApi().list_repo_files(source['repo_id'], repo_type='dataset',
+                                                         revision=source.get('revision'))
+                       if f.startswith(f'data/{split}') and f.endswith('.parquet'))
         if not files:
-            raise CommandError(f"aucun parquet sous data/{split}/ dans {repo}")
+            raise CommandError(f"aucun parquet sous data/{split} dans {source['repo_id']}")
+        return files
+
+    @staticmethod
+    def _remote(source, name):
+        """Chemin `HfFileSystem` d'un fichier : lecture par PLAGES HTTP, rien sur disque."""
+        rev = source.get('revision')
+        return (f"datasets/{source['repo_id']}@{rev}/{name}" if rev
+                else f"datasets/{source['repo_id']}/{name}")
+
+    def with_retry(self, call, attempts=5):
+        """Le Hub limite les appels (429, vécu le 2026-09-29 au 2ᵉ fichier, jeton compris) : on
+        attend et on reprend, plutôt que d'abandonner une préparation à moitié faite."""
+        import time
+        for attempt in range(1, attempts + 1):
+            try:
+                return call()
+            except Exception as exc:
+                if attempt == attempts or '429' not in repr(exc.__cause__ or exc) + repr(exc):
+                    raise
+                wait = 60 * attempt
+                self.stdout.write(f"    429 du Hub — nouvel essai dans {wait} s")
+                time.sleep(wait)
+
+    # ── SUMM-RE : plan et préparation d'une réunion MIXÉE ─────────────────────────────────
+    def plan_meetings(self, source, split, count):
+        """Lit la seule colonne `meeting_id`/`speaker_id` de chaque parquet (le pied du fichier et
+        deux petites colonnes, jamais l'audio)."""
+        import pyarrow.parquet as pq
+        from huggingface_hub import HfFileSystem
+
         fs = HfFileSystem()
         meetings = {}
-        for name in files:
-            with fs.open(f'datasets/{repo}@{revision}/{name}' if revision
-                         else f'datasets/{repo}/{name}', 'rb') as fh:
+        for name in self._parquets(source, split):
+            with fs.open(self._remote(source, name), 'rb') as fh:
                 table = pq.ParquetFile(fh).read(columns=['meeting_id', 'speaker_id'])
             for meeting_id, speaker in zip(table.column('meeting_id').to_pylist(),
                                            table.column('speaker_id').to_pylist()):
-                m = meetings.setdefault(meeting_id, Meeting(meeting_id))
+                m = meetings.setdefault(meeting_id, Recording(meeting_id))
                 m.files.add(name)
                 m.speakers.add(speaker)
             if len(meetings) > count:
                 break                  # la réunion suivante a commencé : les N premières sont complètes
         chosen = list(meetings.values())[:count]
-        self.stdout.write(f"{repo} [{split}] : {len(chosen)} réunion(s) retenue(s)")
+        self.stdout.write(f"{source['repo_id']} [{split}] : {len(chosen)} réunion(s) retenue(s)")
         return chosen
 
-    # ── préparation : télécharger, mixer, verser en médiathèque système ────────────────────
-    def prepare(self, corpus, source, split, meetings):
-        import io
-
+    def prepare_meetings(self, corpus, source, split, meetings):
         import pyarrow.parquet as pq
-        import soundfile as sf
         from huggingface_hub import hf_hub_download
 
         from wama.media_library.models import SystemAsset
-        from wama.media_library.system_files import ingest_system_file
 
         # Déjà en médiathèque : rien à retélécharger (la préparation est idempotente).
         todo = [m for m in meetings if not SystemAsset.objects.filter(
-            asset_type='speech', name=asset_name(corpus, split, m.meeting_id)).exists()]
+            asset_type='speech', name=asset_name(corpus, split, m.recording_id)).exists()]
         needed = sorted({f for m in todo for f in m.files})
-        wanted = {m.meeting_id: m for m in todo}
+        wanted = {m.recording_id: m for m in todo}
         work = Path(tempfile.mkdtemp(prefix=f'{corpus}_'))
         try:
             for name in needed:
                 self.stdout.write(f"  téléchargement {name}")
-                local = self.download(hf_hub_download, source, name, work)
+                local = self.with_retry(lambda: hf_hub_download(
+                    source['repo_id'], name, repo_type='dataset',
+                    revision=source.get('revision'), local_dir=work))
                 table = pq.read_table(local, columns=['meeting_id', 'speaker_id', 'audio',
                                                       'segments'])
                 for row in table.to_pylist():
@@ -207,64 +313,145 @@ class Command(BaseCommand):
                 del table
                 Path(local).unlink(missing_ok=True)            # jamais plus d'un parquet sur disque
                 for m in [m for m in wanted.values() if m.speakers <= set(m.tracks)]:
-                    self.ingest_meeting(corpus, source, split, m, work, ingest_system_file, sf)
-                    del wanted[m.meeting_id]
+                    mix = mix_tracks(m.tracks)
+                    self.ingest(corpus, source, split, m.recording_id, mix, work,
+                                reference=(merged_srt(m.tracks), 'srt'),
+                                attributes={'language': source.get('language', ''),
+                                            'speakers': len(m.tracks)},
+                                description=f"Réunion {m.recording_id} ({corpus}, {split}) : "
+                                            f"{len(m.tracks)} pistes mixées à 16 kHz.")
+                    m.tracks.clear()
+                    del wanted[m.recording_id]
         finally:
             shutil.rmtree(work, ignore_errors=True)
         if wanted:
             raise CommandError(f"pistes incomplètes : {', '.join(sorted(wanted))}")
-        return [SystemAsset.objects.get(asset_type='speech',
-                                        name=asset_name(corpus, split, m.meeting_id))
-                for m in meetings]
+        return self._assets(corpus, split, meetings)
 
-    def download(self, hf_hub_download, source, name, work, attempts=5):
-        """Le Hub limite les appels (429, vécu le 2026-09-29 au 2ᵉ fichier, jeton compris) : on
-        attend et on reprend, plutôt que d'abandonner une préparation à moitié faite."""
-        import time
-        for attempt in range(1, attempts + 1):
-            try:
-                return hf_hub_download(source['repo_id'], name, repo_type='dataset',
-                                       revision=source.get('revision'), local_dir=work)
-            except Exception as exc:
-                if attempt == attempts or '429' not in repr(exc.__cause__ or exc) + repr(exc):
-                    raise
-                wait = 60 * attempt
-                self.stdout.write(f"    429 du Hub — nouvel essai dans {wait} s")
-                time.sleep(wait)
+    # ── FLEURS-CS : plan par langues, lecture du SEUL bloc qui porte l'enregistrement ──────
+    def plan_tagged(self, source, split, count, require, exact, languages_count):
+        """Lit les colonnes `languages`/`seed` de chaque parquet, bloc par bloc (le `seed` sert
+        d'identifiant : le jeu n'en a pas d'autre)."""
+        import pyarrow.parquet as pq
+        from huggingface_hub import HfFileSystem
 
-    def ingest_meeting(self, corpus, source, split, meeting, work, ingest_system_file, sf):
-        name = asset_name(corpus, split, meeting.meeting_id)
-        mix = mix_tracks(meeting.tracks)
+        # Le plan d'une RÉVISION ÉPINGLÉE ne change jamais : il se garde en cache local. Le Hub
+        # limite sévèrement les appels (429 en série, vécu le 2026-09-29) — relire 20 fichiers à
+        # chaque sélection coûtait plus de 10 min d'attente.
+        cache = (Path(tempfile.gettempdir()) / 'wama_eval_corpus'
+                 / f"{source['repo_id'].replace('/', '__')}@{source.get('revision')}_{split}.json")
+        rows = json.loads(cache.read_text('utf-8')) if cache.exists() and source.get('revision') else None
+        if rows is None:
+            fs = HfFileSystem()
+            rows = []
+            for name in self._parquets(source, split):
+                # UNE lecture des deux colonnes par fichier ; le bloc de chaque ligne se déduit
+                # des métadonnées. Lire bloc par bloc multipliait les requêtes.
+                def read(name=name):
+                    with fs.open(self._remote(source, name), 'rb') as fh:
+                        pf = pq.ParquetFile(fh)
+                        sizes = [pf.metadata.row_group(g).num_rows
+                                 for g in range(pf.metadata.num_row_groups)]
+                        return sizes, pf.read(columns=['languages', 'seed'])
+                sizes, table = self.with_retry(read)
+                groups = [g for g, size in enumerate(sizes) for _ in range(size)]
+                for index, (langs, seed) in enumerate(zip(table.column('languages').to_pylist(),
+                                                          table.column('seed').to_pylist())):
+                    rows.append([seed, sorted(langs), name, groups[index]])
+            if source.get('revision'):
+                cache.parent.mkdir(parents=True, exist_ok=True)
+                cache.write_text(json.dumps(rows), encoding='utf-8')
+        candidates = [Recording(f'seed{seed}', files={name}, languages=langs,
+                                row_group=(name, group)) for seed, langs, name, group in rows]
+        chosen = select_by_languages(candidates, require, exact, languages_count)[:count]
+        self.stdout.write(f"{source['repo_id']} [{split}] : {len(chosen)} enregistrement(s) "
+                          f"retenu(s) sur {len(candidates)}")
+        return chosen
+
+    def prepare_tagged(self, corpus, source, split, recordings):
+        import pyarrow.parquet as pq
+        from huggingface_hub import HfFileSystem
+
+        from wama.media_library.models import SystemAsset
+
+        todo = [r for r in recordings if not SystemAsset.objects.filter(
+            asset_type='speech', name=asset_name(corpus, split, r.recording_id)).exists()]
+        by_group = {}
+        for r in todo:
+            by_group.setdefault(r.row_group, {})[r.recording_id] = r
+        fs = HfFileSystem()
+        work = Path(tempfile.mkdtemp(prefix=f'{corpus}_'))
+        try:
+            for (name, group), wanted in sorted(by_group.items()):
+                self.stdout.write(f"  lecture {name} bloc {group}")
+
+                def read():
+                    with fs.open(self._remote(source, name), 'rb') as fh:
+                        return pq.ParquetFile(fh).read_row_group(
+                            group, columns=['audio', 'transcription_tagged', 'seed'])
+                table = self.with_retry(read)
+                for row in table.to_pylist():
+                    rec = wanted.get(f"seed{row['seed']}")
+                    if rec is None:
+                        continue
+                    spans = tagged_spans(row['transcription_tagged'])
+                    order = languages_by_time(spans)
+                    samples = decode_track(row['audio']['bytes'])
+                    self.ingest(corpus, source, split, rec.recording_id, samples, work,
+                                reference=(language_vtt(spans), 'vtt'),
+                                attributes={'language': order[0] if order else '',
+                                            'languages': ','.join(order)},
+                                description=f"FLEURS-CS {rec.recording_id} ({split}) : "
+                                            f"{len(spans)} phrases lues en {len(order)} langues "
+                                            f"({', '.join(order)}), mises bout à bout.")
+                del table
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        return self._assets(corpus, split, recordings)
+
+    # ── commun : versement en médiathèque système ─────────────────────────────────────────
+    def ingest(self, corpus, source, split, recording_id, samples, work, *, reference,
+               attributes, description):
+        import soundfile as sf
+
+        from wama.media_library.system_files import ingest_system_file
+
+        name = asset_name(corpus, split, recording_id)
         wav = work / f'{name}.wav'
-        sf.write(str(wav), mix, SAMPLE_RATE, subtype='PCM_16')
-        srt = work / f'{name}_reference.srt'
-        srt.write_text(merged_srt(meeting.tracks), encoding='utf-8')
+        sf.write(str(wav), samples, SAMPLE_RATE, subtype='PCM_16')
+        text, ext = reference
+        ref = work / f'{name}_reference.{ext}'
+        ref.write_text(text, encoding='utf-8')
         common = {'source_url': f"https://huggingface.co/datasets/{source['repo_id']}",
                   'license': source.get('license', '')}
         ingest_system_file(
-            'speech', name, wav, mime_type='audio/wav', duration=len(mix) / SAMPLE_RATE,
-            attributes={'language': source.get('language', ''), 'speakers': len(meeting.tracks),
-                        'corpus': corpus, 'split': split, 'recording': meeting.meeting_id},
-            description=f"Réunion {meeting.meeting_id} ({corpus}, {split}) : "
-                        f"{len(meeting.tracks)} pistes mixées à 16 kHz.", **common)
+            'speech', name, wav, mime_type='audio/wav', duration=len(samples) / SAMPLE_RATE,
+            attributes={**attributes, 'corpus': corpus, 'split': split, 'recording': recording_id},
+            description=description, **common)
         ingest_system_file(
-            'document', reference_name(corpus, split, meeting.meeting_id), srt,
-            mime_type='application/x-subrip',
-            description=f"Transcription de référence de {name} (segments des pistes fusionnés).",
-            **common)
+            'document', reference_name(corpus, split, recording_id), ref,
+            mime_type='text/vtt' if ext == 'vtt' else 'application/x-subrip',
+            description=f"Transcription de référence de {name}.", **common)
         wav.unlink(missing_ok=True)
-        srt.unlink(missing_ok=True)
-        meeting.tracks.clear()
-        self.stdout.write(self.style.SUCCESS(f"  {name} versé en médiathèque ({len(mix) / SAMPLE_RATE / 60:.1f} min)"))
+        ref.unlink(missing_ok=True)
+        self.stdout.write(self.style.SUCCESS(
+            f"  {name} versé en médiathèque ({len(samples) / SAMPLE_RATE / 60:.1f} min)"))
 
-    # ── lots : un par réunion, une CONFIGURATION par card, la référence sur le lot ──────────
-    def post_batches(self, login, assets, engines, start, *, preprocess=False, vad='auto'):
-        """Une configuration = moteur × prétraitement × filtre de parole — exactement les
-        réglages que l'évaluation distingue (`config_params` du transcriber). Un nouvel appel
-        avec d'autres options AJOUTE ses cards au lot de la réunion : toutes les configurations
-        d'une réunion se comparent au même endroit. Une configuration déjà posée ne l'est pas
-        deux fois."""
-        from django.contrib.auth import get_user_model
+    @staticmethod
+    def _assets(corpus, split, recordings):
+        from wama.media_library.models import SystemAsset
+        return [SystemAsset.objects.get(asset_type='speech',
+                                        name=asset_name(corpus, split, r.recording_id))
+                for r in recordings]
+
+    # ── lots : un par enregistrement, une CONFIGURATION par card, la référence sur le lot ──
+    def post_batches(self, login, assets, engines, start, *, preprocess=False, vad='auto',
+                     language_mode='auto'):
+        """Une configuration = moteur × prétraitement × filtre de parole × langues parlées —
+        exactement les réglages que l'évaluation distingue (`config_params` du transcriber). Un
+        nouvel appel avec d'autres options AJOUTE ses cards au lot de l'enregistrement : toutes
+        ses configurations se comparent au même endroit. Une configuration déjà posée ne l'est
+        pas deux fois."""
         from django.core.files import File
 
         from wama.common.services.result_evaluation import attach_reference
@@ -273,9 +460,7 @@ class Command(BaseCommand):
         from wama.tool_api import add_to_transcriber, start_transcriber
         from wama.transcriber.models import BatchTranscript, BatchTranscriptItem, Transcript
 
-        user = get_user_model().objects.filter(username=login).first()
-        if user is None:
-            raise CommandError(f"utilisateur inconnu : {login}")
+        user = self._user(login)
         for asset in assets:
             on_audio = Transcript.objects.filter(user=user, audio=asset.file.name)
             link = (BatchTranscriptItem.objects.filter(transcript__in=on_audio)
@@ -289,12 +474,13 @@ class Command(BaseCommand):
                 # le varier sur un autre moteur poserait deux fois la même configuration.
                 engine_vad = vad if engine == 'whisper' else 'auto'
                 if on_audio.filter(backend=engine, preprocess_audio=preprocess,
-                                   vad_mode=engine_vad).exists():
+                                   vad_mode=engine_vad, language_mode=language_mode).exists():
                     continue
                 # Diarisation coupée : elle ne change pas le texte mesuré, seulement le temps.
                 result = add_to_transcriber(user, asset.file.name, backend=engine,
                                             enable_diarization=False,
-                                            preprocess_audio=preprocess, vad_mode=engine_vad)
+                                            preprocess_audio=preprocess, vad_mode=engine_vad,
+                                            language_mode=language_mode)
                 if 'error' in result:
                     raise CommandError(f"{asset.name} / {engine} : {result['error']}")
                 card = Transcript.objects.get(pk=result['transcript_id'])
@@ -321,3 +507,40 @@ class Command(BaseCommand):
                     started = start_transcriber(user, card.pk)
                     if 'error' in started:
                         self.stderr.write(f"    #{card.pk} : {started['error']}")
+
+    @staticmethod
+    def _user(login):
+        from django.contrib.auth import get_user_model
+        user = get_user_model().objects.filter(username=login).first()
+        if user is None:
+            raise CommandError(f"utilisateur inconnu : {login}")
+        return user
+
+    # ── rapport : ce que les cards ont produit, mesuré ─────────────────────────────────────
+    def report(self, login, corpus, split, recordings):
+        """Une ligne par card : configuration, erreur par mot et par caractère (lignes
+        `ResultEvaluation`), et ACCORD DE LANGUE — la part du temps de parole de la référence
+        où la langue du segment produit est la bonne (`spoken_language.language_agreement`)."""
+        from wama.common.models import ResultEvaluation
+        from wama.common.utils.spoken_language import language_agreement
+        from wama.transcriber.models import Transcript
+        from wama.transcriber.utils.transcript_documents import read_transcript_document
+
+        user = self._user(login)
+        for asset in self._assets(corpus, split, recordings):
+            self.stdout.write(f"\n{asset.name} — {asset.attributes.get('languages') or asset.attributes.get('language')}")
+            for t in Transcript.objects.filter(user=user, audio=asset.file.name).order_by('pk'):
+                rows = {r.metric: r.value for r in ResultEvaluation.objects.filter(
+                    object_type='Transcript', object_id=t.pk, protocol__startswith='text_')}
+                agreement = None
+                if t.reference_result and t.segments_json:
+                    ref = read_transcript_document(t.reference_result.path).segments
+                    agreement = language_agreement(ref, t.segments_json)['agreement']
+                heard = sorted({s.get('language') for s in (t.segments_json or [])
+                                if s.get('language')})
+                fmt = lambda v: '—' if v is None else f'{100 * v:5.1f} %'
+                self.stdout.write(
+                    f"  #{t.pk:<5} {t.backend:<34} langues={t.language_mode:<6} "
+                    f"prétr={'oui' if t.preprocess_audio else 'non'} {t.status:<8} "
+                    f"WER {fmt(rows.get('wer'))}  CER {fmt(rows.get('cer'))}  "
+                    f"accord {fmt(agreement)}  entendues {','.join(heard) or '—'}")

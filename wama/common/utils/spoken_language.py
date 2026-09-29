@@ -102,6 +102,40 @@ def language_shares(segments) -> dict:
     return shares
 
 
+def language_agreement(reference, hypothesis) -> dict:
+    """Accord de langue d'une transcription avec sa référence, EN TEMPS.
+
+    `agreement` : part du temps de parole de la référence (segments qui portent une langue) où un
+    segment produit la RECOUVRE dans la même langue ; `covered` : part recouverte par un segment
+    produit, quelle que soit sa langue. L'écart des deux dit ce qui est mal étiqueté ; ce qui
+    manque à `covered`, ce qui n'a pas été transcrit. Segments objets ou dicts.
+    """
+    def spans(segments):
+        out = []
+        for s in segments or []:
+            get = s.get if isinstance(s, dict) else (lambda k, s=s: getattr(s, k, None))
+            start, end = get('start_time'), get('end_time')
+            if isinstance(start, (int, float)) and isinstance(end, (int, float)) and end > start:
+                out.append((float(start), float(end), get('language')))
+        return out
+
+    ref = [s for s in spans(reference) if s[2]]
+    hyp = spans(hypothesis)
+    total = sum(end - start for start, end, _ in ref)
+    if not total:
+        return {'agreement': None, 'covered': None}
+    agree = covered = 0.0
+    for r_start, r_end, r_lang in ref:
+        for h_start, h_end, h_lang in hyp:
+            overlap = min(r_end, h_end) - max(r_start, h_start)
+            if overlap > 0:
+                covered += overlap
+                if h_lang == r_lang:
+                    agree += overlap
+    return {'agreement': round(min(agree / total, 1.0), 4),
+            'covered': round(min(covered / total, 1.0), 4)}
+
+
 def dominant_language(segments, fallback: str = '') -> str:
     """La langue la plus PARLÉE (en durée) — celle d'une card qui en porte plusieurs."""
     shares = language_shares(segments)
