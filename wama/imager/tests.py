@@ -613,3 +613,49 @@ class RecommendedSamplingTest(TestCase):
             self.assertEqual('recommended_steps', by_name['steps']['cap_from']['capability'])
             self.assertEqual('recommended_guidance',
                              by_name['guidance_scale']['cap_from']['capability'])
+
+
+class InputCardReadsThePanelTest(TestCase):
+    """Le MODÈLE et le PROMPT NÉGATIF sont des réglages du VOLET (2026-09-28, CARD_DESIGN §11.11
+    Étape 3 (c)). La card d'entrée de l'imager les portait aussi — un select de modèle en double
+    de celui du volet, un prompt négatif que le volet n'avait pas — dans une zone d'extension
+    (`extra_zone_template`, une des 4 que §11.8 demande d'absorber). Elle n'en a plus aucune."""
+
+    def _read(self, relative):
+        from pathlib import Path
+        import wama
+        return (Path(wama.__file__).parent.parent / relative).read_text(encoding='utf-8')
+
+    def test_the_card_binds_to_the_panel_select_declared_by_the_schema(self):
+        import re
+        from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
+        declared = [next(p for p in schema if p['name'] == 'model')['dom_id']['panel']
+                    for schema in (IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON)]
+        bound = re.findall(r"selectId: '([\w-]+)'", self._read('wama/imager/static/imager/js/input_card.js'))
+        self.assertEqual(declared, bound,
+                         'la card ne se lie pas au select de modèle que le schéma rend au volet')
+
+    def test_the_negative_prompt_has_a_panel_surface_in_both_domains(self):
+        from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
+        ids = [next(p for p in schema if p['name'] == 'negative_prompt')['dom_id'].get('panel')
+               for schema in (IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON)]
+        self.assertTrue(all(ids), 'le prompt négatif n’a plus de domicile au volet')
+        self.assertNotEqual(ids[0], ids[1], 'un id de volet est aussi la clé du réglage stocké')
+
+    def test_the_card_script_runs_after_the_panel_is_rendered(self):
+        """input_card.js se lie au select du volet, que index.js rend : l'ORDRE est porteur."""
+        page = self._read('wama/imager/templates/imager/index.html')
+        self.assertLess(page.index("static_v 'imager/js/index.js'"),
+                        page.index("static_v 'imager/js/input_card.js'"))
+
+    def test_the_card_has_no_extension_zone_any_more(self):
+        from pathlib import Path
+        import wama
+        page = self._read('wama/imager/templates/imager/index.html')
+        self.assertFalse('extra_zone_template=' in page,
+                         'une card de l’imager inclut de nouveau une zone d’extension')
+        templates = Path(wama.__file__).parent / 'imager' / 'templates' / 'imager'
+        self.assertFalse((templates / '_model_zone.html').exists())
+        js = self._read('wama/imager/static/imager/js/input_card.js')
+        for gone in ('ModelSelect', 'NegativePrompt', 'batchFile'):
+            self.assertNotIn(gone, js, f'{gone} : la card relit un champ qu’elle ne rend plus')

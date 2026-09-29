@@ -501,10 +501,18 @@ def _has_engine_select(f: _AppFiles) -> bool:
     ont des schémas ÉCLATÉS sans PARAMS_JSON) = un VRAI hôte dans le HTML : token de select
     moteur en position d'ATTRIBUT (id/name/for). Un commentaire qui ne fait que CITER un nom
     ne compte pas (faux positif avatarizer 17/08 : « params.py ne déclare plus …tts_model… »).
-    Indéterminé (import raté) → True : ne jamais passer N/A à l'aveugle."""
+    Indéterminé (import raté) → True : ne jamais passer N/A à l'aveugle.
+
+    ⚠ Les schémas ÉCLATÉS se lisent TOUS (`IMAGE_PARAMS_JSON`, `VIDEO_PARAMS_JSON`… — tout attribut
+    `*PARAMS_JSON`), depuis le 2026-09-28 : l'imager n'était reconnu que par le select de sa card
+    d'entrée (signal 2). Le jour où ce select est parti au volet (CARD_DESIGN §11.11 Étape 3 (c)),
+    ses trois critères seraient passés N/A — et son `model_caps_ui` ROUGE aurait disparu de la
+    grille sans que rien ne soit réparé. Le schéma, lui, déclarait toujours son select de modèle."""
     try:
         import importlib
-        schema = getattr(importlib.import_module(f'wama.{f.app}.params'), 'PARAMS_JSON', [])
+        module = importlib.import_module(f'wama.{f.app}.params')
+        schema = [p for attr in dir(module) if attr.endswith('PARAMS_JSON')
+                  for p in (getattr(module, attr) or []) if isinstance(p, dict)]
         engine_selects = [p['name'] for p in schema
                           if p.get('type') == 'select'
                           and (p.get('help_source')
