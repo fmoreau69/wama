@@ -181,7 +181,7 @@ class PersistWeightsTest(_FakeModelsRoot):
         """Le pic par précision a besoin des PARAMÈTRES et du dtype de chaque composant : lus
         dans l'en-tête des fichiers que la dérivation a retenus. Un rôle sans safetensors lisible
         (`.bin`) n'apparaît pas — l'absence se lit, elle ne vaut pas zéro."""
-        from wama.model_manager.tests_local_inventory import _safetensors
+        from wama.model_manager.tests.tests_local_inventory import _safetensors
         root = self.snapshot('Org/Prec', {'vae/diffusion_pytorch_model.bin': 4 * MIB,
                                           'model_index.json': 400})
         rev = root / 'snapshots' / 'rev0'

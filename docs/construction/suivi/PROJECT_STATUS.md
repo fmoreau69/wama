@@ -6808,7 +6808,7 @@ ajoutés) — un score qui « baisse » par rapport au 22/08 peut n'être que ç
 |---|---|---|
 | 1 | **Pending #6 — conformité générique des 3 AUTRES registres** (`tests_catalogues.py`, 22 contrôles pilotés par le registre) | 2 défauts RÉELS trouvés du 1ᵉʳ coup : `app_sandbox` déclaré hors `_domaine()` (la carte portait une sous-table « Sans domaine (1) » pour lui seul) et `org_sync` pointant sur un **souvenir d'agent** au lieu d'un document du dépôt |
 | 2 | **Pending #5 — le Calculator**, ses **DEUX** modes (précision de Fabien : la déclaration n'en portait qu'un) — colonnes dérivées (`enricher`) + indicateurs par segment (`aggregate`) | 49 tests (32 cœur pur + 17 frontière pandas) ; vocabulaire de statistiques UNIQUE aux deux modes, verrouillé par test |
-| 3 | **SAM3 restauré + la réconciliation ne détruit plus sur une découverte incomplète** | 7 tests (`model_manager/tests.py`, l'app n'en avait aucun) ; **vérifié que les tests mordent** (garde neutralisée → 2 échecs au symptôme exact) |
+| 3 | **SAM3 restauré + la réconciliation ne détruit plus sur une découverte incomplète** | 7 tests (`model_manager/tests/tests.py`, l'app n'en avait aucun) ; **vérifié que les tests mordent** (garde neutralisée → 2 échecs au symptôme exact) |
 | 4 | **Portage schéma-driven du Segmenter et de l'Exporter spécifié** (`WAMA_DATA_WORLD §9ter.6`) | confrontation au code VIVANT de BIND (2 537 lignes extraites du `.mlapp`) + aux captures de la présentation |
 
 **Suites** : `wama_data` **198**, `wama.common` **191**, `model_manager` **7**. Catalogue de
@@ -13999,7 +13999,7 @@ neufs 3/3 (serveur vivant requis).
 
 > Demande de Fabien : regarder `github.com/AlexsJones/llmfit` « pour l'amélioration du benchmark
 > des modèles, en tenant bien compte de ce qui est déjà en place ». Périmètre tenu :
-> `wama/model_manager/services/bench.py`, sa commande, `model_manager/tests.py`, `ROADMAP §16.2`,
+> `wama/model_manager/services/bench.py`, sa commande, `model_manager/tests/tests.py`, `ROADMAP §16.2`,
 > la ligne `bench` du registre `mecanismes`. Une autre instance travaillait le gouverneur en
 > parallèle (`base.py`, `resource_governor.py`, `mecanismes.py`) : aucun fichier partagé n'a été
 > commité en entier — mes hunks seuls, les siens vérifiés dans HEAD après SON commit.
@@ -14636,7 +14636,7 @@ générateur — à confronter à ce que Fabien entend par « régénéré plusi
    explicite `?scope=` (défaut « les miens » — la même route sert le sélecteur de fichiers de 3 apps) ;
    mutations par `owned_by` ; garde du compte de service anonyme ; la card dit à qui elle est ;
    surface au registre d'aperçu ; « Partager… » par la route commune ; `api_promote` retiré (R66).
-   12 tests (`media_library/tests_sharing.py`), dont 4 rouges sur le code d'avant.
+   12 tests (`media_library/tests/tests_sharing.py`), dont 4 rouges sur le code d'avant.
    ✅ **② LIVRÉ le 2026-09-21** (`7573116d`) — **et la marche a FONDU à la mesure : un seul des quatre
    écarts annoncés en était un.** `'shared'` retiré du catalogue de fonctions (mot inexistant ailleurs,
    déclaré depuis le 20/07 et jamais filtré). **Le RAG en SORT** : `'user'` n'est pas un synonyme de
@@ -14750,7 +14750,7 @@ palier. La revue de fond (demandée par Fabien : « vérifie que tu n'as rien r�
 défauts de ma 1ʳᵉ correction :
 1. **6ᵉ copie** de l'énumération de `DataType` → accesseur `data_types.known_types()`, et les **5 copies**
    existantes le lisent (`manifests/builtin/dataset.py`, `studio/views.py` ×2, `studio/tasks.py`,
-   `media_library/tests_object3d.py`).
+   `media_library/tests/tests_object3d.py`).
 2. **Mauvais domicile** : j'avais logé l'union dans `common/catalog/`, qui est la **glu INTER-MONDES** et
    ne doit dépendre d'aucun monde (`catalog/__init__.py`) — un import tardif évite le cycle, pas la
    doctrine. Le vocabulaire admis aux ports vit désormais chez les natures :
@@ -18106,7 +18106,7 @@ l'avertissement « ne pas relire ceci comme *le gouverneur a un trou* » — je 
   cibles distinctes** (inchangé).
 - ⚠ `check_identifier_language` est **rouge et ne vient pas de ce palier** : mesuré à 4196 des deux
   côtés, mes fichiers mis de côté (`git stash`) puis remis. Les fichiers en dépassement sont
-  `ui_smoke.py`, `doc_facts.py`, `tests_catalogues.py`, `model_manager/tests.py`,
+  `ui_smoke.py`, `doc_facts.py`, `tests_catalogues.py`, `model_manager/tests/tests.py`,
   `ui_smoke_menus.py` — aucun n'est de moi.
 
 🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : Fabien teste `sa_38`/`sa_39` à l'oreille (⚠ Kathleen est

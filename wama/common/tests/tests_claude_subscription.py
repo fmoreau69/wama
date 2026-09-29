@@ -117,7 +117,7 @@ class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
         if jeton:
             # `refresh_key` passe par la synchronisation commune (2026-09-18) : découverte
             # réduite à sa source cloud, ni disque ni Ollama, et pas d'écriture du corpus.
-            from wama.model_manager.tests_cloud_models import _sync_cloud_seul
+            from wama.model_manager.tests.tests_cloud_models import _sync_cloud_seul
             _sync_cloud_seul(self)
             refresh_key(UserApiKey.objects.create(user=user, source='claude_code',
                                                   api_key='jeton'))
