@@ -19,7 +19,7 @@ from django.views.decorators.http import require_POST
 from wama.common.utils.volet import VOLET_AUCUN
 
 from .models import (UserAsset, SystemAsset, MediaProvider, UserProviderConfig, PromptKeyword,
-                     ASSET_TYPES, ALLOWED_EXTENSIONS, TYPE_GROUPS)
+                     ASSET_TYPE_CATEGORY, ASSET_TYPES, ALLOWED_EXTENSIONS, TYPE_GROUPS)
 from .natures import natures_as_json
 from .providers.registry import get_provider
 from wama.accounts.views import get_or_create_anonymous_user
@@ -65,6 +65,10 @@ def _serialize_user_asset(a, user=None):
         'asset_type':  a.asset_type,
         'visibility':  a.visibility,
         'is_mine':     bool(user is not None and a.user_id == getattr(user, 'id', None)),
+        # La PROVENANCE, dite une fois pour toutes les surfaces (fenêtre de sélection, page) :
+        # `mine` ou `shared` ici, `system` pour un asset système.
+        'origin':      'mine' if (user is not None and a.user_id == getattr(user, 'id', None))
+                       else 'shared',
         'owner':       a.user.username if a.user_id else '',
         'file_url':    a.file.url if a.file else '',
         # Le chemin (relatif à MEDIA_ROOT) : ce qu'une card DÉSIGNE pour pointer l'asset au lieu
@@ -85,6 +89,7 @@ def _serialize_system_asset(a):
         'id':          a.id,
         'name':        a.name,
         'asset_type':  a.asset_type,
+        'origin':      'system',
         'file_url':    a.file.url if a.file else '',
         'path':        a.file.name if a.file else '',   # cf. _serialize_user_asset
         'file_size':   a.file_size_display,
@@ -162,38 +167,91 @@ def api_counts(request):
 # API — Assets utilisateur
 # ---------------------------------------------------------------------------
 
+def _natures_for(asset_type: str, exact: bool = False):
+    """Les natures que filtre `?type=` : une catégorie (ou `all` → toutes), sinon la valeur exacte.
+
+    `exact` force la NATURE : trois natures portent le nom de leur catégorie (`image`, `video`,
+    `document`) — sans lui, l'onglet « Image » montrerait aussi les avatars."""
+    if not asset_type:
+        return None
+    if asset_type in TYPE_GROUPS and not exact:
+        return TYPE_GROUPS[asset_type]          # None pour 'all' : pas de filtre
+    return [asset_type]
+
+
+def _tabs_for(asset_type: str, user_qs, system_qs) -> list:
+    """Les ONGLETS d'une fenêtre de sélection : la catégorie de `asset_type` puis chacune de ses
+    natures, dans l'ordre DÉCLARÉ (`natures.py`), avec leur compte. Une nature exacte ouvre les
+    onglets de SA catégorie : on la choisit parmi ses sœurs, jamais seule."""
+    from .natures import ASSET_NATURES
+    category = asset_type if asset_type in TYPE_GROUPS else ASSET_TYPE_CATEGORY.get(asset_type, 'all')
+    members = TYPE_GROUPS.get(category) or list(ASSET_NATURES)
+    counts = dict(user_qs.filter(asset_type__in=members).values('asset_type')
+                  .annotate(n=Count('id')).values_list('asset_type', 'n'))
+    if system_qs is not None:
+        for key, n in (system_qs.filter(asset_type__in=members).values('asset_type')
+                       .annotate(n=Count('id')).values_list('asset_type', 'n')):
+            counts[key] = counts.get(key, 0) + n
+    tabs = [{'key': category, 'exact': False, 'label': 'Tous', 'icon': 'fa-layer-group',
+             'count': sum(counts.values())}]
+    tabs += [{'key': k, 'exact': True, 'label': ASSET_NATURES[k].label,
+              'icon': ASSET_NATURES[k].icon, 'count': counts.get(k, 0)}
+             for k in ASSET_NATURES if k in members]
+    return tabs
+
+
 @login_required
 def api_list(request):
-    """GET /media-library/api/assets/?type=voice&q=fab&page=1"""
+    """GET /media-library/api/assets/?type=voice&q=fab&page=1
+
+    Options (2026-09-29, fenêtre de sélection universelle — `CARD_DESIGN §11.11` étape 3 (d)) :
+      • `with_system=1` : ajoute les assets SYSTÈME actifs (la galerie d'avatars, les voix…),
+        après les assets de l'utilisateur ;
+      • `tabs=1` : rend aussi les onglets de la catégorie (`_tabs_for`), comptes compris ;
+      • `exact=1` : `type` est une NATURE, même quand elle porte le nom de sa catégorie ;
+      • chaque asset porte son `origin` — `mine`, `shared` (partagé avec moi) ou `system`.
+    Sans ces options, la réponse est celle d'avant : la portée se DEMANDE (`?scope=`)."""
     user       = _get_user(request)
     asset_type = request.GET.get('type', '')
     q          = request.GET.get('q', '').strip()
     page       = max(1, int(request.GET.get('page', 1)))
+    natures    = _natures_for(asset_type, exact=request.GET.get('exact') == '1')
+    text       = Q(name__icontains=q) | Q(tags__icontains=q) | Q(description__icontains=q)
 
     # `select_related('user')` : le sérialiseur nomme le propriétaire d'un asset partagé — sans
     # lui, une page de 48 cards ferait 48 requêtes de plus.
-    qs = _readable_assets(request, user).select_related('user')
-    if asset_type:
-        if asset_type in TYPE_GROUPS:
-            group = TYPE_GROUPS[asset_type]      # None ('all') → pas de filtre
-            if group is not None:
-                qs = qs.filter(asset_type__in=group)
-        else:
-            qs = qs.filter(asset_type=asset_type)  # valeur exacte (ex. 'voice') passée directement
+    readable = _readable_assets(request, user).select_related('user')
+    qs = readable.filter(asset_type__in=natures) if natures is not None else readable
     if q:
-        qs = qs.filter(Q(name__icontains=q) | Q(tags__icontains=q) | Q(description__icontains=q))
+        qs = qs.filter(text)
 
-    total  = qs.count()
+    system_all = SystemAsset.objects.filter(is_active=True) \
+        if request.GET.get('with_system') == '1' else None
     offset = (page - 1) * PAGE_SIZE
-    assets = [_serialize_user_asset(a, user) for a in qs[offset:offset + PAGE_SIZE]]
+    if system_all is None:
+        total  = qs.count()
+        assets = [_serialize_user_asset(a, user) for a in qs[offset:offset + PAGE_SIZE]]
+    else:
+        system = system_all.filter(asset_type__in=natures) if natures is not None else system_all
+        if q:
+            system = system.filter(text)
+        # Les miens, puis ceux qu'on me partage, puis ceux du système — l'ordre de la confiance.
+        mine = [_serialize_user_asset(a, user) for a in qs]
+        rows = ([a for a in mine if a['is_mine']] + [a for a in mine if not a['is_mine']]
+                + [_serialize_system_asset(a) for a in system.order_by('asset_type', 'name')])
+        total  = len(rows)
+        assets = rows[offset:offset + PAGE_SIZE]
 
-    return JsonResponse({
+    data = {
         'assets':    assets,
         'total':     total,
         'page':      page,
         'page_size': PAGE_SIZE,
         'has_more':  offset + PAGE_SIZE < total,
-    })
+    }
+    if request.GET.get('tabs') == '1':
+        data['tabs'] = _tabs_for(asset_type or 'all', readable, system_all)
+    return JsonResponse(data)
 
 
 @login_required

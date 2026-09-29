@@ -4,11 +4,21 @@
  *
  * Usage:
  *   MediaPicker.open({
- *     type:     'image',          // asset_type à filtrer
+ *     type:     'image',          // catégorie ('image', 'audio'…) ou nature exacte ('avatar')
+ *     prefer:   'avatar',         // (option) l'ONGLET sur lequel la fenêtre s'ouvre
+ *     sources:  'all' | 'mine',   // (option) défaut : 'all' avec onPick, 'mine' avec onSelect
  *     onSelect: (file, asset) => { ... }  // callback avec File + meta (le fichier est TÉLÉCHARGÉ)
  *     onPick:   (asset) => { ... }        // OU : l'asset seul, SANS téléchargement — pour qui
  *                                         // le DÉSIGNE (`asset.path`) au lieu de le re-téléverser
  *   });
+ *
+ * ONGLETS et PROVENANCES (2026-09-29, fenêtre universelle — `CARD_DESIGN §11.11` étape 3 (d)) :
+ * les onglets sont ceux de la CATÉGORIE demandée — « Tous » puis chaque nature déclarée
+ * (`natures.py`), servis par `api_list?tabs=1` ; rien n'est recopié ici. `sources:'all'` montre
+ * les miens, ceux qu'on me PARTAGE (labo, projet, public) et ceux du SYSTÈME (la galerie
+ * d'avatars) — chaque card dit sa provenance. Ce n'est PAS le défaut d'`onSelect` : ce chemin-là
+ * télécharge le fichier pour le re-téléverser, il RECOPIERAIT l'asset d'autrui ; la portée se
+ * demande (`media_library/views.py`, portée `mine`/`visible`).
  *
  * `onPick` (2026-09-28, D10 de MEDIA_STORAGE_TIERING §8.6) : le téléchargement du fichier avant
  * `onSelect` servait à le re-téléverser — une copie. Une card qui POINTE l'asset n'a besoin que de
@@ -21,6 +31,9 @@ const MediaPicker = (() => {
   const MODAL_ID = 'wama-mediapicker-modal';
   let _options   = null;
   let _loading   = false;
+  let _activeType = 'all';   // l'onglet courant : catégorie ou nature
+  let _activeExact = false;  // nature EXACTE (`image`, `video`, `document` sont aussi des catégories)
+  let _tabsShown  = false;   // les onglets ne se demandent qu'une fois par ouverture
 
   // ── Modal HTML ─────────────────────────────────────────────────────────────
 
@@ -44,6 +57,7 @@ const MediaPicker = (() => {
                 data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body p-2">
+        <div id="mp-tabs" class="nav nav-pills gap-1 mb-2" role="tablist"></div>
         <div id="mp-grid"
              class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-2">
         </div>
@@ -90,9 +104,15 @@ const MediaPicker = (() => {
 
     const q   = document.getElementById('mp-search-input').value.trim();
     const url = new URL(window.ML_LIST_URL || '/media-library/api/assets/', location.origin);
-    url.searchParams.set('type', _options.type);
+    url.searchParams.set('type', _activeType);
+    if (_activeExact) url.searchParams.set('exact', '1');
     url.searchParams.set('page', page);
     if (q) url.searchParams.set('q', q);
+    if (_allSources()) {
+      url.searchParams.set('scope', 'visible');
+      url.searchParams.set('with_system', '1');
+    }
+    if (!_tabsShown) url.searchParams.set('tabs', '1');
 
     const spinner  = document.getElementById('mp-spinner');
     const empty    = document.getElementById('mp-empty');
@@ -113,6 +133,7 @@ const MediaPicker = (() => {
       const res  = await fetch(url);
       const data = await res.json();
       spinner.style.display = 'none';
+      if (data.tabs) _renderTabs(data.tabs);
 
       if (!data.assets || !data.assets.length) {
         if (reset) empty.style.display = '';
@@ -141,6 +162,54 @@ const MediaPicker = (() => {
     _loading = false;
   }
 
+  // ── Onglets (catégorie → natures) ──────────────────────────────────────────
+
+  function _allSources() {
+    const s = _options.sources || (_options.onPick ? 'all' : 'mine');
+    return s === 'all';
+  }
+
+  function _renderTabs(tabs) {
+    const host = document.getElementById('mp-tabs');
+    host.innerHTML = '';
+    tabs.forEach(t => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      const isActive = t.key === _activeType && !!t.exact === _activeExact;
+      b.className = 'nav-link py-1 px-2 small' + (isActive ? ' active' : '');
+      b.dataset.mpTab = t.key;
+      b.innerHTML = `<i class="fas ${_esc(t.icon)} me-1"></i>${_esc(t.label)}` +
+                    ` <span class="badge bg-secondary ms-1">${t.count}</span>`;
+      b.addEventListener('click', () => {
+        if (_activeType === t.key && _activeExact === !!t.exact) return;
+        _activeType = t.key;
+        _activeExact = !!t.exact;
+        host.querySelectorAll('[data-mp-tab]').forEach(x => x.classList.toggle('active', x === b));
+        _load(1, true);
+      });
+      host.appendChild(b);
+    });
+    _tabsShown = true;
+  }
+
+  function _esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // La PROVENANCE d'un asset partagé ou système se dit sur sa card ; les miens n'ont rien à dire.
+  function _originBadge(asset) {
+    if (asset.origin === 'system') {
+      return '<span class="badge bg-dark border border-info text-info mp-origin" title="Ressource système">' +
+             '<i class="fas fa-building-columns me-1"></i>Système</span>';
+    }
+    if (asset.origin === 'shared') {
+      return `<span class="badge bg-dark border border-warning text-warning mp-origin" title="Partagé avec moi">` +
+             `<i class="fas fa-share-nodes me-1"></i>${_esc(asset.owner || 'partagé')}</span>`;
+    }
+    return '';
+  }
+
   // ── Build a card ───────────────────────────────────────────────────────────
 
   function _buildCard(asset) {
@@ -162,6 +231,7 @@ const MediaPicker = (() => {
   <div class="card-body p-1">
     <small class="text-light d-block text-truncate" style="font-size:.7rem"
            title="${asset.name}">${asset.name}</small>
+    ${_originBadge(asset)}
     ${asset.duration ? `<small class="text-muted" style="font-size:.65rem">${asset.duration}</small>` : ''}
   </div>
 </div>`;
@@ -217,8 +287,13 @@ const MediaPicker = (() => {
   function open(options) {
     _options = options || {};
     _ensureModal();
+    // L'onglet d'ouverture : la nature préférée si l'appelant en dit une, sinon ce qu'il filtre.
+    _activeType = _options.prefer || _options.type || 'all';
+    _activeExact = !!_options.prefer;          // une nature préférée est une nature EXACTE
+    _tabsShown = false;
 
     // Reset state
+    document.getElementById('mp-tabs').innerHTML = '';
     document.getElementById('mp-search-input').value = '';
     document.getElementById('mp-grid').innerHTML      = '';
     document.getElementById('mp-spinner').style.display = '';

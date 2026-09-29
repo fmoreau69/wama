@@ -85,9 +85,18 @@ class MediaLibrarySharingTest(TestCase):
     def test_anonymous_visitor_never_sees_public_assets_of_others(self):
         """⚠ Le compte de service anonyme est une VRAIE ligne `User` : `scoped_visible_q` pose
         `Q(visibility='public')` hors du test d'authentification. Sans garde, un visiteur verrait
-        tous les assets publics du parc, avec leurs URL de fichier."""
+        tous les assets publics du parc, avec leurs URL de fichier.
+
+        Depuis le 2026-09-29 (`MEDIA_STORAGE_TIERING §8.6` D26) la route exige une connexion : un
+        visiteur n'atteint plus la liste. La règle de portée reste mesurée directement — la
+        désignation (`media_paths.readable_by`) s'appuie sur elle pour les assets partagés."""
+        from wama.accounts.views import get_or_create_anonymous_user
+        from wama.common.utils.scoping import listable_by
+        from wama.media_library.models import UserAsset
         _asset(self.owner, 'publique_d_autrui', ScopedVisibility.VIS_PUBLIC)
-        self.assertEqual([], self._names_seen(Client(), scope='visible'))
+        response = Client().get(reverse('media_library:api_list'), {'scope': 'visible'})
+        self.assertEqual(302, response.status_code, 'un visiteur non connecté est renvoyé')
+        self.assertFalse(listable_by(UserAsset.objects.all(), get_or_create_anonymous_user()).exists())
 
     # ── Le partage est en LECTURE SEULE ────────────────────────────────────────────────
     def test_recipient_can_neither_edit_nor_delete(self):
