@@ -695,6 +695,10 @@ Fabien. `live_analysis_task`
    `_axial_consensus` pic d'histogramme 5°) ; **prior de cluster** < 15 m (⚑ `heading_cluster`).
 9. **Fantômes** (non-stationnés) : interpolation **monde** des trous ≤ 6 s, insérés dans les frames
    `front` (`predicted:true`, `vehicle_xy`, `world_en`, `dist_euclid_m`).
+   **Depuis le 2026-09-29** (`reanchor_ghosts`, ⚑ `ghost_on_smoothed` ON) : interpolés entre les
+   deux points LISSÉS qui encadrent le trou — ceux que l'affichage dessine — et non plus entre les
+   positions brutes (saut au bord p90 2,19 → 0,46 m, p99 8,73 → 0,83 m, rejoué sur `4da52df3`) ;
+   un fantôme tombé dans l'EMPRISE de la navette est retiré (155 sur 78 386).
 10. **Lissage Kalman + RTS** (`trajectory_smoother.smooth_track`, état `[x,y,vx,vy]`, vitesse constante,
     σa = 2,5, σm = 1,5) — **non-stationnés seulement, ≥ 5 obs, position seule (jamais le cap)** →
     `world_en` par détection.
