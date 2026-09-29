@@ -69,7 +69,7 @@ Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel
   - `hardware_fingerprint() -> str` — Identifiant court du matériel de calcul (GPU + VRAM) ; 'cpu' à défaut.
   - `make_key(source: str, model_id: str) -> str` — Construit le model_key du registre : '{source}:{model_id}'.
   - `estimate(model_key: str, size: float=1.0, unit: str='item', model_loaded: bool=False, fallback_seconds: Optional[float]=None) -> float` — Estimation (secondes) du temps TOTAL de traitement d'un item.
-  - `record_run(model_key: str, size: float, unit: str='item', process_seconds: float=0.0, load_seconds: Optional[float]=None) -> None` — Enregistre une exécution RÉELLE pour affiner l'estimation (EMA, par hardware).
+  - `record_run(model_key: str, size: float, unit: str='item', process_seconds: float=0.0, load_seconds: Optional[float]=None, user=None) -> None` — Enregistre une exécution RÉELLE pour affiner l'estimation (EMA, par hardware).
 
 ### Gardes de process
 
@@ -98,9 +98,10 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
-- **API publique** (51) :
+- **API publique** (52) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
   - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU.
+  - `owner_pid(owner: str) -> int | None` — Pid porté par une clé d'owner (`<module>.<Classe>:<pid>#…`, `composer.audiocpp:<pid>`),
   - `reserve_vram(owner: str, gb: float, *, allocated: bool=False, expires_in_s: float | None=None) -> bool` — Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
   - `release_reservation(owner: str) -> bool` — Libère la RÉSERVATION de `owner` dans le registre Redis. Sans effet s'il n'en avait pas.
   - `vram_reservation(owner: str, gb: float)` — Réserve `gb` pour la DURÉE d'un bloc, puis libère — y compris si le bloc lève.
@@ -125,7 +126,7 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
   - `fits_alone(needed_gb: float) -> bool | None` — `needed_gb` tiendrait-il sur la carte VIDE ? None sans GPU (on ne conclut pas d'une
   - `task_started(app_id: str, item_id, needed_gb: float=0.0, *, max_s: float | None=None) -> str` — Déclare une tâche GPU EN COURS ; rend son jeton. Posé par le squelette commun autour de
   - `task_finished(token: str) -> None`
-  - `running_tasks() -> list[dict]` — Tâches GPU en cours, tous process confondus — lignes expirées purgées.
+  - `running_tasks() -> list[dict]` — Tâches GPU en cours, tous process confondus — lignes expirées purgées, ET lignes dont le
   - `mark_busy(tenant: str | None=None) -> bool` — Un tenant se déclare OCCUPÉ (le service TTS quand son verrou de synthèse est pris).
   - `clear_busy(tenant: str | None=None) -> None`
   - `busy_tenants(window_s: float=BUSY_WINDOW_S) -> set[str]` — Tenants occupés : déclarés depuis moins de `window_s`, ou dont un résident a SERVI depuis
@@ -256,13 +257,14 @@ Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/con
 
 - **Domicile** : `wama/common/services/nightly_tests.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §Tests fonctionnels nocturnes](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Charpente des tests fonctionnels nocturnes de WAMA. ============================================================================
-- **API publique** (14) :
+- **API publique** (15) :
   - `class SkipScenario(Exception)` — Levée par un `run` quand une dépendance est absente (modèle/lib non installé) :
   - `class Scenario` — Un test fonctionnel déclaratif. `run(ctx) -> (ok: bool, detail: str)` ; peut lever.
   - `class ScenarioResult`
   - `register(**kwargs) -> Scenario` — Enregistre un scénario. Doublon d'id → remplace (réimport sûr).
   - `get_test_user()` — Utilisateur de test DÉDIÉ (jamais le compte réel). Créé si absent.
   - `get_test_dev_user()` — Compte de test DÉVELOPPEUR, dédié aux surfaces dev-gated (jumelles de bac à sable).
+  - `is_test_account(user) -> bool` — Un compte de TEST déclaré (`TEST_USERNAMES`) : ce qu'il exécute ne MESURE pas la machine.
   - `sweep_test_witnesses() -> int` — Efface les FICHIERS témoins restés dans les dossiers média des comptes de TEST.
   - `free_vram() -> None` — Téardown VRAM best-effort entre scénarios (réutilise le cleaner du model_manager).
   - `run_one(sc: Scenario, ctx: dict) -> ScenarioResult` — Exécute UN scénario (timing + capture d'exception). NB : timeout dur = TODO prod
@@ -278,7 +280,8 @@ Le JEU DE CHOIX unique de la parole synthétique — moteurs, langues, presets d
 
 - **Domicile** : `wama/common/tts/constants.py`
 - **Module** : WAMA Common TTS Constants ========================= Source unique des constantes TTS partagées entre : - wama.avatarizer (AvatarJob) - wama.synthesizer (VoiceSynthesis) - tts_service.py (service FastAPI)
-- **API publique** : aucune fonction ni classe publique de premier niveau
+- **API publique** (1) :
+  - `tts_catalog_key(name: str) -> str` — Nom de moteur saisi (`coqui-xtts`, fichier batch, outil de l'assistant) → CLÉ DE CATALOGUE.
 
 ## Modèles
 
@@ -426,7 +429,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)
 
 - **Domicile** : `wama/model_manager/services/prospector.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Prospection de modèles — version DÉTERMINISTE (sans LLM, sans scraping).
-- **API publique** (18) :
+- **API publique** (19) :
   - `hf_task_to_wama(pipeline_tag: str, tags=())` — (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
   - `card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str='') -> dict` — Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
   - `prospect_hf(task: str, limit: int=15, library: str | None=None, min_downloads: int=0, search: str | None=None, sort: str='downloads')` — Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
@@ -443,6 +446,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)
   - `seed_hf_candidates(limit: int=12, min_downloads: int=1000, tasks=None) -> dict` — Candidats `is_proposed` depuis la bibliothèque HuggingFace — pendant HF de la découverte
   - `seed_candidate_from_manifest(manifest: dict) -> dict` — Écrit/rafraîchit un CANDIDAT de prospection depuis un manifeste `model` — le chemin du
   - `seed_yolo_candidate(name: str) -> dict` — Candidat de prospection pour des poids YOLO OFFICIELS demandés PAR LEUR NOM.
+  - `named_repo(query: str)` — Le dépôt HF qu'une requête DÉSIGNE — URL de page (`https://huggingface.co/org/nom`, avec ou
   - `seed_hf_search(query: str, limit: int=10, max_retenus: int=5) -> dict` — Prospection CIBLÉE : cherche `query` dans les noms de dépôts HF (toutes tâches de
   - `apply_recommendations(candidates, source: str, task: str)` — Crée/maj des entrées `recommended` dans le catalogue pour les candidats NOUVEAUX (pas déjà
 
@@ -457,7 +461,7 @@ Identité chez l'éditeur (licence, auteur, plateforme), posée VIA le manifeste
   - `ollama_identity(name: str) -> Optional[dict]` — Identité d'un modèle Ollama. La plateforme n'expose ni licence ni auteur exploitables par
   - `cloud_identity(item: dict) -> Optional[dict]` — Identité d'un modèle DISTANT : le dépôt HuggingFace que le fournisseur sert, quand il le
   - `identity_for_spec(spec: dict) -> Optional[dict]` — Identité déductible du descripteur d'installation (`install_from_spec`).
-  - `set_identity(model_key: str, identity: dict, *, capabilities: dict=None, engine: str=None, apply: bool=True, export: bool=True) -> dict` — Pose l'identité — et les capacités DÉCLARÉES — sur un modèle DU CATALOGUE, en passant
+  - `set_identity(model_key: str, identity: dict, *, capabilities: dict=None, engine: str=None, composition: dict=None, apply: bool=True, export: bool=True) -> dict` — Pose l'identité — et les capacités DÉCLARÉES — sur un modèle DU CATALOGUE, en passant
   - `record_after_install(spec: dict, appeared_keys) -> dict` — Après installation + sync : pose l'identité sur les modèles qui viennent d'APPARAÎTRE.
 
 ### Sonde vision
@@ -567,7 +571,7 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
   - `observed_events(user, start, end, *, now=None, queue=None) -> list[CalendarEvent]` — Items de l'utilisateur dont le dépôt, l'exécution ou la fin tombe dans `[start, end)`, plus
   - `batch_events(user, start, end) -> list[CalendarEvent]` — La création des LOTS de l'utilisateur dans `[start, end)`.
   - `expiry_events(user, start, end) -> list[CalendarEvent]` — Les purges de rétention qui toucheront l'utilisateur dans `[start, end)`.
-  - `measured_nightly_minutes(stage=None, reports_dir=None) -> float | None` — Plus longue durée récente d'une campagne nocturne, en minutes — `None` sans mesure.
+  - `measured_nightly_minutes(stage=None, reports_dir=None) -> float | None` — Durée MÉDIANE récente d'une campagne nocturne complète, en minutes — `None` sans mesure.
   - `window_minutes(entry_name) -> tuple[int, str]` — Durée réservée pour une entrée beat : `(minutes, 'measured' | 'declared')`.
   - `maintenance_windows(start, end) -> list[CalendarEvent]` — Occurrences des entrées beat À HORAIRE (`crontab`) dans `[start, end)`.
   - `reserved_windows(start, end, resource=None) -> list[CalendarEvent]` — Fenêtres qui RÉSERVENT une ressource (`gpu`, `cpu`), ou toutes si `resource` est `None`.
@@ -792,13 +796,16 @@ UN domicile pour « quel modèle a le droit de travailler sur le code » : planc
 
 - **Domicile** : `wama/common/services/development_models.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 - **Module** : Modèles de NIVEAU DÉVELOPPEMENT — le bridage « qualité max » du travail sur le code (2026-09-22).
-- **API publique** (7) :
+- **API publique** (10) :
   - `coding_score(model) -> float | None` — Sous-indice coding du banc tiers, ou None s'il n'est pas mesuré.
   - `is_development_grade(model) -> bool` — Ce modèle a-t-il le niveau développement ? Mesure d'abord, déclaration ensuite.
   - `dev_cloud_keys(user) -> set` — Modèles distants admis au tirage de DÉVELOPPEMENT pour `user` : la règle commune
   - `development_candidates(user) -> list` — `model_key` des modèles de conversation de niveau dev que `user` peut lancer : locaux
   - `development_model(user, requested: str=None) -> str | None` — Le modèle de niveau dev pour ce travail — `model_key` complet (`ollama:…`, `albert:…`), ou
   - `development_refusal(user=None) -> str` — La raison, lisible, quand aucun modèle de niveau dev n'est disponible.
+  - `is_agent_grade(model) -> bool` — Ce modèle peut-il servir un tour outillé ? Seule une mesure SOUS le plancher l'exclut.
+  - `agent_candidates(user, cloud_keys=None) -> list` — `model_key` des modèles au plancher de l'assistant outillé que `user` peut lancer.
+  - `escalation_model(user, current_key: str=None) -> str | None` — Le modèle vers lequel REPRENDRE un tour inventé : au plancher, plus fort au banc que
   - `is_development_step(step: dict) -> bool` — Une étape d'outil qui fait ENTRER la conversation dans le travail sur le code : la
 
 ### Modèles DISTANTS au catalogue
@@ -847,10 +854,10 @@ Distance d'une sortie texte à sa RÉFÉRENCE (port `reference_result`) : substi
 - **Domicile** : `wama/common/services/text_metrics.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Métriques de texte À VÉRITÉ TERRAIN — WER et CER (`WAMA_QUALITE.md` M3).
 - **API publique** (4) :
-  - `comparable_words(text: str) -> list` — Mots comparables : minuscules, sans ponctuation, **apostrophe traitée en séparateur**.
+  - `comparable_words(text: str, language: Optional[str]=None) -> list` — Mots comparables : minuscules, sans ponctuation, **apostrophe et soulignement traités en
   - `class ErrorRate` — Le compte d'une comparaison sortie ↔ référence, et son taux.
-  - `word_error_rate(reference: str, hypothesis: str) -> ErrorRate` — WER — taux d'erreur par MOT de `hypothesis` (la sortie) contre `reference`.
-  - `character_error_rate(reference: str, hypothesis: str) -> ErrorRate` — CER — taux d'erreur par CARACTÈRE, sur le même texte normalisé que le WER (mots séparés
+  - `word_error_rate(reference: str, hypothesis: str, language: Optional[str]=None) -> ErrorRate` — WER — taux d'erreur par MOT de `hypothesis` (la sortie) contre `reference`.
+  - `character_error_rate(reference: str, hypothesis: str, language: Optional[str]=None) -> ErrorRate` — CER — taux d'erreur par CARACTÈRE, sur le même texte normalisé que le WER (mots séparés
 
 ### Outils de DÉVELOPPEMENT (surface MCP « wama-dev »)
 
@@ -967,9 +974,11 @@ Range le RÉSULTAT d'un élément comme asset, lu au schéma canonique du détai
 
 - **Domicile** : `wama/media_library/services.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §2bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Le GESTE « ranger une sortie d'app dans ma médiathèque » — brique COMMUNE.
-- **API publique** (13) :
+- **API publique** (20) :
   - `enrich_asset_from_file(asset) -> None` — Ce que le FICHIER dit de l'asset — MIME, taille, et les `attributes` que la sonde commune
   - `candidate_asset_types(nom_fichier: str) -> list` — Rôles d'asset admissibles pour cette extension, dans l'ordre de `ASSET_TYPES`.
+  - `class LibraryAddRefused(ValueError)` — Ajout refusé (nature inconnue, format non admis, nom déjà pris, déplacement impossible) —
+  - `add_file_to_library(user, asset_type: str, *, uploaded=None, source=None, name: str='', description: str='', tags: str='')` — Ajoute UN fichier à la médiathèque de `user`, comme asset de la nature `asset_type`.
   - `admissible_roles(detail: dict, nom_fichier: str) -> list` — Les rôles que le geste PROPOSE pour cette sortie — et donc les seuls qu'il accepte.
   - `export_choices(app: str, detail: dict) -> list` — Les CHOIX que le geste propose pour cette sortie — `[{key, label, asset_type, format}]`.
   - `export_item_to_library(user, app: str, pk: int, asset_type: str='', name: str='', output_format: str='') -> dict` — Range le RÉSULTAT d'un élément d'app dans la médiathèque de son propriétaire.
@@ -981,6 +990,11 @@ Range le RÉSULTAT d'un élément comme asset, lu au schéma canonique du détai
   - `gallery_assets()` — Les avatars de la galerie partagée, actifs, dans l'ordre d'affichage.
   - `gallery_entries() -> list` — `[{'name', 'url'}]` — ce dont les gabarits ont besoin, sans composer d'URL.
   - `gallery_path(name: str)` — Chemin ABSOLU de l'avatar nommé, ou `None` s'il n'existe pas (le worker en a besoin).
+  - `resolve_visible_asset(user, asset_type: str, name: str) -> str` — Chemin (relatif à MEDIA_ROOT) de l'asset `name` de cette nature que `user` voit, ou ''.
+  - `visible_asset_names(user, asset_type: str) -> list` — Les NOMS des assets de cette nature que `user` voit (siens, partagés, système), sans doublon
+  - `class SystemAssetStillNamed(RuntimeError)` — Un AUTRE utilisateur cite encore l'asset par son nom : le rendre à un seul casserait ses
+  - `register_system_asset_name_holder(asset_type: str, holder) -> None` — Déclare une référence PAR NOM à un asset système d'une nature donnée.
+  - `return_system_asset(asset, user, *, apply: bool=False) -> dict` — Rend l'asset système `asset` à `user` : un `UserAsset` privé, fichier déplacé chez lui.
 
 ### Vulnérabilités des dépendances
 
@@ -1147,7 +1161,7 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
   - `resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple` — (fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
   - `thinking_wanted(quality_intent) -> bool` — La réflexion du modèle est-elle demandée pour ce réglage de curseur ?
   - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str=None, model: str=None, domain: str=None, on_event=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
-  - `run_assistant_turn(user, message: str, provider: str=None, model: str=None, history: list=None, domain: str=None, surface: str='web', on_event=None) -> dict` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
+  - `run_assistant_turn(user, message: str, provider: str=None, model: str=None, history: list=None, domain: str=None, surface: str='web', on_event=None, escalated_…` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
 
 ### Pipeline de prompts
 
@@ -1616,10 +1630,11 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).
-- **API publique** (12) :
+- **API publique** (13) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
   - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs.
+  - `library_nature_for(app: str, port_id: str) -> str` — La nature de médiathèque sur laquelle s'ouvre la sélection pour ce PORT ('' si aucune).
   - `get_domain(app: str, domain_id: str) -> dict`
   - `get_mode(app: str, domain_id: str, mode_id: str) -> dict`
   - `route_prefix(app: str, domain_id: str) -> str` — Préfixe des routes de ce domaine (`audio` → `audio_batch_delete`), '' par défaut.
@@ -1923,7 +1938,7 @@ Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AV
 
 ### Chemins média
 
-Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la brique décide aussi POINTER ou COPIER (`reference_or_copy`, décision de Fabien, cible annoncée le 12/09) : une source déjà sous `users/<uid>/` du MÊME utilisateur est désignée telle quelle — un `FileField` est déjà un pointeur, l'aperçu commun sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) garde la copie, et son site le dit. ⭐ Depuis le 2026-09-28 : un asset SYSTÈME actif se pointe aussi, `readable_by` est LA règle de ce qu'un utilisateur peut désigner, et `received_inputs` est ce qu'une vue d'upload REÇOIT — un fichier téléversé ou DÉSIGNÉ (`<champ>__designated` : médiathèque, arbre), par la même vue, avec l'état du volet ; `designate` est la même désignation pour les outils de l'assistant (`tool_api.add_to_*`)
+Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la brique décide aussi POINTER ou COPIER (`reference_or_copy`, décision de Fabien, cible annoncée le 12/09) : une source déjà sous `users/<uid>/` du MÊME utilisateur est désignée telle quelle — un `FileField` est déjà un pointeur, l'aperçu commun sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) garde la copie, et son site le dit. ⭐ Depuis le 2026-09-28 : un asset SYSTÈME actif se pointe aussi, `readable_by` est LA règle de ce qu'un utilisateur peut désigner, et `received_inputs` est ce qu'une vue d'upload REÇOIT — un fichier téléversé ou DÉSIGNÉ (`<champ>__designated` : médiathèque, arbre), par la même vue, avec l'état du volet ; `designate` est la même désignation pour les outils de l'assistant (`tool_api.add_to_*`). ⭐ Depuis le 2026-09-29 : un asset de médiathèque PARTAGÉ (labo, projet, public) est désignable et POINTÉ par les personnes concernées — même règle de visibilité que la liste (`scoping.listable_by`), le compte anonyme n'en hérite pas
 
 - **Domicile** : `wama/common/utils/media_paths.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : WAMA Common - Media Path Utilities
@@ -2167,7 +2182,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (19) :
+- **API publique** (20) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d') d'un chemin
@@ -2185,6 +2200,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `accepts_file(app_name: str, filename: str) -> bool` — Le serveur prend-il ce fichier pour cette app ? — les extensions DÉCLARÉES
   - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
   - `category_color(cid: str) -> str` — Couleur de RÉFÉRENCE d'une catégorie (en-têtes de section, dossiers…).
+  - `sandbox_conformity(report: dict) -> dict` — Mesure des jumelles bac à sable, chacune avec l'écart à SA source (`report['apps']`).
   - `measure_and_write_conformity() -> dict` — Mesure les 10 apps (conformity_checker.run_checks) et ÉCRIT le rapport JSON.
   - `get_conformity_summary() -> dict` — Returns per-app conformity score:
 
@@ -2374,7 +2390,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_audio_enhancer(user, file_path: str, engine: str='resemble', mode: str='both', denoising_strength: float=0.5, quality: int=64) -> dict` — Register an audio file for speech enhancement.
   - `start_audio_enhancer(user, audio_enhancement_id: int=None) -> dict` — Launch Celery audio enhancement task(s).
   - `get_audio_enhancer_status(user) -> dict` — Return status of the user's recent audio enhancement jobs (last 10).
-  - `synthesize_text(user, text: str, language: str='fr', tts_model: str='coqui-xtts', voice_preset: str='default', speed: float=1.0, pitch: float=1.0, emotion_inte…` — Create a VoiceSynthesis job from raw text.
+  - `synthesize_text(user, text: str, language: str='fr', tts_model: str=DEFAULT_TTS_MODEL, voice_preset: str='default', speed: float=1.0, pitch: float=1.0, emotion…` — Create a VoiceSynthesis job from raw text.
   - `start_synthesizer(user, synthesis_id: int=None) -> dict` — Launch Celery synthesis task(s).
   - `get_synthesizer_status(user) -> dict` — Return status of the user's recent synthesis jobs (last 10).
   - `compose_music(user, prompt: str, model: str='musicgen-small', duration: float=10.0, **params) -> dict` — Create a Composer generation job (music or SFX) and start it immediately.
@@ -2394,7 +2410,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_media_library(user, file_path: str, asset_type: str, name: str='', description: str='') -> dict` — Register one of the user's files as a media-library asset with an EXPLICIT role.
   - `search_web(user, query: str, max_results: int=5) -> dict` — Search the public web (no API key) and return result links with snippets.
   - `read_web_page(user, url: str, max_chars: int=8000) -> dict` — Fetch ONE public web page and return its readable text (SSRF-guarded, size-capped).
-  - `add_to_avatarizer(user, mode: str='pipeline', text_content: str='', tts_model: str='coqui-xtts', language: str='fr', voice_preset: str='default', audio_path: s…` — Crée un job de génération d'avatar parlant (vidéo) en attente.
+  - `add_to_avatarizer(user, mode: str='pipeline', text_content: str='', tts_model: str=DEFAULT_TTS_MODEL, language: str='fr', voice_preset: str='default', audio_pa…` — Crée un job de génération d'avatar parlant (vidéo) en attente.
   - `start_avatarizer(user, job_id: int=None) -> dict` — Lance la génération Celery d'un avatar (ou de tous les jobs en attente).
   - `get_avatarizer_status(user) -> dict` — Retourne l'état des 10 derniers jobs avatar de l'utilisateur connecté.
   - `translate_text(user, text, source_lang='fr', target_lang='en', glossary=None)` — Traduit un texte via translategemma (TranslatorService). Passthrough si source==target.
