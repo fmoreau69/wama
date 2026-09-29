@@ -2808,7 +2808,9 @@ def sam3_test_frame_task(self, session_id: str, position: str, frame_number: int
         prompts = list(getattr(session.profile, 'sam3_markings_prompts', []) or [])
         from .utils.sam3_road_analyzer import SAM3RoadAnalyzer
         _free_memory_before_sam3(session.user_id)   # libérer la VRAM avant SAM3
-        sam3 = SAM3RoadAnalyzer(marking_prompts=prompts or None)
+        from .utils.features import enabled as _feat_on
+        sam3 = SAM3RoadAnalyzer(marking_prompts=prompts or None,
+                                arbitrate=_feat_on(session, 'sam3_label_arbitration'))
         sam3.load()
         markings = sam3.analyze_frame(frame, min_confidence=float(min_confidence))
         out = [{'label': m.get('label'), 'confidence': m.get('confidence'),
@@ -2957,9 +2959,11 @@ def analyze_sam3_only_task(self, session_id: str):
 
         from .utils.sam3_road_analyzer import SAM3RoadAnalyzer
         _free_memory_before_sam3(user_id)   # libérer la VRAM avant SAM3 (anti-crash)
+        from .utils.features import enabled as _feat_on
         sam3 = SAM3RoadAnalyzer(
             marking_prompts=raw_prompts or None,
             road_fallback=use_fallback,
+            arbitrate=_feat_on(session, 'sam3_label_arbitration'),
         )
         sam3.load()
         # Log des prompts RÉELLEMENT utilisés (vérifier langue/forme : SAM3 attend
@@ -3103,6 +3107,8 @@ def analyze_sam3_only_task(self, session_id: str):
             'scanned': scanned, 'updated': updated, 'created': created,
             'prompts': [p.get('label', '') for p in (profile.sam3_markings_prompts or [])],
             'fallback': bool(getattr(profile, 'sam3_as_road_fallback', False)),
+            # ⚑ sam3_label_arbitration : ce que l'arbitrage a tranché se COMPTE (A/B)
+            'arbitrated': {f'{k} > {d}': n for (k, d), n in sam3.arbitrated.items()},
         })
 
         # ── Auto-calibration homographie depuis les passages piétons détectés ──
@@ -3121,6 +3127,10 @@ def analyze_sam3_only_task(self, session_id: str):
         _console(user_id,
                  f"SAM3 terminé — {scanned} frame(s) analysée(s), "
                  f"{updated} mises à jour, {created} créée(s)")
+        if sam3.arbitrated:
+            _console(user_id, "SAM3 — même marquage revendiqué par deux prompts (⚑ sam3_label_arbitration), "
+                              "label gardé > label écarté : "
+                              + ", ".join(f"{k} > {d} : {n}" for (k, d), n in sorted(sam3.arbitrated.items())))
 
         return {
             'session_id': session_id,

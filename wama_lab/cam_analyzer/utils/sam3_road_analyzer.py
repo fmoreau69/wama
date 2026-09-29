@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_MARKING_PROMPTS = [
     {'label': 'stop_line', 'prompt': 'white stop line painted on road surface'},
     {'label': 'crossing',  'prompt': 'pedestrian crossing zebra stripes on road'},
+    # Rangée de triangles blancs en travers de la chaussée (ralentisseur, « dents de requin ») :
+    # sans ce prompt, SAM3 la rendait sous `crossing` — mesuré le 2026-09-29, frames 7164/7170 —
+    # et l'agrégation monde la calait sur l'axe des passages piétons.
+    {'label': 'shark_teeth', 'prompt': 'row of white triangles painted across the road'},
 ]
 
 DEFAULT_ROAD_PROMPT = 'drivable road surface area in front of the vehicle'
@@ -97,6 +101,35 @@ def _mask_to_bbox(mask_np: np.ndarray) -> list:
     return [int(c0), int(r0), int(c1), int(r1)]
 
 
+def arbitrate_labels(entries, masks, min_overlap=0.5):
+    """Un même marquage rendu par DEUX prompts (des triangles vus comme « triangles » ET comme
+    « passage piéton ») → ne garder que le label le plus sûr.
+
+    Les prompts sont interrogés indépendamment : rien ne les empêchait de revendiquer les mêmes
+    pixels. Deux masques de labels DIFFÉRENTS dont l'intersection couvre au moins `min_overlap`
+    du plus petit sont le même objet : le moins confiant est écarté. Deux masques du MÊME label
+    ne sont pas touchés (comportement historique). `entries` et `masks` (booléens HxW) sont
+    alignés. Rend (entrées gardées, {(label gardé, label écarté): n})."""
+    order = sorted(range(len(entries)), key=lambda i: -(entries[i].get('confidence') or 0.0))
+    kept, dropped = [], {}
+    areas = [int(m.sum()) for m in masks]
+    for i in order:
+        rival = None
+        for j in kept:
+            if entries[j].get('label') == entries[i].get('label'):
+                continue
+            small = min(areas[i], areas[j])
+            if small and int(np.logical_and(masks[i], masks[j]).sum()) >= min_overlap * small:
+                rival = j
+                break
+        if rival is None:
+            kept.append(i)
+        else:
+            key = (entries[rival].get('label'), entries[i].get('label'))
+            dropped[key] = dropped.get(key, 0) + 1
+    return [entries[i] for i in sorted(kept)], dropped
+
+
 # ─── Main class ──────────────────────────────────────────────────────────────
 
 class SAM3RoadAnalyzer:
@@ -109,13 +142,18 @@ class SAM3RoadAnalyzer:
         road_fallback   : If True, also produce a road_mask entry per frame
                           (when the caller has no YOLO BDD100K model).
         device          : 'cuda' or 'cpu'.
+        arbitrate       : ⚑ sam3_label_arbitration — one marking claimed by two prompts keeps
+                          the most confident label (`arbitrate_labels`). Counts accumulate in
+                          `self.arbitrated` for the console.
     """
 
     def __init__(self, marking_prompts=None, road_fallback: bool = False,
-                 device: str = 'cuda'):
+                 device: str = 'cuda', arbitrate: bool = True):
         self.marking_prompts = marking_prompts or DEFAULT_MARKING_PROMPTS
         self.road_fallback   = road_fallback
         self.device          = device
+        self.arbitrate       = arbitrate
+        self.arbitrated      = {}     # {(kept label, dropped label): n}, all frames together
         self._processor      = None   # Sam3ImageProcessor instance
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -182,6 +220,7 @@ class SAM3RoadAnalyzer:
         pil_frame  = Image.fromarray(frame_rgb)
         h, w       = frame_bgr.shape[:2]
         results    = []
+        masks_kept = []   # alignés sur `results` (marquages) — pour l'arbitrage entre prompts
 
         # ── Road markings ──────────────────────────────────────────────────
         for pd in self.marking_prompts:
@@ -226,6 +265,12 @@ class SAM3RoadAnalyzer:
                     'track_id':   None,
                     'proximity':  0.0,
                 })
+                masks_kept.append(mask_np > 127)
+
+        if self.arbitrate and len(self.marking_prompts) > 1 and len(results) > 1:
+            results, dropped = arbitrate_labels(results, masks_kept)
+            for k, n in dropped.items():
+                self.arbitrated[k] = self.arbitrated.get(k, 0) + n
 
         # ── Road mask fallback ─────────────────────────────────────────────
         if self.road_fallback:

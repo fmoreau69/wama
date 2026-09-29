@@ -34,6 +34,9 @@ _LABEL_KIND = {
     'stop_line': 'stop_line',
     'crossing': 'crossing',
     'crosswalk': 'crossing',
+    # rangée de triangles (ralentisseur) : un marquage TRANSVERSE à part, jamais calé sur l'axe
+    # des passages piétons (il leur était superposé tant que SAM3 le rendait sous `crossing`)
+    'shark_teeth': 'shark_teeth',
     'line': 'line',
     'center_line': 'line',
     'lane_line': 'line',
@@ -214,7 +217,7 @@ def aggregate_markings(session, min_obs=3, max_pts=6000):
     # (1) amas gloutons 6 m, (2) FUSION des amas proches (< 5 m), (3) seuil en FRAMES
     # distinctes (pas en points), (4) TOP-K par type — le vrai signal domine largement
     # (amas à 500-1100 obs vs bruit SAM3 à 3-20).
-    _TOP_K = {'stop_line': 4, 'crossing': 3, 'line': 2}
+    _TOP_K = {'stop_line': 4, 'crossing': 3, 'line': 2, 'shark_teeth': 2}
     try:
         from .features import enabled as _feat_on
         _snap = _feat_on(session, 'marking_axis_snap')
@@ -280,6 +283,9 @@ def aggregate_markings(session, min_obs=3, max_pts=6000):
             _ad = abs(brg - corridor[key]) % 180.0
             _kind_eff = 'line' if (kind == 'stop_line'
                                    and min(_ad, 180.0 - _ad) < 25.0) else kind
+            # Une rangée de triangles LONGITUDINALE n'existe pas : c'est une ligne mal lue.
+            if kind == 'shark_teeth' and min(_ad, 180.0 - _ad) < 25.0:
+                continue
             seg = {
                 'a': [round(lat0 + a[1] / m_lat, 7), round(lon0 + a[0] / m_lon, 7)],
                 'b': [round(lat0 + b[1] / m_lat, 7), round(lon0 + b[0] / m_lon, 7)],
