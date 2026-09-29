@@ -267,7 +267,7 @@ class CalendarFeedTest(TestCase):
 class ScheduleSchemaTest(SimpleTestCase):
     """UNE déclaration (`schedule_params`), lue par la fenêtre, l'API et le fichier batch."""
 
-    def test_the_schema_declares_the_model_placements_and_a_datetime(self):
+    def test_the_schema_offers_the_model_placements_and_a_datetime(self):
         params = {p.name: p for p in S.schedule_params()}
         self.assertEqual([v for v, _ in params['when'].choices],
                          [v for v, _ in SA.PLACEMENT_CHOICES],
