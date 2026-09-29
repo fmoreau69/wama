@@ -2056,6 +2056,9 @@ class ModelRegistry:
                         'modalities': ['image', 'document'],
                         'task': 'ocr',
                         'inputs_required': ['work_file'],
+                        # Réglages que le moteur LIT (déclarés dans READER_MODELS, 2026-09-29) :
+                        # l'UI grise les autres (WamaModelCaps). Absent = rien d'affirmé.
+                        **({'params': list(config['params'])} if 'params' in config else {}),
                     },
                 )
                 # Clé de registre = `{source}:{id}` (convention). Cf. REMOVAL_LEDGER F4.

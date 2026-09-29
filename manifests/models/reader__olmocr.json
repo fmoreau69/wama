@@ -11,6 +11,10 @@
         "image",
         "document"
       ],
+      "params": [
+        "mode",
+        "language"
+      ],
       "task": "ocr"
     },
     "composition": {

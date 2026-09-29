@@ -3955,6 +3955,13 @@ maison, volet seul) converge sur la brique avec la généralisation des profils 
   continuent sans modification) ; **enhancer** : ses 4, même forme.
 - **enhancer + anonymizer** : seules apps sans `user_settings` commun (table `UserSettings`
   maison) — à porter ou à assumer comme variante déclarée.
+  ✅ **Soldé** — la brique est durable depuis le 2026-09-15 (`UserAppSetting`, 2ᵉ issue
+  ci-dessous) ; l'anonymizer y est passé le 2026-09-27, l'**enhancer le 2026-09-29** : sa table
+  n'était en fait jamais ÉCRITE (7 lignes, toutes aux défauts du modèle — aucun choix perdu), et
+  le modèle, le débruitage et le blend du volet ne partaient qu'avec « Tout démarrer ». Le dépôt
+  les poste désormais, l'élément naît complet et le volet est mémorisé
+  (`read_panel_settings` / `save_panel_settings`). Table à retirer après rechargement
+  (`REMOVAL_LEDGER R83`).
 - Validation par **régénération de `converter_01`** (la facette `data` porte alors les
   colonnes, le modèle généré les a).
 

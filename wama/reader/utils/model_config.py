@@ -25,6 +25,11 @@ Path(OLMOCR_DIR).mkdir(parents=True, exist_ok=True)
 Path(DOCTR_DIR).mkdir(parents=True, exist_ok=True)
 
 # ── Model catalogue ───────────────────────────────────────────────────────────
+# `params` (2026-09-29) : les réglages du schéma que le moteur LIT réellement — recopiés en
+# capacité canonique `params` au catalogue, d'où l'UI grise (sans cacher) ceux qu'il ignore
+# (`WamaModelCaps`, même geste que les moteurs audio de l'enhancer). MESURÉ dans chaque backend :
+# olmOCR met le mode ET la langue dans sa consigne (`_build_prompt`) ; GLM-OCR ne passe que la
+# langue (`_ocr_image(model, img_path, language)`) ; docTR reçoit les deux et n'en lit aucun.
 # NOTE : pour olmOCR-2, vérifier le HF ID exact sur https://huggingface.co/allenai
 # Candidats connus : allenai/olmOCR-7B-0225-preview, allenai/olmOCR-2-0328
 READER_MODELS = {
@@ -35,6 +40,7 @@ READER_MODELS = {
         'type':        'ocr-vlm',
         'vram_gb':     14.0,
         'description': 'olmOCR-2 7B — Allen AI — imprimé + manuscrit + tableaux + formules',
+        'params':      ['mode', 'language'],
         'description_long': "olmOCR-2 7B (Allen AI) : OCR par modèle vision-langage — comprend la "
                             "mise en page, restitue tableaux, formules et manuscrit avec une "
                             "qualité de référence. Gourmand en VRAM ; à réserver aux documents "
@@ -57,6 +63,7 @@ READER_MODELS = {
         'type':        'ocr-vlm',
         'vram_gb':     2.2,
         'description': 'GLM-OCR 0.9B — via Ollama — léger, excellent sur documents courants',
+        'params':      ['language'],
         'description_long': "GLM-OCR 0.9B servi par Ollama : très bon rapport qualité/coût sur "
                             "les documents courants, avec une empreinte mémoire dix fois "
                             "moindre qu'olmOCR. Nécessite qu'Ollama tourne ; sinon le moteur "
@@ -69,6 +76,7 @@ READER_MODELS = {
         'type':        'ocr-pipeline',
         'vram_gb':     0.0,  # CPU
         'description': 'docTR (Mindee) — pipeline CPU, imprimé, bonne gestion des formulaires',
+        'params':      [],
         'description_long': "docTR (Mindee) : pipeline OCR classique en deux étapes (détection + "
                             "reconnaissance), fonctionne sur CPU. Rapide et sobre pour documents "
                             "imprimés simples et formulaires ; moins adapté au manuscrit et aux "

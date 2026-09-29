@@ -224,6 +224,35 @@
     // (brique `card_gear`), lues par LE lecteur unique `WamaInspector.gearValues` ; le POST est
     // un FormData que la vue lit par `read_settings_payload` (JSON ou formulaire, coercé au
     // schéma). La réponse est la card à jour (`_item_to_dict`) : `upsertCard` la reflète.
+    // ─── Réglages LUS par le moteur (capacité `params` du catalogue, 2026-09-29) ──────────
+    // Mesuré dans les backends : olmOCR lit le mode ET la langue, GLM-OCR la langue seule,
+    // docTR ni l'un ni l'autre. Le catalogue le déclare (`READER_MODELS[…]['params']`) ; la
+    // brique commune WamaModelCaps GRISE le réglage ignoré, raison au survol — jamais caché
+    // (INPUT_MODEL_MATCHING). « auto » n'a pas de capacités : rien n'est grisé.
+    const ENGINE_PARAMS = [
+        { name: 'mode',     reason: 'Ce moteur ne tient pas compte du mode de lecture.' },
+        { name: 'language', reason: 'Ce moteur ne tient pas compte de la langue indiquée.' },
+    ];
+
+    function wireEngineParams(backendId, idsByParam) {
+        const select = document.getElementById(backendId);
+        if (!window.WamaModelCaps || !select) return null;
+        const handle = WamaModelCaps.init({
+            source: 'reader',
+            modelSelectId: backendId,
+            resolveKey: function (v) { return 'reader:' + v; },
+            controls: ENGINE_PARAMS.filter(p => idsByParam[p.name]).map(p => ({
+                id: idsByParam[p.name],
+                reason: p.reason,
+                disableWhen: caps => Array.isArray(caps.params) && caps.params.indexOf(p.name) === -1,
+            })),
+        });
+        // Les options du moteur arrivent du catalogue APRÈS le rendu (`options_source`) : la
+        // valeur retenue peut changer sans `change` — on rejoue alors l'état.
+        select.addEventListener('wama:options-filled', function () { if (handle) handle.render(); });
+        return handle;
+    }
+
     function openItemSettings(btn) {
         const schema = window.WAMA_READER_SCHEMA || [];
         const card = (btn && btn.closest('.wama-card')) || btn;
@@ -238,6 +267,11 @@
             footerTplId: 'readerSettingsFooterTpl',
             saveUrl: urlFor('updateSettings', id),
             csrf: csrf,
+            // Champs RE-GÉNÉRÉS à chaque ouverture : le grisage s'y rebranche à chaque fois.
+            decorate: function () {
+                wireEngineParams('rSettings_backend',
+                                 { mode: 'rSettings_mode', language: 'rSettings_language' });
+            },
             onSaved: function (_id, _restart, resp) { if (resp && resp.id) upsertCard(resp); },
         });
     }
@@ -646,6 +680,10 @@
             if (saved) el.value = saved;
             el.addEventListener('change', () => localStorage.setItem(key, el.value));
         });
+        // Après la restauration ci-dessus (elle pose la valeur sans `change`) : volet et lot.
+        wireEngineParams('backendSelect', { mode: 'modeSelect', language: 'languageInput' });
+        wireEngineParams('batchSettingsBackend',
+                         { mode: 'batchSettingsMode', language: 'batchSettingsLanguage' });
 
         // Bind existing cards and start polling for RUNNING + PENDING items
         // (PENDING items may have tasks already queued — catch the RUNNING transition)

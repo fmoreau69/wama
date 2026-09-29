@@ -14,7 +14,7 @@ from django.core.cache import cache
 from PIL import Image
 
 import datetime
-from .models import (Enhancement, UserSettings, AudioEnhancement,
+from .models import (Enhancement, AudioEnhancement,
                      BatchEnhancement, BatchEnhancementItem,
                      BatchAudioEnhancement, BatchAudioEnhancementItem)
 from ..accounts.views import get_or_create_anonymous_user
@@ -254,8 +254,12 @@ class IndexView(View):
         audio_batches_list, _, _ = apply_queue_sort_filter(
             request, audio_batches_list, name_of=_name_of)
 
-        # Get or create user settings
-        user_settings, _ = UserSettings.objects.get_or_create(user=user)
+        # Le volet reprend les réglages MÉMORISÉS de l'utilisateur — brique commune (2026-09-29,
+        # `ROADMAP §23.3bis`). La table `UserSettings` propre à l'enhancer n'était jamais ÉCRITE
+        # (seulement `get_or_create`) : ses « défauts » étaient ceux du modèle, pour tout le monde.
+        from wama.common.utils.user_settings import read_panel_settings
+        from wama.enhancer.params import MEDIA_PARAMS
+        panel = read_panel_settings(user, 'enhancer', MEDIA_PARAMS)
 
         import json as _json
         from wama.enhancer.params import MEDIA_PARAMS_JSON, AUDIO_PARAMS_JSON
@@ -267,7 +271,7 @@ class IndexView(View):
             'queue_count': queue_count,
             'q_sort': q_sort,
             'q_filter': q_filter,
-            'user_settings': user_settings,
+            'panel': panel,
             'ai_models': Enhancement.AI_MODEL_CHOICES,
             # Schémas déclaratifs par domaine → inspecteur contextuel (WamaInspector.initFromSchema).
             'media_params_json': _json.dumps(MEDIA_PARAMS_JSON),
@@ -281,20 +285,27 @@ class IndexView(View):
 
 
 def _deposit_settings(user, post):
-    """Réglages d'un DÉPÔT : les défauts de l'utilisateur (table `UserSettings` propre à
-    l'enhancer, `ROADMAP §23.3bis` — à porter sur la brique commune), puis ce que le VOLET
-    POSTE, lu par le schéma (`schema_model_kwargs`). Les deux créations (fichier, lien) lisaient
-    les seuls défauts : un modèle choisi au volet n'arrivait jamais sur l'élément (contrat
-    générique `tests_import_contract`, 2026-09-26)."""
+    """Réglages d'un DÉPÔT : ceux que l'utilisateur a MÉMORISÉS au volet (brique commune
+    `read_panel_settings`, 2026-09-29 — ex-table `UserSettings` propre à l'enhancer, jamais
+    écrite), puis ce que le VOLET POSTE, lu par le schéma (`schema_model_kwargs`). Ce qui a été
+    posté devient la mémoire du volet (`save_panel_settings`) : l'élément suivant et la page
+    rechargée partent des derniers réglages employés."""
     from wama.common.utils.param_schema import schema_model_kwargs
-    stored, _ = UserSettings.objects.get_or_create(user=user)
-    values = {'ai_model': stored.default_ai_model, 'denoise': stored.default_denoise,
-              'blend_factor': stored.default_blend_factor,
-              'output_format': 'original', 'output_quality': 'balanced'}
+    from wama.common.utils.user_settings import read_panel_settings, save_panel_settings
+    from wama.enhancer.params import MEDIA_PARAMS
+    stored = read_panel_settings(user, 'enhancer', MEDIA_PARAMS)
+    values = {'ai_model': stored.get('ai_model') or 'auto',
+              'denoise': bool(stored.get('denoise')),
+              'blend_factor': stored.get('blend_factor') or 0.0,
+              'output_format': stored.get('output_format') or 'original',
+              'output_quality': stored.get('output_quality') or 'balanced'}
     values.update({k: v for k, v in schema_model_kwargs('enhancer', post).items()
                    if k not in ('upscale_factor', 'quality_intent') and v not in (None, '')})
     values['upscale_factor'] = _factor_posted(post, 4)
     values['quality_intent'] = _intent_posted(post)
+    names = {p.name for p in MEDIA_PARAMS}
+    save_panel_settings(user, 'enhancer', MEDIA_PARAMS,
+                        {k: post.get(k) for k in names if k in post})
     return values
 
 
