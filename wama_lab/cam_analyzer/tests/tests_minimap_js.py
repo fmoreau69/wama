@@ -11,7 +11,7 @@ import json
 
 from django.test import SimpleTestCase
 
-from wama_lab.cam_analyzer.tests_overlay_js import SERVED_JS, extract_function
+from wama_lab.cam_analyzer.tests.tests_overlay_js import SERVED_JS, extract_function
 
 SCALE, OFFSET = 0.961, 0.72
 # 3 fixes/s le long d'une rue nord-sud, ~5 m/s

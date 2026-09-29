@@ -1347,7 +1347,7 @@ MECHANISMS = (
               'wama/common/services/playhead_follow.py',
               'docs/construction/mondes/WAMA_DATA_WORLD.md §5',
               annexes=('wama/common/tests/tests_playhead_follow.py',
-                       'wama_lab/cam_analyzer/tests_live_follow.py')),
+                       'wama_lab/cam_analyzer/tests/tests_live_follow.py')),
     Mechanism('media_picker', 'Sélecteur de médiathèque',
               "Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue "
               "à l'appelant sous forme de File + méta (`onSelect`), ou de l'asset SEUL, sans "

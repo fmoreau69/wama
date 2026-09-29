@@ -14,9 +14,8 @@ from django.test import SimpleTestCase
 #: Au-delà, un paquet `tests/`.
 MAX_ROOT_TEST_FILES = 10
 #: Apps qui dépassent la règle, à déplacer — budget qui ne peut que DESCENDRE (mesuré le 29/09).
-PENDING = {
-    'wama_lab/cam_analyzer': 20,        # model_manager et media_library rangés le 2026-09-29
-}
+#: Vide depuis le 2026-09-29 : model_manager, media_library puis cam_analyzer rangés le même soir.
+PENDING = {}
 ROOTS = ('wama', 'wama_lab', 'wama_data')
 
 
