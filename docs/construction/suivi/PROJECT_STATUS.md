@@ -18836,3 +18836,11 @@ WSL : 699 tests, seul rouge `tests_picker_list`, déjà rouge avant (médiathèq
 sans référence cassée du fait du déplacement (le `tests.py` NU de `model_manager`, cité par chemin
 dans ce fichier, a demandé une règle à part). Seul `cam_analyzer` (20) reste à ranger — Fabien
 attend, la garde `tests_test_layout` le tient en attente.
+
+**Vérification finale des tests rangés (2026-09-29, 23 h)** : aucun fichier de test resté ou
+revenu à la racine de `common`, `model_manager`, `media_library` ; aucun dossier de tests sans
+`__init__.py` ; la suite nocturne lance les trois apps par étiquette et Django y découvre 150, 19
+(dont `tests/tests.py`, 364 tests) et 14 modules. `cam_analyzer` : rangement pris par une autre
+instance, à la demande de Fabien. ⚠ La carte `WAMA_MECANISMES.md` est périmée SUR HEAD (lignes
+issues surtout de commits d'autres instances, et `mecanismes.py` va encore bouger avec le rangement
+de `cam_analyzer`) : régénération laissée à qui commitera le registre ensuite (`/commit-partiel §4`).
