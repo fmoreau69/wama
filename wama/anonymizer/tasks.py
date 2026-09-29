@@ -461,7 +461,8 @@ def process_single_media(self, media_id, force_individual=False):
                 from wama.model_manager.services.eta_estimator import record_run
                 _k, _s, _u = anonymizer_eta_key_size(media)
                 record_run(_k, size=_s, unit=_u,
-                           process_seconds=media.processing_seconds, load_seconds=None)
+                           process_seconds=media.processing_seconds, load_seconds=None,
+                           user=media.user)
             except Exception:
                 pass
             _console(user.id, f"Finished media {media.id} ✔")

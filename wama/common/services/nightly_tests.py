@@ -164,6 +164,16 @@ TEST_USERNAMES = (TEST_USERNAME, TEST_DEV_USERNAME, 'ui_smoke_v3', 'pw_smoke',
                   'wama_rights_developpeur')
 
 
+def is_test_account(user) -> bool:
+    """Un compte de TEST déclaré (`TEST_USERNAMES`) : ce qu'il exécute ne MESURE pas la machine.
+
+    Mesuré le 2026-09-29 : les images témoins des scénarios nocturnes (1×1 ou 8×8 px) avaient
+    appris à l'ETA 828 338 s par mégapixel pour l'anonymizer et 672 705 pour l'enhancer — une
+    photo réelle était annoncée à des jours, et la progression simulée s'y calait.
+    """
+    return getattr(user, 'username', None) in TEST_USERNAMES
+
+
 def sweep_test_witnesses() -> int:
     """Efface les FICHIERS témoins restés dans les dossiers média des comptes de TEST.
 

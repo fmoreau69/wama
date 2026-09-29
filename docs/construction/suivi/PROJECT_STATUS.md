@@ -18594,3 +18594,30 @@ d'adresses d'administration de l'environnement WSL que ces tests supposent absen
 🔚 **Proposé, en attente** : regrouper les 139 tests de `wama/common` dans `wama/common/tests/`
 (noms de fichiers gardés ; `registries_coverage.py:38` écrit un chemin en dur à suivre) — à faire
 à un moment sans autre instance sur ces fichiers.
+
+## §PALIER — 2026-09-29 (nuit), « ETA EMPOISONNÉE PAR LES TÉMOINS DE TEST » — anonymizer, enhancer
+
+**Signalé par Fabien** : depuis la planification, l'ETA de l'anonymizer semblait donner le temps
+jusqu'à la fin de la tâche au lieu du temps de traitement.
+
+**Mesuré** : l'ETA apprise (`ModelRuntimeStat`) valait **828 338 s/Mpx** pour `anonymizer:img:auto`
+et **672 705 s/Mpx** pour `enhancer:img:RealESR_Gx4:x4` — mises à jour le 26/09 entre 21:57 et
+22:00, pendant la campagne nocturne complète. Cause : les images TÉMOINS des scénarios (1×1 ou 8×8 px,
+`ui_smoke.py:421-468`) traitées pour de vrai sous le compte de test ; quelques secondes divisées par
+~0,00005 Mpx. Une photo de 2 Mpx était annoncée à ~19 jours, et la progression simulée de
+l'anonymizer (`tasks.py:393`), calée sur cette estimation, n'avançait plus. Ce n'était pas la
+planification — une coïncidence de date. S'y ajoutait, au même moment, une vraie ATTENTE : le média
+656 était 26ᵉ dans la file GPU derrière 25 transcriptions (début prévu 07:10), affiché « en cours ».
+
+**Corrigé** : `record_run(..., user=)` n'apprend rien d'un compte de test (`nightly_tests.
+is_test_account`), les 8 appelants passent le propriétaire ; `global_queue.typical_seconds` exclut
+aussi les comptes de test. Les deux lignes absurdes REMISES À ZÉRO en base (valeurs sauvegardées) :
+l'ETA du média 656 passe de ~1,6 M s à 9,6 s. Gardes : `model_manager/tests_eta_test_accounts`
+(la règle + CHAQUE appel porte `user=`, dispense déclarée pour le banc ; contre-épreuve : un `user=`
+retiré → rouge nommant le fichier), `tests_global_queue` (+1). Vérifié côté WSL : 203 tests verts.
+
+⚠ **Laissé à décision** : trois lignes probablement GONFLÉES par les mêmes témoins mais mêlées à de
+vrais échantillons — `converter:image:jpg` (19,7 s/Mo, n=45), `converter:audio:mp3` (4,3 s/Mo contre
+0,29 sur l'autre ligne), `synthesizer:synthesizer:coqui-xtts` (4,4 s/car. contre 0,57 ; clé au
+préfixe DOUBLÉ — défaut distinct). Et : deux transcriptions « en cours » à la fois au gouverneur sur
+un worker GPU `solo` (tenants 734725 et 747349), à regarder.

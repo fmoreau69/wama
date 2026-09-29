@@ -395,7 +395,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
                 from wama.model_manager.services.eta_estimator import record_run
                 cle, taille, unite = eta
                 record_run(cle, size=taille, unit=unite,
-                           process_seconds=time.time() - t0, load_seconds=None)
+                           process_seconds=time.time() - t0, load_seconds=None,
+                           user=getattr(item, 'user', None))
             except Exception:
                 pass
         # Signal d'exécution (RunOutcome, §16.7) : la LIGNE DE BASE de toute boucle

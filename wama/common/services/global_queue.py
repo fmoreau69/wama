@@ -115,8 +115,9 @@ def broker_messages(queue=GPU_QUEUE, client=None) -> list[dict]:
 def typical_seconds(model, _cache=None) -> tuple[float, str]:
     """Durée TYPIQUE d'un traitement de `model` : `(secondes, 'measured' | 'declared')`.
 
-    Médiane des `processing_seconds` > 0 des derniers éléments RÉUSSIS, tous utilisateurs
-    confondus — c'est une propriété de la machine et du modèle, pas de la personne.
+    Médiane des `processing_seconds` > 0 des derniers éléments RÉUSSIS, tous utilisateurs RÉELS
+    confondus — c'est une propriété de la machine et du modèle, pas de la personne ; les comptes de
+    test sont exclus (leurs témoins sont synthétiques).
     """
     if _cache is not None and model in _cache:
         return _cache[model]
@@ -125,8 +126,13 @@ def typical_seconds(model, _cache=None) -> tuple[float, str]:
         from ..models import JOB_SUCCESS
         names = {f.name for f in model._meta.get_fields()}
         if 'processing_seconds' in names and 'status' in names:
-            values = sorted(model.objects.filter(status=JOB_SUCCESS, processing_seconds__gt=0)
-                            .order_by('-pk').values_list('processing_seconds', flat=True)
+            qs = model.objects.filter(status=JOB_SUCCESS, processing_seconds__gt=0)
+            if 'user' in names:
+                # Les témoins des comptes de TEST (images de 8×8 px…) ne mesurent pas la machine —
+                # même règle que l'ETA apprise (`eta_estimator.record_run`, 2026-09-29).
+                from .nightly_tests import TEST_USERNAMES
+                qs = qs.exclude(user__username__in=TEST_USERNAMES)
+            values = sorted(qs.order_by('-pk').values_list('processing_seconds', flat=True)
                             [:DURATION_SAMPLE])
             if values:
                 result = (float(values[len(values) // 2]), 'measured')

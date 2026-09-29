@@ -648,6 +648,7 @@ def _transcribe_item(t, ctx):
                     size=_dur, unit='audio_sec',
                     process_seconds=time.time() - _t_proc0,
                     load_seconds=(_load_seconds if _load_seconds >= 2.0 else None),  # cold load uniquement
+                    user=t.user,
                 )
         except Exception:
             pass

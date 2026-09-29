@@ -301,7 +301,8 @@ def synthesize_voice(self, synthesis_id: int):
             if _txt:
                 record_run(make_key('synthesizer', synthesis.tts_model),
                            size=len(_txt), unit='char',
-                           process_seconds=_time.time() - _t0, load_seconds=None)
+                           process_seconds=_time.time() - _t0, load_seconds=None,
+                           user=synthesis.user)
         except Exception:
             pass
         _set_progress(synthesis, 100)
