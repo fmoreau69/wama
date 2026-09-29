@@ -137,6 +137,90 @@ def graph_to_body(graph: dict) -> dict:
     }
 
 
+#: Pas de la disposition automatique (px) : une colonne par profondeur, une rangée par nœud.
+AUTO_LAYOUT_DX, AUTO_LAYOUT_DY, AUTO_LAYOUT_X0, AUTO_LAYOUT_Y0 = 280, 120, 40, 40
+
+
+def _depths(node_ids, links):
+    """Profondeur de chaque nœud = plus long chemin depuis une racine (graphe acyclique ; un
+    cycle, refusé à l'exécution, est simplement borné ici pour ne jamais boucler)."""
+    preds = {nid: [] for nid in node_ids}
+    for l in links:
+        if l.get('from') in preds and l.get('to') in preds:
+            preds[l['to']].append(l['from'])
+    depth = {}
+
+    def walk(nid, seen):
+        if nid in depth:
+            return depth[nid]
+        if nid in seen:
+            return 0
+        seen = seen | {nid}
+        depth[nid] = 1 + max((walk(p, seen) for p in preds[nid]), default=-1)
+        return depth[nid]
+    for nid in node_ids:
+        walk(nid, frozenset())
+    return depth
+
+
+def _resolve_to_port(src_node, dst_node):
+    """Port d'arrivée d'un lien qui n'en précise pas : le premier port d'entrée de la cible dont
+    les types croisent la sortie de la source (nœuds fonction) — sinon None (le canvas prend
+    alors le premier port). Un registre qui déclare des DÉPENDANCES (pas des flux de données)
+    ne dit pas le port ; sans cela `yolo_detect → depth` arrivait sur le port « vidéo »."""
+    if node_kind(src_node) != 'function' or node_kind(dst_node) != 'function':
+        return None
+    from wama.common.catalog.function_catalog import function_node_ports
+    try:
+        out = function_node_ports(function_key(src_node))['output']
+        ins = function_node_ports(function_key(dst_node))['inputs']
+    except Exception:
+        return None
+    # Types produits DANS L'ORDRE déclaré (le plus spécifique d'abord : `detections` avant le
+    # générique `table`) — un port vidéo qui accepte `table` ne doit pas capter des détections.
+    produced = [] if out is False else list((out or {}).get('types') or [])
+    for t in produced:
+        for p in ins:
+            if t in (p.get('types') or []):
+                return p.get('id')
+    return None
+
+
+def body_to_graph(body: dict) -> dict:
+    """Inverse de `graph_to_body` : body de manifeste → graphe CANVAS du Studio
+    (`{nodes:[{id,app,x,y,params}], links:[{from,to,to_port}]}`) — ce qui permet d'OUVRIR au
+    studio un pipeline déclaré en code ou reçu en manifeste (ROUTE §10.6 2.2 : « tout ce qui
+    s'exécute dans une file doit pouvoir s'ouvrir au studio »). Un nœud fonction reprend
+    l'identifiant de palette `function:<clé>` ; la position vient du `layout`, sinon d'une
+    disposition automatique en colonnes par profondeur (un registre n'a pas de présentation)."""
+    raw_nodes = (body or {}).get('nodes', []) or []
+    raw_links = (body or {}).get('links', []) or []
+    layout = (body or {}).get('layout') or {}
+    by_id = {n.get('id'): n for n in raw_nodes}
+    depth = _depths(list(by_id), raw_links)
+    rows = {}
+    nodes = []
+    for n in raw_nodes:
+        nid = n.get('id')
+        kind = node_kind(n)
+        app = f'{FUNCTION_NODE_PREFIX}{function_key(n)}' if kind == 'function' else n.get('app')
+        pos = layout.get(str(nid)) or {}
+        if pos.get('x') is None or pos.get('y') is None:
+            d = depth.get(nid, 0)
+            r = rows.get(d, 0)
+            rows[d] = r + 1
+            pos = {'x': AUTO_LAYOUT_X0 + d * AUTO_LAYOUT_DX, 'y': AUTO_LAYOUT_Y0 + r * AUTO_LAYOUT_DY}
+        nodes.append({'id': nid, 'app': app, 'x': pos['x'], 'y': pos['y'],
+                      'params': n.get('params', {}) or {}})
+    links = []
+    for l in raw_links:
+        to_port = l.get('to_port')
+        if not to_port and l.get('from') in by_id and l.get('to') in by_id:
+            to_port = _resolve_to_port(by_id[l['from']], by_id[l['to']])
+        links.append({'from': l.get('from'), 'to': l.get('to'), 'to_port': to_port})
+    return {'nodes': nodes, 'links': links}
+
+
 #: Pipelines DÉCLARÉS EN CODE (registre d'un monde, ex. `cam_analyzer.pass_tracking.PASSES`) —
 #: clé → fabrique de manifeste complet. Le kind ne connaît pas ses producteurs : chaque monde
 #: s'y inscrit depuis son module déclarant (`function_specs` / `functions`, chargé par

@@ -571,14 +571,29 @@
     function refreshPipelineList() {
         var sel = document.getElementById('studioLoadSelect');
         if (!sel) return;
-        api('/studio/api/pipelines/').then(function (d) {
+        Promise.all([
+            api('/studio/api/pipelines/'),
+            api('/studio/api/declared-pipelines/')['catch'](function () { return { pipelines: [] }; }),
+        ]).then(function (res) {
             sel.innerHTML = '<option value="">Charger un pipeline…</option>';
-            d.pipelines.forEach(function (p) {
+            var mine = el('optgroup'); mine.label = 'Mes pipelines';
+            res[0].pipelines.forEach(function (p) {
                 var o = el('option');
                 o.value = p.id;
                 o.textContent = p.name + ' (' + p.nodes + ' nœuds · ' + p.updated_at + ')';
-                sel.appendChild(o);
+                mine.appendChild(o);
             });
+            if (mine.children.length) sel.appendChild(mine);
+            // Pipelines DÉCLARÉS par les apps (registre de code, ex. les passes du cam_analyzer) :
+            // s'ouvrent ici pour être VUS ; les sauvegarder en fait un pipeline personnel.
+            var declared = el('optgroup'); declared.label = 'Pipelines des apps';
+            (res[1].pipelines || []).forEach(function (p) {
+                var o = el('option');
+                o.value = 'declared:' + p.key;
+                o.textContent = p.name;
+                declared.appendChild(o);
+            });
+            if (declared.children.length) sel.appendChild(declared);
         })['catch'](function () {});
     }
 
@@ -597,14 +612,20 @@
     function loadSelectedPipeline() {
         var sel = document.getElementById('studioLoadSelect');
         if (!sel || !sel.value) return;
-        api('/studio/api/pipelines/' + sel.value + '/').then(function (d) {
+        var declared = sel.value.indexOf('declared:') === 0;
+        var url = declared
+            ? '/studio/api/declared-pipelines/' + encodeURIComponent(sel.value.slice('declared:'.length)) + '/'
+            : '/studio/api/pipelines/' + sel.value + '/';
+        api(url).then(function (d) {
             // Ouvrir un pipeline, c'est changer de DOCUMENT : on ne doit pas pouvoir
             // « annuler » jusqu'au graphe precedent, qui n'a plus rien a voir.
             if (history) { history.silence(function () { loadGraph(d.graph); }); history.reset(); }
             else loadGraph(d.graph);
             var nameEl = document.getElementById('studioPipelineName');
             if (nameEl) nameEl.value = d.name;
-            toast('Pipeline « ' + d.name + ' » chargé.', 'success');
+            toast(d.declared
+                ? 'Pipeline « ' + d.name + ' » ouvert (déclaré par l\'app) — le sauvegarder en fait une copie personnelle.'
+                : 'Pipeline « ' + d.name + ' » chargé.', 'success');
         })['catch'](function (e) { toast(e.message, 'error'); });
     }
 
