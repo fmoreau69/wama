@@ -56,6 +56,14 @@ FEATURES = [
             "choisit de l'appliquer, au tracking comme à l'affichage. OFF = trajectoire "
             "brute, l'offset restant mesuré et rapporté.",
             default=False, scope='compute'),
+    Feature('class_family_gate', 'Porte de famille de classe (tracking)',
+            "Le tracking 360° ne relie jamais un deux-roues (moto, vélo) à un quatre-roues "
+            "(voiture, camion, bus) ni à un piéton : ni au rattachement d'une nouvelle chaîne, "
+            "ni au recollement de tracklets. La famille comparée est la DOMINANTE du track "
+            "(votes pondérés, établie seulement au-delà d'un seuil) — une image mal classée "
+            "ne ferme rien. OFF = association sur la seule position (motos fondues dans une "
+            "voiture voisine et affichées « car »).",
+            default=True, scope='compute'),
     Feature('ghost_on_smoothed', 'Fantômes sur la trajectoire lissée',
             "Les fantômes (positions reconstituées dans un trou de détection) sont interpolés "
             "entre les deux points LISSÉS qui encadrent le trou — ceux-là mêmes que "

@@ -699,6 +699,10 @@ Fabien. `live_analysis_task`
    deux points LISSÉS qui encadrent le trou — ceux que l'affichage dessine — et non plus entre les
    positions brutes (saut au bord p90 2,19 → 0,46 m, p99 8,73 → 0,83 m, rejoué sur `4da52df3`) ;
    un fantôme tombé dans l'EMPRISE de la navette est retiré (155 sur 78 386).
+10. **Porte de famille de classe** (⚑ `class_family_gate`, ON, 2026-09-29) : un deux-roues n'est jamais
+   relié à un quatre-roues ni à un piéton — ni au rattachement d'une nouvelle chaîne, ni au recollement
+   (famille DOMINANTE du track, établie au-delà d'un seuil). Rejoué sur `4da52df3` : tracks mêlant deux
+   familles 72 → 27, motos/vélos affichés « car » 1 458 → 543.
 10. **Lissage Kalman + RTS** (`trajectory_smoother.smooth_track`, état `[x,y,vx,vy]`, vitesse constante,
     σa = 2,5, σm = 1,5) — **non-stationnés seulement, ≥ 5 obs, position seule (jamais le cap)** →
     `world_en` par détection.

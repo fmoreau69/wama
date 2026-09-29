@@ -184,6 +184,51 @@ _BORNES_HISTO = {'duree': 60.0, 'spread_first': 20.0, 'spread_robuste': 20.0,
                  'pas_median': 5.0, 'net_sur_chemin': 1.0}
 
 
+#: Familles de classe : YOLO fait alterner car↔truck (même gabarit, même FAMILLE) mais un
+#: deux-roues n'est jamais un quatre-roues — les relier est une association fausse (mesuré le
+#: 2026-09-29 : motos vues à droite fondues dans une voiture vue à l'avant, gid 743/739).
+CLASS_FAMILY = {'motorcycle': 'two_wheel', 'bicycle': 'two_wheel',
+                'car': 'four_wheel', 'truck': 'four_wheel', 'bus': 'four_wheel',
+                'person': 'person'}
+
+
+def dominant_family(votes, min_weight=2.0, min_share=0.7):
+    """Famille DOMINANTE d'un track d'après ses votes de classe pondérés, ou None tant qu'elle
+    n'est pas établie (poids total < `min_weight` ou part < `min_share`) — une image isolée mal
+    classée ne suffit jamais à fermer une association."""
+    by_family = defaultdict(float)
+    for cls, w in (votes or {}).items():
+        fam = CLASS_FAMILY.get(cls)
+        if fam:
+            by_family[fam] += w
+    total = sum(by_family.values())
+    if total < min_weight:
+        return None
+    fam, w = max(by_family.items(), key=lambda kv: kv[1])
+    return fam if w / total >= min_share else None
+
+
+def families_conflict(fam_a, fam_b):
+    """Deux familles établies et différentes : l'association est refusée."""
+    return fam_a is not None and fam_b is not None and fam_a != fam_b
+
+
+def _mixed_family_gids(cls_votes, min_weight=3.0, minority_share=0.2):
+    """Métrique A/B de ⚑ class_family_gate : nombre de tracks dont une AUTRE famille pèse plus
+    de `minority_share` des votes (deux-roues et quatre-roues fondus dans un même gid)."""
+    n = 0
+    for votes in cls_votes.values():
+        by_family = defaultdict(float)
+        for cls, w in votes.items():
+            if CLASS_FAMILY.get(cls):
+                by_family[CLASS_FAMILY[cls]] += w
+        total = sum(by_family.values())
+        if total >= min_weight and len(by_family) > 1 and \
+                sorted(by_family.values())[-2] / total > minority_share:
+            n += 1
+    return n
+
+
 def reanchor_ghosts(ghost_links, smoothed, shuttle_at, *, use_smoothed=True, ego_length_m=4.75,
                   ego_width_m=2.11):
     """Repose les fantômes sur la trajectoire LISSÉE et retire ceux tombés dans l'emprise navette.
@@ -246,6 +291,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     _geo = camera_geometry(session)  # yaw/FOV/montage réels par caméra (rig + session)
     from .features import effective as _features_effective
     _feat = _features_effective(session)
+    _family_gate = _feat.get('class_family_gate', True)
     # ── Artefacts collés à l'image (reflets de vitrage) — chantier 1, 2026-07-19 ──
     # Détectés par cinématique pure AVANT l'association : bbox quasi immobile pendant
     # que la navette avance = pas un objet du monde. Marqués (jamais supprimés) et
@@ -391,9 +437,14 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 # longe la navette est vu par la caméra latérale mais 100 % coupé au
                 # bord ; il peut REJOINDRE un track existant, pas en fonder un.
                 best_ratio = 0.7 if relaxed else 1.0
+                _dfam = CLASS_FAMILY.get(d.get('class_name')) if _family_gate else None
                 for tr in tracks:
                     dt = t - tr['last_t']
                     if dt < 0 or dt > max_gap_s:
+                        continue
+                    # ⚑ class_family_gate : une nouvelle chaîne d'un deux-roues ne rejoint pas un
+                    # track établi de quatre-roues (et inversement)
+                    if _dfam and families_conflict(_dfam, tr.get('fam')):
                         continue
                     pe = tr['e'] + tr['ve'] * dt
                     pn = tr['n'] + tr['vn'] * dt
@@ -438,6 +489,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             # d'une frame à l'autre sur le même véhicule → la classe STABLE d'un track
             # est la majorité pondérée sur toute sa durée (écrite en 2e passe).
             cls_votes[best['id']][d.get('class_name', 'car')] += float(d.get('confidence') or 0.5)
+            if _family_gate:
+                # famille dominante tenue À JOUR sur le track (lue en O(1) par l'association)
+                best['fam'] = dominant_family(cls_votes[best['id']])
             dirty.add(f)
 
     # ── RECOLLEMENT DE TRACKLETS (stitching) ─────────────────────────────────────
@@ -487,6 +541,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         hs = min(hist, key=lambda h: h[1])
         _starts.append((gid, hs[1], hs[2], hs[3]))
     _starts.sort(key=lambda s: s[1])
+    _fam_of = ({g: dominant_family(v, min_share=0.6) for g, v in cls_votes.items()}
+               if _family_gate else {})
+    _stitch_refused = 0
     for gid, t0, e0, n0 in _starts:
         best_g, best_ratio = None, 1.0
         for og, fit in _endfit.items():
@@ -504,6 +561,11 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             pn = nw + vn * dtp
             ratio = math.hypot(e0 - pe, n0 - pn) / (gate_m + 1.5 * gap)
             if ratio < best_ratio:
+                # ⚑ class_family_gate — compté seulement quand le recollement aurait eu LIEU
+                # (dans le gate) : c'est la métrique A/B, pas le nombre de paires examinées
+                if _family_gate and families_conflict(_fam_of.get(gid), _fam_of.get(og)):
+                    _stitch_refused += 1
+                    continue
                 best_g, best_ratio = og, ratio
         if best_g is not None:
             alias[_root(gid)] = _root(best_g)
@@ -866,6 +928,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'stable_class_fragiles': _cls_fragiles,
             'stable_class_margin_median': (sorted(stable_marge.values())[len(stable_marge) // 2]
                                            if stable_marge else None),
+            'mixed_family_gids': _mixed_family_gids(cls_votes),
+            'stitch_refused_by_family': _stitch_refused,
             'ghosts': len(ghost_links) - ghosts_in_footprint,
             'ghosts_in_footprint_removed': ghosts_in_footprint,
             'ghost_boundary_jump_m': _quantiles(ghost_jumps, (0.5, 0.9, 0.99))}
