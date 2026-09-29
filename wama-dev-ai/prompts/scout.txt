@@ -19,9 +19,14 @@ RÈGLES STRICTES :
    Forme : {"components": [{"role": ..., "pattern": "<nom de fichier exact>",
    "format": ...}], "runtime": {"engine": ...}}. Choisis UN SEUL fichier par rôle (la
    meilleure précision qui reste raisonnable en VRAM ; q8 > q4 si les deux existent).
-   N'invente JAMAIS de runtime : ne remplis "engine" que si la carte le nomme
-   explicitement (audio-cpp, comfyui, diffusers…). Un dépôt mono-fichier ou aux poids
-   unitaires (un seul .safetensors, un .pt) : PAS de composition du tout.
+   "engine" (même règle que le rôle `model`) : si l'un des moteurs DÉJÀ SERVIS convient
+   RÉELLEMENT — la carte dit que le modèle s'exécute par lui —, tu le reprends TEL QUEL.
+   Sinon tu proposes un nom court en kebab-case tiré des sources (paquet officiel, dépôt
+   d'inférence) : le modèle restera GRISÉ avec sa raison jusqu'à ce qu'un backend porte ce
+   nom, c'est voulu. Un nom de fichier (`diffusion_pytorch_model.safetensors`) ne prouve
+   PAS qu'un modèle s'exécute par `diffusers`. Si les sources ne disent RIEN du runtime,
+   omets "runtime". Un dépôt mono-fichier ou aux poids unitaires (un seul .safetensors,
+   un .pt) : PAS de composition du tout.
 8. ⚠ Un dépôt de quantisations n'est PAS toujours autoportant : s'il ne contient QUE des
    fichiers de poids (pas de config/tokenizer), note-le dans "concerns" — il vise un
    runtime précis, et le choisir se fait AUSSI par son runtime cible.

@@ -56,8 +56,8 @@ django.setup()
 
 from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, extract_json, fetch as _fetch, manifest_examples,
-    resolve_model, write_output)
+    add_llm_arguments, call_llm, enforce_engine_facts, extract_json, fetch as _fetch,
+    manifest_examples, model_vocabularies, resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'model.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'models'
@@ -125,27 +125,7 @@ def sources_hf(hf_id):
     return f'https://huggingface.co/{hf_id}', '\n\n'.join(parts)
 
 
-# ── Vocabulaires SERVIS par le code (l'agent choisit dedans, il n'invente pas) ───
-def vocabulaires() -> str:
-    from wama.common.backends.manager import known_engines
-    from wama.common.utils.app_modes import INPUT_TYPES
-    from wama.common.utils.model_capabilities import CANONICAL_CAPABILITIES
-    from wama.model_manager.models import ModelSource, ModelTask, ModelType
-
-    moteurs = sorted(known_engines())
-    return (
-        f"capabilities.task — valeurs autorisées : {', '.join(sorted(ModelTask.values))}\n"
-        # Servi depuis le 2026-09-29 : sans lui, gpt-oss-120b a déclaré `seed, steps, cfg`
-        # (des réglages) comme entrées d'un modèle texte→image.
-        f"capabilities.inputs_required / inputs_optional — ids d'ENTRÉES (données fournies, "
-        f"jamais des réglages) : {', '.join(sorted(INPUT_TYPES))}\n"
-        f"identity.model_type — valeurs autorisées : {', '.join(sorted(ModelType.values))}\n"
-        f"identity.source — valeurs autorisées : {', '.join(sorted(ModelSource.values))}\n"
-        f"clés canoniques de `capabilities` : {', '.join(sorted(CANONICAL_CAPABILITIES))}\n"
-        f"composition.runtime.engine — moteurs DÉJÀ SERVIS par un backend : "
-        f"{', '.join(moteurs) or '(aucun)'}\n"
-    )
-
+# Vocabulaires SERVIS par le code : `role_utils.model_vocabularies` (partagé avec le scout).
 
 def exemples() -> str:
     """Deux manifestes du corpus : un COMPOSÉ (montre `composition`) et un simple.
@@ -225,11 +205,18 @@ def main():
                   f'keep_alive={keep_alive!r}')
 
     user_msg = (f'EXEMPLES de manifestes `model` valides :\n{exemples()}\n\n'
-                f'VOCABULAIRES AUTORISÉS (choisir dedans, ne rien inventer) :\n{vocabulaires()}\n\n'
+                f'VOCABULAIRES AUTORISÉS (choisir dedans, ne rien inventer) :\n{model_vocabularies()}\n\n'
                 f'SOURCES du modèle à traduire :\n{matiere}\n\n'
                 f'Produis le manifeste `model` de ce modèle (JSON seul).')
     reponse = call_llm(args.provider, model, PROMPT, user_msg, keep_alive=keep_alive)
     manifest = extract_json(reponse)
+    # Fait mécanique sur le moteur (partagé avec le scout) : `diffusers` doit être PROUVÉ.
+    concerns = []
+    hf_id = args.hf or _lire(manifest, ('body', 'identity', 'hf_id'))
+    if hf_id:
+        enforce_engine_facts(manifest, hf_id, concerns)
+        for c in concerns:
+            print(f'[model] {c}')
 
     from wama.common.manifests.ingest import validate
     erreurs = list(validate(manifest) or [])
@@ -253,6 +240,7 @@ def main():
         'provenance': provenance,
         'validation_errors': erreurs,
         'divergences_vs_mecanique': divergences,
+        'concerns': concerns,
         'manifest': manifest,
     })
 

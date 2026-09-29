@@ -121,7 +121,15 @@
   AU FICHIER LICENSE des repos — demande Fabien : consignes avec avatar « scientist » + mode avatar
   parlant de l'AI-Assistant ; PAS l'apprentissage de langues). **Rapport COMPLET (12+ candidats,
   URLs, VRAM, pièges) : [`docs/construction/archive/PROSPECTION_AVATARS_2026-08-17.md`](../archive/PROSPECTION_AVATARS_2026-08-17.md).**
-  Deux cas, deux podiums :
+  ⚠ **MISE À JOUR 2026-09-30 (demande Fabien, veille approfondie) : [`PROSPECTION_AVATARS_2026-09-30.md`](../archive/PROSPECTION_AVATARS_2026-09-30.md)
+  REMPLACE le classement ci-dessous.** Qualité : **LongCat-Video-Avatar 1.5** (poids MIT, encodeur
+  Whisper-large-v3) et **InfiniteTalk** (Apache-2.0, successeur de MultiTalk) — deux OMISSIONS du
+  17/08, pas des nouveautés ; EchoMimicV3/StableAvatar reculent en repli. Léger : **TalkingHead
+  rendu côté serveur** (Chromium headless, WebGL sur la 4090 via D3D12 : 60 i/s de rendu MESURÉS),
+  MuseTalk v1.5 gardé, **SoulX-FlashHead 1.3B** (Apache-2.0) candidat photo→tête. Exclusions UE
+  ajoutées : **MiniMax H3** (sorties comprises), **SkyReels V1** (base Hunyuan). Aucun modèle n'a de
+  mesure publiée en FRANÇAIS : à mesurer chez nous avant tout choix définitif.
+  Deux cas, deux podiums (état du 17/08) :
   - **(a) consignes OFFLINE** : ① **EchoMimicV3(-Flash)** (Ant, Apache-2.0, 01/2026, conçu 24 Go,
     12 Go quantifié, tête+corps, prompt-guidé — successeur naturel de MuseTalk) ; ② **StableAvatar**
     (MIT, Wan 1.3B, ~18 Go, vidéos LONGUES sans post-processing) ; ③ **MultiTalk** (Apache-2.0,
@@ -2914,7 +2922,8 @@ Le retour 3D→2D se décompose en DEUX étapes que rien n'oblige à traiter par
 modèle 2D→3D → GLB. Partie GPU : **avec Fabien uniquement** (règle crashs hôte).
 
 **AVATARS — deux usages déjà prospectés (ne pas re-prospecter)** : la veille complète est
-`docs/construction/archive/PROSPECTION_AVATARS_2026-08-17.md` (12+ candidats, licences vérifiées au fichier ;
+`docs/construction/archive/PROSPECTION_AVATARS_2026-08-17.md`, **mise à jour le 2026-09-30 par
+`docs/construction/archive/PROSPECTION_AVATARS_2026-09-30.md`** (cf. §Études/veille) (12+ candidats, licences vérifiées au fichier ;
 ⚠ Hunyuan EXCLUT l'UE). (a) **consignes offline** avec avatar « scientist » → EchoMimicV3-Flash
 / StableAvatar ; (b) **mode avatar temps réel de l'AI-Assistant** → 1ʳᵉ voie **TalkingHead**
 (MIT, rendu NAVIGATEUR three.js, zéro VRAM serveur, visèmes FR). **Le lien avec le 3D est
