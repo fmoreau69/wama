@@ -1,0 +1,82 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "task": "text-to-image"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "onnx",
+          "pattern": "text_encoder/*.onnx",
+          "role": "text_encoder"
+        },
+        {
+          "format": "onnx",
+          "pattern": "dit/*.onnx",
+          "role": "denoiser"
+        },
+        {
+          "format": "onnx",
+          "pattern": "vae_decoder/*.onnx",
+          "role": "vae_decoder"
+        }
+      ],
+      "runtime": {
+        "engine": "onnxruntime"
+      }
+    },
+    "extra_info": {
+      "category": "diffusion",
+      "family": "Supra2-IMG-ONNX",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "onnx",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "Bartholomheow",
+      "description_short": "Snapshot HF Supra2-IMG-ONNX — installé, en attente d'intégration",
+      "hf_id": "Bartholomheow/Supra2-IMG-ONNX",
+      "license": "apache-2.0",
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:Bartholomheow/Supra2-IMG-ONNX",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.9843434207141399,
+      "ram_gb": 0.0,
+      "vram_gb": 1.3
+    }
+  },
+  "description": "Snapshot HuggingFace installé (diffusion/Supra2-IMG-ONNX) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:Bartholomheow/Supra2-IMG-ONNX",
+  "manifest_kind": "model",
+  "name": "Supra2-IMG-ONNX",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:Bartholomheow/Supra2-IMG-ONNX",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -77,6 +77,18 @@ def validate_model_body(body: dict) -> list[str]:
     caps = body.get('capabilities')
     if caps is not None and not isinstance(caps, dict):
         errs.append("capabilities doit être un dict (JSON de capacités)")
+    elif isinstance(caps, dict):
+        # Entrées : ids d'INPUT_TYPES, vocabulaire FERMÉ (2026-09-29). Le 1er manifeste écrit par
+        # un rôle LLM pour un modèle texte→image déclarait `inputs_optional: [seed, steps, cfg]` —
+        # des RÉGLAGES, pas des entrées — et passait pour « VALIDE ». Mesuré avant d'ajouter la
+        # règle : 0 valeur hors vocabulaire sur tout le catalogue.
+        from wama.common.utils.app_modes import INPUT_TYPES
+        for key in ('inputs_required', 'inputs_optional'):
+            off = [v for v in (caps.get(key) or []) if v not in INPUT_TYPES]
+            if off:
+                errs.append(f"capabilities.{key} {off} hors INPUT_TYPES "
+                            f"({', '.join(sorted(INPUT_TYPES))}) — une entrée est une DONNÉE "
+                            "fournie au modèle, pas un réglage (seed, steps…)")
 
     prompts = body.get('prompts')
     if prompts is not None and not isinstance(prompts, dict):

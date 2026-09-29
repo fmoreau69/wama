@@ -128,12 +128,17 @@ def sources_hf(hf_id):
 # ── Vocabulaires SERVIS par le code (l'agent choisit dedans, il n'invente pas) ───
 def vocabulaires() -> str:
     from wama.common.backends.manager import known_engines
+    from wama.common.utils.app_modes import INPUT_TYPES
     from wama.common.utils.model_capabilities import CANONICAL_CAPABILITIES
     from wama.model_manager.models import ModelSource, ModelTask, ModelType
 
     moteurs = sorted(known_engines())
     return (
         f"capabilities.task — valeurs autorisées : {', '.join(sorted(ModelTask.values))}\n"
+        # Servi depuis le 2026-09-29 : sans lui, gpt-oss-120b a déclaré `seed, steps, cfg`
+        # (des réglages) comme entrées d'un modèle texte→image.
+        f"capabilities.inputs_required / inputs_optional — ids d'ENTRÉES (données fournies, "
+        f"jamais des réglages) : {', '.join(sorted(INPUT_TYPES))}\n"
         f"identity.model_type — valeurs autorisées : {', '.join(sorted(ModelType.values))}\n"
         f"identity.source — valeurs autorisées : {', '.join(sorted(ModelSource.values))}\n"
         f"clés canoniques de `capabilities` : {', '.join(sorted(CANONICAL_CAPABILITIES))}\n"
