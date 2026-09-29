@@ -168,6 +168,30 @@ détectée ; la card ne gardait que la langue du **premier** passage (`workers._
   moteurs par passages : la langue du passage.
 - **La card garde la langue la plus PARLÉE** (`dominant_language`, en durée), plus celle du
   premier passage ; la console affiche la répartition (« Langues entendues : fr 82 %, en 18 % »).
+- **MESURÉ le 2026-09-29 sur FLEURS-CS** (15 enregistrements de 5 min, 2 à 8 langues, bascules
+  toutes les 8-15 s ; 180 cards, `WAMA_QUALITE §9bis`) — erreur par mot / accord de langue, moyennes :
+
+  | moteur | « Une seule » | « Auto » | « Plusieurs » |
+  |---|---|---|---|
+  | Qwen3-ASR 1.7B | 47,6 % / 51,9 % | 42,1 % / 60,4 % | **39,8 % / 65,4 %** |
+  | Whisper | 55,4 % / 35,9 % | 45,1 % / 45,5 % | 42,8 % / 47,6 % |
+  | Canary 1B v2 | 54,1 % / 35,2 % | 46,3 % / 43,4 % | 42,6 % / 46,1 % (14 ; 1 échec) |
+
+  - **« Plusieurs » est le meilleur réglage partout, « Une seule » le pire** (+8 à +13 points,
+    accord effondré) : imposer une langue à un audio multilingue coûte cher.
+  - **L'accord plafonne à ~65 %** : c'est la LIMITE de la fenêtre de 30 s — une fenêtre mêle 2-3
+    phrases de langues différentes et reçoit une seule langue.
+  - **Qwen3-ASR transcrit 100 % du temps de parole, Whisper 65 %, Canary 55 %** : les deux
+    derniers LAISSENT TOMBER des passages entiers sur ces bascules.
+  - ⚠ **La sonde de « Auto » manque la moitié des cas** : 40 cards « Auto » sur 90 n'ont étiqueté
+    qu'UNE langue, alors que tous ces audios sont multilingues. Elle écoute par fenêtres de 30 s,
+    que la bascule rapide mélange : le petit modèle y rend la langue majoritaire, ou une
+    probabilité sous 0,7 qui ne vote pas. ⏳ Piste : des fenêtres plus courtes (~10 s, la durée
+    d'une phrase), plus nombreuses.
+  - ⚠ **Canary « Plusieurs » peut échouer** (#904) : un passage détecté « la » (latin, p = 0,40),
+    langue que Canary ne transcrit pas → toute la card en échec. ⏳ Piste : un passage dont la
+    détection est incertaine ou hors langues du moteur prend la langue du passage précédent (ou
+    celle de la sonde) au lieu de faire échouer la card.
 - ⏳ **Ce qui ne lit encore qu'UNE langue** : résumé, cohérence, aligneur acoustique (choisi par
   langue) et mesure `text_v2` (nombres en chiffres dans la langue de la card). Les faire lire la
   langue PAR SEGMENT est l'étape suivante ; et Canary serait plus sûr découpé AUX CHANGEMENTS de
