@@ -120,6 +120,11 @@ les silences** (moins de texte inventé dans les longs blancs, plus rapide) — 
 l'audio pour 74-76 % d'actif à l'énergie ; champ lointain, **17-58 %** pour 66-79 % d'actif, et
 Whisper y rendait **113 mots au lieu de 411** sur 3 minutes (≈ 372 dans la référence). Un
 nivellement du signal n'y a rien changé : c'est le filtre qu'il faut lever, pas le niveau.
+*(Ce nivellement était un prototype jamais commité. RÉINTÉGRÉ le 2026-09-29 — décision de Fabien —
+en réglage optionnel `level_speech`, coupé par défaut, brique `common/utils/speech_leveling.py`
+appliquée après le débruitage ; sa mesure contre une référence se fait dans les lots SUMM-RE et
+FLEURS-CS, `WAMA_QUALITE §9bis`. Le constat du 25/09 reposait sur des nombres de mots, pas sur
+une erreur mesurée.)*
 
 - **Réglage de card et de lot** `vad_mode` (schéma `params.py`, pas dans le volet global : un
   dépôt prend « auto »). Seul Whisper le lit ; les autres moteurs ne reçoivent pas l'argument.
