@@ -286,7 +286,7 @@ def upload(request):
 
         # Récupérer les options avec gestion d'erreur
         try:
-            tts_model = tts_catalog_key(request.POST.get('tts_model', DEFAULT_TTS_MODEL))
+            tts_model = tts_catalog_key(request.POST.get('tts_model') or DEFAULT_TTS_MODEL)
             language = request.POST.get('language', 'fr')
             voice_preset = request.POST.get('voice_preset', 'default')
             speed = float(request.POST.get('speed', 1.0))
@@ -447,7 +447,7 @@ def upload_text(request):
 
         # Récupérer les options (utiliser les valeurs par défaut si non fournies)
         try:
-            tts_model = tts_catalog_key(request.POST.get('tts_model', DEFAULT_TTS_MODEL))
+            tts_model = tts_catalog_key(request.POST.get('tts_model') or DEFAULT_TTS_MODEL)
             language = request.POST.get('language', 'fr')
             voice_preset = request.POST.get('voice_preset', 'default')
             speed = float(request.POST.get('speed', 1.0))
@@ -1178,7 +1178,7 @@ def import_individual_from_path(request):
 
     synthesis = VoiceSynthesis.objects.create(
         user=user,
-        tts_model=tts_catalog_key(request.POST.get('tts_model', DEFAULT_TTS_MODEL)),
+        tts_model=tts_catalog_key(request.POST.get('tts_model') or DEFAULT_TTS_MODEL),
         language=request.POST.get('language', 'fr'),
         voice_preset=request.POST.get('voice_preset', 'default'),
         speed=float(request.POST.get('speed', 1.0)),
@@ -1297,7 +1297,7 @@ def batch_create(request):
         return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
 
     # Global synthesis settings from the right panel
-    tts_model = tts_catalog_key(request.POST.get('tts_model', DEFAULT_TTS_MODEL))
+    tts_model = tts_catalog_key(request.POST.get('tts_model') or DEFAULT_TTS_MODEL)
     quality_intent = read_quality_intent(request.POST.get('quality_intent'))
     language = request.POST.get('language', 'fr')
     default_voice = request.POST.get('voice_preset', 'default')

@@ -343,8 +343,6 @@ CACHES = {
 from wama.common.services.runtime_side import running_tests as _running_tests
 from wama.common.services.runtime_side import tasks_dispatched as _tasks_dispatched
 WAMA_RUNNING_TESTS = _running_tests()
-if WAMA_RUNNING_TESTS:
-    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
 # Tâches Celery : seul un processus WSL hors tests atteint le VRAI broker (règle de Fabien,
 # 2026-09-29 — `common/services/runtime_side.py`). Les tests (où qu'ils tournent) et tout processus
@@ -352,6 +350,12 @@ if WAMA_RUNNING_TESTS:
 # aux workers de production (salves de `refresh_registry` des 27-28/09), et un `manage.py` Windows
 # remplissait un Redis que personne ne lit. Garde : `common/tests/tests_runtime_side.py`.
 WAMA_TASKS_DISPATCHED = _tasks_dispatched()
+
+# Le CACHE suit la même règle (2026-09-29) : un `manage.py` Windows hors tests écrivait son cache
+# dans le Redis WINDOWS (db1, clés `user_N_*`) — un autre serveur que celui de WSL, que WAMA ne lit
+# pas. Hors du côté autorisé, cache en mémoire du process, comme les tests.
+if WAMA_RUNNING_TESTS or not WAMA_TASKS_DISPATCHED:
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
 # Configuration LDAP
 if ENABLE_LDAP:

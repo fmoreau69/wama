@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // gardé : un champ absent donne son défaut, jamais une exception dans un `async`.
     function appendPanelSettings(fd) {
         const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
-        fd.append('tts_model', v('tts_model', 'coqui-xtts'));
+        fd.append('tts_model', v('tts_model', ''));   // vide → défaut du serveur (DEFAULT_TTS_MODEL)
         fd.append('quality_intent', v('quality_intent', '50'));
         fd.append('language', v('language', 'fr'));
         fd.append('voice_preset', v('voice_preset', 'default'));
@@ -576,7 +576,7 @@ document.addEventListener('DOMContentLoaded', function() {
         csrfToken: csrfToken,
         formDataBuilder: function (fd) {
             const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
-            fd.append('tts_model', v('tts_model', 'coqui-xtts'));
+            fd.append('tts_model', v('tts_model', ''));   // vide → défaut du serveur (DEFAULT_TTS_MODEL)
             fd.append('quality_intent', v('quality_intent', '50'));
             fd.append('language', v('language', 'fr'));
             fd.append('voice_preset', v('voice_preset', 'default'));
@@ -635,7 +635,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const fd = new FormData();
         fd.append('server_path', result.server_path || '');
         const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
-        fd.append('tts_model', v('tts_model', 'coqui-xtts'));
+        fd.append('tts_model', v('tts_model', ''));   // vide → défaut du serveur (DEFAULT_TTS_MODEL)
         fd.append('quality_intent', v('quality_intent', '50'));
         fd.append('language', v('language', 'fr'));
         fd.append('voice_preset', v('voice_preset', 'default'));
