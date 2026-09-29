@@ -157,6 +157,20 @@ chaque étape (diarisation, résumé, cohérence) se relance seule au lieu de to
     d'obtenir — la limite du moteur (5 outils par tour) n'est pas en cause ; il réécorche des noms
     (`aihpi` → `ahip`, `aihipi`), refait des recherches déjà faites, et finit parfois sur un appel
     d'outil écrit en texte. Albert plafonne à **10 requêtes par minute** (429 au-delà).
+  - ⚠⚠ **Ce qui précède n'est que la MOITIÉ de la chaîne** (relevé par Fabien le 30/09) :
+    l'intégration d'un modèle se poursuit par le rôle `model` (manifeste) → **Valider** → le rôle
+    `backend` (marche B2, `wama-dev-ai/prompts/backend.txt`) → **Valider** (`PROSPECTION_PIPELINE
+    §Session du 2026-09-29`). Jouée PAR L'ASSISTANT pour la 1ʳᵉ fois le 30/09, elle a buté sur
+    deux défauts : ① `assistant_engine._parse_tool_call` ne reconnaissait pas un appel à
+    arguments IMBRIQUÉS — `dev_run_role(args={…})` revenait comme du texte, la chaîne n'avait donc
+    jamais pu être jouée par l'assistant (corrigé, `c244ce85`) ; ② le serveur MCP « wama-dev »
+    datait du 26/09 et ignorait le rôle `backend` : `start_wama_prod.sh:465` ne le lance que s'il
+    n'en tourne aucun, donc **une relance de WAMA ne le recharge jamais** (relancé à la main ; le
+    script reste à corriger). Résultat : rôle `model` sur LinTO FR → manifeste VALIDE, en attente
+    au model manager, mais **moteur proposé `transformers`** alors que la classe du dépôt
+    (`ParakeetForRNNT`) n'existe qu'à partir de transformers 5.17 ; le dépôt porte aussi un
+    `.nemo` que NeMo 3.0 charge (famille de Parakeet) — le rôle n'a pas confronté la classe à la
+    version installée. « Valider » ne corrige rien (il comble les vides) : à rejeter tel quel.
 - **Tâche d'item et résidence du modèle** (2026-09-25) : la transcription passe par le squelette
   commun `run_item_task` (statuts, durée max 180 min, notifications, signal d'exécution) et le
   moteur ASR **reste chargé** après une card — la libération relève du gouverneur commun, pas de
