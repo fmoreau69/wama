@@ -18844,3 +18844,13 @@ revenu à la racine de `common`, `model_manager`, `media_library` ; aucun dossie
 instance, à la demande de Fabien. ⚠ La carte `WAMA_MECANISMES.md` est périmée SUR HEAD (lignes
 issues surtout de commits d'autres instances, et `mecanismes.py` va encore bouger avec le rangement
 de `cam_analyzer`) : régénération laissée à qui commitera le registre ensuite (`/commit-partiel §4`).
+
+**Restes soldés (2026-09-29, nuit)** — `83b2def3` : le CACHE suit la règle du broker (hors du côté
+autorisé, cache en mémoire du process : un `manage.py` Windows n'écrit plus dans le Redis Windows) ;
+le JS du synthesizer ne redéclare plus le moteur par défaut (il poste vide, la vue prend
+`DEFAULT_TTS_MODEL`). `cam_analyzer` rangé par une autre instance (`ddd50184`) : la liste d'attente de
+`tests_test_layout` est VIDE. **Restent, sur décision** : la répétition des programmations (proposition
+faite à Fabien : n'offrir « Répéter » qu'aux cibles qui le DÉCLARENT, Studio d'abord) ; la couche
+« installations » du calendrier (aucune trace DATÉE d'une installation aujourd'hui — progression en
+cache seulement) ; le Lab attend P3 (`ROUTE §10.6`, la session Lab n'est pas encore une card) ; le
+versionnement des migrations.
