@@ -142,6 +142,21 @@ chaque étape (diarisation, résumé, cohérence) se relance seule au lieu de to
        transformers 5 : **lourd**.
      - **`CohereLabs/cohere-transcribe-03-2026`** : accès restreint — le compte HF doit accepter
        les conditions avant même de lire son code.
+  - **Installés le 2026-09-29 PAR L'ASSISTANT** (Albert, domaine dev, fil
+    `eval-asr-installation-2026-09-29` ; `search_models` → proposition → `install_model`) :
+    **LinTO FR** (0,85 Go), **FrWhisper** (5,8 Go), **Kyutai STT fr/en** (2,5 Go), rangés sous
+    `AI-models/models/speech/<nom>/`. ⚠ Poids seulement : aucun moteur ne les charge encore.
+    Non installés : `pyannote/speaker-diarization-community-1` (proposé ; accès restreint → la
+    garde disque refuse faute de taille lisible, et le téléchargement exige d'avoir accepté ses
+    conditions sur HF) ; `Voxtral-Mini-3B-2507` (aucune tâche déclarée sur HF) et
+    `Nemotron-3-Diarization` (tâche `voice-activity-detection`) **écartés par la prospection**,
+    qui n'invente pas de catégorie d'installation pour une tâche hors `HF_TASKS` — règle voulue,
+    mais l'écart est MUET (`skipped: 2`, aucune raison rendue).
+    ⚠ **Constats sur la chaîne** : l'assistant sur Albert (gpt-oss-120b) ne traite qu'UN modèle
+    par tour (une recherche, une installation) puis « attend les résultats » qu'il vient pourtant
+    d'obtenir — la limite du moteur (5 outils par tour) n'est pas en cause ; il réécorche des noms
+    (`aihpi` → `ahip`, `aihipi`), refait des recherches déjà faites, et finit parfois sur un appel
+    d'outil écrit en texte. Albert plafonne à **10 requêtes par minute** (429 au-delà).
 - **Tâche d'item et résidence du modèle** (2026-09-25) : la transcription passe par le squelette
   commun `run_item_task` (statuts, durée max 180 min, notifications, signal d'exécution) et le
   moteur ASR **reste chargé** après une card — la libération relève du gouverneur commun, pas de
