@@ -347,10 +347,8 @@ class ItemEditRouteConventionTest(TestCase):
                       "canonique : la renommer d'abord (right_panel.js, update.js)",
     }
     #: Apps on the canonical name but another path — each with its reason.
-    PATH_EXCEPTIONS = {
-        'imager': "`settings/<int:generation_id>/` est la LECTURE des réglages (GET) : l'écriture "
-                  "garde son suffixe `save/` tant que les deux vues ne sont pas fusionnées",
-    }
+    #: (imager retiré le 2026-09-29 : lecture et écriture fusionnées sur `settings/<int:pk>/`.)
+    PATH_EXCEPTIONS = {}
 
     def _item_edit_routes(self):
         """{app: (name, route)} for every app declaring the item-edit gesture under one of its

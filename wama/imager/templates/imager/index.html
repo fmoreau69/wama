@@ -324,7 +324,7 @@ function _mpInjectImage(file, inputId, previewId) {
             delete: "{% url 'imager:delete' 0 %}",
             startAll: "{% url 'imager:start_all' %}",
             clearAll: "{% url 'imager:clear_all' %}",
-            getSettings: "{% url 'imager:get_settings' 0 %}",
+            getSettings: "{% url 'imager:update_settings' 0 %}",   {# même adresse : GET lit, POST enregistre #}
             updateSettings: "{% url 'imager:update_settings' 0 %}",
             autoPrompt: "{% url 'imager:auto_prompt' %}",
             batchChildren: "{% url 'imager:batch_children' 0 %}",
