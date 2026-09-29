@@ -287,12 +287,9 @@ def generate(request):
     # Wrap in batch-of-1
     _wrap_generation_in_batch(gen)
 
-    # Launch Celery task
-    from .tasks import compose_task
-    task = compose_task.apply_async(args=(gen.id,))
-    gen.task_id = task.id
-    gen.save(update_fields=['task_id'])
-
+    # AJOUTE à la file, ne lance RIEN (2026-09-29 — règle des deux temps, CARD_DESIGN §11.11
+    # Étape 3, point 3 : « on ajoute, on règle, puis on lance »). Cette vue expédiait
+    # `compose_task` à la création ; le ▶ de la card (`start`, `begin_processing`) lance.
     return JsonResponse({
         'id': gen.id,
         'status': gen.status,

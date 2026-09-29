@@ -514,6 +514,27 @@ def _fichier_temoin(extensions: str) -> Path:
     return Path(f.name)
 
 
+def _fill_required_ports(page) -> list:
+    """Pose un fichier TÉMOIN dans chaque AUTRE port requis de la card v4 (2026-09-29).
+
+    Une voie d'entrée peut dépendre d'un autre port : l'URL de l'avatarizer (la voix) exige
+    aussi l'avatar (port `work_image`), sinon l'app rend son motif sans rien poster — le geste
+    ne mesurait alors rien. Les ports visés sont ceux que la card DÉCLARE requis et qui ne sont
+    portés par aucune voie d'import (`.is-required [data-port-import-self]`) : le principal,
+    lui, reçoit le geste mesuré. Rend les fichiers témoins posés — à SUPPRIMER PAR L'APPELANT
+    à la fin du geste : le navigateur relit le fichier AU MOMENT DE L'ENVOI, le supprimer après
+    `set_input_files` fait échouer la requête en « Failed to fetch » (mesuré le 2026-09-29)."""
+    ports = page.evaluate("""() => [...document.querySelectorAll(
+            '.wama-port-pane.is-required [data-port-import-self] input[type=file]')]
+        .map(i => ({id: i.id, accept: i.getAttribute('accept') || ''}))""") or []
+    witnesses = []
+    for port in ports:
+        witness = _fichier_temoin(port['accept'])
+        witnesses.append(witness)
+        page.set_input_files(f"#{port['id']}", str(witness))
+    return witnesses
+
+
 def _motif_skip(exc) -> str:
     """Motif d'un skip TECHNIQUE — il nomme ce qu'on a VU, jamais ce qu'on suppose.
 
@@ -1293,6 +1314,7 @@ def check_app_url_import(app: str, url_path: str):
             f"/users/{uid}/temp/{temoin.name}")
 
     detail, familles, garde_dite, dits, reagi = '', [], [], [], False
+    port_witnesses = []      # témoins des autres ports requis, supprimés en fin de geste
     sessions_before = _session_keys()
     try:
         with _garde_de_montage(app, 'url_import') as _nettoyes:
@@ -1365,6 +1387,9 @@ def check_app_url_import(app: str, url_path: str):
                     sel_bouton = (f'#{etat["bouton_id"]}' if etat['bouton_id']
                                   else 'button[title$="URL"]')
                     _observer_le_bouton(page, sel_bouton)
+                    # Les AUTRES ports requis (avatarizer : l'avatar) reçoivent un témoin : sans
+                    # eux, la voie URL rend son motif sans rien poster (2026-09-29).
+                    port_witnesses.extend(_fill_required_ports(page))
                     page.fill(sel_champ, lien)
                     page.click(sel_bouton, timeout=10000)
                     reagi = _bouton_a_reagi(page, sel_bouton)
@@ -1443,6 +1468,8 @@ def check_app_url_import(app: str, url_path: str):
         raise SkipScenario(_motif_skip(e))
     finally:
         temoin.unlink(missing_ok=True)
+        for witness in port_witnesses:
+            witness.unlink(missing_ok=True)
         _drop_new_sessions(sessions_before)
 
     voie = familles[0] if familles else 'inconnue'
@@ -2592,6 +2619,8 @@ _LOTS_EN_FILE = """(() => Array.from(document.querySelectorAll('.wama-card.is-ba
 # `compose_task.apply_async`) et avatarizer enchaîne côté client (`avatarizer/js/index.js:253`,
 # `createJob()` puis `startJob()`). Le geste n°7 de la grille est donc un geste GPU — et une
 # session n'en lance jamais (crashs hôte).
+# ⚠ SOLDÉ le 2026-09-29 : composer et avatarizer AJOUTENT sans lancer (règle des deux temps) —
+# le bouton primaire n'est plus un geste GPU. Ce bloc garde l'historique ; la voie de lot reste.
 #
 # Le fichier de LOT est la seule voie de création dont le CONTRAT garantit qu'elle ne démarre
 # rien : la barre commune sépare « Ajouter » (`#batchCreateOnlyBtn`) de « Démarrer »
@@ -3138,6 +3167,7 @@ def check_app_batch_import(app: str, url_path: str):
     l'imager crée sans lancer. Une session ne déclenche jamais de traitement (crashs hôte) :
     le geste n°7 rejoint donc la famille 8-13, et c'est le fichier de lot qui atteint le même
     but par la seule voie dont le contrat garantit qu'elle ne démarre rien.
+    ⚠ SOLDÉ le 2026-09-29 : composer et avatarizer AJOUTENT désormais sans lancer.
 
     Trois constats, du plus structurel au plus concret — le premier qui manque explique les
     suivants :

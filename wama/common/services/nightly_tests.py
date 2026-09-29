@@ -529,6 +529,9 @@ try:
     # il s'est révélé être un geste GPU sur deux d'entre elles : composer expédie la tâche DANS
     # sa vue de création (`composer/views.py:235`), avatarizer enchaîne `createJob()` puis
     # `startJob()` (`avatarizer/js/index.js:253-254`). Une session ne lance jamais de traitement.
+    # ⚠ SOLDÉ le 2026-09-29 (règle des deux temps, CARD_DESIGN §11.11 Étape 3) : le bouton
+    # primaire de composer ET d'avatarizer AJOUTE sans lancer — le geste 7 n'est plus un geste
+    # GPU sur ces deux apps. Il reste à ÉCRIRE ; ce commentaire garde l'historique.
     # Le fichier de lot atteint le même but par la seule voie dont le CONTRAT sépare « Ajouter »
     # de « Démarrer » — et le scénario vérifie que ce contrat est tenu, car c'est lui qui
     # l'autorise à tourner de jour sur un GPU partagé.

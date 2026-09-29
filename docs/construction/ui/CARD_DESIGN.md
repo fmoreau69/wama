@@ -1461,6 +1461,15 @@ non. Garde `tests_catalogues.LivePortComesFromAnAppCapabilityTest`.
    jamais « Générer ». ⚠ **Mesuré le 2026-09-28, à corriger au portage** : trois créations
    LANCENT encore le traitement — `composer:generate` (`compose_task.apply_async`),
    `avatarizer:create` (`_generate_avatar.delay`), l'outil `convert_file` (`auto_start`).
+   ✅ **2026-09-29** : avatarizer et **composer** soldés — leur bouton dit « Ajouter à la file
+   d'attente », la vue ne lance plus, le ▶ de la card lance ; le polling au chargement ne suit
+   plus que RUNNING / AWAITING_RESOURCES (un PENDING n'a jamais été lancé). ⏳ **Reste
+   `convert_file`**, et ce n'est pas un oubli : c'est un outil de l'ASSISTANT et du Studio, pas
+   un bouton. Le Studio le déclare `auto_start` (il saute alors `start_converter`), et le relais
+   `relay_next_step` — qui rappelle au modèle « l'ajout n'a rien lancé, appelle start_* » — ne
+   reconnaît que les outils `add_to_*` (`_split_triad('convert_file')` rend `None`). Le cesser
+   de lancer sans étendre le relais referait le défaut du 23/09 (tâche annoncée lancée qui dort) :
+   à faire AVEC le relais, et éprouvé par l'assistant réel.
 4. **Une modalité n'est jamais un port** (précision de Fabien) : la galerie d'avatars est la
    modalité Médiathèque (filtrée sur les avatars) du port de TRAVAIL `work_image` de
    l'avatarizer — ce que sa déclaration dit depuis le 28/08 (`app_modes.py:266-267`).
@@ -1504,8 +1513,8 @@ l'adoption v4 de l'avatarizer — ✅ **2026-09-29**, en trois paliers :
     fichier joint ou DÉSIGNÉ (le sien, un partagé, un avatar système), posté sous `avatar_upload`.
     `WamaImport` route chaque fichier déposé vers le port dont l'`accept` l'admet : une image
     déposée sur la zone audio rejoint l'avatar et quitte l'audio. Le bouton dit « Ajouter à la
-    file d'attente » et **ne lance plus** (point 3 ci-dessus, soldé pour l'avatarizer ; restent
-    `composer:generate` et `convert_file`). Grille 89/94, mêmes trois rouges qu'avant
+    file d'attente » et **ne lance plus** (point 3 ci-dessus — soldé pour l'avatarizer, puis le
+    composer le même jour ; reste l'outil `convert_file`, raison au point 3). Grille 89/94, mêmes trois rouges qu'avant
     (`during_preview`, `backend_routes`, `task_skeleton`) ; les critères `new_item_card` et
     `media_library_slot` reconnaissent la v4. Gestes nocturnes de la card : verdicts identiques
     à ceux du matin. Le NOM d'un avatar reste reçu des lots, du Studio et de l'API de
