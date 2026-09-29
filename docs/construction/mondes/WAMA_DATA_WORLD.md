@@ -1917,7 +1917,7 @@ tourner la nuit** — il n'y a plus rien à alimenter.
 > ⚠ **Le correctif crée son propre mode de panne, et il est gardé** : `walk_packages` ne descend
 > pas dans un répertoire sans `__init__.py`. Une suite entière pourrait donc cesser d'être
 > découverte sans qu'aucun test n'échoue — seul un total baisserait, et personne ne connaît un
-> total par cœur. D'où `wama/common/tests_nightly.py`, dont le contrôle central compare la
+> total par cœur. D'où `wama/common/tests/tests_nightly.py`, dont le contrôle central compare la
 > découverte au **système de fichiers** (chemin délibérément différent de celui qu'il vérifie) et
 > **nomme les fichiers manquants** dans son message d'échec. Et le compte-rendu nocturne rapporte
 > désormais le **nombre de modules**, pas seulement le nombre de tests.
@@ -3855,7 +3855,7 @@ un corpus réel.
 
 > Décision de Fabien : *« il faut lever les blocages avant d'aller plus loin pour ne pas s'empêtrer
 > plus tard »*. Fait dans `wama/common/manifests/builtin/dataset.py` +
-> `wama/common/tests_manifest_axes.py` (**20 tests**, et **649 tests** `wama_data` + catalogues au
+> `wama/common/tests/tests_manifest_axes.py` (**20 tests**, et **649 tests** `wama_data` + catalogues au
 > vert — aucune régression).
 
 ⚠ **Le kind `dataset` n'avait AUCUN test** avant ce jour (mesuré : `validate_dataset_body` n'était

@@ -130,11 +130,14 @@ wama/<app>/
   un paquet `tests/` (avec `__init__.py`) — les tests ne doivent pas noyer le code qu'ils gardent.
   On y garde les MÊMES noms de fichiers (`tests/tests_calendar.py`) : les ~490 mentions de noms nus
   dans les docs et les skills restent justes, seuls les chemins et les modules pointés changent.
-- **Cas en attente** : `wama/common` compte 139 fichiers de test pour 28 fichiers de code (mesuré le
-  2026-09-29). Déplacement DIFFÉRÉ à un moment sans autre instance sur ces fichiers (collisions de
-  WIP), en un commit dédié, vérifié sur HEAD puis par la suite complète côté WSL. À suivre au passage :
-  ~88 chemins cités (`check_docs` les signale), 45 modules pointés, 11 fichiers aux imports relatifs
-  (`from .` → `from ..`), et `registries_coverage.py:38`, qui écrit un chemin de test EN DUR.
+- **`wama/common` : FAIT le 2026-09-29** (décision de Fabien, le jour même) — ses **144** fichiers de
+  test sont dans `wama/common/tests/` ; modules `wama.common.tests.tests_<sujet>`. Un seul commit, par
+  un index temporaire (le travail non commité d'une autre instance sur 3 de ces fichiers a suivi,
+  intact, à son nouvel emplacement). Réécrits au passage : 39 imports relatifs (`from .` →
+  `from ..`), 4 chemins calculés depuis `__file__` (un cran de plus), et les références par module
+  ou par chemin dans 37 fichiers — code, gabarits, docs ; les archives gardent l'ancien chemin, par
+  nature. ⚠ Pour un prochain déplacement du même genre : un `Path(__file__).parents[N]` ne casse pas
+  à l'import, il casse à la LECTURE du fichier visé — seul un passage de la suite le révèle.
 
 ---
 

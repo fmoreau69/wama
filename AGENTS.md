@@ -334,7 +334,7 @@ apply_patch(
   zéro), tous appliqués depuis la décision du 19/09 — **code 2653**, **noms de classes de test
   132**, **noms de méthodes de test 1296**, soit **4081**. Ils n'exigent **aucun** chantier de
   renommage : ils rendent l'**ajout** impossible. Tenus par
-  `wama/common/tests_identifier_language.py`, donc ils tournent dans la suite.
+  `wama/common/tests/tests_identifier_language.py`, donc ils tournent dans la suite.
 - **Où porter les passes, dans cet ordre** — `--by-root` le dit : la dette de code est
   CONCENTRÉE (141 radicaux, 605 noms distincts ; les 20 premiers radicaux = **56 %**). D'abord
   `cle`→`key` (176), `chemin`→`path` (153), `modele`→`model` (102), `cible`→`target` (88),
@@ -685,7 +685,7 @@ def load(self, ...):
 > en isolé et échouait dans la suite, `HF_HUB_CACHE` pointant sur `diffusion/wan`.*
 >
 > **Contrôles qui tiennent cette règle** (elle ne repose plus sur la mémoire de personne) :
-> `wama/common/tests_hf_cache_routing.py` (budget de mutations, **ne peut que descendre**) et
+> `wama/common/tests/tests_hf_cache_routing.py` (budget de mutations, **ne peut que descendre**) et
 > `manage.py check_model_layout` (aucun snapshot ÉTRANGER dans un dossier de famille).
 >
 > Le portage des sites restants suit le `ROADMAP §5b`.

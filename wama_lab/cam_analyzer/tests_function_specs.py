@@ -1,7 +1,7 @@
 """Les déclarations de capacité du cam_analyzer (`function_specs.py`) — ce que le système
 sait des traitements, et qui doit rester vrai quand le code bouge.
 
-Le contrôle générique vit dans `wama.common.tests_catalogues.FunctionCatalogConformiteTest` ;
+Le contrôle générique vit dans `wama.common.tests.tests_catalogues.FunctionCatalogConformiteTest` ;
 ici, ce qui est PROPRE à l'app : le rôle `reference` de la trace ego (marche C), et la
 correspondance passe ↔ fonction (palier D13 ③, export du registre `PASSES` en pipeline).
 """

@@ -6,7 +6,7 @@ un partage ne montrait donc rien — sans la moindre erreur (mesuré le 2026-09-
 panne que la doctrine décrit comme le pire des retours : ça n'échoue pas et ça ne marche pas.
 
 Les tests interrogent les ENDPOINTS depuis le compte d'un TIERS : c'est ce qui distingue « la
-colonne est écrite » de « la personne voit » (même geste que `common/tests_sharing.py`).
+colonne est écrite » de « la personne voit » (même geste que `common/tests/tests_sharing.py`).
 
 ⚠ Identifiants en ANGLAIS, noms de tests compris (décision de Fabien, 2026-09-20) ; commentaires
 et docstrings restent en français.

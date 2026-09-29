@@ -421,7 +421,7 @@ les doublons en gardant ≥1 copie ; `--move-misplaced` déplace, jamais supprim
 > test sur poids réels **6/6 `OK` avant ET après**. Résidu créé par l'ancien routage :
 > `REMOVAL_LEDGER R47`.
 >
-> **Garde livré** : `wama/common/tests_hf_cache_routing.py` — compte les mutations **par AST**
+> **Garde livré** : `wama/common/tests/tests_hf_cache_routing.py` — compte les mutations **par AST**
 > (un grep compterait les mentions en commentaire), budget **37**, **ne peut que descendre**,
 > et vérifie que le socle pose bien les 3 variables. ⚠ Il TRIE, il ne conclut pas : « pas de
 > `cache_dir=` dans la fonction » ≠ « non retirable » — chaque site se lit (triage : 12 lignes
@@ -573,7 +573,7 @@ fichier, pas dans les 11 apps.
   🔴 **INTROUVABLES le 2026-09-14** : aucun `tests*.py` versionné n'appelle `reserve_vram`, ne lit
   `wama:vram:*` ni n'enveloppe un backend pour observer le registre. Même constat pour les
   « 14 assertions » du routage ci-dessous. Première garde versionnée du registre :
-  `wama/common/tests_vram_ledger.py` (2026-09-14).
+  `wama/common/tests/tests_vram_ledger.py` (2026-09-14).
 
 **✅ Revérifié et réparé 2026-09-14 — la COMPTABILITÉ** (cartographie approfondie demandée par
 Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PALIER 2026-09-14
@@ -606,7 +606,7 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
   rien n'est réservé dans un process sans CUDA ni pour un backend qui se déclare sur CPU ; un
   `load()` refusé ne rend plus le backend résident. Un `unload()` qui lève GARDE sa ligne — voulu :
   rien ne prouve la VRAM rendue.
-- **Gardes** : `wama/common/tests_vram_ledger.py` (22 tests, sans GPU). Non-vacuité prouvée par
+- **Gardes** : `wama/common/tests/tests_vram_ledger.py` (22 tests, sans GPU). Non-vacuité prouvée par
   3 mutants réinjectant chaque défaut (double comptage 7 rouges, libération sans annexes 4,
   ancienne logique `_wrap_load` 4) — la contre-épreuve a d'ailleurs révélé deux tests qui
   bouclaient sur la constante du code testé, corrigés.
@@ -3508,7 +3508,7 @@ entier sur l'abonnement là où il y en a un.
 | (b) fournisseur `claude-abo`, visible admins/devs seulement | `home.html` + `assistant_engine` |
 | Prédicat d'autorisation à DOMICILE UNIQUE (3 appelants) | `claude_code.subscription_allowed` |
 | Garde au PASSAGE OBLIGÉ des 3 surfaces | `run_assistant_turn` (403) |
-| 15 tests (dont l'invariant écran↔garde sur 5 profils) | `common/tests_claude_subscription.py`, `gateway/tests.py` |
+| 15 tests (dont l'invariant écran↔garde sur 5 profils) | `common/tests/tests_claude_subscription.py`, `gateway/tests.py` |
 
 - ⚠⚠ **Deux avertissements distincts, longtemps confondus** (question de Fabien, tranchée le
   31/08) — ils ne parlent PAS de la même chose :
@@ -4157,7 +4157,7 @@ utilisateurs guident l'API). `run_nightly_tests --list` catalogue **14 familles 
 **① quater — ordre proposé (quick wins d'abord, à valider)**
 
 1. ~~**Lectures transversales**~~ — ✅ **FAIT le 2026-09-11**, en deux incréments. **59 → 64
-   outils**, **20 gardes** (`common/tests_tool_api_lectures.py`) :
+   outils**, **20 gardes** (`common/tests/tests_tool_api_lectures.py`) :
    `list_my_items` + `get_item_detail` (décision `WAMA_MEMORY §9ter`, jalon 12 — suivie telle
    quelle, ses 2 réserves traitées) · `list_registries` (les 14 registres avec leur `nature`) ·
    `get_my_access` (tier, rôles, apps permises **ET refusées** — un assistant qui ignore le

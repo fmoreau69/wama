@@ -722,7 +722,7 @@ recommandés et attendent sa réponse :
 | borner aussi à l'outil | **oui, mais séparément** (deux commits) | la borne de boucle est un FILET pour tout outil futur ; `get_item_detail` mériterait une coupe intelligente (début + fin d'une transcription) |
 | dernière itération | ne pas y toucher dans ce chantier — mais la fin de boucle rend `messages[-2]` (le texte du modèle, pas une réponse construite) : comportement surprenant, signalé | hors périmètre |
 
-Tests prévus (dans `wama/common/tests_assistant_surfaces.py`, qui a déjà l'idiome `mock.patch`) :
+Tests prévus (dans `wama/common/tests/tests_assistant_surfaces.py`, qui a déjà l'idiome `mock.patch`) :
 faux outil de 200 ko → le message injecté tient dans le budget ET dit qu'il est tronqué ; un résultat
 de 480 caractères passe **octet pour octet** (contre-épreuve) ; sur un tour à 3 appels d'outil, la
 bascule est appelée **3 fois**, en local et sur un chemin cloud. Ampleur : ~40 lignes, un fichier,

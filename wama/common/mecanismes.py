@@ -113,7 +113,7 @@ MECHANISMS = (
               "décision, lue par `settings`, `wama/celery.py` et `model_manager`",
               'wama/common/services/runtime_side.py',
               'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
-              annexes=('wama/common/tests_runtime_side.py',)),
+              annexes=('wama/common/tests/tests_runtime_side.py',)),
     Mechanism('resource_governor', 'Gouverneur de ressources',
               "Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités",
               'wama/common/services/resource_governor.py', 'docs/construction/suivi/PROJECT_STATUS.md §0'),
@@ -151,7 +151,7 @@ MECHANISMS = (
               "un volume inventé, a été retiré ce jour-là)",
               'wama/common/utils/model_readiness.py', 'docs/construction/suivi/PROJECT_STATUS.md',
               annexes=('wama/common/utils/task_skeleton.py',
-                       'wama/common/tests_model_readiness.py')),
+                       'wama/common/tests/tests_model_readiness.py')),
     Mechanism('file_cache', 'Cache par empreinte de fichier',
               "Garde une valeur calculée depuis un fichier (lecture AST, rendu markdown, compte "
               "de lignes) tant que son empreinte — date de modification, taille — n'a pas "
@@ -160,7 +160,7 @@ MECHANISMS = (
               "relisait 6 237 fois des fichiers pour UNE extraction de manifeste (48 résolutions "
               "d'un même vivier). ⚠ Ne convient qu'à ce qui ne dépend QUE du fichier",
               'wama/common/file_cache.py', '',
-              annexes=('wama/common/tests_file_cache.py',)),
+              annexes=('wama/common/tests/tests_file_cache.py',)),
     Mechanism('task_progress', 'Progression de tâche longue',
               "Avancement d'une tâche Celery HORS file d'items publié dans le cache "
               "(F5-proof) + garde « déjà en cours » vérifiée auprès de Celery ; "
@@ -463,7 +463,7 @@ MECHANISMS = (
               "— « Envoyer vers » part aussi de l'entrée ou de la sortie d'une autre card",
               'wama/common/utils/provenance.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
               annexes=('wama/common/utils/file_references.py',
-                       'wama/common/tests_file_references.py')),
+                       'wama/common/tests/tests_file_references.py')),
     Mechanism('file_references', "Qui désigne ce fichier ? (déplacer, supprimer sans casser)",
               "L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent à "
               "jour — `repoint` quand le fichier bouge, `detach` quand il disparaît. Décision de "
@@ -478,7 +478,7 @@ MECHANISMS = (
               "⚠ `filemanager.UserFile` est exclu : c'est l'index du gestionnaire lui-même",
               'wama/common/utils/file_references.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
-              annexes=('wama/common/tests_file_references.py',)),
+              annexes=('wama/common/tests/tests_file_references.py',)),
     Mechanism('toolbar_registry', "Barre d'outils générale (registre + profils)",
               "UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de "
               "surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire "
@@ -502,7 +502,7 @@ MECHANISMS = (
               "et ses plages RÉSERVÉES à durée mesurée (tests nocturnes). Projette, n'écrit rien",
               'wama/common/services/calendar.py', 'docs/construction/ia/WAMA_MEMORY.md §9bis.1',
               annexes=('wama/common/static/common/js/wama-calendar.js',
-                       'wama/common/tests_calendar.py')),
+                       'wama/common/tests/tests_calendar.py')),
     Mechanism('scheduled_actions', "Actions programmées (le QUAND)",
               "Programmer le lancement d'une card, d'une sélection ou d'un lot — menu commun, "
               "pastille sur la card, fichier batch (`--when`/`--at`) — depuis UN schéma "
@@ -512,7 +512,7 @@ MECHANISMS = (
               'wama/common/services/scheduled_actions.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/static/common/js/wama-schedule.js',
-                       'wama/common/tests_scheduled_actions.py')),
+                       'wama/common/tests/tests_scheduled_actions.py')),
     Mechanism('global_queue', "File globale GPU (où en est chaque tâche)",
               "Lue, jamais devinée : ce qui tourne au gouverneur, ce qui attend dans les listes du "
               "broker dans l'ordre de consommation. Heures prévues = somme de durées MESURÉES "
@@ -520,7 +520,7 @@ MECHANISMS = (
               "Nourrit le placement `auto`, la pastille « En file » et le calendrier",
               'wama/common/services/global_queue.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
-              annexes=('wama/common/tests_global_queue.py',)),
+              annexes=('wama/common/tests/tests_global_queue.py',)),
     Mechanism('rag_gesture', "Ajout au RAG (geste explicite)",
               "Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, "
               "aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision",
@@ -547,7 +547,7 @@ MECHANISMS = (
               "Ne normalise que la casse et la ponctuation — les hésitations restent des données "
               "(verbatim) ; une référence vide rend un taux INDÉFINI, jamais zéro",
               'wama/common/services/text_metrics.py', 'docs/construction/ia/WAMA_QUALITE.md',
-              annexes=('wama/common/tests_text_metrics.py',)),
+              annexes=('wama/common/tests/tests_text_metrics.py',)),
     Mechanism('word_anchoring', 'Ancrage d\'un texte sans temps sur des mots horodatés',
               "Étage A de l'alignement forcé, SANS modèle : un texte fait ailleurs (export Sonal, "
               "texte) retrouve l'heure de chacun de ses mots parmi ceux d'une sortie ASR de la même "
@@ -564,7 +564,7 @@ MECHANISMS = (
               "d'abord sur la référence ASR. Plage (`replace_span`) : une plage retranscrite "
               "remplace les mots qui s'y disaient, ou remplit un blanc d'un tour neuf",
               'wama/common/services/word_anchoring.py', 'wama/transcriber/TRANSCRIBER_CORRECTION.md §10.5',
-              annexes=('wama/common/tests_word_anchoring.py',
+              annexes=('wama/common/tests/tests_word_anchoring.py',
                        'wama/common/backends/forced_alignment_base.py',
                        'wama/common/backends/wav2vec2_aligner_backend.py'),
               depends_on=('text_metrics',)),
@@ -579,7 +579,7 @@ MECHANISMS = (
               "deux, médiane M6, jamais de « meilleur »). Va avec la capacité "
               "`has_reference_result` — un test refuse l'une sans l'autre",
               'wama/common/services/result_evaluation.py', 'docs/construction/ia/WAMA_QUALITE.md',
-              annexes=('wama/common/tests_result_evaluation.py',
+              annexes=('wama/common/tests/tests_result_evaluation.py',
                        'wama/common/static/common/js/wama-evaluation.js',
                        'wama/common/templates/common/_batch_evaluation_line.html',
                        'wama/common/templates/common/_batch_agreement_line.html'),
@@ -591,7 +591,7 @@ MECHANISMS = (
               "Vérifie que chaque chemin, ligne et renvoi .md cité par la doc ET par les skills "
               "existe encore ; gate nocturne sur les CIBLES distinctes, pas sur les références",
               'wama/common/management/commands/check_docs.py', 'AGENTS.md §Fichiers de référence',
-              annexes=('wama/common/tests_check_docs.py',),
+              annexes=('wama/common/tests/tests_check_docs.py',),
               symbol='check_docs'),      # nommée par une CHAÎNE, jamais importée — cf. plus bas
     # 2026-09-11 : la liste des docs de référence vivait en double (table d'AGENTS.md +
     # `check_docs.DOCS`) ; le lecteur de doc en aurait fait une troisième. UNE déclaration.
@@ -632,7 +632,7 @@ MECHANISMS = (
               'wama/common/services/mcp_server.py',
               'docs/construction/suivi/ROADMAP.md §8d',
               annexes=('wama/common/management/commands/run_mcp_server.py',
-                       'wama/common/tests_mcp_server.py')),
+                       'wama/common/tests/tests_mcp_server.py')),
               # Déclaré « autonome » (point d'entrée de process, importé par personne) jusqu'au
               # 2026-09-22 : depuis, `mcp_client` lui emprunte le chemin d'endpoint (`MCP_PATH`)
               # — un consommateur, donc plus autonome (garde `tests_catalogues`).
@@ -645,7 +645,7 @@ MECHANISMS = (
               "`wama-dev-ai/outputs/` et n'appliquent rien",
               'wama/common/services/dev_tools.py',
               'docs/construction/suivi/ROADMAP.md §8d',
-              annexes=('wama/common/tests_mcp_dev_tools.py',)),
+              annexes=('wama/common/tests/tests_mcp_dev_tools.py',)),
     Mechanism('development_models', 'Modèles de NIVEAU DÉVELOPPEMENT (bridage « qualité max »)',
               "UN domicile pour « quel modèle a le droit de travailler sur le code » : plancher "
               "sur le score coding du banc tiers (≥ 40) + déclaration explicite pour le seul "
@@ -657,7 +657,7 @@ MECHANISMS = (
               "après un tour réel où qwen3.5:4b inventait des jumelles",
               'wama/common/services/development_models.py',
               'docs/construction/ia/WAMA_LLM.md',
-              annexes=('wama/common/tests_development_models.py',)),
+              annexes=('wama/common/tests/tests_development_models.py',)),
     Mechanism('mcp_client', "L'assistant, CLIENT MCP de la surface de développement",
               "Le moteur de l'assistant RELAIE les outils `dev_*` (rôles wama-dev-ai, bac à "
               "sable) à la surface « wama-dev » par le protocole — process séparé, §16 tenu : "
@@ -666,7 +666,7 @@ MECHANISMS = (
               "l'assistant répond quand même. Étape 5 de §8d, moitié dev (2026-09-22)",
               'wama/common/services/mcp_client.py',
               'docs/construction/suivi/ROADMAP.md §8d',
-              annexes=('wama/common/tests_mcp_client.py',)),
+              annexes=('wama/common/tests/tests_mcp_client.py',)),
     Mechanism('identifier_language', 'Langue des identifiants (budget)',
               "Relève par AST les identifiants de code FRANÇAIS (classes, fonctions, arguments, "
               "variables, alias d'import ; accents = signal certain) et les borne par un BUDGET "
@@ -677,7 +677,7 @@ MECHANISMS = (
               "marge est une autorisation d'en ajouter",
               'wama/common/management/commands/check_identifier_language.py',
               'AGENTS.md §Langue des identifiants',
-              annexes=('wama/common/tests_identifier_language.py',),
+              annexes=('wama/common/tests/tests_identifier_language.py',),
               symbol='check_identifier_language'),
     Mechanism('docs_catalog', 'Catalogue & lecteur de docs',
               "Déclare les docs de référence (famille, AUDIENCE, journal) et les rend lisibles "
@@ -686,7 +686,7 @@ MECHANISMS = (
               "aussi la doc DÉVELOPPEUR : ses faits (`dev_docs.py` : parcours, registres, API "
               "des briques lue par AST), écrits en `.md` par les plans",
               'wama/common/docs_catalog.py', 'AGENTS.md §Trois docs, trois publics',
-              annexes=('wama/common/dev_docs.py', 'wama/common/tests_docs_catalog.py')),
+              annexes=('wama/common/dev_docs.py', 'wama/common/tests/tests_docs_catalog.py')),
     # 2026-09-11 : 1ʳᵉ pièce de la mécanique des docs dérivées (ROADMAP §25) — les vérités
     # terrain des registres injectées dans les .md, au lieu d'y être recopiées.
     Mechanism('fact_tags', 'Faits en ligne (balises de registre)',
@@ -695,7 +695,7 @@ MECHANISMS = (
               "confronte, et une balise qui ne se résout pas est CASSÉE. Généralise les blocs "
               "`WAMA:FAITS` (une fonction par fait) à n'importe quel champ de registre",
               'wama/common/fact_tags.py', 'docs/construction/suivi/ROADMAP.md §25',
-              annexes=('wama/common/tests_fact_tags.py',)),
+              annexes=('wama/common/tests/tests_fact_tags.py',)),
     Mechanism('doc_sections', 'Marquage des sections de doc',
               "Une balise `WAMA:SECTION(audience=…; type=…; nature=…; etat=…)` sous un titre dit "
               "à qui la section parle (développeur, utilisateur), quel genre de texte elle est "
@@ -703,7 +703,7 @@ MECHANISMS = (
               "sous-section hérite. `check_docs` contrôle le vocabulaire et la double "
               "vérification (constat ⇒ ✅, intention ⇒ 🔄/⏳) ; `extract` sert les docs dérivées",
               'wama/common/doc_sections.py', 'docs/construction/suivi/ROADMAP.md §25',
-              annexes=('wama/common/tests_doc_sections.py',)),
+              annexes=('wama/common/tests/tests_doc_sections.py',)),
     Mechanism('doc_plans', 'Docs dérivées par plan',
               "Un PLAN déclaré dans le catalogue des docs (extraits de sections marquées + faits "
               "de registre) produit un `.md` versionné, écrit par `doc_facts` ; `--check` refuse "
@@ -711,7 +711,7 @@ MECHANISMS = (
               "gratuite parce que la dérivation est mécanique. Pour l'UTILISATEUR, une PORTE "
               "registre retient les intentions et ce que le registre ne confirme pas",
               'wama/common/doc_plans.py', 'docs/construction/suivi/ROADMAP.md §25',
-              annexes=('wama/common/tests_doc_plans.py',)),
+              annexes=('wama/common/tests/tests_doc_plans.py',)),
     Mechanism('templates_integrity', 'Intégrité des gabarits',
               "Attrape la famille de fautes qui a récidivé SEPT fois : le commentaire `{# … #}` "
               "MULTI-LIGNE, que le lexer de Django (pas de re.DOTALL) rend en TEXTE littéral — "
@@ -720,7 +720,7 @@ MECHANISMS = (
               "`{% load %}` vers une bibliothèque de balises absente (garde posée le jour où un "
               "retrait de templatetag a laissé son load — page reader en TemplateSyntaxError)",
               'wama/common/management/commands/check_templates.py', 'AGENTS.md',
-              annexes=('wama/common/tests_check_templates.py',),
+              annexes=('wama/common/tests/tests_check_templates.py',),
               symbol='check_templates'),
     # Ces deux-là TOURNENT CHAQUE NUIT (`nightly_scenarios.py:137,145`) et étaient pourtant hors
     # carte — le pire cas : pas une brique morte, une garde active que personne ne trouve en
@@ -806,7 +806,7 @@ MECHANISMS = (
               "testable sans base). Consommé par la vue web ET la passerelle de canaux "
               "(gateway/core, discord_bot) — cf. ROADMAP §19.5",
               'wama/common/services/conversation_store.py', 'docs/construction/suivi/ROADMAP.md §19.5',
-              annexes=('wama/common/tests_conversation.py',),
+              annexes=('wama/common/tests/tests_conversation.py',),
               # `symbole` : ses clients l'importent par `from wama.common.services import
               # conversation_store` — le compteur d'imports ne voit pas cette graphie (même
               # faux positif que le middleware, cf. plus haut).
@@ -905,7 +905,7 @@ MECHANISMS = (
               "qu'à la PROVENANCE du lien",
               'wama/common/services/backend_inventory.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/templates/common/backends.html',
-                       'wama/common/tests_backend_inventory.py')),
+                       'wama/common/tests/tests_backend_inventory.py')),
     Mechanism('backend_resolution', 'Résolution de backend par DÉCLARATION',
               "Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter "
               "ce modèle » : `backend_for_model()` va de `composition.runtime.engine` (moitié "
@@ -920,7 +920,7 @@ MECHANISMS = (
               'wama/common/backends/manager.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               symbol='backend_for_model',
               annexes=('wama/common/management/commands/check_backend_links.py',
-                       'wama/common/tests_backend_inventory.py')),
+                       'wama/common/tests/tests_backend_inventory.py')),
     Mechanism('model_declarations', "Passe-plat des déclarations de modèle",
               "Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la "
               "convention `wama/<app>/utils/model_config.py::<APP>_MODELS`, ne connaît aucune "
@@ -930,7 +930,7 @@ MECHANISMS = (
               "rend déplaçables. On lirait la bonne donnée en détruisant la propriété cherchée",
               'wama/common/utils/model_declarations.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               symbol='declaration',
-              annexes=('wama/common/tests_backend_inventory.py',)),
+              annexes=('wama/common/tests/tests_backend_inventory.py',)),
     Mechanism('backend_isolation', "Environnement d'exécution d'un backend",
               "`ISOLATION` déclare où tourne un backend (`venv:<chemin>` | `service:<url>`, "
               "vide = venv principal). Sans elle le GRISAGE MENT : `missing_packages()` "
@@ -940,7 +940,7 @@ MECHANISMS = (
               "détenteur que le gouverneur ne voit pas. Zéro isolement aujourd'hui",
               'wama/common/backends/base.py', 'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
               symbol='ISOLATION',
-              annexes=('wama/common/tests_backend_inventory.py',)),
+              annexes=('wama/common/tests/tests_backend_inventory.py',)),
     Mechanism('hf_weights', 'Routage des poids hors HuggingFace',
               "QUATRE leviers pour tenir la règle « modèle principal catégorisé, "
               "sous-dépendances au cache partagé » (ROADMAP §5b), et le choix est imposé par la "
@@ -954,7 +954,7 @@ MECHANISMS = (
               'wama/common/utils/hf_weights.py', 'docs/construction/suivi/ROADMAP.md',
               symbol='poids_locaux',
               annexes=('wama/common/utils/hf_cache.py',
-                       'wama/common/tests_hf_cache_routing.py')),
+                       'wama/common/tests/tests_hf_cache_routing.py')),
     Mechanism('result_tabs', 'Onglets de résultat TEXTE',
               "Un item peut avoir PLUSIEURS lectures d'un même résultat (transcription, "
               "diarisation, résumé, cohérence). Le schéma canonique ne portait qu'UN "
@@ -967,7 +967,7 @@ MECHANISMS = (
               "RÉSULTATS dans une seule preview (imager, `result_files`)",
               'wama/common/templates/common/_result_tabs.html', 'docs/construction/ui/CARD_DESIGN.md',
               annexes=('wama/common/utils/detail_registry.py',
-                       'wama/common/tests_result_tabs.py')),
+                       'wama/common/tests/tests_result_tabs.py')),
     Mechanism('apply_manifests', 'Application du corpus de manifestes',
               "Le sens ENTRANT du corpus : `manifest_export` écrit les manifestes DEPUIS les "
               "registres, rien ne les appliquait DANS l'autre sens. Sur une installation neuve, "
@@ -1014,7 +1014,7 @@ MECHANISMS = (
               "(11 scénarios `<label>.*` du registre nocturne) : describer_01 = 11/11",
               'wama/common/sandbox.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/management/commands/app_sandbox.py',
-                       'wama/common/tests_sandbox_coherence.py')),
+                       'wama/common/tests/tests_sandbox_coherence.py')),
 
     )),
 
@@ -1068,7 +1068,7 @@ MECHANISMS = (
               symbol='WamaQueueDnd',        # global de base.html : compté par son symbole
               annexes=('wama/common/static/common/css/wama-queue-dnd.css',
                        'wama/common/templatetags/wama_actions.py',
-                       'wama/common/tests_queue_dnd.py')),
+                       'wama/common/tests/tests_queue_dnd.py')),
     Mechanism('history', 'Historique annuler / rétablir',
               "Deux piles + plafond + état des boutons + raccourcis Ctrl+Z / Ctrl+Maj+Z / Ctrl+Y. "
               "PORTABLE parce que la machinerie ne touche JAMAIS le modèle : elle ne le connaît "
@@ -1132,7 +1132,7 @@ MECHANISMS = (
               annexes=('wama/common/utils/batch_common.py',
                        'wama/common/models.py',
                        'wama/common/static/common/js/queue-actions.js',
-                       'wama/common/tests_queue_delete_contract.py')),
+                       'wama/common/tests/tests_queue_delete_contract.py')),
     Mechanism('output_naming', 'Nom du fichier de sortie',
               "Une règle unique pour les 8 apps à liaison PRÉCOCE, en deux familles : entrée "
               "FICHIER → `<stem>_<process>_<modèle>[_<i>]<ext>` (l'utilisateur retrouve SON nom, "
@@ -1319,7 +1319,7 @@ MECHANISMS = (
               "modèle n'a pas à connaître `bg-warning`. Les couleurs, elles, restent au CSS",
               'wama/common/utils/state_presentation.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
-              annexes=('wama/common/tests_status_ui.py',),
+              annexes=('wama/common/tests/tests_status_ui.py',),
               depends_on=('app_base_js',)),
     # ── Briques d'INTERFACE communes (⚠ PAS des plugins — voir « rendu résolu » ci-dessus) ──
     # Déclarées le 2026-08-19 : elles vivaient dans `common/` sans être au registre — invisibles
@@ -1346,7 +1346,7 @@ MECHANISMS = (
               "transcriber en est devenu le 2ᵉ utilisateur ; première forme du curseur de session",
               'wama/common/services/playhead_follow.py',
               'docs/construction/mondes/WAMA_DATA_WORLD.md §5',
-              annexes=('wama/common/tests_playhead_follow.py',
+              annexes=('wama/common/tests/tests_playhead_follow.py',
                        'wama_lab/cam_analyzer/tests_live_follow.py')),
     Mechanism('media_picker', 'Sélecteur de médiathèque',
               "Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue "
@@ -1560,7 +1560,7 @@ MECHANISMS = (
               "réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25",
               'wama/common/utils/speech_activity.py',
               'wama/transcriber/TRANSCRIBER_CORRECTION.md §8',
-              annexes=('wama/common/tests_speech_activity.py',)),
+              annexes=('wama/common/tests/tests_speech_activity.py',)),
     # Rattaché le 2026-08-29 après un défaut de MA part, pas du code : j'ai déclaré deux fois de
     # suite qu'« aucun détecteur commun de nature ne existait » et qu'« aucune déclaration ne dit
     # les types d'entrée d'une app » — les DEUX existaient ici depuis longtemps, et le générateur
@@ -1623,7 +1623,7 @@ MECHANISMS = (
               'wama/common/tts/voice_refs.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9.4',
               annexes=('wama/common/utils/voice_options.py',
                        'wama/media_library/management/commands/ingest_voice_refs.py',
-                       'wama/common/tests_voice_refs.py')),
+                       'wama/common/tests/tests_voice_refs.py')),
     Mechanism('tts_text', 'Le texte À DIRE (préparation avant vocalisation)',
               "`text_for_speech` (la chaîne, dans un ordre dont chaque place se justifie) et "
               "`make_audible` (la mise en forme visuelle traduite en respirations : puce de tête, "
@@ -1636,7 +1636,7 @@ MECHANISMS = (
               "DÉLÈGUE, ses six appelants sont intacts. Consommateurs : la vue `kokoro_tts` (donc "
               "toute surface qui vocalise — accueil, volet, canaux) et le synthesizer",
               'wama/common/utils/tts_text.py', 'docs/construction/ia/WAMA_LLM.md §1bis',
-              annexes=('wama/common/tests_tts_text.py',
+              annexes=('wama/common/tests/tests_tts_text.py',
                        'wama/synthesizer/utils/text_extractor.py'),
               symbol='text_for_speech'),
     Mechanism('test_media_isolation', 'Médias de test isolés',
@@ -1647,7 +1647,7 @@ MECHANISMS = (
               "vivant) et se balaie par NOM (`wama_temoin_*`, dossier temporaire compris). "
               "Question Fabien 2026-09-13 : « on ne change rien pour ça »",
               'wama/common/runners.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §①bis',
-              annexes=('wama/common/tests_media_tests_hygiene.py',)),
+              annexes=('wama/common/tests/tests_media_tests_hygiene.py',)),
     Mechanism('video_utils', 'Utilitaires vidéo',
               "Extraction audio des vidéos + téléchargement YouTube/yt-dlp",
               'wama/common/utils/video_utils.py', ''),
@@ -1716,7 +1716,7 @@ MECHANISMS = (
               "même clé `gate` que celle dont accessible() décide (§8.8.1)",
               'wama/common/services/subscriptions.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/common/static/common/js/wama-subscription.js',
-                       'wama/common/tests_subscriptions.py')),
+                       'wama/common/tests/tests_subscriptions.py')),
     Mechanism('scoping', 'Accès scopé aux objets',
               "Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / visible)",
               'wama/common/utils/scoping.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md'),

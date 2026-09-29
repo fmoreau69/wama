@@ -4255,7 +4255,7 @@ def check_app_queue_dnd(app: str, url_path: str):
     lieu si on lâchait), jamais le dépôt lui-même : un vrai `drop` recomposerait des lots sur
     le compte de test. La moitié SERVEUR (`merge`/`move_to_batch`/`remove_from_batch`/
     `reorder_queue`, dont le refus de fusion entre natures) est couverte par
-    `wama.common.tests_queue_dnd` — 14 tests, dont le refus exercé en base. Deux moitiés, deux
+    `wama.common.tests.tests_queue_dnd` — 14 tests, dont le refus exercé en base. Deux moitiés, deux
     harnais, et chacun dit laquelle il tient.
 
     CE QUI EST MESURÉ ICI (tout est invisible d'un contrôle statique) :

@@ -108,7 +108,7 @@ def group_into_batches_by_nature(items,
 
     Donc : toute app qui passe `nature_of` ICI passe la MÊME fonction en `group_key=` à
     `make_queue_manipulation_views[_direct]`. Ce n'est pas une recommandation — c'est vérifié
-    par `wama/common/tests_queue_dnd.py::…nature_a_son_jumeau_group_key`, précisément pour que
+    par `wama/common/tests/tests_queue_dnd.py::…nature_a_son_jumeau_group_key`, précisément pour que
     la règle ne repose pas sur la mémoire du prochain (leçon « une garde se pose avec ses
     JUMEAUX »). Nommer la fonction plutôt que l'écrire en lambda est ce qui rend le partage
     possible ET lisible.

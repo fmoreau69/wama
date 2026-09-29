@@ -465,7 +465,7 @@ async def startup():
     # d'un process (N moteurs lourds possibles sur la même carte), et les verrous
     # (`_engine_lock`, génération Higgs) ne sérialisent rien entre process. La cause autrefois
     # citée ici — `HF_HUB_CACHE` muté en concurrence — n'existe plus (0 mutation,
-    # `wama/common/tests_hf_cache_routing.py`) ; la course d'imports `accelerate` venait d'un
+    # `wama/common/tests/tests_hf_cache_routing.py`) ; la course d'imports `accelerate` venait d'un
     # thread lancé dans Django (cf. wama/views.py, note sous _get_kokoro), pas de ce service.
     # Ne pas réintroduire de préchargement dans un process multi-worker.
     if os.environ.get("TTS_SKIP_PRELOAD", "0") == "1":

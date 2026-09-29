@@ -2,7 +2,7 @@
 
 Le contrat de la route de réglages d'un élément (FormData de la modale ⚙ ET JSON de
 l'inspecteur écrits, rien de touché qui n'est pas posté, valeur hors choix ignorée) est tenu
-pour TOUTES les apps par `wama/common/tests_item_settings_contract.py` depuis le 2026-09-26 : les
+pour TOUTES les apps par `wama/common/tests/tests_item_settings_contract.py` depuis le 2026-09-26 : les
 deux tests qui le vérifiaient ici pour le seul reader en sont retirés. Reste la spécificité du
 reader : `language` vide EST une valeur (auto-détection).
 """

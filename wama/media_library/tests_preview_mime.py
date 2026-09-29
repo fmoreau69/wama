@@ -5,7 +5,7 @@ Constat du 2026-09-21 : « smoke-0802-desc-text », `text/plain` bien posé en b
 d'extension) et jetait celui que le serveur envoie. La correction avait été attestée par un
 script de brouillon ; un smoke lancé à la main n'est pas une garde, d'où ce fichier.
 
-Même patron que `common/tests_queue_dnd.py` : V8 embarqué (`py_mini_racer`), les fonctions
+Même patron que `common/tests/tests_queue_dnd.py` : V8 embarqué (`py_mini_racer`), les fonctions
 extraites et exécutées seules (le module entier touche au DOM au chargement).
 
 ⚠ Identifiants en anglais, noms de tests compris ; commentaires et docstrings en français.

@@ -293,7 +293,7 @@ def _nature(nom):
         # lire, et deviner ses arguments d'après son nom a raté DEUX fois — `batch_preview` le
         # 22/08 (cf. l'assemblage plus bas), puis `profile_delete`, dont la route passe un `pk`
         # que le bouchon ne prenait pas : `TypeError` → 500 au lieu du 501 annoncé. Trouvé par le
-        # parcours générique des adresses (`common/tests_endpoints.py`). `pk` reste accepté par
+        # parcours générique des adresses (`common/tests/tests_endpoints.py`). `pk` reste accepté par
         # compatibilité des appelants de cette fonction, et n'a plus d'effet.
         return (f"def {nom}(request, *args, **kwargs):\n"
                 f"    \"\"\"TROU DE GLU {mark} — politique d'app non conventionnelle.\"\"\"\n"

@@ -42,7 +42,7 @@ PRODUCTEURS_DE_TEST = (
      re.compile(rf'^(?:.*/)?reference{_DJ}\.wav$')),
     ("synthesizer/tests.py:383/403 — f'test_{{i}}.txt' (tests de lot)",
      re.compile(rf'^(?:.*/)?test_\d+{_DJ}\.(txt|wav|mp3|pdf|docx|json)$')),
-    ("common/tests_codegen_lot.py — 'lot.txt' + MEDIA_ROOT/tests_lot",
+    ("common/tests/tests_codegen_lot.py — 'lot.txt' + MEDIA_ROOT/tests_lot",
      re.compile(rf'^(?:tests_lot/.*|(?:.*/)?lot{_DJ}\.txt)$')),
     ("common/services/ui_smoke.py — _fichier_temoin (NamedTemporaryFile)",
      re.compile(rf'^(?:.*/)?tmp[A-Za-z0-9_]{{6,}}{_DJ}\.[A-Za-z0-9]+$')),

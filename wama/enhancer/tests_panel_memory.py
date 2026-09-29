@@ -12,7 +12,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from wama.common.tests_import_contract import _WITNESSES
+from wama.common.tests.tests_import_contract import _WITNESSES
 from wama.common.utils.user_settings import read_panel_settings
 from wama.enhancer.models import Enhancement
 from wama.enhancer.params import MEDIA_PARAMS

@@ -4,7 +4,7 @@
 > même jour** (brique + 2 apps, 2 scénarios nocturnes vérifiés rouges sur le code d'avant),
 > **et le chantier de fond — la DÉCLARATION des sections (§8 n°2) — est LIVRÉ** : les 17 pages
 > déclarent, les 51 cadres vides sont retirés, 13 tests versionnés couvrent le mécanisme
-> (`wama/common/tests_volet.py`). Voir **§3-bis** pour le contrat.
+> (`wama/common/tests/tests_volet.py`). Voir **§3-bis** pour le contrat.
 >
 > ⚠ Deux diagnostics du §4 étaient FAUX et la confrontation au code les a redressés : le ✕
 > cassé n'appelait pas un bandeau à rajouter (§4①) et l'import d'avatarizer n'était pas perdu
@@ -141,7 +141,7 @@ context['volet'] = volet(tete=True, medias=False, parametres=False, actions=Fals
 aujourd'hui ; la déclaration est ce qui garantit qu'un futur changement de défaut ne détruira
 pas sa mini-carte Leaflet.
 
-### Preuves — `wama/common/tests_volet.py` (13 tests)
+### Preuves — `wama/common/tests/tests_volet.py` (13 tests)
 
 | Classe | Ce qu'elle garde |
 |---|---|

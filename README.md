@@ -271,7 +271,7 @@ The rule — `AGENTS.md`, « ajout d'un nouveau modèle AI » — is: **the mode
 - **Models** live under `AI-models/models/<domain>/<family>/`. The main model is filed there by the first lever its library allows, in this order: **A** `cache_dir=` on `from_pretrained()` (most backends); **B** a local path fetched by `poids_locaux` (`wama/common/utils/hf_weights.py`) when the library takes a path; **C** the library's own variable, set once in `wama/settings.py` (`DEEPFACE_HOME`, `AUDIOCRAFT_CACHE_DIR`); **D** only as a declared last resort, the self-restoring `hf_cache_scope` (`wama/common/utils/hf_cache.py`) — it restores the environment but never moves the files downloaded meanwhile.
 - **Sub-dependencies** a library pulls internally (t5, bert, tokenizers, timm backbones…) go to the **shared cache** `AI-models/cache/huggingface/`. That is their place, not a drift: `HF_HOME` / `HF_HUB_CACHE` point there, set **once** at startup in `wama/settings.py`.
 - **Never mutate `HF_HUB_CACHE` / `HF_HOME` in a backend**: they are process-global and drag every later download — sub-dependencies included — into that model's folder. (A subprocess environment is not a mutation: the MuseTalk backend passes its own cache to the child process it launches.)
-- Guarded by `wama/common/tests_hf_cache_routing.py` and `python manage.py check_model_layout` (no foreign snapshot in a family folder).
+- Guarded by `wama/common/tests/tests_hf_cache_routing.py` and `python manage.py check_model_layout` (no foreign snapshot in a family folder).
 
 Download and status are managed via **Model Manager** (`/model-manager/`).
 

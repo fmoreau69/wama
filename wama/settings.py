@@ -350,7 +350,7 @@ if WAMA_RUNNING_TESTS:
 # 2026-09-29 — `common/services/runtime_side.py`). Les tests (où qu'ils tournent) et tout processus
 # Windows gardent leurs envois EN MÉMOIRE : jusque-là, un test lancé depuis WSL envoyait ses tâches
 # aux workers de production (salves de `refresh_registry` des 27-28/09), et un `manage.py` Windows
-# remplissait un Redis que personne ne lit. Garde : `common/tests_runtime_side.py`.
+# remplissait un Redis que personne ne lit. Garde : `common/tests/tests_runtime_side.py`.
 WAMA_TASKS_DISPATCHED = _tasks_dispatched()
 
 # Configuration LDAP
