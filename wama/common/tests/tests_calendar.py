@@ -167,10 +167,20 @@ class MeasuredDurationTest(TestCase):
                    for i, d in enumerate(durations)]
         Path(folder, name).write_text(json.dumps({'results': results}), encoding='utf-8')
 
-    def test_the_longest_recent_run_is_the_measure(self):
+    def test_one_abnormal_night_does_not_stretch_the_window(self):
+        # 29/09 : une file GPU occupée a fait durer la campagne 5 h 27 ; la médiane l'ignore.
         with tempfile.TemporaryDirectory() as folder:
-            self._report(folder, 'nightly_20260901_020000.json', [300, 300])       # 10 min
-            self._report(folder, 'nightly_20260902_020000.json', [3000, 3000])     # 100 min
+            self._report(folder, 'nightly_20260901_020000.json', [1800, 1800])     # 60 min
+            self._report(folder, 'nightly_20260902_020000.json', [2100, 2100])     # 70 min
+            self._report(folder, 'nightly_20260903_020000.json', [9000, 9000])     # 300 min
+            self.assertAlmostEqual(cal.measured_nightly_minutes(None, folder), 70.0)
+
+    def test_partial_runs_do_not_pull_the_median_down(self):
+        with tempfile.TemporaryDirectory() as folder:
+            for day in (1, 2):                                                      # complètes
+                self._report(folder, f'nightly_2026090{day}_020000.json', [600] * 10)   # 100 min
+            for day in (3, 4, 5):                                                   # --app / --id
+                self._report(folder, f'nightly_2026090{day}_020000.json', [300])        # 5 min
             self.assertAlmostEqual(cal.measured_nightly_minutes(None, folder), 100.0)
 
     def test_a_stage_measure_ignores_mixed_runs(self):

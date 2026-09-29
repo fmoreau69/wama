@@ -86,11 +86,15 @@ BEAT_WINDOWS = {
                                  'measure': 'nightly:all', 'reserves': ('gpu', 'cpu')},
 }
 
-#: Une fenêtre mesurée est la PLUS LONGUE exécution récente, majorée de cette marge puis
-#: arrondie au quart d'heure : une réservation trop courte laisserait se superposer ce qu'elle
-#: devait protéger.
+#: Une fenêtre mesurée est la durée MÉDIANE des campagnes complètes récentes, majorée de cette
+#: marge puis arrondie au quart d'heure : une réservation trop courte laisserait se superposer ce
+#: qu'elle devait protéger.
 MEASURE_MARGIN = 1.25
 MEASURE_LOOKBACK_REPORTS = 60
+#: Une campagne compte comme COMPLÈTE si elle porte au moins cette part du plus grand nombre de
+#: scénarios observé : un lancement partiel (`--app`, `--id`) est court et tirerait la médiane vers
+#: le bas — la réservation serait alors débordée par la campagne complète qu'elle protège.
+FULL_CAMPAIGN_SHARE = 0.9
 
 
 def app_identity(app) -> tuple[str, str]:
@@ -472,19 +476,25 @@ def _nightly_reports_dir() -> Path:
 
 
 def measured_nightly_minutes(stage=None, reports_dir=None) -> float | None:
-    """Plus longue durée récente d'une campagne nocturne, en minutes — `None` sans mesure.
+    """Durée MÉDIANE récente d'une campagne nocturne complète, en minutes — `None` sans mesure.
 
     Source : les rapports `nightly_*.json` (`nightly_tests.write_report`), durée = somme des
     `duration_s` des scénarios (la campagne est SÉRIELLE, `run_all`). `stage` restreint aux
     rapports dont tous les scénarios visent ce stage ; `None` = toute campagne.
 
-    ⚠ LA PLUS LONGUE, pas la moyenne : un rapport partiel (`--app`, `--id`) est court, et une
-    réservation calée sur une moyenne serait débordée par la campagne complète qu'elle protège.
+    ⚠ LA MÉDIANE DES CAMPAGNES COMPLÈTES (décision de Fabien, 2026-09-29). C'était la PLUS LONGUE :
+    la nuit du 29/09, la file GPU occupée par des lots lancés à la main a fait durer la campagne
+    5 h 27 (scénarios expirés en attente) et la réservation est montée à 270 min — une nuit
+    anormale réservait la matinée de toutes les suivantes. La médiane ignore une telle nuit ; les
+    lancements PARTIELS en sont écartés (`FULL_CAMPAIGN_SHARE`), sans quoi ils la tireraient vers
+    le bas.
     """
+    import statistics
+
     reports_dir = Path(reports_dir) if reports_dir else _nightly_reports_dir()
     if not reports_dir.is_dir():
         return None
-    longest = None
+    runs = []                                        # (nombre de scénarios, minutes)
     for path in sorted(reports_dir.glob('nightly_*.json'))[-MEASURE_LOOKBACK_REPORTS:]:
         try:
             results = json.loads(path.read_text(encoding='utf-8')).get('results') or []
@@ -494,9 +504,12 @@ def measured_nightly_minutes(stage=None, reports_dir=None) -> float | None:
             continue
         if stage and any(r.get('stage_target') != stage for r in results):
             continue
-        minutes = sum(float(r.get('duration_s') or 0) for r in results) / 60.0
-        longest = minutes if longest is None else max(longest, minutes)
-    return longest
+        runs.append((len(results), sum(float(r.get('duration_s') or 0) for r in results) / 60.0))
+    if not runs:
+        return None
+    biggest = max(count for count, _ in runs)
+    return statistics.median(minutes for count, minutes in runs
+                             if count >= FULL_CAMPAIGN_SHARE * biggest)
 
 
 _MEASURES = {
