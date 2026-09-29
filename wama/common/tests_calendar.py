@@ -314,7 +314,7 @@ class OtherWorldsTest(TestCase):
         self.assertEqual(cal.app_identity('cam_analyzer'), ('Cam Analyzer', '#ffc107'))
         self.assertEqual(app_queue_url('cam_analyzer'), reverse('wama_lab:cam_analyzer:index'))
 
-    def test_the_journal_renders_a_lab_session_with_a_uuid_key(self):
+    def test_the_activity_page_renders_a_lab_session_with_a_uuid_key(self):
         # Mesuré le 2026-09-28 : une session Lab (clé UUID, hors `detail_registry`) faisait
         # lever `reverse('common:unified_preview')` — et TOUTE la page du journal tombait.
         from wama_lab.cam_analyzer.models import AnalysisSession
