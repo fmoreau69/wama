@@ -49,3 +49,9 @@ class AvatarizerConfig(AppConfig):
             )
 
         register_app_detail('avatarizer', AvatarJob, _avatarizer_detail)
+
+        # Un avatar de galerie est cité par son NOM : quand la médiathèque rend un asset système à
+        # son auteur, ces travaux doivent suivre (2026-09-29, MEDIA_STORAGE_TIERING §8.6 D27).
+        from wama.media_library.services import register_system_asset_name_holder
+        from .system_assets import gallery_name_holder
+        register_system_asset_name_holder('avatar', gallery_name_holder)
