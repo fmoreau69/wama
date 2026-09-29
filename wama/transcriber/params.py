@@ -22,6 +22,7 @@ PARAMS = derive_from_model(
         "backend",
         "hotwords",
         "preprocess_audio",
+        "level_speech",
         "vad_mode",
         "language_mode",
         "enable_diarization",
@@ -61,6 +62,12 @@ PARAMS = derive_from_model(
                       '<a href="#" class="text-info text-decoration-none" data-bs-toggle="modal" '
                       'data-bs-target="#preprocessingModal"><i class="fas fa-circle-question"></i> En savoir plus</a>',
         ),
+        "level_speech": dict(
+            label="Nivellement de la parole", icon="fa-sliders",
+            help="Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont "
+                 "remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué "
+                 "après le prétraitement. En cours d'évaluation : effet sur la transcription non "
+                 "encore établi."),
         "vad_mode": dict(
             type="select", label="Filtre de parole (VAD)", icon="fa-wave-square",
             help="Whisper saute les passages qu'il juge sans parole. « Auto » vérifie d'abord qu'il "

@@ -115,6 +115,27 @@ def _preprocess_audio(transcript: Transcript, audio_path: str) -> str:
         return audio_path
 
 
+def _level_speech(transcript: Transcript, audio_path: str, source_path: str) -> str:
+    """Nivelle `source_path` dans un fichier temporaire (brique `speech_leveling`). Un fichier
+    intermédiaire (sortie du débruitage) est retiré ; l'original de la card, jamais. Échec → on
+    transcrit sans nivellement, et la console le dit."""
+    import tempfile
+    from wama.common.utils.speech_leveling import level_file
+    try:
+        _set_status_message(transcript, "Nivellement de la parole…")
+        base = os.path.splitext(os.path.basename(audio_path))[0]
+        leveled = level_file(source_path, os.path.join(tempfile.gettempdir(),
+                                                       f"{base}_{transcript.pk}_leveled.wav"))
+    except Exception as e:
+        _console(transcript.user_id, f"Avertissement: nivellement échoué ({e}), audio non nivelé",
+                 level='warning')
+        return source_path
+    if source_path != audio_path and os.path.exists(source_path):
+        os.remove(source_path)
+    _console(transcript.user_id, "Nivellement de la parole ✓")
+    return leveled
+
+
 def _get_output_stem(transcript: Transcript, backend_name: str) -> str:
     """Build the output filename stem: {input_stem}_{backend}."""
     input_stem = os.path.splitext(os.path.basename(transcript.audio.name))[0]
@@ -467,6 +488,12 @@ def _transcribe_item(t, ctx):
             cleaned_path = _preprocess_audio(t, audio_path)
         else:
             cleaned_path = audio_path
+
+        # Step 1b: nivellement de la parole — APRÈS le débruitage (le bruit retiré n'est pas
+        # remonté), AVANT le filtre de parole et la sonde des langues (ils jugent l'audio que le
+        # moteur entendra).
+        if getattr(t, 'level_speech', False):
+            cleaned_path = _level_speech(t, audio_path, cleaned_path)
 
         # Step 2: Get backend
         if not BACKENDS_AVAILABLE:

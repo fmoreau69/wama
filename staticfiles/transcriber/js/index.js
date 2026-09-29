@@ -448,6 +448,7 @@ document.addEventListener('DOMContentLoaded', function () {
       backend: btn.dataset.backend || 'auto',
       hotwords: btn.dataset.hotwords || '',
       preprocess_audio: btn.dataset.preprocessAudio === 'true',
+      level_speech: btn.dataset.levelSpeech === 'true',
       vad_mode: btn.dataset.vadMode || 'auto',
       language_mode: btn.dataset.languageMode || 'auto',
       enable_diarization: btn.dataset.enableDiarization !== 'false',

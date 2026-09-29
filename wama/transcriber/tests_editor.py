@@ -301,6 +301,23 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         self.assertEqual(['en', 'fr'], [s.get('language') for s in self.item.segments_json])
         self.assertEqual('fr', self.item.language)
 
+    def test_the_leveled_audio_is_what_the_engine_hears(self):
+        from unittest import mock
+        Transcript.objects.filter(pk=self.item.pk).update(level_speech=True, status='RUNNING')
+        asr = self._asr()
+        with mock.patch('wama.common.utils.speech_leveling.level_file',
+                        side_effect=lambda src, dst: dst) as leveled:
+            self._run(asr)
+        self.assertTrue(leveled.called)
+        self.assertTrue(asr.transcribe.call_args.kwargs['audio_path'].endswith('_leveled.wav'))
+
+    def test_without_the_option_nothing_is_leveled(self):
+        from unittest import mock
+        asr = self._asr()
+        with mock.patch('wama.common.utils.speech_leveling.level_file') as leveled:
+            self._run(asr)
+        leveled.assert_not_called()
+
     def test_a_failed_transcription_is_a_failure_with_its_message(self):
         self._run(self._asr(fail=True))
         self.assertEqual('FAILURE', self.item.status)

@@ -201,6 +201,8 @@ class Command(BaseCommand):
         parser.add_argument('--engines', nargs='+', default=list(DEFAULT_ENGINES))
         parser.add_argument('--preprocess', action='store_true',
                             help="Cards avec le prétraitement audio (débruitage IA DeepFilterNet).")
+        parser.add_argument('--level', action='store_true',
+                            help="Cards avec le nivellement de la parole (`speech_leveling`).")
         parser.add_argument('--vad', choices=('auto', 'on', 'off'), default='auto',
                             help="Filtre de parole de Whisper (sans effet sur les autres moteurs).")
         parser.add_argument('--language-mode', nargs='+', choices=('auto', 'single', 'multi'),
@@ -238,19 +240,26 @@ class Command(BaseCommand):
         if o['user']:
             for language_mode in o['language_mode']:
                 self.post_batches(o['user'], assets, o['engines'], o['start'],
-                                  preprocess=o['preprocess'], vad=o['vad'],
+                                  preprocess=o['preprocess'], level=o['level'], vad=o['vad'],
                                   language_mode=language_mode)
 
     # ── accès au Hub ───────────────────────────────────────────────────────────────────────
-    @staticmethod
-    def _parquets(source, split):
+    def _parquets(self, source, split):
         from huggingface_hub import HfApi
-        files = sorted(f for f in HfApi().list_repo_files(source['repo_id'], repo_type='dataset',
-                                                         revision=source.get('revision'))
+        listing = self.with_retry(lambda: HfApi().list_repo_files(
+            source['repo_id'], repo_type='dataset', revision=source.get('revision')))
+        files = sorted(f for f in listing
                        if f.startswith(f'data/{split}') and f.endswith('.parquet'))
         if not files:
             raise CommandError(f"aucun parquet sous data/{split} dans {source['repo_id']}")
         return files
+
+    @staticmethod
+    def _plan_cache(source, split):
+        """Le plan d'une RÉVISION ÉPINGLÉE ne change jamais : il se garde en cache local. Le Hub
+        limite sévèrement les appels (429 en série, vécu le 2026-09-29)."""
+        return (Path(tempfile.gettempdir()) / 'wama_eval_corpus'
+                / f"{source['repo_id'].replace('/', '__')}@{source.get('revision')}_{split}.json")
 
     @staticmethod
     def _remote(source, name):
@@ -287,18 +296,26 @@ class Command(BaseCommand):
 
         fs = HfFileSystem()
         meetings, masked = {}, set()
+        cache = self._plan_cache(source, split)
+        known = json.loads(cache.read_text('utf-8')) if cache.exists() else {}
         for name in self._parquets(source, split):
-            def read(name=name):
-                with fs.open(self._remote(source, name), 'rb') as fh:
-                    return pq.ParquetFile(fh).read(columns=['meeting_id', 'speaker_id', 'transcript'])
-            table = self.with_retry(read)
-            for meeting_id, speaker, text in zip(table.column('meeting_id').to_pylist(),
-                                                 table.column('speaker_id').to_pylist(),
-                                                 table.column('transcript').to_pylist()):
+            if name not in known:
+                def read(name=name):
+                    with fs.open(self._remote(source, name), 'rb') as fh:
+                        return pq.ParquetFile(fh).read(
+                            columns=['meeting_id', 'speaker_id', 'transcript'])
+                table = self.with_retry(read)
+                known[name] = [[mid, spk, is_masked_transcript(text)] for mid, spk, text in zip(
+                    table.column('meeting_id').to_pylist(), table.column('speaker_id').to_pylist(),
+                    table.column('transcript').to_pylist())]
+                if source.get('revision'):
+                    cache.parent.mkdir(parents=True, exist_ok=True)
+                    cache.write_text(json.dumps(known), encoding='utf-8')
+            for meeting_id, speaker, is_masked in known[name]:
                 m = meetings.setdefault(meeting_id, Recording(meeting_id))
                 m.files.add(name)
                 m.speakers.add(speaker)
-                if is_masked_transcript(text):
+                if is_masked:
                     masked.add(meeting_id)
             # La réunion la plus récente peut continuer dans le fichier suivant : on ne compte que
             # celles qui sont closes, et valides.
@@ -362,11 +379,8 @@ class Command(BaseCommand):
         import pyarrow.parquet as pq
         from huggingface_hub import HfFileSystem
 
-        # Le plan d'une RÉVISION ÉPINGLÉE ne change jamais : il se garde en cache local. Le Hub
-        # limite sévèrement les appels (429 en série, vécu le 2026-09-29) — relire 20 fichiers à
-        # chaque sélection coûtait plus de 10 min d'attente.
-        cache = (Path(tempfile.gettempdir()) / 'wama_eval_corpus'
-                 / f"{source['repo_id'].replace('/', '__')}@{source.get('revision')}_{split}.json")
+        # Relire 20 fichiers à chaque sélection coûtait plus de 10 min d'attente (429).
+        cache = self._plan_cache(source, split)
         rows = json.loads(cache.read_text('utf-8')) if cache.exists() and source.get('revision') else None
         if rows is None:
             fs = HfFileSystem()
@@ -472,9 +486,9 @@ class Command(BaseCommand):
                 for r in recordings]
 
     # ── lots : un par enregistrement, une CONFIGURATION par card, la référence sur le lot ──
-    def post_batches(self, login, assets, engines, start, *, preprocess=False, vad='auto',
-                     language_mode='auto'):
-        """Une configuration = moteur × prétraitement × filtre de parole × langues parlées —
+    def post_batches(self, login, assets, engines, start, *, preprocess=False, level=False,
+                     vad='auto', language_mode='auto'):
+        """Une configuration = moteur × prétraitement × nivellement × filtre de parole × langues —
         exactement les réglages que l'évaluation distingue (`config_params` du transcriber). Un
         nouvel appel avec d'autres options AJOUTE ses cards au lot de l'enregistrement : toutes
         ses configurations se comparent au même endroit. Une configuration déjà posée ne l'est
@@ -500,14 +514,14 @@ class Command(BaseCommand):
                 # Le filtre de parole n'existe que chez Whisper (`workers._vad_filter_for`) :
                 # le varier sur un autre moteur poserait deux fois la même configuration.
                 engine_vad = vad if engine == 'whisper' else 'auto'
-                if on_audio.filter(backend=engine, preprocess_audio=preprocess,
+                if on_audio.filter(backend=engine, preprocess_audio=preprocess, level_speech=level,
                                    vad_mode=engine_vad, language_mode=language_mode).exists():
                     continue
                 # Diarisation coupée : elle ne change pas le texte mesuré, seulement le temps.
                 result = add_to_transcriber(user, asset.file.name, backend=engine,
                                             enable_diarization=False,
-                                            preprocess_audio=preprocess, vad_mode=engine_vad,
-                                            language_mode=language_mode)
+                                            preprocess_audio=preprocess, level_speech=level,
+                                            vad_mode=engine_vad, language_mode=language_mode)
                 if 'error' in result:
                     raise CommandError(f"{asset.name} / {engine} : {result['error']}")
                 card = Transcript.objects.get(pk=result['transcript_id'])
@@ -568,6 +582,7 @@ class Command(BaseCommand):
                 fmt = lambda v: '—' if v is None else f'{100 * v:5.1f} %'
                 self.stdout.write(
                     f"  #{t.pk:<5} {t.backend:<34} langues={t.language_mode:<6} "
-                    f"prétr={'oui' if t.preprocess_audio else 'non'} {t.status:<8} "
+                    f"prétr={'oui' if t.preprocess_audio else 'non'} "
+                    f"nivel={'oui' if t.level_speech else 'non'} {t.status:<8} "
                     f"WER {fmt(rows.get('wer'))}  CER {fmt(rows.get('cer'))}  "
                     f"accord {fmt(agreement)}  entendues {','.join(heard) or '—'}")
