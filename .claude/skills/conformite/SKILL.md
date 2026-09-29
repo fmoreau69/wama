@@ -19,7 +19,7 @@ python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteri
 ```
 
 <!-- WAMA:FAITS(conformite) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Critères de la grille : **100** — F1:4 F2:12 F3:21 F4:11 F5:39 F6:6 F7:5 F8:2 *(relevé du 2026-09-28)*
+- Critères de la grille : **100** — F1:4 F2:12 F3:21 F4:11 F5:39 F6:6 F7:5 F8:2 *(relevé du 2026-09-29)*
 - Apps mesurées : **10** ; dénominateur par app : **84 à 98** (un critère **non applicable** sort du calcul)
 <!-- /WAMA:FAITS(conformite) -->
 
@@ -58,6 +58,11 @@ python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteri
 - Les 🔶 sont souvent le meilleur ratio effort/gain (le mécanisme existe, il faut le brancher
   sur la brique) ; les ❌ structurants (card partial serveur, batch commun) se traitent via
   `/port-app`.
+- **Les jumelles bac à sable** (`<app>_NN`) sont notées À PART depuis le 2026-09-29 : clé
+  `sandbox_apps` du rapport, avec la source et l'**écart en points** (`/apps/` les marque « hors
+  du total »). Elles n'entrent JAMAIS dans `apps` (le total, les faits générés) — registre
+  gitignoré, `WAMA_VERIFICATION §1bis`. La cible n'est pas leur pourcentage mais l'écart : il
+  mesure le GÉNÉRATEUR (`ROUTE §11`) et doit tendre vers 0.
 - Un critère qui semble faux → vérifier le check dans
   `common/services/conformity_checker.py` (regex best-effort) AVANT de « corriger » l'app ;
   corriger le check si c'est lui qui se trompe (ex. verrou `cache.add` reconnu 2026-07-25).
