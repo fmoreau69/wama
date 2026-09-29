@@ -3,14 +3,19 @@
  *
  * Principe (INPUT_MODEL_MATCHING.md) : AUCUN radio de mode — le `generation_mode`
  * legacy est DÉRIVÉ des entrées fournies + du modèle, le backend reste inchangé :
- *   image : fichier batch → file2img · réf + prompt → img2img · réf sans prompt →
- *           describe2img · prompt seul → txt2img
+ *   image : réf + prompt → img2img · réf sans prompt → describe2img · prompt seul → txt2img
  *   vidéo : réf → img2vid · sinon txt2vid
  * Appariement entrée↔modèle : WamaInputMatch (capacités catalogue inputs_required/
  * optional — ex. qwen-image-edit exige une image, cogvideox-5b-i2v aussi).
  * Routage des imports : un seul point d'entrée (dropzone / fichier / médiathèque) —
- * .txt/.csv → fichier de prompts (batch), image/* → slot de référence.
+ * .txt/.csv → brique commune de LOT (barre `batch_detect_bar`), image/* → slot de référence.
  * Config : window.IMAGER_CARD = {urls:{create}, csrf, matchMeta, inputLabels, enhanceUrl}.
+ *
+ * La card porte les ENTRÉES ; le MODÈLE et le PROMPT NÉGATIF sont des RÉGLAGES du volet droit
+ * (CARD_DESIGN §11.11 Étape 3 (c), 2026-09-28). La card n'a plus de select à elle :
+ * l'appariement grise les options du select du VOLET (`#model`, `#panel_video_model`) et la
+ * création poste le volet entier. ⚠ Ce script doit donc s'exécuter APRÈS index.js, qui rend et
+ * remplit ce select (ordre d'inclusion dans index.html).
  */
 (function () {
     'use strict';
@@ -18,8 +23,6 @@
     const CFG = window.IMAGER_CARD || {};
 
     function toast(msg, type) { WamaApp.toast(msg, type || 'info'); }   // brique globale
-
-    function isBatchFile(f) { return /\.(txt|csv)$/i.test(f.name || ''); }
 
     function initDomain(d) {
         const btn = document.getElementById(d.btnId);
@@ -45,11 +48,16 @@
         // Référence par URL (WAMA_INGEST, contrat composer 307b9fb) : champ SANS bouton —
         // l'URL fait partie du payload Générer, téléchargée AU LANCEMENT par la tâche.
         const urlInput = document.getElementById(d.urlInputId);
-        if (!btn || !promptEl || !select) return;
+        if (!btn || !promptEl) return;
+        if (!select) {
+            // Le select du VOLET n'est pas (encore) rendu : sans lui, ni appariement ni création
+            // cohérente. Le DIRE — une card inerte sans un mot est le pire des défauts.
+            console.error('[imager] select de modèle du volet #' + d.selectId +
+                          ' absent : input_card.js doit être inclus APRÈS index.js.');
+            return;
+        }
 
         function refUrl() { return urlInput ? (urlInput.value || '').trim() : ''; }
-
-        let batchFile = null;   // .txt/.csv de prompts (image seulement)
 
         // ── Appariement entrée↔modèle (brique commune, capacités catalogue) ──
         // INVARIANT INPUT_MODEL_MATCHING : « requis → lancement GATÉ avec la raison,
@@ -80,12 +88,8 @@
             if (urlInput) urlInput.addEventListener('input', function () { matcher.refresh(); });
         }
 
-        // ── Aide modèle (description + VRAM, catalogue) ──
-        if (window.WamaModelHelp && WamaModelHelp.fetchCatalogMeta) {
-            WamaModelHelp.fetchCatalogMeta('imager', { keyBy: 'id' }).then(function (meta) {
-                WamaModelHelp.init({ selectId: d.selectId, helpId: d.prefix + 'ModelHelp', meta: meta });
-            }).catch(function () {});
-        }
+        // L'aide du modèle (description + VRAM) n'est plus câblée ici : le select est celui du
+        // volet, dont `WamaParams` câble l'aide depuis le schéma (`help_source='imager'`).
 
         // ── Enrichissement de prompt (pipeline commun conservé) ──
         if (window.WamaPromptEnrich) {
@@ -116,31 +120,17 @@
             }
         })();
 
-        // ── Chip du fichier batch (hors appariement : affordance de card, pas une capacité) ──
-        function setBatchFile(f) {
-            batchFile = f || null;
-            const chip = document.getElementById(d.prefix + 'BatchChip');
-            if (!chip) return;
-            if (batchFile) {
-                chip.style.display = '';
-                chip.innerHTML = '<span class="badge bg-info text-dark d-inline-flex align-items-center gap-1">' +
-                    '<i class="fas fa-list"></i> ' + batchFile.name +
-                    ' <button type="button" class="btn-close btn-close-white btn-sm ms-1" aria-label="Retirer"></button></span>';
-                chip.querySelector('button').addEventListener('click', function () { setBatchFile(null); });
-            } else {
-                chip.style.display = 'none';
-                chip.innerHTML = '';
-            }
-        }
-
         // ── Voie d'import : brique commune WamaImport, mode ATTACHE (portage 2026-09-08) ──
         // Ce que faisait `routeFile` (dropzone / sélecteur / médiathèque → .txt/.csv au lot
         // commun, image/* dans le slot de référence, toast sinon) est le contrat de la brique,
         // DÉCLARÉ : `attach: [refInputId]` — le fichier va au port dont l'`accept` (image/*,
         // déclaré par la card) l'admet ; `batch` (image seulement, `batchScope:'each'` : chaque
         // fichier est testé) ; sans `uploadUrl`, le reste est REFUSÉ à l'écran. `afterAttach`
-        // = le refresh EXPLICITE de l'appariement (injection programmatique). Le repli
-        // `setBatchFile` (brique batch absente) est conservé par `beforeFile`.
+        // = le refresh EXPLICITE de l'appariement (injection programmatique).
+        // ⚠ Le repli « brique de lot absente » (`beforeFile` → chip + mode `file2img`) est RETIRÉ
+        // le 2026-09-28 avec la zone d'extension qui portait sa chip : index.html charge TOUJOURS
+        // `batch-import.js`, et sans elle un fichier de prompts est refusé à l'écran, comme
+        // dans les 9 autres apps — jamais gardé dans un état invisible.
         if (typeof window.WamaImport === 'function' && dropZone && fileInput) {
             WamaImport({
                 csrfToken:   CFG.csrf,
@@ -155,10 +145,6 @@
                 batchScope:  'each',
                 attach:      [refInputId],
                 afterAttach: function () { if (matcher) matcher.refresh(); },
-                beforeFile:  function (f) {
-                    if (d.allowBatch && isBatchFile(f) && !window[d.batchGlobal]) { setBatchFile(f); return false; }
-                    return true;
-                },
             });
         }
 
@@ -175,7 +161,6 @@
             const hasRefFile = refProvided();
             const hasRef = hasRefFile || !!refUrl();
             if (d.domain === 'video') return hasRef ? 'img2vid' : 'txt2vid';
-            if (batchFile) return 'file2img';
             // describe2img exige le fichier LOCAL (BLIP tourne à la création) : une référence
             // par URL seule dérive en img2img (avec ou sans prompt — img2img pur accepté).
             if (hasRefFile) return hasPrompt ? 'img2img' : 'describe2img';
@@ -193,7 +178,7 @@
                 toast('Ce modèle attend une entrée qui manque encore.', 'warning');
                 return;
             }
-            if (!batchFile && !hasRef && !(promptEl.value || '').trim()) {
+            if (!hasRef && !(promptEl.value || '').trim()) {
                 toast('Décrivez ce que vous voulez générer, ou fournissez une image / un fichier de prompts.', 'warning');
                 return;
             }
@@ -204,12 +189,9 @@
                 const ctrl = WamaPromptEnrich.get(promptEl);
                 if (ctrl && ctrl.snapshot().state === 'processed') promptValue = (ctrl.original || '').trim();
             }
-            const negEl = document.getElementById(d.prefix + 'NegativePrompt');
             const fd = new FormData();
             fd.append('generation_mode', mode);
             fd.append('prompt', promptValue);
-            fd.append('negative_prompt', negEl ? (negEl.value || '').trim() : '');
-            fd.append('model', select.value || 'auto');
 
             // ── Réglages du VOLET DROIT ────────────────────────────────────────────────
             // Sans ça, le serveur retombe sur get_model_defaults() et régler « 4 images » ou
@@ -222,14 +204,13 @@
                 d.domain === 'video' ? 'videoPanelParams' : 'imagePanelParams');
             if (panelHost && window.WamaParams) {
                 const panel = WamaParams.read(panelHost) || {};
+                // Modèle et prompt négatif COMPRIS : ce sont des réglages du volet (étape 3 (c)).
                 Object.keys(panel).forEach(function (k) {
-                    // Le modèle vient du select de la CARD (surface primaire), pas du volet :
-                    // le volet ne porte que le DÉFAUT de l'utilisateur.
-                    if (k === 'model' || k === 'negative_prompt') return;
                     const v = panel[k];
                     if (v !== null && v !== undefined && v !== '') fd.append(k, v);
                 });
             }
+            if (!fd.has('model')) fd.append('model', select.value || 'auto');
             // Résolution image : hors schéma (widget à présets) → width/height calculés.
             const wEl = document.getElementById('width');
             const hEl = document.getElementById('height');
@@ -237,7 +218,6 @@
                 fd.append('width', wEl.value);
                 fd.append('height', hEl.value);
             }
-            if (batchFile) fd.append('prompt_file', batchFile);
             if (hasRefFile) WamaApp.appendInput(fd, refInput, 'reference_image');
             // Un fichier joint PRIME sur l'URL (ensure_local_input ne télécharge que si vide).
             if (!hasRefFile && refUrl()) fd.append('source_url', refUrl());
@@ -264,7 +244,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         initDomain({
             prefix: 'img', domain: 'image', allowBatch: true, batchGlobal: '_batchImport',
-            selectId: 'imgModelSelect', promptId: 'imgPrompt',
+            selectId: 'model', promptId: 'imgPrompt',              // select du VOLET image
             fileInputId: 'imgFileInput', dropZoneId: 'imgDropZone',
             refInputId: 'imgRefInput', refChipId: 'imgRefChip', refSlotId: 'imgRefSlot',
             urlInputId: 'imgUrlInput',
@@ -275,7 +255,7 @@
             // (`_batchImportVideo`, ids `vidBatch…`), sinon un fichier de prompts déposé sur la
             // card vidéo était refusé comme « non attendu ».
             prefix: 'vid', domain: 'video', allowBatch: true, batchGlobal: '_batchImportVideo',
-            selectId: 'vidModelSelect', promptId: 'vidPrompt',
+            selectId: 'panel_video_model', promptId: 'vidPrompt',  // select du VOLET vidéo
             fileInputId: 'vidFileInput', dropZoneId: 'vidDropZone',
             refInputId: 'vidRefInput', refChipId: 'vidRefChip', refSlotId: 'vidRefSlot',
             urlInputId: 'vidUrlInput',

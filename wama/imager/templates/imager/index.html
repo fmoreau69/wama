@@ -128,10 +128,12 @@ SÉLECTION, cloné par WamaInspector.{% endcomment %}
 
 {% comment %} Card d'entrée COMMUNE (brique _new_item_card, une instance PAR DOMAINE) — remplace
 le formulaire manuel (~190 lignes). Aucun radio de mode : input_card.js dérive generation_mode
-des entrées + du modèle (appariement wama-input-match, capacités catalogue). Réglages fins
-(résolution, steps, seed…) : défauts serveur, éditables via la modale ⚙ de la card PENDING. {% endcomment %}
+des entrées + du modèle (appariement wama-input-match, capacités catalogue). Les RÉGLAGES —
+modèle et prompt négatif compris depuis le 2026-09-28 — sont au volet et dans la modale ⚙
+(CARD_DESIGN §11.11 Étape 3 (c)) : plus de zone d'extension (`extra_zone_template`), la card
+commune porte tout ce qui reste — une des 4 extra-zones de §11.8 absorbée. {% endcomment %}
 {% url 'imager:batch_template' as batch_tpl_url %}
-{% include 'common/_new_item_card.html' with card_id='imgNewCard' depot_cree=False collapsible=True show_prompt=True prompt_input_id='imgPrompt' prompt_rows=2 prompt_placeholder='Décrivez ce que vous voulez générer… (le ✨ traduit et enrichit)' drop_zone_id='imgDropZone' file_input_id='imgFileInput' file_accept='image/*,.txt,.csv' formats_label='Image de référence, ou fichier de prompts .txt/.csv (batch)' show_batch_bar=True batch_format='prompt|modele|steps|seed' batch_hint='Un prompt par ligne ; en-têtes ou balises -p aussi acceptés (détection automatique).' batch_template_url=batch_tpl_url batch_template_id='imgBatchTemplateLink' show_media_library=True media_library_type='image' show_reference=True reference_zone_id='imgRefSlot' reference_input_id='imgRefInput' reference_chip_id='imgRefChip' reference_accept='image/*' reference_label='Image de référence' reference_hint='Requise ou suggérée selon le modèle (édition qwen, img2img SD, describe → image).' match_status_id='imgMatchStatus' show_url=True url_input_id='imgUrlInput' url_label='ou image de référence par URL' url_placeholder='https://…/image.jpg' url_hint='Téléchargée au lancement (WAMA_INGEST) ; un fichier joint prime. Mode dérivé : img2img.' extra_zone_template='imager/_model_zone.html' mz_prefix='img' mz_groups=image_model_groups primary_btn_id='imgGenerateBtn' primary_btn_label='Générer' primary_btn_icon='fa-magic' %}
+{% include 'common/_new_item_card.html' with card_id='imgNewCard' depot_cree=False collapsible=True show_prompt=True prompt_input_id='imgPrompt' prompt_rows=2 prompt_placeholder='Décrivez ce que vous voulez générer… (le ✨ traduit et enrichit)' drop_zone_id='imgDropZone' file_input_id='imgFileInput' file_accept='image/*,.txt,.csv' formats_label='Image de référence, ou fichier de prompts .txt/.csv (batch)' show_batch_bar=True batch_format='prompt|modele|steps|seed' batch_hint='Un prompt par ligne ; en-têtes ou balises -p aussi acceptés (détection automatique).' batch_template_url=batch_tpl_url batch_template_id='imgBatchTemplateLink' show_media_library=True media_library_type='image' show_reference=True reference_zone_id='imgRefSlot' reference_input_id='imgRefInput' reference_chip_id='imgRefChip' reference_accept='image/*' reference_label='Image de référence' reference_hint='Requise ou suggérée selon le modèle (édition qwen, img2img SD, describe → image).' match_status_id='imgMatchStatus' show_url=True url_input_id='imgUrlInput' url_label='ou image de référence par URL' url_placeholder='https://…/image.jpg' url_hint='Téléchargée au lancement (WAMA_INGEST) ; un fichier joint prime. Mode dérivé : img2img.' primary_btn_id='imgGenerateBtn' primary_btn_label='Générer' primary_btn_icon='fa-magic' %}
 <hr class="border-secondary">
 
 {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
@@ -177,7 +179,7 @@ app du parc à l'inclure dedans ; tenu depuis par `tests_queue_toolbar_placement
     <div class="tab-pane fade" id="videoTab" role="tabpanel" aria-labelledby="video-tab">
 
 {% comment %} Card d'entrée vidéo — même brique, domaine vidéo (modèles t2v/i2v). {% endcomment %}
-{% include 'common/_new_item_card.html' with card_id='vidNewCard' depot_cree=False collapsible=True show_prompt=True prompt_input_id='vidPrompt' prompt_rows=2 prompt_placeholder='Décrivez la vidéo à obtenir… (le ✨ traduit et enrichit)' drop_zone_id='vidDropZone' file_input_id='vidFileInput' file_accept='image/*,.txt,.csv' formats_label='Image de départ (image → vidéo), ou fichier de prompts .txt/.csv (batch vidéo)' show_batch_bar=True batch_bid='vidBatch' batch_label='Batch vidéo' batch_format='prompt|modele|steps|seed' batch_hint='Un prompt par ligne ; réglages vidéo (durée, fps, résolution) du volet.' batch_template_url=batch_tpl_url batch_template_id='vidBatchTemplateLink' show_media_library=True media_library_type='image' show_reference=True reference_zone_id='vidRefSlot' reference_input_id='vidRefInput' reference_chip_id='vidRefChip' reference_accept='image/*' reference_label='Image de départ' reference_hint='Requise (CogVideoX i2v) ou optionnelle (LTX) selon le modèle.' match_status_id='vidMatchStatus' show_url=True url_input_id='vidUrlInput' url_label='ou image de départ par URL' url_placeholder='https://…/image.jpg' url_hint='Téléchargée au lancement (WAMA_INGEST) ; un fichier joint prime. Mode dérivé : image → vidéo.' extra_zone_template='imager/_model_zone.html' mz_prefix='vid' mz_groups=video_model_groups primary_btn_id='vidGenerateBtn' primary_btn_label='Générer' primary_btn_icon='fa-film' %}
+{% include 'common/_new_item_card.html' with card_id='vidNewCard' depot_cree=False collapsible=True show_prompt=True prompt_input_id='vidPrompt' prompt_rows=2 prompt_placeholder='Décrivez la vidéo à obtenir… (le ✨ traduit et enrichit)' drop_zone_id='vidDropZone' file_input_id='vidFileInput' file_accept='image/*,.txt,.csv' formats_label='Image de départ (image → vidéo), ou fichier de prompts .txt/.csv (batch vidéo)' show_batch_bar=True batch_bid='vidBatch' batch_label='Batch vidéo' batch_format='prompt|modele|steps|seed' batch_hint='Un prompt par ligne ; réglages vidéo (durée, fps, résolution) du volet.' batch_template_url=batch_tpl_url batch_template_id='vidBatchTemplateLink' show_media_library=True media_library_type='image' show_reference=True reference_zone_id='vidRefSlot' reference_input_id='vidRefInput' reference_chip_id='vidRefChip' reference_accept='image/*' reference_label='Image de départ' reference_hint='Requise (CogVideoX i2v) ou optionnelle (LTX) selon le modèle.' match_status_id='vidMatchStatus' show_url=True url_input_id='vidUrlInput' url_label='ou image de départ par URL' url_placeholder='https://…/image.jpg' url_hint='Téléchargée au lancement (WAMA_INGEST) ; un fichier joint prime. Mode dérivé : image → vidéo.' primary_btn_id='vidGenerateBtn' primary_btn_label='Générer' primary_btn_icon='fa-film' %}
 
 <hr class="border-secondary">
 <div id="videoGlobalStatus" style="opacity:0; pointer-events:none;">
@@ -357,7 +359,6 @@ window.IMAGER_CARD = {
 };
 </script>
 <script src="{% static_v 'common/js/wama-input-match.js' %}"></script>
-<script src="{% static_v 'imager/js/input_card.js' %}"></script>
 <script>
 /* Schémas + groupes des modales ⚙ (params.py = source unique). */
 window.IMAGER_IMAGE_SCHEMA = {{ image_params_json|safe }};
@@ -401,14 +402,13 @@ document.addEventListener('DOMContentLoaded', function () {
             if (host && window.WamaParams) {
                 var vals = WamaParams.read(host) || {};
                 Object.keys(vals).forEach(function (k) {
-                    if (k === 'model') return;   // le modèle vient du select de la CARD
                     if (vals[k] !== null && vals[k] !== undefined && vals[k] !== '') {
                         fd.append(k, vals[k]);
                     }
                 });
             }
-            var sel = document.getElementById('imgModelSelect');
-            fd.append('model', (sel && sel.value) || 'auto');
+            // Le modèle est un réglage du volet (étape 3 (c), 2026-09-28) : `vals.model`.
+            if (!fd.has('model')) fd.append('model', 'auto');
             fd.append('domain', 'image');
         },
         afterCreate: function (data, autoStart) {
@@ -436,14 +436,13 @@ document.addEventListener('DOMContentLoaded', function () {
             if (host && window.WamaParams) {
                 var vals = WamaParams.read(host) || {};
                 Object.keys(vals).forEach(function (k) {
-                    if (k === 'model') return;
                     if (vals[k] !== null && vals[k] !== undefined && vals[k] !== '') {
                         fd.append(k, vals[k]);
                     }
                 });
             }
-            var sel = document.getElementById('vidModelSelect');
-            fd.append('model', (sel && sel.value) || 'auto');
+            // Le modèle est un réglage du volet (étape 3 (c), 2026-09-28) : `vals.model`.
+            if (!fd.has('model')) fd.append('model', 'auto');
             fd.append('domain', 'video');
         },
         afterCreate: function (data, autoStart) {
@@ -460,6 +459,11 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 <script src="{% static_v 'imager/js/settings_modal.js' %}"></script>
 <script src="{% static_v 'imager/js/index.js' %}"></script>
+{% comment %}input_card.js APRÈS index.js — l'ORDRE est porteur (2026-09-28) : la card se lie au
+select de modèle du VOLET (`#model`, `#panel_video_model`), que index.js rend et remplit à son
+DOMContentLoaded ; les écouteurs s'exécutent dans l'ordre d'inclusion. Inclus avant, la card ne
+trouverait pas le select et resterait inerte. Tenu par `imager.tests.InputCardReadsThePanelTest`.{% endcomment %}
+<script src="{% static_v 'imager/js/input_card.js' %}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         {% comment %} Chips de prompt : init PAR CARD dans input_card.js (les anciens ids

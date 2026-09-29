@@ -1024,8 +1024,17 @@ Trois pièges, tous rencontrés :
 |---|---|---|---|
 | 1 | **Modalités d'entrée** : dépôt/clic · dossier récursif (8/12) · URL (avec ou sans bouton) · médiathèque (`MediaPicker`) · lot · live/Speak (transcriber seul) · slot référence typé (3/12) · **manifeste de pipeline** (à venir — ex-« manifeste de PROCESS » ; précisé le 2026-09-15 : un pipeline de 0..N process, vide compris, `WAMA_APP_GENERATION_ROUTE.md §10.6` ; l'importeur est une modalité de la card, précision Fabien 30/08, `WAMA_MANIFEST_ARCHITECTURE.md §8` ; même geste que le fichier de lot : dépôt + détection structurelle + aperçu) | brique commune, la v3.5 change leur PRÉSENTATION (mini-onglets) | `wama/common/templates/common/_new_item_card.html` |
 | 2 | **Prompt** primaire (5/12 : composer, synthesizer, avatarizer, imager ×2) + compteur de mots et zone droppable (avatarizer seul) + **prompt négatif** (imager, en zone d'extension) | doctrine écrite : « dans la CARD, pas dans le volet » | `_new_item_card.html:76-77` |
-| 3 | **Réglages inline** : voix/vitesse/titre + **aperçu SSE de la voix** (synthesizer) ; **sélecteur de modèle avec Auto** + aide `WamaModelHelp` (imager ×2) | via `extra_zone_template`, sans contrat — 2 apps ont DÉJÀ des réglages dans la card, sans ⚙ | `wama/synthesizer/templates/synthesizer/_new_item_extra.html` ; `wama/imager/templates/imager/_model_zone.html` |
+| 3 | **Réglages inline** : voix/vitesse/titre + **aperçu SSE de la voix** (synthesizer) ; **sélecteur de modèle avec Auto** + aide `WamaModelHelp` (imager ×2) | via `extra_zone_template`, sans contrat — 2 apps ont DÉJÀ des réglages dans la card, sans ⚙ | `wama/synthesizer/templates/synthesizer/_new_item_extra.html` ; le gabarit `_model_zone` de l'imager (retiré le 2026-09-28, R80) |
 | 4 | **Sélection visuelle d'actif** : galerie d'avatars (grille cliquable) | seul cas du parc | `wama/avatarizer/templates/avatarizer/_new_item_extra.html` |
+
+> ⚠ **État au 2026-09-28** (la table ci-dessus est le relevé du 30/08) : ligne 3 résorbée pour
+> l'imager — `_model_zone.html` est RETIRÉ, modèle et prompt négatif au volet (§11.11 Étape 3 (c),
+> REMOVAL_LEDGER R80) ; l'aperçu de voix du synthesizer est au volet et sur la chaîne commune
+> (Étape 3 (b), R79), sa zone ne porte plus que le TITRE — une entrée. Restent 3 zones
+> d'extension, mesurées : synthesizer (le titre), avatarizer (la galerie — Étape 3 (d)) et
+> enhancer (`_audio_batch_bar.html`, qui n'est plus que la barre de lot COMMUNE avec un 2ᵉ jeu
+> d'ids et sa couleur : absorbable par `show_batch_bar` + `batch_bid`, comme la card vidéo de
+> l'imager — non fait, hors périmètre de l'étape 3).
 | 5 | **Enrichissement ✨** : brique 2-états complète (champ `user`/`processed`, barre « voir mon prompt / revenir / ré-enrichir », endpoint générique, pipeline langue→traduction→enrichissement→réf→RAG, kill-switch + préférence user) | ⚠ **la brique n'émet AUCUN déclencheur** : le seul vrai bouton ✨ est FABRIQUÉ par l'imager ; composer et anonymizer attachent la brique **sans pouvoir la déclencher** | `wama/common/static/common/js/wama-prompt-enrich.js` ; `wama/common/utils/prompt_pipeline.py` ; `wama/imager/static/imager/js/input_card.js` |
 | 6 | **Chips de mots-clés suggérés** : brique commune + modèle `PromptKeyword` (tronc commun `user=None` + perso, 7 catégories, accordéon, insertion/retrait dans le prompt, glossaire préservé verbatim à l'enrichissement) | **adoption 1/10** (imager) ; le point de montage est bricolé en JS par l'app — la brique card n'offre AUCUN slot chips | `wama/common/static/common/js/wama-prompt-chips.js` ; `wama/media_library/models.py` |
 | 7 | **Appariement entrée⇄modèle** : modèles incompatibles désactivés avec raison, slots requis/suggérés surlignés, gate de lancement, chips retirables, slots non-fichier déclaratifs | 7/10 adoptent, mais **3 seulement rendent l'état DANS la card** (imager ×2, composer) — 4 l'affichent au volet, 2 fabriquent l'élément en JS ; **1 seul** (imager) pilote le bouton primaire via `onState` | `wama/common/static/common/js/wama-input-match.js` |
@@ -1466,7 +1475,17 @@ l'ENTRÉE (le `.docx` créé du texte par `upload_text`), ce n'est pas un régla
 deviendrait une valeur collante appliquée aux éléments suivants. ⚠ **Relevé au passage (Fabien) :
 l'aperçu est une mécanique LOCALE**, alignement sur le commun à faire — cf. la note sous cette
 liste ; (c) modèle et prompt négatif de l'imager hors de la card, appariement rebranché sur le
-select du volet ; (d) la galerie d'avatars, avec l'adoption v4 de l'avatarizer.
+select du volet — ✅ **2026-09-28** : le volet portait DÉJÀ le select de modèle (`#model`,
+`#panel_video_model`, mêmes options) ; le prompt négatif y gagne sa surface dans les deux domaines
+(`params.py`, ids distincts : ce sont aussi les clés du réglage stocké). L'appariement se lie au
+select du VOLET — `input_card.js` est donc inclus APRÈS `index.js`, qui le rend — et bloque le
+bouton de la card avec sa raison (vérifié au navigateur sur qwen-image-edit et CogVideoX i2v) ; la
+création et les deux lots postent le volet entier. **La card de l'imager n'a plus de zone
+d'extension** (1 des 4 de §11.8 absorbée) : `_model_zone.html` retiré, et le repli « fichier de
+prompts » qu'il portait aussi (REMOVAL_LEDGER R80). Au passage, la porte de grille
+`_has_engine_select` lit tous les schémas éclatés — sans quoi les trois critères de l'imager
+passaient N/A et son `model_caps_ui` rouge disparaissait ; (d) la galerie d'avatars, avec
+l'adoption v4 de l'avatarizer.
 
 > **L'aperçu de voix du synthesizer ne passe par AUCUN chemin commun côté lecture, ni par le
 > chemin de la synthèse côté serveur** (mesuré le 2026-09-28, `synthesizer/views.py::voice_preview`

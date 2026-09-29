@@ -73,9 +73,11 @@ IMAGE_PARAMS = derive_from_model(
             dom_id={"item": "settings_quality_intent", "panel": "quality_intent"},
             group="modele", show_if={"field": "model", "equals": "auto"},
         ),
+        # Un RÉGLAGE, pas une entrée (INPUT_MODEL_MATCHING §6.1) : il vit au volet et dans la
+        # modale ⚙, plus dans la card d'entrée (CARD_DESIGN §11.11 Étape 3 (c), 2026-09-28).
         "negative_prompt": dict(
             type="textarea", label="Prompt négatif", icon="fa-ban",
-            dom_id={"item": "settings_negative_prompt"},
+            dom_id={"item": "settings_negative_prompt", "panel": "negative_prompt"},
             group="modele",
             help="Ce qu'il faut éviter dans l'image.",
         ),
@@ -151,8 +153,10 @@ VIDEO_PARAMS = derive_from_model(
         ),
         "negative_prompt": dict(
             type="textarea", label="Prompt négatif", icon="fa-ban",
-            dom_id={"item": "video_settings_negative_prompt"},
+            # Id de volet DISTINCT du domaine image : il est aussi la clé du réglage stocké.
+            dom_id={"item": "video_settings_negative_prompt", "panel": "panel_video_negative_prompt"},
             group="modele",
+            help="Ce qu'il faut éviter dans la vidéo.",
         ),
         "video_resolution": dict(
             type="select", label="Résolution", icon="fa-expand",

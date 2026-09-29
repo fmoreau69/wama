@@ -217,7 +217,8 @@ def index(request):
     # composer (`views.py::_input_match_meta`) : l'auto accepte ce qu'accepte AU MOINS UN
     # candidat, la résolution au lancement (`utils/auto_model.py`) restreignant ensuite.
     # ⚠ Union GLOBALE et non par domaine : l'imager n'expose qu'UN id `auto`, partagé par ses
-    # deux selects (`imgModelSelect`/`vidModelSelect`). Une union par domaine supposerait deux
+    # deux selects (ceux du VOLET depuis le 2026-09-28 : `#model`/`#panel_video_model` — la card
+    # d'entrée n'en porte plus, CARD_DESIGN §11.11 Étape 3 (c)). Une union par domaine supposerait deux
     # ids distincts — à faire le jour où une entrée serait acceptée par un modèle vidéo et par
     # aucun modèle image (aucun cas aujourd'hui : `work_image` est accepté des deux côtés).
     if input_match_meta:
@@ -289,9 +290,8 @@ def index(request):
         'image_modes': image_modes,
         'video_modes': video_modes,
         'generation_modes': image_modes,  # Keep for backward compatibility
-        # Card d'entrée commune (une par domaine) — groupes du select + appariement.
-        'image_model_groups': image_model_groups,
-        'video_model_groups': video_model_groups,
+        # Groupes du select de modèle (volet + modale ⚙, `settings_modal.js::fillModelChoices`)
+        # et méta d'appariement de la card d'entrée.
         'input_match_meta': json.dumps(input_match_meta),
         'input_labels': json.dumps(input_labels),
         'model_groups_json': json.dumps({'image': image_model_groups,
