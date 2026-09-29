@@ -104,8 +104,28 @@ chaque étape (diarisation, résumé, cohérence) se relance seule au lieu de to
   tâche longue (sa réponse finit par un appel d'outil écrit en texte), et il a INVENTÉ une cause
   (« les poids ne sont pas encore en cache ») à une lenteur qui venait de l'import de NeMo à froid.
 - **À évaluer plus tard** (perf vs gain) : **WhisperX** (alignement mot wav2vec2 + pyannote,
-  idéal éditeur), **NVIDIA Canary-Qwen-2.5B** (n°1 HF Open ASR, FR), **IBM Granite Speech 3.3**
-  (FR). Variante rapide : **large-v3-turbo**.
+  idéal éditeur), **IBM Granite Speech** (FR). Variante rapide : **large-v3-turbo**.
+  ⚠ *Corrigé le 2026-09-29* : **NVIDIA Canary-Qwen-2.5B est ANGLAIS SEUL** (`language=['en']`,
+  vérifié à l'API HF) — il ne sert pas le français, retiré de cette liste.
+- **Veille du 2026-09-29** (recherche web + vérification à l'API HF ; classement français de
+  l'Open ASR Leaderboard déjà lu par WAMA, `load_open_asr`). Candidats OUVERTS vérifiés, par
+  priorité d'évaluation dans les lots SUMM-RE / FLEURS-CS (`WAMA_QUALITE §9bis`) :
+  1. **`linagora/linto_stt_fr_fastconformer_pc`** (CC-BY-4.0, 0,9 Go, NeMo) — seul entraîné sur
+     des réunions françaises ; SUMM-RE annoncé 19,8 % par son producteur, mais sur des segments
+     > 4 s : à remesurer à NOTRE protocole.
+  2. **Axe verbatim** : **`aihpi/FrWhisper`** (Whisper large-v3 affiné pour garder « euh »,
+     répétitions ; **CC-BY-NC-SA**) ; `nyralabs/CrisperWhisper2.0_large` (licence non commerciale)
+     ⚠ sa fiche ne déclare que **en, de** — le français n'est affirmé que par une page
+     commerciale, non vérifié.
+  3. **Code-switching** : **`mistralai/Voxtral-Mini-3B-2507`** (Apache-2.0, ~9,5 Go, langue
+     détectée, FLEURS-FR 4,87 annoncé) et **`kyutai/stt-1b-en_fr-trfs`** (CC-BY-4.0, fr/en en flux).
+  4. **Diarisation** : `pyannote/speaker-diarization-community-1` (CC-BY-4.0, accès sur
+     acceptation, successeur direct de notre 3.1) et `nvidia/Nemotron-3-Diarization` (OpenMDW,
+     NeMo) — à comparer par cpWER sur SUMM-RE.
+  5. Meilleurs chiffres français ouverts, mais **hors de notre venv** (transformers ≥ 5 ou torch
+     < 2.6) : `HojoAI/Hojo-ASR-Multi-V1`, `CohereLabs/cohere-transcribe-03-2026` (accès sur
+     acceptation), Granite Speech 4.1 `-plus`/`-nar`, `Voxtral-Mini-4B-Realtime` → venv dédié ou
+     essai `--no-deps`, décision à prendre.
 - **Tâche d'item et résidence du modèle** (2026-09-25) : la transcription passe par le squelette
   commun `run_item_task` (statuts, durée max 180 min, notifications, signal d'exécution) et le
   moteur ASR **reste chargé** après une card — la libération relève du gouverneur commun, pas de
