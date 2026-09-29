@@ -68,14 +68,14 @@
           "corr_de_m",
           "corr_dn_m",
           "corr_dh_deg",
+          "corr_sigma_m",
           "road_lateral_m",
           "road_bearing_deg",
           "lane_anchored"
         ],
         "required_fields": [],
         "uncertainty": {
-          "model": "declared",
-          "note": "σ à mesurer contre le recalage ortho 2b"
+          "field": "corr_sigma_m"
         }
       }
     ],
@@ -122,6 +122,49 @@
         "unit": "Écart max entre deux ancres pour interpoler."
       },
       {
+        "choices": [
+          "kalman",
+          "interpolate"
+        ],
+        "default": "kalman",
+        "description": "Passage des ancres à la trace : biais GPS lissé (Kalman + RTS) ou interpolation entre ancres proches.",
+        "key": "bias_model",
+        "max": null,
+        "min": null,
+        "type": "enum",
+        "unit": ""
+      },
+      {
+        "choices": "m²/s",
+        "default": 0.1,
+        "description": "",
+        "key": "bias_q",
+        "max": 1.0,
+        "min": 0.001,
+        "type": "float",
+        "unit": "Vitesse de variation du biais GPS (marche aléatoire) — réglée par validation croisée."
+      },
+      {
+        "choices": "m",
+        "default": 1.5,
+        "description": "",
+        "key": "bias_sigma_m",
+        "max": 5.0,
+        "min": 0.1,
+        "type": "float",
+        "unit": "Bruit d'une ancre (mesure latérale)."
+      },
+      {
+        "choices": "m",
+        "default": 1.5,
+        "description": "",
+        "key": "max_bias_sigma_m",
+        "max": 10.0,
+        "min": 0.1,
+        "type": "float",
+        "unit": "Au-delà de cet écart-type, la correction n'est plus appliquée (trop loin d'une ancre)."
+      },
+      {
         "choices": "m",
         "default": 2.0,
         "description": "",
@@ -153,7 +196,7 @@
     ],
     "visibility": "public"
   },
-  "description": "Corrige la position LATÉRALE et le CAP d'une trace GPS de véhicule par la voie vue (lignes de voie projetées au sol) et l'axe routier de référence (largeur, nombre de voies, sens) : rattachement continu (Viterbi), centre attendu de la voie de droite, écart mesuré au centre de voie → correction, interpolée entre ancres. Le longitudinal n'est pas touché. N'APPLIQUE rien : la trace sort enrichie.",
+  "description": "Corrige la position LATÉRALE et le CAP d'une trace GPS de véhicule par la voie vue (lignes de voie projetées au sol) et l'axe routier de référence (largeur, nombre de voies, sens) : rattachement continu (Viterbi), centre attendu de la voie de droite, écart mesuré au centre de voie → ancres ; le BIAIS GPS (est, nord) en est estimé comme un état lent par Kalman + lisseur RTS (chaque ancre n'en observe que la composante latérale ; virages et giratoires rendent le longitudinal observable), et porté dans les zones sans ancre tant que son incertitude reste faible. N'APPLIQUE rien : la trace sort enrichie.",
   "key": "lane_map_recalage",
   "manifest_kind": "function",
   "name": "Recalage latéral par voie + carte",

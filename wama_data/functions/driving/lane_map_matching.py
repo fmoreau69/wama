@@ -185,7 +185,8 @@ def lane_map_recalage(track: TypedFrame, road_map: TypedFrame, lanes: TypedFrame
                       radius_m=25.0, max_heading_dev_deg=15.0, max_correction_m=15.0,
                       max_gap_s=20.0, lateral_scale=0.0, width_range=(2.2, 4.8),
                       min_scale_samples=20, max_overshoot_m=2.0,
-                      excluded_types=NOT_DRIVABLE) -> TypedFrame:
+                      excluded_types=NOT_DRIVABLE, bias_model='kalman', bias_q=0.1,
+                      bias_sigma_m=1.5, max_bias_sigma_m=1.5, return_anchors=False) -> TypedFrame:
     """Composition : trace (ts, lat, lon, heading, speed_kmh) + tronçons (`geometry` en (lat, lon),
     `nb_voies`, `largeur_m`, `sens`, `type` = nature BD TOPO) + observations de voie (ts, offset_m, rel_heading_deg,
     width_m optionnel) →
@@ -201,7 +202,18 @@ def lane_map_recalage(track: TypedFrame, road_map: TypedFrame, lanes: TypedFrame
 
     ÉCHELLE LATÉRALE : `lateral_scale` 0 = MESURÉE (médiane de largeur vue / largeur attendue
     par la carte, dès `min_scale_samples` observations), sinon celle déclarée ; l'écart et le
-    cap relatif y sont ramenés, et la largeur ramenée doit tomber dans `width_range`."""
+    cap relatif y sont ramenés, et la largeur ramenée doit tomber dans `width_range`.
+
+    PASSAGE DES ANCRES À LA TRACE (`bias_model`) :
+    • `interpolate` — la correction latérale mesurée à chaque ancre, figée en vecteur (est, nord)
+      sur l'axe de l'ancre, interpolée entre ancres proches puis ramenée à zéro loin d'elles ;
+    • `kalman` — le BIAIS GPS (est, nord) estimé comme un état LENT (`kinematics.kalman_rts_bias_2d`,
+      marche aléatoire `bias_q` m²/s) dont chaque ancre observe la seule composante LATÉRALE
+      (bruit `bias_sigma_m`) : des routes d'orientations différentes rendent les deux composantes
+      observables, et le lisseur porte la correction dans les zones SANS ancre (boucle de
+      retournement, carrefour). Appliquée tant que la direction la mieux observée reste sous
+      `max_bias_sigma_m` d'écart-type ; `corr_sigma_m` le dit point par point.
+    `return_anchors` ajoute la liste des ancres au rapport (validation, jamais stockée)."""
     df = track.df.copy()
     rm = road_map.df
     if df.empty or rm.empty:
@@ -227,7 +239,7 @@ def lane_map_recalage(track: TypedFrame, road_map: TypedFrame, lanes: TypedFrame
     matches = match_track(pts, segs, radius_m=radius_m)
 
     lo = lanes.df.sort_values('ts') if not lanes.df.empty else lanes.df
-    a_ts, a_lat, a_dh, a_de, a_dn = [], [], [], [], []
+    a_ts, a_lat, a_dh, a_de, a_dn, a_ne, a_nn = [], [], [], [], [], [], []
     # Par où sortent les observations qui ne deviennent pas ancres — un filtre qui écarte
     # l'essentiel de ses candidats doit dire par quelle porte.
     rejected = {'not_finite': 0, 'no_match': 0, 'beyond_road_end': 0, 'lane_width': 0, 'lane_heading': 0,
@@ -292,14 +304,24 @@ def lane_map_recalage(track: TypedFrame, road_map: TypedFrame, lanes: TypedFrame
         br = math.radians(m['bearing_deg'])         # vecteur « droite » du sens de circulation
         a_ts.append(t_obs); a_lat.append(corr); a_dh.append(dh)
         a_de.append(corr * math.cos(br)); a_dn.append(-corr * math.sin(br))
-    _, ch, anc = lateral_corrections(a_ts, a_lat, a_dh, ts, max_gap_s=max_gap_s)
-    ce, cn, _ = lateral_corrections(a_ts, a_de, a_dn, ts, max_gap_s=max_gap_s)
+        a_ne.append(math.cos(br)); a_nn.append(-math.sin(br))
+    _, ch, anc_h = lateral_corrections(a_ts, a_lat, a_dh, ts, max_gap_s=max_gap_s)
+    bias_rejected, sigma = 0, None
+    if bias_model == 'kalman':
+        from wama_data.functions.kinematics.rts_smoother import kalman_rts_bias_2d
+        be, bn, s_min, _s_max, bias_rejected = kalman_rts_bias_2d(
+            list(zip(a_ts, a_ne, a_nn, a_lat)), ts, sigma_m=bias_sigma_m, q=bias_q)
+        anc = np.asarray(s_min) <= max_bias_sigma_m if a_ts else np.zeros(len(ts), dtype=bool)
+        ce, cn, sigma = be, bn, s_min
+    else:
+        ce, cn, anc = lateral_corrections(a_ts, a_de, a_dn, ts, max_gap_s=max_gap_s)
 
     df['corr_de_m'] = np.round(np.where(anc, ce, 0.0), 3)
     df['corr_dn_m'] = np.round(np.where(anc, cn, 0.0), 3)
+    df['corr_sigma_m'] = np.round(sigma, 3) if sigma is not None else None
     lat_road = [m['lateral_m'] if m else None for m in matches]
     bear = [m['bearing_deg'] if m else None for m in matches]
-    df['corr_dh_deg'] = np.round(np.where(anc, ch, 0.0), 2)
+    df['corr_dh_deg'] = np.round(np.where(anc_h, ch, 0.0), 2)
     df['road_lateral_m'] = lat_road
     df['road_bearing_deg'] = bear
     df['lane_anchored'] = anc
@@ -310,7 +332,10 @@ def lane_map_recalage(track: TypedFrame, road_map: TypedFrame, lanes: TypedFrame
               'anchors': len(a_ts), 'anchored_share': round(float(np.mean(anc)), 3),
               'correction_median_m': round(float(np.median(np.abs(a_lat))), 2) if a_lat else None,
               'correction_p95_m': round(float(np.percentile(np.abs(a_lat), 95)), 2) if a_lat else None,
-              'heading_correction_median_deg': round(float(np.median(np.abs(a_dh))), 2) if a_dh else None}
+              'heading_correction_median_deg': round(float(np.median(np.abs(a_dh))), 2) if a_dh else None,
+              'bias_model': bias_model, 'bias_rejected': bias_rejected}
+    if return_anchors:
+        report['anchors_detail'] = [(t, c, ne, nn) for t, c, ne, nn in zip(a_ts, a_lat, a_ne, a_nn)]
     return TypedFrame(df, DataType.GEO_TRACK, meta={**(track.meta or {}), 'lane_map': report})
 
 
@@ -320,8 +345,11 @@ SPEC = register(FunctionSpec(
     description="Corrige la position LATÉRALE et le CAP d'une trace GPS de véhicule par la voie vue "
                 "(lignes de voie projetées au sol) et l'axe routier de référence (largeur, nombre "
                 "de voies, sens) : rattachement continu (Viterbi), centre attendu de la voie de "
-                "droite, écart mesuré au centre de voie → correction, interpolée entre ancres. "
-                "Le longitudinal n'est pas touché. N'APPLIQUE rien : la trace sort enrichie.",
+                "droite, écart mesuré au centre de voie → ancres ; le BIAIS GPS (est, nord) en est "
+                "estimé comme un état lent par Kalman + lisseur RTS (chaque ancre n'en observe que la "
+                "composante latérale ; virages et giratoires rendent le longitudinal observable), et "
+                "porté dans les zones sans ancre tant que son incertitude reste faible. N'APPLIQUE "
+                "rien : la trace sort enrichie.",
     category=FunctionCategory.ENRICHER,
     tags=['geo', 'timeseries', 'requires-road-map', 'lanes'],
     inputs=[
@@ -337,13 +365,14 @@ SPEC = register(FunctionSpec(
     ],
     outputs=[
         PortSpec('track', DataType.GEO_TRACK,
-                 produced_fields=['corr_de_m', 'corr_dn_m', 'corr_dh_deg', 'road_lateral_m',
-                                  'road_bearing_deg', 'lane_anchored'],
+                 produced_fields=['corr_de_m', 'corr_dn_m', 'corr_dh_deg', 'corr_sigma_m',
+                                  'road_lateral_m', 'road_bearing_deg', 'lane_anchored'],
                  description="La MÊME trace, enrichie de la correction (est, nord, cap) à appliquer "
                              "et du rattachement routier ; `lane_anchored` dit si la correction "
                              "s'appuie sur une mesure proche (sinon elle vaut 0).",
-                 estimates='offset', uncertainty={'model': 'declared',
-                                                  'note': 'σ à mesurer contre le recalage ortho 2b'},
+                 # σ POINT PAR POINT (écart-type de la direction la mieux observée) en mode kalman ;
+                 # validé 2026-09-29 par blocs masqués : RMS 1,65 m aux ancres cachées
+                 estimates='offset', uncertainty={'field': 'corr_sigma_m'},
                  derived_from=['road_map', 'segmentation', 'gps'], estimate_field='corr_de_m'),
     ],
     params=[
@@ -356,6 +385,14 @@ SPEC = register(FunctionSpec(
                   "Mesuré en canyon urbain : dérive GPS locale jusqu'à 12 m."),
         ParamSpec('max_gap_s', 'float', 20.0, 1.0, 120.0, 's',
                   'Écart max entre deux ancres pour interpoler.'),
+        ParamSpec('bias_model', 'enum', 'kalman', choices=['kalman', 'interpolate'],
+                  description="Passage des ancres à la trace : biais GPS lissé (Kalman + RTS) ou "
+                              "interpolation entre ancres proches."),
+        ParamSpec('bias_q', 'float', 0.1, 0.001, 1.0, 'm²/s',
+                  'Vitesse de variation du biais GPS (marche aléatoire) — réglée par validation croisée.'),
+        ParamSpec('bias_sigma_m', 'float', 1.5, 0.1, 5.0, 'm', "Bruit d'une ancre (mesure latérale)."),
+        ParamSpec('max_bias_sigma_m', 'float', 1.5, 0.1, 10.0, 'm',
+                  "Au-delà de cet écart-type, la correction n'est plus appliquée (trop loin d'une ancre)."),
         ParamSpec('max_overshoot_m', 'float', 2.0, 0.0, 20.0, 'm',
                   "Au-delà du bout d'un tronçon de plus de tant, l'écart n'est pas latéral : pas d'ancre."),
         ParamSpec('lateral_scale', 'float', 0.0, 0.0, 5.0, '×',

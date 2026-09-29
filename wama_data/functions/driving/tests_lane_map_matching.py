@@ -272,6 +272,25 @@ class EndToEndTest(SimpleTestCase):
         # contre-épreuve : sentier admis, la trace s'y rattache et rien n'est corrigé à -2 m
         self.assertNotAlmostEqual(float(run(excluded_types=()).df['corr_de_m'].median()), -2.0, delta=0.5)
 
+    def test_the_kalman_bias_carries_the_correction_through_a_long_gap(self):
+        # ancres sur 60 m, puis 45 s sans aucune observation (boucle, carrefour) : l'interpolation
+        # retombe à zéro loin des ancres, le biais lissé reste appliqué
+        rows, lanes = [], []
+        for k, y in enumerate(np.arange(-150.0, 150.0, 3.0)):
+            la, lo = TO_LL(1.5 + 2.0, y)                          # GPS : 2 m trop à droite
+            rows.append({'ts': float(k), 'lat': la, 'lon': lo, 'heading': 0.0})
+            if k < 20 or k > 65:
+                lanes.append({'ts': float(k), 'offset_m': 0.0, 'width_m': 3.0, 'rel_heading_deg': 0.0})
+        rm = pd.DataFrame([{'geometry': [(p[1], p[0]) for p in r['coords']], 'nb_voies': r['nb_voies'],
+                            'largeur_m': r['largeur'], 'sens': r['sens']} for r in ROADS])
+        run = lambda model: lane_map_recalage(TypedFrame(pd.DataFrame(rows), DataType.GEO_TRACK),
+                                              TypedFrame(rm, DataType.ROAD_MAP),
+                                              TypedFrame(pd.DataFrame(lanes), DataType.TABLE),
+                                              bias_model=model).df
+        k = 43                                                    # au milieu du trou
+        self.assertAlmostEqual(float(run('kalman')['corr_de_m'].iloc[k]), -2.0, delta=0.3)
+        self.assertEqual(float(run('interpolate')['corr_de_m'].iloc[k]), 0.0)
+
     def test_without_lane_observations_nothing_is_corrected(self):
         la, lo = TO_LL(3.5, 0.0)
         tr = TypedFrame(pd.DataFrame([{'ts': 0.0, 'lat': la, 'lon': lo, 'heading': 0.0, 'speed_kmh': 10.0}]),
