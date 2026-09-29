@@ -687,6 +687,34 @@ une CONFIGURATION — moteur × prétraitement × filtre de parole — déjà po
 l'est pas deux fois ; `--preprocess` / `--vad` en AJOUTENT au lot de la réunion). Les parquets sont
 téléchargés un par un dans un dossier temporaire et supprimés après usage.
 
+**Mesures complètes du 2026-09-29 (lots #498-500, 30 cards, `text_v2`)** — erreur par mot sur les
+DEUX réunions valides (`007a_ECRH` 20 min, `012c_EBPZ` 19 min) :
+
+| configuration | 007a | 012c | moyenne |
+|---|---|---|---|
+| Whisper | 28,5 % | 27,4 % | **28,0 %** |
+| Whisper + débruitage IA, filtre de parole coupé | 28,1 % | 28,5 % | 28,3 % |
+| Qwen3-ASR 1.7B | 30,2 % | 27,1 % | 28,7 % |
+| Whisper + débruitage IA | 27,9 % | 29,7 % | 28,8 % |
+| Qwen3-ASR 1.7B + débruitage IA | 31,6 % | 28,3 % | 30,0 % |
+| Canary 1B v2 + débruitage IA | 38,4 % | 32,3 % | 35,4 % |
+| Canary 1B v2 | 34,8 % | 42,5 % | 38,7 % |
+| Whisper, filtre de parole coupé | 34,0 % | **95,5 %** | — (effondrement) |
+| Parakeet TDT 0.6B v3 (± débruitage) | 98 % | 62-79 % | inutilisable |
+
+- **Whisper et Qwen3-ASR se valent** (28-29 %) ; Canary est derrière ; le **débruitage IA ne change
+  rien** pour Whisper et Qwen (±1 point), aide Canary sur une réunion et le dessert sur l'autre.
+- ⚠ **Couper le filtre de parole de Whisper est dangereux** : sur `012c`, 95,5 % — Whisper s'est
+  effondré (2 min de traitement au lieu de 14, texte inventé ou en boucle). Le mode « auto » du
+  filtre ne le coupe que sur une parole lointaine détectée : c'est le bon réglage par défaut.
+- ⚠ **`008a_EARH` ÉCARTÉE** : la piste du locuteur 028 n'est « transcrite » que par des jetons
+  (`sil`, `w_1 w_2 … w_14`, 1 768 jetons) alors que sa parole est dans l'audio — tous les moteurs
+  y faisaient 66-69 %. `asr_eval_corpus` écarte désormais toute réunion dont une piste est masquée
+  (`is_masked_transcript`) et prend la suivante (`013c_EAPD`).
+- ⚠ **Card #741** marquée « crash machine » à tort : un message RE-LIVRÉ périmé (1ʳᵉ exécution
+  tombée pendant une relance de WAMA) a écrasé la relance réussie. Corrigé dans
+  `process_control.refuse_crash_redelivery` (`73d33b56`), card rétablie.
+
 **Premières mesures (2026-09-29, réunion `007a_ECRH`, 20 min, 4 locuteurs, `text_v2`)** — partielles,
 une réunion, sans prétraitement : Whisper **28,5 %** · Qwen3-ASR 1.7B **30,2 %** · Canary 1B v2
 **34,8 %** · Parakeet TDT 0.6B v3 **98,7 %**.
