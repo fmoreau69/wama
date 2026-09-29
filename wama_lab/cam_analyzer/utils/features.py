@@ -56,6 +56,13 @@ FEATURES = [
             "choisit de l'appliquer, au tracking comme à l'affichage. OFF = trajectoire "
             "brute, l'offset restant mesuré et rapporté.",
             default=False, scope='compute'),
+    Feature('marking_axis_snap', 'Passages piétons calés sur le corridor',
+            "Un passage piéton agrégé en monde (SAM3, toutes caméras, tous passages) prend "
+            "l'orientation la plus proche de la rue de la navette ou de sa perpendiculaire, et une "
+            "longueur bornée à une chaussée — l'axe du nuage de points dérivait (diagonales, "
+            "traits étirés le long de la rue). OFF = axe principal du nuage. Sert l'affichage ET "
+            "le recalage ortho, qui mesure sur ces marquages.",
+            default=True, scope='compute'),
     Feature('gps_bias_kalman', 'Biais GPS lissé (Kalman)',
             "Le recalage voie + carte estime le BIAIS du GPS (est, nord) comme un état lent, "
             "observé par chaque ancre dans la seule direction perpendiculaire à la route : des "
