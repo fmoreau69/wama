@@ -122,10 +122,26 @@ chaque étape (diarisation, résumé, cohérence) se relance seule au lieu de to
   4. **Diarisation** : `pyannote/speaker-diarization-community-1` (CC-BY-4.0, accès sur
      acceptation, successeur direct de notre 3.1) et `nvidia/Nemotron-3-Diarization` (OpenMDW,
      NeMo) — à comparer par cpWER sur SUMM-RE.
-  5. Meilleurs chiffres français ouverts, mais **hors de notre venv** (transformers ≥ 5 ou torch
-     < 2.6) : `HojoAI/Hojo-ASR-Multi-V1`, `CohereLabs/cohere-transcribe-03-2026` (accès sur
-     acceptation), Granite Speech 4.1 `-plus`/`-nar`, `Voxtral-Mini-4B-Realtime` → venv dédié ou
-     essai `--no-deps`, décision à prendre.
+  5. Meilleurs chiffres français ouverts annoncés « hors de notre venv ». **Blocages RÉELS
+     mesurés le 2026-09-29** (code et config des dépôts confrontés à transformers 4.57.6 /
+     torch 2.9.1, rien installé) — la règle « transformers ≥ 5 » d'une fiche ne dit pas ce qui
+     casse vraiment, comme pour Qwen3-ASR :
+     - **`HojoAI/Hojo-ASR-Multi-V1`** (paquet `hojo-asr` 0.1.3) : demande transformers < 5 (≥ 4.57.3
+       → le nôtre convient) ; les 3 classes Qwen3-Omni qu'il importe existent ; toutes ses
+       dépendances sont installées ; aucun appel propre à une version de torch/accelerate. Ses
+       épinglages `torch<2.6` et `accelerate==1.12.0` sont de PRUDENCE → **`--no-deps`, rien d'autre
+       à changer**.
+     - **`ibm-granite/granite-speech-4.1-2b`** (autorégressif) : classe NATIVE présente en 4.57.6 →
+       **aucun blocage**.
+     - **`…-4.1-2b-nar`** (code distant) : 5 symboles absents de 4.57 — `PreTrainedConfig` (nom v5
+       de `PretrainedConfig`), `use_kernel_func_from_hub` / `use_kernelized_func` (décorateurs
+       d'optimisation), `create_bidirectional_mask`, `maybe_autocast` → **petite couche de
+       compatibilité au chargement, probable**.
+     - **`…-4.1-2b-plus`** et **`mistralai/Voxtral-Mini-4B-Realtime-2602`** : classe présente
+       SEULEMENT dans transformers 5, sans code livré → il faudrait recopier le modèle depuis
+       transformers 5 : **lourd**.
+     - **`CohereLabs/cohere-transcribe-03-2026`** : accès restreint — le compte HF doit accepter
+       les conditions avant même de lire son code.
 - **Tâche d'item et résidence du modèle** (2026-09-25) : la transcription passe par le squelette
   commun `run_item_task` (statuts, durée max 180 min, notifications, signal d'exécution) et le
   moteur ASR **reste chargé** après une card — la libération relève du gouverneur commun, pas de
