@@ -10,6 +10,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+#: Délai MAXIMAL d'un échange SMTP (secondes). « Fail-safe » ne suffit pas : sans délai, un
+#: serveur qui ne répond plus fait attendre l'envoi INDÉFINIMENT — une exception ne vient jamais.
+#: Vécu le 2026-09-29 : le worker gpu, bloqué 4 h dans la notification de fin d'une card
+#: (connexion SMTP établie, aucune réponse), n'a plus rien traité. `settings.EMAIL_TIMEOUT`
+#: prime s'il est posé.
+SMTP_TIMEOUT_SECONDS = 30
+
 
 def notify_emails(recipients, subject, body, html=None):
     """Envoie un email à une liste d'ADRESSES (pas forcément des Users) — ex. modérateurs.
@@ -20,12 +27,14 @@ def notify_emails(recipients, subject, body, html=None):
         recipients = list(dict.fromkeys(e for e in (recipients or []) if e))
         if not recipients:
             return False
-        from django.core.mail import EmailMultiAlternatives
+        from django.core.mail import EmailMultiAlternatives, get_connection
         from django.conf import settings
         support = getattr(settings, 'WAMA_SUPPORT_EMAIL', '') or ''
+        timeout = getattr(settings, 'EMAIL_TIMEOUT', None) or SMTP_TIMEOUT_SECONDS
         msg = EmailMultiAlternatives(subject, body,
                                      getattr(settings, 'DEFAULT_FROM_EMAIL', None), recipients,
-                                     reply_to=[support] if support else None)
+                                     reply_to=[support] if support else None,
+                                     connection=get_connection(fail_silently=True, timeout=timeout))
         if html:
             msg.attach_alternative(html, 'text/html')
         msg.send(fail_silently=True)
