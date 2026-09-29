@@ -58,6 +58,15 @@ portage n'est pas un pourcentage mais un invariant** : *l'écart jumelle ↔ sou
 explicable, et nul pour une jumelle fraîchement générée*. Le jour où il vaut zéro, la grille du
 modérateur est fiable par construction — sans rien ajouter.
 
+**Affichée depuis le 2026-09-29** (constat : « les apps bac à sable n'affichent pas leur score »).
+La mesure par app existait, mais le run complet et `/apps/` disaient encore « jamais notée ». Le
+run complet note désormais chaque jumelle dans une clé À PART du rapport (`sandbox_apps`), avec
+sa source et l'ÉCART en points (`app_registry.sandbox_conformity`) ; `/apps/` l'affiche, marquée
+« bac à sable · hors du total ». La clé `apps` — celle que lisent le total, les faits générés et
+les manifestes — ne reçoit toujours que les apps réelles (garde `tests_sandbox_conformity`, dont
+la contre-épreuve). Mesure du jour : `composer_01` −18 pt, `converter_01` −19, `describer_01` −18,
+`imager_01` −15 — l'écart est celui du GÉNÉRATEUR (`ROUTE §11`), c'est lui qui doit tendre vers 0.
+
 ---
 
 ## 2. TROIS grilles, trois prétentions — à ne jamais confondre

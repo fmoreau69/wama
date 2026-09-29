@@ -34,8 +34,8 @@ class Command(BaseCommand):
         parser.add_argument('--verbose-ok', action='store_true', help='Afficher aussi les critères conformes')
 
     def handle(self, *args, **opts):
-        # Les jumelles bac à sable sont au catalogue (estampillées) mais JAMAIS notées :
-        # on les écarte de l'itération (le rapport ne les contient pas) et on les signale.
+        # Les jumelles bac à sable restent hors de l'itération principale (photo globale) : elles
+        # sont notées À PART, plus bas, avec leur écart à la source.
         from wama.common.sandbox import non_sandbox_apps
         apps = [opts['app']] if opts.get('app') else non_sandbox_apps(APP_CATALOG)
         # Run COMPLET avec écriture → brique commune (partagée avec le bouton /apps/) ;
@@ -62,11 +62,20 @@ class Command(BaseCommand):
                 self.stdout.write(f"  {STATE_FMT[state]} [{c.facette}] {c.key:24s} {c.label}"
                                   + (f"\n       ↳ {ev}" if ev else ''))
 
-        for name, spec in APP_CATALOG.items():
-            if (spec or {}).get('sandbox'):
+        # Jumelles bac à sable : NOTÉES à part (2026-09-29), avec l'écart à leur source — hors de
+        # la photo globale (`WAMA_VERIFICATION §1bis`). Un run partiel ne les montre pas : la
+        # source n'y est pas mesurée, l'écart n'aurait pas de référence.
+        if not opts.get('app'):
+            from wama.common.app_registry import sandbox_conformity
+            twins = report.get('sandbox_apps') or sandbox_conformity(report)
+            for name, data in sorted(twins.items()):
+                gap = data.get('gap')
                 self.stdout.write(self.style.WARNING(
-                    f"\n{name.upper()} — ⚠ BAC À SABLE (← {spec.get('generated_from', '?')}) : "
-                    f"comparée à sa source, jamais notée"))
+                    f"\n{name.upper()} — BAC À SABLE (← {data.get('generated_from') or '?'}) : "
+                    f"{data['score']}✅ / {data['partial']}🔶 / "
+                    f"{data['total'] - data['score'] - data['partial']}❌ sur {data['total']} → "
+                    f"{data['pct']} % · source {data.get('source_pct')} % · écart "
+                    + (f"{gap:+d} pt" if gap is not None else '?') + " · hors du total"))
 
         if not opts.get('no_write'):
             # Rapport COMPLET seulement (les 10 apps) — un run partiel ne doit pas

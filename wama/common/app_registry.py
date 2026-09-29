@@ -1372,8 +1372,25 @@ def _measured_conformity(app_name: str) -> tuple[dict, str | None]:
         except Exception:
             return {}, None
     data = _CONFORMITY_REPORT['data'] or {}
-    app = data.get('apps', {}).get(app_name, {})
+    # Une jumelle se lit dans `sandbox_apps` (hors photo globale, 2026-09-29).
+    app = data.get('apps', {}).get(app_name) or data.get('sandbox_apps', {}).get(app_name) or {}
     return app.get('conv', {}), data.get('generated_at')
+
+
+def sandbox_conformity(report: dict) -> dict:
+    """Mesure des jumelles bac à sable, chacune avec l'écart à SA source (`report['apps']`).
+
+    `{jumelle: {…mesure run_checks…, 'generated_from', 'source_pct', 'gap'}}` — `gap` en points
+    (jumelle − source) ; `None` quand la source n'est pas au rapport."""
+    from wama.common.services.conformity_checker import run_checks
+    twins = sorted(k for k, v in APP_CATALOG.items() if (v or {}).get('sandbox'))
+    measured = run_checks(twins)['apps'] if twins else {}
+    for name, data in measured.items():
+        source = (APP_CATALOG.get(name) or {}).get('generated_from', '')
+        source_pct = (report.get('apps', {}).get(source) or {}).get('pct')
+        data.update({'generated_from': source, 'source_pct': source_pct,
+                     'gap': (data['pct'] - source_pct) if source_pct is not None else None})
+    return measured
 
 
 def measure_and_write_conformity() -> dict:
@@ -1390,10 +1407,14 @@ def measure_and_write_conformity() -> dict:
     from django.conf import settings as _settings
     from wama.common.services.conformity_checker import run_checks
 
-    # Les jumelles bac à sable sont EXCLUES : on ne MESURE pas un bac à sable, on le
-    # COMPARE à sa source (route §10.3 marche S).
+    # Les jumelles bac à sable restent HORS de la photo globale (`apps`) : leur registre est
+    # jetable, un total qui bouge parce qu'on crée une jumelle n'est plus une mesure. Elles sont
+    # NOTÉES à part (`sandbox_apps`, 2026-09-29), avec leur ÉCART à la source — la décision du
+    # 2026-09-26 (`WAMA_VERIFICATION §1bis` : « maintenant pour la mesure, jamais pour la photo
+    # globale ») ; la cible est un invariant : écart explicable, nul pour une jumelle fraîche.
     from wama.common.sandbox import non_sandbox_apps
     report = run_checks(non_sandbox_apps(APP_CATALOG))
+    report['sandbox_apps'] = sandbox_conformity(report)
     report['generated_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
     path = _Path(_settings.BASE_DIR) / 'logs' / 'conformity_report.json'
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1410,8 +1431,8 @@ def get_conformity_summary() -> dict:
     """
     summary = {}
     for app_name, spec in APP_CATALOG.items():
-        if (spec or {}).get('sandbox'):
-            continue   # jumelle bac à sable : comparée à sa source, jamais notée
+        # Une jumelle bac à sable est NOTÉE depuis le 2026-09-29, marquée `sandbox` avec son
+        # écart à la source (complété après la boucle) : aucun total ne l'additionne.
         conv = dict(spec.get('conventions', {}))
         measured, measured_at = _measured_conformity(app_name)
         conv.update(measured)  # le réel écrase le déclaré
@@ -1442,6 +1463,14 @@ def get_conformity_summary() -> dict:
             'measured': bool(measured),
             'measured_at': measured_at,
         }
+    for app_name, spec in APP_CATALOG.items():
+        if (spec or {}).get('sandbox') and app_name in summary:
+            source = spec.get('generated_from', '')
+            source_pct = (summary.get(source) or {}).get('pct')
+            summary[app_name].update({
+                'sandbox': True, 'generated_from': source, 'source_pct': source_pct,
+                'gap': (summary[app_name]['pct'] - source_pct) if source_pct is not None else None,
+            })
     return summary
 
 
