@@ -18854,3 +18854,21 @@ faite à Fabien : n'offrir « Répéter » qu'aux cibles qui le DÉCLARENT, Stud
 « installations » du calendrier (aucune trace DATÉE d'une installation aujourd'hui — progression en
 cache seulement) ; le Lab attend P3 (`ROUTE §10.6`, la session Lab n'est pas encore une card) ; le
 versionnement des migrations.
+
+## §CLÔTURE FINALE — 2026-09-30, session CALENDRIER → ETA → TESTS EN PAQUET
+
+**Répétition TRANCHÉE (Fabien)** — `ROUTE §13.9` : pas d'interface de répétition sur les cards ni
+les publications (une publication change à chaque fois, et passe par une validation humaine :
+brouillon → validation → programmation ponctuelle) ; les réunions et visios relèveraient d'une
+couche « agenda » future, NON prioritaire ; l'évaluation des modèles ne se répète pas, elle
+réévalue les cases PÉRIMÉES d'un tableau corpus × modèles × réglages dans la plage nocturne
+(`WAMA_QUALITE` P4, précisé ; lancement soumis à la levée de la décision « à la demande » du 28/09).
+L'hôte est STABLE (Fabien) : la condition « machine stable » de P4 ne bloque plus.
+
+**Bilan de la session** : calendrier (étapes 1→4, plages réservées mesurées sur la médiane), ETA
+assainie (comptes de test exclus, `make_key`), tout côté WSL (broker ET cache), TTS en clé de
+catalogue, tests de `common`, `model_manager`, `media_library` en paquet (`cam_analyzer` par une
+autre instance) sous la garde `tests_test_layout`.
+**Reste, sans urgence** : couche « installations » du calendrier (il faut d'abord une trace datée
+des installations) ; Lab après P3 ; versionnement des migrations (décision) ; carte
+`WAMA_MECANISMES.md` à régénérer par le prochain commit du registre ; rouges d'autres chantiers.

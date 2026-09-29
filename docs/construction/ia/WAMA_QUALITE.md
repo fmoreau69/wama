@@ -540,7 +540,7 @@ nouveau. Ce que la boucle qualité y apporte, et rien d'autre :
 | **Q4** | **M8 (vote A/B humain)** : geste ajouté, contraire au principe de `§16.7` — l'admettre pour les tâches subjectives seulement ? | M8, génératifs | admettre, **opt-in**, cantonné aux tâches sans vérité (image, musique, voix), jamais dans le flux normal |
 | **Q5** | **gouvernance de l'auto-amélioration** : humain toujours pour les consignes ; auto-ajustement borné pour les paramètres numériques ? | ⑪ | oui à la séparation ; l'auto-ajustement borné vient **en dernier**, après que M3/M9 aient prouvé la stabilité de la mesure |
 | **Q6** | **porte d'entrée des corpus externes** (audio + transcription tierce + correction manuelle de Fabien) : médiathèque ? commande d'import ? formats acceptés (SRT, VTT, TXT, DOCX ?) | ⑤, calibration de tout juge | ✅ **Tranché (Fabien, 2026-09-23)** : les jeux vivent comme n'importe quel média d'app ; la porte est la CARD — ses ports du RÉSULTAT `reference_result` (comparer la sortie) et `work_result` (reprendre un résultat fait ailleurs), `INPUT_MODEL_MATCHING §6.7` ; l'appariement audio ↔ texte EST la card (plus de convention de nom) ; formats SRT, VTT, TXT, MD, DOCX, PDF, exports Sonal compris (`TRANSCRIBER_CORRECTION §10`) |
-| **Q7** | **où tourne la nocturne comparative** | ② | R760xa ; l'hôte de dev ne joue plus aucun banc GPU |
+| **Q7** | **où tourne la nocturne comparative** | ② | R760xa ; l'hôte de dev ne joue plus aucun banc GPU. ⚠ **Précision de Fabien (2026-09-30)** : *« aujourd'hui la machine est stable »* — l'instabilité de l'hôte est résolue (`INFRA_WSL_VS_WINDOWS`), la condition « machine stable » de P4 ne bloque plus sur l'hôte actuel |
 | **Q8** | **domicile de l'indice interne** : `benchmark_meta` source `internal` (vérifier ce que `synchronize` fait d'une source inconnue) ou champ dédié | ⑧ | `benchmark_meta`, après vérification ; un champ de plus serait une 3ᵉ échelle de plus à ne pas mélanger. ✅ **Vérifié (2026-09-23)** : `synchronize` REMPLACE `benchmark_meta` des modèles appariés — `benchmark_meta` n'est PAS un domicile sûr sans le modifier. En phase lecture, aucun domicile : la note est calculée à la lecture (`internal_quality`). La question renaît avec Q3 |
 | **Q9** | **la consistance de lignée** dans M6 : pondérer l'accord par la diversité des familles (deux YOLO ≠ un YOLO + un DETR) — déclarer la famille où ? | M6 | `AIModel.extra_info['family']` existe pour les snapshots HF ; à généraliser, ou ignorer en phase 1 |
 
@@ -559,6 +559,17 @@ Chaque palier est **attestable sans GPU** jusqu'au P4 ; chacun livre une brique 
 | **P4** | ② **nocturne comparative** sur machine stable : scénario `bench` par tâche, tous les modèles capables, jeu déclaré → ③ → ④ → ⑧ ; M10 pour TTS et génératifs | toutes | **non** |
 | **P5** | ⑩ ⑪ boucle d'amélioration : A/B objectif d'un levier (skill, contrat, paramètre) sur le même jeu ; adoption gouvernée (Q5) ; journal | selon tâche | partiellement |
 | **P6** | ⑨ l'indice entre dans le tri (Q3) ; ⑫ agrégats M7 lus par le model_manager ; A2/A3/A4 déclarés, déclencheur de finetuning ASR / détection (§4.3) | — | oui |
+
+**P4 précisé (Fabien, 2026-09-30) — réévaluer ce qui a CHANGÉ, jamais rejouer le même test.** On
+ne refait pas deux fois une évaluation identique : on change le corpus, on intègre des modèles.
+Une évaluation déclarée est un TABLEAU **corpus × modèles × réglages** (c'est déjà ce que posent les
+lots d'`asr_eval_corpus`), chaque case porte son résultat, et une case devient **PÉRIMÉE** quand son
+modèle (nouveau, nouvelle version) ou son corpus change — l'état `STALE` du modèle pipeline
+(`WAMA_APP_GENERATION_ROUTE §10.6`). La rythmique existe déjà — la campagne nocturne (`beat`) — et
+elle ne recalcule que les cases périmées : un modèle intégré ajoute sa colonne, un corpus sa ligne,
+le reste ne se rejoue pas. *On ne s'occupe que de tenir les modèles et les corpus à jour.* C'est ce
+qui tranche la question de la « répétition » (`ROUTE §13.9`) : pas d'interface de récurrence pour ça.
+⏳ Le lancement reste soumis à la décision du 28/09 (*à la demande seulement*, §9bis), à lever.
 
 **Le premier geste rentable, si un seul** : **Q6, la porte d'entrée du corpus de Fabien.** C'est le
 seul jeu de vérité humaine disponible, il débloque M3 (WER), la calibration de M1 et de M5, et le
