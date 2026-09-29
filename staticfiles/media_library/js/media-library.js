@@ -258,6 +258,22 @@
         loadAssets(false);
     });
 
+    // ── Menu contextuel (clic droit) — brique COMMUNE `WamaCardMenu` (2026-09-29) ────────────
+    // Demande de Fabien : la médiathèque a son menu contextuel, comme les files et l'arbre de
+    // fichiers. Ses entrées sont les boutons de la rangée de la card (aperçu, modifier, partager,
+    // supprimer, télécharger — selon ce que la card offre à CE visiteur), lus par la brique : un
+    // asset système ou partagé n'offre donc que ce qu'il permet. Délégué sur la grille : les cards
+    // sont reconstruites à chaque chargement.
+    assetGrid.addEventListener('contextmenu', e => {
+        const card = e.target.closest('.asset-card');
+        if (!card || !window.WamaCardMenu) return;
+        const entries = WamaCardMenu.entreesCompletes(card, [card]);
+        if (!entries.length) return;
+        e.preventDefault();
+        const name = card.querySelector('.asset-name');
+        WamaCardMenu.ouvrir(e.clientX, e.clientY, entries, name ? name.textContent : '');
+    });
+
     // ── Attributs de nature, en clair ─────────────────────────────────────────
 
     /** Les attributs DÉCLARÉS que cet asset porte, libellés — `[{label, value}]`.
@@ -339,9 +355,11 @@
         if (asset.license)    metaParts.push(`<span class="text-success" title="Licence"><i class="fas fa-balance-scale me-1"></i>${asset.license}</span>`);
         if (asset.created_at) metaParts.push(`<span title="Ajouté le">${asset.created_at}</span>`);
 
-        // Actions overlay
+        // Actions overlay — la classe `btn-group-actions` est le CONTRAT de la rangée d'actions
+        // commune : le menu contextuel (`WamaCardMenu.entreesCompletes`) en lit les entrées, comme
+        // sur les cards de file. Aucune liste d'entrées n'est écrite pour la médiathèque.
         const actionsHtml = `
-            <div class="card-actions-overlay">
+            <div class="card-actions-overlay btn-group-actions">
                 ${asset.file_url ? `
                 <button class="btn btn-sm btn-dark preview-btn" title="Aperçu" data-id="${asset.id}">
                     <i class="fas fa-expand"></i>
