@@ -18663,3 +18663,88 @@ français, 1313 > 1311, par DEUX de mes noms anglais contenant des mots ambigus 
   refresh_registry, synthesize_voice) d'anciens processus Windows disparus ; un processus Windows
   n'y publie plus (`memory://`, vérifié). Seul son CACHE (db1) sert encore à un `manage.py`
   Windows hors tests. À vider sur GO.
+
+## §CLÔTURE — 2026-09-29, « PORTAGE CARD v4 (plan d) + MÉDIATHÈQUE + GRILLE » — ✅ plan (d) TERMINÉ, 21 commits NON poussés — 🔚 relancer WAMA (gunicorn + celery) puis portage des apps suivantes en card v4
+
+> Session du 28/09 18:50 au 29/09 17:30 (une instance, périmètre : cards d'entrée v3/v4, médiathèque
+> et sa fenêtre de sélection, avatarizer, grille de conformité, reader/enhancer/imager au
+> passage). Détail décision par décision : `CARD_DESIGN §11.11 Étape 3`, `MEDIA_STORAGE_TIERING
+> §8.6` (D25→D28), `REMOVAL_LEDGER` R79→R83, `WAMA_VERIFICATION §1bis`.
+
+**Livré (21 commits, dans l’ordre)**
+- Étape 3 de la card v4 (« la card porte les ENTRÉES, le volet les RÉGLAGES ») : (a) indication
+  commune « Réglages : volet de droite » `f6718e7b` ; (b) aperçu de voix du synthesizer au volet
+  `398e80d6`, aligné sur la chaîne commune `0332ecb0`, aperçu PENDANT `540ad6e1` ; (c) modèle et
+  prompt négatif de l'imager hors de la card `620e9577` ; restes `1314e9fb`.
+- Médiathèque : connexion exigée sur toutes ses routes (D26) `e01b2b36` ; rendre un asset système
+  à son auteur (3 photos personnelles rendues, D27) `5dddd4cc` ; asset PARTAGÉ désignable
+  `c6223b37` ; fenêtre de sélection universelle (onglets par nature, trois provenances)
+  `d6d4779f` ; menu contextuel commun `f8804565` ; card d'entrée commune (R81) `50a8d708` ; la
+  fenêtre MONTRE avant de choisir (aperçu inline commun, « Choisir », double-clic) `e2c821b5`.
+- Plan (d) : `pipeline_stage` (CodeFormer n'ouvre plus de port) `150a5337` ; card v4 à plusieurs
+  ports de TRAVAIL + onglet de médiathèque déclaré par port (`library_natures`) `a3317e8a` ;
+  **avatarizer en card v4** (1ʳᵉ app en place ; galerie → onglet Avatar ; « Ajouter à la file »
+  ne lance plus ; R82) `8c21d489` ; avatar NOMMÉ résolu parmi ce que l'utilisateur voit (lots,
+  Studio, assistant — D28) dans `e2c821b5`.
+- Grille : imager `settings_route` + faux positif `btn_order` `25947526` ; reader `model_caps_ui`
+  (réglages grisés selon ce que le moteur OCR LIT) + enhancer `user_settings` (volet mémorisé,
+  R83) `4adb8820` ; jumelles bac à sable NOTÉES à part avec leur écart `96b45d8a` ; réinvention
+  trouvée à la clôture (`check_redundancy`) `66fef5ee` ; + commits de clôture (manifestes, skill,
+  ce bloc).
+
+**Contrôles attendus au prochain /reprise** (mesurés le 29/09 vers 17:30)
+- Grille : **901/942** sur les 10 apps (100 critères) — anonymizer 96, avatarizer 95, composer
+  94, converter 99, describer 99, enhancer 98, imager 93, reader 98, synthesizer 96,
+  transcriber 95. Jumelles (hors total) : `composer_01` −18 pt, `converter_01` −19,
+  `describer_01` −18, `imager_01` −15.
+- Tests du périmètre : **527** lancés, 1 seul rouge ATTRIBUÉ : budget « code » de
+  `tests_identifier_language` mesuré 2687 pour 2688 — un GAIN dû au WIP d'une autre instance
+  (`wama-dev-ai`, identifiant « pose » retiré), HEAD mesure 2688 ; son auteur baissera le budget.
+- `check_docs` : **2 cibles distinctes**, préexistantes et hors périmètre (un script
+  `wama-dev-ai` jamais créé, une référence `pipeline_utils` à une ligne).
+- Manifestes : 7 manifestes d'apps périmés RÉGÉNÉRÉS depuis l'état COMMITÉ — le champ
+  `options_domain` (commit transcriber du 28/09, manifestes non régénérés), plus deux rattrapages
+  commités ailleurs : champs `level_speech`/`language_mode` du transcriber, sortie `FileField`
+  de l'anonymizer ; aucune ligne issue du WIP en cours (`tool_api`, TTS vérifiés). Restent
+  périmés 5 manifestes de MODÈLES (chatterbox, qwen3.6:35b, canary, qwen3-asr ×2) : chantiers
+  transcriber/prospection, non touchés.
+- `doc_facts` : bloc `conformite` régénéré ; `mecanismes`, `outils`, `dev-briques` PÉRIMÉS
+  laissés — leurs fichiers portent le WIP d'une autre instance.
+
+**Gardes ajoutées** (noms de classe — les tests de `wama/common` viennent de passer dans le
+paquet `tests/`, les chemins bougent) : `PipelineStageOpensNoPortTest`, `SeveralWorkPortsTest`,
+`InputCardV4CountsAsTheCommonCardTest`, `PreviewMimeForThePickerTest`, `NamedAvatarTest` (8),
+`SettingsRouteTest` (imager), `EngineParamsTest` (reader), `PanelMemoryTest` (enhancer),
+`SandboxConformityTest`. **Non gardé par un test, attesté au navigateur + V8 seulement** : les
+gestes JS de la card v4 (import du port secondaire, `designate` de la fenêtre, routage d'une image
+de la zone audio vers l'avatar, fichier retiré de l'input de la zone), l'aperçu de la fenêtre
+médiathèque, le grisage du reader — candidats pour un test V8 dans `tests_designation_js`.
+
+**Pendings système**
+- 🔴 **Relancer WAMA** (gunicorn HUP + workers Celery) : routes, vues, gabarits et JS neufs
+  (imager `settings/<pk>/`, avatarizer v4, fenêtre médiathèque…) — sans relance, `/imager/` et
+  `/avatarizer/` servent l'ancien code, et un gabarit neuf lu à chaud peut rendre 500.
+- **Après relance seulement** : retirer la table `enhancer.UserSettings` (R83 : modèle retiré +
+  `makemigrations enhancer` + `migrate`) — la retirer avant ferait échouer l'ancien code.
+- **Push** : 21 commits à moi (plus ceux des autres instances) — à la décision de Fabien.
+- Catalogue : lignes `avatarizer:codeformer` et `reader:*` resynchronisées à la main (script de
+  scratchpad) ; la prochaine synchro complète les réécrit à l'identique.
+
+**Laissé de côté, nommément**
+- `composer:generate` et l'outil `convert_file` LANCENT encore à la création (règle des deux
+  temps, `CARD_DESIGN §11.11` Étape 3 point 3) — à leur portage.
+- Le geste nocturne `avatarizer.url_import` reste « skip » : il ne remplit pas l'autre port requis
+  (l'avatar) ; le rendre mesurable = lui faire désigner un avatar.
+- Enhancer : format et qualité de sortie mémorisés mais pas ré-affichés au rechargement (liste
+  écrite en dur dans le gabarit).
+- `detail_spec` / `triad_specs` (6-7 apps) : étendre le langage de spec (repli de fichier, rôle
+  conditionnel, prompt tronqué) OU déclarer ces écarts — **décision de Fabien**.
+- Composer `model_options_catalog` : le catalogue ne sait pas grouper Musique / Bruitages.
+- Transcriber (`quality_intent`, `model_options_catalog`) : non touché, fichiers en WIP ailleurs.
+- `backend_routes` (7 apps) et `task_skeleton` (5) : chantiers structurels, les deux plus gros
+  rouges de la grille.
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : relance faite → `/reprise` pour le portage → porter la
+prochaine app en card v4 sur le modèle de l'avatarizer (lire `CARD_DESIGN §11.11` Étape 3 (d) ;
+contrat des ports tenu par `SeveralWorkPortsTest`) ; candidates naturelles : composer (lance encore à la
+création, groupe ses modèles) ou imager (prompt-primaire, ports déjà dérivés).

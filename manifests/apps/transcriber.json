@@ -188,6 +188,21 @@
             },
             {
               "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                }
+              },
+              "name": "level_speech"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "blank": {
@@ -253,6 +268,29 @@
                 }
               },
               "name": "vad_mode"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('auto', 'Auto'), ('single', 'Une seule'), ('multi', 'Plusieurs')]",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "8",
+                  "imports": []
+                }
+              },
+              "name": "language_mode"
             },
             {
               "args": [],
@@ -1428,6 +1466,49 @@
             "cap_from": null,
             "chip": false,
             "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "dom_id": "",
+            "group": "",
+            "help": "Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué après le prétraitement. En cours d'évaluation : effet sur la transcription non encore établi.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders",
+            "inline": false,
+            "label": "Nivellement de la parole",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "level_speech",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_domain": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
             "choices": [
               [
                 "auto",
@@ -1462,6 +1543,62 @@
             "min": null,
             "min_label": "",
             "name": "vad_mode",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_domain": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "auto",
+                "Auto"
+              ],
+              [
+                "single",
+                "Une seule"
+              ],
+              [
+                "multi",
+                "Plusieurs"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "auto",
+            "dom_id": "",
+            "group": "",
+            "help": "« Auto » écoute plusieurs passages de l'audio avant de transcrire : s'il entend plusieurs langues, chaque passage est transcrit dans la sienne. « Une seule » garde la même langue partout (évite qu'un passage bruité soit traduit). « Plusieurs » la redécide à chaque passage de 30 s.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-language",
+            "inline": false,
+            "label": "Langues parlées",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "language_mode",
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1957,7 +2094,9 @@
             "backend",
             "hotwords",
             "preprocess_audio",
+            "level_speech",
             "vad_mode",
+            "language_mode",
             "enable_diarization",
             "generate_summary",
             "summary_type",
@@ -2034,6 +2173,8 @@
             "file_path": "str (requis)",
             "generate_summary": "toggle — Générer un résumé (défaut : False)",
             "hotwords": "textarea — Séparés par des virgules",
+            "language_mode": "select — « Auto » écoute plusieurs passages de l'audio avant de transcrire : s'il entend plusieurs langues, chaque passage est transcrit dans la sienne. « Une seule » garde la même langue partout (évite qu'un passage bruité soit traduit). « Plusieurs » la redécide à chaque passage de 30 s. (choix : auto | single | multi) (défaut : 'auto')",
+            "level_speech": "toggle — Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué après le prétraitement. En cours d'évaluation : effet sur la transcription non encore établi. (défaut : False)",
             "preprocess_audio": "toggle — Prétraitement audio (défaut : False)",
             "summary_type": "radio (choix : structured | meeting) (défaut : 'structured')",
             "vad_mode": "select — Whisper saute les passages qu'il juge sans parole. « Auto » vérifie d'abord qu'il ne rejette pas une parole lointaine (entretien enregistré à distance) et le désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les longs silences. (choix : auto | on | off) (défaut : 'auto')",
@@ -2108,6 +2249,10 @@
     },
     {
       "key": "pyannote-audio",
+      "kind": "library"
+    },
+    {
+      "key": "scipy",
       "kind": "library"
     },
     {
