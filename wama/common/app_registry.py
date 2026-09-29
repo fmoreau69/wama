@@ -378,6 +378,10 @@ def app_input_ports(app_id, domain=None):
     for i, caps in enumerate(lignes):
         if not isinstance(caps, dict):
             continue
+        # Une ÉTAPE INTERNE de la chaîne (CodeFormer après MuseTalk) n'ouvre pas de port : ses
+        # entrées sont produites par la chaîne, pas fournies (capacité `pipeline_stage`, 29/09).
+        if caps.get('pipeline_stage'):
+            continue
         if vises:
             dom = _domaine_dune_tache(caps.get('task'))
             # ⚠ `dom is None` = tâche non nommable → on GARDE le modèle. Filtrer sur une

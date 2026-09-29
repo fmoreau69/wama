@@ -101,6 +101,12 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     # une entrée fournie hors des inputs d'un modèle le DÉSACTIVE (avec raison, jamais caché).
     "inputs_required":     "list[str] — entrées REQUISES par le modèle (lancement gaté sinon)",
     "inputs_optional":     "list[str] — entrées ACCEPTÉES en option (ex. reference_melody)",
+    #: Une ÉTAPE INTERNE de la chaîne d'une app (2026-09-29) : CodeFormer restaure les visages
+    #: des images que MuseTalk vient de produire — ses entrées sont fabriquées par la chaîne,
+    #: jamais fournies par l'utilisateur. Ses `inputs_*` restent vrais POUR LE MODÈLE, mais il
+    #: n'ouvre aucun port d'entrée à l'app (`app_input_ports`). Mesuré avant : l'avatarizer
+    #: exposait un faux port « Fichier de travail », venu de lui seul (question de Fabien).
+    "pipeline_stage":      "bool — étape interne d'une chaîne d'app : n'ouvre aucun port d'entrée",
     # Limites NATIVES d'un modèle vidéo (2026-09-23, Fabien : « les paramètres modale/inspecteur
     # tirent leurs infos des capacités des modèles »). Déclarées par l'app (`model_config`),
     # transportées par la découverte, lues par l'écran (`WamaParams`, `cap_from`) ET par la

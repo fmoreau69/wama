@@ -8,6 +8,7 @@
         "image",
         "video"
       ],
+      "pipeline_stage": true,
       "task": "face-restoration"
     },
     "composition": {
