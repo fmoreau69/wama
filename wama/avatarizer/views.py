@@ -734,7 +734,7 @@ def batch_template(request):
     lines = [
         "# WAMA Avatarizer — fichier batch (format à balises)",
         "# Pipeline (texte → TTS → avatar) :",
-        '#   -p "texte à dire" -r nom_avatar.png [--voice default] [--language fr] [--tts xtts_v2] [--quality fast] [-o sortie.mp4]',
+        '#   -p "texte à dire" -r nom_avatar.png [--voice default] [--language fr] [--tts coqui-xtts] [--quality fast] [-o sortie.mp4]',
         "# Standalone (audio déjà prêt) :",
         '#   -i chemin/audio.wav -r nom_avatar.png [--quality quality]',
         "# -r = nom d'un avatar de la galerie partagée. Une ligne = un job.",
