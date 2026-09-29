@@ -101,6 +101,17 @@ def merged_srt(tracks: dict) -> str:
     return '\n'.join(blocks)
 
 
+def is_masked_transcript(text: str) -> bool:
+    """Une piste « transcrite » par des JETONS seulement (`sil`, `w_1`, `w_2`…) : sa parole est
+    dans l'audio mais pas dans la référence. Au-delà de 90 % de jetons, la piste est masquée."""
+    import re
+    tokens = (text or '').split()
+    if not tokens:
+        return False
+    placeholders = sum(1 for t in tokens if re.fullmatch(r'sil|w_\d+', t))
+    return placeholders / len(tokens) > 0.9
+
+
 def tagged_spans(tagged: str) -> list:
     """`<fr><start:11.64>texte<end:19.44>…` (FLEURS-CS) → [(début, fin, langue, texte)]."""
     import re
@@ -264,24 +275,40 @@ class Command(BaseCommand):
 
     # ── SUMM-RE : plan et préparation d'une réunion MIXÉE ─────────────────────────────────
     def plan_meetings(self, source, split, count):
-        """Lit la seule colonne `meeting_id`/`speaker_id` de chaque parquet (le pied du fichier et
-        deux petites colonnes, jamais l'audio)."""
+        """Lit les colonnes `meeting_id`/`speaker_id`/`transcript` de chaque parquet (le pied du
+        fichier et trois colonnes de texte, jamais l'audio).
+
+        ⚠ Une réunion dont une piste est MASQUÉE est écartée : vécu le 2026-09-29 sur `008a_EARH`,
+        la piste 028 n'est transcrite que par des jetons (`sil`, `w_1 w_2 …`) alors que l'audio
+        porte sa parole — tous les moteurs y faisaient 66-69 % d'erreur, contre ~28 % ailleurs.
+        """
         import pyarrow.parquet as pq
         from huggingface_hub import HfFileSystem
 
         fs = HfFileSystem()
-        meetings = {}
+        meetings, masked = {}, set()
         for name in self._parquets(source, split):
-            with fs.open(self._remote(source, name), 'rb') as fh:
-                table = pq.ParquetFile(fh).read(columns=['meeting_id', 'speaker_id'])
-            for meeting_id, speaker in zip(table.column('meeting_id').to_pylist(),
-                                           table.column('speaker_id').to_pylist()):
+            def read(name=name):
+                with fs.open(self._remote(source, name), 'rb') as fh:
+                    return pq.ParquetFile(fh).read(columns=['meeting_id', 'speaker_id', 'transcript'])
+            table = self.with_retry(read)
+            for meeting_id, speaker, text in zip(table.column('meeting_id').to_pylist(),
+                                                 table.column('speaker_id').to_pylist(),
+                                                 table.column('transcript').to_pylist()):
                 m = meetings.setdefault(meeting_id, Recording(meeting_id))
                 m.files.add(name)
                 m.speakers.add(speaker)
-            if len(meetings) > count:
-                break                  # la réunion suivante a commencé : les N premières sont complètes
-        chosen = list(meetings.values())[:count]
+                if is_masked_transcript(text):
+                    masked.add(meeting_id)
+            # La réunion la plus récente peut continuer dans le fichier suivant : on ne compte que
+            # celles qui sont closes, et valides.
+            closed = [m for m in list(meetings.values())[:-1] if m.recording_id not in masked]
+            if len(closed) >= count:
+                break
+        for meeting_id in sorted(masked):
+            self.stdout.write(self.style.WARNING(
+                f"  {meeting_id} écartée : une piste n'est pas transcrite (jetons sil / w_N)"))
+        chosen = [m for m in meetings.values() if m.recording_id not in masked][:count]
         self.stdout.write(f"{source['repo_id']} [{split}] : {len(chosen)} réunion(s) retenue(s)")
         return chosen
 

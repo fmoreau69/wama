@@ -75,6 +75,19 @@ class TaggedCorpusTest(SimpleTestCase):
         self.assertEqual(['a', 'b'], ids(select_by_languages(pool, {'fr'}, False, count=2)))
 
 
+class MaskedTrackTest(SimpleTestCase):
+    """SUMM-RE `008a_EARH` : une piste « transcrite » par des jetons, pas par des mots."""
+
+    def test_a_track_of_placeholders_is_masked(self):
+        from wama.transcriber.management.commands.asr_eval_corpus import is_masked_transcript
+        self.assertTrue(is_masked_transcript('sil w_1 w_2 w_3 sil w_1 sil'))
+
+    def test_a_real_track_is_not_even_with_a_few_silences(self):
+        from wama.transcriber.management.commands.asr_eval_corpus import is_masked_transcript
+        self.assertFalse(is_masked_transcript('bonjour sil on commence du_coup w_1'))
+        self.assertFalse(is_masked_transcript(''))
+
+
 class MixTest(SimpleTestCase):
 
     def test_tracks_are_padded_summed_and_peak_normalised(self):
