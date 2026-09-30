@@ -95,11 +95,13 @@ export async function prepare(opts) {
  * Programme la parole (WAV en base64) et rend l'horloge de l'image 0 et le départ de l'audio.
  * `audioOffsetMs` = instant, dans la VIDÉO, où le son doit commencer pour tomber sur les lèvres.
  */
-export async function speak(wavBase64, text, lang) {
+export async function speak(wavBase64, text, lang, timings) {
   const bytes = Uint8Array.from(atob(wavBase64), c => c.charCodeAt(0));
   const clock0 = head.animClock;
   speechStart = null;
-  const ok = await window.WamaAvatar.speak(new Blob([bytes], { type: 'audio/wav' }), text, lang);
+  // `timings` : mots MESURÉS (transcription), sinon `WamaAvatar` estime au prorata du texte.
+  const ok = await window.WamaAvatar.speak(new Blob([bytes], { type: 'audio/wav' }), text, lang,
+                                           timings || null);
   if (!ok) throw new Error("l'avatar n'a pas pris la parole (WamaAvatar.speak a refusé)");
   // TalkingHead programme l'audio en asynchrone : on laisse tourner la boucle d'événements
   // (sans avancer l'horloge) jusqu'au relevé.

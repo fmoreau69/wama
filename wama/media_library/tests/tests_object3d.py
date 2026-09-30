@@ -150,3 +150,47 @@ class LaNatureDeclareSonTypeInterMondesTest(TestCase):
         self.assertEqual(ASSET_NATURES['object3d'].category, '3d')
         self.assertIn('3d', MEDIA_CATEGORIES)
         self.assertNotIn('object_3d', types, 'le jumeau est revenu dans la taxonomie Data')
+
+
+class AvatarFromTheSourceTest(TestCase):
+    """Importer un avatar depuis la source « Avatars 3D » (2026-09-30) : la ligne du connecteur
+    naît sans migration, l'asset est un `object3d`, et son visage est MESURÉ à l'ingest."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('avatar_src', password='x')
+        self.client = Client()
+        self.client.force_login(self.user)
+
+    def _talking_glb(self):
+        from wama.common.utils.media_probe import ARKIT_BLENDSHAPES, OCULUS_VISEMES
+        return glb_from_json({'asset': {'version': '2.0'}, 'skins': [{}], 'meshes': [
+            {'name': 'Head', 'extras': {'targetNames': list(ARKIT_BLENDSHAPES + OCULUS_VISEMES)},
+             'primitives': []}]})
+
+    def _download(self, url):
+        import json
+        from unittest.mock import patch
+        from wama.media_library.providers.avatars3d import Avatars3dProvider
+        with patch.object(Avatars3dProvider, 'download_bytes', return_value=self._talking_glb()):
+            return self.client.post(reverse('media_library:api_provider_download'), json.dumps({
+                'provider': 'avatars3d', 'provider_id': 'o/r/avatars/mpfb.glb', 'title': 'mpfb',
+                'asset_type': 'object3d', 'license': 'CC0', 'author': 'MPFB',
+                '_download_url': url}), content_type='application/json')
+
+    def test_the_avatar_lands_as_a_measured_object3d(self):
+        from wama.media_library.models import MediaProvider
+        self.assertFalse(MediaProvider.objects.filter(slug='avatars3d').exists())
+        r = self._download('https://raw.githubusercontent.com/o/r/main/avatars/mpfb.glb')
+        self.assertEqual(200, r.status_code, r.content[:300])
+        d = r.json()
+        self.assertEqual('object3d', d['asset_type'])
+        self.assertEqual(('arkit', 'oculus', True),
+                         (d['attributes'].get('face_rig'), d['attributes'].get('visemes'),
+                          d['attributes'].get('rigged')))
+        self.assertTrue(MediaProvider.objects.filter(slug='avatars3d').exists(),
+                        'la ligne du connecteur doit naître sans migration de données')
+
+    def test_a_foreign_domain_is_refused(self):
+        """Contre-épreuve : la liste blanche DÉCLARÉE par le connecteur tient toujours."""
+        r = self._download('https://evil.example.com/mpfb.glb')
+        self.assertEqual(403, r.status_code)

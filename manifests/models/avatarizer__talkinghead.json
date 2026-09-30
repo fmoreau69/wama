@@ -1,0 +1,90 @@
+{
+  "body": {
+    "capabilities": {
+      "input_attributes": {
+        "work_object3d": {
+          "prefer": {
+            "visemes": "oculus"
+          },
+          "require": {
+            "face_rig": "arkit",
+            "rigged": true
+          }
+        }
+      },
+      "inputs_optional": [
+        "prompt"
+      ],
+      "inputs_required": [
+        "work_object3d",
+        "work_audio"
+      ],
+      "languages": [
+        "fr",
+        "en",
+        "de",
+        "fi",
+        "lt"
+      ],
+      "modalities": [
+        "3d",
+        "audio",
+        "video"
+      ],
+      "task": "lip-sync"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "talkinghead"
+      }
+    },
+    "extra_info": {
+      "license": "MIT",
+      "model_id": "talkinghead",
+      "repo": "met4citizen/TalkingHead",
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "glb",
+      "preferred_format": "glb"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "TalkingHead — avatar 3D riggé (GLB) animé par l'audio, rendu image par image ; rapide, sans modèle génératif, non photoréaliste.",
+      "hf_id": null,
+      "license": null,
+      "model_type": "lipsync",
+      "platform_ref": null,
+      "source": "avatarizer"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "avatarizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.2
+    }
+  },
+  "description": "TalkingHead — avatar 3D riggé (GLB) animé par l'audio, rendu image par image ; rapide, sans modèle génératif, non photoréaliste.",
+  "key": "avatarizer:talkinghead",
+  "manifest_kind": "model",
+  "name": "TalkingHead (avatar 3D)",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:avatarizer:talkinghead",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

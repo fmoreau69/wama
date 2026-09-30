@@ -14,6 +14,7 @@ class PixabayProvider(BaseProvider):
     name             = 'Pixabay'
     supported_types  = ['image', 'video']
     requires_api_key = True
+    download_domains = ('cdn.pixabay.com', 'i.vimeocdn.com', 'player.vimeo.com')
 
     # Chemins sous la base déclarée au registre des sources (`external_sources`, 22/09).
     _IMAGE_PATH = '/'

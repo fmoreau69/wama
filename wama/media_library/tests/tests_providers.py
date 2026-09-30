@@ -175,3 +175,69 @@ class FreesoundRoleTest(SimpleTestCase):
     def test_the_search_itself_goes_through_the_common_opener(self):
         _, opened = self._search('audio_sfx')
         opened.assert_called_once()
+
+
+class Avatars3dSourceTest(SimpleTestCase):
+    """La source d'avatars 3D (2026-09-30) : des dépôts DÉCLARÉS, des licences RELEVÉES, et un
+    fichier sans licence connue jamais proposé."""
+
+    LISTING = [
+        {'type': 'file', 'name': 'mpfb.glb', 'path': 'avatars/mpfb.glb', 'size': 10,
+         'download_url': 'https://raw.githubusercontent.com/o/r/main/avatars/mpfb.glb'},
+        {'type': 'file', 'name': 'brunette.glb', 'path': 'avatars/brunette.glb', 'size': 20,
+         'download_url': 'https://raw.githubusercontent.com/o/r/main/avatars/brunette.glb'},
+        {'type': 'file', 'name': 'inconnu.glb', 'path': 'avatars/inconnu.glb', 'size': 30,
+         'download_url': 'https://raw.githubusercontent.com/o/r/main/avatars/inconnu.glb'},
+        {'type': 'file', 'name': 'readme.md', 'path': 'avatars/readme.md', 'size': 1},
+        {'type': 'dir', 'name': 'sub.glb', 'path': 'avatars/sub.glb'},
+    ]
+
+    def setUp(self):
+        from wama.media_library.providers import avatars3d
+        avatars3d._LISTINGS.clear()
+        self.addCleanup(avatars3d._LISTINGS.clear)
+
+    def _search(self, query):
+        from wama.media_library.providers.avatars3d import Avatars3dProvider
+        with patch.object(Avatars3dProvider, 'open_url',
+                          return_value=_FakeResponse(json.dumps(self.LISTING).encode())):
+            return Avatars3dProvider().search(query, 'object3d')
+
+    def test_only_glb_files_with_a_declared_licence_are_offered(self):
+        titles = {r.title: r.license for r in self._search('*')['results']}
+        self.assertEqual({'mpfb': 'CC0', 'brunette': 'CC BY-NC 4.0'}, titles,
+                         'un fichier sans licence relevée ne doit jamais être proposé')
+
+    def test_a_query_filters_on_name_and_licence(self):
+        self.assertEqual(['mpfb'], [r.title for r in self._search('cc0')['results']])
+
+    def test_results_are_3d_objects_downloadable_from_the_declared_domain(self):
+        from wama.media_library.providers.avatars3d import Avatars3dProvider
+        from urllib.parse import urlparse
+        for r in self._search('*')['results']:
+            self.assertEqual('object3d', r.asset_type)
+            self.assertIn(urlparse(r.download_url).netloc, Avatars3dProvider.download_domains)
+
+    def test_an_api_error_is_reported_not_swallowed(self):
+        from wama.media_library.providers.avatars3d import Avatars3dProvider
+        with patch.object(Avatars3dProvider, 'open_url',
+                          return_value=_FakeResponse(b'{"message": "API rate limit exceeded"}')):
+            out = Avatars3dProvider().search('*', 'object3d')
+        self.assertEqual([], out['results'])
+        self.assertIn('rate limit', out['error'])
+
+
+class DownloadDomainsAreDeclaredTest(SimpleTestCase):
+    """La liste blanche vit sur le connecteur (2026-09-30) — plus dans la vue."""
+
+    def test_every_registered_provider_declares_its_download_domains(self):
+        from wama.media_library.providers.registry import _REGISTRY
+        for slug, cls in _REGISTRY.items():
+            with self.subTest(provider=slug):
+                self.assertIn('download_domains', vars(cls),
+                              f'{slug} hérite du défaut (aucun téléchargement) sans l’avoir décidé')
+
+    def test_the_view_holds_no_second_list(self):
+        source = (Path(__file__).resolve().parents[1] / 'views.py').read_text(encoding='utf-8')
+        self.assertNotIn('_DOMAIN_WHITELIST', source)
+        self.assertNotIn("'cdn.freesound.org'", source)

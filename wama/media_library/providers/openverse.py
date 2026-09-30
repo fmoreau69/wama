@@ -15,6 +15,7 @@ class OpenverseProvider(BaseProvider):
     name             = 'Openverse'
     supported_types  = ['image', 'audio_music']
     requires_api_key = False
+    download_domains = ()   # fichiers hébergés sur des CDN tiers variés — HTTPS suffit
 
     _UA   = 'WAMA/1.0 (media library)'
 

@@ -14,6 +14,7 @@ class FreesoundProvider(BaseProvider):
     name             = 'Freesound'
     supported_types  = ['voice', 'audio_sfx']
     requires_api_key = True
+    download_domains = ('cdn.freesound.org',)
 
     _UA   = 'WAMA/1.0 (media library)'
 

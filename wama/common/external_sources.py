@@ -401,6 +401,14 @@ SOURCES: tuple[ExternalSource, ...] = (
         "Voix et bruitages — recherche de la médiathèque",
         kind='media', user_key=True, api_key_help_url='https://freesound.org/apiv2/apply/',
         api_key_label='Clé API Freesound'),
+    # Avatars 3D (2026-09-30) : l'API GitHub publique LISTE les dossiers d'avatars déclarés
+    # (`media_library/providers/avatars3d.py`, une ligne par dépôt) ; sans clé. Même adresse que
+    # `github_api`, source distincte : c'est un CONNECTEUR de la médiathèque (clé = son slug).
+    ExternalSource(
+        'avatars3d', 'Avatars 3D (dépôts GitHub)', 'https://api.github.com',
+        "Avatars GLB riggés publiés dans des dépôts déclarés (TalkingHead…) — recherche de la "
+        "médiathèque, pour le moteur d'avatar 3D de l'avatarizer ; sans clé",
+        kind='media'),
 )
 
 #: Le dataset Arena, nommé une fois (ce n'est pas une URL : un identifiant de dataset du Hub).

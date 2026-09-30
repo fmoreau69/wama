@@ -345,6 +345,35 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
   ouvre désormais le ⚙ d'un élément témoin, le ferme, le rouvre et mesure sur la SECONDE modale
   (10/10) — il lisait jusque-là une modale statique cachée, jamais ouverte.
 
+### 6.8 « L'un OU l'autre », et les ATTRIBUTS d'une entrée (2026-09-30, avatar 3D)
+
+> Déclencheur : le moteur `talkinghead` de l'avatarizer (avatar 3D riggé, `.glb`), à côté de
+> MuseTalk (photo). Décisions de Fabien : **pas de port « avatar »** — le vocabulaire des rôles
+> suit les NATURES de média (un objet 3D réutilisé ailleurs aura besoin du même jeton) — et **pas
+> de nature « avatar 3D »** : un avatar parlant est un `object3d` qui porte certains attributs.
+
+- **Jeton `work_object3d`** (`app_modes.INPUT_TYPES`, `accept: '3d'`) ; `MODALITIES` gagne `3d`.
+  L'app apporte la NATURE (`input_types` de l'avatarizer + `3d`) — sans elle, `app_input_ports`
+  aurait donné au port 3D **toutes** les natures de l'app (repli quand le partage ne trouve rien).
+- **Attributs mesurés** : la nature `object3d` déclare `face_rig` (`arkit` = les 52 formes) et
+  `visemes` (`oculus` = les 15), que `media_probe` lit dans le GLB (`extras.targetNames`) et ne
+  pose que si le jeu est COMPLET. `brunette.glb` : riggé, `arkit`, `oculus`.
+- **Capacité `input_attributes`** (`CANONICAL_CAPABILITIES`) : ce qu'un modèle exige des
+  attributs d'une entrée, `{token: {require, prefer}}` ; verdict `input_match.input_attribute_verdict`
+  → `natures.asset_accepts` (3 états, raison nommée). **1ᵉʳ consommateur réel d'`AssetSpec`**
+  (livrée le 13/09 sans appelant). Aujourd'hui côté SERVEUR (worker, avant tout rendu) ;
+  ⏳ côté card (griser un GLB non riggé à la sélection) reste à câbler.
+- **Exigences alternatives** (`app_input_ports`, champ `one_of`) : quand CHAQUE modèle exige
+  exactement UN jeton de plus que le tronc commun et que ces jetons diffèrent, ils forment un
+  groupe « l'un OU l'autre ». Hors de cette forme, rien n'est dit (pas de demi-vérité). Card v4 :
+  « requis · ou … » sur l'onglet, `is-required-one-of` / `is-one-of-first` ; le geste nocturne
+  remplit le premier port du groupe ; la forme du studio n'en porte rien. Garde
+  `tests_catalogues.AlternativeRequirementsTest` (contre-épreuve faite).
+- ⏳ **Le choix du moteur** reste dérivé de la nature du fichier dans le worker de l'avatarizer ;
+  la forme universelle est le tirage `resolve_model_choice` (`available_inputs`/`consumes`) — à
+  basculer au 2ᵉ modèle photo (SoulX-FlashHead), avec le curseur, et après décision sur la ligne
+  morte `musetalk-v1.0` (elle serait candidate).
+
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 
 **Demande de Fabien** : *« il faut que les paramètres modale/inspecteur tirent leurs infos des

@@ -21,7 +21,7 @@ from wama.common.utils.volet import VOLET_AUCUN
 from .models import (UserAsset, SystemAsset, MediaProvider, UserProviderConfig, PromptKeyword,
                      ASSET_TYPE_CATEGORY, ASSET_TYPES, ALLOWED_EXTENSIONS, TYPE_GROUPS)
 from .natures import natures_as_json
-from .providers.registry import get_provider
+from .providers.registry import ensure_provider_rows, get_provider, provider_row
 from wama.accounts.views import get_or_create_anonymous_user
 
 logger = logging.getLogger(__name__)
@@ -431,6 +431,7 @@ def api_providers_list(request):
     asset_type = request.GET.get('type', '')
     user       = _get_user(request)
 
+    ensure_provider_rows()     # un connecteur ENREGISTRÉ a sa ligne, sans migration de données
     qs = MediaProvider.objects.filter(is_active=True)
     if asset_type:
         # providers whose supported_types JSON array contains this type
@@ -477,6 +478,7 @@ def api_provider_search(request):
     if not slug or not asset_type or not q:
         return JsonResponse({'error': 'provider, type et q sont requis'}, status=400)
 
+    provider_row(slug)         # ligne créée si le connecteur est enregistré (sinon : 404 ci-dessous)
     try:
         provider_obj = MediaProvider.objects.get(slug=slug, is_active=True)
     except MediaProvider.DoesNotExist:
@@ -537,6 +539,7 @@ def api_provider_download(request):
     if asset_type not in dict(ASSET_TYPES):
         return JsonResponse({'error': f"Type invalide : {asset_type}"}, status=400)
 
+    provider_row(slug)
     try:
         provider_obj = MediaProvider.objects.get(slug=slug, is_active=True)
     except MediaProvider.DoesNotExist:
@@ -562,24 +565,12 @@ def api_provider_download(request):
     if not download_url:
         return JsonResponse({'error': '_download_url manquant'}, status=400)
 
-    # Whitelist de domaines autorisés selon le provider.
-    # None  = provider inconnu → interdit
-    # []    = fichiers provenant de CDNs variés (Openverse) → vérifie HTTPS uniquement
-    # [...]  = liste de domaines autorisés explicitement
-    _DOMAIN_WHITELIST = {
-        'wikimedia': ['upload.wikimedia.org', 'commons.wikimedia.org'],
-        'pixabay':   ['cdn.pixabay.com', 'i.vimeocdn.com', 'player.vimeo.com'],
-        'freesound': ['cdn.freesound.org'],
-        'pexels':    ['images.pexels.com', 'videos.pexels.com',
-                      'player.vimeo.com', 'vod-progressive.akamaized.net',
-                      'clips.vimeocdn.com'],
-        'jamendo':   ['storage.jamendo.com', 'prod-1.storage.jamendo.com',
-                      'mp3d.jamendo.com'],
-        'openverse': [],   # fichiers hébergés sur CDNs tiers variés — HTTPS suffisant
-    }
+    # Domaines autorisés : DÉCLARÉS par le connecteur (`download_domains`, 2026-09-30 — c'était
+    # un dictionnaire écrit ici, une seconde déclaration à côté de la classe).
+    # None = aucun téléchargement ; () = tout domaine en HTTPS ; (...) = ces domaines seuls.
     from urllib.parse import urlparse
     parsed      = urlparse(download_url)
-    allowed_domains = _DOMAIN_WHITELIST.get(slug)   # None si provider inconnu
+    allowed_domains = provider.download_domains
     if allowed_domains is None:
         return JsonResponse({'error': 'Téléchargement non autorisé pour ce provider'}, status=403)
     if allowed_domains and not any(parsed.netloc.endswith(d) for d in allowed_domains):
@@ -625,7 +616,12 @@ def api_provider_download(request):
     )
     asset.mime_type = mime_type
     asset.file_size = len(file_bytes)
-    asset.save(update_fields=['mime_type', 'file_size'])
+    # Ce que le FICHIER dit de lui (attributs de la nature : un avatar GLB y gagne `rigged`,
+    # `face_rig`, `visemes`) — la brique d'ingest commune. Ce chemin la contournait : un asset
+    # venu d'un connecteur n'avait aucun attribut, alors que son docstring cite « fournisseur ».
+    from .services import enrich_asset_from_file
+    enrich_asset_from_file(asset)
+    asset.save(update_fields=['mime_type', 'file_size', 'attributes', 'duration'])
 
     return JsonResponse(_serialize_user_asset(asset, user))
 

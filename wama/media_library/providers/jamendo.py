@@ -14,6 +14,7 @@ class JamendoProvider(BaseProvider):
     name             = 'Jamendo'
     supported_types  = ['audio_music']
     requires_api_key = True
+    download_domains = ('storage.jamendo.com', 'prod-1.storage.jamendo.com', 'mp3d.jamendo.com')
 
     _UA   = 'WAMA/1.0 (media library)'
 

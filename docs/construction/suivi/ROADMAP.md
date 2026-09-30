@@ -134,10 +134,17 @@
   PILOTÉ image par image, son WAV multiplexé au décalage relevé sur `animClock`) ; le worker de
   l'avatarizer choisit le moteur d'après la NATURE de l'avatar (`.glb` → TalkingHead, photo →
   MuseTalk inchangé). Mesuré : 10,7 s de vidéo 1280×720 à 25 i/s en 15-21 s, pic VRAM ~0,2 Go.
-  ⏳ **Palier 2 = décision UI** : comment un avatar 3D se CHOISIT dans la card (une ligne de
-  catalogue ouvrirait un port par `app_input_ports` — pas de jeton d'entrée « 3D » dans
-  `INPUT_TYPES`), la galerie d'avatars 3D (MPFB CC0 à préférer à `brunette.glb` CC BY-NC), et
-  l'audio SANS texte (il faudrait des timings de mots : transcription ou alignement).
+  ✅ **Palier 2 LIVRÉ le 2026-09-30 (décisions de Fabien)** : jeton `work_object3d` (pas de port
+  « avatar ») ; un avatar est un `object3d` dont le visage (`face_rig`/`visemes`) est MESURÉ dans
+  le GLB ; le modèle `avatarizer:talkinghead` au catalogue exige ces attributs (`input_attributes`)
+  ; la card dit « photo OU objet 3D » (exigences alternatives, `INPUT_MODEL_MATCHING §6.8`) ;
+  source de la médiathèque **« Avatars 3D »** (`media_library/providers/avatars3d.py` : un dépôt =
+  une ligne, licences relevées, fichier sans licence jamais proposé — TalkingHead : `mpfb` CC0,
+  `brunette` CC BY-NC, 3 autres non commerciaux) ; l'audio SANS texte passe par la transcription
+  (`whisper_utils`, mots datés → lèvres, langue entendue → visèmes), rendu réel 18 s pour 10,7 s.
+  ⏳ Restent : le verdict d'attributs côté CARD (griser à la sélection), le tirage du moteur par
+  `resolve_model_choice` (au 2ᵉ modèle photo), les avatars cités par NOM dans un lot (`-r`, nature
+  `avatar` seule aujourd'hui), la ligne morte `musetalk-v1.0` (décision), la route vendor (D-a).
   Deux cas, deux podiums (état du 17/08) :
   - **(a) consignes OFFLINE** : ① **EchoMimicV3(-Flash)** (Ant, Apache-2.0, 01/2026, conçu 24 Go,
     12 Go quantifié, tête+corps, prompt-guidé — successeur naturel de MuseTalk) ; ② **StableAvatar**

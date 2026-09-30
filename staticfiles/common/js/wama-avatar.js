@@ -115,13 +115,15 @@ export function estPret() {
  * Rend `true` si l'avatar a pris la parole, `false` s'il n'était pas prêt — l'appelant peut
  * alors jouer l'audio normalement (dégradation douce : on ne perd JAMAIS la voix).
  */
-export async function speak(blob, texte, lang) {
+export async function speak(blob, texte, lang, timings) {
   if (!estPret() || !blob) return false;
   try {
     const buf = await blob.arrayBuffer();
     // decodeAudioData CONSOMME l'ArrayBuffer : ne pas le réutiliser après cet appel.
     const audio = await contexteAudio().decodeAudioData(buf);
-    const timings = estimerTimings(texte, audio.duration * 1000);
+    // `timings` ({words, wtimes, wdurations}, ms) — MESURÉS quand l'appelant les a (mots datés par
+    // la transcription, rendu vidéo du 2026-09-30) ; sinon l'estimation au prorata.
+    timings = timings || estimerTimings(texte, audio.duration * 1000);
     const r = { audio };
     if (timings) Object.assign(r, timings);
     head.speakAudio(r, { lipsyncLang: langueVisemes(lang) });

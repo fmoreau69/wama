@@ -419,7 +419,7 @@
                   ]
                 },
                 "validators": {
-                  "expr": "[django.core.validators.FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp'])]",
+                  "expr": "[django.core.validators.FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp', 'glb'])]",
                   "imports": [
                     "import django.core.validators"
                   ]
@@ -805,7 +805,8 @@
         ".heic",
         ".gif",
         ".heif",
-        ".avif"
+        ".avif",
+        ".glb"
       ],
       "url_name": "avatarizer:index",
       "verbose_name": "Avatarizer"
@@ -822,7 +823,8 @@
       "catalog_keys": [
         "avatarizer:codeformer",
         "avatarizer:musetalk-v1.0",
-        "avatarizer:musetalk-v1.5"
+        "avatarizer:musetalk-v1.5",
+        "avatarizer:talkinghead"
       ],
       "source_attr": "AVATARIZER_MODELS"
     },
@@ -831,6 +833,7 @@
         {
           "accepts": [
             "image",
+            "3d",
             "audio",
             "prompt"
           ],
@@ -842,7 +845,8 @@
           ],
           "label": "Avatar parlant",
           "library_natures": {
-            "work_image": "avatar"
+            "work_image": "avatar",
+            "work_object3d": "object3d"
           },
           "modes": []
         }
@@ -1231,6 +1235,16 @@
     "ports": {
       "inputs": [
         {
+          "description": "La consigne écrite. C'est elle que le modèle exécute.",
+          "group": "prompt",
+          "id": "prompt",
+          "label": "Prompt",
+          "multi": false,
+          "types": [
+            "prompt"
+          ]
+        },
+        {
           "description": "L'audio que l'app TRAITE : c'est de lui que part le résultat (transcrit, amélioré, animé…).",
           "group": "travail",
           "id": "work_audio",
@@ -1248,6 +1262,16 @@
           "multi": true,
           "types": [
             "image"
+          ]
+        },
+        {
+          "description": "L'objet 3D que l'app TRAITE : c'est de lui que part le résultat (animé, rendu, converti…).",
+          "group": "travail",
+          "id": "work_object3d",
+          "label": "Objet 3D de travail",
+          "multi": true,
+          "types": [
+            "3d"
           ]
         }
       ],
@@ -1453,7 +1477,7 @@
             "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. (défaut : False)",
             "voice_preset": "select — Voix (défaut : 'default')"
           },
-          "description": "Ajoute un élément à la file d'attente de Avatarizer (Génération de vidéos d'avatars lip-sync animés par IA (MuseTalk + CodeFormer)) et renvoie son item_id."
+          "description": "Ajoute un élément à la file d'attente de Avatarizer (Génération de vidéos d'avatars parlants : une photo animée par IA (MuseTalk + CodeFormer) ou un avatar 3D riggé rendu par TalkingHead) et renvoie son item_id."
         },
         "get_avatarizer_status": {
           "args": {},
@@ -1470,7 +1494,7 @@
       "status": "get_avatarizer_status"
     }
   },
-  "description": "Génération de vidéos d'avatars lip-sync animés par IA (MuseTalk + CodeFormer).",
+  "description": "Génération de vidéos d'avatars parlants : une photo animée par IA (MuseTalk + CodeFormer) ou un avatar 3D riggé rendu par TalkingHead.",
   "key": "avatarizer",
   "manifest_kind": "app",
   "name": "Avatarizer",
@@ -1486,6 +1510,10 @@
     },
     {
       "key": "avatarizer:musetalk-v1.5",
+      "kind": "model"
+    },
+    {
+      "key": "avatarizer:talkinghead",
       "kind": "model"
     },
     {

@@ -57,6 +57,21 @@ def frame_count(audio_seconds: float, offset_ms: float, step_ms: float, tail_ms:
     return max(1, math.ceil((audio_seconds * 1000.0 + offset_ms + tail_ms) / step_ms))
 
 
+def word_timings(words) -> Optional[dict]:
+    """Mots DATÉS (`[{'word', 'start', 'end'}]`, secondes — la forme des backends de transcription)
+    → timings TalkingHead (`{words, wtimes, wdurations}`, millisecondes), ou None s'il n'y en a
+    aucun. Les mots vides (ponctuation isolée) sont écartés ; une durée n'est jamais négative."""
+    kept = [w for w in (words or []) if str(w.get('word') or '').strip()]
+    if not kept:
+        return None
+    return {
+        'words': [str(w['word']).strip() for w in kept],
+        'wtimes': [round(float(w.get('start') or 0.0) * 1000) for w in kept],
+        'wdurations': [max(0, round((float(w.get('end') or 0.0) - float(w.get('start') or 0.0)) * 1000))
+                       for w in kept],
+    }
+
+
 def _wav_seconds(path: str) -> float:
     try:
         with wave.open(path, 'rb') as w:
@@ -123,11 +138,12 @@ class TalkingHeadBackend(BaseModelBackend):
     def process(self, avatar_path: str, audio_path: str, output_path: str, text: str = '',
                 language: str = 'fr', width: int = 1280, height: int = 720, fps: int = 25,
                 camera: Optional[dict] = None, background: str = '#f4f1ea', mood: str = 'neutral',
-                progress=None, **_ignored) -> str:
+                words=None, progress=None, **_ignored) -> str:
         """Rend `output_path` (MP4) : l'avatar `avatar_path` (GLB) dit `audio_path`.
 
-        `text` : ce qui est dit — il donne les timings de mots, donc les visèmes (sans lui, pas
-        de lèvres). `progress(fraction)` : rappel optionnel, 0 → 1 pendant le rendu.
+        Les LÈVRES viennent des MOTS : soit `words` (mots datés par une transcription — timings
+        MESURÉS), soit `text` (réparti au prorata de la durée de l'audio). Sans l'un ni l'autre,
+        refus : l'avatar resterait bouche fermée. `progress(fraction)` : 0 → 1 pendant le rendu.
         """
         from django.template.loader import render_to_string
         from playwright.sync_api import sync_playwright
@@ -137,9 +153,12 @@ class TalkingHeadBackend(BaseModelBackend):
         avatar_path, audio_path = str(avatar_path), str(audio_path)
         if not Path(avatar_path).exists():
             raise FileNotFoundError(f"Avatar 3D introuvable : {avatar_path}")
+        timings = word_timings(words)
+        if timings and not (text or '').strip():
+            text = ' '.join(timings['words'])
         if not (text or '').strip():
-            raise ValueError("TalkingHead a besoin du TEXTE dit : il donne les visèmes. "
-                             "Sans lui, l'avatar resterait bouche fermée.")
+            raise ValueError("TalkingHead a besoin des MOTS dits (texte, ou audio transcrit) : ils "
+                             "donnent les visèmes. Sans eux, l'avatar resterait bouche fermée.")
         audio_seconds = _wav_seconds(audio_path)
         page_html = render_to_string('common/avatar_render.html', {
             'width': int(width), 'height': int(height), 'background': background})
@@ -183,8 +202,8 @@ class TalkingHeadBackend(BaseModelBackend):
                     'background': background})
                 logger.info('[talkinghead] rendu %sx%s, WebGL : %s', info['width'], info['height'],
                             info.get('renderer'))
-                timing = page.evaluate('a => window.WamaAvatarRender.speak(a[0], a[1], a[2])',
-                                       [wav_b64, text, language])
+                timing = page.evaluate('a => window.WamaAvatarRender.speak(a[0], a[1], a[2], a[3])',
+                                       [wav_b64, text, language, timings])
                 step_ms = float(info['stepMs'])
                 offset_ms = audio_offset_in_video_ms(timing['audioOffsetMs'], step_ms)
                 total = frame_count(audio_seconds, offset_ms, step_ms)

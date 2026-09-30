@@ -15,6 +15,7 @@ class WikimediaProvider(BaseProvider):
     name             = 'Wikimedia Commons'
     supported_types  = ['image', 'video']
     requires_api_key = False
+    download_domains = ('upload.wikimedia.org', 'commons.wikimedia.org')
 
     _UA  = 'WAMA/1.0 (media library; +https://github.com/wama)'
 
