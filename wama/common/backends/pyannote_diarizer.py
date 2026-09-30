@@ -34,6 +34,10 @@ from wama.common.backends.base import BaseModelBackend
 
 logger = logging.getLogger(__name__)
 
+#: Pipeline servi quand rien n'est demandé — celui d'avant le 2026-09-30, tant que la mesure sur
+#: SUMM-RE n'a pas départagé les deux.
+DEFAULT_MODEL = 'speaker-diarization-3.1'
+
 
 class PyannoteDiarizerBackend(BaseModelBackend):
     """
@@ -46,8 +50,17 @@ class PyannoteDiarizerBackend(BaseModelBackend):
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'pyannote'
+    #: Pipelines servis (2026-09-30) : clé = segment du catalogue après `transcriber:` ;
+    #: `settings_key` = dossier dans `MODEL_PATHS['speech']`. `community-1` est le successeur de
+    #: 3.1 par les mêmes auteurs (pyannote.audio 4) — même moteur, donc pas un second backend.
+    SUPPORTED_MODELS = {
+        'speaker-diarization-3.1': {'hf_id': 'pyannote/speaker-diarization-3.1',
+                                    'settings_key': 'diarization'},
+        'speaker-diarization-community-1': {'hf_id': 'pyannote/speaker-diarization-community-1',
+                                            'settings_key': 'diarization_community'},
+    }
     name = "pyannote"
-    display_name = "pyannote speaker-diarization-3.1"
+    display_name = "pyannote (speaker-diarization 3.1 / community-1)"
     description = "Diarisation des locuteurs en post-traitement des segments ASR (Whisper, Qwen3-ASR)."
 
     # Dépendances (contrat commun). Le modèle est GATED sur HuggingFace : la présence du paquet
@@ -61,20 +74,37 @@ class PyannoteDiarizerBackend(BaseModelBackend):
 
     def __init__(self):
         self._pipeline = None
+        self._model_id = None
 
     @property
     def is_loaded(self) -> bool:
         return self._pipeline is not None
 
-    def load(self, model: Optional[str] = None, hf_token: Optional[str] = None) -> bool:
-        """Charge (ou réutilise) le pipeline de diarisation. False si indisponible."""
-        if self._pipeline is not None:
-            return True
+    @classmethod
+    def model_id_for(cls, model_name: Optional[str]) -> str:
+        """Id servi pour une demande (id, clé de catalogue ou dépôt HF) ; rien ou inconnu → défaut."""
+        if not model_name:
+            return DEFAULT_MODEL
+        name = str(model_name).split(':', 1)[-1].lower()
+        if name in cls.SUPPORTED_MODELS:
+            return name
+        for model_id, spec in cls.SUPPORTED_MODELS.items():
+            if spec['hf_id'].lower() == name:
+                return model_id
+        return DEFAULT_MODEL
 
-        import os
+    def load(self, model: Optional[str] = None, hf_token: Optional[str] = None) -> bool:
+        """Charge (ou réutilise) le pipeline demandé. Un AUTRE pipeline déjà chargé est libéré
+        d'abord : un seul réside à la fois. False si indisponible."""
+        model_id = self.model_id_for(model)
+        if self._pipeline is not None and self._model_id == model_id:
+            return True
+        if self._pipeline is not None:
+            self.unload()
 
         import torch
 
+        spec = self.SUPPORTED_MODELS[model_id]
         # Dossier du modèle — passé en `cache_dir=` à `Pipeline.from_pretrained`
         # (signature vérifiée le 2026-09-04 : la lib l'accepte). L'ancienne mutation
         # d'environnement est RETIRÉE (ROADMAP §5b) : elle routait le pipeline, mais
@@ -85,7 +115,7 @@ class PyannoteDiarizerBackend(BaseModelBackend):
 
             from django.conf import settings as _s
             _dia_dir = _s.MODEL_PATHS.get('speech', {}).get(
-                'diarization',
+                spec['settings_key'],
                 _s.AI_MODELS_DIR / "models" / "speech" / "diarization"
             )
             Path(_dia_dir).mkdir(parents=True, exist_ok=True)
@@ -105,9 +135,9 @@ class PyannoteDiarizerBackend(BaseModelBackend):
             except Exception:
                 pass
 
-        logger.info("[pyannote] Loading speaker-diarization-3.1 pipeline…")
+        logger.info(f"[pyannote] Loading {spec['hf_id']} pipeline…")
         pipeline = Pipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1",
+            spec['hf_id'],
             token=token,
             **({'cache_dir': _cache} if _cache else {}),
         )
@@ -117,7 +147,8 @@ class PyannoteDiarizerBackend(BaseModelBackend):
             logger.info("[pyannote] Pipeline moved to CUDA")
 
         self._pipeline = pipeline
-        logger.info("[pyannote] Pipeline loaded ✓")
+        self._model_id = model_id
+        logger.info(f"[pyannote] {model_id} loaded ✓")
         return True
 
     def unload(self) -> None:
@@ -125,6 +156,7 @@ class PyannoteDiarizerBackend(BaseModelBackend):
         if self._pipeline is None:
             return
         self._pipeline = None
+        self._model_id = None
         try:
             import gc
 
@@ -163,6 +195,7 @@ class PyannoteDiarizerBackend(BaseModelBackend):
         segments: list,
         num_speakers: Optional[int] = None,
         hf_token: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> list:
         """
         Run speaker diarization and assign speaker_id to each segment.
@@ -172,6 +205,7 @@ class PyannoteDiarizerBackend(BaseModelBackend):
             segments:     List of TranscriptionSegment (speaker_id='') from Whisper.
             num_speakers: Optional number of speakers hint.
             hf_token:     HuggingFace access token for the gated pyannote model.
+            model:        pipeline to use (id, catalogue key or HF repo); None → DEFAULT_MODEL.
 
         Returns:
             Same list with speaker_id populated.
@@ -181,7 +215,7 @@ class PyannoteDiarizerBackend(BaseModelBackend):
             return segments
 
         try:
-            self.load(hf_token=hf_token)
+            self.load(model=model, hf_token=hf_token)
             pipeline = self._pipeline
 
             diarize_kwargs: dict = {}
@@ -267,9 +301,10 @@ def diarize(
     segments: list,
     num_speakers: Optional[int] = None,
     hf_token: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> list:
     """Diarise `segments` (voir `PyannoteDiarizerBackend.diarize`)."""
-    return get_diarizer().diarize(audio_path, segments, num_speakers, hf_token)
+    return get_diarizer().diarize(audio_path, segments, num_speakers, hf_token, model=model)
 
 
 def unload_pipeline() -> bool:
