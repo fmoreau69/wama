@@ -11,7 +11,8 @@
 {# ── Right panel : médias ─────────────────────────────────────────────────── #}
 {% block app_right_panel_media %}
 {% comment %}Import = card commune « Nouvel élément » en tête d'onglet (« UNE surface = la file »,
-migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS inchangés.{% endcomment %}
+migré 2026-07-05, card v4 le 2026-09-30) ; IDs dropZone/fileInput/media_url conservés → handlers
+JS inchangés.{% endcomment %}
 {% endblock %}
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
@@ -34,9 +35,15 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
 
 <!-- Global Progress Bar -->
 {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
-{# Card « Nouvel élément » COMMUNE, EN TÊTE d'onglet (ordre canonique : card → progression → toolbar → file). #}
+{% comment %}Card « Nouvel élément » v4, EN TÊTE d'onglet (ordre canonique : card → progression →
+toolbar → file ; CARD_DESIGN §11.11, 2026-09-30). Onglet « Fichier de travail » (`work_file` :
+images, vidéos, audio, documents — l'`accept` vient de la déclaration, `port_accept`, plus du
+littéral) et onglet « Lot ». Pour le describer (famille B de BATCH_FORMAT : un `.txt` peut être
+un document ou un lot), l'onglet donne le geste de l'intention DÉCLARÉE : posé sur « Lot », c'est
+un lot ; posé sur le port, c'est toujours la STRUCTURE qui décide (règle 2, WamaImport).
+Ids dropZone/fileInput/describerFolderInput/media_url/mediaUrlSubmit conservés.{% endcomment %}
 {% url 'describer:batch_template' as describer_batch_template_url %}
-{% include 'common/_new_item_card.html' with collapsible=True drop_zone_id='dropZone' file_input_id='fileInput' folder_input_id='describerFolderInput' file_accept='image/*,video/*,audio/*,.pdf,.docx,.txt,.md,.csv' formats_label='Images · Vidéos · Audio · PDF · DOCX…' batch_template_url=describer_batch_template_url show_batch_bar=True show_media_library=True show_url=True url_input_id='media_url' url_submit_id='mediaUrlSubmit' url_placeholder='https://… ou YouTube' %}
+{% include 'common/_new_item_card_v4.html' with app_id='describer' collapsible=True drop_zone_id='dropZone' file_input_id='fileInput' folder_input_id='describerFolderInput' formats_label='Images · Vidéos · Audio · PDF · DOCX…' batch_template_url=describer_batch_template_url show_batch_bar=True url_input_id='media_url' url_submit_id='mediaUrlSubmit' url_placeholder='https://… ou YouTube' %}
 
 {% include 'common/_global_progress.html' %}
 

@@ -1580,12 +1580,23 @@ l'ordre, sur les ports que `input_slots` rend pour chaque app :
   est NON APPLICABLE à une card v4 sans port de travail (repli, même forme que
   `recursive_import`) — composer 94 %, total 900/941 (un critère vert de moins : exemption
   déclarée, pas défaut).
+- ✅ **2026-09-30, reader, describer et converter en v4** (un port de travail chacun ; plus de
+  `file_accept`/`show_media_library`/`show_url` dans leur page). L'`accept` de chaque port égale
+  EXACTEMENT sa déclaration (mesuré : 8/8, 39/39, 60/60 extensions ; le describer passe de familles
+  `image/*`… à la liste déclarée, même couverture). Gestes rejoués sur 8011 (page, import, URL,
+  dossier, lot) : mêmes verdicts que la référence prise sur HEAD ; médiathèque → fenêtre commune.
+  Au passage : `.reader-drop-zone` (CSS mort, aucun élément) et le survol PROPRE du converter
+  (vert + `scale(1.02)`, qui débordait de la zone fixe) retirés au profit du survol commun.
+  ⚠ **Métadonnée corrigée à la source** : la v4 affiche la description du jeton, et celle de
+  `work_file` disait « Le fichier TRANSFORMÉ… c'est lui qui devient le résultat » — faux pour le
+  reader (il LIT) et le describer (il DÉCRIT) ; `work_audio` disait « TRANSFORMÉ (transcription…) ».
+  Les deux disent désormais « …que l'app TRAITE : c'est de lui que part le résultat (…) »
+  (`app_modes.INPUT_TYPES`), reportées mot pour mot dans les 6 manifestes d'apps concernés.
 - ⏳ **Reste avant l'imager et l'enhancer** : `input_slots(app)` ignore le DOMAINE
   (`app_input_ports` l'accepte) — leurs deux cards (image/vidéo, média/audio) recevraient les
   mêmes ports ; l'imager lit en plus son image par les ids de RÉFÉRENCE (`imgRefInput`,
-  `input_card.js`) alors que la v4 en fait un port de travail. Le reader, le describer et le
-  converter n'ont plus d'obstacle (un port de travail, natures couvertes). Le synthesizer est
-  dans le cas du composer (prompt + voix de référence).
+  `input_card.js`) alors que la v4 en fait un port de travail. Le synthesizer est dans le cas du
+  composer (prompt + voix de référence). Le transcriber (3 ports + le direct) viendra en dernier.
 - ⏳ **Question ouverte (lots)** : les colonnes du lot nomment des RÔLES (`-i`, `-r`), pas des
   ports — l'avatar de l'avatarizer est `-r` au lot et `work_image` à la card. À terme : des
   colonnes au nom du port, `-i`/`-r` en alias.

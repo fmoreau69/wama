@@ -8,22 +8,7 @@
 
 {% block extra_css %}
 {{ block.super }}
-<style>
-    .reader-drop-zone {
-        border: 2px dashed #495057;
-        border-radius: 8px;
-        padding: 1rem;
-        text-align: center;
-        cursor: pointer;
-        transition: border-color .2s, background .2s, transform .15s;
-        background: rgba(255,255,255,.02);
-    }
-    .reader-drop-zone.dragover {
-        border-color: #0dcaf0;
-        background: rgba(13,202,240,.06);
-        transform: scale(1.02);
-    }
-</style>
+{# (`.reader-drop-zone` retirée le 2026-09-30 : aucun élément ne portait cette classe.) #}
 {% endblock %}
 
 {# ── Right panel : médias ─────────────────────────────────────────────────── #}
@@ -191,10 +176,13 @@ window._batchImport = WamaBatchImport({
 {% block reader_content %}
 <div class="container-fluid py-2" style="overflow-x:clip;">
 
-    {% comment %}Card d'entrée COMMUNE en tête de file (upload + batch) — alignement T/D/C, 2026-07-07.
-    Mêmes IDs dropZone/fileInput → handlers reader.js inchangés ; show_batch_bar inclut la barre.{% endcomment %}
+    {% comment %}Card « Nouvel élément » v4 (2026-09-30, CARD_DESIGN §11.11) : onglet « Fichier de
+    travail » (`work_file`, documents et images — l'`accept` vient de la déclaration de l'app,
+    `port_accept`, plus du littéral écrit ici) et onglet « Lot ». Mêmes ids dropZone/fileInput/
+    readerFolderInput → reader.js (WamaImport) inchangé. Pas de champ URL : le reader n'en
+    offrait pas en v3, et ce portage n'ajoute aucune voie.{% endcomment %}
     {% url 'reader:batch_template' as reader_batch_template_url %}
-    {% include 'common/_new_item_card.html' with drop_zone_id='dropZone' file_input_id='fileInput' folder_input_id='readerFolderInput' file_accept='.pdf,.jpg,.jpeg,.png,.tiff,.tif,.webp,.bmp' formats_label='PDF · JPG · PNG · TIFF · WebP · BMP' batch_template_url=reader_batch_template_url show_batch_bar=True show_media_library=True collapsible=True %}
+    {% include 'common/_new_item_card_v4.html' with app_id='reader' drop_zone_id='dropZone' file_input_id='fileInput' folder_input_id='readerFolderInput' formats_label='PDF · JPG · PNG · TIFF · WebP · BMP' batch_template_url=reader_batch_template_url show_batch_bar=True collapsible=True %}
 
     <!-- Global progress bar -->
     {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}

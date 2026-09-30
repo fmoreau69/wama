@@ -1231,7 +1231,7 @@
     "ports": {
       "inputs": [
         {
-          "description": "L'audio TRANSFORMÉ par le traitement (transcription, amélioration, animation).",
+          "description": "L'audio que l'app TRAITE : c'est de lui que part le résultat (transcrit, amélioré, animé…).",
           "group": "travail",
           "id": "work_audio",
           "label": "Audio de travail",
