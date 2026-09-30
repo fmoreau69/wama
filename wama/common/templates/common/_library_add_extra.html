@@ -9,6 +9,27 @@ sous sa racine (la page et la fenêtre commune en portent chacune une).{% endcom
     <input type="text" class="form-control form-control-sm" data-library-name maxlength="200"
            placeholder="Nom (optionnel) — sinon celui du fichier">
 </div>
+{% comment %}Ce que la NATURE demande à l'ajout (`Attr.on_add` — langue, âge, genre d'une voix) :
+rendu par `library-add.js` depuis la déclaration de l'onglet ouvert, jamais écrit ici.{% endcomment %}
+<div class="d-flex flex-wrap gap-2 mt-2" data-library-attrs hidden></div>
+{% comment %}PROVENANCE d'un extrait qui n'est pas de la personne (film, podcast, banque de sons) —
+licence, auteur, page d'origine : ce qu'une licence à attribution EXIGE, rangé dans les champs de
+l'asset (`UserAsset.license/author/source_url`). Replié : on ne le demande qu'à qui en a besoin.{% endcomment %}
+<details class="mt-2 small" data-library-provenance>
+    <summary class="text-muted">Provenance — si ce fichier n'est pas de vous</summary>
+    <div class="d-flex flex-wrap gap-2 mt-1">
+        <input type="text" class="form-control form-control-sm" style="max-width:12rem" data-library-license
+               list="{{ prefix }}Licenses" maxlength="100" placeholder="Licence (CC-BY-4.0…)">
+        <input type="text" class="form-control form-control-sm" style="max-width:14rem" data-library-author
+               maxlength="200" placeholder="Auteur à créditer">
+        <input type="url" class="form-control form-control-sm" style="max-width:20rem" data-library-source
+               maxlength="1000" placeholder="Page d'origine (https://…)">
+    </div>
+    <datalist id="{{ prefix }}Licenses">
+        <option value="CC0-1.0"><option value="CC-BY-4.0"><option value="CC-BY-SA-4.0">
+        <option value="CC-BY-NC-4.0"><option value="Domaine public"><option value="Tous droits réservés">
+    </datalist>
+</details>
 {% comment %}« Enregistrer » : CACHÉ par défaut, montré quand la NATURE de l'onglet est déclarée
 `recordable` (`media_library/natures.py`). Le fichier enregistré (webm) suit la voie commune
 d'ajout et est rangé en wav (`to_pivot`).{% endcomment %}

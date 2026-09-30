@@ -219,7 +219,8 @@ def _tabs_for(asset_type: str, user_qs, system_qs) -> list:
     declared = natures_as_json()
     tabs += [{'key': k, 'exact': True, 'label': ASSET_NATURES[k].label,
               'icon': ASSET_NATURES[k].icon, 'count': counts.get(k, 0),
-              'extensions': declared[k]['extensions'], 'recordable': declared[k]['recordable']}
+              'extensions': declared[k]['extensions'], 'recordable': declared[k]['recordable'],
+              'attributes': declared[k]['attributes']}
              for k in ASSET_NATURES if k in members]
     return tabs
 
@@ -312,11 +313,21 @@ def api_upload(request):
     if uploaded is None and source is None:
         return JsonResponse({'error': 'Fichier requis'}, status=400)
 
+    # Ce que la card d'ajout fait DIRE à la personne (2026-09-30) : les attributs que la nature
+    # demande (`attributes`, JSON) et la provenance d'un extrait qui n'est pas d'elle.
+    try:
+        attributes = json.loads(request.POST.get('attributes') or '{}')
+        if not isinstance(attributes, dict):
+            raise ValueError
+    except ValueError:
+        return JsonResponse({'error': 'Attributs illisibles.'}, status=400)
     try:
         asset = add_file_to_library(
             user, asset_type, uploaded=uploaded, source=source,
             name=request.POST.get('name', ''), description=request.POST.get('description', '').strip(),
-            tags=request.POST.get('tags', '').strip())
+            tags=request.POST.get('tags', '').strip(), attributes=attributes,
+            license=request.POST.get('license', ''), author=request.POST.get('author', ''),
+            source_url=request.POST.get('source_url', ''))
     except LibraryAddRefused as exc:
         return JsonResponse({'error': str(exc)}, status=exc.status)
     return JsonResponse(_serialize_user_asset(asset, user))
