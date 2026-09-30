@@ -6,7 +6,7 @@ Les dom_id pointent sur les champs du template. Le format/qualité de sortie est
 
 Descriptions modèles (courtes + longues) = métadonnée-driven via help_fallback {valeur: {description,
 description_long, recommended_vram_gb}} — mécanisme d'aide modèle (WamaModelHelp), pour les modèles hors
-catalogue model_manager. Image/vidéo : dérivées de MODELS_INFO (source unique). Audio : curées.
+catalogue model_manager. Image/vidéo : dérivées de SUPPORTED_MODELS (source unique). Audio : curées.
 """
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.output_formats import (
@@ -14,13 +14,13 @@ from wama.common.utils.output_formats import (
 )
 from wama.common.utils.param_schema import Param, schema_to_dicts
 from wama.enhancer.models import AudioEnhancement, Enhancement
-from wama.common.backends.ai_upscaler import MODELS_INFO
+from wama.common.backends.ai_upscaler import SUPPORTED_MODELS
 
 
 def _media_model_help():
-    """Aide modèle image/vidéo (courte + longue) dérivée de MODELS_INFO — source unique."""
+    """Aide modèle image/vidéo (courte + longue) dérivée de SUPPORTED_MODELS — source unique."""
     out = {}
-    for key, info in MODELS_INFO.items():
+    for key, info in SUPPORTED_MODELS.items():
         desc = info.get('description', '')
         scale, vram, file = info.get('scale'), info.get('vram_usage'), info.get('file', '')
         if scale and scale > 1:

@@ -518,6 +518,40 @@ class ResolutionParDeclarationTest(TestCase):
                              f"{cle} servi par le mauvais backend — c'est le défaut mesuré "
                              f"le 06/09, une erreur SILENCIEUSE")
 
+    def test_every_backend_of_a_shared_engine_declares_its_models(self):
+        """The rule « a single candidate is the one » stops holding the day a SECOND backend
+        drives the same engine — from then on, a backend without `SUPPORTED_MODELS` resolves
+        NOTHING (rule 3: ambiguity → None). Lived on 2026-09-30: the Supra2-IMG backend made
+        `onnxruntime` shared, and the 7 upscalers of `AIUpscaler` (declared as `MODELS_INFO`,
+        read by no one) lost their backend — the enhancer's image upscaling with them."""
+        from collections import defaultdict
+        from wama.common.services.backend_inventory import resolvable_entries
+        by_engine = defaultdict(list)
+        for entry in resolvable_entries():
+            if entry.engine:
+                by_engine[entry.engine].append(entry)
+        shared = {engine: entries for engine, entries in by_engine.items() if len(entries) > 1}
+        self.assertIn('onnxruntime', shared, 'the case this guard was written for')
+        for engine, entries in shared.items():
+            for entry in entries:
+                with self.subTest(engine=engine, backend=entry.module or entry.name):
+                    self.assertTrue(entry.supported_models,
+                                    f'{entry.module or entry.name} shares `{engine}` without a '
+                                    f'literal module-level SUPPORTED_MODELS: its models resolve '
+                                    f'to no backend')
+
+    def test_the_upscalers_resolve_their_backend_beside_another_onnx_backend(self):
+        from types import SimpleNamespace
+        from wama.common.backends.ai_upscaler import SUPPORTED_MODELS
+        from wama.common.backends.manager import backend_for_model
+        for name in SUPPORTED_MODELS:
+            model = SimpleNamespace(model_key=f'enhancer:{name}',
+                                    composition={'runtime': {'engine': 'onnxruntime'}})
+            with self.subTest(model=name):
+                backend = backend_for_model(model)
+                self.assertIsNotNone(backend)
+                self.assertEqual('AIUpscaler', backend.__name__)
+
     def test_l_ambiguite_rend_NONE_jamais_un_tirage(self):
         """À égalité de spécificité, on refuse. *Une erreur silencieuse coûte plus qu'un refus.*"""
         from types import SimpleNamespace
