@@ -466,7 +466,7 @@ modèles vidéo, plus un modèle sans route (grisé par `backend_missing`).
   écrite en `update()` : le `save()` du modèle normalise désormais lui-même, il déferait
   l'annulation.
 - **`options_group="category"`, regroupement GÉNÉRIQUE** (`api_model_options`) : la capacité
-  canonique `category` (vocabulaire fermé `MODEL_CATEGORIES`) range quelques modèles en optgroup
+  canonique `category` (vocabulaire fermé `CATEGORY_LABELS`) range quelques modèles en optgroup
   — les logos de l'imager, 1ᵉʳ consommateur ; les autres restent hors groupe, en tête, et
   « auto » les rejoint (il n'entre jamais dans un groupe nommé). Remplace les groupes
   Images/Logos/Vidéos écrits dans la vue.

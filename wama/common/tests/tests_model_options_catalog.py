@@ -350,7 +350,7 @@ class CatalogKeySemanticsTest(TestCase):
 class CategoryGroupedOptionsTest(TestCase):
     """`group=category`: a few models DISTINGUISHED (the imager's logos), the others unranked.
 
-    The category is a canonical capability (`MODEL_CATEGORIES`): the grouping is generic, any
+    The category is a canonical capability (`CATEGORY_LABELS`): the grouping is generic, any
     app that declares `options_group="category"` gets it."""
 
     def setUp(self):
