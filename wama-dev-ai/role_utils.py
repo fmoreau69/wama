@@ -105,30 +105,117 @@ def diffusers_pipeline_class(hf_id):
     return class_name, f"model_index.json nomme {class_name!r}"
 
 
-def enforce_engine_facts(manifest, hf_id, concerns, reader=diffusers_pipeline_class):
-    """Retire `composition.runtime.engine = 'diffusers'` quand le dépôt ne le PROUVE pas.
+def transformers_class_known(class_name) -> bool:
+    """Vrai si `class_name` est exporté par le `transformers` INSTALLÉ (même lecture paresseuse
+    que `diffusers_class_known` : `dir()` d'un `_LazyModule` n'importe aucun sous-module)."""
+    if not class_name:
+        return False
+    import transformers
+    return str(class_name) in dir(transformers)
+
+
+def transformers_architectures(hf_id):
+    """(`architectures` du `config.json` racine, ou [] ; raison lisible) — fait MÉCANIQUE.
+
+    `auto_map` y est signalé : un modèle à code DISTANT ne s'exécute pas par les classes de
+    `transformers`, mais par le moteur `transformers-remote-code`."""
+    import json as _json
+    from huggingface_hub import hf_hub_download
+    try:
+        path = hf_hub_download(hf_id, 'config.json')
+    except Exception:
+        return [], "aucun config.json à la racine du dépôt"
+    with open(path, encoding='utf-8') as f:
+        config = _json.load(f) or {}
+    architectures = [a for a in (config.get('architectures') or []) if a]
+    if not architectures:
+        return [], "config.json sans architectures"
+    reason = f"config.json nomme {architectures}"
+    if config.get('auto_map'):
+        reason += " (code DISTANT déclaré par auto_map)"
+    return architectures, reason
+
+
+#: Moteurs dont le dépôt PROUVE l'exécutabilité : lecteur du fait, test contre la lib installée,
+#: libellé de l'échec. Un moteur absent de cette table n'est pas jugé ici — le fait manque.
+ENGINE_PROOFS = {
+    'diffusers': (diffusers_pipeline_class, diffusers_class_known, 'classe inconnue de diffusers'),
+    'transformers': (transformers_architectures, transformers_class_known,
+                     'aucune de ces classes dans le transformers installé'),
+}
+
+
+def repo_files(hf_id) -> list:
+    """Chemins des fichiers du dépôt HF ([] s'il est illisible — réseau, dépôt restreint)."""
+    try:
+        from huggingface_hub import HfApi
+        return list(HfApi().list_repo_files(hf_id))
+    except Exception:
+        return []
+
+
+def signal_weight_formats(hf_id, concerns, lister=repo_files):
+    """Signale les FORMATS de poids du dépôt quand il en porte plusieurs.
+
+    Vécu le 2026-09-30 (LinTO FastConformer) : le rôle a proposé `transformers` sur la foi d'un
+    `config.json`, alors que le `.nemo` du MÊME dépôt s'exécute par NeMo. Le rôle ne voyait pas
+    l'alternative ; le validateur humain non plus. Les extensions sont celles que la prospection
+    reconnaît déjà comme des poids (`prospector._WEIGHT_EXTS`) — aucune liste de plus."""
+    from wama.model_manager.services.prospector import _WEIGHT_EXTS
+    by_ext = {}
+    for path in lister(hf_id):
+        ext = next((e for e in _WEIGHT_EXTS if path.lower().endswith(e)), None)
+        if ext:
+            by_ext.setdefault(ext, []).append(path)
+    if len(by_ext) > 1:
+        detail = ' ; '.join(f"{ext} ({', '.join(sorted(paths)[:2])}"
+                            f"{', …' if len(paths) > 2 else ''})"
+                            for ext, paths in sorted(by_ext.items()))
+        concerns.append(f"le dépôt porte PLUSIEURS formats de poids — {detail} : le moteur doit "
+                        f"être celui du format retenu")
+    return by_ext
+
+
+def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_files):
+    """Retire `composition.runtime.engine` quand le dépôt ne le PROUVE pas, et dit ce qu'il porte.
 
     Vécu le 2026-09-30 (qwen3.8, avatars) : LongCat-Video-Avatar-1.5 et SoulX-FlashHead portent
     un `model_index.json` et des fichiers `diffusion_pytorch_model.safetensors`, et le rôle a
     déclaré `diffusers` — alors que leur `_class_name` (absent, `WanModelAudioProject`) n'existe
     pas dans `diffusers`, et que sa PROPRE remarque disait « pas un pipeline diffusers standard ».
     La consigne alignée n'a rien changé au run suivant : *une consigne de prompt n'est pas un
-    contrôle*. Un moteur faux ne grise pas le modèle (le backend `diffusers` existe) : il le rend
-    proposable puis fait échouer le chargement. Retirer le moteur le laisse GRISÉ avec sa raison,
-    ce qui est le comportement voulu tant qu'aucun backend ne l'exécute.
+    contrôle*. Un moteur faux ne grise pas le modèle (le backend existe) : il le rend proposable
+    puis fait échouer le chargement. Retirer le moteur le laisse GRISÉ avec sa raison, ce qui est
+    le comportement voulu tant qu'aucun backend ne l'exécute.
+    Même défaut le même jour sur `transformers` (LinTO FastConformer, `ParakeetForRNNT` absente
+    du transformers installé) : la preuve est désormais une TABLE par moteur (`ENGINE_PROOFS`).
+    Un moteur qu'AUCUN backend ne sert (`known_engines`) n'est pas retiré — c'est peut-être le
+    backend à écrire — mais il est DIT : le modèle restera grisé jusque-là.
     Les faits mécaniques priment sur le jugement du LLM, comme la licence ou la taille.
+    `reader` remplace le lecteur du fait (tests) ; `lister`, l'inventaire du dépôt.
     """
+    signal_weight_formats(hf_id, concerns, lister=lister)
     runtime = (((manifest.get('body') or {}).get('composition') or {}).get('runtime') or {})
-    if runtime.get('engine') != 'diffusers':
+    engine = runtime.get('engine')
+    if not engine:
         return manifest
-    class_name, reason = reader(hf_id)
-    if diffusers_class_known(class_name):
+    proof = ENGINE_PROOFS.get(engine)
+    if proof is None:
+        from wama.common.backends.manager import known_engines
+        if engine not in known_engines():
+            concerns.append(f"engine {engine!r} servi par AUCUN backend — le modèle restera "
+                            f"grisé jusqu'à ce qu'un backend le serve")
+        return manifest
+    read, known, failure = proof
+    names, reason = (reader or read)(hf_id)
+    names = [names] if isinstance(names, str) else list(names or [])
+    if any(known(n) for n in names):
         return manifest
     runtime.pop('engine', None)
     if not runtime:
         manifest['body']['composition'].pop('runtime', None)
-    concerns.append(f"engine 'diffusers' RETIRÉ (fait mécanique) : {reason}, "
-                    f"classe inconnue de diffusers — un backend dédié reste à écrire")
+    concerns.append(f"engine {engine!r} RETIRÉ (fait mécanique) : {reason}, "
+                    f"{failure} — un backend dédié reste à écrire")
     return manifest
 
 
