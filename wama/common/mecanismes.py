@@ -439,6 +439,14 @@ MECHANISMS = (
               "ou REMPLACÉES après le chargement (observation de la file, 2026-09-15)",
               'wama/common/static/common/js/wama-card-menu.js', 'docs/construction/ui/CARD_DESIGN.md',
               symbol='WamaCardMenu'),
+    Mechanism('item_revisions', "Révisions d'un élément (historique DANS la card)",
+              "Chaque résultat produit donne à l'élément une révision numérotée — réglages dérivés "
+              "du schéma, fichiers et leur empreinte, instruction — rattachée au fait `produit` de "
+              "`RunOutcome` (un journal, pas deux) ; une révision PUBLIÉE est une version. Capture "
+              "posée une fois dans le squelette de tâche : zéro ligne par app, la file ne voit rien. "
+              "⏳ Restaurer, sorties immuables, rétention et volet Historique : marches suivantes",
+              'wama/common/services/revisions.py',
+              'docs/construction/exploitation/WAMA_COLLABORATION.md §7.1'),
     Mechanism('item_sharing', "Partage d'un élément ou d'un lot (1ʳᵉ interface)",
               "LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5` "
               "disait « il n'existe AUCUNE interface de partage » (il fallait l'admin Django). "

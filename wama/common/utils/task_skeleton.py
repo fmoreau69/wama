@@ -21,6 +21,8 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
   - retour : {'fields': {champs modèle à persister au succès},
               'eta':    (clé, taille, unité) pour `record_run` — optionnel,
               'label':  nom lisible du résultat (console ✓ + notification) — optionnel,
+              'instruction': ce qui a été demandé pour obtenir ce résultat (prompt de
+                             modification) — gardé dans la RÉVISION de l'élément ; optionnel,
               'console_success': ligne ✓ personnalisée (remplace « ✓ Terminé : <label> ») — optionnel}
     La glu peut retourner À TOUT MOMENT (ex. chemin court PDF natif du reader) : le retour
     déclenche le flux de succès standard.
@@ -93,12 +95,26 @@ class TaskContext:
             pass
 
 
-def _signal(item, app_id: str, signal: str, model_keys=None, detail=None) -> None:
+def _signal(item, app_id: str, signal: str, model_keys=None, detail=None):
     """Signal d'exécution, best-effort — comme `_notify`, il ne doit jamais faire échouer une
-    tâche qui a par ailleurs abouti."""
+    tâche qui a par ailleurs abouti. Rend la ligne écrite (ou None) : la révision s'y rattache."""
     try:
         from wama.common.services.run_outcome import record
-        record(app_id, item, signal, model_keys=model_keys, detail=detail)
+        return record(app_id, item, signal, model_keys=model_keys, detail=detail)
+    except Exception:
+        return None
+
+
+def _revision(model, item_id: int, app_id: str, outcome, res: dict) -> None:
+    """Révision de l'élément au succès (marche 8a, `WAMA_COLLABORATION §7.1`), best-effort.
+    L'élément est RELU : les champs de résultat viennent d'être écrits par `update()`, que
+    l'instance chargée au départ ne voit pas."""
+    try:
+        from wama.common.services.revisions import record_revision
+        fresh = model.objects.filter(pk=item_id).first()
+        if fresh is not None:
+            record_revision(app_id, fresh, outcome=outcome, model_keys=res.get('models'),
+                            instruction=res.get('instruction') or '')
     except Exception:
         pass
 
@@ -405,8 +421,11 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         # coup toutes les apps qui l'ont adopté. La glu DÉCLARE les modèles qu'elle a employés
         # via `models` (même motif que `eta`) ; sans déclaration on enregistre quand même le
         # fait, avec une liste vide — un signal sans attribution vaut mieux qu'aucun signal.
-        _signal(item, app_id, 'produit', res.get('models'),
-                {'secondes': round(time.time() - t0, 1)})
+        outcome = _signal(item, app_id, 'produit', res.get('models'),
+                          {'secondes': round(time.time() - t0, 1)})
+        # RÉVISION (marche 8a) : l'état que ce résultat donne à l'élément, rattaché au fait
+        # `produit` — posée ici, elle vaut pour toutes les apps du squelette sans une ligne par app.
+        _revision(model, item_id, app_id, outcome, res)
         _notify(item, label_app, nom, True)
     except TaskTimeLimitExceeded:
         # Arrêt PROPRE à la durée max : échec RELANÇABLE, dit avec la sortie possible (le plafond
