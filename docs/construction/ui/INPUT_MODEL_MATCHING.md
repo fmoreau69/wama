@@ -361,18 +361,29 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
 - **Capacité `input_attributes`** (`CANONICAL_CAPABILITIES`) : ce qu'un modèle exige des
   attributs d'une entrée, `{token: {require, prefer}}` ; verdict `input_match.input_attribute_verdict`
   → `natures.asset_accepts` (3 états, raison nommée). **1ᵉʳ consommateur réel d'`AssetSpec`**
-  (livrée le 13/09 sans appelant). Aujourd'hui côté SERVEUR (worker, avant tout rendu) ;
-  ⏳ côté card (griser un GLB non riggé à la sélection) reste à câbler.
+  (livrée le 13/09 sans appelant). Appliqué DÈS L'AJOUT (même jour) : `app_attribute_verdict`
+  (le fichier doit convenir à AU MOINS UN modèle de l'app qui consomme ce jeton) dans la vue de
+  création, sur le fichier reçu — téléversé ou désigné (`ReceivedInput.readable_path()`) ; un GLB
+  muet est refusé avant de naître. Le worker rejuge le modèle TIRÉ avant le rendu.
 - **Exigences alternatives** (`app_input_ports`, champ `one_of`) : quand CHAQUE modèle exige
   exactement UN jeton de plus que le tronc commun et que ces jetons diffèrent, ils forment un
   groupe « l'un OU l'autre ». Hors de cette forme, rien n'est dit (pas de demi-vérité). Card v4 :
   « requis · ou … » sur l'onglet, `is-required-one-of` / `is-one-of-first` ; le geste nocturne
   remplit le premier port du groupe ; la forme du studio n'en porte rien. Garde
   `tests_catalogues.AlternativeRequirementsTest` (contre-épreuve faite).
-- ⏳ **Le choix du moteur** reste dérivé de la nature du fichier dans le worker de l'avatarizer ;
-  la forme universelle est le tirage `resolve_model_choice` (`available_inputs`/`consumes`) — à
-  basculer au 2ᵉ modèle photo (SoulX-FlashHead), avec le curseur, et après décision sur la ligne
-  morte `musetalk-v1.0` (elle serait candidate).
+- ✅ **Le modèle d'animation se TIRE** (même jour, remarque de Fabien : « il y a déjà plusieurs
+  modèles ») : le fichier fourni se traduit en jeton (`input_match.work_token_for`, lu dans
+  `INPUT_TYPES`), puis `resolve_model_choice` (`available_inputs`/`consumes`) choisit parmi les
+  modèles de l'app — une photo ne laisse que MuseTalk, un GLB que TalkingHead ; le worker exécute
+  le modèle tiré par son moteur de catalogue. Mesuré sur la vraie base : photo → `musetalk-v1.5`,
+  GLB → `talkinghead`, avec ou sans texte. La ligne morte `musetalk-v1.0` ne gagne jamais grâce à
+  une PRIORITÉ déclarée (`model_config.ANIMATION_MODEL_PRIORITY`, paramètre `priority` du
+  sélecteur) — sa décision de retrait reste ouverte.
+- 🔴 **Défaut de la brique trouvé en chemin, corrigé** : un tirage dont AUCUN modèle n'accepte
+  les entrées piochait N'IMPORTE quel modèle de l'app (liste vide de candidats = « aucune
+  restriction » pour `select_model`) ; mesuré : `musetalk-v1.0`. `select_model_id` rend
+  désormais le repli. Touche toute app qui tire par entrées (imager img2vid, composer…).
+  Garde `EmptyDrawFallsBackTest`, contre-épreuve faite.
 
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 

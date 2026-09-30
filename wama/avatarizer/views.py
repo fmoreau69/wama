@@ -230,6 +230,19 @@ def create(request):
         validator(avatar_file)
     except ValidationError as e:
         return JsonResponse({'error': str(e)}, status=400)
+    # Le fichier doit convenir à au moins un modèle de l'app qui le consomme — jugé DÈS L'AJOUT
+    # sur ses ATTRIBUTS mesurés (2026-09-30) : un GLB non riggé est refusé ici, avec sa raison,
+    # plutôt qu'au lancement. Une photo n'a pas d'exigence d'attribut : rien n'est jugé.
+    from wama.common.utils.input_match import app_attribute_verdict, work_token_for
+    from wama.media_library.natures import INCOMPATIBLE
+    token = work_token_for(avatar_file.name)
+    if token:
+        with avatar_file.readable_path() as readable:
+            state, reason = app_attribute_verdict('avatarizer', token, readable)
+        if state == INCOMPATIBLE:
+            return JsonResponse({'error': f"Cet objet 3D ne peut pas servir d'avatar parlant ({reason}) : "
+                                          "il faut un avatar riggé portant les 52 formes ARKit du visage."},
+                                status=400)
     job.avatar_source = 'upload'
     job.avatar_upload = avatar_file.value
 
@@ -857,9 +870,11 @@ def batch_preview(request):
     # Un avatar que l'utilisateur ne voit pas se dit AVANT la création (2026-09-29) : sinon le job
     # naît puis échoue au lancement sur « Avatar introuvable ».
     from wama.media_library.services import resolve_visible_asset
+    from .system_assets import AVATAR_NATURES      # photo OU objet 3D (2026-09-30)
     user = _get_user(request)
     for r in rows:
-        if r['avatar_gallery_name'] and not resolve_visible_asset(user, 'avatar', r['avatar_gallery_name']):
+        name = r['avatar_gallery_name']
+        if name and not any(resolve_visible_asset(user, n, name) for n in AVATAR_NATURES):
             warnings.append(f"Ligne {r.get('line_num') or '?'} : avatar introuvable dans la "
                             f"médiathèque — {r['avatar_gallery_name']}")
     return JsonResponse({'items': preview, 'warnings': warnings, 'count': len(rows)})

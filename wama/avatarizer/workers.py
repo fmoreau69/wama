@@ -204,28 +204,40 @@ def generate_avatar(self, job_id: int):
 
         _set_progress(job, 30)
 
-        # Le MOTEUR se DÉRIVE de la nature de l'avatar (2026-09-30), comme le mode se dérive des
-        # entrées (MODES_QUEUE_UX §2bis) : une PHOTO s'anime par MuseTalk, un AVATAR 3D riggé
-        # (.glb) se rend par TalkingHead — le même moteur que l'avatar de l'assistant, sans
-        # modèle génératif. Résolu par son MOTEUR : il n'a pas de poids, le « modèle » est le GLB.
-        from wama.common.app_registry import category_of_path
-        avatar_3d = category_of_path(image_path) == '3d'
-        if avatar_3d:
-            # L'objet 3D a le bon RÔLE ; encore faut-il qu'il sache parler. Ce que le modèle
-            # exige de ses ATTRIBUTS (squelette, visage ARKit) est déclaré au catalogue et jugé
-            # sur le FICHIER, avant tout rendu — un maillage TripoSR est refusé avec sa raison.
-            from wama.common.utils.input_match import input_attribute_verdict
-            from wama.media_library.natures import INCOMPATIBLE, WARNING
-            from wama.model_manager.models import AIModel
-            caps = (AIModel.objects.filter(model_key=TALKINGHEAD_KEY)
-                    .values_list('capabilities', flat=True).first()) or {}
-            state, reason = input_attribute_verdict(caps, 'work_object3d', image_path)
-            if state == INCOMPATIBLE:
-                raise ValueError(
-                    f"Cet objet 3D ne peut pas servir d'avatar parlant ({reason}). Il faut un "
-                    "avatar riggé portant les 52 formes ARKit du visage (ex. un export MPFB).")
-            if state == WARNING:
-                _console(job.user_id, f"Avatar 3D : {reason} — la bouche sera moins précise.", 'warning')
+        # ── Le MODÈLE D'ANIMATION se TIRE parmi ceux de l'avatarizer (2026-09-30) ──────────
+        # Brique commune `resolve_model_choice` : les ENTRÉES fournies décident (une photo ne
+        # laisse que MuseTalk, un GLB que TalkingHead — `available_inputs`/`consumes`), le
+        # catalogue fait le reste (VRAM, backend présent). Plus d'aiguillage par extension ici :
+        # un 3ᵉ modèle photo (SoulX-FlashHead…) entrera dans le même tirage sans toucher au worker.
+        from wama.avatarizer.utils.model_config import ANIMATION_FALLBACK, ANIMATION_MODEL_PRIORITY
+        from wama.common.utils.auto_model import resolve_model_choice
+        from wama.common.utils.input_match import input_attribute_verdict, work_token_for
+        from wama.model_manager.models import AIModel
+        avatar_token = work_token_for(image_path)
+        if avatar_token not in ANIMATION_FALLBACK:
+            raise ValueError("Avatar : une photo (JPG, PNG, WebP) ou un objet 3D riggé (.glb) est attendu.")
+        available = ['work_audio', avatar_token] + (['prompt'] if (job.text_content or '').strip() else [])
+        model_id = resolve_model_choice(
+            '', spec={'source': 'avatarizer', 'task': 'lip-sync', 'priority': ANIMATION_MODEL_PRIORITY},
+            available_inputs=available, consumes=[avatar_token],
+            fallback=ANIMATION_FALLBACK[avatar_token])
+        model_key = model_id if ':' in model_id else f'avatarizer:{model_id}'
+        row = AIModel.objects.filter(model_key=model_key).values('capabilities', 'composition').first() or {}
+        engine = ((row.get('composition') or {}).get('runtime') or {}).get('engine') or ''
+        avatar_3d = engine == 'talkinghead'
+        _console(job.user_id, f"Modèle d'animation → {model_key} (choisi d'après l'avatar fourni)", 'info')
+
+        # Le fichier a le bon RÔLE ; encore faut-il les ATTRIBUTS que le modèle exige (un objet 3D
+        # doit être riggé, au visage ARKit). Jugé sur le FICHIER, avant tout rendu : un maillage
+        # TripoSR est refusé avec sa raison. Sans exigence déclarée (MuseTalk), rien n'est jugé.
+        from wama.media_library.natures import INCOMPATIBLE, WARNING
+        state, reason = input_attribute_verdict(row.get('capabilities'), avatar_token, image_path)
+        if state == INCOMPATIBLE:
+            raise ValueError(
+                f"Cet objet 3D ne peut pas servir d'avatar parlant ({reason}). Il faut un "
+                "avatar riggé portant les 52 formes ARKit du visage (ex. un export MPFB).")
+        if state == WARNING:
+            _console(job.user_id, f"Avatar : {reason} — la bouche sera moins précise.", 'warning')
 
         # Sortie de l'app : le livrable, et RIEN d'autre (règle `MEDIA_STORAGE_TIERING.md` —
         # `media/` ne contient que `<app>/<user>/input|output/` et `users/`).
@@ -264,7 +276,7 @@ def generate_avatar(self, job_id: int):
                     lang = heard.language or lang
                     _console(job.user_id, f"Transcription : {len(words)} mots ({lang}).", 'info')
                 _console(job.user_id, "Avatar 3D : rendu TalkingHead image par image…", 'info')
-                animated_video = _backend(TALKINGHEAD_KEY).process(
+                animated_video = _backend(model_key).process(
                     avatar_path=image_path, audio_path=audio_path,
                     output_path=str(travail / 'talkinghead.mp4'),
                     text=job.text_content, words=words, language=lang,
@@ -272,7 +284,7 @@ def generate_avatar(self, job_id: int):
                 _console(job.user_id, "Rendu TalkingHead terminé.", 'info')
             else:
                 _console(job.user_id, "MuseTalk : synchronisation labiale en cours…", 'info')
-                animated_video = _backend('avatarizer:musetalk-v1.5').process(
+                animated_video = _backend(model_key).process(
                     image_path=image_path,
                     audio_path=audio_path,
                     output_dir=str(travail),
@@ -304,7 +316,7 @@ def generate_avatar(self, job_id: int):
             from wama.common.utils.output_naming import compose_output_name
             cible = sortie_app / compose_output_name(
                 app='avatarizer',
-                model=('talkinghead' if avatar_3d else 'codeformer' if job.use_enhancer else 'musetalk'),
+                model=('codeformer' if (job.use_enhancer and not avatar_3d) else model_key.split(':', 1)[-1]),
                 source_name=audio_path, item_id=job_id, ext='.mp4')
             _shutil.move(str(final_video), str(cible))
 

@@ -90,8 +90,13 @@ class EngineFromAvatarNatureTest(TestCase):
         from wama.model_manager.models import AIModel
         AIModel.objects.update_or_create(model_key=workers.TALKINGHEAD_KEY, defaults=dict(
             name='TalkingHead', model_type='lipsync', source='avatarizer',
-            capabilities={'input_attributes': {'work_object3d': {
-                'require': {'rigged': True, 'face_rig': 'arkit'}, 'prefer': {'visemes': 'oculus'}}}}))
+            is_available=True, is_downloaded=True,
+            composition={'runtime': {'engine': 'talkinghead'}},
+            capabilities={'task': 'lip-sync', 'inputs_required': ['work_object3d', 'work_audio'],
+                          'inputs_optional': ['prompt'],
+                          'input_attributes': {'work_object3d': {
+                              'require': {'rigged': True, 'face_rig': 'arkit'},
+                              'prefer': {'visemes': 'oculus'}}}}))
 
     def test_a_glb_avatar_is_rendered_by_talkinghead(self):
         self._declare_talkinghead()
@@ -153,6 +158,24 @@ class EngineFromAvatarNatureTest(TestCase):
         self.assertEqual([], keys)
 
 
+class EmptyDrawFallsBackTest(TestCase):
+    """Un tirage que RIEN ne satisfait rend le repli (2026-09-30, brique `select_model_id`).
+
+    Mesuré sur la vraie base : des entrées qu'aucun modèle n'accepte rendaient `musetalk-v1.0`
+    — la liste vide de candidats valait « aucune restriction » pour `select_model`."""
+
+    def test_no_matching_model_gives_the_fallback_not_any_model(self):
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services import model_selector as ms
+        AIModel.objects.create(model_key='avatarizer:other', name='other', model_type='lipsync',
+                               source='avatarizer', is_available=True, is_downloaded=True,
+                               capabilities={'task': 'lip-sync', 'inputs_required': ['work_image']})
+        with patch.object(ms, 'get_registry_models', return_value=([], [])):
+            got = ms.select_model_id('avatarizer', requested='auto', fallback='REPLI', task='lip-sync',
+                                     available_inputs=['work_audio'], consumes=['work_audio'])
+        self.assertEqual('REPLI', got)
+
+
 class TalkingHeadDeclarationTest(TestCase):
     """La découverte déclare le modèle : son moteur, son RÔLE d'entrée et les ATTRIBUTS exigés."""
 
@@ -173,3 +196,51 @@ class TalkingHeadDeclarationTest(TestCase):
         from wama.common.utils.model_capabilities import MODALITIES
         self.assertTrue(set(caps['inputs_required'] + caps['inputs_optional']) <= set(INPUT_TYPES))
         self.assertTrue(set(caps['modalities']) <= set(MODALITIES))
+
+
+class AddTimeVerdictTest(TestCase):
+    """Un GLB qui ne peut pas parler est refusé DÈS L'AJOUT à la file (2026-09-30), pas au
+    lancement ; un avatar 3D se cite aussi par son NOM (lot, Studio, assistant)."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        self.user = User.objects.create_user('th_add_user', password='x')
+        for role in (DEFAULT_APP_ACCESS.get('avatarizer') or {}).get('roles', []):
+            self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(self.user)
+        EngineFromAvatarNatureTest._declare_talkinghead(self)
+
+    @staticmethod
+    def _glb(complete):
+        from wama.common.utils.media_probe import ARKIT_BLENDSHAPES, OCULUS_VISEMES
+        from wama.media_library.tests.tests_object3d import glb_from_json
+        names = ARKIT_BLENDSHAPES + OCULUS_VISEMES if complete else ('jawOpen',)
+        return glb_from_json({'asset': {'version': '2.0'}, 'skins': [{}] if complete else [],
+                              'meshes': [{'name': 'Head', 'extras': {'targetNames': list(names)},
+                                          'primitives': []}]})
+
+    def _create(self, glb_bytes):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        return self.client.post('/avatarizer/create/', {
+            'text_content': 'Bonjour.', 'avatar_source': 'upload',
+            'avatar_upload': SimpleUploadedFile('avatar.glb', glb_bytes, 'model/gltf-binary')})
+
+    def test_a_mute_glb_is_refused_when_added_with_its_reason(self):
+        response = self._create(self._glb(complete=False))
+        self.assertEqual(400, response.status_code, response.content[:300])
+        self.assertIn('rigged', response.json()['error'])
+        self.assertFalse(AvatarJob.objects.filter(user=self.user).exists(), 'rien ne naît')
+
+    def test_a_talking_glb_is_added(self):
+        response = self._create(self._glb(complete=True))
+        self.assertEqual(200, response.status_code, response.content[:300])
+        job = AvatarJob.objects.get(pk=response.json()['id'])
+        self.assertTrue(job.avatar_upload.name.endswith('.glb'))
+
+    def test_a_3d_avatar_is_designated_by_its_name(self):
+        from wama.media_library.models import UserAsset
+        from wama.avatarizer.system_assets import designate_named_avatar
+        rel = _media(f'users/{self.user.id}/media_library/assets/scientist.glb', self._glb(True))
+        UserAsset.objects.create(user=self.user, name='scientist', asset_type='object3d', file=rel)
+        self.assertEqual(rel, designate_named_avatar('scientist', self.user).value)
