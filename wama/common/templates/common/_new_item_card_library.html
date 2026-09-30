@@ -13,6 +13,7 @@ embarque un <script> que le clonage n'exécuterait pas de façon fiable).
 {% endcomment %}{% load wama_static %}
 <div data-library-add="{{ prefix }}"
      data-upload-url="{% url 'media_library:api_upload' %}"
+     data-estimate-url="{% url 'media_library:api_estimate' %}"
      data-import-src="{% static_v 'common/js/wama-import.js' %}">
 {% with card=prefix|add:'NewItem' drop=prefix|add:'DropZone' file=prefix|add:'FileInput' folder=prefix|add:'FolderInput' %}
 {% include 'common/_new_item_card.html' with card_id=card drop_zone_id=drop file_input_id=file folder_input_id=folder file_accept='' formats_label='' collapsible=collapsible extra_zone_template='common/_library_add_extra.html' %}

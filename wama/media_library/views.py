@@ -335,6 +335,50 @@ def api_upload(request):
 
 @login_required
 @require_POST
+def api_estimate(request):
+    """POST /media-library/api/assets/estimate/ — ce qu'on peut PROPOSER des attributs demandés à
+    l'ajout, en écoutant le fichier AVANT qu'il soit ajouté (2026-09-30).
+
+    Même entrée que `api_upload` (`file` téléversé, ou `file__designated`) et même nature
+    (`asset_type`) ; rien n'est enregistré. Un fichier désigné passe les gardes communes
+    (confinement, droit de lecture). Rend `{'proposals': {clé: {value, label, confidence}}}`."""
+    import os
+    import tempfile
+    from pathlib import Path
+
+    from wama.common.utils.media_paths import (OutsideMediaRoot, designation_field, readable_by,
+                                               resolve_under_media_root)
+    from .natures import ASSET_NATURES
+    from .services import estimate_attributes
+
+    user = _get_user(request)
+    asset_type = request.POST.get('asset_type', '').strip()
+    if asset_type not in ASSET_NATURES:
+        return JsonResponse({'error': 'Nature inconnue'}, status=400)
+    uploaded = request.FILES.get('file')
+    designated = request.POST.get(designation_field('file'), '').strip()
+    if uploaded is not None:
+        suffix = Path(uploaded.name).suffix.lower()[:10]
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            for chunk in uploaded.chunks():
+                tmp.write(chunk)
+        try:
+            return JsonResponse({'proposals': estimate_attributes(asset_type, tmp.name)})
+        finally:
+            os.unlink(tmp.name)
+    if designated:
+        try:
+            source, rel = resolve_under_media_root(designated)
+        except (OutsideMediaRoot, FileNotFoundError):
+            return JsonResponse({'error': 'Fichier introuvable'}, status=400)
+        if not readable_by(rel, user):
+            return JsonResponse({'error': 'Fichier non lisible pour vous'}, status=403)
+        return JsonResponse({'proposals': estimate_attributes(asset_type, str(source))})
+    return JsonResponse({'error': 'Fichier requis'}, status=400)
+
+
+@login_required
+@require_POST
 def api_edit(request, pk: int):
     """POST /media-library/api/assets/<pk>/edit/  — mise à jour nom/description/tags"""
     user = _get_user(request)

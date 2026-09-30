@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/counts/',                   views.api_counts,           name='api_counts'),
     path('api/assets/',                   views.api_list,             name='api_list'),
     path('api/assets/upload/',            views.api_upload,           name='api_upload'),
+    path('api/assets/estimate/',          views.api_estimate,         name='api_estimate'),
     path('api/assets/<int:pk>/edit/',     views.api_edit,             name='api_edit'),
     path('api/assets/<int:pk>/delete/',   views.api_delete,           name='api_delete'),
     # `api/assets/<pk>/promote/` RETIRÉ le 2026-09-20 (R66, REMOVAL_LEDGER) : doublon sans appelant

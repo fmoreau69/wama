@@ -48,6 +48,10 @@ class Attr:
     #: fichier ne dit pas (la langue, l'âge, le genre d'une voix). Un attribut MESURÉ dans le
     #: fichier (les faces d'un objet 3D) ne se demande jamais — la sonde le pose.
     on_add: bool = False
+    #: Comment l'ESTIMER depuis le fichier pour le PROPOSER à l'ajout (2026-09-30) : le nom d'un
+    #: estimateur du registre `media_library.services.ATTRIBUTE_ESTIMATORS` ('' = on ne sait pas).
+    #: La proposition pré-remplit le champ ; la personne valide ou corrige — jamais imposée.
+    estimate: str = ''
 
 
 @dataclass(frozen=True)
@@ -115,11 +119,15 @@ ASSET_NATURES: Dict[str, Nature] = {
         personal="la voix d'une personne",
         attributes={
             'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…)",
-                             label='Langue', labels=_LANGUAGE_LABELS, on_add=True),
+                             label='Langue', labels=_LANGUAGE_LABELS, on_add=True,
+                             estimate='spoken_language'),
+            # ⚠ Pas d'estimateur d'ÂGE : la hauteur de voix ne le dit pas (une voix d'enfant et
+            # une voix de femme se recouvrent) ; il faudrait un modèle dédié — à prospecter.
             'age':      Attr('str', "tranche d'âge de la voix", _AGES,
                              label='Âge', labels=_AGE_LABELS, on_add=True),
             'gender':   Attr('str', 'genre de la voix', _GENDERS,
-                             label='Genre', labels=_GENDER_LABELS, on_add=True),
+                             label='Genre', labels=_GENDER_LABELS, on_add=True,
+                             estimate='voice_gender'),
             'variant':  Attr('int', 'numéro de variante parmi les voix de même (langue, âge, genre) ; 1 par défaut',
                              label='Variante'),
         },
@@ -135,7 +143,8 @@ ASSET_NATURES: Dict[str, Nature] = {
         attributes={
             'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…) — la plus "
                                     "parlée si l'enregistrement en mêle plusieurs",
-                             label='Langue', labels=_LANGUAGE_LABELS, on_add=True),
+                             label='Langue', labels=_LANGUAGE_LABELS, on_add=True,
+                             estimate='spoken_language'),
             # Un enregistrement peut CHANGER de langue (2026-09-29, jeux FLEURS-CS) : toutes ses
             # langues, la plus parlée d'abord, séparées par des virgules.
             'languages': Attr('str', "toutes les langues parlées ('fr,en'…)", label='Langues'),
@@ -267,7 +276,8 @@ def attribute_schema(asset_type: str) -> Dict[str, Dict[str, Any]]:
     """Le schéma d'attributs d'une nature, sérialisable — c'est ce depuis quoi un formulaire
     se REND (même geste que `param_schema` → `WamaParams` pour les réglages d'app)."""
     return {k: {'kind': a.kind, 'description': a.description, 'choices': list(a.choices),
-                'label': a.label or k, 'labels': dict(a.labels), 'on_add': a.on_add}
+                'label': a.label or k, 'labels': dict(a.labels), 'on_add': a.on_add,
+                'estimated': bool(a.estimate)}
             for k, a in nature_of(asset_type).attributes.items()}
 
 

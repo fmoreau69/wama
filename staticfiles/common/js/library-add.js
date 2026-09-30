@@ -106,6 +106,93 @@
       }).join('');
     }
 
+    // ── PROPOSER avant d'ajouter (2026-09-30) ─────────────────────────────────────────────
+    // Une nature qui sait ESTIMER des attributs demandés (`on_add` + `estimated` : la langue
+    // entendue, le genre de la voix) fait d'abord ÉCOUTER le fichier par le serveur ; les champs
+    // restés VIDES se pré-remplissent (marqués « estimé »), la personne corrige, puis ajoute ou
+    // ignore. Une valeur qu'elle a choisie elle-même n'est jamais écrasée.
+    var pendingBox = root.querySelector('[data-library-pending]');
+    var pendingText = root.querySelector('[data-library-pending-text]');
+    var confirmBtn = root.querySelector('[data-library-confirm]');
+    var skipBtn = root.querySelector('[data-library-skip]');
+
+    if (attrsHost) {
+      // Toucher un champ, c'est le faire sien : il n'est plus « estimé » (et reste pour la suite).
+      attrsHost.addEventListener('change', function (e) {
+        if (e.target && e.target.dataset) delete e.target.dataset.estimated;
+        if (e.target && e.target.classList) e.target.classList.remove('border-info');
+      });
+    }
+
+    function estimable(n) {
+      var schema = (n && n.attributes) || {};
+      return Object.keys(schema).some(function (k) { return schema[k].on_add && schema[k].estimated; });
+    }
+
+    function applyProposals(proposals) {
+      var said = [];
+      Object.keys(proposals || {}).forEach(function (k) {
+        var p = proposals[k];
+        var field = attrsHost && attrsHost.querySelector('[data-attr="' + k + '"]');
+        if (!field || field.value) return;
+        field.value = p.value;
+        if (field.value !== String(p.value)) return;            // valeur absente du select
+        field.dataset.estimated = '1';
+        field.classList.add('border-info');
+        said.push(p.label + (p.confidence != null ? ' (' + Math.round(p.confidence * 100) + ' %)' : ''));
+      });
+      return said;
+    }
+
+    function proposeThenConfirm(file) {
+      var url = root.getAttribute('data-estimate-url');
+      var n = nature();
+      if (!url || !pendingBox || !estimable(n)) return Promise.resolve(true);
+      pendingBox.hidden = false;
+      pendingText.textContent = 'Écoute de « ' + (file.name || 'fichier') + ' »…';
+      confirmBtn.disabled = skipBtn.disabled = true;
+      var fd = new FormData();
+      fd.append('asset_type', opts.getType());
+      if (file.designation) fd.append('file__designated', file.designation);
+      else fd.append('file', file);
+      return fetch(url, { method: 'POST', body: fd, credentials: 'same-origin',
+                          headers: { 'X-CSRFToken': opts.csrfToken || cookie('csrftoken') } })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .catch(function () { return {}; })
+        .then(function (data) {
+          var said = applyProposals(data.proposals);
+          pendingText.textContent = said.length
+            ? 'Proposé d’après l’écoute de « ' + file.name + ' » : ' + said.join(' · ')
+              + ' — vérifiez, puis ajoutez.'
+            : 'Rien n’a pu être estimé pour « ' + file.name + ' » — renseignez si besoin, puis ajoutez.';
+          confirmBtn.disabled = skipBtn.disabled = false;
+          return new Promise(function (resolve) {
+            function done(ok) {
+              confirmBtn.removeEventListener('click', yes);
+              skipBtn.removeEventListener('click', no);
+              pendingBox.hidden = true;
+              if (!ok) clearEstimated();
+              resolve(ok);
+            }
+            function yes() { done(true); }
+            function no() { done(false); }
+            confirmBtn.addEventListener('click', yes);
+            skipBtn.addEventListener('click', no);
+          });
+        });
+    }
+
+    // Une proposition vaut pour UN fichier : après son envoi (ou s'il est ignoré), les champs
+    // qu'elle avait remplis se vident, pour que le suivant soit écouté à son tour.
+    function clearEstimated() {
+      if (!attrsHost) return;
+      attrsHost.querySelectorAll('[data-estimated]').forEach(function (el) {
+        el.value = '';
+        delete el.dataset.estimated;
+        el.classList.remove('border-info');
+      });
+    }
+
     function statedAttributes() {
       var out = {};
       if (attrsHost) {
@@ -151,6 +238,7 @@
         // Ce que la personne DIT du fichier (langue d'une voix…) et sa PROVENANCE : ils valent
         // pour tout le dépôt (plusieurs prises d'une même voix) et restent pour le suivant.
         fd.append('attributes', JSON.stringify(statedAttributes()));
+        clearEstimated();
         if (licenseInput && licenseInput.value.trim()) fd.append('license', licenseInput.value.trim());
         if (authorInput && authorInput.value.trim()) fd.append('author', authorInput.value.trim());
         if (sourceInput && sourceInput.value.trim()) fd.append('source_url', sourceInput.value.trim());
@@ -158,9 +246,9 @@
       beforeFile:    function (file) {
         var n = nature();
         if (!n) { toast('Choisissez d’abord une nature (onglet) pour y ajouter un fichier.', 'warning'); return false; }
-        if (file.designation) return true;          // le serveur juge (format, provenance)
+        if (file.designation) return proposeThenConfirm(file);   // le serveur juge le format
         var ext = (file.name || '').split('.').pop().toLowerCase();
-        if ((n.extensions || []).indexOf(ext) !== -1) return true;
+        if ((n.extensions || []).indexOf(ext) !== -1) return proposeThenConfirm(file);
         toast('Format .' + ext + ' non admis ici. Attendu : ' +
               (n.extensions || []).map(function (e) { return e.toUpperCase(); }).join(', '), 'error');
         return false;

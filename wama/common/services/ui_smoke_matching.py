@@ -238,6 +238,16 @@ def check_voice_library_pick(app: str, url_path: str, ids: dict):
         page.click('#mp-add-toggle')
         page.wait_for_selector('#mp-add [data-library-add="mp"]', timeout=5000)
 
+    def confirm_proposal(page):
+        """La voix est d'abord ÉCOUTÉE (langue, genre proposés) : on attend la proposition, puis
+        on valide « Ajouter » — le geste réel (2026-09-30)."""
+        page.wait_for_selector('#mp-add [data-library-pending]:not([hidden])', timeout=15000)
+        page.wait_for_function("() => { const b = document.querySelector('#mp-add [data-library-confirm]');"
+                               " return b && !b.disabled; }", timeout=90000)
+        said = page.inner_text('#mp-add [data-library-pending-text]')
+        page.click('#mp-add [data-library-confirm]')
+        return said
+
     def choose(page):
         page.click('#mp-choose')
         page.wait_for_selector('#wama-mediapicker-modal', state='hidden', timeout=5000)
@@ -279,6 +289,8 @@ def check_voice_library_pick(app: str, url_path: str, ids: dict):
                                  'la langue de la voix est demandée à l’ajout'))
                 page.select_option('#mp-add [data-attr="language"]', 'fr')
                 page.set_input_files('#mpFileInput', wav)
+                said = confirm_proposal(page)
+                verdicts.append(('Écoute' not in said, f'proposition affichée : « {said[:80]} »'))
                 page.wait_for_function(choose_ready, timeout=20000)
                 value, label = choose(page)
                 verdicts.append((value.startswith('ua_') and label.endswith('wama_probe_named_voice'),
@@ -289,6 +301,7 @@ def check_voice_library_pick(app: str, url_path: str, ids: dict):
                 page.click('#mp-add [data-library-record-btn]')
                 page.wait_for_timeout(2500)
                 page.click('#mp-add [data-library-record-btn]')
+                confirm_proposal(page)
                 page.wait_for_function(choose_ready, timeout=30000)
                 value, label = choose(page)
                 verdicts.append((value.startswith('ua_') and label.endswith('wama_probe_recorded_voice'),
