@@ -310,6 +310,35 @@ def mark_failed(session, pass_type: str, error_message: str, camera=None) -> Non
     )
 
 
+INTERRUPTED_MESSAGE = ("Interrompue : la chaîne de calculs qui la portait est terminée sans elle "
+                       "(worker arrêté ou redémarré) — relançable.")
+
+
+def reconcile_interrupted_calc_passes(session) -> int:
+    """Passes de CALCUL restées RUNNING alors que plus aucune chaîne de calculs ne tourne → FAILED
+    relançable. Rend le nombre de passes réconciliées.
+
+    PREUVE POSITIVE, pas une supposition (règle de `common.utils.process_control`) : une passe de
+    calcul ne s'exécute QUE dans une chaîne posée sous le verrou `calc_chain_key` — `run_passes` et
+    les deux points d'entrée hérités passent tous par `views._launch_calc_chain` —, et ce verrou
+    n'est levé qu'à la FIN de la chaîne (`release_calc_chain_task`, lien de succès ET d'échec) ou à
+    l'expiration de `CALC_CHAIN_TTL_S`. Plus de verrou = plus de chaîne : une passe encore RUNNING
+    a perdu son exécutant. Vécu le 2026-09-29 : worker `default` arrêté à 21:18:22 pendant les
+    Indicateurs, verrou libéré à 21:19:24 par le lien d'échec, passe RUNNING à vie et bouton ⏳
+    bloqué — la relance était impossible depuis le panneau.
+    Les passes d'ANALYSE (GPU) ne sont pas concernées : elles n'ont pas cette preuve."""
+    from django.core.cache import cache
+    from django.utils import timezone
+    from wama_lab.cam_analyzer.models import AnalysisPass
+    if cache.get(calc_chain_key(session.id)):
+        return 0
+    calc = [p.key for p in PASSES if p.stage == 'calcul']
+    return AnalysisPass.objects.filter(
+        session=session, status=AnalysisPass.Status.RUNNING, pass_type__in=calc,
+    ).update(status=AnalysisPass.Status.FAILED, error_message=INTERRUPTED_MESSAGE,
+             completed_at=timezone.now())
+
+
 def recompute_stale(session) -> int:
     """
     Recompute STALE flags for all passes of a session by comparing each
