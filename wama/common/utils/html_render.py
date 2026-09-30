@@ -54,6 +54,51 @@ def _find_chromium_executable():
     return None
 
 
+#: Pilote Gallium D3D12 de Mesa — c'est LUI que `GALLIUM_DRIVER=d3d12` charge ; il parle au GPU
+#: Windows par `/dev/dxg` et `/usr/lib/wsl/lib/libd3d12.so`. ⚠ Mesuré le 2026-09-30 : il n'est
+#: PAS dans `/usr/lib/wsl/lib/` (ma 1ʳᵉ version le cherchait là et rendait toujours False).
+_MESA_D3D12_DRIVERS = ('/usr/lib/x86_64-linux-gnu/dri/d3d12_dri.so', '/usr/lib/dri/d3d12_dri.so')
+
+
+def _wsl_gpu_available() -> bool:
+    """Vrai si le pilote D3D12 de WSL est là : Chromium peut alors rendre sur le VRAI GPU."""
+    from wama.common.utils.ffmpeg_utils import is_wsl
+    return (is_wsl() and os.path.exists('/dev/dxg')
+            and any(os.path.exists(p) for p in _MESA_D3D12_DRIVERS))
+
+
+def launch_chromium(playwright, gpu: bool = False, extra_args=()):
+    """Chromium headless (Playwright sync) — lanceur COMMUN, extrait au 2ᵉ consommateur.
+
+    Consommateurs : le rendu HTML → PDF (ci-dessous, `gpu=False`) et le rendu vidéo d'un avatar
+    3D (`backends/talkinghead_backend.py`, `gpu=True`, 2026-09-30).
+
+    `gpu=True` : sous WSL, WebGL passe par le pilote D3D12 (`--use-angle=gl-egl` +
+    `GALLIUM_DRIVER=d3d12`). MESURÉ le 2026-09-30 : renderer `D3D12 (NVIDIA GeForce RTX 4090)`,
+    TalkingHead à 60 i/s en 1280×720 — contre SwiftShader (CPU) par défaut, ~5,7 i/s. Les autres
+    chemins essayés (`--use-angle=vulkan`, `--use-gl=egl`) retombent sur SwiftShader/llvmpipe ou
+    bloquent. Hors WSL (ou pilote absent), on reste sur le défaut : plus lent, jamais cassé.
+    """
+    exe = _find_chromium_executable()
+    args = ['--no-sandbox', *extra_args]
+    env = None
+    if gpu and _wsl_gpu_available():
+        args += ['--use-angle=gl-egl', '--ignore-gpu-blocklist', '--enable-gpu']
+        env = {**os.environ, 'GALLIUM_DRIVER': 'd3d12'}
+        # ⚠ MESURÉ (2026-09-30, 4 cas croisés) : le Chromium COMPLET reste sur SwiftShader avec
+        # ces mêmes drapeaux ; le `chrome-headless-shell` par défaut de Playwright prend la 4090
+        # (avec ou sans `--no-sandbox`). En mode GPU on laisse donc Playwright choisir son binaire.
+        exe = None
+    elif not gpu:
+        args.append('--disable-gpu')
+    kwargs = {'args': args}
+    if env:
+        kwargs['env'] = env
+    if exe:
+        kwargs['executable_path'] = exe
+    return playwright.chromium.launch(**kwargs)
+
+
 def _html_to_pdf_chromium(input_path: str, output_path: str) -> bool:
     """HTML → PDF via Chromium headless (Playwright) — rendu FIDÈLE.
 
@@ -65,14 +110,10 @@ def _html_to_pdf_chromium(input_path: str, output_path: str) -> bool:
     except ImportError:
         return False
 
-    exe = _find_chromium_executable()
     src_url = 'file://' + os.path.abspath(input_path)
     try:
         with sync_playwright() as p:
-            kwargs = {'args': ['--no-sandbox', '--disable-gpu']}
-            if exe:
-                kwargs['executable_path'] = exe
-            browser = p.chromium.launch(**kwargs)
+            browser = launch_chromium(p, gpu=False)
             try:
                 page = browser.new_page(viewport={'width': 820, 'height': 1123})
                 page.goto(src_url, wait_until='networkidle', timeout=30000)

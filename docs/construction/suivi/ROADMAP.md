@@ -129,6 +129,15 @@
   MuseTalk v1.5 gardé, **SoulX-FlashHead 1.3B** (Apache-2.0) candidat photo→tête. Exclusions UE
   ajoutées : **MiniMax H3** (sorties comprises), **SkyReels V1** (base Hunyuan). Aucun modèle n'a de
   mesure publiée en FRANÇAIS : à mesurer chez nous avant tout choix définitif.
+  ✅ **Moteur `talkinghead` LIVRÉ le 2026-09-30 (palier 1, backend + worker)** :
+  `common/backends/talkinghead_backend.py` + `common/static/common/js/wama-avatar-render.js` (temps
+  PILOTÉ image par image, son WAV multiplexé au décalage relevé sur `animClock`) ; le worker de
+  l'avatarizer choisit le moteur d'après la NATURE de l'avatar (`.glb` → TalkingHead, photo →
+  MuseTalk inchangé). Mesuré : 10,7 s de vidéo 1280×720 à 25 i/s en 15-21 s, pic VRAM ~0,2 Go.
+  ⏳ **Palier 2 = décision UI** : comment un avatar 3D se CHOISIT dans la card (une ligne de
+  catalogue ouvrirait un port par `app_input_ports` — pas de jeton d'entrée « 3D » dans
+  `INPUT_TYPES`), la galerie d'avatars 3D (MPFB CC0 à préférer à `brunette.glb` CC BY-NC), et
+  l'audio SANS texte (il faudrait des timings de mots : transcription ou alignement).
   Deux cas, deux podiums (état du 17/08) :
   - **(a) consignes OFFLINE** : ① **EchoMimicV3(-Flash)** (Ant, Apache-2.0, 01/2026, conçu 24 Go,
     12 Go quantifié, tête+corps, prompt-guidé — successeur naturel de MuseTalk) ; ② **StableAvatar**
@@ -2383,6 +2392,21 @@ tout de suite »*) :
   musetalk, codeformer), **venv isolé** (doctrine des venvs, seule voie propre retenue pour
   chatterbox), ou **attendre un paquet**. Tranchée une fois, elle sert les deux modèles — et c'est
   elle qui débloque ACE-Step, installé et inerte depuis 17 jours.
+  **Piste examinée le 2026-09-30 (question de Fabien : « s'inspirer de la route de génération
+  d'app qui tire modèles et librairies des dépôts GitHub »)** — non tranchée. La brique existe à
+  moitié : le rôle `librarian --repo` lit déjà un dépôt GitHub (`sources_repo` : README,
+  pyproject/setup, requirements, LICENSE) et produit un manifeste `library`. Il manque le CANAL
+  d'installation : un manifeste `library` dont `install` porterait `vendor: {repo, commit}` au
+  lieu de `pip`, installé par CLONE au commit exact sous `BACKEND_VENDOR_DIR/<moteur>` (le patron
+  des 3 moteurs vendorisés, dont le README tient déjà dépôt + commit). Ce n'est PAS lever le
+  verrou `git+` : pip n'installe rien depuis Git, le code n'est jamais importé par WAMA (sous-
+  processus), et les verrous se TRANSPOSENT — dépôt `owner/nom` seul, SHA complet obligatoire
+  (le pin exact d'un dépôt), allowlist `Library.is_allowed` et kill switch inchangés. Les
+  `requirements.txt` d'amont ne s'installent JAMAIS tels quels (`setup_avatarizer.sh`
+  rétrogradait le venv) : chaque dépendance manquante passe par la route `library` existante
+  (`nom==version`, contraintes `-c`, simulation). Correctifs locaux déclarés (`patches/`).
+  Premiers clients : musetalk, codeformer, triposr (leurs scripts de setup deviendraient des
+  manifestes), puis YuE/ACE-Step et les avatars (LongCat, InfiniteTalk, SoulX-FlashHead).
 - **D-b — un artefact intermédiaire ÉDITABLE dans une app de génération.** Propre à YuE2, et
   INDÉPENDANTE de D-a. Aucune app ne l'a : partout c'est consigne → sortie, en un coup. La forme
   existe pourtant ailleurs (transcriber : un master puis une correction humaine qui fait autorité).
