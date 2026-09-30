@@ -617,10 +617,9 @@ class CardEntreeConformiteTest(TestCase):
             # le 2026-09-29 : elle décrivait sa card v3. En v4 depuis `8c21d489`, ses deux ports
             # offrent ce qu'il déclare, et le relevé, qui ignorait les cards v4, ne la confrontait
             # plus à rien.)
-            # La card annonce « fichier de prompts .txt/.csv » alors que TEXT_EXTENSIONS est
-            # déclaré en entier et que les parsers batch lisent aussi md/pdf/docx — écart réel,
-            # à trancher avec la déclaration PAR SLOT (§S2bis.6 (b)), pas par un patch de plus.
-            'imager': {'.md', '.pdf', '.docx'},
+            # (L'entrée `imager` — la card v3 n'offrait que « fichier de prompts .txt/.csv » — est
+            # RETIRÉE le 2026-09-30 : en v4, l'`accept` de chaque port dérive de la déclaration et
+            # l'onglet Lot offre TOUS les formats de lot ; l'écart n'existe plus.)
         }
 
     @classmethod
@@ -1459,6 +1458,45 @@ class AppCardPortsTest(TestCase):
         slots = {s['id']: s for s in wama_actions.input_slots('synthesizer')}
         self.assertTrue(slots['work_file']['primary'])
         self.assertIsNotNone(wama_actions.lot_slot('synthesizer'), 'the lot stays (Fabien: « très important »)')
+
+
+class PortsForDomainTest(TestCase):
+    """Two input cards on one page (imager image/video, enhancer image-video/audio) — each gets the
+    ports of ITS domain (2026-09-30). The model tasks do not always say the domain (enhancer:
+    `upscale`, `audio-enhance`), the domain's `accepts` does: natures filter, and a GENERIC port
+    (`work_file`) yields to a SPECIFIC one covering the same natures (`work_audio`)."""
+
+    def setUp(self):
+        # Witness catalogue rows, shaped like the real ones (the test base has no models): the
+        # enhancer's tasks do NOT name a domain — which is the case the filter exists for.
+        from wama.model_manager.models import AIModel
+        rows = [('enhancer:w_up', 'enhancer', {'task': 'upscale', 'inputs_required': ['work_file']}),
+                ('enhancer:w_audio', 'enhancer', {'task': 'audio-enhance', 'inputs_required': ['work_audio']}),
+                ('imager:w_t2i', 'imager', {'task': 'text-to-image', 'inputs_required': ['prompt'],
+                                            'inputs_optional': ['work_image']}),
+                ('imager:w_i2v', 'imager', {'task': 'image-to-video',
+                                            'inputs_required': ['prompt', 'work_image']})]
+        for key, source, caps in rows:
+            AIModel.objects.create(model_key=key, name=key, source=source, capabilities=caps)
+
+    def _ids(self, app, domain):
+        from wama.common.templatetags import wama_actions
+        return {s['id']: s for s in wama_actions.input_slots(app, domain)}
+
+    def test_the_enhancer_cards_each_keep_their_own_port(self):
+        media, audio = self._ids('enhancer', 'image_video'), self._ids('enhancer', 'audio')
+        self.assertEqual(['work_file'], list(media))
+        self.assertEqual(['work_audio'], list(audio))
+        self.assertNotIn('audio/', media['work_file']['accept'])
+        self.assertNotIn('.mp3', media['work_file']['accept'])
+
+    def test_the_imager_domains_both_keep_the_work_image(self):
+        self.assertIn('work_image', self._ids('imager', 'image'))
+        self.assertIn('work_image', self._ids('imager', 'video'))
+
+    def test_no_domain_means_no_filter(self):
+        self.assertEqual({'work_audio', 'work_file'}, set(self._ids('enhancer', None)))
+        self.assertEqual(set(self._ids('enhancer', None)), set(self._ids('enhancer', '')))
 
 
 class MatchStatusLineOfTheV4CardTest(TestCase):

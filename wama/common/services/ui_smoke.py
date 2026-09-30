@@ -1213,9 +1213,7 @@ _TREE_DROP = """async ({sel, files}) => {
   return '';
 }"""
 
-_TREE_TILES = """() => {
-  const card = document.querySelector('[data-wama-ports]');
-  if (!card) return null;
+_TREE_TILES = """() => [...document.querySelectorAll('[data-wama-ports]')].map(card => {
   const tiles = [];
   card.querySelectorAll('[data-port-pane]').forEach(pane => {
     const lot = pane.querySelector('[data-lot-import]');
@@ -1228,8 +1226,12 @@ _TREE_TILES = """() => {
                 sel: lot ? '[data-lot-import]' : (self ? '[data-port-pane="' + pane.dataset.portPane + '"] [data-port-import-self]' : '#' + zone.id),
                 input: input ? input.id : '', accept: input ? (input.getAttribute('accept') || '') : ''});
   });
-  return {depot: card.dataset.wamaDepot, tiles: tiles};
-}"""
+  // Plusieurs cards par page (imager image/vidéo, enhancer image-vidéo/audio) : chacune dans un
+  // ONGLET de domaine — on note lequel, pour l'afficher avant de mesurer sa card.
+  const pane = card.closest('.tab-pane');
+  return {id: card.id, depot: card.dataset.wamaDepot, tab: pane ? pane.id : '',
+          domain: pane ? (pane.dataset.domain || '') : '', tiles: tiles};
+})"""
 
 _TREE_STATE = """(inputId) => {
   const bar = [...document.querySelectorAll('[id$="DetectBar"]')].find(b => b.style.display !== 'none');
@@ -1278,12 +1280,46 @@ def check_app_tree_drop(app: str, url_path: str):
     uid = _test_account_id(app)
     if not session_key or not uid:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
-    try:
-        from wama.common.utils.preview_registry import PreviewRegistry
-        model = PreviewRegistry.get_model(app)
-    except Exception:
-        model = None
-    count_items = (lambda: _in_plain_thread(lambda: model.objects.count(), timeout=20)) if model else (lambda: 0)
+    # TOUS les modèles de l'app qui appartiennent à un utilisateur, pas seulement le principal
+    # (`PreviewRegistry`) : la card AUDIO de l'enhancer crée des `AudioEnhancement`, que ni ce
+    # compte ni la garde du harnais ne voyaient — un élément créé aurait été lu « rien créé » et
+    # laissé en base. Relevé des ids du compte de test, nettoyage en sortie de ce que la garde ne
+    # couvre pas (2026-09-30).
+    from django.apps import apps as django_apps
+
+    def _owned_models():
+        try:
+            config = django_apps.get_app_config(app)
+        except LookupError:
+            return []
+        return [m for m in config.get_models() if 'user' in {f.name for f in m._meta.fields}]
+
+    def snapshot():
+        return _in_plain_thread(lambda: {m: set(m.objects.filter(user_id=uid).values_list('id', flat=True))
+                                          for m in _owned_models()}, timeout=20)
+
+    def count_items():
+        return sum(len(ids) for ids in snapshot().values())
+
+    def remove_new(before):
+        from wama.common.utils.queue_duplication import safe_delete_file
+
+        def _run():
+            removed = 0
+            for m, ids in snapshot().items():
+                new = set(ids) - before.get(m, set())
+                files = [f.name for f in m._meta.fields
+                         if f.get_internal_type() in ('FileField', 'ImageField')]
+                for obj in m.objects.filter(id__in=new):
+                    for name in files:
+                        if getattr(obj, name, None):
+                            safe_delete_file(obj, name)
+                    obj.delete()
+                    removed += 1
+            return removed
+        return _in_plain_thread(_run, timeout=60)
+
+    items_before = snapshot()
 
     temp_rel = f'users/{uid}/temp/tree_drop_{app}'
     temp_dir = Path(settings.MEDIA_ROOT) / temp_rel
@@ -1322,15 +1358,27 @@ def check_app_tree_drop(app: str, url_path: str):
                     wrong_page = _exiger_la_page(page, resp, url_path)
                     if wrong_page:
                         return wrong_page
-                    card = page.evaluate(_TREE_TILES)
-                    if not card:
+                    cards = page.evaluate(_TREE_TILES) or []
+                    if not cards:
                         raise SkipScenario("pas de card d'entrée v4 sur cette page — le glisser vers une "
                                            "card v3 passe par sa zone unique, mesurée par `<app>.import`")
-                    lot_tile = next((t for t in card['tiles'] if t['kind'] == 'lot'), None)
-                    if lot_tile:
+                    if any(t['kind'] == 'lot' for c in cards for t in c['tiles']):
                         (temp_dir / 'lot.txt').write_text(page.evaluate(_GABARIT_DE_LOT) or '', encoding='utf-8')
 
+                    def show_card(card):
+                        """L'onglet de DOMAINE qui porte la card (imager vidéo, enhancer audio)."""
+                        # Deux formes d'onglets, toutes deux déclarées : Bootstrap (imager :
+                        # `[data-bs-target]`) et la brique commune des domaines (`WamaModes`,
+                        # enhancer : `.wm-domain[data-domain]`, qui lit le `data-domain` du pane).
+                        if card['tab'] and not page.evaluate(
+                                "(id) => document.getElementById(id).classList.contains('active')", card['tab']):
+                            trigger = (f'.wm-domain[data-domain="{card["domain"]}"], ' if card['domain'] else '') \
+                                      + f'[data-bs-target="#{card["tab"]}"], [href="#{card["tab"]}"]'
+                            page.locator(trigger).first.click()
+                            page.wait_for_timeout(400)
+
                     def gesture(label, tile, dragged, expect):
+                        label = f"{card['id']} · {label}" if len(cards) > 1 else label
                         page.wait_for_load_state('networkidle')
                         # Observateur armé sur un DRAPEAU, pas sur l'existence de la liste : un
                         # import serveur RECHARGE la page, et la remise à zéro recréait la liste
@@ -1341,11 +1389,12 @@ def check_app_tree_drop(app: str, url_path: str):
                               if (n.nodeType === 1 && /toast/i.test(n.className || ''))
                                 window.__wamaToasts.push((n.textContent || '').trim().slice(0, 120)); })))
                               .observe(document.body, {childList: true, subtree: true}); } }""")
-                        _deplier_autour(page, '[data-wama-ports] [data-port-pane]')
-                        page.locator(f'[data-wama-ports] [data-port-tab="{tile["pane"]}"]').click()
+                        show_card(card)
+                        _deplier_autour(page, f'#{card["id"]} [data-port-pane]')
+                        page.locator(f'#{card["id"]} [data-port-tab="{tile["pane"]}"]').click()
                         page.wait_for_timeout(250)
                         before = count_items()
-                        problem = page.evaluate(_TREE_DROP, {'sel': f'[data-wama-ports] {tile["sel"]}', 'files': [dragged]})
+                        problem = page.evaluate(_TREE_DROP, {'sel': f'#{card["id"]} {tile["sel"]}', 'files': [dragged]})
                         page.wait_for_timeout(3500)
                         page.wait_for_load_state('networkidle')
                         state = page.evaluate(_TREE_STATE, tile['input'])
@@ -1354,7 +1403,7 @@ def check_app_tree_drop(app: str, url_path: str):
                         (failed if reason else passed).append(f"{label} : {reason or 'ok'}")
                         page.evaluate(_TREE_RESET)
 
-                    for t in card['tiles']:
+                    for card, t in ((c, t) for c in cards for t in c['tiles']):
                         accepted = next((e for e in ('.png', '.wav', '.txt')
                                       if _accepts_like_js(t['accept'], 'x' + e, witnesses[e])), None)
                         rejected = next((e for e in ('.txt', '.png', '.wav')
@@ -1362,7 +1411,10 @@ def check_app_tree_drop(app: str, url_path: str):
                         if t['kind'] == 'lot':
                             gesture('arbre → Lot (lot)', t, drag_file('.txt') | {'path': f'{temp_rel}/lot.txt', 'name': 'lot.txt'},
                                   lambda s: None if s['bar'] > 0 and not s['crees'] else f"barre={s['bar']} créés={s['crees']} {s['toasts']}")
-                            gesture('connecté → Lot (non-lot)', t, drag_file('.txt', True),
+                            # Une IMAGE, pas un texte : pour une app qui part d'un prompt (imager,
+                            # composer — famille C de BATCH_FORMAT), une ligne de texte posée sur
+                            # « Lot » EST un lot d'un prompt. Seul un binaire n'est un lot nulle part.
+                            gesture('connecté → Lot (non-lot)', t, drag_file('.png', True),
                                   lambda s: None if not s['bar'] and not s['crees'] and s['toasts'] else f"barre={s['bar']} créés={s['crees']} {s['toasts']}")
                         elif t['kind'] == 'port':
                             if accepted:
@@ -1384,6 +1436,11 @@ def check_app_tree_drop(app: str, url_path: str):
                 finally:
                     browser.close()
     finally:
+        # Ce que la garde du harnais ne voit pas (modèles SECONDAIRES de l'app) — la garde a déjà
+        # retiré le principal : `remove_new` ne trouve donc que les restes.
+        leftovers = remove_new(items_before)
+        if leftovers:
+            passed.append(f"{leftovers} objet(s) d'un modèle secondaire nettoyé(s)")
         _in_plain_thread(lambda: MountedFolder.objects.filter(pk=mount.pk).delete(), timeout=20)
         shutil.rmtree(temp_dir, ignore_errors=True)
         shutil.rmtree(mounted_dir, ignore_errors=True)

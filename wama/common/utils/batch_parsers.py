@@ -42,6 +42,23 @@ logger = logging.getLogger(__name__)
 SUPPORTED_BATCH_EXTENSIONS = ('txt', 'md', 'csv', 'pdf', 'docx')
 
 
+def batch_file_refusal(filename: str, extra=()) -> str:
+    """Le motif de refus d'un fichier de lot, ou '' s'il est d'un format de lot.
+
+    L'onglet « Lot » de la card v4 déclare l'intention (« ce fichier EST un lot ») : il ne devine
+    plus par le contenu, mais le FORMAT reste un contrat. Mesuré le 2026-09-30 : une image PNG
+    posée sur l'onglet Lot de l'imager était lue comme du texte — 6 « prompts » faits d'octets
+    (`\\x89PNG`, `IHDR`…), qu'« Ajouter » aurait créés. Toute vue qui parse un lot l'appelle d'abord.
+    `extra` : les formats de lot PROPRES à l'app (l'imager lit aussi JSON et YAML).
+    """
+    allowed = tuple(SUPPORTED_BATCH_EXTENSIONS) + tuple(e.lstrip('.').lower() for e in extra)
+    ext = os.path.splitext(filename or '')[1].lstrip('.').lower()
+    if ext in allowed:
+        return ''
+    formats = ', '.join(e.upper() for e in allowed)
+    return f"« {filename} » n'est pas un fichier de lot (formats acceptés : {formats})."
+
+
 # ---------------------------------------------------------------------------
 # Request-level helpers (shared by all app views)
 # ---------------------------------------------------------------------------

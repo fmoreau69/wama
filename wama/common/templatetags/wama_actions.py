@@ -178,7 +178,7 @@ def live_input_declared(app):
 
 
 @register.simple_tag
-def input_slots(app):
+def input_slots(app, domain=None):
     """Les SLOT-ROWS de la card d'entrée v4 — une par PORT déclaré, avec ses modalités.
 
     Le gabarit ne reçoit plus des littéraux par app (`show_url`, `show_media_library`,
@@ -211,6 +211,12 @@ def input_slots(app):
     carried = app_setting_carried_ports(app)
     ports = card_ports + [p for p in ((studio_node_ports(app) or {}).get('inputs') or [])
                           if p.get('id') not in carried]
+    # Card d'un DOMAINE (imager image/vidéo, enhancer image-vidéo/audio — deux cards par page) :
+    # seulement les ports dont le domaine accepte les natures (`ports_for_domain`, 2026-09-30).
+    domain = domain or None
+    if domain:
+        from wama.common.app_registry import ports_for_domain
+        ports = ports_for_domain(app, domain, ports)
 
     # ── L'OBLIGATION VIENT DES MODÈLES, pas du groupe (2026-09-11) ──────────────────────
     # `required` valait `group == 'travail'` : tout port de travail était donc annoncé
@@ -225,7 +231,7 @@ def input_slots(app):
     # sans eux ici, le repli par groupe annoncerait « requis » le `work_result` (groupe travail).
     from wama.common.app_registry import app_input_ports, app_result_ports
     result_ports = app_result_ports(app)
-    known = (app_input_ports(app) or []) + result_ports + card_ports
+    known = (app_input_ports(app, domain) or []) + result_ports + card_ports
     oblig = {p['id']: p['required'] for p in known}
     # « L'un OU l'autre » (2026-09-30, `app_input_ports`) : l'avatarizer exige une image OU un
     # objet 3D. Le PREMIER port du groupe (ordre des onglets) est celui que le geste nocturne

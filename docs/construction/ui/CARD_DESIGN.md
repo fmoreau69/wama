@@ -1631,11 +1631,25 @@ l'ordre, sur les ports que `input_slots` rend pour chaque app :
   jetable lu au lancement par la brique existante `comprehend_files`, geste « + Ajouter à mon
   RAG » par fichier ; 1er adopteur le describer, puis l'assistant. Domicile : `WAMA_LLM.md`
   (« CONTEXTE JETABLE ») ; geste RAG : `WAMA_MEMORY §9quater`.
-- ⏳ **Reste avant l'imager et l'enhancer** : `input_slots(app)` ignore le DOMAINE
-  (`app_input_ports` l'accepte) — leurs deux cards (image/vidéo, média/audio) recevraient les
-  mêmes ports ; l'imager lit en plus son image par les ids de RÉFÉRENCE (`imgRefInput`,
-  `input_card.js`) alors que la v4 en fait un port de travail. Le transcriber (3 ports + le
-  direct) viendra en dernier.
+- ✅ **2026-09-30, imager et enhancer en v4** (9 apps sur 10 ; reste le transcriber, 3 ports +
+  le direct). Prérequis : **le DOMAINE d'une card** — `input_slots(app, card_domain)` →
+  `app_registry.ports_for_domain` : les ports gardent les natures que l'`accepts` du domaine
+  déclare, et un port GÉNÉRIQUE (`work_file`) cède à un port SPÉCIFIQUE qui couvre les mêmes
+  natures (`work_audio`). Nécessaire parce que les tâches des modèles ne nomment pas toujours le
+  domaine (enhancer : `upscale`, `audio-enhance`) — le filtre par tâche d'`app_input_ports` n'y
+  voyait rien. Variable `card_domain` (pas `domain`, qu'un contexte de page aurait fait fuir).
+  Imager : son JS résolvait DÉJÀ l'input d'image (référence si offerte, sinon port de travail) ;
+  bouton « Ajouter à la file d'attente » (la création ne lançait déjà rien). Enhancer : la card
+  audio garde sa voie de lot (`batch_bid='audioBatch'`) ; la zone `_audio_batch_bar.html` est
+  retirée (R84, elle aurait doublé la barre), son accent vert passe par les variables CSS.
+  Gestes : mêmes verdicts que la référence v3 ; appariement imager mesuré (une image grise 6
+  modèles sur 10, ligne d'état visible). **Deux défauts PRÉEXISTANTS trouvés en mesurant** (le
+  geste `tree_drop` couvre désormais TOUTES les cards d'une page et TOUS les modèles de l'app) :
+  `enhancer.audio_upload` ignorait la désignation (D32) ; l'aperçu de lot de l'imager lisait une
+  image comme du texte (D33) — `MEDIA_STORAGE_TIERING §8.6`. Écart assumé périmé retiré
+  (`_ecarts_assumes['imager']`, la tuile v3 n'offrait que .txt/.csv).
+  ⚠ Limite notée : sur les cards de l'enhancer, le port n'est pas marqué « requis » — l'obligation
+  se calcule sur tous ses modèles, audio et image mêlés ; l'appariement, lui, juge par modèle.
 - ⏳ **Question ouverte (lots)** : les colonnes du lot nomment des RÔLES (`-i`, `-r`), pas des
   ports — l'avatar de l'avatarizer est `-r` au lot et `work_image` à la card. À terme : des
   colonnes au nom du port, `-i`/`-r` en alias.

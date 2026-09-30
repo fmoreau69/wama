@@ -1081,10 +1081,16 @@ def audio_upload(request):
             'status': ae.status,
         })
 
-    # --- Option B: regular file upload ---
-    file = request.FILES.get('file')
-    if not file:
-        return HttpResponseBadRequest('No file provided')
+    # --- Option B: fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs`,
+    # comme la vue `upload` de la même app. ⚠ Jusqu'au 2026-09-30 cette vue ne lisait que
+    # `request.FILES['file']` : la désignation (28/09 — la tuile Médiathèque et le glisser depuis
+    # l'arbre POINTENT au lieu de recopier) tombait en « Bad Request » sur la card AUDIO, en v3
+    # comme en v4. Trouvé par le geste `enhancer.tree_drop`, le premier à mesurer cette card.
+    from wama.common.utils.media_paths import received_inputs
+    received = received_inputs(request, user, 'enhancer')
+    if not received:
+        return JsonResponse({'error': received.refusal or 'Aucun fichier fourni'}, status=400)
+    file = received[0]
 
     ext = os.path.splitext(file.name)[1].lower()
     if ext not in _audio_extensions():
@@ -1093,10 +1099,17 @@ def audio_upload(request):
     try:
         ae = AudioEnhancement.objects.create(
             user=user,
-            input_file=file,
-            file_size=file.size,
+            input_file=file.value,
+            file_size=getattr(file.value, 'size', 0) or 0,
             quality_intent=_intent_posted(request.POST),
         )
+        file.record(ae, 'input_file')
+        if not ae.file_size:
+            try:
+                ae.file_size = ae.input_file.size
+                ae.save(update_fields=['file_size'])
+            except Exception:
+                pass
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
