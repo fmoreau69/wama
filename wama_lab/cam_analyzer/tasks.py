@@ -1951,12 +1951,12 @@ def compute_depth_calc_task(self, session_id: str):
 
 @shared_task
 def release_calc_chain_task(session_id: str):
-    """Dernier maillon (et errback) de la chaîne ▶ Calculs : lève le verrou anti-double-lancement
-    posé par `views.run_passes` (`pass_tracking.calc_chain_key`)."""
-    from django.core.cache import cache
-    from .utils.pass_tracking import calc_chain_key
-    cache.delete(calc_chain_key(session_id))
-    return {'session_id': session_id, 'released': True}
+    """Dernier maillon (et errback) d'une chaîne de calculs : DÉPILE la file de la session (passes
+    demandées pendant la chaîne) en lançant la chaîne suivante, ou lève le verrou s'il n'y a plus
+    rien (`pass_tracking.dequeue_calc_passes`)."""
+    from .utils.pass_tracking import dequeue_calc_passes
+    nxt = dequeue_calc_passes(session_id)
+    return {'session_id': session_id, 'released': not nxt, 'next': nxt}
 
 
 @shared_task(bind=True)
