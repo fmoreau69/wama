@@ -207,6 +207,35 @@ def yaw_disagreement(visual_yaw_rate_dps, reference_yaw_rate_dps, *,
     return abs(visual_yaw_rate_dps - reference_yaw_rate_dps)
 
 
+def focal_scale_from_rotation(windows, *, min_reference_deg=10.0):
+    """Facteur focale RÉELLE / focale SUPPOSÉE, depuis des rotations cumulées sur des fenêtres.
+
+    `windows` : `[(visual_deg, reference_deg)]` — pour chaque fenêtre, la rotation cumulée VUE
+    (somme des `yaw_deg` d'`estimate_ego_rotation`, calculés avec la focale SUPPOSÉE) et celle
+    d'une RÉFÉRENCE indépendante (cap GPS en roulant, gyroscope…). Le modèle mesure des pixels :
+    Δx = f_réelle·lacet_réel = f_supposée·lacet_vu, donc lacet_vu = k·lacet_réel avec
+    k = f_réelle / f_supposée. Une focale supposée trop COURTE (champ supposé trop LARGE) fait
+    voir des rotations trop grandes (k > 1).
+
+    Moindres carrés par l'origine sur les fenêtres dont la référence tourne d'au moins
+    `min_reference_deg` (en dessous, le bruit de la référence domine) ; la médiane des rapports
+    et leur dispersion accompagnent le chiffre : deux estimateurs qui divergent disent que des
+    fenêtres ne suivent pas le modèle. Mesuré le 2026-09-30 (caméra avant du rig ENA, demi-tour
+    au giratoire) : k ≈ 1,9 — le champ déclaré de 110° en vaut ~75°.
+
+    Rend `{'scale', 'scale_median', 'ratio_p25', 'ratio_p75', 'n'}` ou None (moins de 2
+    fenêtres utilisables)."""
+    use = [(float(v), float(g)) for v, g in windows if abs(g) >= min_reference_deg]
+    if len(use) < 2:
+        return None
+    den = sum(g * g for _, g in use)
+    scale = sum(v * g for v, g in use) / den
+    ratios = sorted(v / g for v, g in use)
+    q = lambda p: ratios[min(len(ratios) - 1, int(p * len(ratios)))]   # noqa: E731
+    return {'scale': round(scale, 4), 'scale_median': round(q(0.5), 4),
+            'ratio_p25': round(q(0.25), 4), 'ratio_p75': round(q(0.75), 4), 'n': len(use)}
+
+
 def ego_rotation(matches: 'TypedFrame', *, focal_px=None, principal_point=None,
                  dt_s=None) -> 'TypedFrame':
     """Wrapper FunctionSpec : lit un `TypedFrame` de correspondances, rend un `TypedFrame`.

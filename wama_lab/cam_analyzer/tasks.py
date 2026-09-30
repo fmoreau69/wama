@@ -1998,6 +1998,53 @@ def compute_lane_map_recalage_task(self, session_id: str):
 
 
 @shared_task(bind=True)
+def compute_camera_intrinsics_task(self, session_id: str):
+    """Passe « Champ des caméras » (CALCUL, CPU) : champ de vue des caméras avant/arrière MESURÉ
+    par la rotation vue dans l'image contre le cap GPS aux virages, stocké dans
+    `results_summary['camera_intrinsics']` ; appliqué sous ⚑ measured_camera_fov par
+    `camera_geometry`. Détail : `utils.camera_intrinsics`."""
+    close_old_connections()
+    from .models import AnalysisSession
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
+    from .utils.camera_intrinsics import measure_camera_intrinsics
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        mark_started(session, 'camera_intrinsics', session.profile)
+        _console(session.user_id, "Champ des caméras : rotation vue contre cap GPS aux virages…")
+        report = measure_camera_intrinsics(session)
+        measured = {p: report[p] for p in ('front', 'rear') if (report.get(p) or {}).get('fov_h')}
+        if not measured:
+            reason = (report.get('front') or {}).get('skipped') or 'aucune caméra mesurée'
+            mark_failed(session, 'camera_intrinsics', reason)
+            _console(session.user_id, f"Champ des caméras : {reason} ({report.get('turn_windows')} virages)")
+            return {'session_id': session_id, **report}
+        session.refresh_from_db(fields=['results_summary'])
+        rs = session.results_summary or {}
+        rs['camera_intrinsics'] = report
+        session.results_summary = rs
+        session.save(update_fields=['results_summary'])
+        mark_completed(session, 'camera_intrinsics', output_summary={
+            p: {k: m.get(k) for k in ('fov_h_declared', 'fov_h', 'fov_v', 'scale', 'n')}
+            for p, m in measured.items()})
+        for p, m in measured.items():
+            cross = m.get('lane_scale_cross_check')
+            _console(session.user_id,
+                     f"Champ des caméras [{p}] : {m['fov_h']}° H × {m['fov_v']}° V mesurés "
+                     f"(fiche {m['fov_h_declared']}°, focale ×{m['scale']} sur {m['n']} virages, "
+                     f"rapports p25-p75 {m['ratio_p25']}-{m['ratio_p75']})"
+                     + (f" — recoupement voie + carte : {cross['fov_h']}°" if cross else "")
+                     + " — appliqué si ⚑ Champ des caméras MESURÉ est ON")
+        return {'session_id': session_id, **report}
+    except Exception as e:
+        logger.error(f"compute_camera_intrinsics_task failed: {e}", exc_info=True)
+        try:
+            mark_failed(AnalysisSession.objects.get(pk=session_id), 'camera_intrinsics', str(e))
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
+
+
+@shared_task(bind=True)
 def live_analysis_task(self, session_id: str):
     """Analyse AU FIL DE LA LECTURE (étape 3 analyse incrémentale) : boucle qui suit le
     CURSEUR de lecture (posé en cache par l'endpoint `live_cursor`) et analyse les

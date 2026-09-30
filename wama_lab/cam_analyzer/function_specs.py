@@ -288,6 +288,25 @@ _spec('lane_map_recalage', 'Recalage voie + carte (passe)',
                                     "stockée dans `results_summary['lane_map_recalage']`.")],
       cost={'cpu_bound': True, 'network': True})
 
+_spec('camera_intrinsics', 'Champ des caméras (mesuré)',
+      "La PASSE `camera_intrinsics` (session-wide, CPU) : relit les vidéos avant/arrière aux "
+      "virages francs de la trace, mesure la rotation vue dans l'image (`geometry.ego_rotation`, "
+      "focale supposée) contre le cap GPS, en tire la focale réelle "
+      "(`focal_scale_from_rotation`) et le champ de vue horizontal et vertical (pixels carrés). "
+      "Appliqué sous ⚑ measured_camera_fov par `camera_geometry`.",
+      FC.ENRICHER, 'cam_analyzer.tasks:compute_camera_intrinsics_task', ['vision', 'calibration', 'gnss'],
+      inputs=[PortSpec('track', DT.GEO_TRACK, required_fields=['ts', 'lat', 'lon', 'heading'],
+                       description='Trace de la session : le cap GPS EN ROULANT est la référence.'),
+              PortSpec('video', DT.DETECTIONS, required_fields=['frame_number'],
+                       description='Vidéos des caméras avant et arrière (lues image par image).',
+                       group='reference')],
+      outputs=[PortSpec('camera_intrinsics', DT.SCALAR,
+                        produced_fields=['fov_h', 'fov_v', 'fx_px', 'scale', 'n'],
+                        description="Champ de vue mesuré par caméra, stocké dans "
+                                    "`results_summary['camera_intrinsics']`, avec le recoupement "
+                                    "par l'échelle latérale du recalage voie + carte.")],
+      cost={'cpu_bound': True})
+
 _spec('depth_distance_report', 'Cross-check distance & reflets par profondeur (usages 3+1)',
       "ÉTAGE 2 (CALCUL, CPU) : LECTURE PURE des depth_distance_m déjà stockés par depth_analysis. "
       "MESURE-ET-RAPPORT (ne bascule AUCUNE source) : 3ᵉ source de distance indépendante (désaccord "

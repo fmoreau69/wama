@@ -123,6 +123,15 @@ def camera_geometry(session):
             real_v = float(ov.get('v', CAMERA_FOV_V[pos]))
         except (TypeError, ValueError):
             real_h, real_v = CAMERA_FOV_H[pos], CAMERA_FOV_V[pos]
+        # ⚑ measured_camera_fov : le champ MESURÉ par la passe `camera_intrinsics` (rotation
+        # visuelle contre cap GPS) l'emporte sur la fiche technique ET sur la saisie manuelle —
+        # c'est une mesure sur les images de CETTE session. Mesuré le 2026-09-30 : caméra avant
+        # ~75° au lieu des 110° de la fiche AXIS.
+        if feat.get('measured_camera_fov', False):
+            from .camera_intrinsics import measured_fov
+            mf = measured_fov(session, pos)
+            if mf:
+                real_h, real_v = mf
         m = mounts.get(pos) or CAMERA_MOUNT[pos]
         try:
             height = float(height_over.get(pos, CAMERA_HEIGHT_M[pos]))
