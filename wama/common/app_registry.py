@@ -512,6 +512,43 @@ def app_has_live_input(app_id) -> bool:
     return bool((APP_CATALOG.get(app_id) or {}).get('has_live_input'))
 
 
+def app_card_ports(app_id):
+    """Ports de la CARD que l'APP consomme elle-même, sans nœud Studio (2026-09-30).
+
+    Le synthesizer lit son texte depuis un FICHIER comme depuis le prompt — décision de Fabien,
+    2026-09-30 : *« soit l'utilisateur prompt, soit il glisse un fichier de travail, ça fait la
+    même chose »*. Sa vue d'upload extrait le texte du document (`synthesizer/views.py::upload`).
+    Aucun modèle TTS ne le déclarera jamais — il reçoit du texte — : c'est l'APP qui consomme
+    l'entrée, le critère d'`app_result_ports` (capacité d'app → jeton).
+    Groupe « l'un OU l'autre » avec le prompt (`one_of`, forme d'`app_input_ports`).
+
+    ⚠ PAS un port du STUDIO : `synthesize_text`, l'outil qu'appelle son nœud, ne reçoit que du
+    texte — un document branché y serait IGNORÉ (port mensonger). À ouvrir le jour où l'outil
+    lira un fichier.
+    """
+    if not (APP_CATALOG.get(app_id) or {}).get('has_text_file_input'):
+        return []
+    return [{
+        'id': 'work_file', 'label': 'Fichier de travail', 'group': 'travail',
+        'types': ['document'], 'multi': True, 'required': False, 'one_of': ['prompt'],
+        'description': "Un fichier texte (TXT, MD, PDF, DOCX…) lu en entier — ou le texte "
+                       "saisi ci-dessus : l'un ou l'autre.",
+    }]
+
+
+def app_setting_carried_ports(app_id) -> dict:
+    """Ports que la card de l'app NE MONTRE PAS, parce qu'un RÉGLAGE les porte — `{port: réglage}`.
+
+    Synthesizer (2026-09-30, question de Fabien : « vérifier que ça ne fait pas double emploi
+    avec la modale/inspecteur ») : la voix de référence se choisit dans `voice_preset` — volet,
+    modale et inspecteur, dont « Mes voix » (médiathèque, `ua_<id>`, pointée) et les voix
+    partagées. Un onglet « Voix de référence » passerait par `voice_reference`, qui PRIME en
+    silence sur `voice_preset` : deux domiciles pour un même réglage, le défaut des miroirs
+    retirés le 27/09. Le port reste au STUDIO (un échantillon peut venir d'un autre nœud).
+    """
+    return dict((APP_CATALOG.get(app_id) or {}).get('setting_carried_ports') or {})
+
+
 def app_result_ports(app_id):
     """Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
 
@@ -1190,6 +1227,12 @@ APP_CATALOG = {
         'input_types': ('prompt',),
         'batch_type':  'pipe',   # Type B: filename|text|voice|speed
         'has_batch':   True,
+        # Card v4 (2026-09-30, décision de Fabien) : un fichier texte déposé est un FICHIER DE
+        # TRAVAIL, lu en entier — l'un ou l'autre avec le prompt (`app_card_ports`). Le lot reste
+        # (onglet Lot, et détection sur la tuile de travail). La voix de référence est portée
+        # par le réglage `voice_preset`, pas par un onglet (`app_setting_carried_ports`).
+        'has_text_file_input': True,
+        'setting_carried_ports': {'reference_voice': 'voice_preset'},
         'has_url_import': False,
         'has_youtube': False,
         'output_types': ('mp3', 'wav'),

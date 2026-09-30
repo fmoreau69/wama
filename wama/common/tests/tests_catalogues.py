@@ -1407,6 +1407,89 @@ class LivePortComesFromAnAppCapabilityTest(TestCase):
         self.assertNotIn('show_live=', page)
 
 
+class AppCardPortsTest(TestCase):
+    """What the APP itself consumes on its card, and what a SETTING carries (2026-09-30).
+
+    Fabien's decision for the synthesizer: « either the user prompts, or drops a work file — it
+    does the same thing ». No TTS model declares a document (it receives text): the app extracts
+    it, so the port is the app's (`has_text_file_input`), card-only — the Studio tool only takes
+    text, a document port there would be a lying port. And the reference voice is carried by the
+    `voice_preset` setting (volet, modal, inspector): a card tab would be a second home for it.
+    ⚠ LOCAL witness entries for the mechanism, the real synthesizer for the adoption.
+    """
+
+    APP = 'app_card_ports_witness'
+
+    def _catalog(self, **capabilities):
+        from unittest.mock import patch
+        from wama.common.app_registry import APP_CATALOG
+        entry = {'label': 'Witness', 'input_types': ('prompt',), 'output_types': ('wav',),
+                 'input_extensions': ('.txt', '.pdf'), **capabilities}
+        return patch.dict(APP_CATALOG, {self.APP: entry})
+
+    def test_a_text_file_input_gives_a_primary_work_port_either_or_with_the_prompt(self):
+        from wama.common.templatetags import wama_actions
+        with self._catalog():
+            silent = [s['id'] for s in wama_actions.input_slots(self.APP)]
+        with self._catalog(has_text_file_input=True):
+            slots = {s['id']: s for s in wama_actions.input_slots(self.APP)}
+        self.assertNotIn('work_file', silent)
+        port = slots['work_file']
+        self.assertTrue(port['primary'])
+        self.assertEqual(['.txt', '.pdf'], port['accept'].split(','))
+        self.assertEqual(['le texte saisi'], port['one_of'])
+        self.assertFalse(port['required'])
+
+    def test_the_card_port_never_reaches_the_studio(self):
+        from wama.common.app_registry import studio_node_ports
+        with self._catalog(has_text_file_input=True):
+            ids = [p['id'] for p in studio_node_ports(self.APP)['inputs']]
+        self.assertNotIn('work_file', ids)
+
+    def test_a_port_carried_by_a_setting_is_not_a_tab_but_stays_in_the_studio(self):
+        from wama.common.app_registry import studio_node_ports
+        from wama.common.templatetags import wama_actions
+        slots = [s['id'] for s in wama_actions.input_slots('synthesizer')]
+        studio = [p['id'] for p in studio_node_ports('synthesizer')['inputs']]
+        self.assertIn('reference_voice', studio, 'the Studio keeps the port')
+        self.assertNotIn('reference_voice', slots, 'the card does not show a second home for the voice')
+
+    def test_the_real_synthesizer_card_has_its_file_port_and_keeps_its_lot(self):
+        from wama.common.templatetags import wama_actions
+        slots = {s['id']: s for s in wama_actions.input_slots('synthesizer')}
+        self.assertTrue(slots['work_file']['primary'])
+        self.assertIsNotNone(wama_actions.lot_slot('synthesizer'), 'the lot stays (Fabien: « très important »)')
+
+
+class MatchStatusLineOfTheV4CardTest(TestCase):
+    """The input-matching status line (« N model(s) disabled by … — ✕ to get them back »).
+
+    Measured 2026-09-30 on the composer: `WamaInputMatch` disabled 5 of 7 models when a melody
+    was attached, but the sentence explaining WHY stayed invisible — the v4 card rendered it
+    with `d-none` (display:none !important), which the brick never lifts (it resets
+    `style.display`). Same rule as v3: the card renders it only with a REFERENCE port; apps with a
+    work port only carry their own under the model select, and a second one would duplicate the id.
+    """
+
+    def _render(self, app, **extra):
+        from django.template.loader import render_to_string
+        return render_to_string('common/_new_item_card_v4.html', {
+            'app_id': app, 'file_input_id': 'f', 'drop_zone_id': 'z', **extra})
+
+    def test_with_a_reference_port_the_line_is_rendered_and_can_be_shown(self):
+        html = self._render('composer', reference_input_id='melodyInput')
+        start = html.index('id="inputMatchStatus"')
+        tag = html[html.rindex('<small', 0, start):html.index('>', start)]
+        self.assertNotIn('d-none', tag, 'a d-none class cannot be lifted by style.display')
+        self.assertIn('display:none', tag)
+
+    def test_without_a_reference_port_the_card_leaves_the_line_to_the_page(self):
+        self.assertNotIn('id="inputMatchStatus"', self._render('anonymizer'))
+
+    def test_a_declared_status_id_is_always_rendered(self):
+        self.assertIn('id="imgMatchStatus"', self._render('anonymizer', match_status_id='imgMatchStatus'))
+
+
 class PortAcceptKeepsEveryNatureTest(TestCase):
     """A port's `accept` is what the app DECLARES for the port's natures (2026-09-29).
 

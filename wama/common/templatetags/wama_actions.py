@@ -201,9 +201,16 @@ def input_slots(app):
     Le port `prompt` est EXCLU : ce n'est pas un slot de la zone de preview, c'est la cellule
     primaire au-dessus (§11.9 C — le seul élément autorisé à grandir).
     """
-    from wama.common.app_registry import studio_node_ports
+    from wama.common.app_registry import (app_card_ports, app_setting_carried_ports,
+                                          studio_node_ports)
 
-    ports = (studio_node_ports(app) or {}).get('inputs') or []
+    # Ports de la CARD seule (l'app les consomme, pas un nœud Studio : le fichier texte du
+    # synthesizer) EN TÊTE — c'est le port principal ; moins les ports qu'un RÉGLAGE porte
+    # (la voix de référence du synthesizer, choisie dans `voice_preset`). 2026-09-30.
+    card_ports = app_card_ports(app)
+    carried = app_setting_carried_ports(app)
+    ports = card_ports + [p for p in ((studio_node_ports(app) or {}).get('inputs') or [])
+                          if p.get('id') not in carried]
 
     # ── L'OBLIGATION VIENT DES MODÈLES, pas du groupe (2026-09-11) ──────────────────────
     # `required` valait `group == 'travail'` : tout port de travail était donc annoncé
@@ -218,13 +225,15 @@ def input_slots(app):
     # sans eux ici, le repli par groupe annoncerait « requis » le `work_result` (groupe travail).
     from wama.common.app_registry import app_input_ports, app_result_ports
     result_ports = app_result_ports(app)
-    known = (app_input_ports(app) or []) + result_ports
+    known = (app_input_ports(app) or []) + result_ports + card_ports
     oblig = {p['id']: p['required'] for p in known}
     # « L'un OU l'autre » (2026-09-30, `app_input_ports`) : l'avatarizer exige une image OU un
     # objet 3D. Le PREMIER port du groupe (ordre des onglets) est celui que le geste nocturne
     # remplit (`ui_smoke._fill_required_ports`) — il en faut un, pas deux.
     alternatives = {p['id']: p.get('one_of') or [] for p in known}
     libelles = {p['id']: p.get('label', p['id']) for p in known}
+    # Le prompt n'est jamais un onglet : dans « requis · ou … » il se dit comme on le voit.
+    libelles['prompt'] = 'le texte saisi'
     groupes_vus = set()
     textes = {p['id']: p.get('description', '') for p in known}
     # Un port du RÉSULTAT n'entre pas par l'upload mais par l'ÉVALUATION : ses formats sont
@@ -297,6 +306,13 @@ def input_slots(app):
             'modalities': ['arm'],
         })
     return slots
+
+
+@register.simple_tag
+def ports_have_group(ports, group):
+    """Un des ports de la card appartient-il à ce groupe (`reference`, `travail`…) ? — pour qu'un
+    gabarit décide sur la LISTE qu'il a reçue, sans reboucler dessus."""
+    return any((p or {}).get('group') == group for p in (ports or []))
 
 
 @register.simple_tag

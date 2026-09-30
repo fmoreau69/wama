@@ -18982,3 +18982,20 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
   `tests_codegen_lot` imager `generation_settings`, `talkinghead` en WIP d'une autre instance).
 - 🔚 génération réelle de Supra2-IMG depuis l'imager (GPU libre) ; rejouer la chaîne d'intégration
   avec qwen3.8 (même prompt) ; poids officiels Supra2 (option b).
+
+## §PALIER — 2026-09-30 (matin), « PORTAGE CARD v4 » — revérification des voies d'entrée, synthesizer en v4 — 🔚 imager et enhancer (d'abord `input_slots(app, domain)`), transcriber en dernier
+
+- ✅ **Revérification de toutes les voies d'entrée** (demande de Fabien) : 3 défauts du glisser
+  depuis l'arbre sur la card v4 corrigés (`MEDIA_STORAGE_TIERING §8.6` D29-D31, `fd3a14fc`) et le
+  geste `<app>.tree_drop` au filet nocturne ; table voie × mesure sous D29-D31.
+- ✅ **Synthesizer en v4** (7 apps sur 10) : un fichier texte est un FICHIER DE TRAVAIL,
+  l'un ou l'autre avec le prompt (port de card `app_card_ports`, capacité `has_text_file_input` ;
+  pas au Studio — l'outil ne lit que du texte) ; le lot reste sous ses deux formes ; pas d'onglet
+  voix (`app_setting_carried_ports` : `voice_preset` la porte). ⏳ Décision de Fabien : source
+  « depuis la médiathèque » dans la modale « Ajouter une voix ».
+- ✅ **Auto-ajustement par les modèles revérifié** (question de Fabien) ; 🔴 corrigé : la ligne
+  d'état de l'appariement était invisible en v4 (`d-none`). Détail `CARD_DESIGN §11.11`.
+- Gestes des 7 apps v4 : tous verts ou non applicables (motifs inchangés) ; 227 tests OK.
+- ⚠ Rouge d'AUTRES chantiers, non touché : budget de `tests_identifier_language` (instrument
+  `check_identifier_language.py` et `media_library/tests/tests_providers.py` en cours d'écriture
+  ailleurs).
