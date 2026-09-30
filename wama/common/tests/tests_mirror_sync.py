@@ -136,3 +136,56 @@ class InternalLinksTest(SimpleTestCase):
         summary = mirror_tree(self.src, self.dest, dry_run=True)
         self.assertEqual(1, summary['linked'])
         self.assertEqual([], [p for p in self.dest.iterdir() if p.name != '.wama_test'])
+
+
+class LastRunKeptTest(SimpleTestCase):
+    """The last FINISHED run of a mirror is kept without expiry (2026-09-30): progress lives 24 h,
+    and the « Backup models » line vanished a day after a manual run while the nightly media
+    one stayed."""
+
+    KEY = 'tests:mirror_last_run'
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.delete(self.KEY)
+        cache.delete(self.KEY + ':last')
+
+    tearDown = setUp   # une clé sans expiration ne doit pas rester dans le cache réel
+
+    def _run(self, runner):
+        from wama.common.services.mirror_sync import run_mirror_job
+        return run_mirror_job(runner, cache_key=self.KEY, task_id='t', label='test', ttl=60)
+
+    def test_a_success_is_remembered_with_its_date_and_counts(self):
+        from wama.common.services.mirror_sync import last_mirror_run
+        self._run(lambda cb: {'success': True, 'copied': 3, 'skipped': 7, 'failed': 0,
+                              'copied_mb': 1.5, 'total_files': 10})
+        last = last_mirror_run(self.KEY)
+        self.assertEqual(('SUCCESS', 3, 7), (last['state'], last['copied'], last['skipped']))
+        self.assertIn('finished_at', last)
+
+    def test_a_failure_is_remembered_too(self):
+        from wama.common.services.mirror_sync import last_mirror_run
+
+        def boom(cb):
+            raise OSError('NAS injoignable')
+        with self.assertRaises(OSError):
+            self._run(boom)
+        last = last_mirror_run(self.KEY)
+        self.assertEqual('FAILURE', last['state'])
+        self.assertIn('NAS injoignable', last['errors'][0])
+
+    def test_a_running_state_does_not_overwrite_the_last_run(self):
+        from wama.common.services.mirror_sync import last_mirror_run
+        self._run(lambda cb: {'success': True, 'copied': 1, 'skipped': 0, 'failed': 0,
+                              'copied_mb': 0.0})
+        seen = {}
+        self._run(lambda cb: (cb({'processed': 1}), seen.update(last=last_mirror_run(self.KEY)),
+                              {'success': True, 'copied': 2, 'skipped': 0, 'failed': 0,
+                               'copied_mb': 0.0})[-1])
+        self.assertEqual(1, seen['last']['copied'], 'while running, the screen keeps the last run')
+
+    def test_the_models_backup_is_scheduled_every_night(self):
+        from django.conf import settings
+        entry = settings.CELERY_BEAT_SCHEDULE.get('backup-models-daily') or {}
+        self.assertEqual('model_manager.backup_all_models', entry.get('task'))
