@@ -209,6 +209,45 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   diffusion image et vidéo ont déjà un `callback_on_step_end` (progression) qui voit les latents.
   Rien n'est tranché pour l'image ni la vidéo.
 - **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct.
+- 🔜 **CHANTIER « PREVIEW GLOBALE + TRANSPORT COMMUN » — brief de SESSION DÉDIÉE (Fabien, 2026-09-30)**.
+  *« Une preview globale commune qui peut être tirée par capacités partout dans tout WAMA, et de
+  même pour le transport média : une seule brique commune avec toutes les spécificités, que l'on
+  peut tirer entièrement ou partiellement selon les besoins locaux. »* Session dédiée plutôt
+  qu'au fil d'une autre : le chantier touche l'éditeur du transcriber, outil de travail quotidien.
+  - **Déclencheur mesuré (2026-09-30)** : la preview d'ENTRÉE du volet droit n'affiche pas l'onde
+    d'un audio long — et attendre n'y change rien. Le lecteur commun ne décode lui-même qu'en deçà
+    de 30 Mo (`wama-audio-player.js:188`, `MAX_DECODE_BYTES`) et `unified_preview` ne fournit des
+    pics qu'à la face « pendant » (`preview_utils.py:254-257`), jamais à l'entrée. Or le
+    transcriber CALCULE déjà ces pics pour son éditeur (`workers.compute_waveform_peaks`, statut
+    `Transcript.waveform_status`, lecture `views.py:684`) : ils existaient pour les deux cards du
+    lot #489 (MP3 de 136 Mo, 2 h 22) sans que le volet s'en serve. Le calcul de pics est déjà
+    commun (`common/utils/waveform.compute_peaks`) ; leur **stockage et leur service** ne le sont
+    pas.
+  - **Ce qui est déjà consigné — à relire AVANT de proposer** : `PROJECT_STATUS §Addendum 19/08 (soir) —
+    ARBITRAGES D'ARCHITECTURE` (inventaire de 4 transports indépendants — transcriber `edit.js`, cam_analyzer, face_analyzer
+    `video.html`, filemanager — + 5 rendus « mime → aperçu » concurrents ; doublons comptés) ;
+    `WAMA_DATA_WORLD.md §5` (spécification CIBLE du transport = le magnéto de BIND, plus complète
+    que l'existant) et **§5bis** (le magnéto pilote le CURSEUR, jamais les vues — la
+    synchronisation est une conséquence de l'axe observé) ; mécanismes `audio_player`, `shuttle`
+    et « Preview unifiée » (`WAMA_MECANISMES.md`).
+  - ⚠ **Contraintes posées par Fabien, toujours en vigueur** : « ne rien casser, ne pas lancer le
+    portage tant qu'on n'est pas ok sur le transport commun » (19/08) ; le transport n'est pas un
+    plugin parmi d'autres mais l'**AXE PARTAGÉ** auquel les vues s'abonnent — besoin média ET
+    besoin data (axe observable, souscription, sélection partagée) ; **une brique, deux
+    présentations** (panneau fixe ou fenêtre), à condition qu'elle ÉMETTE des commandes au lieu
+    d'agir sur un lecteur. Le brouillon d'août (barre + adaptateurs) a été retiré pour avoir
+    ignoré le besoin data.
+  - **Faits revérifiés le 2026-09-30** : `wama-shuttle.js` n'est chargé que par
+    `cam_analyzer/base.html` — l'éditeur ne peut pas s'en servir et garde son propre transport
+    (`transcriber/static/transcriber/js/edit.js`) ; `wama-audio-player.js` est monté globalement
+    (`templates/base.html:382`) et rechargé par `transcriber/edit.html:337`.
+  - **Démarche demandée** : ① CARTOGRAPHIER complètement les deux transports les plus avancés —
+    l'éditeur du transcriber (audio + texte : onde zoomable sur pics serveur, vitesse, shuttle,
+    lecture arrière, synchronisation texte↔temps) et le cam_analyzer (4 vidéos synchronisées, pas
+    image par image) ; ② REGROUPER ce qui est commun en une brique ; ③ déclarer les SPÉCIFICITÉS
+    de chacun en **schéma-driven** (capacités), tirables entièrement ou partiellement partout —
+    preview de card, volet droit, éditeur, cam_analyzer, filemanager ; ④ l'onde d'entrée du volet
+    est le premier consommateur, et le plus simple.
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,
