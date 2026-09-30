@@ -441,7 +441,9 @@ def prediction_annotate(request, session_id):
     # Entrée API héritée : la passe `indicators` du pipeline est désormais le chemin principal
     # (bouton retiré du volet). Même tâche, même suivi de passe quel que soit le point d'entrée.
     from .tasks import compute_indicators_task
-    compute_indicators_task.delay(str(session.id))
+    # sous le verrou des calculs, comme toute passe de calcul (`_launch_calc_chain`)
+    if _launch_calc_chain(session, [compute_indicators_task]) is None:
+        return _calc_chain_busy()
     return JsonResponse({'success': True})
 
 
@@ -897,8 +899,12 @@ def list_passes(request, session_id):
     stale/missing detection computed on the fly so the UI badge is fresh.
     """
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
-    from .utils.pass_tracking import recompute_stale, get_passes_status
+    from .utils.pass_tracking import (recompute_stale, get_passes_status,
+                                      reconcile_interrupted_calc_passes)
     try:
+        # une passe de calcul RUNNING sans chaîne en cours est INTERROMPUE : sans cette
+        # réconciliation, son bouton restait ⏳ à vie et la relance était impossible
+        reconcile_interrupted_calc_passes(session)
         recompute_stale(session)
     except Exception as exc:
         logger.warning(f"recompute_stale failed: {exc}")
@@ -928,7 +934,9 @@ def run_passes(request, session_id):
     requested = list(body.get('types') or [])
     force = bool(body.get('force', False))
 
-    from .utils.pass_tracking import recompute_stale, get_passes_status
+    from .utils.pass_tracking import (recompute_stale, get_passes_status,
+                                      reconcile_interrupted_calc_passes)
+    reconcile_interrupted_calc_passes(session)
     recompute_stale(session)
     statuses = get_passes_status(session)
 
@@ -1002,13 +1010,9 @@ def run_passes(request, session_id):
                 'error': "Aucune détection en base : lancer l'ANALYSE d'abord — les calculs "
                          "dérivent des détections, ils n'ont rien à lire.",
             }, status=409)
-        from .utils.pass_tracking import calc_chain_key, CALC_CHAIN_TTL_S
+        from .utils.pass_tracking import calc_chain_key
         if cache.get(calc_chain_key(session.id)):
-            return JsonResponse({
-                'success': False,
-                'error': "Des calculs sont déjà en file ou en cours pour cette session — ils se "
-                         "dérouleront seuls ; attendre leur fin avant de relancer.",
-            }, status=409)
+            return _calc_chain_busy()
         _pause_live(session_id)
         cache.delete(f"stop_cam_analyzer_{request.user.id}")
 
@@ -1016,24 +1020,15 @@ def run_passes(request, session_id):
         dispatch_map = dispatch_table()
         # CHAÎNE en ordre topologique, pas N `.delay()` parallèles : `_DEPENDS_ON` ordonne
         # les calculs (distance avant global_tracking avant indicators…), et le dispatch
-        # ne le respectait pas — `conflicts` pouvait partir avant `distance`. Signatures
-        # IMMUABLES (`.si`) : chaque tâche reçoit la session, jamais le retour de la précédente.
-        from celery import chain
-        sigs, names = [], []
+        # ne le respectait pas — `conflicts` pouvait partir avant `distance`.
+        tasks_in_order = []
         for pt in topological_order(needs_run):
             task_fn = dispatch_map.get(pt)
             if task_fn is None:
                 continue
-            sigs.append(task_fn.si(str(session.id)))
-            names.append(task_fn.__name__)
+            tasks_in_order.append(task_fn)
             needs_run.discard(pt)
-        if sigs:
-            from .tasks import release_calc_chain_task
-            release = release_calc_chain_task.si(str(session.id))
-            cache.set(calc_chain_key(session.id), names, timeout=CALC_CHAIN_TTL_S)
-            result = chain(*sigs, release).apply_async(link_error=release)
-            cache.set(f"cam_analyzer_task_{session.id}", result.id, timeout=86400)
-            launched.extend(names)
+        launched.extend(_launch_calc_chain(session, tasks_in_order) or [])
 
     return JsonResponse({
         'success': True,
@@ -1041,6 +1036,38 @@ def run_passes(request, session_id):
         'requested': sorted({s for s in needs_run} | {l for l in launched}),
         'force': force,
     })
+
+
+def _calc_chain_busy():
+    return JsonResponse({
+        'success': False,
+        'error': "Des calculs sont déjà en file ou en cours pour cette session — ils se "
+                 "dérouleront seuls ; attendre leur fin avant de relancer.",
+    }, status=409)
+
+
+def _launch_calc_chain(session, tasks_in_order):
+    """Lance des passes de CALCUL en CHAÎNE sous le verrou `calc_chain_key` — point d'entrée
+    UNIQUE (`run_passes` et les deux entrées héritées `prediction_annotate`, `ortho_correction`).
+    Rend les noms lancés, ou None si une chaîne tourne déjà (l'appelant répond 409).
+
+    Signatures IMMUABLES (`.si`) : chaque tâche reçoit la session, jamais le retour de la
+    précédente ; `release_calc_chain_task` lève le verrou en fin de chaîne ET sur échec. Tout
+    calcul passe par ici : c'est ce qui fait de « plus de verrou » la PREUVE qu'une passe restée
+    RUNNING est interrompue (`pass_tracking.reconcile_interrupted_calc_passes`)."""
+    from celery import chain
+    from .tasks import release_calc_chain_task
+    from .utils.pass_tracking import calc_chain_key, CALC_CHAIN_TTL_S
+    if not tasks_in_order:
+        return []
+    if cache.get(calc_chain_key(session.id)):
+        return None
+    names = [t.__name__ for t in tasks_in_order]
+    release = release_calc_chain_task.si(str(session.id))
+    cache.set(calc_chain_key(session.id), names, timeout=CALC_CHAIN_TTL_S)
+    result = chain(*[t.si(str(session.id)) for t in tasks_in_order], release).apply_async(link_error=release)
+    cache.set(f"cam_analyzer_task_{session.id}", result.id, timeout=86400)
+    return names
 
 
 def _pause_live(session_id):
@@ -1212,9 +1239,11 @@ def ortho_correction(request, session_id):
         return JsonResponse({'success': False,
                              'error': "Aucun recalage mesuré — lancer d'abord « Recalage absolu ortho »"},
                             status=400)
-    task = compute_ortho_correction_task.delay(str(session.id))
+    # sous le verrou des calculs, comme toute passe de calcul (`_launch_calc_chain`)
+    if _launch_calc_chain(session, [compute_ortho_correction_task]) is None:
+        return _calc_chain_busy()
     _console(request.user.id, "Correction de trajectoire — lancement (calcul pur + masquage BD TOPO).")
-    return JsonResponse({'success': True, 'task_id': task.id})
+    return JsonResponse({'success': True, 'task_id': cache.get(f"cam_analyzer_task_{session.id}")})
 
 
 @login_required

@@ -32,6 +32,7 @@ class CalcChainLockTest(SimpleTestCase):
         chain.return_value.apply_async.return_value.id = 'chain-result-id'
         with mock.patch.object(views, 'get_object_or_404', return_value=session), \
                 mock.patch('wama_lab.cam_analyzer.utils.pass_tracking.recompute_stale'), \
+                mock.patch('wama_lab.cam_analyzer.utils.pass_tracking.reconcile_interrupted_calc_passes'), \
                 mock.patch('wama_lab.cam_analyzer.utils.pass_tracking.get_passes_status', return_value=[]), \
                 mock.patch.object(views.DetectionFrame.objects, 'filter') as flt, \
                 mock.patch('celery.chain', chain):
@@ -59,3 +60,49 @@ class CalcChainLockTest(SimpleTestCase):
         cache.set(calc_chain_key(SID), ['x'], 60)
         release_calc_chain_task(SID)
         self.assertIsNone(cache.get(calc_chain_key(SID)))
+
+
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
+class InterruptedCalcPassTest(SimpleTestCase):
+    """Une passe de calcul RUNNING sans chaîne en cours est INTERROMPUE (2026-09-30) : worker
+    `default` arrêté pendant les Indicateurs, verrou libéré par le lien d'échec, passe RUNNING à
+    vie — son bouton restait ⏳ et la relance était impossible depuis le panneau."""
+
+    def setUp(self):
+        cache.clear()
+
+    def _reconcile(self):
+        from wama_lab.cam_analyzer.utils import pass_tracking as pt
+        with mock.patch('wama_lab.cam_analyzer.models.AnalysisPass.objects.filter') as flt:
+            flt.return_value.update.return_value = 1
+            n = pt.reconcile_interrupted_calc_passes(SimpleNamespace(id=SID))
+        return n, flt
+
+    def test_while_a_chain_runs_nothing_is_touched(self):
+        cache.set(calc_chain_key(SID), ['compute_indicators_task'], 60)
+        n, flt = self._reconcile()
+        self.assertEqual(n, 0)
+        flt.assert_not_called()
+
+    def test_without_a_chain_running_calc_passes_become_relaunchable(self):
+        from wama_lab.cam_analyzer.models import AnalysisPass
+        from wama_lab.cam_analyzer.utils.pass_tracking import PASSES, INTERRUPTED_MESSAGE
+        n, flt = self._reconcile()
+        self.assertEqual(n, 1)
+        kw = flt.call_args.kwargs
+        self.assertEqual(kw['status'], AnalysisPass.Status.RUNNING)
+        self.assertEqual(set(kw['pass_type__in']), {p.key for p in PASSES if p.stage == 'calcul'})
+        self.assertNotIn('sam3_markings', kw['pass_type__in'])      # ANALYSE : pas de preuve
+        upd = flt.return_value.update.call_args.kwargs
+        self.assertEqual(upd['status'], AnalysisPass.Status.FAILED)
+        self.assertEqual(upd['error_message'], INTERRUPTED_MESSAGE)
+
+    def test_every_calc_entry_point_takes_the_chain_lock(self):
+        """La preuve ne vaut que si AUCUN calcul ne tourne hors verrou."""
+        import inspect
+        src = inspect.getsource(views)
+        self.assertNotIn('compute_indicators_task.delay(', src)
+        self.assertNotIn('compute_ortho_correction_task.delay(', src)
+        self.assertEqual(src.count('chain(*'), 1, "un seul lancement de chaîne : _launch_calc_chain")
+        self.assertIn('if _launch_calc_chain(session, [compute_indicators_task]) is None:', src)
+        self.assertIn('if _launch_calc_chain(session, [compute_ortho_correction_task]) is None:', src)
