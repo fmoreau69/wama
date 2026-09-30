@@ -147,6 +147,13 @@ mais c'est défaire son geste dans son dos.
   il porte les deux chantiers. ⚠ Extraire ce blob par une redirection shell le TRANSCODE sous
   Windows (un em-dash devenu `?` → faux `SyntaxError`) : lire en OCTETS, sinon on diagnostique
   son propre instrument.
+  🔴 **Récidive le 2026-09-30 — SANS avoir ouvert ce skill** (script maison `apply --unidiff-zero`
+  sur le gabarit du transcriber, 5 hunks d'autrui avant le mien) : le bloc `{% comment %}` s'est
+  posé DANS le script du lot (numéro nouveau 203 au lieu de l'ancien 222), commité tel quel
+  (`6af91cdc`), rattrapé par `bfa70b4a` (blob recomposé depuis HEAD + `update-index --cacheinfo`).
+  Le contrôle qui l'a vu : `git diff -U0 --ignore-cr-at-eol` APRÈS le commit, qui montrait encore
+  mes lignes — côté retiré ET côté ajouté. *Charger ce skill avant tout commit partiel, même
+  « simple » : le piège est dans l'outil, pas dans la complexité du cas.*
 - 🔴 **2026-09-26 — vérifier l'index PUIS commiter laisse une FENÊTRE DE COURSE.** Mesuré le
   jour même : `git diff --cached --stat` montrait 15 fichiers, le `git commit` qui a suivi en a
   porté **16**. Une autre instance avait stagé un `git mv` entre les deux (le temps de rédiger le
