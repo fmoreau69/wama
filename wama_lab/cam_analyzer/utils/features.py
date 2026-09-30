@@ -99,6 +99,13 @@ FEATURES = [
             "et qui fondent le masquage satellite de la correction ortho : les voir aide à "
             "juger une trace. Affichage seul.",
             default=False, scope='live'),
+    Feature('measured_camera_fov', 'Champ des caméras MESURÉ',
+            "Utilise le champ de vue des caméras avant/arrière MESURÉ sur la session (passe "
+            "« Champ des caméras » : rotation vue dans l'image contre cap GPS en virage) au lieu "
+            "de la fiche technique (110° pour la caméra avant, mesurée ~75°). Change le latéral des "
+            "objets, les largeurs de voie vues, le cap par ratio et la projection sol : "
+            "calibration sol, recalage voie + carte et calculs sont à rejouer après bascule.",
+            default=False, scope='compute'),
     Feature('parked_off_road', 'Garés = hors des voies',
             "Un véhicule est GARÉ si sa position médiane est HORS de l'emprise de chaussée IGN "
             "(à plus de 0,5 m du bord) : un immobile SUR la chaussée — à un feu, dans une file, à un "

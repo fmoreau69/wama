@@ -101,6 +101,11 @@ PASSES: tuple = (
     # rendrait PÉRIMÉ le tracking de toute session qui ne l'a jamais jouée.
     Pass('lane_map_recalage', 'calcul', depends_on=('yolopv2_lanes',),
          task='compute_lane_map_recalage_task'),
+    # Champ des caméras MESURÉ (2026-09-30) : relit les VIDÉOS avant/arrière (CPU, OpenCV) aux
+    # virages de la trace. Appliqué sous ⚑ measured_camera_fov (défaut OFF) — pas de dépendance
+    # déclarée depuis l'aval, même raison que `lane_map_recalage`.
+    Pass('camera_intrinsics', 'calcul', depends_on=('extraction',),
+         task='compute_camera_intrinsics_task'),
     # Correction ortho (calcul pur + masque satellite BD TOPO) : ancres tirées de la MESURE
     # `ortho_recalage`, appliquées par ⚑ ortho_correction. Avant le tracking, même raison que
     # `lane_map_recalage` (et même absence de dépendance déclarée du tracking vers elle).

@@ -235,3 +235,34 @@ class ContratPurTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+class FocalScaleFromRotationTest(unittest.TestCase):
+    """`focal_scale_from_rotation` (2026-09-30) — focale réelle / supposée depuis des rotations
+    cumulées. Mesuré sur la caméra avant du rig ENA : ×1,87, soit ~75° au lieu des 110° de la fiche."""
+
+    def test_a_focal_twice_too_short_doubles_the_seen_rotations(self):
+        from .ego_rotation import focal_scale_from_rotation
+        fit = focal_scale_from_rotation([(2.0 * g, g) for g in (-40.0, -25.0, 30.0, 55.0)])
+        self.assertAlmostEqual(fit['scale'], 2.0, places=6)
+        self.assertAlmostEqual(fit['scale_median'], 2.0, places=6)
+        self.assertEqual(fit['n'], 4)
+
+    def test_windows_where_the_reference_barely_turns_are_ignored(self):
+        """Sous `min_reference_deg`, le bruit de la référence domine : un rapport v/g sur 2° ne
+        dit rien de la focale, et il écraserait les autres."""
+        from .ego_rotation import focal_scale_from_rotation
+        fit = focal_scale_from_rotation([(1.9 * 40.0, 40.0), (1.9 * -30.0, -30.0), (50.0, 2.0)])
+        self.assertEqual(fit['n'], 2)
+        self.assertAlmostEqual(fit['scale'], 1.9, places=6)
+
+    def test_least_squares_weigh_big_turns_more_than_the_median(self):
+        from .ego_rotation import focal_scale_from_rotation
+        fit = focal_scale_from_rotation([(180.0, 90.0), (15.0, 10.0), (16.0, 10.0)])
+        self.assertAlmostEqual(fit['scale'], (180 * 90 + 150 + 160) / (8100 + 200), places=4)
+        self.assertAlmostEqual(fit['scale_median'], 1.6, places=6)
+
+    def test_fewer_than_two_usable_windows_give_nothing(self):
+        from .ego_rotation import focal_scale_from_rotation
+        self.assertIsNone(focal_scale_from_rotation([(60.0, 30.0)]))
+        self.assertIsNone(focal_scale_from_rotation([]))

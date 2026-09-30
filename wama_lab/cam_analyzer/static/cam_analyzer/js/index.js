@@ -84,6 +84,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Yaw pour comparer 55↔97 à l'écran sans ré-annotation (dist_scale s'ajuste).
     const camFovH = { ...CAMERA_FOV_H };
     const camFovV = { ...CAMERA_FOV_V };
+    // Champs MESURÉS (passe « Champ des caméras », results_summary.camera_intrinsics) — appliqués
+    // seulement sous ⚑ measured_camera_fov (voir rebuildCamGeo).
+    const measuredFov = {};
     const LEGACY_FOV_V = { front: 60, right: 90, rear: 60, left: 90 };
     const CAMERA_MOUNT = { front: [0, 4.5], right: [1.0, 3.4], rear: [0, 0], left: [-1.0, 3.4] };
     const camGeo = {};        // géométrie effective par caméra — reconstruite par rebuildCamGeo()
@@ -112,10 +115,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 ? [parseFloat(_antCfg[0]) || 0, parseFloat(_antCfg[1]) || 0] : [1.0, 0.0]);
         Object.keys(CAMERA_YAW).forEach(p => {
             const used = (camFovUsed[p] != null && isFinite(camFovUsed[p])) ? camFovUsed[p] : LEGACY_FOV_V[p];
+            // ⚑ measured_camera_fov — miroir de `camera_geometry` : le champ MESURÉ par la passe
+            // « Champ des caméras » l'emporte sur la fiche technique et sur la saisie manuelle.
+            const _m = camFeat.measured_camera_fov ? measuredFov[p] : null;
+            const fovH = _m ? _m.h : camFovH[p];
+            const fovV = _m ? _m.v : camFovV[p];
             camGeo[p] = {
-                fovH: camFovH[p],
+                fovH: fovH,
+                fovV: fovV,
                 distScale: camFeat.fov_dist_correction !== false
-                    ? Math.tan(used * Math.PI / 360) / Math.tan(camFovV[p] * Math.PI / 360)
+                    ? Math.tan(used * Math.PI / 360) / Math.tan(fovV * Math.PI / 360)
                     : 1,
                 mount: camFeat.mount_lever_arm !== false ? CAMERA_MOUNT[p] : [0, 0],
             };
@@ -478,6 +487,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 Object.keys(CAMERA_YAW).forEach(p => {
                     if (_cf[p] && isFinite(_cf[p].h)) camFovH[p] = parseFloat(_cf[p].h);
                     if (_cf[p] && isFinite(_cf[p].v)) camFovV[p] = parseFloat(_cf[p].v);
+                });
+                const _ci = (data.results_summary && data.results_summary.camera_intrinsics) || {};
+                Object.keys(CAMERA_YAW).forEach(p => {
+                    const m = _ci[p];
+                    if (m && isFinite(m.fov_h) && isFinite(m.fov_v)) measuredFov[p] = { h: +m.fov_h, v: +m.fov_v };
                 });
                 // Levier d'antenne GPS surchargé par session (défaut : coin arrière droit ENA).
                 camAntennaCfg = (data.config && data.config.gps_antenna) || null;
@@ -2517,7 +2531,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (bh < 12 || bw < 4) return null;                     // trop petit → ratio bruité
         if (bb[0] <= 8 || bb[2] >= iw - 8) return null;         // coupé au bord → étendue fausse
         const [L, W, H] = dims;
-        const fovH = camFovH[camPos] || 60, fovV = camFovV[camPos] || 61;
+        // champs EFFECTIFS (camGeo : ⚑ measured_camera_fov compris), pas les valeurs brutes
+        const _g = camGeo[camPos] || {};
+        const fovH = _g.fovH || camFovH[camPos] || 60, fovV = _g.fovV || camFovV[camPos] || 61;
         const fy = ih / (2 * Math.tan(fovV * Math.PI / 360));
         const fx = iw / (2 * Math.tan(fovH * Math.PI / 360));
         let E = H * (fy / fx) * (bw / bh);
