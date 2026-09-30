@@ -759,9 +759,13 @@ DEUX réunions valides (`007a_ECRH` 20 min, `012c_EBPZ` 19 min) :
   verdict ; et, pour de vrais entretiens, l'audio QUITTE la machine (verrou « sensibilité » de
   `ROADMAP §8d` ③, non tranché).
   **FLEURS-CS, même soir** (8 enregistrements fr/en, cards #1075-1082, comparées aux cards Whisper
-  « langues = auto » des mêmes lots, mesures en base) : erreur par mot **44,6 %** (Albert) contre
+  « langues = auto » des mêmes lots, mesures en base) : erreur par mot **44,5 %** (Albert) contre
   **45,1 %** (Whisper local) — un match nul EN MOYENNE, mais très dispersé d'un enregistrement à
-  l'autre (Albert −25,7 points sur seed266, +25,7 sur seed397) ; accord de langue par segment 48 %
+  l'autre (Albert −25,7 points sur seed266, +25,7 sur seed397). Remesuré le 30/09 : ce sont les
+  valeurs d'APRÈS les correctifs de langue du 29/09 (sur les 15 lots, Whisper « auto » = 41,9 %,
+  comme au rapport) — le 45,1 % égal au « avant » des 15 lots est une coïncidence. Sur ces 8 lots,
+  Qwen3-ASR « auto » + nivellement fait **21,1 %** : Albert est loin de la meilleure configuration
+  locale ; accord de langue par segment 48 %
   contre 46 %. Albert n'annonce qu'UNE langue par fichier (il transcrit d'un seul tenant, et son
   `language` TRADUIRAIT : il ne lui est jamais imposé). ⇒ Sur la parole spontanée (réunions),
   Albert est ~3 points derrière ; sur la parole lue qui change de langue, à égalité — gratuit en
