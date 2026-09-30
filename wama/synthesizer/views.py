@@ -25,7 +25,7 @@ from django.core.files.base import ContentFile
 
 
 import json
-from .models import VoiceSynthesis, CustomVoice, BatchSynthesis, BatchSynthesisItem
+from .models import VoiceSynthesis, BatchSynthesis, BatchSynthesisItem
 from .params import PARAMS_JSON as _SYNTH_PARAMS_JSON
 from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
 from wama.common.utils.auto_model import read_quality_intent
@@ -887,9 +887,14 @@ def list_custom_voices(request):
 
 @require_POST
 def upload_custom_voice(request):
-    """Upload d'une voix personnalisée (crée un UserAsset de type voice)."""
-    import mimetypes as _mime
-    from wama.media_library.models import UserAsset
+    """Upload d'une voix personnalisée — par LE geste d'ajout de la médiathèque.
+
+    ⚠ Jusqu'au 2026-09-30 cette vue créait l'asset elle-même, avec sa propre liste de formats :
+    l'enregistrement au micro (`recorded_voice.webm`) était REFUSÉ depuis février, et ni durée ni
+    attributs n'étaient lus. `add_file_to_library` convertit vers le pivot de la nature (webm →
+    wav), lit le fichier (durée, MIME) et refuse un nom déjà pris.
+    """
+    from wama.media_library.services import LibraryAddRefused, add_file_to_library
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     name  = request.POST.get('name', '').strip()
     audio = request.FILES.get('audio')
@@ -898,19 +903,10 @@ def upload_custom_voice(request):
         return JsonResponse({'error': 'Le nom est requis'}, status=400)
     if not audio:
         return JsonResponse({'error': 'Le fichier audio est requis'}, status=400)
-
-    ext = os.path.splitext(audio.name)[1][1:].lower()
-    from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
-    if ext not in VOICE_SAMPLE_EXTENSIONS:
-        return JsonResponse({'error': f"Format non supporté ({', '.join(VOICE_SAMPLE_EXTENSIONS)})"}, status=400)
-
-    if UserAsset.objects.filter(user=user, name=name, asset_type='voice').exists():
-        return JsonResponse({'error': f'Une voix "{name}" existe déjà'}, status=409)
-
-    asset = UserAsset.objects.create(user=user, name=name, asset_type='voice', file=audio)
-    asset.mime_type = _mime.guess_type(audio.name)[0] or ''
-    asset.file_size = audio.size
-    asset.save(update_fields=['mime_type', 'file_size'])
+    try:
+        asset = add_file_to_library(user, 'voice', uploaded=audio, name=name)
+    except LibraryAddRefused as exc:
+        return JsonResponse({'error': str(exc)}, status=exc.status)
     return JsonResponse({'id': asset.id, 'name': asset.name})
 
 

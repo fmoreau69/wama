@@ -492,7 +492,8 @@ class CurseurDeQualiteTest(TestCase):
 
 
 class PredicatDeVoixClonéeDéfiniUneFoisTest(TestCase):
-    """Le prédicat « cette voix est clonée » (`ua_|cv_`) vit en UN endroit — la brique.
+    """Le prédicat « cette voix est clonée » (`^ua_` ; `cv_` retiré le 2026-09-30) vit en UN
+    endroit — la brique.
 
     Mesuré le 2026-09-12 : il était recopié sur QUATRE sites dans DEUX apps (2 `hideOption`
     dans WamaModelCaps.init, 2 `isProvided` dans WamaInputMatch.init — synthesizer et
@@ -522,10 +523,12 @@ class PredicatDeVoixClonéeDéfiniUneFoisTest(TestCase):
         for f in list(base.rglob('*.js')) + list(base.rglob('*.html')):
             if 'staticfiles' in f.parts or 'node_modules' in f.parts:
                 continue
-            if re.search(r'\^\(ua_\|cv_\)', f.read_text(encoding='utf-8', errors='replace')):
+            # Toute forme de préfixe de clonage en expression régulière : l'actuelle (`^ua_`)
+            # comme l'ancienne (`^(ua_|cv_)`), qu'une copie oubliée porterait encore.
+            if re.search(r'\^\(?ua_', f.read_text(encoding='utf-8', errors='replace')):
                 porteurs.append(f.relative_to(base).as_posix())
         self.assertEqual(['common/static/common/js/wama-model-caps.js'], sorted(porteurs),
-                         'le prédicat `^(ua_|cv_)` doit vivre dans la SEULE brique — '
+                         'le prédicat `^ua_` doit vivre dans la SEULE brique — '
                          f'porteurs mesurés : {sorted(porteurs)}')
 
     def test_les_deux_pages_ne_font_que_DECLARER(self):

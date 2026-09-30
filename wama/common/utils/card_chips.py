@@ -28,7 +28,7 @@ def _inventaire_voix(user) -> list:
     2ᵉ source dynamique résolue par les chips après `catalog` (constat Fabien, card 65 :
     le chip affichait `cv_1` là où l'utilisateur devait lire « Voix Fab »). Les plaques du
     schéma ne portent que les presets STATIQUES du champ — les voix par utilisateur
-    (`ua_<id>`) et l'héritage (`cv_<id>`) n'y sont jamais. La connaissance vit dans
+    (`ua_<id>` ; l'héritage `cv_<id>` est retiré le 2026-09-30) n'y sont jamais. La connaissance vit dans
     `voice_options` (le module qui centralise les voix) ; ici on ne fait que mémoïser.
     """
     import time
@@ -148,7 +148,7 @@ def chips_for(instance, params_json, extra=None, values=None):
             # gardent la PRIORITÉ (premier match) : aucun libellé existant ne change.
             if field.get('options_source') == 'catalog':
                 _plates += _inventaire_catalogue(field.get('options_query') or {})
-            # Voix par utilisateur (`options_source: 'voices'`) : les valeurs `ua_`/`cv_` ne
+            # Voix par utilisateur (`options_source: 'voices'`) : les valeurs `ua_` ne
             # sont dans AUCUNE plaque statique — sans cette résolution le chip affichait
             # l'identifiant brut. Joint APRÈS les plaques du champ (un preset statique garde
             # son libellé d'origine) et sans condition `not _plates` : le champ voix PORTE

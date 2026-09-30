@@ -11,7 +11,8 @@ Ce que ce module SAIT, et d'où :
     décision D5), donc elles résolvent par ce nom sans conversion. Une sélection NOUVELLE se
     fait par `sa_<id>` ;
   * `speaker_wav_for` est LA porte des workers et des aperçus (la CAPACITÉ du moteur décide,
-    D7) ; `resolve_speaker_wav` résout `sa_`/`ua_`/`cv_`/nom ; `describe_voice` libelle ;
+    D7) ; `resolve_speaker_wav` résout `sa_`/`ua_`/nom (une voix désignée introuvable lève
+    `VoiceUnavailable`) ; `describe_voice` libelle ;
     `voice_reference_groups` dérive les optgroups d'une REQUÊTE ; `download_missing_voice_refs`
     verse dans la médiathèque (jamais un fichier nu).
 
@@ -248,6 +249,18 @@ def default_voice_for_language(language: str) -> Optional[str]:
     return None
 
 
+class VoiceUnavailable(ValueError):
+    """La voix CHOISIE (`sa_<id>`, `ua_<id>`) ne peut plus être employée : supprimée, retirée
+    de la médiathèque commune, ou plus partagée avec cet utilisateur.
+
+    ⚠ Jusqu'au 2026-09-30 ce cas repliait EN SILENCE sur la voix `default` : une voix dont le
+    propriétaire avait retiré le partage (ou son consentement) faisait synthétiser… une autre
+    voix, sans un mot. Un choix explicite qu'on ne peut plus honorer est une ERREUR dite à
+    l'utilisateur — c'est aussi ce qui rend le RETRAIT d'un partage effectif.
+    `ValueError` : les workers l'écrivent déjà dans `error_message`, l'aperçu la rend en message.
+    """
+
+
 def resolve_speaker_wav(voice_preset: str, user=None, language: str = '') -> Optional[str]:
     """
     Résout un voice_preset en chemin `speaker_wav` (audio de référence) pour le CLONAGE
@@ -256,14 +269,16 @@ def resolve_speaker_wav(voice_preset: str, user=None, language: str = '') -> Opt
                   (`default_voice_for_language` ci-dessus) ; sans langue, ou si la médiathèque
                   n'en porte aucune pour elle, le preset plat `default` comme avant ;
       - sa_<id> → SystemAsset (médiathèque commune — les voix de référence) ;
-      - ua_<id> → UserAsset (médiathèque de l'utilisateur ; `user` la restreint) ;
-      - cv_<id> → CustomVoice (hérité) ;
+      - ua_<id> → UserAsset que `user` a le DROIT d'employer (les siennes, les partagées) ;
       - bark_*  → None (Bark résout ses locuteurs dans son backend) ;
       - sinon   → la voix de référence qui porte ce NOM (`french/adult/male_adult_1_fr`,
                   `female_1`… — les ids que les lignes en base stockent, décision D5).
-    Repli : la voix `default` de la médiathèque — XTTS EXIGE un fichier, lui en donner un est
-    plus sûr que de lui en refuser un (c'était déjà le sens du repli disque). `None` seulement
-    si la médiathèque n'a pas non plus de `default`.
+    Une voix DÉSIGNÉE (`sa_`/`ua_`) introuvable lève `VoiceUnavailable` (plus de repli muet).
+    Repli pour le reste : la voix `default` de la médiathèque — XTTS EXIGE un fichier. `None`
+    seulement si la médiathèque n'a pas non plus de `default`.
+    ⚠ `cv_<id>` (ancien modèle `CustomVoice`) est RETIRÉ le 2026-09-30 : sa résolution ne
+    vérifiait pas le propriétaire, et son unique ligne est convertie en `ua_` (migration
+    synthesizer 0028, même fichier).
     """
     if not voice_preset or voice_preset == 'default':
         # La langue ne PRIME jamais sur un choix explicite : on n'arrive ici que pour la valeur
@@ -278,36 +293,35 @@ def resolve_speaker_wav(voice_preset: str, user=None, language: str = '') -> Opt
     if voice_preset.startswith('bark_v2_'):
         return None
     if voice_preset.startswith('sa_'):
-        return _system_voice_path(voice_preset[3:], by_pk=True) or _system_voice_path('default')
+        path = _system_voice_path(voice_preset[3:], by_pk=True)
+        if path:
+            return path
+        raise VoiceUnavailable("La voix de référence choisie n'est plus disponible dans la "
+                               "médiathèque commune : choisissez une autre voix.")
     if voice_preset.startswith('ua_'):
-        try:
-            # Les voix VISIBLES, pas seulement les miennes (21/09) — mesuré avant de resserrer
-            # sur `asset_type='voice'` : aucune valeur `ua_` n'est stockée en base à ce jour.
+        # Les voix VISIBLES, pas seulement les miennes (21/09) : le même lecteur de droits que
+        # le sélecteur. Une voix supprimée ou dont le partage a été retiré n'y est plus.
+        ua = None
+        if voice_preset[3:].isdigit():
             ua = readable_voice_assets(user).filter(pk=int(voice_preset[3:])).first()
-            if ua and ua.file:
-                return ua.file.path
-        except Exception:
-            pass
-        return _system_voice_path('default')
-    if voice_preset.startswith('cv_'):
-        try:
-            from wama.synthesizer.models import CustomVoice
-            cv = CustomVoice.objects.filter(pk=int(voice_preset[3:])).first()
-            if cv and cv.audio:
-                return cv.audio.path
-        except Exception:
-            pass
-        return _system_voice_path('default')
+        if ua is not None and ua.file:
+            try:
+                if os.path.isfile(ua.file.path):
+                    return ua.file.path
+            except Exception:
+                pass
+        raise VoiceUnavailable("La voix choisie n'est plus accessible (supprimée, ou son "
+                               "partage a été retiré) : choisissez une autre voix.")
     return _system_voice_path(voice_preset) or _system_voice_path('default')
 
 
 def is_cloned_voice(voice_preset: str) -> bool:
-    """Cette voix est-elle un CLONAGE (`ua_<id>` médiathèque de l'utilisateur, `cv_<id>` hérité) ?
+    """Cette voix est-elle un CLONAGE (`ua_<id>`, voix de la médiathèque d'un utilisateur) ?
     Jumeau SERVEUR de `WamaModelCaps.isClonedVoice` — même prédicat, deux langages ; c'est ce
     que le tirage automatique lit pour exiger `supports_cloning` (décision Fabien 13/09).
     ⚠ Une voix de RÉFÉRENCE (`sa_<id>`) n'est pas un clonage au sens de l'UI : tout moteur la
     reçoit comme `speaker_wav` s'il clone, l'ignore sinon."""
-    return str(voice_preset or '').startswith(('ua_', 'cv_'))
+    return str(voice_preset or '').startswith('ua_')
 
 
 def model_supports_cloning(model_key: str) -> Optional[bool]:
@@ -351,7 +365,7 @@ def speaker_wav_for(model_key: str, voice_preset: str, user=None,
       déjà ces moteurs pour une voix clonée (`WamaInputMatch.voiceSlot`) ; ici on ne fait que
       tenir la même règle côté serveur ;
     - le moteur clone, ou rien ne le dit → un fichier de référence par job (`reference_path`)
-      prime, sinon `resolve_speaker_wav` (ua_/cv_/presets). Un moteur INCONNU reçoit donc
+      prime, sinon `resolve_speaker_wav` (ua_/sa_/presets). Un moteur INCONNU reçoit donc
       une voix : XTTS l'EXIGE, un moteur sans clonage l'ignore — le sens sûr.
 
     `language` ne sert QUE pour la valeur « par défaut » : elle la résout vers la voix de
@@ -930,7 +944,7 @@ def download_missing_voice_refs(force: bool = False, names=None) -> Dict[str, st
 def describe_voice(preset_value: str, user=None) -> str:
     """Le libellé d'une valeur de `voice_preset`, quelle que soit sa forme — pour AFFICHER
     (card, inspecteur) : `sa_<id>` / nom de référence → « Français — Adulte — Homme 1 » ;
-    `ua_<id>` / `cv_<id>` → le nom donné par l'utilisateur ; preset plat ou Bark → le libellé
+    `ua_<id>` → le nom donné par l'utilisateur ; preset plat ou Bark → le libellé
     de `VOICE_PRESET_CHOICES` ; sinon la valeur elle-même (on n'efface jamais une donnée).
     """
     if not preset_value:
@@ -939,25 +953,12 @@ def describe_voice(preset_value: str, user=None) -> str:
         row = _system_voice(preset_value[3:], by_pk=True)
         return _voice_label(row) if row is not None else preset_value
     if preset_value.startswith('ua_'):
-        try:
-            from wama.media_library.models import UserAsset
-            qs = UserAsset.objects.filter(pk=int(preset_value[3:]))
-            if user is not None:
-                qs = qs.filter(user=user)
-            ua = qs.first()
+        # Le MÊME lecteur de droits que la résolution : une voix PARTAGÉE se libelle chez son
+        # destinataire (elle affichait `ua_<id>` tant que ce site filtrait sur le propriétaire).
+        if preset_value[3:].isdigit():
+            ua = readable_voice_assets(user).filter(pk=int(preset_value[3:])).first()
             if ua:
                 return ua.name
-        except Exception:
-            pass
-        return preset_value
-    if preset_value.startswith('cv_'):
-        try:
-            from wama.synthesizer.models import CustomVoice
-            cv = CustomVoice.objects.filter(pk=int(preset_value[3:])).first()
-            if cv:
-                return cv.name
-        except Exception:
-            pass
         return preset_value
     from wama.common.tts.constants import VOICE_PRESET_CHOICES
     plat = dict(VOICE_PRESET_CHOICES).get(preset_value)

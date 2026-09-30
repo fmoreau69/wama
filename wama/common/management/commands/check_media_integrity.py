@@ -69,8 +69,9 @@ EMPLACEMENTS_LEGITIMES = (
     # ⚠ `default_voices` et `voice_references` ont QUITTÉ ce motif le 2026-09-13 : les voix de
     # référence sont des `SystemAsset(voice)` sous `media_library/system/` (dernier motif).
     # Les garder ici en aurait fait un seuil périmé — voir la note du motif médiathèque.
-    ("voix PERSONNALISÉES du synthesizer (ancien modèle CustomVoice, `cv_<id>` encore stocké)",
-     re.compile(r'^synthesizer/\d+/custom_voices/.*$')),
+    # ⚠ Les « voix PERSONNALISÉES du synthesizer » (`^synthesizer/\d+/custom_voices/`) ont
+    # QUITTÉ ce motif le 2026-09-30 avec l'ancien modèle `CustomVoice` : mesuré ce jour, aucun
+    # fichier ne vivait plus sous ce chemin (la seule voix est sous `users/1/…`, premier motif).
     # ⚠ Remplace, le 2026-09-12, le motif `^media_library/\d+/…` qui couvrait les assets
     # d'UTILISATEUR. Ceux-là ont rejoint `users/<uid>/media_library/…` (premier motif) : ce sont
     # ses octets, ils vivent chez lui. Garder l'ancien motif en aurait fait un seuil PÉRIMÉ —

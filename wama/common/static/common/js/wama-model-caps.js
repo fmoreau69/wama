@@ -2,7 +2,7 @@
  * wama-model-caps.js — Filtrage dynamique des <select> dépendants selon les CAPACITÉS
  * du modèle sélectionné (source unique : AIModel.capabilities via api/models/db/).
  *
- * Cas d'usage : masquer les voix de clonage (« Mes voix » ua_/cv_) si le modèle TTS ne clone
+ * Cas d'usage : masquer les voix de clonage (« Mes voix », `ua_`) si le modèle TTS ne clone
  * pas (supports_cloning=false) ; restreindre les langues à celles supportées par le modèle ; etc.
  * Générique : l'app fournit le mapping valeur→clé catalogue + les règles de filtrage.
  *
@@ -14,7 +14,7 @@
  *     filters: [
  *       // masque les options de clonage si le modèle ne clone pas
  *       { selectId: 'voice_preset',
- *         hideOption: (caps, opt) => caps.supports_cloning === false && /^(ua_|cv_)/.test(opt.value) },
+ *         hideOption: (caps, opt) => caps.supports_cloning === false && WamaModelCaps.isClonedVoice(opt.value) },
  *       // ne garde que les langues supportées
  *       { selectId: 'language',
  *         hideOption: (caps, opt) => Array.isArray(caps.languages) && caps.languages.length
@@ -195,15 +195,15 @@
   }
 
   /*
-   * Une voix CLONÉE se reconnaît à son identifiant : `ua_<id>` (asset de la médiathèque) ou
-   * `cv_<id>` (voix personnalisée) — c'est exactement ce que `resolve_speaker_wav`
-   * (common/tts/voice_refs) résout côté serveur. Ce prédicat vivait RECOPIÉ sur QUATRE sites
+   * Une voix CLONÉE se reconnaît à son identifiant : `ua_<id>` (voix de la médiathèque d'un
+   * utilisateur) — jumeau de `is_cloned_voice` (common/tts/voice_refs) côté serveur. Le préfixe
+   * hérité `cv_` est RETIRÉ le 2026-09-30 (sa seule ligne convertie en `ua_`). Ce prédicat vivait RECOPIÉ sur QUATRE sites
    * dans DEUX apps (2 hideOption + 2 isProvided, synthesizer et avatarizer) : quatre occasions
    * de le corriger à moitié le jour où un 3ᵉ préfixe apparaît (mesuré le 2026-09-12). Il est
    * DÉFINI ICI, une fois ; les deux briques (celle-ci et wama-input-match) le LISENT.
    */
   function isClonedVoice(value) {
-    return /^(ua_|cv_)/.test(String(value || ''));
+    return /^ua_/.test(String(value || ''));
   }
 
   /*

@@ -7,7 +7,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager, JOB_STATUS_CHOICES
 from django.core.validators import FileExtensionValidator
-from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output, UploadToUserPath
+from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 from wama.common.tts.constants import (
     DEFAULT_TTS_MODEL, TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES,
 )
@@ -293,22 +293,11 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
             self.save(update_fields=['word_count', 'duration_seconds', 'duration_display'])
 
 
-class CustomVoice(models.Model):
-    """Voix personnalisée persistante pour le clonage vocal."""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='custom_voices')
-    name = models.CharField(max_length=100)
-    audio = models.FileField(
-        upload_to=UploadToUserPath('synthesizer', 'custom_voices'),
-        validators=[FileExtensionValidator(allowed_extensions=VOICE_SAMPLE_EXTENSIONS)]
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['name']
-        unique_together = ['user', 'name']
-
-    def __str__(self):
-        return f"{self.name} ({self.user.username})"
+# ⚠ `CustomVoice` (voix personnalisée, valeur `cv_<id>`) est RETIRÉ le 2026-09-30 : les voix
+# d'utilisateur sont des `UserAsset(voice)` de la médiathèque (`ua_<id>`) depuis février, et sa
+# résolution ne vérifiait pas le propriétaire. Sa seule ligne (« Voix Fab ») partageait son
+# FICHIER avec `UserAsset #1` : la migration 0028 convertit la synthèse qui la désignait
+# (`cv_1` → `ua_1`) puis supprime la table — le fichier, lui, reste (il est à l'asset).
 
 
 from wama.common.models import QueueOrderMixin, BatchMixin

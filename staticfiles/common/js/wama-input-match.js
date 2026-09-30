@@ -236,7 +236,7 @@
   }
 
   /*
-   * Slot VOIX CLONÉE prêt à l'emploi — direction voix → MODÈLE : une voix `ua_`/`cv_` choisie
+   * Slot VOIX CLONÉE prêt à l'emploi — direction voix → MODÈLE : une voix `ua_` choisie
    * DÉSACTIVE les moteurs sans clonage (grisés avec raison, jamais cachés). Le prédicat est
    * celui de `WamaModelCaps.isClonedVoice`, défini UNE fois : ce slot vivait recopié dans le
    * synthesizer et l'avatarizer (isProvided/describe/clear, 12 lignes chacun).
