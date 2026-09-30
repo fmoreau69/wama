@@ -59,6 +59,14 @@ class SpeechActivityTest(SimpleTestCase):
         _, calls = self._probe(_bursts(), vad_ratio=0.7, duration=60.0)
         self.assertEqual([0.0], calls)
 
+    def test_a_long_recording_is_heard_in_more_places(self):
+        """Three fixed windows let a 2 h 22 interview slip through by 0.04 (2026-09-30)."""
+        result, calls = self._probe(_bursts(), vad_ratio=0.7, duration=8508.0)
+        self.assertEqual((12, 12), (len(calls), result['windows']))
+        self.assertEqual(sorted(calls), calls)
+        self.assertEqual(6, speech_activity.windows_for(3600))
+        self.assertEqual(3, speech_activity.windows_for(1200), 'short media keep the old sampling')
+
     def test_the_real_silero_vad_does_not_take_noise_bursts_for_speech(self):
         """Contre-épreuve sur le vrai VAD : du bruit actif n'est pas de la parole — c'est le cas
         où le VAD rejette, et la sonde le dit."""
