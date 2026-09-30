@@ -428,6 +428,24 @@ qu'aucune app ne porte est désormais GRISÉ (`backend_missing`, critère = la s
 > (14 la veille), **97 résolvent leur backend réel**. Les 11 restants sont NOMMÉS : 10 Ollama
 > (le démon n'est pas du code Python qu'on charge) et chatterbox (aucun backend n'existe).
 >
+> **④ (2026-09-30) « Le moteur est exécutable » ne disait pas « CE modèle l'est ».** FrWhisper,
+> LinTO et Kyutai STT, installés « poids seulement » par l'assistant, déclarent `transformers` —
+> moteur bien servi, par Qwen3-ASR, **seul** backend de transcription de ce moteur : la règle 1
+> (« un seul candidat → c'est lui ») les lui confiait, et le select les proposait lançables.
+> Deux règles, **bornées aux contrats de tâche LIANTS** (`TASK_CONTRACTS`) : (a) le candidat
+> unique qui DÉCLARE sa liste (`SUPPORTED_MODELS`) ne sert que ses modèles
+> (`backend_inventory.resolve_entry`) ; (b) `backend_missing` grise un modèle dont le moteur
+> existe mais qu'aucun backend du contrat ne sert — seulement si le VIVIER connaît ce moteur
+> (un moteur hors processus, déclaré par un inventaire de noms, reste permissif). Mesuré sur
+> tout le catalogue : **exactement FrWhisper et LinTO** changent. Généralisée à toutes les
+> tâches, (a) cassait `transcriber:pyannote-diarization` (hors contrat liant). ⚠ Kyutai n'a
+> **aucune capacité** au catalogue (tâche vide) : aucune règle ne le voit — donnée à compléter
+> à son installation. Coût : la lignée d'une classe est mémorisée pour le processus, le verdict
+> une minute (sans quoi une liste d'options coûtait 10 à 15 s sur `/mnt/d`, mesuré).
+> Un moteur DISTANT (`albert`) sert toutes les tâches de son fournisseur : un backend lié à un
+> contrat n'y exécute que sa tâche (filtre réservé aux moteurs distants — généralisé, il
+> déplaçait 8 routages, dont `imager:qwen-image-edit`).
+>
 > ⚠ **Deux apps gardaient leurs backends HORS de `<app>/backends/`** — anonymizer dans `core/`,
 > enhancer dans `utils/` — donc invisibles au registre, et leurs **57 modèles** hors d'atteinte.
 > Déplacées le 06/09. *Un invariant ne vaut que sur le périmètre qu'il balaie* : la garde « tout
@@ -641,6 +659,17 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
   zones/tricolore/graduations gratuits), lecture POST par `read_quality_intent` ;
   ③ la DÉCLINAISON reste chez lui (valeur → réglages d'encodage par format) — même
   motif que l'anonymizer. Aucun mécanisme à créer : c'est une substitution de surface.
+- **✅ Les modèles DISTANTS entrent au tirage « auto » par DÉCLARATION (2026-09-30, décision de
+  Fabien)** : `resolve_model_choice` reçoit `cloud_keys` pour toute app dont le select déclare
+  `options_cloud` — le drapeau qui ajoutait déjà les distants aux OPTIONS (`declared_cloud_keys`,
+  un seul lieu de vérité pour « ce que le select propose » et « ce que auto tire »). Le PROFIL
+  borne : `allowed_cloud_keys(automatic=True)` — « cloud autorisé » ouvre le tirage, « cloud si
+  saturé » seulement le choix manuel (signal de saturation ⏳), « 100 % local » rien. Jusque-là
+  seul l'assistant passait `cloud_keys`, à la main (il garde la main : un appelant qui les passe
+  n'est pas surchargé). ⚠ La PRÉVISION recevait les clés du choix MANUEL : pour un profil « si
+  saturé », elle annonçait un distant que le tirage n'aurait jamais retenu — corrigée
+  (`api_model_options`, lot du tirage automatique). ⚠ Reste : un distant a `vram_gb=0`, donc le
+  PIRE coût au score (`_best_by_vram`) — sa place dans le classement viendra de sa QUALITÉ mesurée.
 - **Ce qui n'est PAS dedans** : la comparaison prévision↔choix réel (la prévision
   n'est pas stockée ; le message de lancement dit le choix ET le curseur, pas l'écart).
 - ⚠ **Demi-jambe trouvée EN VALIDANT à l'écran (constat Fabien : « je ne vois pas le
@@ -719,7 +748,12 @@ par un chemin indépendant) : **8 ROUGE** — anonymizer `models.py:43` · avata
 >    déclaration inerte. Vérifier au NAVIGATEUR (l'appel `api/models/options/` doit partir).
 >
 > **Restent, chacune sur une décision** — transcriber (le select est au grain BACKEND,
-> le catalogue au grain MODÈLE : `qwen` vs `qwen3-asr-0.6b`/`1.7b`) · composer (deux GROUPES
+> le catalogue au grain MODÈLE : `qwen` vs `qwen3-asr-0.6b`/`1.7b`) — ✅ **TRANCHÉ par Fabien le
+> 2026-09-30 : grain MODÈLE, clés entières, domaine par TÂCHE `transcription`, distants par
+> `options_cloud`** (même route que synthesizer/imager ; mesuré : 85 cards portent un nom de
+> moteur à migrer — `whisper`, `qwen_asr`, `vibevoice` —, et le domaine rend 11 modèles dont
+> FrWhisper/LinTO, désormais grisés, cf. ④ ci-dessus). Portage REPORTÉ le jour même : une autre
+> instance modifiait `models.py`/`workers.py`/les migrations du transcriber (diarisation) · composer (deux GROUPES
 > avec un « auto » chacun ; l'endpoint n'en rend qu'un) · anonymizer (la colonne stocke un
 > CHEMIN `detect/yolov8n.pt`, le catalogue une clé `yolo:yolov8n.pt`). Détail et arbitrages :
 > `PROJECT_STATUS §PALIER 2026-09-08 (soir)`.

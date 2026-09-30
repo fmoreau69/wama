@@ -1658,10 +1658,19 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    But premier : **ÉVALUER** un modèle distant par la chaîne existante
    (`asr_eval_corpus --engines whisper albert:whisper-large-v3`). Gardes :
    `transcriber/tests_remote_transcription` (12, contre-épreuve 3 mutations / 3 rouges).
-   ⏳ Restent : le SÉLECTEUR du transcriber n'est pas au catalogue (`options_source="backends"`,
-   dette `ROUTE §F4b`) — le choix passe par l'assistant, l'API ou la commande, pas encore par le
-   menu ; pas de diarisation pour un moteur distant (la liste pyannote du worker est écrite par
-   NOM de moteur) ; l'`auto` n'arbitre pas le distant (`select_model` sans `cloud_keys`).
+   Restes, même soir : ✅ **diarisation** — la liste pyannote du worker, écrite par NOM
+   (`whisper`, `qwen_asr`), devient la CAPACITÉ déclarée (`supports_diarization`) : le distant
+   est diarisé, et NeMo (Canary, Parakeet), qui ne l'était JAMAIS malgré sa déclaration, aussi
+   (`52e011ed`) ; ✅ **« auto » et les distants, AU COMMUN** (décision de Fabien) : toute app qui
+   déclare `options_cloud` voit son tirage recevoir les distants que le profil ouvre à
+   l'automatique, et la prévision dit ce tirage-là (`ROUTE §F4b`, brique d'auto-sélection) —
+   effectif pour le transcriber dès que son select déclarera `options_cloud` ; ✅ au passage, les
+   modèles installés « poids seulement » (FrWhisper, LinTO) ne sont plus confiés à Qwen3-ASR et
+   sont GRISÉS (`ROUTE §F4b` ④). ⏳ **Le SÉLECTEUR du transcriber au catalogue** : TRANCHÉ par
+   Fabien (grain modèle, clés entières, domaine `transcription`, `options_cloud`), REPORTÉ — une
+   autre instance modifiait le même soir les fichiers qu'il touche (`models.py`, `workers.py`,
+   migrations : diarisation `community-1`). D'ici là, Albert se choisit par l'assistant, l'API ou
+   `asr_eval_corpus`, pas par le menu.
 4. ⏳ **Lever le verrou du catalogue** (§8d ①②, ordre fixé par Fabien le 15/09) — modèles cloud
    au catalogue par découverte, moteurs cloud à l'inventaire, `select_model` (VRAM/`is_downloaded`
    pour les locaux seulement, cloud seulement autorisé), réglage de profil, clés chiffrées par

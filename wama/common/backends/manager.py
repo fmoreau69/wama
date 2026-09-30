@@ -87,6 +87,7 @@ def invalidate_engine_cache() -> None:
     """À appeler après une installation de librairie : le prochain `known_engines()`
     re-mesure l'importabilité de chaque backend."""
     _EXECUTABLE_CACHE.clear()
+    _CONTRACT_VERDICT_CACHE.clear()
 
 
 def _executable(cls) -> bool:
@@ -324,7 +325,9 @@ def backend_missing(model) -> Optional[str]:
     composition = getattr(model, 'composition', None) or {}
     engine = (composition.get('runtime') or {}).get('engine') or ''
     if engine:
-        return None if engine in known_engines() else f"moteur « {engine} » sans backend installé"
+        if engine not in known_engines():
+            return f"moteur « {engine} » sans backend installé"
+        return _unserved_by_task_contract(model, engine)
     # ⚠⚠ AUCUN MOTEUR DÉCLARÉ — la permissivité est LEVÉE pour le seul cas sans route (décision
     # de Fabien, 2026-09-29). Elle se justifiait le 05/09 : 159 modèles sur 174 ne déclaraient
     # pas de moteur, les condamner aurait grisé des listes entières. Remesuré le 29/09 : 2 lignes
@@ -344,6 +347,50 @@ def backend_missing(model) -> Optional[str]:
             or getattr(model, 'execution', '') == 'cloud'):
         return None
     return "aucun moteur déclaré et aucune app ne le porte — aucune route d'exécution"
+
+
+def _unserved_by_task_contract(model, engine: str) -> Optional[str]:
+    """Raison si le moteur existe mais qu'AUCUN backend du contrat LIANT de la tâche ne sert CE
+    modèle, sinon None (2026-09-30).
+
+    « Le moteur est exécutable » ne disait pas « ce modèle l'est » : FrWhisper, LinTO et Kyutai
+    STT, installés « poids seulement », déclarent `transformers` — moteur bien servi, par
+    Qwen3-ASR. Le select les proposait donc comme lançables, et le lancement échouait ou les
+    confiait au mauvais backend. Limité aux contrats LIANTS (`TASK_CONTRACTS`) et aux moteurs
+    que le VIVIER de backends connaît : c'est là, et seulement là, que la résolution sait dire
+    non ; ailleurs le verdict reste permissif, comme avant."""
+    import time
+    from wama.common.services.backend_inventory import TASK_CONTRACTS, resolve_entry
+    task = (getattr(model, 'capabilities', None) or {}).get('task') or ''
+    contract = TASK_CONTRACTS.get(task)
+    if not contract or not contract[2]:
+        return None
+    key = getattr(model, 'model_key', '') or ''
+    model_id = key.rsplit(':', 1)[-1] if key else ''
+    memo_key, now = (engine, model_id, task), time.monotonic()
+    hit = _CONTRACT_VERDICT_CACHE.get(memo_key)
+    if hit is not None and now - hit[0] < ENGINE_CACHE_TTL_S:
+        return hit[1]
+    entries = _CONTRACT_VERDICT_CACHE.get('entries')
+    if entries is None or now - entries[0] >= ENGINE_CACHE_TTL_S:
+        from wama.common.services.backend_inventory import resolvable_entries
+        entries = _CONTRACT_VERDICT_CACHE['entries'] = (now, resolvable_entries())
+    # Un moteur servi HORS du vivier (inventaire de noms : `audio-cpp`, `ollama`, le service TTS)
+    # n'a pas de backend à résoudre : la résolution ne sait rien en dire, on ne condamne pas.
+    if not any(e.engine == engine for e in entries[1]):
+        verdict = None
+    elif resolve_entry(engine, model_id, entries[1], task=task) is not None:
+        verdict = None
+    else:
+        verdict = f"moteur « {engine} » : aucun backend de {task} ne sert ce modèle"
+    _CONTRACT_VERDICT_CACHE[memo_key] = (now, verdict)
+    return verdict
+
+
+#: Verdicts par contrat et vivier qui les fonde, mémorisés une minute comme `_EXECUTABLE_CACHE` :
+#: une liste d'options demande le verdict de CHACUN de ses modèles, et relire le vivier coûtait
+#: ~0,4 s par modèle sur `/mnt/d` (mesuré le 2026-09-30).
+_CONTRACT_VERDICT_CACHE: dict = {}
 
 
 #: Sources des lignes créées par le BALAYAGE GÉNÉRIQUE d'un snapshot (`model_registry`,
