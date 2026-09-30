@@ -18922,3 +18922,26 @@ des installations) ; Lab après P3 ; versionnement des migrations (décision) ; 
   méthodes de test » mesuré 1311 pour 1310. Aucun nom signalé n'est absent de HEAD, et aucun des
   noms ajoutés par les commits récents n'est signalé : l'écart est entré par un déplacement de
   fichiers (candidat : `ddd50184`, tests de `cam_analyzer` en paquet). À recaler par son auteur.
+
+## §PALIER — 2026-09-30 (nuit), COUCHE « INSTALLATIONS » DU CALENDRIER (demande de Fabien)
+
+`e10541a1` (+ docs générées `b99c44ed`) — journal DATÉ `model_manager.InstallEvent` : installations
+et désinstallations de modèles et de librairies, issue et VOIE (model manager, assistant, marcheur
+d'app, ligne de commande), sans nommer personne (couche instance, décision du 28/09). Écrit aux
+points UNIQUES de la route : `dispatch_install` (seul dispatch des deux tâches — `request_install`,
+donc bouton ET assistant, et le marcheur d'app), reprise par la tâche (`resumed`), `uninstall_model`,
+`install_library` (pip réel). Le calendrier l'affiche par `register_instance_layer` (inscrit par
+`model_manager/apps.py`), à qui a accès au model_manager, sous sa facette « Installations ».
+Doc : `WAMA_MEMORY §9bis.1` étape 6. Migration additive `model_manager/0021` APPLIQUÉE.
+⚠ **Leçon, relevée par une autre instance** : une 1ʳᵉ version passait `via=` DANS le message
+Celery — un worker resté sur l'ancien code levait `TypeError` et l'installation de pyannote a
+échoué. Corrigé avant commit : AUCUN argument nouveau dans les messages (la voie s'écrit côté
+demande), garde « les tâches ne partent que par `dispatch_install` ». *Un champ ajouté à un message
+de file est une migration, et les workers ne la jouent qu'au redémarrage.*
+Au passage, `disk_space_guard` ne prend plus 0,0 Go pour une taille inconnue (`is not None`) : un
+dépôt de pipeline léger était refusé pour « taille indéterminable » — diagnostic de l'autre instance.
+⚠ Mon `git checkout` des deux docs générées a effacé une régénération non commitée d'une autre
+instance (rattrapable par `doc_facts`, signalé) — piège ajouté au skill `commit-partiel §4`.
+**À faire** : recharger gunicorn et relancer les workers pour activer le journal. **Le Lab** ne se
+programme pas encore : il attend P3 (moteur commun, à extraire de `cam_analyzer`), un chantier à
+part entière et non commencé.
