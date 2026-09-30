@@ -176,6 +176,30 @@ class TranscriberEvaluationTest(TestCase):
                          'the extract title and the export header are not speech')
         self.assertEqual(2, answer['item']['reading']['outside_speech'])
 
+    PARTIAL_SONAL = ('Entretien exporté depuis Sonal (v.2.1)\n'
+                     '1 - 00:00 > 00:05 [ Thème]\nSpeaker 1 :\nLe chat dort.\n'
+                     '2 - 00:05 > 00:10 [ Thème]\n')
+
+    def test_an_extract_left_empty_in_the_reference_is_not_counted_against_the_engine(self):
+        """Sonal extract 2 is empty: what the engine heard there has nothing to face (lot #489)."""
+        item = self._transcript('le chat dort bruit entendu ailleurs', segments_json=[
+            {'text': 'le chat dort', 'start_time': 0.0, 'end_time': 3.0},
+            {'text': 'bruit entendu ailleurs', 'start_time': 6.0, 'end_time': 9.0}])
+        answer = self._attach(item, self.PARTIAL_SONAL, 'sonal.txt')
+        wer = answer['item']['metrics'][0]
+        self.assertEqual((0.0, 0), (wer['value'], wer['insertions']))
+        reading = answer['item']['reading']
+        self.assertEqual(1, reading['empty_windows'])
+        self.assertEqual({'spans': 1, 'segments_kept': 1, 'segments': 2}, reading['restricted'])
+        self.assertNotIn('covered_spans', reading, 'the spans serve the measure, not the display')
+
+    def test_an_untimed_result_is_measured_whole_and_says_so(self):
+        item = self._transcript('le chat dort bruit entendu ailleurs', segments_json=[
+            {'text': 'le chat dort bruit entendu ailleurs', 'start_time': None, 'end_time': None}])
+        answer = self._attach(item, self.PARTIAL_SONAL, 'sonal.txt')
+        self.assertEqual(3, answer['item']['metrics'][0]['insertions'])
+        self.assertIsNone(answer['item']['reading']['restricted'])
+
     def test_a_relaunch_forgets_the_measure_and_keeps_the_reference(self):
         from wama.common.services.result_evaluation import item_evaluation
         from wama.transcriber.views import _reset_for_relaunch

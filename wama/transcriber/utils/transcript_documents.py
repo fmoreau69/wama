@@ -88,6 +88,14 @@ class TranscriptDocument:
         """Chaque segment porte ses temps (SRT/VTT) — sinon il faudra les aligner."""
         return bool(self.segments) and all(s['start_time'] is not None for s in self.segments)
 
+    @property
+    def transcribed_windows(self) -> List[dict]:
+        """Les extraits qui portent de la parole. Un export Sonal peut en laisser VIDES (mesuré le
+        2026-09-30 : 4 extraits sur 21, ~8 min, dans un entretien de 2 h 22) — ce que le moteur
+        y entend n'a alors rien en face, et ne doit pas compter comme un ajout."""
+        spoken = {s.get('window') for s in self.segments if s.get('text')}
+        return [w for position, w in enumerate(self.windows) if position in spoken]
+
 
 def parse_timecode(value: str) -> Optional[float]:
     """« 01:02:03,500 », « 02:03.5 », « 10:56 » → secondes. None si illisible."""
