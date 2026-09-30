@@ -82,6 +82,35 @@ def auto_entry(meta: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
             'inputs_optional': sorted(set().union(*alls) - req)}
 
 
+def input_attribute_verdict(capabilities: Optional[dict], token: str, path: str):
+    """`(état, raison)` : ce FICHIER satisfait-il ce que le modèle exige des ATTRIBUTS de l'entrée
+    `token` ? — capacité `input_attributes` (2026-09-30), jugée par `natures.asset_accepts`.
+
+    Le rôle ne suffit pas toujours : un maillage TripoSR est bien un `work_object3d`, mais sans
+    squelette ni visage TalkingHead n'en fera jamais parler personne. Les attributs sont MESURÉS
+    dans le fichier (`media_probe`) : le verdict ne dépend pas de ce que l'utilisateur a saisi.
+    États : `compatible` / `warning` (souhaité manquant) / `incompatible` (requis manquant) —
+    la raison NOMME ce qui manque, pour être affichée telle quelle. Sans exigence déclarée :
+    `('compatible', '')`, on ne juge jamais ce que le modèle ne demande pas.
+    """
+    from wama.media_library.natures import COMPATIBLE, AssetSpec, asset_accepts, resolve_asset_type
+
+    wanted = ((capabilities or {}).get('input_attributes') or {}).get(token) or {}
+    if not wanted:
+        return COMPATIBLE, ''
+    from wama.common.app_registry import category_of_path
+    from wama.common.utils.media_probe import probe_media
+    try:
+        nature = resolve_asset_type(category_of_path(path), filename=str(path))
+    except ValueError as exc:
+        from wama.media_library.natures import INCOMPATIBLE
+        return INCOMPATIBLE, str(exc)
+    attributes = (probe_media(str(path)) or {}).get('attributes') or {}
+    spec = AssetSpec(require=dict(wanted.get('require') or {}),
+                     prefer=dict(wanted.get('prefer') or {}))
+    return asset_accepts(spec, nature, attributes)
+
+
 def input_labels() -> Dict[str, str]:
     """{input_id: libellé} depuis INPUT_TYPES (source déclarée commune) — fail-safe {}."""
     try:

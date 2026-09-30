@@ -63,10 +63,11 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
         Un seul port : l'onglet reste, il nomme le rôle (« rôles très explicites », exigence 1).{% endcomment %}
         <div class="wama-port-tabs" role="tablist">
         {% for p in ports %}
-            <span class="wama-port-tab{% if forloop.first %} is-active{% endif %}{% if p.required %} is-required{% endif %}"
+            <span class="wama-port-tab{% if forloop.first %} is-active{% endif %}{% if p.required %} is-required{% endif %}{% if p.one_of %} is-required-one-of{% endif %}"
                   role="tab" data-port-tab="{{ p.id }}">
                 {% if p.kind == 'live' %}🎙{% elif p.group == 'reference' %}📎{% else %}🎞{% endif %}
-                {{ p.label }}{% if p.required %}<span class="wama-port-k">requis</span>{% endif %}
+                {% comment %}« requis · ou … » : l'un des ports du groupe suffit (`app_input_ports`, 2026-09-30).{% endcomment %}
+                {{ p.label }}{% if p.required %}<span class="wama-port-k">requis</span>{% elif p.one_of %}<span class="wama-port-k" title="L'un ou l'autre suffit">requis · ou {{ p.one_of|join:', ' }}</span>{% endif %}
                 <span class="wama-port-n" data-port-count></span>
             </span>
         {% endfor %}
@@ -106,7 +107,7 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
             tuile Importer est câblée par `wama-input-slots.js` (`data-port-import-self`) : pas
             d'URL, de dossier ni de lot ici — ce sont des gestes du port principal.{% endcomment %}
             {% with pid=card_id|default:'newItemCard'|add:'-'|add:p.id %}
-            <div class="wama-port-pane{% if forloop.first %} is-active{% endif %}{% if p.required %} is-required{% endif %}"
+            <div class="wama-port-pane{% if forloop.first %} is-active{% endif %}{% if p.required %} is-required{% endif %}{% if p.one_of %} is-required-one-of{% endif %}{% if p.one_of_first %} is-one-of-first{% endif %}"
                  id="{{ pid }}-pane" data-port-pane="{{ p.id }}" data-port-kind="file" data-port-input="{{ pid }}-input"
                  data-port-library="{{ p.library_type }}"{% if p.library_prefer %} data-port-library-prefer="{{ p.library_prefer }}"{% endif %}>
                 <div class="wama-port-face wama-port-face-mods is-active" data-port-face="mods">
@@ -132,7 +133,7 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
             </div>
             {% endwith %}
             {% elif p.group == 'travail' %}
-            <div class="wama-port-pane{% if forloop.first %} is-active{% endif %}{% if p.required %} is-required{% endif %}"
+            <div class="wama-port-pane{% if forloop.first %} is-active{% endif %}{% if p.required %} is-required{% endif %}{% if p.one_of %} is-required-one-of{% endif %}{% if p.one_of_first %} is-one-of-first{% endif %}"
                  data-port-pane="{{ p.id }}" data-port-kind="file" data-port-input="{{ file_input_id }}"
                  data-port-library="{{ p.library_type }}"{% if p.library_prefer %} data-port-library-prefer="{{ p.library_prefer }}"{% endif %}>
                 <div class="wama-port-face wama-port-face-mods is-active" data-port-face="mods">

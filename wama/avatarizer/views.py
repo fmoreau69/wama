@@ -221,9 +221,11 @@ def create(request):
         avatar_received = received_inputs(request, user, 'avatarizer', field='avatar_upload')
         avatar_file = avatar_received[0] if avatar_received else None
         if not avatar_file:
-            return JsonResponse({'error': avatar_received.refusal or "Importez une image avatar."},
+            return JsonResponse({'error': avatar_received.refusal
+                                 or "Importez un avatar : une photo ou un objet 3D (.glb)."},
                                 status=400)
-    validator = FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp'])
+    from .models import AVATAR_FILE_EXTENSIONS
+    validator = FileExtensionValidator(allowed_extensions=AVATAR_FILE_EXTENSIONS)
     try:
         validator(avatar_file)
     except ValidationError as e:

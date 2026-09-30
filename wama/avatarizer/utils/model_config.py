@@ -59,6 +59,22 @@ AVATARIZER_MODELS = {
         'version': 'v10',
         'description': "MuseTalk V1.0 — version historique, fallback si les poids v1.5 manquent.",
     },
+    # Avatar 3D riggé rendu en vidéo (2026-09-30) — PAS de poids : le moteur est TalkingHead
+    # (vendorisé sous `static/vendors/`), l'« objet » animé est le GLB fourni par l'utilisateur.
+    # Ce qu'il EXIGE de ce GLB se déclare en attributs de la nature `object3d`, mesurés dans le
+    # fichier (`media_probe`) : squelette + visage ARKit requis, visèmes Oculus souhaités.
+    'talkinghead': {
+        'model_id': 'talkinghead',
+        'engine': 'talkinghead',
+        'repo': 'met4citizen/TalkingHead',
+        'license': 'MIT',
+        'type': 'lipsync',
+        'vram_gb': 0.2,          # mesuré le 2026-09-30 (talkinghead_backend.recommended_vram_gb)
+        # Langues ayant un module de visèmes (wama-avatar.js) ; les autres parlent en visèmes anglais.
+        'languages': ['fr', 'en', 'de', 'fi', 'lt'],
+        'description': "TalkingHead — avatar 3D riggé (GLB) animé par l'audio, rendu image par image ; "
+                       "rapide, sans modèle génératif, non photoréaliste.",
+    },
     'codeformer': {
         'model_id': 'codeformer',
         'hf_id': 'sczhou/CodeFormer',

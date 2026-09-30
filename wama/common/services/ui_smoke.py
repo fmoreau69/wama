@@ -523,9 +523,12 @@ def _fill_required_ports(page) -> list:
     portés par aucune voie d'import (`.is-required [data-port-import-self]`) : le principal,
     lui, reçoit le geste mesuré. Rend les fichiers témoins posés — à SUPPRIMER PAR L'APPELANT
     à la fin du geste : le navigateur relit le fichier AU MOMENT DE L'ENVOI, le supprimer après
-    `set_input_files` fait échouer la requête en « Failed to fetch » (mesuré le 2026-09-29)."""
+    `set_input_files` fait échouer la requête en « Failed to fetch » (mesuré le 2026-09-29).
+    Un groupe « l'un OU l'autre » (`is-required-one-of`, 2026-09-30 : image OU objet 3D chez
+    l'avatarizer) ne demande qu'UN port : on remplit son premier (`is-one-of-first`)."""
     ports = page.evaluate("""() => [...document.querySelectorAll(
-            '.wama-port-pane.is-required [data-port-import-self] input[type=file]')]
+            '.wama-port-pane.is-required [data-port-import-self] input[type=file],'
+            + '.wama-port-pane.is-one-of-first [data-port-import-self] input[type=file]')]
         .map(i => ({id: i.id, accept: i.getAttribute('accept') || ''}))""") or []
     witnesses = []
     for port in ports:

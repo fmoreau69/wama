@@ -255,7 +255,9 @@ def studio_node_ports(app_id):
     output = {'id': 'out', 'label': 'Sortie', 'types': out_cats}
     depuis_modeles = app_input_ports(app_id)
     if depuis_modeles:
-        inputs = [{k: v for k, v in p.items() if k != 'required'} for p in depuis_modeles]
+        # `required` / `one_of` : l'OBLIGATION d'une card d'app — un nœud du studio n'en porte pas.
+        inputs = [{k: v for k, v in p.items() if k not in ('required', 'one_of')}
+                  for p in depuis_modeles]
         return {'inputs': inputs + _app_result_port_shapes(app_id, inputs), 'output': output}
 
     inputs = []
@@ -347,8 +349,9 @@ def app_input_ports(app_id, domain=None):
                  composé (`image_video`) retient ses composantes. Domaine non résolu ⇒ aucun
                  filtre — on préfère un slot de trop à un slot perdu.
     Returns:
-        [{id, label, group, types, multi, required, description}] — MÊME forme que
-        `studio_node_ports()['inputs']`, plus `required`. Liste vide si l'app n'a aucun modèle
+        [{id, label, group, types, multi, required, one_of, description}] — MÊME forme que
+        `studio_node_ports()['inputs']`, plus `required` et `one_of` (les autres jetons d'un
+        groupe « l'un OU l'autre », `[]` hors groupe). Liste vide si l'app n'a aucun modèle
         déclarant ses entrées (converter : aucun moteur IA) — l'appelant garde alors sa
         dérivation actuelle, aucune app ne régresse.
     """
@@ -404,6 +407,22 @@ def app_input_ports(app_id, domain=None):
     requis = set(union.get('inputs_required') or [])
     optionnels = set(union.get('inputs_optional') or [])
 
+    # ── EXIGENCES ALTERNATIVES — « l'un OU l'autre » (2026-09-30) ───────────────────────────
+    # L'intersection dit ce que TOUS les modèles exigent ; elle se tait sur ce que CHACUN exige
+    # en plus. Cas réel : l'avatarizer — MuseTalk exige `work_image` + `work_audio`, TalkingHead
+    # `work_object3d` + `work_audio`. Intersection : l'audio seul ; les deux ports d'avatar
+    # sortaient « facultatifs », et la card ne pouvait pas dire qu'il en manquait un.
+    # Groupe alternatif = quand CHAQUE modèle exige exactement UN jeton de plus que le tronc
+    # commun, et que ces jetons diffèrent : fournir l'un d'eux suffit. Hors de cette forme
+    # (un modèle en exige deux de plus, un autre aucun), on ne dit rien plutôt qu'une demi-vérité.
+    exiges = [set(c.get('inputs_required') or []) for c in meta.values()]
+    en_plus = [e - requis for e in exiges]
+    alternatives = set()
+    if en_plus and all(len(e) == 1 for e in en_plus):
+        alternatives = set().union(*en_plus)
+        if len(alternatives) < 2:
+            alternatives = set()
+
     # ⚠ RÔLE et NATURES sont deux choses, et il faut les DEUX (mesuré le 2026-09-10).
     # Le jeton dit le RÔLE (`work_audio` = l'audio transformé) ; les natures acceptées, elles,
     # se déclarent au niveau APP (`input_types`). Tirer les types du seul `accept` du jeton
@@ -458,6 +477,8 @@ def app_input_ports(app_id, domain=None):
             'types': types,
             'multi': bool(spec.get('multi')),
             'required': jeton in requis,
+            # Les AUTRES jetons de son groupe alternatif : ce port est requis « ou » l'un d'eux.
+            'one_of': sorted(alternatives - {jeton}) if jeton in alternatives else [],
             'description': spec.get('description', ''),
         })
     return ports
@@ -797,9 +818,15 @@ APP_CATALOG = {
         'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-user-circle',
         'url_name':    'avatarizer:index',
-        'description': 'Génération de vidéos d\'avatars lip-sync animés par IA (MuseTalk + CodeFormer).',
-        'input_extensions': AUDIO_EXTENSIONS + IMAGE_EXTENSIONS,  # audio (standalone) + image (avatar)
-        'input_types': ('audio', 'image', 'prompt'),  # texte à dire → pipeline TTS→avatar (jeton de RÔLE, arbitrage text 30/08)
+        'description': 'Génération de vidéos d\'avatars parlants : une photo animée par IA (MuseTalk + '
+                       'CodeFormer) ou un avatar 3D riggé rendu par TalkingHead.',
+        # `.glb` (2026-09-30) : l'avatar 3D du moteur `talkinghead`. GLB seul — un `.gltf` à
+        # tampons externes ne se charge pas depuis un fichier unique.
+        'input_extensions': AUDIO_EXTENSIONS + IMAGE_EXTENSIONS + ('.glb',),
+        # `3d` : la NATURE que porte le port `work_object3d` (l'app apporte les natures, les
+        # modèles les rôles — `app_input_ports`). Sans elle, le port 3D hériterait de TOUTES les
+        # natures de l'app (repli de `app_input_ports` quand le partage ne trouve rien).
+        'input_types': ('audio', 'image', '3d', 'prompt'),  # texte à dire → pipeline TTS→avatar (jeton de RÔLE, arbitrage text 30/08)
         # Corrigé 2026-08-28 (flags mesurés FAUX — le batch unifié `-p "texte" -r avatar.png` /
         # `-i audio.wav` existe depuis parse_unified_batch, et l'URL passe par WAMA_INGEST
         # (source_url, show_url sur la card commune)) :

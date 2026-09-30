@@ -2831,5 +2831,43 @@ class ModelRegistry:
                     },
                 )
 
+            # ── TalkingHead — avatar 3D riggé (moteur `talkinghead`, 2026-09-30) ──
+            # Lu dans la DÉCLARATION de l'app, comme CodeFormer. Pas de poids : il est « présent »
+            # quand son backend peut tourner (Playwright + bibliothèque vendorisée).
+            th = AVATARIZER_MODELS.get('talkinghead') or {}
+            if th:
+                from wama.common.backends.talkinghead_backend import TalkingHeadBackend
+                self._models['avatarizer:talkinghead'] = ModelInfo(
+                    id='avatarizer:talkinghead',
+                    name='TalkingHead (avatar 3D)',
+                    model_type=ModelType.LIPSYNC,
+                    source=ModelSource.WAMA_AVATARIZER,
+                    description=th.get('description', ''),
+                    vram_gb=th.get('vram_gb'),
+                    is_downloaded=TalkingHeadBackend.is_available(),
+                    extra_info={'repo': th.get('repo'), 'license': th.get('license'),
+                                'model_id': 'talkinghead'},
+                    # Le RÔLE (`work_object3d`) et les ATTRIBUTS exigés de l'objet (nature A′) :
+                    # un maillage TripoSR a le bon rôle mais ni squelette ni visage — il est
+                    # refusé AVEC sa raison, jamais accepté pour sortir une bouche immobile.
+                    # Le texte (`prompt`) donne les mots, donc les lèvres ; il est optionnel : sans
+                    # lui, l'audio est transcrit (brique commune `whisper_utils`).
+                    capabilities={
+                        'task': 'lip-sync',
+                        'modalities': ['3d', 'audio', 'video'],
+                        'inputs_required': ['work_object3d', 'work_audio'],
+                        'inputs_optional': ['prompt'],
+                        'input_attributes': {'work_object3d': {
+                            'require': {'rigged': True, 'face_rig': 'arkit'},
+                            'prefer': {'visemes': 'oculus'}}},
+                        'languages': list(th.get('languages') or []),
+                    },
+                    backend_ref='avatarizer',
+                    format='glb',
+                    preferred_format='glb',
+                    can_convert_to=[],
+                    composition={'runtime': {'engine': 'talkinghead'}},
+                )
+
         except Exception as e:
             logger.debug(f"Could not discover Avatarizer models: {e}")
