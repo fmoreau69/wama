@@ -1017,6 +1017,23 @@ fermés au compte de test.)
 > indisponibles** alors que le serveur tournait et que la faute était l'appel Playwright.
 > Un skip nomme ce qu'on a **vu**, pas ce qu'on suppose.
 
+### Geste 14 (« glisser depuis l'ARBRE ») — `<app>.tree_drop`, né de la revérification du 2026-09-30
+
+La card v4 a PLUSIEURS tuiles de dépôt (travail, port de référence ou secondaire, Lot), et le
+glisser depuis l'explorateur choisit sa voie d'après la tuile sous le pointeur
+(`filemanager.js`, `dnd_stop.vakata`). Aucun geste ne le mesurait : trois défauts y ont vécu du
+29 au 30/09 (`MEDIA_STORAGE_TIERING §8.6` D29-D31). Le scénario rejoue les événements jstree
+(`dnd_move/dnd_stop.vakata`) — ce sont les écouteurs du gestionnaire qui décident, pas lui —, avec
+deux sources : le dossier TEMPORAIRE du compte de test (fichier désigné) et un dossier CONNECTÉ
+jetable (`MountedFolder`, retiré en sortie). Les attendus se lisent sur la DÉCLARATION de la card
+(`data-wama-depot`, tuiles présentes, `accept` de chaque port), jamais sur un nom d'app : tuile de
+travail → élément créé (card « crée ») ou fichier joint (« attache ») ; tuile de port → fichier
+admis désigné, fichier hors `accept` refusé ET dit ; tuile Lot → barre de lot ouverte, et un
+fichier qui n'est pas un lot refusé et dit — rien de créé. Card v3 : non applicable (zone unique,
+mesurée par `<app>.import`). Contre-épreuve : avec le `filemanager.js` de HEAD, rouge sur le
+composer (`.txt` désigné comme mélodie, lot ignoré) et l'anonymizer (lot ignoré, 1 élément créé
+par un non-lot).
+
 ### Geste de SUPPRESSION depuis le gestionnaire (2026-09-26) — le premier geste dont le succès est un REFUS
 
 Posé par la décision D20 de Fabien (`MEDIA_STORAGE_TIERING §8.6`) : *supprimer un fichier qu'une

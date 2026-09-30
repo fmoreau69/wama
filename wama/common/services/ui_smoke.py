@@ -1184,6 +1184,225 @@ def register_send_to_scenarios():
         )
 
 
+# ── Geste 14, part « glisser depuis l'ARBRE » sur la card v4 (2026-09-30) ──────────────
+#
+# POURQUOI CE GESTE. La revérification demandée par Fabien le 2026-09-30 (« tout est ok, rien
+# n'est perdu, rien n'est oublié, rien n'est cassé ») a trouvé TROIS défauts du glisser depuis
+# l'explorateur sur la card v4, invisibles depuis le 29/09 parce qu'aucun geste ne le mesurait :
+# la tuile Lot envoyait le fichier à l'import serveur (un lot devenait un fichier de TRAVAIL :
+# 2 éléments créés par un `.txt`), une tuile de port désignait n'importe quel fichier (un
+# `.txt` devenait la mélodie de référence), et `findDropZoneAt` prenait la tuile MASQUÉE d'un
+# onglet inactif pour une card repliée. Le glisser jstree n'a pas de `dataTransfer` natif :
+# on le rejoue par les événements `dnd_move/dnd_stop.vakata` que le gestionnaire écoute — ce
+# sont SES écouteurs qui décident, pas le scénario.
+# Témoins : le dossier temporaire du compte de test (fichier local, DÉSIGNÉ) ET un dossier
+# CONNECTÉ jetable (`MountedFolder`, fichier matérialisé ou importé en copie).
+
+_TREE_DROP = """async ({sel, files}) => {
+  const el = document.querySelector(sel);
+  if (!el) return 'cible absente : ' + sel;
+  const r = el.getBoundingClientRect();
+  if (!r.width) return 'cible masquée : ' + sel;
+  const ev = {pageX: r.left + r.width / 2 + window.scrollX, pageY: r.top + r.height / 2 + window.scrollY};
+  window._fileManagerDragData = Object.assign({files: files}, files[0]);
+  jQuery(document).trigger('dnd_move.vakata', [{event: ev, helper: jQuery('<div>')}]);
+  jQuery(document).trigger('dnd_stop.vakata', [{event: ev}]);
+  return '';
+}"""
+
+_TREE_TILES = """() => {
+  const card = document.querySelector('[data-wama-ports]');
+  if (!card) return null;
+  const tiles = [];
+  card.querySelectorAll('[data-port-pane]').forEach(pane => {
+    const lot = pane.querySelector('[data-lot-import]');
+    const self = pane.querySelector('[data-port-import-self]');
+    const work = pane.querySelector('.drop-zone[id]:not([data-port-import-self]):not([data-lot-import])');
+    const zone = lot || self || work;
+    if (!zone) return;
+    const input = lot ? zone.querySelector('[data-lot-input]') : (document.getElementById(pane.dataset.portInput) || zone.querySelector('input[type=file]'));
+    tiles.push({pane: pane.dataset.portPane, kind: lot ? 'lot' : (self ? 'port' : 'work'),
+                sel: lot ? '[data-lot-import]' : (self ? '[data-port-pane="' + pane.dataset.portPane + '"] [data-port-import-self]' : '#' + zone.id),
+                input: input ? input.id : '', accept: input ? (input.getAttribute('accept') || '') : ''});
+  });
+  return {depot: card.dataset.wamaDepot, tiles: tiles};
+}"""
+
+_TREE_STATE = """(inputId) => {
+  const bar = [...document.querySelectorAll('[id$="DetectBar"]')].find(b => b.style.display !== 'none');
+  const i = inputId && document.getElementById(inputId);
+  return {bar: bar ? parseInt((bar.querySelector('[id$="DetectedCount"]') || {}).textContent || '0', 10) : 0,
+          files: i && i.files ? i.files.length : 0, designated: i ? (i.dataset.designatedPath || '') : '',
+          toasts: (window.__wamaToasts || []).slice()};
+}"""
+
+_TREE_RESET = """() => {
+  const c = [...document.querySelectorAll('[id$="CancelBar"]')].find(b => b.offsetParent); if (c) c.click();
+  document.querySelectorAll('[data-wama-ports] input[type=file]').forEach(i => { try { i.value = ''; } catch (e) {}
+    delete i.dataset.designatedPath; delete i.dataset.designatedName; });
+  document.querySelectorAll('[data-wama-ports] [data-files-back]').forEach(b => b.click());
+  window.__wamaToasts = [];
+}"""
+
+
+def _accepts_like_js(accept: str, name: str, mime: str) -> bool:
+    """Même règle que `WamaImport.accepts` (le JS), pour CHOISIR les témoins côté scénario."""
+    tokens = [t.strip().lower() for t in (accept or '').split(',') if t.strip()]
+    if not tokens or '*/*' in tokens or '*' in tokens:
+        return True
+    return any(name.lower().endswith(t) if t.startswith('.') else
+               (mime.startswith(t[:-1]) if t.endswith('/*') else mime == t) for t in tokens)
+
+
+def check_app_tree_drop(app: str, url_path: str):
+    """Glisser un fichier de l'ARBRE sur chaque tuile de la card v4 fait-il ce que la tuile promet ?
+
+    Rend (ok, detail). Attendus, par tuile DÉCLARÉE par la card (jamais par nom d'app) :
+      • tuile de travail, card qui CRÉE : un élément par le fichier local (désigné) ET par le
+        fichier du dossier connecté (copié) ;
+      • tuile de travail, card qui ATTACHE : le fichier rejoint l'input du port, rien n'est créé ;
+      • tuile de port (référence, travail secondaire) : un fichier admis est DÉSIGNÉ, un fichier
+        hors `accept` est REFUSÉ et le refus est DIT ;
+      • tuile Lot : un lot ouvre la barre (N éléments annoncés, rien de créé) ; un fichier qui
+        n'est pas un lot (depuis le dossier connecté) est REFUSÉ et dit, rien de créé.
+    """
+    import shutil
+    import tempfile
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    session_key = _test_session_key(app)
+    uid = _test_account_id(app)
+    if not session_key or not uid:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+    try:
+        from wama.common.utils.preview_registry import PreviewRegistry
+        model = PreviewRegistry.get_model(app)
+    except Exception:
+        model = None
+    count_items = (lambda: _in_plain_thread(lambda: model.objects.count(), timeout=20)) if model else (lambda: 0)
+
+    temp_rel = f'users/{uid}/temp/tree_drop_{app}'
+    temp_dir = Path(settings.MEDIA_ROOT) / temp_rel
+    mounted_dir = Path(tempfile.mkdtemp(prefix='wama_tree_drop_'))
+    witnesses = {}
+    for ext, mime in (('.png', 'image/png'), ('.wav', 'audio/x-wav'), ('.txt', 'text/plain')):
+        src_file = _fichier_temoin(ext)
+        for folder in (temp_dir, mounted_dir):
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / f'temoin{ext}').write_bytes(src_file.read_bytes())
+        src_file.unlink(missing_ok=True)
+        witnesses[ext] = mime
+    from wama.filemanager.models import MountedFolder
+    mount = _in_plain_thread(lambda: MountedFolder.objects.create(
+        user_id=uid, name=f'tree_drop_{app}', local_path=str(mounted_dir)), timeout=20)
+
+    def drag_file(ext, mounted=False):
+        path = f'mounts/{mount.pk}/temoin{ext}' if mounted else f'{temp_rel}/temoin{ext}'
+        return {'path': path, 'name': path.split('/')[-1], 'mime': witnesses.get(ext, 'text/plain')}
+
+    passed, failed = [], []
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    try:
+        with _garde_de_montage(app, 'tree_drop') as cleaned:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                try:
+                    context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                    context.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': session_key,
+                                           'domain': '127.0.0.1', 'path': '/'}])
+                    page = context.new_page()
+                    js_errors = []
+                    page.on('pageerror', lambda e: js_errors.append(str(e)))
+                    page.on('dialog', lambda d: d.dismiss())
+                    resp = page.goto(url, wait_until='networkidle', timeout=45000)
+                    wrong_page = _exiger_la_page(page, resp, url_path)
+                    if wrong_page:
+                        return wrong_page
+                    card = page.evaluate(_TREE_TILES)
+                    if not card:
+                        raise SkipScenario("pas de card d'entrée v4 sur cette page — le glisser vers une "
+                                           "card v3 passe par sa zone unique, mesurée par `<app>.import`")
+                    lot_tile = next((t for t in card['tiles'] if t['kind'] == 'lot'), None)
+                    if lot_tile:
+                        (temp_dir / 'lot.txt').write_text(page.evaluate(_GABARIT_DE_LOT) or '', encoding='utf-8')
+
+                    def gesture(label, tile, dragged, expect):
+                        page.wait_for_load_state('networkidle')
+                        # Observateur armé sur un DRAPEAU, pas sur l'existence de la liste : un
+                        # import serveur RECHARGE la page, et la remise à zéro recréait la liste
+                        # sur la page neuve — l'observateur n'y était plus jamais posé.
+                        page.evaluate("""() => { if (!window.__wamaToastObs) { window.__wamaToastObs = true;
+                            window.__wamaToasts = window.__wamaToasts || [];
+                            new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
+                              if (n.nodeType === 1 && /toast/i.test(n.className || ''))
+                                window.__wamaToasts.push((n.textContent || '').trim().slice(0, 120)); })))
+                              .observe(document.body, {childList: true, subtree: true}); } }""")
+                        _deplier_autour(page, '[data-wama-ports] [data-port-pane]')
+                        page.locator(f'[data-wama-ports] [data-port-tab="{tile["pane"]}"]').click()
+                        page.wait_for_timeout(250)
+                        before = count_items()
+                        problem = page.evaluate(_TREE_DROP, {'sel': f'[data-wama-ports] {tile["sel"]}', 'files': [dragged]})
+                        page.wait_for_timeout(3500)
+                        page.wait_for_load_state('networkidle')
+                        state = page.evaluate(_TREE_STATE, tile['input'])
+                        state['crees'] = count_items() - before
+                        reason = problem or expect(state)
+                        (failed if reason else passed).append(f"{label} : {reason or 'ok'}")
+                        page.evaluate(_TREE_RESET)
+
+                    for t in card['tiles']:
+                        accepted = next((e for e in ('.png', '.wav', '.txt')
+                                      if _accepts_like_js(t['accept'], 'x' + e, witnesses[e])), None)
+                        rejected = next((e for e in ('.txt', '.png', '.wav')
+                                       if not _accepts_like_js(t['accept'], 'x' + e, witnesses[e])), None)
+                        if t['kind'] == 'lot':
+                            gesture('arbre → Lot (lot)', t, drag_file('.txt') | {'path': f'{temp_rel}/lot.txt', 'name': 'lot.txt'},
+                                  lambda s: None if s['bar'] > 0 and not s['crees'] else f"barre={s['bar']} créés={s['crees']} {s['toasts']}")
+                            gesture('connecté → Lot (non-lot)', t, drag_file('.txt', True),
+                                  lambda s: None if not s['bar'] and not s['crees'] and s['toasts'] else f"barre={s['bar']} créés={s['crees']} {s['toasts']}")
+                        elif t['kind'] == 'port':
+                            if accepted:
+                                gesture(f"arbre → port {t['pane']} ({accepted})", t, drag_file(accepted),
+                                      lambda s: None if s['designated'] and not s['crees'] else f"désigné={s['designated']!r} créés={s['crees']}")
+                            if rejected:
+                                gesture(f"arbre → port {t['pane']} ({rejected}, refus)", t, drag_file(rejected),
+                                      lambda s: None if not s['designated'] and not s['files'] and s['toasts'] else f"désigné={s['designated']!r} fichiers={s['files']} {s['toasts']}")
+                        elif accepted and card['depot'] == 'attache':
+                            gesture(f"arbre → travail {t['pane']} (attache)", t, drag_file(accepted),
+                                  lambda s: None if (s['designated'] or s['files']) and not s['crees'] else f"désigné={s['designated']!r} fichiers={s['files']} créés={s['crees']}")
+                        elif accepted:
+                            gesture(f"arbre → travail {t['pane']}", t, drag_file(accepted),
+                                  lambda s: None if s['crees'] >= 1 else f"créés={s['crees']} {s['toasts']}")
+                            gesture(f"connecté → travail {t['pane']}", t, drag_file(accepted, True),
+                                  lambda s: None if s['crees'] >= 1 else f"créés={s['crees']} {s['toasts']}")
+                    if js_errors:
+                        failed.append(f"erreur(s) JS : {js_errors[:2]}")
+                finally:
+                    browser.close()
+    finally:
+        _in_plain_thread(lambda: MountedFolder.objects.filter(pk=mount.pk).delete(), timeout=20)
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        shutil.rmtree(mounted_dir, ignore_errors=True)
+    if failed:
+        return False, ' ; '.join(failed) + (f" (réussis : {len(passed)})" if passed else '')
+    return True, f"{len(passed)} geste(s) de l'arbre conformes à leur tuile — " + ' ; '.join(passed)
+
+
+def register_tree_drop_scenarios():
+    """Enregistre un scénario `<app>.tree_drop` par app d'index — glisser depuis l'arbre sur la card v4."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.tree_drop", app=label, stage="ui",
+            description=f"Card d'entrée {label} : glisser un fichier de l'arbre (temporaire, dossier "
+                        f"connecté) sur chaque tuile — travail, port, Lot — fait ce qu'elle promet",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_tree_drop(a, p)))(),
+            timeout_s=300, vram_gb=0.0,
+        )
+
+
 # ── Geste 14, part « URL » : coller un lien au lieu de déposer un fichier ──────────────
 #
 # ⚠ CE GESTE FAIT SORTIR LE SERVEUR, ET LA SORTIE EST GARDÉE. `common/utils/url_guard.py`

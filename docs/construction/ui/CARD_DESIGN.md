@@ -1592,6 +1592,11 @@ l'ordre, sur les ports que `input_slots` rend pour chaque app :
   reader (il LIT) et le describer (il DÉCRIT) ; `work_audio` disait « TRANSFORMÉ (transcription…) ».
   Les deux disent désormais « …que l'app TRAITE : c'est de lui que part le résultat (…) »
   (`app_modes.INPUT_TYPES`), reportées mot pour mot dans les 6 manifestes d'apps concernés.
+- ✅ **2026-09-30, REVÉRIFICATION de toutes les voies d'entrée** (demande de Fabien, avant le
+  synthesizer) : trois défauts du glisser depuis l'arbre sur la card v4, dont un qui créait des
+  éléments à partir d'un lot — corrigés, et le geste qui les voit est désormais au filet
+  nocturne (`<app>.tree_drop`). La table voie × mesure vit dans `MEDIA_STORAGE_TIERING §8.6`
+  (sous D29-D31) ; ne pas la recopier ici.
 - ⏳ **Reste avant l'imager et l'enhancer** : `input_slots(app)` ignore le DOMAINE
   (`app_input_ports` l'accepte) — leurs deux cards (image/vidéo, média/audio) recevraient les
   mêmes ports ; l'imager lit en plus son image par les ids de RÉFÉRENCE (`imgRefInput`,

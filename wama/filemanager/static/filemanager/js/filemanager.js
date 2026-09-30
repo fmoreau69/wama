@@ -1682,24 +1682,32 @@
         // Une zone dans une card d'entrée REPLIÉE (collapsible) est display:none
         // (rect 0×0) : on retombe sur le rect de la card [data-wama-nic] parente,
         // et on DÉPLIE au survol (le dnd jstree est souris, pas de dragover natif).
+        // ⚠ DEUX passes (2026-09-30). Une zone de taille nulle n'est pas forcément dans une card
+        // REPLIÉE : la card v4 masque les tuiles des onglets INACTIFS (port secondaire, Lot…).
+        // La passe unique d'avant renvoyait la PREMIÈRE zone masquée dont la card contenait le
+        // pointeur — déposer sur la tuile Lot visible partait vers la tuile de travail cachée.
+        // Donc : d'abord les zones VISIBLES ; le repli sur une zone masquée ne vaut que si sa card
+        // est réellement repliée (et c'est alors la 1ʳᵉ zone, celle du 1ᵉʳ onglet).
         function findDropZoneAt(x, y) {
             const dropZones = document.querySelectorAll('.drop-zone');
+            const inside = function (rect) {
+                return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+            };
             for (const zone of dropZones) {
-                let rect = zone.getBoundingClientRect();
-                if (!rect.width && !rect.height) {
-                    const host = zone.closest('[data-wama-nic]');
-                    if (!host) continue;
-                    rect = host.getBoundingClientRect();
-                    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-                        const body = host.querySelector('.collapse');
-                        if (body && !body.classList.contains('show') && window.bootstrap) {
-                            bootstrap.Collapse.getOrCreateInstance(body, { toggle: false }).show();
-                        }
-                        return zone;
+                const rect = zone.getBoundingClientRect();
+                if ((rect.width || rect.height) && inside(rect)) return zone;
+            }
+            for (const zone of dropZones) {
+                const rect = zone.getBoundingClientRect();
+                if (rect.width || rect.height) continue;
+                const host = zone.closest('[data-wama-nic]');
+                if (!host) continue;
+                const body = host.querySelector('.collapse');
+                if (!body || body.classList.contains('show')) continue;   // masquée par un onglet
+                if (inside(host.getBoundingClientRect())) {
+                    if (window.bootstrap) {
+                        bootstrap.Collapse.getOrCreateInstance(body, { toggle: false }).show();
                     }
-                    continue;
-                }
-                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
                     return zone;
                 }
             }
@@ -1823,14 +1831,46 @@
                     // `data-port-import-self`, 2026-09-29) : désigné dans l'input du port lui-même.
                     const portInput = currentDropZone.hasAttribute('data-port-import-self')
                         && currentDropZone.querySelector('input[type="file"]');
-                    if (!voie && portInput && locaux && window.WamaApp && WamaApp.designateInto) {
-                        WamaApp.designateInto(portInput, { designation: dragFiles[0].path, name: dragFiles[0].name });
+                    // Onglet LOT de la card v4 (2026-09-29) : le fichier y EST un lot — il va à la
+                    // brique de lot par l'input de l'onglet (dont le `change` appelle
+                    // `previewFile`), jamais à l'import serveur, qui en ferait un fichier de TRAVAIL
+                    // (défaut relevé le 2026-09-30 à la revérification demandée par Fabien).
+                    const lotInput = currentDropZone.hasAttribute('data-lot-import')
+                        && currentDropZone.querySelector('[data-lot-input]');
+                    // Un port ne reçoit que ce que son `accept` admet — la règle de la voie
+                    // d'import (`WamaImport.accepts`) ; sans elle, un `.txt` glissé sur une mélodie
+                    // de référence y était DÉSIGNÉ (le dépôt v3 le refusait ou en faisait un lot).
+                    const admis = function (input) {
+                        const check = window.WamaImport && WamaImport.accepts;
+                        if (!check) return dragFiles;
+                        const ok = dragFiles.filter(function (f) {
+                            return check(input, { name: f.name || String(f.path || '').split('/').pop(),
+                                                  type: f.mime || '' });
+                        });
+                        if (ok.length < dragFiles.length) {
+                            showToast('Non accepté ici : ' + dragFiles.filter(function (f) { return ok.indexOf(f) < 0; })
+                                .map(function (f) { return f.name || f.path; }).join(', '), 'warning');
+                        }
+                        return ok;
+                    };
+                    if (lotInput && window.WamaApp && WamaApp.filesFromServerPaths) {
+                        WamaApp.filesFromServerPaths(dragFiles.slice(0, 1)).then(function (files) {
+                            if (files.length) WamaApp.injectFiles(lotInput, files);
+                        });
+                        if (dragFiles.length > 1) showToast('Un lot à la fois : seul « ' + (dragFiles[0].name || dragFiles[0].path) + ' » est pris.', 'warning');
+                    } else if (!voie && portInput && locaux && window.WamaApp && WamaApp.designateInto) {
+                        const pris = admis(portInput);
+                        if (pris.length) WamaApp.designateInto(portInput, { designation: pris[0].path, name: pris[0].name });
                     } else if (voie && voie.handleDesignations && locaux) {
                         voie.handleDesignations(dragFiles.map(function (f) {
                             return { path: f.path, name: f.name, type: f.mime };
                         }));
                     } else if (attache && cible && window.WamaApp && WamaApp.filesFromServerPaths) {
-                        WamaApp.filesFromServerPaths(dragFiles).then(function (files) {
+                        // Fichier de MONTAGE sur une tuile de port : matérialisé, mais seulement ce
+                        // que le port admet (même règle que la désignation ci-dessus).
+                        const pris = portInput ? admis(portInput) : dragFiles;
+                        if (!pris.length) { currentDropZone = null; return; }
+                        WamaApp.filesFromServerPaths(pris).then(function (files) {
                             if (!files.length) return;   // déjà signalé par la brique
                             if (WamaApp.injectFiles(cible, files)) {
                                 showToast(files.length + ' fichier(s) joint(s) à la card', 'success');

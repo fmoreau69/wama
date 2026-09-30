@@ -422,6 +422,7 @@ try:
                                                register_batch_extract_scenarios,
                                                register_send_to_scenarios,
                                                register_settings_scenarios,
+                                               register_tree_drop_scenarios,
                                                register_ui_scenarios,
                                                register_url_import_scenarios,
                                                register_volet_scenarios,
@@ -565,6 +566,12 @@ try:
     # synthétique — c'est le code de production qui tourne), puis le câblage de l'app (N
     # fichiers posés → N éléments EN BASE, car une app qui groupe rendrait UNE card pour deux).
     register_folder_import_scenarios()
+    # 2026-09-30 — geste 14, part « glisser depuis l'ARBRE » sur la card v4 : chaque tuile
+    # (travail, port, Lot) reçoit un fichier du dossier temporaire ET d'un dossier connecté
+    # jetable. Né de la revérification du 30/09, qui a trouvé trois défauts qu'aucun geste
+    # ne voyait (lot importé comme fichier de travail, port sans contrôle d'`accept`, tuile
+    # masquée d'un onglet inactif prise pour une card repliée).
+    register_tree_drop_scenarios()
 except Exception as _e:                                   # pragma: no cover
     logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")
 

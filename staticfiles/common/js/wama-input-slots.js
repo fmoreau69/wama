@@ -213,6 +213,9 @@
                 e.stopPropagation();       // le lot n'est pas un fichier de travail
                 tile.classList.remove('dragover', 'drag-over');
                 var files = (e.dataTransfer && e.dataTransfer.files) || [];
+                // La barre de lot ne tient QU'UN fichier : le dire plutôt qu'ignorer en silence
+                // les suivants (la portée `each` de la v3 n'en gardait déjà que le dernier).
+                if (files.length > 1) toast('Un lot à la fois : seul « ' + files[0].name + ' » est pris.');
                 if (files.length) take(files[0]);
             });
             input.addEventListener('change', function () {
