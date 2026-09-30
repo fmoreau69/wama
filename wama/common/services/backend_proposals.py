@@ -165,9 +165,17 @@ def simulate_resolution(code: str, *, module: str, engine: str, model_id: str,
             'chosen': (chosen.module if chosen is not None else None)}
 
 
+#: Images demandées au smoke : DEUX, pour éprouver le contrat `num_images` (2026-09-30). Mesuré
+#: sur Supra2-IMG le jour même : deux backends proposés passaient un smoke à UNE image alors que
+#: l'un rendait une seule image pour quatre demandées (deepseek) et l'autre quatre images
+#: IDENTIQUES (qwen3.8, graine non déclinée par image) — ce que la génération réelle a montré.
+SMOKE_IMAGES = 2
+
+
 def smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: Path) -> dict:
     """Exécute le backend proposé SUR CPU, sans l'écrire dans le paquet : chargement puis une
-    génération minimale. Seul le contrat image a un smoke aujourd'hui (les autres le DISENT)."""
+    génération de `SMOKE_IMAGES` images, qui doivent être autant et DISTINCTES. Seul le contrat
+    image a un smoke aujourd'hui (les autres le DISENT)."""
     if contract[1] != 'ImageGenerationBackend':
         return {'ran': False, 'reason': f'pas de smoke pour le contrat {contract[1]}'}
     import tempfile
@@ -193,9 +201,12 @@ def smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: P
                             lambda *a, **k: ['CPUExecutionProvider']):
                 if not backend.load(model_id_of(model_key)):
                     return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                # 10 pas : on éprouve un COMPORTEMENT (chargement, nombre, variété), pas une
+                # qualité — deux images à 10 pas coûtent ce qu'une coûtait à 20.
                 result = backend.generate(GenerationParams(
                     prompt='a red apple on a wooden table', model=model_id_of(model_key),
-                    width=256, height=256, steps=20, guidance_scale=4.0, seed=0))
+                    width=256, height=256, steps=10, guidance_scale=4.0, seed=0,
+                    num_images=SMOKE_IMAGES))
             backend.unload()
         except Exception as e:
             return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
@@ -203,6 +214,15 @@ def smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: P
     if not getattr(result, 'success', False) or not result.images:
         return {'ran': True, 'ok': False, 'error': getattr(result, 'error', 'aucune image'),
                 'seconds': round(time.time() - started, 1)}
+    images = list(result.images)
+    if len(images) != SMOKE_IMAGES:
+        return {'ran': True, 'ok': False, 'seconds': round(time.time() - started, 1),
+                'error': f'num_images={SMOKE_IMAGES} demandé, {len(images)} image(s) rendue(s) '
+                         f'— le backend ignore num_images'}
+    if len({img.tobytes() for img in images}) < len(images):
+        return {'ran': True, 'ok': False, 'seconds': round(time.time() - started, 1),
+                'error': f'{len(images)} images IDENTIQUES — la graine ne varie pas d\'une '
+                         f'image à l\'autre'}
     out_dir.mkdir(parents=True, exist_ok=True)
     image_path = out_dir / f'backend_smoke_{module}.png'
     result.images[0].save(image_path)

@@ -51,6 +51,43 @@ class ImgOnnxBackend(ImageGenerationBackend):
 '''
 
 
+def _generating(images_expr):
+    """A proposed backend whose `generate` returns `images_expr` (evaluated with `params`)."""
+    return GOOD.replace(
+        'return GenerationResult(success=False, error="test")',
+        'from PIL import Image\n'
+        '        return GenerationResult(success=True, images=' + images_expr + ')')
+
+
+class SmokeContractTest(SimpleTestCase):
+    """The smoke asks for TWO images and requires two DISTINCT ones (2026-09-30): the two backends
+    proposed for Supra2-IMG passed a one-image smoke while one ignored `num_images` and the other
+    returned identical images."""
+
+    def _smoke(self, code):
+        with tempfile.TemporaryDirectory() as out, \
+                mock.patch('wama.common.utils.model_components.component_paths', return_value={}), \
+                mock.patch.object(bp, 'settings', mock.Mock(BASE_DIR=Path(out))):
+            return bp.smoke(code, module='img_onnx_smoke', model_key='huggingface:Org/Img-ONNX',
+                            contract=IMAGE, out_dir=Path(out))
+
+    def test_distinct_images_pass(self):
+        res = self._smoke(_generating(
+            '[Image.new("RGB", (8, 8), (i * 60, 0, 0)) for i in range(params.num_images)]'))
+        self.assertTrue(res['ok'], res)
+
+    def test_ignoring_num_images_fails(self):
+        res = self._smoke(_generating('[Image.new("RGB", (8, 8))]'))
+        self.assertFalse(res['ok'])
+        self.assertIn('num_images', res['error'])
+
+    def test_identical_images_fail(self):
+        res = self._smoke(_generating(
+            '[Image.new("RGB", (8, 8)) for _ in range(params.num_images)]'))
+        self.assertFalse(res['ok'])
+        self.assertIn('IDENTIQUES', res['error'])
+
+
 class CheckSourceTest(SimpleTestCase):
 
     def _check(self, code, engine='onnxruntime'):
