@@ -251,6 +251,41 @@ class DiffusersEngineMustBeProvenTest(SimpleTestCase):
                                     files=('config.json', 'model.safetensors'))
         self.assertEqual([], concerns)
 
+    def _resolution(self, manifest, configs):
+        concerns = []
+        self.role_utils.enforce_resolution_facts(
+            manifest, 'org/repo', concerns, lister=lambda _hf: list(configs),
+            loader=lambda name: configs[name])
+        return manifest, concerns
+
+    def test_a_config_size_is_posed_when_the_manifest_is_silent(self):
+        """Real case (2026-09-30): Supra2-IMG, `pipeline_config.json` → `image_size: 256`."""
+        manifest, concerns = self._resolution({'body': {'capabilities': {}}},
+                                              {'pipeline_config.json': {'image_size': 256}})
+        self.assertEqual('256x256', manifest['body']['capabilities']['native_resolution'])
+        self.assertIn('POSÉE', concerns[0])
+
+    def test_a_contrary_size_is_corrected_and_said(self):
+        manifest, concerns = self._resolution(
+            {'body': {'capabilities': {'native_resolution': '1024x1024'}}},
+            {'pipeline_config.json': {'image_size': 256}})
+        self.assertEqual('256x256', manifest['body']['capabilities']['native_resolution'])
+        self.assertIn('CORRIGÉE', concerns[0])
+
+    def test_no_size_in_the_configs_changes_nothing(self):
+        manifest, concerns = self._resolution({'body': {'capabilities': {}}},
+                                              {'config.json': {'architectures': ['X']},
+                                               'sub/config.json': {'image_size': 64}})
+        self.assertNotIn('native_resolution', manifest['body']['capabilities'],
+                         'only ROOT configs speak for the model')
+        self.assertEqual([], concerns)
+
+    def test_both_manifest_roles_apply_the_resolution_fact(self):
+        for name in ('run_scout.py', 'run_model_manifest.py'):
+            with self.subTest(role=name):
+                self.assertIn('enforce_resolution_facts(',
+                              (DEV_AI / name).read_text(encoding='utf-8'))
+
     def test_an_engine_no_backend_serves_is_kept_and_said(self):
         manifest, concerns = self._enforce(self._manifest('no-such-engine'), None)
         self.assertEqual('no-such-engine', manifest['body']['composition']['runtime']['engine'])

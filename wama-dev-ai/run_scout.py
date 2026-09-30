@@ -41,7 +41,8 @@ import django
 django.setup()
 
 from role_utils import (  # noqa: E402
-    REPO_ROOT, add_llm_arguments, call_llm, enforce_engine_facts, extract_json, fetch,
+    REPO_ROOT, add_llm_arguments, call_llm, enforce_engine_facts, enforce_resolution_facts,
+    extract_json, fetch,
     manifest_examples, model_vocabularies, resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'scout.txt').read_text(encoding='utf-8')
@@ -189,6 +190,7 @@ def main():
             cible = cible.setdefault(k, {})
         cible[chemin[-1]] = valeur
     enforce_engine_facts(manifest, args.hf, concerns)
+    enforce_resolution_facts(manifest, args.hf, concerns)
 
     from wama.common.manifests.ingest import validate
     erreurs = list(validate(manifest) or [])

@@ -56,7 +56,8 @@ django.setup()
 
 from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, enforce_engine_facts, extract_json, fetch as _fetch,
+    add_llm_arguments, call_llm, enforce_engine_facts, enforce_resolution_facts, extract_json,
+    fetch as _fetch,
     manifest_examples, model_vocabularies, resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'model.txt').read_text(encoding='utf-8')
@@ -215,6 +216,7 @@ def main():
     hf_id = args.hf or _lire(manifest, ('body', 'identity', 'hf_id'))
     if hf_id:
         enforce_engine_facts(manifest, hf_id, concerns)
+        enforce_resolution_facts(manifest, hf_id, concerns)
         for c in concerns:
             print(f'[model] {c}')
 

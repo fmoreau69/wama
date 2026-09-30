@@ -14,8 +14,9 @@ portage. Gabarit : reader/params.py, transcriber/params.py.
 
 Exceptions app-spécifiques VOLONTAIREMENT hors schéma (widgets bespoke, pas des champs scalaires) :
   • `prompt` : entrée primaire de la card (pas un « réglage »).
-  • résolution image : widget à PRÉSETS (`#settings_resolution` → width/height cachés calculés par
-    `MODEL_RESOLUTION_CONFIG`), pas un champ modèle direct → reste géré par le JS imager.
+  • résolution image : widget à PRÉSETS (`#settings_resolution` → width/height cachés), pas un
+    champ modèle direct → reste géré par le JS imager. Ses tailles sont DÉRIVÉES des capacités
+    du modèle (`native_resolution` / `min_resolution` / `max_resolution`, 2026-09-30).
   • `generation_mode` : c'est le MODE (badge lecture seule dans la modale) → piloté par WamaModes,
     pas un paramètre éditable.
 Sélecteurs de MODÈLE (route F4b, 2026-09-29) : options tirées du CATALOGUE par tâche

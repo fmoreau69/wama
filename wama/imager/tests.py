@@ -781,3 +781,79 @@ class ModelChipTest(TestCase):
         labels = [c['label'] for c in card_chips.chips_for(gen, IMAGE_PARAMS_JSON)]
         self.assertIn('Témoin de chip', labels)
         self.assertNotIn('imager:chip-witness', labels)
+
+
+class ResolutionFromCapabilitiesTest(TestCase):
+    """The sizes the imager offers DERIVE from the model's catalogue capabilities (2026-09-30),
+    whatever its source — Supra2-IMG (fixed 256) was offered 896×512 by an app-local table."""
+
+    def _model(self, key, **caps):
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.create(
+            model_key=key, name=key, model_type='diffusion', source=key.split(':')[0],
+            vram_gb=1.0, is_available=True, is_downloaded=True, is_proposed=False,
+            capabilities={'task': 'text-to-image', **caps})
+
+    def test_a_declaration_translates_into_canonical_bounds(self):
+        from wama.common.utils.model_capabilities import (resolution_bounds,
+                                                          resolution_caps_from_declaration)
+        caps = resolution_caps_from_declaration(
+            {'resolution': '1024x1024', 'min_resolution': 512, 'max_resolution': 2048})
+        self.assertEqual({'native_resolution': '1024x1024', 'min_resolution': 512,
+                          'max_resolution': 2048}, caps)
+        self.assertEqual({'max_resolution': 2048}, resolution_caps_from_declaration({'resolution': 2048}),
+                         'an integer is a MAXIMUM side, never a default')
+        fixed = resolution_bounds({'native_resolution': '256x256', 'min_resolution': 256,
+                                   'max_resolution': 256})
+        self.assertTrue(fixed['fixed'])
+        self.assertEqual((256, 256), fixed['native'])
+
+    def test_every_image_declaration_reaches_the_catalogue_bounds(self):
+        from wama.common.utils.model_capabilities import resolution_caps_from_declaration
+        from wama.imager.utils.model_config import IMAGER_MODELS
+        for model_id, decl in IMAGER_MODELS.items():
+            if decl.get('type') != 'image':
+                continue
+            with self.subTest(model=model_id):
+                caps = resolution_caps_from_declaration(decl)
+                self.assertIn('native_resolution', caps)
+                self.assertLessEqual(caps['min_resolution'], caps['max_resolution'])
+
+    def test_a_fixed_size_model_is_offered_its_size_only(self):
+        from wama.imager.models import get_model_resolution_config, get_recommended_resolutions
+        self._model('huggingface:Org/Fixed', native_resolution='256x256',
+                    min_resolution=256, max_resolution=256)
+        config = get_model_resolution_config('huggingface:Org/Fixed')
+        self.assertEqual(('256x256', True), (config['default'], config['fixed']))
+        self.assertEqual(['256x256'], [r['key'] for r in get_recommended_resolutions(
+            'huggingface:Org/Fixed')])
+
+    def test_a_bounded_model_gets_its_native_size_first_then_what_fits(self):
+        from wama.imager.models import get_recommended_resolutions
+        self._model('imager:bounded', native_resolution='1024x1024',
+                    min_resolution=512, max_resolution=1536)
+        keys = [r['key'] for r in get_recommended_resolutions('imager:bounded')]
+        self.assertEqual('1024x1024', keys[0])
+        self.assertIn('1344x768', keys)
+        self.assertNotIn('2048x2048', keys, 'beyond the declared maximum')
+
+    def test_a_model_without_bounds_keeps_the_historical_default(self):
+        from wama.imager.models import DEFAULT_RESOLUTION_BOUNDS, get_model_resolution_config
+        config = get_model_resolution_config('huggingface:Org/Unknown')
+        self.assertEqual((DEFAULT_RESOLUTION_BOUNDS['min'], DEFAULT_RESOLUTION_BOUNDS['max'],
+                          '512x512'), (config['min_size'], config['max_size'], config['default']))
+
+    def test_the_endpoint_says_fixed_and_reads_the_recommended_sampling(self):
+        self._model('huggingface:Org/Fixed', native_resolution='256x256', min_resolution=256,
+                    max_resolution=256, recommended_steps=12, recommended_guidance=3.0)
+        from wama.accounts.permissions import GROUP_PREFIX
+        user = User.objects.create_user('imager_resolutions', password='x')
+        user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}communication')[0])
+        self.client.force_login(user)
+        rep = self.client.get(reverse('imager:api_model_resolutions'),
+                              {'model': 'huggingface:Org/Fixed'})
+        self.assertEqual(200, rep.status_code, rep.content[:200])
+        data = rep.json()
+        self.assertEqual((['256x256'], True, 12, 3.0),
+                         (data['recommended'], data['fixed'], data['default_steps'],
+                          data['default_guidance_scale']))

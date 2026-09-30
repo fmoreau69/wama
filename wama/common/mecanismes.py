@@ -1306,7 +1306,9 @@ MECHANISMS = (
     Mechanism('model_capabilities', 'Vocabulaire des capacités',
               "Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI ; "
               "`category` (vocabulaire fermé `CATEGORY_LABELS`) range un select de modèle en "
-              "optgroups (`options_group=\"category\"`, 2026-09-29)",
+              "optgroups (`options_group=\"category\"`, 2026-09-29) ; bornes de TAILLE "
+              "(`native_resolution`/`min_resolution`/`max_resolution`, `resolution_bounds`) "
+              "pour l'image comme la vidéo — les tailles proposées en dérivent (2026-09-30)",
               'wama/common/utils/model_capabilities.py', 'docs/construction/ui/INPUT_MODEL_MATCHING.md',
               annexes=('wama/common/static/common/js/wama-model-caps.js',
                        'wama/common/static/common/js/wama-input-match.js',

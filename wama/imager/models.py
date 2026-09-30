@@ -51,117 +51,58 @@ IMAGE_RESOLUTION_PRESETS = {
     "2048x880": {"width": 2048, "height": 880, "label": "2048x880 (21:9) 2K", "ratio": "21:9"},
 }
 
-# Model-specific resolution configurations
-MODEL_RESOLUTION_CONFIG = {
-    # HunyuanImage 2.1 - Requires 2K resolution
-    "hunyuan-image-2.1": {
-        "min_size": 1024,
-        "max_size": 2048,
-        "default": "2048x2048",
-        "recommended": ["2048x2048", "2048x1152", "1152x2048", "2048x880"],
-        "vram_warning": "24GB+ VRAM recommended for 2K generation",
-    },
+# Tailles proposées PAR MODÈLE — DÉRIVÉES des capacités du catalogue (2026-09-30).
+# La table `MODEL_RESOLUTION_CONFIG` qui vivait ici redéclarait, par identifiant NU, ce que les
+# déclarations d'app portent (`IMAGER_MODELS['resolution']`) : un modèle installé depuis le
+# model manager n'y figurait jamais et recevait 256-1024 px — Supra2-IMG, résolution FIXE de
+# 256, se voyait proposer 896×512 (constat Fabien). Les bornes sont désormais des capacités
+# canoniques (`native_resolution`, `min_resolution`, `max_resolution`), quelle que soit leur
+# source : déclaration d'app, manifeste d'un modèle installé.
 
-    # Stable Diffusion 1.5 - Standard SD models
-    "stable-diffusion-v1-5": {
-        "min_size": 256,
-        "max_size": 768,
-        "default": "512x512",
-        "recommended": ["512x512", "768x768", "896x512", "512x896", "680x512", "512x680"],
-    },
-    "dreamshaper-8": {
-        "min_size": 256,
-        "max_size": 768,
-        "default": "512x512",
-        "recommended": ["512x512", "768x768", "896x512", "512x896"],
-    },
-    "deliberate-v6": {
-        "min_size": 256,
-        "max_size": 768,
-        "default": "512x512",
-        "recommended": ["512x512", "768x768", "896x512", "512x896"],
-    },
-    "anything-v5": {
-        "min_size": 256,
-        "max_size": 768,
-        "default": "512x512",
-        "recommended": ["512x512", "768x768", "896x512", "512x896"],
-    },
-    "dreamlike-art-2": {
-        "min_size": 256,
-        "max_size": 768,
-        "default": "512x512",
-        "recommended": ["512x512", "768x768", "896x512", "512x896"],
-    },
-
-    # Stable Diffusion 2.1 - Slightly larger
-    "stable-diffusion-2-1": {
-        "min_size": 256,
-        "max_size": 1024,
-        "default": "768x768",
-        "recommended": ["768x768", "1024x1024", "896x512", "512x896"],
-    },
-
-    # SDXL - Large resolution support
-    "stable-diffusion-xl": {
-        "min_size": 512,
-        "max_size": 1536,
-        "default": "1024x1024",
-        "recommended": ["1024x1024", "1344x768", "768x1344", "1920x1088", "1088x1920"],
-        "vram_warning": "10GB+ VRAM recommended for 1024+ resolution",
-    },
-    # FLUX Logo Design LoRA — max 768 px avec MODEL_OFFLOAD sur RTX 4090.
-    # 1024×1024 dépasse les 24 GB (23 GB transformer + activations d'attention
-    # sur 4096 tokens) et provoque un OOM silencieux dans WSL2.
-    # 768×768 est stable et produit des logos haute qualité.
-    "flux-lora-logo-design": {
-        "min_size": 512,
-        "max_size": 768,
-        "default": "768x768",
-        "recommended": ["768x768", "768x512", "512x768"],
-        "vram_warning": "16GB+ VRAM requis — max 768px avec MODEL_OFFLOAD",
-    },
-
-    # Qwen Image 2 models - 2K native resolution
-    "qwen-image-2": {
-        "min_size": 512,
-        "max_size": 2048,
-        "default": "1024x1024",
-        "recommended": ["1024x1024", "2048x2048", "2048x1152", "1152x2048"],
-        "vram_warning": "16GB+ VRAM required",
-    },
-    "qwen-image-edit": {
-        "min_size": 512,
-        "max_size": 2048,
-        "default": "1024x1024",
-        "recommended": ["1024x1024", "2048x2048", "2048x1152", "1152x2048"],
-        "vram_warning": "12GB+ VRAM required",
-    },
-}
-
-# Default config for unknown models
-DEFAULT_MODEL_RESOLUTION_CONFIG = {
-    "min_size": 256,
-    "max_size": 1024,
-    "default": "512x512",
-    "recommended": ["512x512", "768x768", "896x512", "512x896"],
-}
+#: Bornes d'un modèle qui n'en déclare AUCUNE — celles de l'ancienne table par défaut.
+DEFAULT_RESOLUTION_BOUNDS = {"min": 256, "max": 1024, "native": (512, 512)}
 
 
-def get_model_resolution_config(model_name: str) -> dict:
-    """Get resolution configuration for a model."""
-    return MODEL_RESOLUTION_CONFIG.get(model_name, DEFAULT_MODEL_RESOLUTION_CONFIG)
+def _catalog_caps(model_key: str) -> dict:
+    """Capacités du catalogue pour une CLÉ de catalogue (une valeur nue est lue dans l'imager)."""
+    from wama.common.utils.model_keys import catalog_key
+    try:
+        from wama.model_manager.models import AIModel
+        row = AIModel.objects.filter(model_key=catalog_key(model_key, 'imager')).only(
+            'capabilities').first()
+        return dict(row.capabilities or {}) if row else {}
+    except Exception:
+        return {}
 
 
-def get_recommended_resolutions(model_name: str) -> list:
-    """Get list of recommended resolution presets for a model."""
-    config = get_model_resolution_config(model_name)
-    recommended_keys = config.get("recommended", ["512x512"])
-    return [
-        {"key": key, **IMAGE_RESOLUTION_PRESETS[key]}
-        for key in recommended_keys
-        if key in IMAGE_RESOLUTION_PRESETS
-    ]
+def get_model_resolution_config(model_key: str) -> dict:
+    """`{min_size, max_size, default, fixed}` du modèle, tirés de ses CAPACITÉS."""
+    from wama.common.utils.model_capabilities import resolution_bounds
+    bounds = resolution_bounds(_catalog_caps(model_key))
+    lo = bounds["min"] or DEFAULT_RESOLUTION_BOUNDS["min"]
+    hi = bounds["max"] or (max(bounds["native"]) if bounds["native"]
+                           else DEFAULT_RESOLUTION_BOUNDS["max"])
+    native = bounds["native"] or ((hi, hi) if bounds["fixed"] else DEFAULT_RESOLUTION_BOUNDS["native"])
+    return {"min_size": lo, "max_size": hi, "default": f"{native[0]}x{native[1]}",
+            "fixed": bounds["fixed"]}
+
+
+def get_recommended_resolutions(model_key: str) -> list:
+    """Préréglages de taille que le modèle accepte : la taille NATIVE d'abord, puis les
+    préréglages dont le PLUS GRAND côté tient dans ses bornes. Un modèle à résolution FIXE ne
+    se propose qu'à sa taille — même si aucun préréglage ne la porte (256×256)."""
+    config = get_model_resolution_config(model_key)
+    lo, hi, default = config["min_size"], config["max_size"], config["default"]
+    w, _, h = default.partition("x")
+    native = {"key": default, "width": int(w), "height": int(h),
+              "label": f"{w}x{h} (natif)", "ratio": ""}
+    if config["fixed"]:
+        return [native]
+    presets = [{"key": key, **p} for key, p in IMAGE_RESOLUTION_PRESETS.items()
+               if lo <= max(p["width"], p["height"]) <= hi]
+    rest = [p for p in presets if p["key"] != default]
+    first = next((p for p in presets if p["key"] == default), native)
+    return [first] + rest
 
 
 class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):

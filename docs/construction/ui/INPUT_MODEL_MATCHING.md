@@ -411,6 +411,22 @@ Vérifié au navigateur le 2026-09-23 (volet vidéo, serveur de dev) : FastWan 1
 avertissement ; 4 s → bleu ; Mochi → curseur borné à 2 s (« Limite du modèle : 2,8 s ») ; auto →
 curseur libre, cadence rendue à la valeur de l'utilisateur.
 
+**2026-09-30 — les TAILLES d'image suivent la même route.** Constat de Fabien : Supra2-IMG
+(résolution fixe 256×256, installé depuis le model manager) se voyait proposer 896×512 — la table
+`MODEL_RESOLUTION_CONFIG` de l'imager redéclarait par identifiant NU ce que les déclarations
+portaient déjà, et tout modèle d'une autre source recevait « 256-1024 » par défaut.
+Désormais : capacités canoniques `native_resolution` / `min_resolution` / `max_resolution`
+(égales = FIXE), traduites d'une déclaration par `resolution_caps_from_declaration` (image ET
+vidéo, la branche vidéo y délègue), lues par `resolution_bounds`. Trois sources, un seul champ
+au catalogue : la déclaration d'app (découverte), le manifeste d'un modèle installé, le FAIT
+mécanique qu'un rôle de manifeste lit dans les configs racine du dépôt (`image_size` →
+`native_resolution`, `role_utils.enforce_resolution_facts`). L'imager en DÉRIVE ses tailles
+(`models.get_recommended_resolutions` : la native d'abord, puis les préréglages dont le plus
+grand côté tient dans les bornes), et son endpoint lit aussi `recommended_steps`/`_guidance` au
+catalogue. Un modèle FIXE ne propose que sa taille ; le volet grise les autres, avec la raison.
+⏳ Le widget de résolution image reste un widget d'app (préréglages) et non un `cap_from` : le
+porter au schéma est un chantier de l'imager, pas un manque de la capacité.
+
 **2026-09-23 (nuit) — deux natures d'au-delà.** `duration_extension` vaut `continuation` quand
 l'app déclare `continuation_frames` (LTX : 25 images, conditionnement VIDÉO du passage suivant —
 `LTXVideoBackend._build_continuation_conditions`) et `segments` pour un modèle qui ne sait
