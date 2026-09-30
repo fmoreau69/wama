@@ -209,6 +209,10 @@ class Command(BaseCommand):
                             default=['auto'],
                             help="Réglage(s) « Langues parlées » des cards posées — plusieurs "
                                  "valeurs posent une configuration par valeur.")
+        parser.add_argument('--diarization', nargs='+', metavar='PIPELINE',
+                            help="Pipeline(s) de diarisation (pyannote : speaker-diarization-3.1, "
+                                 "speaker-diarization-community-1) — une configuration par "
+                                 "pipeline, mesurée en cpWER et DER. Absent : diarisation coupée.")
         parser.add_argument('--start', action='store_true', help="Lance les cards posées.")
         parser.add_argument('--report', action='store_true',
                             help="Tableau des mesures des cards de --user sur ces enregistrements.")
@@ -238,10 +242,16 @@ class Command(BaseCommand):
         else:
             assets = self.prepare_tagged(corpus, source, o['split'], recordings)
         if o['user']:
+            from wama.common.backends.pyannote_diarizer import pipeline_choices
+            served = [model_id for model_id, _ in pipeline_choices()]
+            unknown = [p for p in o['diarization'] or () if p not in served]
+            if unknown:
+                raise CommandError(f"pipeline(s) inconnu(s) : {unknown} — servis : {served}")
             for language_mode in o['language_mode']:
-                self.post_batches(o['user'], assets, o['engines'], o['start'],
-                                  preprocess=o['preprocess'], level=o['level'], vad=o['vad'],
-                                  language_mode=language_mode)
+                for diarization in o['diarization'] or [None]:
+                    self.post_batches(o['user'], assets, o['engines'], o['start'],
+                                      preprocess=o['preprocess'], level=o['level'], vad=o['vad'],
+                                      language_mode=language_mode, diarization=diarization)
 
     # ── accès au Hub ───────────────────────────────────────────────────────────────────────
     def _parquets(self, source, split):
@@ -487,9 +497,10 @@ class Command(BaseCommand):
 
     # ── lots : un par enregistrement, une CONFIGURATION par card, la référence sur le lot ──
     def post_batches(self, login, assets, engines, start, *, preprocess=False, level=False,
-                     vad='auto', language_mode='auto'):
-        """Une configuration = moteur × prétraitement × nivellement × filtre de parole × langues —
-        exactement les réglages que l'évaluation distingue (`config_params` du transcriber). Un
+                     vad='auto', language_mode='auto', diarization=None):
+        """Une configuration = moteur × prétraitement × nivellement × filtre de parole × langues
+        × pipeline de diarisation (None = coupée) — exactement les réglages que l'évaluation
+        distingue (`config_params` du transcriber). Un
         nouvel appel avec d'autres options AJOUTE ses cards au lot de l'enregistrement : toutes
         ses configurations se comparent au même endroit. Une configuration déjà posée ne l'est
         pas deux fois."""
@@ -514,14 +525,18 @@ class Command(BaseCommand):
                 # Le filtre de parole n'existe que chez Whisper (`workers._vad_filter_for`) :
                 # le varier sur un autre moteur poserait deux fois la même configuration.
                 engine_vad = vad if engine == 'whisper' else 'auto'
+                # Sans pipeline demandé, diarisation coupée : elle ne change pas le texte mesuré
+                # (WER), seulement le temps. Demandée, elle se mesure en cpWER et DER.
+                speakers = ({'enable_diarization': True, 'diarization_model': diarization}
+                            if diarization else {'enable_diarization': False})
                 if on_audio.filter(backend=engine, preprocess_audio=preprocess, level_speech=level,
-                                   vad_mode=engine_vad, language_mode=language_mode).exists():
+                                   vad_mode=engine_vad, language_mode=language_mode,
+                                   **speakers).exists():
                     continue
-                # Diarisation coupée : elle ne change pas le texte mesuré, seulement le temps.
                 result = add_to_transcriber(user, asset.file.name, backend=engine,
-                                            enable_diarization=False,
                                             preprocess_audio=preprocess, level_speech=level,
-                                            vad_mode=engine_vad, language_mode=language_mode)
+                                            vad_mode=engine_vad, language_mode=language_mode,
+                                            **speakers)
                 if 'error' in result:
                     raise CommandError(f"{asset.name} / {engine} : {result['error']}")
                 card = Transcript.objects.get(pk=result['transcript_id'])
@@ -572,7 +587,7 @@ class Command(BaseCommand):
             self.stdout.write(f"\n{asset.name} — {asset.attributes.get('languages') or asset.attributes.get('language')}")
             for t in Transcript.objects.filter(user=user, audio=asset.file.name).order_by('pk'):
                 rows = {r.metric: r.value for r in ResultEvaluation.objects.filter(
-                    object_type='Transcript', object_id=t.pk, protocol__startswith='text_')}
+                    object_type='Transcript', object_id=t.pk)}
                 agreement = None
                 if t.reference_result and t.segments_json:
                     ref = read_transcript_document(t.reference_result.path).segments
@@ -585,4 +600,6 @@ class Command(BaseCommand):
                     f"prétr={'oui' if t.preprocess_audio else 'non'} "
                     f"nivel={'oui' if t.level_speech else 'non'} {t.status:<8} "
                     f"WER {fmt(rows.get('wer'))}  CER {fmt(rows.get('cer'))}  "
-                    f"accord {fmt(agreement)}  entendues {','.join(heard) or '—'}")
+                    f"accord {fmt(agreement)}  entendues {','.join(heard) or '—'}"
+                    + (f"  diar={t.diarization_model} cpWER {fmt(rows.get('cpwer'))} "
+                       f"DER {fmt(rows.get('der'))}" if t.enable_diarization else ''))
