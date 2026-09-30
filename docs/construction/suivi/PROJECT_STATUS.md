@@ -19120,3 +19120,29 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
 - 🔚 **Restes** : §8 ci-dessus (prochain chantier) ; ralliement des apps render-based à
   `apply_output_settings` et upscale vidéo ; rechargement du MCP dev à la relance ; relecture LinTO par
   le rôle `model` durci (session « ce ») ; budget d'identifiants (instance « objets 3D »).
+
+## §PALIER — 2026-09-30 (soir, suite), « LENTEUR MUSETALK + CLIENTS VENDOR » — ✅ cause établie, 505 s → 256 s ; 5 verdicts mesurés — 🔚 décisions : corpus, `accelerate`, moteur chaud
+
+- ✅ **Lenteur de MuseTalk, cause MESURÉE** (même vidéo de 3 s) : ~270 s d'IMPORTS avant le
+  moindre modèle, rejoués à chaque job par le sous-processus, sur un venv lu à travers `/mnt/d`
+  (`import scripts.inference` = 286 s, 10 303 modules) ; l'inférence ne pesait que ~32 s.
+  Corrigé : patch venv n°9 (diffusers appelait `packages_distributions()` à l'import — 68,5 s ;
+  table construite à la demande depuis les `top_level.txt`, gain pour TOUT processus qui importe
+  diffusers, gunicorn et celery compris), `USE_TF=0` dans le sous-processus (~30 s de
+  TensorFlow), `--use_float16` (inférence 32 → 9 s, images identiques à l'œil). Job : **505 →
+  256 s**. Reste ~165 s d'imports et ~35 s de poids : remède de fond NON décidé (moteur tenu
+  chaud, ou venv/poids sur ext4 — `INFRA_WSL_VS_WINDOWS` §Implications 2).
+- ✅ **Deux défauts trouvés en mesurant** : le délai FIXE de 600 s tuait tout audio de plus d'une
+  demi-minute (délai désormais proportionnel à la durée) ; le nettoyage amont plantait sur une
+  entrée IMAGE (`save_dir_full`) et laissait un `<avatar>.pkl` dans le dossier PARENT de chaque
+  sortie — corrigé dans le correctif MuseTalk déclaré (s'applique sur un clone neuf, clone local
+  conforme).
+- ✅ **Clients vendor** : le rôle librarian mesure la publication PyPI À LA VERSION, complète
+  l'enveloppe, confronte les exigences au venv (épingle d'amont ≠ conflit de borne). Verdicts
+  des 5 (YuE, ACE-Step 1.5, LongCat-Video, InfiniteTalk, SoulX-FlashHead) :
+  `PROSPECTION_PIPELINE §Session du 2026-09-30`. YuE seul est sans décision de venv.
+- 📨 Correctifs de card (onglet Lot à 3 ports, libellé « filtrée : <catégorie> ») transmis aux
+  sessions ; l'instance du portage card v4 est « ba » (réponses de 04 et 7d).
+- ⚠ Signalé par 04 : `79d14379` et `371db621` avaient emporté des fichiers ENTIERS avec son WIP
+  (`model_capabilities.py`, `model_registry.py`) — réparé par elle (`883c5eaa`, `e1ff67e`).
+  Leçon déjà écrite (`/commit-partiel`) : sur un fichier partagé, jamais `git commit <fichier>`.

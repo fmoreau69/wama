@@ -64,7 +64,25 @@ def _build_musetalk_env() -> dict:
     # jamais de telechargement dans le cache global par defaut.
     env['HF_HUB_CACHE'] = str(MUSETALK_HF_CACHE)
     env['HUGGINGFACE_HUB_CACHE'] = str(MUSETALK_HF_CACHE)
+    # MuseTalk tourne sur torch : sans ceci, `transformers` importe TensorFlow (et keras) parce
+    # qu'il est installé — ~30 s MESURÉES à chaque job (2026-09-30, `-X importtime`), pour rien.
+    env['USE_TF'] = '0'
     return env
+
+
+#: Délai du sous-processus : une part FIXE (démarrage à froid — imports ~165 s et poids ~35 s lus
+#: sur /mnt/d, repères du visage ~18 s) plus une part PROPORTIONNELLE à l'audio. Mesuré le
+#: 2026-09-30 sur 3 s d'audio en float16 : ~3 s d'inférence et ~8 s de collage par seconde
+#: d'audio. Le délai fixe de 600 s d'avant tuait tout audio au-delà d'une demi-minute environ.
+TIMEOUT_BASE_S = 600
+TIMEOUT_PER_AUDIO_S = 25
+
+
+def subprocess_timeout(audio_path: str) -> int:
+    """Délai accordé au sous-processus pour cet audio (durée inconnue → la base seule)."""
+    from wama.common.utils.audio_decode import probe_duration_seconds
+    duration = probe_duration_seconds(audio_path) or 0.0
+    return int(TIMEOUT_BASE_S + TIMEOUT_PER_AUDIO_S * duration)
 
 
 def _run_musetalk(image_path: str, audio_path: str, output_dir: str, bbox_shift: int = 0) -> str:
@@ -113,12 +131,15 @@ def _run_musetalk(image_path: str, audio_path: str, output_dir: str, bbox_shift:
                 '--unet_model_path', './models/musetalkV15/unet.pth',
                 '--unet_config', './models/musetalkV15/musetalk.json',
                 '--result_dir', str(output_dir),   # MuseTalk écrit dans <output_dir>/v15/
+                # Option officielle : inférence 32 s → 9 s sur 3 s d'audio (2026-09-30), images
+                # identiques à l'œil comparées à la float32.
+                '--use_float16',
             ],
             cwd=str(MUSETALK_DIR),
             env=_build_musetalk_env(),
             capture_output=True,
             text=True,
-            timeout=600,
+            timeout=subprocess_timeout(audio_path),
         )
 
     # Toujours capturer la sortie pour le diagnostic

@@ -248,6 +248,7 @@ apply_patch(
 | 6 | `site-packages/vibevoice/.../modeling_vibevoice_asr.py` | lm_head : overflow int32 du GEMM CUDA sur audio long → `cudaErrorUnknown` (logits sur dernier token seulement) |
 | 7 | `site-packages/qwen_asr/inference/qwen3_forced_aligner.py` | `import nagisa` (tokenizer japonais) en tête : `qwen-asr` s'installe en `--no-deps`, l'import paresseux suffit (2026-09-28) |
 | 8 | `site-packages/nv_one_logger/training_telemetry/integration/pytorch_lightning.py` | `save_checkpoint(weights_only: bool)` refusé par `overrides` face à Lightning 2.6 (`Optional[bool]`) : bloquait `import nemo.collections.asr` ; NeMo en `--no-deps` pour ne pas rétrograder lightning/protobuf/fsspec (2026-09-28) |
+| 9 | `site-packages/diffusers/utils/import_utils.py` | `packages_distributions()` appelé À L'IMPORT : 68,5 s sur ce venv (lecture des `RECORD` à travers `/mnt/d`), payés par CHAQUE processus qui importe diffusers ; table module → distribution construite à la demande depuis les `top_level.txt` (2026-09-30, lenteur de MuseTalk) |
 
 ---
 

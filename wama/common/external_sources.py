@@ -330,6 +330,13 @@ SOURCES: tuple[ExternalSource, ...] = (
     ExternalSource(
         'github_api', 'API GitHub', 'https://api.github.com',
         "Liste des releases — résolution de la version d'un poids", kind='poids'),
+    # 2026-09-30 : le rôle librarian doit savoir si un dépôt est PUBLIÉ sur PyPI — un
+    # `pyproject.toml` ne suffit pas (YuE, ACE-Step en ont un et sont absents de PyPI) : sans
+    # publication, la route `library` refuse pip, et la voie est vendor.
+    ExternalSource(
+        'pypi', 'PyPI', 'https://pypi.org',
+        "Index des paquets Python — un paquet est-il publié, sous quel nom (API JSON, lecture seule)",
+        kind='poids'),
     ExternalSource(
         'pytorch_download', 'download.pytorch.org', 'https://download.pytorch.org',
         "Roues PyTorch/CUDA — installation de dépendances de modèles", kind='poids'),

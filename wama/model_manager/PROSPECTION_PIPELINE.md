@@ -2012,3 +2012,24 @@ CodeFormer, TripoSR y sont déclarés. Et le rôle `librarian --repo` propose d�
 `install.vendor` pour un dépôt qui n'est pas un paquet, au commit MESURÉ — contrôle mécanique
 (`role_utils.enforce_install_channel`), pas une consigne : joué sur TripoSR, il a retrouvé le
 commit épinglé au corpus. La chaîne scout → librarian → install peut donc apporter le moteur.
+
+**Les cinq clients pressentis de la voie vendor, passés au rôle le même soir** (Albert, sorties
+`wama-dev-ai/outputs/library_*_2026-09-30_*.json`, PENDING_HUMAN_VALIDATION — rien n'est au
+corpus). Trois contrôles mécaniques ajoutés en chemin, chacun né d'un cas mesuré : un
+`pyproject.toml` ne fait pas un paquet PUBLIÉ (YuE, ACE-Step : 404 — et `ace-step` existe sur
+PyPI mais en 0.1.0 seulement, d'où une sonde à la VERSION, par `HEAD`, le proxy coupant le
+JSON) ; les constantes de l'enveloppe se posent (le LLM omettait `name`/`world`/`visibility`) ;
+les exigences du dépôt, lues AU COMMIT, sont confrontées au venv de référence en séparant une
+épingle exacte d'amont (souvent prouvée inutile, cf. MuseTalk) d'un vrai conflit de borne.
+
+| dépôt (commit mesuré) | licence du code | conflits de BORNE avec le venv | manquantes |
+|---|---|---|---|
+| `multimodal-art-projection/YuE` (`18a07bb628f0`) | Apache-2.0 (poids YuE2 CC BY-NC) | aucun | aucune (3 épingles d'amont) |
+| `meituan-longcat/LongCat-Video` (`6b3f4b8582a8`) | MIT | aucun | `flash-attn` (compilé), `streamlit` (démo) |
+| `MeiGen-AI/InfiniteTalk` (`50aa0a941843`) | Apache-2.0 | `numpy<2` (venv 2.3.5) | easydict, dashscope, xfuser, scenedetect |
+| `Soul-AILab/SoulX-FlashHead` (`9bc03de06bb0`) | Apache-2.0 | `opencv-python>=4.12` (4.10), `accelerate>=1.8.1` (1.6.0) | easydict, xfuser |
+| `ace-step/ACE-Step-1.5` (`ca1e85fe9430`) | MIT | `accelerate>=1.12` (1.6.0), `peft>=0.18` (0.17.1), `setuptools<72` (80.10) | 7, dont modelscope, flash-attn, nano-vllm |
+
+Lecture : **YuE est le seul client sans décision de venv** ; `accelerate` 1.6.0 bloque trois des
+cinq (une montée à décider, avec sa simulation). Aucun n'a de backend : les déclarer rend le
+moteur installable, pas utilisable — le backend reste la marche suivante, par moteur.
