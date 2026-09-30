@@ -1024,7 +1024,7 @@ Range le RÉSULTAT d'un élément comme asset, lu au schéma canonique du détai
   - `gallery_entries() -> list` — `[{'name', 'url'}]` — ce dont les gabarits ont besoin, sans composer d'URL.
   - `gallery_path(name: str)` — Chemin ABSOLU de l'avatar nommé, ou `None` s'il n'existe pas (le worker en a besoin).
   - `resolve_visible_asset(user, asset_type: str, name: str) -> str` — Chemin (relatif à MEDIA_ROOT) de l'asset `name` de cette nature que `user` voit, ou ''.
-  - `visible_asset_names(user, asset_type: str) -> list` — Les NOMS des assets de cette nature que `user` voit (siens, partagés, système), sans doublon
+  - `visible_asset_names(user, asset_type: str, attributes: dict | None=None) -> list` — Les NOMS des assets de cette nature que `user` voit (siens, partagés, système), sans doublon
   - `class SystemAssetStillNamed(RuntimeError)` — Un AUTRE utilisateur cite encore l'asset par son nom : le rendre à un seul casserait ses
   - `register_system_asset_name_holder(asset_type: str, holder) -> None` — Déclare une référence PAR NOM à un asset système d'une nature donnée.
   - `return_system_asset(asset, user, *, apply: bool=False) -> dict` — Rend l'asset système `asset` à `user` : un `UserAsset` privé, fichier déplacé chez lui.
@@ -1545,7 +1545,8 @@ Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot
 
 - **Domicile** : `wama/common/utils/batch_parsers.py` · **doc** : [docs/construction/ui/BATCH_FORMAT.md](../construction/ui/BATCH_FORMAT.md)
 - **Module** : WAMA Common — Batch file parsers
-- **API publique** (17) :
+- **API publique** (18) :
+  - `batch_file_refusal(filename: str, extra=()) -> str` — Le motif de refus d'un fichier de lot, ou '' s'il est d'un format de lot.
   - `parse_batch_file_from_request(request, parser: Optional[Callable]=None) -> Tuple[List[Dict], List[str]]` — Extract batch_file from request.FILES, validate extension, parse it, clean up.
   - `add_filename_to_items(items: List[Dict]) -> List[Dict]` — Add a 'filename' key to each item dict derived from item['path'].
   - `batch_media_list_preview_response(request, item_enricher: Optional[Callable]=None)` — Standard batch_preview view helper for Type A apps (media_list).
@@ -1893,13 +1894,15 @@ Modale commune de choix d'un asset de la médiathèque (filtrée par type), rend
 
 ### Vocabulaire des capacités
 
-Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI ; `category` (vocabulaire fermé `CATEGORY_LABELS`) range un select de modèle en optgroups (`options_group="category"`, 2026-09-29)
+Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI ; `category` (vocabulaire fermé `CATEGORY_LABELS`) range un select de modèle en optgroups (`options_group="category"`, 2026-09-29) ; bornes de TAILLE (`native_resolution`/`min_resolution`/`max_resolution`, `resolution_bounds`) pour l'image comme la vidéo — les tailles proposées en dérivent (2026-09-30)
 
 - **Domicile** : `wama/common/utils/model_capabilities.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Vocabulaire CANONIQUE des capacités modèle (`AIModel.capabilities`) — SOURCE UNIQUE.
-- **API publique** (13) :
+- **API publique** (15) :
   - `sampling_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]` — `recommended_steps` / `recommended_guidance` depuis `default_steps` /
   - `video_caps_from_declaration(config: Dict[str, Any], tokens=()) -> Dict[str, Any]` — Les capacités VIDÉO tirées d'une déclaration d'app (`fps`, `max_frames`, `resolution`
+  - `resolution_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]` — `native_resolution` / `min_resolution` / `max_resolution` tirés d'une déclaration (image
+  - `resolution_bounds(caps: Dict[str, Any]) -> Dict[str, Any]` — Les bornes de taille d'un modèle, lues UNE fois : `{native: (L, H) | None, min, max,
   - `video_limits(caps: Dict[str, Any]) -> Dict[str, Any]` — Les limites vidéo d'un modèle, lues UNE fois : `{fps, max_frames, max_duration_s,
   - `get_languages(caps: Dict[str, Any]) -> List[str]` — Langues gérées, ou [] si non déclaré (le repli par type est géré par lang_routing).
   - `is_multilingual(caps: Dict[str, Any]) -> bool` — Vrai si le modèle gère >1 langue ou est agnostique ('*'). Remplace l'ex-clé `multilingual`.
@@ -2279,7 +2282,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (24) :
+- **API publique** (25) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d') d'un chemin
@@ -2291,6 +2294,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
   - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
   - `app_card_ports(app_id)` — Ports de la CARD que l'APP consomme elle-même, sans nœud Studio (2026-09-30).
+  - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
   - `app_setting_carried_ports(app_id) -> dict` — Ports que la card de l'app NE MONTRE PAS, parce qu'un RÉGLAGE les porte — `{port: réglage}`.
   - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
   - `extra_link_for(app: str) -> tuple[str, dict] | None` — `(catégorie, lien)` d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —
