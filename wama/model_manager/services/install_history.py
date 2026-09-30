@@ -69,8 +69,10 @@ def record(kind, key, *, name='', action='install', via='', result=None, started
 
 
 #: Un événement ouvert au dispatch et jamais repris au-delà de ce délai (worker mort, message
-#: perdu) n'est plus rattaché : la tâche suivante ouvre le sien.
+#: perdu) n'est plus rattaché : la tâche suivante ouvre le sien, et le calendrier cesse de le
+#: montrer « en cours ».
 QUEUED_MAX_AGE = timedelta(hours=24)
+NOT_RESUMED = 'demande jamais prise en charge par une tâche'
 
 
 def queued(kind, key, *, name='', via=''):
@@ -101,6 +103,15 @@ def resumed(kind, key, *, name=''):
                 fields['name'] = str(name)[:255]
             InstallEvent.objects.filter(pk=row.pk).update(**fields)
             event_id = row.pk
+            # Les demandes PLUS ANCIENNES de la même clé restées ouvertes ne seront jamais
+            # reprises (mesuré le 2026-09-30 : deux demandes pyannote, l'une tombée sur un worker
+            # d'avant le journal) — elles se closent ici plutôt que de rester « en cours ».
+            (InstallEvent.objects
+             .filter(kind=kind, key=key, status=InstallEvent.STATUS_RUNNING,
+                     finished_at__isnull=True)
+             .exclude(pk=row.pk)
+             .update(status=InstallEvent.STATUS_FAILURE, finished_at=timezone.now(),
+                     detail={'error': NOT_RESUMED}))
     except Exception:
         logger.warning('[install_history] reprise impossible pour %s:%s', kind, key, exc_info=True)
     if event_id is None:
@@ -177,18 +188,25 @@ def calendar_events(start, end):
         verb = 'Installation' if row.action == InstallEvent.ACTION_INSTALL else 'Désinstallation'
         what = 'librairie ' if row.kind == InstallEvent.KIND_LIBRARY else ''
         title = f'{verb} : {what}{row.name or row.key}'
-        if row.status == InstallEvent.STATUS_FAILURE:
+        status, error = row.status, (row.detail or {}).get('error', '')
+        # Ouverte depuis plus que `QUEUED_MAX_AGE` sans jamais être reprise : ce n'est plus « en
+        # cours » (la barre s'allongerait sans fin), c'est une demande restée sans tâche.
+        abandoned = row.finished_at is None and now - row.started_at > QUEUED_MAX_AGE
+        if abandoned:
+            status, error = InstallEvent.STATUS_FAILURE, NOT_RESUMED
+        if status == InstallEvent.STATUS_FAILURE:
             title += ' — échec'
-        finish = row.finished_at or now
+        finish = row.finished_at or (row.started_at if abandoned else now)
         if finish - row.started_at < timedelta(minutes=POINT_MINUTES):
             finish = row.started_at + timedelta(minutes=POINT_MINUTES)
+        running = row.finished_at is None and not abandoned
         events.append(CalendarEvent(
             key=f'install:{row.pk}', title=title, start=row.started_at, end=finish,
             nature=NATURE_OBSERVED, scope=SCOPE_INSTANCE, app='model_manager',
-            status=row.status, color=color, url=url,
+            status=status, color=color, url=url,
             duration_source='measured' if row.finished_at else 'declared',
             extra={'kind': 'install', 'layer': CALENDAR_LAYER,
-                   'via': VIA_LABELS.get(row.via, row.via), 'installRunning': row.finished_at is None,
-                   'error': (row.detail or {}).get('error', '')},
+                   'via': VIA_LABELS.get(row.via, row.via), 'installRunning': running,
+                   'error': error},
         ))
     return events

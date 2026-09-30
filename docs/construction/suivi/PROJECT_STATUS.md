@@ -18945,3 +18945,13 @@ instance (rattrapable par `doc_facts`, signalé) — piège ajouté au skill `co
 **À faire** : recharger gunicorn et relancer les workers pour activer le journal. **Le Lab** ne se
 programme pas encore : il attend P3 (moteur commun, à extraire de `cam_analyzer`), un chantier à
 part entière et non commencé.
+
+**Contrôle après la relance de 03:14 (2026-09-30)** : couche inscrite, visible dans le calendrier
+de Fabien. Deux demandes pyannote ouvertes AVANT la relance (02:08, 02:49) restaient « en cours » :
+les workers d'alors ne reprenaient pas le journal. L'installation avait réussi (ligne de catalogue
+téléchargée à 02:53). Lignes closes à la main d'après les faits (échec `TypeError` pour la 1ʳᵉ,
+succès 02:49 → 02:53 pour la 2ᵉ), et mécanisme durci : une tâche qui reprend une demande CLÔT les
+plus anciennes de la même clé ; le calendrier ne montre plus « en cours » une demande jamais
+reprise depuis 24 h. Gardes `tests_install_history.OpenRequestsDoNotLingerTest` (+ contre-épreuve).
+**Session CLOSE** — restent, sans urgence : le Lab après P3 (non commencé, chantier à cadrer avec
+l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges d'autres chantiers.
