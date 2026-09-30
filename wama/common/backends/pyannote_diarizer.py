@@ -53,11 +53,17 @@ class PyannoteDiarizerBackend(BaseModelBackend):
     #: Pipelines servis (2026-09-30) : clé = segment du catalogue après `transcriber:` ;
     #: `settings_key` = dossier dans `MODEL_PATHS['speech']`. `community-1` est le successeur de
     #: 3.1 par les mêmes auteurs (pyannote.audio 4) — même moteur, donc pas un second backend.
+    #: `model_key` = la ligne du CATALOGUE (`AIModel`, relevé le 2026-09-30) : c'est sous elle que
+    #: se rangent les mesures de diarisation (`diarization_metrics`) — 3.1 a été déclaré par
+    #: l'app, community-1 installé par la prospection, d'où deux formes de clé.
     SUPPORTED_MODELS = {
         'speaker-diarization-3.1': {'hf_id': 'pyannote/speaker-diarization-3.1',
-                                    'settings_key': 'diarization'},
-        'speaker-diarization-community-1': {'hf_id': 'pyannote/speaker-diarization-community-1',
-                                            'settings_key': 'diarization_community'},
+                                    'settings_key': 'diarization',
+                                    'model_key': 'transcriber:pyannote-diarization'},
+        'speaker-diarization-community-1': {
+            'hf_id': 'pyannote/speaker-diarization-community-1',
+            'settings_key': 'diarization_community',
+            'model_key': 'huggingface:pyannote/speaker-diarization-community-1'},
     }
     name = "pyannote"
     display_name = "pyannote (speaker-diarization 3.1 / community-1)"
@@ -89,9 +95,14 @@ class PyannoteDiarizerBackend(BaseModelBackend):
         if name in cls.SUPPORTED_MODELS:
             return name
         for model_id, spec in cls.SUPPORTED_MODELS.items():
-            if spec['hf_id'].lower() == name:
+            if spec['hf_id'].lower() == name or spec['model_key'].lower() == str(model_name).lower():
                 return model_id
         return DEFAULT_MODEL
+
+    @classmethod
+    def catalogue_key_for(cls, model_name: Optional[str]) -> str:
+        """Clé catalogue du pipeline servi pour une demande — celle sous laquelle on le mesure."""
+        return cls.SUPPORTED_MODELS[cls.model_id_for(model_name)]['model_key']
 
     def load(self, model: Optional[str] = None, hf_token: Optional[str] = None) -> bool:
         """Charge (ou réutilise) le pipeline demandé. Un AUTRE pipeline déjà chargé est libéré

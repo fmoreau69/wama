@@ -42,7 +42,7 @@ def internal_scores(model_keys: Optional[Iterable[str]] = None) -> Dict[str, Lis
     """Les échelles internes de chaque modèle mesuré : `{model_key: [échelle, …]}`.
 
     Une échelle : `{scale, metric, protocol, direction, value, items, references,
-    reference_words, measured_until, population, rank}` — `rank` (1 = le meilleur) et
+    reference_words, unit, measured_until, population, rank}` — `rank` (1 = le meilleur) et
     `population` ne valent que parmi les modèles mesurés sur EXACTEMENT les mêmes références ;
     `rank` est None quand le modèle y est seul. Un modèle jamais mesuré est absent du dict.
     """
@@ -62,8 +62,11 @@ def internal_scores(model_keys: Optional[Iterable[str]] = None) -> Dict[str, Lis
         g = groups.setdefault(key, {'errors': 0, 'reference_words': 0, 'items': set(),
                                     'references': set(), 'measured_until': None})
         detail = r.detail or {}
-        g['errors'] += int(detail.get('errors') or 0)
-        g['reference_words'] += int(detail.get('reference_length') or 0)
+        # Flottants : une échelle de diarisation (`der`) compte des SECONDES, pas des mots — son
+        # `reference_words` est alors une durée (l'unité voyage dans `detail['unit']`).
+        g['errors'] += float(detail.get('errors') or 0)
+        g['reference_words'] += float(detail.get('reference_length') or 0)
+        g['unit'] = detail.get('unit') or g.get('unit') or 'word'
         g['items'].add((r.app, r.object_type, r.object_id))
         g['references'].add(r.reference_sha256)
         if g['measured_until'] is None or r.measured_at > g['measured_until']:
@@ -78,7 +81,9 @@ def internal_scores(model_keys: Optional[Iterable[str]] = None) -> Dict[str, Lis
                  'direction': direction,
                  'value': round(g['errors'] / g['reference_words'], 4),
                  'items': len(g['items']), 'references': len(g['references']),
-                 'reference_words': g['reference_words'],
+                 'reference_words': round(g['reference_words'], 1),
+                 # 'word' | 'character' | 'second' — ce que compte `reference_words`.
+                 'unit': g.get('unit') or 'word',
                  'measured_until': g['measured_until'].isoformat(),
                  'population': 1, 'rank': None}
         scales.setdefault(model_key, []).append(entry)

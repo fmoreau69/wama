@@ -126,11 +126,39 @@ class TranscriberConfig(AppConfig):
                 return None
             return round((one + other) / 2, 4)
 
+        def _model_key(item):
+            return item.model_key or (f'transcriber:{item.used_backend}' if item.used_backend else '')
+
+        def _result_segments(item):
+            """Les segments PRODUITS (avec leur locuteur) — même règle que `_asr_text`."""
+            if item.status != 'SUCCESS':
+                return None
+            return [s for s in (item.segments_json or []) if isinstance(s, dict)]
+
+        def _reference_segments(path):
+            from .utils.transcript_documents import read_transcript_document
+            return read_transcript_document(path).segments
+
+        def _speaker_model_key(item):
+            """Qui a ATTRIBUÉ les locuteurs : le moteur lui-même s'il diarise (VibeVoice), sinon
+            le pipeline pyannote de la card — la règle de `workers.py` (Step 4b), relue ici."""
+            from .backends.manager import TranscriberBackendManager
+            engine = TranscriberBackendManager.get_instance()._backends.get(item.used_backend or '')
+            if engine is not None and getattr(engine, 'supports_diarization', False):
+                return _model_key(item)
+            from wama.common.backends.pyannote_diarizer import PyannoteDiarizerBackend
+            return PyannoteDiarizerBackend.catalogue_key_for(
+                getattr(item, 'diarization_model', '') or None)
+
         register_evaluation(EvaluationSpec(
             surface='transcriber', reference_field='reference_result',
             result_text=_asr_text, read_reference=_read_reference,
-            model_key=lambda item: item.model_key or (
-                f'transcriber:{item.used_backend}' if item.used_backend else ''),
+            model_key=_model_key,
+            # Diarisation (2026-09-30) : cpWER (qui a dit quoi) et DER (qui parle quand), mesurés
+            # quand la référence ET la sortie nomment leurs locuteurs — sinon, pas de ligne.
+            metrics=('wer', 'cer', 'cpwer', 'der'),
+            result_segments=_result_segments, read_reference_segments=_reference_segments,
+            segment_model_key=_speaker_model_key,
             reference_extensions=SUPPORTED_EXTENSIONS,
             # Port `work_result` (capacité `has_result_import`) : une transcription faite ailleurs
             # devient le résultat de la card — et se compare à la référence comme un modèle.
