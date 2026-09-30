@@ -970,3 +970,61 @@ class ModelRuntimeStat(models.Model):
 
     def __str__(self):
         return f"{self.model_key} @ {self.hardware_fingerprint} (n={self.samples})"
+
+
+class InstallEvent(models.Model):
+    """
+    Journal DATÉ des installations et désinstallations — modèles et librairies (2026-09-30).
+
+    Pourquoi une table : rien ne DATAIT une installation. La progression vit en cache le temps de
+    la tâche (`INSTALL_CACHE_PREFIX`) puis disparaît ; `AIModel` ne garde que la dernière
+    désinstallation (`extra_info['uninstalled_at']`) ; `Library.updated_at` bouge à chaque
+    projection. Le calendrier (couche « Installations », `WAMA_MEMORY §9bis.1`) ne pouvait donc rien
+    montrer — ces événements ne se DÉRIVENT de rien, d'où la seule exception à « le calendrier
+    dérive tout ».
+
+    Couche de l'INSTANCE (décision de Fabien, 2026-09-28) : un modèle installé l'est pour tous, la
+    ligne ne nomme donc personne. Elle dit par QUELLE voie (`via`) : le bouton du model manager,
+    l'assistant, le marcheur d'app, la ligne de commande — les voies de la route unique
+    `model_installer.request_install` (PROSPECTION_PIPELINE, alignement du 2026-09-19).
+    Écrite par `services/install_history.py`, jamais ailleurs.
+    """
+
+    KIND_MODEL = 'model'
+    KIND_LIBRARY = 'library'
+    KIND_CHOICES = [(KIND_MODEL, 'Modèle'), (KIND_LIBRARY, 'Librairie')]
+
+    ACTION_INSTALL = 'install'
+    ACTION_UNINSTALL = 'uninstall'
+    ACTION_CHOICES = [(ACTION_INSTALL, 'Installation'), (ACTION_UNINSTALL, 'Désinstallation')]
+
+    #: Mêmes clés que les états du journal commun (`journal.STATUTS`) : la barre de filtrage du
+    #: calendrier les lit sans table de traduction.
+    STATUS_RUNNING = 'RUNNING'
+    STATUS_SUCCESS = 'SUCCESS'
+    STATUS_FAILURE = 'FAILURE'
+    STATUS_CHOICES = [(STATUS_RUNNING, 'En cours'), (STATUS_SUCCESS, 'Terminé'),
+                      (STATUS_FAILURE, 'Échec')]
+
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES, db_index=True)
+    #: Clé DEMANDÉE (candidat `proposed:*`, ligne de catalogue, clé de librairie). Un candidat
+    #: installé devient une autre ligne de catalogue ; `name` reste lisible dans les deux cas.
+    key = models.CharField(max_length=255, db_index=True)
+    name = models.CharField(max_length=255, blank=True, default='')
+    action = models.CharField(max_length=16, choices=ACTION_CHOICES, default=ACTION_INSTALL)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_RUNNING,
+                              db_index=True)
+    #: `model_manager` | `assistant` | `app_requirements` | `cli` — '' si l'appelant ne le dit pas.
+    via = models.CharField(max_length=32, blank=True, default='')
+    started_at = models.DateTimeField(db_index=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    #: Ce qui se mesure : Go libérés, version, erreur. Jamais un jugement.
+    detail = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "Installation"
+        verbose_name_plural = "Installations"
+        ordering = ['-started_at']
+
+    def __str__(self):
+        return f"{self.action} {self.kind}:{self.key} → {self.status}"

@@ -878,7 +878,7 @@ def calendar_view(request):
     La MÊME activité que le journal, sur l'axe du temps : la page ne porte aucune donnée, elle
     charge ses événements par `calendar_events` à chaque changement de fenêtre.
     """
-    from .services.calendar import MAINTENANCE_COLOR, NATURE_LABELS, app_identity
+    from .services.calendar import MAINTENANCE_COLOR, app_identity, nature_labels
     from .services.journal import STATUTS, compter_par_app
 
     legend = []
@@ -891,7 +891,7 @@ def calendar_view(request):
     facettes = [
         {'cle': 'app', 'label': 'Application', 'tous': 'Toutes les applications',
          'options': {row['app']: row['label'] for row in legend}},
-        {'cle': 'nature', 'label': 'Nature', 'tous': 'Tout', 'options': NATURE_LABELS},
+        {'cle': 'nature', 'label': 'Nature', 'tous': 'Tout', 'options': nature_labels()},
         {'cle': 'statut', 'label': 'État', 'tous': STATUTS['all'],
          'options': {k: v for k, v in STATUTS.items() if k != 'all'}},
     ]

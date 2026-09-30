@@ -38,7 +38,7 @@ class Command(BaseCommand):
                 return
             self.stdout.write(f"is_allowed=True posé sur « {o['key']} » (décision humaine).")
 
-        res = install_library(o['key'], apply=o['apply'])
+        res = install_library(o['key'], apply=o['apply'], via='cli')
         self.stdout.write(json.dumps(res, ensure_ascii=False, indent=2, default=str))
         if not res.get('ok'):
             self.stderr.write(self.style.ERROR(res.get('error', 'échec')))

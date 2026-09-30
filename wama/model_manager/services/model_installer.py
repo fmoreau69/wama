@@ -769,7 +769,12 @@ def disk_space_guard(ref: str, *, reclaim_gb: float = 0.0, force: bool = False,
 
     # `needed_gb` fourni (candidat HF : poids `usedStorage` relevé à la prospection) →
     # pas d'interrogation du registre Ollama, qui ne connaît pas ces modèles.
-    if needed_gb:
+    # ⚠ `is not None`, pas la vérité du nombre (mesuré le 2026-09-30, relevé par une autre
+    # instance) : un dépôt de PIPELINE léger (pyannote community-1, ~27 Mo) pèse 0,0 Go une fois
+    # arrondi — une taille CONNUE. `if needed_gb:` la prenait pour une absence, interrogeait le
+    # registre Ollama sur une référence HuggingFace, et refusait l'installation pour « taille
+    # indéterminable ». L'inconnu, lui, reste `None` (`weight_for_spec`) et reste refusé.
+    if needed_gb is not None:
         needed = float(needed_gb)
     else:
         nom, _, tag = ref.partition(':')
@@ -841,7 +846,7 @@ def _persist_variant_choice(cand, variant_ref: str, variant_file: str):
 
 
 def request_install(model_key: str, *, force: bool = False, variant_ref: str = '',
-                    variant_file: str = '', user=None) -> dict:
+                    variant_file: str = '', user=None, via: str = '') -> dict:
     """
     DEMANDE d'installation par CLÉ — corps unique du geste « Installer » : choix de variante,
     garde d'espace disque, idempotence, puis dispatch de la séquence longue en Celery.
@@ -935,9 +940,21 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
                 'progress': en_cours}
     # `user_id` : le téléchargement se fera avec le jeton de CETTE personne (2026-09-27,
     # `accounts.api_keys.download_token`) — la tâche relit la clé, qui ne transite jamais.
-    started = task.delay(target.model_key, user_id=getattr(user, 'pk', None))
+    started = dispatch_install(task, target, user_id=getattr(user, 'pk', None), via=via)
     return {'ok': True, 'started': True, 'model_key': target.model_key,
             'task_id': started.id}
+
+
+def dispatch_install(task, row, *, user_id=None, via=''):
+    """SEUL point de dispatch des deux tâches d'installation : ouvre l'événement DATÉ du journal,
+    avec sa VOIE (`install_history.queued`), puis envoie le message — SANS argument nouveau.
+
+    ⚠ `via` ne passe jamais dans le message Celery (mesuré le 2026-09-30) : un worker resté sur
+    l'ancien code le refusait (`TypeError: unexpected keyword argument`) et l'installation
+    échouait. La tâche reprend l'événement par sa clé (`install_history.resumed`)."""
+    from .install_history import queued
+    queued('model', row.model_key, name=row.name, via=via)
+    return task.delay(row.model_key, user_id=user_id)
 
 
 def install_candidate(cand, progress=None, token=None) -> dict:
@@ -1111,7 +1128,7 @@ def rows_depending_on(model, target: Path, index: dict | None = None) -> tuple[l
     return sharing, dependents
 
 
-def uninstall_model(model_key: str, include_shared: bool = False) -> dict:
+def uninstall_model(model_key: str, include_shared: bool = False, via: str = '') -> dict:
     """
     DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
     (léger et réutilisable — décision Fabien 2026-08-27), et recalage du catalogue dans le
@@ -1235,9 +1252,13 @@ def uninstall_model(model_key: str, include_shared: bool = False) -> dict:
             is_downloaded=False, is_loaded=False, extra_info=info)
     logger.info("[uninstall] %s (%s) — %.1f Go rendus%s", model_key, kind, freed_gb,
                 f" ; aussi marqués : {[m.model_key for m in marked[1:]]}" if len(marked) > 1 else '')
-    return {'ok': True, 'freed_gb': round(freed_gb, 1), 'kind': kind, 'name': model.name,
-            'also_marked': [m.name for m in marked[1:]],
-            'affected': [m.name for m in dependents]}
+    result = {'ok': True, 'freed_gb': round(freed_gb, 1), 'kind': kind, 'name': model.name,
+              'also_marked': [m.name for m in marked[1:]],
+              'affected': [m.name for m in dependents]}
+    # Journal DATÉ (calendrier, couche « Installations ») — seul un retrait EFFECTUÉ s'y inscrit.
+    from .install_history import record
+    record('model', model_key, name=model.name, action='uninstall', via=via, result=result)
+    return result
 
 
 def spec_for_catalog_row(model) -> dict | None:
@@ -1619,7 +1640,7 @@ def simuler_installation(spec: str, timeout: int = 300, constraints=None) -> dic
             'sortie': (proc.stdout or '').strip()[-400:]}
 
 
-def install_library(key: str, apply: bool = False) -> dict:
+def install_library(key: str, apply: bool = False, via: str = '') -> dict:
     """
     Installe UNE librairie depuis son registre (`common.models.Library`) — la JONCTION
     manifeste→pip qui manquait (2026-08-31) : le kind `library` projetait le registre
@@ -1684,18 +1705,26 @@ def install_library(key: str, apply: bool = False) -> dict:
 
     patches = None
     if constat != version_cible:
-        res = pip_install_packages([spec], constraints=constraints)
-        if not res.get('ok'):
-            return {'ok': False, 'library': key, 'error': res.get('error'), 'plan': plan}
-        patches = _replay_patches()
-        try:
-            constat = im.version(nom_dist)
-        except im.PackageNotFoundError:
-            constat = None
-        if constat != version_cible:
-            return {'ok': False, 'library': key, 'plan': plan, 'patches': patches,
-                    'error': f"pip a répondu ok mais la version constatée est {constat!r} "
-                             f"(attendu {version_cible!r})"}
+        # Journal DATÉ (calendrier, couche « Installations ») : seul un appel RÉEL à pip s'y
+        # inscrit — un plan, ou une version déjà satisfaite, n'installe rien.
+        from .install_history import opened
+        with opened('library', key, name=lib.name or key, via=via) as outcome:
+            res = pip_install_packages([spec], constraints=constraints)
+            if not res.get('ok'):
+                outcome.update({'ok': False, 'error': res.get('error')})
+                return {'ok': False, 'library': key, 'error': res.get('error'), 'plan': plan}
+            patches = _replay_patches()
+            try:
+                constat = im.version(nom_dist)
+            except im.PackageNotFoundError:
+                constat = None
+            if constat != version_cible:
+                error = (f"pip a répondu ok mais la version constatée est {constat!r} "
+                         f"(attendu {version_cible!r})")
+                outcome.update({'ok': False, 'error': error})
+                return {'ok': False, 'library': key, 'plan': plan, 'patches': patches,
+                        'error': error}
+            outcome.update({'ok': True, 'version': version_cible})
 
     lib.is_installed = True
     lib.installed_version = version_cible
@@ -1735,7 +1764,8 @@ def install_requirements(app_key: str, apply: bool = False) -> dict:
     for ref in (manifeste.get('requires') or []):
         kind, key = ref.get('kind'), ref.get('key')
         if kind == 'library':
-            libraries.append({'key': key, **install_library(key, apply=apply)})
+            libraries.append({'key': key, **install_library(key, apply=apply,
+                                                             via='app_requirements')})
         elif kind == 'model':
             row = AIModel.objects.filter(model_key=key, is_proposed=False).first()
             if row is None:
@@ -1753,7 +1783,7 @@ def install_requirements(app_key: str, apply: bool = False) -> dict:
                                    'would_install': spec.get('ref')})
                 else:
                     from ..tasks import install_catalog_task
-                    started = install_catalog_task.delay(key)
+                    started = dispatch_install(install_catalog_task, row, via='app_requirements')
                     models.append({'key': key, 'state': 'installation enfilée (Celery)',
                                    'task_id': started.id})
         else:

@@ -436,12 +436,36 @@ sauvegarde déplacée à 04:20 → rouge).
 | 3 | `ScheduledAction` + distributeur + « Programmer… » au menu de card (pas sur le ▶, arbitrage de Fabien) + programmation par le fichier batch + abonnement `.ics` à jeton — le tout depuis UN schéma (`ROUTE §10.6` 13.7) | ✅ 2026-09-28 |
 | 4 | placement automatique d'après la FILE GLOBALE + « où en est ma tâche » (pastille, calendrier) + heures creuses mesurées + plages réservées tenues sur toute la durée (`ROUTE §10.6` 13.8) | ✅ 2026-09-28 |
 | 5 | mails et posts — des OUTILS de `tool_api`, programmables sans code propre | ⏳ (quand les outils existeront) |
+| 6 | couche **Installations** de l'instance : journal DATÉ des installations et désinstallations (modèles, librairies), avec issue et voie | ✅ 2026-09-30 |
 
 **Décisions de Fabien (2026-09-28)** : ① ce domicile (la vue ici, le QUAND à `§10.6`) ;
 ② les installations de modèles et de librairies restent dans la couche **instance** — `AIModel` et
 `Library` n'ont qu'un `created_at`, sans auteur ; les rendre personnelles demandera un champ
 `installed_by` ; ③ une action programmée lit les réglages de sa card **au lancement** (la card reste
 éditable jusque-là).
+
+**La couche « Installations » (étape 6, 2026-09-30, demande de Fabien : *les installations par
+l'assistant et par le model manager*).** Rien ne DATAIT une installation : la progression vivait en
+cache le temps de la tâche (`INSTALL_CACHE_PREFIX`), `AIModel` ne gardait que la dernière
+désinstallation, `Library.updated_at` bouge à chaque projection. D'où la seule table que le
+calendrier ait ajoutée hors `ScheduledAction` — ces faits ne se dérivent de rien :
+`model_manager.InstallEvent` (modèle ou librairie, installation ou désinstallation, début, fin,
+issue, **voie**). Elle ne nomme personne (décision ② ci-dessus), elle dit la VOIE : `model_manager`
+(le bouton), `assistant` (`install_model`), `app_requirements` (le marcheur d'app), `cli`.
+- **Écrite aux points uniques de la route**, jamais par surface : les deux tâches Celery
+  qu'`model_installer.request_install` dispatche — la route unique du bouton ET de l'assistant depuis
+  le 19/09 (`PROSPECTION_PIPELINE`) —, `uninstall_model` (retrait effectué seulement) et
+  `install_library` (appel RÉEL à pip seulement). Best-effort (`services/install_history.py`) : un
+  journal qui échoue n'échoue jamais une installation.
+- **Le calendrier ne connaît pas ses producteurs** : le model_manager inscrit sa couche dans son
+  `ready()` (`calendar.register_instance_layer`), avec l'app dont elle relève — un utilisateur sans
+  accès au model_manager ne la voit pas — et sa propre valeur de facette (« Installations »), au lieu
+  de « Maintenance de WAMA ». Une installation éclair garde un bloc de 15 min.
+- Gardes : `model_manager/tests/tests_install_history` — route datée (succès, refus du driver,
+  exception qui se propage), voie transmise par la demande, journal défaillant sans effet ; **chaque
+  appel** de `request_install` / `uninstall_model` / `install_library` / tâche catalogue porte
+  `via=` (contre-épreuve : la voie retirée de la commande `install_library` → rouge) ; couche vue
+  par qui a accès, et par personne d'autre.
 
 ## 9ter. tool_api — la lecture est générique, l'écriture ne l'est pas ✅ **CONSTRUIT le 2026-09-11**
 

@@ -257,20 +257,27 @@ def install_proposed_task(self, model_key: str, user_id=None):
     def publier(state: str, payload: dict):
         publier_progression(cache_key, self.request.id, state, payload, INSTALL_TTL)
 
-    cand = AIModel.objects.filter(model_key=model_key, is_proposed=True).first()
-    if not cand:
-        publier('FAILURE', {'error': 'Candidat introuvable (déjà installé ou rejeté ?)'})
-        return {'ok': False, 'error': 'Candidat introuvable'}
+    from .services.install_history import resumed
 
-    publier('RUNNING', {'status': 'démarrage…', 'name': cand.name})
-    try:
-        res = install_candidate(
-            cand, progress=lambda s: publier('RUNNING', {'status': s, 'name': cand.name}),
-            token=_download_token(user_id))
-    except Exception as exc:
-        logger.exception("[install_proposed] échec inattendu pour %s", model_key)
-        publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}", 'name': cand.name})
-        raise
+    # Journal DATÉ (calendrier, couche « Installations ») : l'événement ouvert à la DEMANDE, avec
+    # sa voie, est repris ici — la tâche ne reçoit aucun argument de plus (`install_history`).
+    with resumed('model', model_key) as outcome:
+        cand = AIModel.objects.filter(model_key=model_key, is_proposed=True).first()
+        if not cand:
+            publier('FAILURE', {'error': 'Candidat introuvable (déjà installé ou rejeté ?)'})
+            outcome.update({'ok': False, 'error': 'Candidat introuvable'})
+            return {'ok': False, 'error': 'Candidat introuvable'}
+
+        publier('RUNNING', {'status': 'démarrage…', 'name': cand.name})
+        try:
+            res = install_candidate(
+                cand, progress=lambda s: publier('RUNNING', {'status': s, 'name': cand.name}),
+                token=_download_token(user_id))
+        except Exception as exc:
+            logger.exception("[install_proposed] échec inattendu pour %s", model_key)
+            publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}", 'name': cand.name})
+            raise
+        outcome.update(res)
     publier('SUCCESS' if res.get('ok') else 'FAILURE', dict(res, name=cand.name))
     logger.info("[install_proposed] %s → %s", model_key,
                 'installé' if res.get('ok') else res.get('error'))
@@ -295,24 +302,30 @@ def install_catalog_task(self, model_key: str, user_id=None):
     def publier(state: str, payload: dict):
         publier_progression(cache_key, self.request.id, state, payload, INSTALL_TTL)
 
-    model = AIModel.objects.filter(model_key=model_key, is_proposed=False).first()
-    if model is None:
-        publier('FAILURE', {'error': 'Modèle introuvable au catalogue'})
-        return {'ok': False, 'error': 'Modèle introuvable'}
-    spec = spec_for_catalog_row(model)
-    if spec is None:
-        publier('FAILURE', {'error': "Ce modèle ne déclare pas d'emplacement d'installation "
-                                     "(hf_id/install_dir) — installation au premier usage "
-                                     "seulement.", 'name': model.name})
-        return {'ok': False, 'error': 'spec non dérivable'}
+    from .services.install_history import resumed
 
-    publier('RUNNING', {'status': f"téléchargement {spec['ref']}…", 'name': model.name})
-    try:
-        res = install_from_spec(spec, token=_download_token(user_id))
-    except Exception as exc:
-        logger.exception("[install_catalog] échec inattendu pour %s", model_key)
-        publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}", 'name': model.name})
-        raise
+    with resumed('model', model_key) as outcome:        # cf. install_proposed_task
+        model = AIModel.objects.filter(model_key=model_key, is_proposed=False).first()
+        if model is None:
+            publier('FAILURE', {'error': 'Modèle introuvable au catalogue'})
+            outcome.update({'ok': False, 'error': 'Modèle introuvable'})
+            return {'ok': False, 'error': 'Modèle introuvable'}
+        spec = spec_for_catalog_row(model)
+        if spec is None:
+            publier('FAILURE', {'error': "Ce modèle ne déclare pas d'emplacement d'installation "
+                                         "(hf_id/install_dir) — installation au premier usage "
+                                         "seulement.", 'name': model.name})
+            outcome.update({'ok': False, 'error': 'spec non dérivable'})
+            return {'ok': False, 'error': 'spec non dérivable'}
+
+        publier('RUNNING', {'status': f"téléchargement {spec['ref']}…", 'name': model.name})
+        try:
+            res = install_from_spec(spec, token=_download_token(user_id))
+        except Exception as exc:
+            logger.exception("[install_catalog] échec inattendu pour %s", model_key)
+            publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}", 'name': model.name})
+            raise
+        outcome.update(res)
     publier('SUCCESS' if res.get('ok') else 'FAILURE', dict(
         {k: v for k, v in res.items() if k != 'provenance'}, name=model.name))
     logger.info("[install_catalog] %s → %s", model_key,

@@ -638,6 +638,42 @@ def queue_events(user, start, end, entries) -> list[CalendarEvent]:
     return events
 
 
+# ── Couches de l'INSTANCE apportées par les apps ─────────────────────────────────────────────
+#
+# Le calendrier ne connaît pas ses producteurs (même règle que le registre des fonctions) : une
+# app qui DATE des événements de l'instance les inscrit dans son `ready()`. Premier inscrit : le
+# journal des installations du model_manager (2026-09-30). Chaque couche nomme l'app dont elle
+# relève — un utilisateur qui n'y a pas accès ne la voit pas —, et sa valeur de FACETTE : la
+# barre de filtrage la range sous son propre nom au lieu de « Maintenance de WAMA ».
+
+_INSTANCE_LAYERS = {}
+
+
+def register_instance_layer(key, *, label, app, events):
+    """Inscrit `events(start, end) -> list[CalendarEvent]` comme couche de l'instance.
+    Idempotent : `ready()` peut être rejoué (même précaution qu'`enregistrer_source`)."""
+    _INSTANCE_LAYERS[key] = {'label': label, 'app': app, 'events': events}
+
+
+def nature_labels() -> dict:
+    """Valeurs de la facette « Nature » : les natures de temps, la maintenance, puis les couches."""
+    return {**NATURE_LABELS, **{k: layer['label'] for k, layer in _INSTANCE_LAYERS.items()}}
+
+
+def instance_layer_events(user, start, end) -> list[CalendarEvent]:
+    from wama.accounts.permissions import accessible
+
+    events = []
+    for key, layer in _INSTANCE_LAYERS.items():
+        try:
+            if not accessible(user, 'app', layer['app']):
+                continue
+            events += layer['events'](start, end)
+        except Exception:
+            logger.warning('[calendar] couche %s illisible', key, exc_info=True)
+    return events
+
+
 def events_for(user, start, end, *, with_maintenance=True) -> list[CalendarEvent]:
     from .global_queue import snapshot
 
@@ -647,6 +683,7 @@ def events_for(user, start, end, *, with_maintenance=True) -> list[CalendarEvent
     if with_maintenance:
         events += queue_events(user, start, end, queue)
         events += maintenance_windows(start, end)
+        events += instance_layer_events(user, start, end)
     return events
 
 
