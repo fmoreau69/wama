@@ -412,8 +412,10 @@ def transcribe_without_preprocessing(self, transcript_id: int):
 def _vad_filter_for(t, audio_path: str) -> bool:
     """Le réglage `vad_mode` de la card → le `vad_filter` de Whisper. En « auto », la sonde
     `speech_activity` confronte le VAD à l'énergie du signal : s'il rejette la parole (champ
-    lointain), on transcrit SANS filtre et la console le dit. Une sonde qui échoue garde le filtre
-    — le comportement d'avant ce réglage."""
+    lointain), on transcrit SANS filtre. La console dit la décision DANS LES DEUX CAS, avec ses
+    deux taux : jusqu'au 2026-09-30 elle ne parlait que pour couper, et un filtre gardé de
+    justesse (lot #489, 75 % de l'audio retiré) ne laissait aucune trace. Une sonde qui échoue
+    garde le filtre — le comportement d'avant ce réglage."""
     mode = getattr(t, 'vad_mode', 'auto') or 'auto'
     if mode in ('on', 'off'):
         return mode == 'on'
@@ -424,12 +426,15 @@ def _vad_filter_for(t, audio_path: str) -> bool:
         _console(t.user_id, f"Sonde du filtre de parole impossible ({exc}) — filtre gardé.",
                  level='warning')
         return True
+    heard = f"sur {probe.get('windows', '?')} passages écoutés"
     if probe['rejects']:
         _console(t.user_id,
                  f"Filtre de parole désactivé : il ne garde que {probe['vad']:.0%} de l'audio "
-                 f"pour {probe['energy']:.0%} de signal actif (parole lointaine probable).",
+                 f"pour {probe['energy']:.0%} de signal actif, {heard} (parole lointaine probable).",
                  level='warning')
         return False
+    _console(t.user_id, f"Filtre de parole gardé : il garde {probe['vad']:.0%} de l'audio pour "
+                        f"{probe['energy']:.0%} de signal actif, {heard}.")
     return True
 
 
