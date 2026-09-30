@@ -1044,7 +1044,7 @@ Range le RÉSULTAT d'un élément comme asset, lu au schéma canonique du détai
   - `enrich_asset_from_file(asset) -> None` — Ce que le FICHIER dit de l'asset — MIME, taille, et les `attributes` que la sonde commune
   - `candidate_asset_types(nom_fichier: str) -> list` — Rôles d'asset admissibles pour cette extension, dans l'ordre de `ASSET_TYPES`.
   - `class LibraryAddRefused(ValueError)` — Ajout refusé (nature inconnue, format non admis, nom déjà pris, déplacement impossible) —
-  - `add_file_to_library(user, asset_type: str, *, uploaded=None, source=None, name: str='', description: str='', tags: str='')` — Ajoute UN fichier à la médiathèque de `user`, comme asset de la nature `asset_type`.
+  - `add_file_to_library(user, asset_type: str, *, uploaded=None, source=None, name: str='', description: str='', tags: str='', attributes=None, license: str='', au…` — Ajoute UN fichier à la médiathèque de `user`, comme asset de la nature `asset_type`.
   - `admissible_roles(detail: dict, nom_fichier: str) -> list` — Les rôles que le geste PROPOSE pour cette sortie — et donc les seuls qu'il accepte.
   - `export_choices(app: str, detail: dict) -> list` — Les CHOIX que le geste propose pour cette sortie — `[{key, label, asset_type, format}]`.
   - `export_item_to_library(user, app: str, pk: int, asset_type: str='', name: str='', output_format: str='') -> dict` — Range le RÉSULTAT d'un élément d'app dans la médiathèque de son propriétaire.
@@ -1101,17 +1101,18 @@ Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référenc
 
 ### Accès LLM
 
-Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local)
+Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local). `chat_with_catalog_model` (2026-09-30) : un appel désigné par une CLÉ DE CATALOGUE (`auto`, `ollama:…`, `albert:…`, `anthropic:…`) — fournisseur = source, clé de l'UTILISATEUR par la garde commune `cloud_access` ; ce qu'appelle une app dont le réglage « Modèle » est tiré du catalogue (route F4b)
 
 - **Domicile** : `wama/common/utils/llm_utils.py`
 - **Module** : WAMA Common — LLM utilities Shared Ollama client for use in Celery workers (transcriber, describer, ...).
-- **API publique** (12) :
+- **API publique** (13) :
   - `get_describer_model(content_type: str, output_style: str) -> str` — Return the Ollama model name to use for a given (content_type, output_style) pair.
   - `modele_par_defaut() -> str` — Modèle LLM à utiliser quand l'appelant n'en impose aucun — résolu, jamais figé.
   - `modele_par_tier(tier: str='default', exige=None, priority=None, prefer_loaded: bool=True) -> str` — Résolution PUBLIQUE d'un tier (`heavy`/`default`/`fast`) — même mécanique que
   - `ollama_chat(messages: list, model: str='', num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, keep_alive: Optional[str…` — Send a chat request to the local Ollama server.
   - `default_cloud_model(provider: str) -> str` — Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon `CLOUD_DEFAULT_MODELS`.
   - `llm_chat(messages: list, model: str=None, provider: str=None, num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, api_k…` — Unified LLM chat function — provider-agnostic entry point.
+  - `chat_with_catalog_model(catalog_key: str, messages: list, *, user=None, **llm_kwargs) -> tuple[Optional[str], Optional[str]]` — Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
   - `extract_json_from_llm(text: str) -> Optional[dict]` — Extract the first valid JSON object from an LLM response.
   - `generate_meeting_summary(text: str, language: str='fr', speakers: Optional[list]=None, model: str='', provider: Optional[str]=None) -> str` — Generate a structured meeting summary (compte-rendu de réunion).
   - `verify_text_coherence(text: str, content_hint: str='transcription', language: str='fr', model: str='', provider: Optional[str]=None) -> dict` — Verify text coherence and suggest corrections.
@@ -1388,8 +1389,9 @@ Rend le code CONVENTIONNEL d'une app depuis son manifeste — une cible par fich
 
 - **Domicile** : `wama/common/manifests/codegen/templates_gen.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Gabarit `templates/<app>/index.html` (marche A — v1, marche S2).
-- **API publique** (1) :
+- **API publique** (2) :
   - `render_index(manifest: dict) -> tuple` — (source, raison) — templates/<app>/index.html conventionnel, jamais partiel.
+  - `render_base(manifest: dict) -> tuple` — (fichiers, raison) — `templates/<app>/base.html`, la FINE couche d'app sur l'ossature
 
 ### Grille de conformité
 
