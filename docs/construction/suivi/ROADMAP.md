@@ -3730,7 +3730,7 @@ RÉFUTÉ** (test demandé par Fabien, 3 appels identiques sur le même dépôt) 
 
 ---
 
-## 21. App **Editor** — mise en forme assistée des sorties TEXTE (vision Fabien, 2026-09-01)
+## 21. App **Editor** — mise en forme assistée des sorties TEXTE (vision Fabien, 2026-09-01) → élargie le 2026-09-30 : documents HTML générés et hébergés (§21.5)
 
 > **Consigné le jour où la question s'est posée, à faire APRÈS le portage du monde Médias.**
 > Ne rien modifier d'ici là : la modale de texte du reader reste en l'état (cf. §21.1).
@@ -3791,6 +3791,138 @@ assistée du Transcriber (pilote livré : `wama/transcriber/TRANSCRIBER_CORRECTI
 **APRÈS le portage du monde Médias.** D'ici là : ne rien changer au rendu de la modale
 (décision Fabien du 2026-09-01), et ne pas « corriger » l'écart card/modale en isolé — il se
 tranche avec la bascule rendu/source de l'éditeur.
+
+### 21.5 Élargissement du 2026-09-30 — générer, mettre en forme, héberger (Fabien)
+
+> **Le besoin.** Un espace où l'utilisateur fait générer par l'IA puis héberge dans WAMA ses
+> présentations HTML (l'équivalent de ses pptx/pdf), ses rapports de traitements Data/Lab, et des
+> pages web posées sur des pipelines (ex. une interface de bibliographie avancée). **La plus-value
+> visée** : créer et héberger une présentation HTML **en quelques minutes, avec tout le contexte** —
+> données, rapports d'analyse, tout ce que WAMA produit.
+> ⚠ Cette section **complète** §21.1-21.4 : la séance du 30/09 est partie sans les avoir vues
+> (relevé par grep le jour même, avant consignation). Rien de 21.1-21.4 n'est contredit ; 21.3 est
+> recadré ci-dessous.
+
+#### Décisions actées (2026-09-30)
+
+1. **Une app du monde Médias, au format standard, schéma-driven** : 1 card = 1 document
+   (présentation, rapport, page). Entrée = un **prompt** + des **cards envoyées** vers l'app (une
+   card de pipeline d'analyse ou de génération) + le **RAG**. ▶ = générer / régénérer.
+2. **Le fond et la forme sont séparés.**
+   - **Fond** = un texte structuré en sections, rédigé par l'IA, corrigeable **à la main ou par
+     prompt, section par section**.
+   - **Forme** = un rendu par format, produit par un LLM à partir du fond et d'une **consigne de
+     forme** (« ce tableau sur deux colonnes », « style sobre »).
+   - **On édite le fond, on DEMANDE la forme, on n'édite JAMAIS l'aperçu.** Aucune barre d'outils de
+     mise en forme : c'est ce qui sépare l'app d'un éditeur manuel auquel on aurait ajouté de l'IA.
+     L'aperçu sert à voir et à naviguer (un clic renvoie à la section du fond).
+3. **HTML d'abord, en préparant les autres formats** : le format de sortie est un paramètre
+   DÉCLARÉ, dont HTML est la seule valeur du premier jet. PDF tiré du HTML par le navigateur intégré
+   (`common/utils/html_render.py`, Chromium) ; docx et autres ensuite, par les chaînes déjà en place
+   (Pandoc au converter). **Le LLM écrit dans le langage source d'un format (HTML/CSS…), jamais un
+   binaire.**
+4. **Héberger est une capacité COMMUNE, pas une fonction de l'app** : tout résultat de WAMA doit
+   pouvoir se publier (rapport Cam Analyzer, transcription rendue…). Publier = rendre une **version**
+   visible à une adresse de l'espace personnel, avec les crans de la ligne de partage
+   (`WAMA_COLLABORATION.md §2.1`). WAMA reste **interne, non exposé sur Internet** ; le choix du LLM
+   (local, Albert, cloud) **suit le niveau de publication** voulu par l'utilisateur.
+5. **Une page hébergée = des fichiers STATIQUES + l'API WAMA.** WAMA sert les fichiers tels quels,
+   le code s'exécute dans le navigateur du visiteur ; tout ce qui est dynamique passe par l'API
+   existante (`tool_api`) **avec les droits du visiteur**. **Jamais de code serveur fourni par
+   l'utilisateur** (du code généré par IA exécuté sur le serveur du labo). Exemple : la page de
+   bibliographie est une interface ; la recherche, le dédoublonnage et les citations sont un
+   **pipeline déclaré dans WAMA** que la page appelle.
+6. **Versions** : chaque prompt de modification crée une révision DANS la card, sans polluer la
+   file ; l'hébergement publie une version. Conception et ordre : `WAMA_COLLABORATION.md §7.1` et
+   marche **8a**, passée en tête le même jour, avec **cette app comme premier consommateur**.
+
+#### Recadrage de §21.2 / §21.3
+
+- §21.2 tient : un texte produit par une autre app reste une entrée possible (bascule rendu/source
+  de §21.1 comprise — le rendu est l'aperçu, la source est le fond).
+- §21.3 : les éditeurs riches cités (TipTap, Novel, BlockNote…) ne concernent plus que l'éditeur
+  **du fond**, sans mise en forme manuelle ; leurs trois filtres restent. Cet éditeur est la brique
+  commune de `WAMA_COLLABORATION.md §6.3` (texte + code, suivi par auteur, l'IA auteur comme un
+  autre).
+- Recoupe **§8c Phase 3** (WAMA Notebook : génération de contenu depuis un corpus) — à réconcilier,
+  pas à doubler.
+
+#### Positionnement — état de l'art relevé le 2026-09-30
+
+L'idée existe **par morceaux**, jamais réunie :
+
+| famille | exemples | ce qui manque au regard de §21.5 |
+|---|---|---|
+| suite bureautique + IA | Copilot (Word/PowerPoint), Gemini (Docs), GenOffice (Apache-2.0) | éditeur manuel complet auquel on greffe l'IA — exactement ce qu'on écarte |
+| générateurs IA d'abord | Gamma, Genspark, NextDocs ; **open source** : Presenton, ALLWEONE (Apache-2.0, auto-hébergeables, Ollama/Anthropic) | ne connaissent que ce qu'on colle dans le prompt |
+| un fond, N rendus | Quarto (sur Pandoc) : html, revealjs, docx, pptx, pdf, beamer | tout à la main |
+| document → diapositives | PPTAgent (EMNLP 2025), Paper2Slides | démonstrateurs, sans suite |
+| rapports de données statiques | Observable Framework, Evidence | le modèle « statiques + API », écrit à la main |
+| pages générées hébergées | artefacts Claude, Canvas ChatGPT | le geste « générer → publier à une URL » |
+
+Convergence notable : tous finissent en **plan d'abord** (on valide le plan, l'IA rédige).
+**Ce que seul WAMA peut faire** : (a) les **sources sont des cards** — chaque section sait d'où elle
+vient (traçabilité) ; (b) le document **vit avec ses données** — un run refait passe les sections
+dépendantes en `STALE` (`WAMA_APP_GENERATION_ROUTE.md §10.6`) ; (c) la **forme s'hérite** comme le RAG
+(université → labo → équipe → utilisateur) ; (d) les **corrections nourrissent la mémoire**. Hors de
+ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Presenton serait à
+évaluer comme moteur si le besoin se confirme.
+
+#### Inventaire mesuré le 2026-09-30 (catalogue `AIModel` en base, 151 modèles)
+
+**Aucun modèle de mise en forme** : la forme est un RÔLE confié à un LLM.
+- **Rédiger + écrire le HTML** : Anthropic (Opus 5, 4.5→4.8, Sonnet 5, Fable 5/5.1, Haiku 4.5,
+  `claude_code:default`), Albert (`qwen3-coder-30b`, `gpt-oss-120b`, `deepseek-v4-flash`,
+  `mistral-small-3.2`, `gemma-4-31b`), local (`qwen3.8`, `gemma4`, `qwen3.5:4b`). ⚠ **Opus 5.5
+  absent du catalogue** — à ajouter.
+- **Regarder le rendu** (boucle rendu → capture → critique → correction) : les modèles
+  image-texte (Anthropic, `gemma-4-31b`, `mistral-small-3.2`, `ministral-3-8b` sur Albert) + la
+  capture Chromium déjà en place.
+- **Illustrer** : `flux-1-dev`, `stable-diffusion-xl` (téléchargés), `hunyuan-image-2.1` et
+  `qwen-image-2` (rendu de texte, non téléchargés). **Texte alternatif** : `describer:blip`.
+  **RAG** : `bge-m3`, `qwen3-embedding:4b`.
+- **Sens inverse** (pdf/pptx existant → fond) : `reader:olmocr`, `glm-ocr`, `doctr`,
+  `albert:lightonocr-2-1b` ; `PP-DocLayoutV3` et `table-transformer` au catalogue, « en attente
+  d'intégration ».
+- **Plus tard** : présentation commentée (synthèse vocale + `avatarizer:talkinghead`).
+- **Le manque est côté LIBRAIRIES** : rien de vendorisé pour les diapositives (reveal.js), les
+  graphiques, les formules (KaTeX), les diagrammes (Mermaid) — à servir en local, filtres de §21.3.
+  Les schémas : SVG/Mermaid écrits par le LLM plutôt qu'un modèle d'image. Le converter n'écrit ni
+  pptx ni tex aujourd'hui (`converter/utils/format_router.py:40-41`).
+- Au passage : deux doublons indisponibles au catalogue (`albert:openai/gpt-oss-120b`,
+  `albert:qwen3-coder-30b-A3b-instruct`) à côté de leurs équivalents valides.
+
+#### Risques connus
+
+- **Les formats ne sont pas isomorphes** (une diapositive ≠ une page docx) : c'est pourquoi on
+  n'édite que le fond.
+- **Le rendu par LLM est instable** : régénérer change la disposition. Il faudra pouvoir **figer**
+  le rendu d'une section (D3).
+- **Le périmètre explose vite** (présentations, docx, tex, sites, bibliographie, Nextcloud) : un
+  format, un usage à la fois.
+
+#### Étapes proposées
+
+1. Editor HTML : fond + forme + aperçu, cards envoyées, révisions (marche 8a).
+2. Publier (capacité commune).
+3. PDF par Chromium.
+4. docx / tex / pptx par Pandoc.
+5. Nuages de fichiers (Nextcloud, WebDAV) : nouveau type au registre des sources externes
+   (`common/external_sources.py:88-102`, aucun type « stockage » aujourd'hui) + identifiants par
+   utilisateur dans le profil ; lecture ET écriture.
+6. Pages statiques + API WAMA.
+
+#### Décisions ouvertes
+
+- **D1 — Nom** : « Editor » (§21, 2026-09-01) convient-il à une app qui génère et publie ?
+- **D2 — Moteur de diapositives** à vendoriser (reveal.js ou autre) — licence, hors-ligne.
+- **D3 — Figer un rendu** de section : comment, et que devient-il quand le fond change ?
+- **D4 — Envoyer une CARD, pas un fichier** : l'app a besoin du contexte de la card (réglages,
+  modèle, résultats, provenance — `to_dict()`), pas seulement de ses fichiers ; ce que transporte
+  aujourd'hui `common/services/send_to.py` est **à mesurer**, non lu le 30/09.
+- **D5 — Séquencement** : §21.4 place l'app APRÈS le portage du monde Médias, et la marche 8a la
+  prend comme premier consommateur. Les deux partent donc ensemble — à moins que 8a démarre avant,
+  sur un autre consommateur (le Transcriber ?).
 
 
 ---
