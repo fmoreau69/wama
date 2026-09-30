@@ -437,3 +437,34 @@ l'app déclare `continuation_frames` (LTX : 25 images, conditionnement VIDÉO du
 repartir que d'UNE image (FastWan : transitions visibles, constat de Fabien sur 15 s). L'écran
 les distingue : zone **orange** « continué » contre **rouge** « extrapolé » ; l'aide du sélecteur
 dit « (continuable) » ou « (prolongeable, extrapolé) ».
+
+---
+
+## 8. Les PROPORTIONS d'une image d'entrée face à la sortie — ⏳ chantier ouvert (2026-09-30)
+
+**Constat de Fabien** : en image→vidéo (et image→image), une image d'entrée dont les proportions
+diffèrent de la sortie choisie est **déformée**, sans que l'écran le dise.
+
+**Mesuré le 2026-09-30** : les six backends qui consomment une image de référence la ramènent à
+la taille de sortie par un simple `resize((largeur, hauteur))` — donc un étirement :
+`diffusers_backend.py:1107` (img2img), `cogvideox_backend.py:311`, `ltx_video_backend.py:491/504`,
+`wan_video_backend.py:845`, `flux2_klein_backend.py:200`. L'imager (`tasks.py`) ne touche pas
+l'image et ne compare pas les proportions. Rien n'est « faux » dans un backend : c'est l'APP qui
+n'a pas de politique d'adaptation.
+
+**La route proposée — même principe que la sortie (`WAMA_APP_CONVENTIONS §6.4`)** :
+1. **Un réglage d'ENTRÉE commun** « Adapter l'image » — `recadrer` (centre, `ImageOps.fit`),
+   `bandes` (`ImageOps.pad`, couleur de fond), `étirer` (l'actuel), `adapter la sortie`
+   (choisir la taille AUTORISÉE par les bornes du modèle — `resolution_bounds`, §7 — la plus
+   proche des proportions de l'image ; défaut naturel pour un modèle à taille libre, impossible
+   pour un modèle FIXE). Appliqué par l'app AVANT le backend, qui reçoit une image déjà à la
+   bonne taille : **aucun backend à modifier**, et tout backend futur en profite.
+2. **Un avertissement sur la card** dès que les proportions de l'entrée diffèrent de la sortie
+   (la card connaît les dimensions de l'image déposée et la taille choisie) — jamais un
+   ajustement silencieux.
+3. Domicile : une brique `common/` (la politique et son application), déclarée par les apps qui
+   ont un port `work_image` ; la card v4 (`_new_item_card_v4.html`) porte l'avertissement.
+
+⚠ Frontière : ne PAS le traiter par backend (six `resize` à remplacer = six politiques qui
+divergeront) ; ne pas l'imposer sans le dire (règle « lister n'est pas pouvoir choisir » : on
+propose, on n'impose pas).
