@@ -873,13 +873,58 @@ confié à des cards du même lot (mêmes réglages, même référence).
   Sur l'audio d'origine il rejette nettement (0,354 contre 0,697 × 0,6). **La décision « auto »
   dépend de l'endroit où tombent 3 fenêtres** — et elle n'est écrite dans la console que quand
   elle COUPE le VAD (`workers._vad_filter_for`), jamais quand elle le garde.
-- 🔜 **À faire avant le banc dédié aux prétraitements** (demandé par Fabien : audios de qualité
-  moyenne, fixer l'ordre, vérifier le comportement du VAD) : échantillonner la sonde selon la
-  durée, et écrire la décision « auto » dans les deux cas. Corpus du banc : à trancher par Fabien
-  (SUMM-RE dégradé de façon contrôlée, corpus réel de qualité moyenne, ou les deux).
+- ✅ **Fait le même jour** : sonde échantillonnée selon la durée (`bd81913e`), décision « auto »
+  écrite dans les deux cas (`05732b53`). Corpus du banc tranché par Fabien : **les deux**.
 - Ordre dans le worker (`workers.py:486-498`) aujourd'hui : débruitage → nivellement → VAD (dans
   le moteur). Ne pas l'inverser avant le banc : sur cet entretien, c'est le VAD, pas l'ordre, qui
-  décide du résultat.
+  décide du résultat. → voir le banc ci-dessous.
+
+**BANC DES PRÉTRAITEMENTS (2026-09-30 → 10-01, 72 cards Whisper, commande `asr_eval_corpus`)** —
+demande de Fabien : fixer l'ordre sur des audios de qualité MOYENNE, et vérifier si une
+dégradation CONTRÔLÉE (`audio_degradation`, déterministe) prédit ce que donne un corpus RÉEL
+(CFPP2000, 3 entretiens à domicile de 47-70 min, `manifests/datasets/cfpp.json`). Configurations :
+1 rien · 2 nivellement · 3 débruitage · 4 débruitage → nivellement (ordre actuel du worker) ·
+5 rien, VAD coupé · 6 nivellement, VAD coupé · 7 nivellement → débruitage (audio nivelé
+d'avance, `--leveled-input`). VAD « auto » sauf 5 et 6. WER de corpus (Σ erreurs / Σ mots) :
+
+| condition (3 enregistrements chacune) | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|
+| **CFPP réel** | 34,4 | 30,4 | 88,7 | 87,3 | **29,3** | 29,8 | 34,8 |
+| SUMM-RE champ lointain | 40,3 | **36,5** | 56,0 | 57,3 | 41,5 | 38,0 | 43,4 |
+| SUMM-RE bruit 15 dB | **33,2** | 37,4 | 41,1 | 41,1 | 35,6 | 35,6 | 38,6 |
+| SUMM-RE propre | **28,9** | 29,4 | 31,8 | 30,3 | 49,7 | 29,4 | 31,3 |
+
+- ⭐⭐ **Le débruitage (DeepFilterNet) EFFACE une parole enregistrée BAS** : deux entretiens CFPP
+  sont à −53/−55 dBFS de parole active (crêtes −28/−26 dBFS) ; débruités, il ne reste que 0-3 %
+  de signal actif (console : « gardé 10/3 % », « 3/0 % ») → **100 % d'erreur**. Nivelés
+  D'ABORD, les mêmes entretiens débruités font 32,7 et 27,0 %. L'entretien CFPP à niveau normal
+  (−29 dBFS) perd moins (63 %). Le champ lointain synthétique (−45 dBFS) montre le même
+  mécanisme en plus doux (56 %).
+- ⭐ **Ordre** : nivellement → débruitage bat débruitage → nivellement sur **8 des 12
+  enregistrements**, massivement sur les audios bas ou dégradés (CFPP 34,8 contre 87,3 ; champ
+  lointain 43,4 contre 57,3), un peu moins bien sur l'audio propre (31,3 contre 30,3). L'ordre
+  proposé par Fabien est donc le bon QUAND on débruite. Mais **aucune configuration avec
+  débruitage ne bat le nivellement seul** : sur ces corpus, le débruitage n'apporte rien.
+- ⭐ **Le nivellement aide sur le réel** : CFPP 34,4 → 30,4, et sur les **3 entretiens** (−4,6 ;
+  −6,0 ; −2,1). Même sens sur le champ lointain (3/3). Avec un bruit stationnaire à 15 dB il est
+  mitigé (1 réunion +10,6, les 2 autres −0,2 et −1,8) ; neutre sur l'audio propre.
+- **VAD coupé** : aide CFPP sur les 3 entretiens (−3,5 ; −9,6 ; −2,9) alors que la sonde « auto »
+  a GARDÉ le filtre partout (il retirait 2 à 14 % de l'audio). Sur SUMM-RE, effet mitigé, et
+  catastrophique sur une réunion propre (012c, 95,5 %) : le « auto » reste le bon défaut, son
+  seuil ne voit que les rejets massifs.
+- ⭐ **Validation de la dégradation contrôlée** : le profil `far_field` reproduit CFPP pour le
+  nivellement (aide, 3/3), le débruitage (nuit) et l'ordre (nivellement d'abord sauve le
+  débruiteur) ; il ne reproduit PAS l'effet du VAD. Le profil `noise_snr15` ne ressemble pas à ces
+  enregistrements réels (qui sont bas et distants, pas bruités). ⇒ `far_field` peut entrer dans les
+  tests d'évaluation pour les questions de niveau et de débruitage ; le VAD se juge sur du réel.
+  Trois enregistrements par condition : des tendances, pas des lois.
+- 🔜 **Décisions proposées à Fabien** : (a) passer l'ordre du worker à nivellement → débruitage
+  quand les deux sont demandés ; (b) ne jamais débruiter un audio non nivelé (le débruitage seul
+  sur un enregistrement bas rend un texte vide sans prévenir) ; (c) garder le débruitage en
+  option, réservée aux fonds très bruyants — rien ne le justifie sur ces corpus.
+- ⚠ Deux relances de WAMA pendant les traitements (30/09 14:25 et 20:51) ont coupé une tâche
+  GPU chacune (#1048, #1118, relancées à la main) ; la file elle-même a survécu (sauvegarde
+  RDB de Redis : 35 messages retrouvés).
 
 ---
 
