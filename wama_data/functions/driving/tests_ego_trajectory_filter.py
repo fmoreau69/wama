@@ -290,3 +290,58 @@ class ContratEnricherTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+def _manoeuvre(slow_speed, turn_deg=40.0, dt=0.5):
+    """Nord à 3 m/s (30 s), puis manœuvre LENTE de 20 s pendant laquelle le cap tourne de
+    `turn_deg`, puis 30 s à 3 m/s dans le nouveau cap. Sans bruit : seul le mécanisme est testé."""
+    m_lon = M_LAT * math.cos(math.radians(LAT0))
+    pts, e, n_, t, h = [], 0.0, 0.0, 0.0, 0.0
+    phases = [(30.0, 3.0, 0.0), (20.0, slow_speed, turn_deg / 20.0), (30.0, 3.0, 0.0)]
+    for dur, v, rate in phases:
+        for _ in range(int(dur / dt)):
+            pts.append({'ts': round(t, 3), 'lat': LAT0 + n_ / M_LAT, 'lon': LON0 + e / m_lon})
+            h += rate * dt
+            e += v * dt * math.sin(math.radians(h))
+            n_ += v * dt * math.cos(math.radians(h))
+            t += dt
+
+    def yaw_cum(tt):          # rotation « vue » : exacte pendant la manœuvre
+        return 0.0 if tt < 30.0 else (turn_deg if tt > 50.0 else turn_deg * (tt - 30.0) / 20.0)
+    return pts, yaw_cum
+
+
+class VisualHeadingTest(unittest.TestCase):
+    """`yaw_cum` (2026-09-30) — le cap TENU sous 1 m/s est propagé par une rotation mesurée hors
+    GPS (rotation vue par la caméra), mais seulement quand le véhicule ROULE."""
+
+    @staticmethod
+    def _last_held(out):
+        held = [p for p in out if p.get('heading_f_held') and p.get('heading_f') is not None]
+        return held[-1]
+
+    def test_a_slow_turn_is_followed_instead_of_held(self):
+        pts, yaw_cum = _manoeuvre(slow_speed=0.6)
+        held_only, _ = filter_gps_points(pts, sigma_m=0.3)
+        with_vis, rep = filter_gps_points(pts, sigma_m=0.3, yaw_cum=yaw_cum)
+        self.assertLess(abs(_angle_diff(self._last_held(with_vis)['heading_f'], 40.0)), 8.0)
+        self.assertGreater(abs(_angle_diff(self._last_held(held_only)['heading_f'], 40.0)), 25.0)
+        self.assertGreater(rep['visual_heading_points'], 0)
+        self.assertTrue(any(p.get('heading_f_visual') for p in with_vis))
+
+    def test_a_stopped_vehicle_does_not_turn_whatever_the_image_says(self):
+        """À l'arrêt, le décor immobile ne bouge plus dans l'image et seuls les autres usagers y
+        bougent : une « rotation vue » ne doit pas faire tourner un véhicule arrêté."""
+        pts, yaw_cum = _manoeuvre(slow_speed=0.0)
+        out, rep = filter_gps_points(pts, sigma_m=0.3, yaw_cum=yaw_cum)
+        self.assertLess(abs(_angle_diff(self._last_held(out)['heading_f'], 0.0)), 3.0)
+        # le lisseur fait traverser la bande 0,3-1 m/s pendant le FREINAGE (quelques points) :
+        # ce qui compte est qu'aucune rotation notable ne passe une fois arrêté
+        self.assertLess(rep['visual_heading_rotation_deg'], 3.0)
+
+    def test_without_a_source_nothing_changes(self):
+        pts, _ = _manoeuvre(slow_speed=0.6)
+        a, rep = filter_gps_points(pts, sigma_m=0.3)
+        b, _ = filter_gps_points(pts, sigma_m=0.3, yaw_cum=None)
+        self.assertEqual([p.get('heading_f') for p in a], [p.get('heading_f') for p in b])
+        self.assertNotIn('visual_heading_points', rep)

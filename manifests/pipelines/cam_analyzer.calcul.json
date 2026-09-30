@@ -8,6 +8,11 @@
         "to_port": null
       },
       {
+        "from": "camera_intrinsics",
+        "to": "visual_yaw",
+        "to_port": null
+      },
+      {
         "from": "distance",
         "to": "global_tracking",
         "to_port": null
@@ -117,6 +122,19 @@
       },
       {
         "app": null,
+        "function": "cam_analyzer.visual_yaw",
+        "id": "visual_yaw",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_visual_yaw_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
         "function": "cam_analyzer.ortho_correction",
         "id": "ortho_correction",
         "kind": "function",
@@ -172,7 +190,7 @@
   "description": "Pipeline déclaré en code (`pass_tracking.PASSES`) : étage CALCUL seul — ses amonts de l'autre étage sont ses entrées ; chaque passe est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "cam_analyzer.calcul",
   "manifest_kind": "pipeline",
-  "name": "Cam Analyzer — calculs (dérivation) (10 passes)",
+  "name": "Cam Analyzer — calculs (dérivation) (11 passes)",
   "owner": null,
   "projects": [
     "ENA"

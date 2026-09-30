@@ -290,7 +290,20 @@ def compute_shuttle_filter(session):
     except Exception:
         logger.debug('commande IMU indisponible (non bloquant)', exc_info=True)
         accel = None
-    enriched, report = filter_gps_points(gt, accel_long=accel)
+    # ⚑ visual_heading : là où le cap serait TENU (sous 1 m/s), il est propagé par la rotation
+    # VUE tant que la navette roule (passe `visual_yaw`, `utils.visual_yaw`)
+    yaw_cum = None
+    try:
+        from .features import enabled as _feat_on
+        if _feat_on(session, 'visual_heading'):
+            from .visual_yaw import yaw_cumulative
+            yaw_cum = yaw_cumulative(session)
+            if yaw_cum is None:
+                logger.info('[shuttle_filter] ⚑ visual_heading ON mais passe « Cap visuel » absente')
+    except Exception:
+        logger.debug('rotation vue indisponible (non bloquant)', exc_info=True)
+        yaw_cum = None
+    enriched, report = filter_gps_points(gt, accel_long=accel, yaw_cum=yaw_cum)
     if accel is not None and isinstance(infos, dict):
         report['imu'] = infos
         logger.info('[shuttle_filter] ⚑ imu_command ON · axe %s%s · biais %+.3f m/s² (%s) · '
@@ -301,7 +314,8 @@ def compute_shuttle_filter(session):
                     report.get('command_speed_delta_median_kmh'))
     track = [{'ts': p.get('ts'), 'lat_f': p['lat_f'], 'lon_f': p['lon_f'],
               'heading_f': p.get('heading_f'), 'speed_f_kmh': p.get('speed_f_kmh'),
-              'heading_f_held': bool(p.get('heading_f_held'))}
+              'heading_f_held': bool(p.get('heading_f_held')),
+              'heading_f_visual': bool(p.get('heading_f_visual'))}
              for p in enriched if p.get('lat_f') is not None]
     rs = session.results_summary or {}
     rs['shuttle_filter'] = {'track': track, 'report': report}

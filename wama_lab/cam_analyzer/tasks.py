@@ -2045,6 +2045,45 @@ def compute_camera_intrinsics_task(self, session_id: str):
 
 
 @shared_task(bind=True)
+def compute_visual_yaw_task(self, session_id: str):
+    """Passe « Cap visuel » (CALCUL, CPU) : rotation de la navette vue par la caméra avant quand elle
+    roule (focale mesurée), stockée dans `results_summary['visual_yaw']` ; intégrée par le filtre
+    navette sous ⚑ visual_heading. Détail : `utils.visual_yaw`."""
+    close_old_connections()
+    from .models import AnalysisSession
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
+    from .utils.visual_yaw import compute_visual_yaw
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        mark_started(session, 'visual_yaw', session.profile)
+        _console(session.user_id, "Cap visuel : rotation vue par la caméra avant quand la navette roule…")
+        data, report = compute_visual_yaw(session)
+        if data is None:
+            mark_failed(session, 'visual_yaw', report.get('skipped') or 'mesure impossible')
+            _console(session.user_id, f"Cap visuel : {report.get('skipped')}")
+            return {'session_id': session_id, **report}
+        session.refresh_from_db(fields=['results_summary'])
+        rs = session.results_summary or {}
+        rs['visual_yaw'] = data
+        session.results_summary = rs
+        session.save(update_fields=['results_summary'])
+        mark_completed(session, 'visual_yaw', output_summary=report)
+        _console(session.user_id,
+                 f"Cap visuel : {report['pairs']} paires analysées en roulant "
+                 f"({round(100 * (report['lost_share'] or 0))} % inexploitables), rotation vue cumulée "
+                 f"{report['rotation_total_abs_deg']}° (focale {report['fx_px']} px) — intégrée au filtre "
+                 f"navette si ⚑ Cap visuel est ON, au prochain « Indicateurs »")
+        return {'session_id': session_id, **report}
+    except Exception as e:
+        logger.error(f"compute_visual_yaw_task failed: {e}", exc_info=True)
+        try:
+            mark_failed(AnalysisSession.objects.get(pk=session_id), 'visual_yaw', str(e))
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
+
+
+@shared_task(bind=True)
 def live_analysis_task(self, session_id: str):
     """Analyse AU FIL DE LA LECTURE (étape 3 analyse incrémentale) : boucle qui suit le
     CURSEUR de lecture (posé en cache par l'endpoint `live_cursor`) et analyse les

@@ -760,6 +760,7 @@ if ENABLE_CELERY:
         **{f'wama_lab.cam_analyzer.tasks.{_t}': {'queue': 'default'} for _t in (
             'compute_lane_events_task', 'compute_temporal_segments_task', 'compute_distance_task',
             'compute_depth_calc_task', 'compute_lane_map_recalage_task', 'compute_camera_intrinsics_task',
+            'compute_visual_yaw_task',
             'compute_ortho_correction_task', 'compute_global_tracking_task',
             'compute_indicators_task', 'compute_conflict_events_task', 'release_calc_chain_task')},
         'wama.converter.tasks.*': {'queue': 'default'},
