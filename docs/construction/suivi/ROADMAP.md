@@ -2440,9 +2440,14 @@ tout de suite »*) :
   `BaseModelBackend.VENDORED` — un clone absent entre dans `missing_packages()` pour tout moteur
   vendorisé (seul TripoSR le disait). Tests : `model_manager/tests/tests_vendor_install.py` (faux
   dépôt git local, contre-épreuves CRLF / `ignore` / backend non vendorisé).
-  ⏳ Restent : YuE/ACE-Step et les avatars lourds comme clients suivants ; le rôle `librarian
-  --repo` ne produit pas encore de `install.vendor` (il écrit `pip`) ; les dépendances pip d'un
-  moteur vendorisé restent vérifiées par son backend (`REQUIRED_PACKAGES`), pas par le manifeste.
+  ✅ Le même soir, le rôle `librarian --repo` pose le canal par les FAITS du dépôt, pas par le
+  LLM (`role_utils.enforce_install_channel`) : sans `pyproject.toml`/`setup.py`/`setup.cfg` à la
+  racine, `install.vendor` au commit MESURÉ par l'API GitHub (`github_head_sha`) ; un paquet
+  reste sur pip. Joué sur TripoSR (Albert) : commit `107cefdc244c` mesuré — celui du corpus —,
+  manifeste valide du premier coup.
+  ⏳ Restent : YuE/ACE-Step et les avatars lourds comme clients suivants ; les dépendances pip
+  d'un moteur vendorisé restent vérifiées par son backend (`REQUIRED_PACKAGES`), pas par le
+  manifeste.
 - **D-b — un artefact intermédiaire ÉDITABLE dans une app de génération.** Propre à YuE2, et
   INDÉPENDANTE de D-a. Aucune app ne l'a : partout c'est consigne → sortie, en un coup. La forme
   existe pourtant ailleurs (transcriber : un master puis une correction humaine qui fait autorité).

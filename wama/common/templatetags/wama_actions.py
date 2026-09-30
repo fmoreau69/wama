@@ -73,6 +73,16 @@ def _result_import_url(surface):
     return reverse('common:api_result_import', args=[surface, 0])
 
 
+def _nature_label(nature):
+    """Libellé AFFICHÉ d'une nature de la médiathèque (`object3d` → « Objet 3D ») ; la clé telle
+    quelle si la nature est inconnue, '' sans nature."""
+    if not nature:
+        return ''
+    from wama.media_library.natures import ASSET_NATURES
+    found = ASSET_NATURES.get(nature)
+    return found.label if found else nature
+
+
 def _result_reference_accept(surface):
     """Les extensions que l'app sait LIRE comme référence (sa déclaration), pour le sélecteur."""
     from wama.common.services.result_evaluation import evaluation_spec
@@ -288,6 +298,8 @@ def input_slots(app, domain=None):
             'library_type': types[0] if len(types) == 1 else 'all',
             # L'ONGLET d'ouverture de la médiathèque, quand l'app le déclare (`library_natures`).
             'library_prefer': library_nature_for(app, port.get('id')),
+            # Son LIBELLÉ, celui de la nature (« Objet 3D », pas la clé `object3d`).
+            'library_prefer_label': _nature_label(library_nature_for(app, port.get('id'))),
             'multi': bool(port.get('multi')),
             'required': oblig.get(port.get('id'), travail),
             # Requis « ou » ces autres ports (libellés, pour être affichés tels quels) — et le

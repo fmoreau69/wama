@@ -19080,3 +19080,17 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
   prévenue. Budget d'identifiants rouge (2690 > 2687) : identifiants de `79d14379`, pas les miens.
 - 🔚 relance WAMA (0024 retire une colonne lue par le code en service) ; Valider Supra2 au model
   manager ; puis générer Supra2 en ×4 (256 → 1024) pour éprouver la chaîne complète.
+
+## §PALIER — 2026-09-30 (soir, après la relance de 17:10), « AVATARIZER 3D + ROUTE VENDOR » — ✅ CLOS
+
+- ✅ Ligne `avatarizer:musetalk-v1.0` SUPPRIMÉE (clé seule, dernière écriture à 17:01 par l'ancien
+  processus) ; la découverte du nouveau code ne rend que `codeformer`, `musetalk-v1.5`,
+  `talkinghead` ; le manifeste `avatarizer` n'est plus « périmé » à `manifest_export --check`.
+- ✅ `librarian --repo` pose le canal d'installation par les FAITS du dépôt
+  (`role_utils.enforce_install_channel` : pas de fichier de paquet → `install.vendor` au commit
+  mesuré par l'API GitHub). Joué sur TripoSR via Albert : commit `107cefdc244c` = celui du corpus,
+  manifeste valide ; seule divergence, le libellé « MIT License ».
+- ✅ Tuile Médiathèque de la card v4 : l'onglet se dit par le libellé de la nature (« Objet 3D »,
+  « Avatar »), plus par sa clé. ⚠ Gabarit lu au démarrage : visible après un HUP de gunicorn.
+- ⏳ Laissé au chantier card v4 : l'onglet Lot passe à la ligne avec 3 ports (mise en page, à
+  mesurer au navigateur). Clients suivants de la voie vendor : YuE/ACE-Step, avatars lourds.

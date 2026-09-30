@@ -32,7 +32,8 @@ django.setup()
 
 # Helpers COMMUNS aux rôles (extraits d'ici le 2026-08-27 à la naissance de scout/integrator).
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, extract_json, fetch as _fetch, resolve_model)
+    PACKAGING_FILES, add_llm_arguments, call_llm, enforce_install_channel, extract_json,
+    fetch as _fetch, github_head_sha, resolve_model)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'librarian.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'libraries'
@@ -41,8 +42,11 @@ MAX_SOURCE_CHARS = 20000   # tâche étroite : on tronque plutôt que de faire d
 
 
 def sources_repo(repo):
-    """README + pyproject/setup d'un dépôt GitHub (branche par défaut main puis master)."""
-    parts = []
+    """README + pyproject/setup d'un dépôt GitHub (branche par défaut main puis master).
+
+    Rend aussi les FAITS dont le canal d'installation dépend : la branche lue et les fichiers
+    de paquet trouvés (`enforce_install_channel`)."""
+    parts, packaging, found_branch = [], [], None
     for branch in ('main', 'master'):
         # Métadonnées d'ABORD, README en DERNIER : c'est lui qui déborde du budget de
         # troncature, pas l'inverse (vécu : requirements/LICENSE n'atteignaient pas le prompt).
@@ -51,13 +55,16 @@ def sources_repo(repo):
             try:
                 txt = _fetch(f'https://raw.githubusercontent.com/{repo}/{branch}/{fname}')
                 parts.append(f'===== {fname} ({branch}) =====\n{txt}')
+                if fname in PACKAGING_FILES:
+                    packaging.append(fname)
             except Exception:
                 continue
         if parts:
+            found_branch = branch
             break
     if not parts:
         raise SystemExit(f"Aucune source récupérable pour {repo} (réseau/proxy ?).")
-    return f'https://github.com/{repo}', '\n\n'.join(parts)
+    return f'https://github.com/{repo}', '\n\n'.join(parts), found_branch, packaging
 
 
 def sources_dist(dist_name):
@@ -88,8 +95,11 @@ def main():
     add_llm_arguments(ap, role='dev')
     args = ap.parse_args()
 
-    provenance, matiere = (sources_repo(args.repo) if args.repo
-                           else sources_dist(args.dist))
+    branch, packaging = None, []
+    if args.repo:
+        provenance, matiere, branch, packaging = sources_repo(args.repo)
+    else:
+        provenance, matiere = sources_dist(args.dist)
     matiere = matiere[:MAX_SOURCE_CHARS]
 
     exemples = '\n\n'.join(f.read_text(encoding='utf-8')
@@ -104,6 +114,16 @@ def main():
     manifest = extract_json(reponse)
 
     # ── Contrôles MÉCANIQUES (le LLM propose, la chaîne d'ingest juge) ──────────
+    # Le CANAL d'installation se pose d'après les faits du dépôt (paquet ou non, tête mesurée).
+    notes = []
+    if args.repo:
+        sha = None
+        if not packaging:
+            try:
+                sha = github_head_sha(args.repo, branch)
+            except Exception as exc:
+                notes.append(f"tête de {args.repo}@{branch} non mesurée : {exc}")
+        manifest = enforce_install_channel(manifest, args.repo, packaging, sha, notes)
     from wama.common.manifests.ingest import validate
     erreurs = list(validate(manifest) or [])
 
@@ -135,10 +155,13 @@ def main():
         'provenance': provenance,
         'validation_errors': erreurs,
         'divergences_vs_mecanique': divergences,
+        'install_channel_notes': notes,
         'manifest': manifest,
     }, ensure_ascii=False, indent=2), encoding='utf-8')
 
     print(f'[librarian] → {sortie.relative_to(REPO_ROOT)}')
+    for note in notes:
+        print(f'[librarian] canal : {note}')
     print(f'[librarian] validation : {len(erreurs)} erreur(s)'
           + (f' — {erreurs[:3]}' if erreurs else ' — manifeste VALIDE'))
     if verite:
