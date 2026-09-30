@@ -178,7 +178,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                         <div class="wama-mod wama-mod-library" data-mod="library" data-mod-library-btn title="Importer depuis la médiathèque">
                             <i class="fas fa-photo-film wama-mod-g text-info"></i>
                             <span>Médiathèque</span>
-                            <small>{% if p.library_type != 'all' %}filtrée : {{ p.library_type }}{% else %}tous types{% endif %}</small>
+                            <small>{% if p.library_prefer %}onglet : {{ p.library_prefer }}{% elif p.library_type != 'all' %}filtrée : {{ p.library_type }}{% else %}tous types{% endif %}</small>
                         </div>
                         {% if url_input_id %}
                         <div class="wama-mod wama-mod-url" data-mod="url">

@@ -296,7 +296,10 @@ APP_MODES = {
              # la VIDÉO est acceptée : elle est une source audio ici. C'est bien la preuve qu'un
              # domaine n'est pas une nature de fichier — son nom dit le workflow, `accepts` dit
              # ce qu'on peut y déposer.
-             'accepts': ('audio', 'video'), 'inputs': ['work_file'], 'modes': []},
+             'accepts': ('audio', 'video'), 'inputs': ['work_file'], 'modes': [],
+             # Card v4 (2026-09-30) : le port prend audio ET vidéo, donc la médiathèque ne se filtre
+             # pas sur une seule nature — elle s'OUVRE sur l'audio, comme la card v3 la filtrait.
+             'library_natures': {'work_audio': 'audio'}},
         ],
     },
 

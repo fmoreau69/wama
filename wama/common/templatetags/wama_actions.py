@@ -201,14 +201,14 @@ def input_slots(app, domain=None):
     Le port `prompt` est EXCLU : ce n'est pas un slot de la zone de preview, c'est la cellule
     primaire au-dessus (§11.9 C — le seul élément autorisé à grandir).
     """
-    from wama.common.app_registry import (app_card_ports, app_setting_carried_ports,
+    from wama.common.app_registry import (app_card_ports, app_ports_carried_elsewhere,
                                           studio_node_ports)
 
     # Ports de la CARD seule (l'app les consomme, pas un nœud Studio : le fichier texte du
     # synthesizer) EN TÊTE — c'est le port principal ; moins les ports qu'un RÉGLAGE porte
     # (la voix de référence du synthesizer, choisie dans `voice_preset`). 2026-09-30.
     card_ports = app_card_ports(app)
-    carried = app_setting_carried_ports(app)
+    carried = app_ports_carried_elsewhere(app)
     ports = card_ports + [p for p in ((studio_node_ports(app) or {}).get('inputs') or [])
                           if p.get('id') not in carried]
     # Card d'un DOMAINE (imager image/vidéo, enhancer image-vidéo/audio — deux cards par page) :

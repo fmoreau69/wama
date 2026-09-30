@@ -188,7 +188,7 @@ prompt, SOIT d'un fichier de travail (décision de Fabien : « ça fait la même
     lot y reste reconnu comme LOT, `batchScope:'each'`) ;
   • onglet « Lot » (fichier de lot, intention déclarée) ;
   • PAS d'onglet voix : la voix de référence est le réglage `voice_preset` (volet, modale,
-    inspecteur — `app_setting_carried_ports`).
+    inspecteur — `app_ports_carried_elsewhere`).
 Le titre reste dans la zone étendue (il nomme l'ENTRÉE ; voix, vitesse et aperçu : volet).{% endcomment %}
 {% url 'synthesizer:batch_template' as synth_batch_template_url %}
 {% include 'common/_new_item_card_v4.html' with app_id='synthesizer' drop_zone_id='dropZoneSynthesizer' file_input_id='fileInput' folder_input_id='synthFolderInput' formats_label='Texte à synthétiser — TXT · PDF · DOCX · CSV · MD' show_batch_bar=True batch_template_url=synth_batch_template_url show_prompt=True prompt_input_id='textContent' prompt_rows=2 prompt_placeholder='✍️ Écrivez le texte à synthétiser — ou déposez un fichier de travail' primary_btn_id='submitTextBtn' primary_btn_label='Ajouter à la file' primary_btn_icon='fa-plus' extra_zone_template='synthesizer/_new_item_extra.html' collapsible=True %}
