@@ -1608,7 +1608,7 @@ l'ordre, sur les ports que `input_slots` rend pour chaque app :
   document y serait mensonger — ⏳ à ouvrir quand l'outil lira un fichier. Le lot reste sous ses
   DEUX formes : onglet Lot, et détection sur la tuile de travail (`batchScope:'each'` — mesuré :
   un lot déposé comme document ouvre la barre, la card bascule seule sur « Lot », rien de créé).
-  **Voix de référence : pas d'onglet** (`setting_carried_ports` → `app_setting_carried_ports`) —
+  **Voix de référence : pas d'onglet** (`ports_carried_elsewhere` → `app_ports_carried_elsewhere`) —
   elle se choisit dans `voice_preset` (volet, modale, inspecteur ; « Mes voix » = médiathèque,
   pointée). Un onglet passerait par `voice_reference`, qui PRIME en silence sur le volet : deux
   domiciles pour un réglage (question de Fabien : « vérifier que ça ne fait pas double emploi »).
@@ -1650,6 +1650,19 @@ l'ordre, sur les ports que `input_slots` rend pour chaque app :
   (`_ecarts_assumes['imager']`, la tuile v3 n'offrait que .txt/.csv).
   ⚠ Limite notée : sur les cards de l'enhancer, le port n'est pas marqué « requis » — l'obligation
   se calcule sur tous ses modèles, audio et image mêlés ; l'appariement, lui, juge par modèle.
+- ✅ **2026-09-30, transcriber en v4 — les 10 apps sont en card v4.** Onglets « Audio de travail »
+  (audio ET vidéo), « En direct » (Speak, `has_live_input` — mesuré au navigateur avec un micro
+  simulé : le bouton garde son id, la zone de transcription s'ouvre, « Écoute en cours… », 0 erreur,
+  aucun élément créé) et « Lot ». **Les ports du RÉSULTAT ne sont pas des onglets** :
+  `work_result` / `reference_result` portent sur une card EXISTANTE (`INPUT_MODEL_MATCHING §6.7`),
+  leur geste est le menu « … » ; sur une card d'entrée qui crée au dépôt, un onglet ne serait lu
+  par rien (la v3 ne les montrait pas). Déclaration élargie : `setting_carried_ports` du matin
+  devient **`ports_carried_elsewhere`** (`app_ports_carried_elsewhere`, `{port: porteur}`) — un
+  RÉGLAGE (voix du synthesizer) ou un GESTE DE CARD (résultats du transcriber) ; le port reste au
+  Studio. Médiathèque : le port prend audio et vidéo, donc la fenêtre ne se filtre pas sur une
+  nature — elle s'OUVRE sur l'audio (`library_natures`), comme la v3 la filtrait ; la tuile du port
+  principal dit désormais son onglet d'ouverture. Gestes : mêmes verdicts que la référence v3,
+  `tree_drop` vert.
 - ⏳ **Question ouverte (lots)** : les colonnes du lot nomment des RÔLES (`-i`, `-r`), pas des
   ports — l'avatar de l'avatarizer est `-r` au lot et `work_image` à la card. À terme : des
   colonnes au nom du port, `-i`/`-r` en alias.

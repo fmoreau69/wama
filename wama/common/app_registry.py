@@ -570,17 +570,22 @@ def ports_for_domain(app_id, domain, ports):
             or not set(p['types']) <= specific]
 
 
-def app_setting_carried_ports(app_id) -> dict:
-    """Ports que la card de l'app NE MONTRE PAS, parce qu'un RÉGLAGE les porte — `{port: réglage}`.
+def app_ports_carried_elsewhere(app_id) -> dict:
+    """Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
+    `{port: porteur}` (le porteur est dit pour être lu, jamais interprété).
 
-    Synthesizer (2026-09-30, question de Fabien : « vérifier que ça ne fait pas double emploi
-    avec la modale/inspecteur ») : la voix de référence se choisit dans `voice_preset` — volet,
-    modale et inspecteur, dont « Mes voix » (médiathèque, `ua_<id>`, pointée) et les voix
-    partagées. Un onglet « Voix de référence » passerait par `voice_reference`, qui PRIME en
-    silence sur `voice_preset` : deux domiciles pour un même réglage, le défaut des miroirs
-    retirés le 27/09. Le port reste au STUDIO (un échantillon peut venir d'un autre nœud).
+    Deux porteurs à ce jour, tous deux mesurés (2026-09-30) :
+      • un RÉGLAGE — synthesizer, `reference_voice` → `voice_preset` (question de Fabien :
+        « vérifier que ça ne fait pas double emploi avec la modale/inspecteur ») : la voix se
+        choisit au volet, à la modale et à l'inspecteur, dont « Mes voix » (médiathèque, pointée).
+        Un onglet passerait par `voice_reference`, qui PRIME en silence : deux domiciles ;
+      • un GESTE DE CARD — transcriber, `work_result` / `reference_result` → le menu « … » de la
+        card créée (`/common/api/result/…/<pk>`) : ces entrées portent sur un élément EXISTANT
+        (`INPUT_MODEL_MATCHING §6.7`), et la card d'entrée crée l'élément au dépôt de l'audio —
+        un onglet n'y serait lu par rien. La v3 ne les montrait pas non plus.
+    Le port reste au STUDIO dans les deux cas.
     """
-    return dict((APP_CATALOG.get(app_id) or {}).get('setting_carried_ports') or {})
+    return dict((APP_CATALOG.get(app_id) or {}).get('ports_carried_elsewhere') or {})
 
 
 def app_result_ports(app_id):
@@ -1264,9 +1269,9 @@ APP_CATALOG = {
         # Card v4 (2026-09-30, décision de Fabien) : un fichier texte déposé est un FICHIER DE
         # TRAVAIL, lu en entier — l'un ou l'autre avec le prompt (`app_card_ports`). Le lot reste
         # (onglet Lot, et détection sur la tuile de travail). La voix de référence est portée
-        # par le réglage `voice_preset`, pas par un onglet (`app_setting_carried_ports`).
+        # par le réglage `voice_preset`, pas par un onglet (`app_ports_carried_elsewhere`).
         'has_text_file_input': True,
-        'setting_carried_ports': {'reference_voice': 'voice_preset'},
+        'ports_carried_elsewhere': {'reference_voice': 'réglage voice_preset'},
         'has_url_import': False,
         'has_youtube': False,
         'output_types': ('mp3', 'wav'),
@@ -1329,6 +1334,11 @@ APP_CATALOG = {
         # CARD_DESIGN §11.11 D) : une DÉCLARATION, lue par la card v3 et la card v4, au lieu du
         # littéral `show_live` que seule la page du transcriber posait.
         'has_live_input': True,
+        # Card v4 (2026-09-30) : les deux ports du RÉSULTAT portent sur un élément EXISTANT — leur
+        # geste est le menu « … » de la card créée ; la card d'entrée, qui crée au dépôt de
+        # l'audio, ne les montre pas (onglets morts). Ils restent au Studio.
+        'ports_carried_elsewhere': {'work_result': 'menu « … » de la card',
+                                    'reference_result': 'menu « … » de la card'},
         'output_types': ('txt', 'srt', 'vtt', 'json'),
         'conventions': _conv(
             settings_modal_item=True,
