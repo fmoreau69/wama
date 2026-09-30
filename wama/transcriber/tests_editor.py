@@ -270,6 +270,23 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         self.assertEqual((False, True), self._vad_filter_passed('auto', rejects=True))
         self.assertEqual((True, True), self._vad_filter_passed('auto', rejects=False))
 
+    def test_the_auto_decision_is_written_both_ways_with_its_rates(self):
+        """A filter KEPT used to leave no trace (lot #489, 2026-09-30)."""
+        from unittest import mock
+        from wama.transcriber.workers import _vad_filter_for
+        self.item.vad_mode = 'auto'
+        for rejects, expected in ((False, 'Filtre de parole gardé'),
+                                  (True, 'Filtre de parole désactivé')):
+            probe = {'vad': 0.41, 'energy': 0.62, 'rejects': rejects, 'windows': 12}
+            with mock.patch('wama.common.utils.speech_activity.vad_rejects_speech',
+                            return_value=probe), \
+                    mock.patch('wama.transcriber.workers._console') as console:
+                _vad_filter_for(self.item, self.item.audio.path)
+            said = console.call_args.args[1]
+            self.assertIn(expected, said)
+            self.assertIn('41 %', said.replace('41%', '41 %'))
+            self.assertIn('12 passages', said)
+
     def test_a_probe_that_fails_keeps_the_filter(self):
         from unittest import mock
         from wama.transcriber.workers import _vad_filter_for
