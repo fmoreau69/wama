@@ -22,6 +22,19 @@ MIN_ACTIVE = 0.2
 #: Une trame d'énergie est active quand elle dépasse le plancher de bruit (10ᵉ centile) de tant.
 ACTIVE_MARGIN_DB = 10.0
 FRAME_SECONDS = 0.1
+#: Une fenêtre sondée toutes les 10 min de média, entre 3 et 12 (2026-09-30). Trois fenêtres FIXES
+#: faisaient dépendre la décision de l'endroit où elles tombaient : sur un entretien nivelé de
+#: 2 h 22, 0,413 gardé pour un seuil de 0,371 (VAD laissé actif, 75 % de l'audio retiré ensuite,
+#: WER 78,6 % au lieu de 39,6 %) ; dès 6 fenêtres, rejet net sur cet audio comme sur l'original.
+WINDOW_EVERY_S = 600.0
+MIN_WINDOWS = 3
+MAX_WINDOWS = 12
+
+
+def windows_for(duration_s: float) -> int:
+    """Nombre de fenêtres sondées pour un média de `duration_s` secondes."""
+    import math
+    return max(MIN_WINDOWS, min(MAX_WINDOWS, math.ceil(float(duration_s or 0) / WINDOW_EVERY_S)))
 
 
 def energy_active_ratio(wave, sr: int, margin_db: float = ACTIVE_MARGIN_DB) -> float:
@@ -44,16 +57,19 @@ def vad_speech_ratio(wave, sr: int) -> float:
     return sum(s['end'] - s['start'] for s in spans) / len(wave)
 
 
-def vad_rejects_speech(path, duration_s: float = 0.0, windows: int = 3,
+def vad_rejects_speech(path, duration_s: float = 0.0, windows: int = None,
                        window_s: float = 120.0, decode=None) -> dict:
-    """Sonde `windows` fenêtres de `window_s` réparties dans le média et rend
-    `{'vad', 'energy', 'rejects'}` — `rejects` vrai quand le VAD garde moins de
-    `REJECT_FACTOR` de l'actif à l'énergie. `decode(path, sr, start, duration)` est injectable
-    (tests) ; par défaut, `audio_decode.decode_window`."""
+    """Sonde `windows` fenêtres de `window_s` réparties dans le média (par défaut
+    `windows_for(duration_s)`) et rend `{'vad', 'energy', 'rejects', 'windows'}` — `rejects` vrai
+    quand le VAD garde moins de `REJECT_FACTOR` de l'actif à l'énergie.
+    `decode(path, sr, start, duration)` est injectable (tests) ; par défaut,
+    `audio_decode.decode_window`."""
     if decode is None:
         from wama.common.utils.audio_decode import decode_window as decode
     sr = 16000
     duration_s = float(duration_s or 0)
+    if windows is None:
+        windows = windows_for(duration_s)
     if duration_s <= window_s:
         starts = [0.0]
     else:
@@ -67,4 +83,5 @@ def vad_rejects_speech(path, duration_s: float = 0.0, windows: int = 3,
     vad /= len(starts)
     energy /= len(starts)
     rejects = energy >= MIN_ACTIVE and vad < REJECT_FACTOR * energy
-    return {'vad': round(vad, 3), 'energy': round(energy, 3), 'rejects': bool(rejects)}
+    return {'vad': round(vad, 3), 'energy': round(energy, 3), 'rejects': bool(rejects),
+            'windows': len(starts)}
