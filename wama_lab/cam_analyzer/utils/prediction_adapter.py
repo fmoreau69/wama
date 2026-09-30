@@ -484,6 +484,12 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
             for d in (f.detections or []):
                 if d.get('class_name') not in CLASS_DIMS:
                     continue
+                # Reflet/artefact collé à l'image : le tracking 360° l'exclut de l'association
+                # (« pas un objet du monde », ⚑ artifact_filter — la marque n'existe que bascule
+                # ON). Il n'a pas davantage sa place dans les indicateurs : sans ce garde, un reflet
+                # sans gid devenait un objet `position:track_id`, collé à la navette.
+                if d.get('artifact'):
+                    continue
                 gid = d.get('global_track_id')
                 if gid is None:
                     if d.get('track_id') is None:
