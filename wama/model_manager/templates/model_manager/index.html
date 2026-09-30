@@ -486,7 +486,7 @@
                             <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-db" title="pg_dump + copie sur l'espace de sauvegarde distant">
                                 <i class="fas fa-database me-1"></i> Backup DB
                             </button>
-                            <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-models" title="Sauvegarde incrémentale de AI-models/models/ vers l'espace distant (sens unique : rien n'est supprimé à distance)">
+                            <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-models" title="Sauvegarde incrémentale de AI-models/models/ vers l'espace distant (sens unique : rien n'est supprimé à distance). Automatique chaque nuit à 01:30.">
                                 <i class="fas fa-cloud-upload-alt me-1"></i> Backup Models
                             </button>
                             <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-media" title="Sauvegarde incrémentale de media/ vers l'espace distant (sens unique : rien n'est supprimé à distance, ~Archives préservé). Automatique chaque nuit à 02:30.">
@@ -2958,8 +2958,29 @@ document.addEventListener('DOMContentLoaded', function() {
     function createMirrorBackupUI(cfg) {
         let timer = null;
 
-        function render(p) {
+        // `last` (2026-09-30) : bilan de la dernière exécution TERMINÉE, sans expiration. Sans
+        // lui, la ligne s'effaçait 24 h après une sauvegarde lancée à la main.
+        function render(p, last) {
             const box = document.getElementById(cfg.prefix + '-progress');
+            if (!p && last) {
+                box.classList.remove('d-none');
+                const bar = document.getElementById(cfg.prefix + '-bar');
+                bar.style.width = '100%';
+                bar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                bar.classList.toggle('bg-danger', last.state === 'FAILURE');
+                const when = last.finished_at
+                    ? new Date(last.finished_at).toLocaleString('fr-FR') : '?';
+                const outcome = last.state === 'FAILURE'
+                    ? 'échec : ' + (last.errors || []).join(' / ')
+                    : `${last.state === 'PARTIAL' ? 'terminée avec erreurs' : 'réussie'} — `
+                      + `${last.copied || 0} copiés, ${last.skipped || 0} déjà présents, `
+                      + `${last.failed || 0} échecs`
+                      + (last.copied_mb ? ` — ${(last.copied_mb / 1024).toFixed(1)} Go transférés` : '');
+                document.getElementById(cfg.prefix + '-summary').textContent =
+                    `Dernière sauvegarde (${when}) ${outcome}`;
+                document.getElementById(cfg.prefix + '-current').textContent = '';
+                return;
+            }
             if (!p) { box.classList.add('d-none'); return; }
             box.classList.remove('d-none');
 
@@ -2991,7 +3012,8 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 const response = await fetch(cfg.progressUrl);
                 const data = await response.json();
-                render(data.progress);
+                // Un avancement encore en cache prime ; sinon, le bilan de la dernière exécution.
+                render(data.progress, data.last);
 
                 if (data.progress && data.progress.state === 'RUNNING') {
                     if (!timer) timer = setInterval(poll, 3000);
@@ -3034,7 +3056,8 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmText: "Lancer la sauvegarde des modèles vers l'espace distant ?\n\n"
                    + "Incrémentale (les fichiers déjà présents sont sautés) et en sens unique : "
                    + "rien n'est supprimé à distance. Le parcours complet peut durer longtemps ; "
-                   + "le suivi s'affiche sous le statut de backup.",
+                   + "le suivi s'affiche sous le statut de backup. "
+                   + "Elle tourne aussi automatiquement chaque nuit à 01:30.",
         alreadyRunningText: 'Un backup des modèles est déjà en cours.',
         onFinish: loadBackupStatus,   // le nombre de modèles distants a bougé
     });

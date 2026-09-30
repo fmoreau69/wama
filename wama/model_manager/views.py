@@ -839,11 +839,15 @@ def _mirror_job_start(request, task, cache_key):
 
 
 def _mirror_job_progress(cache_key):
-    """Avancement d'un miroir long — corps COMMUN des vues `*_progress`."""
+    """Avancement d'un miroir long — corps COMMUN des vues `*_progress`. `last` = bilan de la
+    dernière exécution terminée, sans expiration (l'avancement, lui, vit 24 h)."""
     from django.core.cache import cache
 
+    from wama.common.services.mirror_sync import last_mirror_run
+
     progress = cache.get(cache_key)
-    return JsonResponse({'success': True, 'running': bool(progress), 'progress': progress})
+    return JsonResponse({'success': True, 'running': bool(progress), 'progress': progress,
+                         'last': last_mirror_run(cache_key)})
 
 
 @login_required

@@ -416,6 +416,38 @@ def purge_keep_latest(directory, pattern: str, keep: int) -> list[str]:
     return removed
 
 
+#: Suffixe de la clé qui garde la DERNIÈRE exécution terminée d'un miroir, SANS expiration.
+LAST_RUN_SUFFIX = ':last'
+#: Ce qu'on garde d'une exécution : un bilan, jamais la liste complète des erreurs.
+_LAST_RUN_FIELDS = ('total_files', 'copied', 'skipped', 'failed', 'linked', 'copied_mb',
+                    'remote_path')
+
+
+def remember_last_run(cache_key: str, state: str, payload: dict) -> dict:
+    """Garde le bilan de la dernière exécution TERMINÉE (succès, partiel, échec), sans expiration.
+
+    L'avancement vit 24 h (`ttl`) : une sauvegarde lancée à la main plus d'un jour avant
+    disparaissait de l'écran, qui ne disait plus rien — constat de Fabien, 2026-09-30, la ligne
+    « Backup models » s'était effacée pendant que celle des médias, relancée chaque nuit,
+    restait. Commun à tous les miroirs : la date et le bilan se lisent partout pareil."""
+    from datetime import datetime, timezone
+
+    from django.core.cache import cache
+    record = {k: payload.get(k) for k in _LAST_RUN_FIELDS if k in (payload or {})}
+    record.update(state=state, finished_at=datetime.now(timezone.utc).isoformat(timespec='seconds'))
+    errors = (payload or {}).get('errors') or []
+    if errors:
+        record['errors'] = [str(e)[:200] for e in errors[:3]]
+    cache.set(cache_key + LAST_RUN_SUFFIX, record, timeout=None)
+    return record
+
+
+def last_mirror_run(cache_key: str):
+    """Bilan de la dernière exécution terminée d'un miroir, ou None s'il n'a jamais tourné."""
+    from django.core.cache import cache
+    return cache.get(cache_key + LAST_RUN_SUFFIX)
+
+
 def run_mirror_job(runner, *, cache_key, task_id, label, ttl=24 * 3600):
     """
     Exécute un miroir en publiant son avancement dans le cache — enveloppe COMMUNE aux
@@ -438,6 +470,8 @@ def run_mirror_job(runner, *, cache_key, task_id, label, ttl=24 * 3600):
 
     def publish(state: str, payload: dict):
         publier_progression(cache_key, task_id, state, payload, ttl)
+        if state != 'RUNNING':
+            remember_last_run(cache_key, state, payload)
 
     publish('RUNNING', {'phase': 'scan', 'total_files': 0, 'processed': 0,
                         'copied': 0, 'skipped': 0, 'failed': 0, 'copied_mb': 0.0, 'linked': 0})

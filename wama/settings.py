@@ -877,6 +877,17 @@ if ENABLE_CELERY:
             'schedule': crontab(hour=2, minute=30),
             'options': {'queue': 'default'},  # I/O réseau, jamais de GPU la nuit
         },
+        # Miroir quotidien des MODÈLES (2026-09-30, décision de Fabien) : il ne partait qu'au
+        # bouton, et sa ligne d'état s'effaçait 24 h après — un modèle installé dans la journée
+        # n'était sauvegardé que si quelqu'un y pensait. Incrémental : une nuit sans nouveau
+        # modèle ne fait qu'un parcours. 01:30 = avant config (02:20), médias (02:30) et base
+        # (03:30), pour ne pas se disputer le NAS ; une grosse installation peut déborder, le
+        # verrou de la tâche empêche deux passes simultanées.
+        'backup-models-daily': {
+            'task': 'model_manager.backup_all_models',
+            'schedule': crontab(hour=1, minute=30),
+            'options': {'queue': 'default'},  # I/O réseau, jamais de GPU la nuit
+        },
         # Secrets d'installation (`.env`) — sans eux une réinstallation ne peut se
         # connecter ni à Postgres ni à Redis, et le mot de passe dont `pg_restore` a
         # besoin s'y trouve. Quasi gratuit : ne copie que si le contenu a changé.
