@@ -52,6 +52,15 @@ class CatalogKeyRoutingTest(SimpleTestCase):
         self.assertIn('100 % local', err)
         chat.assert_not_called()
 
+    def test_the_signature_is_explicit_so_a_guessed_argument_fails_at_once(self):
+        """No `**kwargs` relay: the codegen role had passed `max_tokens` / `max_new_tokens`
+        through one — invisible to its checks, `TypeError` at the first launch."""
+        import inspect
+        params = inspect.signature(llm_utils.chat_with_catalog_model).parameters
+        self.assertFalse(any(p.kind == p.VAR_KEYWORD for p in params.values()))
+        with self.assertRaises(TypeError):
+            llm_utils.chat_with_catalog_model('auto', MESSAGES, max_tokens=10)
+
     def test_undeclared_sources_and_the_subscription_are_refused(self):
         for key in ('openai:gpt-4o', 'claude_code:default', 'no-colon'):
             with self.subTest(key=key):

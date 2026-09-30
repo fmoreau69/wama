@@ -73,6 +73,61 @@ def _status_vocab() -> list:
     return job_status_values()
 
 
+#: Degrés de liberté d'un process dans un pipeline (`WAMA_APP_GENERATION_ROUTE §10.6` 3.2).
+PROCESS_DEGREES = ('required', 'optional', 'open')
+
+
+def pipeline_process_order(pipeline: dict) -> tuple:
+    """(nœuds `process` dans l'ordre topologique de leurs liens, erreurs) d'un pipeline déclaré
+    par la facette `pipelines` du manifeste `app` (décision ouverte n°11 de `§10.6`, formalisée
+    le 2026-10-01 sur l'Editor). À égalité, l'ordre de DÉCLARATION tranche. Un cycle est une
+    erreur : un pipeline est acyclique (`STUDIO_VISION §2bis`, `studio/tasks.py::topo_order`)."""
+    nodes = [n for n in (pipeline.get('nodes') or []) if isinstance(n, dict)]
+    ids = [n.get('id') for n in nodes]
+    errors = []
+    if len(set(ids)) != len(ids) or not all(isinstance(i, str) and i for i in ids):
+        errors.append('pipelines : identifiants de nœuds absents ou en double')
+        return [], errors
+    preds = {i: set() for i in ids}
+    for link in pipeline.get('links') or []:
+        src, dst = (link or {}).get('from'), (link or {}).get('to')
+        if src not in preds or dst not in preds:
+            errors.append(f'pipelines : lien vers un nœud inconnu {link!r}')
+            continue
+        preds[dst].add(src)
+    order, done = [], set()
+    while len(order) < len(nodes):
+        ready = [n for n in nodes if n['id'] not in done and preds[n['id']] <= done]
+        if not ready:
+            errors.append('pipelines : cycle entre ' + ', '.join(i for i in ids if i not in done))
+            return [], errors
+        order.append(ready[0])
+        done.add(ready[0]['id'])
+    return order, errors
+
+
+def _validate_pipelines(pipelines) -> list[str]:
+    """Facette `pipelines` (pipelines PROPOSÉS par l'app, §10.6 3.5) — rejet à l'ingest."""
+    if not isinstance(pipelines, list):
+        return ['pipelines doit être une liste de pipelines {key, nodes, links}']
+    errs = []
+    for p in pipelines:
+        if not isinstance(p, dict) or not p.get('key'):
+            errs.append(f'pipelines : chaque pipeline exige une clé ({p!r})')
+            continue
+        for n in p.get('nodes') or []:
+            if not isinstance(n, dict) or n.get('kind') != 'process':
+                errs.append(f"pipelines.{p['key']} : nœud de kind 'process' attendu ({n!r})")
+                continue
+            if n.get('degree', 'required') not in PROCESS_DEGREES:
+                errs.append(f"pipelines.{p['key']}.{n.get('id')} : degré hors {PROCESS_DEGREES}")
+            for champ in ('reads', 'writes', 'watched'):
+                if any(not isinstance(v, str) for v in (n.get(champ) or [])):
+                    errs.append(f"pipelines.{p['key']}.{n.get('id')}.{champ} : liste de noms")
+        errs += pipeline_process_order(p)[1]
+    return errs
+
+
 # ── Validation du body ──────────────────────────────────────────────────────────
 def validate_app_body(body: dict) -> list[str]:
     errs: list[str] = []
@@ -109,6 +164,8 @@ def validate_app_body(body: dict) -> list[str]:
                 errs.append("params.primary doit désigner une clé de params.schemas")
         else:
             errs.append("params doit être une liste (héritage) ou un dict {primary, schemas}")
+    if 'pipelines' in body:
+        errs += _validate_pipelines(body['pipelines'])
     proc = body.get('processing') or {}
     if proc and isinstance(proc, dict):
         st = proc.get('statuses')

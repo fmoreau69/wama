@@ -143,6 +143,37 @@
         ]
       }
     },
+    "pipelines": [
+      {
+        "key": "default",
+        "label": "Rédiger puis mettre en forme",
+        "nodes": [
+          {
+            "id": "draft_content",
+            "kind": "process",
+            "label": "Rédiger le fond",
+            "degree": "required",
+            "reads": ["prompt", "document_kind", "language", "source_document"],
+            "writes": ["result_text"],
+            "watched": ["prompt", "document_kind", "language", "model", "source_document"],
+            "description": "Rédige le FOND, et rien que le fond : un texte structuré en Markdown, dans la langue demandée, qui répond à la consigne (`prompt`) pour le type de document (`document_kind`). Structure attendue : un titre `#`, puis une section `##` par partie — pour une présentation, UNE section = UNE diapositive (titre court + 3 à 6 puces ou un paragraphe bref). Le document source (`source_document`), s'il existe, NOURRIT le contenu (faits, chiffres, termes) sans être recopié. AUCUNE mise en forme (ni HTML, ni CSS, ni consigne de style) : c'est le process suivant. Le modèle employé est le réglage `model` (clé de catalogue)."
+          },
+          {
+            "id": "render_format",
+            "kind": "process",
+            "label": "Mettre en forme",
+            "degree": "required",
+            "reads": ["result_text", "output_format", "style_instruction", "document_kind", "language"],
+            "writes": ["output_file"],
+            "watched": ["output_format", "style_instruction", "model"],
+            "description": "Rend le FOND (`result_text`, Markdown) dans le format de sortie (`output_format` ; HTML seul aujourd'hui) en suivant la consigne de forme (`style_instruction`). Le LLM écrit le langage SOURCE du format — pour HTML : UN document HTML autonome (CSS dans une balise <style>, AUCUNE ressource externe, aucun CDN, aucun script distant) —, jamais un binaire. Il ne réécrit PAS le fond : chaque section `##` devient une diapositive (présentation) ou une section (rapport, page), dans l'ordre. Le fichier produit est enregistré dans le champ `output_file`."
+          }
+        ],
+        "links": [
+          {"from": "draft_content", "to": "render_format"}
+        ]
+      }
+    ],
     "ports": {
       "inputs": [
         {
