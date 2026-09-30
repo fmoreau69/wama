@@ -192,10 +192,11 @@ class DiffusersEngineMustBeProvenTest(SimpleTestCase):
         return {'body': {'composition': {'components': [{'role': 'vae', 'pattern': 'v.pth'}],
                                          'runtime': {'engine': engine}}}}
 
-    def _enforce(self, manifest, class_name):
+    def _enforce(self, manifest, class_name, files=()):
         concerns = []
         reader = lambda _hf: (class_name, f'model_index.json nomme {class_name!r}')
-        self.role_utils.enforce_engine_facts(manifest, 'org/repo', concerns, reader=reader)
+        self.role_utils.enforce_engine_facts(manifest, 'org/repo', concerns, reader=reader,
+                                             lister=lambda _hf: list(files))
         return manifest, concerns
 
     def test_a_real_diffusers_pipeline_keeps_its_engine(self):
@@ -225,6 +226,36 @@ class DiffusersEngineMustBeProvenTest(SimpleTestCase):
         for name in ('run_scout.py', 'run_model_manifest.py'):
             with self.subTest(role=name):
                 self.assertIn('enforce_engine_facts(', (DEV_AI / name).read_text(encoding='utf-8'))
+
+    def test_an_architecture_absent_from_transformers_loses_the_engine(self):
+        """Cas réel du 2026-09-30 : LinTO FastConformer, `ParakeetForRNNT`."""
+        manifest, concerns = self._enforce(self._manifest('transformers'), ['ParakeetForRNNT'])
+        self.assertNotIn('runtime', manifest['body']['composition'])
+        self.assertIn('ParakeetForRNNT', concerns[0])
+
+    def test_an_installed_architecture_keeps_transformers(self):
+        manifest, concerns = self._enforce(self._manifest('transformers'),
+                                           ['WhisperForConditionalGeneration'])
+        self.assertEqual('transformers', manifest['body']['composition']['runtime']['engine'])
+        self.assertEqual([], concerns)
+
+    def test_several_weight_formats_are_said(self):
+        files = ('config.json', 'model.safetensors', 'linto_stt_fr_fastconformer_pc.nemo')
+        _, concerns = self._enforce(self._manifest('musetalk'), None, files=files)
+        self.assertEqual(1, len(concerns))
+        self.assertIn('.nemo', concerns[0])
+        self.assertIn('.safetensors', concerns[0])
+
+    def test_a_single_weight_format_says_nothing(self):
+        _, concerns = self._enforce(self._manifest('musetalk'), None,
+                                    files=('config.json', 'model.safetensors'))
+        self.assertEqual([], concerns)
+
+    def test_an_engine_no_backend_serves_is_kept_and_said(self):
+        manifest, concerns = self._enforce(self._manifest('no-such-engine'), None)
+        self.assertEqual('no-such-engine', manifest['body']['composition']['runtime']['engine'])
+        self.assertEqual(1, len(concerns))
+        self.assertIn('AUCUN backend', concerns[0])
 
 
 class FournisseurDesRolesTest(SimpleTestCase):
