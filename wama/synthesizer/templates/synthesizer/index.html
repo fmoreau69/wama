@@ -100,14 +100,10 @@
     {% comment %}Chip de l'appariement (WamaInputMatch) : visible quand une voix CLONÉE est
     choisie — le ✕ revient à la voix par défaut et réactive les moteurs grisés.{% endcomment %}
     <span id="voiceChip" class="d-block mt-1" style="display:none"></span>
-    <div class="d-flex gap-1 mt-1">
-        <button type="button" class="btn btn-outline-light btn-sm flex-fill add-custom-voice-btn">
-            <i class="fas fa-plus"></i> Ajouter
-        </button>
-        <a href="{% url 'media_library:index' %}?tab=voice" class="btn btn-outline-secondary btn-sm" title="Gérer mes voix">
-            <i class="fas fa-folder-open"></i>
-        </a>
-    </div>
+    {% comment %}« Ajouter » (modale propre à l'app) et le lien dossier vers la page médiathèque sont
+    RETIRÉS le 2026-09-30 : le champ voix GÉNÉRÉ porte d'office le bouton de la fenêtre commune de
+    la médiathèque (`WamaParams`, `options_source: 'voices'`) — écouter, ajouter un fichier ou
+    s'enregistrer, choisir, sans quitter la page.{% endcomment %}
 </div>
 
 <!-- Speed -->
@@ -182,7 +178,7 @@ Rendu COMMUN depuis le même jour : `previewAudioContainer` est l'hôte de `rend
 {% comment %}Card « Nouvel élément » v4 (2026-09-30, CARD_DESIGN §11.11) — le texte à dire vient SOIT du
 prompt, SOIT d'un fichier de travail (décision de Fabien : « ça fait la même chose ») :
   • prompt au-dessus (repliée, il reste visible) + « Ajouter à la file » ;
-  • onglet « Fichier de travail » (port de CARD `app_card_ports` : .txt .md .csv .pdf .docx, lu en
+  • onglet « Fichier de travail » (port de CARD `app_own_input_ports` : .txt .md .csv .pdf .docx, lu en
     entier par la vue d'upload ; « requis · ou le texte saisi ») — ids dropZoneSynthesizer /
     fileInput / synthFolderInput conservés (index.js, WamaImport : un fichier qui a la forme d'un
     lot y reste reconnu comme LOT, `batchScope:'each'`) ;
@@ -233,56 +229,6 @@ startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit.{% endc
 {% endblock %}
 
 {% block extra_modals %}
-<!-- Custom Voice Upload Modal -->
-<div class="modal fade" id="customVoiceModal" tabindex="-1">
-    <div class="modal-dialog modal-sm">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-microphone"></i> Ajouter une voix</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label for="customVoiceName" class="form-label">Nom</label>
-                    <input type="text" class="form-control" id="customVoiceName" placeholder="Ma voix" required>
-                </div>
-                <div class="mb-3">
-                    <label for="customVoiceAudio" class="form-label">Fichier audio (6-10s)</label>
-                    <input type="file" class="form-control" id="customVoiceAudio" accept=".wav,.mp3,.flac,.ogg">
-                    <small class="text-muted">WAV, MP3, FLAC ou OGG</small>
-                </div>
-                <div class="text-center text-muted small mb-2">ou</div>
-                <div>
-                    <button type="button" class="btn btn-outline-info btn-sm w-100" id="recordVoiceBtn">
-                        <i class="fas fa-microphone"></i> Enregistrer ma voix
-                    </button>
-                    <div id="recordingIndicator" class="mt-2 p-2 bg-danger bg-opacity-25 rounded text-center" style="display: none;">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <span class="text-danger">
-                                <i class="fas fa-circle fa-beat"></i> Enregistrement...
-                            </span>
-                            <span id="recordingTimer" class="badge bg-danger">0s</span>
-                            <button type="button" class="btn btn-danger btn-sm" id="stopRecordingBtn">
-                                <i class="fas fa-stop"></i> Stop
-                            </button>
-                        </div>
-                        <small class="d-block mt-1">Max 10s - Arrêt auto</small>
-                    </div>
-                    <div id="recordingResult" class="mt-2 p-2 bg-success bg-opacity-10 rounded text-center" style="display: none;">
-                        <i class="fas fa-check-circle text-success"></i>
-                        <span id="recordingResultText" class="small text-success"></span>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary btn-sm" id="saveCustomVoiceBtn">
-                    <i class="fas fa-save"></i> Enregistrer
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 
 {% comment %}Modale ⚙ d'ITEM : plus de markup ici — elle est GÉNÉRÉE par le cycle commun
 `WamaParams.settingsModal` (index.js, portage 2026-09-24) ; ne reste que le pied COMMUN qu'il
@@ -369,9 +315,6 @@ greffe, avec les classes qu'il délègue (`save-settings-btn` / `save-and-restar
             clearAll: "{% url 'synthesizer:clear_all' %}",
             console: "{% url 'synthesizer:console' %}",
             updateSettings: "{% url 'synthesizer:update_settings' 0 %}",
-            customVoices: "{% url 'synthesizer:list_custom_voices' %}",
-            uploadCustomVoice: "{% url 'synthesizer:upload_custom_voice' %}",
-            deleteCustomVoice: "/synthesizer/custom-voices/delete/",
             batchPreview: "{% url 'synthesizer:batch_preview' %}",
             batchCreate: "{% url 'synthesizer:batch_create' %}",
             batchList: "{% url 'synthesizer:batch_list' %}",

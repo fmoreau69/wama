@@ -4773,3 +4773,30 @@ registre (⑤), la confrontation dans les deux sens.
   non déclaré, et `check_docs` contrôle désormais ses liens.
 - **Langue** : la doc reste en FRANÇAIS pour l'instant. Plus tard : l'harmoniser en anglais et la
   faire entrer dans l'i18n (`§10`) pour la traduction complète de WAMA.
+
+## 26. Transparence des contenus GÉNÉRÉS et données PERSONNELLES des médias — chantier de réflexion GLOBAL (ouvert le 2026-09-30)
+
+> Décision de Fabien, le 30/09, après l'état des lieux « voix personnalisées, droits, RGPD »
+> (`MEDIA_STORAGE_TIERING §9.7`) : *« Pour le moment, pas de tampon audio. On attend de voir
+> comment ça se met concrètement en place et on prévoit un chantier de réflexion complet sur le
+> sujet pour tous les médias. C'est un chantier à faire globalement. »* ⏳ **Rien n'est tranché
+> ici** : c'est le cadre des questions, pour ne pas les rouvrir app par app.
+
+**Ce qui existe au 2026-09-30** (première marche, usage RECHERCHE) :
+- la mention « Contenu généré par IA (WAMA <app>, modèle …) » dans les MÉTADONNÉES du fichier —
+  brique `common/utils/generated_media.mark_as_generated` (copie de flux, ne fait jamais échouer
+  un travail). Premier adopteur : le **synthesizer** (précise « voix clonée ») ;
+- le **consentement au partage** d'un asset qui porte une personne (`Nature.personal` : voix,
+  parole) et sa trace (`common.ShareConsent`) — `WAMA_COLLABORATION`, `MEDIA_STORAGE_TIERING §9.7`.
+
+**Les questions du chantier** (à instruire, pas à trancher ici) :
+
+| axe | question | point d'appui |
+|---|---|---|
+| portée | quelles apps produisent un contenu « généré » (imager, composer, avatarizer, synthesizer, enhancer ?) — et un contenu **transformé** (anonymizer, enhancer) l'est-il ? | registre d'apps (`APP_CATALOG`) — déclarer, ne pas lister en dur |
+| forme | métadonnée seule (état actuel) · filigrane (audio : ex. AudioSeal ; image : filigrane invisible) · standard de provenance signé (C2PA) | adoption par `generated_media`, déclarée par nature de sortie |
+| réglementaire | calendrier et exemptions du règlement européen sur l'IA (art. 50 : marquage des contenus synthétiques, mention des hypertrucages) ; l'exemption « recherche scientifique » couvre-t-elle les usages réels (rôle « communication ») ? | **DPO / juriste** — WAMA ne tranche pas |
+| personnes | quelles natures portent une personne (visage d'un avatar, image, vidéo, parole) → `Nature.personal` ; consentement à l'AJOUT d'un média d'autrui, en plus du partage ? | `MEDIA_STORAGE_TIERING §9.7`, `PROFILES_PERMISSIONS` |
+| licences | licence du MOTEUR héritée par la sortie (XTTS `cpml-1.0` = non commercial) — l'afficher sur le résultat ? | catalogue (`AIModel.license`), `LICENSING.md` |
+| retrait | que deviennent les sorties produites avec une voix/un visage dont le consentement est retiré ? | aujourd'hui : elles restent, seules les FUTURES échouent (`VoiceUnavailable`) |
+| registre RGPD | fiche de traitement « clonage de voix », AIPD | côté université : WAMA RÉFÉRENCE, n'absorbe pas (`WAMA_DATA_WORLD §13.16`) |

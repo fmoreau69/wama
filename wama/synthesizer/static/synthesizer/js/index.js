@@ -162,8 +162,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // champs écrite à la main vivaient ici). Les VALEURS viennent des data-* du gear (brique
     // `card_gear`), lues par LE lecteur unique `WamaInspector.gearValues` ; les spécificités de
     // l'app restent des HOOKS : options des selects clonées du volet compose (`optionsResolver`),
-    // champs Higgs ajoutés au POST (`collect`), bouton « Ajouter une voix personnalisée » greffé
-    // dans la modale (`decorate`). ⚠ « Sauvegarder et démarrer » POSTe le démarrage : l'ancien
+    // champs Higgs ajoutés au POST (`collect`). Le bouton de la médiathèque (écouter, ajouter,
+    // choisir une voix) n'est PLUS greffé ici (`decorate`, retiré le 2026-09-30) : `WamaParams` le
+    // pose sur tout champ `options_source: 'voices'`. ⚠ « Sauvegarder et démarrer » POSTe le démarrage : l'ancien
     // cycle le faisait en GET, refusé par la vue (`@require_POST` depuis le 22/09).
     function _panelOptionsResolver(param) {
         const src = document.getElementById((param.dom_id && param.dom_id.panel) || param.name);
@@ -192,14 +193,6 @@ document.addEventListener('DOMContentLoaded', function() {
             saveUrl: URLS.updateSettings.replace('/0/', '/' + id + '/'),
             csrf: csrfToken,
             optionsResolver: _panelOptionsResolver,
-            decorate: function (host) {
-                const add = document.createElement('button');
-                add.type = 'button';
-                add.className = 'btn btn-outline-secondary btn-sm w-100 mt-2 add-custom-voice-btn';
-                add.innerHTML = '<i class="fas fa-plus"></i> Ajouter une voix personnalisée';
-                add.addEventListener('click', function () { openCustomVoiceModal(id, btn); });
-                host.appendChild(add);
-            },
             collect: function (fd) { appendHiggsFields(fd); },
             onSaved: async function (sid, restart) {
                 if (restart) {
@@ -665,207 +658,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // === Custom Voice Management ===
-    const customVoiceModal = document.getElementById('customVoiceModal');
-    const customVoiceModalInstance = customVoiceModal ? new bootstrap.Modal(customVoiceModal) : null;
-    const customVoiceAudioInput = document.getElementById('customVoiceAudio');
-
-    // Voice recording state
-    let mediaRecorder = null;
-    let audioChunks = [];
-    let recordingStartTime = null;
-    let recordingTimerInterval = null;
-
-    // Modale ⚙ à ROUVRIR après l'ajout d'une voix (la modale est GÉNÉRÉE par le cycle commun :
-    // on retient l'élément et son gear, pas une instance Bootstrap statique).
-    let reopenSettingsFor = null;
-
-    function openCustomVoiceModal(fromSettingsId, fromSettingsBtn) {
-        if (!customVoiceModalInstance) return;
-        document.getElementById('customVoiceName').value = '';
-        if (customVoiceAudioInput) customVoiceAudioInput.value = '';
-        const resultDiv = document.getElementById('recordingResult');
-        if (resultDiv) resultDiv.style.display = 'none';
-
-        // Ouvert DEPUIS la modale ⚙ : la fermer d'abord, la rouvrir à la fermeture de celle-ci.
-        const openSettings = fromSettingsId ? document.querySelector('.modal.show[data-wama-item-id]') : null;
-        if (openSettings) {
-            reopenSettingsFor = { id: fromSettingsId, btn: fromSettingsBtn };
-            openSettings.addEventListener('hidden.bs.modal', function () {
-                customVoiceModalInstance.show();
-            }, { once: true });
-            bootstrap.Modal.getInstance(openSettings).hide();
-        } else {
-            reopenSettingsFor = null;
-            customVoiceModalInstance.show();
-        }
-    }
-
-    // Reopen settings modal when custom voice modal closes
-    if (customVoiceModal) {
-        customVoiceModal.addEventListener('hidden.bs.modal', () => {
-            if (reopenSettingsFor) {
-                const pending = reopenSettingsFor;
-                reopenSettingsFor = null;
-                openSettingsModal(pending.id, pending.btn);
-            }
-        });
-    }
-
-    // « Ajouter une voix » du VOLET (celui de la modale ⚙ est greffé par `decorate`, avec
-    // l'élément à rouvrir).
-    document.querySelectorAll('.add-custom-voice-btn').forEach(btn => {
-        btn.addEventListener('click', function () { openCustomVoiceModal(); });
-    });
-
-    // Microphone recording inside the custom voice modal
-    const recordVoiceBtn = document.getElementById('recordVoiceBtn');
-    const stopRecordingBtn = document.getElementById('stopRecordingBtn');
-    const recordingIndicator = document.getElementById('recordingIndicator');
-    const recordingTimer = document.getElementById('recordingTimer');
-
-    if (recordVoiceBtn) {
-        recordVoiceBtn.addEventListener('click', async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 22050 }
-                });
-
-                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-                audioChunks = [];
-
-                mediaRecorder.ondataavailable = (e) => {
-                    if (e.data.size > 0) audioChunks.push(e.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    if (recordingTimerInterval) { clearInterval(recordingTimerInterval); recordingTimerInterval = null; }
-                    stream.getTracks().forEach(track => track.stop());
-
-                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
-                    const file = new File([blob], 'recorded_voice.webm', { type: 'audio/webm' });
-                    const dt = new DataTransfer();
-                    dt.items.add(file);
-                    if (customVoiceAudioInput) customVoiceAudioInput.files = dt.files;
-
-                    recordingIndicator.style.display = 'none';
-                    recordVoiceBtn.disabled = false;
-
-                    // Show confirmation
-                    const resultDiv = document.getElementById('recordingResult');
-                    const resultText = document.getElementById('recordingResultText');
-                    if (resultDiv && resultText) {
-                        resultText.textContent = `Enregistrement capturé (${recordingTimer.textContent})`;
-                        resultDiv.style.display = 'block';
-                    }
-                };
-
-                mediaRecorder.start();
-                recordingStartTime = Date.now();
-                recordingIndicator.style.display = 'block';
-                recordVoiceBtn.disabled = true;
-                const resultDiv = document.getElementById('recordingResult');
-                if (resultDiv) resultDiv.style.display = 'none';
-
-                recordingTimerInterval = setInterval(() => {
-                    const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
-                    recordingTimer.textContent = `${elapsed}s`;
-                    if (elapsed >= 10 && stopRecordingBtn) stopRecordingBtn.click();
-                }, 100);
-
-            } catch (error) {
-                console.error('Microphone access error:', error);
-                WamaApp.toast(error.name === 'NotAllowedError'
-                    ? 'Accès au microphone refusé. Veuillez autoriser l\'accès dans les paramètres du navigateur.'
-                    : 'Erreur micro: ' + error.message, 'warning');
-            }
-        });
-    }
-
-    if (stopRecordingBtn) {
-        stopRecordingBtn.addEventListener('click', () => {
-            if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
-        });
-    }
-
-    // Save custom voice
-    const saveCustomVoiceBtn = document.getElementById('saveCustomVoiceBtn');
-    if (saveCustomVoiceBtn) {
-        saveCustomVoiceBtn.addEventListener('click', async () => {
-            const name = document.getElementById('customVoiceName').value.trim();
-            const audioFile = customVoiceAudioInput ? customVoiceAudioInput.files[0] : null;
-
-            if (!name || !audioFile) {
-                WamaApp.toast('Veuillez remplir le nom et sélectionner un fichier audio.', 'warning');
-                return;
-            }
-
-            saveCustomVoiceBtn.disabled = true;
-            saveCustomVoiceBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi...';
-
-            try {
-                const formData = new FormData();
-                formData.append('name', name);
-                formData.append('audio', audioFile);
-
-                const response = await fetch(URLS.uploadCustomVoice, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': csrfToken },
-                    body: formData
-                });
-
-                const data = await response.json();
-
-                if (response.ok && data.id) {
-                    // La voix neuve rejoint le groupe « Mes voix » du volet (ua_ = UserAsset).
-                    // ⚠ UN seul appel depuis le 2026-09-23 : la modale d'item est RE-GÉNÉRÉE à
-                    // chaque ouverture en clonant les options du volet — y insérer quoi que ce
-                    // soit maintenant n'écrivait que dans un corps de modale déjà périmé.
-                    addCustomVoiceOption('mine', `<option value="ua_${data.id}">${data.name}</option>`,
-                                         'voice_preset');
-
-                    // Select the new voice in the panel dropdown
-                    document.getElementById('voice_preset').value = `ua_${data.id}`;
-
-                    if (customVoiceModalInstance) customVoiceModalInstance.hide();
-                } else {
-                    WamaApp.toast('Erreur: ' + (data.error || 'Échec de l\'enregistrement'), 'error');
-                }
-            } catch (error) {
-                console.error('Custom voice upload error:', error);
-                WamaApp.toast('Erreur: ' + error.message, 'error');
-            } finally {
-                saveCustomVoiceBtn.disabled = false;
-                saveCustomVoiceBtn.innerHTML = '<i class="fas fa-save"></i> Enregistrer';
-            }
-        });
-    }
-
-    // Un groupe d'options se retrouve par sa CLÉ (`data-group-key`, posée par WamaParams depuis
-    // les groupes de `get_voice_groups`), jamais par un id de gabarit : le select est généré, et
-    // un libellé n'est qu'un texte affiché. Le groupe « mine » est TOUJOURS émis, même vide,
-    // précisément pour qu'on ait où insérer ici.
-    function addCustomVoiceOption(groupKey, optionHtml, selectId) {
-        const select = document.getElementById(selectId);
-        if (!select) return;
-        let group = select.querySelector('optgroup[data-group-key="' + groupKey + '"]');
-        if (!group) {
-            // Repli : serveur d'une version antérieure, ou options pas encore rendues.
-            group = document.createElement('optgroup');
-            group.setAttribute('data-group-key', groupKey);
-            group.label = 'Mes voix (clonage)';
-            const firstGroup = select.querySelector('optgroup');
-            if (firstGroup && firstGroup.nextSibling) {
-                select.insertBefore(group, firstGroup.nextSibling);
-            } else {
-                select.appendChild(group);
-            }
-        }
-        group.insertAdjacentHTML('beforeend', optionHtml);
-        // Les options ont changé : le dire comme la brique commune le dit (filtres de capacité
-        // rejoués — une voix clonée ne doit pas rester offerte sous un moteur qui ne clone pas —
-        // et miroir de la card d'entrée recopié).
-        select.dispatchEvent(new CustomEvent('wama:options-filled', { bubbles: true }));
-    }
+    // ⚠ « Custom Voice Management » RETIRÉ le 2026-09-30 : la modale « Ajouter une voix »,
+    // l'enregistrement au micro et l'insertion de l'option vivaient ici. Un champ
+    // `options_source: 'voices'` reçoit désormais d'office le bouton de la fenêtre commune de la
+    // médiathèque (`WamaParams`, `LIBRARY_SOURCES`) : écouter, AJOUTER (fichier ou micro) puis
+    // choisir — au volet, dans la modale ⚙ et dans l'avatarizer, sans code d'app.
 
 }); // Fin DOMContentLoaded

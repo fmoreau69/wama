@@ -9,10 +9,14 @@
  */
 
 /* ── Onglets de PORT — les .mtab de la maquette v3.5, promus au rôle de port ─────────── */
-.wama-port-tabs { display: flex; gap: .15rem; flex-wrap: wrap; margin-bottom: .35rem; }
+/* UNE ligne, toujours (2026-09-30) : avec trois ports aux libellés longs (« requis · ou … »,
+ * avatarizer), `flex-wrap: wrap` renvoyait l'onglet Lot seul à la ligne. Les onglets de PORT se
+ * tronquent (libellé entier en infobulle, `title`), l'onglet Lot ne rétrécit jamais. */
+.wama-port-tabs { display: flex; gap: .15rem; flex-wrap: nowrap; min-width: 0; margin-bottom: .35rem; }
 .wama-port-tab {
     font-size: .72rem; padding: .12rem .5rem; border-radius: .3rem; cursor: pointer;
     color: #6c757d; border: 1px solid transparent; white-space: nowrap; user-select: none;
+    flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
 }
 .wama-port-tab:hover { color: #adb5bd; background: rgba(255, 255, 255, .05); }
 .wama-port-tab.is-active { color: #0dcaf0; border-color: rgba(13, 202, 240, .4); background: rgba(13, 202, 240, .08); }
@@ -61,7 +65,7 @@
 .wama-mod.wama-mod-arm:hover { border-color: #ffc107; background: rgba(255, 193, 7, .06); }
 
 /* ── Onglet LOT (2026-09-29) — pas un port : il se tient À DROITE des ports, à l'écart ──── */
-.wama-port-tab.wama-port-tab-lot { margin-left: auto; }
+.wama-port-tab.wama-port-tab-lot { margin-left: auto; flex-shrink: 0; }
 .wama-mod.wama-mod-template { text-decoration: none; cursor: pointer; }
 .wama-mod.wama-mod-template:hover { border-color: #0dcaf0; color: #e9ecef; background: rgba(13, 202, 240, .07); }
 

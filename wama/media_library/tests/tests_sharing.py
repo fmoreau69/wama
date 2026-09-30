@@ -179,3 +179,75 @@ class MediaLibrarySharingTest(TestCase):
         """C'est l'oubli qui a duré des mois : le mixin posé, le manager jamais."""
         self.assertTrue(hasattr(UserAsset.objects, 'visible_to'))
         self.assertTrue(hasattr(UserAsset.objects, 'owned_by'))
+
+
+class SharingAPersonRequiresConsentTest(TestCase):
+    """Partager ce qui porte une PERSONNE (une voix) demande un consentement (2026-09-30).
+
+    Décision de Fabien : « s'il partage, c'est pour le rendre atteignable aux autres ; il faut
+    juste le prévenir et lui faire valider le consentement. Sinon, il annule. Il peut aussi retirer
+    le partage à tout moment. » La nature le DÉCLARE (`Nature.personal`) ; le service commun
+    l'exige et en garde la trace (`common.ShareConsent`), retrait compris.
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_user('voice_sharer', password='x')
+        self.voice = UserAsset.objects.create(
+            user=self.owner, name='my_voice', asset_type='voice',
+            file=SimpleUploadedFile('my_voice.wav', b'RIFF0000WAVE'))
+        self.client_owner = Client()
+        self.client_owner.force_login(self.owner)
+        self.url = reverse('common:api_partage', args=['media_library', 'element', self.voice.id])
+
+    def _consents(self):
+        from wama.common.models import ShareConsent
+        return ShareConsent.objects.filter(object_type='media_library.UserAsset',
+                                           object_id=self.voice.id)
+
+    def test_the_voice_nature_declares_it_carries_a_person_and_an_image_does_not(self):
+        self.assertTrue(self.voice.share_consent_subject())
+        image = _asset(self.owner, 'landscape')
+        self.assertEqual('', image.share_consent_subject())
+
+    def test_the_share_window_is_told_the_statement_before_anything_is_sent(self):
+        state = self.client_owner.get(self.url).json()['etat']
+        self.assertIn(self.voice.share_consent_subject(), state['consent']['statement'])
+
+    def test_sharing_without_consent_is_refused_and_nothing_changes(self):
+        from wama.common.services.sharing import ConsentRequired
+        with self.assertRaises(ConsentRequired):
+            partager(self.owner, self.voice, ScopedVisibility.VIS_PUBLIC)
+        response = self.client_owner.post(self.url, {'visibility': ScopedVisibility.VIS_PUBLIC})
+        self.assertEqual(409, response.status_code)
+        self.assertTrue(response.json()['consent_required'])
+        self.assertIn('retirer', response.json()['statement'])
+        self.voice.refresh_from_db()
+        self.assertEqual(ScopedVisibility.VIS_PRIVATE, self.voice.visibility)
+        self.assertFalse(self._consents().exists())
+
+    def test_sharing_with_consent_is_applied_and_the_statement_is_kept(self):
+        response = self.client_owner.post(self.url, {'visibility': ScopedVisibility.VIS_PUBLIC,
+                                                     'consent': '1'})
+        self.assertEqual(200, response.status_code, response.content[:200])
+        self.voice.refresh_from_db()
+        self.assertEqual(ScopedVisibility.VIS_PUBLIC, self.voice.visibility)
+        record = self._consents().get()
+        self.assertEqual((record.user, record.visibility), (self.owner, ScopedVisibility.VIS_PUBLIC))
+        self.assertIn(self.voice.share_consent_subject(), record.statement)
+
+    def test_withdrawing_the_share_needs_no_consent_and_is_recorded(self):
+        partager(self.owner, self.voice, ScopedVisibility.VIS_PUBLIC, consent=True)
+        response = self.client_owner.post(self.url, {'visibility': ScopedVisibility.VIS_PRIVATE})
+        self.assertEqual(200, response.status_code, response.content[:200])
+        self.voice.refresh_from_db()
+        self.assertEqual(ScopedVisibility.VIS_PRIVATE, self.voice.visibility)
+        latest = self._consents().first()
+        self.assertTrue(latest.is_withdrawal)
+        self.assertEqual('', latest.statement)
+        self.assertEqual(2, self._consents().count())
+
+    def test_an_asset_without_a_person_shares_as_before(self):
+        image = _asset(self.owner, 'plain_picture')
+        partager(self.owner, image, ScopedVisibility.VIS_PUBLIC)
+        image.refresh_from_db()
+        self.assertEqual(ScopedVisibility.VIS_PUBLIC, image.visibility)

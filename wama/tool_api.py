@@ -806,7 +806,9 @@ def get_audio_enhancer_status(user) -> dict:
 
 def synthesize_text(
     user,
-    text: str,
+    text: str = '',
+    work_file: str = '',
+    reference_voice: str = '',
     language: str = 'fr',
     tts_model: str = DEFAULT_TTS_MODEL,
     voice_preset: str = 'default',
@@ -816,14 +818,19 @@ def synthesize_text(
     **params,
 ) -> dict:
     """
-    Create a VoiceSynthesis job from raw text.
+    Create a VoiceSynthesis job — from raw text OR from a work file, with an optional
+    reference voice. Same creation path as the app's card (`synthesizer.services.create_synthesis`).
 
     Args:
         user:              Django User instance
-        text:              Text to synthesize (required)
+        text:              Text to synthesize (port `prompt`) — or give `work_file`
+        work_file:         Path (relative to MEDIA_ROOT) of a TXT/MD/PDF/DOCX/CSV file to read aloud
+                           (port `work_file`)
+        reference_voice:   Path (relative to MEDIA_ROOT) of a voice sample to clone
+                           (port `reference_voice`)
         language:          Language code (e.g. 'fr', 'en', 'es')
-        tts_model:         TTS model ('coqui-xtts', 'higgs-audio', etc.)
-        voice_preset:      Voice preset key ('default', 'male_1', 'female_1', etc.)
+        tts_model:         TTS model catalog key ('synthesizer:coqui-xtts', 'auto'…)
+        voice_preset:      Voice ('default', 'sa_<id>' reference voice, 'ua_<id>' library voice…)
         speed:             Speech speed 0.5–2.0 (default: 1.0)
         pitch:             Voice pitch 0.5–2.0 (default: 1.0)
         emotion_intensity: Emotional intensity 0.0–2.0 (default: 1.0)
@@ -831,61 +838,26 @@ def synthesize_text(
     Returns:
         {"synthesis_id": int, "word_count": int, "duration_display": str, "status": "pending"}
     """
-    import re as _re
-    text = text.strip()
-    if not text:
-        return {'error': 'Le texte est vide.'}
-
-    speed = max(0.5, min(2.0, float(speed)))
-    pitch = max(0.5, min(2.0, float(pitch)))
-    emotion_intensity = max(0.0, min(2.0, float(emotion_intensity)))
-
-    # Build a safe filename from the first few words
-    words = text.split()
-    safe_title = _re.sub(r'[^\w\s-]', '', ' '.join(words[:5]))[:50].strip()
-    filename = f"{safe_title or 'synthesizer'}.txt"
-
+    # ⚠ Jusqu'au 2026-09-30 cet outil ne connaissait que le TEXTE : un document ou une voix de
+    # référence branchés sur le nœud du Studio étaient ignorés en silence. Il reçoit désormais
+    # les PORTS de l'app, désignés par leur chemin (`designate` : confinement, existence, droit de
+    # lecture), et crée par le MÊME chemin que la card.
+    from wama.common.utils.media_paths import InputRefused, designate
+    from wama.synthesizer.services import SynthesisRefused, create_synthesis
     try:
-        from django.core.files.base import ContentFile
-        from wama.synthesizer.models import VoiceSynthesis
-
-        txt_file = ContentFile(text.encode('utf-8'), name=filename)
-
-        synthesis = VoiceSynthesis.objects.create(
-            user=user,
-            text_file=txt_file,
-            tts_model=tts_catalog_key(tts_model),
-            language=language,
-            voice_preset=voice_preset,
-            speed=speed,
-            pitch=pitch,
-            emotion_intensity=emotion_intensity,
-            **schema_model_kwargs('synthesizer', params),
-        )
-
-        # Extract text and compute metadata
-        try:
-            from wama.synthesizer.utils.text_extractor import extract_text_from_file, clean_text_for_tts
-            extracted = extract_text_from_file(synthesis.text_file.path)
-            synthesis.text_content = clean_text_for_tts(extracted)
-        except Exception:
-            synthesis.text_content = text
-
-        synthesis.update_metadata()
-
-        # Wrap in a batch-of-1 so it appears correctly in the unified queue
-        try:
-            from wama.synthesizer.models import BatchSynthesis, BatchSynthesisItem
-            import os as _os
-            stem = _os.path.splitext(_os.path.basename(synthesis.text_file.name))[0]
-            batch = BatchSynthesis.objects.create(user=user, total=1)
-            BatchSynthesisItem.objects.create(
-                batch=batch, synthesis=synthesis,
-                output_filename=stem + '.wav', row_index=0,
-            )
-        except Exception:
-            pass
-
+        received = {port: designate(path, user, 'synthesizer')
+                    for port, path in (('work_file', work_file), ('reference_voice', reference_voice))
+                    if path}
+    except InputRefused as e:
+        return {'error': str(e)}
+    settings = {**params, 'language': language, 'tts_model': tts_model, 'voice_preset': voice_preset,
+                'speed': speed, 'pitch': pitch, 'emotion_intensity': emotion_intensity}
+    try:
+        synthesis = create_synthesis(user, prompt=text or '', params=settings,
+                                     work_file=received.get('work_file'),
+                                     reference_voice=received.get('reference_voice'))
+    except (SynthesisRefused, ValueError) as e:
+        return {'error': str(e)}
     except Exception as e:
         return {'error': f'Erreur création VoiceSynthesis : {e}'}
 
@@ -894,9 +866,9 @@ def synthesize_text(
         'word_count': synthesis.word_count,
         'duration_display': synthesis.duration_display or '—',
         'status': 'pending',
-        'model': tts_model,
-        'language': language,
-        'voice_preset': voice_preset,
+        'model': synthesis.tts_model,
+        'language': synthesis.language,
+        'voice_preset': synthesis.voice_preset,
     }
 
 
@@ -3813,6 +3785,21 @@ def primary_arg_name(tool_name: str):
             continue
         return name
     return None
+
+
+def tool_arg_names(tool_name: str) -> set:
+    """Les arguments NOMMÉS d'un outil (hors `user`, `*args`, `**params`) — dérivés de la signature.
+
+    C'est ce qui dit quels PORTS d'un nœud du Studio l'outil lit réellement (2026-09-30) : un port
+    arrive dans l'argument du même nom. `**params`, lui, ne porte que les réglages du schéma — un
+    port qui n'aurait que lui pour arriver serait écarté en silence.
+    """
+    fn = TOOL_REGISTRY.get(tool_name)
+    sig = _tool_signature(fn) if fn else None
+    if sig is None:
+        return set()
+    return {name for name, p in sig.parameters.items()
+            if name != 'user' and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)}
 
 
 def sanitize_tool_args(tool_name: str, args: dict):

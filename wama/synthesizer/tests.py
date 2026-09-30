@@ -310,22 +310,30 @@ class PanelVoiceFieldIsGeneratedTest(TestCase):
     def test_the_panel_saver_reads_generated_fields_too(self):
         self.assertIn('data-param="\' + k + \'"', self._template_source())
 
-    def test_the_app_js_finds_the_voice_group_by_its_key(self):
+    def test_the_voice_group_is_found_by_its_key_in_the_common_brick(self):
+        """Une voix ajoutée depuis la médiathèque rejoint son groupe PAR SA CLÉ — et depuis le
+        2026-09-30 c'est la brique COMMUNE qui le fait (`wama-params.js`, bouton médiathèque de
+        tout champ `options_source: 'voices'`) : le JS de l'app n'insère plus rien lui-même."""
         from pathlib import Path
         from django.conf import settings
         base = Path(settings.BASE_DIR)
-        for path in (base / 'wama' / 'synthesizer' / 'static' / 'synthesizer' / 'js' / 'index.js',
-                     base / 'staticfiles' / 'synthesizer' / 'js' / 'index.js'):
+        for rel in ('wama/common/static/common/js/wama-params.js',
+                    'staticfiles/common/js/wama-params.js'):
+            path = base / rel
             if not path.exists():
                 continue
             js = path.read_text(encoding='utf-8')
-            self.assertIn('optgroup[data-group-key="', js, path.name)
-            self.assertNotIn('customVoicesGroup', js, path.name)
-            # L'app ANNONCE que les options ont changé ; elle ne les écoute plus. Le seul
-            # auditeur d'app (le miroir de la card d'entrée) a été retiré le 2026-09-27 avec
-            # les contrôles qu'il servait — l'annonce, elle, reste indispensable : c'est ce
-            # qui fait rejouer les filtres de capacité sur une voix fraîchement clonée.
-            self.assertIn("dispatchEvent(new CustomEvent('wama:options-filled'", js, path.name)
+            self.assertIn('optgroup[data-group-key="', js, rel)
+            # L'annonce reste indispensable : elle fait rejouer les filtres de capacité sur une
+            # voix fraîchement ajoutée (une voix clonée sous un moteur qui ne clone pas).
+            self.assertIn("dispatchEvent(new CustomEvent('wama:options-filled'", js, rel)
+        for rel in ('wama/synthesizer/static/synthesizer/js/index.js',
+                    'staticfiles/synthesizer/js/index.js'):
+            path = base / rel
+            if path.exists():
+                js = path.read_text(encoding='utf-8')
+                self.assertNotIn('customVoicesGroup', js, rel)
+                self.assertNotIn('function addCustomVoiceOption', js, rel)
 
     def test_the_voice_field_is_rendered_by_an_inline_script(self):
         """Le rendu du champ vit dans un script EN LIGNE du gabarit. Que TOUS les scripts en

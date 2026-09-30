@@ -1,0 +1,20 @@
+{% comment %}
+Card d'AJOUT de la médiathèque — UNE card, deux surfaces (2026-09-30, demande de Fabien) :
+  • la page médiathèque (`prefix='ml'`, dépliable) ;
+  • la FENÊTRE COMMUNE de sélection (`MediaPicker`, `prefix='mp'`), où elle manquait : on ne
+    pouvait qu'y CHOISIR un asset existant, jamais y ajouter celui qu'on venait d'enregistrer.
+C'est la card d'entrée commune (`_new_item_card.html` : déposer, dossier, glisser depuis l'arbre)
+plus la zone « Enregistrer » que la nature déclare. Le câblage est `library-add.js`
+(`WamaLibraryAdd.wire`) : nature = l'onglet ouvert, voie = `api_upload` → `add_file_to_library`.
+
+Variables : prefix (REQUIS, 'ml' | 'mp'), collapsible (option).
+⚠ Dans la fenêtre commune la card est CLONÉE depuis un <template> : pas de `collapsible` (il
+embarque un <script> que le clonage n'exécuterait pas de façon fiable).
+{% endcomment %}{% load wama_static %}
+<div data-library-add="{{ prefix }}"
+     data-upload-url="{% url 'media_library:api_upload' %}"
+     data-import-src="{% static_v 'common/js/wama-import.js' %}">
+{% with card=prefix|add:'NewItem' drop=prefix|add:'DropZone' file=prefix|add:'FileInput' folder=prefix|add:'FolderInput' %}
+{% include 'common/_new_item_card.html' with card_id=card drop_zone_id=drop file_input_id=file folder_input_id=folder file_accept='' formats_label='' collapsible=collapsible extra_zone_template='common/_library_add_extra.html' %}
+{% endwith %}
+</div>

@@ -218,3 +218,24 @@ class LotBatchImportJsTest(SimpleTestCase):
         self.assertIs(False, out['r'])
         self.assertEqual([], out['events'])
         self.assertEqual([], out['toasts'])
+
+
+class PortTabsRowTest(TestCase):
+    """Two card v4 details reported by the avatarizer session (2026-09-30)."""
+
+    def test_the_library_tile_names_the_category_not_its_key(self):
+        from wama.common.templatetags import wama_actions
+        slots = {s['id']: s for s in wama_actions.input_slots('avatarizer')}
+        labels = {s.get('library_type_label') for s in slots.values() if s.get('library_type') == '3d'}
+        self.assertEqual({'Objets 3D'}, labels or {'Objets 3D'})
+        audio = [s for s in slots.values() if s.get('library_type') == 'audio']
+        self.assertTrue(all(s['library_type_label'] == 'Audio' for s in audio))
+        page = Path(settings.BASE_DIR, 'wama/common/templates/common/_new_item_card_v4.html').read_text(
+            encoding='utf-8')
+        self.assertNotIn('filtrée : {{ p.library_type }}', page)
+
+    def test_the_tabs_stay_on_one_line_and_the_lot_tab_never_shrinks(self):
+        css = Path(settings.BASE_DIR, 'wama/common/static/common/css/wama-input-slots.css').read_text(
+            encoding='utf-8')
+        self.assertIn('flex-wrap: nowrap', css.split('.wama-port-tabs {', 1)[1].split('}', 1)[0])
+        self.assertIn('flex-shrink: 0', css.split('.wama-port-tab.wama-port-tab-lot {', 1)[1].split('}', 1)[0])

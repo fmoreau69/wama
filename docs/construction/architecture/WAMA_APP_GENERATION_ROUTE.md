@@ -983,7 +983,7 @@ le passé.*
   <!-- WAMA:FAITS(outils) — généré par « python manage.py doc_facts », ne pas éditer -->
 - Outils au registre (`TOOL_REGISTRY`) : **71**
 - Outils décrits (`tool_descriptions()`, dérivé) : **71/71**
-- Arguments documentés (types/choix/bornes/défauts) : **250**
+- Arguments documentés (types/choix/bornes/défauts) : **256**
 <!-- /WAMA:FAITS(outils) -->
 - 🔴 **PANNE TROUVÉE ET CORRIGÉE au passage — `describer.output_format`** (signalée par Fabien) :
   `output_style` est un **STYLE de description** (résumé / détaillée / synthèse scientifique / points
@@ -2822,6 +2822,26 @@ catalogue (route F4b non portée), un modèle texte→image validé n'y apparaî
    ③ un pipeline **composé pas à pas** depuis la card (monde Data exploratoire, point 6.3 B).
 4. **Une seule exécution** : un moteur commun, une ligne d'exécution par process, un vocabulaire
    d'états, une règle d'agrégation card → lot → file.
+
+> ⚠ **Mesuré le 2026-09-30 — le point 2 était tenu pour les PORTS AFFICHÉS, pas pour les ports
+> LUS** (constat de Fabien : *« si l'app déclare ses capacités, le studio en hérite, c'est tout ; ça
+> doit être le même chemin »*). Le nœud montrait tous les ports de l'app (`studio_node_ports`,
+> dérivés des modèles), mais le runner n'en transmettait qu'UN, l'entrée principale : un lien sur
+> la voix de référence, la mélodie, l'image… était **ignoré sans un mot**. Et la card et l'outil
+> du nœud créaient par des chemins DIFFÉRENTS (synthesizer : cinq chemins).
+> ✅ **Corrigé par une convention, pas une table** : *un port arrive dans l'argument du MÊME NOM de
+> l'outil `add_to_<app>`* (`generic_runner.port_arguments`, `tool_api.tool_arg_names`) ; un lien
+> sur un port que l'outil ne lit pas encore est une **erreur dite** au lancement. Un port déclaré
+> « l'un OU l'autre » avec le prompt (`one_of`) n'est pas l'entrée principale (le fichier de
+> travail du synthesizer). **Pilote : le synthesizer**, dont la card, le lot, l'import et l'outil
+> passent par UN service (`synthesizer/services.create_synthesis`, entrées par port, réglages par
+> le schéma) — nœud entièrement câblé. **Reste à porter, mesuré et tenu par un budget qui ne peut
+> que descendre** (`generic_runner.UNWIRED_PORTS_BUDGET` (geste nocturne `studio.node_ports_wired`)) : composer `reference_melody`,
+> imager `work_image`, transcriber `work_result`/`reference_result`, enhancer `work_audio`,
+> avatarizer `prompt`/`work_image`/`work_object3d`, anonymizer `prompt` — 9 ports, 6 apps.
+> Le geste par app est celui du pilote : un service de création unique par port, appelé par la
+> vue ET par l'outil. Les `io_scope` « le port n'est pas exposé au nœud » (imager, enhancer,
+> avatarizer, `generic_runner.GENERIC_APPS`) sont PÉRIMÉS depuis que les ports dérivent des modèles.
 
 #### 3. Couche 1 — la DÉFINITION : le manifeste `pipeline` (existe) et ce qui lui manque
 

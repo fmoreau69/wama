@@ -59,6 +59,17 @@ class Nature:
     #: au micro d'un navigateur) est rangé en wav. Le `pivot` était déclaré depuis A′ sans aucun
     #: consommateur ; sans lui, « Enregistrer ma voix » était refusé depuis février.
     to_pivot: Tuple[str, ...] = ()
+    #: La nature s'AJOUTE aussi par le micro (2026-09-30) : la card d'ajout de la médiathèque —
+    #: page ET fenêtre commune — montre alors « Enregistrer ». L'enregistrement (webm) entre par
+    #: `to_pivot`. Déclaré par nature, jamais déduit de la catégorie : une musique ne s'enregistre
+    #: pas au micro de l'ordinateur, une voix de clonage si.
+    recordable: bool = False
+    #: Ce que la nature porte d'une PERSONNE, dit en clair (« la voix d'une personne ») — ou vide.
+    #: Non vide, PARTAGER un tel asset au-delà du privé demande le consentement de celui qui
+    #: partage (décision de Fabien, 2026-09-30 : « il faut juste le prévenir et lui faire valider
+    #: le consentement ; sinon il annule ; il peut retirer le partage à tout moment »). Le service
+    #: de partage commun le lit par `UserAsset.share_consent_subject()`, jamais par nature.
+    personal: str = ''
     attributes: Dict[str, Attr] = field(default_factory=dict)
     #: Lien INTER-MONDES facultatif : le `DataType` (monde Data) qu'un port studio attendrait
     #: pour cette nature. Déclaré, jamais deviné (`ROADMAP §17ter`, trou 3).
@@ -96,7 +107,8 @@ SPEECH_TO_PIVOT = ('webm', 'weba', 'opus', 'mka', 'wma', 'amr')
 ASSET_NATURES: Dict[str, Nature] = {
     'voice': Nature(
         label='Voix', category='audio', icon='fa-microphone', pivot='wav',
-        extensions=AUDIO_EXTENSIONS, to_pivot=SPEECH_TO_PIVOT,
+        extensions=AUDIO_EXTENSIONS, to_pivot=SPEECH_TO_PIVOT, recordable=True,
+        personal="la voix d'une personne",
         attributes={
             'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…)",
                              label='Langue', labels=_LANGUAGE_LABELS),
@@ -114,7 +126,8 @@ ASSET_NATURES: Dict[str, Nature] = {
     # là remonterait dans ses menus de voix (`voice_reference_groups` interroge `voice`).
     'speech': Nature(
         label='Parole enregistrée', category='audio', icon='fa-comments', pivot='wav',
-        extensions=AUDIO_EXTENSIONS, to_pivot=SPEECH_TO_PIVOT,
+        extensions=AUDIO_EXTENSIONS, to_pivot=SPEECH_TO_PIVOT, recordable=True,
+        personal='la parole de personnes enregistrées',
         attributes={
             'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…) — la plus "
                                     "parlée si l'enregistrement en mêle plusieurs",
@@ -197,6 +210,9 @@ for _k, _n in ASSET_NATURES.items():
     if _n.to_pivot and _n.pivot not in _n.extensions:
         # Convertir « vers le pivot » n'a de sens que si le pivot est lui-même un format stocké.
         raise ValueError(f"nature {_k!r} : `to_pivot` déclaré sans pivot admis ({_n.pivot!r})")
+    if _n.recordable and 'webm' not in _n.to_pivot:
+        # Un navigateur enregistre en webm : une nature enregistrable doit savoir le convertir.
+        raise ValueError(f"nature {_k!r} : `recordable` sans `webm` dans `to_pivot`")
 del _k, _n
 
 
@@ -263,6 +279,7 @@ def natures_as_json() -> Dict[str, Dict[str, Any]]:
     # que le service convertit vers le pivot (`to_pivot`). Le JS n'a pas à connaître la nuance.
     return {k: {'label': n.label, 'category': n.category, 'icon': n.icon, 'pivot': n.pivot,
                 'extensions': list(n.extensions) + [e for e in n.to_pivot if e not in n.extensions],
+                'recordable': n.recordable,
                 'attributes': attribute_schema(k)}
             for k, n in ASSET_NATURES.items()}
 

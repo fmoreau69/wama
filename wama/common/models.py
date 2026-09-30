@@ -551,6 +551,51 @@ def scoped_visible_q(user, owner_field='user'):
     return q
 
 
+class ShareConsent(models.Model):
+    """Le CONSENTEMENT donné en partageant un élément qui porte une PERSONNE — et son retrait.
+
+    Décision de Fabien (2026-09-30) : partager une voix, c'est la rendre employable par d'autres ;
+    il faut PRÉVENIR celui qui partage et lui faire VALIDER son consentement (sinon il annule), et
+    il peut retirer le partage à tout moment. Ce qu'un élément porte d'une personne se DÉCLARE
+    (`share_consent_subject()` du modèle ; pour la médiathèque, `natures.Nature.personal`) — le
+    service de partage commun (`common/services/sharing`) ne connaît aucune app.
+
+    En AJOUT SEUL, une ligne par geste : partage consenti (`statement` = le texte exact validé) ou
+    retrait (`visibility='private'`, `statement` vide). C'est la preuve qu'un registre de
+    traitement demande (qui, quand, quoi, jusqu'où). ⚠ Ce n'est PAS encore la « ligne de partage »
+    `ObjectGrant` (`WAMA_COLLABORATION §4.3`, cible avec l'écriture partagée) : c'en est la
+    MÉMOIRE pour les éléments personnels, qui s'y versera le jour où elle existera.
+    Cible par chaîne + pk (convention de `RunOutcome` ci-dessous) : aucune FK générique.
+    """
+    object_type = models.CharField(max_length=64)            # `app_label.ModelName`
+    object_id = models.PositiveBigIntegerField(db_index=True)
+    user = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                             related_name='share_consents')
+    username = models.CharField(max_length=150, blank=True, default='')   # gardé si le compte part
+    visibility = models.CharField(max_length=12)
+    scope_org_unit = models.ForeignKey('common.OrgUnit', null=True, blank=True,
+                                       on_delete=models.SET_NULL, related_name='+')
+    scope_project = models.ForeignKey('common.Project', null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name='+')
+    subject = models.CharField(max_length=200)               # « la voix d'une personne »
+    statement = models.TextField(blank=True, default='')     # le texte validé ; vide = retrait
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['object_type', 'object_id'])]
+        verbose_name = 'Consentement de partage'
+        verbose_name_plural = 'Consentements de partage'
+
+    @property
+    def is_withdrawal(self) -> bool:
+        return self.visibility == ScopedVisibility.VIS_PRIVATE
+
+    def __str__(self):
+        what = 'retrait' if self.is_withdrawal else self.visibility
+        return f'{self.username or self.user_id} · {self.object_type}#{self.object_id} · {what}'
+
+
 class PromptScoped(models.Model):
     """
     Modèle portant un prompt utilisateur TRAITÉ par la PromptPipeline (enrichissement).

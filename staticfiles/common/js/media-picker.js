@@ -10,7 +10,14 @@
  *     onSelect: (file, asset) => { ... }  // callback avec File + meta (le fichier est TÉLÉCHARGÉ)
  *     onPick:   (asset) => { ... }        // OU : l'asset seul, SANS téléchargement — pour qui
  *                                         // le DÉSIGNE (`asset.path`) au lieu de le re-téléverser
+ *     add:      true,                     // (option) ouvre D'EMBLÉE la card d'ajout
+ *     only:     true,                     // (option) avec `prefer` : cette nature SEULE (pas ses sœurs)
  *   });
+ *
+ * AJOUTER (2026-09-30) : la fenêtre porte la card d'AJOUT de la page médiathèque
+ * (`_new_item_card_library.html`, câblée par `WamaLibraryAdd`) — déposer, choisir, glisser depuis
+ * l'arbre, et ENREGISTRER quand la nature le déclare. Ce qu'on vient d'ajouter est montré dans
+ * l'aperçu, « Choisir » actif : ajouter puis retenir se fait sans quitter l'app.
  *
  * ONGLETS et PROVENANCES (2026-09-29, fenêtre universelle — `CARD_DESIGN §11.11` étape 3 (d)) :
  * les onglets sont ceux de la CATÉGORIE demandée — « Tous » puis chaque nature déclarée
@@ -42,6 +49,9 @@ const MediaPicker = (() => {
   let _activeExact = false;  // nature EXACTE (`image`, `video`, `document` sont aussi des catégories)
   let _tabsShown  = false;   // les onglets ne se demandent qu'une fois par ouverture
   let _focused    = null;    // l'asset montré dans l'aperçu, celui que « Choisir » retiendra
+  let _tabInfo    = {};      // nature → {label, extensions, recordable} (onglets servis par api_list)
+  let _add        = null;    // la card d'ajout câblée (WamaLibraryAdd), ou sa promesse
+  let _focusAfterLoad = null; // l'id de l'asset qu'on vient d'AJOUTER : montré dès qu'il est listé
 
   // ── Modal HTML ─────────────────────────────────────────────────────────────
 
@@ -60,12 +70,17 @@ const MediaPicker = (() => {
           <input type="text" id="mp-search-input"
                  class="form-control form-control-sm bg-dark text-white border-secondary"
                  placeholder="Rechercher…" style="width:180px">
+          <button type="button" id="mp-add-toggle" class="btn btn-outline-success btn-sm"
+                  title="Ajouter un fichier à ma médiathèque — ou l'enregistrer au micro">
+            <i class="fas fa-plus me-1"></i>Ajouter
+          </button>
         </div>
         <button type="button" class="btn-close btn-close-white ms-auto"
                 data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body p-2">
         <div id="mp-tabs" class="nav nav-pills gap-1 mb-2" role="tablist"></div>
+        <div id="mp-add" class="mb-2" style="display:none"></div>
         <div class="row g-2">
           <div class="col-12 col-lg-8">
             <div id="mp-grid"
@@ -129,6 +144,51 @@ const MediaPicker = (() => {
     });
     // Fermer la fenêtre fait taire l'aperçu (un audio continuerait sinon, sans lecteur visible).
     document.getElementById(MODAL_ID).addEventListener('hidden.bs.modal', _clearPreview);
+
+    // AJOUTER depuis la fenêtre (2026-09-30) : la card d'ajout de la page médiathèque, rendue par
+    // `base.html` dans un <template>. Sans elle (visiteur non connecté), le bouton n'existe pas.
+    const toggle = document.getElementById('mp-add-toggle');
+    if (!document.getElementById('wama-mediapicker-add-tpl') || !window.WamaLibraryAdd) {
+      toggle.remove();
+    } else {
+      toggle.addEventListener('click', () => _showAdd(document.getElementById('mp-add').style.display === 'none'));
+    }
+  }
+
+  // ── Ajouter (card d'ajout commune) ─────────────────────────────────────────
+
+  function _showAdd(show) {
+    const host = document.getElementById('mp-add');
+    if (!host) return;
+    host.style.display = show ? '' : 'none';
+    if (!show || _add) return;
+    const tpl = document.getElementById('wama-mediapicker-add-tpl');
+    host.appendChild(tpl.content.cloneNode(true));
+    // La nature d'ajout est l'ONGLET ouvert quand c'est une nature exacte (« Voix ») ; sur
+    // « Tous », la card le dit et n'envoie rien. Ses formats viennent de l'onglet (`api_list`).
+    _add = Promise.resolve(WamaLibraryAdd.wire({
+      root:      host.querySelector('[data-library-add]'),
+      getType:   () => (_activeExact ? _activeType : ''),
+      getNature: key => _tabInfo[key] || null,
+      onAdded:   assets => {
+        if (!assets.length) return;
+        // Le nouvel asset est MONTRÉ (aperçu, « Choisir » actif) dès qu'il est listé : on
+        // l'écoute avant de le retenir — un clic, pas un aller-retour par la page médiathèque.
+        _focusAfterLoad = assets[assets.length - 1].id;
+        _showAdd(false);
+        _load(1, true);
+      },
+    })).then(handle => { _add = handle; return handle; })
+      .catch(err => {
+        _add = null;
+        const errorDiv = document.getElementById('mp-error');
+        errorDiv.textContent = `Ajout indisponible : ${err.message}`;
+        errorDiv.style.display = '';
+      });
+  }
+
+  function _refreshAdd() {
+    if (_add && typeof _add.refresh === 'function') _add.refresh();
   }
 
   // ── Aperçu (volet de la fenêtre) ───────────────────────────────────────────
@@ -237,6 +297,17 @@ const MediaPicker = (() => {
       for (const a of data.assets) {
         grid.appendChild(_buildCard(a));
       }
+      // L'asset qu'on vient d'ajouter : montré et prêt à « Choisir » (les miens sont listés en
+      // premier, `api_list` — il est donc sur la première page).
+      if (_focusAfterLoad != null) {
+        const col = Array.prototype.find.call(grid.children, c =>
+          c._asset && c._asset.origin === 'mine' && c._asset.id === _focusAfterLoad);
+        _focusAfterLoad = null;
+        if (col) {
+          _focus(col._asset, col.querySelector('.mp-asset-card'));
+          col.scrollIntoView({ block: 'nearest' });
+        }
+      }
 
       if (data.has_more) {
         loadMore.style.display = '';
@@ -263,7 +334,11 @@ const MediaPicker = (() => {
   function _renderTabs(tabs) {
     const host = document.getElementById('mp-tabs');
     host.innerHTML = '';
+    // `only` : la fenêtre ne propose QUE la nature demandée — un champ de voix ne sait employer
+    // qu'une VOIX ; lui laisser choisir une musique rendrait une valeur que le serveur refuse.
+    if (_options.only && _options.prefer) tabs = tabs.filter(t => t.exact && t.key === _options.prefer);
     tabs.forEach(t => {
+      if (t.exact) _tabInfo[t.key] = t;         // label, extensions, recordable : la card d'ajout les lit
       const b = document.createElement('button');
       b.type = 'button';
       const isActive = t.key === _activeType && !!t.exact === _activeExact;
@@ -276,11 +351,13 @@ const MediaPicker = (() => {
         _activeType = t.key;
         _activeExact = !!t.exact;
         host.querySelectorAll('[data-mp-tab]').forEach(x => x.classList.toggle('active', x === b));
+        _refreshAdd();
         _load(1, true);
       });
       host.appendChild(b);
     });
     _tabsShown = true;
+    _refreshAdd();
   }
 
   function _esc(s) {
@@ -343,6 +420,7 @@ const MediaPicker = (() => {
   </div>
 </div>`;
 
+    col._asset = asset;
     const card = col.querySelector('.mp-asset-card');
     card.addEventListener('mouseenter', () => { if (_focused !== asset) card.style.borderColor = '#6c757d'; });
     card.addEventListener('mouseleave', () => { if (_focused !== asset) card.style.borderColor = ''; });
@@ -411,6 +489,11 @@ const MediaPicker = (() => {
     document.getElementById('mp-load-more').style.display = 'none';
     document.getElementById('mp-count').textContent = '';
     _clearPreview();
+    _tabInfo = {};
+    _focusAfterLoad = null;
+    // La card d'ajout s'ouvre D'EMBLÉE quand l'appelant le demande (`add: true` — « Ajouter une
+    // voix » du synthesizer) ; sinon elle reste repliée derrière le bouton « Ajouter ».
+    _showAdd(!!_options.add && !!document.getElementById('mp-add-toggle'));
 
     const modal = new bootstrap.Modal(document.getElementById(MODAL_ID));
     modal.show();

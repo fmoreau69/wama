@@ -207,10 +207,76 @@
       api.helpEl;   // l'aide du toggle (manquait → bug corrigé)
   }, { standalone: true });
 
+  // ── Sources d'options ADOSSÉES À LA MÉDIATHÈQUE (2026-09-30) ─────────────────────────────
+  // Un select dont les options SONT des assets de la médiathèque (les voix : `sa_`/`ua_`) reçoit,
+  // d'office, un bouton qui ouvre la fenêtre commune (`MediaPicker`) sur SA nature : écouter,
+  // AJOUTER (fichier ou micro) puis choisir, sans quitter l'app. Déclaré ICI par source, jamais
+  // par app : tout champ `options_source: 'voices'` — volet et modale du synthesizer, modale de
+  // l'avatarizer, nœud du Studio — l'a sans une ligne de plus. `optionFor(asset)` traduit l'asset
+  // choisi en option du champ (`{value, group, groupLabel, label}`).
+  var LIBRARY_SOURCES = {
+    voices: { nature: 'voice', category: 'audio',
+              optionFor: function (a) {
+                return global.WamaModelCaps && WamaModelCaps.voiceOptionFor
+                  ? WamaModelCaps.voiceOptionFor(a) : null;
+              } },
+  };
+
   registerRenderer('select', function (p, api) {
-    return '<select class="form-select form-select-sm" id="' + api.id + '" ' + api.idAttr + '>' +
+    const lib = p.options_source && LIBRARY_SOURCES[p.options_source];
+    const select = '<select class="form-select form-select-sm" id="' + api.id + '" ' + api.idAttr +
+      (lib ? ' data-library-source="' + esc(p.options_source) + '"' : '') + '>' +
       api.selectOptionsHtml(p) + '</select>';
+    if (!lib) return select;
+    return '<div class="input-group input-group-sm">' + select +
+      '<button type="button" class="btn btn-outline-secondary" data-library-pick="' + api.id + '"' +
+      ' title="Médiathèque : écouter, ajouter (fichier ou micro), choisir">' +
+      '<i class="fas fa-photo-video"></i></button></div>';
   }, { modelHelp: true, optionSources: true });
+
+  // Pose l'option (l'insère dans son groupe si le select ne la connaît pas encore — une voix
+  // qu'on vient d'ajouter), la choisit, et le DIT (`change`) : appariement, grisage des moteurs
+  // et puce de la voix clonée écoutent ce select comme s'il avait été choisi à la main.
+  function _selectLibraryOption(select, o) {
+    let opt = Array.prototype.find.call(select.options, function (x) { return x.value === o.value; });
+    if (!opt) {
+      let group = select.querySelector('optgroup[data-group-key="' + o.group + '"]');
+      if (!group) {
+        group = document.createElement('optgroup');
+        group.label = o.groupLabel || o.group;
+        group.setAttribute('data-group-key', o.group);
+        select.appendChild(group);
+      }
+      opt = document.createElement('option');
+      opt.value = o.value;
+      opt.textContent = o.label;
+      if (o.language) opt.setAttribute('data-language', o.language);
+      group.appendChild(opt);
+      // Les options ont changé : le dire comme la recharge commune le dit — les filtres de
+      // capacité se rejouent (une voix clonée ne reste pas offerte sous un moteur qui ne clone pas).
+      select.dispatchEvent(new CustomEvent('wama:options-filled', { bubbles: true }));
+    }
+    select.value = o.value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // UN écouteur délégué pour toutes les surfaces (volet, modales rendues à la volée). Gardé : une
+  // double inclusion du fichier ouvrirait deux fenêtres par clic (bug déjà vécu, `base.html`).
+  if (!global.__wamaLibraryPickBound) document.addEventListener('click', function (e) {
+    const btn = e.target.closest && e.target.closest('[data-library-pick]');
+    if (!btn) return;
+    const select = document.getElementById(btn.getAttribute('data-library-pick'));
+    const lib = select && LIBRARY_SOURCES[select.getAttribute('data-library-source')];
+    if (!lib || !global.MediaPicker) return;
+    MediaPicker.open({
+      type: lib.category, prefer: lib.nature, only: true, sources: 'all',
+      onPick: function (asset) {
+        const o = lib.optionFor(asset);
+        if (o) _selectLibraryOption(select, o);
+      },
+    });
+  });
+  global.__wamaLibraryPickBound = true;
 
   registerRenderer('radio', function (p, api) {
     // name = groupage des radios (obligatoire) ; radio_name = pont vers le nom legacy si fourni

@@ -277,6 +277,14 @@ def synthesize_voice(self, synthesis_id: int):
         # format de sortie autre que WAV natif.
         _apply_output_format(synthesis)
 
+        # La mention « généré par IA » dans les MÉTADONNÉES du fichier final (décision de Fabien,
+        # 2026-09-30 : usage recherche, métadonnée seule, pas de tampon audio). Après la
+        # conversion : c'est ce fichier-là que l'utilisateur emporte.
+        from wama.common.tts.voice_refs import is_cloned_voice
+        from wama.common.utils.generated_media import mark_as_generated
+        mark_as_generated(synthesis.audio_output.path, app='synthesizer', model=synthesis.tts_model,
+                          detail='voix clonée' if is_cloned_voice(synthesis.voice_preset) else '')
+
         # Mettre à jour les propriétés audio
         _update_audio_properties(synthesis)
 

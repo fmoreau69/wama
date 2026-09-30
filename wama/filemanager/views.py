@@ -124,7 +124,9 @@ def _app_folders_config(user_id):
             'children': [
                 {'id': 'synthesizer_input', 'text': 'Input', 'path': app_media_dir('synthesizer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
                 {'id': 'synthesizer_output', 'text': 'Output', 'path': app_media_dir('synthesizer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-                {'id': 'synthesizer_voices', 'text': 'Custom_voices', 'path': app_media_dir('synthesizer', user_id, 'custom_voices'), 'icon': 'fa fa-user-circle text-info'},
+                # « Custom_voices » RETIRÉ le 2026-09-30 avec `CustomVoice` : les voix d'un
+                # utilisateur vivent dans sa MÉDIATHÈQUE (nature `voice`), où on les ajoute,
+                # les écoute, les partage.
             ]
         },
         {
@@ -557,7 +559,6 @@ def api_search(request):
         app_media_dir('reader', user.id, 'output'),
         app_media_dir('synthesizer', user.id, 'input'),
         app_media_dir('synthesizer', user.id, 'output'),
-        app_media_dir('synthesizer', user.id, 'custom_voices'),
         app_media_dir('transcriber', user.id, 'input'),
         app_media_dir('transcriber', user.id, 'output'),
         app_media_dir('face_analyzer', user.id, 'input'),

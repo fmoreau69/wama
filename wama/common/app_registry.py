@@ -71,6 +71,12 @@ OBJECT3D_EXTENSIONS = ('.glb', '.gltf', '.obj', '.fbx', '.stl', '.ply',
 # monde Data — leurs extensions arrivent par `register_category_extensions`, jamais en dur).
 MEDIA_CATEGORIES = ('image', 'video', 'audio', 'document', 'archive', 'dataset', '3d')
 
+#: Ce qu'on AFFICHE d'une catégorie (2026-09-30) — déclaré avec elle. La tuile Médiathèque de la
+#: card v4 disait « filtrée : 3d » (la clé), et le converter tenait sa propre table de libellés.
+MEDIA_CATEGORY_LABELS = {'image': 'Images', 'video': 'Vidéos', 'audio': 'Audio',
+                         'document': 'Documents', 'archive': 'Archives',
+                         'dataset': 'Jeux de données', '3d': 'Objets 3D'}
+
 # Formats TEXTE STRUCTURÉ (sous-titres, données sérialisées) : nature 'document', mais AUCUNE
 # app ne les convertit — ils ne rejoignent donc PAS DOCUMENT_EXTENSIONS, qui EST la politique
 # d'acceptation du converter (miroir de format_router.SUPPORTED_CONVERSIONS). Les verser là-bas
@@ -256,8 +262,12 @@ def studio_node_ports(app_id):
     depuis_modeles = app_input_ports(app_id)
     if depuis_modeles:
         # `required` / `one_of` : l'OBLIGATION d'une card d'app — un nœud du studio n'en porte pas.
+        # Les ports que l'APP consomme elle-même (`app_own_input_ports`) en sont, comme à la card :
+        # UN inventaire, deux surfaces (2026-09-30).
+        own = [p for p in app_own_input_ports(app_id)
+               if p['id'] not in {m['id'] for m in depuis_modeles}]
         inputs = [{k: v for k, v in p.items() if k not in ('required', 'one_of')}
-                  for p in depuis_modeles]
+                  for p in own + depuis_modeles]
         return {'inputs': inputs + _app_result_port_shapes(app_id, inputs), 'output': output}
 
     inputs = []
@@ -267,6 +277,9 @@ def studio_node_ports(app_id):
     if 'prompt' in in_cats:
         inputs.append({'id': 'prompt', 'label': 'Prompt', 'group': 'prompt',
                        'types': ['prompt'], 'multi': False})
+    for p in app_own_input_ports(app_id):              # même règle que la branche des modèles
+        if p['id'] not in {i['id'] for i in inputs}:
+            inputs.append({k: v for k, v in p.items() if k not in ('required', 'one_of')})
 
     # Ports de référence déclarés dans le schéma modes (si l'app y figure) — portés par un
     # MODE, ou par le DOMAINE lui-même quand il n'a pas de switch (`inputs` de domaine).
@@ -512,19 +525,20 @@ def app_has_live_input(app_id) -> bool:
     return bool((APP_CATALOG.get(app_id) or {}).get('has_live_input'))
 
 
-def app_card_ports(app_id):
-    """Ports de la CARD que l'APP consomme elle-même, sans nœud Studio (2026-09-30).
+def app_own_input_ports(app_id):
+    """Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
 
     Le synthesizer lit son texte depuis un FICHIER comme depuis le prompt — décision de Fabien,
     2026-09-30 : *« soit l'utilisateur prompt, soit il glisse un fichier de travail, ça fait la
-    même chose »*. Sa vue d'upload extrait le texte du document (`synthesizer/views.py::upload`).
-    Aucun modèle TTS ne le déclarera jamais — il reçoit du texte — : c'est l'APP qui consomme
-    l'entrée, le critère d'`app_result_ports` (capacité d'app → jeton).
-    Groupe « l'un OU l'autre » avec le prompt (`one_of`, forme d'`app_input_ports`).
+    même chose »*. Son service de création extrait le texte du document
+    (`synthesizer/services.create_synthesis`). Aucun modèle TTS ne le déclarera jamais — il reçoit
+    du texte — : c'est l'APP qui consomme l'entrée, le critère d'`app_result_ports` (capacité
+    d'app → jeton). Groupe « l'un OU l'autre » avec le prompt (`one_of`, forme d'`app_input_ports`).
 
-    ⚠ PAS un port du STUDIO : `synthesize_text`, l'outil qu'appelle son nœud, ne reçoit que du
-    texte — un document branché y serait IGNORÉ (port mensonger). À ouvrir le jour où l'outil
-    lira un fichier.
+    ⚠ Ce port était « de CARD seulement » la veille (ex-`app_card_ports`) : l'outil du Studio ne
+    lisait que du texte. Fabien l'a refusé le jour même — *« si l'app déclare ses capacités, le
+    studio en hérite ; ça doit être le même chemin »* — : l'outil passe désormais par le service
+    de création de la card, et le port est dans l'inventaire COMMUN (`studio_node_ports`).
     """
     if not (APP_CATALOG.get(app_id) or {}).get('has_text_file_input'):
         return []
@@ -1267,7 +1281,7 @@ APP_CATALOG = {
         'batch_type':  'pipe',   # Type B: filename|text|voice|speed
         'has_batch':   True,
         # Card v4 (2026-09-30, décision de Fabien) : un fichier texte déposé est un FICHIER DE
-        # TRAVAIL, lu en entier — l'un ou l'autre avec le prompt (`app_card_ports`). Le lot reste
+        # TRAVAIL, lu en entier — l'un ou l'autre avec le prompt (`app_own_input_ports`). Le lot reste
         # (onglet Lot, et détection sur la tuile de travail). La voix de référence est portée
         # par le réglage `voice_preset`, pas par un onglet (`app_ports_carried_elsewhere`).
         'has_text_file_input': True,

@@ -62,6 +62,20 @@
         return m ? { surface: m[1], pk: m[2] } : null;
     }
 
+    /**
+     * CONSENTEMENT (2026-09-30, décision de Fabien) : un élément qui porte une PERSONNE (une voix)
+     * ne se partage au-delà du privé qu'après avoir VALIDÉ ce texte — sinon on annule. Le serveur
+     * le donne d'avance (`etat.consent`), la modale le montre dès qu'une portée partagée est
+     * choisie ; il le redonne en 409 si la modale ne l'avait pas (état changé entre-temps).
+     */
+    function consentBlock(statement) {
+        return '<div class="wama-share-consent mt-3" data-consent hidden>'
+            + '<div class="alert alert-warning small mb-2 py-2"><i class="fas fa-user-shield me-1"></i>'
+            + echapper(statement) + '</div>'
+            + '<label class="form-check small mb-0"><input type="checkbox" class="form-check-input" '
+            + 'data-consent-check> Je valide ce consentement</label></div>';
+    }
+
     function corps(donnees, nom) {
         var e = donnees.etat || {};
         var lignes = (donnees.portees || []).map(function (p) {
@@ -105,6 +119,7 @@
             + (nom ? '<p class="text-white-50 small mb-3">' + echapper(nom) + '</p>' : '')
             + orpheline
             + lignes
+            + (e.consent ? consentBlock(e.consent.statement) : '')
             // Dire la portée du geste, à l'endroit où on le fait. L'écriture est S3.
             + '<div class="wama-share-note mt-3"><i class="fas fa-eye me-1"></i>'
             + 'Partage en <b>lecture seule</b>. Les destinataires voient l\'élément et son '
@@ -172,6 +187,10 @@
                         var r = d.querySelector('input[name="wama-share-portee"]');
                         d.classList.toggle('est-actif', !!r && r.checked);
                     });
+                    // Le consentement ne concerne qu'un partage : revenir au privé (retirer le
+                    // partage) n'en demande aucun — c'est toujours possible, sans condition.
+                    var consent = enveloppe.querySelector('[data-consent]');
+                    if (consent) consent.hidden = !val || val === 'private';
                 }
                 enveloppe.querySelectorAll('input[name="wama-share-portee"]').forEach(function (r) {
                     r.addEventListener('change', refletter);
@@ -187,8 +206,17 @@
                 enveloppe.querySelector('.wama-share-ok').addEventListener('click', function () {
                     var choix = enveloppe.querySelector('input[name="wama-share-portee"]:checked');
                     if (!choix) { dire('Choisissez une portée', 'error'); return; }
+                    var consentBox = enveloppe.querySelector('[data-consent]');
+                    var consentCheck = enveloppe.querySelector('[data-consent-check]');
+                    if (consentBox && !consentBox.hidden && !(consentCheck && consentCheck.checked)) {
+                        dire('Validez le consentement pour partager — ou annulez.', 'error');
+                        return;
+                    }
                     var fd = new FormData();
                     fd.append('visibility', choix.value);
+                    if (consentBox && !consentBox.hidden && consentCheck && consentCheck.checked) {
+                        fd.append('consent', '1');
+                    }
                     var cible = enveloppe.querySelector('.wama-share-cible[data-pour="' + choix.value + '"]');
                     if (cible && !cible.disabled) {
                         fd.append(choix.value === 'unit' ? 'org_unit_id' : 'project_id', cible.value);
@@ -199,6 +227,20 @@
                     }).then(function (r) {
                         return r.json().catch(function () { return { ok: r.ok }; });
                     }).then(function (res) {
+                        if (res && res.consent_required) {
+                            // Le serveur exige un consentement que la modale ne montrait pas : on
+                            // l'ajoute et on attend la validation, au lieu d'un refus sec.
+                            if (!enveloppe.querySelector('[data-consent]')) {
+                                // Avant la DERNIÈRE note (« lecture seule ») : la première peut être
+                                // celle d'une portée orpheline, au-dessus des choix.
+                                var notes = enveloppe.querySelectorAll('.wama-share-note');
+                                notes[notes.length - 1].insertAdjacentHTML(
+                                    'beforebegin', consentBlock(res.statement || res.reason));
+                                refletter();
+                            }
+                            dire('Validez le consentement pour partager — ou annulez.', 'warning');
+                            return;
+                        }
                         if (!res || res.ok === false) {
                             dire('Partage impossible — ' + ((res && res.reason) || 'refusé'), 'error');
                             return;
