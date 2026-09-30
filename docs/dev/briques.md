@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**171 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**174 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -879,6 +879,19 @@ Souvenirs + fragments sur pgvector, scope hérité de ScopedVisibility ; 5 opér
   - `expire(*, jours_non_approuve=90, dry_run=True)` — Applique les politiques de rétention. Rend un résumé `{...}`.
   - `approve(item, *, par, visibility=None, scope_org_unit=None, scope_project=None)` — LE GESTE DE VALIDATION HUMAINE — ajouté le 2026-09-09, et son absence était le trou.
   - `list_memories(user, *, en_attente=False)` — Les souvenirs à AFFICHER — matière de la page « Mes souvenirs » (jumelle de « Mon RAG »).
+
+### Métriques de diarisation à vérité terrain (cpWER / DER)
+
+cpWER : un WER où le mot prêté au mauvais locuteur compte (appariement optimal des locuteurs) ; DER : parole manquée + fausse alarme + confusion sur le temps (pyannote.metrics). Une mesure sans objet (sortie non diarisée, pas de temps) rend None, jamais zéro
+
+- **Domicile** : `wama/common/services/diarization_metrics.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
+- **Module** : Métriques de DIARISATION à vérité terrain — cpWER et DER (`WAMA_QUALITE.md` M3, 2026-09-30).
+- **API publique** (5) :
+  - `is_diarized(segments: Optional[Sequence[dict]]) -> bool` — Au moins un segment porte un locuteur nommé — sinon il n'y a pas de diarisation à mesurer.
+  - `class SpeakerAttributedRate` — Le compte d'un cpWER : un WER où le locuteur fait partie du mot.
+  - `cp_word_error_rate(reference_segments: Sequence[dict], hypothesis_segments: Sequence[dict], language: Optional[str]=None) -> Optional[SpeakerAttributedRate]` — cpWER de `hypothesis_segments` contre `reference_segments` (dicts `speaker_id`, `text`,
+  - `class DiarizationRate` — Le compte d'un DER, en SECONDES.
+  - `diarization_error_rate(reference_segments: Sequence[dict], hypothesis_segments: Sequence[dict], language: Optional[str]=None, collar: float=0.0) -> Optional[Di…` — DER de `hypothesis_segments` contre `reference_segments`, par `pyannote.metrics`.
 
 ### Métriques à vérité terrain (WER / CER)
 
@@ -1986,10 +1999,11 @@ Confronte, sur quelques fenêtres du média, ce que le filtre de parole Silero r
 
 - **Domicile** : `wama/common/utils/speech_activity.py` · **doc** : [wama/transcriber/TRANSCRIBER_CORRECTION.md §8](../../wama/transcriber/TRANSCRIBER_CORRECTION.md)
 - **Module** : Activité vocale d'un enregistrement — le filtre de parole (VAD) garde-t-il ce que le signal porte ?
-- **API publique** (3) :
+- **API publique** (4) :
+  - `windows_for(duration_s: float) -> int` — Nombre de fenêtres sondées pour un média de `duration_s` secondes.
   - `energy_active_ratio(wave, sr: int, margin_db: float=ACTIVE_MARGIN_DB) -> float` — Part des trames de 100 ms dont le niveau dépasse le plancher de bruit de `margin_db`.
   - `vad_speech_ratio(wave, sr: int) -> float` — Part de l'audio que le VAD de faster-whisper retient, avec ses réglages par défaut.
-  - `vad_rejects_speech(path, duration_s: float=0.0, windows: int=3, window_s: float=120.0, decode=None) -> dict` — Sonde `windows` fenêtres de `window_s` réparties dans le média et rend
+  - `vad_rejects_speech(path, duration_s: float=0.0, windows: int=None, window_s: float=120.0, decode=None) -> dict` — Sonde `windows` fenêtres de `window_s` réparties dans le média (par défaut
 
 ### Actualisation des catalogues
 
@@ -2081,6 +2095,19 @@ Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + r
   - `decode_window(path, target_sr: int=16000, start_s: float=0.0, duration_s=None, mono: bool=True)` — Décode UNE FENÊTRE [start_s, start_s+duration_s] d'un média en (ndarray float32, sr),
   - `decode_for_pyannote(path, target_sr: int=16000)` — Décode en dict `{'waveform': (channels, time) torch.Tensor, 'sample_rate': int}`
 
+### Dégradation contrôlée d'un enregistrement de parole
+
+Profils DÉCLARÉS (bruit rose à un rapport signal/bruit donné, champ lointain : réverbération, atténuation) appliqués de façon déterministe à un corpus propre, pour évaluer les prétraitements sur une qualité CONNUE — à confronter à un corpus réel de qualité moyenne avant d'en faire un test d'évaluation
+
+- **Domicile** : `wama/common/utils/audio_degradation.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
+- **Module** : DÉGRADATION CONTRÔLÉE d'un enregistrement de parole — pour évaluer les prétraitements sur des audios de qualité MOYENNE dont on connaît exactement la dégradation (demande de Fabien, 2026-09-30, `WAMA_QUALITE §9bis`).
+- **API publique** (5) :
+  - `active_power(wave, sr: int, gate_db: float=8.0) -> float` — Puissance moyenne des trames de 20 ms au-dessus du plancher (15ᵉ centile + `gate_db`) —
+  - `pink_noise(length: int, rng) -> np.ndarray` — Bruit rose (densité en 1/f) de puissance unitaire, par mise en forme spectrale.
+  - `add_noise(wave, sr: int, snr_db: float, rng) -> np.ndarray` — Ajoute un bruit rose tel que parole active / bruit = `snr_db`.
+  - `reverberate(wave, sr: int, rt60_s: float, rng) -> np.ndarray` — Réverbération synthétique : réponse impulsionnelle = trajet direct + queue de bruit à
+  - `degrade(wave, sr: int, profile: str) -> np.ndarray` — Applique le profil déclaré `profile` : réverbération, puis bruit, puis atténuation ;
+
 ### Importer universel (WAMA Data)
 
 REGISTRE de capacités de lecture — aucun format privilégié : ajouter un format = déposer un lecteur, jamais éditer le moteur. Porte aussi l'HORODATAGE par flux (dont le ré-horodatage par fréquence théorique, qui n'interpole rien et ne s'applique que sur demande). ⚠ La MÉCANIQUE SQLite (ouverture en lecture seule, décodage UTF-8→cp1252 du texte des bases MATLAB, valeurs triées, les trois niveaux d'agrégation) est un socle partagé — un lecteur de base concret n'écrit plus que `can_read`, `probe` et `read`, c'est-à-dire sa seule connaissance du schéma
@@ -2156,6 +2183,16 @@ UNE déclaration par nature (`ASSET_NATURES` : libellé, catégorie ∈ MEDIA_CA
   - `class AssetSpec` — Ce qu'un CONSOMMATEUR déclare accepter — un nœud studio, un moteur, un slot d'app.
   - `asset_accepts(spec: AssetSpec, asset_type: str, attributes: Dict[str, Any] | None) -> Tuple[str, str]` — Rend `(état, raison)` — la raison NOMME ce qui manque, pour être affichée telle quelle.
 
+### Nivellement de la parole
+
+Automation de niveau qui suit les mots : la parole est amenée vers −20 dBFS, les silences gardent le gain des mots voisins (le bruit n'est pas pompé), crêtes limitées en douceur. Réglage optionnel du transcriber, MESURÉ dans les lots d'évaluation
+
+- **Domicile** : `wama/common/utils/speech_leveling.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
+- **Module** : NIVELLEMENT DE LA PAROLE — une automation de niveau qui suit les mots (idée de Fabien, 2026-09-25).
+- **API publique** (2) :
+  - `level_speech(wave, sample_rate: int=16000, *, target_db: float=-20.0, window_s: float=0.4, max_boost: float=24.0, max_cut: float=10.0, gate_db: float=8.0, smoo…` — Signal mono float → même signal, niveau de la parole amené vers `target_db` (dBFS, puissance
+  - `level_file(in_path, out_path, sample_rate: int=16000) -> str` — Nivelle un fichier audio (tout format lisible par le décodeur commun) → WAV mono 16 bits.
+
 ### Noms dérivés (WAMA Data)
 
 DOMICILE UNIQUE de la règle « le nom se DÉRIVE des paramètres, il ne se saisit pas » : deux productions de mêmes réglages portent le même nom, deux réglages différents ne peuvent pas le partager. Elle était appliquée par QUATRE règles dans TROIS lieux — dont une f-string écrite en dur — avant l'audit du 23/08. Les anciens emplacements réexportent ; un test vérifie l'IDENTITÉ des fonctions, donc une redéfinition locale même à l'identique échoue. Sans dépendance, par nécessité : c'est ce qui permet à `conditions.py` de l'importer sans cycle
@@ -2229,7 +2266,7 @@ Moteur unique de miroir (modèles, base, médias, secrets) et restauration
 
 - **Domicile** : `wama/common/services/mirror_sync.py`
 - **Module** : Miroir incrémental d'une arborescence locale vers un espace distant — brique COMMUNE.
-- **API publique** (10) :
+- **API publique** (12) :
   - `resolve_remote_root(subdir: str, env_var: str | None=None) -> str` — Chemin de l'espace distant pour un domaine (`MODELS`, `DB`, `MEDIAS`…).
   - `remote_is_available(remote_path) -> bool` — L'espace distant est-il utilisable EN ÉCRITURE, sans effet de bord ?
   - `copy_file(source: Path, dest: Path) -> tuple[bool, float, str | None]` — PRIMITIVE DE COPIE UNIQUE du projet : crée les dossiers parents et copie.
@@ -2239,6 +2276,8 @@ Moteur unique de miroir (modèles, base, médias, secrets) et restauration
   - `new_summary(remote_path) -> dict` — Squelette de compte rendu, partagé par les appelants pour publier un état initial
   - `mirror_tree(source_root, dest_root, *, overwrite: bool=False, exclude=None, dry_run: bool=False, progress_cb=None, on_file=None, progress_every: int=PROGRESS_E…` — Réplique `source_root` vers `dest_root` en conservant l'arborescence relative.
   - `purge_keep_latest(directory, pattern: str, keep: int) -> list[str]` — Ne conserve que les `keep` fichiers les plus récents de `directory` correspondant à
+  - `remember_last_run(cache_key: str, state: str, payload: dict) -> dict` — Garde le bilan de la dernière exécution TERMINÉE (succès, partiel, échec), sans expiration.
+  - `last_mirror_run(cache_key: str)` — Bilan de la dernière exécution terminée d'un miroir, ou None s'il n'a jamais tourné.
   - `run_mirror_job(runner, *, cache_key, task_id, label, ttl=24 * 3600)` — Exécute un miroir en publiant son avancement dans le cache — enveloppe COMMUNE aux
 
 ### Sonde média
@@ -2295,7 +2334,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
   - `app_card_ports(app_id)` — Ports de la CARD que l'APP consomme elle-même, sans nœud Studio (2026-09-30).
   - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
-  - `app_setting_carried_ports(app_id) -> dict` — Ports que la card de l'app NE MONTRE PAS, parce qu'un RÉGLAGE les porte — `{port: réglage}`.
+  - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
   - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
   - `extra_link_for(app: str) -> tuple[str, dict] | None` — `(catégorie, lien)` d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —
   - `derive_category(entry) -> str` — Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation
