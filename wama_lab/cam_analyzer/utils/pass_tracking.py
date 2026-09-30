@@ -310,70 +310,159 @@ def mark_failed(session, pass_type: str, error_message: str, camera=None) -> Non
     )
 
 
-def calc_queue_key(session_id) -> str:
-    """File des passes de calcul demandées pendant qu'une chaîne tourne (même session)."""
+#: Passes jouées par `process_session_task` (la DÉTECTION : YOLO + YOLOPv2, toutes vues)…
+DETECTION_KEYS = ('yolo_detect', 'yolopv2_lanes')
+#: …et les suites qu'elle enchaîne ELLE-MÊME : les redemander à côté les jouerait deux fois.
+DETECTION_DOWNSTREAM = ('lane_events', 'distance', 'temporal_segments', 'conflicts')
+
+
+def session_queue_key(session_id) -> str:
+    """File des passes demandées pendant qu'une chaîne tourne (même session)."""
     return f'cam_analyzer_calc_queue:{session_id}'
 
 
-def queued_calc_passes(session_id) -> list:
+def _queue(session_id) -> dict:
     from django.core.cache import cache
-    return list(cache.get(calc_queue_key(session_id)) or [])
+    q = cache.get(session_queue_key(session_id)) or {}
+    return {'keys': list(q.get('keys') or []), 'detect_force': bool(q.get('detect_force'))}
 
 
-def _start_calc_chain(session_id, keys) -> list:
-    """Lance `keys` (déjà ordonnées) en CHAÎNE, verrou posé/rafraîchi, libération en fin ET sur
-    échec. Signatures IMMUABLES (`.si`) : chaque tâche reçoit la session, jamais le retour de la
-    précédente. Rend les noms de tâches lancées."""
+def queued_session_passes(session_id) -> list:
+    return _queue(session_id)['keys']
+
+
+def order_session_items(pass_keys, detect_force=False) -> list:
+    """Passes demandées → maillons ordonnés : la DÉTECTION d'abord (un seul maillon, qui remplace
+    yolo + yolopv2 et leurs suites internes), puis le reste dans l'ordre des dépendances — SAM3,
+    profondeur, recalage ortho, puis les calculs. Les passes sans tâche dédiée (extraction,
+    fenêtres, synchrones) ne sont pas des maillons."""
+    keys = set(pass_keys)
+    items = []
+    if keys & set(DETECTION_KEYS):
+        items.append({'key': 'detection', 'force': bool(detect_force)})
+        keys -= set(DETECTION_KEYS) | set(DETECTION_DOWNSTREAM)
+    table = dispatch_table()
+    items += [{'key': k} for k in topological_order(keys) if table.get(k) is not None]
+    return items
+
+
+#: Une chaîne qui porte la DÉTECTION (YOLO + YOLOPv2 sur toutes les vues d'une longue session)
+#: peut dépasser les 4 h d'une chaîne de calculs : verrou plus long, sinon il expirerait en cours
+#: de route — une 2ᵉ chaîne démarrerait et la réconciliation déclarerait interrompues des passes
+#: qui tournent. L'annulation lève le verrou explicitement (`abort_session_chain`).
+DETECTION_CHAIN_TTL_S = 24 * 3600
+#: Tâches GPU d'ANALYSE qu'« Annuler » doit pouvoir révoquer (la 1ʳᵉ de la chaîne est suivie).
+_CANCELLABLE = ('process_session_task', 'analyze_sam3_only_task')
+
+
+def _signatures(item, sid):
+    from wama_lab.cam_analyzer import tasks as _tasks
+    if item['key'] == 'detection':
+        # SAM3 n'est PAS enchaîné par la détection (`chain_sam3=False` : elle le lançait en
+        # asynchrone, la chaîne l'aurait devancé) — s'il est demandé, c'est son propre maillon.
+        return [_tasks.process_session_task.si(sid, force_rerun=item.get('force', False),
+                                               chain_sam3=False)]
+    return [dispatch_table()[item['key']].si(sid)]
+
+
+def _start_session_chain(session_id, items) -> list:
+    """Lance les maillons `items` (déjà ordonnés) en UNE chaîne, verrou posé/rafraîchi,
+    libération en fin ET sur échec. Rend les noms de tâches lancées."""
     from celery import chain
     from django.core.cache import cache
     from wama_lab.cam_analyzer.tasks import release_calc_chain_task
-    table = dispatch_table()
-    tasks = [table[k] for k in keys]
-    names = [t.__name__ for t in tasks]
     sid = str(session_id)
-    cache.set(calc_chain_key(sid), names, timeout=CALC_CHAIN_TTL_S)
+    from celery.utils import uuid
+    sigs = [s for it in items for s in _signatures(it, sid)]
+    names = [s.task.rsplit('.', 1)[-1] for s in sigs]
+    ttl = DETECTION_CHAIN_TTL_S if any(it['key'] == 'detection' for it in items) \
+        else CALC_CHAIN_TTL_S
+    cache.set(calc_chain_key(sid), names, timeout=ttl)
+    # `cancel_analysis` révoque la tâche GPU suivie : l'id de la chaîne est celui de son DERNIER
+    # maillon (la libération) — le révoquer ne couperait rien et laisserait le verrou en place.
+    tracked = next((s for s, n in zip(sigs, names) if n in _CANCELLABLE), None)
+    if items[0]['key'] == 'detection':
+        _mark_detection_pending(sid)
+    if tracked is not None:
+        tracked.set(task_id=uuid())
     release = release_calc_chain_task.si(sid)
-    result = chain(*[t.si(sid) for t in tasks], release).apply_async(link_error=release)
-    cache.set(f"cam_analyzer_task_{sid}", result.id, timeout=86400)
+    result = chain(*sigs, release).apply_async(link_error=release)
+    cache.set(f"cam_analyzer_task_{sid}",
+              tracked.options['task_id'] if tracked is not None else result.id, timeout=86400)
     return names
 
 
-def launch_calc_passes(session_id, pass_keys) -> dict:
-    """Point de lancement UNIQUE des passes de CALCUL (`run_passes`, entrées héritées) — elles
-    s'EMPILENT et se DÉPILENT, comme partout dans WAMA (demande de Fabien, 2026-09-30).
+def _mark_detection_pending(session_id) -> None:
+    """La détection ouvre la chaîne qui démarre : session en attente (PENDING, progression 0).
+
+    Au lancement de la CHAÎNE, pas au clic : une détection sortie de la FILE trouvait sinon la
+    session COMPLETED (analyse précédente) et sa garde d'idempotence — pensée contre un message
+    redélivré après succès — la sautait sans rien dire ; et une session PENDING depuis plus de
+    300 s est déclarée échouée par `get_session_status`, ce qu'une détection en file serait
+    devenue. `save()` et non `update()` : ce chien de garde lit `updated_at`."""
+    from wama_lab.cam_analyzer.models import AnalysisSession
+    s = AnalysisSession.objects.get(pk=session_id)
+    s.status = AnalysisSession.Status.PENDING
+    s.progress = 0
+    s.save(update_fields=['status', 'progress', 'updated_at'])
+
+
+def abort_session_chain(session_id, task=None) -> None:
+    """ANNULATION par l'utilisateur : ni la suite de la chaîne, ni la file ne doivent partir.
+
+    Une détection annulée RETOURNE normalement (elle attrape son `InterruptedError`) : sans ce
+    geste, la chaîne enchaînait SAM3, profondeur… sur une analyse que l'on vient d'arrêter, puis
+    la libération dépilait la file. `task` (tâche liée en cours) : sa suite de chaîne est coupée.
+    Le verrou est levé ici puisque la libération ne tournera pas."""
+    from django.core.cache import cache
+    if task is not None:
+        try:
+            task.request.chain = None
+        except Exception:
+            pass
+    sid = str(session_id)
+    cache.delete(session_queue_key(sid))
+    cache.delete(calc_chain_key(sid))
+
+
+def launch_session_passes(session_id, pass_keys, detect_force=False) -> dict:
+    """Point de lancement UNIQUE des passes d'une session (`run_passes`, entrées héritées) —
+    analyses ET calculs s'EMPILENT et se DÉPILENT, comme partout dans WAMA (demande de Fabien,
+    2026-09-30).
 
     Une seule chaîne à la fois par session : deux chaînes simultanées s'entrelaçaient sur le worker
-    `default` (prefork) et jouaient chaque passe deux fois (2026-09-29). Mais une demande pendant
-    qu'une chaîne tourne n'est plus REFUSÉE (c'était un 409) : ses passes rejoignent la file de la
-    session, et `release_calc_chain_task` la dépile à la fin de la chaîne courante (ou sur son
-    échec). Verrou pris par `cache.add` (atomique) : deux clics simultanés ne lancent pas deux
-    chaînes. Rend `{'launched': [noms de tâches], 'queued': [passes mises en file]}`."""
+    `default` (prefork) et jouaient chaque passe deux fois (2026-09-29). Une demande pendant
+    qu'une chaîne tourne rejoint la FILE de la session (plus de refus 409), et
+    `release_calc_chain_task` la dépile à la fin de la chaîne courante (ou sur son échec). UNE
+    file pour les deux étages : c'est ce qui garde l'ordre entre eux (la correction ortho attend le
+    recalage ortho). Verrou pris par `cache.add` (atomique). Rend `{'launched': [tâches],
+    'queued': [passes mises en file]}`."""
     from django.core.cache import cache
-    table = dispatch_table()
-    keys = [k for k in topological_order(set(pass_keys)) if table.get(k) is not None]
-    if not keys:
+    items = order_session_items(pass_keys, detect_force)
+    if not items:
         return {'launched': [], 'queued': []}
     sid = str(session_id)
-    if cache.add(calc_chain_key(sid), keys, timeout=CALC_CHAIN_TTL_S):
-        return {'launched': _start_calc_chain(sid, keys), 'queued': []}
-    pending = queued_calc_passes(sid)
-    new = [k for k in keys if k not in pending]
-    cache.set(calc_queue_key(sid), pending + new, timeout=CALC_CHAIN_TTL_S)
-    return {'launched': [], 'queued': new}
+    if cache.add(calc_chain_key(sid), [it['key'] for it in items], timeout=CALC_CHAIN_TTL_S):
+        return {'launched': _start_session_chain(sid, items), 'queued': []}
+    q = _queue(sid)
+    wanted = [k for k in pass_keys if k not in q['keys']]
+    cache.set(session_queue_key(sid), {'keys': q['keys'] + wanted,
+                                       'detect_force': q['detect_force'] or bool(detect_force)},
+              timeout=CALC_CHAIN_TTL_S)
+    return {'launched': [], 'queued': wanted}
 
 
-def dequeue_calc_passes(session_id) -> list:
+def dequeue_session_passes(session_id) -> list:
     """Fin d'une chaîne (`release_calc_chain_task`) : lance la chaîne suivante avec les passes en
-    FILE (ordonnées par dépendances), ou lève le verrou s'il n'y a plus rien. Le verrou n'est jamais
+    FILE (réordonnées ensemble), ou lève le verrou s'il n'y a plus rien. Le verrou n'est jamais
     levé entre deux chaînes : `reconcile_interrupted_calc_passes` ne voit pas de trou."""
     from django.core.cache import cache
     sid = str(session_id)
-    pending = queued_calc_passes(sid)
-    cache.delete(calc_queue_key(sid))
-    if pending:
-        keys = [k for k in topological_order(set(pending)) if dispatch_table().get(k) is not None]
-        if keys:
-            return _start_calc_chain(sid, keys)
+    q = _queue(sid)
+    cache.delete(session_queue_key(sid))
+    items = order_session_items(q['keys'], q['detect_force']) if q['keys'] else []
+    if items:
+        return _start_session_chain(sid, items)
     cache.delete(calc_chain_key(sid))
     return []
 
@@ -388,8 +477,8 @@ def reconcile_interrupted_calc_passes(session) -> int:
 
     PREUVE POSITIVE, pas une supposition (règle de `common.utils.process_control`) : une passe de
     calcul ne s'exécute QUE dans une chaîne posée sous le verrou `calc_chain_key` — tout passe par
-    `launch_calc_passes` —, et ce verrou n'est levé qu'à la FIN de la dernière chaîne de la file
-    (`release_calc_chain_task` → `dequeue_calc_passes`, lien de succès ET d'échec) ou à
+    `launch_session_passes` —, et ce verrou n'est levé qu'à la FIN de la dernière chaîne de la
+    file (`release_calc_chain_task` → `dequeue_session_passes`, lien de succès ET d'échec) ou à
     l'expiration de `CALC_CHAIN_TTL_S`. Plus de verrou = plus de chaîne : une passe encore RUNNING
     a perdu son exécutant. Vécu le 2026-09-29 : worker `default` arrêté à 21:18:22 pendant les
     Indicateurs, verrou libéré à 21:19:24 par le lien d'échec, passe RUNNING à vie et bouton ⏳

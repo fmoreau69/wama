@@ -1668,6 +1668,8 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
             _console(session.user_id, f"Analyse annulée")
         except Exception:
             pass
+        from .utils.pass_tracking import abort_session_chain
+        abort_session_chain(session_id, task=self)
         return {'cancelled': session_id}
 
     except Exception as e:
@@ -1953,9 +1955,9 @@ def compute_depth_calc_task(self, session_id: str):
 def release_calc_chain_task(session_id: str):
     """Dernier maillon (et errback) d'une chaîne de calculs : DÉPILE la file de la session (passes
     demandées pendant la chaîne) en lançant la chaîne suivante, ou lève le verrou s'il n'y a plus
-    rien (`pass_tracking.dequeue_calc_passes`)."""
-    from .utils.pass_tracking import dequeue_calc_passes
-    nxt = dequeue_calc_passes(session_id)
+    rien (`pass_tracking.dequeue_session_passes`)."""
+    from .utils.pass_tracking import dequeue_session_passes
+    nxt = dequeue_session_passes(session_id)
     return {'session_id': session_id, 'released': not nxt, 'next': nxt}
 
 
@@ -3244,6 +3246,8 @@ def analyze_sam3_only_task(self, session_id: str):
             _console(session.user_id, "SAM3 annulé")
         except Exception:
             pass
+        from .utils.pass_tracking import abort_session_chain
+        abort_session_chain(session_id, task=self)
         return {'cancelled': session_id}
 
     except Exception as e:

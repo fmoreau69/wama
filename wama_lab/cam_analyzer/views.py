@@ -440,9 +440,9 @@ def prediction_annotate(request, session_id):
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
     # Entrée API héritée : la passe `indicators` du pipeline est désormais le chemin principal
     # (bouton retiré du volet). Même tâche, même suivi de passe quel que soit le point d'entrée.
-    # file des calculs de la session, comme toute passe de calcul (`launch_calc_passes`)
-    from .utils.pass_tracking import launch_calc_passes
-    res = launch_calc_passes(session.id, ['indicators'])
+    # file de la session, comme toute passe (`launch_session_passes`)
+    from .utils.pass_tracking import launch_session_passes
+    res = launch_session_passes(session.id, ['indicators'])
     return JsonResponse({'success': True, **res})
 
 
@@ -871,6 +871,9 @@ def cancel_analysis(request, session_id):
         except Exception as e:
             logger.warning(f"Failed to revoke task {task_id}: {e}")
         cache.delete(f"cam_analyzer_task_{session_id}")
+    # une tâche tuée (SIGTERM) ne passe pas par sa propre annulation : file vidée, verrou levé ici
+    from .utils.pass_tracking import abort_session_chain
+    abort_session_chain(session.id)
 
     # Proposition C — Cancel maps to PAUSED, not FAILED, so partial data
     # (DetectionFrames already committed) remains usable. The user can
@@ -909,11 +912,11 @@ def list_passes(request, session_id):
         logger.warning(f"recompute_stale failed: {exc}")
     # `chain_queued` : une chaîne de calculs est en FILE ou en cours (verrou de `run_passes`) —
     # le panneau continue de suivre même si aucune passe n'a encore démarré.
-    from .utils.pass_tracking import calc_chain_key as _calc_chain_key, queued_calc_passes
+    from .utils.pass_tracking import calc_chain_key as _calc_chain_key, queued_session_passes
     return JsonResponse({'passes': get_passes_status(session),
                          'chain_queued': bool(cache.get(_calc_chain_key(session.id))),
                          # passes EN FILE derrière la chaîne en cours (elles s'empilent, 2026-09-30)
-                         'queued_passes': queued_calc_passes(session.id)})
+                         'queued_passes': queued_session_passes(session.id)})
 
 
 @login_required
@@ -966,61 +969,29 @@ def run_passes(request, session_id):
         launched.append('intersection_windows')
         needs_run.discard('intersection_windows')
 
-    # 2. Heavy pass : YOLO / YOLOPv2 require process_session_task.
-    #    This task internally calls lane_events for the front camera, so
-    #    if lane_events is the only "downstream" needed and YOLO is also
-    #    being requested, we don't need a separate compute_lane_events_task.
-    heavy_needed = needs_run & {'yolo_detect', 'yolopv2_lanes'}
-    if heavy_needed:
-        from .tasks import process_session_task
-        # N'enchaîner SAM3 (post-pass GPU lourd) QUE s'il a été explicitement demandé.
-        # Sinon lancer « ▶ yolopv2 » relançait SAM3 à tort (→ charge GPU / crash).
-        _chain_sam3 = 'sam3_markings' in needs_run
-        # Une relance EXPLICITE de yolo/yolopv2 = l'utilisateur veut la RE-exécuter →
-        # forcer. Sinon le STALE la considère « déjà faite » (des frames existent) et la
-        # skip, exécutant seulement les étapes aval (« segments temporels ») — la relance
-        # semblait sans effet. Ré-exécute toute la détection (yolo+yolopv2, toutes vues).
-        _explicit_heavy = bool(heavy_needed & set(requested))
-        _force_detection = force or _explicit_heavy
-        _pause_live(session_id)
-        cache.delete(f"stop_cam_analyzer_{request.user.id}")
-        session.status = AnalysisSession.Status.PENDING
-        session.progress = 0
-        session.save(update_fields=['status', 'progress'])
-        task = process_session_task.delay(str(session.id), force_rerun=_force_detection,
-                                          chain_sam3=_chain_sam3)
-        cache.set(f"cam_analyzer_task_{session.id}", task.id, timeout=86400)
-        launched.append('process_session_task')
-        # process_session_task takes care of these downstream passes
-        needs_run -= {'yolo_detect', 'yolopv2_lanes', 'lane_events', 'distance'}
-        # SAM3 is chained at the end of process_session_task when enabled,
-        # so we don't dispatch analyze_sam3_only_task here.
-        needs_run.discard('sam3_markings')
-        # temporal_segments + conflicts are also chained in process_session_task
-        needs_run -= {'temporal_segments', 'conflicts'}
-
-    # 3. Decoupled computers (Proposition D) — light tasks, no GPU loading
-    elif needs_run:
-        from .utils.pass_tracking import _STAGE, dispatch_table, topological_order
+    # 2. Tout le reste en UNE chaîne ordonnée — détection (process_session_task, yolo + yolopv2
+    #    et leurs suites internes), puis SAM3, profondeur, recalage ortho, puis les calculs —,
+    #    MISE EN FILE si une chaîne tourne déjà pour la session (elles s'empilent, 2026-09-30).
+    #    ⚠ Avant : une demande « détection + autre analyse » n'exécutait que la détection, le
+    #    reste (profondeur, recalage ortho…) était ABANDONNÉ sans le dire.
+    if needs_run:
+        from .utils.pass_tracking import _STAGE, DETECTION_KEYS, launch_session_passes
+        _detection = bool(needs_run & set(DETECTION_KEYS))
         # Gating DÉRIVÉ du graphe (2026-09-07) : un CALCUL dérive des détections ; sans une
-        # seule DetectionFrame il n'a rien à lire. Refus explicite (409) plutôt qu'une chaîne
-        # qui échoue passe après passe — et le ▶ Calculs du panneau se grise sur le même fait.
-        if any(_STAGE.get(pt) == 'calcul' for pt in needs_run) \
+        # seule DetectionFrame il n'a rien à lire — sauf si la détection est dans la demande.
+        if not _detection and any(_STAGE.get(pt) == 'calcul' for pt in needs_run) \
                 and not DetectionFrame.objects.filter(camera__session=session).exists():
             return JsonResponse({
                 'success': False,
                 'error': "Aucune détection en base : lancer l'ANALYSE d'abord — les calculs "
                          "dérivent des détections, ils n'ont rien à lire.",
             }, status=409)
+        # Une relance EXPLICITE de yolo/yolopv2 = l'utilisateur veut la RE-exécuter → forcer.
+        # Sinon le STALE la considère « déjà faite » (des frames existent) et la skip.
+        _detect_force = force or bool(needs_run & set(requested) & set(DETECTION_KEYS))
         _pause_live(session_id)
         cache.delete(f"stop_cam_analyzer_{request.user.id}")
-        # CHAÎNE en ordre topologique (`_DEPENDS_ON` ordonne distance → global_tracking →
-        # indicators…) ; une chaîne déjà en cours ⇒ les passes s'EMPILENT au lieu d'être refusées.
-        from .utils.pass_tracking import launch_calc_passes
-        dispatch_map = dispatch_table()
-        calc_keys = [pt for pt in topological_order(needs_run) if dispatch_map.get(pt) is not None]
-        res = launch_calc_passes(session.id, calc_keys)
-        needs_run -= set(calc_keys)
+        res = launch_session_passes(session.id, needs_run, detect_force=_detect_force)
         launched.extend(res['launched'])
         queued.extend(res['queued'])
 
@@ -1201,9 +1172,9 @@ def ortho_correction(request, session_id):
         return JsonResponse({'success': False,
                              'error': "Aucun recalage mesuré — lancer d'abord « Recalage absolu ortho »"},
                             status=400)
-    # file des calculs de la session, comme toute passe de calcul (`launch_calc_passes`)
-    from .utils.pass_tracking import launch_calc_passes
-    res = launch_calc_passes(session.id, ['ortho_correction'])
+    # file de la session, comme toute passe (`launch_session_passes`)
+    from .utils.pass_tracking import launch_session_passes
+    res = launch_session_passes(session.id, ['ortho_correction'])
     _console(request.user.id, "Correction de trajectoire — "
              + ("lancement (calcul pur + masquage BD TOPO)." if res['launched']
                 else "mise en file derrière les calculs en cours."))

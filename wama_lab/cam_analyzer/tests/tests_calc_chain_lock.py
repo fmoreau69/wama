@@ -1,4 +1,4 @@
-"""Les calculs d'une session s'EMPILENT et se DÉPILENT : une seule chaîne à la fois, jamais de refus.
+"""Les passes d'une session (calculs PUIS analyses, 2026-09-30) s'EMPILENT et se DÉPILENT : une seule chaîne à la fois, jamais de refus.
 
 Mesuré le 2026-09-29 : deux clics à 19 s d'intervalle, deux chaînes entrelacées (chaque passe jouée
 deux fois). Verrou : `pass_tracking.calc_chain_key`. Du 29 au 30/09 une seconde demande était
@@ -17,6 +17,7 @@ from wama_lab.cam_analyzer import views
 from wama_lab.cam_analyzer.utils.pass_tracking import calc_chain_key
 
 SID = '00000000-0000-0000-0000-0000000000ca'
+MARK_PENDING = 'wama_lab.cam_analyzer.utils.pass_tracking._mark_detection_pending'
 
 
 @override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
@@ -36,26 +37,27 @@ class CalcChainLockTest(SimpleTestCase):
                 mock.patch('wama_lab.cam_analyzer.utils.pass_tracking.reconcile_interrupted_calc_passes'), \
                 mock.patch('wama_lab.cam_analyzer.utils.pass_tracking.get_passes_status', return_value=[]), \
                 mock.patch.object(views.DetectionFrame.objects, 'filter') as flt, \
-                mock.patch('celery.chain', chain):
+                mock.patch(MARK_PENDING) as pending,                 mock.patch('celery.chain', chain):
             flt.return_value.exists.return_value = True
             resp = views.run_passes(req, SID)
+        self.pending = pending
         return resp, chain
 
     def test_a_launch_during_a_chain_is_queued_not_refused(self):
-        from wama_lab.cam_analyzer.utils.pass_tracking import queued_calc_passes
+        from wama_lab.cam_analyzer.utils.pass_tracking import queued_session_passes
         cache.set(calc_chain_key(SID), ['compute_distance_task'], 60)
         resp, chain = self._post(types=('lane_map_recalage',))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(json.loads(resp.content)['queued'], ['lane_map_recalage'])
         chain.assert_not_called()                      # une seule chaîne à la fois
-        self.assertEqual(queued_calc_passes(SID), ['lane_map_recalage'])
+        self.assertEqual(queued_session_passes(SID), ['lane_map_recalage'])
 
     def test_asking_twice_for_the_same_pass_queues_it_once(self):
-        from wama_lab.cam_analyzer.utils.pass_tracking import queued_calc_passes
+        from wama_lab.cam_analyzer.utils.pass_tracking import queued_session_passes
         cache.set(calc_chain_key(SID), ['compute_distance_task'], 60)
         self._post(types=('indicators',))
         self._post(types=('indicators', 'lane_map_recalage'))
-        self.assertEqual(sorted(queued_calc_passes(SID)), ['indicators', 'lane_map_recalage'])
+        self.assertEqual(sorted(queued_session_passes(SID)), ['indicators', 'lane_map_recalage'])
 
     def test_several_passes_launched_together_run_in_dependency_order(self):
         resp, chain = self._post(types=('indicators', 'depth_calc', 'lane_map_recalage'))
@@ -80,9 +82,9 @@ class CalcChainLockTest(SimpleTestCase):
 
     def test_the_release_task_unstacks_the_queue_into_the_next_chain(self):
         from wama_lab.cam_analyzer.tasks import release_calc_chain_task
-        from wama_lab.cam_analyzer.utils.pass_tracking import calc_queue_key, queued_calc_passes
+        from wama_lab.cam_analyzer.utils.pass_tracking import session_queue_key, queued_session_passes
         cache.set(calc_chain_key(SID), ['compute_depth_calc_task'], 60)
-        cache.set(calc_queue_key(SID), ['indicators', 'lane_map_recalage'], 60)
+        cache.set(session_queue_key(SID), {'keys': ['indicators', 'lane_map_recalage']}, 60)
         chain = mock.MagicMock()
         chain.return_value.apply_async.return_value.id = 'next-chain'
         with mock.patch('celery.chain', chain):
@@ -91,8 +93,66 @@ class CalcChainLockTest(SimpleTestCase):
         self.assertEqual(names, ['compute_lane_map_recalage_task', 'compute_indicators_task',
                                  'release_calc_chain_task'])
         self.assertTrue(cache.get(calc_chain_key(SID)), "le verrou tient entre deux chaînes")
-        self.assertEqual(queued_calc_passes(SID), [])
+        self.assertEqual(queued_session_passes(SID), [])
         self.assertFalse(out['released'])
+
+    # ── ANALYSES dans la même file (2026-09-30) ───────────────────────────────────────────
+    def _names(self, chain):
+        return [s.task.rsplit('.', 1)[-1] for s in chain.call_args.args]
+
+    def test_detection_and_other_analyses_run_in_one_ordered_chain(self):
+        """Avant : « détection + profondeur + recalage ortho » ne lançait que la détection."""
+        resp, chain = self._post(types=('yolo_detect', 'ortho_recalage', 'depth', 'sam3_markings'))
+        names = self._names(chain)
+        self.assertEqual(names[0], 'process_session_task')
+        self.assertEqual(names[-1], 'release_calc_chain_task')
+        self.assertEqual(set(names[1:-1]), {'analyze_sam3_only_task', 'compute_depth_task',
+                                            'compute_ortho_recalage_task'})
+        self.assertLess(names.index('analyze_sam3_only_task'),
+                        names.index('compute_ortho_recalage_task'))   # dépendance
+        detect = chain.call_args.args[0]
+        self.assertFalse(detect.kwargs['chain_sam3'], "SAM3 est un maillon, pas une suite async")
+        self.assertTrue(detect.kwargs['force_rerun'], "relance explicite = forcée")
+        self.pending.assert_called_once_with(SID)
+
+    def test_a_calc_only_chain_leaves_the_session_status_alone(self):
+        self._post(types=('indicators',))
+        self.pending.assert_not_called()
+
+    def test_yolo_and_yolopv2_together_are_one_detection_link(self):
+        resp, chain = self._post(types=('yolo_detect', 'yolopv2_lanes', 'lane_events', 'distance'))
+        self.assertEqual(self._names(chain), ['process_session_task', 'release_calc_chain_task'])
+
+    def test_cancel_revokes_the_detection_task_not_the_release(self):
+        resp, chain = self._post(types=('yolo_detect',))
+        detect = chain.call_args.args[0]
+        self.assertEqual(cache.get(f'cam_analyzer_task_{SID}'), detect.options['task_id'])
+
+    def test_a_detection_asked_during_a_chain_is_queued_with_its_force(self):
+        from wama_lab.cam_analyzer.tasks import release_calc_chain_task
+        cache.set(calc_chain_key(SID), ['compute_distance_task'], 60)
+        resp, chain = self._post(types=('yolopv2_lanes', 'depth'))
+        chain.assert_not_called()
+        self.assertEqual(sorted(json.loads(resp.content)['queued']), ['depth', 'yolopv2_lanes'])
+        nxt = mock.MagicMock()
+        nxt.return_value.apply_async.return_value.id = 'next'
+        with mock.patch('celery.chain', nxt), mock.patch(MARK_PENDING) as pending:
+            release_calc_chain_task(SID)
+        self.assertEqual(self._names(nxt), ['process_session_task', 'compute_depth_task',
+                                            'release_calc_chain_task'])
+        self.assertTrue(nxt.call_args.args[0].kwargs['force_rerun'])
+        pending.assert_called_once_with(SID)      # la session passe en attente AU DÉPILEMENT
+
+    def test_cancelling_stops_the_chain_and_drops_the_queue(self):
+        from wama_lab.cam_analyzer.utils.pass_tracking import (abort_session_chain,
+                                                               session_queue_key)
+        cache.set(calc_chain_key(SID), ['process_session_task'], 60)
+        cache.set(session_queue_key(SID), {'keys': ['indicators']}, 60)
+        task = SimpleNamespace(request=SimpleNamespace(chain=[{'task': 'compute_depth_task'}]))
+        abort_session_chain(SID, task=task)
+        self.assertIsNone(task.request.chain, "la suite de la chaîne est coupée")
+        self.assertIsNone(cache.get(calc_chain_key(SID)))
+        self.assertIsNone(cache.get(session_queue_key(SID)))
 
 
 @override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
@@ -137,9 +197,11 @@ class InterruptedCalcPassTest(SimpleTestCase):
         src = inspect.getsource(views)
         self.assertNotIn('compute_indicators_task.delay(', src)
         self.assertNotIn('compute_ortho_correction_task.delay(', src)
-        self.assertNotIn('chain(', src, "les vues ne lancent aucune chaîne elles-mêmes")
+        self.assertNotRegex(src, r'(?<![\w.])chain\(', "les vues ne lancent aucune chaîne elles-mêmes")
         self.assertEqual(inspect.getsource(pt).count('chain(*'), 1,
-                         "un seul lancement de chaîne : pass_tracking._start_calc_chain")
-        self.assertIn("launch_calc_passes(session.id, ['indicators'])", src)
-        self.assertIn("launch_calc_passes(session.id, ['ortho_correction'])", src)
-        self.assertIn('res = launch_calc_passes(session.id, calc_keys)', src)
+                         "un seul lancement de chaîne : pass_tracking._start_session_chain")
+        self.assertNotIn('.delay(', inspect.getsource(views.run_passes),
+                         "le panneau des passes ne lance rien hors de la file de la session")
+        self.assertIn("launch_session_passes(session.id, ['indicators'])", src)
+        self.assertIn("launch_session_passes(session.id, ['ortho_correction'])", src)
+        self.assertIn('res = launch_session_passes(session.id, needs_run, detect_force=', src)
