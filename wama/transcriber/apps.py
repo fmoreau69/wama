@@ -96,9 +96,16 @@ class TranscriberConfig(AppConfig):
         def _read_reference(path):
             from .utils.transcript_documents import read_transcript_document
             doc = read_transcript_document(path)
-            return doc.text, {'format': doc.format, 'turns': len(doc.segments),
-                              'timed': doc.is_timed, 'windows': len(doc.windows),
-                              'outside_speech': len(doc.outside_speech)}
+            reading = {'format': doc.format, 'turns': len(doc.segments),
+                       'timed': doc.is_timed, 'windows': len(doc.windows),
+                       'outside_speech': len(doc.outside_speech)}
+            spoken = doc.transcribed_windows
+            if len(spoken) < len(doc.windows):
+                # Extraits laissés vides : la mesure ne compare que les plages transcrites
+                # (`result_evaluation.COVERED_SPANS`).
+                reading['empty_windows'] = len(doc.windows) - len(spoken)
+                reading['covered_spans'] = [[w['start'], w['end']] for w in spoken]
+            return doc.text, reading
 
         def _import_existing_result(item):
             from .workers import import_existing_result

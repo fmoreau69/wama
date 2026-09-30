@@ -42,6 +42,38 @@ TEXT_PROTOCOL = 'text_v2'
 #: Préfixe d'un résultat produit hors de WAMA : mesurable, jamais agrégé comme un modèle du parc.
 EXTERNAL_PREFIX = 'external:'
 
+#: Clé du détail de lecture par laquelle une référence dit ne couvrir QUE certaines plages du
+#: temps (`[[début, fin], …]` en secondes) — ex. un export Sonal aux extraits laissés vides.
+#: Le résultat est alors restreint à ses segments dont le MILIEU tombe dans ces plages : ce que
+#: le moteur a entendu ailleurs n'a rien en face, le compter ferait des « ajouts » fictifs
+#: (mesuré le 2026-09-30 : ~1 190 mots sur un entretien de 2 h 22). Sans segments horodatés,
+#: rien n'est restreint, et le détail le dit.
+COVERED_SPANS = 'covered_spans'
+
+
+def _within_spans(segment: dict, spans: list) -> bool:
+    middle = (segment['start_time'] + segment['end_time']) / 2
+    return any(start <= middle < end for start, end in spans)
+
+
+def _restricted(spec: 'EvaluationSpec', item, reading: dict):
+    """(segments du résultat restreints aux plages de la référence ou None, lecture à stocker)."""
+    spans = reading.get(COVERED_SPANS)
+    stored = {k: v for k, v in reading.items() if k != COVERED_SPANS}
+    if not spans:
+        return None, stored
+    segments = (spec.result_segments(item) or []) if spec.result_segments else []
+    timed = bool(segments) and all(
+        isinstance(s.get('start_time'), (int, float)) and isinstance(s.get('end_time'), (int, float))
+        for s in segments)
+    if not timed:
+        stored['restricted'] = None          # la référence est partielle, le résultat sans temps
+        return None, stored
+    kept = [s for s in segments if _within_spans(s, spans)]
+    stored['restricted'] = {'spans': len(spans), 'segments_kept': len(kept),
+                            'segments': len(segments)}
+    return kept, stored
+
 
 def _text_metrics():
     from wama.common.services.text_metrics import character_error_rate, word_error_rate
@@ -193,6 +225,9 @@ def evaluate(surface: str, item) -> List:
             return []
         path = reference.path
         reference_text, reading = spec.read_reference(path)
+        kept_segments, reading = _restricted(spec, item, reading)
+        if kept_segments is not None:
+            hypothesis = ' '.join((s.get('text') or '').strip() for s in kept_segments).strip()
         sha = _file_sha256(path)
         name = os.path.basename(reference.name)
         model_key = spec.model_key(item) or ''
@@ -217,7 +252,8 @@ def evaluate(surface: str, item) -> List:
                 try:
                     if segments is None:
                         segments = (spec.read_reference_segments(path),
-                                    spec.result_segments(item) or [])
+                                    kept_segments if kept_segments is not None
+                                    else spec.result_segments(item) or [])
                     measure = segment_metrics[metric][1](*segments, language=language or None)
                 except Exception as exc:
                     logger.warning('[evaluation] %s %s#%s impossible : %s',
