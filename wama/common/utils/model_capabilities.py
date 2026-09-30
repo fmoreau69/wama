@@ -133,6 +133,13 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     "max_frames":          "int — images produites au plus en UN passage",
     "max_duration_s":      "float — durée native maximale (max_frames / fps) : borne la zone NATIVE",
     "native_resolution":   "str 'LxH' — résolution d'entraînement ; en dessous la qualité baisse",
+    #: Bornes de TAILLE de sortie d'un modèle image (2026-09-30), toutes sources confondues :
+    #: déclaration d'app (`model_config`), manifeste d'un modèle installé, fait mécanique lu
+    #: dans ses fichiers. Égales = résolution FIXE (Supra2-IMG : 256). Lues par l'écran
+    #: (tailles proposées) — elles remplacent la table `MODEL_RESOLUTION_CONFIG` de l'imager,
+    #: qui redéclarait par identifiant nu ce que les déclarations portaient déjà.
+    "min_resolution":      "int — plus petit côté accepté (px)",
+    "max_resolution":      "int — plus grand côté accepté (px) ; égal à min = résolution FIXE",
     #: Comment le modèle va AU-DELÀ de `max_duration_s` — absent = il ne va pas au-delà (la
     #: durée est bornée). 'segments' = passages image→vidéo enchaînés, chacun repartant de la
     #: dernière image du précédent : c'est une EXTRAPOLATION, la continuité n'est pas garantie.
@@ -180,10 +187,44 @@ def video_caps_from_declaration(config: Dict[str, Any], tokens=()) -> Dict[str, 
             out["continuation_frames"] = int(config["continuation_frames"])
         elif "i2v" in set(tokens or ()):
             out["duration_extension"] = "segments"
-    res = config.get("resolution")
-    if isinstance(res, str) and "x" in res:
-        out["native_resolution"] = res
+    out.update(resolution_caps_from_declaration(config))
     return out
+
+
+def resolution_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]:
+    """`native_resolution` / `min_resolution` / `max_resolution` tirés d'une déclaration (image
+    comme vidéo) — la traduction UNIQUE (2026-09-30 ; elle vivait dans la seule branche vidéo).
+
+    `resolution` accepte les deux formes des déclarations : 'LxH' = taille native ; un entier N =
+    le plus grand côté (`max_resolution`), jamais un défaut — générer en 2048 par défaut serait
+    lent et hasardeux (cf. `imager.model_config.get_model_defaults`)."""
+    out: Dict[str, Any] = {}
+    res = config.get("resolution")
+    if isinstance(res, str) and "x" in res.lower():
+        out["native_resolution"] = res.lower()
+    elif isinstance(res, (int, float)) and not isinstance(res, bool) and res > 0:
+        out["max_resolution"] = int(res)
+    for key in ("min_resolution", "max_resolution"):
+        value = config.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+            out[key] = int(value)
+    return out
+
+
+def resolution_bounds(caps: Dict[str, Any]) -> Dict[str, Any]:
+    """Les bornes de taille d'un modèle, lues UNE fois : `{native: (L, H) | None, min, max,
+    fixed}` (None si non déclaré). Lecteur commun de l'écran et de la tâche — un modèle à
+    résolution FIXE (min == max) ne se propose qu'à sa taille."""
+    caps = caps or {}
+    native = None
+    w, sep, h = str(caps.get("native_resolution") or "").lower().partition("x")
+    if sep and w.isdigit() and h.isdigit():
+        native = (int(w), int(h))
+    lo, hi = caps.get("min_resolution"), caps.get("max_resolution")
+    lo = int(lo) if lo else None
+    hi = int(hi) if hi else None
+    return {"native": native, "min": lo, "max": hi,
+            "fixed": bool(lo and hi and lo == hi)}
 
 
 def video_limits(caps: Dict[str, Any]) -> Dict[str, Any]:
