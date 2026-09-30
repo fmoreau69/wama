@@ -496,6 +496,44 @@ def reconcile_interrupted_calc_passes(session) -> int:
              completed_at=timezone.now())
 
 
+#: Passes qui changent ce que LIT le tracking 360° (pose navette, géométrie des caméras, plan de
+#: sol) sans en être des amonts déclarés — les déclarer rendrait périmé le tracking de toute session
+#: qui ne les a jamais jouées (cf. le registre). Leur date de fin compte donc à part.
+TRACKING_SIDE_INPUTS = ('depth_calc', 'lane_map_recalage', 'ortho_correction', 'camera_intrinsics',
+                        'visual_yaw')
+
+
+def tracking_is_current(session, features) -> tuple:
+    """Le tracking 360° stocké est-il à jour ? Rend (bool, raison, résumé de la passe).
+
+    À jour = passe `global_tracking` terminée (ni périmée ni échouée — `recompute_stale` d'abord),
+    calculée avec les MÊMES bascules de calcul (`features`, instantané rangé à sa fin), et plus
+    récente que chacune des `TRACKING_SIDE_INPUTS`. Les Indicateurs le refaisaient à chaque fois
+    (2026-09-30 : le même calcul de ~4 min joué deux fois quand on lançait les deux passes)."""
+    from wama_lab.cam_analyzer.models import AnalysisPass
+    rows = {}
+    for p in AnalysisPass.objects.filter(session=session,
+                                         pass_type__in=('global_tracking',) + TRACKING_SIDE_INPUTS):
+        cur = rows.get(p.pass_type)
+        if cur is None or (p.completed_at and (not cur.completed_at or p.completed_at > cur.completed_at)):
+            rows[p.pass_type] = p
+    gt = rows.get('global_tracking')
+    if gt is None or gt.status != AnalysisPass.Status.COMPLETED or not gt.completed_at:
+        return False, 'tracking absent, périmé ou en échec', None
+    summary = gt.output_summary or {}
+    seen = summary.get('features')
+    if seen is None:
+        return False, 'tracking antérieur à l’instantané des bascules', summary
+    changed = sorted(k for k in set(seen) | set(features) if seen.get(k) != features.get(k))
+    if changed:
+        return False, 'bascules changées depuis : ' + ', '.join(changed), summary
+    for key in TRACKING_SIDE_INPUTS:
+        r = rows.get(key)
+        if r is not None and r.completed_at and r.completed_at > gt.completed_at:
+            return False, f'« {key} » recalculé après le tracking', summary
+    return True, 'à jour', summary
+
+
 def recompute_stale(session) -> int:
     """
     Recompute STALE flags for all passes of a session by comparing each
