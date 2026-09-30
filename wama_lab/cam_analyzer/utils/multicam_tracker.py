@@ -1067,6 +1067,32 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     stale_reset = stale_fields_report(_reset)
     logger.info('[tracking 360°] état du calcul précédent : %s', stale_reset)
 
+    # ── Contrôle qualité : cohérence caméra ↔ position monde (brique WAMA Data #2) ──
+    # Sur les positions FRAÎCHES (mobiles lissés) : un objet placé derrière sa propre caméra est
+    # impossible, et l'écart entre la profondeur affichée (étiquette) et celle de la position
+    # dessinée se lit ici au lieu d'être découvert à l'écran.
+    camera_check = None
+    try:
+        from wama_data.functions.geometry.placement_metrics import camera_consistency
+        _obs = []
+        for pos, (_iw, _ih, frames) in per_cam.items():
+            _g = _geo[pos]
+            _mx, _my = _g['mount']
+            for fn, f in frames.items():
+                ws = [d for d in (f.detections or []) if d.get('world_en') and not d.get('predicted')]
+                if not ws:
+                    continue
+                se, sn, sh = _shuttle_pose_at(sh_traj, fn / fps * scale + off)
+                for d in ws:
+                    x, y = world_to_vehicle(d['world_en'][0], d['world_en'][1], se, sn, sh)
+                    dm = d.get('distance_m')
+                    _obs.append((pos, x, y, _g['yaw'], _mx, _my,
+                                 dm * _g['dist_scale'] if isinstance(dm, (int, float)) else None))
+        camera_check = camera_consistency(_obs)
+        logger.info('[tracking 360°] cohérence caméra ↔ position : %s', camera_check)
+    except Exception:
+        logger.warning('camera_consistency (contrôle qualité) échoué', exc_info=True)
+
     # Par lots, et ATOMIQUE : un `save()` par frame (~300 000) prenait ~3 min, et un worker
     # arrêté au milieu laissait la base mi-ancienne mi-nouvelle (2026-09-29, arrêt de 21:18).
     DF.objects.bulk_update(list(dirty), ['detections'], batch_size=500)
@@ -1104,4 +1130,5 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'ghosts': len(ghost_links) - ghosts_in_footprint,
             'ghosts_in_footprint_removed': ghosts_in_footprint,
             'ghost_boundary_jump_m': _quantiles(ghost_jumps, (0.5, 0.9, 0.99)),
-            'stale_fields_reset': stale_reset}
+            'stale_fields_reset': stale_reset,
+            'camera_consistency': camera_check}

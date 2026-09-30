@@ -2586,6 +2586,16 @@ def _run_global_tracking(session):
         rs['stationary_rule'] = _gt.get('stationary_rule')
         # État d'un calcul PRÉCÉDENT (2026-09-30) : gids et positions monde que ce calcul ne
         # réécrit pas, donc PÉRIMÉS — retirés au lieu de survivre. 0 attendu au 2ᵉ calcul d'affilée.
+        # Contrôle qualité par caméra (2026-09-30) : objets placés derrière leur caméra
+        # (impossible) et écart étiquette ↔ position dessinée — lisible à chaque calcul.
+        _cc = _gt.get('camera_consistency') or {}
+        rs['camera_consistency'] = _cc
+        if _cc:
+            _console(session.user_id, "Cohérence caméra ↔ position : " + " · ".join(
+                f"{c} {v['behind_share'] * 100:.1f} % derrière"
+                + (f", écart de profondeur méd. {v['depth_rel_err_median'] * 100:.0f} %"
+                   if v.get('depth_rel_err_median') is not None else '')
+                for c, v in _cc.items()))
         _st = _gt.get('stale_fields_reset') or {}
         rs['stale_fields_reset'] = _st
         if _st.get('dropped_gid') or _st.get('dropped_world_en'):

@@ -12,8 +12,15 @@ Métrique #1 — **étalement monde des stationnés** (implémentée ici) :
   Plus bas = meilleur. C'est aussi l'objectif que minimise `homography_estimator` — ici on
   l'expose comme MÉTRIQUE (comparable entre configs), pas comme cible d'optimisation.
 
-À venir (mêmes entrées, non implémentées — pas de stub inerte) :
-  #2 désaccord inter-sources (homography ⟷ pinhole ⟷ ortho, via `distance_source`) ;
+Métrique #2 — **cohérence caméra ↔ position monde** (`camera_consistency`, 2026-09-30) :
+  deux contrôles qu'aucune vérité terrain n'est nécessaire à trancher, par caméra —
+  · part des objets placés DERRIÈRE leur propre caméra (physiquement impossible : 0 = idéal) ;
+  · désaccord entre la profondeur que la caméra affiche (`distance_m`, l'étiquette) et celle de la
+    position monde le long de l'axe de cette caméra — la position dessinée et l'étiquette peuvent
+    venir de sources différentes (sol/profondeur vs pinhole), et un écart s'y lit.
+  Né d'un diagnostic : un véhicule étiqueté 32,8 m était dessiné à 43 m de sa caméra.
+
+À venir (non implémentée — pas de stub inerte) :
   #3 discontinuité au hand-off inter-caméras (saut de position à la transition de track).
 
 Pur (numpy) : le cœur `track_position_spread` ne dépend ni de Django ni de pandas et se teste
@@ -72,6 +79,44 @@ def track_position_spread(positions_by_track, *, min_obs=3):
     return {'per_track': per_track, 'aggregate': aggregate}
 
 
+def camera_consistency(observations, *, min_obs=20):
+    """Cœur PUR de la métrique #2 (aucune dépendance Django/pandas).
+
+    observations : itérable de (camera, x, y, yaw_deg, mount_x, mount_y, depth_m) — position de
+        l'objet en repère VÉHICULE (x droite, y avant, m), orientation de la caméra (degrés, sens
+        horaire depuis l'avant), point de montage de la caméra dans le même repère, et profondeur
+        que la caméra annonce le long de son axe (None si inconnue).
+    min_obs : observations minimales pour qu'une caméra soit résumée.
+
+    Rend {camera: {n, behind_share, depth_n, depth_rel_err_median, depth_rel_err_p90}} :
+    `behind_share` = part des objets dont la projection sur l'axe de la caméra est ≤ 0 (derrière
+    elle) ; `depth_rel_err` = |profondeur de la position − profondeur annoncée| / annoncée.
+    """
+    from collections import defaultdict
+    by_cam = defaultdict(lambda: {'n': 0, 'behind': 0, 'err': []})
+    for cam, x, y, yaw, mx, my, depth in observations:
+        h = np.radians(yaw)
+        axial = (x - mx) * np.sin(h) + (y - my) * np.cos(h)
+        if not np.isfinite(axial):
+            continue
+        acc = by_cam[cam]
+        acc['n'] += 1
+        acc['behind'] += axial <= 0
+        if depth is not None and np.isfinite(depth) and depth > 0:
+            acc['err'].append(abs(axial - depth) / depth)
+    out = {}
+    for cam, acc in sorted(by_cam.items()):
+        if acc['n'] < min_obs:
+            continue
+        err = np.asarray(acc['err'], dtype=float)
+        out[cam] = {'n': acc['n'],
+                    'behind_share': round(acc['behind'] / acc['n'], 4),
+                    'depth_n': int(err.size),
+                    'depth_rel_err_median': round(float(np.median(err)), 4) if err.size else None,
+                    'depth_rel_err_p90': round(float(np.percentile(err, 90)), 4) if err.size else None}
+    return out
+
+
 def _positions_by_track_from_df(df, id_field, coord_field, x_field, y_field):
     """Extrait {track_id: [(x, y)…]} d'un DataFrame de détections. Accepte soit un champ
     coordonnée unique portant [x, y] (`coord_field`, ex. cam_analyzer `world_en`), soit deux
@@ -116,6 +161,55 @@ def placement_spread(detections: TypedFrame, *, id_field='global_track_id',
     return TypedFrame(out, DataType.SCALAR,
                       meta={'aggregate': agg, 'per_track': res['per_track'],
                             'lower_is_better': True})
+
+
+def camera_consistency_frame(detections: TypedFrame, *, camera_field='camera', x_field='veh_x',
+                             y_field='veh_y', yaw_field='cam_yaw', mount_x_field='mount_x',
+                             mount_y_field='mount_y', depth_field='distance_m',
+                             min_obs=20) -> TypedFrame:
+    """Wrapper FunctionSpec de la métrique #2 : une ligne par caméra (part derrière la caméra,
+    écart de profondeur médian et p90). INDICATOR, plus bas = meilleur."""
+    import pandas as pd
+    df = detections.df
+    rows = []
+    for _, r in df.iterrows():
+        d = r[depth_field] if depth_field in df.columns else None
+        rows.append((r[camera_field], float(r[x_field]), float(r[y_field]), float(r[yaw_field]),
+                     float(r[mount_x_field]), float(r[mount_y_field]),
+                     float(d) if d is not None and d == d else None))
+    res = camera_consistency(rows, min_obs=min_obs)
+    out = pd.DataFrame([{'camera': c, **v} for c, v in res.items()])
+    return TypedFrame(out, DataType.TABLE, meta={'lower_is_better': True})
+
+
+CAMERA_CONSISTENCY_SPEC = register(FunctionSpec(
+    key='camera_consistency',
+    name='Cohérence caméra ↔ position',
+    description="Contrôle, par caméra et sans vérité terrain, qu'un placement monde est cohérent "
+                "avec ce que la caméra voit : part des objets placés DERRIÈRE leur caméra "
+                "(impossible, 0 = idéal) et écart relatif entre la profondeur annoncée par la caméra "
+                "et celle de la position le long de son axe.",
+    category=FunctionCategory.INDICATOR,
+    tags=['geometry', 'placement-quality', 'ab-metric', 'no-ground-truth'],
+    inputs=[
+        PortSpec('detections', DataType.DETECTIONS,
+                 required_fields=['camera', 'veh_x', 'veh_y', 'cam_yaw', 'mount_x', 'mount_y'],
+                 description='Détections en repère véhicule, avec orientation et montage de la '
+                             'caméra qui les a vues (profondeur `distance_m` facultative).'),
+    ],
+    outputs=[
+        PortSpec('per_camera', DataType.TABLE,
+                 produced_fields=['camera', 'n', 'behind_share', 'depth_rel_err_median',
+                                  'depth_rel_err_p90'],
+                 description='Une ligne par caméra ; plus bas = meilleur.'),
+    ],
+    params=[
+        ParamSpec('min_obs', 'int', 20, 1, 100000,
+                  description='Observations minimales pour qu\'une caméra soit résumée.'),
+    ],
+    cost={'cpu_bound': True},
+    fn=camera_consistency_frame,
+))
 
 
 SPEC = register(FunctionSpec(
