@@ -756,8 +756,16 @@ DEUX réunions valides (`007a_ECRH` 20 min, `012c_EBPZ` 19 min) :
   siens (inconnus). Albert fait MIEUX que le Whisper local SANS filtre (34,0 % · 95,5 % · 36,1 %) :
   il se place entre les deux réglages locaux. En regard : **0 Go de VRAM locale** et 5 à 8 s pour
   19-26 min d'audio (mesuré à l'appel direct). ⚠ Trois réunions : un ordre de grandeur, pas un
-  verdict — FLEURS-CS (parole lue, bascules de langue) reste à passer ; et, pour de vrais
-  entretiens, l'audio QUITTE la machine (verrou « sensibilité » de `ROADMAP §8d` ③, non tranché).
+  verdict ; et, pour de vrais entretiens, l'audio QUITTE la machine (verrou « sensibilité » de
+  `ROADMAP §8d` ③, non tranché).
+  **FLEURS-CS, même soir** (8 enregistrements fr/en, cards #1075-1082, comparées aux cards Whisper
+  « langues = auto » des mêmes lots, mesures en base) : erreur par mot **44,6 %** (Albert) contre
+  **45,1 %** (Whisper local) — un match nul EN MOYENNE, mais très dispersé d'un enregistrement à
+  l'autre (Albert −25,7 points sur seed266, +25,7 sur seed397) ; accord de langue par segment 48 %
+  contre 46 %. Albert n'annonce qu'UNE langue par fichier (il transcrit d'un seul tenant, et son
+  `language` TRADUIRAIT : il ne lui est jamais imposé). ⇒ Sur la parole spontanée (réunions),
+  Albert est ~3 points derrière ; sur la parole lue qui change de langue, à égalité — gratuit en
+  GPU, pas un remplaçant de qualité supérieure.
 - ⚠ **`008a_EARH` ÉCARTÉE** : la piste du locuteur 028 n'est « transcrite » que par des jetons
   (`sil`, `w_1 w_2 … w_14`, 1 768 jetons) alors que sa parole est dans l'audio — tous les moteurs
   y faisaient 66-69 %. `asr_eval_corpus` écarte désormais toute réunion dont une piste est masquée
