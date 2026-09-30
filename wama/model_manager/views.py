@@ -1322,6 +1322,20 @@ def api_model_options(request):
             by_task.setdefault(task_of.get(value, ''), []).append(opt)
         keys = [k for k in order if k in by_task] + [k for k in by_task if k not in order]
         groups = [{'group': labels.get(k, k or 'Autres'), 'options': by_task[k]} for k in keys]
+    elif request.GET.get('group') == 'category':
+        # Un groupe par CATÉGORIE de présentation (capacité canonique `category`, 2026-09-29 —
+        # 1ᵉʳ consommateur : les logos de l'imager). Les modèles SANS catégorie restent HORS
+        # groupe, en tête : la catégorie DISTINGUE quelques modèles, elle ne range pas les autres.
+        # Libellé : vocabulaire fermé `MODEL_CATEGORIES` ; une valeur inconnue s'affiche telle quelle.
+        from wama.common.utils.model_capabilities import MODEL_CATEGORIES
+        category_of = {d['id']: (d.get('capabilities') or {}).get('category') or '' for d in info}
+        by_category = {}
+        for opt in options:
+            value = opt['value'] if isinstance(opt, dict) else opt[0]
+            by_category.setdefault(category_of.get(value, ''), []).append(opt)
+        groups = ([{'options': by_category.pop('')}] if '' in by_category else []) + [
+            {'group': MODEL_CATEGORIES.get(k, k), 'options': v}
+            for k, v in sorted(by_category.items())] or [{'options': options}]
     reponse = {'success': True, 'groups': groups}
     # « auto » en 1ʳᵉ option + PRÉVISION du modèle retenu (brique commune auto_model,
     # décision Fabien 2026-09-01). OPT-IN par le schéma (`options_auto`) : seule une app
@@ -1331,12 +1345,14 @@ def api_model_options(request):
     # lancement réévalue.
     if request.GET.get('auto') in ('1', 'true'):
         from wama.common.utils.auto_model import AUTO, AUTO_LABEL, predict_model_choice
-        # « auto » en tête de la LISTE, donc en tête du premier groupe (hors de tout groupe
-        # nommé quand la liste est groupée par tâche).
-        if len(groups) > 1 or groups[0].get('group'):
+        # « auto » en tête de la LISTE, jamais DANS un groupe nommé : il rejoint le premier
+        # groupe s'il est anonyme (liste plate, ou modèles sans catégorie), sinon il ouvre le
+        # sien (liste groupée par tâche). Inséré dans le GROUPE et non dans `options` : un
+        # regroupement construit ses propres listes (2026-09-29).
+        if groups[0].get('group'):
             groups.insert(0, {'options': [[AUTO, AUTO_LABEL]]})
         else:
-            options.insert(0, [AUTO, AUTO_LABEL])
+            groups[0]['options'].insert(0, [AUTO, AUTO_LABEL])
         # `quality_intent` (curseur de qualité 0-100) : la prévision arbitre comme le
         # tirage réel arbitrera — valeur inconnue repliée sur équilibré par le sélecteur.
         quality_intent = request.GET.get('quality_intent') or None

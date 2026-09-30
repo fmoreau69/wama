@@ -263,6 +263,19 @@ MECHANISMS = (
               "affichée sous le select (options_auto) + curseur de QUALITÉ continu 0-100 "
               "(intent_param, poids dans le score de select_model)",
               'wama/common/utils/auto_model.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md'),
+    Mechanism('model_keys', 'Clé de catalogue ↔ identifiant',
+              "UNE lecture de `<source>:<identifiant>` pour tout WAMA : seul le PREMIER segment "
+              "est la source, reconnue au vocabulaire `ModelSource` (`ollama:qwen3:4b` → "
+              "`qwen3:4b`, là où un `rsplit` rendait `4b`). `catalog_key` est la tolérance "
+              "d'ENTRÉE d'une app passée aux clés entières (valeur nue → sa source, `auto` "
+              "intact). Née au portage F4b de l'imager (2026-09-29) ; consommée par l'imager, "
+              "l'ETA (`make_key`) et `declaration_for`. ⚠ Une douzaine de conversions à la main "
+              "vivent encore dans le dépôt (relevé du 29/09) — elles s'y rallient au fil des "
+              "portages, pas en passe aveugle",
+              # Pas de `symbol` : `catalog_key` est aussi un nom de VARIABLE locale (composer,
+              # enhancer, avatarizer) — compté par symbole, il leur attribuait une adoption fausse.
+              # Le repli « feuille » compte l'import du module, qui est la vraie adoption.
+              'wama/common/utils/model_keys.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F4b'),
     Mechanism('model_coverage', 'Couverture multi-modèles',
               "Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisation)",
               'wama/common/services/model_coverage.py', ''),
@@ -1284,7 +1297,9 @@ MECHANISMS = (
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),
     Mechanism('model_capabilities', 'Vocabulaire des capacités',
-              "Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI",
+              "Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI ; "
+              "`category` (vocabulaire fermé `MODEL_CATEGORIES`) range un select de modèle en "
+              "optgroups (`options_group=\"category\"`, 2026-09-29)",
               'wama/common/utils/model_capabilities.py', 'docs/construction/ui/INPUT_MODEL_MATCHING.md',
               annexes=('wama/common/static/common/js/wama-model-caps.js',
                        'wama/common/static/common/js/wama-input-match.js',

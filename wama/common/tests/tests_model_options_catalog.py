@@ -312,3 +312,92 @@ class ModeDeclarationsTest(TestCase):
                 with self.subTest(app=app, field=field.get('name')):
                     self.assertEqual(field.get('options_source'), 'catalog')
                     self.assertEqual(om.get('field'), mode_param(om.get('app'), om.get('domain')))
+
+
+class CatalogKeySemanticsTest(TestCase):
+    """ONE reading of a catalogue key for all of WAMA (`model_keys`, 2026-09-29, imager F4b).
+
+    Only the FIRST segment is the source, and a source is RECOGNISED by `ModelSource`: the
+    `split` / `rsplit` variants disagreed on an Ollama tag (`qwen3:4b` vs `4b`)."""
+
+    def test_only_the_first_segment_is_the_source(self):
+        from wama.common.utils.model_keys import model_id, split_key
+        self.assertEqual(('ollama', 'qwen3:4b'), split_key('ollama:qwen3:4b'))
+        self.assertEqual('yolo:yolo11n.pt', model_id('anonymizer:yolo:yolo11n.pt'))
+        self.assertEqual('Org/Model', model_id('huggingface:Org/Model'))
+
+    def test_a_head_that_is_not_a_source_leaves_the_value_bare(self):
+        from wama.common.utils.model_keys import split_key
+        self.assertEqual(('', 'qwen3:4b'), split_key('qwen3:4b'),
+                         "an Ollama tag's colon does not make a source")
+        self.assertEqual(('', 'hunyuan-image-2.1'), split_key('hunyuan-image-2.1'))
+
+    def test_a_bare_id_joins_the_app_space_and_a_key_is_kept(self):
+        from wama.common.utils.model_keys import catalog_key
+        self.assertEqual('imager:sdxl', catalog_key('sdxl', 'imager'))
+        self.assertEqual('huggingface:Org/X', catalog_key('huggingface:Org/X', 'imager'))
+        self.assertEqual('ollama:qwen3:4b', catalog_key('qwen3:4b', 'ollama'))
+        self.assertEqual('auto', catalog_key('auto', 'imager'), '« auto » is not a model')
+        self.assertEqual('', catalog_key('', 'imager'))
+
+    def test_the_eta_key_of_a_full_key_is_the_key_itself(self):
+        from wama.model_manager.services.eta_estimator import make_key
+        self.assertEqual('huggingface:Org/X', make_key('synthesizer', 'huggingface:Org/X'),
+                         'a key of ANOTHER source must not be prefixed by the app')
+        self.assertEqual('imager:sdxl', make_key('imager', 'sdxl'))
+
+
+class CategoryGroupedOptionsTest(TestCase):
+    """`group=category`: a few models DISTINGUISHED (the imager's logos), the others unranked.
+
+    The category is a canonical capability (`MODEL_CATEGORIES`): the grouping is generic, any
+    app that declares `options_group="category"` gets it."""
+
+    def setUp(self):
+        _model('imager:plain-a', 'Plain A', task='text-to-image', model_type='diffusion')
+        m = _model('imager:logo-b', 'Logo B', task='text-to-image', model_type='diffusion')
+        m.capabilities = {**m.capabilities, 'category': 'logo'}
+        m.save(update_fields=['capabilities'])
+        user = get_user_model().objects.create_user(username='category_group', password='x')
+        self.client = Client()
+        self.client.force_login(user)
+
+    def _groups(self, **query):
+        r = self.client.get(URL, {'task': 'text-to-image', 'group': 'category', **query})
+        self.assertEqual(r.status_code, 200)
+        return [(g.get('group'), [o[0] if isinstance(o, list) else o['value'] for o in g['options']])
+                for g in r.json()['groups']]
+
+    def test_uncategorised_models_head_the_list_and_a_category_is_an_optgroup(self):
+        groups = self._groups()
+        self.assertEqual((None, ['imager:plain-a']), groups[0])
+        self.assertEqual(('Logos', ['imager:logo-b']), groups[1])
+
+    def test_auto_joins_the_anonymous_head_group_never_a_named_one(self):
+        groups = self._groups(auto='1')
+        self.assertEqual(['auto', 'imager:plain-a'], groups[0][1])
+        self.assertEqual(2, len(groups))
+
+    def test_an_empty_domain_still_answers_one_group(self):
+        AIModel.objects.filter(model_key__in=['imager:plain-a', 'imager:logo-b']).delete()
+        r = self.client.get(URL, {'task': 'text-to-image', 'group': 'category'})
+        self.assertEqual([{'options': []}], r.json()['groups'])
+
+
+class FullKeyChipTest(TestCase):
+    """A card chip names a FULL catalogue key by its label — the value an app stores once it
+    has moved to catalogue keys (imager, 2026-09-29: the card showed `imager:…` raw)."""
+
+    def test_a_full_key_resolves_to_its_catalogue_label(self):
+        from wama.common.utils import card_chips
+        _model('huggingface:Org/Img', 'Image installée', task='text-to-image',
+               model_type='diffusion')
+        card_chips._CATALOGUE_MEMO.clear()
+
+        class _Item:
+            model = 'huggingface:Org/Img'
+
+        field = {'name': 'model', 'type': 'select', 'chip': True, 'options_source': 'catalog',
+                 'options_query': {'task': 'text-to-image'}}
+        self.assertEqual(['Image installée'],
+                         [c['label'] for c in card_chips.chips_for(_Item(), [field])])

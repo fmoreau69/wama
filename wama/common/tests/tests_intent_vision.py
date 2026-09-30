@@ -291,12 +291,15 @@ class ImagerAndComposerPassTheSliderTest(TestCase):
         seen = {}
 
         def fake_select(source, **kw):
-            seen.update(kw)
-            return 'sdxl'
+            seen.update(kw, source=source)
+            return 'imager:sdxl'   # sans `source`, le tirage rend une CLÉ (model_selector)
 
         with mock.patch('wama.model_manager.services.select_model_id', fake_select):
-            self.assertEqual(resolve_auto_model(gen), 'sdxl')
+            # Route F4b (2026-09-29) : l'imager stocke des clés de catalogue, et tire sans
+            # nommer de source — dans le même lot que son select.
+            self.assertEqual(resolve_auto_model(gen), 'imager:sdxl')
         self.assertEqual(seen.get('quality_intent'), 88)
+        self.assertIsNone(seen.get('source'))
 
     def test_the_composer_resolution_passes_the_item_s_slider(self):
         from wama.composer.models import ComposerGeneration

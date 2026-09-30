@@ -92,6 +92,9 @@ Re-clés par app (l'accesseur PRIME, jamais de déduction) : synthesizer `ENGINE
 (xtts_v2↔coqui-xtts), enhancer suffixe `_fp16` (stems ONNX), transcriber
 `_backend_for_model_key` (qwen3-asr-* → qwen_asr), anonymizer valeurs d'option `type/fichier`
 (double clé, même contrat que `_model_help_meta`).
+**2026-09-29 — l'imager n'a plus rien à re-clé** : ses deux selects sont servis par le catalogue en
+clés entières, et sa méta d'appariement est lue sur le même domaine (`input_match_meta(task=…)`,
+image et vidéo réunies) — la meta et le select parlent enfin la même clé (`ROUTE §F4b` étape ⑥).
 
 Pour les apps à FILE (fichiers consommés au dépôt), la direction VIVANTE est MODÈLE→ENTRÉES
 (ligne d'état sous le select) ; le grisage entrée-d'abord s'activera avec les slots RETENUS

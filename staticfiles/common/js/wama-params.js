@@ -766,23 +766,35 @@
   //   • mode 'note'    : la capacité est seulement RAPPELÉE sous le champ (résolution native).
   // Modèle « auto » ou sans la capacité → champ du schéma, intact (dégradation douce).
   var _capsBySource = {};
-  function _catalogCaps(source) {
-    if (!_capsBySource[source]) {
-      _capsBySource[source] = fetch('/model-manager/api/models/db/?source=' + encodeURIComponent(source))
+  // `query` (2026-09-29) : domaine d'un select peuplé du CATALOGUE (`_optionQuery` du param
+  // modèle). Les capacités se lisent alors sur le MÊME lot que les options — sources confondues :
+  // un modèle `huggingface:…` proposé à l'imager n'était jamais dans `?source=imager`.
+  function _catalogCaps(source, query) {
+    var cacheKey = source + '|' + (query || '');
+    if (!_capsBySource[cacheKey]) {
+      _capsBySource[cacheKey] = fetch('/model-manager/api/models/db/' +
+                                      (query || ('?source=' + encodeURIComponent(source))))
         .then(function (r) { return r.json(); })
         .then(function (data) {
           var out = {};
           (data.models || []).forEach(function (m) {
             var key = m.model_key || '';
-            // Même clé d'option que WamaModelHelp : l'id NU, sans le préfixe « source: ».
-            if (key.indexOf(source + ':') === 0) key = key.slice(source.length + 1);
+            // Clé ENTIÈRE et id NU (même règle que WamaModelHelp) : un select du catalogue porte
+            // la clé entière, un select d'app en liste propre l'id nu.
             out[key] = m.capabilities || {};
+            if (key.indexOf(source + ':') === 0) out[key.slice(source.length + 1)] = out[key];
           });
           return out;
         })
         .catch(function () { return {}; });
     }
-    return _capsBySource[source];
+    return _capsBySource[cacheKey];
+  }
+
+  // Domaine CATALOGUE d'un param de modèle (sa querystring d'options), ou '' s'il n'est pas peuplé
+  // du catalogue — l'aide et `cap_from` se lisent alors sur le MÊME lot que ses options.
+  function _catalogDomain(p) {
+    return (p && p.options_source === 'catalog') ? _optionQuery(p) : '';
   }
 
   function _fmtNum(v) {
@@ -874,7 +886,7 @@
       var note = document.createElement('div');
       note.className = 'wama-cap-note small mt-1';
       (row || el.parentNode).appendChild(note);
-      _catalogCaps(source).then(function (capsByKey) {
+      _catalogCaps(source, cf.source ? '' : _catalogDomain(modelP)).then(function (capsByKey) {
         function apply() { _applyCap(el, note, row, p, cf, capsByKey[sel.value] || null); }
         sel.addEventListener('change', apply);
         el.addEventListener('input', apply);
@@ -900,7 +912,8 @@
       if (!document.getElementById(sid + '-help')) return;
       const cfg = { selectId: sid, helpId: sid + '-help', fallback: p.help_fallback || {} };
       if (p.help_source) {
-        Promise.resolve(global.WamaModelHelp.fetchCatalogMeta(p.help_source)).then(function (meta) {
+        Promise.resolve(global.WamaModelHelp.fetchCatalogMeta(
+            p.help_source, { query: _catalogDomain(p) })).then(function (meta) {
           cfg.meta = meta || {}; global.WamaModelHelp.init(cfg);
         }).catch(function () { cfg.meta = {}; global.WamaModelHelp.init(cfg); });
       } else {

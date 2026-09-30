@@ -69,3 +69,16 @@ def declaration(source: str, model_id: str) -> Optional[dict]:
 # et leur `model_id`, ils n'ont pas de `model_key` sous la main. Retirée le 07/09.
 # *Une commodité sans appelant n'est pas une API, c'est une seconde façon de faire qui attend
 # son premier utilisateur pour diverger.*
+# ✅ RÉTABLIE le 2026-09-29, avec ses appelants : une app passée aux CLÉS ENTIÈRES (route F4b —
+# l'imager) stocke `imager:hunyuan-image-2.1` ou `huggingface:org/nom`, et c'est cette valeur-là
+# qu'elle tient. Le découpage passe par la brique `model_keys` (une seule sémantique : seul le
+# PREMIER segment est la source), pas par une réécriture locale.
+
+
+def declaration_for(value: str, default_source: str = '') -> Optional[dict]:
+    """Déclaration du modèle désigné par une CLÉ de catalogue — ou par un identifiant nu, lu dans
+    `default_source` (tolérance des valeurs d'avant la migration). None sans déclaration : un
+    modèle d'une autre source (`huggingface:…`) n'a pas de `<APP>_MODELS`, c'est normal."""
+    from wama.common.utils.model_keys import catalog_key, split_key
+    source, model_id = split_key(catalog_key(value, default_source) if default_source else value)
+    return declaration(source, model_id)

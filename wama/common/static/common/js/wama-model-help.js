@@ -99,6 +99,9 @@
    *   opts.keyBy : champ de to_dict() à utiliser comme clé d'option (def. 'model_key',
    *                souvent surchargé en 'id' selon les valeurs réelles du <select>)
    *   opts.url   : override de l'URL de l'API (def. /model-manager/api/models/db/)
+   *   opts.query : querystring du DOMAINE (`?task=…`) — pour un select dont les options viennent
+   *                du catalogue (route F4b) : la meta se lit alors sur le MÊME lot que les
+   *                options, sources confondues, au lieu de la seule `source` de l'app.
    * → Promise<meta> : { <clé> : {description, description_short, vram_gb, …} }
    * NB : on mappe `description_short` du catalogue vers `description` (champ court attendu
    *      par init()) et `description` (long) vers `description_long`.
@@ -107,28 +110,29 @@
     opts = opts || {};
     const keyBy = opts.keyBy || 'model_key';
     const base = opts.url || '/model-manager/api/models/db/';
-    const url = base + '?source=' + encodeURIComponent(source) +
+    const url = base + (opts.query || ('?source=' + encodeURIComponent(source))) +
                 (opts.downloadedOnly ? '&downloaded=true' : '');
     return fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         const meta = {};
         (data.models || []).forEach(function (m) {
-          let key = m[keyBy];
+          const key = m[keyBy];
           if (key == null) return;
-          // Clé d'option UI = id NU : les <select> des apps utilisent le model_key SANS le
-          // préfixe « source: » (cf. get_registry_models). Depuis l'alignement des model_key
-          // ({source}:{id}, REMOVAL_LEDGER F4), on retire donc le préfixe ici — sinon la meta
-          // ne matche plus les valeurs d'options (régression composer corrigée).
-          if (typeof key === 'string' && key.indexOf(source + ':') === 0) {
-            key = key.slice(source.length + 1);
-          }
-          meta[key] = {
+          const entry = {
             description: m.description_short || m.description || '',
             description_long: m.description || '',
             vram_gb: m.vram_gb,
             capabilities: m.capabilities || null,
           };
+          // La meta s'indexe sous la clé ENTIÈRE et sous l'id NU (2026-09-29) : un select peuplé
+          // du catalogue porte des clés entières (`synthesizer:kokoro`, `huggingface:org/nom`),
+          // un select d'app encore en liste propre porte l'id nu (`kokoro`). Indexer d'un seul
+          // côté laissait l'autre sans aide — c'est ce qui arrivait aux selects déjà portés.
+          meta[key] = entry;
+          if (typeof key === 'string' && key.indexOf(source + ':') === 0) {
+            meta[key.slice(source.length + 1)] = entry;
+          }
         });
         return meta;
       })

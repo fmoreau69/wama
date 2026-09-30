@@ -351,7 +351,6 @@ window.IMAGER_CARD = {
             cardHtml: "{% url 'imager:card_html' 0 %}",
             batchUpdate: "{% url 'imager:batch_update' 0 %}",
             batchStart: "{% url 'imager:batch_start' 0 %}" },
-    modelGroups: {{ model_groups_json|safe }},
     csrf: "{{ csrf_token }}",
     enhanceUrl: "{% url 'common:enrich_prompt' %}",
     matchMeta: {{ input_match_meta|safe }},

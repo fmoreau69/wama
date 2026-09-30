@@ -89,8 +89,11 @@ class Param:
                                                 # `app_modes.options_mode_for(app, domain)`, jamais à la
                                                 # main (le nom du champ vit dans `app_modes`).
     options_group: str = ""                     # select `catalog` : GROUPER les options ("task" = un
-                                                # groupe par tâche, libellé du catalogue). Drapeau
-                                                # d'UI, comme `options_auto`.
+                                                # groupe par tâche, libellé du catalogue ;
+                                                # "category" = un groupe par capacité `category`,
+                                                # libellé `MODEL_CATEGORIES`, les sans-catégorie
+                                                # hors groupe — 2026-09-29). Drapeau d'UI, comme
+                                                # `options_auto`.
     options_auto: bool = False                  # select `catalog` : servir « auto » en 1ʳᵉ option
                                                 # (+ PRÉVISION du modèle retenu sous le select).
                                                 # OPT-IN par app : ne le déclarer QUE si le chemin de

@@ -29,6 +29,10 @@ ANY_LANGUAGE = "*"
 #: (2026-09-19) ; `check_model_taxonomy` vérifie désormais les défauts par tâche contre lui.
 MODALITIES = ("image", "video", "audio", "document", "text")
 
+#: Vocabulaire FERMÉ de `category` → libellé du groupe dans un select (2026-09-29). Un modèle SANS
+#: catégorie reste hors groupe, en tête de liste : la catégorie distingue, elle ne range pas tout.
+MODEL_CATEGORIES = {"logo": "Logos"}
+
 # ── Vocabulaire canonique : clé → description (documentation vivante) ──────────
 # Les valeurs indiquent le TYPE attendu. Un modèle ne déclare que les clés pertinentes pour son type.
 CANONICAL_CAPABILITIES: Dict[str, str] = {
@@ -69,6 +73,11 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     #: humain (`model_registry.FAMILLES_OLLAMA`), jamais découvert. Un modèle qui le
     #: porte sort du pool généraliste sauf demande explicite.
     "specialisation":      "str — domaine de spécialité (ex. 'translation') ; exclut du pool généraliste",
+    #: CATÉGORIE de présentation d'un modèle dans sa liste — un OPTGROUP du select, jamais un
+    #: onglet ni un filtre (le modèle reste dans le domaine de sa tâche). Écrite par la découverte
+    #: depuis la déclaration d'app (`model_registry`, « sert au groupement du <select> ») ; DÉCLARÉE
+    #: ici le 2026-09-29, quand `api/models/options/?group=category` l'a lue pour l'imager.
+    "category":            "str ⊂ MODEL_CATEGORIES — groupe d'affichage dans le select (ex. 'logo')",
     # Capacités booléennes (préfixe supports_ — ALIGNÉ sur les flags backend)
     "supports_diarization": "bool — diarisation locuteur native (⇐ ex-`native_diarization`)",
     "supports_timestamps":  "bool — horodatage mot/segment",
