@@ -2823,6 +2823,25 @@ pipeline universel, §10.6) plutôt qu'une description en prose.
 ⏳ **`qwen3.8` (local) non joué ce soir** : le GPU portait une évaluation du Transcriber d'une autre
 instance (12 Go libres pour 17 Go requis) — ne pas l'interrompre ; à rejouer quand il est libre.
 
+**2026-10-01 — les étapes DÉCLARÉES, et trois itérations du rôle (décisions de Fabien : déclarer
+les étapes, rejouer sur qwen3.8, rejeter la 1ʳᵉ glu).** La glu du 30/09 est `REJECTED` (motif
+écrit dans sa sortie, convention de `backend_proposals.reject`). Le manifeste porte désormais la
+facette `pipelines` (`WAMA_MANIFEST_SPEC §3.1`, décision n°11 de §10.6) : `draft_content` (le fond,
+écrit `result_text`) → `render_format` (la forme, écrit `output_file`). `editor_01` régénéré : UN trou
+par process + un enchaînement généré sur `task_skeleton.run_process_steps`.
+Chaque itération de `gpt-oss-120b` a débusqué un défaut de l'OUTIL, pas du modèle :
+
+| itération | ce que la relecture a trouvé | correctif de route |
+|---|---|---|
+| v1 | `render_format` « f-string non terminée » | `extract_code` coupait à la 1ʳᵉ clôture ```` ``` ```` — or une glu qui encadre du Markdown dans son prompt en contient : bloc EXTÉRIEUR, réponse brute gardée (`raw_response`) |
+| v1 | `draft_content` lit `source_document_id` / `.result_text` : pris pour une relation vers une card | la matière donnait les NOMS des champs, pas leurs TYPES → `nom (FileField)` |
+| v2 | `max_new_tokens=`, `max_tokens=` passés à la brique LLM → `TypeError` au 1ᵉʳ lancement | la brique relayait `**kwargs` : un relais cache la signature au modèle ET au contrôle → signature EXPLICITE ; le contrôle juge les arguments nommés de toute brique montrée (contre-épreuve : rouge sur les deux glues v2) |
+| **v3** | compile, 0 avertissement, n'écrit que ses champs déclarés, suit l'intention (fond en Markdown `#`/`##` sans HTML ; HTML autonome, CSS inline, aucune ressource externe, fond non modifié), consigne transmise à la révision (8a) | — reste perfectible : pdf/docx sources lus comme du texte brut ; « une section = une diapositive » non repris ; clôture ```` ```html ```` éventuelle non retirée |
+
+Les glues v3 attendent la validation de Fabien (`PENDING_HUMAN_VALIDATION`, non appliquées).
+⏳ `qwen3.8` : GPU toujours tenu (21 Go, 90 %) — un script d'arrière-plan attend 18,5 Go libres puis
+joue les deux process, sans rien interrompre.
+
 **La chaîne SŒUR « dépôt → MODÈLE exécutable » — bouclée hors terminal le 2026-09-29.** Un modèle
 n'a pas le trou de l'app (il ne demande pas de manifeste `app`) ; il en avait d'autres, mesurés sur
 Supra2-IMG et comblés : recherche par URL / dépôt nommé (`prospector.named_repo`) → installation
@@ -3399,7 +3418,11 @@ possible **sans aucun process**.
 8. Les apps Lab entrent-elles dans `APP_CATALOG` (6.1) ?
 9. Monde du studio (`transverse` dans `WORLDS` ; le journal invente un monde `studio`).
 10. Rôle assistant produisant `pipeline` / `dataset` (où, avec quel RAG).
-11. Facette « pipelines proposés » du manifeste `app` (`WAMA_MANIFEST_SPEC`).
+11. ~~Facette « pipelines proposés » du manifeste `app` (`WAMA_MANIFEST_SPEC`).~~ 🔄 **TRANCHÉE
+    pour son premier cas le 2026-10-01 (Fabien)** : facette `pipelines` (nœuds `process` + liens,
+    `reads`/`writes`/`watched`/`description`), formalisme au `WAMA_MANIFEST_SPEC §3.1` ; premier
+    porteur l'Editor ; exécution PROVISOIRE dans une tâche (`task_skeleton.run_process_steps`) en
+    attendant P3. Restent : extraction depuis les apps existantes, degrés `optional`/`open`, studio.
 
 #### 10. Pièges relevés — à ne pas refaire
 

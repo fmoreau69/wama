@@ -117,7 +117,10 @@ def champs_item(item_model: str, app_id: str = '') -> tuple:
             continue
     if model is None:
         return [], []
-    champs = sorted(f.name for f in model._meta.get_fields()
+    # Nom ET TYPE (2026-10-01) : sans le type, gpt-oss a pris le `FileField` `source_document`
+    # pour une relation vers une autre card (`source_document_id`, `.result_text`) — le document
+    # source était ignoré sans un mot.
+    champs = sorted(f'{f.name} ({type(f).__name__})' for f in model._meta.get_fields()
                     if getattr(f, 'concrete', False) and not getattr(f, 'auto_created', False))
     props = sorted(n for n in vars(model) if isinstance(vars(model)[n], property)
                    and not n.startswith('_'))
@@ -131,6 +134,22 @@ def champs_item(item_model: str, app_id: str = '') -> tuple:
 COMMON_BRICKS_BY_MODEL_TYPE = {
     'llm': ('wama/common/utils/llm_utils.py', ('chat_with_catalog_model',)),
 }
+
+
+def signatures_briques() -> dict:
+    """{nom de brique : noms de paramètres acceptés} — pour JUGER les appels de la glu. Une
+    brique à `**kwargs` n'est pas jugeable (tout passe) : c'est pourquoi les briques montrées
+    ont une signature explicite (`chat_with_catalog_model`, 2026-10-01)."""
+    import importlib
+    import inspect
+    out = {}
+    for chemin, noms in COMMON_BRICKS_BY_MODEL_TYPE.values():
+        module = importlib.import_module(chemin[:-3].replace('/', '.'))
+        for nom in noms:
+            params = inspect.signature(getattr(module, nom)).parameters
+            if not any(p.kind == p.VAR_KEYWORD for p in params.values()):
+                out[nom] = set(params)
+    return out
 
 
 def briques_communes(resolus: list) -> str:
@@ -161,8 +180,9 @@ def matiere_manifeste(app_id: str, manifest_path: str = '') -> tuple:
         raise SystemExit(f"app inconnue : {app_id}")
     body = man.get('body') or {}
     # Compaction : la glu n'a pas besoin des facettes UI (modes/studio/inspector/tool_api).
+    # `pipelines` GARDÉE (2026-10-01) : c'est elle qui dit ce que chaque process doit faire.
     garde = {k: body[k] for k in ('identity', 'params', 'processing', 'models',
-                                  'capabilities', 'ports') if k in body}
+                                  'capabilities', 'ports', 'pipelines') if k in body}
     compact = {k: v for k, v in man.items() if k != 'body'} | {'body': garde}
     resolus = []
     for r in man.get('requires') or []:
@@ -183,13 +203,36 @@ CODEGEN_NUM_CTX, CODEGEN_TEMPERATURE, CODEGEN_TIMEOUT = 32768, 0.2, 900
 
 
 def extract_code(text: str) -> str:
-    """Premier bloc ```python de la réponse ; à défaut, le texte brut (modèle discipliné)."""
-    m = re.search(r'```(?:python)?\s*\n(.*?)```', text, re.S)
-    return (m.group(1) if m else text).strip()
+    """Le bloc ```python de la réponse, de sa clôture OUVRANTE à la DERNIÈRE clôture ; à
+    défaut, le texte brut (modèle discipliné).
+
+    ⚠ Jusqu'au 2026-10-01 le bloc s'arrêtait à la PREMIÈRE clôture rencontrée : une glu qui
+    encadre du Markdown dans une chaîne (```` ``` ```` dans son prompt — le process de mise en
+    forme de l'Editor) était coupée en plein code, et le contrôle signalait une « f-string non
+    terminée » que le modèle n'avait pas écrite."""
+    opening = re.search(r'```(?:python|py)?[ \t]*\n', text)
+    closing = text.rfind('```')
+    if opening and closing > opening.end():
+        return text[opening.end():closing].strip()
+    return text.strip()
 
 
-def controles(code: str, nom_impose: str, app_id: str = None) -> dict:
-    """Contrôles mécaniques du bloc généré — le LLM propose, la chaîne juge."""
+def _returned_field_keys(fn_node) -> set:
+    """Clés littérales des dicts `'fields': {…}` construits dans la fonction (retours compris)."""
+    keys = set()
+    for n in ast.walk(fn_node):
+        if not isinstance(n, ast.Dict):
+            continue
+        for k, v in zip(n.keys, n.values):
+            if isinstance(k, ast.Constant) and k.value == 'fields' and isinstance(v, ast.Dict):
+                keys |= {kk.value for kk in v.keys if isinstance(kk, ast.Constant)}
+    return keys
+
+
+def controles(code: str, nom_impose: str, app_id: str = None, writes=None) -> dict:
+    """Contrôles mécaniques du bloc généré — le LLM propose, la chaîne juge. `writes` = les
+    écritures DÉCLARÉES du process (facette `pipelines`) : une clé de `fields` hors de cette
+    liste est signalée."""
     out = {'compile_ok': False, 'signature_ok': False, 'warnings': []}
     try:
         arbre = ast.parse(code)
@@ -224,6 +267,22 @@ def controles(code: str, nom_impose: str, app_id: str = None) -> dict:
         out['signature_ok'] = args[:2] == ['item', 'ctx']
         if not out['signature_ok']:
             out['warnings'].append(f'signature {args} ≠ (item, ctx)')
+        if writes is not None:
+            hors = sorted(_returned_field_keys(cible) - set(writes))
+            if hors:
+                out['warnings'].append(f'fields hors des écritures déclarées {list(writes)} : {hors}')
+    # Arguments DEVINÉS d'une brique commune (2026-10-01 : `max_tokens`, `max_new_tokens` passés
+    # à la brique LLM — `TypeError` au premier lancement, invisible sans ce contrôle).
+    signatures = signatures_briques()
+    for n in ast.walk(arbre):
+        if isinstance(n, ast.Call):
+            nom = getattr(n.func, 'id', None) or getattr(n.func, 'attr', None)
+            if nom in signatures:
+                inconnus = sorted(k.arg for k in n.keywords
+                                  if k.arg and k.arg not in signatures[nom])
+                if inconnus:
+                    out['warnings'].append(f'argument(s) inconnu(s) de la brique {nom} : '
+                                           f'{inconnus} (acceptés : {sorted(signatures[nom])})')
     autres = [n for n in arbre.body
               if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Import,
                                     ast.ImportFrom))]
@@ -263,6 +322,9 @@ def main():
                          "manifests/app_drafts/editor.json) — remplace l'extraction live.")
     ap.add_argument('--task', default=None,
                     help='Fonction de tâche lifecycle (défaut : la seule déclarée).')
+    ap.add_argument('--process', default=None,
+                    help="Process DÉCLARÉ à écrire (facette `pipelines` du manifeste) : la glu "
+                         "visée devient `_process_<id>`, sa déclaration est mise en avant.")
     add_llm_arguments(ap, role='codegen')
     ap.add_argument('--truth', default=None,
                     help="Vérité terrain jointe à la revue : 'module.dotted:fonction'.")
@@ -275,6 +337,21 @@ def main():
     if not task:
         raise SystemExit(f"--task requis (lifecycle déclarées : {lifecycle})")
     nom_impose = f'_process_{task}'
+    # Process DÉCLARÉS (facette `pipelines`, §10.6 3.5) : une glu PAR process, jamais la tâche
+    # entière — l'enchaînement est généré (brique commune `run_process_steps`).
+    from wama.common.manifests.builtin.app import pipeline_process_order
+    pipelines = [p for p in ((man.get('body') or {}).get('pipelines') or []) if isinstance(p, dict)]
+    declares = pipeline_process_order(pipelines[0])[0] if pipelines else []
+    process_decl = None
+    if declares:
+        par_id = {n['id']: n for n in declares}
+        if args.process not in par_id:
+            raise SystemExit(f"--process requis : l'app DÉCLARE ses process "
+                             f"({', '.join(par_id)}) — une glu par process.")
+        process_decl = par_id[args.process]
+        nom_impose = f'_process_{args.process}'
+    elif args.process:
+        raise SystemExit("--process sans facette `pipelines` dans le manifeste")
 
     # Fichier mince du gabarit A2b : montre au modèle le wrapper et le trou EXACTS.
     from wama.common.manifests.codegen.tasks_gen import render_tasks
@@ -312,6 +389,11 @@ def main():
         f'Propriétés lisibles en plus : {", ".join(props) or "(aucune)"} — tout autre '
         f'attribut d\'item est INTERDIT.\n\n'
         f'FICHIER MINCE généré (le wrapper appelle ta glu) :\n{mince}\n\n'
+        + (f'PROCESS À ÉCRIRE — sa DÉCLARATION fait foi (ce qu\'il fait, ce qu\'il lit, les '
+           f'SEULES clés de `fields` qu\'il écrit) ; les autres process sont écrits à part, '
+           f'l\'enchaînement est généré :\n'
+           f'{json.dumps(process_decl, ensure_ascii=False, indent=1)}\n\n'
+           if process_decl else '') +
         f'Écris la fonction `{nom_impose}(item, ctx)` qui remplit ce trou '
         f'(bloc ```python seul).')[:MAX_MATTER_CHARS]
 
@@ -320,7 +402,8 @@ def main():
     reponse = call_llm(args.provider, model, PROMPT, user_msg, num_ctx=CODEGEN_NUM_CTX,
                        temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
     code = extract_code(reponse)
-    verif = controles(code, nom_impose, args.app)
+    verif = controles(code, nom_impose, args.app,
+                      writes=(process_decl or {}).get('writes') if process_decl else None)
 
     verite = None
     if args.truth:
@@ -331,12 +414,15 @@ def main():
     # `write_output` produit EXACTEMENT le même fichier qu'avant : le nom se compose
     # `{role}_{slug}_{horodatage}.json`, donc `codegen_{app}_{task}_{horodatage}.json` avec
     # ce slug, et l'enveloppe pose les mêmes `status`/`role` en tête. Vérifié avant bascule.
-    sortie = write_output('codegen', f'{args.app}_{task}', {
+    sortie = write_output('codegen', f'{args.app}_{args.process or task}', {
         'provider': args.provider,
         'model': model,
         'app': args.app, 'task': task, 'function': nom_impose,
+        'process': args.process,
         'checks': verif,
         'code': code,
+        # La réponse BRUTE (2026-10-01) : un code mal extrait ne se diagnostique qu'en la relisant.
+        'raw_response': reponse,
         'truth': verite,
         'matter_chars': len(user_msg),
     })

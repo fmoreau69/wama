@@ -405,7 +405,9 @@ def llm_chat(
 
 
 def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
-                            **llm_kwargs) -> tuple[Optional[str], Optional[str]]:
+                            num_predict: Optional[int] = 4096, think: bool = False,
+                            timeout: float = 300.0, temperature: Optional[float] = None,
+                            ) -> tuple[Optional[str], Optional[str]]:
     """
     Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
     `albert:gpt-oss-120b`, `anthropic:claude-opus-5`, ou `auto`) — `(texte, None)` ou
@@ -425,8 +427,14 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
         l'UTILISATEUR, par la garde commune `cloud_access` (profil « 100 % local », modèle ouvert
         par sa clé, clé posée) — jamais la clé d'instance pour un utilisateur connecté ;
       - l'abonnement Claude Code (`claude_code:*`) n'est pas un appel LiteLLM : refusé ici.
-    `llm_kwargs` passe tel quel à `llm_chat` (`num_predict`, `think`, `timeout`…).
+    `num_predict` (jetons max, `None` = sans plafond — utile à un modèle qui raisonne), `think`,
+    `timeout`, `temperature` : ceux de `llm_chat`.
+    ⚠ Signature EXPLICITE, pas de `**kwargs` qui relaie (2026-10-01) : un relais cache la vraie
+    signature au modèle QUI ÉCRIT l'appel et au contrôle qui le juge — le rôle `codegen` avait
+    passé `max_tokens` et `max_new_tokens`, `TypeError` assuré au premier lancement.
     """
+    llm_kwargs = {'num_predict': num_predict, 'think': think, 'timeout': timeout,
+                  'temperature': temperature}
     key = (catalog_key or '').strip()
     if not key or key == 'auto':
         return llm_chat(messages, model=None, provider='ollama', **llm_kwargs)
