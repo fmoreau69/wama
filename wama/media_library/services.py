@@ -6,7 +6,8 @@ fois** et seulement dans 2 apps sur 10 :
   • `composer/views.py` (`export_to_library`) et sa jumelle `composer_01` — route RETIRÉE le
     2026-09-18 (`REMOVAL_LEDGER R65`) : elle déléguait ici depuis le 12/09, son seul savoir
     (musique ou bruitage) est désormais DÉCLARÉ par l'app (`result_role`) ;
-  • `synthesizer/views.py:897` (création d'asset `voice` en ligne, encore autrement).
+  • le synthesizer (création d'asset `voice` en ligne, encore autrement) — il appelle
+    `add_file_to_library` depuis le 2026-09-30.
 C'est exactement la duplication que la règle `common/` vise — et la conséquence est pire qu'une
 redite : **huit apps n'ont pas le geste du tout**.
 
@@ -83,6 +84,53 @@ class LibraryAddRefused(ValueError):
         self.status = status
 
 
+#: Comment on atteint chaque PIVOT déclaré par une nature (`natures.Nature.pivot`). Un pivot sans
+#: convertisseur ici ne peut pas porter de `to_pivot` : `_converted_to_pivot` le refuserait.
+def _audio_to_wav(src: str, dst: str) -> None:
+    from wama.common.utils.audio_decode import transcode_to_wav
+    transcode_to_wav(src, dst, target_sr=None)     # fréquence d'origine, mono PCM 16 bits
+
+
+PIVOT_CONVERTERS = {'wav': _audio_to_wav}
+
+
+def _converted_to_pivot(uploaded, source, filename: str, pivot: str):
+    """Le fichier reçu, réécrit dans le `pivot` de sa nature — rendu comme un fichier TÉLÉVERSÉ
+    (`ContentFile` nommé `<stem>.<pivot>`), que `add_file_to_library` enregistre comme les autres.
+    Lève `LibraryAddRefused` si le pivot n'a pas de convertisseur ou si la conversion échoue."""
+    import os
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    from django.core.files.base import ContentFile
+
+    convert = PIVOT_CONVERTERS.get(pivot)
+    if convert is None:
+        raise LibraryAddRefused(f"Aucun convertisseur vers .{pivot} : format non admis.")
+    stem = Path(filename).stem
+    with tempfile.TemporaryDirectory(prefix='wama_pivot_') as tmp:
+        src = os.path.join(tmp, 'in' + Path(filename).suffix.lower())
+        if uploaded is not None:
+            with open(src, 'wb') as out:
+                for chunk in uploaded.chunks():
+                    out.write(chunk)
+        else:
+            shutil.copyfile(str(source), src)
+        dst = os.path.join(tmp, f'out.{pivot}')
+        try:
+            convert(src, dst)
+            with open(dst, 'rb') as fh:
+                data = fh.read()
+        except Exception as exc:
+            logger.warning("[media_library] conversion vers %s échouée (%s) : %s", pivot, filename, exc)
+            raise LibraryAddRefused(f"Le fichier n'a pas pu être converti en .{pivot} "
+                                    f"(fichier illisible ou vide ?).")
+    if not data:
+        raise LibraryAddRefused(f"La conversion en .{pivot} n'a rien produit (fichier vide ?).")
+    return ContentFile(data, name=f'{stem}.{pivot}')
+
+
 def add_file_to_library(user, asset_type: str, *, uploaded=None, source=None, name: str = '',
                         description: str = '', tags: str = ''):
     """Ajoute UN fichier à la médiathèque de `user`, comme asset de la nature `asset_type`.
@@ -101,6 +149,7 @@ def add_file_to_library(user, asset_type: str, *, uploaded=None, source=None, na
     from pathlib import Path
 
     from .models import ALLOWED_EXTENSIONS, ASSET_TYPES, UserAsset
+    from .natures import ASSET_NATURES
 
     if asset_type not in dict(ASSET_TYPES):
         raise LibraryAddRefused(f"Type d'asset invalide : « {asset_type} ». "
@@ -108,12 +157,21 @@ def add_file_to_library(user, asset_type: str, *, uploaded=None, source=None, na
     filename = uploaded.name if uploaded is not None else Path(str(source)).name
     ext = Path(filename).suffix.lstrip('.').lower()
     allowed = ALLOWED_EXTENSIONS.get(asset_type, [])
-    if ext not in allowed:
+    nature = ASSET_NATURES[asset_type]
+    if ext not in allowed and ext not in nature.to_pivot:
+        admis = list(allowed) + [e for e in nature.to_pivot if e not in allowed]
         raise LibraryAddRefused(f"Extension .{ext} non admise pour « {asset_type} ». "
-                                f"Formats : {', '.join(allowed)}")
+                                f"Formats : {', '.join(admis)}")
     asset_name = (name or '').strip() or Path(filename).stem
     if UserAsset.objects.filter(user=user, name=asset_name, asset_type=asset_type).exists():
         raise LibraryAddRefused(f'Un asset « {asset_name} » de ce type existe déjà.', status=409)
+
+    if ext not in allowed:
+        # Admis À CONDITION d'être converti vers le pivot de la nature (`to_pivot`) : le fichier
+        # RANGÉ est toujours dans un format stocké. L'original n'est ni déplacé ni gardé — il
+        # n'était qu'un transport (un enregistrement de navigateur, un fichier de dictaphone).
+        uploaded, source = _converted_to_pivot(uploaded, source, filename, nature.pivot), None
+        filename = uploaded.name
 
     if uploaded is not None:
         asset = UserAsset.objects.create(user=user, name=asset_name, asset_type=asset_type,

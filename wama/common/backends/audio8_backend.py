@@ -14,7 +14,7 @@ c'est précisément ce qui met Audio8 en tête de la liste des « CONNUS » (han
 
 ⚠ CLONAGE NON PROMIS (supports_cloning=False, délibéré) : l'API zero-shot d'Audio8
 exige le TRANSCRIT EXACT de l'audio de référence (`reference_text`) — une donnée que
-le flux de voix WAMA (ua_/cv_, un WAV sans texte) ne porte pas. Promettre le clonage
+le flux de voix WAMA (`ua_`, un WAV sans texte) ne porte pas. Promettre le clonage
 ferait passer une voix ignorée pour un choix honoré ; le jour où la médiathèque
 portera le transcript, le flag et `reference_*` s'activent ensemble.
 """

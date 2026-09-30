@@ -9,7 +9,7 @@ Deux consommateurs, donc extraction légitime (règle du SECOND consommateur). L
 dans `constants.py` — ce module ne porte que la LECTURE dérivée, pas les données.
 
 ⚠ NE PAS CONFONDRE avec `common/utils/voice_options.py` : celui-là sert le SYNTHESIZER (voix de
-référence, clonage `ua_`/`cv_`, presets Bark — un vocabulaire multi-moteurs). Ici c'est le
+référence, clonage `ua_`, presets Bark — un vocabulaire multi-moteurs). Ici c'est le
 vocabulaire PROPRE à Kokoro (`ff_siwis`, `am_adam`…), qui est celui de l'assistant. Les deux
 coexistent parce que ce sont deux registres de moteurs différents, pas une duplication.
 

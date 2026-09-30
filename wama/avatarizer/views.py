@@ -21,7 +21,6 @@ from django.utils.http import content_disposition_header
 import json
 from .models import AvatarJob, BatchAvatarJob, BatchAvatarJobItem
 from .params import PARAMS_JSON as _AVATAR_PARAMS_JSON
-from wama.synthesizer.models import CustomVoice
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.accounts.permissions import app_access
 from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
@@ -95,8 +94,6 @@ class IndexView(View):
 
         from wama.common.utils.voice_options import voice_groups_json
 
-        custom_voices = CustomVoice.objects.filter(user=user)
-
         # Tri / filtre de la file (brique COMMUNE) — porte sur la liste de LOTS, qui est
         # l'unité affichée par la toolbar partagée.
         batches_list = _get_batches_list(user)
@@ -123,7 +120,6 @@ class IndexView(View):
             # possédé de moteur TTS — il les empruntait déjà via une constante partagée.
             'tts_models': tts_engine_choices(),
             'languages': AvatarJob.LANGUAGE_CHOICES,
-            'custom_voices': custom_voices,
             'media_url': settings.MEDIA_URL,
             'params_json': json.dumps(_AVATAR_PARAMS_JSON),
             # Groupes de voix (brique commune, per-user) pour le select GÉNÉRÉ de la modale

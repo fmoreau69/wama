@@ -146,7 +146,7 @@ def check_voice_language_matching(app: str, url_path: str, ids: dict):
                 e = etat()
                 verdicts.append((all(not e[k]['disabled'] for k in libres), 'A2 retour fr réactive'))
                 # B. voix clonée → modèles (jamais « auto »)
-                clonees = [o['v'] for o in page.evaluate(_JS_OPTIONS, V) if o['v'].startswith(('ua_', 'cv_'))]
+                clonees = [o['v'] for o in page.evaluate(_JS_OPTIONS, V) if o['v'].startswith('ua_')]
                 verdicts.append((bool(clonees), f'B0 voix clonée offerte : {clonees[:1]}'))
                 if clonees:
                     set_(V, clonees[0])

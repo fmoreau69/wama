@@ -89,15 +89,18 @@ def transcode_to_wav(path, out_path, target_sr: int = 16000):
     Pour ce qui exige un FICHIER lisible partout (soundfile, un fournisseur distant qui
     n'accepte que wav/mp3) là où `decode_audio` rend un tableau en mémoire. 16 kHz mono est ce
     qu'un modèle de parole consomme de toute façon : rien de ce qu'il entend n'est perdu.
+    `target_sr=None` garde la fréquence D'ORIGINE — ce que veut un fichier RANGÉ (une voix de
+    clonage en médiathèque : le moteur qui la lira rééchantillonne à SON besoin, pas au nôtre).
 
     Raises:
         subprocess.CalledProcessError si ffmpeg échoue.
     """
     from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
     _ff = get_ffmpeg_exe()
+    rate = ['-ar', str(target_sr)] if target_sr else []
     subprocess.run(
         [_ff, '-nostdin', '-y', '-i', adapt_path_for_ffmpeg(str(path), _ff),
-         '-ac', '1', '-ar', str(target_sr), '-c:a', 'pcm_s16le',
+         '-ac', '1', *rate, '-c:a', 'pcm_s16le',
          adapt_path_for_ffmpeg(str(out_path), _ff)],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True,
     )

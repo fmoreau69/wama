@@ -54,6 +54,11 @@ class Nature:
     extensions: Tuple[str, ...]    # politique d'acceptation (sans point, minuscules)
     icon: str = 'fa-file'          # Font Awesome, page médiathèque
     pivot: str = ''                # format d'interéchange privilégié ('' = aucun)
+    #: Formats ADMIS À L'AJOUT à condition d'être CONVERTIS vers le `pivot` (2026-09-30). Le
+    #: fichier stocké reste toujours dans `extensions` : ce qui entre en webm (l'enregistrement
+    #: au micro d'un navigateur) est rangé en wav. Le `pivot` était déclaré depuis A′ sans aucun
+    #: consommateur ; sans lui, « Enregistrer ma voix » était refusé depuis février.
+    to_pivot: Tuple[str, ...] = ()
     attributes: Dict[str, Attr] = field(default_factory=dict)
     #: Lien INTER-MONDES facultatif : le `DataType` (monde Data) qu'un port studio attendrait
     #: pour cette nature. Déclaré, jamais deviné (`ROADMAP §17ter`, trou 3).
@@ -83,11 +88,15 @@ _GENDER_LABELS: Dict[str, str] = {'male': 'Homme', 'female': 'Femme'}
 #: l'extension — et la conversion universelle du converter rend tout format joignable.
 AUDIO_EXTENSIONS = ('wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'aiff')
 
+#: Ce qu'une nature PARLÉE (voix, parole) admet en le convertissant vers son pivot `wav` :
+#: l'enregistrement d'un navigateur (`MediaRecorder` → webm/opus) et les formats de dictaphone.
+SPEECH_TO_PIVOT = ('webm', 'weba', 'opus', 'mka', 'wma', 'amr')
+
 #: LE vocabulaire. L'ordre est celui des onglets de la médiathèque (et de `ASSET_TYPES`).
 ASSET_NATURES: Dict[str, Nature] = {
     'voice': Nature(
         label='Voix', category='audio', icon='fa-microphone', pivot='wav',
-        extensions=AUDIO_EXTENSIONS,
+        extensions=AUDIO_EXTENSIONS, to_pivot=SPEECH_TO_PIVOT,
         attributes={
             'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…)",
                              label='Langue', labels=_LANGUAGE_LABELS),
@@ -105,7 +114,7 @@ ASSET_NATURES: Dict[str, Nature] = {
     # là remonterait dans ses menus de voix (`voice_reference_groups` interroge `voice`).
     'speech': Nature(
         label='Parole enregistrée', category='audio', icon='fa-comments', pivot='wav',
-        extensions=AUDIO_EXTENSIONS,
+        extensions=AUDIO_EXTENSIONS, to_pivot=SPEECH_TO_PIVOT,
         attributes={
             'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…) — la plus "
                                     "parlée si l'enregistrement en mêle plusieurs",
@@ -185,6 +194,9 @@ ASSET_NATURES: Dict[str, Nature] = {
 for _k, _n in ASSET_NATURES.items():
     if _n.category not in MEDIA_CATEGORIES:
         raise ValueError(f"nature {_k!r} : catégorie {_n.category!r} hors de MEDIA_CATEGORIES")
+    if _n.to_pivot and _n.pivot not in _n.extensions:
+        # Convertir « vers le pivot » n'a de sens que si le pivot est lui-même un format stocké.
+        raise ValueError(f"nature {_k!r} : `to_pivot` déclaré sans pivot admis ({_n.pivot!r})")
 del _k, _n
 
 
@@ -247,8 +259,11 @@ def is_canonical_attribute(asset_type: str, key: str) -> bool:
 def natures_as_json() -> Dict[str, Dict[str, Any]]:
     """La déclaration entière, sérialisable pour la page médiathèque : icône, formats admis,
     libellé, catégorie, schéma. Le JS n'a plus AUCUNE table à recopier."""
+    # `extensions` = ce que le geste d'AJOUT admet : les formats stockés tels quels, puis ceux
+    # que le service convertit vers le pivot (`to_pivot`). Le JS n'a pas à connaître la nuance.
     return {k: {'label': n.label, 'category': n.category, 'icon': n.icon, 'pivot': n.pivot,
-                'extensions': list(n.extensions), 'attributes': attribute_schema(k)}
+                'extensions': list(n.extensions) + [e for e in n.to_pivot if e not in n.extensions],
+                'attributes': attribute_schema(k)}
             for k, n in ASSET_NATURES.items()}
 
 

@@ -69,11 +69,66 @@ class LesDeuxModelesLibellentParLaBriqueTest(TestCase):
 
 
 class PredicatDeClonageServeurTest(TestCase):
-    def test_ua_et_cv_sont_des_clonages_sa_et_les_plats_non(self):
+    def test_ua_is_a_cloning_sa_and_flat_presets_are_not(self):
         self.assertTrue(voice_refs.is_cloned_voice('ua_3'))
-        self.assertTrue(voice_refs.is_cloned_voice('cv_1'))
-        for v in ('sa_12', 'default', 'female_1', 'bark_v2_fr_0', '', None):
+        # `cv_` (ancien modèle `CustomVoice`) est RETIRÉ le 2026-09-30 : plus un clonage.
+        for v in ('cv_1', 'sa_12', 'default', 'female_1', 'bark_v2_fr_0', '', None):
             self.assertFalse(voice_refs.is_cloned_voice(v), v)
+
+
+class AChosenVoiceThatCannotBeUsedIsAnErrorTest(TestCase):
+    """Une voix DÉSIGNÉE qu'on ne peut plus employer lève `VoiceUnavailable` (2026-09-30).
+
+    Avant, `resolve_speaker_wav` repliait EN SILENCE sur la voix `default` : retirer le partage
+    d'une voix — ou la supprimer — faisait synthétiser une AUTRE voix chez le destinataire, sans
+    un mot. C'est ce qui rend effectif le retrait d'un partage (et d'un consentement)."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from wama.media_library.models import UserAsset
+        users = get_user_model().objects
+        self.owner = users.create_user('voice_owner', password='x')
+        self.other = users.create_user('voice_other', password='x')
+        self.asset = UserAsset.objects.create(
+            user=self.owner, name='My voice', asset_type='voice',
+            file=SimpleUploadedFile('my_voice.wav', b'RIFF0000WAVE'))
+
+    def test_the_owner_resolves_their_voice(self):
+        self.assertEqual(voice_refs.resolve_speaker_wav(f'ua_{self.asset.pk}', self.owner),
+                         self.asset.file.path)
+
+    def test_a_voice_not_shared_with_the_user_is_refused_not_replaced(self):
+        with self.assertRaises(voice_refs.VoiceUnavailable):
+            voice_refs.resolve_speaker_wav(f'ua_{self.asset.pk}', self.other)
+
+    def test_a_public_voice_resolves_and_is_named_for_its_recipient(self):
+        self.asset.visibility = 'public'
+        self.asset.save(update_fields=['visibility'])
+        self.assertEqual(voice_refs.resolve_speaker_wav(f'ua_{self.asset.pk}', self.other),
+                         self.asset.file.path)
+        self.assertEqual(voice_refs.describe_voice(f'ua_{self.asset.pk}', self.other), 'My voice')
+
+    def test_withdrawing_the_share_makes_the_voice_unavailable_again(self):
+        self.asset.visibility = 'public'
+        self.asset.save(update_fields=['visibility'])
+        self.asset.visibility = 'private'
+        self.asset.save(update_fields=['visibility'])
+        with self.assertRaises(voice_refs.VoiceUnavailable):
+            voice_refs.resolve_speaker_wav(f'ua_{self.asset.pk}', self.other)
+
+    def test_a_deleted_voice_is_refused(self):
+        pk = self.asset.pk
+        self.asset.delete()
+        with self.assertRaises(voice_refs.VoiceUnavailable):
+            voice_refs.resolve_speaker_wav(f'ua_{pk}', self.owner)
+
+    def test_a_missing_reference_voice_is_refused(self):
+        with self.assertRaises(voice_refs.VoiceUnavailable):
+            voice_refs.resolve_speaker_wav('sa_999999', self.owner)
+
+    def test_the_error_is_a_value_error_so_workers_and_preview_report_it(self):
+        self.assertTrue(issubclass(voice_refs.VoiceUnavailable, ValueError))
 
 
 class AutoriteDuMoteurTest(TestCase):
@@ -289,8 +344,10 @@ class LaMediathequePorteLesVoixTest(TestCase):
         defaut = self.voix['default'].file.path
         self.assertEqual(voice_refs.resolve_speaker_wav(''), defaut)
         self.assertEqual(voice_refs.resolve_speaker_wav('inconnu_total'), defaut)
-        self.assertEqual(voice_refs.resolve_speaker_wav('sa_999999'), defaut)
-        self.assertEqual(voice_refs.resolve_speaker_wav('ua_999999'), defaut)
+        # Une voix DÉSIGNÉE introuvable n'est plus remplacée en silence (2026-09-30).
+        for chosen in ('sa_999999', 'ua_999999'):
+            with self.assertRaises(voice_refs.VoiceUnavailable, msg=chosen):
+                voice_refs.resolve_speaker_wav(chosen)
         self.assertIsNone(voice_refs.resolve_speaker_wav('bark_v2_en_0'))
 
     def test_the_default_voice_follows_the_chosen_language(self):
@@ -343,7 +400,8 @@ class LaMediathequePorteLesVoixTest(TestCase):
         v = self.voix['german/adult/female_adult_1_de']
         v.is_active = False
         v.save()
-        self.assertEqual(voice_refs.resolve_speaker_wav(f'sa_{v.pk}'), self.voix['default'].file.path)
+        with self.assertRaises(voice_refs.VoiceUnavailable):
+            voice_refs.resolve_speaker_wav(f'sa_{v.pk}')
         self.assertNotIn('Deutsch — Adulte', [x['group'] for x in voice_refs.voice_reference_groups()])
 
     def test_describe_voice_dans_toutes_ses_formes(self):
@@ -440,14 +498,14 @@ class SharedVoiceAccessTest(TestCase):
 
         self.assertEqual(voice.file.path,
                          voice_refs.resolve_speaker_wav(f'ua_{voice.pk}', user=self.other),
-                         "proposer une voix que la résolution refuse replierait sur `default` "
-                         "SANS message — la synthèse sortirait avec la mauvaise voix")
+                         "proposer une voix que la résolution refuse ferait échouer la synthèse "
+                         "d'une voix pourtant OFFERTE (avant le 30/09 : la mauvaise voix, sans message)")
 
     def test_a_private_voice_of_someone_else_is_neither_offered_nor_resolved(self):
         voice = self._voice(self.owner, 'private_voice', 'private')
         self.assertNotIn('Voix partagées', self._group_labels(self.other))
-        self.assertEqual(self.default_voice.file.path,
-                         voice_refs.resolve_speaker_wav(f'ua_{voice.pk}', user=self.other))
+        with self.assertRaises(voice_refs.VoiceUnavailable):
+            voice_refs.resolve_speaker_wav(f'ua_{voice.pk}', user=self.other)
 
     def test_my_own_voices_stay_in_their_own_group(self):
         mine = self._voice(self.other, 'my_own_voice', 'private')
@@ -462,8 +520,8 @@ class SharedVoiceAccessTest(TestCase):
         voice = self._voice(self.owner, 'public_voice', 'public')
         anonymous = get_or_create_anonymous_user()
         self.assertNotIn('Voix partagées', self._group_labels(anonymous))
-        self.assertEqual(self.default_voice.file.path,
-                         voice_refs.resolve_speaker_wav(f'ua_{voice.pk}', user=anonymous))
+        with self.assertRaises(voice_refs.VoiceUnavailable):
+            voice_refs.resolve_speaker_wav(f'ua_{voice.pk}', user=anonymous)
 
     def test_the_selector_and_the_resolution_share_one_reader(self):
         """La garde de non-retour : si l'un des deux se remet à filtrer par propriétaire, il

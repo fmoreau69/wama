@@ -20,7 +20,7 @@ Source COMMUNE des options de voix (TTS) — centralise ce qui était rendu en o
                                   n'apparaît pas s'il est vide
   4. Bark (presets)             → constantes BARK_PRESETS
 
-Le FILTRAGE par modèle (cacher le clonage ua_/cv_ si supports_cloning=false, restreindre les langues)
+Le FILTRAGE par modèle (cacher le clonage `ua_` si supports_cloning=false, restreindre les langues)
 est déjà centralisé côté client par WamaModelCaps (lit AIModel.capabilities) — pas dupliqué ici.
 
 Consommé : par les vues (passage JSON au template) et par l'endpoint commun de voix → WamaParams
@@ -123,24 +123,13 @@ def voice_groups_json(user) -> str:
 def voice_display_options(user) -> list[tuple[str, str]]:
     """[(valeur, libellé)] de TOUT ce qu'une donnée de voix peut porter — pour AFFICHER.
 
-    Distinct de `get_voice_groups` (l'inventaire PROPOSÉ au select) et plus large que lui :
-    les valeurs héritées `cv_<id>` (ancien modèle `CustomVoice`, remplacé par les UserAsset
-    `ua_<id>`) ne sont plus offertes pour un nouveau travail, mais des lignes RÉELLES les
-    portent encore — et une card doit dire « Voix Fab », pas `cv_1` (constat Fabien,
-    card 65, 2026-09-01). Même partage que R43 : *on cesse de proposer une option morte,
-    on ne rend pas illisible la donnée qui la porte.*
-
-    Import du modèle synthesizer PARESSEUX et tolérant — même précédent que
-    `voice_reference_groups` plus haut : ce module centralise la connaissance des voix, il est
-    le seul du substrat autorisé à la chercher là où elle vit.
+    Distinct de `get_voice_groups` (l'inventaire PROPOSÉ au select) : ce sont les mêmes valeurs
+    aplaties. Il ajoutait les valeurs héritées `cv_<id>` (ancien modèle `CustomVoice`) pour
+    qu'une card dise « Voix Fab » et pas `cv_1` (constat Fabien, card 65, 2026-09-01) ; le
+    préfixe est RETIRÉ le 2026-09-30, sa seule ligne convertie en `ua_` (migration
+    synthesizer 0028) — la card le lit donc désormais par son groupe « Mes voix ».
     """
     plates: list[tuple[str, str]] = []
     for g in get_voice_groups(user):
         plates += [(str(v), l) for v, l in (g.get("options") or [])]
-    try:
-        from wama.synthesizer.models import CustomVoice
-        plates += [(f"cv_{c.pk}", c.name)
-                   for c in CustomVoice.objects.filter(user=user)]
-    except Exception:
-        pass
     return plates
