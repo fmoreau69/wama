@@ -316,6 +316,50 @@ def reanchor_ghosts(ghost_links, smoothed, shuttle_at, *, use_smoothed=True, ego
     return jumps, removed
 
 
+#: Champs qu'ÉCRIT le tracking 360° sur une détection RÉELLE. Un calcul les réécrit tous : ce
+#: qu'il ne réécrit pas ne doit pas lui survivre (`reset_tracker_fields`).
+TRACKER_FIELDS = ('global_track_id', 'world_en', 'stable_class', 'stable_class_margin',
+                  'artifact', 'placement_source')
+
+
+def reset_tracker_fields(detections, removed=None) -> int:
+    """Retire des détections réelles les champs d'un calcul PRÉCÉDENT du tracking 360° ; rend le
+    nombre de détections touchées. Les fantômes (`predicted`) ont leur propre purge.
+
+    Mesuré le 2026-09-30 (session 4da52df3) : le tracker n'écrivait ces champs que là où il avait
+    une valeur, sans jamais effacer l'ancienne. 293 153 détections de STATIONNÉS (99,8 %) gardaient
+    un `world_en` d'un calcul antérieur — le lissage exclut les stationnés —, à 6 m en médiane de
+    leur ancre fraîche (p90 27 m, max 838 m : un autre objet, les gids ayant été renumérotés), et
+    17 737 détections marquées artefact portaient un `global_track_id` alors que le tracker les
+    exclut de l'association : les Indicateurs, qui regroupent par gid, les fondaient dans le track
+    de l'objet qui porte aujourd'hui ce numéro."""
+    n = 0
+    for d in detections or []:
+        if d.get('predicted'):
+            continue
+        keys = [k for k in TRACKER_FIELDS if k in d]
+        for k in keys:
+            del d[k]
+        if keys:
+            n += 1
+            if removed is not None:      # pour mesurer, en fin de calcul, ce qui n'est PAS réécrit
+                removed.append((d, frozenset(keys)))
+    return n
+
+
+def stale_fields_report(removed) -> dict:
+    """Ce que la purge a réellement retiré de PÉRIMÉ : les détections qui portaient un gid ou une
+    position monde et que le calcul courant ne réécrit pas. Le nombre de détections purgées, lui,
+    compte aussi celles réécrites à l'identique — il ne dit rien du périmé."""
+    out = {'detections_reset': len(removed), 'dropped_gid': 0, 'dropped_world_en': 0}
+    for d, keys in removed:
+        if 'global_track_id' in keys and 'global_track_id' not in d:
+            out['dropped_gid'] += 1
+        if 'world_en' in keys and 'world_en' not in d:
+            out['dropped_world_en'] += 1
+    return out
+
+
 def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                            frame_range=None, spread_max_m=6.0, path_ratio_max=None):
     """
@@ -404,6 +448,14 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     by_gid = {}   # gid -> track : accès direct pour le verrou de chaîne
     next_id = 1
     dirty = set()
+    # Un calcul part de ZÉRO : sans cette purge, tout ce qu'il ne réécrit pas (stationnés non
+    # lissés, artefacts exclus, détections qui ne s'associent plus) gardait l'état d'un calcul
+    # antérieur — autre pose navette, autres numéros de track.
+    _reset = []
+    for (_iw, _ih, frames) in per_cam.values():
+        for f in frames.values():
+            if reset_tracker_fields(f.detections, _reset):
+                dirty.add(f)
 
     for fn in all_fns:
         t = fn / fps * scale + off
@@ -1012,6 +1064,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             if w:
                 d['world_en'] = [round(w[0], 2), round(w[1], 2)]
 
+    stale_reset = stale_fields_report(_reset)
+    logger.info('[tracking 360°] état du calcul précédent : %s', stale_reset)
+
     # Par lots, et ATOMIQUE : un `save()` par frame (~300 000) prenait ~3 min, et un worker
     # arrêté au milieu laissait la base mi-ancienne mi-nouvelle (2026-09-29, arrêt de 21:18).
     DF.objects.bulk_update(list(dirty), ['detections'], batch_size=500)
@@ -1048,4 +1103,5 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'stitch_refused_by_family': _stitch_refused,
             'ghosts': len(ghost_links) - ghosts_in_footprint,
             'ghosts_in_footprint_removed': ghosts_in_footprint,
-            'ghost_boundary_jump_m': _quantiles(ghost_jumps, (0.5, 0.9, 0.99))}
+            'ghost_boundary_jump_m': _quantiles(ghost_jumps, (0.5, 0.9, 0.99)),
+            'stale_fields_reset': stale_reset}

@@ -2584,6 +2584,15 @@ def _run_global_tracking(session):
         # qui retient 1,8 % de ses candidats doit dire par quelle porte sortent les autres.
         rs['stationary_rejects'] = _gt.get('stationary_rejects') or {}
         rs['stationary_rule'] = _gt.get('stationary_rule')
+        # État d'un calcul PRÉCÉDENT (2026-09-30) : gids et positions monde que ce calcul ne
+        # réécrit pas, donc PÉRIMÉS — retirés au lieu de survivre. 0 attendu au 2ᵉ calcul d'affilée.
+        _st = _gt.get('stale_fields_reset') or {}
+        rs['stale_fields_reset'] = _st
+        if _st.get('dropped_gid') or _st.get('dropped_world_en'):
+            _console(session.user_id,
+                     f"Tracking 360° : état périmé d'un calcul précédent retiré — "
+                     f"{_st.get('dropped_gid', 0)} identifiants de track, "
+                     f"{_st.get('dropped_world_en', 0)} positions monde.")
         # Métrique A/B objective de cohérence de placement (étalement monde des
         # stationnés autour de leur barycentre — 0 = idéal). Persistée pour trancher
         # la bascule ⚑ auto_ground_calib ON/OFF sur un CHIFFRE, pas « à l'œil ».
