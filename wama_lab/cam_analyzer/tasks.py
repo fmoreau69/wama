@@ -2516,6 +2516,10 @@ def _run_global_tracking(session):
     from .utils.pass_tracking import mark_started, mark_completed, mark_failed
     try:
         mark_started(session, 'global_tracking', session.profile)
+        # Bascules de CALCUL vues par CE calcul (lues au départ) : les Indicateurs réutilisent le
+        # tracking tant qu'elles n'ont pas changé (`pass_tracking.tracking_is_current`).
+        from .utils.features import compute_snapshot as _compute_snapshot
+        _features_seen = _compute_snapshot(session)
         # ⚑ auto_ground_calib (étape 2a) : si la bascule est ON et la calib absente,
         # l'estimer AVANT le tracking (depuis distance_m + stationnés d'un run précédent)
         # pour que le tracker place les objets par projection sol dès ce run.
@@ -2629,7 +2633,7 @@ def _run_global_tracking(session):
         session.results_summary = rs
         session.save(update_fields=['results_summary'])
         mark_completed(session, 'global_tracking', output_summary={
-            'tracks': _gt['tracks'], 'stationary': len(stat)})
+            'tracks': _gt['tracks'], 'stationary': len(stat), 'features': _features_seen})
         _console(session.user_id,
                  f"Tracking multi-caméra : {_gt['tracks']} tracks globaux (hand-off), "
                  f"{len(stat)} véhicules stationnés détectés.")
@@ -2857,9 +2861,20 @@ def compute_indicators_task(self, session_id: str):
         session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
         mark_started(session, 'indicators', session.profile)
         _console(session.user_id, "Indicateurs (CALCUL, CPU) : tracks 360° + TTC/PET par trajectoire…")
-        # 1) Tracks globaux multi-caméra (rapide) → continuité 360° + hand-off.
-        _gt = _run_global_tracking(session)
-        ng = _gt.get('tracks', 0)
+        # 1) Tracks globaux multi-caméra → continuité 360° + hand-off. RÉUTILISÉS s'ils sont à
+        #    jour (2026-09-30) : les refaire à chaque fois jouait deux fois le même calcul de ~4 min
+        #    quand on lançait « Tracking 360° » puis « Indicateurs ».
+        from .utils.features import compute_snapshot
+        from .utils.pass_tracking import recompute_stale, tracking_is_current
+        recompute_stale(session)
+        _current, _why, _gts = tracking_is_current(session, compute_snapshot(session))
+        if _current:
+            ng = _gts.get('tracks', 0)
+            _console(session.user_id, f"Indicateurs : tracks 360° à jour ({ng}), réutilisés.")
+        else:
+            _console(session.user_id, f"Indicateurs : tracks 360° à recalculer — {_why}.")
+            _gt = _run_global_tracking(session)
+            ng = _gt.get('tracks', 0)
         # 2) Prédiction TTC/PET par trajectoire.
         # ⚠ Depuis le 2026-09-11 la prédiction rend un DICT (elle rendait un entier) : son
         # A/B doit être CHIFFRÉ pour que ⚑ `prediction_kalman` se compare autrement qu'à

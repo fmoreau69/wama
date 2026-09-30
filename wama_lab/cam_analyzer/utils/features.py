@@ -261,6 +261,13 @@ def effective(session):
     return resolve(FEATURES, getattr(session, 'config', None))
 
 
+def compute_snapshot(session):
+    """Bascules de CALCUL (`scope='compute'`) en vigueur : ce qu'un calcul stocké a vu. Une bascule
+    d'affichage (`live`) n'invalide aucun calcul, elle n'y figure donc pas."""
+    eff = effective(session)
+    return {f.key: eff[f.key] for f in FEATURES if f.scope == 'compute'}
+
+
 def catalog(session):
     return _describe(FEATURES, getattr(session, 'config', None))
 
