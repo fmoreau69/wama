@@ -739,6 +739,25 @@ DEUX réunions valides (`007a_ECRH` 20 min, `012c_EBPZ` 19 min) :
   locale (60 %), un locuteur 6 dB plus faible la plus basse (31 %). ⇒ Le chiffre mesure l'écart
   entre une transcription VERBATIM de parole spontanée et ce que rendent les moteurs ; les 5 %
   annoncés pour ces modèles (`nemo_asr_backend.py:5`) sont mesurés sur de la parole LUE.
+- **Un modèle DISTANT dans les mêmes lots — Albert (DINUM) `whisper-large-v3`, 2026-09-30** (cards
+  #1072-1074, `asr_eval_corpus --engines albert:whisper-large-v3`, même chaîne, même référence ;
+  1ᵉʳ moteur d'app distant, `ROADMAP §8d 4b`) — configuration identique à la ligne « Whisper »
+  (sans prétraitement ni nivellement, filtre de parole « auto ») :
+
+  | réunion | Whisper local | Albert | écart |
+  |---|---|---|---|
+  | 007a | 28,5 % | 32,6 % | +4,1 |
+  | 012c | 27,4 % | 31,3 % | +3,9 |
+  | 013c | 30,5 % | 30,9 % | +0,4 |
+  | **moyenne** | **28,8 %** | **31,6 %** | **+2,8** |
+
+  Le MÊME modèle rend donc environ 3 points de plus chez Albert : ce qui diffère est la CHAÎNE —
+  le Whisper local passe par notre filtre de parole et nos réglages de décodage, Albert par les
+  siens (inconnus). Albert fait MIEUX que le Whisper local SANS filtre (34,0 % · 95,5 % · 36,1 %) :
+  il se place entre les deux réglages locaux. En regard : **0 Go de VRAM locale** et 5 à 8 s pour
+  19-26 min d'audio (mesuré à l'appel direct). ⚠ Trois réunions : un ordre de grandeur, pas un
+  verdict — FLEURS-CS (parole lue, bascules de langue) reste à passer ; et, pour de vrais
+  entretiens, l'audio QUITTE la machine (verrou « sensibilité » de `ROADMAP §8d` ③, non tranché).
 - ⚠ **`008a_EARH` ÉCARTÉE** : la piste du locuteur 028 n'est « transcrite » que par des jetons
   (`sil`, `w_1 w_2 … w_14`, 1 768 jetons) alors que sa parole est dans l'audio — tous les moteurs
   y faisaient 66-69 %. `asr_eval_corpus` écarte désormais toute réunion dont une piste est masquée
