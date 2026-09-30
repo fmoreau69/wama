@@ -209,6 +209,16 @@ compris. Deux gestes sûrs : filtrer les hunks comme pour tout fichier co-édit�
 régénération à qui commitera le registre (cf. `/cloture §2b` : régénérer figerait le WIP non
 commité d'une autre instance).
 
+✅ **Troisième geste, quand c'est TON registre qui a bougé** (2026-09-30) : régénérer dans un
+**worktree de HEAD** (après le commit du registre) — il ne projette que du code COMMITÉ — puis
+poser ces fichiers dans un index temporaire (`git hash-object -w --path=<f> <worktree>/<f>` +
+`update-index --cacheinfo`) et commiter.
+🔴 **Et NE PAS « nettoyer » l'arbre ensuite par `git checkout -- <doc générée>`** : vécu le jour
+même, une autre instance avait régénéré ces fichiers entre la vérification et le geste, et le
+checkout a effacé sa régénération (projection pure, donc rattrapable par `doc_facts`, mais c'est
+une chance, pas une règle). Après le commit, `git reset -q HEAD -- <f>` réaligne l'INDEX et suffit ;
+l'arbre ne se touche pas — ce qui y reste modifié est à quelqu'un d'autre.
+
 ## 5. Avant de livrer le commit
 
 - `git diff --cached --stat` relu **à voix haute** : chaque fichier, chaque nombre de lignes, est
