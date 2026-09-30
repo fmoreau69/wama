@@ -259,3 +259,33 @@ class AddTimeVerdictTest(TestCase):
                                                          attributes={'face_rig': 'arkit'}))
         self.assertEqual(['mesh', 'talker'], visible_asset_names(self.user, 'object3d'),
                          'sans filtre, la nature entière (comportement inchangé)')
+
+
+class LibraryTabLabelTest(TestCase):
+    """La tuile Médiathèque d'un port dit l'onglet par le LIBELLÉ de la nature, jamais sa clé
+    (relevé au smoke du 2026-09-30 : « onglet : object3d »)."""
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        for key, inputs in (('photo', ['work_image', 'work_audio']),
+                            ('three_d', ['work_object3d', 'work_audio'])):
+            AIModel.objects.create(
+                model_key=f'avatarizer:{key}', name=key, model_type='lipsync', source='avatarizer',
+                is_available=True, is_downloaded=True,
+                capabilities={'task': 'lip-sync', 'inputs_required': inputs})
+
+    def test_each_port_names_its_library_tab_like_the_library_does(self):
+        from wama.common.templatetags.wama_actions import input_slots
+        from wama.media_library.natures import ASSET_NATURES
+        slots = {s['id']: s for s in input_slots('avatarizer')}
+        for port, nature in (('work_image', 'avatar'), ('work_object3d', 'object3d')):
+            with self.subTest(port=port):
+                self.assertEqual(nature, slots[port]['library_prefer'])
+                self.assertEqual(ASSET_NATURES[nature].label, slots[port]['library_prefer_label'])
+        self.assertEqual('Objet 3D', slots['work_object3d']['library_prefer_label'])
+
+    def test_a_port_without_a_declared_tab_has_no_label(self):
+        """Contre-épreuve : pas d'onglet déclaré, pas de libellé inventé."""
+        from wama.common.templatetags.wama_actions import input_slots
+        slots = {s['id']: s for s in input_slots('avatarizer')}
+        self.assertEqual('', slots['work_audio']['library_prefer_label'])

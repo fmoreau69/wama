@@ -293,6 +293,70 @@ class DiffusersEngineMustBeProvenTest(SimpleTestCase):
         self.assertIn('AUCUN backend', concerns[0])
 
 
+class InstallChannelFromRepoFactsTest(SimpleTestCase):
+    """`librarian --repo` : le canal d'installation se pose d'après les FAITS du dépôt.
+
+    Un dépôt sans fichier de paquet (MuseTalk, TripoSR) n'est pas installable par pip : il se
+    vendorise au commit MESURÉ (ROADMAP D-a). Un paquet reste sur pip, quoi qu'écrive le LLM.
+    Le manifeste produit doit passer le MÊME validateur que le corpus.
+    """
+
+    SHA = '0a89dec45a0192b824e3cf4daf96c239440c5ed8'
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    @staticmethod
+    def _llm_manifest(install):
+        return {'manifest_kind': 'library', 'key': 'MuseTalk', 'name': 'MuseTalk',
+                'schema_version': '1.0', 'description': 'lip sync', 'world': 'transverse',
+                'visibility': 'public', 'projects': [],
+                'source': {'type': 'extract', 'ref': 'https://github.com/TMElyralab/MuseTalk'},
+                'body': {'identity': {'version': '1.5', 'license': 'MIT'}, 'install': install}}
+
+    def test_a_repo_without_packaging_is_vendored_at_the_measured_commit(self):
+        from wama.common.manifests.ingest import validate
+        notes = []
+        manifest = self.role_utils.enforce_install_channel(
+            self._llm_manifest({'pip': 'musetalk==1.5'}), 'TMElyralab/MuseTalk', [], self.SHA, notes)
+        self.assertEqual(manifest['body']['install'],
+                         {'vendor': {'repo': 'TMElyralab/MuseTalk', 'commit': self.SHA,
+                                     'engine': 'musetalk'}})
+        self.assertEqual(manifest['key'], 'musetalk')
+        self.assertEqual(manifest['source']['type'], 'authored')
+        self.assertEqual(validate(manifest) or [], [])
+        self.assertTrue(any('RETIRÉ' in n for n in notes), notes)
+
+    def test_a_packaged_repo_stays_on_pip(self):
+        """Contre-épreuve : un paquet garde pip, et un `vendor` inventé par le LLM est retiré."""
+        notes = []
+        manifest = self.role_utils.enforce_install_channel(
+            self._llm_manifest({'pip': 'faster-whisper==1.2.1',
+                                'vendor': {'repo': 'x/y', 'commit': self.SHA, 'engine': 'y'}}),
+            'SYSTRAN/faster-whisper', ['pyproject.toml'], None, notes)
+        self.assertEqual(manifest['body']['install'], {'pip': 'faster-whisper==1.2.1'})
+        self.assertEqual(manifest['key'], 'MuseTalk')
+
+    def test_an_unmeasured_head_is_said_not_invented(self):
+        notes = []
+        manifest = self.role_utils.enforce_install_channel(
+            self._llm_manifest({'pip': 'musetalk==1.5'}), 'TMElyralab/MuseTalk', [], None, notes)
+        self.assertEqual(manifest['body']['install'], {'pip': 'musetalk==1.5'})
+        self.assertTrue(any('non mesurée' in n for n in notes), notes)
+
+    def test_engine_name_and_head_sha(self):
+        self.assertEqual(self.role_utils.vendor_engine_name('VAST-AI-Research/TripoSR'), 'triposr')
+        self.assertEqual(self.role_utils.vendor_engine_name('org/3DTalk'), 'engine_3dtalk')
+        seen = []
+        sha = self.role_utils.github_head_sha(
+            'TMElyralab/MuseTalk', 'main',
+            fetcher=lambda url: seen.append(url) or '{"sha": "%s"}' % self.SHA)
+        self.assertEqual(sha, self.SHA)
+        self.assertTrue(seen[0].endswith('/repos/TMElyralab/MuseTalk/commits/main'), seen)
+
+
 class FournisseurDesRolesTest(SimpleTestCase):
     """`role_utils.call_llm` (2026-09-15, Albert API) : les rôles choisissent leur fournisseur.
 

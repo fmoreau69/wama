@@ -219,6 +219,61 @@ def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_fil
     return manifest
 
 
+#: Fichiers qui font d'un dépôt un PAQUET que pip sait installer (`pip install .`).
+PACKAGING_FILES = ('pyproject.toml', 'setup.py', 'setup.cfg')
+
+
+def vendor_engine_name(repo: str) -> str:
+    """Nom de moteur dérivé du dépôt (`TMElyralab/MuseTalk` → `musetalk`) — la forme exigée par
+    `vendor_spec_error` ; c'est aussi la clé du manifeste et le dossier sous le vendor."""
+    name = re.sub(r'[^a-z0-9]+', '_', repo.rsplit('/', 1)[-1].lower()).strip('_')
+    return name if re.match(r'^[a-z]', name) else f'engine_{name}'
+
+
+def github_head_sha(repo: str, branch: str, fetcher=None) -> str:
+    """SHA complet de la tête de `branch` — MESURÉ par l'API GitHub (source déclarée `github_api`)."""
+    from wama.common.external_sources import base_url
+    raw = (fetcher or fetch)(f"{base_url('github_api')}/repos/{repo}/commits/{branch}")
+    return json.loads(raw)['sha']
+
+
+def enforce_install_channel(manifest, repo, packaging, sha, notes):
+    """Pose le CANAL d'installation d'après les FAITS du dépôt, jamais d'après le LLM.
+
+    Route `library` (ROADMAP D-a, 2026-09-30) : pip est la norme ; un dépôt sans fichier de
+    paquet (`PACKAGING_FILES`) n'est pas installable par pip et se VENDORISE — dépôt épinglé au
+    commit MESURÉ. Avant ce contrôle, le rôle écrivait `install.pip` pour MuseTalk ou TripoSR,
+    et le manifeste mourait au verrou (`nom==version` introuvable sur PyPI) : la chaîne
+    scout → install apportait manifeste et poids, jamais le moteur.
+    `packaging` = les fichiers de paquet trouvés à la racine ; `sha` = tête mesurée (ou None).
+    """
+    body = manifest.setdefault('body', {})
+    install = body.get('install') if isinstance(body.get('install'), dict) else {}
+    if packaging:
+        if install.pop('vendor', None) is not None:
+            notes.append(f"install.vendor RETIRÉ : le dépôt est un paquet ({', '.join(packaging)}) "
+                         "— la norme est pip")
+        body['install'] = install
+        return manifest
+    if not sha:
+        notes.append("dépôt SANS fichier de paquet mais tête non mesurée : install.vendor à "
+                     "compléter à la main (commit exact)")
+        return manifest
+    engine = vendor_engine_name(repo)
+    if install.get('pip'):
+        notes.append(f"install.pip {install['pip']!r} RETIRÉ (fait mécanique) : aucun "
+                     f"{'/'.join(PACKAGING_FILES)} à la racine — pip ne sait pas l'installer")
+    body['install'] = {'vendor': {'repo': repo, 'commit': sha, 'engine': engine}}
+    identity = body.setdefault('identity', {})
+    identity['version'] = sha[:12]
+    identity['repository'] = f'https://github.com/{repo}'
+    manifest['key'] = engine
+    manifest['source'] = {'type': 'authored', 'ref': f'github:{repo}@{sha}'}
+    notes.append(f"voie VENDOR : commit {sha[:12]} mesuré, moteur {engine!r} — à aligner sur "
+                 "l'ENGINE du backend qui l'exécutera ; correctif local éventuel sous patches/")
+    return manifest
+
+
 #: Clés qui, dans un fichier de config à la RACINE du dépôt, disent la taille de travail d'un
 #: modèle image (`pipeline_config.json` de Supra2-IMG : `image_size: 256`). Un entier = côté
 #: d'une image carrée. Liste DÉCLARÉE, à étendre au premier dépôt qui en porte une autre.
