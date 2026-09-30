@@ -241,6 +241,27 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
             self._run(asr)
         return asr.transcribe.call_args.kwargs.get('vad_filter'), probed.called
 
+    def test_every_engine_without_native_diarization_goes_through_pyannote(self):
+        """The DECLARED capability decides, no longer a list of names — the March list
+        (`whisper`, `qwen_asr`) left NeMo undiarized and would have left out any remote engine."""
+        from unittest import mock
+        diarized = []
+        for engine, native in (('nemo', False), ('albert', False), ('whisper', False),
+                               ('vibevoice', True)):
+            Transcript.objects.filter(pk=self.item.pk).update(enable_diarization=True,
+                                                              status='RUNNING')
+            asr = self._asr()
+            asr.name = engine
+            asr.supports_diarization = native
+            with mock.patch('wama.common.backends.pyannote_diarizer.is_available',
+                            return_value=True), \
+                    mock.patch('wama.common.backends.pyannote_diarizer.diarize',
+                               side_effect=lambda path, segments, *a, **k: segments) as diarize:
+                self._run(asr)
+            if diarize.called:
+                diarized.append(engine)
+        self.assertEqual(['nemo', 'albert', 'whisper'], diarized)
+
     def test_the_vad_setting_drives_the_whisper_filter(self):
         self.assertEqual((True, False), self._vad_filter_passed('on'))
         self.assertEqual((False, False), self._vad_filter_passed('off'))
