@@ -119,15 +119,37 @@ class EngineFromAvatarNatureTest(TestCase):
         self.assertEqual('SUCCESS', job.status, job.error_message)
         self.assertEqual(['avatarizer:musetalk-v1.5', 'avatarizer:codeformer'], keys)
 
-    def test_a_glb_without_text_fails_with_a_reason(self):
+    def _audio_only_job(self):
         self._declare_talkinghead()
         job = self._job(self._talking_glb(), text='')
         job.audio_input = _media(f'avatarizer/{self.user.id}/input/voice.wav',
                                  Path(_silent_wav(Path(settings.MEDIA_ROOT) / 'v.wav')).read_bytes())
         job.save()
-        job, keys = self._run(job)
+        return job
+
+    def _heard(self, words, language='en'):
+        from wama.common.utils.whisper_utils import WhisperResult, WhisperSegment
+        return WhisperResult(text=' '.join(w['word'] for w in words), language=language,
+                             duration=1.0, segments=[WhisperSegment(0.0, 1.0, '', words)])
+
+    def test_an_audio_without_text_is_transcribed_into_dated_words(self):
+        """Le sens inverse du TTS : audio → Transcriber (brique commune) → mots DATÉS → lèvres."""
+        words = [{'word': ' Hello', 'start': 0.1, 'end': 0.4}, {'word': ' world', 'start': 0.5, 'end': 0.9}]
+        with patch('wama.common.utils.whisper_utils.transcribe_audio',
+                   return_value=self._heard(words)) as heard:
+            job, keys = self._run(self._audio_only_job())
+        self.assertEqual('SUCCESS', job.status, job.error_message)
+        heard.assert_called_once()
+        self.assertEqual([workers.TALKINGHEAD_KEY], keys)
+        call = FakeRender.calls[0]
+        self.assertEqual(words, call['words'], 'les mots datés vont au moteur tels quels')
+        self.assertEqual('en', call['language'], 'la langue ENTENDUE choisit les visèmes')
+
+    def test_an_audio_with_no_speech_fails_with_a_reason(self):
+        with patch('wama.common.utils.whisper_utils.transcribe_audio', return_value=self._heard([])):
+            job, keys = self._run(self._audio_only_job())
         self.assertEqual('FAILURE', job.status)
-        self.assertIn('TEXTE', job.error_message)
+        self.assertIn('aucune parole', job.error_message)
         self.assertEqual([], keys)
 
 

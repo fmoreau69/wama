@@ -226,10 +226,6 @@ def generate_avatar(self, job_id: int):
                     "avatar riggé portant les 52 formes ARKit du visage (ex. un export MPFB).")
             if state == WARNING:
                 _console(job.user_id, f"Avatar 3D : {reason} — la bouche sera moins précise.", 'warning')
-            if not (job.text_content or '').strip():
-                raise ValueError(
-                    "Avatar 3D : il faut le TEXTE dit (il donne les mouvements des lèvres). "
-                    "Un audio seul ne suffit pas encore à ce moteur.")
 
         # Sortie de l'app : le livrable, et RIEN d'autre (règle `MEDIA_STORAGE_TIERING.md` —
         # `media/` ne contient que `<app>/<user>/input|output/` et `users/`).
@@ -251,11 +247,27 @@ def generate_avatar(self, job_id: int):
 
         with work_dir(f'avatarizer_job{job_id}') as travail:
             if avatar_3d:
+                # Les lèvres viennent des MOTS. Un texte (pipeline TTS) les donne ; un AUDIO seul
+                # passe par la transcription — le sens inverse du TTS, par la brique commune qui
+                # délègue au backend Whisper du transcriber (mots DATÉS : timings mesurés).
+                words, lang = None, (job.language or 'fr')
+                if not (job.text_content or '').strip():
+                    _console(job.user_id, "Avatar 3D : transcription de l'audio (mots datés)…", 'info')
+                    from wama.common.utils.whisper_utils import transcribe_audio
+                    heard = transcribe_audio(audio_path, language=(job.language or None),
+                                             word_timestamps=True)
+                    words = [w for seg in heard.segments for w in (seg.words or [])]
+                    if not words:
+                        raise ValueError("Avatar 3D : aucune parole reconnue dans l'audio — "
+                                         "fournissez le texte dit.")
+                    # La langue ENTENDUE choisit le module de visèmes (le job n'a pas de texte à dire).
+                    lang = heard.language or lang
+                    _console(job.user_id, f"Transcription : {len(words)} mots ({lang}).", 'info')
                 _console(job.user_id, "Avatar 3D : rendu TalkingHead image par image…", 'info')
                 animated_video = _backend(TALKINGHEAD_KEY).process(
                     avatar_path=image_path, audio_path=audio_path,
                     output_path=str(travail / 'talkinghead.mp4'),
-                    text=job.text_content, language=job.language or 'fr',
+                    text=job.text_content, words=words, language=lang,
                     progress=lambda f: _set_progress(job, 40 + int(f * 45)))
                 _console(job.user_id, "Rendu TalkingHead terminé.", 'info')
             else:

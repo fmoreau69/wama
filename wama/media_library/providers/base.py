@@ -78,6 +78,12 @@ class BaseProvider(ABC):
     name:             str  = ''
     supported_types:  list = []
     requires_api_key: bool = True
+    #: Domaines d'où un résultat peut être TÉLÉCHARGÉ (sécurité : l'URL vient du navigateur).
+    #: `None` = aucun téléchargement autorisé ; `()` = tout domaine en HTTPS (fichiers servis par
+    #: des CDN variés). Déclaré par le connecteur depuis le 2026-09-30 — c'était un dictionnaire
+    #: écrit en dur dans `views.api_provider_download`, une seconde déclaration à tenir à côté de
+    #: la classe : ajouter une source y exigeait de penser à une ligne ailleurs.
+    download_domains: tuple | None = None
 
     def __init__(self, api_key: str = ''):
         self.api_key = api_key

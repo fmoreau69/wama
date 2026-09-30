@@ -2836,7 +2836,11 @@ class ModelRegistry:
             # quand son backend peut tourner (Playwright + bibliothèque vendorisée).
             th = AVATARIZER_MODELS.get('talkinghead') or {}
             if th:
-                from wama.common.backends.talkinghead_backend import TalkingHeadBackend
+                # Le backend se RÉSOUT par son moteur, jamais par son chemin (garde
+                # `tests_backend_adoption`, budget 0) — il n'a pas de poids : il est « présent »
+                # quand il peut tourner.
+                from wama.common.backends.manager import backend_for_engine
+                engine_cls = backend_for_engine(th.get('engine') or 'talkinghead')
                 self._models['avatarizer:talkinghead'] = ModelInfo(
                     id='avatarizer:talkinghead',
                     name='TalkingHead (avatar 3D)',
@@ -2844,7 +2848,7 @@ class ModelRegistry:
                     source=ModelSource.WAMA_AVATARIZER,
                     description=th.get('description', ''),
                     vram_gb=th.get('vram_gb'),
-                    is_downloaded=TalkingHeadBackend.is_available(),
+                    is_downloaded=bool(engine_cls and engine_cls.is_available()),
                     extra_info={'repo': th.get('repo'), 'license': th.get('license'),
                                 'model_id': 'talkinghead'},
                     # Le RÔLE (`work_object3d`) et les ATTRIBUTS exigés de l'objet (nature A′) :

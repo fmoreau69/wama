@@ -52,6 +52,24 @@ class AudioAlignmentTest(SimpleTestCase):
         self.assertEqual(1, th.frame_count(0.0, 0.0, 40.0, tail_ms=0.0), 'jamais zéro image')
 
 
+class WordTimingsTest(SimpleTestCase):
+    """Mots datés d'une transcription (secondes) → timings TalkingHead (ms) — 2026-09-30."""
+
+    def test_dated_words_become_milliseconds(self):
+        out = th.word_timings([{'word': ' Bonjour', 'start': 0.12, 'end': 0.5},
+                               {'word': ',', 'start': 0.5, 'end': 0.5},
+                               {'word': ' à tous', 'start': 0.6, 'end': 1.0}])
+        self.assertEqual({'words': ['Bonjour', ',', 'à tous'], 'wtimes': [120, 500, 600],
+                          'wdurations': [380, 0, 400]}, out)
+
+    def test_empty_words_are_dropped_and_nothing_gives_none(self):
+        self.assertIsNone(th.word_timings([{'word': '  ', 'start': 0, 'end': 1}]))
+        self.assertIsNone(th.word_timings(None))
+
+    def test_a_duration_is_never_negative(self):
+        self.assertEqual([0], th.word_timings([{'word': 'x', 'start': 2.0, 'end': 1.0}])['wdurations'])
+
+
 class RenderPageTest(SimpleTestCase):
 
     def test_every_file_the_page_asks_for_resolves_on_disk(self):
