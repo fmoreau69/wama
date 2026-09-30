@@ -80,7 +80,7 @@ def _run_musetalk(image_path: str, audio_path: str, output_dir: str, bbox_shift:
     if not MUSETALK_DIR.exists():
         raise RuntimeError(
             f"MuseTalk introuvable dans {MUSETALK_DIR}.\n"
-            "Lancez d'abord : bash wama/avatarizer/setup_avatarizer.sh"
+            "Installez-le par la route library : python manage.py install_library musetalk"
         )
 
     output_dir = Path(output_dir)
@@ -167,6 +167,7 @@ class MuseTalkBackend(BaseModelBackend):
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'musetalk'
+    VENDORED = True
     REQUIRED_PACKAGES = ['mmcv', 'mmpose', 'mmengine']
     recommended_vram_gb = MUSETALK_VRAM_GB
     description = "MuseTalk — lip-sync d'un avatar sur un audio (sous-processus GPU)."

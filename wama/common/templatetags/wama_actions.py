@@ -237,10 +237,10 @@ def input_slots(app, domain=None):
     # objet 3D. Le PREMIER port du groupe (ordre des onglets) est celui que le geste nocturne
     # remplit (`ui_smoke._fill_required_ports`) — il en faut un, pas deux.
     alternatives = {p['id']: p.get('one_of') or [] for p in known}
-    libelles = {p['id']: p.get('label', p['id']) for p in known}
+    port_labels = {p['id']: p.get('label', p['id']) for p in known}
     # Le prompt n'est jamais un onglet : dans « requis · ou … » il se dit comme on le voit.
-    libelles['prompt'] = 'le texte saisi'
-    groupes_vus = set()
+    port_labels['prompt'] = 'le texte saisi'
+    seen_groups = set()
     textes = {p['id']: p.get('description', '') for p in known}
     # Un port du RÉSULTAT n'entre pas par l'upload mais par l'ÉVALUATION : ses formats sont
     # ceux qu'elle déclare savoir lire (`reference_extensions`), pas `input_extensions`.
@@ -271,11 +271,11 @@ def input_slots(app, domain=None):
         # dropzones au même id.
         primary = travail and not primary_seen
         primary_seen = primary_seen or primary
-        autres = alternatives.get(port.get('id')) or []
-        groupe = frozenset(autres + [port.get('id')]) if autres else None
-        one_of_first = bool(groupe) and groupe not in groupes_vus
-        if groupe:
-            groupes_vus.add(groupe)
+        others = alternatives.get(port.get('id')) or []
+        one_of_group = frozenset(others + [port.get('id')]) if others else None
+        one_of_first = bool(one_of_group) and one_of_group not in seen_groups
+        if one_of_group:
+            seen_groups.add(one_of_group)
         slots.append({
             'id': port.get('id'),
             'kind': 'file',
@@ -292,7 +292,7 @@ def input_slots(app, domain=None):
             'required': oblig.get(port.get('id'), travail),
             # Requis « ou » ces autres ports (libellés, pour être affichés tels quels) — et le
             # premier du groupe, celui qu'un geste automatique remplit.
-            'one_of': [libelles.get(a, a) for a in autres],
+            'one_of': [port_labels.get(a, a) for a in others],
             'one_of_first': one_of_first,
             # Texte qui dit À QUOI sert cette entrée (demande Fabien 10/09) : deux onglets
             # « Image » ne se distinguent pas par leur type — il faut dire lequel sera ÉDITÉ et

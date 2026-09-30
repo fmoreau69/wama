@@ -15,6 +15,7 @@ library » (§7.4-4) de les remplir, ce corpus servant d'exemples.
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from ..kinds import ManifestKind, register_kind
@@ -40,8 +41,16 @@ def validate_library_body(body: dict) -> list[str]:
     install = body.get('install') or {}
     if not isinstance(install, dict):
         errs.append("install doit être un dict")
+    elif install.get('pip') and install.get('vendor'):
+        errs.append("install.pip ET install.vendor : une librairie s'installe par pip OU se "
+                    "vendorise, jamais les deux")
+    elif install.get('vendor'):
+        err = vendor_spec_error(install['vendor'])
+        if err:
+            errs.append(f"install.vendor : {err}")
     elif not install.get('pip'):
-        errs.append("install.pip manquant (spécificateur d'installation)")
+        errs.append("install.pip manquant (spécificateur d'installation) — ou install.vendor "
+                    "pour une librairie que pip ne sait pas installer")
 
     for cle in ('entry_points', 'constraints'):
         v = body.get(cle)
@@ -62,6 +71,56 @@ def validate_library_body(body: dict) -> list[str]:
 
 #: Longueur du champ `Library.license` (un IDENTIFIANT — 'MIT', 'Apache-2.0' — jamais un texte).
 LICENCE_MAX = 128
+
+
+# ── Route VENDOR (ROADMAP D-a, décision de Fabien le 2026-09-30) ─────────────────────────
+# La norme reste pip. Mais certaines librairies ne sont PAS des paquets (MuseTalk, CodeFormer,
+# TripoSR : dépôts sans `setup.py`, lancés par chemin en sous-processus) : pip n'a rien à
+# installer, et elles vivaient dans des scripts shell qui clonaient `main` sans épingle (`git
+# pull`) et réappliquaient leurs correctifs à la main — ou jamais (le correctif MuseTalk du
+# 07/09 n'était réappliqué par rien). Une librairie vendorisée se déclare donc comme les autres,
+# avec les MÊMES verrous transposés : pas d'URL libre (le dépôt se dit « owner/name », l'adresse
+# se dérive de la source déclarée `github`), un COMMIT exact (jamais une branche ni un tag, qui
+# bougent), un correctif versionné dans `patches/`, et la même allowlist humaine.
+_VENDOR_REPO_RE = re.compile(r'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')
+_VENDOR_COMMIT_RE = re.compile(r'^[0-9a-f]{40}$')
+_VENDOR_ENGINE_RE = re.compile(r'^[a-z][a-z0-9_]*$')
+_VENDOR_PATCH_RE = re.compile(r'^patches/[A-Za-z0-9._-]+\.(diff|patch)$')
+_VENDOR_IGNORE_RE = re.compile(r'^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*/?$')
+VENDOR_FIELDS = ('repo', 'commit', 'engine', 'patch', 'ignore')
+
+
+def vendor_spec_error(vendor) -> Optional[str]:
+    """Motif de refus d'une déclaration `install.vendor`, ou None — pendant de `pip_spec_error`.
+
+    Pure (aucune I/O) : la validation d'un manifeste et l'installeur appliquent le même verrou.
+    """
+    if not isinstance(vendor, dict):
+        return "doit être un dict {repo, commit, engine, patch?, ignore?}"
+    unknown = sorted(set(vendor) - set(VENDOR_FIELDS))
+    if unknown:
+        return f"champ(s) inconnu(s) : {', '.join(unknown)}"
+    repo, commit = str(vendor.get('repo') or ''), str(vendor.get('commit') or '')
+    if not _VENDOR_REPO_RE.match(repo) or '..' in repo:
+        return (f"repo refusé : {repo!r} — forme exigée « owner/name » (GitHub, sans URL : "
+                "l'adresse se dérive de la source déclarée `github`)")
+    if not _VENDOR_COMMIT_RE.match(commit):
+        return (f"commit refusé : {commit!r} — un SHA complet de 40 caractères hexadécimaux "
+                "(jamais une branche ni un tag, qui bougent)")
+    if not _VENDOR_ENGINE_RE.match(str(vendor.get('engine') or '')):
+        return ("engine manquant ou invalide — c'est le nom du dossier sous "
+                "`settings.BACKEND_VENDOR_DIR`, égal au `ENGINE` du backend qui l'exécute")
+    patch = vendor.get('patch')
+    if patch and (not _VENDOR_PATCH_RE.match(str(patch)) or '..' in str(patch)):
+        return f"patch refusé : {patch!r} — un fichier .diff/.patch directement sous `patches/`"
+    ignore = vendor.get('ignore')
+    if ignore is not None:
+        if not isinstance(ignore, list):
+            return "ignore doit être une liste de chemins relatifs au clone"
+        for p in ignore:
+            if not isinstance(p, str) or not _VENDOR_IGNORE_RE.match(p) or '..' in p:
+                return f"ignore refusé : {p!r} — chemin relatif au clone, sans « .. »"
+    return None
 
 
 def licence_courte(meta) -> Optional[str]:
@@ -95,8 +154,36 @@ def licence_courte(meta) -> Optional[str]:
     return None
 
 
+def authored_vendor_manifest(key: str) -> Optional[dict]:
+    """Le manifeste AUTORÉ d'une librairie vendorisée, lu au corpus — ou None.
+
+    Une librairie vendorisée n'est pas un paquet : `importlib.metadata` ne la connaît pas, donc
+    rien à extraire. Comme un `dataset`, son manifeste EST l'origine. Sans ce retour,
+    `manifest_export` la déclarait « extraction impossible » et ne la VALIDAIT jamais — le même
+    angle mort que celui des manifestes autorés du 2026-09-07.
+    """
+    import json
+    from pathlib import Path
+
+    from django.conf import settings
+
+    path = Path(settings.BASE_DIR) / 'manifests' / 'libraries' / f'{key}.json'
+    try:
+        manifest = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+    install = ((manifest.get('body') or {}).get('install') or {})
+    return manifest if install.get('vendor') else None
+
+
 def extract_library(key: str) -> Optional[dict]:
     import importlib.metadata as im
+
+    # Vendorisée : le manifeste autoré fait foi, AVANT toute recherche de distribution — un
+    # paquet PyPI homonyme ne doit jamais se substituer au dépôt épinglé.
+    authored = authored_vendor_manifest(key)
+    if authored is not None:
+        return authored
 
     try:
         dist = im.distribution(key)
@@ -178,6 +265,7 @@ _CHAMPS_PROJETES = (
     ('entry_points',    lambda m, b: b.get('entry_points') or {}),
     ('dependencies',    lambda m, b: b.get('dependencies') or []),
     ('constraints',     lambda m, b: b.get('constraints') or {}),
+    ('vendor',          lambda m, b: (b.get('install') or {}).get('vendor') or {}),
 )
 
 

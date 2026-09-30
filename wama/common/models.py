@@ -751,6 +751,14 @@ class Library(models.Model):
         default=dict, blank=True,
         help_text="Contraintes GPU/OS non extractibles mécaniquement (remplies par le rôle "
                   "wama-dev-ai « librarian », jamais inventées)")
+    # Route VENDOR (ROADMAP D-a, 2026-09-30) : une librairie que pip ne sait pas installer
+    # (dépôt sans `setup.py`, code lancé par chemin) se déclare par son dépôt GitHub ÉPINGLÉ À UN
+    # COMMIT, plus un correctif local versionné sous `patches/`. Exclusif de `pip_spec` : une
+    # librairie s'installe par pip OU se vendorise, jamais les deux.
+    vendor = models.JSONField(
+        default=dict, blank=True,
+        help_text="{repo: 'owner/name', commit: <40 hex>, engine, patch?, ignore?} — "
+                  "vide pour une librairie pip")
 
     # ── VERROU D'INSTALLATION (ROADMAP §16.7, transposé d'Hermes) ───────────────
     # Verrou n°2 d'Hermes : l'allowlist vit DANS l'arbre, et la config utilisateur ne peut pas
@@ -782,6 +790,7 @@ class Library(models.Model):
     PROJECTABLE_FIELDS = (
         'name', 'summary', 'version', 'license', 'author', 'repository',
         'pip_spec', 'requires_python', 'entry_points', 'dependencies', 'constraints',
+        'vendor',
     )
 
     def to_dict(self):
@@ -798,6 +807,7 @@ class Library(models.Model):
             'entry_points': self.entry_points or {},
             'dependencies': self.dependencies or [],
             'constraints': self.constraints or {},
+            'vendor': self.vendor or {},
             'is_allowed': self.is_allowed,
             'is_installed': self.is_installed,
             'installed_version': self.installed_version,

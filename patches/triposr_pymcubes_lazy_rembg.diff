@@ -1,0 +1,39 @@
+diff --git a/tsr/models/isosurface.py b/tsr/models/isosurface.py
+index 076321b..820dfda 100644
+--- a/tsr/models/isosurface.py
++++ b/tsr/models/isosurface.py
+@@ -3,7 +3,13 @@ from typing import Callable, Optional, Tuple
+ import numpy as np
+ import torch
+ import torch.nn as nn
+-from torchmcubes import marching_cubes
++# WAMA (tools/setup_triposr.sh) : PyMCubes (wheel) a la place de torchmcubes (extension CUDA).
++import mcubes
++
++
++def marching_cubes(level, threshold):
++    v, t = mcubes.marching_cubes(level.detach().cpu().numpy(), float(threshold))
++    return torch.from_numpy(v.astype('float32')), torch.from_numpy(t.astype('int64'))
+ 
+ 
+ class IsosurfaceHelper(nn.Module):
+diff --git a/tsr/utils.py b/tsr/utils.py
+index 9758f2e..85aba47 100644
+--- a/tsr/utils.py
++++ b/tsr/utils.py
+@@ -7,7 +7,6 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+ import imageio
+ import numpy as np
+ import PIL.Image
+-import rembg
+ import torch
+ import torch.nn as nn
+ import torch.nn.functional as F
+@@ -410,6 +409,7 @@ def remove_background(
+         do_remove = False
+     do_remove = do_remove or force
+     if do_remove:
++        import rembg  # WAMA : paresseux (optionnel, ~300 Mo d'onnxruntime)
+         image = rembg.remove(image, session=rembg_session, **rembg_kwargs)
+     return image
+ 

@@ -1,9 +1,10 @@
 """TripoSR — reconstruction image → objet 3D (GLB). AUCUN ORM. ROADMAP §17ter, trou 4.
 
-Le CODE du modèle est vendorisé (`wama/common/backends/vendor/triposr/`, `tools/setup_triposr.sh`
-— clone à commit épinglé + deux patches : marching cubes sur PyMCubes au lieu de torchmcubes,
-qui exige une extension CUDA à compiler ; `rembg` importé paresseusement), comme MuseTalk et
-CodeFormer. Les POIDS (`config.yaml` + `model.ckpt`, `stabilityai/TripoSR`, MIT) sont tirés par
+Le CODE du modèle est vendorisé (`wama/common/backends/vendor/triposr/`, route `library` voie
+vendor : `manage.py install_library triposr`, manifeste `manifests/libraries/triposr.json` —
+clone à commit épinglé + le correctif `patches/triposr_pymcubes_lazy_rembg.diff` : marching
+cubes sur PyMCubes au lieu de torchmcubes, qui exige une extension CUDA à compiler ; `rembg`
+importé paresseusement), comme MuseTalk et CodeFormer. Les POIDS (`config.yaml` + `model.ckpt`, `stabilityai/TripoSR`, MIT) sont tirés par
 `hf_hub_download(cache_dir=MODEL_DIR)` au premier chargement — jamais de mutation
 d'environnement (AGENTS.md §Ajout d'un nouveau modèle AI, ROADMAP §5b).
 
@@ -12,7 +13,7 @@ hôte). Ce qui est attesté sans GPU : le contrat (flags, moteur, résolution pa
 catalogue), la spec de fonction, le câblage studio. Ce qui ne l'est pas : l'inférence — et en
 particulier l'ORIENTATION des faces après le rabattement sur PyMCubes (la convention d'axes de
 torchmcubes est reproduite par la permutation `[2, 1, 0]` du code amont ; à vérifier sur le
-premier maillage, cf. `tools/setup_triposr.sh`).
+premier maillage, cf. `patches/triposr_pymcubes_lazy_rembg.diff`).
 
 ⚠ Reconstruction PLAUSIBLE, pas métrique (§17ter) : les faces occultées sont HALLUCINÉES.
 Déclaré au catalogue (`capabilities.reconstruction = 'plausible'`), pas en mémoire humaine.
@@ -31,8 +32,8 @@ logger = logging.getLogger(__name__)
 HF_REPO = 'stabilityai/TripoSR'
 MODEL_DIR = Path(settings.MODEL_PATHS.get('vision', {}).get('triposr')
                  or settings.AI_MODELS_DIR / 'models' / 'vision' / 'triposr')
-#: Racine DÉCLARÉE du code tiers (même que setup_avatarizer.sh : settings.BACKEND_VENDOR_DIR
-#: quand il existe, sinon le dossier `vendor/` de ce paquet).
+#: Racine DÉCLARÉE du code tiers (settings.BACKEND_VENDOR_DIR quand il existe, sinon le dossier
+#: `vendor/` de ce paquet).
 VENDOR_DIR = Path(getattr(settings, 'BACKEND_VENDOR_DIR', None)
                   or Path(__file__).resolve().parent / 'vendor') / 'triposr'
 
@@ -50,6 +51,9 @@ class TripoSRBackend(BaseModelBackend):
     """Image (RGB/RGBA, fond retiré de préférence) → maillage GLB coloré par sommet."""
 
     ENGINE = 'triposr'
+    #: Code vendorisé (`manifests/libraries/triposr.json`) : son absence entre dans
+    #: `missing_packages()` par le contrat commun.
+    VENDORED = True
     SUPPORTED_MODELS = ('triposr',)
     # `mcubes` = PyMCubes (wheel), remplace `torchmcubes` (extension CUDA) dans le code vendorisé.
     REQUIRED_PACKAGES = ['torch', 'trimesh', 'mcubes', 'omegaconf', 'einops', 'huggingface_hub']
@@ -61,14 +65,6 @@ class TripoSRBackend(BaseModelBackend):
     def __init__(self):
         self._model = None
         self._device = 'cpu'
-
-    # ── Disponibilité : le code vendorisé fait partie de la réponse ─────────────────────
-    @classmethod
-    def missing_packages(cls):
-        manques = super().missing_packages()
-        if not (VENDOR_DIR / 'tsr' / 'system.py').is_file():
-            manques.append('vendor:triposr (tools/setup_triposr.sh)')
-        return manques
 
     # ── Cycle de vie ───────────────────────────────────────────────────────────────────
     def _weights_dir(self) -> Path:

@@ -2006,3 +2006,8 @@ clonage n'a pas de route WAMA — un script par moteur (`setup_avatarizer.sh`,
 `ROADMAP §16.7`). La chaîne scout → install → rôle `backend` apporte donc manifeste et poids,
 pas le moteur : **décision de Fabien** (une route « vendor » déclarée — dépôt + commit épinglé,
 comme la table du README — ou le geste humain par moteur). Signalée, pas prise.
+✅ **Prise et livrée le même jour** (`ROADMAP` D-a) : la route `library` a une voie **vendor**
+(`install.vendor = {repo, commit, engine, patch?}`, `vendor_installer.py`), et MuseTalk,
+CodeFormer, TripoSR y sont déclarés. Le trou de la chaîne se déplace : le rôle `librarian --repo`
+écrit encore `install.pip` pour un dépôt qui n'est pas un paquet — c'est lui qui devra proposer
+`install.vendor` (avec le SHA mesuré) pour que scout → install apporte aussi le moteur.

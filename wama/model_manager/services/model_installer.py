@@ -1666,6 +1666,10 @@ def install_library(key: str, apply: bool = False, via: str = '') -> dict:
         return {'ok': False, 'library': key,
                 'error': "librairie absente du registre — ingérer son manifeste d'abord "
                          "(write_back_library)"}
+    if lib.vendor:
+        # Librairie que pip ne sait pas installer (ROADMAP D-a) : même contrat, autre exécuteur.
+        from .vendor_installer import install_vendor
+        return install_vendor(lib, apply=apply, via=via)
     spec = (lib.pip_spec or '').strip()
     # `constraints.pip` : versions du venv que CETTE installation ne doit pas déplacer
     # (cf. `pip_constraint_errors`). Déclarées au manifeste, projetées au registre, et enfin LUES.

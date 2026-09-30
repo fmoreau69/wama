@@ -33,6 +33,7 @@ import logging
 import os
 import weakref
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
@@ -505,6 +506,14 @@ class BaseModelBackend(ABC):
     #: 2026-09-04 — des pins figés d'amont, pas des incompatibilités).
     ISOLATION: str = ""
 
+    #: Le MOTEUR est un dépôt VENDORISÉ (route `library`, voie vendor — ROADMAP D-a, 2026-09-30) :
+    #: son code vit sous `settings.BACKEND_VENDOR_DIR/<ENGINE>/`, installé par
+    #: `manage.py install_library <ENGINE>` depuis le manifeste `manifests/libraries/<ENGINE>.json`.
+    #: Déclaré, le clone absent entre dans `missing_packages()` — chaque backend vendorisé le
+    #: vérifiait à sa façon (TripoSR seul le disait ; MuseTalk et CodeFormer ne le voyaient qu'au
+    #: lancement, en `RuntimeError`).
+    VENDORED: bool = False
+
     #: POURQUOI ce backend est conservé alors qu'aucun modèle ne le désigne — vide = en service.
     #:
     #: Déclaré le 2026-09-08 (demande de Fabien : « pour les backends morts, on les laisse —
@@ -570,6 +579,10 @@ class BaseModelBackend(ABC):
                     missing.append(mod)
             except (ImportError, ValueError, ModuleNotFoundError):
                 missing.append(mod)
+        if cls.VENDORED and cls.ENGINE:
+            from django.conf import settings
+            if not (Path(settings.BACKEND_VENDOR_DIR) / cls.ENGINE / '.git').exists():
+                missing.append(f'vendor:{cls.ENGINE} (manage.py install_library {cls.ENGINE})')
         return missing
 
     @classmethod

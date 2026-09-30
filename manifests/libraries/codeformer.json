@@ -1,0 +1,39 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "basicsr",
+      "facexlib"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Shangchen Zhou (S-Lab, Nanyang Technological University)",
+      "license": "S-Lab License 1.0",
+      "repository": "https://github.com/sczhou/CodeFormer",
+      "summary": "Restauration de visages — code lancé en sous-processus par codeformer_backend (licence non commerciale)",
+      "version": "b33cc7d639d6"
+    },
+    "install": {
+      "vendor": {
+        "commit": "b33cc7d639d6545bfcccc7e0bc6ae51f24e79c2b",
+        "engine": "codeformer",
+        "ignore": [
+          "weights/"
+        ],
+        "repo": "sczhou/CodeFormer"
+      }
+    }
+  },
+  "description": "Restauration de visages (CodeFormer) — dépôt vendorisé, épinglé au commit ; les poids vivent sous AI-models (liens depuis weights/)",
+  "key": "codeformer",
+  "manifest_kind": "library",
+  "name": "CodeFormer",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "github:sczhou/CodeFormer@b33cc7d639d6545bfcccc7e0bc6ae51f24e79c2b",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
