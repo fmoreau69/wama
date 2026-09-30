@@ -63,15 +63,23 @@ function estimerTimings(texte, dureeMs) {
   return { words: mots, wtimes, wdurations };
 }
 
+/** Cadrage du VOLET de l'assistant — le défaut de `init` (réglé au navigateur le 2026-09-22). */
+export const PANEL_CAMERA = { cameraView: 'upper', cameraDistance: -1.5, cameraY: -0.06 };
+
 /**
  * Crée l'avatar dans `node`. Idempotent : un second appel ne recrée rien.
  * @param {HTMLElement} node conteneur (doit avoir une taille non nulle)
- * @param {{glbUrl: string, lang?: string, mood?: string}} opts
+ * @param {{glbUrl: string, lang?: string, mood?: string, body?: string,
+ *          camera?: Object, headOptions?: Object}} opts
+ *   `camera` surcharge le cadrage (`cameraView`, `cameraDistance`, `cameraX`, `cameraY`,
+ *   `cameraRotateX`, `cameraRotateY`) — défaut PANEL_CAMERA. `headOptions` : autres options
+ *   TalkingHead (ex. `modelFPS` pour le rendu vidéo image par image, 2026-09-30).
  */
 export async function init(node, opts) {
   if (head || !node) return head;
   const lang = langueVisemes(opts && opts.lang);
-  head = new TalkingHead(node, {
+  const camera = Object.assign({}, PANEL_CAMERA, (opts && opts.camera) || {});
+  head = new TalkingHead(node, Object.assign({
     // Pas de `ttsEndpoint` : la synthèse reste côté WAMA (Kokoro), on ne fait que RENDRE.
     // Le laisser vide évite que TalkingHead tente son propre TTS.
     ttsEndpoint: '',
@@ -84,14 +92,12 @@ export async function init(node, opts) {
     // z : −1,7 → z ≈ 2,8), légèrement relevée : visage et épaules remplissent 200 px de haut.
     // 2ᵉ mesure (Fabien : « le front est un peu mangé en haut ») : caméra un peu moins proche et
     // RELEVÉE (`cameraY` négatif = caméra plus haute = avatar plus bas dans le cadre).
-    cameraView: 'upper',
-    cameraDistance: -1.5,
-    cameraY: -0.06,
+    // Ces valeurs sont PANEL_CAMERA ; un appelant (rendu vidéo) les surcharge par `opts.camera`.
     avatarMood: (opts && opts.mood) || 'neutral',
-  });
+  }, camera, (opts && opts.headOptions) || {}));
   await head.showAvatar({
     url: opts.glbUrl,
-    body: 'F',
+    body: (opts && opts.body) || 'F',
     avatarMood: (opts && opts.mood) || 'neutral',
     lipsyncLang: lang,
   });

@@ -201,6 +201,17 @@ def generate_avatar(self, job_id: int):
 
         _set_progress(job, 30)
 
+        # Le MOTEUR se DÉRIVE de la nature de l'avatar (2026-09-30), comme le mode se dérive des
+        # entrées (MODES_QUEUE_UX §2bis) : une PHOTO s'anime par MuseTalk, un AVATAR 3D riggé
+        # (.glb) se rend par TalkingHead — le même moteur que l'avatar de l'assistant, sans
+        # modèle génératif. Résolu par son MOTEUR : il n'a pas de poids, le « modèle » est le GLB.
+        from wama.common.app_registry import category_of_path
+        avatar_3d = category_of_path(image_path) == '3d'
+        if avatar_3d and not (job.text_content or '').strip():
+            raise ValueError(
+                "Avatar 3D : il faut le TEXTE dit (il donne les mouvements des lèvres). "
+                "Un audio seul ne suffit pas encore à ce moteur.")
+
         # Sortie de l'app : le livrable, et RIEN d'autre (règle `MEDIA_STORAGE_TIERING.md` —
         # `media/` ne contient que `<app>/<user>/input|output/` et `users/`).
         from wama.common.utils.media_paths import app_media_dir
@@ -215,30 +226,46 @@ def generate_avatar(self, job_id: int):
         import shutil as _shutil
 
         # ------------------------------------------------------------------
-        # Étape 3 : MuseTalk — synchronisation labiale
+        # Étape 3 : animation — TalkingHead (avatar 3D) ou MuseTalk (photo)
         # ------------------------------------------------------------------
-        _console(job.user_id, "MuseTalk : synchronisation labiale en cours…", 'info')
         _set_progress(job, 40)
 
         with work_dir(f'avatarizer_job{job_id}') as travail:
-            musetalk_video = _backend('avatarizer:musetalk-v1.5').process(
-                image_path=image_path,
-                audio_path=audio_path,
-                output_dir=str(travail),
-                bbox_shift=job.bbox_shift,
-            )
+            if avatar_3d:
+                _console(job.user_id, "Avatar 3D : rendu TalkingHead image par image…", 'info')
+                from wama.common.backends.manager import backend_for_engine
+                talkinghead = backend_for_engine('talkinghead')
+                if talkinghead is None:
+                    raise RuntimeError("moteur « talkinghead » introuvable dans le vivier des backends")
+                animated_video = talkinghead().process(
+                    avatar_path=image_path, audio_path=audio_path,
+                    output_path=str(travail / 'talkinghead.mp4'),
+                    text=job.text_content, language=job.language or 'fr',
+                    progress=lambda f: _set_progress(job, 40 + int(f * 45)))
+                _console(job.user_id, "Rendu TalkingHead terminé.", 'info')
+            else:
+                _console(job.user_id, "MuseTalk : synchronisation labiale en cours…", 'info')
+                animated_video = _backend('avatarizer:musetalk-v1.5').process(
+                    image_path=image_path,
+                    audio_path=audio_path,
+                    output_dir=str(travail),
+                    bbox_shift=job.bbox_shift,
+                )
+                _console(job.user_id, "MuseTalk terminé.", 'info')
 
-            _set_progress(job, 80)
-            _console(job.user_id, "MuseTalk terminé.", 'info')
+            _set_progress(job, 85 if avatar_3d else 80)
 
             # --------------------------------------------------------------
             # Étape 4 (optionnelle) : CodeFormer — amélioration faciale
             # --------------------------------------------------------------
-            final_video = musetalk_video
-            if job.use_enhancer:
+            final_video = animated_video
+            if job.use_enhancer and avatar_3d:
+                # CodeFormer restaure un visage PHOTO ; sur un rendu 3D il n'a rien à réparer.
+                _console(job.user_id, "CodeFormer ignoré : sans objet sur un avatar 3D.", 'info')
+            elif job.use_enhancer:
                 _console(job.user_id, "CodeFormer : amélioration faciale en cours…", 'info')
                 _set_progress(job, 85)
-                final_video = _backend('avatarizer:codeformer').process(musetalk_video, str(travail))
+                final_video = _backend('avatarizer:codeformer').process(animated_video, str(travail))
                 _console(job.user_id, "CodeFormer terminé.", 'info')
 
             # ⚠ SORTIR le livrable AVANT la fin du bloc — après, `travail` n'existe plus.
@@ -249,7 +276,8 @@ def generate_avatar(self, job_id: int):
             # affiché deviendrait faux.
             from wama.common.utils.output_naming import compose_output_name
             cible = sortie_app / compose_output_name(
-                app='avatarizer', model=('codeformer' if job.use_enhancer else 'musetalk'),
+                app='avatarizer',
+                model=('talkinghead' if avatar_3d else 'codeformer' if job.use_enhancer else 'musetalk'),
                 source_name=audio_path, item_id=job_id, ext='.mp4')
             _shutil.move(str(final_video), str(cible))
 
@@ -282,7 +310,10 @@ def generate_avatar(self, job_id: int):
         # Seeding ETA : lip-sync → temps ∝ durée vidéo ; clé par qualité (CodeFormer ≫ rapide)
         try:
             from wama.model_manager.services.eta_estimator import record_run
-            record_run(f'avatarizer:{job.quality_mode}', size=_dur, unit='video_sec',
+            # Un rendu TalkingHead n'a pas le coût d'un lip-sync : clé à part, sinon il fausse
+            # l'ETA apprise de MuseTalk.
+            record_run('avatarizer:talkinghead' if avatar_3d else f'avatarizer:{job.quality_mode}',
+                       size=_dur, unit='video_sec',
                        process_seconds=_time.time() - _t0, load_seconds=None, user=job.user)
         except Exception:
             pass

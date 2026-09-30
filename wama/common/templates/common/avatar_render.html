@@ -1,0 +1,17 @@
+{% load static %}<!doctype html>
+{# Page de RENDU VIDÉO de l'avatar 3D (moteur `talkinghead`) — jamais servie par une URL WAMA : le backend la charge dans un Chromium sans écran et sert les fichiers statiques lui-même. #}
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+{% include "common/_three_importmap.html" %}
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: {{ background }}; }
+  #avatar { width: {{ width }}px; height: {{ height }}px; }
+</style>
+</head>
+<body>
+<div id="avatar"></div>
+<script type="module" src="{% static 'common/js/wama-avatar.js' %}"></script>
+<script type="module" src="{% static 'common/js/wama-avatar-render.js' %}"></script>
+</body>
+</html>
