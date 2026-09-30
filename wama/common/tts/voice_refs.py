@@ -685,6 +685,18 @@ def _measured_gender(arr, sr: int):
     return ''
 
 
+def estimate_voice_gender(path) -> str:
+    """Le genre que la voix d'un FICHIER fait entendre ('male' / 'female'), '' si la mesure ne
+    tranche pas (zone grise, trop peu de voix, instrument absent). Pour PROPOSER un genre à
+    l'ajout d'une voix (2026-09-30) — jamais pour l'imposer : la personne corrige."""
+    from wama.common.utils.audio_decode import decode_audio
+    try:
+        arr, sr = decode_audio(path, target_sr=16000)
+    except Exception:
+        return ''
+    return _measured_gender(arr, sr) or ''
+
+
 def _library_voice_digests(except_name: str = '') -> set:
     """Empreintes des fichiers des AUTRES voix de la médiathèque.
 

@@ -12,6 +12,14 @@ sous sa racine (la page et la fenêtre commune en portent chacune une).{% endcom
 {% comment %}Ce que la NATURE demande à l'ajout (`Attr.on_add` — langue, âge, genre d'une voix) :
 rendu par `library-add.js` depuis la déclaration de l'onglet ouvert, jamais écrit ici.{% endcomment %}
 <div class="d-flex flex-wrap gap-2 mt-2" data-library-attrs hidden></div>
+{% comment %}PROPOSITION à valider (2026-09-30) : un fichier dont la nature sait ESTIMER des
+attributs (langue entendue, genre de la voix) est d'abord ÉCOUTÉ ; les champs se pré-remplissent,
+la personne corrige si besoin, puis ajoute — ou ignore ce fichier.{% endcomment %}
+<div class="alert alert-info small py-1 px-2 mt-2 mb-0 d-flex align-items-center gap-2 flex-wrap" data-library-pending hidden>
+    <span class="flex-grow-1" data-library-pending-text></span>
+    <button type="button" class="btn btn-success btn-sm py-0" data-library-confirm>Ajouter</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm py-0" data-library-skip>Ignorer</button>
+</div>
 {% comment %}PROVENANCE d'un extrait qui n'est pas de la personne (film, podcast, banque de sons) —
 licence, auteur, page d'origine : ce qu'une licence à attribution EXIGE, rangé dans les champs de
 l'asset (`UserAsset.license/author/source_url`). Replié : on ne le demande qu'à qui en a besoin.{% endcomment %}

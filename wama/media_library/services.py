@@ -131,6 +131,62 @@ def _converted_to_pivot(uploaded, source, filename: str, pivot: str):
     return ContentFile(data, name=f'{stem}.{pivot}')
 
 
+def _estimate_spoken_language(path):
+    """(langue, confiance) entendue — faster-whisper `tiny` sur CPU, la brique du transcriber."""
+    from wama.common.utils.audio_decode import decode_audio
+    from wama.common.utils.spoken_language import SAMPLE_RATE, detect_spoken_language
+    audio, _ = decode_audio(path, target_sr=SAMPLE_RATE)
+    return detect_spoken_language(audio)
+
+
+def _estimate_voice_gender(path):
+    """(genre, None) que la hauteur de voix fait entendre — '' dans la zone grise."""
+    from wama.common.tts.voice_refs import estimate_voice_gender
+    return estimate_voice_gender(path), None
+
+
+#: Les estimateurs qu'une nature peut NOMMER (`natures.Attr.estimate`) — chacun rend
+#: `(valeur, confiance | None)` depuis un fichier. Ajouter un estimateur = une entrée ici et un nom
+#: dans la déclaration ; ni la card, ni la vue n'ont à l'apprendre.
+ATTRIBUTE_ESTIMATORS = {
+    'spoken_language': _estimate_spoken_language,
+    'voice_gender': _estimate_voice_gender,
+}
+
+
+#: En dessous, une estimation n'est PAS proposée : mesuré le 2026-09-30 sur les 22 voix de
+#: référence, la seule langue fausse (« ru » pour une voix française) l'était à 0,43, les justes les
+#: moins sûres à 0,58 et 0,69 — un seuil à 0,7 en aurait perdu deux, 0,5 n'écarte que l'erreur.
+PROPOSAL_MIN_CONFIDENCE = 0.5
+
+
+def estimate_attributes(asset_type: str, path) -> dict:
+    """Ce qu'on peut PROPOSER des attributs demandés à l'ajout (`on_add` + `estimate`) en écoutant
+    le fichier (2026-09-30, demande de Fabien : « le déterminer et le proposer, pour que ce soit
+    proche des infos qu'il rentrera »). Rend `{clé: {'value', 'confidence', 'label'}}` ; une
+    estimation qui échoue, qui ne tranche pas, ou dont la valeur sort du vocabulaire déclaré est
+    simplement ABSENTE — une proposition fausse serait pire qu'aucune."""
+    from .natures import ASSET_NATURES
+    proposals = {}
+    for key, attr in ASSET_NATURES[asset_type].attributes.items():
+        estimator = ATTRIBUTE_ESTIMATORS.get(attr.estimate) if attr.on_add else None
+        if estimator is None:
+            continue
+        try:
+            value, confidence = estimator(path)
+        except Exception as exc:
+            logger.info('[media_library] estimation %s.%s impossible : %s', asset_type, key, exc)
+            continue
+        known = attr.choices or tuple(attr.labels)
+        if not value or (known and value not in known):
+            continue
+        if confidence is not None and confidence < PROPOSAL_MIN_CONFIDENCE:
+            continue
+        proposals[key] = {'value': value, 'label': attr.labels.get(value, value),
+                          'confidence': round(confidence, 2) if confidence is not None else None}
+    return proposals
+
+
 def _stated_on_add(asset_type, attributes, license, author, source_url):
     """Ce que la personne DIT du fichier à l'ajout (2026-09-30, décision de Fabien) : les
     attributs que sa nature demande (`Attr.on_add` — langue, âge, genre d'une voix) et la
