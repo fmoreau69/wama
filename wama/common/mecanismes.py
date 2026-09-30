@@ -1298,7 +1298,7 @@ MECHANISMS = (
                        'wama/common/templates/common/_settings_modal_footer.html')),
     Mechanism('model_capabilities', 'Vocabulaire des capacités',
               "Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI ; "
-              "`category` (vocabulaire fermé `MODEL_CATEGORIES`) range un select de modèle en "
+              "`category` (vocabulaire fermé `CATEGORY_LABELS`) range un select de modèle en "
               "optgroups (`options_group=\"category\"`, 2026-09-29)",
               'wama/common/utils/model_capabilities.py', 'docs/construction/ui/INPUT_MODEL_MATCHING.md',
               annexes=('wama/common/static/common/js/wama-model-caps.js',

@@ -1326,15 +1326,15 @@ def api_model_options(request):
         # Un groupe par CATÉGORIE de présentation (capacité canonique `category`, 2026-09-29 —
         # 1ᵉʳ consommateur : les logos de l'imager). Les modèles SANS catégorie restent HORS
         # groupe, en tête : la catégorie DISTINGUE quelques modèles, elle ne range pas les autres.
-        # Libellé : vocabulaire fermé `MODEL_CATEGORIES` ; une valeur inconnue s'affiche telle quelle.
-        from wama.common.utils.model_capabilities import MODEL_CATEGORIES
+        # Libellé : vocabulaire fermé `CATEGORY_LABELS` ; une valeur inconnue s'affiche telle quelle.
+        from wama.common.utils.model_capabilities import CATEGORY_LABELS
         category_of = {d['id']: (d.get('capabilities') or {}).get('category') or '' for d in info}
         by_category = {}
         for opt in options:
             value = opt['value'] if isinstance(opt, dict) else opt[0]
             by_category.setdefault(category_of.get(value, ''), []).append(opt)
         groups = ([{'options': by_category.pop('')}] if '' in by_category else []) + [
-            {'group': MODEL_CATEGORIES.get(k, k), 'options': v}
+            {'group': CATEGORY_LABELS.get(k, k), 'options': v}
             for k, v in sorted(by_category.items())] or [{'options': options}]
     reponse = {'success': True, 'groups': groups}
     # « auto » en 1ʳᵉ option + PRÉVISION du modèle retenu (brique commune auto_model,
