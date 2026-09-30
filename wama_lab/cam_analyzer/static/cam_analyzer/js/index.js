@@ -928,10 +928,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _busy = _running || _inQueue;
                 const _cycle = _busy ? '⏳' : (p.status === 'never' ? '▶' : '↻');
                 const _cycleTip = _running ? 'En cours…'
-                    : (_inQueue ? 'En file — démarrera après les calculs en cours'
+                    : (_inQueue ? 'En file — démarrera après la chaîne en cours'
                         : (p.status === 'never' ? 'Lancer ce passage seul' : 'Relancer ce passage seul'));
-                // Sélection multiple (étage Calculs) : la case survit aux re-rendus du suivi.
-                const _sel = (p.stage === 'calcul')
+                // Sélection multiple (Analyse ET Calculs, 2026-09-30) : la case survit aux re-rendus
+                // du suivi. L'extraction n'a pas de tâche propre : rien à cocher.
+                const _sel = (p.pass_type !== 'extraction')
                     ? `<input type="checkbox" class="form-check-input m-0" data-rp-sel="${p.pass_type}"
                               title="Sélectionner pour « ▶ sélection »" ${passSelection.has(p.pass_type) ? 'checked' : ''}>`
                     : '';
@@ -969,10 +970,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="d-flex align-items-center gap-2 mt-2 mb-1">
                         <span class="text-uppercase text-secondary flex-grow-1"
                               style="font-size:0.62rem;letter-spacing:0.08em;" title="${sub}">${title}</span>
-                        ${key === 'calcul' ? `<button type="button" class="btn btn-sm btn-outline-info py-0 px-1"
-                                data-rp-run-selected ${_blocked ? 'disabled' : ''}
-                                title="Lancer les passes cochées, enchaînées dans l'ordre des dépendances (en file si des calculs tournent déjà)"
-                                style="font-size:0.7rem;">▶ sélection</button>` : ''}
+                        <button type="button" class="btn btn-sm ${key === 'analyse' ? 'btn-outline-success' : 'btn-outline-info'} py-0 px-1"
+                                data-rp-run-selected="${key}" ${_blocked ? 'disabled' : ''}
+                                title="Lancer les passes cochées de cet étage, enchaînées dans l'ordre des dépendances (en file si une chaîne tourne déjà)"
+                                style="font-size:0.7rem;">▶ sélection</button>
                         <button type="button" class="btn btn-sm ${key === 'analyse' ? 'btn-outline-success' : 'btn-outline-info'} py-0 px-1"
                                 data-rp-stage="${key}" ${_blocked ? 'disabled' : ''} title="${_stageTip}"
                                 style="font-size:0.7rem;">▶ tout</button>
@@ -1064,14 +1065,25 @@ document.addEventListener('DOMContentLoaded', function () {
             });
             panel.querySelectorAll('[data-rp-sel]').forEach(cb => {
                 cb.addEventListener('change', () => {
-                    if (cb.checked) passSelection.add(cb.dataset.rpSel); else passSelection.delete(cb.dataset.rpSel);
+                    const key = cb.dataset.rpSel;
+                    if (cb.checked) passSelection.add(key); else passSelection.delete(key);
+                    // une passe par caméra a une ligne par vue : toutes ses cases suivent
+                    panel.querySelectorAll(`[data-rp-sel="${key}"]`).forEach(o => { o.checked = cb.checked; });
                 });
             });
-            panel.querySelector('[data-rp-run-selected]')?.addEventListener('click', async () => {
-                const types = [...passSelection];
-                if (!types.length) { alert('Cocher au moins une passe de calcul.'); return; }
-                passSelection.clear();
-                await runPasses(types, false);
+            const _stageOf = Object.fromEntries(_passes.map(p => [p.pass_type, p.stage || 'analyse']));
+            panel.querySelectorAll('[data-rp-run-selected]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const stage = btn.dataset.rpRunSelected;
+                    const types = [...passSelection].filter(k => _stageOf[k] === stage);
+                    if (!types.length) {
+                        alert(stage === 'analyse' ? "Cocher au moins une passe d'analyse."
+                                                  : 'Cocher au moins une passe de calcul.');
+                        return;
+                    }
+                    types.forEach(k => passSelection.delete(k));
+                    await runPasses(types, false);
+                });
             });
             calcChainQueued = !!data.chain_queued;
             // Des passes tournent (ou une chaîne attend en file) sans que CETTE page les suive —
@@ -1101,7 +1113,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (passesPollTimer) { clearInterval(passesPollTimer); passesPollTimer = null; }
     }
     let calcChainQueued = false;   // verrou serveur : une chaîne ▶ Calculs est en file ou en cours
-    const passSelection = new Set();   // passes de calcul cochées (« ▶ sélection »), gardées entre re-rendus
+    const passSelection = new Set();   // passes cochées (« ▶ sélection » de chaque étage), gardées entre re-rendus
     function startPassesPolling() {
         stopPassesPolling();
         let seenRunning = false, ticks = 0, idleTicks = 0;
