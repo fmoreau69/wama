@@ -39,6 +39,35 @@ def _render(app, **extra):
         return render_to_string('common/_new_item_card_v4.html', context)
 
 
+class LotFileFormatTest(SimpleTestCase):
+    """The Lot tab declares the intent — it does not lift the FORMAT contract (2026-09-30): a PNG
+    posted as a lot was read as text by the imager (6 « prompts » made of bytes)."""
+
+    def test_a_binary_is_never_a_lot_file(self):
+        from wama.common.utils.batch_parsers import batch_file_refusal
+        self.assertIn('PNG', batch_file_refusal('photo.png').upper())
+        self.assertEqual('', batch_file_refusal('lot.txt'))
+        self.assertEqual('', batch_file_refusal('LOT.CSV'))
+
+    def test_an_app_can_declare_its_own_lot_formats(self):
+        from wama.common.utils.batch_parsers import batch_file_refusal
+        self.assertTrue(batch_file_refusal('prompts.json'))
+        self.assertEqual('', batch_file_refusal('prompts.json', extra=('json', 'yaml', 'yml')))
+
+    def test_the_imager_preview_refuses_an_image_posted_as_a_lot(self):
+        from django.contrib.auth import get_user_model
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import RequestFactory
+        from django.urls import reverse
+        from wama.imager.views import batch_preview
+        png = SimpleUploadedFile('photo.png', b'\x89PNG\r\n\x1a\n' + b'\x00' * 32, 'image/png')
+        request = RequestFactory().post(reverse('imager:batch_preview'), {'batch_file': png})
+        request.user = get_user_model()(username='lot_format_witness')   # never saved
+        response = batch_preview(request)
+        self.assertEqual(400, response.status_code)
+        self.assertIn('lot', response.content.decode('utf-8').lower())
+
+
 class LotTabTemplateTest(TestCase):
 
     def _catalog(self, has_batch):

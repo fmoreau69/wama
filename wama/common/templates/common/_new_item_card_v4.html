@@ -30,7 +30,10 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
 {% if collapsible %}<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>{% endif %}
 <script src="{% static_v 'common/js/wama-input-slots.js' %}"></script>
 <link rel="stylesheet" href="{% static_v 'common/css/wama-input-slots.css' %}">
-{% input_slots app_id as ports %}
+{% comment %}`card_domain` (2026-09-30) : le DOMAINE d'une card quand la page en porte plusieurs
+(imager image/vidéo, enhancer image-vidéo/audio) — ports restreints aux natures que le domaine
+accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de page aurait fuité.{% endcomment %}
+{% input_slots app_id card_domain as ports %}
 {% lot_slot app_id as lot %}
 <div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}"
      data-wama-depot="{% if depot_cree is False %}attache{% else %}cree{% endif %}"

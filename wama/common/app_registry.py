@@ -536,6 +536,40 @@ def app_card_ports(app_id):
     }]
 
 
+def ports_for_domain(app_id, domain, ports):
+    """Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
+
+    Deux cards par page (imager : image / vidéo ; enhancer : image-vidéo / audio) recevaient les
+    MÊMES ports. `app_input_ports(app, domain)` filtre par la TÂCHE des modèles (`x-to-<domaine>`),
+    ce qui ne dit rien des tâches qui ne suivent pas cette forme (enhancer : `upscale`, `denoise`,
+    `audio-enhance`). La déclaration juste existe déjà : l'`accepts` du domaine (`app_modes`), ses
+    NATURES d'entrée. Donc :
+      • un port garde les natures de ses `types` que le domaine accepte — aucune → il sort ;
+      • un port GÉNÉRIQUE (jeton sans `accept` propre, `work_file`) CÈDE à un port SPÉCIFIQUE qui
+        couvre déjà ses natures dans ce domaine (`work_audio` sur la card audio).
+    Le prompt n'est pas une nature de fichier : il passe tel quel. Domaine inconnu ou sans
+    `accepts` → ports inchangés (on préfère un port de trop à un port perdu).
+    """
+    from wama.common.utils.app_modes import INPUT_TYPES, get_domain
+    accepts = [a for a in (get_domain(app_id, domain).get('accepts') or ()) if a != 'prompt']
+    if not domain or not accepts:
+        return list(ports or [])
+    natures = set(normalize_types(accepts))
+    kept = []
+    for p in ports or []:
+        if p.get('group') == 'prompt':
+            kept.append(p)
+            continue
+        types = [t for t in (p.get('types') or []) if t in natures]
+        if types:
+            kept.append(dict(p, types=types))
+    specific = {t for p in kept if p.get('group') != 'prompt'
+                and (INPUT_TYPES.get(p.get('id')) or {}).get('accept') for t in p['types']}
+    return [p for p in kept
+            if p.get('group') == 'prompt' or (INPUT_TYPES.get(p.get('id')) or {}).get('accept')
+            or not set(p['types']) <= specific]
+
+
 def app_setting_carried_ports(app_id) -> dict:
     """Ports que la card de l'app NE MONTRE PAS, parce qu'un RÉGLAGE les porte — `{port: réglage}`.
 
@@ -1313,7 +1347,7 @@ APP_CATALOG = {
                               # 2026-08-30 : Fabien a retranché — pas de mode temps réel, la
                               # session live passe par la preview during (CARD_DESIGN §11.8.6).
             layout=True,      # ligne / mosaïque
-            model_help=True,  # WamaModelHelp (meta backends via get_backends_info, index.js:1580)
+            model_help=True,  # WamaModelHelp : méta du catalogue sur le domaine du select (help_source, F4b ⑦)
             # Audit empirique 2026-07-10 : ETA 3 niveaux câblés (WamaEta.render index.js:279 ;
             # eta_ids batch views.py:141 → _batch_card data-eta-ids ; _global_progress.html:183).
             eta_individual=True,

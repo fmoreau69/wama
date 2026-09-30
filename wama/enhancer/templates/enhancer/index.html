@@ -219,9 +219,11 @@
    prenaient le défaut `newItemCard` — donc `newItemCard` ET `newItemCardBody` en DOUBLE dans
    le document. `getElementById` rendant toujours le PREMIER, cliquer l'en-tête de la card
    AUDIO dépliait celle-ci (mesuré), pendant que l'audio recevait le chevron sans s'ouvrir.
-   Même règle que l'imager (imgNewCard / vidNewCard) : deux cards sur une page = deux ids.{% endcomment %}
+   Même règle que l'imager (imgNewCard / vidNewCard) : deux cards sur une page = deux ids.
+   Card v4 depuis le 2026-09-30 (CARD_DESIGN §11.11) : `card_domain='image_video'` ne garde que le
+   port `work_file` (images, vidéos — `ports_for_domain`), plus l'onglet « Lot ».{% endcomment %}
 {% url 'enhancer:batch_template' as enhancer_batch_template_url %}
-{% include 'common/_new_item_card.html' with card_id='mediaNewCard' drop_zone_id='dropZoneEnhancer' file_input_id='enhancer-file' folder_input_id='enhancerFolderInput' file_accept='image/*,video/*' formats_label='Images · Vidéos' show_batch_bar=True batch_template_url=enhancer_batch_template_url show_media_library=True show_url=True url_input_id='enhancerUrlInput' url_submit_id='enhancerUrlSubmit' url_placeholder='https://… (média distant, page, YouTube)' collapsible=True %}
+{% include 'common/_new_item_card_v4.html' with app_id='enhancer' card_domain='image_video' card_id='mediaNewCard' drop_zone_id='dropZoneEnhancer' file_input_id='enhancer-file' folder_input_id='enhancerFolderInput' formats_label='Images · Vidéos' show_batch_bar=True batch_template_url=enhancer_batch_template_url url_input_id='enhancerUrlInput' url_submit_id='enhancerUrlSubmit' url_placeholder='https://… (média distant, page, YouTube)' collapsible=True %}
 
 {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
 {% include 'common/_global_progress.html' %}
@@ -250,9 +252,13 @@
      ===================================================================== -->
 <div class="tab-pane fade" id="audioTab" role="tabpanel" data-domain="audio">
 
-{% comment %}Card d'entrée COMMUNE audio (dépôt fichier/médiathèque + barre batch audio spécifique).
-   `card_id` déclaré — cf. l'encadré de la card média ci-dessus.{% endcomment %}
-{% include 'common/_new_item_card.html' with card_id='audioNewCard' drop_zone_id='dropZoneAudio' file_input_id='audio-enhancer-file' folder_input_id='audioEnhFolderInput' file_accept='audio/*' formats_label='Audio — WAV, MP3, FLAC, M4A…' show_media_library=True media_library_type='audio' extra_zone_template='enhancer/_audio_batch_bar.html' collapsible=True %}
+{% comment %}Card d'entrée COMMUNE audio. `card_id` déclaré — cf. l'encadré de la card média ci-dessus.
+   Card v4 depuis le 2026-09-30 : `card_domain='audio'` ne garde que le port `work_audio`. Sa voie de
+   lot garde sa base d'ids (`audioBatch`, `WamaBatchImport({idBase})` d'audio-enhancer.js) : la card
+   rend la barre elle-même (`batch_bid`) — l'ancienne zone d'extension `_audio_batch_bar.html`, qui
+   l'incluait, la DOUBLERAIT ; son accent vert passe par les variables CSS de la card (plus bas).{% endcomment %}
+<style>#audioNewCard { --batch-accent:#198754; --batch-text:#fff; --batch-bg:#1a1520; }</style>
+{% include 'common/_new_item_card_v4.html' with app_id='enhancer' card_domain='audio' card_id='audioNewCard' drop_zone_id='dropZoneAudio' file_input_id='audio-enhancer-file' folder_input_id='audioEnhFolderInput' formats_label='Audio — WAV, MP3, FLAC, M4A…' show_batch_bar=True batch_bid='audioBatch' batch_label='Batch audio' collapsible=True %}
 
 <div id="audioGlobalStatus" style="opacity:0; pointer-events:none;">
     <div class="d-flex justify-content-between align-items-baseline mb-1">

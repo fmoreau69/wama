@@ -1033,6 +1033,13 @@ fichier qui n'est pas un lot refusé et dit — rien de créé. Card v3 : non ap
 mesurée par `<app>.import`). Contre-épreuve : avec le `filemanager.js` de HEAD, rouge sur le
 composer (`.txt` désigné comme mélodie, lot ignoré) et l'anonymizer (lot ignoré, 1 élément créé
 par un non-lot).
+⚠ **Étendu le même jour** (portage imager/enhancer) : le geste mesure **chaque** card v4 de la
+page, en affichant son onglet de domaine (Bootstrap ou `WamaModes`), et compte/nettoie sur
+**tous** les modèles de l'app qui appartiennent au compte de test — la garde du harnais ne voit que
+le modèle principal, et les éléments de la card audio de l'enhancer lui échappaient. Le témoin
+« non-lot » est une IMAGE : pour une app qui part d'un prompt, une ligne de texte posée sur « Lot »
+EST un lot d'un prompt. Deux défauts préexistants trouvés ainsi (`MEDIA_STORAGE_TIERING §8.6`
+D32, D33).
 
 ### Geste de SUPPRESSION depuis le gestionnaire (2026-09-26) — le premier geste dont le succès est un REFUS
 

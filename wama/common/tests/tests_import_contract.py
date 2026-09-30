@@ -229,7 +229,7 @@ class UploadViewsReceiveDesignationsTest(TestCase):
 
     _user_for = ContratUploadDesAppsPorteesTest._utilisateur
 
-    def _designate(self, app, roles, champ, ext, contenu, extra):
+    def _designate(self, app, roles, champ, ext, contenu, extra, url_name=None):
         from django.conf import settings
         from wama.common.utils.file_references import direct_references
         from wama.common.utils.media_paths import designation_field
@@ -239,7 +239,8 @@ class UploadViewsReceiveDesignationsTest(TestCase):
         path = Path(settings.MEDIA_ROOT) / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(contenu())
-        rep = self.client.post(reverse(f'{app}:upload'), {designation_field(champ): rel, **extra})
+        rep = self.client.post(reverse(url_name or f'{app}:upload'),
+                               {designation_field(champ): rel, **extra})
         ok = rep.status_code == 200 and not (rep.json() if rep.headers.get('Content-Type', '')
                                             .startswith('application/json') else {}).get('error')
         pointed = ok and bool(identifiants(rep.json())) and bool(direct_references(rel))
@@ -253,6 +254,36 @@ class UploadViewsReceiveDesignationsTest(TestCase):
                 self.assertTrue(pointed, f'{app}:upload → {rep.status_code} {rep.content[:200]!r}')
                 adopted.append(app)
         self.assertTrue(adopted, 'aucune app ne reçoit de désignation : le contrat serait à vide')
+
+    def test_each_domain_upload_route_receives_a_designation_too(self):
+        """A domain with its OWN routes (`route_prefix` — the enhancer's audio) has its own upload
+        view, and the 2026-09-28 rollout missed it: `audio_upload` read `request.FILES` only, so the
+        library tile and the tree drag fell to « Bad Request » on the audio card, v3 and v4 alike.
+        Found 2026-09-30 by the `enhancer.tree_drop` gesture, the first to measure that card."""
+        from django.urls import NoReverseMatch
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.utils.app_modes import get_domains
+        measured = 0
+        for app, spec in APP_CATALOG.items():
+            if (spec or {}).get('sandbox'):
+                continue
+            for domain in get_domains(app):
+                prefix = domain.get('route_prefix')
+                witness = next((_WITNESSES[n] for n in domain.get('accepts', ()) if n in _WITNESSES), None)
+                if not prefix or witness is None:
+                    continue
+                try:
+                    reverse(f'{app}:{prefix}_upload')
+                except NoReverseMatch:
+                    continue
+                roles = list((DEFAULT_APP_ACCESS.get(app) or {}).get('roles', []))
+                with self.subTest(app=app, domain=domain.get('id')):
+                    rep, pointed = self._designate(app, roles, 'file', witness[0], witness[1], {},
+                                                   url_name=f'{app}:{prefix}_upload')
+                    self.assertTrue(pointed, f'{app}:{prefix}_upload → {rep.status_code} {rep.content[:200]!r}')
+                    measured += 1
+        self.assertGreater(measured, 0, 'no domain upload route measured: the contract would be empty')
 
     def test_a_designation_the_user_cannot_read_is_refused(self):
         from wama.common.utils.media_paths import designation_field
