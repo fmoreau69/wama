@@ -20,7 +20,8 @@ class Command(BaseCommand):
             "is_allowed, --apply execute puis rejoue les patches venv).")
 
     def add_arguments(self, parser):
-        parser.add_argument('key', help="Clé du registre (nom de distribution PyPI).")
+        parser.add_argument('key', help="Clé du registre (nom de distribution PyPI, ou clé "
+                                        "d'une librairie vendorisée : musetalk, codeformer…).")
         parser.add_argument('--allow', action='store_true',
                             help="Poser is_allowed=True (décision humaine explicite).")
         parser.add_argument('--apply', action='store_true',
@@ -50,5 +51,7 @@ class Command(BaseCommand):
             if patches and not patches.get('ok'):
                 self.stderr.write(self.style.WARNING(
                     f"⚠ patches non rejoués proprement : {patches}"))
+            where = (res['plan']['dir'] if (res.get('plan') or {}).get('route') == 'vendor'
+                     else 'venv_linux (référence)')
             self.stdout.write(self.style.SUCCESS(
-                f"✓ {o['key']}=={res.get('version')} — venv_linux (référence)."))
+                f"✓ {o['key']}=={res.get('version')} — {where}."))

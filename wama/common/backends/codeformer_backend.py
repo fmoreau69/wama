@@ -177,6 +177,7 @@ class CodeFormerBackend(BaseModelBackend):
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'codeformer'
+    VENDORED = True
     # ⚠ `realesrgan` RETIRÉ le 2026-09-04 (constat Fabien « codeformer est installé ») :
     # ce n'est pas un paquet pip requis ici. Le code vendorisé importe `RealESRGANer` depuis
     # **basicsr** (`basicsr.utils.realesrgan_utils`), et l'upscaler d'arrière-plan est de

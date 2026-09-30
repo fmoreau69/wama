@@ -2423,6 +2423,27 @@ tout de suite »*) :
   (`nom==version`, contraintes `-c`, simulation). Correctifs locaux déclarés (`patches/`).
   Premiers clients : musetalk, codeformer, triposr (leurs scripts de setup deviendraient des
   manifestes), puis YuE/ACE-Step et les avatars (LongCat, InfiniteTalk, SoulX-FlashHead).
+  ✅ **TRANCHÉE puis LIVRÉE le 2026-09-30** (Fabien : *« la norme c'est pip […] uniquement pour
+  les librairies qui ne s'installent pas directement avec pip […] à uniformiser, universaliser au
+  passage »* ; un PROJET D'APPLICATION ne s'installe pas, il se GÉNÈRE en app WAMA). Forme :
+  `install.vendor = {repo, commit, engine, patch?, ignore?}`, exclusif de `install.pip`
+  (`library.vendor_spec_error`, même verrou à la validation et à l'installation) ; champ
+  `Library.vendor` projeté ; exécuteur `model_manager/services/vendor_installer.py`, appelé par
+  `install_library` — plan sans effet, allowlist, kill switch commun, clone au SHA dans un dossier
+  temporaire renommé au succès, correctif appliqué, état CONSTATÉ (`vendor_state` : fins de ligne
+  ignorées, chemins `ignore` déclarés), journal `install_history`, et **refus d'écraser toute
+  modification locale non déclarée**. Les trois moteurs sont au corpus
+  (`manifests/libraries/{musetalk,codeformer,triposr}.json`, manifestes AUTORÉS relus par
+  `manifest_export`) ; MuseTalk et CodeFormer mesurés CONFORMES à leur déclaration sur ce poste,
+  TripoSR cloné + corrigé de bout en bout par la route dans un dossier jetable (réseau réel). Le
+  correctif TripoSR est sorti du script en `patches/triposr_pymcubes_lazy_rembg.diff` ;
+  `setup_avatarizer.sh` et `tools/setup_triposr.sh` appellent la route. Uniformisé au passage :
+  `BaseModelBackend.VENDORED` — un clone absent entre dans `missing_packages()` pour tout moteur
+  vendorisé (seul TripoSR le disait). Tests : `model_manager/tests/tests_vendor_install.py` (faux
+  dépôt git local, contre-épreuves CRLF / `ignore` / backend non vendorisé).
+  ⏳ Restent : YuE/ACE-Step et les avatars lourds comme clients suivants ; le rôle `librarian
+  --repo` ne produit pas encore de `install.vendor` (il écrit `pip`) ; les dépendances pip d'un
+  moteur vendorisé restent vérifiées par son backend (`REQUIRED_PACKAGES`), pas par le manifeste.
 - **D-b — un artefact intermédiaire ÉDITABLE dans une app de génération.** Propre à YuE2, et
   INDÉPENDANTE de D-a. Aucune app ne l'a : partout c'est consigne → sortie, en un coup. La forme
   existe pourtant ailleurs (transcriber : un master puis une correction humaine qui fait autorité).

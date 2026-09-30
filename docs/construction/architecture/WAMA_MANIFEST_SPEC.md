@@ -505,6 +505,13 @@ que le catalogue n'a pas. Autre facette, pas redondance.
    Semée : `faster-whisper` (l'exemple du §7.3). Probe de composition : un manifeste d'app
    avec `{"kind": "library", "key": "faster-whisper"}` valide et se résout ; la même référence
    était refusée avant la création du kind.
+   ✅ **Voie vendor (2026-09-30, ROADMAP D-a)** : `install` porte `pip` **ou** `vendor`
+   (`{repo: "owner/name", commit: <SHA 40>, engine, patch?: "patches/….diff", ignore?: [...]}`),
+   jamais les deux — pour une librairie que pip ne sait pas installer (MuseTalk, CodeFormer,
+   TripoSR). Un tel manifeste est AUTORÉ (`source.type = "authored"`) : `extract` le relit au
+   corpus au lieu d'interroger `importlib.metadata`, donc `manifest_export` le VALIDE au lieu de
+   le déclarer « extraction impossible ». Projeté au champ `Library.vendor` ; installé par
+   `install_library` (`model_manager/services/vendor_installer.py`).
 4. 🔄 **PILOTE LIVRÉ (2026-08-02)** — rôle « librarian » (`wama-dev-ai/prompts/librarian.txt` +
    `run_librarian.py`) : one-shot borné (pas de boucle agentique), corpus en exemples, sortie
    validée MÉCANIQUEMENT (`ingest.validate`) et diffée contre `extract_library` quand la lib est

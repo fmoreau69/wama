@@ -85,7 +85,7 @@ class EngineFromAvatarNatureTest(TestCase):
                'meshes': [{'name': 'Head', 'extras': {'targetNames': list(names)}, 'primitives': []}]}
         return _media(f'avatarizer/{self.user.id}/input/{name}', glb_from_json(doc))
 
-    def _declare_talkinghead(self):
+    def _register_talkinghead(self):
         """La ligne de catalogue, avec l'exigence d'attributs que la découverte déclare."""
         from wama.model_manager.models import AIModel
         AIModel.objects.update_or_create(model_key=workers.TALKINGHEAD_KEY, defaults=dict(
@@ -99,7 +99,7 @@ class EngineFromAvatarNatureTest(TestCase):
                               'prefer': {'visemes': 'oculus'}}}}))
 
     def test_a_glb_avatar_is_rendered_by_talkinghead(self):
-        self._declare_talkinghead()
+        self._register_talkinghead()
         job, keys = self._run(self._job(self._talking_glb()))
         self.assertEqual('SUCCESS', job.status, job.error_message)
         # Ni MuseTalk ni CodeFormer : sans objet sur un rendu 3D. Résolu par le CATALOGUE.
@@ -111,7 +111,7 @@ class EngineFromAvatarNatureTest(TestCase):
 
     def test_a_mesh_without_rig_or_face_is_refused_with_its_reason(self):
         """Le bon RÔLE (objet 3D) mais pas les ATTRIBUTS : un maillage TripoSR ne parlera pas."""
-        self._declare_talkinghead()
+        self._register_talkinghead()
         job, keys = self._run(self._job(self._talking_glb('mesh.glb', complete=False)))
         self.assertEqual('FAILURE', job.status)
         self.assertIn('rigged', job.error_message)
@@ -125,7 +125,7 @@ class EngineFromAvatarNatureTest(TestCase):
         self.assertEqual(['avatarizer:musetalk-v1.5', 'avatarizer:codeformer'], keys)
 
     def _audio_only_job(self):
-        self._declare_talkinghead()
+        self._register_talkinghead()
         job = self._job(self._talking_glb(), text='')
         job.audio_input = _media(f'avatarizer/{self.user.id}/input/voice.wav',
                                  Path(_silent_wav(Path(settings.MEDIA_ROOT) / 'v.wav')).read_bytes())
@@ -209,7 +209,7 @@ class AddTimeVerdictTest(TestCase):
         for role in (DEFAULT_APP_ACCESS.get('avatarizer') or {}).get('roles', []):
             self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
         self.client.force_login(self.user)
-        EngineFromAvatarNatureTest._declare_talkinghead(self)
+        EngineFromAvatarNatureTest._register_talkinghead(self)
 
     @staticmethod
     def _glb(complete):

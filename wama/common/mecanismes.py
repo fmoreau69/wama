@@ -326,7 +326,10 @@ MECHANISMS = (
                        'wama/model_manager/services/file_watcher.py')),
     Mechanism('model_installer', 'Installation de modèles',
               "Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue",
-              'wama/model_manager/services/model_installer.py', ''),
+              'wama/model_manager/services/model_installer.py', '',
+              # Route `library` (install_library) : voie pip ici, voie VENDOR (dépôt épinglé au
+              # commit + correctif, ROADMAP D-a, 2026-09-30) dans son exécuteur délégué.
+              annexes=('wama/model_manager/services/vendor_installer.py',)),
     Mechanism('install_history', 'Journal des installations',
               "Date chaque installation et désinstallation (modèle, librairie) avec son issue et "
               "sa VOIE (model manager, assistant, marcheur d'app, ligne de commande), aux points "

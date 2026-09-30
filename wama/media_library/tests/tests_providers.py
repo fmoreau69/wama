@@ -230,7 +230,7 @@ class Avatars3dSourceTest(SimpleTestCase):
 class DownloadDomainsAreDeclaredTest(SimpleTestCase):
     """La liste blanche vit sur le connecteur (2026-09-30) — plus dans la vue."""
 
-    def test_every_registered_provider_declares_its_download_domains(self):
+    def test_every_registered_provider_names_its_download_domains(self):
         from wama.media_library.providers.registry import _REGISTRY
         for slug, cls in _REGISTRY.items():
             with self.subTest(provider=slug):

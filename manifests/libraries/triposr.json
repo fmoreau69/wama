@@ -1,0 +1,40 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "PyMCubes",
+      "einops",
+      "huggingface-hub",
+      "omegaconf",
+      "trimesh"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Stability AI, VAST-AI-Research",
+      "license": "MIT",
+      "repository": "https://github.com/VAST-AI-Research/TripoSR",
+      "summary": "Reconstruction image → objet 3D — code lancé par image_to_3d_backend (marching cubes par PyMCubes, rembg paresseux)",
+      "version": "107cefdc244c"
+    },
+    "install": {
+      "vendor": {
+        "commit": "107cefdc244c39106fa830359024f6a2f1c78871",
+        "engine": "triposr",
+        "patch": "patches/triposr_pymcubes_lazy_rembg.diff",
+        "repo": "VAST-AI-Research/TripoSR"
+      }
+    }
+  },
+  "description": "Reconstruction image → 3D (TripoSR) — dépôt vendorisé, épinglé au commit, correctif local versionné (torchmcubes → PyMCubes, rembg paresseux)",
+  "key": "triposr",
+  "manifest_kind": "library",
+  "name": "TripoSR",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "github:VAST-AI-Research/TripoSR@107cefdc244c39106fa830359024f6a2f1c78871",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

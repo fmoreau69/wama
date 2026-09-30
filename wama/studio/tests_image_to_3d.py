@@ -74,13 +74,13 @@ class LeModeleEtSonMoteurTest(TestCase):
 
     def test_missing_packages_nomme_le_code_vendorise_quand_il_manque(self):
         """Le vendoring fait partie de la disponibilité — un backend qui se croirait prêt sans
-        `tsr/` planterait au `load()`, pas au grisage."""
-        from unittest.mock import patch
-        from pathlib import Path
+        `tsr/` planterait au `load()`, pas au grisage. Depuis le 2026-09-30 c'est le contrat
+        commun qui le dit (`BaseModelBackend.VENDORED`), pour tout moteur vendorisé."""
+        from django.test import override_settings
         from wama.common.backends import image_to_3d_backend as m
-        with patch.object(m, 'VENDOR_DIR', Path('/nulle/part')):
-            manques = m.TripoSRBackend.missing_packages()
-        self.assertTrue(any(x.startswith('vendor:triposr') for x in manques), manques)
+        with override_settings(BACKEND_VENDOR_DIR='/nowhere'):
+            missing = m.TripoSRBackend.missing_packages()
+        self.assertIn('vendor:triposr (manage.py install_library triposr)', missing)
 
 
 class LeRoutageTest(TestCase):

@@ -1,0 +1,49 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "accelerate",
+      "diffusers",
+      "einops",
+      "huggingface-hub",
+      "librosa",
+      "moviepy",
+      "numpy",
+      "omegaconf",
+      "opencv-python",
+      "soundfile",
+      "transformers"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Tencent Music Entertainment Lyra Lab",
+      "license": "MIT",
+      "repository": "https://github.com/TMElyralab/MuseTalk",
+      "summary": "Synchronisation labiale temps réel (MuseTalk v1.5) — code lancé en sous-processus par musetalk_backend",
+      "version": "0a89dec45a01"
+    },
+    "install": {
+      "vendor": {
+        "commit": "0a89dec45a0192b824e3cf4daf96c239440c5ed8",
+        "engine": "musetalk",
+        "ignore": [
+          "models"
+        ],
+        "patch": "patches/musetalk_local_2026-09-07.diff",
+        "repo": "TMElyralab/MuseTalk"
+      }
+    }
+  },
+  "description": "Synchronisation labiale temps réel (MuseTalk v1.5) — dépôt vendorisé, épinglé au commit, correctif local versionné",
+  "key": "musetalk",
+  "manifest_kind": "library",
+  "name": "MuseTalk",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "github:TMElyralab/MuseTalk@0a89dec45a0192b824e3cf4daf96c239440c5ed8",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

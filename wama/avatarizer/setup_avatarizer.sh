@@ -9,11 +9,14 @@
 #   bash wama/avatarizer/setup_avatarizer.sh
 #
 # Ce script :
-#   1. Clone MuseTalk dans wama/common/backends/vendor/musetalk/
-#   2. Clone CodeFormer dans wama/common/backends/vendor/codeformer/
-#   3. Installe les dépendances pip dans le venv courant
-#   4. Télécharge les checkpoints MuseTalk vers AI-models/models/avatarizer/musetalk/
-#   5. Télécharge les checkpoints CodeFormer vers AI-models/models/avatarizer/codeformer/
+#   1-2. Installe MuseTalk et CodeFormer par la route `library` (voie vendor) : clone AU COMMIT
+#        déclaré dans manifests/libraries/{musetalk,codeformer}.json + correctif de patches/
+#   3. Vérifie les dépendances pip du venv courant
+#   4. Télécharge les checkpoints MuseTalk vers AI-models/models/lipsync/musetalk/
+#   5. Télécharge les checkpoints CodeFormer vers AI-models/models/lipsync/codeformer/
+#
+# ⚠ Lancer ce script EST la décision humaine qu'exige la route (`--allow`, allowlist
+# `Library.is_allowed`, ROADMAP §16.7) : il autorise les deux moteurs qu'il installe, rien d'autre.
 # =============================================================================
 
 set -e
@@ -23,7 +26,8 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 AVATARIZER_DIR="$SCRIPT_DIR"
 # Code tiers des moteurs : racine DECLAREE (settings.BACKEND_VENDOR_DIR), gitignoree.
 VENDOR_DIR="$PROJECT_DIR/wama/common/backends/vendor"
-MODELS_DIR="$PROJECT_DIR/AI-models/models/avatarizer"
+# Poids : settings.MODEL_PATHS['lipsync'] (ce script visait models/avatarizer/, que rien ne lit).
+MODELS_DIR="$PROJECT_DIR/AI-models/models/lipsync"
 
 echo "=== WAMA Avatarizer Setup ==="
 echo "Project  : $PROJECT_DIR"
@@ -42,26 +46,18 @@ mkdir -p "$MODELS_DIR/musetalk"
 mkdir -p "$MODELS_DIR/codeformer"
 
 # =============================================================================
-# 1. MuseTalk v1.5
+# 1-2. MuseTalk v1.5 + CodeFormer — route `library`, voie vendor (ROADMAP D-a)
 # =============================================================================
-echo "--- [1/5] Clone MuseTalk ---"
-if [ ! -d "$VENDOR_DIR/musetalk/.git" ]; then
-    git clone https://github.com/TMElyralab/MuseTalk.git "$VENDOR_DIR/musetalk"
-else
-    echo "MuseTalk déjà cloné, mise à jour..."
-    git -C "$VENDOR_DIR/musetalk" pull --ff-only || true
-fi
-
-# =============================================================================
-# 2. CodeFormer
-# =============================================================================
-echo "--- [2/5] Clone CodeFormer ---"
-if [ ! -d "$VENDOR_DIR/codeformer/.git" ]; then
-    git clone https://github.com/sczhou/CodeFormer.git "$VENDOR_DIR/codeformer"
-else
-    echo "CodeFormer déjà cloné, mise à jour..."
-    git -C "$VENDOR_DIR/codeformer" pull --ff-only || true
-fi
+# ⚠⚠ RÉÉCRIT LE 2026-09-30. Ces deux étapes clonaient `main` SANS épingle et faisaient
+# `git pull --ff-only` sur un clone existant — qui portait des correctifs LOCAUX (MuseTalk,
+# 7 fichiers) que rien ne réappliquait. La route, elle, clone au commit déclaré, applique le
+# correctif versionné, CONSTATE l'état, et REFUSE d'écraser une modification non déclarée.
+echo "--- [1-2/5] MuseTalk + CodeFormer (route library, voie vendor) ---"
+cd "$PROJECT_DIR"
+python manage.py apply_manifests --kind library --apply
+for moteur in musetalk codeformer; do
+    python manage.py install_library "$moteur" --allow --apply
+done
 
 # =============================================================================
 # 3. Dépendances pip — VÉRIFIÉES, jamais imposées
@@ -174,13 +170,8 @@ print('CodeFormer checkpoints téléchargés.')
 " || echo "ATTENTION : Téléchargement CodeFormer échoué. Téléchargez manuellement depuis : https://github.com/sczhou/CodeFormer"
 fi
 
-# =============================================================================
-# Créer les dossiers media nécessaires
-# =============================================================================
-echo "--- Création des dossiers media ---"
-mkdir -p "$PROJECT_DIR/media/avatarizer/gallery"
-echo "Galerie créée : $PROJECT_DIR/media/avatarizer/gallery/"
-echo "Ajoutez vos images d'avatars dans ce dossier (JPG, PNG)."
+# (La galerie d'avatars n'est plus un dossier media/avatarizer/gallery/ : les avatars — photos
+#  et objets 3D — se cherchent et s'importent par la médiathèque, source « Avatars 3D » comprise.)
 
 # =============================================================================
 # Appliquer la migration Django
@@ -201,5 +192,4 @@ echo "  common/backends/vendor/codeformer/ : $([ -d "$VENDOR_DIR/codeformer" ] &
 echo "  AI-models/.../musetalk/       : $(ls "$MODELS_DIR/musetalk" 2>/dev/null | wc -l) fichier(s)"
 echo "  AI-models/.../codeformer/     : $(ls "$MODELS_DIR/codeformer" 2>/dev/null | wc -l) fichier(s)"
 echo ""
-echo "Ajoutez vos avatars dans : media/avatarizer/gallery/"
-echo "Puis redémarrez WAMA et accédez à /avatarizer/"
+echo "Avatars : médiathèque (photos, objets 3D) — puis redémarrez WAMA et accédez à /avatarizer/"
