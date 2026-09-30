@@ -586,8 +586,12 @@ def _transcribe_item(t, ctx):
 
         _set_progress(t, 75)
 
-        # Step 4b: Pyannote diarization (Whisper + Qwen3-ASR — VibeVoice has its own)
-        if backend.name in ('whisper', 'qwen_asr') and t.enable_diarization and result.segments:
+        # Step 4b: diarisation pyannote pour tout moteur qui ne la fait pas lui-même — lue sur la
+        # CAPACITÉ déclarée (`supports_diarization`), plus sur une liste de noms. La liste de mars
+        # (`whisper`, `qwen_asr`) avait laissé NeMo (Canary, Parakeet) sans diarisation alors que
+        # son backend la déclare « pyannote post-processing in workers.py » — et elle aurait
+        # écarté tout moteur distant (2026-09-30). VibeVoice diarise nativement.
+        if not backend.supports_diarization and t.enable_diarization and result.segments:
             try:
                 from wama.common.backends.pyannote_diarizer import is_available as pyannote_ok, diarize
                 if pyannote_ok():
