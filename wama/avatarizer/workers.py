@@ -36,6 +36,9 @@ from wama.common.utils.console_utils import push_console_line
 # (`--version v15`, `musetalkV15/`), d'où la clé de catalogue employée plus bas.
 _backends_resolus: dict = {}
 
+#: Le modèle catalogue de l'avatar 3D (moteur `talkinghead`) — déclaré dans `model_config`.
+TALKINGHEAD_KEY = 'avatarizer:talkinghead'
+
 
 def _backend(catalog_key: str):
     """Instance (singleton) du backend que le catalogue désigne pour `catalog_key`."""
@@ -207,10 +210,26 @@ def generate_avatar(self, job_id: int):
         # modèle génératif. Résolu par son MOTEUR : il n'a pas de poids, le « modèle » est le GLB.
         from wama.common.app_registry import category_of_path
         avatar_3d = category_of_path(image_path) == '3d'
-        if avatar_3d and not (job.text_content or '').strip():
-            raise ValueError(
-                "Avatar 3D : il faut le TEXTE dit (il donne les mouvements des lèvres). "
-                "Un audio seul ne suffit pas encore à ce moteur.")
+        if avatar_3d:
+            # L'objet 3D a le bon RÔLE ; encore faut-il qu'il sache parler. Ce que le modèle
+            # exige de ses ATTRIBUTS (squelette, visage ARKit) est déclaré au catalogue et jugé
+            # sur le FICHIER, avant tout rendu — un maillage TripoSR est refusé avec sa raison.
+            from wama.common.utils.input_match import input_attribute_verdict
+            from wama.media_library.natures import INCOMPATIBLE, WARNING
+            from wama.model_manager.models import AIModel
+            caps = (AIModel.objects.filter(model_key=TALKINGHEAD_KEY)
+                    .values_list('capabilities', flat=True).first()) or {}
+            state, reason = input_attribute_verdict(caps, 'work_object3d', image_path)
+            if state == INCOMPATIBLE:
+                raise ValueError(
+                    f"Cet objet 3D ne peut pas servir d'avatar parlant ({reason}). Il faut un "
+                    "avatar riggé portant les 52 formes ARKit du visage (ex. un export MPFB).")
+            if state == WARNING:
+                _console(job.user_id, f"Avatar 3D : {reason} — la bouche sera moins précise.", 'warning')
+            if not (job.text_content or '').strip():
+                raise ValueError(
+                    "Avatar 3D : il faut le TEXTE dit (il donne les mouvements des lèvres). "
+                    "Un audio seul ne suffit pas encore à ce moteur.")
 
         # Sortie de l'app : le livrable, et RIEN d'autre (règle `MEDIA_STORAGE_TIERING.md` —
         # `media/` ne contient que `<app>/<user>/input|output/` et `users/`).
@@ -233,11 +252,7 @@ def generate_avatar(self, job_id: int):
         with work_dir(f'avatarizer_job{job_id}') as travail:
             if avatar_3d:
                 _console(job.user_id, "Avatar 3D : rendu TalkingHead image par image…", 'info')
-                from wama.common.backends.manager import backend_for_engine
-                talkinghead = backend_for_engine('talkinghead')
-                if talkinghead is None:
-                    raise RuntimeError("moteur « talkinghead » introuvable dans le vivier des backends")
-                animated_video = talkinghead().process(
+                animated_video = _backend(TALKINGHEAD_KEY).process(
                     avatar_path=image_path, audio_path=audio_path,
                     output_path=str(travail / 'talkinghead.mp4'),
                     text=job.text_content, language=job.language or 'fr',

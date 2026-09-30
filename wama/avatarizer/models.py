@@ -16,6 +16,11 @@ from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
 
 User = get_user_model()
 
+#: Ce que l'AVATAR peut être — une photo (moteur MuseTalk) ou un avatar 3D riggé `.glb` (moteur
+#: TalkingHead, 2026-09-30). UNE liste, lue par le champ ET par la vue de création (elle était
+#: écrite deux fois). Le moteur se dérive de la nature du fichier (`workers.generate_avatar`).
+AVATAR_FILE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'glb']
+
 
 class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
     """Représente une tâche de génération d'avatar animé (pipeline MuseTalk)."""
@@ -104,7 +109,7 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
     avatar_upload = models.FileField(
         upload_to=UploadToUserPath('avatarizer', 'input'),
         blank=True, null=True,
-        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp'])],
+        validators=[FileExtensionValidator(allowed_extensions=AVATAR_FILE_EXTENSIONS)],
     )
 
     @property

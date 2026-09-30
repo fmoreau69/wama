@@ -64,6 +64,17 @@
     const avatarPane  = $('#avatarizerNewCard [data-port-pane="work_image"]');
     const avatarInput = avatarPane ? document.getElementById(avatarPane.dataset.portInput) : null;
     const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+    // L'avatar 3D (2026-09-30) : le port `work_object3d`, qu'ouvre le moteur TalkingHead. Il
+    // n'existe que si ce modèle est au catalogue (les ports viennent des modèles) — d'où `null`.
+    // L'avatar est une photo OU un objet 3D : les deux ports alimentent `avatar_upload`.
+    const avatar3dPane  = $('#avatarizerNewCard [data-port-pane="work_object3d"]');
+    const avatar3dInput = avatar3dPane ? document.getElementById(avatar3dPane.dataset.portInput) : null;
+    const avatarInputs  = [avatarInput, avatar3dInput].filter(Boolean);
+
+    /** Le port d'avatar rempli (photo ou 3D), ou null. */
+    function chosenAvatar() {
+        return avatarInputs.find(hasEntry) || null;
+    }
 
     /** Le port porte-t-il une entrée (fichier joint ou désignation) ? */
     function hasEntry(input) {
@@ -78,6 +89,11 @@
         input.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
+    /** Remplir un port d'avatar VIDE l'autre : c'est l'un OU l'autre, jamais les deux. */
+    function keepOnlyAvatar(input) {
+        avatarInputs.filter(other => other !== input && hasEntry(other)).forEach(clearPort);
+    }
+
     if (avatarInput) {
         avatarInput.addEventListener('change', () => {
             const f = avatarInput.files && avatarInput.files[0];
@@ -86,6 +102,19 @@
                 clearPort(avatarInput);
                 return;
             }
+            if (hasEntry(avatarInput)) keepOnlyAvatar(avatarInput);
+            updateGenerateButton();
+        });
+    }
+    if (avatar3dInput) {
+        avatar3dInput.addEventListener('change', () => {
+            const f = avatar3dInput.files && avatar3dInput.files[0];
+            if (f && !/\.glb$/i.test(f.name)) {
+                WamaApp.toast('Avatar 3D : un fichier .glb riggé est attendu.', 'error');
+                clearPort(avatar3dInput);
+                return;
+            }
+            if (hasEntry(avatar3dInput)) keepOnlyAvatar(avatar3dInput);
             updateGenerateButton();
         });
     }
@@ -147,7 +176,7 @@
         const urlInputEl = $('#avatarizerUrlInput');
         const hasUrl = !!(urlInputEl && urlInputEl.value.trim());
         const hasText = !!(textArea && textArea.value.trim());
-        btn.disabled = !((hasEntry(audioInput) || hasUrl || hasText) && hasEntry(avatarInput));
+        btn.disabled = !((hasEntry(audioInput) || hasUrl || hasText) && chosenAvatar());
     }
 
     if (textArea) {
@@ -162,7 +191,7 @@
         e.preventDefault();
         const btn = $('#btn-generate');
         if (btn && !btn.disabled) btn.click();
-        else WamaApp.toast("URL prise en compte — choisissez aussi l'avatar (onglet Image).", 'info');
+        else WamaApp.toast("URL prise en compte — choisissez aussi l'avatar (onglet Image ou Objet 3D).", 'info');
     });
     // État INITIAL du bouton (2026-09-29) : il n'était calculé qu'au premier geste, donc actif au
     // chargement sans entrée ni avatar — un clic postait une création vouée au refus.
@@ -246,7 +275,7 @@
             batch:       batchImport,
             // Les DEUX ports : une image déposée sur la zone audio rejoint l'avatar (le
             // premier input dont l'`accept` l'admet), une désignation aussi.
-            attach:      ['audio_input'].concat(avatarInput ? [avatarInput.id] : []),
+            attach:      ['audio_input'].concat(avatarInputs.map(i => i.id)),
             afterAttach: function () { updateGenerateButton(); },
         });
     }
@@ -267,7 +296,8 @@
         // système de la médiathèque — pointé). `avatar_source='gallery'` (un NOM) ne reste que
         // pour les lots, le Studio et l'API de l'assistant.
         fd.append('avatar_source', 'upload');
-        WamaApp.appendInput(fd, avatarInput, 'avatar_upload');
+        // Photo OU objet 3D : le serveur dérive le moteur de la nature du fichier.
+        WamaApp.appendInput(fd, chosenAvatar(), 'avatar_upload');
         fd.append('bbox_shift', bboxSlider ? bboxSlider.value : '0');
         fd.append('use_enhancer', $('#use_enhancer') && $('#use_enhancer').checked ? 'true' : 'false');
 
@@ -307,7 +337,7 @@
         if (progress >= 95)  return 'Finalisation…';
         if (progress >= 85)  return 'CodeFormer : amélioration faciale…';
         if (progress >= 80)  return 'Post-traitement…';
-        if (progress >= 40)  return 'MuseTalk : synchronisation labiale…';
+        if (progress >= 40)  return "Animation de l'avatar…";   // MuseTalk ou TalkingHead
         if (progress >= 30)  return 'Préparation de la sortie…';
         if (progress >= 20)  return "Résolution de l'avatar…";
         if (progress >= 10)  return 'Chargement audio…';

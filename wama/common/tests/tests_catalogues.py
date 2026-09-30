@@ -1189,7 +1189,10 @@ class UnionDesEntreesDeModelesTest(TestCase):
         ports = app_input_ports(self.APP)
         self.assertEqual(2, len(ports))
         for p in ports:
-            self.assertEqual({'id', 'label', 'group', 'types', 'multi', 'required', 'description'},
+            # `one_of` (2026-09-30) : l'obligation « l'un OU l'autre », jumelle de `required` —
+            # comme elle, retirée de la forme du studio (`AlternativeRequirementsTest`).
+            self.assertEqual({'id', 'label', 'group', 'types', 'multi', 'required', 'one_of',
+                              'description'},
                              set(p), f'forme de port inattendue : {p}')
             self.assertIn(p['id'], INPUT_TYPES)
             self.assertIn(p['group'], {'travail', 'prompt', 'reference'})
@@ -1554,6 +1557,61 @@ class PipelineStageOpensNoPortTest(TestCase):
     def test_the_capability_is_in_the_canonical_vocabulary(self):
         from wama.common.utils.model_capabilities import is_canonical_key
         self.assertTrue(is_canonical_key('pipeline_stage'))
+
+
+class AlternativeRequirementsTest(TestCase):
+    """« L'un OU l'autre » (2026-09-30) : chaque modèle exige UN jeton de plus que le tronc commun.
+
+    Cas réel : l'avatarizer — MuseTalk exige `work_image` + `work_audio`, TalkingHead
+    `work_object3d` + `work_audio`. L'intersection seule rendait les deux ports d'avatar
+    facultatifs ; la card ne pouvait pas dire qu'il en manquait un."""
+
+    def _model(self, key, inputs):
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(
+            model_key=f'avatarizer:{key}', name=key, model_type='lipsync', source='avatarizer',
+            is_available=True, is_downloaded=True,
+            capabilities={'task': 'lip-sync', 'inputs_required': inputs})
+
+    def _ports(self):
+        from wama.common.app_registry import app_input_ports
+        return {p['id']: p for p in app_input_ports('avatarizer')}
+
+    def test_each_model_s_extra_token_forms_one_group(self):
+        self._model('photo', ['work_image', 'work_audio'])
+        self._model('three_d', ['work_object3d', 'work_audio'])
+        ports = self._ports()
+        self.assertTrue(ports['work_audio']['required'])
+        self.assertEqual([], ports['work_audio']['one_of'])
+        self.assertFalse(ports['work_image']['required'])
+        self.assertEqual(['work_object3d'], ports['work_image']['one_of'])
+        self.assertEqual(['work_image'], ports['work_object3d']['one_of'])
+        self.assertEqual(['3d'], ports['work_object3d']['types'],
+                         "la nature vient de l'app (input_types) — pas un repli sur toutes")
+
+    def test_a_model_that_needs_nothing_more_breaks_the_group(self):
+        """Contre-épreuve : si un modèle se contente du tronc commun, aucun autre port n'est dû."""
+        self._model('photo', ['work_image', 'work_audio'])
+        self._model('voice_only', ['work_audio'])
+        self.assertEqual([], self._ports()['work_image']['one_of'])
+
+    def test_the_card_labels_the_group_and_marks_its_first_port(self):
+        from wama.common.templatetags.wama_actions import input_slots
+        self._model('photo', ['work_image', 'work_audio'])
+        self._model('three_d', ['work_object3d', 'work_audio'])
+        slots = {s['id']: s for s in input_slots('avatarizer')}
+        self.assertEqual(['Objet 3D de travail'], slots['work_image']['one_of'])
+        self.assertTrue(slots['work_image']['one_of_first'])
+        self.assertFalse(slots['work_object3d']['one_of_first'], 'un seul port du groupe est rempli')
+
+    def test_the_studio_node_carries_no_card_obligation(self):
+        from wama.common.app_registry import studio_node_ports
+        self._model('photo', ['work_image', 'work_audio'])
+        self._model('three_d', ['work_object3d', 'work_audio'])
+        for port in studio_node_ports('avatarizer')['inputs']:
+            with self.subTest(port=port.get('id')):
+                self.assertNotIn('one_of', port)
+                self.assertNotIn('required', port)
 
 
 class ObligationDesSlotsVientDesModelesTest(TestCase):

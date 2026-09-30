@@ -166,6 +166,15 @@ ASSET_NATURES: Dict[str, Nature] = {
             'scale':      Attr('float', "facteur d'échelle vers l'unité déclarée ; 1.0 = déjà à l'échelle"),
             'polygons':   Attr('int', 'nombre de faces (indicatif)'),
             'animations': Attr('list', "noms des animations embarquées"),
+            # Visage animable (2026-09-30) — MESURÉS dans le fichier par `media_probe` (noms des
+            # formes, `extras.targetNames`), jamais saisis : un avatar parlant est un objet 3D qui
+            # porte ces attributs, pas une nature à part (décision de Fabien). Présents seulement
+            # si le jeu est COMPLET — un jeu partiel ne fait pas bouger la bouche.
+            'face_rig':   Attr('str', "formes du visage : 'arkit' = les 52 blendshapes ARKit "
+                                      "(expressions, clignements, regard)", ('arkit',),
+                               label='Visage', labels={'arkit': 'ARKit (52 formes)'}),
+            'visemes':    Attr('str', "formes de la bouche qui parle : 'oculus' = les 15 visèmes Oculus",
+                               ('oculus',), label='Visèmes', labels={'oculus': 'Oculus (15)'}),
         },
         # ⚠ PAS de `data_type` (retiré le 2026-09-17) : un objet 3D est un fichier MÉDIA, sa
         # nature est `3d`. Le champ reste pour les natures qui portent VRAIMENT une donnée du

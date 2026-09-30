@@ -220,6 +220,12 @@ def input_slots(app):
     result_ports = app_result_ports(app)
     known = (app_input_ports(app) or []) + result_ports
     oblig = {p['id']: p['required'] for p in known}
+    # « L'un OU l'autre » (2026-09-30, `app_input_ports`) : l'avatarizer exige une image OU un
+    # objet 3D. Le PREMIER port du groupe (ordre des onglets) est celui que le geste nocturne
+    # remplit (`ui_smoke._fill_required_ports`) — il en faut un, pas deux.
+    alternatives = {p['id']: p.get('one_of') or [] for p in known}
+    libelles = {p['id']: p.get('label', p['id']) for p in known}
+    groupes_vus = set()
     textes = {p['id']: p.get('description', '') for p in known}
     # Un port du RÉSULTAT n'entre pas par l'upload mais par l'ÉVALUATION : ses formats sont
     # ceux qu'elle déclare savoir lire (`reference_extensions`), pas `input_extensions`.
@@ -250,6 +256,11 @@ def input_slots(app):
         # dropzones au même id.
         primary = travail and not primary_seen
         primary_seen = primary_seen or primary
+        autres = alternatives.get(port.get('id')) or []
+        groupe = frozenset(autres + [port.get('id')]) if autres else None
+        one_of_first = bool(groupe) and groupe not in groupes_vus
+        if groupe:
+            groupes_vus.add(groupe)
         slots.append({
             'id': port.get('id'),
             'kind': 'file',
@@ -264,6 +275,10 @@ def input_slots(app):
             'library_prefer': library_nature_for(app, port.get('id')),
             'multi': bool(port.get('multi')),
             'required': oblig.get(port.get('id'), travail),
+            # Requis « ou » ces autres ports (libellés, pour être affichés tels quels) — et le
+            # premier du groupe, celui qu'un geste automatique remplit.
+            'one_of': [libelles.get(a, a) for a in autres],
+            'one_of_first': one_of_first,
             # Texte qui dit À QUOI sert cette entrée (demande Fabien 10/09) : deux onglets
             # « Image » ne se distinguent pas par leur type — il faut dire lequel sera ÉDITÉ et
             # lequel GUIDERA. Vide tant que le gabarit ne l'affiche pas : ajout additif.

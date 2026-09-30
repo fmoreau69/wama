@@ -102,6 +102,13 @@ INPUT_TYPES = {
                         'description': "L'image à ÉDITER ou à animer : le modèle part d'elle (img2img, in/outpainting, image-to-video)."},
     'work_audio':      {'label': 'Audio de travail', 'kind': 'file', 'accept': 'audio', 'multi': True, 'port': 'travail',
                         'description': "L'audio que l'app TRAITE : c'est de lui que part le résultat (transcrit, amélioré, animé…)."},
+    # Objets 3D (2026-09-30, décision de Fabien) : le vocabulaire des rôles suit les NATURES de
+    # média (`MEDIA_CATEGORIES`, dont `3d`), jamais un usage d'app — pas de jeton « avatar ».
+    # 1ᵉʳ consommateur : le moteur `talkinghead` de l'avatarizer (un avatar riggé est un objet 3D
+    # qui porte certains attributs, exigés par l'`AssetSpec` du moteur) ; le studio en produit
+    # déjà (TripoSR, port de sortie `3d`).
+    'work_object3d':   {'label': 'Objet 3D de travail', 'kind': 'file', 'accept': '3d', 'multi': True, 'port': 'travail',
+                        'description': "L'objet 3D que l'app TRAITE : c'est de lui que part le résultat (animé, rendu, converti…)."},
     'reference_image': {'label': 'Image de référence (style)', 'kind': 'file', 'accept': 'image', 'multi': False, 'port': 'reference',
                         'description': "Une image qui GUIDE le rendu (style, apparence) sans être transformée."},
     'reference_file':  {'label': 'Fichier de référence', 'kind': 'file', 'multi': False, 'port': 'reference',
@@ -258,7 +265,7 @@ APP_MODES = {
             # texte → TTS puis animation), pas comme switch : précédent imager txt2img/img2vid,
             # §2bis. `text` dans accepts = le prompt est une entrée de plein droit.
             {'id': 'avatar', 'label': 'Avatar parlant', 'icon': 'fa-user-astronaut',
-             'accepts': ('image', 'audio', 'prompt'),
+             'accepts': ('image', '3d', 'audio', 'prompt'),   # 3d : avatar TalkingHead (2026-09-30)
              # Card réelle (index.html:140) : prompt (texte à dire) + voix (input fichier,
              # politique VOICE_SAMPLE_EXTENSIONS). ⚠ `work_audio`, PAS `reference_voice` :
              # l'audio EST l'entrée de travail (il pilote l'animation), déjà porté par le port
@@ -270,7 +277,10 @@ APP_MODES = {
              'inputs': ['prompt', 'work_audio'], 'modes': [],
              # La NATURE de médiathèque sur laquelle s'ouvre la fenêtre de sélection, par port —
              # une spécificité DÉCLARÉE (`library_nature_for`), lue par la card v4.
-             'library_natures': {'work_image': 'avatar'}},
+             # `work_object3d` (2026-09-30) : l'avatar 3D du moteur TalkingHead s'ouvre sur les
+             # objets 3D — la compatibilité fine (riggé, visage ARKit) est jugée par les ATTRIBUTS
+             # que le modèle exige (`input_attributes`), pas par une nature « avatar 3D ».
+             'library_natures': {'work_image': 'avatar', 'work_object3d': 'object3d'}},
         ],
     },
 

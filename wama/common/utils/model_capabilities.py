@@ -27,17 +27,17 @@ ANY_LANGUAGE = "*"
 
 #: Vocabulaire FERMÉ de `modalities` — il ne vivait que dans la description de la clé ci-dessous
 #: (2026-09-19) ; `check_model_taxonomy` vérifie désormais les défauts par tâche contre lui.
-MODALITIES = ("image", "video", "audio", "document", "text")
+MODALITIES = ("image", "video", "audio", "document", "text", "3d")   # 3d : 2026-09-30 (objets 3D)
 
 #: Vocabulaire FERMÉ de `category` → libellé du groupe dans un select (2026-09-29). Un modèle SANS
 #: catégorie reste hors groupe, en tête de liste : la catégorie distingue, elle ne range pas tout.
-MODEL_CATEGORIES = {"logo": "Logos"}
+CATEGORY_LABELS = {"logo": "Logos"}
 
 # ── Vocabulaire canonique : clé → description (documentation vivante) ──────────
 # Les valeurs indiquent le TYPE attendu. Un modèle ne déclare que les clés pertinentes pour son type.
 CANONICAL_CAPABILITIES: Dict[str, str] = {
     # Communes / structurelles
-    "modalities":          "list[str] ⊂ {image,video,audio,document,text} — média(s) traité(s)",
+    "modalities":          "list[str] ⊂ {image,video,audio,document,text,3d} — média(s) traité(s)",
     # ⚠ Homonyme inter-mondes (question de Fabien, 2026-08-28) : `task='segment'` est la
     # segmentation SPATIALE (masques de pixels, taxonomie YOLO/SAM) — sans rapport avec le
     # type `DataType.SEGMENTS` du monde Data (portions de TEMPS bornées, cf.
@@ -77,7 +77,7 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     #: onglet ni un filtre (le modèle reste dans le domaine de sa tâche). Écrite par la découverte
     #: depuis la déclaration d'app (`model_registry`, « sert au groupement du <select> ») ; DÉCLARÉE
     #: ici le 2026-09-29, quand `api/models/options/?group=category` l'a lue pour l'imager.
-    "category":            "str ⊂ MODEL_CATEGORIES — groupe d'affichage dans le select (ex. 'logo')",
+    "category":            "str ⊂ CATEGORY_LABELS — groupe d'affichage dans le select (ex. 'logo')",
     # Capacités booléennes (préfixe supports_ — ALIGNÉ sur les flags backend)
     "supports_diarization": "bool — diarisation locuteur native (⇐ ex-`native_diarization`)",
     "supports_timestamps":  "bool — horodatage mot/segment",
@@ -110,6 +110,14 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     # une entrée fournie hors des inputs d'un modèle le DÉSACTIVE (avec raison, jamais caché).
     "inputs_required":     "list[str] — entrées REQUISES par le modèle (lancement gaté sinon)",
     "inputs_optional":     "list[str] — entrées ACCEPTÉES en option (ex. reference_melody)",
+    #: Ce que le modèle exige des ATTRIBUTS d'une entrée (2026-09-30) — le rôle ne suffit pas
+    #: toujours : TalkingHead prend un `work_object3d`, mais seulement riggé et au visage ARKit ;
+    #: un maillage TripoSR (non riggé) a le bon rôle et ne fera jamais parler personne. Les
+    #: attributs sont ceux de la nature (construction A′, `media_library/natures.py`), MESURÉS dans
+    #: le fichier ; le verdict est `natures.asset_accepts` (3 états : requis manquant → refus,
+    #: souhaité manquant → avertissement ; jamais caché, règle §6.7).
+    "input_attributes":    "dict[token, {require: {attr: valeur|[valeurs]}, prefer: {…}}] — exigences "
+                           "sur les ATTRIBUTS d'une entrée (nature A′), jugées par asset_accepts",
     #: Une ÉTAPE INTERNE de la chaîne d'une app (2026-09-29) : CodeFormer restaure les visages
     #: des images que MuseTalk vient de produire — ses entrées sont fabriquées par la chaîne,
     #: jamais fournies par l'utilisateur. Ses `inputs_*` restent vrais POUR LE MODÈLE, mais il

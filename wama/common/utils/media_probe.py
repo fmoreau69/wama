@@ -159,12 +159,49 @@ def _gltf_document(path: str):
         return None
 
 
+#: Les 52 formes du visage d'ARKit (Apple) — la convention que suivent TalkingHead, Audio2Face,
+#: LAM : un avatar qui les porte TOUTES a un visage animable (expressions, clignements, regard).
+ARKIT_BLENDSHAPES = (
+    'browDownLeft', 'browDownRight', 'browInnerUp', 'browOuterUpLeft', 'browOuterUpRight',
+    'cheekPuff', 'cheekSquintLeft', 'cheekSquintRight',
+    'eyeBlinkLeft', 'eyeBlinkRight', 'eyeLookDownLeft', 'eyeLookDownRight', 'eyeLookInLeft',
+    'eyeLookInRight', 'eyeLookOutLeft', 'eyeLookOutRight', 'eyeLookUpLeft', 'eyeLookUpRight',
+    'eyeSquintLeft', 'eyeSquintRight', 'eyeWideLeft', 'eyeWideRight',
+    'jawForward', 'jawLeft', 'jawOpen', 'jawRight',
+    'mouthClose', 'mouthDimpleLeft', 'mouthDimpleRight', 'mouthFrownLeft', 'mouthFrownRight',
+    'mouthFunnel', 'mouthLeft', 'mouthLowerDownLeft', 'mouthLowerDownRight', 'mouthPressLeft',
+    'mouthPressRight', 'mouthPucker', 'mouthRight', 'mouthRollLower', 'mouthRollUpper',
+    'mouthShrugLower', 'mouthShrugUpper', 'mouthSmileLeft', 'mouthSmileRight',
+    'mouthStretchLeft', 'mouthStretchRight', 'mouthUpperUpLeft', 'mouthUpperUpRight',
+    'noseSneerLeft', 'noseSneerRight', 'tongueOut',
+)
+#: Les 15 visèmes d'Oculus (Meta) — les formes de la bouche qui PARLE.
+OCULUS_VISEMES = tuple(f'viseme_{v}' for v in (
+    'sil', 'PP', 'FF', 'TH', 'DD', 'kk', 'CH', 'SS', 'nn', 'RR', 'aa', 'E', 'I', 'O', 'U'))
+
+
+def _face_attributes(doc: dict) -> dict:
+    """`face_rig` / `visemes` de la nature `object3d`, d'après les NOMS des formes (glTF :
+    `mesh.extras.targetNames`, lus par le chargeur de three.js). Un attribut n'est posé que si le
+    jeu est COMPLET : un visage à moitié riggé ne fait pas bouger la bouche, le dire serait faux."""
+    names = set()
+    for mesh in doc.get('meshes') or []:
+        names.update((mesh.get('extras') or {}).get('targetNames') or [])
+    out = {}
+    if names.issuperset(ARKIT_BLENDSHAPES):
+        out['face_rig'] = 'arkit'
+    if names.issuperset(OCULUS_VISEMES):
+        out['visemes'] = 'oculus'
+    return out
+
+
 def probe_object3d(path: str) -> dict:
     """Sonde d'un OBJET 3D (ROADMAP §17ter, trou 2) — ce que le fichier DÉCLARE, sans le décoder.
 
     Returns:
         {'properties': 'GLB • 3 maillages • 1 234 faces • riggé • 2 animations',
-         'attributes': {format, polygons, rigged, animations}}   ← clés de la nature `object3d`
+         'attributes': {format, polygons, rigged, animations[, face_rig, visemes]}}
+        ← clés de la nature `object3d` (les deux dernières seulement si le jeu est complet)
         Pour un format sans table des matières lisible ici (obj, stl, fbx…) : le format seul.
         {} si le fichier est illisible (jamais d'exception).
     """
@@ -193,12 +230,17 @@ def probe_object3d(path: str) -> dict:
             'polygons': faces,
             'rigged': bool(doc.get('skins')),
             'animations': animations,
+            **_face_attributes(doc),
         })
         n_meshes = len(doc.get('meshes') or [])
         parts = [fmt.upper(), f"{n_meshes} maillage{'s' if n_meshes > 1 else ''}",
                  f"{faces:,} face{'s' if faces > 1 else ''}".replace(',', ' ')]
         if attrs['rigged']:
             parts.append('riggé')
+        if attrs.get('face_rig'):
+            parts.append('visage ARKit')
+        if attrs.get('visemes'):
+            parts.append('visèmes')
         if animations:
             parts.append(f"{len(animations)} animation{'s' if len(animations) > 1 else ''}")
         return {'properties': ' • '.join(parts), 'attributes': attrs}

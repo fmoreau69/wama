@@ -49,6 +49,58 @@ class LaSondeLitLaTableDesMatieresTest(TestCase):
         self.assertEqual(probe_media(self._fichier(cube_glb()))['media_type'], '3d')
 
 
+def glb_from_json(doc: dict) -> bytes:
+    """Un GLB réduit à sa table des matières (chunk JSON seul) — c'est tout ce que la sonde lit."""
+    import json
+    import struct
+    body = json.dumps(doc).encode('utf-8')
+    body += b' ' * (-len(body) % 4)
+    return (struct.pack('<4sII', b'glTF', 2, 12 + 8 + len(body))
+            + struct.pack('<I4s', len(body), b'JSON') + body)
+
+
+class FaceRigIsMeasuredFromTheFileTest(TestCase):
+    """`face_rig` / `visemes` (2026-09-30) : lus dans les NOMS des formes, posés si le jeu est complet."""
+
+    def _probe(self, names):
+        import tempfile
+        from wama.common.utils.media_probe import probe_object3d
+        doc = {'asset': {'version': '2.0'}, 'skins': [{}],
+               'meshes': [{'name': 'Head', 'extras': {'targetNames': list(names)}, 'primitives': []}]}
+        p = tempfile.NamedTemporaryFile(suffix='.glb', delete=False)
+        p.write(glb_from_json(doc)); p.close()
+        return probe_object3d(p.name)
+
+    def test_a_complete_arkit_and_viseme_set_is_named(self):
+        from wama.common.utils.media_probe import ARKIT_BLENDSHAPES, OCULUS_VISEMES
+        info = self._probe(ARKIT_BLENDSHAPES + OCULUS_VISEMES + ('mouthOpen',))
+        self.assertEqual('arkit', info['attributes']['face_rig'])
+        self.assertEqual('oculus', info['attributes']['visemes'])
+        self.assertIn('visage ARKit', info['properties'])
+
+    def test_a_partial_set_is_not_claimed(self):
+        """Contre-épreuve : une forme de moins et la bouche ne bougerait pas — l'attribut se tait."""
+        from wama.common.utils.media_probe import ARKIT_BLENDSHAPES, OCULUS_VISEMES
+        info = self._probe(ARKIT_BLENDSHAPES[1:] + OCULUS_VISEMES[1:])
+        self.assertNotIn('face_rig', info['attributes'])
+        self.assertNotIn('visemes', info['attributes'])
+
+    def test_the_measured_values_belong_to_the_nature_vocabulary(self):
+        from wama.media_library.natures import normalize_attributes
+        from wama.common.utils.media_probe import ARKIT_BLENDSHAPES, OCULUS_VISEMES
+        attrs = self._probe(ARKIT_BLENDSHAPES + OCULUS_VISEMES)['attributes']
+        self.assertEqual(attrs, normalize_attributes('object3d', attrs), 'hors vocabulaire déclaré')
+
+    def test_the_assistant_avatar_is_a_complete_talking_head(self):
+        from django.contrib.staticfiles import finders
+        glb = finders.find('vendors/avatars/brunette.glb')
+        if not glb:
+            self.skipTest('avatar de test absent (gitignoré)')
+        attrs = probe_object3d(glb)['attributes']
+        self.assertEqual((True, 'arkit', 'oculus'),
+                         (attrs['rigged'], attrs.get('face_rig'), attrs.get('visemes')))
+
+
 class UnDepotDeGlbEstUnAssetObject3dTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user('obj3d', password='x')
