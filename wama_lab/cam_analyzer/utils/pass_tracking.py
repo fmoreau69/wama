@@ -106,6 +106,9 @@ PASSES: tuple = (
     # déclarée depuis l'aval, même raison que `lane_map_recalage`.
     Pass('camera_intrinsics', 'calcul', depends_on=('extraction',),
          task='compute_camera_intrinsics_task'),
+    # Cap VISUEL (2026-09-30) : rotation vue par la caméra avant quand la navette roule — exige la
+    # focale mesurée. Appliquée au filtre navette sous ⚑ visual_heading (défaut OFF).
+    Pass('visual_yaw', 'calcul', depends_on=('camera_intrinsics',), task='compute_visual_yaw_task'),
     # Correction ortho (calcul pur + masque satellite BD TOPO) : ancres tirées de la MESURE
     # `ortho_recalage`, appliquées par ⚑ ortho_correction. Avant le tracking, même raison que
     # `lane_map_recalage` (et même absence de dépendance déclarée du tracking vers elle).

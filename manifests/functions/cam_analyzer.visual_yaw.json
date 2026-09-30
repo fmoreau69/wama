@@ -1,0 +1,101 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "cam_analyzer.tasks:compute_visual_yaw_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Vidéo de la caméra avant, lue image par image.",
+        "group": "travail",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "frame_number"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "Focale MESURÉE : sans elle, les rotations vues sont fausses de ×1,87.",
+        "group": "reference",
+        "key": "camera_intrinsics",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "fx_px"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "Vitesse lissée de la navette : ne mesurer qu'en roulant.",
+        "group": "reference",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "ts",
+          "speed_f_kmh"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.visual_yaw",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "timeseries",
+        "derived_from": [
+          "image"
+        ],
+        "description": "Rotation vue par paire d'images analysée (temps GPS), stockée dans `results_summary['visual_yaw']`.",
+        "estimate_field": "yaw_deg",
+        "estimates": "yaw",
+        "key": "visual_yaw",
+        "optional": false,
+        "produced_fields": [
+          "ts",
+          "yaw_deg"
+        ],
+        "required_fields": [],
+        "uncertainty": {
+          "model": "declared",
+          "note": "résidu médian de la paire ≤ 2 px, paires au-delà écartées"
+        }
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "ego-motion"
+    ],
+    "visibility": "public"
+  },
+  "description": "La PASSE `visual_yaw` (session-wide, CPU) : relit la vidéo avant et mesure, paire d'images par paire d'images, la rotation de la navette (`geometry.ego_rotation`, focale MESURÉE par `camera_intrinsics`) aux seuls instants où elle roule — arrêtée, un véhicule non holonome ne tourne pas et l'image ne montre que les autres usagers. Seconde source de cap, indépendante du GPS ; le filtre navette l'intègre là où il tenait le cap (⚑ visual_heading).",
+  "key": "cam_analyzer.visual_yaw",
+  "manifest_kind": "function",
+  "name": "Cap visuel (rotation vue)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.visual_yaw",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

@@ -307,6 +307,30 @@ _spec('camera_intrinsics', 'Champ des caméras (mesuré)',
                                     "par l'échelle latérale du recalage voie + carte.")],
       cost={'cpu_bound': True})
 
+_spec('visual_yaw', 'Cap visuel (rotation vue)',
+      "La PASSE `visual_yaw` (session-wide, CPU) : relit la vidéo avant et mesure, paire d'images "
+      "par paire d'images, la rotation de la navette (`geometry.ego_rotation`, focale MESURÉE par "
+      "`camera_intrinsics`) aux seuls instants où elle roule — arrêtée, un véhicule non holonome ne "
+      "tourne pas et l'image ne montre que les autres usagers. Seconde source de cap, indépendante "
+      "du GPS ; le filtre navette l'intègre là où il tenait le cap (⚑ visual_heading).",
+      FC.ENRICHER, 'cam_analyzer.tasks:compute_visual_yaw_task', ['vision', 'ego-motion'],
+      inputs=[PortSpec('video', DT.DETECTIONS, required_fields=['frame_number'],
+                       description='Vidéo de la caméra avant, lue image par image.'),
+              PortSpec('camera_intrinsics', DT.SCALAR, required_fields=['fx_px'], group='reference',
+                       description='Focale MESURÉE : sans elle, les rotations vues sont fausses de ×1,87.'),
+              PortSpec('track', DT.GEO_TRACK, required_fields=['ts', 'speed_f_kmh'], group='reference',
+                       description="Vitesse lissée de la navette : ne mesurer qu'en roulant.")],
+      outputs=[PortSpec('visual_yaw', DT.TIMESERIES, produced_fields=['ts', 'yaw_deg'],
+                        description="Rotation vue par paire d'images analysée (temps GPS), stockée "
+                                    "dans `results_summary['visual_yaw']`.",
+                        # levier : 2ᵉ source de cap, indépendante du GPS — validée sur les 115
+                        # segments tenus (p90 30,5° → 16,9°) ; σ par paire non exposée en champ
+                        estimates='yaw', estimate_field='yaw_deg',
+                        uncertainty={'model': 'declared',
+                                     'note': 'résidu médian de la paire ≤ 2 px, paires au-delà écartées'},
+                        derived_from=['image'])],
+      cost={'cpu_bound': True})
+
 _spec('depth_distance_report', 'Cross-check distance & reflets par profondeur (usages 3+1)',
       "ÉTAGE 2 (CALCUL, CPU) : LECTURE PURE des depth_distance_m déjà stockés par depth_analysis. "
       "MESURE-ET-RAPPORT (ne bascule AUCUNE source) : 3ᵉ source de distance indépendante (désaccord "

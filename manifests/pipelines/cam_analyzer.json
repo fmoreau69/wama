@@ -83,6 +83,11 @@
         "to_port": null
       },
       {
+        "from": "camera_intrinsics",
+        "to": "visual_yaw",
+        "to_port": null
+      },
+      {
         "from": "ortho_recalage",
         "to": "ortho_correction",
         "to_port": null
@@ -305,6 +310,19 @@
       },
       {
         "app": null,
+        "function": "cam_analyzer.visual_yaw",
+        "id": "visual_yaw",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_visual_yaw_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
         "function": "cam_analyzer.ortho_correction",
         "id": "ortho_correction",
         "kind": "function",
@@ -360,7 +378,7 @@
   "description": "Pipeline déclaré en code (`pass_tracking.PASSES`) : étage ANALYSE (perception, GPU) puis CALCUL (dérivation CPU rejouable) ; chaque passe est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "cam_analyzer",
   "manifest_kind": "pipeline",
-  "name": "Cam Analyzer — chaîne complète (17 passes)",
+  "name": "Cam Analyzer — chaîne complète (18 passes)",
   "owner": null,
   "projects": [
     "ENA"

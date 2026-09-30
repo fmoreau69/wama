@@ -99,6 +99,13 @@ FEATURES = [
             "et qui fondent le masquage satellite de la correction ortho : les voir aide à "
             "juger une trace. Affichage seul.",
             default=False, scope='live'),
+    Feature('visual_heading', 'Cap visuel (rotation vue par la caméra avant)',
+            "Sous 1 m/s le cap GPS ne vaut rien et le filtre navette le TENAIT. Avec cette bascule, "
+            "il est propagé par la rotation VUE par la caméra avant (passe « Cap visuel ») tant que "
+            "la navette roule — arrêtée, elle ne tourne pas. Mesuré sur 115 segments : erreur de "
+            "cap p90 30,5° → 16,9°, vrais virages 30° → 14°. Exige la focale mesurée (passe "
+            "« Champ des caméras »). Appliqué au prochain calcul du filtre (« Indicateurs »).",
+            default=False, scope='compute'),
     Feature('measured_camera_fov', 'Champ des caméras MESURÉ',
             "Utilise le champ de vue des caméras avant/arrière MESURÉ sur la session (passe "
             "« Champ des caméras » : rotation vue dans l'image contre cap GPS en virage) au lieu "

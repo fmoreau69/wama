@@ -72,6 +72,12 @@ DEFAULT_SIGMA_A_COMMANDED = 0.25
 #: régime où le cap brut vaut ±10-25° — tenir le cap y est le bon choix, et la vraie source
 #: pour ce régime est la rotation visuelle (`geometry.ego_rotation`), pas le GPS.
 DEFAULT_HEADING_MIN_SPEED_MPS = 1.0
+#: Sous cette vitesse lissée, le véhicule est ARRÊTÉ : un véhicule non holonome ne tourne pas sans
+#: avancer, donc la rotation vue n'est pas intégrée (à l'arrêt, le décor immobile ne bouge plus dans
+#: l'image et seuls les autres usagers y bougent — mesuré le 2026-09-30 : jusqu'à 90° de fausse
+#: rotation sur un arrêt de 3 min). Entre ce seuil et `DEFAULT_HEADING_MIN_SPEED_MPS`, le cap GPS
+#: ne vaut rien et la rotation vue prend le relais (`yaw_cum`).
+DEFAULT_MIN_TURN_SPEED_MPS = 0.3
 
 
 def _bearing_from_velocity(ve: float, vn: float) -> float:
@@ -87,7 +93,8 @@ def filter_gps_points(points, *, sigma_a: float = DEFAULT_SIGMA_A,
                       sigma_m: float = DEFAULT_SIGMA_M,
                       heading_min_speed_mps: float = DEFAULT_HEADING_MIN_SPEED_MPS,
                       time_field: str = 'ts', accel_long=None,
-                      sigma_a_commanded: float = DEFAULT_SIGMA_A_COMMANDED):
+                      sigma_a_commanded: float = DEFAULT_SIGMA_A_COMMANDED,
+                      yaw_cum=None, min_turn_speed_mps: float = DEFAULT_MIN_TURN_SPEED_MPS):
     """NOYAU — liste de dicts {ts, lat, lon[, heading, speed_kmh]} → même liste enrichie.
 
     Rend (points_enrichis, rapport). Chaque point reçoit `lat_f`, `lon_f`, `speed_f_kmh`,
@@ -103,6 +110,15 @@ def filter_gps_points(points, *, sigma_a: float = DEFAULT_SIGMA_A,
     celui du TERRAIN, et rien d'autre ne donne la rotation entre les deux. Là où le cap est
     tenu (vitesse trop faible), c'est le dernier cap connu qui sert : à ce régime la navette
     démarre ou s'arrête dans l'axe de sa voie, l'hypothèse est explicite et bornée.
+
+    `yaw_cum` (optionnel) : `callable(t) -> deg`, rotation CUMULÉE mesurée par une source
+    indépendante du GPS (rotation vue, `geometry.ego_rotation` ; un gyroscope conviendrait
+    aussi), signe des caps (horaire). Là où le cap serait TENU, il est PROPAGÉ par cette rotation
+    tant que le véhicule roule (≥ `min_turn_speed_mps`) ; arrêté, il reste tenu. Mesuré le
+    2026-09-30 sur 115 segments tenus (protocole `CHAINE §D.4 ⑥`) : cap de sortie à 4,3° médiane
+    / 16,9° p90 contre 4,7° / 30,5° en le tenant ; 13,9° contre 30,2° sur les vrais virages.
+    Les points propagés gardent `heading_f_held` (ce n'est pas une mesure GPS) et portent
+    `heading_f_visual`.
     """
     usable = [(i, p) for i, p in enumerate(points)
               if p.get('lat') is not None and p.get('lon') is not None
@@ -156,26 +172,40 @@ def filter_gps_points(points, *, sigma_a: float = DEFAULT_SIGMA_A,
 
     last_heading = None
     disp2, dheads, held = [], [], 0
+    prev_t, visual_steps, visual_total = None, 0, 0.0
     for i, p in usable:
-        st = by_t.get(round(float(p[time_field]), 4))
+        t_i = float(p[time_field])
+        st = by_t.get(round(t_i, 4))
         if st is None:
             continue
         e, n, ve, vn = st
         lat_f = lat0 + n / M_LAT
         lon_f = lon0 + e / m_lon
         speed = math.hypot(ve, vn)
+        visual = False
         if speed >= heading_min_speed_mps:
             last_heading = _bearing_from_velocity(ve, vn)
             is_held = False
         else:
             is_held = True
             held += 1
+            # rotation vue : propage le cap tenu tant que le véhicule roule (non holonome)
+            if (yaw_cum is not None and last_heading is not None and prev_t is not None
+                    and speed >= min_turn_speed_mps):
+                a, b = yaw_cum(prev_t), yaw_cum(t_i)
+                if a is not None and b is not None and b != a:
+                    last_heading = (last_heading + (b - a)) % 360.0
+                    visual, visual_steps = True, visual_steps + 1
+                    visual_total += abs(b - a)
+        prev_t = t_i
         q = out[i]
         q['lat_f'] = round(lat_f, 7)
         q['lon_f'] = round(lon_f, 7)
         q['speed_f_kmh'] = round(speed * 3.6, 2)
         q['heading_f'] = round(last_heading, 1) if last_heading is not None else None
         q['heading_f_held'] = is_held
+        if visual:
+            q['heading_f_visual'] = True
         de = (float(p['lon']) - lon_f) * m_lon
         dn = (float(p['lat']) - lat_f) * M_LAT
         disp2.append(de * de + dn * dn)
@@ -194,6 +224,10 @@ def filter_gps_points(points, *, sigma_a: float = DEFAULT_SIGMA_A,
         'heading_delta_median_deg': (round(dheads[len(dheads) // 2], 1) if dheads else None),
         'heading_held_ratio': round(held / len(disp2), 3) if disp2 else None,
     }
+    if yaw_cum is not None:
+        # ce que la rotation vue a PROPAGÉ : un compte nul dirait que la source n'arrive pas
+        report['visual_heading_points'] = visual_steps
+        report['visual_heading_rotation_deg'] = round(visual_total, 1)
     if commande:
         # A/B INTERNE : ce que la commande DÉPLACE par rapport à la même trace non commandée.
         # Un écart nul dirait que la commande n'arrive pas (garde contre le câblage muet) ;

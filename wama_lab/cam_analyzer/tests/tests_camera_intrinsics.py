@@ -72,3 +72,38 @@ class MeasuredFovTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+class VisualYawTest(unittest.TestCase):
+    """Passe « Cap visuel » (2026-09-30) — la rotation vue devient la source `yaw_cum` du filtre."""
+
+    class _S:
+        def __init__(self, rs):
+            self.results_summary = rs
+
+    def test_the_cumulative_rotation_sums_the_pairs_up_to_the_instant(self):
+        from wama_lab.cam_analyzer.utils.visual_yaw import yaw_cumulative
+        at = yaw_cumulative(self._S({'visual_yaw': {'rows': [[10.0, 1.5], [10.5, 2.0], [11.0, -0.5]]}}))
+        self.assertEqual(at(9.0), 0.0)
+        self.assertAlmostEqual(at(10.2), 1.5)
+        self.assertAlmostEqual(at(10.5), 3.5)
+        self.assertAlmostEqual(at(99.0), 3.0)
+
+    def test_no_measurement_gives_no_source(self):
+        from wama_lab.cam_analyzer.utils.visual_yaw import yaw_cumulative
+        self.assertIsNone(yaw_cumulative(self._S({})))
+
+    def test_the_pass_does_not_run_without_the_measured_focal(self):
+        """Avec la focale de la fiche, les rotations vues valent ×1,87 la réalité."""
+        from wama_lab.cam_analyzer.utils.visual_yaw import compute_visual_yaw
+        data, rep = compute_visual_yaw(self._S({'shuttle_filter': {'track': [{'ts': 0.0}]}}))
+        self.assertIsNone(data)
+        self.assertIn('focale non mesurée', rep['skipped'])
+
+    def test_the_flag_is_read_by_the_shuttle_filter(self):
+        from pathlib import Path
+        from django.conf import settings
+        src = (Path(settings.BASE_DIR) / 'wama_lab' / 'cam_analyzer' / 'utils'
+               / 'ego_pose.py').read_text(encoding='utf-8')
+        self.assertIn("if _feat_on(session, 'visual_heading'):", src)
+        self.assertIn("filter_gps_points(gt, accel_long=accel, yaw_cum=yaw_cum)", src)
