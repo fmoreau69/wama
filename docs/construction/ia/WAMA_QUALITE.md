@@ -821,6 +821,35 @@ prétraitement rendait le DÉBUT plus fidèle, couper le VAD améliorerait-il ?
 - ⚠ #1048 a été interrompue par une relance de WAMA (14:25) : tâche perdue, card restée
   « en cours » jusqu'à sa relance à la main. Ce qui a relancé WAMA n'est pas identifié.
 
+**Suite, même jour — l'ORDRE « nivellement → débruitage → VAD » (hypothèse de Fabien).** Sans
+toucher au worker : l'audio est nivelé par la brique commune (`speech_leveling.level_file`), puis
+confié à des cards du même lot (mêmes réglages, même référence).
+
+| card | traitements (dans l'ordre) | VAD | WER | cpWER | audio retiré par le VAD |
+|---|---|---|---|---|---|
+| #1048 | aucun | coupé | 42,8 % | 58,3 % | 0 |
+| **#1070** | **nivellement** | **coupé** | **39,6 %** | **55,6 %** | 0 |
+| #1051 | nivellement | auto → resté ACTIF | 78,6 % | 85,3 % | **75 %** |
+| #1050 | nivellement → débruitage | auto → resté actif | 80,7 % | 89,6 % | 62 % |
+
+- ⭐ **Le nivellement AIDE Whisper (−3,2 points) quand le VAD ne s'en mêle pas** — les ajouts
+  baissent (4 213 → 3 291). Même sens que le gain mesuré pour Qwen et Canary sur SUMM-RE.
+- **Le débruitage reste destructeur même sur audio nivelé** (#1050 ≈ #725) : l'ordre ne le sauve pas.
+- ⚠⚠ **Le VAD placé après le nivellement ne se comporte PAS mieux** : il retire 75 % de l'audio.
+  Et le garde-fou du mode « auto » (`speech_activity.vad_rejects_speech`) l'a laissé actif, parce
+  qu'il n'écoute que **3 fenêtres de 2 min** : rejoué, il donne 0,413 gardé contre un seuil de
+  0,6 × 0,618 = 0,371 (non rejeté, de justesse) ; sur **12 fenêtres**, 0,371 contre 0,405 → rejeté.
+  Sur l'audio d'origine il rejette nettement (0,354 contre 0,697 × 0,6). **La décision « auto »
+  dépend de l'endroit où tombent 3 fenêtres** — et elle n'est écrite dans la console que quand
+  elle COUPE le VAD (`workers._vad_filter_for`), jamais quand elle le garde.
+- 🔜 **À faire avant le banc dédié aux prétraitements** (demandé par Fabien : audios de qualité
+  moyenne, fixer l'ordre, vérifier le comportement du VAD) : échantillonner la sonde selon la
+  durée, et écrire la décision « auto » dans les deux cas. Corpus du banc : à trancher par Fabien
+  (SUMM-RE dégradé de façon contrôlée, corpus réel de qualité moyenne, ou les deux).
+- Ordre dans le worker (`workers.py:486-498`) aujourd'hui : débruitage → nivellement → VAD (dans
+  le moteur). Ne pas l'inverser avant le banc : sur cet entretien, c'est le VAD, pas l'ordre, qui
+  décide du résultat.
+
 ---
 
 ## Voir aussi
