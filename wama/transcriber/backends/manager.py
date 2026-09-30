@@ -123,12 +123,13 @@ class TranscriberBackendManager:
         availability = self.check_availability()
         return [name for name, available in availability.items() if available]
 
-    def get_backend(self, name: str = None) -> SpeechToTextBackend:
+    def get_backend(self, name: str = None, user=None) -> SpeechToTextBackend:
         """
         Get a backend instance.
 
         Args:
             name: Backend name. If None or 'auto', select best available.
+            user: whose rights and key a REMOTE model is called with (`_remote_backend`).
 
         Returns:
             Backend instance.
@@ -139,6 +140,12 @@ class TranscriberBackendManager:
         # Auto-select if no name provided
         if name is None or name == 'auto':
             return self._get_best_backend()
+
+        # Un modèle DISTANT du catalogue passe AVANT tout repli : lui substituer un moteur local
+        # serait une réponse fausse — `albert:whisper-large-v3` contient « whisper ».
+        remote = self._remote_backend(name, user)
+        if remote is not None:
+            return remote
 
         # Un nom de MODÈLE du catalogue (`qwen3-asr-1.7b`, `transcriber:vibevoice-asr`) désigne
         # son moteur par la même table que le catalogue (`_backend_for_model_key`). Sans cette
@@ -170,10 +177,54 @@ class TranscriberBackendManager:
             self._instances[name] = self._backends[name]()
         return self._instances[name]
 
+    def _remote_backend(self, name: str, user) -> Optional[SpeechToTextBackend]:
+        """Le backend d'un modèle DISTANT du catalogue, autorisé pour `user` — None si `name`
+        n'en désigne pas un.
+
+        Le moteur se résout par le lien COMMUN (`backend_for_model` : `composition.runtime.engine`
+        du modèle ↔ `ENGINE` du backend), jamais par le nom ; la clé passe par la garde commune
+        (`cloud_access`). Un refus ou un moteur introuvable LÈVE : on ne remplace pas un modèle
+        distant demandé par un local — la mesure et la confidentialité en dépendraient.
+        """
+        if not self._is_remote_key(name):
+            return None
+        from wama.common.backends.manager import backend_for_model
+        from wama.model_manager.models import AIModel, EXECUTION_CLOUD
+        from wama.model_manager.services.cloud_models import CloudAccessRefused, cloud_access
+        row = AIModel.objects.filter(model_key=name, execution=EXECUTION_CLOUD,
+                                     is_available=True).first()
+        if row is None:
+            raise RuntimeError(f"Modèle distant « {name} » absent du catalogue ou retiré par "
+                               "son fournisseur.")
+        cls = backend_for_model(row)
+        if cls is None or not issubclass(cls, SpeechToTextBackend):
+            raise RuntimeError(f"Aucun backend de transcription ne sait appeler « {name} ».")
+        source, model_id = name.split(':', 1)
+        try:
+            api_key = cloud_access(user, source, model_id)
+        except CloudAccessRefused as e:
+            raise RuntimeError(str(e)) from e
+        instance = self._instances.get(name) or cls()
+        instance.catalogue_key = name
+        instance.authorize(api_key)
+        self._instances[name] = instance
+        return instance
+
+    @staticmethod
+    def _is_remote_key(model_key: str) -> bool:
+        """`<source>:<id>` dont la source est un fournisseur distant (`external_sources`, `llm`)."""
+        from wama.common import external_sources
+        prefix = (model_key or '').split(':', 1)[0] if ':' in (model_key or '') else ''
+        source = external_sources.by_key().get(prefix)
+        return source is not None and source.kind == 'llm'
+
     # Map model_key du catalogue AIModel → nom de backend interne.
     # (le catalogue nomme finement : whisper-large-v3, vibevoice-asr, qwen3-asr-0.6b…)
-    @staticmethod
-    def _backend_for_model_key(model_key: str) -> Optional[str]:
+    @classmethod
+    def _backend_for_model_key(cls, model_key: str) -> Optional[str]:
+        # Un modèle DISTANT n'a pas de moteur local, même s'il en porte le nom.
+        if cls._is_remote_key(model_key):
+            return None
         mk = (model_key or '').lower()
         if 'vibevoice' in mk:
             return 'vibevoice'
@@ -196,6 +247,9 @@ class TranscriberBackendManager:
         donc toujours son défaut — demander le 0.6B donnait le 1.7B, sans un mot."""
         if not requested:
             return None
+        # Un modèle distant : le backend a été résolu POUR lui, il n'a pas de liste à consulter.
+        if getattr(backend, 'catalogue_key', '') == requested:
+            return requested.split(':', 1)[-1]
         model_id = requested.split(':', 1)[-1].strip().lower()
         served = getattr(backend, 'SUPPORTED_MODELS', None) or {}
         return model_id if model_id in served else None
@@ -206,6 +260,8 @@ class TranscriberBackendManager:
         catalogue) ? Faux = un vrai repli, à dire à l'utilisateur. Comparer les noms seuls
         disait « indisponible — repli » pour `transcriber:qwen3-asr-1.7b` servi… par Qwen3-ASR."""
         if not requested:
+            return True
+        if getattr(backend, 'catalogue_key', '') == requested:
             return True
         return backend.name == requested or cls._backend_for_model_key(requested) == backend.name
 
@@ -375,22 +431,39 @@ def backend_choice_values() -> List[str]:
         for key in AIModel.objects.filter(source='transcriber').values_list('model_key', flat=True):
             if manager._backend_for_model_key(key) in manager._backends:
                 values.append(key)
+        # Les modèles DISTANTS de transcription (2026-09-30) : le domaine dit ce qui EXISTE ; qui
+        # a le droit de l'appeler se juge au lancement (`_remote_backend`, garde `cloud_access`).
+        values += [row.model_key for row in remote_transcription_models()]
     except Exception as e:
         logger.debug(f"[TranscriberManager] catalogue unreadable for the choice domain: {e}")
     return values
 
 
-def get_backend(name: str = None) -> SpeechToTextBackend:
+def remote_transcription_models() -> list:
+    """Lignes DISTANTES du catalogue, de tâche transcription, qu'un backend sait appeler."""
+    from wama.common.backends.manager import backend_for_model
+    from wama.model_manager.models import AIModel, EXECUTION_CLOUD
+    kept = []
+    for row in AIModel.objects.filter(execution=EXECUTION_CLOUD, is_available=True,
+                                      capabilities__task='transcription').order_by('model_key'):
+        cls = backend_for_model(row)
+        if cls is not None and issubclass(cls, SpeechToTextBackend):
+            kept.append(row)
+    return kept
+
+
+def get_backend(name: str = None, user=None) -> SpeechToTextBackend:
     """
     Get a transcription backend instance.
 
     Args:
-        name: Backend name ('whisper', 'vibevoice', 'auto', or None).
+        name: Backend name ('whisper', 'vibevoice', 'auto', or None), or a catalogue model key.
+        user: whose rights and key a remote model is called with.
 
     Returns:
         Backend instance.
     """
-    return TranscriberBackendManager.get_instance().get_backend(name)
+    return TranscriberBackendManager.get_instance().get_backend(name, user=user)
 
 
 def get_available_backends() -> List[str]:

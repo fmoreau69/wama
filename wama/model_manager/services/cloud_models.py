@@ -355,3 +355,36 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
                    .values_list('open_models', flat=True)):
         keys.update(opened or [])
     return keys
+
+
+class CloudAccessRefused(RuntimeError):
+    """Appel distant refusé — message lisible par l'utilisateur ; `status` = code HTTP à rendre."""
+
+    def __init__(self, message: str, status: int = 403):
+        super().__init__(message)
+        self.status = status
+
+
+def cloud_access(user, source: str, model_id: str = '') -> str:
+    """La CLÉ avec laquelle `user` appelle `source` (et le modèle `model_id` s'il est nommé), ou
+    `CloudAccessRefused` avec le motif. Sans utilisateur : la clé d'instance (`key_for`).
+
+    Domicile UNIQUE de la garde d'un APPEL distant (2026-09-30) : elle vivait en ligne dans
+    l'assistant (`assistant_engine._llm_call`), et le transcriber — premier moteur d'app à
+    appeler un fournisseur — l'aurait recopiée. Trois refus, dans cet ordre : profil « 100 %
+    local », modèle nommé qu'AUCUNE clé de cet utilisateur n'ouvre, pas de clé posée.
+    """
+    from wama.accounts.api_keys import key_for
+    if user is not None and getattr(user, 'is_authenticated', False):
+        refusal = cloud_refusal(user)
+        if refusal:
+            raise CloudAccessRefused(refusal, 403)
+        if model_id and f"{source}:{model_id}" not in allowed_cloud_keys(user, automatic=False):
+            raise CloudAccessRefused(f"Le modèle « {model_id} » n'est pas ouvert par votre clé "
+                                     f"{external_sources.get(source).label}.", 403)
+    api_key = key_for(user, source)
+    if not api_key:
+        raise CloudAccessRefused(f"Aucune clé d'API {external_sources.get(source).label} dans "
+                                 "votre profil : ajoutez-la dans le volet « Clés d'API » de la "
+                                 "page Profil.", 400)
+    return api_key

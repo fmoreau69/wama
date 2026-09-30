@@ -302,17 +302,9 @@ def _split_audio_chunks(audio_path: str, chunk_seconds: float, out_dir: str):
     try:
         info = sf.info(src)
     except Exception:
-        # Format non lisible par soundfile (ex. m4a) → transcode en wav via ffmpeg (résolveur
-        # commun ; ffmpeg WSL2 peu fiable → override FFMPEG_BINARY possible). Fallback demandé.
-        import subprocess
-        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
-        src = os.path.join(out_dir, "_decoded.wav")
-        _ff = get_ffmpeg_exe()
-        subprocess.run(
-            [_ff, '-nostdin', '-y', '-i', adapt_path_for_ffmpeg(audio_path, _ff),
-             '-ac', '1', '-ar', '16000', adapt_path_for_ffmpeg(src, _ff)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True,
-        )
+        # Format non lisible par soundfile (ex. m4a) → transcode en wav (brique commune).
+        from wama.common.utils.audio_decode import transcode_to_wav
+        src = transcode_to_wav(audio_path, os.path.join(out_dir, "_decoded.wav"))
         info = sf.info(src)
     sr = info.samplerate
     total = info.frames
@@ -510,7 +502,8 @@ def _transcribe_item(t, ctx):
             raise RuntimeError("Backend system not available")
 
         backend_name = t.backend if t.backend and t.backend != 'auto' else None
-        backend = get_backend(backend_name)
+        # L'utilisateur voyage : un modèle DISTANT s'appelle avec SES droits et SA clé.
+        backend = get_backend(backend_name, user=t.user)
         # Le MODÈLE demandé, quand la demande en nomme un que ce moteur sert (`transcriber:
         # qwen3-asr-0.6b`) — sans lui, un moteur à plusieurs modèles chargeait son défaut.
         from wama.transcriber.backends.manager import TranscriberBackendManager
@@ -620,8 +613,11 @@ def _transcribe_item(t, ctx):
         t.used_backend = backend.name
         # La clé catalogue EXACTE, lue maintenant : `unload()` (plus bas) efface le modèle chargé.
         from .backends.manager import TranscriberBackendManager
-        t.model_key = TranscriberBackendManager.catalogue_key_for(
-            backend.name, getattr(backend, '_current_model', '') or '')
+        # Un backend résolu POUR un modèle du catalogue (distant) connaît déjà sa clé exacte.
+        resolved_for = getattr(backend, 'catalogue_key', '')
+        t.model_key = (resolved_for if isinstance(resolved_for, str) and resolved_for
+                       else TranscriberBackendManager.catalogue_key_for(
+                           backend.name, getattr(backend, '_current_model', '') or ''))
 
         # Save segments if available (diarization)
         num_segments = _save_segments(t, result)
