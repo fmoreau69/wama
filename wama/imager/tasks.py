@@ -39,6 +39,37 @@ def _console(user_id: int, message: str, level: str = None) -> None:
 # GÉNÉRIQUE `common.tasks.enrich_prompt_at_ingest_task`, branchée par déclaration.
 
 
+def _image_backend_for(model_key: str):
+    """`(instance, None)` du backend qui exécute `model_key`, ou `(None, raison)`.
+
+    Le MODÈLE porte son moteur, la CLASSE s'en dérive par le catalogue (`backend_for_key`,
+    route F4b, 2026-09-29). Jusque-là seuls `qwen-image*`/`flux2-klein*` passaient par la
+    résolution — une liste de PRÉFIXES : un modèle d'une autre source (installé par le model
+    manager) n'avait aucun chemin. Règle unique désormais :
+      • la classe résolue est un backend GÉNÉRIQUE du manager d'app → son instance PARTAGÉE
+        (pipeline gardé chaud entre tâches, repli diffusers/imaginairy) — comme avant ;
+      • une autre classe (backend DÉDIÉ : Qwen, FLUX.2 Klein, Supra2…) → instanciée ;
+      • rien de résolu : générique pour un modèle de l'imager (comportement historique),
+        ARRÊT dit pour un modèle d'une autre source — jamais un repli muet.
+    """
+    from wama.common.backends.manager import backend_for_key
+    from .backends import get_backend
+    from .backends.manager import is_generic_backend
+    backend_class = backend_for_key(model_key)
+    if backend_class is None and not model_key.startswith('imager:'):
+        return None, (f"Modèle « {model_key} » : aucun backend résolu depuis le catalogue "
+                      f"(moteur non déclaré, ou sans backend)")
+    if backend_class is None or is_generic_backend(backend_class):
+        backend = get_backend()
+        if backend is None:
+            return None, "No image generation backend available. Install 'diffusers' or 'imaginairy'."
+        return backend, None
+    if not backend_class.is_available():
+        return None, (f"{backend_class.__name__} indisponible pour « {model_key} » "
+                      f"(CUDA/VRAM ou dépendances manquantes).")
+    return backend_class(), None
+
+
 @shared_task(bind=True)
 def generate_image_task(self, generation_id):
     """
@@ -113,7 +144,7 @@ def generate_image_task(self, generation_id):
 
         # Import backend system
         try:
-            from .backends import get_backend, get_available_backends
+            from .backends import get_available_backends
             from wama.common.backends.image_generation_base import GenerationParams
         except ImportError as e:
             error_msg = f"Backend system not available: {e}"
@@ -128,47 +159,19 @@ def generate_image_task(self, generation_id):
         _console(user_id, f"[Imager] Available backends: {available}")
         logger.info(f"Available backends: {available}")
 
-        # Modèles à backend DÉDIÉ (Qwen Image, FLUX.2 Klein) : le MODÈLE porte son moteur et le
-        # catalogue départage le générique (DiffusersBackend) du spécialisé par SUPPORTED_MODELS
-        # — c'est exactement ce que les deux branches `startswith(...)` refaisaient à la main
-        # avec un import de classe par chemin. 3ᵉ adoptant de `backend_for_key` (2026-09-07).
-        # Le préfixe ne sert plus qu'à décider QUI résout : le catalogue (ici) ou le manager
-        # d'app (ci-dessous, qui porte le repli diffusers/imaginairy). Aucun repli muet.
-        if generation.model.startswith(('qwen-image', 'flux2-klein')):
-            from wama.common.backends.manager import backend_for_key
-            catalog_key = f'imager:{generation.model}'
-            classe = backend_for_key(catalog_key)
-            if classe is None:
-                error_msg = (f"Modèle « {generation.model} » : aucun backend résolu depuis le "
-                             f"catalogue ({catalog_key} absent, ou sans moteur déclaré)")
-                logger.error(error_msg)
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager] Error: {error_msg}")
-                return {'error': error_msg}
-            backend = classe()
-            if not classe.is_available():
-                error_msg = (f"{classe.__name__} indisponible pour « {generation.model} » "
-                             f"(CUDA/VRAM ou dépendances manquantes).")
-                logger.error(error_msg)
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager] Error: {error_msg}")
-                return {'error': error_msg}
-
-        else:
-            # Get the best available backend (diffusers / imaginairy)
-            backend = get_backend()
-            if backend is None:
-                error_msg = "No image generation backend available. Install 'diffusers' or 'imaginairy'."
-                logger.error(error_msg)
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager] Error: {error_msg}")
-                return {'error': error_msg}
+        # La valeur stockée est une CLÉ de catalogue (`imager:…`, `huggingface:…`, route F4b) ;
+        # une valeur nue d'avant la migration est lue dans l'espace de l'imager (`model_keys`).
+        from wama.common.utils.model_keys import catalog_key, model_id
+        model_key = catalog_key(generation.model, 'imager')
+        backend_model = model_id(model_key)          # ce que les backends connaissent
+        backend, error_msg = _image_backend_for(model_key)
+        if backend is None:
+            logger.error(error_msg)
+            generation.status = 'FAILURE'
+            generation.error_message = error_msg
+            generation.save()
+            _console(user_id, f"[Imager] Error: {error_msg}")
+            return {'error': error_msg}
 
         _console(user_id, f"[Imager] Using backend: {backend.display_name}")
         logger.info(f"Using backend: {backend.name} ({backend.display_name})")
@@ -182,19 +185,19 @@ def generate_image_task(self, generation_id):
         generation.progress = 10
         generation.save()
         cache.set(f"imager_progress_{generation_id}", 10, timeout=3600)
-        _console(user_id, f"[Imager] Loading model: {generation.model}")
+        _console(user_id, f"[Imager] Loading model: {model_key}")
         # Premier lancement d'un modèle jamais téléchargé : le DIRE (brique commune, 2026-09-08).
         # Sans elle, l'utilisateur voit une tâche figée le temps de récupérer des dizaines de Go.
         from wama.common.utils.model_readiness import warn_if_weights_missing
-        warn_if_weights_missing(f'imager:{generation.model}',
-                                console=lambda m: _console(user_id, f"[Imager] {m}"))
+        warn_if_weights_missing(model_key, console=lambda m: _console(user_id, f"[Imager] {m}"))
 
-        # Load the model
-        logger.info(f"[Imager] >>> Calling backend.load({generation.model})...")
+        # Load the model — le backend reçoit l'identifiant qu'il connaît (sa clé de
+        # SUPPORTED_MODELS / de déclaration), jamais la clé de catalogue.
+        logger.info(f"[Imager] >>> Calling backend.load({backend_model})...")
         import time as _time
         _load_start = _time.time()
-        if not backend.load(generation.model):
-            error_msg = f"Failed to load model: {generation.model}"
+        if not backend.load(backend_model):
+            error_msg = f"Failed to load model: {model_key}"
             logger.error(error_msg)
             generation.status = 'FAILURE'
             generation.error_message = error_msg
@@ -244,7 +247,7 @@ def generate_image_task(self, generation_id):
         params = GenerationParams(
             prompt=_prompt,
             negative_prompt=_negative,
-            model=generation.model,
+            model=backend_model,
             width=generation.width,
             height=generation.height,
             steps=generation.steps,
@@ -267,7 +270,7 @@ def generate_image_task(self, generation_id):
             cache.set(f"imager_progress_{generation_id}", mapped_progress, timeout=3600)
 
         # Generate images
-        logger.info(f"[Imager] >>> Calling backend.generate() with {generation.num_images} image(s), model={generation.model}")
+        logger.info(f"[Imager] >>> Calling backend.generate() with {generation.num_images} image(s), model={model_key}")
         logger.info(f"[Imager]     size={generation.width}x{generation.height}, steps={generation.steps}, guidance={generation.guidance_scale}")
 
         import time
@@ -302,7 +305,7 @@ def generate_image_task(self, generation_id):
         for i, img in enumerate(result.images):
             try:
                 filename = compose_output_name(
-                    app='imager', model=generation.model, item_id=generation.id, ext='.png',
+                    app='imager', model=backend_model, item_id=generation.id, ext='.png',
                     index=i + 1, total=len(result.images))
                 output_path = os.path.join(output_dir, filename)
                 img.save(output_path)
@@ -369,7 +372,9 @@ def generate_image_task(self, generation_id):
         try:
             from wama.model_manager.services.eta_estimator import record_run
             _steps = int(getattr(generation, 'steps', 0) or 0) * int(getattr(generation, 'num_images', 1) or 1)
-            record_run(f'imager:img:{generation.model}', size=max(_steps, 1), unit='step',
+            # Clé par IDENTIFIANT (pas par clé de catalogue) : l'historique appris avant la
+            # route F4b reste le même, et un modèle d'une autre source a la sienne.
+            record_run(f'imager:img:{backend_model}', size=max(_steps, 1), unit='step',
                        process_seconds=gen_duration,
                        load_seconds=(_load_seconds if _load_seconds and _load_seconds >= 2 else None),
                        user=generation.user)
@@ -523,14 +528,15 @@ def _report_effective_video_settings(user_id, generation, backend, params, expor
         if (params.width, params.height) != (requested_w, requested_h):
             _console(user_id, f"[Imager Video] Résolution : {params.width}×{params.height} "
                               f"(demandé {requested_w}×{requested_h})", level='warning')
-        from wama.common.utils.model_declarations import declaration
-        native = (declaration('imager', generation.model) or {}).get('resolution')
+        from wama.common.utils.model_declarations import declaration_for
+        from wama.common.utils.model_keys import model_id
+        native = (declaration_for(generation.model, 'imager') or {}).get('resolution')
         if native:
             nw, _, nh = str(native).partition('x')
             if nw.isdigit() and nh.isdigit() and params.width * params.height < int(nw) * int(nh):
                 _console(user_id, f"[Imager Video] ⚠ Résolution native du modèle : {native} — "
                                   f"en dessous, la qualité baisse", level='warning')
-        profile = (getattr(backend, 'MODEL_PROFILES', None) or {}).get(generation.model) or {}
+        profile = (getattr(backend, 'MODEL_PROFILES', None) or {}).get(model_id(generation.model)) or {}
         if profile.get('dmd_timesteps'):
             _console(user_id, f"[Imager Video] Modèle distillé : {len(profile['dmd_timesteps'])} "
                               f"pas et guidage {profile.get('guidance_scale', 1.0)} imposés — "
@@ -626,8 +632,12 @@ def generate_video_task(self, generation_id):
         _negative = process_prompt_for('imager', 'negative_prompt', generation.negative_prompt,
                                        instance=generation, user=generation.user, console=_cons)
 
-        # Detect which backend to use based on model name
-        model_name = generation.model
+        # Clé de CATALOGUE (résolution) et IDENTIFIANT (ce que le backend connaît, et la
+        # politique de cadence par famille ci-dessous) — route F4b, 2026-09-29 : la valeur
+        # stockée est une clé entière, une valeur nue d'avant la migration se lit dans l'imager.
+        from wama.common.utils.model_keys import catalog_key, model_id
+        model_key = catalog_key(generation.model, 'imager')
+        model_name = model_id(model_key)
         backend_type = None
 
         if model_name.startswith('hunyuan-'):
@@ -650,12 +660,11 @@ def generate_video_task(self, generation_id):
         # envoyait tout inconnu vers Wan) : il s'arrête en le DISANT. Wan et HunyuanVideo n'ont
         # plus ni déclaration ni poids sur disque depuis janvier ; leurs branches étaient mortes.
         from wama.common.backends.manager import backend_for_key
-        catalog_key = f'imager:{model_name}'
-        backend_class = backend_for_key(catalog_key)
+        backend_class = backend_for_key(model_key)
         params_class = getattr(backend_class, 'PARAMS', None)
         if backend_class is None or params_class is None:
-            error_msg = (f"Modèle vidéo « {model_name} » : aucun backend résolu depuis le catalogue "
-                         f"({catalog_key} absent, sans moteur déclaré, ou backend sans PARAMS)")
+            error_msg = (f"Modèle vidéo « {model_key} » : aucun backend résolu depuis le catalogue "
+                         f"({model_key} absent, sans moteur déclaré, ou backend sans PARAMS)")
             logger.error(error_msg)
             generation.status = 'FAILURE'
             generation.error_message = error_msg
@@ -687,14 +696,14 @@ def generate_video_task(self, generation_id):
 
         # Initialize backend
         backend = backend_class()
-        _console(user_id, f"[Imager Video] Loading model: {generation.model}")
+        _console(user_id, f"[Imager Video] Loading model: {model_key}")
         # ⚠ Un avertissement EN DUR vivait ici (« ~5-10GB on first run »), affiché à CHAQUE
         # lancement — donc même quand les poids étaient déjà là, et avec un volume inventé.
         # Remplacé par la brique commune (2026-09-08) : elle ne parle QUE si le catalogue dit
         # `is_downloaded=False`, et elle annonce la taille RÉELLE quand elle la connaît.
         # *Un avertissement permanent n'avertit plus de rien.*
         from wama.common.utils.model_readiness import warn_if_weights_missing
-        warn_if_weights_missing(f'imager:{generation.model}',
+        warn_if_weights_missing(model_key,
                                 console=lambda m: _console(user_id, f"[Imager Video] ⏳ {m}"))
 
         model_load_start = time.time()
@@ -712,8 +721,8 @@ def generate_video_task(self, generation_id):
         if hasattr(backend, 'load') and 'stage_callback' in backend.load.__code__.co_varnames:
             load_kwargs['stage_callback'] = _load_stage_cb
 
-        if not backend.load(generation.model, **load_kwargs):
-            error_msg = f"Failed to load video model: {generation.model}"
+        if not backend.load(model_name, **load_kwargs):
+            error_msg = f"Failed to load video model: {model_key}"
             logger.error(error_msg)
             generation.status = 'FAILURE'
             generation.error_message = error_msg
@@ -755,8 +764,8 @@ def generate_video_task(self, generation_id):
         # doublaient la déclaration et avaient DIVERGÉ d'elle (CogVideoX déclarait 24 i/s).
         from wama.common.utils.model_capabilities import (derive_inputs_from_tasks,
                                                           video_caps_from_declaration)
-        from wama.common.utils.model_declarations import declaration as _declaration
-        _decl = _declaration('imager', generation.model) or {}
+        from wama.common.utils.model_declarations import declaration_for
+        _decl = declaration_for(model_key) or {}
         _tokens = derive_inputs_from_tasks(str(_decl.get('tasks') or '').lower(),
                                            is_video=True)['tokens']
         vcaps = video_caps_from_declaration(_decl, _tokens)
@@ -773,7 +782,7 @@ def generate_video_task(self, generation_id):
             params = params_class(
                 prompt=_prompt,
                 negative_prompt=_negative,
-                model=generation.model,
+                model=model_name,
                 width=width,
                 height=height,
                 num_frames=num_frames,
@@ -796,7 +805,7 @@ def generate_video_task(self, generation_id):
             params = params_class(
                 prompt=_prompt,
                 negative_prompt=_negative,
-                model=generation.model,
+                model=model_name,
                 width=cog_w,
                 height=cog_h,
                 num_frames=cogvideox_frames,
@@ -817,7 +826,7 @@ def generate_video_task(self, generation_id):
             # The FP8 transformer uses ~12.5GB, leaving ~11GB for computation.
             # At 1280×720 × 361 frames the attention tensors exceed this budget.
             # Safe ceiling (empirical): ≤ 768×432, ≤ 161 frames (~6.7s).
-            if generation.model == 'ltx-video-13b-0.9.8-distilled-fp8':
+            if model_name == 'ltx-video-13b-0.9.8-distilled-fp8':
                 LTX_FP8_MAX_W, LTX_FP8_MAX_H, LTX_FP8_MAX_FRAMES = 768, 432, 161
                 if ltx_width > LTX_FP8_MAX_W or ltx_height > LTX_FP8_MAX_H:
                     scale = min(LTX_FP8_MAX_W / ltx_width, LTX_FP8_MAX_H / ltx_height)
@@ -838,7 +847,7 @@ def generate_video_task(self, generation_id):
             params = params_class(
                 prompt=_prompt,
                 negative_prompt=_negative or "worst quality, inconsistent motion, blurry, jittery, distorted",
-                model=generation.model,
+                model=model_name,
                 width=ltx_width,
                 height=ltx_height,
                 num_frames=ltx_frames,
@@ -860,7 +869,7 @@ def generate_video_task(self, generation_id):
             params = params_class(
                 prompt=_prompt,
                 negative_prompt=_negative,
-                model=generation.model,
+                model=model_name,
                 width=mochi_w,
                 height=mochi_h,
                 num_frames=mochi_frames,
@@ -874,8 +883,8 @@ def generate_video_task(self, generation_id):
             # (FastWan 2.2 : 24 i/s natifs, 121 images) ; sinon les réglages de la génération.
             # La grille de résolution (multiple de 16 ou 32 selon le VAE) est alignée par le
             # backend, qui seul connaît son pipeline.
-            from wama.common.utils.model_declarations import declaration
-            wan_declaration = declaration('imager', generation.model) or {}
+            from wama.common.utils.model_declarations import declaration_for
+            wan_declaration = declaration_for(model_key) or {}
             export_fps = int(wan_declaration.get('fps') or generation.video_fps)
             if wan_declaration.get('fps'):
                 raw_wan = int(generation.video_duration * export_fps)
@@ -883,7 +892,7 @@ def generate_video_task(self, generation_id):
             params = params_class(
                 prompt=_prompt,
                 negative_prompt=_negative,
-                model=generation.model,
+                model=model_name,
                 width=width,
                 height=height,
                 num_frames=num_frames,
@@ -985,7 +994,7 @@ def generate_video_task(self, generation_id):
         # Export video to MP4
         # Include model name in filename for easy identification
         from wama.common.utils.output_naming import compose_output_name
-        video_filename = compose_output_name(app='imager', model=generation.model,
+        video_filename = compose_output_name(app='imager', model=model_name,
                                              item_id=generation.id, ext='.mp4')
         video_path = os.path.join(output_dir, video_filename)
 
@@ -1042,7 +1051,8 @@ def generate_video_task(self, generation_id):
             # chargement séparé (model_load_time) enregistré seulement à froid (>2s).
             try:
                 from wama.model_manager.services.eta_estimator import record_run
-                record_run(f'imager:vid:{generation.model}',
+                # Clé par IDENTIFIANT : l'historique d'avant la route F4b reste le même.
+                record_run(f'imager:vid:{model_name}',
                            size=float(getattr(generation, 'video_duration', 0) or 0),
                            unit='video_sec',
                            process_seconds=generation_time + export_time,

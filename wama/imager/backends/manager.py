@@ -367,6 +367,15 @@ def get_backend(
     return get_manager().get_backend(name, allow_fallback)
 
 
+def is_generic_backend(backend_class) -> bool:
+    """La classe est-elle un des backends GÉNÉRIQUES de l'app (`BACKEND_PRIORITY` : diffusers,
+    imaginairy) — ceux que `get_backend()` sert en instance PARTAGÉE, avec repli de l'un sur
+    l'autre ? Les backends dédiés (Qwen, FLUX.2 Klein, un backend écrit par un rôle) ne le sont
+    pas : ils s'instancient. Lu par l'aiguillage du lancement (`tasks.py`, route F4b)."""
+    manager = get_manager()
+    return any(manager._backends.get(n) is backend_class for n in manager.BACKEND_PRIORITY)
+
+
 def get_available_backends() -> Dict[str, bool]:
     """
     Convenience function to get available backends.

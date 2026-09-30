@@ -340,7 +340,7 @@ manifeste + filtre par capacité + source `catalog`) ; ② **synthesizer** (pilo
 migration* : preuve par l'absurde que la liste ne doit pas y vivre) ; ③ **avatarizer** (valide le
 multi-surface) ; ④ composer + reader (déjà rendus par WamaParams : seule la source change) ;
 ⑤ enhancer (7 modèles déclarés **4 fois**) ; ⑥ imager (aligner l'image sur la vidéo, replier les
-8 `SUPPORTED_MODELS` sur `composition.runtime`) ; ⑦ transcriber (pont backend↔catalogue) ;
+8 `SUPPORTED_MODELS` sur `composition.runtime`) — ✅ **livrée le 2026-09-29**, cf. ci-dessous ; ⑦ transcriber (pont backend↔catalogue) ;
 ⑧ anonymizer (scan disque conservé en repli jusqu'à preuve) ; ⑨ surfaces transverses (assistant,
 studio, Lab — `cam_analyzer` n'a **aucun** usage du catalogue : chantier à part).
 
@@ -432,6 +432,56 @@ qu'aucune app ne porte est désormais GRISÉ (`backend_missing`, critère = la s
 > enhancer dans `utils/` — donc invisibles au registre, et leurs **57 modèles** hors d'atteinte.
 > Déplacées le 06/09. *Un invariant ne vaut que sur le périmètre qu'il balaie* : la garde « tout
 > backend concret déclare `ENGINE` » passait au vert sans voir ces quatre-là.
+
+##### ✅ Étape ⑥ LIVRÉE le 2026-09-29 — l'imager, image ET vidéo
+
+**Mesure d'entrée** : 30 générations, 19 valeurs distinctes (5 `auto`, 13 identifiants nus présents
+au catalogue sous `imager:<id>`, 12 lignes de modèles RETIRÉS du parc) ; aucun réglage de volet
+ne stockait de modèle. Le domaine `task=text-to-image,image-to-image` rend **exactement les 8
+modèles** de l'ancienne liste (`DiffusersBackend.SUPPORTED_MODELS`) **plus Supra2-IMG**, installé
+depuis le model manager et jusque-là inchoisissable ; `text-to-video,image-to-video` rend les 5
+modèles vidéo, plus un modèle sans route (grisé par `backend_missing`).
+
+- **Options par TÂCHE, jamais par source** (`params.py`, deux domaines) : `options_source="catalog"`,
+  `options_auto=True`. Valeurs = **clés entières** — migration `imager/0023`, transformation PURE
+  comme `synthesizer/0019`, lignes orphelines préfixées comme les autres (décision de Fabien),
+  écrite en `update()` : le `save()` du modèle normalise désormais lui-même, il déferait
+  l'annulation.
+- **`options_group="category"`, regroupement GÉNÉRIQUE** (`api_model_options`) : la capacité
+  canonique `category` (vocabulaire fermé `MODEL_CATEGORIES`) range quelques modèles en optgroup
+  — les logos de l'imager, 1ᵉʳ consommateur ; les autres restent hors groupe, en tête, et
+  « auto » les rejoint (il n'entre jamais dans un groupe nommé). Remplace les groupes
+  Images/Logos/Vidéos écrits dans la vue.
+- **Tirage « auto » par capacité, sans `source='imager'`** : il tire dans le MÊME lot que le
+  select, donc rend une clé entière (`select_model` exclut déjà un modèle sans backend).
+- **Lancement : la classe DÉRIVE du moteur déclaré** (`backend_for_key`, règle dans
+  `tasks._image_backend_for`). La liste de PRÉFIXES `qwen-image*`/`flux2-klein*` qui seule
+  passait par la résolution est tombée : un backend générique du manager d'app est servi en
+  instance partagée (comme avant), un backend dédié s'instancie, une clé d'une autre source non
+  résolue ARRÊTE en le disant. Le backend reçoit toujours l'identifiant qu'il connaît.
+- **Card** : le modèle est un chip du schéma (`chip=True`) — `card_chips` résout la clé en
+  libellé du catalogue ; la ligne qui affichait la valeur brute est retirée du gabarit.
+- **Retirés** : `fillModelChoices` (JS), `model_groups_json` (vue + gabarit), le bloc de liste de
+  modèles lu sur le backend dans la vue.
+
+⭐ **Brique commune née du portage : `common/utils/model_keys.py`** (mécanisme `model_keys`). La
+conversion clé↔identifiant était réécrite une douzaine de fois avec DEUX sémantiques —
+`split(':', 1)` rend `qwen3:4b` pour `ollama:qwen3:4b`, `rsplit` rend `4b`. Seul le premier
+segment est la source, reconnue au vocabulaire `ModelSource`. Consommée par l'imager, l'ETA
+(`make_key` : `huggingface:org/x` devenait `synthesizer:huggingface:org/x`) et
+`declaration_for` (rétablie, avec ses appelants cette fois). ⚠ Les autres conversions à la main
+s'y rallient au fil des portages — pas en passe aveugle.
+
+⚠⚠ **Un défaut COMMUN latent trouvé en portant** : l'aide du modèle (`wama-model-help.js`) et
+`cap_from` (`wama-params.js`) indexaient la méta du catalogue par identifiant NU d'une seule
+source — donc **muets pour tout select à clés entières** (synthesizer, avatarizer depuis le
+01/09). Corrigé pour tous : la méta est lue sur le DOMAINE du select (`_catalogDomain` =
+son `options_query`) et indexée sous les deux formes. *Une brique jugée sur un seul consommateur
+ne dit rien des suivants.*
+
+Restent, assumés : le `BackendManager` propre à l'imager (distinct du `BackendManager` commun) ;
+pas de prévision « auto » sous les deux selects — une liste multi-tâches se tait plutôt que
+d'annoncer un modèle que le lancement ne retiendrait pas (règle du 27/09).
 
 
 **Ce qu'il ne faut PAS casser** : la lecture BIDIRECTIONNELLE des capacités dans la card

@@ -35,17 +35,8 @@
             });
         });
 
-        // Select modèle : options peuplées depuis les MÊMES groupes de catalogue que la modale
-        // d'item et la card (fillModelChoices, settings_modal.js) — pas de 2e liste. Sans cet
-        // appel le <select> du volet reste VIDE : le schéma déclare le champ, pas ses options.
-        if (window.imagerFillModelChoices) {
-            var vals = window.IMAGER_IMAGE_PANEL_VALUES || {};
-            var vvals = window.IMAGER_VIDEO_PANEL_VALUES || {};
-            imagerFillModelChoices(document.getElementById('imagePanelParams'), 'image', vals.model);
-            imagerFillModelChoices(document.getElementById('videoPanelParams'), 'video', vvals.model);
-        } else {
-            console.warn('[imager] imagerFillModelChoices absent — select modèle du volet vide.');
-        }
+        // Select modèle : peuplé par WamaParams depuis le CATALOGUE (schéma `options_source:
+        // "catalog"`, route F4b, 2026-09-29) avec la valeur du volet — plus de remplissage ici.
 
         // Zone HORS SCHÉMA (résolution image à présets, cf. docstring params.py) greffée dans
         // le groupe « Sortie » — même échappatoire que la modale d'item (settings_modal.js).

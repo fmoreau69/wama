@@ -74,11 +74,17 @@ def make_key(source: str, model_id: str) -> str:
     catalogue, `synthesizer:coqui-xtts`) est rendu tel quel : jusqu'au 2026-09-29 il devenait
     `synthesizer:synthesizer:coqui-xtts`, une clé que ni le catalogue (a priori) ni l'estimation
     ne relisaient sous le même nom que l'apprentissage.
+
+    Délègue depuis le 2026-09-29 à la brique commune `model_keys.catalog_key` : le test
+    « commence par `source:` » laissait passer une clé d'une AUTRE source
+    (`huggingface:org/nom` → `synthesizer:huggingface:org/nom`). Une valeur qui n'est pas un
+    modèle (vide, `auto`) garde l'ancienne forme préfixée, que rien ne relit sous un autre nom.
     """
+    from wama.common.utils.model_keys import AUTO, catalog_key
     model_id = str(model_id)
-    if model_id.startswith(f"{source}:"):
-        return model_id
-    return f"{source}:{model_id}"
+    if model_id in ('', AUTO):
+        return f"{source}:{model_id}"
+    return catalog_key(model_id, source)
 
 
 # ── A-priori (modèle puis domaine) ───────────────────────────────────────────

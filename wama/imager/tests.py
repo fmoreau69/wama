@@ -659,3 +659,125 @@ class InputCardReadsThePanelTest(TestCase):
         js = self._read('wama/imager/static/imager/js/input_card.js')
         for gone in ('ModelSelect', 'NegativePrompt', 'batchFile'):
             self.assertNotIn(gone, js, f'{gone} : la card relit un champ qu’elle ne rend plus')
+
+
+class CatalogKeyModelTest(TestCase):
+    """The imager stores CATALOGUE KEYS (route F4b, 2026-09-29): a model installed from the
+    model manager (`huggingface:…`) is choosable and launchable without a line of imager code."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('imager_catalog_keys', password='x')
+
+    def _gen(self, model, **kw):
+        return ImageGeneration.objects.create(user=self.user, prompt='p', model=model, **kw)
+
+    def test_a_bare_id_is_written_as_an_imager_key_and_a_key_is_kept(self):
+        self.assertEqual('imager:hunyuan-image-2.1', self._gen('hunyuan-image-2.1').model)
+        self.assertEqual('huggingface:Org/Img', self._gen('huggingface:Org/Img').model)
+        self.assertEqual('auto', self._gen('auto').model)
+
+    def test_the_migration_rekeys_bare_rows_and_reverses_exactly(self):
+        import importlib
+        from django.apps import apps
+        migration = importlib.import_module('wama.imager.migrations.0023_model_catalog_keys')
+        bare, auto, foreign = self._gen('x'), self._gen('auto'), self._gen('huggingface:Org/Img')
+        ImageGeneration.objects.filter(pk=bare.pk).update(model='sdxl')   # a row from before
+        migration.to_catalog_keys(apps, None)
+        values = dict(ImageGeneration.objects.filter(user=self.user).values_list('pk', 'model'))
+        self.assertEqual({bare.pk: 'imager:sdxl', auto.pk: 'auto',
+                          foreign.pk: 'huggingface:Org/Img'}, values)
+        migration.to_bare_ids(apps, None)
+        values = dict(ImageGeneration.objects.filter(user=self.user).values_list('pk', 'model'))
+        self.assertEqual({bare.pk: 'sdxl', auto.pk: 'auto',
+                          foreign.pk: 'huggingface:Org/Img'}, values,
+                         'the reverse strips only the key the migration added')
+
+    def test_the_default_of_a_new_generation_is_auto(self):
+        self.assertEqual('auto', ImageGeneration._meta.get_field('model').default)
+
+
+class LaunchDispatchTest(TestCase):
+    """The class DERIVES from the model's declared engine (`backend_for_key`) — no list of name
+    prefixes any more. What the launch does with each outcome."""
+
+    def _dispatch(self, model_key, resolved, generic=False):
+        from unittest.mock import patch
+        from wama.imager import tasks
+        shared = object()
+        with patch('wama.common.backends.manager.backend_for_key', return_value=resolved), \
+                patch('wama.imager.backends.get_backend', return_value=shared), \
+                patch('wama.imager.backends.manager.is_generic_backend', return_value=generic):
+            backend, error = tasks._image_backend_for(model_key)
+        return backend, error, shared
+
+    def test_an_unresolved_key_of_another_source_stops_and_says_so(self):
+        backend, error, _ = self._dispatch('huggingface:Org/Img', None)
+        self.assertIsNone(backend)
+        self.assertIn('huggingface:Org/Img', error)
+
+    def test_an_unresolved_imager_model_keeps_the_historical_generic_backend(self):
+        backend, error, shared = self._dispatch('imager:sdxl', None)
+        self.assertIs(shared, backend)
+        self.assertIsNone(error)
+
+    def test_a_generic_class_is_served_as_the_shared_instance(self):
+        backend, _, shared = self._dispatch('imager:sdxl', type('Diffusers', (), {}), generic=True)
+        self.assertIs(shared, backend, 'the generic pipeline stays warm between tasks')
+
+    def test_a_dedicated_class_is_instantiated(self):
+        dedicated = type('Dedicated', (), {'is_available': staticmethod(lambda: True)})
+        backend, error, _ = self._dispatch('huggingface:Org/Img', dedicated)
+        self.assertIsInstance(backend, dedicated)
+        self.assertIsNone(error)
+
+    def test_an_unavailable_dedicated_class_is_named_in_the_error(self):
+        dedicated = type('Dedicated', (), {'is_available': staticmethod(lambda: False)})
+        backend, error, _ = self._dispatch('huggingface:Org/Img', dedicated)
+        self.assertIsNone(backend)
+        self.assertIn('Dedicated', error)
+
+
+class AutoModelReturnsKeysTest(TestCase):
+    """« auto » is drawn in the SAME set as the select — every source, no `source='imager'`
+    anchor — so what it returns is a full catalogue key."""
+
+    def _resolve(self, stored, drawn, mode='txt2img'):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from wama.imager.utils import auto_model
+        gen = SimpleNamespace(model=stored, generation_mode=mode)
+        with patch.object(auto_model, 'resolve_model_choice', return_value=drawn) as draw:
+            return auto_model.resolve_auto_model(gen), draw.call_args
+
+    def test_a_draw_is_returned_as_a_key(self):
+        self.assertEqual('imager:sdxl', self._resolve('auto', 'sdxl')[0])
+        self.assertEqual('huggingface:Org/Img', self._resolve('auto', 'huggingface:Org/Img')[0])
+
+    def test_the_draw_is_bounded_by_capability_never_by_source(self):
+        _, call = self._resolve('auto', 'imager:sdxl', mode='txt2vid')
+        self.assertNotIn('source', call.kwargs['spec'])
+        self.assertEqual('video', call.kwargs['spec']['modality'])
+        self.assertTrue(call.kwargs['fallback'].startswith('imager:'))
+
+    def test_a_bare_stored_value_is_requested_as_its_key(self):
+        _, call = self._resolve('sdxl', 'imager:sdxl')
+        self.assertEqual('imager:sdxl', call.args[0])
+
+
+class ModelChipTest(TestCase):
+    """The card names the model by its catalogue LABEL (a schema chip), never the raw key."""
+
+    def test_the_card_chip_resolves_the_stored_key(self):
+        from wama.common.utils import card_chips
+        from wama.imager.params import IMAGE_PARAMS_JSON
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(
+            model_key='imager:chip-witness', name='Témoin de chip', model_type='diffusion',
+            source='imager', vram_gb=1.0, is_available=True, is_downloaded=True,
+            is_proposed=False, capabilities={'task': 'text-to-image'})
+        card_chips._CATALOGUE_MEMO.clear()
+        user = User.objects.create_user('imager_chip', password='x')
+        gen = ImageGeneration.objects.create(user=user, prompt='p', model='chip-witness')
+        labels = [c['label'] for c in card_chips.chips_for(gen, IMAGE_PARAMS_JSON)]
+        self.assertIn('Témoin de chip', labels)
+        self.assertNotIn('imager:chip-witness', labels)

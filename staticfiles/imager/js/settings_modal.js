@@ -12,7 +12,6 @@
  * Exceptions app-spécifiques (déclarées en tête de params.py, PAS des champs du schéma) :
  *   • prompt        : entrée primaire de la card ; ici éditable, à deux états (WamaPromptEnrich)
  *   • width/height  : résolution à PRÉSETS par modèle (endpoint api_model_resolutions)
- *   • model         : options peuplées du catalogue (mêmes groupes que la card d'entrée)
  *   • image de référence : aperçu seul (le fichier se change depuis la card)
  */
 (function () {
@@ -25,7 +24,6 @@
     }
 
     function CFG() { return window.IMAGER_CONFIG || { urls: {} }; }
-    function CARD() { return window.IMAGER_CARD || { urls: {} }; }
     function isVideo(mode) { return ['txt2vid', 'img2vid'].indexOf(mode) !== -1; }
 
 
@@ -34,25 +32,11 @@
         return host.querySelector('[data-group="' + key + '"] .wama-param-group-body');
     }
 
-    // ── Options du select modèle : mêmes groupes que la card d'entrée (catalogue) ──
-    function fillModelChoices(host, domain, current) {
-        // WamaParams.render génère les champs avec `data-param` + `id`, PAS avec `name`
-        // (mesuré au navigateur le 2026-08-06 : nameAttr=null, dataParam='model'). Chercher
-        // `[name="model"]` seul renvoyait null → sortie silencieuse ligne suivante → select
-        // modèle VIDE sur les deux surfaces schéma-driven. On accepte les deux écritures.
-        const sel = host.querySelector('[name="model"], [data-param="model"]');
-        const groups = (CARD().modelGroups || {})[domain] || [];
-        if (!sel || !groups.length) return;
-        sel.innerHTML = '<option value="auto">Auto (selon la VRAM et les entrées)</option>' +
-            groups.map(function (g) {
-                return '<optgroup label="' + esc(g.label) + '">' + g.models.map(function (m) {
-                    return '<option value="' + esc(m.id) + '">' + esc(m.name) +
-                        (m.vram ? ' — ' + esc(m.vram) : '') + '</option>';
-                }).join('') + '</optgroup>';
-            }).join('');
-        sel.value = current || 'auto';
-        if (!sel.value) sel.value = 'auto';
-    }
+    // ── Select modèle : RIEN à faire ici depuis la route F4b (2026-09-29). Le schéma le déclare
+    // `options_source: "catalog"` : WamaParams le remplit depuis le catalogue (clés entières,
+    // « auto », optgroup Logos) et y pose la valeur de l'élément. Le remplissage propre à
+    // l'imager qui vivait ici (`fillModelChoices`, groupes construits par la vue) est RETIRÉ —
+    // appelé après le rendu, il écrasait la liste du catalogue.
 
     // ── Prompt (hors schéma : entrée primaire) — à deux états, dans le groupe « Modèle » ──
     function appendPromptZone(host, data, domain, id) {
@@ -158,7 +142,6 @@
                     saveUrl: WamaApp.getUrl(CFG().urls.updateSettings, id),
                     csrf: CFG().csrfToken,
                     decorate: function (host, d) {
-                        fillModelChoices(host, domain, d.model);
                         appendPromptZone(host, d, domain, id);
                         appendReferencePreview(host, d);
                         if (!video) appendResolutionZone(host, d);
@@ -193,10 +176,6 @@
             .catch(function () { WamaApp.toast('Impossible de charger les paramètres', 'error'); });
     }
     window.imagerOpenSettings = openSettingsModal;
-    // Exposé pour le VOLET DROIT (index.js:renderRightPanel) : les deux surfaces peuplent leur
-    // select modèle depuis les MÊMES groupes de catalogue. Exporter plutôt que recopier — sans
-    // ça le volet rendait un <select> VIDE (mesuré au navigateur le 2026-08-06).
-    window.imagerFillModelChoices = fillModelChoices;
 
     // Ouverture depuis les cards : ouvreur DÉCLARÉ à la brique commune (queue-actions.js).
     // Les DEUX domaines partagent déjà la même modale générée — et depuis le 2026-08-23 ils

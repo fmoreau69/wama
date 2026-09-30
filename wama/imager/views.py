@@ -28,7 +28,6 @@ from wama.accounts.permissions import app_access
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 from wama.common.utils.scoping import owned_or_404, visible_or_404
 from .models import GenerationBatch, GenerationBatchItem, ImageGeneration
-from wama.model_manager.services import get_registry_models
 from .utils.model_config import (
     DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_I2V_MODEL, get_model_defaults,
 )
@@ -102,53 +101,12 @@ def index(request):
     )
     panel_settings = get_user_app_settings(user, 'imager', USER_SETTINGS_DEFAULTS)
 
-    # Get available models from backend system (fast method - no heavy imports)
-    try:
-        from .backends import get_models_choices_fast, get_models_with_info_fast, get_backend_info_fast
-
-        # Use fast methods to avoid slow torch/diffusers imports during page load
-        models_choices = get_models_choices_fast()
-        models_info = get_models_with_info_fast()  # Full info with descriptions
-        # Verrou n°1 (étape 1) — ENRICHIR la liste backend avec les métadonnées du registre
-        # AIModel (capacités, statut téléchargé, description/VRAM canoniques) SANS jamais
-        # masquer un modèle chargeable. La bascule « registre = source de la LISTE » viendra
-        # quand le catalogue sera complet + chargeur générique + pipeline de téléchargement
-        # (sinon on masquerait les modèles que le registre ne connaît pas encore).
-        try:
-            from wama.model_manager.services import get_registry_models
-            _, _reg_info = get_registry_models('imager')
-            _reg = {d['id']: d for d in _reg_info}
-            for d in models_info:
-                r = _reg.get(d.get('id'))
-                if r:
-                    d['capabilities'] = r.get('capabilities') or {}
-                    d['downloaded'] = r.get('downloaded')
-                    if r.get('description'):
-                        d['description'] = r['description']
-                    if r.get('vram'):
-                        d['vram'] = r['vram']
-        except Exception:
-            pass  # registre indispo → liste backend inchangée
-        backend_info = get_backend_info_fast()
-
-        backend_name = backend_info['backend_name']
-        backend_available = backend_info['backend_available']
-        available_backends = backend_info['available_backends']
-    except ImportError:
-        # Fallback to default models if backend system not available
-        models_choices = [
-            ('hunyuan-image-2.1', 'HunyuanDiT Image 2.1'),
-            ('stable-diffusion-xl', 'Stable Diffusion XL'),
-            ('stable-diffusion-v1-5', 'Stable Diffusion 1.5'),
-        ]
-        models_info = [
-            {'id': 'hunyuan-image-2.1', 'name': 'HunyuanDiT Image 2.1', 'description': 'Modèle image haute qualité', 'vram': '12GB'},
-            {'id': 'stable-diffusion-xl', 'name': 'Stable Diffusion XL', 'description': 'Modèle SDXL 1024px', 'vram': '8GB'},
-            {'id': 'stable-diffusion-v1-5', 'name': 'Stable Diffusion 1.5', 'description': 'Modèle classique', 'vram': '4GB'},
-        ]
-        backend_name = "Unknown"
-        backend_available = False
-        available_backends = {}
+    # ⚠ LISTE DE MODÈLES : plus rien ici (route F4b, 2026-09-29). La page construisait la liste
+    # depuis `DiffusersBackend.SUPPORTED_MODELS`, l'ENRICHISSAIT du catalogue « sans jamais
+    # masquer » (« Verrou n°1 »), en tirait des groupes Images/Logos/Vidéos pour un remplissage
+    # JS propre à l'imager — et un repli de trois modèles en dur. Les deux selects déclarent
+    # désormais `options_source: "catalog"` (params.py) : le catalogue EST la liste, bornée par
+    # la tâche, et un modèle installé depuis le model manager y entre sans code.
 
     # Generation mode choices for UI - Images
     # Modes sourcés depuis le schéma COMMUN (app_modes) = source unique de vérité (métadonnée-driven).
@@ -173,42 +131,20 @@ def index(request):
         ('img2vid', 'Image to Video', 'fas fa-image'),
     ]
 
-    # Modèles vidéo — servis par la brique COMMUNE, filtrés sur la capacité déclarée au
-    # manifeste puis ingérée au catalogue. Aucun filtre par type ici : l'app ne fait que
-    # nommer la capacité qu'elle veut. La liste littérale qui vivait à cet endroit portait
-    # une Nᵉ copie des VRAM et proposait encore `cogvideox-5b`, retiré du parc le 28/07.
-    # `requires=['video']` = la MODALITÉ, pas la tâche : la liste doit contenir les modèles
-    # image→vidéo (cogvideox-5b-i2v) autant que les texte→vidéo. Le tirage, lui, demande la
-    # tâche précise ('t2v' ou 'i2v') plus bas.
-    video_models, video_models_info = get_registry_models('imager', modality='video')
-
     # ── Card d'entrée commune (une instance PAR DOMAINE) ─────────────────────────
-    # Groupes du <select> modèle : la catégorie ('logo') vient des CAPACITÉS catalogue
-    # (optgroup, jamais un onglet) ; méta d'appariement entrée↔modèle pour
-    # wama-input-match (inputs_required/optional déclarés au manifeste → catalogue).
     from wama.imager.params import (
         IMAGE_GROUPS_JSON, IMAGE_PARAMS_JSON, VIDEO_GROUPS_JSON, VIDEO_PARAMS_JSON,
     )
 
-    def _mz(d):
-        return {'id': d.get('id'), 'name': d.get('name') or d.get('id'),
-                'vram': d.get('vram') or '', 'description': d.get('description') or ''}
-
-    def _cat(d):
-        return d.get('category') or (d.get('capabilities') or {}).get('category')
-
-    _logo_models = [d for d in models_info if _cat(d) == 'logo']
-    _plain_image = [d for d in models_info if _cat(d) != 'logo']
-    image_model_groups = [{'label': 'Images', 'models': [_mz(d) for d in _plain_image]}]
-    if _logo_models:
-        image_model_groups.append({'label': 'Logos', 'models': [_mz(d) for d in _logo_models]})
-    video_model_groups = [{'label': 'Vidéos', 'models': [_mz(d) for d in video_models_info]}]
-
-    # Meta d'appariement : brique COMMUNE (common/utils/input_match.py, extraction 2026-08-17
-    # de l'inline qui vivait ici) — lit le catalogue par source ; surensemble du select
-    # (entrées en trop = inertes côté JS ; vérifié : 0 modèle disponible ET proposé).
-    from wama.common.utils.input_match import input_match_meta as _im_meta, input_labels as _im_labels
-    input_match_meta = _im_meta('imager')
+    # Meta d'appariement : brique COMMUNE (common/utils/input_match.py), en mode TÂCHE (route F4b,
+    # 2026-09-29) — les MÊMES domaines que les options des deux selects (params.py), donc les
+    # MÊMES clés entières. Par `source='imager'` elle rendait des ids nus et ignorait tout
+    # modèle d'une autre source : `WamaInputMatch` n'aurait rien apparié, sans le dire.
+    from wama.common.utils.input_match import (
+        auto_entry, input_labels as _im_labels, input_match_meta as _im_meta,
+    )
+    input_match_meta = {**_im_meta(task='text-to-image,image-to-image'),
+                        **_im_meta(task='text-to-video,image-to-video')}
     input_labels = _im_labels()
     # Pseudo-modèle « Auto » : il n'est PAS au catalogue, donc sans cette union il n'accepte
     # RIEN — et une entrée fournie le désactivait, alors que c'est justement le cas où il sert
@@ -221,11 +157,9 @@ def index(request):
     # d'entrée n'en porte plus, CARD_DESIGN §11.11 Étape 3 (c)). Une union par domaine supposerait deux
     # ids distincts — à faire le jour où une entrée serait acceptée par un modèle vidéo et par
     # aucun modèle image (aucun cas aujourd'hui : `work_image` est accepté des deux côtés).
+    # Brique `auto_entry` (même politique que l'union locale qu'elle remplace, le 2026-09-29).
     if input_match_meta:
-        _acceptees = set()
-        for _e in input_match_meta.values():
-            _acceptees |= set(_e.get('inputs_required') or ()) | set(_e.get('inputs_optional') or ())
-        input_match_meta['auto'] = {'inputs_required': [], 'inputs_optional': sorted(_acceptees)}
+        input_match_meta['auto'] = auto_entry(input_match_meta)
 
     # ── File bâtie sur les BATCHS (contrat commun) ───────────────────────────────
     # Tout est batch ; une génération isolée est auto-enveloppée dans son batch-of-1
@@ -280,22 +214,13 @@ def index(request):
         # reste clé par dom_id — cf. params.panel_values_by_name.
         'image_panel_values_json': json.dumps(panel_values_by_name(panel_settings, IMAGE_PARAMS)),
         'video_panel_values_json': json.dumps(panel_values_by_name(panel_settings, VIDEO_PARAMS)),
-        'models_choices': models_choices,
-        'models_info': models_info,  # Model info with descriptions for tooltips
-        'video_models': video_models,
-        'video_models_info': video_models_info,  # Video model info with descriptions
-        'backend_name': backend_name,
-        'backend_available': backend_available,
-        'available_backends': available_backends,
         'image_modes': image_modes,
         'video_modes': video_modes,
         'generation_modes': image_modes,  # Keep for backward compatibility
-        # Groupes du select de modèle (volet + modale ⚙, `settings_modal.js::fillModelChoices`)
-        # et méta d'appariement de la card d'entrée.
+        # Méta d'appariement de la card d'entrée (les OPTIONS des selects de modèle viennent du
+        # catalogue par WamaParams — route F4b, plus de groupes construits ici).
         'input_match_meta': json.dumps(input_match_meta),
         'input_labels': json.dumps(input_labels),
-        'model_groups_json': json.dumps({'image': image_model_groups,
-                                         'video': video_model_groups}),
         # Modales ⚙ schéma-driven (params.py = source unique) — WamaParams les génère.
         # File par BATCHS (brique commune) + état de la toolbar (tri/filtre en session).
         'image_batches': image_batches,
@@ -1207,15 +1132,18 @@ def progress(request, generation_id):
         if generation.status in ('PENDING', 'RUNNING'):
             try:
                 from wama.model_manager.services.eta_estimator import estimate
+                from wama.common.utils.model_keys import model_id as _model_id
+                # Même clé que l'apprentissage (`tasks.py`, record_run) : par IDENTIFIANT.
+                _mid = _model_id(generation.model)
                 if generation.is_video_generation:
                     data['estimated_seconds'] = estimate(
-                        f'imager:vid:{generation.model}',
+                        f'imager:vid:{_mid}',
                         size=float(getattr(generation, 'video_duration', 0) or 0),
                         unit='video_sec', model_loaded=False)
                 else:
                     _steps = int(getattr(generation, 'steps', 0) or 0) * int(getattr(generation, 'num_images', 1) or 1)
                     data['estimated_seconds'] = estimate(
-                        f'imager:img:{generation.model}', size=max(_steps, 1),
+                        f'imager:img:{_mid}', size=max(_steps, 1),
                         unit='step', model_loaded=False)
             except Exception:
                 pass
@@ -1751,7 +1679,12 @@ def api_model_resolutions(request):
         IMAGE_RESOLUTION_PRESETS
     )
 
-    model_name = request.GET.get('model', DEFAULT_IMAGE_MODEL)
+    # La valeur du select est une CLÉ de catalogue (route F4b) ; la table de résolutions et la
+    # déclaration de l'imager parlent en IDENTIFIANT. Une clé d'une autre source (Supra2…) n'y
+    # figure pas : elle reçoit la configuration par défaut — et sa déclaration, None.
+    from wama.common.utils.model_keys import catalog_key, model_id as _model_id
+    model_key = catalog_key(request.GET.get('model') or DEFAULT_IMAGE_MODEL, 'imager')
+    model_name = _model_id(model_key)
 
     config = get_model_resolution_config(model_name)
     resolutions = get_recommended_resolutions(model_name)
@@ -1764,8 +1697,8 @@ def api_model_resolutions(request):
         # le passe-plat commun — plus une table lue sur une classe de backend importée par
         # chemin (2026-09-07). La déclaration d'app est d'ailleurs la source la plus complète :
         # la table du backend ne portait ces défauts que pour deux modèles.
-        from wama.common.utils.model_declarations import declaration
-        model_info = declaration('imager', model_name) or {}
+        from wama.common.utils.model_declarations import declaration_for
+        model_info = declaration_for(model_key) or {}
         if isinstance(model_info, dict):
             default_guidance_scale = model_info.get('default_guidance_scale', 7.5)
             default_steps = model_info.get('default_steps', 30)

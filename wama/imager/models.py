@@ -272,7 +272,12 @@ class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
     # en base au moment du retrait (mesuré), la migration est donc sans perte.
 
     # Model and size settings
-    model = models.CharField(max_length=100, default="stable-diffusion-v1-5", help_text="AI model to use")
+    # CLÉ DE CATALOGUE entière depuis le 2026-09-29 (route F4b) : `imager:hunyuan-image-2.1`,
+    # `huggingface:org/nom` — la valeur même que sert le select. `auto` = tirage au lancement.
+    # L'identifiant nu d'avant se lit encore (`common/utils/model_keys`), jamais ne s'écrit.
+    # Défaut `auto` : l'ancien `stable-diffusion-v1-5` en dur remontait au schéma des deux selects.
+    model = models.CharField(max_length=100, default="auto",
+                             help_text="Clé de catalogue du modèle, ou « auto » (tirage au lancement)")
     width = models.IntegerField(default=512, validators=[MinValueValidator(64), MaxValueValidator(2048)])
     height = models.IntegerField(default=512, validators=[MinValueValidator(64), MaxValueValidator(2048)])
 
@@ -420,6 +425,12 @@ class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
         return resolutions.get(self.video_resolution, (832, 480))
 
     def save(self, *args, **kwargs):
+        # Valeur de modèle = CLÉ DE CATALOGUE (route F4b, 2026-09-29). Normalisée ICI, point de
+        # passage de TOUS les écrivains (vues, modale, assistant `add_to_imager`, fichiers de lot,
+        # duplication) : un identifiant nu posté par une surface pas encore portée est lu dans
+        # l'espace de l'imager. `auto` et le vide restent (brique `model_keys`).
+        from wama.common.utils.model_keys import catalog_key
+        self.model = catalog_key(self.model, 'imager')
         # Auto-set output_type based on generation mode
         if self.generation_mode in ('txt2vid', 'img2vid'):
             self.output_type = 'video'

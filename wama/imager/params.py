@@ -18,8 +18,9 @@ Exceptions app-spécifiques VOLONTAIREMENT hors schéma (widgets bespoke, pas de
     `MODEL_RESOLUTION_CONFIG`), pas un champ modèle direct → reste géré par le JS imager.
   • `generation_mode` : c'est le MODE (badge lecture seule dans la modale) → piloté par WamaModes,
     pas un paramètre éditable.
-Descriptions de modèle : déjà rendues app-side (`.model-description` + `model-select-with-tooltip`) ;
-`help_source`/`help_fallback` seront branchés au câblage P1 si on unifie sur WamaModelHelp.
+Sélecteurs de MODÈLE (route F4b, 2026-09-29) : options tirées du CATALOGUE par tâche
+(`options_source="catalog"`), valeurs = CLÉS entières, aide et `cap_from` lus sur le même domaine
+(`WamaParams._catalogDomain`) — plus aucune liste ni remplissage propre à l'imager.
 """
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.output_formats import output_format_params_for_app
@@ -59,12 +60,21 @@ IMAGE_PARAMS = derive_from_model(
             type="select", label="Modèle", icon="fa-microchip",
             dom_id={"item": "settings_model", "panel": "model"},
             group="modele",
-            # Descriptif court + VRAM sous le select (catalogue — ids = model_key strippés,
-            # vérifié 18/08 ; câblage annoncé en tête de ce fichier depuis P1).
             help_source="imager",
             help="Modèle de génération (Auto = tirage VRAM-aware au lancement).",
-            # Options peuplées par settings_modal.js depuis les MÊMES groupes de catalogue
-            # que la card d'entrée (Images / Logos / Vidéos) — pas de 2ᵉ liste.
+            # Route F4b (2026-09-29) : les options viennent du CATALOGUE, bornées par la TÂCHE —
+            # jamais par la source : un modèle installé depuis le model manager (Supra2-IMG…)
+            # entre sans une ligne de code. Les valeurs sont les CLÉS ENTIÈRES (migration 0023).
+            # Mesuré avant : `text-to-image,image-to-image` rend exactement les 8 modèles de
+            # l'ancienne liste (`DiffusersBackend.SUPPORTED_MODELS`), plus Supra2-IMG.
+            # `options_group="category"` : les logos en optgroup (capacité `category`).
+            options_source="catalog",
+            options_query={"task": "text-to-image,image-to-image"},
+            options_group="category", options_auto=True,
+            default="auto",
+            # Chip de card : `card_chips` résout la clé en LIBELLÉ du catalogue (même domaine) —
+            # la card affichait jusqu'ici la valeur brute, devenue une clé `imager:…`.
+            chip=True,
         ),
         # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur « auto », lu au
         # LANCEMENT par le tirage (`resolve_auto_model` → `item=generation`). Rendu, liaison et
@@ -146,6 +156,13 @@ VIDEO_PARAMS = derive_from_model(
             dom_id={"item": "video_settings_model", "panel": "panel_video_model"},
             group="modele",
             help_source="imager",   # descriptif court + VRAM (catalogue), cf. domaine image
+            # Même route que le domaine image (F4b) ; mesuré : `text-to-video,image-to-video`
+            # rend les 5 modèles vidéo de l'ancienne liste (+ un modèle sans route, GRISÉ).
+            options_source="catalog",
+            options_query={"task": "text-to-video,image-to-video"},
+            options_auto=True,
+            default="auto",
+            chip=True,   # libellé catalogue sur la card (cf. domaine image)
         ),
         "quality_intent": intent_param(
             dom_id={"item": "video_settings_quality_intent", "panel": "panel_video_quality_intent"},
