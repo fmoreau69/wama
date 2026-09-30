@@ -569,6 +569,13 @@ sémantiquement alors que les vecteurs se calculent par lot.
 Reste ouvert : le sélecteur de niveau **par requête** (en plus du défaut), et l'entrée depuis la
 médiathèque pour un document qui n'est passé par aucune app.
 
+> ⏳ **4ᵉ SURFACE décidée le 2026-09-30 (Fabien) : le fichier de CONTEXTE d'une card ou d'une
+> conversation.** Le contexte « jetable » (`WAMA_LLM.md`, « CONTEXTE JETABLE ») n'entre PAS dans
+> le RAG : il est lu pour l'appel, puis suit sa card ou sa conversation. L'utilisateur peut
+> choisir de le GARDER — « + Ajouter à mon RAG » sur le fichier, même endpoint que ①, niveau par
+> défaut du profil. Toujours un geste, jamais un ajout automatique (décision du 21/08). À
+> implémenter avec le port « Contexte », après la fin du portage de la card v4.
+
 ### Le niveau LABO est OPÉRATIONNEL depuis le 2026-08-22 — ce qui manquait n'était pas le LDAP
 
 > ⚠ **Correction d'un diagnostic que j'ai répété plusieurs fois** : j'écrivais « `OrgUnit` 0 en
