@@ -487,6 +487,10 @@ def handle_file2img(request, user):
     prompt_file = request.FILES.get('prompt_file') or request.FILES.get('batch_file')
     if not prompt_file:
         return JsonResponse({'error': 'No prompt file provided'}, status=400)
+    from wama.common.utils.batch_parsers import batch_file_refusal
+    refusal = batch_file_refusal(prompt_file.name, extra=('json', 'yaml', 'yml'))
+    if refusal:
+        return JsonResponse({'error': refusal}, status=400)
 
     # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur : 512x512 /
     # 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout modèle 1024 px
@@ -818,6 +822,11 @@ def batch_preview(request):
     batch_file = request.FILES.get('batch_file')
     if not batch_file:
         return JsonResponse({'error': 'Aucun fichier batch fourni'}, status=400)
+    # Le FORMAT reste un contrat (2026-09-30) : `parse_prompt_file` lisait une image comme du texte.
+    from wama.common.utils.batch_parsers import batch_file_refusal
+    refusal = batch_file_refusal(batch_file.name, extra=('json', 'yaml', 'yml'))
+    if refusal:
+        return JsonResponse({'error': refusal}, status=400)
 
     from .utils.prompt_parser import parse_prompt_file, validate_prompt_config
 
