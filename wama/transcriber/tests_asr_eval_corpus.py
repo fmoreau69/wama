@@ -6,8 +6,43 @@ la file ne sont pas rejoués ici (ils sont la chaîne existante : `designate`, `
 from django.test import SimpleTestCase
 
 from wama.transcriber.management.commands.asr_eval_corpus import (
-    merged_srt, mix_tracks, reference_name, srt_time,
+    cues_srt, merged_srt, mix_tracks, reference_name, resampled, srt_time,
+    trs_cues,
 )
+
+#: Un fichier Transcriber inventé, de la forme de ceux de CFPP2000 (noms fictifs).
+TRS = '''<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE Trans SYSTEM "https://example.org/trans-14.dtd">
+<Trans scribe="x" audio_filename="fictif" version="1">
+<Speakers>
+<Speaker id="spk1" name="Camille Exemple" check="no"/>
+<Speaker id="spk2" name="Dominique Fictif (ENQ)" check="no"/>
+</Speakers>
+<Episode><Section type="report" startTime="0" endTime="12">
+<Turn speaker="spk2" startTime="0" endTime="4">
+<Sync time="0"/>
+alors euh
+<Event desc="pause" type="noise" extent="instantaneous"/>
+ vous habitez ici
+<Sync time="2.5"/>
+depuis longtemps
+</Turn>
+<Turn speaker="spk1 spk2" startTime="4" endTime="6">
+<Sync time="4"/>
+<Who nb="1"/>
+ouais
+<Event desc="mm mm" type="noise" extent="instantaneous"/>
+<Who nb="2"/>
+d'accord
+</Turn>
+<Turn startTime="6" endTime="7">
+<Sync time="6"/>
+</Turn>
+<Turn speaker="spk1" startTime="7" endTime="12">
+<Sync time="7"/>
+depuis vingt ans à peu près
+</Turn>
+</Section></Episode></Trans>'''.encode('utf-8')
 
 
 class ReferenceTest(SimpleTestCase):
@@ -97,3 +132,37 @@ class MixTest(SimpleTestCase):
         self.assertEqual(3, len(mix))
         self.assertAlmostEqual(0.9, float(np.abs(mix).max()), places=5)
         self.assertAlmostEqual(0.45, float(mix[1]), places=5)
+
+
+class TranscriberFormatTest(SimpleTestCase):
+    """CFPP2000 (2026-09-30) : le format `.trs` devient une référence SRT sans aucun nom réel."""
+
+    def test_a_turn_is_cut_at_its_sync_marks_and_events_are_not_words(self):
+        cues = trs_cues(TRS)
+        self.assertEqual((0.0, 2.5, 2, 'alors euh vous habitez ici'), cues[0])
+        self.assertEqual((2.5, 4.0, 2, 'depuis longtemps'), cues[1])
+
+    def test_overlapping_speakers_share_the_same_times(self):
+        overlap = [c for c in trs_cues(TRS) if c[0] == 4.0]
+        self.assertEqual([(4.0, 6.0, 1, 'ouais'), (4.0, 6.0, 2, "d'accord")], overlap)
+
+    def test_a_turn_without_speaker_or_words_gives_nothing(self):
+        self.assertEqual(5, len(trs_cues(TRS)))
+
+    def test_no_real_name_reaches_the_reference(self):
+        srt = cues_srt(trs_cues(TRS))
+        self.assertNotIn('Camille', srt)
+        self.assertNotIn('Dominique', srt)
+        self.assertIn('[Locuteur 1] depuis vingt ans à peu près', srt)
+
+    def test_the_transcriber_reader_reads_it_back_with_its_speakers(self):
+        from wama.transcriber.utils.transcript_documents import parse_cues
+        doc = parse_cues(cues_srt(trs_cues(TRS)), 'srt')
+        self.assertTrue(doc.is_timed)
+        self.assertEqual(2, len({s['speaker_id'] for s in doc.segments}))
+        self.assertNotIn('Locuteur', doc.text)
+
+    def test_audio_is_brought_to_16_khz(self):
+        import numpy as np
+        self.assertEqual(16000, len(resampled(np.zeros(44100, dtype=np.float32), 44100)))
+        self.assertIs(np.float32, resampled(np.ones(160), 16000).dtype.type)

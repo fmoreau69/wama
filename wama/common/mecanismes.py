@@ -612,6 +612,16 @@ MECHANISMS = (
                        'wama/common/templates/common/_batch_evaluation_line.html',
                        'wama/common/templates/common/_batch_agreement_line.html'),
               depends_on=('text_metrics', 'divergence')),
+    # 2026-09-30 : « qui a dit quoi » et « qui parle quand » — mesures rangées sous le modèle qui
+    # ATTRIBUE les locuteurs (le diariseur), jamais sous le moteur ASR.
+    Mechanism('diarization_metrics', 'Métriques de diarisation à vérité terrain (cpWER / DER)',
+              "cpWER : un WER où le mot prêté au mauvais locuteur compte (appariement optimal des "
+              "locuteurs) ; DER : parole manquée + fausse alarme + confusion sur le temps "
+              "(pyannote.metrics). Une mesure sans objet (sortie non diarisée, pas de temps) rend "
+              "None, jamais zéro",
+              'wama/common/services/diarization_metrics.py', 'docs/construction/ia/WAMA_QUALITE.md',
+              annexes=('wama/common/tests/tests_diarization_metrics.py',),
+              depends_on=('text_metrics',)),
     # Rattaché le 2026-08-27, en même temps que son extension aux skills : la brique existait
     # depuis longtemps sans figurer sur la carte — donc invisible à qui cherche « qu'est-ce qui
     # contrôle la doc ? ». C'est précisément le trou que ce mécanisme sert à fermer ailleurs.
@@ -1645,6 +1655,21 @@ MECHANISMS = (
               'wama/common/utils/speech_activity.py',
               'wama/transcriber/TRANSCRIBER_CORRECTION.md §8',
               annexes=('wama/common/tests/tests_speech_activity.py',)),
+    # Rattachés le 2026-09-30 : deux traitements du SIGNAL de parole, sans modèle, qui n'étaient
+    # pas sur la carte — le nivellement vivait depuis le 29/09 comme réglage du transcriber.
+    Mechanism('speech_leveling', 'Nivellement de la parole',
+              "Automation de niveau qui suit les mots : la parole est amenée vers −20 dBFS, les "
+              "silences gardent le gain des mots voisins (le bruit n'est pas pompé), crêtes limitées "
+              "en douceur. Réglage optionnel du transcriber, MESURÉ dans les lots d'évaluation",
+              'wama/common/utils/speech_leveling.py', 'docs/construction/ia/WAMA_QUALITE.md',
+              annexes=('wama/common/tests/tests_speech_leveling.py',)),
+    Mechanism('audio_degradation', 'Dégradation contrôlée d\'un enregistrement de parole',
+              "Profils DÉCLARÉS (bruit rose à un rapport signal/bruit donné, champ lointain : "
+              "réverbération, atténuation) appliqués de façon déterministe à un corpus propre, pour "
+              "évaluer les prétraitements sur une qualité CONNUE — à confronter à un corpus réel de "
+              "qualité moyenne avant d'en faire un test d'évaluation",
+              'wama/common/utils/audio_degradation.py', 'docs/construction/ia/WAMA_QUALITE.md',
+              annexes=('wama/common/tests/tests_audio_degradation.py',)),
     # Rattaché le 2026-08-29 après un défaut de MA part, pas du code : j'ai déclaré deux fois de
     # suite qu'« aucun détecteur commun de nature ne existait » et qu'« aucune déclaration ne dit
     # les types d'entrée d'une app » — les DEUX existaient ici depuis longtemps, et le générateur
