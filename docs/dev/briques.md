@@ -287,17 +287,20 @@ Le JEU DE CHOIX unique de la parole synthétique — moteurs, langues, presets d
 
 ### Auto-sélection (« auto » au select)
 
-Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domaine que le schéma déclare pour ses options (options_query), prévision affichée sous le select (options_auto) + curseur de QUALITÉ continu 0-100 (intent_param, poids dans le score de select_model)
+Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domaine que le schéma déclare pour ses options (options_query), prévision affichée sous le select (options_auto) + curseur de QUALITÉ continu 0-100 (intent_param, poids dans le score de select_model) ; `candidates_with` = le BESOIN qui filtre avant le classement (capacité = valeur, ex. `scale`=4)
 
 - **Domicile** : `wama/common/utils/auto_model.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Auto-sélection de modèle — brique COMMUNE (valeur « auto » d'un select de modèle).
-- **API publique** (10) :
+- **API publique** (13) :
   - `read_quality_intent(value) -> int` — Valeur 0-100 SÛRE depuis un POST/JSON : bornée, défaut équilibré, ne lève jamais.
   - `posted_quality_intent(source)` — Curseur POSTÉ (POST ou dict JSON) → entier borné, ou **None** s'il n'est pas posté ou
   - `preset_key_for_intent(intent) -> str` — La POSITION NOMMÉE la plus proche d'une valeur de curseur (`QUALITY_PRESETS` du sélecteur :
   - `intent_param(**overrides) -> dict` — Surcouche STANDARD du curseur de qualité pour un schéma d'app (`derive_from_model`).
   - `is_auto(value) -> bool` — Cette valeur demande-t-elle le tirage automatique ? (vide compris).
+  - `candidates_with(capability: str, value, **filters) -> list` — Clés catalogue des modèles du domaine `filters` (champs d'`AIModel` ou `capabilities__…`)
   - `catalog_domain(app_id: str)` — DOMAINE déclaré au schéma de l'app pour son select de modèle, ou None.
+  - `catalog_field(app_id: str)` — Le paramètre `options_source='catalog'` du schéma de l'app (le premier), ou None — le
+  - `declared_cloud_keys(app_id: str, user)` — Les modèles DISTANTS que le tirage AUTOMATIQUE de `app_id` peut retenir pour `user`, ou
   - `intent_field_for(app_id: str)` — Nom du champ « curseur » déclaré au schéma de l'app (`type='intent'`), ou None.
   - `quality_intent_of(item=None, app_id=None, user=None) -> int` — La valeur du curseur qui vaut pour CE lancement, en UN endroit (chantier C, 2026-09-20).
   - `resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, item=None, user=None, **overrides)` — Valeur finale du modèle pour un lancement : `requested` explicite, sinon tirage.
@@ -1331,18 +1334,6 @@ Une CLÉ de catalogue → `{rôle: Path}` des composants de `composition.compone
   - `snapshot_dir(model) -> Path | None` — Dossier du snapshot d'une ligne de catalogue installée (révision de `refs/main`, sinon la
   - `component_paths(model_key: str) -> dict` — `{rôle: Path}` pour chaque composant DÉCLARÉ du modèle `model_key`.
 
-### Formats de sortie
-
-Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter)
-
-- **Domicile** : `wama/common/utils/output_formats.py`
-- **Module** : Source COMMUNE des formats + qualités de FICHIER de sortie — pendant de voice_options pour la sortie.
-- **API publique** (4) :
-  - `get_output_formats(domain: str) -> List[Tuple[str, str]]` — [(valeur, libellé)] des formats de fichier de sortie pour un domaine. 'original' = inchangé.
-  - `get_output_qualities(domain: str | None=None) -> List[Tuple[str, str]]` — Presets de qualité (web/équilibré/max). `domain` réservé pour d'éventuelles variantes futures.
-  - `output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None) -> list` — Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
-  - `output_format_params_for_app(app_name: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, domain:…` — AUTO depuis APP_CATALOG : lit `multi_format_download` (early/late) + déduit le domaine des
-
 ### Fournisseurs d'exécution ONNX
 
 `onnx_providers()` : CUDA, DirectML, CoreML puis CPU en repli ; `cpu_only` pour un smoke qui ne dispute pas la carte. Extrait d'`AIUpscaler` le 29/09 au moment où un second backend onnxruntime arrivait (texte→image) — le module porte aussi la conversion/inspection de poids ONNX, plomberie de la chaîne modèles
@@ -1433,6 +1424,21 @@ QUATRE leviers pour tenir la règle « modèle principal catégorisé, sous-dép
 - **Module** : Poids d'un modèle rangés dans SON dossier — pour les libs qui n'acceptent pas `cache_dir=`.
 - **API publique** (1) :
   - `poids_locaux(hf_id: str, dossier: str | Path, *, patterns: Optional[Sequence[str]]=None, token: Optional[str]=None, revision: Optional[str]=None) -> str` — Chemin LOCAL des poids de `hf_id`, garantis présents sous `dossier`.
+
+### Réglages de sortie (formats, agrandissement)
+
+Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter) ET leur APPLICATION : `apply_output_settings` enchaîne agrandissement (image) puis conversion après n'importe quel backend (2026-09-30). L'agrandissement (`output_upscale`, opt-in `include_upscale`) tire l'upscaler du catalogue — tâche `upscale`, capacité `scale` = facteur, curseur qualité de l'item — sans nommer ni modèle ni app ; il vivait dans UN backend (diffusers, LANCZOS ×2), ignoré des autres
+
+- **Domicile** : `wama/common/utils/output_formats.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.4](../construction/architecture/WAMA_APP_CONVENTIONS.md)
+- **Module** : Source COMMUNE des formats + qualités de FICHIER de sortie — pendant de voice_options pour la sortie.
+- **API publique** (7) :
+  - `get_output_formats(domain: str) -> List[Tuple[str, str]]` — [(valeur, libellé)] des formats de fichier de sortie pour un domaine. 'original' = inchangé.
+  - `get_output_qualities(domain: str | None=None) -> List[Tuple[str, str]]` — Presets de qualité (web/équilibré/max). `domain` réservé pour d'éventuelles variantes futures.
+  - `output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, include_upscale:…` — Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
+  - `output_format_params_for_app(app_name: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, domain:…` — AUTO depuis APP_CATALOG : lit `multi_format_download` (early/late) + déduit le domaine des
+  - `upscale_factor(value) -> int` — `'x4'` → 4, `'x2'` → 2 ; 0 pour « aucun » ou une valeur illisible.
+  - `upscale_output_image(path: str, factor, *, item=None, app_id=None, denoise: bool=False, progress_callback=None) -> tuple` — Agrandit l'image `path` EN PLACE par un upscaler TIRÉ du catalogue ; rend `(largeur,
+  - `apply_output_settings(paths, item, *, domain: str, app_id: str | None=None, console=None) -> list` — Les réglages de SORTIE de l'item appliqués aux fichiers produits, dans l'ordre du
 
 ### Résolution de backend par DÉCLARATION
 
@@ -1887,7 +1893,7 @@ Modale commune de choix d'un asset de la médiathèque (filtrée par type), rend
 
 ### Vocabulaire des capacités
 
-Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI ; `category` (vocabulaire fermé `MODEL_CATEGORIES`) range un select de modèle en optgroups (`options_group="category"`, 2026-09-29)
+Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI ; `category` (vocabulaire fermé `CATEGORY_LABELS`) range un select de modèle en optgroups (`options_group="category"`, 2026-09-29)
 
 - **Domicile** : `wama/common/utils/model_capabilities.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Vocabulaire CANONIQUE des capacités modèle (`AIModel.capabilities`) — SOURCE UNIQUE.
@@ -2273,7 +2279,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (22) :
+- **API publique** (24) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d') d'un chemin
@@ -2284,6 +2290,8 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `studio_node_ports(app_id)` — Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
   - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
   - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
+  - `app_card_ports(app_id)` — Ports de la CARD que l'APP consomme elle-même, sans nœud Studio (2026-09-30).
+  - `app_setting_carried_ports(app_id) -> dict` — Ports que la card de l'app NE MONTRE PAS, parce qu'un RÉGLAGE les porte — `{port: réglage}`.
   - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
   - `extra_link_for(app: str) -> tuple[str, dict] | None` — `(catégorie, lien)` d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —
   - `derive_category(entry) -> str` — Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation
