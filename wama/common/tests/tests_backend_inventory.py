@@ -518,7 +518,7 @@ class ResolutionParDeclarationTest(TestCase):
                              f"{cle} servi par le mauvais backend — c'est le défaut mesuré "
                              f"le 06/09, une erreur SILENCIEUSE")
 
-    def test_every_backend_of_a_shared_engine_declares_its_models(self):
+    def test_every_backend_of_a_shared_engine_lists_its_models(self):
         """The rule « a single candidate is the one » stops holding the day a SECOND backend
         drives the same engine — from then on, a backend without `SUPPORTED_MODELS` resolves
         NOTHING (rule 3: ambiguity → None). Lived on 2026-09-30: the Supra2-IMG backend made
