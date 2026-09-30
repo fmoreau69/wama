@@ -208,9 +208,12 @@ def dev_run_role(user, role: str, args: dict = None, provider: str = '', model: 
     """Lance un rôle wama-dev-ai en tâche de fond ; il écrit une PROPOSITION en attente de validation, n'applique rien.
 
     role : librarian (args dist | repo), model (catalog | hf, force), scout (hf, dry_run),
-    integrator (manifest, besoin, dry_run), codegen (app, task, truth). provider : ollama (local,
-    charge le GPU) ou un fournisseur distant comme albert. model : modèle précis (sinon défaut du
-    rôle). Rend job_id — suivre avec dev_job_status, lire la proposition avec dev_read_output.
+    integrator (manifest, besoin, dry_run), codegen (app, task, truth), backend (catalog,
+    dry_run, no_smoke). Intégrer un modèle INSTALLÉ : model d'abord (manifeste : moteur,
+    composants), validation au model manager, PUIS backend (il exige le moteur déclaré).
+    provider : ollama (local, charge le GPU) ou un fournisseur distant comme albert. model :
+    modèle précis (sinon défaut du rôle). Rend job_id — suivre avec dev_job_status, lire la
+    proposition avec dev_read_output.
     """
     return start_job(user, f'role:{role}', role_command(role, args, provider, model))
 
