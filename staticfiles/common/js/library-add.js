@@ -12,7 +12,9 @@
  *   • envoie les fichiers déposés / choisis / glissés depuis l'arbre par `WamaImport` vers
  *     `api_upload` (le serveur convertit vers le pivot, lit durée et attributs) ;
  *   • montre « Enregistrer » quand la nature est déclarée `recordable` : le micro produit un webm,
- *     qui suit EXACTEMENT la même voie (`handleFiles`) qu'un fichier déposé.
+ *     qui suit EXACTEMENT la même voie (`handleFiles`) qu'un fichier déposé ;
+ *   • demande ce que la nature déclare `on_add` (langue, âge, genre d'une voix) et, replié, la
+ *     PROVENANCE d'un extrait qui n'est pas de la personne (licence, auteur, page d'origine).
  *
  * Usage :
  *   const add = WamaLibraryAdd.wire({
@@ -70,6 +72,49 @@
     var recordTimer = root.querySelector('[data-library-record-timer]');
     var recordHint = root.querySelector('[data-library-record-hint]');
     var nameInput = root.querySelector('[data-library-name]');
+    var attrsHost = root.querySelector('[data-library-attrs]');
+    var licenseInput = root.querySelector('[data-library-license]');
+    var authorInput = root.querySelector('[data-library-author]');
+    var sourceInput = root.querySelector('[data-library-source]');
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    // Ce que la NATURE demande à l'ajout (`Attr.on_add`, 2026-09-30) : un select quand la
+    // déclaration nomme ses valeurs (choix, ou libellés — la langue), un champ libre sinon.
+    // Rien n'est écrit ici : la déclaration arrive avec la nature (`natures_as_json`, onglets).
+    function renderAttributes(n) {
+      if (!attrsHost) return;
+      var schema = (n && n.attributes) || {};
+      var asked = Object.keys(schema).filter(function (k) { return schema[k].on_add; });
+      attrsHost.hidden = !asked.length;
+      attrsHost.innerHTML = asked.map(function (k) {
+        var a = schema[k];
+        var values = (a.choices && a.choices.length) ? a.choices : Object.keys(a.labels || {});
+        if (values.length) {
+          return '<select class="form-select form-select-sm" style="max-width:11rem" data-attr="' + esc(k) + '"'
+            + ' title="' + esc(a.description) + '"><option value="">' + esc(a.label) + ' ?</option>'
+            + values.map(function (v) {
+                return '<option value="' + esc(v) + '">' + esc((a.labels || {})[v] || v) + '</option>';
+              }).join('') + '</select>';
+        }
+        return '<input type="text" class="form-control form-control-sm" style="max-width:11rem" data-attr="'
+          + esc(k) + '" placeholder="' + esc(a.label) + '" title="' + esc(a.description) + '">';
+      }).join('');
+    }
+
+    function statedAttributes() {
+      var out = {};
+      if (attrsHost) {
+        attrsHost.querySelectorAll('[data-attr]').forEach(function (el) {
+          if (el.value) out[el.getAttribute('data-attr')] = el.value;
+        });
+      }
+      return out;
+    }
 
     function nature() {
       var key = opts.getType();
@@ -86,6 +131,7 @@
           : 'Choisissez d’abord une nature (onglet) pour y ajouter un fichier.';
       }
       if (recordZone) recordZone.hidden = !(n && n.recordable);
+      renderAttributes(n);
       if (recordHint) recordHint.textContent = n && n.recordable
         ? 'Quelques secondes suffisent pour une voix de clonage (' + MAX_RECORD_SECONDS + ' s max).' : '';
     }
@@ -102,6 +148,12 @@
         // fichiers ne les nomme pas tous pareil (le serveur refuserait les suivants, nom pris).
         var name = nameInput ? nameInput.value.trim() : '';
         if (name) { fd.append('name', name); nameInput.value = ''; }
+        // Ce que la personne DIT du fichier (langue d'une voix…) et sa PROVENANCE : ils valent
+        // pour tout le dépôt (plusieurs prises d'une même voix) et restent pour le suivant.
+        fd.append('attributes', JSON.stringify(statedAttributes()));
+        if (licenseInput && licenseInput.value.trim()) fd.append('license', licenseInput.value.trim());
+        if (authorInput && authorInput.value.trim()) fd.append('author', authorInput.value.trim());
+        if (sourceInput && sourceInput.value.trim()) fd.append('source_url', sourceInput.value.trim());
       },
       beforeFile:    function (file) {
         var n = nature();

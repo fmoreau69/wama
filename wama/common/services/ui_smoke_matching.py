@@ -273,8 +273,11 @@ def check_voice_library_pick(app: str, url_path: str, ids: dict):
                 verdicts.append((tabs == ['voice'], f'fenêtre limitée à la nature Voix ({tabs})'))
                 verdicts.append((page.is_visible('#mp-add [data-library-record]'),
                                  '« Enregistrer » offert (voix déclarée recordable)'))
-                # 1. un FICHIER nommé
+                # 1. un FICHIER nommé, dont on DIT la langue (`Attr.on_add`)
                 page.fill('#mp-add [data-library-name]', 'wama_probe_named_voice')
+                verdicts.append((page.locator('#mp-add [data-attr="language"]').count() == 1,
+                                 'la langue de la voix est demandée à l’ajout'))
+                page.select_option('#mp-add [data-attr="language"]', 'fr')
                 page.set_input_files('#mpFileInput', wav)
                 page.wait_for_function(choose_ready, timeout=20000)
                 value, label = choose(page)
@@ -297,6 +300,9 @@ def check_voice_library_pick(app: str, url_path: str, ids: dict):
         recorded = UserAsset.objects.filter(user=user, name='wama_probe_recorded_voice').first()
         verdicts.append((recorded is not None and recorded.file.name.endswith('.wav'),
                          f'enregistrement rangé en WAV ({recorded and recorded.file.name})'))
+        named = UserAsset.objects.filter(user=user, name='wama_probe_named_voice').first()
+        verdicts.append((named is not None and (named.attributes or {}).get('language') == 'fr',
+                         f'langue dite à l’ajout enregistrée ({named and named.attributes})'))
     finally:
         for asset in UserAsset.objects.filter(user=user, asset_type='voice').exclude(pk__in=before):
             _retirer(asset)

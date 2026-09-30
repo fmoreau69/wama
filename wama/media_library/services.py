@@ -131,8 +131,35 @@ def _converted_to_pivot(uploaded, source, filename: str, pivot: str):
     return ContentFile(data, name=f'{stem}.{pivot}')
 
 
+def _stated_on_add(asset_type, attributes, license, author, source_url):
+    """Ce que la personne DIT du fichier à l'ajout (2026-09-30, décision de Fabien) : les
+    attributs que sa nature demande (`Attr.on_add` — langue, âge, genre d'une voix) et la
+    PROVENANCE d'un extrait qui n'est pas d'elle (licence, auteur, page d'origine). Validés
+    AVANT toute écriture ; un attribut non demandé à l'ajout est ignoré (la sonde, ou
+    « Modifier », en décide). Rend `(attributs, champs de provenance)`."""
+    from django.core.exceptions import ValidationError
+    from django.core.validators import URLValidator
+
+    from .natures import ASSET_NATURES, normalize_attributes
+    asked = {k for k, a in ASSET_NATURES[asset_type].attributes.items() if a.on_add}
+    try:
+        stated = normalize_attributes(asset_type, {k: v for k, v in (attributes or {}).items()
+                                                   if k in asked})
+    except ValueError as exc:
+        raise LibraryAddRefused(f'Attribut refusé : {exc}')
+    source_url = (source_url or '').strip()
+    if source_url:
+        try:
+            URLValidator(schemes=['http', 'https'])(source_url)
+        except ValidationError:
+            raise LibraryAddRefused(f"Adresse d'origine invalide : {source_url}")
+    return stated, {'license': (license or '').strip()[:100], 'author': (author or '').strip()[:200],
+                    'source_url': source_url}
+
+
 def add_file_to_library(user, asset_type: str, *, uploaded=None, source=None, name: str = '',
-                        description: str = '', tags: str = ''):
+                        description: str = '', tags: str = '', attributes=None,
+                        license: str = '', author: str = '', source_url: str = ''):
     """Ajoute UN fichier à la médiathèque de `user`, comme asset de la nature `asset_type`.
 
     LE geste d'ajout (2026-09-29), partagé par la card d'entrée de la page médiathèque
@@ -165,6 +192,7 @@ def add_file_to_library(user, asset_type: str, *, uploaded=None, source=None, na
     asset_name = (name or '').strip() or Path(filename).stem
     if UserAsset.objects.filter(user=user, name=asset_name, asset_type=asset_type).exists():
         raise LibraryAddRefused(f'Un asset « {asset_name} » de ce type existe déjà.', status=409)
+    stated, provenance = _stated_on_add(asset_type, attributes, license, author, source_url)
 
     if ext not in allowed:
         # Admis À CONDITION d'être converti vers le pivot de la nature (`to_pivot`) : le fichier
@@ -175,10 +203,12 @@ def add_file_to_library(user, asset_type: str, *, uploaded=None, source=None, na
 
     if uploaded is not None:
         asset = UserAsset.objects.create(user=user, name=asset_name, asset_type=asset_type,
-                                         file=uploaded, description=description, tags=tags)
+                                         file=uploaded, description=description, tags=tags,
+                                         attributes=stated, **provenance)
     else:
         asset = UserAsset.objects.create(user=user, name=asset_name, asset_type=asset_type,
-                                         description=description, tags=tags)
+                                         description=description, tags=tags,
+                                         attributes=stated, **provenance)
         if move_into_library(asset, Path(str(source)), filename) is None:
             asset.delete()
             raise LibraryAddRefused("Ajout impossible : le fichier n'a pas pu rejoindre la médiathèque.")
