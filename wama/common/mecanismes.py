@@ -800,7 +800,11 @@ MECHANISMS = (
                        'wama/common/static/common/js/wama-prompt-chips.js',
                        'wama/common/static/common/js/wama-prompt-enrich.js')),
     Mechanism('llm', 'Accès LLM',
-              "Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local)",
+              "Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local). "
+              "`chat_with_catalog_model` (2026-09-30) : un appel désigné par une CLÉ DE CATALOGUE "
+              "(`auto`, `ollama:…`, `albert:…`, `anthropic:…`) — fournisseur = source, clé de "
+              "l'UTILISATEUR par la garde commune `cloud_access` ; ce qu'appelle une app dont le "
+              "réglage « Modèle » est tiré du catalogue (route F4b)",
               'wama/common/utils/llm_utils.py', ''),
     Mechanism('assistant_skills', "Skills de rôle de l'assistant",
               "Posture et domaine de l'assistant (science, design, dev) + rappel du "

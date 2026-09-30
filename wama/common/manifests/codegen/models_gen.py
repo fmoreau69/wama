@@ -73,6 +73,45 @@ def _champ_option(entry: dict) -> str:
     return f"{nom} = models.CharField(max_length=255, blank=True, default={str(d or '')!r})"
 
 
+def declared_result_fields(body: dict, input_field: str = '') -> list:
+    """Champs de RÉSULTAT que le manifeste DÉCLARE déjà : `[(nom, 'text' | 'file')]`, dans
+    l'ordre de déclaration, sans doublon ni champ d'entrée.
+
+    Deux déclarations les nomment : `processing.backend_result` (`{field, kind}`) et le schéma
+    de détail (`inspector.detail_spec.result_file` / `result_text`).
+    ⚠ PAS l'aperçu (`inspector.preview.file_field`) : il désigne parfois une ENTRÉE — l'avatar
+    déposé de l'avatarizer, l'image de référence de l'imager (mesuré par la contre-épreuve du
+    2026-09-30). Il a son propre accesseur, `declared_preview_field`.
+
+    ⚠ POURQUOI (mesuré le 2026-09-30 sur la 1ʳᵉ app créée de zéro, l'Editor) : le squelette
+    laissait ces champs au « TROU DE GLU » alors que les trois déclarations étaient là — et
+    `apps_gen`, lui, enregistrait l'aperçu sur `output_file` : l'app générée aurait cassé à la
+    première card. *Une facette DÉCLARÉE et non projetée est un manque de GABARIT, pas un trou
+    de glu* (leçon S2bis, `ROUTE §10.3`).
+    """
+    proc = body.get('processing') or {}
+    insp = body.get('inspector') or {}
+    spec = insp.get('detail_spec') or {}
+    found = []
+
+    def add(name, kind):
+        if name and name != input_field and name not in (n for n, _ in found):
+            found.append((name, kind))
+
+    br = proc.get('backend_result') or {}
+    if isinstance(br, dict) and br.get('field'):
+        add(br['field'], 'text' if br.get('kind') == 'text' else 'file')
+    add(spec.get('result_file'), 'file')
+    add(spec.get('result_text'), 'text')
+    return found
+
+
+def declared_preview_field(body: dict) -> str:
+    """Le champ fichier que l'aperçu déclare (`inspector.preview.file_field`), ou ''.
+    `apps_gen` l'enregistre tel quel : il doit donc EXISTER sur le modèle généré."""
+    return ((body.get('inspector') or {}).get('preview') or {}).get('file_field') or ''
+
+
 def _render_from_data(app_id: str, data: dict, ingest: dict = None,
                       item_name: str = '') -> str:
     """Rendu FIDÈLE depuis la facette `data` (marche S2) : chaque modèle avec ses champs tels
@@ -189,6 +228,13 @@ def render_models(manifest: dict) -> tuple:
     input_field = item.get('input_field') or ingest.get('target') or 'input_file'
     name_field = ingest.get('name_field')
     source_field = ingest.get('source')
+    taken = set(_SPINE_FIELDS) | set(options) | {input_field, name_field, source_field}
+    results = [(n, k) for n, k in declared_result_fields(body, input_field) if n not in taken]
+    # Le fichier que l'aperçu désigne, s'il n'est ni l'entrée ni un résultat : une ENTRÉE de plus
+    # (avatar, image de référence) — rangé côté entrées, jamais présumé résultat.
+    preview_field = declared_preview_field(body)
+    if preview_field and preview_field not in taken | {n for n, _ in results}:
+        results.append((preview_field, 'input_file'))
     status_labels = _status_labels()
     statuses = proc.get('statuses') or list(status_labels)
     ordering = item.get('ordering') or ['-created_at']
@@ -209,7 +255,9 @@ def render_models(manifest: dict) -> tuple:
         '',
         'from wama.common.models import (BatchMixin, ProcessingTimeMixin, ScopedManager,',
         '                                ScopedVisibility)',
-        'from wama.common.utils.media_paths import upload_to_user_input',
+        ('from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output'
+         if any(k == 'file' for _n, k in results)
+         else 'from wama.common.utils.media_paths import upload_to_user_input'),
         '',
         '',
         f'class {nom_item}(ProcessingTimeMixin, ScopedVisibility):',
@@ -239,14 +287,32 @@ def render_models(manifest: dict) -> tuple:
           "    task_id = models.CharField(max_length=255, blank=True, default='')",
           '    STATUS_CHOICES = [']
     l += [f"        ('{s}', '{status_labels.get(s, s.title())}')," for s in statuses]
+    # Longueur DÉRIVÉE des états : la valeur figée à 16 datait d'avant `AWAITING_RESOURCES`
+    # (18 caractères) — la 1ʳᵉ app créée de zéro (Editor, 2026-09-30) est tombée dessus au
+    # `makemigrations` (fields.E009) ; relire les `choices` ne l'aurait jamais montré.
+    status_len = max(20, max((len(s) for s in statuses), default=0))
     l += ["    ]",
-          "    status = models.CharField(max_length=16, choices=STATUS_CHOICES, "
+          f"    status = models.CharField(max_length={status_len}, choices=STATUS_CHOICES, "
           "default='PENDING')",
           '    progress = models.IntegerField(default=0)',
           "    error_message = models.TextField(blank=True, default='')",
-          '',
-          f'    # TROU DE GLU {mark} — champs de RÉSULTAT à générer (marche B),',
-          '    # puis migration dédiée. Le spine ci-dessus ne bouge pas.',
+          '']
+    if results:
+        # Champs de RÉSULTAT DÉCLARÉS au manifeste (`declared_result_fields`) : projetés ici,
+        # ils ne sont plus un trou. Les autres (non déclarés) restent la marche B.
+        l += ['    # Résultat (déclaré au manifeste : backend_result / detail_spec / preview)']
+        for nom, kind in results:
+            if kind == 'text':
+                l.append(f"    {nom} = models.TextField(blank=True, default='')")
+            elif kind == 'input_file':
+                l.append(f"    {nom} = models.FileField(upload_to=upload_to_user_input("
+                         f"'{app_id}'), max_length=500, blank=True, null=True)")
+            else:
+                l.append(f"    {nom} = models.FileField(upload_to=upload_to_user_output("
+                         f"'{app_id}'), max_length=500, blank=True, null=True)")
+        l += ['']
+    l += [f'    # TROU DE GLU {mark} — autres champs de RÉSULTAT (non déclarés au manifeste)',
+          '    # et logique métier : marche B, puis migration dédiée. Le spine ne bouge pas.',
           '',
           '    class Meta:',
           f'        ordering = {list(ordering)!r}',

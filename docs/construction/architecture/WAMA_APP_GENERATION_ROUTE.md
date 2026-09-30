@@ -2781,6 +2781,48 @@ place du Translator comme 11ᵉ app de zéro (§10.3). Règles :
 3. les **trous de glu** (stubs 501 `TROU DE GLU`) sont le terrain du rôle `codegen`, à lancer sur
    `qwen3.8` / `gpt-oss-120b` et à juger par le harnais, jamais auto-appliqués.
 
+**✅ Joué le soir même — la 1ʳᵉ app de WAMA créée DE ZÉRO depuis un manifeste** (`editor_01`, bac
+à sable). Manifeste autoré : `manifests/app_drafts/editor.json` (validé par le balayage des
+manifestes autorés de `manifest_export --check`). Commande : `app_sandbox create
+--from-manifest manifests/app_drafts/editor.json` — **deux temps**, parce que les vues se
+génèrent depuis les MODÈLES : (1) apps / models / params / tasks → `makemigrations` + `migrate` ;
+(2) introspection des modèles créés (`_data`, le même extracteur que pour une app existante) →
+facette `data` → urls / views / templates / base. Juges : paquet cohérent, `check`, page 200, file
+HABITÉE + card seule. **Tout passe** ; restent **5 marques `TROU DE GLU`**, dont une seule vraie
+glu (le corps de la tâche) et un geste d'app (joindre le document source à la création).
+
+**Ce que la création de zéro a débusqué — six défauts qu'aucune jumelle ne pouvait voir**, parce
+qu'une jumelle COPIE ce qu'un générateur ne sait pas produire :
+
+| défaut | correctif | garde |
+|---|---|---|
+| champs de résultat DÉCLARÉS (`backend_result`, `detail_spec`) laissés au « trou de glu » ; `apps_gen` enregistrait l'aperçu sur un champ absent | `models_gen.declared_result_fields` / `declared_preview_field` — l'aperçu peut désigner une ENTRÉE (avatarizer, imager : la 1ʳᵉ version le prenait pour un résultat, la contre-épreuve l'a montré) | `tests_codegen_from_scratch` (les deux chemins de génération, sur les apps réelles) |
+| `status` figé à `max_length=16` < `AWAITING_RESOURCES` (18) — latent depuis le 17/09 : on relisait les `choices`, on ne construisait jamais | longueur DÉRIVÉE des états | idem |
+| `templates/<app>/base.html` : aucun générateur, les jumelles le copient | `templates_gen.render_base` — cible OPT-IN pour une jumelle (son base copié porte encore du propre à l'app) | smoke de la création |
+| une app cassée bloquait `app_sandbox` entier, `drop` compris (check système au démarrage) | `requires_system_checks = []` ; `drop` sans migration ne lance plus `migrate zero` | vécu, rejoué |
+| l'entrée de catalogue d'une app SANS source | calculée à la création, stockée au registre, relue au boot (`sandbox.py` reste pur) | `ManifestBornAppJoinsTheCatalogTest` |
+| le rôle `codegen` ne lisait que l'app VIVANTE (donc sans ses `requires`) et ne montrait AUCUNE brique commune | `--manifest` ; briques DÉRIVÉES du type des modèles requis (`COMMON_BRICKS_BY_MODEL_TYPE`) | exécution réelle |
+
+Et une **brique commune manquante** : appeler un LLM désigné par une CLÉ DE CATALOGUE (le réglage
+« Modèle » F4b) — le geste ne vivait qu'en privé dans l'assistant →
+`llm_utils.chat_with_catalog_model` (`tests_llm_catalog_call`).
+
+**Le rôle `codegen` sur `albert:gpt-oss-120b`** (1 appel, 32 548 caractères de matière) : glu qui
+compile, signature juste, **zéro interdit**, et qui emploie la brique commune avec la clé de
+l'utilisateur (`chat_with_catalog_model(..., user=item.user)`) au lieu d'appeler Albert en direct —
+la matière des briques a porté. Sortie : `wama-dev-ai/outputs/codegen_editor_01_generate_document_
+task_2026-09-30_22-43.json` (`PENDING_HUMAN_VALIDATION`, non appliquée). **Juge humain** : le LLM
+écrit son texte BRUT dans le `.html` — aucune séparation fond → forme ; un seul message `system` ;
+budget court (`num_predict=2048`) pour un modèle qui raisonne ; pdf/docx sources ignorés en silence.
+⭐ **La leçon n'est pas contre le modèle** : le manifeste ne déclare nulle part que le traitement se
+fait en DEUX temps (fond, puis rendu par format) — c'est écrit au `ROADMAP §21.5`, hors de la
+matière du rôle. *Ce que la glu doit faire doit être DÉCLARÉ au manifeste : aucun modèle ne devine
+une intention qui n'est pas dans sa matière.* → décision ouverte : déclarer les étapes (process du
+pipeline universel, §10.6) plutôt qu'une description en prose.
+
+⏳ **`qwen3.8` (local) non joué ce soir** : le GPU portait une évaluation du Transcriber d'une autre
+instance (12 Go libres pour 17 Go requis) — ne pas l'interrompre ; à rejouer quand il est libre.
+
 **La chaîne SŒUR « dépôt → MODÈLE exécutable » — bouclée hors terminal le 2026-09-29.** Un modèle
 n'a pas le trou de l'app (il ne demande pas de manifeste `app`) ; il en avait d'autres, mesurés sur
 Supra2-IMG et comblés : recherche par URL / dépôt nommé (`prospector.named_repo`) → installation

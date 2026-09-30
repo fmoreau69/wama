@@ -124,10 +124,39 @@ def champs_item(item_model: str, app_id: str = '') -> tuple:
     return champs, props
 
 
-def matiere_manifeste(app_id: str) -> tuple:
-    """(manifeste app compacté, manifestes des requires résolus) — extraction LIVE."""
+#: Briques COMMUNES que la glu doit connaître, DÉRIVÉES du type des modèles requis. Sans elles,
+#: la matière ne montrait que les modules de l'app et deux glus d'exemple : une app qui appelle
+#: un LLM ne pouvait qu'inventer l'appel ou déclarer un trou (règle 6 du prompt) — mesuré sur
+#: la 1ʳᵉ app créée de zéro (Editor, 2026-09-30). Une entrée = (fichier, fonctions montrées).
+COMMON_BRICKS_BY_MODEL_TYPE = {
+    'llm': ('wama/common/utils/llm_utils.py', ('chat_with_catalog_model',)),
+}
+
+
+def briques_communes(resolus: list) -> str:
+    """Source des briques communes pertinentes pour les modèles requis (par AST)."""
+    types = {((m.get('body') or {}).get('identity') or {}).get('model_type')
+             for m in resolus if m.get('manifest_kind') == 'model'}
+    blocs = []
+    for model_type in sorted(t for t in types if t in COMMON_BRICKS_BY_MODEL_TYPE):
+        chemin, noms = COMMON_BRICKS_BY_MODEL_TYPE[model_type]
+        module = chemin[:-3].replace('/', '.')
+        blocs.append(f'# from {module} import {", ".join(noms)}\n'
+                     + _source_de(REPO_ROOT / chemin, noms))
+    return '\n\n'.join(blocs)
+
+
+def matiere_manifeste(app_id: str, manifest_path: str = '') -> tuple:
+    """(manifeste app compacté, manifestes des requires résolus). Extraction LIVE de l'app, ou
+    — app créée DE ZÉRO (`app_sandbox create --from-manifest`) — le manifeste AUTORÉ : c'est
+    lui qui porte les `requires`, qu'une extraction de l'app générée ne retrouverait pas."""
     from wama.common.manifests.ingest import extract
-    man = extract('app', app_id)
+    if manifest_path:
+        chemin = Path(manifest_path)
+        man = json.loads((chemin if chemin.is_absolute() else REPO_ROOT / chemin)
+                         .read_text(encoding='utf-8'))
+    else:
+        man = extract('app', app_id)
     if not man:
         raise SystemExit(f"app inconnue : {app_id}")
     body = man.get('body') or {}
@@ -227,7 +256,11 @@ def controles(code: str, nom_impose: str, app_id: str = None) -> dict:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--app', required=True, help="App cible (ex. converter).")
+    ap.add_argument('--app', required=True, help="App cible (ex. converter, ou le label d'une "
+                                                  "app de zéro : editor_01).")
+    ap.add_argument('--manifest', default='',
+                    help="Manifeste AUTORÉ d'une app créée de zéro (ex. "
+                         "manifests/app_drafts/editor.json) — remplace l'extraction live.")
     ap.add_argument('--task', default=None,
                     help='Fonction de tâche lifecycle (défaut : la seule déclarée).')
     add_llm_arguments(ap, role='codegen')
@@ -235,7 +268,7 @@ def main():
                     help="Vérité terrain jointe à la revue : 'module.dotted:fonction'.")
     args = ap.parse_args()
 
-    man, resolus = matiere_manifeste(args.app)
+    man, resolus = matiere_manifeste(args.app, args.manifest)
     proc = (man.get('body') or {}).get('processing') or {}
     lifecycle = [t['function'] for t in (proc.get('tasks') or []) if t.get('lifecycle')]
     task = args.task or (lifecycle[0] if len(lifecycle) == 1 else None)
@@ -261,6 +294,7 @@ def main():
     corps = json.dumps(man, ensure_ascii=False, indent=1)
     jambes = '\n'.join(json.dumps(m, ensure_ascii=False) for m in resolus)
     inventaire = inventaire_app(args.app)
+    briques = briques_communes(resolus)
     champs, props = champs_item(proc.get('item_model') or '', args.app)
     user_msg = (
         f'CONTRAT de la brique run_item_task (docstring de task_skeleton.py) :\n{contrat}\n\n'
@@ -270,6 +304,9 @@ def main():
         f'MODULES RÉELS de l\'app (les SEULS imports d\'app autorisés ; les méthodes entre '
         f'{{}} sont les SEULES méthodes des classes) :\n'
         f'{inventaire or "(aucun module métier — pas d\'import d\'app)"}\n\n'
+        + (f'BRIQUES COMMUNES à employer pour les modèles requis (imports AUTORISÉS, à '
+           f'utiliser plutôt que tout appel direct à un fournisseur) :\n{briques}\n\n'
+           if briques else '') +
         f'CHAMPS DU MODÈLE D\'ITEM `{proc.get("item_model") or "?"}` (les clés de `fields` '
         f'du retour DOIVENT en faire partie) :\n{", ".join(champs) or "(inconnus)"}\n'
         f'Propriétés lisibles en plus : {", ".join(props) or "(aucune)"} — tout autre '

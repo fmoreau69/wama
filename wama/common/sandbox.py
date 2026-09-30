@@ -128,9 +128,22 @@ def inject_sandbox_catalog(app_catalog: dict) -> None:
     import copy
     for entry in load_registry():
         label, src = entry.get('label'), entry.get('generated_from')
-        if not label or label in app_catalog or src not in app_catalog:
+        if not label or label in app_catalog or label not in sandbox_labels():
             continue
-        if label not in sandbox_labels():
+        # App créée DE ZÉRO depuis un manifeste (`app_sandbox create --from-manifest`) : pas de
+        # source à cloner — son entrée a été calculée à la création, depuis les facettes
+        # identity/ports/capabilities du manifeste, et stockée au registre. Relue telle quelle :
+        # ce module reste pur (aucun import de la couche manifestes au boot).
+        if not src and entry.get('catalog'):
+            born = dict(entry['catalog'])
+            born['label'] = f"{born.get('label', label)} ⚠ BAC À SABLE"
+            born['sandbox'] = True
+            born['generated_from'] = ''
+            born['from_manifest'] = entry.get('from_manifest', '')
+            born['generation_run'] = entry.get('created', '')
+            app_catalog[label] = born
+            continue
+        if src not in app_catalog:
             continue
         clone = copy.deepcopy(app_catalog[src])
         clone['label'] = f"{clone.get('label', src)} ⚠ BAC À SABLE"

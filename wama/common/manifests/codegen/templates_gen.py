@@ -737,3 +737,49 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
     # (`card_chips.common_chips_for_items`) : le générateur n'émet plus de partial d'app —
     # il passe le slot et la vue appelle la brique, comme n'importe quelle app portée.
     return {'index.html': src, '_generic_card.html': card}, None
+
+
+def render_base(manifest: dict) -> tuple:
+    """(fichiers, raison) — `templates/<app>/base.html`, la FINE couche d'app sur l'ossature
+    commune `common/app_modern_base.html`, dérivée de la facette `identity`.
+
+    ⚠ POURQUOI un gabarit À PART de l'index (2026-09-30) : les jumelles COPIENT le `base.html` de
+    leur source, donc aucun générateur ne l'avait jamais produit — la 1ʳᵉ app créée DE ZÉRO
+    (l'Editor) est tombée au smoke sur `TemplateDoesNotExist: <app>/base.html`. Il n'est PAS
+    ajouté au rendu de l'index : la prochaine substitution `templates` d'une jumelle écraserait
+    un `base.html` copié qui porte encore du propre à l'app (357 lignes chez l'imager). Cible
+    opt-in pour les jumelles, d'office pour la création de zéro.
+
+    « À propos » et « Aide » NE sont PAS écrits : l'ossature commune les AUTO-GÉNÈRE depuis
+    `APP_CATALOG` (`app_modern_base.html`, blocs `about_content` / `help_content`) — les
+    surcharger ici réintroduirait la prose à la main que la métadonnée remplace.
+    """
+    from django.utils.html import escape
+
+    from ..builtin.app import _GEN_MARK
+    app = manifest.get('key')
+    ident = (manifest.get('body') or {}).get('identity') or {}
+    title = ident.get('verbose_name') or manifest.get('name') or app
+    icon = ident.get('icon') or 'fas fa-cog'
+    color = ident.get('color') or ''
+    style = f' style="color: {escape(color)}"' if color else ''
+    mark = _GEN_MARK.format(app_id=app)
+    src = f'''{{% extends 'common/app_modern_base.html' %}}
+{{% comment %}}{mark} — base.html GÉNÉRÉ depuis la facette identity (render_base).
+Fine couche sur l'ossature commune ; « À propos » et « Aide » viennent d'APP_CATALOG.
+Ne pas éditer à la main : rejouer la génération après modification du manifeste.{{% endcomment %}}
+
+{{% block app_icon %}}<i class="{escape(icon)}"{style}></i>{{% endblock %}}
+{{% block app_title %}}{escape(title)}{{% endblock %}}
+{{% block app_description %}}{escape(manifest.get('description') or '')}{{% endblock %}}
+
+{{% block console_content_id %}}{app}-console-content{{% endblock %}}
+{{% block console_app_name %}}{app}{{% endblock %}}
+
+{{% block queue_content %}}
+    {{% block {app}_content %}}{{% endblock %}}
+{{% endblock %}}
+
+{{% block footer_text %}}{escape(title)} | WAMA{{% endblock %}}
+'''
+    return {'base.html': src}, None
