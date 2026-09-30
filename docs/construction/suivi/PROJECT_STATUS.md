@@ -19046,3 +19046,37 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
 - ⏳ Restent : `librarian --repo` doit proposer `install.vendor` ; YuE/ACE-Step et avatars lourds
   comme clients suivants ; MuseTalk v1.5 lent (3 s de vidéo en 505 s, non instruit) ; libellé
   technique de la tuile objet 3D ; onglet Lot à 3 ports qui passe à la ligne.
+
+## §PALIER — 2026-09-30 (après-midi), « SORTIE ET TAILLES : CE QUE LE MODÈLE SAIT FAIRE, L'APP LE PROPOSE » — ✅ `966cba17` `d1631398` `e1ff67e` `30f12276` `a3a555a` — 🔴 RELANCER WAMA (migration imager/0024), puis VALIDER la proposition de manifeste Supra2-IMG
+
+> Déclencheur : Fabien, génération Supra2-IMG — l'option « Upscaler la sortie » sans effet, 896×512
+> proposé pour un modèle à 256×256 fixe. Demande : « de façon globale et universelle ».
+> Détail : `WAMA_APP_CONVENTIONS §6.4` (sortie), `INPUT_MODEL_MATCHING §7` (tailles).
+
+- ✅ **Enhancer réparé en service** (`966cba17`) : l'upscale d'image ne résolvait plus son backend
+  depuis le 29/09 — `AIUpscaler` déclarait ses modèles sous `MODELS_INFO` (lu par personne) ; le
+  backend Supra2 a rendu `onnxruntime` partagé. Garde générique : tout backend d'un moteur partagé
+  déclare `SUPPORTED_MODELS` (contre-épreuve rouge sur l'ancien nom).
+- ✅ **Agrandissement = réglage de SORTIE commun** (`d1631398`) : `output_formats.apply_output_settings`
+  (agrandissement PUIS format, après n'importe quel backend) ; upscaler TIRÉ du catalogue (tâche
+  `upscale`, capacité `scale`, curseur) ; `auto_model.candidates_with` ; retiré du contrat de
+  génération (`GenerationParams.upscale`, LANCZOS de `DiffusersBackend`) ; imager `output_upscale`
+  (migration `0024`, True → x2) ; le converter y délègue. ⏳ adoption par composer/synthesizer/
+  anonymizer/enhancer (leur boucle de conversion), vidéo (route vidéo de l'enhancer à extraire).
+- ✅ **Tailles = capacités** (`e1ff67e`, `30f12276`) : `native_resolution`/`min_resolution`/
+  `max_resolution` (égales = FIXE), `resolution_caps_from_declaration` image ET vidéo, projetées par
+  la découverte ; `MODEL_RESOLUTION_CONFIG` retirée, l'imager DÉRIVE ses tailles (native d'abord,
+  modèle fixe = sa seule taille, le volet grise le reste) et lit pas/guidage au catalogue ; rôle
+  `model`/scout : `enforce_resolution_facts` (`image_size` d'une config racine). Rejoué sur Supra2
+  (deepseek) : « native_resolution POSÉE à '256x256' » — **proposition en attente de Valider**.
+- ✅ **Smoke des backends proposés durci** (`a3a555a`) : 2 images exigées, distinctes. Rejoué sur les
+  3 backends Supra2 : gpt-oss-120b passe, qwen3.8 (images identiques) et deepseek (`num_images`
+  ignoré) refusés — ce que la génération réelle avait montré.
+- Comparatif de la chaîne d'intégration (même prompt, Supra2) : deepseek-v4-flash ~3 min 40 sans GPU,
+  qwen3.8 ~12 min ; l'un et l'autre corrigent les défauts de gpt-oss (boucle doublée, progression) mais
+  cassent le cas multi-images. Aucune mesure de qualité au catalogue pour les modèles Albert.
+- ⚠ Deux commits d'une autre instance (`79d14379`, `371db621`) ont emporté mon WIP de fichiers entiers
+  sans les briques qu'il appelait — HEAD cassé deux fois, réparé (`883c5eaa`, `e1ff67e`), instance
+  prévenue. Budget d'identifiants rouge (2690 > 2687) : identifiants de `79d14379`, pas les miens.
+- 🔚 relance WAMA (0024 retire une colonne lue par le code en service) ; Valider Supra2 au model
+  manager ; puis générer Supra2 en ×4 (256 → 1024) pour éprouver la chaîne complète.
