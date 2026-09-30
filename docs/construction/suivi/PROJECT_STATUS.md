@@ -19094,3 +19094,29 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
   « Avatar »), plus par sa clé. ⚠ Gabarit lu au démarrage : visible après un HUP de gunicorn.
 - ⏳ Laissé au chantier card v4 : l'onglet Lot passe à la ligne avec 3 ports (mise en page, à
   mesurer au navigateur). Clients suivants de la voie vendor : YuE/ACE-Step, avatars lourds.
+
+## §CLÔTURE — 2026-09-30 (soir), session « IMAGER F4b → SORTIE, TAILLES, SAUVEGARDES » — ✅ `9f12da8` `a8358c0` `014c9df` (suite de `§PALIER 2026-09-30 après-midi`) — 🔚 voir la liste ci-dessous
+
+- ✅ Relance vérifiée : migration `imager/0024` appliquée (3 générations passées à `x2`), page imager 200,
+  tailles tirées du catalogue (Hunyuan 2048 natif 1024-2048, SD 1.5 512 ≤ 768). Supra2 : manifeste
+  VALIDÉ par Fabien → `native_resolution` 256×256 au catalogue.
+- ✅ **Sauvegardes** (`9f12da8`) : la dernière exécution d'un miroir est gardée SANS expiration et
+  affichée en permanence (« Dernière sauvegarde (date) … ») — commun à tous les miroirs
+  (`mirror_sync.remember_last_run`) ; sauvegarde des MODÈLES planifiée chaque nuit à 01:30
+  (`backup-models-daily`). Cause du constat de Fabien : l'avancement vit 24 h, la ligne des modèles
+  (manuelle) s'effaçait, celle des médias (nocturne) restait.
+- ✅ **Audit des tailles** : tous les modèles image/vidéo installés et déclarés portent leurs bornes ;
+  restent sans taille Minimax H3 (installé, sans backend) et les ~45 candidats de prospection.
+- ✅ **Minimax H3** rejoué (gpt-oss-120b, Albert) : le fait mécanique a RETIRÉ `diffusers` (pas de
+  `model_index.json`) ; le dépôt est une LoRA de distillation qui exige MiniMax-H3 (non installé) et le
+  moteur LightX2V (GitHub, hors route `library`) → **aucun backend possible en l'état**, le modèle
+  reste grisé avec sa raison. Proposition de manifeste à REJETER (elle n'apporte que `languages`).
+- ✅ **Assistant** (`014c9df`) : le skill `assistant-dev` et la description de `dev_run_role` citent
+  enfin le rôle `backend` et l'ORDRE de la chaîne (model → validation → backend → validation). ⚠ Le
+  serveur MCP de dev tourne depuis 00:46 : `start_wama_prod.sh` ne le démarre que s'il est absent, il
+  ne le RECHARGE jamais — décision d'exploitation à prendre (non faite).
+- ⏳ **Proportions de l'image d'entrée** consignées (`a8358c0`, `INPUT_MODEL_MATCHING §8`) : 6 backends
+  étirent par `resize` ; route = réglage d'entrée commun avant le backend + avertissement de card.
+- 🔚 **Restes** : §8 ci-dessus (prochain chantier) ; ralliement des apps render-based à
+  `apply_output_settings` et upscale vidéo ; rechargement du MCP dev à la relance ; relecture LinTO par
+  le rôle `model` durci (session « ce ») ; budget d'identifiants (instance « objets 3D »).
