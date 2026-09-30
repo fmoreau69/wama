@@ -18999,3 +18999,21 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
 - ⚠ Rouge d'AUTRES chantiers, non touché : budget de `tests_identifier_language` (instrument
   `check_identifier_language.py` et `media_library/tests/tests_providers.py` en cours d'écriture
   ailleurs).
+
+## §PALIER — 2026-09-30 (après-midi), « PORTAGE CARD v4 » — ✅ LES 10 APPS SONT EN CARD v4 — 🔚 session neuve : le port « Contexte » (`WAMA_LLM.md`, « CONTEXTE JETABLE »)
+
+- ✅ **Imager, enhancer, transcriber en v4** (après synthesizer ce matin) : le DOMAINE d'une card
+  (`ports_for_domain`, deux cards par page) ; les ports du RÉSULTAT du transcriber portés par le
+  menu « … » (`ports_carried_elsewhere`, ex `setting_carried_ports`) ; le port « En direct »
+  mesuré (micro simulé). Détail : `CARD_DESIGN §11.11`, « Adoption v4 ».
+- 🔴 **Deux défauts PRÉEXISTANTS trouvés en mesurant** (`MEDIA_STORAGE_TIERING §8.6`) : D32 —
+  `enhancer.audio_upload` ignorait la désignation (médiathèque, arbre → « Bad Request ») ; D33 —
+  l'aperçu de lot de l'imager lisait une image comme 6 « prompts ». Corrigés, contrats étendus.
+- Geste `<app>.tree_drop` : toutes les cards d'une page, tous les modèles de l'app.
+- **Passe finale sur les 10 apps** (serveur éphémère, compte de test) : 70 gestes — 57 OK,
+  13 non applicables (mêmes motifs qu'en v3), 0 échec ; 349 tests des modules touchés OK.
+- ⏳ Décidé, pour une session neuve : le port « Contexte (pour cette tâche) » (1er adopteur le
+  describer, puis l'assistant) ; la source « depuis la médiathèque » de la modale « Ajouter une
+  voix » (à décider). Remarque : la tâche du Studio pour un document au synthesizer (l'outil ne lit
+  que du texte). 🔴 Relancer WAMA (gunicorn HUP) — après les évaluations GPU en cours d'une autre
+  instance (lot #489).

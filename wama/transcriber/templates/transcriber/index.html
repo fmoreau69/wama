@@ -200,6 +200,11 @@ window._batchImport = WamaBatchImport({
     batchCreateUrl:  window.TRANSCRIBER_APP.batchCreateUrl,
     csrfToken:       window.TRANSCRIBER_APP.csrfToken,
     afterCreate: function(data, autoStart) {
+{% comment %}Card v4 depuis le 2026-09-30 (CARD_DESIGN §11.11, 10ᵉ et dernière app) : onglets « Audio de
+travail » (port `work_audio`, audio ET vidéo — la bande son en est extraite), « En direct » (Speak,
+capacité `has_live_input`) et « Lot ». Les ports du RÉSULTAT (`work_result`, `reference_result`)
+ne sont PAS des onglets : ils portent sur une card existante, leur geste est son menu « … »
+(`ports_carried_elsewhere`). Ids historiques conservés (index.js : dépôt, URL, Speak).{% endcomment %}
         if (autoStart && data.batch_id) {
             fetch(window.TRANSCRIBER_APP.batchStartUrlTemplate.replace('/0/', '/' + data.batch_id + '/'), {
                 method: 'POST',
@@ -221,7 +226,7 @@ window._batchImport = WamaBatchImport({
      (`has_live_input`, 2026-09-28 — ex-littéral `show_live`), plus un mode séparé.
      Mêmes IDs que les handlers JS (upload/drag&drop/youtube/Speak) → inchangés. -->
 {% url 'transcriber:batch_template' as batch_tpl %}
-{% include 'common/_new_item_card.html' with collapsible=True drop_zone_id='dropZoneTranscriber' file_input_id='transcriber-file' folder_input_id='transcriberFolderInput' file_accept='audio/*,video/*' formats_label='MP3, WAV, FLAC, MP4, MKV…' batch_template_url=batch_tpl show_batch_bar=True show_url=True url_input_id='youtubeUrl' url_submit_id='youtubeSubmitBtn' url_placeholder='https://… (YouTube, lien direct, ou chemin de fichier)' url_label='ou depuis une URL' url_hint='YouTube/Vimeo…, lien direct audio/vidéo, ou chemin de fichier accessible au serveur.' url_icon='fab fa-youtube' url_icon_class='text-danger' app_id='transcriber' live_btn_id='transcriber-speak-btn' live_label='Speak' live_icon='fas fa-microphone' live_hint='Transcription vocale en direct (Chrome recommandé).' live_hint_id='transcriber-speak-hint' show_media_library=True media_library_type='audio' %}
+{% include 'common/_new_item_card_v4.html' with collapsible=True drop_zone_id='dropZoneTranscriber' file_input_id='transcriber-file' folder_input_id='transcriberFolderInput' formats_label='MP3, WAV, FLAC, MP4, MKV…' batch_template_url=batch_tpl show_batch_bar=True url_input_id='youtubeUrl' url_submit_id='youtubeSubmitBtn' url_placeholder='https://… (YouTube, lien direct, ou chemin de fichier)' url_hint='YouTube/Vimeo…, lien direct audio/vidéo, ou chemin de fichier accessible au serveur.' url_icon='fab fa-youtube' url_icon_class='text-danger' app_id='transcriber' live_btn_id='transcriber-speak-btn' live_label='Speak' live_icon='fas fa-microphone' live_hint='Transcription vocale en direct (Chrome recommandé).' live_hint_id='transcriber-speak-hint' %}
 
 <!-- Zone de transcription LIVE : masquée par défaut, révélée au clic Speak (startAll dans index.js).
      IDs (#live-transcription-status / #live-transcription-output) préservés → JS Speak inchangé. -->
