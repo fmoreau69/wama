@@ -766,6 +766,30 @@ une réunion, sans prétraitement : Whisper **28,5 %** · Qwen3-ASR 1.7B **30,2 
   possible (seul Canary reçoit la sienne, `nemo_asr_backend.py:234`). Ses 5,38 % annoncés sont
   mesurés sur de la parole LUE ; sur de la réunion spontanée mixée, il n'est pas utilisable en l'état.
 
+**Diarisation mesurée (2026-09-30, SUMM-RE 007a/012c/013c, 53 min de parole, Whisper, cards
+#1009-#1014)** — mesure `diar_v1` (`common/services/diarization_metrics.py`), rangée sous le
+DIARISEUR, pas sous l'ASR : **cpWER** (le WER où un mot prêté au mauvais locuteur compte comme
+erreur, locuteurs appariés au mieux) et **DER** (sur le temps, par `pyannote.metrics`, collier 0,
+chevauchements comptés).
+
+| pipeline | WER | cpWER | dû aux locuteurs | DER | = manquée | + fausse alarme | + confusion |
+|---|---|---|---|---|---|---|---|
+| pyannote 3.1 | 28,9 % | **36,8 %** | 7,8 pts | **39,7 %** | 24,3 | 10,2 | **5,1** |
+| pyannote community-1 | 28,7 % | 37,1 % | 8,5 pts | 40,0 % | 24,5 | 9,8 | 5,6 |
+
+- **Aucun écart significatif** entre les deux pipelines sur ce corpus (3 réunions : un écart de
+  0,3 point n'est pas un classement). Le défaut reste **3.1** ; community-1 ne se justifie pas ici.
+  Le nombre de locuteurs est retrouvé partout (4/4, 3/3, 4/4). Vitesse équivalente : 13-17 s par
+  réunion de 20 min une fois chargé (community-1 se charge en 2 s).
+- ⭐ **La diarisation n'est pas le problème** : la CONFUSION de locuteur ne fait que ~5 % du temps de
+  parole. L'essentiel du DER est de la **parole MANQUÉE (24 %)** — des passages que l'ASR n'a pas
+  segmentés, déjà vus dans le WER (omissions, parole superposée). Le DER d'une card mesure la
+  CHAÎNE (segments ASR étiquetés par le diariseur), pas le diariseur seul — d'où ses trois parts.
+- Pour « qui a dit quoi », ~8 points de cpWER s'ajoutent au WER : c'est le coût réel des
+  attributions de locuteur pour un compte rendu.
+- Relancer : `manage.py asr_eval_corpus summ-re --meetings 3 --user <login> --engines whisper
+  --diarization speaker-diarization-3.1 speaker-diarization-community-1 [--start|--report]`.
+
 ---
 
 ## Voir aussi
