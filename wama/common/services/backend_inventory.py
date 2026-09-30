@@ -662,11 +662,26 @@ TASK_CONTRACTS = {
 }
 
 
+#: Lignées déjà lues, par (module, classe) — 2026-09-30. Une lignée ne change qu'avec le CODE, et
+#: le code ne change pas sans redémarrage du processus : même règle que `_ENGINES_CACHE`. Mesuré :
+#: relire le paquet coûtait ~0,08 s par candidat sur `/mnt/d`, soit 10 à 15 s pour une seule liste
+#: d'options quand le verdict par contrat résout chaque modèle.
+_LINEAGE_CACHE: dict = {}
+
+
 def _class_lineage(entry) -> Optional[set]:
     """Ancêtres (noms) de la classe d'une entrée, lus par AST dans le paquet de son module —
     None si la classe n'y est pas trouvée (on ne conclut pas d'une absence)."""
     if not entry.module or not entry.name:
         return None
+    key = (entry.module, entry.name)
+    if key not in _LINEAGE_CACHE:
+        _LINEAGE_CACHE[key] = _read_class_lineage(entry)
+    return _LINEAGE_CACHE[key]
+
+
+def _read_class_lineage(entry) -> Optional[set]:
+    """La lecture elle-même (cf. `_class_lineage`, qui la mémorise)."""
     import wama
     package = Path(wama.__file__).resolve().parent.parent.joinpath(*entry.module.split('.')[:-1])
     bases = {}
@@ -714,7 +729,8 @@ def resolve_entry(engine: str, model_id: str = '', entries=None,
     par CogVideoX — silencieusement.
 
     Ordre de décision, du plus DÉCLARÉ au plus déduit :
-      1. un seul backend déclare ce moteur → c'est lui, sans ambiguïté ;
+      1. un seul backend déclare ce moteur → c'est lui, sans ambiguïté — sauf, sous un contrat
+         de tâche LIANT, s'il déclare une liste de modèles qui ne contient pas celui-ci ;
       2. plusieurs, et l'un déclare `model_id` dans son `SUPPORTED_MODELS` → c'est lui ;
       3. plusieurs, aucun ne le déclare → **None**. On ne devine pas : rendre un backend au
          hasard est pire que ne rien rendre, parce que l'erreur serait silencieuse.
@@ -752,7 +768,19 @@ def resolve_entry(engine: str, model_id: str = '', entries=None,
     if not candidats:
         return None
     if len(candidats) == 1:
-        return candidats[0]
+        seul = candidats[0]
+        # Sous un contrat LIANT, le candidat unique qui DÉCLARE sa liste de modèles ne sert que
+        # ceux-là (2026-09-30). `QwenASRBackend` est le seul backend de transcription du moteur
+        # `transformers` : la règle 1 lui confiait FrWhisper et LinTO, deux modèles installés
+        # « poids seulement » qu'il ne sait pas charger — en silence, jusqu'au lancement. Mesuré
+        # sur tout le catalogue : ces deux routages-là changent, et aucun autre. Hors contrat
+        # liant (moteur de bibliothèque partagé, `pyannote`), la liste reste indicative.
+        if (model_id and contract and contract[2] and seul.supported_models
+                and model_id not in seul.supported_models):
+            logger.debug("[engines] %s / %s : %s ne sert que %s", engine, model_id, seul.name,
+                         seul.supported_models)
+            return None
+        return seul
     exacts = [e for e in candidats if model_id and model_id in e.supported_models]
     if len(exacts) == 1:
         return exacts[0]

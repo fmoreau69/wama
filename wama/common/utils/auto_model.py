@@ -115,11 +115,39 @@ def catalog_domain(app_id: str):
     n'a qu'un select de modèle) et rend son `options_query` tel quel. C'est la même
     déclaration qui peuple le select : zéro second lieu de vérité.
     """
+    field = catalog_field(app_id)
+    return dict(field.get('options_query') or {}) if field is not None else None
+
+
+def catalog_field(app_id: str):
+    """Le paramètre `options_source='catalog'` du schéma de l'app (le premier), ou None — le
+    domaine ET ses drapeaux d'UI (`options_cloud`…), lus au même endroit."""
     from wama.common.utils.param_schema import schema_for_app
-    for field in schema_for_app(app_id):
+    for field in schema_for_app(app_id) or []:
         if field.get('options_source') == 'catalog':
-            return dict(field.get('options_query') or {})
+            return field
     return None
+
+
+def declared_cloud_keys(app_id: str, user):
+    """Les modèles DISTANTS que le tirage AUTOMATIQUE de `app_id` peut retenir pour `user`, ou
+    None (aucun : le tirage reste local, comme avant le 2026-09-30).
+
+    Le schéma DÉCLARE l'ouverture (`options_cloud`, le drapeau qui ajoute déjà les distants aux
+    OPTIONS du select) : un seul lieu de vérité pour « ce que le select propose » et « ce que
+    auto tire ». Le PROFIL borne (`allowed_cloud_keys(automatic=True)`) : « cloud autorisé » ouvre
+    le tirage automatique, « cloud si saturé » seulement le choix manuel (tant que le signal de
+    saturation n'existe pas), « 100 % local » rien — décision de Fabien du 15/09, portée au commun
+    le 30/09 (jusque-là seul l'assistant passait `cloud_keys`, à la main)."""
+    field = catalog_field(app_id) if app_id else None
+    if not field or not field.get('options_cloud') or user is None:
+        return None
+    try:
+        from wama.model_manager.services.cloud_models import allowed_cloud_keys
+        return allowed_cloud_keys(user, automatic=True) or None
+    except Exception:
+        logger.debug('[auto_model] modèles distants autorisés illisibles', exc_info=True)
+        return None
 
 
 def intent_field_for(app_id: str):
@@ -189,6 +217,13 @@ def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, it
     domain = dict(spec) if spec is not None else (catalog_domain(app_id) or {})
     if 'quality_intent' not in overrides and (item is not None or user is not None):
         overrides['quality_intent'] = quality_intent_of(item, app_id, user)
+    # Distants DÉCLARÉS au schéma et autorisés par le profil (`declared_cloud_keys`) ; un
+    # appelant qui passe lui-même `cloud_keys` (l'assistant) garde la main.
+    if 'cloud_keys' not in overrides and spec is None:
+        cloud = declared_cloud_keys(app_id, user if user is not None
+                                    else getattr(item, 'user', None))
+        if cloud:
+            overrides['cloud_keys'] = cloud
     domain.update(overrides)
     source = domain.pop('source', None)
     from wama.model_manager.services import select_model_id

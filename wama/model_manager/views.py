@@ -1364,12 +1364,18 @@ def api_model_options(request):
         try:
             if multi_task:
                 raise LookupError('liste multi-tâches : pas de prévision')
+            # La prévision arbitre sur le lot du TIRAGE AUTOMATIQUE : les distants que le profil
+            # ouvre à « auto » (`automatic=True`), pas ceux du choix manuel que le select liste.
+            # Jusqu'au 2026-09-30 elle recevait ces derniers : pour un profil « cloud si
+            # saturé », elle annonçait un distant que le tirage réel n'aurait jamais retenu.
+            auto_cloud = None
+            if cloud_keys is not None:
+                from .services.cloud_models import allowed_cloud_keys
+                auto_cloud = allowed_cloud_keys(request.user, automatic=True)
             preview = predict_model_choice(
                 {'task': task, 'model_type': model_type,
                  'modality': modality, 'source': source,
-                 # La prévision arbitre sur le MÊME lot que le select : sinon elle annoncerait
-                 # un modèle local là où le tirage réel peut retenir un distant autorisé.
-                 **({'cloud_keys': list(cloud_keys)} if cloud_keys else {}),
+                 **({'cloud_keys': list(auto_cloud)} if auto_cloud else {}),
                  **({'quality_intent': quality_intent} if quality_intent else {})})
         except Exception as e:                      # la prévision ne casse jamais la liste
             logger.debug("api_model_options: prévision indisponible (%s)", e)

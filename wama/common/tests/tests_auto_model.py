@@ -155,6 +155,62 @@ class EndpointOptionsAutoTest(TestCase):
         self.assertNotIn('auto_preview', d)
 
 
+class DeclaredCloudModelsInTheAutoDrawTest(TestCase):
+    """2026-09-30 (Fabien's decision): « auto » may draw a REMOTE model for any app whose schema
+    declares `options_cloud` — within what the PROFILE opens to the automatic draw
+    (`allowed_cloud_keys(automatic=True)`). Until then only the assistant passed `cloud_keys`."""
+
+    CLOUD_FIELD = {'name': 'model', 'options_source': 'catalog',
+                   'options_query': {'task': 'text-to-speech'}, 'options_cloud': True}
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('auto_cloud', password='x')
+
+    def _draw(self, field, **kwargs):
+        from unittest import mock
+        with mock.patch('wama.common.utils.auto_model.catalog_field', return_value=field), \
+                mock.patch('wama.model_manager.services.cloud_models.allowed_cloud_keys',
+                           return_value={'albert:tts'}) as allowed, \
+                mock.patch('wama.model_manager.services.select_model_id',
+                           return_value='x') as select:
+            resolve_model_choice('auto', app_id='any', user=self.user, **kwargs)
+        return select.call_args.kwargs.get('cloud_keys'), allowed
+
+    def test_a_declared_select_hands_the_profiles_automatic_keys_to_the_draw(self):
+        keys, allowed = self._draw(self.CLOUD_FIELD)
+        self.assertEqual({'albert:tts'}, keys)
+        self.assertTrue(allowed.call_args.kwargs.get('automatic'),
+                        "the automatic draw, never the manual choice's keys")
+
+    def test_without_the_declaration_the_draw_stays_local(self):
+        keys, allowed = self._draw(dict(self.CLOUD_FIELD, options_cloud=False))
+        self.assertIsNone(keys)
+        allowed.assert_not_called()
+
+    def test_a_caller_passing_its_own_keys_keeps_control(self):
+        keys, allowed = self._draw(self.CLOUD_FIELD, cloud_keys={'anthropic:x'})
+        self.assertEqual({'anthropic:x'}, keys)
+        allowed.assert_not_called()
+
+    def test_the_preview_tells_the_automatic_draw_not_the_manual_list(self):
+        """A « cloud when saturated » profile LISTS remote models but never DRAWS one: the
+        preview used to receive the list's keys and announce a model auto would not pick."""
+        from unittest import mock
+        _tts('synthesizer:tts-seul', 'TTS seul', 0.5)
+        client = Client()
+        client.force_login(self.user)
+
+        def allowed(user, automatic=True):
+            return set() if automatic else {'albert:tts'}
+        with mock.patch('wama.model_manager.services.cloud_models.allowed_cloud_keys',
+                        side_effect=allowed), \
+                mock.patch('wama.common.utils.auto_model.predict_model_choice',
+                           return_value=None) as preview:
+            client.get('/model-manager/api/models/options/',
+                       {'task': 'text-to-speech', 'auto': '1', 'cloud': '1'})
+        self.assertNotIn('cloud_keys', preview.call_args.args[0])
+
+
 class CurseurDeQualiteTest(TestCase):
     """Le curseur 0-100 traverse toute la chaîne : brique, endpoint, schémas, UI."""
 
