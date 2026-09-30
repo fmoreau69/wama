@@ -215,3 +215,35 @@ class DiskGuardKnownZeroTest(SimpleTestCase):
     def test_counter_proof_an_unknown_size_is_still_refused(self):
         refusal, _ollama = self._guard(None)
         self.assertEqual(refusal['reason'], 'taille_inconnue')
+
+
+class OpenRequestsDoNotLingerTest(TestCase):
+    """Une demande jamais reprise ne reste pas « en cours » (2026-09-30 : deux demandes pyannote,
+    l'une tombée sur un worker d'avant le journal, restaient ouvertes sans fin)."""
+
+    def test_the_task_closes_older_requests_of_the_same_key(self):
+        from wama.model_manager import tasks
+        install_history.queued('model', 'proposed:test:twice', name='Deux fois', via='assistant')
+        install_history.queued('model', 'proposed:test:twice', name='Deux fois', via='assistant')
+        tasks.install_proposed_task.apply(args=['proposed:test:twice']).get()
+        statuses = sorted(InstallEvent.objects.filter(key='proposed:test:twice')
+                          .values_list('status', flat=True))
+        self.assertEqual(statuses, ['FAILURE', 'FAILURE'])     # l'ancienne close, la reprise refusée
+        self.assertFalse(InstallEvent.objects.filter(key='proposed:test:twice',
+                                                     finished_at__isnull=True).exists())
+
+    def test_the_calendar_shows_a_stale_request_as_never_taken_up(self):
+        old = timezone.now() - install_history.QUEUED_MAX_AGE - timedelta(hours=1)
+        InstallEvent.objects.create(kind='model', key='k-old', name='Oublié', via='assistant',
+                                    started_at=old)
+        events = install_history.calendar_events(old - timedelta(hours=1), timezone.now())
+        event = next(e for e in events if e.key.startswith('install:'))
+        self.assertEqual((event.status, event.extra['installRunning']), ('FAILURE', False))
+        self.assertLess(event.end - event.start, timedelta(hours=1), 'pas de barre qui s’allonge')
+
+    def test_counter_proof_a_recent_open_request_is_still_running(self):
+        InstallEvent.objects.create(kind='model', key='k-new', name='En cours', via='assistant',
+                                    started_at=timezone.now() - timedelta(minutes=5))
+        now = timezone.now()
+        event = install_history.calendar_events(now - timedelta(hours=1), now + timedelta(hours=1))[0]
+        self.assertEqual((event.status, event.extra['installRunning']), ('RUNNING', True))
