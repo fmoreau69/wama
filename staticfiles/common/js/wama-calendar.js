@@ -68,6 +68,11 @@
                 : 'File GPU : ' + p.queuePosition + (p.queuePosition === 1 ? 're' : 'e') + ' en attente');
         }
         if (p.kind === 'batch') { parts.push('Création du lot'); }
+        if (p.kind === 'install') {
+            parts.push(p.installRunning ? 'Installation en cours' : (p.status === 'FAILURE'
+                ? 'Échec' + (p.error ? ' : ' + p.error : '') : 'Terminée'));
+            if (p.via) { parts.push('Demandée par : ' + p.via); }
+        }
         if (p.reserves && p.reserves.length) {
             parts.push('Plage réservée (' + p.reserves.join(', ') + ')');
         }
@@ -122,7 +127,10 @@
             // Contrat de la barre de filtrage COMMUNE : facettes en `data-f-<clé>`, texte en
             // `data-f-text`. Les valeurs sont celles que la vue DÉCLARE (`calendar_view`).
             info.el.setAttribute('data-f-app', p.app || '');
-            info.el.setAttribute('data-f-nature', p.scope === 'instance' ? 'maintenance' : (p.nature || ''));
+            // Une couche de l'instance apportée par une app (`register_instance_layer`) se range
+            // sous sa propre valeur ; le reste de l'instance, sous « Maintenance de WAMA ».
+            info.el.setAttribute('data-f-nature', p.layer
+                || (p.scope === 'instance' ? 'maintenance' : (p.nature || '')));
             info.el.setAttribute('data-f-statut', p.status || '');
             info.el.setAttribute('data-f-text', [info.event.title, p.app, p.status].join(' '));
             scheduleFilterRefresh();

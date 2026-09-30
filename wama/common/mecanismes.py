@@ -313,6 +313,12 @@ MECHANISMS = (
     Mechanism('model_installer', 'Installation de modèles',
               "Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue",
               'wama/model_manager/services/model_installer.py', ''),
+    Mechanism('install_history', 'Journal des installations',
+              "Date chaque installation et désinstallation (modèle, librairie) avec son issue et "
+              "sa VOIE (model manager, assistant, marcheur d'app, ligne de commande), aux points "
+              "uniques de la route ; couche « Installations » du calendrier, inscrite par "
+              "`register_instance_layer`. Best-effort : n'échoue jamais une installation",
+              'wama/model_manager/services/install_history.py', 'docs/construction/ia/WAMA_MEMORY.md'),
     Mechanism('vision_probe', 'Sonde vision',
               "Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichiers de référence)",
               'wama/model_manager/services/vision_probe.py', ''),

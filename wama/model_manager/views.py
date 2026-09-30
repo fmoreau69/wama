@@ -1837,7 +1837,7 @@ def api_prospect_install(request):
         res = request_install(key, force=bool(data.get('force')),
                               variant_ref=data.get('variant_ref') or '',
                               variant_file=data.get('variant_file') or '',
-                              user=request.user)
+                              user=request.user, via='model_manager')
         if not res.get('ok'):
             if res.get('reason') == 'insufficient_storage':
                 return JsonResponse(res['blocked'], status=507)   # 507 Insufficient Storage
@@ -2053,7 +2053,8 @@ def api_model_uninstall(request):
         model_id = data.get('model_id')
         if not model_id:
             return JsonResponse({'success': False, 'error': 'model_id required'}, status=400)
-        res = uninstall_model(model_id, include_shared=bool(data.get('include_shared')))
+        res = uninstall_model(model_id, include_shared=bool(data.get('include_shared')),
+                              via='model_manager')
         if not res.get('ok'):
             if res.get('needs_confirmation'):
                 return JsonResponse({'success': False, 'needs_confirmation': True,

@@ -44,6 +44,14 @@ class ModelManagerConfig(AppConfig):
         # (ready() tourne dans chacun des ~7 process).
         self._attach_sync_log()
 
+        # Couche « Installations » du calendrier : le calendrier ne connaît pas ses producteurs,
+        # le model_manager inscrit la sienne (`calendar.register_instance_layer`, 2026-09-30).
+        from wama.common.services.calendar import register_instance_layer
+        from .services import install_history
+        register_instance_layer(install_history.CALENDAR_LAYER,
+                                label=install_history.CALENDAR_LAYER_LABEL, app='model_manager',
+                                events=install_history.calendar_events)
+
         if any(cmd in sys.argv for cmd in self._SKIP_CMDS):
             return
         # Hors du côté autorisé (Windows, tests), aucune tâche ne part : ne rien dispatcher du tout

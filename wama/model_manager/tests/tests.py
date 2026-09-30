@@ -1712,7 +1712,8 @@ class RouteUniqueDInstallationTest(TestCase):
             delay.return_value = type('T', (), {'id': 'tid-1'})()
             res = mi.request_install(cand.model_key)
         self.assertEqual((res['ok'], res['started'], res['task_id']), (True, True, 'tid-1'))
-        # Sans utilisateur : `user_id=None`, le téléchargement lira le jeton d'instance.
+        # Sans utilisateur : `user_id=None`, le téléchargement lira le jeton d'instance. Et RIEN de
+        # plus dans le message : la voie du journal ne transite pas par Celery (30/09).
         delay.assert_called_once_with(cand.model_key, user_id=None)
         # Le poids relevé à la prospection sert la garde : pas d'interrogation du registre
         # Ollama pour un dépôt HuggingFace, qu'il ne connaît pas.
@@ -1764,6 +1765,10 @@ class RouteUniqueDInstallationTest(TestCase):
         from django.contrib.auth import get_user_model
         admin = get_user_model().objects.get(username='admin_yolo')
         delay.assert_called_once_with('proposed:yolo:yolo26s-seg', user_id=admin.pk)
+        # … et le journal des installations date la demande avec sa VOIE : le bouton (30/09).
+        from wama.model_manager.models import InstallEvent
+        event = InstallEvent.objects.get(key='proposed:yolo:yolo26s-seg')
+        self.assertEqual((event.via, event.status), ('model_manager', 'RUNNING'))
 
     def test_un_nom_de_poids_yolo_invente_est_refuse_sans_rien_ecrire(self):
         self._admin('admin_yolo_faux')
@@ -1847,7 +1852,7 @@ class RouteUniqueDInstallationTest(TestCase):
         self.assertEqual(out, {'started': True, 'model_key': 'proposed:hf:Org/P',
                                'task_id': 'tid-2'})
         req.assert_called_once_with('proposed:hf:Org/P', force=False, variant_ref='',
-                                    variant_file='', user=user)
+                                    variant_file='', user=user, via='assistant')
 
     def test_l_assistant_rend_les_chiffres_du_refus_d_espace(self):
         from wama import tool_api
