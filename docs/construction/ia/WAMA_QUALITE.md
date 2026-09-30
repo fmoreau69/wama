@@ -790,6 +790,37 @@ chevauchements comptés).
 - Relancer : `manage.py asr_eval_corpus summ-re --meetings 3 --user <login> --engines whisper
   --diarization speaker-diarization-3.1 speaker-diarization-community-1 [--start|--report]`.
 
+**Prétraitement × filtre de voix sur un entretien LONG enregistré à distance (2026-09-30, lot
+#489, 2 h 22, Whisper, référence Sonal nettoyée de Fabien)** — question de Fabien : le
+prétraitement rendait le DÉBUT plus fidèle, couper le VAD améliorerait-il ?
+
+| card | prétraitement | VAD | WER | mots produits (réf. 17 594) | suppressions |
+|---|---|---|---|---|---|
+| #724 | non | auto | 44,5 % | 21 177 | 858 |
+| #1048 | non | coupé | **42,8 %** | 20 905 | 902 |
+| #725 | oui | auto | 81,0 % | 5 383 | 12 375 |
+| #1049 | oui | coupé | 82,6 % | 5 719 | 11 985 |
+
+- ⭐ **Le DÉBRUITAGE efface la parole de cet enregistrement, pas le filtre de voix** : VAD coupé ou
+  non, le prétraitement perd ~70 % des mots, sur tout l'entretien (trous de 60 à 104 s). L'hypothèse
+  « débruitage puis VAD qui saute les passages » est RÉFUTÉE par #1049. Ce qu'a vu Fabien est
+  exact mais LOCAL : sans prétraitement, Whisper invente au tout début (*« je danse, j'enregistre,
+  je mange »* pour *« je lance l'enregistrement »*). Même sens que le lot #443 (entretien propre,
+  32 → 37 %) et que SUMM-RE (013c : 30,5 → 39,2 %) : **le prétraitement reste à réserver aux fonds
+  très bruyants**, ce que dit déjà son aide (`transcriber/params.py`).
+- Couper le VAD sans prétraitement gagne 1,7 point ici, alors qu'il avait effondré Whisper sur
+  SUMM-RE 012c (95,5 %) : pas de réglage universel, c'est le rôle du mode « auto ».
+- ⚠ **Les ~4 400 ajouts restants viennent surtout du STYLE de la référence** : elle est nettoyée,
+  pas verbatim — 0 « euh » (Whisper 11), 60 « oui » (305), 14 « ok » (98), répétitions retirées
+  (`est` +168, `on` +140). Le WER de ~43 % surestime donc l'erreur réelle face à une référence
+  verbatim ; il se compare entre moteurs, pas dans l'absolu.
+- **Mesure corrigée le même jour** : 4 extraits Sonal sur 21 étaient VIDES dans la référence
+  (~8 min) ; ce que Whisper y entendait comptait en ajouts (1 128 mots). La lecture déclare
+  désormais les plages transcrites (`covered_spans`) et l'évaluation commune ne compare que
+  celles-là (`result_evaluation._restricted`, commit `04bc371d`) — #724 : 51,3 → 44,5 %.
+- ⚠ #1048 a été interrompue par une relance de WAMA (14:25) : tâche perdue, card restée
+  « en cours » jusqu'à sa relance à la main. Ce qui a relancé WAMA n'est pas identifié.
+
 ---
 
 ## Voir aussi
