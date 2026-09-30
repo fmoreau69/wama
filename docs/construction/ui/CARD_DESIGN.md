@@ -1597,11 +1597,40 @@ l'ordre, sur les ports que `input_slots` rend pour chaque app :
   éléments à partir d'un lot — corrigés, et le geste qui les voit est désormais au filet
   nocturne (`<app>.tree_drop`). La table voie × mesure vit dans `MEDIA_STORAGE_TIERING §8.6`
   (sous D29-D31) ; ne pas la recopier ici.
+- ✅ **2026-09-30, synthesizer en v4** (7 apps sur 10). Décision de Fabien : *« si c'est un
+  fichier texte, c'est un fichier de travail […] soit l'utilisateur prompt, soit il glisse un
+  fichier de travail. Ça fait la même chose »* — et *« on garde bien aussi le batch. Très
+  important »*. Aucun modèle TTS ne déclare de document (il reçoit du texte) : c'est l'APP qui le
+  consomme (sa vue d'upload extrait le texte), d'où un port de CARD déclaré par une capacité
+  d'app, forme d'`app_result_ports` : `has_text_file_input` → `app_card_ports` → onglet
+  « Fichier de travail » (les formats déclarés, « requis · ou le texte saisi », champ `one_of` de
+  l'autre instance). ⚠ **Pas au Studio** : l'outil `synthesize_text` ne lit que du texte, un port
+  document y serait mensonger — ⏳ à ouvrir quand l'outil lira un fichier. Le lot reste sous ses
+  DEUX formes : onglet Lot, et détection sur la tuile de travail (`batchScope:'each'` — mesuré :
+  un lot déposé comme document ouvre la barre, la card bascule seule sur « Lot », rien de créé).
+  **Voix de référence : pas d'onglet** (`setting_carried_ports` → `app_setting_carried_ports`) —
+  elle se choisit dans `voice_preset` (volet, modale, inspecteur ; « Mes voix » = médiathèque,
+  pointée). Un onglet passerait par `voice_reference`, qui PRIME en silence sur le volet : deux
+  domiciles pour un réglage (question de Fabien : « vérifier que ça ne fait pas double emploi »).
+  ⏳ Proposé, à décider : une source « depuis la médiathèque » dans la modale « Ajouter une voix »
+  (aujourd'hui : fichier du poste ou micro seulement). Gestes rejoués : mêmes verdicts qu'en v3 +
+  `tree_drop` OK ; prompt → 1 élément sans lancement ; médiathèque → élément qui POINTE.
+- ✅ **2026-09-30, AUTO-AJUSTEMENT PAR LES MODÈLES revérifié** (question de Fabien) : les onglets
+  viennent toujours d'`app_input_ports` (union des entrées déclarées par les modèles du
+  catalogue) — preuve vivante le jour même, l'avatarizer a gagné l'onglet « Objet 3D » avec le
+  modèle TalkingHead, sans toucher un gabarit. La SURCHARGE utilisateur (appariement
+  `WamaInputMatch` : choisir un modèle ↔ joindre une entrée) mesurée au navigateur : composer,
+  une mélodie grise 5 modèles sur 7, la retirer les rend ; reader et anonymizer suivent aussi.
+  🔴 **Défaut trouvé et corrigé** : la LIGNE D'ÉTAT (« N modèle(s) désactivé(s) par … — ✕ pour
+  les retrouver ») était invisible en v4 — rendue avec `d-none`, que la brique ne lève pas. Elle
+  passe sous la zone, masquée par le style comme en v3, et seulement avec un port de référence
+  (les apps à port de travail seul portent la leur au volet ; tag `ports_have_group`). Garde
+  `tests_catalogues.MatchStatusLineOfTheV4CardTest`.
 - ⏳ **Reste avant l'imager et l'enhancer** : `input_slots(app)` ignore le DOMAINE
   (`app_input_ports` l'accepte) — leurs deux cards (image/vidéo, média/audio) recevraient les
   mêmes ports ; l'imager lit en plus son image par les ids de RÉFÉRENCE (`imgRefInput`,
-  `input_card.js`) alors que la v4 en fait un port de travail. Le synthesizer est dans le cas du
-  composer (prompt + voix de référence). Le transcriber (3 ports + le direct) viendra en dernier.
+  `input_card.js`) alors que la v4 en fait un port de travail. Le transcriber (3 ports + le
+  direct) viendra en dernier.
 - ⏳ **Question ouverte (lots)** : les colonnes du lot nomment des RÔLES (`-i`, `-r`), pas des
   ports — l'avatar de l'avatarizer est `-r` au lot et `work_image` à la card. À terme : des
   colonnes au nom du port, `-i`/`-r` en alias.

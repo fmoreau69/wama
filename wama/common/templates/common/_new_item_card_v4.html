@@ -240,7 +240,6 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
                     <div class="wama-files-meta" data-files-meta></div>
                 </div>
                 <span id="{{ reference_chip_id|default:'referenceChip' }}" class="d-none"></span>
-                <small id="{{ match_status_id|default:'inputMatchStatus' }}" class="text-info d-none"></small>
             </div>
             {% endwith %}
             {% endif %}
@@ -287,6 +286,19 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
             {% endwith %}
         {% endif %}
         </div>
+
+        {% comment %}LIGNE D'ÉTAT DE L'APPARIEMENT (`WamaInputMatch`, statusId) — la causalité et la
+        réversibilité : « N modèle(s) désactivé(s) par … — ✕ pour les retrouver ». Sortie du pane de
+        référence le 2026-09-30 : elle y portait `d-none` (display:none !important), que la brique
+        ne lève pas (elle remet `style.display`) — mesuré sur le composer, 5 modèles grisés SANS
+        la phrase qui dit pourquoi. Même règle qu'en v3 : rendue par la card seulement avec un port
+        de RÉFÉRENCE — les apps à port de travail seul (anonymizer, synthesizer, reader,
+        transcriber) portent la leur au volet, sous le sélecteur de modèle ; la rendre ici aussi
+        doublerait l'id. Masquée par le style, comme en v3.{% endcomment %}
+        {% ports_have_group ports 'reference' as has_reference_port %}
+        {% if has_reference_port or match_status_id %}
+        <small id="{{ match_status_id|default:'inputMatchStatus' }}" class="text-info d-block mt-1" style="display:none"></small>
+        {% endif %}
 
         {% if show_batch_bar or lot %}{% include 'common/batch_detect_bar.html' with bid=batch_bid label=batch_label %}{% endif %}
         {% if extra_zone_template %}{% include extra_zone_template %}{% endif %}
