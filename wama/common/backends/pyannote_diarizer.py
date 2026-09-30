@@ -59,11 +59,13 @@ class PyannoteDiarizerBackend(BaseModelBackend):
     SUPPORTED_MODELS = {
         'speaker-diarization-3.1': {'hf_id': 'pyannote/speaker-diarization-3.1',
                                     'settings_key': 'diarization',
-                                    'model_key': 'transcriber:pyannote-diarization'},
+                                    'model_key': 'transcriber:pyannote-diarization',
+                                    'label': 'pyannote 3.1'},
         'speaker-diarization-community-1': {
             'hf_id': 'pyannote/speaker-diarization-community-1',
             'settings_key': 'diarization_community',
-            'model_key': 'huggingface:pyannote/speaker-diarization-community-1'},
+            'model_key': 'huggingface:pyannote/speaker-diarization-community-1',
+            'label': 'pyannote community-1'},
     }
     name = "pyannote"
     display_name = "pyannote (speaker-diarization 3.1 / community-1)"
@@ -300,6 +302,13 @@ def get_diarizer() -> PyannoteDiarizerBackend:
     if _backend is None:
         _backend = PyannoteDiarizerBackend()
     return _backend
+
+
+def pipeline_choices() -> list:
+    """(id, libellé) des pipelines servis — les `choices` du réglage de card (appelable : un
+    pipeline ajouté à `SUPPORTED_MODELS` n'exige aucune migration)."""
+    return [(model_id, spec['label'])
+            for model_id, spec in PyannoteDiarizerBackend.SUPPORTED_MODELS.items()]
 
 
 def is_available() -> bool:

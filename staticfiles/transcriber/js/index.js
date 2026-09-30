@@ -452,6 +452,7 @@ document.addEventListener('DOMContentLoaded', function () {
       vad_mode: btn.dataset.vadMode || 'auto',
       language_mode: btn.dataset.languageMode || 'auto',
       enable_diarization: btn.dataset.enableDiarization !== 'false',
+      diarization_model: btn.dataset.diarizationModel || 'speaker-diarization-3.1',
       generate_summary: btn.dataset.generateSummary === 'true',
       summary_type: btn.dataset.summaryType || 'structured',
       verify_coherence: btn.dataset.verifyCoherence === 'true',

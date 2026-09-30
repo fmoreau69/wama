@@ -87,7 +87,7 @@ from wama.transcriber.params import PARAMS_JSON as _SCHEMA
 #: les posterait encore (JSON déjà typé).
 SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'level_speech', 'vad_mode',
                    'language_mode',
-                   'enable_diarization',
+                   'enable_diarization', 'diarization_model',
                    'generate_summary', 'summary_type', 'verify_coherence',
                    'temperature', 'max_tokens')
 
@@ -1757,6 +1757,7 @@ def update_settings(request, pk: int):
         'backend': t.backend,
         'hotwords': t.hotwords,
         'enable_diarization': t.enable_diarization,
+        'diarization_model': t.diarization_model,
         'temperature': t.temperature,
         'max_tokens': t.max_tokens,
         'preprocess_audio': t.preprocess_audio,

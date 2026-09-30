@@ -2,6 +2,9 @@ from django.db import models
 from django.contrib.auth.models import User
 from wama.common.utils.media_paths import upload_to_user_input
 from wama.common.models import ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
+from wama.common.backends.pyannote_diarizer import (
+    DEFAULT_MODEL as DEFAULT_DIARIZATION_MODEL, pipeline_choices,
+)
 
 
 class Transcript(ProcessingTimeMixin, ScopedVisibility):
@@ -33,6 +36,12 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # VibeVoice-specific options
     hotwords = models.TextField(blank=True, default='')  # Domain-specific terms
     enable_diarization = models.BooleanField(default=True)
+    # Pipeline de diarisation (2026-09-30) : pyannote 3.1 ou son successeur community-1. Les
+    # choix viennent du diariseur (`pipeline_choices`), jamais recopiés ici. Sans effet quand le
+    # moteur diarise lui-même (VibeVoice) — `workers.py` Step 4b.
+    diarization_model = models.CharField(max_length=64, choices=pipeline_choices,
+                                         default=DEFAULT_DIARIZATION_MODEL,
+                                         db_default=DEFAULT_DIARIZATION_MODEL)
     # Filtre de parole (VAD Silero de faster-whisper) : il saute les silences, mais rejette aussi
     # la parole LOINTAINE — mesuré le 2026-09-25 : il ne gardait que 17-58 % d'un entretien en
     # champ lointain dont 66-79 % était actif, et Whisper y rendait 113 mots au lieu de 411.

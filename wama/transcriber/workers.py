@@ -598,7 +598,9 @@ def _transcribe_item(t, ctx):
                     _set_status_message(t, "Diarisation des locuteurs…")
                     _console(t.user_id, "Diarisation des locuteurs (pyannote)…")
                     _set_partial_text(t.id, "🔎 Identification des locuteurs…\n")
-                    result.segments = diarize(cleaned_path, result.segments)
+                    # Le pipeline choisi sur la card (3.1 ou community-1, 2026-09-30).
+                    result.segments = diarize(cleaned_path, result.segments,
+                                              model=getattr(t, 'diarization_model', None))
                     _console(t.user_id, "Diarisation terminée ✓")
                 else:
                     _console(t.user_id, "pyannote non disponible, diarisation ignorée", level='warning')
