@@ -95,10 +95,18 @@ index b925553..b47a6d3 100755
  
      dims = ModelDimensions(**checkpoint["dims"])
 diff --git a/scripts/inference.py b/scripts/inference.py
-index 428afb9..04e8ffc 100644
+index 428afb9..d5e0d0b 100644
 --- a/scripts/inference.py
 +++ b/scripts/inference.py
-@@ -175,6 +175,11 @@ def main(args):
+@@ -117,6 +117,7 @@ def main(args):
+             output_vid_name_concat = os.path.join(temp_dir, output_basename + "_concat.mp4")
+             
+             # Extract frames from source video
++            save_dir_full = None  # WAMA : n'existe que pour une entree VIDEO (nettoyage plus bas)
+             if get_file_type(video_path) == "video":
+                 save_dir_full = os.path.join(temp_dir, input_basename)
+                 os.makedirs(save_dir_full, exist_ok=True)
+@@ -175,6 +176,11 @@ def main(args):
                  latents = vae.get_latents_for_unet(crop_frame)
                  input_latent_list.append(latents)
          
@@ -110,7 +118,7 @@ index 428afb9..04e8ffc 100644
              # Smooth first and last frames
              frame_list_cycle = frame_list + frame_list[::-1]
              coord_list_cycle = coord_list + coord_list[::-1]
-@@ -228,7 +233,7 @@ def main(args):
+@@ -228,7 +234,7 @@ def main(args):
  
              # Save prediction results
              temp_vid_path = f"{temp_dir}/temp_{input_basename}_{audio_basename}.mp4"
@@ -119,3 +127,13 @@ index 428afb9..04e8ffc 100644
              print("Video generation command:", cmd_img2video)
              os.system(cmd_img2video)   
              
+@@ -240,7 +246,8 @@ def main(args):
+             shutil.rmtree(result_img_save_path)
+             os.remove(temp_vid_path)
+             
+-            shutil.rmtree(save_dir_full)
++            if save_dir_full:
++                shutil.rmtree(save_dir_full)
+             if not args.saved_coord:
+                 os.remove(crop_coord_save_path)
+                     

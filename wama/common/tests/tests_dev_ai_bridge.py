@@ -339,6 +339,63 @@ class InstallChannelFromRepoFactsTest(SimpleTestCase):
         self.assertEqual(manifest['body']['install'], {'pip': 'faster-whisper==1.2.1'})
         self.assertEqual(manifest['key'], 'MuseTalk')
 
+    def test_a_package_absent_from_pypi_is_vendored_too(self):
+        """YuE et ACE-Step : un `pyproject.toml`, aucune publication — la route pip les refuserait."""
+        notes = []
+        manifest = self.role_utils.enforce_install_channel(
+            self._llm_manifest({'pip': 'acestep==1.5.0'}), 'ace-step/ACE-Step-1.5',
+            ['pyproject.toml'], self.SHA, notes, published=False)
+        self.assertEqual(manifest['body']['install']['vendor']['engine'], 'ace_step_1_5')
+        self.assertTrue(any('NON publié' in n for n in notes), notes)
+
+    def test_pypi_publication_is_measured_at_the_pinned_version(self):
+        """`ace-step` existe sur PyPI en 0.1.0 seulement : la 1.5.0 proposée n'est PAS publiée."""
+        published = {'/pypi/ace-step/json': 200, '/pypi/ace-step/0.1.0/json': 200}
+        seen = []
+
+        def status_of(url):
+            seen.append(url)
+            return next((code for path, code in published.items() if url.endswith(path)), 404)
+
+        def offline(url):
+            raise OSError('proxy')
+        pp = self.role_utils.pypi_published
+        self.assertTrue(pp('ace-step', status_of=status_of))
+        self.assertFalse(pp('ace-step', '1.5.0', status_of=status_of))
+        self.assertTrue(seen[-1].endswith('/pypi/ace-step/1.5.0/json'), seen)
+        self.assertFalse(pp('acestep', status_of=status_of))
+        self.assertIsNone(pp('ace-step', '1.5.0', status_of=offline),
+                          'une panne réseau ne vaut pas « non publié »')
+        self.assertIsNone(pp('ace-step', status_of=lambda url: 503))
+
+    def test_requirements_are_confronted_to_the_reference_venv(self):
+        venv = {'transformers': '4.57.6', 'numpy': '2.3.5', 'torch': '2.9.1', 'accelerate': '1.6.0'}
+        lines = self.role_utils.repo_requirements({
+            'requirements.txt': 'transformers>=5.0  # ACE-Step\nnumpy\n-e .\naccelerate==1.13.0\n',
+            'pyproject.toml': '[project]\ndependencies = ["torch>=2.4", "vector-quantize-pytorch",'
+                              ' "pywin32; sys_platform == \'win32\'"]\n'})
+        verdict = self.role_utils.requirements_verdict(lines, installed=venv)
+        self.assertEqual([{'requirement': 'transformers>=5.0', 'installed': '4.57.6'}],
+                         verdict['conflicts'])
+        self.assertEqual([{'requirement': 'accelerate==1.13.0', 'installed': '1.6.0'}],
+                         verdict['pinned'], "une épingle exacte d'amont n'est pas un conflit de borne")
+        self.assertEqual(['vector-quantize-pytorch'], verdict['missing'])
+        self.assertEqual({'numpy', 'torch'}, set(verdict['satisfied']),
+                         'une exigence d\'une AUTRE plateforme (pywin32) ne compte pas')
+
+    def test_the_envelope_constants_are_filled_never_overwritten(self):
+        from wama.common.manifests.ingest import validate
+        manifest = self._llm_manifest({'pip': 'x==1'})
+        for key in ('name', 'world', 'visibility'):
+            manifest.pop(key)
+        manifest['description'] = 'kept'
+        notes = []
+        self.role_utils.complete_library_envelope(manifest, 'MeiGen-AI/InfiniteTalk', notes)
+        self.assertEqual(('InfiniteTalk', 'transverse', 'public'),
+                         (manifest['name'], manifest['world'], manifest['visibility']))
+        self.assertEqual('kept', manifest['description'])
+        self.assertEqual(validate(manifest) or [], [])
+
     def test_an_unmeasured_head_is_said_not_invented(self):
         notes = []
         manifest = self.role_utils.enforce_install_channel(

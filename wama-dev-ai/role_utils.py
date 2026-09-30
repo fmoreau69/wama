@@ -237,30 +237,150 @@ def github_head_sha(repo: str, branch: str, fetcher=None) -> str:
     return json.loads(raw)['sha']
 
 
-def enforce_install_channel(manifest, repo, packaging, sha, notes):
+def http_status(url, user_agent='wama-dev-ai'):
+    """Code HTTP d'un `HEAD` (proxy d'environnement) — le statut seul, sans lire de corps."""
+    import urllib.error
+    req = urllib.request.Request(url, method='HEAD', headers={'User-Agent': user_agent})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status
+    except urllib.error.HTTPError as exc:
+        return exc.code
+
+
+def pypi_published(dist_name: str, version: str = '', status_of=None):
+    """Le paquet — à CETTE version si elle est donnée — est-il PUBLIÉ sur PyPI ?
+    True / False (404) / None (non mesuré). Source déclarée `pypi`.
+
+    Le NOM ne suffit pas (mesuré le 2026-09-30) : `ace-step` existe sur PyPI, mais en 0.1.0
+    seulement — un ancien paquet ; la 1.5.0 que proposait le rôle y est introuvable. Et un `HEAD`
+    plutôt qu'une lecture : le proxy coupait le JSON en cours de route (`IncompleteRead`) alors
+    que PyPI avait répondu 200 — seul le statut compte.
+    """
+    from wama.common.external_sources import base_url
+    if not dist_name:
+        return False
+    path = f"{dist_name}/{version}" if version else dist_name
+    try:
+        code = (status_of or http_status)(f"{base_url('pypi')}/pypi/{path}/json")
+    except Exception:
+        return None
+    if code == 200:
+        return True
+    return False if code == 404 else None
+
+
+def requirements_verdict(requirement_lines, installed=None) -> dict:
+    """Exigences d'un dépôt confrontées au venv de RÉFÉRENCE — `{satisfied, conflicts, missing}`.
+
+    Vendoriser le code ne règle pas ses dépendances : elles vivent dans le venv commun, qui fait
+    référence (une lib s'y adapte, jamais l'inverse). Ce verdict dit, AVANT toute installation,
+    ce que le moteur exigerait de déplacer — mesuré le 2026-09-30 sur ACE-Step, qui veut
+    `transformers` 5 quand le venv porte 4.57. `installed` remplace la lecture du venv (tests).
+    """
+    import importlib.metadata as im
+
+    from packaging.requirements import InvalidRequirement, Requirement
+
+    def version_of(name):
+        if installed is not None:
+            return installed.get(name.lower().replace('_', '-'))
+        try:
+            return im.version(name)
+        except im.PackageNotFoundError:
+            return None
+
+    # `pinned` ≠ `conflicts` : une épingle EXACTE d'amont (`torch==2.10.0`) dit la version que
+    # l'auteur a testée, pas une incompatibilité — MuseTalk en épingle quatre (numpy, transformers,
+    # tensorflow, diffusers) et tourne avec le venv (`setup_avatarizer.sh`, 2026-09-07). Seule une
+    # BORNE non satisfaite (`transformers>=5`, `numpy<2`) est un conflit.
+    verdict = {'satisfied': [], 'conflicts': [], 'pinned': [], 'missing': []}
+    for raw in requirement_lines or []:
+        line = raw.split('#', 1)[0].strip()
+        if not line or line.startswith(('-', 'git+', 'http')):
+            continue
+        try:
+            req = Requirement(line)
+        except InvalidRequirement:
+            continue
+        if req.marker is not None and not req.marker.evaluate({'extra': ''}):
+            continue
+        have = version_of(req.name)
+        if have is None:
+            verdict['missing'].append(str(req))
+        elif req.specifier and not req.specifier.contains(have, prereleases=True):
+            exact = all(spec.operator in ('==', '===') for spec in req.specifier)
+            verdict['pinned' if exact else 'conflicts'].append(
+                {'requirement': str(req), 'installed': have})
+        else:
+            verdict['satisfied'].append(req.name)
+    return verdict
+
+
+def repo_requirements(files: dict) -> list:
+    """Lignes d'exigences d'un dépôt, depuis `requirements.txt` et `[project].dependencies`."""
+    import tomllib
+    lines = list((files.get('requirements.txt') or '').splitlines())
+    try:
+        project = tomllib.loads(files.get('pyproject.toml') or '').get('project') or {}
+        lines += list(project.get('dependencies') or [])
+    except tomllib.TOMLDecodeError:
+        pass
+    # Un dépôt déclare souvent la même exigence aux deux endroits (ACE-Step) : une seule fois.
+    return list(dict.fromkeys(line.strip() for line in lines if line.strip()))
+
+
+def complete_library_envelope(manifest, repo, notes):
+    """Enveloppe d'un manifeste `library` : ses CONSTANTES posées mécaniquement.
+
+    Une librairie est un asset transverse et public (`extract_library` écrit les mêmes valeurs).
+    Mesuré le 2026-09-30 : sur 5 dépôts, le LLM a omis `name` deux fois, `world` et `visibility`
+    une fois — trois manifestes refusés à la validation pour des champs que rien ne laisse au
+    jugement. Un champ absent se pose ; un champ fourni n'est jamais écrasé.
+    """
+    defaults = {'manifest_kind': 'library', 'schema_version': '1.0', 'world': 'transverse',
+                'visibility': 'public', 'projects': [],
+                'name': repo.rsplit('/', 1)[-1]}
+    filled = [k for k in defaults if manifest.get(k) in (None, '')]
+    for key in filled:
+        manifest[key] = defaults[key]
+    if filled:
+        notes.append(f"enveloppe complétée (constantes du kind) : {', '.join(filled)}")
+    return manifest
+
+
+def enforce_install_channel(manifest, repo, packaging, sha, notes, published=None):
     """Pose le CANAL d'installation d'après les FAITS du dépôt, jamais d'après le LLM.
 
-    Route `library` (ROADMAP D-a, 2026-09-30) : pip est la norme ; un dépôt sans fichier de
-    paquet (`PACKAGING_FILES`) n'est pas installable par pip et se VENDORISE — dépôt épinglé au
-    commit MESURÉ. Avant ce contrôle, le rôle écrivait `install.pip` pour MuseTalk ou TripoSR,
-    et le manifeste mourait au verrou (`nom==version` introuvable sur PyPI) : la chaîne
+    Route `library` (ROADMAP D-a, 2026-09-30) : pip est la norme ; un dépôt qui n'est pas un
+    paquet PUBLIÉ sur PyPI ne s'installe pas par la route pip (elle exige `nom==version` sur
+    PyPI) et se VENDORISE — dépôt épinglé au commit MESURÉ. Avant ce contrôle, le rôle écrivait
+    `install.pip` pour MuseTalk ou TripoSR, et le manifeste mourait au verrou : la chaîne
     scout → install apportait manifeste et poids, jamais le moteur.
-    `packaging` = les fichiers de paquet trouvés à la racine ; `sha` = tête mesurée (ou None).
+    ⚠ Un fichier de paquet ne SUFFIT pas (corrigé le même soir) : YuE et ACE-Step ont un
+    `pyproject.toml` et ne sont pas publiés (`yue2-infer`, `acestep` : 404).
+    `packaging` = fichiers de paquet trouvés à la racine ; `sha` = tête mesurée (ou None) ;
+    `published` = publication PyPI du nom proposé (True / False / None = non mesurée).
     """
     body = manifest.setdefault('body', {})
     install = body.get('install') if isinstance(body.get('install'), dict) else {}
-    if packaging:
+    if packaging and published is not False:
         if install.pop('vendor', None) is not None:
             notes.append(f"install.vendor RETIRÉ : le dépôt est un paquet ({', '.join(packaging)}) "
                          "— la norme est pip")
+        if published is None:
+            notes.append("publication PyPI NON mesurée : install.pip gardé, à vérifier à la main")
         body['install'] = install
         return manifest
+    if packaging:
+        notes.append(f"paquet ({', '.join(packaging)}) NON publié sur PyPI "
+                     f"({install.get('pip')!r}) — la route pip le refuserait")
     if not sha:
         notes.append("dépôt SANS fichier de paquet mais tête non mesurée : install.vendor à "
                      "compléter à la main (commit exact)")
         return manifest
     engine = vendor_engine_name(repo)
-    if install.get('pip'):
+    if install.get('pip') and not packaging:
         notes.append(f"install.pip {install['pip']!r} RETIRÉ (fait mécanique) : aucun "
                      f"{'/'.join(PACKAGING_FILES)} à la racine — pip ne sait pas l'installer")
     body['install'] = {'vendor': {'repo': repo, 'commit': sha, 'engine': engine}}

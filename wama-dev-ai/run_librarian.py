@@ -17,6 +17,7 @@ Usage (depuis la racine du repo, venv_linux) :
 """
 import argparse
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -32,8 +33,10 @@ django.setup()
 
 # Helpers COMMUNS aux rôles (extraits d'ici le 2026-08-27 à la naissance de scout/integrator).
 from role_utils import (  # noqa: E402
-    PACKAGING_FILES, add_llm_arguments, call_llm, enforce_install_channel, extract_json,
-    fetch as _fetch, github_head_sha, resolve_model)
+    PACKAGING_FILES, add_llm_arguments, call_llm, complete_library_envelope,
+    enforce_install_channel, extract_json,
+    fetch as _fetch, github_head_sha, pypi_published, repo_requirements, requirements_verdict,
+    resolve_model)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'librarian.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'libraries'
@@ -115,15 +118,38 @@ def main():
 
     # ── Contrôles MÉCANIQUES (le LLM propose, la chaîne d'ingest juge) ──────────
     # Le CANAL d'installation se pose d'après les faits du dépôt (paquet ou non, tête mesurée).
-    notes = []
+    notes, deps_verdict = [], None
     if args.repo:
-        sha = None
-        if not packaging:
+        sha, published = None, False
+        if packaging:
+            pip = ((manifest.get('body') or {}).get('install') or {}).get('pip') or ''
+            name = re.split(r'[=<>~!\[; ]', pip, maxsplit=1)[0].strip()
+            pinned = pip.split('==', 1)[1].strip() if '==' in pip else ''
+            published = pypi_published(name, pinned)
+        if not (packaging and published is not False):
             try:
                 sha = github_head_sha(args.repo, branch)
             except Exception as exc:
                 notes.append(f"tête de {args.repo}@{branch} non mesurée : {exc}")
-        manifest = enforce_install_channel(manifest, args.repo, packaging, sha, notes)
+        manifest = enforce_install_channel(manifest, args.repo, packaging, sha, notes,
+                                           published=published)
+        manifest = complete_library_envelope(manifest, args.repo, notes)
+        # Dépendances du code, lues AU COMMIT mesuré, confrontées au venv de référence.
+        files = {}
+        for fname in ('requirements.txt', 'pyproject.toml'):
+            try:
+                files[fname] = _fetch(
+                    f'https://raw.githubusercontent.com/{args.repo}/{sha or branch}/{fname}')
+            except Exception:
+                continue
+        deps_verdict = requirements_verdict(repo_requirements(files))
+        if any(deps_verdict[k] for k in ('conflicts', 'pinned', 'missing')):
+            notes.append(f"dépendances vs venv de référence : {len(deps_verdict['conflicts'])} "
+                         f"conflit(s) de borne, {len(deps_verdict['pinned'])} épingle(s) d'amont, "
+                         f"{len(deps_verdict['missing'])} manquante(s)"
+                         + (' — ' + ', '.join(f"{c['requirement']} (venv {c['installed']})"
+                                              for c in deps_verdict['conflicts'][:4])
+                            if deps_verdict['conflicts'] else ''))
     from wama.common.manifests.ingest import validate
     erreurs = list(validate(manifest) or [])
 
@@ -156,6 +182,7 @@ def main():
         'validation_errors': erreurs,
         'divergences_vs_mecanique': divergences,
         'install_channel_notes': notes,
+        'requirements_verdict': deps_verdict,
         'manifest': manifest,
     }, ensure_ascii=False, indent=2), encoding='utf-8')
 

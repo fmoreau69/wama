@@ -2445,9 +2445,13 @@ tout de suite »*) :
   racine, `install.vendor` au commit MESURÉ par l'API GitHub (`github_head_sha`) ; un paquet
   reste sur pip. Joué sur TripoSR (Albert) : commit `107cefdc244c` mesuré — celui du corpus —,
   manifeste valide du premier coup.
-  ⏳ Restent : YuE/ACE-Step et les avatars lourds comme clients suivants ; les dépendances pip
-  d'un moteur vendorisé restent vérifiées par son backend (`REQUIRED_PACKAGES`), pas par le
-  manifeste.
+  ✅ Les cinq clients pressentis (YuE, ACE-Step 1.5, LongCat-Video, InfiniteTalk, SoulX-FlashHead)
+  passés au rôle : manifestes vendor valides, commit mesuré, et VERDICT DE DÉPENDANCES contre le
+  venv de référence (`role_utils.requirements_verdict`) — tableau dans `PROSPECTION_PIPELINE`
+  §Session du 2026-09-30. YuE seul n'exige aucune décision de venv ; `accelerate` 1.6.0 en
+  bloque trois.
+  ⏳ Restent (décisions) : entrer ces manifestes au corpus (validation humaine), la montée
+  d'`accelerate`, puis un backend par moteur — sans lequel un moteur installé reste inerte.
 - **D-b — un artefact intermédiaire ÉDITABLE dans une app de génération.** Propre à YuE2, et
   INDÉPENDANTE de D-a. Aucune app ne l'a : partout c'est consigne → sortie, en un coup. La forme
   existe pourtant ailleurs (transcriber : un master puis une correction humaine qui fait autorité).

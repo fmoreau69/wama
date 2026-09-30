@@ -442,4 +442,90 @@ else:
     )
 print()
 
+print("=== 9. diffusers: table module -> distribution construite A LA DEMANDE ===")
+# Mesure du 2026-09-30 (lenteur de MuseTalk : 3 s de video en 505 s) : `import
+# diffusers.utils.import_utils` coute 82 s de temps PROPRE a chaque processus qui importe
+# diffusers (gunicorn, celery, sous-processus MuseTalk…). Cause : `packages_distributions()`
+# appele A L'IMPORT — 68,5 s sur ce venv, parce qu'il lit le RECORD (`dist.files`) des 182
+# distributions sans `top_level.txt`, a travers /mnt/d. La table ne sert qu'a `get_dist_name`
+# (3 appels : optimum, aiter, modelopt). Patch : table construite a la demande, depuis les seuls
+# `top_level.txt` (0,9 s), les RECORD n'etant lus que si le module y reste introuvable. Meme
+# resultat (optimum -> optimum-quanto), sans le cout.
+diffusers_import_utils = site / "diffusers/utils/import_utils.py"
+if not diffusers_import_utils.exists():
+    print(f"  [SKIP] {diffusers_import_utils} not found")
+else:
+    apply_patch(
+        diffusers_import_utils,
+        search="    _package_map = importlib_metadata.packages_distributions()  # load-once to avoid expensive calls\n",
+        replace="    _package_map = None  # PATCH WAMA 9 : construite a la demande (_wama_package_map)\n",
+        description="9a. diffusers import_utils.py: plus de packages_distributions() a l'import",
+    )
+    apply_patch(
+        diffusers_import_utils,
+        search="def _is_package_available(pkg_name: str, get_dist_name: bool = False) -> tuple[bool, str]:\n",
+        replace=(
+            "_wama_undeclared = None\n"
+            "\n"
+            "\n"
+            "def _wama_package_map(pkg_name, package_map):\n"
+            "    \"\"\"PATCH WAMA 9 : table module -> distributions, en deux temps — top_level.txt\n"
+            "    d'abord (quelques Ko par distribution), RECORD seulement pour un module introuvable.\"\"\"\n"
+            "    global _wama_undeclared\n"
+            "    if package_map is None:\n"
+            "        package_map, _wama_undeclared = defaultdict(list), []\n"
+            "        try:\n"
+            "            for dist in importlib_metadata.distributions():\n"
+            "                declared = (dist.read_text(\"top_level.txt\") or \"\").split()\n"
+            "                if not declared:\n"
+            "                    _wama_undeclared.append(dist)\n"
+            "                for pkg in declared:\n"
+            "                    package_map[pkg].append(dist.metadata[\"Name\"])\n"
+            "        except Exception:\n"
+            "            pass\n"
+            "    if pkg_name not in package_map and _wama_undeclared:\n"
+            "        try:\n"
+            "            for dist in _wama_undeclared:\n"
+            "                names = {f.parts[0] if len(f.parts) > 1 else inspect.getmodulename(f)\n"
+            "                         for f in (dist.files or [])} - {None}\n"
+            "                for pkg in filter(lambda name: \".\" not in name, names):\n"
+            "                    package_map[pkg].append(dist.metadata[\"Name\"])\n"
+            "        except Exception:\n"
+            "            pass\n"
+            "        _wama_undeclared = []\n"
+            "    return package_map\n"
+            "\n"
+            "\n"
+            "def _is_package_available(pkg_name: str, get_dist_name: bool = False) -> tuple[bool, str]:\n"
+        ),
+        description="9b. diffusers import_utils.py: helper _wama_package_map (top_level.txt d'abord)",
+    )
+    apply_patch(
+        diffusers_import_utils,
+        search=(
+            "        if _package_map is None:\n"
+            "            _package_map = defaultdict(list)\n"
+            "            try:\n"
+            "                # Fallback for Python < 3.10\n"
+            "                for dist in importlib_metadata.distributions():\n"
+            "                    _top_level_declared = (dist.read_text(\"top_level.txt\") or \"\").split()\n"
+            "                    # Infer top-level package names from file structure\n"
+            "                    _inferred_opt_names = {\n"
+            "                        f.parts[0] if len(f.parts) > 1 else inspect.getmodulename(f) for f in (dist.files or [])\n"
+            "                    } - {None}\n"
+            "                    _top_level_inferred = filter(lambda name: \".\" not in name, _inferred_opt_names)\n"
+            "                    for pkg in _top_level_declared or _top_level_inferred:\n"
+            "                        _package_map[pkg].append(dist.metadata[\"Name\"])\n"
+            "            except Exception as _:\n"
+            "                pass\n"
+        ),
+        replace=(
+            "        # PATCH WAMA 9 : la table ne sert qu'a `get_dist_name` — construite a la demande.\n"
+            "        if get_dist_name and (_package_map is None or pkg_name not in _package_map):\n"
+            "            _package_map = _wama_package_map(pkg_name, _package_map)\n"
+        ),
+        description="9c. diffusers import_utils.py: table construite seulement pour get_dist_name",
+    )
+print()
+
 print("Done.")
