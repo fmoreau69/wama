@@ -1626,6 +1626,11 @@ l'ordre, sur les ports que `input_slots` rend pour chaque app :
   passe sous la zone, masquée par le style comme en v3, et seulement avec un port de référence
   (les apps à port de travail seul portent la leur au volet ; tag `ports_have_group`). Garde
   `tests_catalogues.MatchStatusLineOfTheV4CardTest`.
+- ⏳ **Décidé le 2026-09-30, à faire APRÈS le portage v4 (session dédiée)** : un onglet
+  « Contexte (pour cette tâche) » — port dérivé des modèles qui lisent un contexte long, fichier
+  jetable lu au lancement par la brique existante `comprehend_files`, geste « + Ajouter à mon
+  RAG » par fichier ; 1er adopteur le describer, puis l'assistant. Domicile : `WAMA_LLM.md`
+  (« CONTEXTE JETABLE ») ; geste RAG : `WAMA_MEMORY §9quater`.
 - ⏳ **Reste avant l'imager et l'enhancer** : `input_slots(app)` ignore le DOMAINE
   (`app_input_ports` l'accepte) — leurs deux cards (image/vidéo, média/audio) recevraient les
   mêmes ports ; l'imager lit en plus son image par les ids de RÉFÉRENCE (`imgRefInput`,

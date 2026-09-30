@@ -1194,6 +1194,44 @@ via assistant = **arbitrage Fabien** (l'entrée au RAG est un GESTE) ; URL de do
 **Couplage assumé, dans le bon sens** : l'étape 1 consomme les ports TELS QUELS ; le correctif
 de l'homonyme côté codegen l'améliorera sans la casser — composer à plat aurait fait l'inverse.
 
+### ⏳ CONTEXTE « JETABLE » — le 1er adopteur de `reference_field` est CHOISI (décision de Fabien, 2026-09-30)
+
+> Proposition de Fabien : *« ajouter un port RAG contextuel directement dans la card d'entrée […]
+> un fichier de RAG "jetable" pour sa card, sans forcément devoir gérer le RAG persistant. Ça
+> permettrait de gérer dans le même temps le RAG "jetable" de l'assistant, comme dans Claude ou
+> ChatGPT […] sans polluer le RAG du projet. Il ne faut que cette entrée n'apparaisse que pour les
+> modèles qui gèrent le RAG. Sans lui, l'utilisateur doit organiser son RAG avant chaque tâche. »*
+> Validée le même jour sur les points ci-dessous. **À implémenter APRÈS la fin du portage de la
+> card v4** (imager, enhancer, transcriber), dans une session dédiée.
+
+**Rien de neuf à inventer : la brique existe, il manquait son câblage.** `process_prompt`
+(`reference_files=`) fait comprendre les fichiers (`reference_comprehension.comprehend_files` :
+image → vision, document → lecteurs de lot, budgets bornés) et les replie dans le prompt en
+`[Reference context]`, POUR CET APPEL — rien n'est écrit dans le RAG. Une app l'active en déclarant
+`reference_field` dans `PROMPT_TARGETS` ; « choisir le 1er adopteur » était en attente (ci-dessus,
+étape 4, et `§Vérification`). Il est choisi :
+
+1. **Un port « Contexte (pour cette tâche) » dérivé des MODÈLES**, comme tout port de la card v4
+   (`app_input_ports`) : un jeton de plus dans `INPUT_TYPES`, déclaré en `inputs_optional` par les
+   seuls modèles qui lisent un contexte long (LLM/VLM — le describer, l'assistant, les ASR qui
+   acceptent un contexte, ex. Qwen3-ASR). L'auto-ajustement fait le reste : pas de modèle
+   compatible → pas d'onglet ; un contexte joint GRISE les modèles qui ne le liraient pas
+   (`WamaInputMatch`), la surcharge au volet prime. Jamais un littéral par app.
+2. **Jetable par construction** : le fichier est joint ou DÉSIGNÉ à la card (pointé, jamais
+   recopié), lu au lancement par `comprehend_files`, et suit la card. Aucun `RagChunk`.
+   **L'assistant** : même brique, durée de vie = la CONVERSATION (`conversation_store`), via son
+   dépôt en mode « sas » (card v4, décision du 2026-09-28).
+3. **Vers le RAG persistant : un GESTE, jamais automatique** (décision du 2026-08-21) — sur chaque
+   fichier de contexte, « + Ajouter à mon RAG », même endpoint que l'inspecteur et le menu « … »
+   (`/common/api/rag/ajouter/`), niveau par défaut du profil. 4ᵉ surface du geste
+   (`WAMA_MEMORY §9quater`).
+4. **1er adopteur : le DESCRIBER** (VLM/LLM : un document de domaine guide la description) ;
+   **2ᵉ : l'ASSISTANT** (même brique, portée conversation).
+
+**Limite connue, v2 de la même brique** : `comprehend_files` travaille sous budget. Pour un gros
+document, découper et retrouver les passages utiles EN MÉMOIRE pour la durée de l'appel (comme
+Claude/ChatGPT), toujours sans écrire dans le RAG.
+
 **Alignement auto-amélioration (question Fabien, 2026-08-29)** — l'intake nourrit la boucle
 `RunOutcome` PAR CONSTRUCTION, parce que « le rôle est un routage » : un fichier routé entre
 dans les files NORMALES des apps, donc ses issues sont déjà captées sans une ligne de plus
