@@ -19017,3 +19017,32 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
   voix » (à décider). Remarque : la tâche du Studio pour un document au synthesizer (l'outil ne lit
   que du texte). 🔴 Relancer WAMA (gunicorn HUP) — après les évaluations GPU en cours d'une autre
   instance (lot #489).
+
+## §CLÔTURE — 2026-09-30, « AVATARIZER : avatar 3D rapide + tirage commun + route VENDOR » — ✅ `a6b60a11` `892d6e8c` `79d14379` `7313c3c1` `07580648` `371db621` `10dc577f` `35b7d96f` (NON POUSSÉS) — 🔚 relancer WAMA, puis supprimer la ligne `avatarizer:musetalk-v1.0` recréée
+
+- ✅ **Moteur `talkinghead`** (l'avatar de l'assistant) : rendu GPU dans Chromium sans tête
+  (`common/backends/talkinghead_backend.py`, ~0,2 Go de VRAM mesurés, 10,7 s de vidéo en 15-21 s),
+  audio → Transcriber (mots horodatés) → visèmes quand le texte manque. Veille avatars :
+  `PROSPECTION_AVATARS_2026-09-30.md`, `PROSPECTION_PIPELINE §Session du 2026-09-30`.
+- ✅ **Objets 3D en entrée** : jeton universel `work_object3d` (pas de port « avatar » propre à une
+  app), visage ARKit/visèmes MESURÉS dans le GLB (`media_probe`), exigence « photo OU objet 3D »
+  (`one_of`, card v4) ; source médiathèque « Avatars 3D » (`providers/avatars3d.py`). Détail :
+  `INPUT_MODEL_MATCHING §6.8`.
+- ✅ **Tirage commun** du modèle d'animation (`resolve_model_choice`, par les entrées fournies) ;
+  `select_model_id` rend le repli quand aucun candidat ne passe ; `musetalk-v1.0` RETIRÉ (R85).
+- ✅ **Route `library`, voie VENDOR** (ROADMAP D-a, décision du jour) : `install.vendor`
+  {repo, commit, engine, patch?, ignore?}, `vendor_installer.py`, MuseTalk/CodeFormer/TripoSR au
+  corpus ; MuseTalk et CodeFormer mesurés CONFORMES, TripoSR cloné + corrigé par la route dans un
+  dossier jetable. `BaseModelBackend.VENDORED` uniformise le « clone absent ». Scripts de setup
+  réduits à la route.
+- 🔴 **Ligne `avatarizer:musetalk-v1.0` RECRÉÉE à 15:12** par la découverte de gunicorn/celery
+  (lancés à 14:25 avec l'ancien code ; retrait commité à 15:21). Après relance : la supprimer
+  (clé seule), puis `manifest_export --check` — elle rend aussi `avatarizer` « périmé ».
+- ⚠ Rouges NON à moi, relevés en passant : budgets de langue des NOMS DE TESTS (1312/1310 —
+  `ef1abe08`, `966cba17` ; 133/132 — `TheSchemaDeclaresTheCatalogueTest`, transcriber) ;
+  `tests_backend_adoption` (`wama/transcriber/apps.py:146`, `PyannoteDiarizerBackend`) ; 2 réfs
+  cassées + 1 périmée de `check_docs` (PROJECT_STATUS 17217/17277, ROUTE:224). `35b7d96f` ne porte
+  que la dérive d'autres commits (la carte n'affiche pas les annexes).
+- ⏳ Restent : `librarian --repo` doit proposer `install.vendor` ; YuE/ACE-Step et avatars lourds
+  comme clients suivants ; MuseTalk v1.5 lent (3 s de vidéo en 505 s, non instruit) ; libellé
+  technique de la tuile objet 3D ; onglet Lot à 3 ports qui passe à la ligne.
