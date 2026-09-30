@@ -26,6 +26,7 @@ PARAMS = derive_from_model(
         "vad_mode",
         "language_mode",
         "enable_diarization",
+        "diarization_model",
         "generate_summary",
         "summary_type",
         "verify_coherence",
@@ -84,6 +85,11 @@ PARAMS = derive_from_model(
             chip=True, chip_label="Diarisation",label="Identifier les locuteurs", icon="fa-users",
             dom_id={"panel": "diarizationToggle", "item": "settingsDiarization"},
             help="Séparation des locuteurs (pyannote)"),
+        "diarization_model": dict(
+            type="select", label="Modèle de diarisation", icon="fa-users-gear",
+            show_if="enable_diarization",
+            help="community-1 succède à 3.1 (mêmes auteurs). En cours d'évaluation sur des "
+                 "réunions annotées : le meilleur des deux n'est pas encore établi."),
         "generate_summary": dict(
             chip=True, chip_label="Résumé",label="Générer un résumé", icon="fa-file-lines",
             dom_id={"panel": "globalGenerateSummary", "item": "settingsGenerateSummary"}),

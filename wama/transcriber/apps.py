@@ -168,9 +168,10 @@ class TranscriberConfig(AppConfig):
             input_identity=lambda item: item.audio.name or None,
             # Les réglages qui changent les MOTS transcrits : deux cards Whisper, avec et sans
             # prétraitement, sont deux configurations à comparer (lots #442/#443, 2026-09-25).
-            # La diarisation, le résumé, la cohérence ne touchent pas le texte mesuré.
+            # Le résumé, la cohérence ne touchent pas le texte mesuré ; le PIPELINE de diarisation
+            # change le cpWER et le DER (2026-09-30) : deux pipelines = deux configurations.
             config_params=('preprocess_audio', 'level_speech', 'vad_mode', 'language_mode',
-                           'hotwords'),
+                           'hotwords', 'diarization_model'),
             disagreement=_disagreement,
             # Langue ENTENDUE par le moteur (posée par le worker) : `text_v2` y écrit les nombres
             # en chiffres des deux côtés (« vingt_quatre » d'un corpus contre « 24 »).
