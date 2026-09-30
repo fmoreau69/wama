@@ -108,6 +108,33 @@ def is_auto(value) -> bool:
     return not value or str(value).strip().lower() == AUTO
 
 
+def candidates_with(capability: str, value, **filters) -> list:
+    """Clés catalogue des modèles du domaine `filters` (champs d'`AIModel` ou `capabilities__…`)
+    dont la capacité `capability` vaut `value` — [] si la valeur est vide ou le catalogue muet.
+
+    C'est le BESOIN qui filtre avant le classement : ×2 et ×4 ne sont pas deux qualités, ce
+    sont deux résultats (`scale`). Remonté de l'enhancer (`media_candidates`, 2026-09-21) au
+    2ᵉ consommateur — le post-traitement de sortie commun (`output_formats`, 2026-09-30).
+    Les nombres se comparent en nombres (`2` == `2.0` == `'2'`), le reste en texte."""
+    if value in (None, ''):
+        return []
+
+    def _same(a, b):
+        try:
+            return float(a) == float(b)
+        except (TypeError, ValueError):
+            return str(a) == str(b)
+
+    try:
+        from wama.model_manager.models import AIModel
+        rows = AIModel.objects.filter(**filters).only('model_key', 'capabilities')
+        return [m.model_key for m in rows
+                if _same((m.capabilities or {}).get(capability), value)]
+    except Exception as exc:                          # catalogue absent : on ne filtre pas
+        logger.debug('[auto_model] candidats %s=%s indisponibles : %s', capability, value, exc)
+        return []
+
+
 def catalog_domain(app_id: str):
     """DOMAINE déclaré au schéma de l'app pour son select de modèle, ou None.
 

@@ -113,7 +113,9 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   un trou) : `output_types`(APP_CATALOG) → `_domain_from_output_types` → `get_output_formats()` réutilise
   `CONVERTER_OUTPUT_FORMATS` → `output_format_params_for_app()` injecte les Param format/qualité **seulement
   si `export_binding='early'`** (`output_formats.py:90`), sinon choix au téléchargement (late). **Converter =
-  source unique** des formats.
+  source unique** des formats. Depuis le 2026-09-30 la brique porte aussi l'APPLICATION des réglages
+  de sortie (`apply_output_settings` : agrandissement tiré du catalogue, puis format) — cf.
+  `WAMA_APP_CONVENTIONS §6.4`.
 - **⚠ SURCHARGE `output_types` (à corriger proprement, 2026-07-22)** : 5 apps y mettent des FORMATS au lieu
   de catégories — composer `(wav,mp3)`, describer `(txt)`, reader `(txt,markdown)`, synthesizer `(mp3,wav)`,
   transcriber `(txt,srt,vtt,json)`. `normalize_types()` (def `:80`, appels `:139-140`, `:166`) est la BÉQUILLE qui rattrape. **MODÈLE

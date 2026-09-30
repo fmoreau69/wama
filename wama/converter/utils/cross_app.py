@@ -22,8 +22,10 @@ import tempfile
 
 logger = logging.getLogger(__name__)
 
-# Facteur d'upscale → modèle ONNX enhancer (clés de model_config.ENHANCER_MODELS).
-_UPSCALE_MODELS = {'x2': 'BSRGANx2', 'x4': 'RealESRGANx4'}
+# L'upscaler n'est plus nommé ici (2026-09-30) : il est TIRÉ du catalogue par la brique commune
+# `output_formats.upscale_output_image` (tâche `upscale`, capacité `scale` = facteur, curseur
+# qualité du job) — la même que l'imager. La table `{'x2': 'BSRGANx2', 'x4': 'RealESRGANx4'}`
+# qui vivait ici figeait deux modèles ; un upscaler installé depuis le model manager y entre.
 _DENOISE_MODEL = 'IRCNN_Mx1'   # débruitage pur ×1 (quand denoise coché SANS upscale)
 
 
@@ -42,25 +44,33 @@ def apply_cross_app_options(job, output_path: str, console, progress) -> None:
         return
 
     if job.media_type == 'image':
-        _enhance_image(xa, output_path, console, progress)
+        _enhance_image(xa, output_path, console, progress, job=job)
     elif job.media_type == 'audio':
         _enhance_audio_file(job, xa, output_path, console, progress)
     elif job.media_type == 'video':
         _enhance_video_audio(xa, output_path, console, progress)
 
 
-def _enhance_image(xa, output_path, console, progress):
-    """Upscale et/ou débruitage Real-ESRGAN/IRCNN (enhancer inline, ONNX)."""
+def _enhance_image(xa, output_path, console, progress, job=None):
+    """Upscale et/ou débruitage IA (ONNX) : l'agrandissement par la brique COMMUNE de sortie
+    (upscaler tiré du catalogue), le débruitage seul par l'IRCNN."""
     from wama.common.backends.ai_upscaler import upscale_image_file
+    from wama.common.utils.output_formats import upscale_factor, upscale_output_image
 
     factor = xa.get('upscale') or ''
-    model = _UPSCALE_MODELS.get(factor) or (_DENOISE_MODEL if xa.get('denoise') else None)
-    if model is None:
+    if upscale_factor(factor) > 1:
+        console(f"Post-traitement IA : upscaling {factor}"
+                f"{' + débruitage' if xa.get('denoise') else ''}…")
+        w, h = upscale_output_image(
+            output_path, factor, item=job, app_id='converter', denoise=bool(xa.get('denoise')),
+            progress_callback=lambda p: progress(90 + int(p * 0.08)))
+        console(f"Post-traitement IA terminé : {w}×{h}")
         return
-    # denoise=True sur upscale_image_file = passe IRCNN AVANT l'upscale ; inutile si le
-    # modèle choisi EST déjà le débruiteur.
-    denoise = bool(xa.get('denoise')) and model != _DENOISE_MODEL
-    console(f"Post-traitement IA : {'upscaling ' + factor if factor else 'débruitage'} ({model})…")
+    if not xa.get('denoise'):
+        return
+    model = _DENOISE_MODEL
+    denoise = False                # le modèle choisi EST le débruiteur
+    console(f"Post-traitement IA : débruitage ({model})…")
 
     suffix = os.path.splitext(output_path)[1] or '.png'
     fd, tmp = tempfile.mkstemp(prefix='wama_xa_', suffix=suffix)

@@ -207,9 +207,9 @@
                 const seedInput = document.getElementById('seed');
                 if (seedInput) seedInput.value = '';
 
-                // Reset upscale
-                const upscaleCheck = document.getElementById('upscale');
-                if (upscaleCheck) upscaleCheck.checked = false;
+                // Reset de l'agrandissement de sortie (select commun `output_upscale`)
+                const upscaleSelect = document.getElementById('output_upscale');
+                if (upscaleSelect) upscaleSelect.value = '';
             });
         }
 

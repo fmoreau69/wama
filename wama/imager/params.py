@@ -53,7 +53,7 @@ IMAGE_PARAMS = derive_from_model(
     include=[
         "model", "quality_intent", "negative_prompt", "num_images",
         "steps", "guidance_scale", "seed",
-        "image_strength", "upscale",
+        "image_strength",
     ],
     overrides={
         "model": dict(
@@ -131,12 +131,6 @@ IMAGE_PARAMS = derive_from_model(
             group="qualite",
             advanced=True,
             help="Influence de l'image de référence (img2img / style). 0=ignorer, 1=copier.",
-        ),
-        "upscale": dict(
-            type="toggle", label="Upscaler la sortie", icon="fa-expand",
-            dom_id={"item": "settings_upscale", "panel": "upscale"}, advanced=True,
-            group="sortie",
-            help="Agrandit l'image générée (×2).",
         ),
     },
 )
@@ -251,10 +245,15 @@ VIDEO_PARAMS = derive_from_model(
 # les traite pas ») est PÉRIMÉE — la sauvegarde est générique par schéma depuis
 # `coerce_schema_values` (views.py:1530), un champ du schéma présent au POST est appliqué.
 # Ids d'item DISTINCTS par domaine (les deux modales coexistent dans la page).
+# `include_upscale` (2026-09-30) : l'agrandissement est un réglage de SORTIE commun, appliqué
+# par `apply_output_settings` après n'importe quel backend (il était un toggle propre à
+# l'imager, que seul le backend diffusers générique appliquait).
 IMAGE_PARAMS = IMAGE_PARAMS + output_format_params_for_app(
     "imager", contexts=("panel", "item"), group="sortie", domain="image",
     dom_id_format={"panel": "output_format", "item": "settings_output_format"},
     dom_id_quality={"panel": "output_quality", "item": "settings_output_quality"},
+    include_upscale=True,
+    dom_id_upscale={"panel": "output_upscale", "item": "settings_output_upscale"},
 )
 VIDEO_PARAMS = VIDEO_PARAMS + output_format_params_for_app(
     "imager", contexts=("panel", "item"), group="sortie", domain="video",

@@ -43,14 +43,9 @@ def media_candidates(factor) -> list:
         return []
     if factor <= 0:
         return []
-    try:
-        from wama.model_manager.models import AIModel
-        rows = AIModel.objects.filter(source='enhancer', model_type='upscaling')
-        return [m.model_key for m in rows
-                if int((m.capabilities or {}).get('scale') or 0) == factor]
-    except Exception as exc:                          # catalogue absent : on ne filtre pas
-        logger.debug('[enhancer] candidats par facteur indisponibles : %s', exc)
-        return []
+    # Filtre COMMUN (2026-09-30) : le même que le post-traitement de sortie des autres apps.
+    from wama.common.utils.auto_model import candidates_with
+    return candidates_with('scale', factor, **MEDIA_SPEC)
 
 
 def resolve_media_model(enhancement) -> str:
