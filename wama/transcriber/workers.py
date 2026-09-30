@@ -501,21 +501,28 @@ def _transcribe_item(t, ctx):
         if not BACKENDS_AVAILABLE:
             raise RuntimeError("Backend system not available")
 
-        backend_name = t.backend if t.backend and t.backend != 'auto' else None
+        # Le MODÈLE, en clé de catalogue (route F4b ⑦) : celui de la card, ou le tirage « auto »
+        # de la brique commune, fait ICI pour lire le CURSEUR de cette card (et les distants que
+        # le profil ouvre à l'automatique). Le choix est dit dans la console.
+        from wama.transcriber.backends.manager import (
+            TranscriberBackendManager, catalogue_value, is_auto_value, resolve_auto_key)
+        backend_name = catalogue_value(t.backend)
+        if is_auto_value(backend_name):
+            backend_name = resolve_auto_key(item=t)
+            _console(t.user_id, f"Modèle automatique retenu : {backend_name}")
         # L'utilisateur voyage : un modèle DISTANT s'appelle avec SES droits et SA clé.
         backend = get_backend(backend_name, user=t.user)
         # Le MODÈLE demandé, quand la demande en nomme un que ce moteur sert (`transcriber:
         # qwen3-asr-0.6b`) — sans lui, un moteur à plusieurs modèles chargeait son défaut.
-        from wama.transcriber.backends.manager import TranscriberBackendManager
         requested_model = TranscriberBackendManager.model_for_request(backend, backend_name)
 
-        # Repli transparent : l'utilisateur a demandé un moteur précis mais il est
-        # indisponible (ex. VibeVoice KO) → on le signale clairement au lieu d'un
-        # changement silencieux. used_backend (enregistré plus bas) reflète le réel.
+        # Repli transparent : le modèle demandé n'a pas de moteur disponible (ex. VibeVoice KO)
+        # → on le signale clairement au lieu d'un changement silencieux. `model_key`
+        # (enregistré plus bas) reflète le réel.
         if backend_name and not TranscriberBackendManager.honours(backend, backend_name):
             _console(
                 t.user_id,
-                f"⚠ Moteur « {backend_name} » indisponible — repli sur {backend.display_name}.",
+                f"⚠ Modèle « {backend_name} » indisponible — repli sur {backend.display_name}.",
                 level='warning',
             )
             _set_status_message(t, f"« {backend_name} » indisponible → {backend.display_name}")
@@ -1169,9 +1176,13 @@ def live_write_task(self, transcript_id: int):
     state = {'backend': None}
 
     def start():
-        name = t.backend if t.backend and t.backend != 'auto' else None
-        backend = get_backend(name)
-        if not backend.load():
+        from .backends.manager import TranscriberBackendManager, catalogue_value
+        name = catalogue_value(t.backend) or None
+        # Le modèle de la card (clé de catalogue) — et son utilisateur, pour un modèle distant ;
+        # la variante demandée est chargée, pas le défaut du moteur.
+        backend = get_backend(name, user=t.user)
+        wanted = TranscriberBackendManager.model_for_request(backend, name)
+        if not (backend.load(wanted) if wanted else backend.load()):
             raise RuntimeError(f"{backend.display_name} indisponible")
         state['backend'] = backend
         _console(t.user_id, f"Écriture au fil de la lecture : {backend.display_name} chargé "

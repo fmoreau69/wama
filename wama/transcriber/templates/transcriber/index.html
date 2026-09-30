@@ -46,7 +46,6 @@ par fillDetail.{% endcomment %}
 
 <!-- ░ Volet de réglages GÉNÉRÉ depuis le schéma (params.py → WamaParams). Apparence en wama-params.css. ░ -->
 <div id="panelSettings" class="wama-params"></div>
-<small id="backendHelp" class="text-muted d-block mt-1"></small>
 
 {# Backup « ancien volet codé en dur » PURGÉ (2026-07-05, audit A4-14) — le volet est schéma-driven. #}
 
@@ -89,7 +88,6 @@ par fillDetail.{% endcomment %}
       startAllUrl: '{% url "transcriber:start_all" %}',
       clearUrl: '{% url "transcriber:clear_all" %}',
       preprocessingUrl: '{% url "transcriber:set_preprocessing" %}',
-      backendsUrl: '{% url "transcriber:backends" %}',
       userSettingsUrl: '{% url "transcriber:get_user_settings" %}',
       saveUserSettingsUrl: '{% url "transcriber:save_user_settings" %}',
       preprocessingEnabled: {{ preprocessing_enabled|yesno:"true,false" }},
@@ -138,12 +136,11 @@ par fillDetail.{% endcomment %}
     var batchHost = document.getElementById('transcriberBatchParams');
     if (batchHost) WamaParams.render(batchHost, schema, { context: 'batch', values: {} });
 
+    {% comment %}Select « Modèle de transcription » : options du CATALOGUE (route F4b ⑦, 2026-09-30)
+    par la source `catalog` de WamaParams — valeur restaurée, « auto » + prévision, descriptif sous
+    le select (help_source). L'ancien remplissage (`loadBackendsAsync`, `#backendHelp`, pont
+    data-selected) est retiré avec l'endpoint `/transcriber/backends/`.{% endcomment %}
     var bs = document.getElementById('backendSelect');
-    // Descriptif moteur : repositionner #backendHelp DANS le champ moteur (juste sous le select).
-    var bh = document.getElementById('backendHelp');
-    if (bs && bh) { var row = bs.closest('.wama-param'); if (row) row.appendChild(bh); }
-    // Pont backend : loadBackendsAsync relit data-selected pour re-sélectionner après l'async.
-    if (bs && values.backend) bs.dataset.selected = values.backend;
 
     // Appariement entrée↔modèles (brique commune wama-input-match) : meta du CATALOGUE re-clée
     // par backend (vue). Fichiers consommés au dépôt (file) → direction vivante = MODÈLE→ENTRÉES
@@ -164,27 +161,10 @@ par fillDetail.{% endcomment %}
         });
     }
 
-    // UI DEPUIS les capacités-modèle (brique commune wama-model-caps) : le toggle
-    // diarisation se DÉSACTIVE (avec raison, jamais caché) quand le moteur choisi ne
-    // diarise pas — supports_diarization du CATALOGUE (whisper seul). 'auto' → caps
-    // inconnues → contrôle réactivé (dégradation douce).
-    if (bs && window.WamaModelCaps) {
-        WamaModelCaps.init({
-            source: 'transcriber',
-            modelSelectId: 'backendSelect',
-            resolveKey: function (v) {
-                var m = { whisper: 'transcriber:whisper',
-                          vibevoice: 'transcriber:vibevoice-asr',
-                          qwen_asr: 'transcriber:qwen3-asr-0.6b' };
-                return m[v] || ('transcriber:' + v);
-            },
-            controls: [
-                { id: 'diarizationToggle',
-                  disableWhen: function (caps) { return caps.supports_diarization !== true; },
-                  reason: 'Diarisation non gérée par ce moteur (pyannote via Whisper seulement)' },
-            ],
-        });
-    }
+    {% comment %}Le grisage de l'interrupteur de diarisation par `WamaModelCaps` est RETIRÉ
+    (2026-09-30) : il le désactivait quand le modèle ne déclare pas `supports_diarization` — donc
+    pour Whisper lui-même (le catalogue dit False), avec un motif contradictoire. Tout moteur qui
+    ne diarise pas passe désormais par pyannote (worker, Step 4b, lu sur la CAPACITÉ).{% endcomment %}
 })();
 </script>
 <script src="{% static_v 'transcriber/js/index.js' %}"></script>

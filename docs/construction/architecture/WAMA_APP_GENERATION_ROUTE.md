@@ -381,7 +381,7 @@ manifeste + filtre par capacité + source `catalog`) ; ② **synthesizer** (pilo
 migration* : preuve par l'absurde que la liste ne doit pas y vivre) ; ③ **avatarizer** (valide le
 multi-surface) ; ④ composer + reader (déjà rendus par WamaParams : seule la source change) ;
 ⑤ enhancer (7 modèles déclarés **4 fois**) ; ⑥ imager (aligner l'image sur la vidéo, replier les
-8 `SUPPORTED_MODELS` sur `composition.runtime`) — ✅ **livrée le 2026-09-29**, cf. ci-dessous ; ⑦ transcriber (pont backend↔catalogue) ;
+8 `SUPPORTED_MODELS` sur `composition.runtime`) — ✅ **livrée le 2026-09-29**, cf. ci-dessous ; ⑦ transcriber (pont backend↔catalogue) — ✅ **livrée le 2026-09-30**, cf. ci-dessous ;
 ⑧ anonymizer (scan disque conservé en repli jusqu'à preuve) ; ⑨ surfaces transverses (assistant,
 studio, Lab — `cam_analyzer` n'a **aucun** usage du catalogue : chantier à part).
 
@@ -541,6 +541,43 @@ ne dit rien des suivants.*
 Restent, assumés : le `BackendManager` propre à l'imager (distinct du `BackendManager` commun) ;
 pas de prévision « auto » sous les deux selects — une liste multi-tâches se tait plutôt que
 d'annoncer un modèle que le lancement ne retiendrait pas (règle du 27/09).
+
+##### ✅ Étape ⑦ LIVRÉE le 2026-09-30 — le transcriber, au grain MODÈLE (décision de Fabien)
+
+**Mesure d'entrée** : 271 cards — 83 `whisper`, 1 `qwen_asr`, 1 `vibevoice` (noms de MOTEUR), 33
+`auto`, 153 déjà en clés (posées par l'assistant et `asr_eval_corpus`). Le domaine
+`task=transcription` rend 11 modèles, sources confondues (dont FrWhisper/LinTO grisés, ④).
+
+- **Schéma** : `options_source="catalog"`, `options_query={task: transcription}`, `options_auto`,
+  `options_cloud` (Albert au menu pour qui a une clé), `help_source` ; plus de `choices` statiques ;
+  `options_domain` GARDÉ — la porte des outils valide et annonce (`backend_choice_values` : lançables
+  du domaine + distants + anciens noms tolérés).
+- **Valeurs = clés** : `Transcript.save()` normalise (`catalogue_value`), migration `0027`
+  (champ 32 → 128 : `huggingface:linagora/linto_stt_fr_fastconformer_pc` = 51 ; transformation
+  PURE, correspondance recopiée). Un ancien nom de moteur devient le modèle que ce moteur chargeait
+  par DÉFAUT — `LEGACY_ENGINE_MODELS` : whisper → large-v3, `qwen_asr` → 1.7B (le JS disait 0.6B :
+  faux), `nemo` → Parakeet v3, vibevoice → vibevoice-asr. Les préférences du volet se lisent dans
+  le même espace.
+- **Lancement** : le moteur se RÉSOUT par le catalogue (`backend_for_key` → nom enregistré) ; la
+  table par SOUS-CHAÎNE (`'qwen' in mk` → qwen_asr…) est retirée — elle n'existait que parce que
+  les options n'étaient pas des clés. Un modèle que rien ne sert est REFUSÉ, jamais remplacé.
+  « auto » : `resolve_auto_key(item=…)` — brique commune, curseur de la card, distants du profil,
+  Whisper d'abord, et les entrées que la card FOURNIT (`work_audio`) : `describer:whisper`, qui
+  exige `work_file` et s'annonce à 0,3 Go, n'emporte plus le palier Whisper (mesuré).
+- **Retirés** : l'endpoint `/transcriber/backends/` et `get_backends_info`, `loadBackendsAsync`,
+  les deux recopies d'options vers les modales, `#backendHelp` et son pont `data-selected`, et le
+  grisage de la diarisation par `WamaModelCaps` — il la désactivait pour WHISPER (le catalogue dit
+  `supports_diarization: False`), avec un motif contradictoire ; tout moteur qui ne diarise pas
+  passe par pyannote depuis `52e011ed`.
+- **Card** : le chip montre le modèle QUI A TOURNÉ (`model_key`, libellé du catalogue), signale un
+  modèle demandé qui n'a pas tourné ; l'ETA apprend toujours sous le nom du moteur (`engine_name_for`).
+- **Gardes** : `transcriber/tests_model_select` (13) + fixtures de catalogue partagées
+  (`transcriber/catalogue_fixtures`, les lignes déclarent leur moteur comme en production).
+
+⚠ Deux données du catalogue restent à corriger À LEUR SOURCE, hors de ce portage : Kyutai STT n'a
+aucune capacité (installé sans manifeste — la chaîne d'intégration de l'autre instance) ;
+`describer:whisper` s'annonce « whisper-base » alors que le describer passe par large-v3
+(divergence consignée dans sa déclaration depuis le 06/09) — un doublon mal nommé dans le menu.
 
 
 **Ce qu'il ne faut PAS casser** : la lecture BIDIRECTIONNELLE des capacités dans la card
@@ -793,8 +830,8 @@ par un chemin indépendant) : **8 ROUGE** — anonymizer `models.py:43` · avata
 > 2026-09-30 : grain MODÈLE, clés entières, domaine par TÂCHE `transcription`, distants par
 > `options_cloud`** (même route que synthesizer/imager ; mesuré : 85 cards portent un nom de
 > moteur à migrer — `whisper`, `qwen_asr`, `vibevoice` —, et le domaine rend 11 modèles dont
-> FrWhisper/LinTO, désormais grisés, cf. ④ ci-dessus). Portage REPORTÉ le jour même : une autre
-> instance modifiait `models.py`/`workers.py`/les migrations du transcriber (diarisation) · composer (deux GROUPES
+> FrWhisper/LinTO, désormais grisés, cf. ④ ci-dessus). ✅ **LIVRÉ le même jour** (après le
+> commit du chantier diarisation qui occupait les mêmes fichiers) — détail à l'étape ⑦ ci-dessous · composer (deux GROUPES
 > avec un « auto » chacun ; l'endpoint n'en rend qu'un) · anonymizer (la colonne stocke un
 > CHEMIN `detect/yolov8n.pt`, le catalogue une clé `yolo:yolov8n.pt`). Détail et arbitrages :
 > `PROJECT_STATUS §PALIER 2026-09-08 (soir)`.

@@ -21,9 +21,13 @@ class CatalogueKeyOfTheModelActuallyUsedTest(TestCase):
 
     def setUp(self):
         from wama.model_manager.models import AIModel
-        for key in ('whisper', 'qwen3-asr-0.6b', 'qwen3-asr-1.7b', 'vibevoice-asr',
-                    'pyannote-diarization'):
-            AIModel.objects.create(model_key=f'transcriber:{key}', name=key, source='transcriber')
+        from wama.transcriber.catalogue_fixtures import transcription_catalogue
+        transcription_catalogue('transcriber:whisper', 'transcriber:qwen3-asr-0.6b',
+                                'transcriber:qwen3-asr-1.7b', 'transcriber:vibevoice-asr')
+        # Le diariseur est rangé sous la même source : il ne doit jamais être pris pour un ASR.
+        AIModel.objects.create(model_key='transcriber:pyannote-diarization', name='pyannote',
+                               source='transcriber', capabilities={'task': 'diarization'},
+                               composition={'runtime': {'engine': 'pyannote'}})
 
     def test_an_engine_with_one_catalogue_entry_is_that_entry(self):
         self.assertEqual('transcriber:whisper',
@@ -45,7 +49,13 @@ class CatalogueKeyOfTheModelActuallyUsedTest(TestCase):
 class ACatalogueModelNameSelectsItsEngineTest(TestCase):
     """Assistant test of 2026-09-28: the tool docstring listed whisper/vibevoice only, and an
     unknown `backend` fell back to the best engine — a request made for Qwen3-ASR by its catalogue
-    name would have been transcribed by WHISPER, with no error anywhere."""
+    name would have been transcribed by WHISPER, with no error anywhere. Since 2026-09-30 (route
+    F4b ⑦) the engine is RESOLVED through the catalogue (the model carries its engine), and a
+    model nothing can run is REFUSED, never replaced."""
+
+    def setUp(self):
+        from wama.transcriber.catalogue_fixtures import transcription_catalogue
+        transcription_catalogue()
 
     def _resolved(self, name):
         from unittest import mock
@@ -63,9 +73,10 @@ class ACatalogueModelNameSelectsItsEngineTest(TestCase):
         self.assertEqual('qwen_asr', self._resolved('qwen3-asr-0.6b'))
         self.assertEqual('vibevoice', self._resolved('vibevoice-asr'))
 
-    def test_engine_names_are_unchanged_and_nonsense_still_falls_back(self):
+    def test_engine_names_are_unchanged_and_an_unknown_model_is_refused_not_replaced(self):
         self.assertEqual('whisper', self._resolved('whisper'))
-        self.assertEqual('FALLBACK', self._resolved('does-not-exist'))
+        with self.assertRaisesMessage(RuntimeError, 'aucun backend de transcription'):
+            self._resolved('does-not-exist')
 
     def test_the_requested_MODEL_reaches_the_load_not_only_its_engine(self):
         """The worker called `backend.load()` with no model: asking for the 0.6B loaded the 1.7B."""
@@ -95,9 +106,9 @@ class TheToolDoorKnowsTheEnginesTest(TestCase):
     prefix for the whole domain and refused ANY explicit engine, Whisper included."""
 
     def setUp(self):
-        from wama.model_manager.models import AIModel
-        for key in ('whisper', 'qwen3-asr-1.7b', 'vibevoice-asr'):
-            AIModel.objects.create(model_key=f'transcriber:{key}', name=key, source='transcriber')
+        from wama.transcriber.catalogue_fixtures import transcription_catalogue
+        transcription_catalogue('transcriber:whisper', 'transcriber:qwen3-asr-1.7b',
+                                'transcriber:vibevoice-asr')
 
     def test_engines_and_catalogue_keys_pass_the_door_nonsense_does_not(self):
         from wama.common.utils.param_schema import invalid_choice_values, schema_for_app
