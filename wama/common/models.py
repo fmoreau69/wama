@@ -934,6 +934,87 @@ class RunOutcome(models.Model):
         return f"{self.app}:{self.object_type}#{self.object_id} → {self.signal}"
 
 
+class ItemRevision(models.Model):
+    """
+    Une RÉVISION d'un élément : l'état que lui a donné un résultat produit — marche 8a de
+    `WAMA_COLLABORATION.md §7.1` (décision de Fabien, 2026-09-30).
+
+    LE TROU. Dans un assistant conversationnel, on demande un document puis des modifications,
+    et le document porte des numéros de version. Dans WAMA, le seul geste était ⧉, une copie
+    SANS lien : chaque itération ajoutait une card à la file. Une révision garde l'historique
+    DANS la card — la file n'en voit rien.
+
+    ⚠ CE N'EST PAS UN SECOND JOURNAL. Le journal des faits existe : `RunOutcome` (ci-dessus),
+    dont la ligne `produit` est posée par le squelette de tâche à chaque résultat. Une révision
+    s'y RATTACHE (`outcome`) et n'ajoute que ce qu'un fait ne porte pas — l'instantané des
+    réglages, les sorties et leur empreinte, l'instruction, la publication. Deux journaux
+    auraient été le doublon que `WAMA_COLLABORATION §7.1` écarte.
+
+    ⚠ AUTOMATIQUE, JAMAIS UN GESTE AJOUTÉ. On ne « sauve » pas une révision : chaque résultat
+    produit en crée une (même règle de capture implicite que `RunOutcome`). Une VERSION est une
+    révision que l'on PUBLIE (`published_at`) — c'est elle qu'un hébergement montrera.
+
+    Adressage : la convention de `RunOutcome` (`app` + nom du modèle + pk), sans FK générique,
+    pour la même raison écrite là-bas. Le numéro est propre à chaque élément et ne se réutilise
+    jamais — une révision n'est jamais effacée ni renumérotée.
+    """
+
+    ORIGIN_PROCESS = 'process'
+    ORIGIN_MANUAL = 'manual'
+    #: D'où vient l'état — un FAIT, pas un auteur présumé : un traitement (modèle d'IA ou outil,
+    #: `model_keys` le dit) ou une correction à la main.
+    ORIGIN_CHOICES = [
+        (ORIGIN_PROCESS, 'Produit par un traitement'),
+        (ORIGIN_MANUAL, 'Corrigé à la main'),
+    ]
+
+    app = models.CharField(max_length=32, db_index=True)
+    object_type = models.CharField(max_length=64)
+    object_id = models.IntegerField(db_index=True)
+    number = models.PositiveIntegerField()
+
+    origin = models.CharField(max_length=8, choices=ORIGIN_CHOICES, default=ORIGIN_PROCESS)
+    user = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                             related_name='item_revisions')
+    #: Le fait `produit` qui a donné cet état — le lien vers le journal, jamais une copie de lui.
+    outcome = models.ForeignKey('common.RunOutcome', on_delete=models.SET_NULL, null=True,
+                                blank=True, related_name='revisions')
+    model_keys = models.JSONField(default=list, blank=True)
+    #: Ce qui a été demandé pour obtenir cet état (prompt de modification, note) — vide si rien.
+    instruction = models.TextField(blank=True, default='')
+    #: Réglages de l'élément À CET INSTANT, dérivés de son schéma de paramètres. `None` garde
+    #: son sens « non réglé » (le converter distingue « absent » de « posé »).
+    settings = models.JSONField(default=dict, blank=True)
+    #: `[{field, path, sha256}]` — les fichiers que l'élément désignait. ⚠ Une référence, pas une
+    #: copie : tant qu'une relance réécrit au même chemin, seul `sha256` permet de dire que le
+    #: fichier a changé depuis (`sha256` vide = non calculé, trop gros ou absent).
+    outputs = models.JSONField(default=list, blank=True)
+
+    published_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    published_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True,
+                                     blank=True, related_name='published_revisions')
+    publish_note = models.TextField(blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "Révision d'élément"
+        verbose_name_plural = "Révisions d'éléments"
+        ordering = ['app', 'object_type', 'object_id', '-number']
+        constraints = [
+            models.UniqueConstraint(fields=['app', 'object_type', 'object_id', 'number'],
+                                    name='item_revision_unique_number'),
+        ]
+        indexes = [models.Index(fields=['app', 'object_type', 'object_id'])]
+
+    @property
+    def is_published(self) -> bool:
+        return self.published_at is not None
+
+    def __str__(self):
+        return f"{self.app}:{self.object_type}#{self.object_id} v{self.number}"
+
+
 class ResultEvaluation(models.Model):
     """
     La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière

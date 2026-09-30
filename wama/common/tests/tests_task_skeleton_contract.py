@@ -73,6 +73,45 @@ class TaskSkeletonOutcomeContractTest(TestCase):
                 if hasattr(item, 'processing_seconds'):
                     self.assertIsNotNone(item.processing_seconds, 'processing time not recorded')
 
+    def test_a_success_gives_the_element_a_revision_tied_to_the_produced_fact(self):
+        """Marche 8a (`WAMA_COLLABORATION §7.1`): every result becomes a numbered revision of the
+        element, attached to the `produit` fact of `RunOutcome` — one journal, not two — and
+        carrying what the glue says was asked. A second success is revision 2 of the SAME item."""
+        from wama.common.models import ItemRevision, RunOutcome
+        for app, model in _adopters():
+            with self.subTest(app=app):
+                item = self._run(app, model, lambda item, ctx: {'instruction': 'plus court'})
+                revisions = ItemRevision.objects.filter(
+                    app=app, object_type=model.__name__, object_id=item.pk)
+                self.assertEqual([1], [r.number for r in revisions])
+                revision = revisions.get()
+                self.assertEqual('plus court', revision.instruction)
+                self.assertIsNotNone(revision.outcome, 'revision not tied to the journal')
+                self.assertEqual('produit', revision.outcome.signal)
+                self.assertTrue(RunOutcome.objects.filter(pk=revision.outcome_id,
+                                                          object_id=item.pk).exists())
+
+                from wama.common.utils.task_skeleton import run_item_task
+                model.objects.filter(pk=item.pk).update(status='RUNNING')
+                with mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
+                    run_item_task(_task(), app_id=app, model=model, item_id=item.pk,
+                                  process=lambda item, ctx: {})
+                self.assertEqual([2, 1], [r.number for r in ItemRevision.objects.filter(
+                    app=app, object_type=model.__name__, object_id=item.pk)
+                    .order_by('-number')])
+
+    def test_a_failure_gives_no_revision(self):
+        """A revision is a state a RESULT gave; a failure produced none."""
+        from wama.common.models import ItemRevision
+
+        def glue(item, ctx):
+            raise RuntimeError('pas de résultat')
+        for app, model in _adopters():
+            with self.subTest(app=app):
+                item = self._run(app, model, glue)
+                self.assertFalse(ItemRevision.objects.filter(
+                    app=app, object_type=model.__name__, object_id=item.pk).exists())
+
     def test_an_element_with_a_reference_is_measured_once_it_is_a_success(self):
         """The measurement against the reference reads a FINISHED element. Until 2026-09-29 the
         transcriber measured inside its glue, before the skeleton set SUCCESS: its result reader
