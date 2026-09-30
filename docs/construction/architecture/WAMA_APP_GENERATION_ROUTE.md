@@ -2763,6 +2763,24 @@ n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANT
 > Corrigé — l'outil expose désormais `roles` et `gap`. *Un planificateur qui ignore les outils
 > disponibles fait refaire à la main du travail déjà outillé.*
 
+**⭐ PRIORITÉ ACTÉE le 2026-09-30 (Fabien) — éprouver la route « app de zéro » avec les modèles
+de WAMA, pas avec Claude.** Cas d'épreuve : l'app **Editor** (`ROADMAP.md §21.5`), qui prend la
+place du Translator comme 11ᵉ app de zéro (§10.3). Règles :
+- la construction passe par les rôles `wama-dev-ai` sur des modèles **locaux** (`qwen3.8`) ou
+  **souverains** (`albert:gpt-oss-120b`) — Claude n'écrit pas l'app ;
+- seul le **manifeste `app` de départ** peut être écrit à la main — c'est le trou unique ci-dessus,
+  et l'écrire est aussi un instrument de mesure (skill `/manifeste` §2) ;
+- l'app naît **dans le bac à sable** (dev seulement) jusqu'à sa promotion.
+
+**Mesuré le jour même, ce qui manque pour que la chaîne tourne de bout en bout** :
+1. `app_sandbox create` ne sait que **copier une app existante** (`app_sandbox.py:404-419`) et ne
+   génère que depuis le manifeste EXTRAIT d'une source (`:481-485`) — le cas « create sans
+   `generated_from` » (§10.3) n'existe pas : il faut une entrée **depuis un manifeste fichier** ;
+2. `models_gen` a déjà son **repli « création de zéro »** (squelette A5, §10.3) ; les autres
+   gabarits sont à éprouver sans source copiée — aucune jumelle ne l'a jamais fait ;
+3. les **trous de glu** (stubs 501 `TROU DE GLU`) sont le terrain du rôle `codegen`, à lancer sur
+   `qwen3.8` / `gpt-oss-120b` et à juger par le harnais, jamais auto-appliqués.
+
 **La chaîne SŒUR « dépôt → MODÈLE exécutable » — bouclée hors terminal le 2026-09-29.** Un modèle
 n'a pas le trou de l'app (il ne demande pas de manifeste `app`) ; il en avait d'autres, mesurés sur
 Supra2-IMG et comblés : recherche par URL / dépôt nommé (`prospector.named_repo`) → installation

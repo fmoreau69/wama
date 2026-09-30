@@ -3924,9 +3924,18 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
 - **D4 — Envoyer une CARD, pas un fichier** : l'app a besoin du contexte de la card (réglages,
   modèle, résultats, provenance — `to_dict()`), pas seulement de ses fichiers ; ce que transporte
   aujourd'hui `common/services/send_to.py` est **à mesurer**, non lu le 30/09.
-- **D5 — Séquencement** : §21.4 place l'app APRÈS le portage du monde Médias, et la marche 8a la
-  prend comme premier consommateur. Les deux partent donc ensemble — à moins que 8a démarre avant,
-  sur un autre consommateur (le Transcriber ?).
+- ~~**D5 — Séquencement**~~ ✅ **TRANCHÉ le 2026-09-30 (Fabien)** : *« ce que je veux, c'est
+  qu'on complète la route en priorité. L'app n'est pas urgente du tout. Je veux éprouver la route
+  de construction avec des LLM locaux comme qwen3.8 ou souverains comme gpt-oss (Albert). Je ne
+  veux pas une construction par Claude. Mais si pour y arriver tu dois partir d'un manifeste que
+  tu écris à la main, ok. »* Donc :
+  - **l'Editor est le CAS D'ÉPREUVE de la route** « app de zéro » (`WAMA_APP_GENERATION_ROUTE.md
+    §10.3`, cible actée jadis sur le Translator) — pas une app à livrer vite ;
+  - **la construction est faite par les rôles de WAMA** (`wama-dev-ai`, modèles locaux ou
+    souverains), jamais écrite par Claude ; seul le **manifeste `app` de départ** peut être écrit à
+    la main (c'est le trou unique de `ROUTE §10.5`) ;
+  - **la marche 8a part d'abord**, seule — premier jet livré le jour même
+    (`WAMA_COLLABORATION.md §7.2`), capturé en service sur le Transcriber.
 
 
 ---
