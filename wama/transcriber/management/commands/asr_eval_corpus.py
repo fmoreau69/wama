@@ -68,8 +68,14 @@ CORPORA = {'summ-re': 'manifests/datasets/summ-re.json',
            'fleurs-cs': 'manifests/datasets/fleurs-cs.json',
            'cfpp': 'manifests/datasets/cfpp.json'}
 
-#: Séparateur des variantes dérivées d'un enregistrement : `<audio>__<profil>[__leveled]`.
+#: Séparateur des variantes dérivées d'un enregistrement :
+#: `<audio>[__<profil>][__leveled][__resemble-<mode>]`.
 VARIANT_SEPARATOR = '__'
+#: Modes de Resemble Enhance (branche audio de l'enhancer, `run_audio_enhancement`) mesurés par le
+#: banc : l'AMÉLIORATION seule, et amélioration + débruitage. Le prétraitement du transcriber, lui,
+#: n'est que le débruitage DeepFilterNet (`utils/audio_preprocessor.py`) — c'est lui que mesurent
+#: `--preprocess` et les premières colonnes du banc (2026-10-01, remarque de Fabien).
+ENHANCE_MODES = ('enhance', 'both')
 #: CFPP : entretiens retenus entre 10 et 75 min (un enregistrement de quelques minutes est un
 #: fragment, un de plus d'une heure et quart coûte trop de GPU par configuration).
 CFPP_MIN_SECONDS, CFPP_MAX_SECONDS = 600, 4500
@@ -304,6 +310,11 @@ class Command(BaseCommand):
         parser.add_argument('--leveled-input', action='store_true',
                             help="Pose les cards sur l'audio (ou la variante) NIVELÉ d'avance : "
                                  "avec --preprocess, c'est l'ordre « nivellement puis débruitage ».")
+        parser.add_argument('--enhance-input', choices=ENHANCE_MODES,
+                            help="Pose les cards sur l'audio AMÉLIORÉ d'avance par Resemble Enhance "
+                                 "(branche audio de l'enhancer) : « enhance » = amélioration seule, "
+                                 "« both » = amélioration + débruitage. Après le nivellement si "
+                                 "--leveled-input.")
         parser.add_argument('--start', action='store_true', help="Lance les cards posées.")
         parser.add_argument('--report', action='store_true',
                             help="Tableau des mesures des cards de --user sur ces enregistrements.")
@@ -338,7 +349,7 @@ class Command(BaseCommand):
             assets = self.prepare_archive(corpus, source, o['split'], recordings)
         else:
             assets = self.prepare_tagged(corpus, source, o['split'], recordings)
-        assets = [self.variant(asset, profile, o['leveled_input'])
+        assets = [self.variant(asset, profile, o['leveled_input'], o['enhance_input'])
                   for asset in assets for profile in (o['degrade'] or [None])]
         if o['user']:
             from wama.common.backends.pyannote_diarizer import pipeline_choices
@@ -635,12 +646,13 @@ class Command(BaseCommand):
         return self._assets(corpus, split, recordings)
 
     # ── variantes : dégradation contrôlée, audio nivelé d'avance ───────────────────────────
-    def variant(self, asset, profile=None, leveled=False):
+    def variant(self, asset, profile=None, leveled=False, enhance=None):
         """L'enregistrement tel qu'on le posera : l'original, sa variante DÉGRADÉE par un profil
-        déclaré (`audio_degradation.PROFILES`), et/ou NIVELÉE d'avance (`speech_leveling`). Une
+        déclaré (`audio_degradation.PROFILES`), NIVELÉE d'avance (`speech_leveling`), et/ou
+        AMÉLIORÉE par Resemble Enhance (`enhance` : 'enhance' | 'both'), dans cet ordre. Une
         variante est un audio SYSTÈME à part (son lot à elle), qui garde la référence de
         l'original (`attributes['reference']`). Idempotent : déjà versée, elle est reprise."""
-        if not profile and not leveled:
+        if not profile and not leveled and not enhance:
             return asset
         import soundfile as sf
 
@@ -648,7 +660,8 @@ class Command(BaseCommand):
         from wama.media_library.models import SystemAsset
         from wama.media_library.system_files import ingest_system_file
 
-        parts = [asset.name] + ([profile] if profile else []) + (['leveled'] if leveled else [])
+        parts = ([asset.name] + ([profile] if profile else []) + (['leveled'] if leveled else [])
+                 + ([f'resemble-{enhance}'] if enhance else []))
         name = VARIANT_SEPARATOR.join(parts)
         existing = SystemAsset.objects.filter(asset_type='speech', name=name).first()
         if existing:
@@ -668,10 +681,23 @@ class Command(BaseCommand):
         try:
             wav = work / f'{name}.wav'
             sf.write(str(wav), samples, SAMPLE_RATE, subtype='PCM_16')
+            if enhance:
+                # La brique de l'enhancer, telle quelle (réglages par défaut de l'app : force de
+                # débruitage 0,5, 64 évaluations) ; sortie à 44,1 kHz ramenée à 16 kHz.
+                from wama.common.backends.audio_enhancer import run_audio_enhancement
+                enhanced = work / f'{name}_resemble.wav'
+                run_audio_enhancement(str(wav), str(enhanced), engine='resemble', mode=enhance,
+                                      denoising_strength=0.5, quality=64)
+                out, rate = sf.read(str(enhanced), dtype='float32', always_2d=True)
+                samples = resampled(out.mean(axis=1), rate)
+                sf.write(str(wav), samples, SAMPLE_RATE, subtype='PCM_16')
+                steps.append('Resemble Enhance, ' + ('amélioration' if enhance == 'enhance'
+                                                     else 'amélioration + débruitage'))
             attributes = {**(asset.attributes or {}), 'base': asset.name,
                           'reference': (asset.attributes or {}).get('reference')
                           or f'{asset.name}_reference',
-                          'degradation': profile or '', 'leveled': bool(leveled)}
+                          'degradation': profile or '', 'leveled': bool(leveled),
+                          'enhancement': f'resemble-{enhance}' if enhance else ''}
             ingest_system_file('speech', name, wav, mime_type='audio/wav',
                                duration=len(samples) / SAMPLE_RATE, attributes=attributes,
                                description=f"{asset.name} — {', '.join(steps)}.",
