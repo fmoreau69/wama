@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**174 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**175 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -937,12 +937,14 @@ LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5
 
 - **Domicile** : `wama/common/services/sharing.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : PARTAGE d'un élément de file — la première INTERFACE du mécanisme de visibilité.
-- **API publique** (5) :
+- **API publique** (7) :
   - `class RefusDePartage(Exception)` — Refus MOTIVÉ : le motif est destiné à l'utilisateur, pas au journal.
+  - `class ConsentRequired(RefusDePartage)` — Le partage d'un élément personnel attend le consentement de celui qui partage.
+  - `consent_subject(element) -> str` — Ce que l'élément porte d'une personne (« la voix d'une personne »), ou '' — DÉCLARÉ par
   - `portees_offrables(user) -> list` — Ce que CET utilisateur peut offrir, avec les cibles réelles de chaque portée.
-  - `partager(user, element, visibility, org_unit_id=None, project_id=None) -> dict` — Applique la portée à l'élément ET à son lot. Rend un compte-rendu.
-  - `partager_lot(user, lot, modele_element, visibility, org_unit_id=None, project_id=None) -> dict` — Partage un LOT ENTIER : le lot et TOUS ses éléments.
-  - `etat(element) -> dict` — La portée COURANTE d'un élément, telle que l'UI doit la pré-sélectionner.
+  - `partager(user, element, visibility, org_unit_id=None, project_id=None, consent: bool=False) -> dict` — Applique la portée à l'élément ET à son lot. Rend un compte-rendu.
+  - `partager_lot(user, lot, modele_element, visibility, org_unit_id=None, project_id=None, consent: bool=False) -> dict` — Partage un LOT ENTIER : le lot et TOUS ses éléments.
+  - `etat(element) -> dict` — La portée COURANTE d'un élément, telle que l'UI doit la pré-sélectionner — et, s'il porte
 
 ### Projection des faits en souvenirs
 
@@ -984,6 +986,24 @@ L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent �
   - `usage(path, *, folder=False) -> dict` — Ce que le gestionnaire de fichiers doit savoir AVANT de supprimer.
   - `repoint(old_path, new_path, *, folder=False) -> dict` — Le fichier (ou le dossier) a bougé : chaque lien suit, directs et sources.
   - `detach(path, *, folder=False) -> int` — Le fichier a été supprimé (après confirmation) : les cards qui le désignaient restent,
+
+### Révisions d'un élément (historique DANS la card)
+
+Chaque résultat produit donne à l'élément une révision numérotée — réglages dérivés du schéma, fichiers et leur empreinte, instruction — rattachée au fait `produit` de `RunOutcome` (un journal, pas deux) ; une révision PUBLIÉE est une version. Capture posée une fois dans le squelette de tâche : zéro ligne par app, la file ne voit rien. ⏳ Restaurer, sorties immuables, rétention et volet Historique : marches suivantes
+
+- **Domicile** : `wama/common/services/revisions.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md §7.1](../construction/exploitation/WAMA_COLLABORATION.md)
+- **Module** : Révisions d'un élément — la brique de la marche 8a (`WAMA_COLLABORATION.md §7.1`).
+- **API publique** (10) :
+  - `settings_snapshot(app_id: str, item) -> dict` — Réglages de `item` à cet instant, dérivés du schéma de son app. `{}` sans schéma.
+  - `file_references(item) -> list` — `[{field, path, sha256}]` des fichiers que `item` désigne (FileField non vides).
+  - `record_revision(app_id: str, item, *, origin: str='process', user=None, outcome=None, model_keys=None, instruction: str='')` — Donne à `item` sa révision suivante. Rend la ligne créée, ou None si rien n'a pu
+  - `revisions_of(app_id: str, item)` — Toutes les révisions de `item`, la plus récente d'abord.
+  - `current_revision(app_id: str, item)` — La dernière révision de `item`, ou None s'il n'a encore rien produit.
+  - `published_revision(app_id: str, item)` — La dernière révision PUBLIÉE — la version qu'un hébergement montre. None si aucune.
+  - `get_revision(app_id: str, item, number: int)` — La révision `number` de `item`. Lève `LookupError` si elle n'existe pas.
+  - `outputs_changed_since(revision) -> list` — Les champs dont le fichier a changé (ou disparu) depuis `revision` — ce qui rend
+  - `publish(app_id: str, item, number: int, *, user, note: str='')` — Publie la révision `number` : elle devient une VERSION. Republier la même révision
+  - `unpublish(app_id: str, item, number: int)` — Retire la révision `number` des versions publiées (elle reste dans l'historique).
 
 ### Serveur MCP (adaptateur mince sur tool_api)
 
@@ -1631,7 +1651,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (31) :
+- **API publique** (33) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -1647,6 +1667,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
   - `class ScopedVisibility(models.Model)` — Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
   - `scoped_visible_q(user, owner_field='user')` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
+  - `class ShareConsent(models.Model)` — Le CONSENTEMENT donné en partageant un élément qui porte une PERSONNE — et son retrait.
   - `class PromptScoped(models.Model)` — Modèle portant un prompt utilisateur TRAITÉ par la PromptPipeline (enrichissement).
   - `class ScopedQuerySet(models.QuerySet)` — QuerySet des modèles `ScopedVisibility` : expose `visible_to(user)`.
   - `class ScopedManager(models.Manager.from_queryset(ScopedQuerySet))` — Manager par défaut des modèles partageables.
@@ -1654,6 +1675,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class Manifest(models.Model)` — Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
+  - `class ItemRevision(models.Model)` — Une RÉVISION d'un élément : l'état que lui a donné un résultat produit — marche 8a de
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
   - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
@@ -2332,7 +2354,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `studio_node_ports(app_id)` — Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
   - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
   - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
-  - `app_card_ports(app_id)` — Ports de la CARD que l'APP consomme elle-même, sans nœud Studio (2026-09-30).
+  - `app_own_input_ports(app_id)` — Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
   - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
   - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
   - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
@@ -2416,7 +2438,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (31) :
+- **API publique** (33) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2432,6 +2454,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
   - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
   - `class ScopedVisibility(models.Model)` — Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
   - `scoped_visible_q(user, owner_field='user')` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
+  - `class ShareConsent(models.Model)` — Le CONSENTEMENT donné en partageant un élément qui porte une PERSONNE — et son retrait.
   - `class PromptScoped(models.Model)` — Modèle portant un prompt utilisateur TRAITÉ par la PromptPipeline (enrichissement).
   - `class ScopedQuerySet(models.QuerySet)` — QuerySet des modèles `ScopedVisibility` : expose `visible_to(user)`.
   - `class ScopedManager(models.Manager.from_queryset(ScopedQuerySet))` — Manager par défaut des modèles partageables.
@@ -2439,6 +2462,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
   - `class Manifest(models.Model)` — Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
+  - `class ItemRevision(models.Model)` — Une RÉVISION d'un élément : l'état que lui a donné un résultat produit — marche 8a de
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
   - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
@@ -2455,13 +2479,14 @@ LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur
 
 - **Domicile** : `wama/common/tts/voice_refs.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9.4](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Voix de RÉFÉRENCE — la brique COMMUNE : résolution d'un preset en fichier, groupes du menu, libellés, téléchargement. Les voix VIVENT EN MÉDIATHÈQUE (`SystemAsset(asset_type='voice')`, `media_library/system/`) depuis le 2026-09-13 — plan `MEDIA_STORAGE_TIERING §9.4`.
-- **API publique** (12) :
+- **API publique** (13) :
   - `attributes_from_voice_id(voice_id: str) -> Dict` — Les `attributes` (nature `voice`) qu'un identifiant de preset PORTE.
   - `voice_reference_groups() -> List[Dict]` — Les optgroups du menu « voix de référence », DÉRIVÉS de la médiathèque :
   - `readable_voice_assets(user)` — Les voix de médiathèque qu'un utilisateur a le DROIT d'employer : les SIENNES **et celles
   - `default_voice_for_language(language: str) -> Optional[str]` — L'id (`sa_<pk>`) de la voix de RÉFÉRENCE d'une langue — ce que « Voix par défaut » veut
+  - `class VoiceUnavailable(ValueError)` — La voix CHOISIE (`sa_<id>`, `ua_<id>`) ne peut plus être employée : supprimée, retirée
   - `resolve_speaker_wav(voice_preset: str, user=None, language: str='') -> Optional[str]` — Résout un voice_preset en chemin `speaker_wav` (audio de référence) pour le CLONAGE
-  - `is_cloned_voice(voice_preset: str) -> bool` — Cette voix est-elle un CLONAGE (`ua_<id>` médiathèque de l'utilisateur, `cv_<id>` hérité) ?
+  - `is_cloned_voice(voice_preset: str) -> bool` — Cette voix est-elle un CLONAGE (`ua_<id>`, voix de la médiathèque d'un utilisateur) ?
   - `model_supports_cloning(model_key: str) -> Optional[bool]` — Le moteur du modèle `model_key` CLONE-t-il ? — `True`/`False` si quelque chose le dit,
   - `speaker_wav_for(model_key: str, voice_preset: str, user=None, reference_path: Optional[str]=None, language: str='') -> Optional[str]` — LA porte des workers et des aperçus : le `speaker_wav` à passer au service TTS.
   - `ingest_voice_file(name: str, path, *, source_url: str='', license: str='', description: str='', replace: bool=False)` — Verse UN fichier de voix dans la médiathèque comme `SystemAsset(voice)` nommé `name`,
@@ -2510,7 +2535,11 @@ Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique
 
 - **Domicile** : `wama/studio/services/generic_runner.py` · **doc** : [docs/construction/mondes/STUDIO_VISION.md](../construction/mondes/STUDIO_VISION.md)
 - **Module** : Studio — runner GÉNÉRIQUE piloté par le CONTRAT d'app (STUDIO_VISION « principe directeur », 2026-07-12). Zéro logique par app : tout vient des sources uniques.
-- **API publique** (1) :
+- **API publique** (5) :
+  - `primary_ports(app_id) -> set` — Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`).
+  - `unwired_ports(app_id) -> list` — Les ports du nœud que l'outil de l'app ne LIT pas encore — le portage qui reste.
+  - `unwired_ports_report(measure=None)` — (ok, détail) — la liste MESURÉE des ports non lus confrontée au budget, dans les deux
+  - `port_arguments(app_id, inputs) -> dict` — Les liens reçus sur les ports NON principaux, en arguments nommés de l'outil.
   - `build_generic_runner(app_id)`
 
 ### Surface d'outils
@@ -2519,7 +2548,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (86) :
+- **API publique** (87) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `start_anonymizer(user, media_id: int=None) -> dict` — Trigger Celery processing for a specific media item or all pending items.
@@ -2534,7 +2563,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_audio_enhancer(user, file_path: str, engine: str='resemble', mode: str='both', denoising_strength: float=0.5, quality: int=64) -> dict` — Register an audio file for speech enhancement.
   - `start_audio_enhancer(user, audio_enhancement_id: int=None) -> dict` — Launch Celery audio enhancement task(s).
   - `get_audio_enhancer_status(user) -> dict` — Return status of the user's recent audio enhancement jobs (last 10).
-  - `synthesize_text(user, text: str, language: str='fr', tts_model: str=DEFAULT_TTS_MODEL, voice_preset: str='default', speed: float=1.0, pitch: float=1.0, emotion…` — Create a VoiceSynthesis job from raw text.
+  - `synthesize_text(user, text: str='', work_file: str='', reference_voice: str='', language: str='fr', tts_model: str=DEFAULT_TTS_MODEL, voice_preset: str='defaul…` — Create a VoiceSynthesis job — from raw text OR from a work file, with an optional
   - `start_synthesizer(user, synthesis_id: int=None) -> dict` — Launch Celery synthesis task(s).
   - `get_synthesizer_status(user) -> dict` — Return status of the user's recent synthesis jobs (last 10).
   - `compose_music(user, prompt: str, model: str='musicgen-small', duration: float=10.0, **params) -> dict` — Create a Composer generation job (music or SFX) and start it immediately.
@@ -2591,6 +2620,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `tool_input_schema(tool_name: str) -> dict` — Schéma JSON (`type: object`) des arguments d'un outil du registre — DÉRIVÉ, jamais écrit.
   - `input_schema_for(fn, index=None) -> dict` — Schéma JSON des arguments d'une FONCTION d'outil : signature, complétée par le schéma
   - `primary_arg_name(tool_name: str)` — Nom du 1er paramètre « utile » d'un outil (celui qui suit `user`), ou None.
+  - `tool_arg_names(tool_name: str) -> set` — Les arguments NOMMÉS d'un outil (hors `user`, `*args`, `**params`) — dérivés de la signature.
   - `sanitize_tool_args(tool_name: str, args: dict)` — Prépare les arguments d'un appel d'outil : coercition par le SCHÉMA de l'app puis
   - `relay_quality_intent(user, tool_name: str, result: dict) -> dict` — Relaie le curseur Rapide ↔ Qualité de l'ASSISTANT vers l'élément qu'un outil `add_to_<app>`
   - `relay_next_step(tool_name: str, result: dict) -> dict` — Dit au modèle, DANS LE RÉSULTAT, qu'un ajout n'a lancé AUCUN traitement.
