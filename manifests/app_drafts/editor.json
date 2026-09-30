@@ -1,0 +1,232 @@
+{
+  "body": {
+    "access": {
+      "min_tier": null,
+      "public": false,
+      "roles": []
+    },
+    "capabilities": {
+      "accepts_url": false,
+      "anti_race": true,
+      "batch_type": "pipe",
+      "during_preview": true,
+      "has_batch": true,
+      "has_url_import": false,
+      "has_youtube": false,
+      "inspector": true,
+      "layout": true,
+      "multi_format_download": null,
+      "settings_modal_item": true,
+      "streaming": false
+    },
+    "identity": {
+      "category": "create",
+      "color": "#3a7d5c",
+      "icon": "fas fa-file-lines",
+      "input_extensions": [".txt", ".md", ".html", ".htm", ".pdf", ".docx"],
+      "url_name": "editor:index",
+      "verbose_name": "Editor"
+    },
+    "inspector": {
+      "detail_registered": true,
+      "detail_spec": {
+        "extra": [
+          {"display": true, "field": "document_kind", "label": "Type de document"},
+          {"display": true, "field": "output_format", "label": "Format de sortie"},
+          {"display": true, "field": "model", "label": "Modèle"}
+        ],
+        "result_file": "output_file",
+        "result_text": "result_text",
+        "source_file": "source_document"
+      },
+      "preview": {
+        "file_field": "output_file",
+        "user_field": "user"
+      },
+      "preview_registered": true
+    },
+    "models": {
+      "catalog_keys": [
+        "ollama:qwen3.8:latest",
+        "albert:gpt-oss-120b"
+      ]
+    },
+    "modes": {
+      "domains": [
+        {
+          "accepts": ["prompt", "document"],
+          "icon": "fa-file-lines",
+          "id": "document",
+          "inputs": ["prompt", "source_document"],
+          "label": "Document",
+          "modes": []
+        }
+      ]
+    },
+    "params": {
+      "primary": "PARAMS_JSON",
+      "schemas": {
+        "PARAMS_JSON": [
+          {
+            "chip": false,
+            "contexts": ["item", "batch", "panel"],
+            "default": "",
+            "help": "Ce que le document doit dire et pour qui : le FOND. La mise en forme se règle à part.",
+            "icon": "fa-pen",
+            "label": "Consigne",
+            "name": "prompt",
+            "section": "settings",
+            "type": "textarea"
+          },
+          {
+            "chip": true,
+            "choices": [["presentation", "Présentation"], ["report", "Rapport"], ["page", "Page web"]],
+            "contexts": ["item", "batch", "panel"],
+            "default": "presentation",
+            "help": "La nature du document : elle oriente la structure du fond (diapositives, sections, page).",
+            "icon": "fa-shapes",
+            "label": "Type de document",
+            "name": "document_kind",
+            "section": "settings",
+            "type": "select"
+          },
+          {
+            "chip": true,
+            "choices": [["html", "HTML"]],
+            "contexts": ["item", "batch", "panel"],
+            "default": "html",
+            "help": "Format du rendu. HTML seul au premier jet ; les autres formats s'ajouteront ici (ROADMAP §21.5).",
+            "icon": "fa-file-code",
+            "label": "Format de sortie",
+            "name": "output_format",
+            "section": "settings",
+            "type": "select"
+          },
+          {
+            "chip": false,
+            "contexts": ["item", "batch", "panel"],
+            "default": "",
+            "help": "La FORME demandée, en mots (« style sobre », « ce tableau sur deux colonnes ») — jamais une barre d'outils.",
+            "icon": "fa-palette",
+            "label": "Consigne de forme",
+            "name": "style_instruction",
+            "section": "settings",
+            "type": "textarea"
+          },
+          {
+            "chip": true,
+            "choices": [["fr", "Français"], ["en", "English"]],
+            "contexts": ["item", "batch", "panel"],
+            "default": "fr",
+            "icon": "fa-language",
+            "label": "Langue",
+            "name": "language",
+            "section": "settings",
+            "type": "select"
+          },
+          {
+            "chip": true,
+            "contexts": ["item", "batch", "panel"],
+            "default": "auto",
+            "group": "modele",
+            "help": "Modèle de rédaction et de mise en forme (Auto = tirage au lancement). Les modèles distants suivent le niveau de publication voulu.",
+            "icon": "fa-microchip",
+            "label": "Modèle",
+            "name": "model",
+            "options_auto": true,
+            "options_cloud": true,
+            "options_query": {"task": "text-generation"},
+            "options_source": "catalog",
+            "section": "settings",
+            "type": "select"
+          }
+        ]
+      }
+    },
+    "ports": {
+      "inputs": [
+        {
+          "description": "La consigne écrite : ce que le document doit dire.",
+          "group": "prompt",
+          "id": "prompt",
+          "label": "Consigne",
+          "multi": false,
+          "types": ["prompt"]
+        },
+        {
+          "description": "Un document ou le résultat d'une autre card, qui NOURRIT le fond. Il informe, il n'est pas recopié.",
+          "group": "reference",
+          "id": "source_document",
+          "label": "Document source",
+          "multi": false,
+          "types": ["document"]
+        }
+      ],
+      "outputs": [
+        {"id": "out", "label": "Document", "types": ["document"]}
+      ]
+    },
+    "processing": {
+      "anti_race": true,
+      "backend_result": {"field": "result_text", "kind": "text"},
+      "batch_link_model": "EditorBatchItem",
+      "endpoints": [
+        "about", "batch_create", "batch_delete", "batch_download", "batch_duplicate",
+        "batch_preview", "batch_start", "batch_template", "batch_update", "card_html",
+        "clear_all", "consolidate", "console", "delete", "download", "download_all",
+        "duplicate", "global_progress", "help", "index", "merge", "move_to_batch",
+        "progress", "remove_from_batch", "reorder", "reorder_queue", "start", "start_all",
+        "stop", "update_settings", "upload"
+      ],
+      "extra_routes": [
+        {"name": "update_settings", "pattern": "settings/<int:pk>/", "view": "views.update_settings"}
+      ],
+      "item_model": "EditorDocument",
+      "model_spec": {
+        "batch": {
+          "link_batch_field": "batch",
+          "link_batch_related": "items",
+          "link_item_field": "document",
+          "link_item_related": "batch_item",
+          "link_name": "EditorBatchItem",
+          "name": "EditorBatch",
+          "user_related_name": "editor_batches",
+          "verbose_name": "Lot de documents",
+          "verbose_name_plural": "Lots de documents"
+        },
+        "item": {
+          "input_field": "source_document",
+          "name": "EditorDocument",
+          "ordering": ["-created_at"],
+          "params_fields": ["prompt", "document_kind", "output_format", "style_instruction",
+                            "language", "model"],
+          "user_related_name": "editor_documents"
+        }
+      },
+      "processing_time": true,
+      "statuses": ["PENDING", "AWAITING_RESOURCES", "RUNNING", "SUCCESS", "FAILURE"],
+      "tasks": [
+        {"file": "tasks.py", "function": "generate_document_task", "lifecycle": true,
+         "task_name": null}
+      ]
+    },
+    "studio": {
+      "params_attr": "PARAMS_JSON",
+      "params_module": "wama.editor.params",
+      "runnable": true
+    }
+  },
+  "description": "Génère un document (présentation, rapport, page web) à partir d'une consigne, de documents et des résultats d'autres cards : le fond est rédigé par un LLM, la forme est rendue par format (HTML d'abord). Cas d'épreuve de la route « app de zéro » (ROADMAP §21.5, ROUTE §10.5).",
+  "key": "editor",
+  "manifest_kind": "app",
+  "name": "Editor",
+  "projects": [],
+  "requires": [
+    {"key": "ollama:qwen3.8:latest", "kind": "model"},
+    {"key": "albert:gpt-oss-120b", "kind": "model"}
+  ],
+  "schema_version": "1.0",
+  "source": {"ref": "ROADMAP.md §21.5", "type": "authored"},
+  "visibility": "private",
+  "world": "media"
+}

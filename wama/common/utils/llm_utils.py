@@ -404,6 +404,52 @@ def llm_chat(
         return None, str(e)
 
 
+def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
+                            **llm_kwargs) -> tuple[Optional[str], Optional[str]]:
+    """
+    Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
+    `albert:gpt-oss-120b`, `anthropic:claude-opus-5`, ou `auto`) — `(texte, None)` ou
+    `(None, erreur)`, le contrat de `llm_chat`.
+
+    POURQUOI (2026-09-30, route « app de zéro ») : une app dont le réglage « Modèle » tire ses
+    options du catalogue (route F4b, `options_source: catalog`) stocke une CLÉ, et `llm_chat`
+    attend un fournisseur + un nom. Le geste qui passe de l'un à l'autre n'existait qu'en privé,
+    dans l'assistant (`assistant_engine._llm_call`) : la 1ʳᵉ app à en avoir besoin (l'Editor)
+    l'aurait recopié.
+
+    Règles :
+      - `auto` (ou vide) → le funnel LOCAL du catalogue (`modele_par_defaut`, VRAM-aware) ;
+      - `ollama:<nom>` → Ollama, en local ;
+      - `<source>:<modèle>` d'une source déclarée de type `llm` (`external_sources`) → le nom du
+        fournisseur EST le nom de la source (albert, anthropic) ; la clé est celle de
+        l'UTILISATEUR, par la garde commune `cloud_access` (profil « 100 % local », modèle ouvert
+        par sa clé, clé posée) — jamais la clé d'instance pour un utilisateur connecté ;
+      - l'abonnement Claude Code (`claude_code:*`) n'est pas un appel LiteLLM : refusé ici.
+    `llm_kwargs` passe tel quel à `llm_chat` (`num_predict`, `think`, `timeout`…).
+    """
+    key = (catalog_key or '').strip()
+    if not key or key == 'auto':
+        return llm_chat(messages, model=None, provider='ollama', **llm_kwargs)
+    source, sep, model_id = key.partition(':')
+    if not sep or not model_id:
+        return None, f"clé de catalogue invalide : {catalog_key!r} (attendu <source>:<modèle>)"
+    if source == 'ollama':
+        return llm_chat(messages, model=model_id, provider='ollama', **llm_kwargs)
+    if source == 'claude_code':
+        return None, ("l'abonnement Claude Code n'est pas un fournisseur d'app : il est réservé "
+                      "à l'assistant")
+    from wama.common import external_sources
+    declared = external_sources.by_key().get(source)
+    if declared is None or declared.kind != 'llm':
+        return None, f"« {source} » n'est pas un fournisseur LLM déclaré dans WAMA"
+    from wama.model_manager.services.cloud_models import CloudAccessRefused, cloud_access
+    try:
+        api_key = cloud_access(user, source, model_id)
+    except CloudAccessRefused as refused:
+        return None, str(refused)
+    return llm_chat(messages, model=model_id, provider=source, api_key=api_key, **llm_kwargs)
+
+
 def extract_json_from_llm(text: str) -> Optional[dict]:
     """
     Extract the first valid JSON object from an LLM response.

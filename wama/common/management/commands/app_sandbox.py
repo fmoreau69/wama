@@ -62,6 +62,9 @@ _SUBSTITUTABLE = {
     'views':  ('views.py',  'wama.common.manifests.codegen.views_gen',  'render_views'),
     # Multi-fichiers (le gabarit rend un DICT nom→contenu) : écrits sous templates/<label>/.
     'templates': ('templates/', 'wama.common.manifests.codegen.templates_gen', 'render_index'),
+    # `base.html` d'app (2026-09-30) : d'office à la création DE ZÉRO ; pour une jumelle, cible
+    # OPT-IN — son base.html COPIÉ porte encore du propre à l'app (cf. `render_base`).
+    'base':   ('templates/', 'wama.common.manifests.codegen.templates_gen', 'render_base'),
 }
 
 
@@ -360,14 +363,65 @@ def _manage(args: list) -> subprocess.CompletedProcess:
                           capture_output=True, text=True, cwd=str(BASE_DIR))
 
 
+def _smoke_page(label: str) -> subprocess.CompletedProcess:
+    """La page de la jumelle répond-elle 200 ? Sous-process frais (le boot relit le registre).
+    rc 0 = 200, rc 1 = autre statut ou exception."""
+    return subprocess.run(
+        [sys.executable, '-c',
+         "import os,django;os.environ.setdefault('DJANGO_SETTINGS_MODULE','wama.settings');"
+         "django.setup();from django.test import Client;"
+         f"r=Client().get('/{label}/',follow=True);print(r.status_code);"
+         "raise SystemExit(0 if r.status_code==200 else 1)"],
+        capture_output=True, text=True, cwd=str(BASE_DIR))
+
+
+def _smoke_populated_queue(label: str, item_model: str, check_card: bool) \
+        -> subprocess.CompletedProcess:
+    """Smoke « file HABITÉE » : un élément témoin créé, la page rendue (et la card seule si
+    `check_card`), le témoin supprimé. rc 0 = rendu 200, rc 1 = un rendu lève ou n'est pas 200,
+    rc 2 = témoin INCRÉABLE (contraintes propres à l'app — non mesuré, jamais bloquant)."""
+    return subprocess.run(
+        [sys.executable, '-c',
+         "import os,django;os.environ.setdefault('DJANGO_SETTINGS_MODULE','wama.settings');"
+         "django.setup();from django.apps import apps;from django.test import Client;"
+         "from wama.common.services.nightly_tests import get_test_dev_user;"
+         f"M=apps.get_model('{label}','{item_model}');u=get_test_dev_user();\n"
+         "try:\n    it=M.objects.create(user=u)\n"
+         "except Exception as e:\n    print('temoin increable:',e);raise SystemExit(2)\n"
+         "try:\n    c=Client();c.force_login(u);r=c.get('" + f'/{label}/' + "',follow=True)\n"
+         "    print(r.status_code)\n"
+         # La card SEULE aussi (`card_html`) : des vues GÉNÉRÉES rendent le partial généré
+         # `_generic_card.html`, que des templates COPIÉS n'ont pas — page 200, mais 🗑/⚙/↻
+         # (qui redemandent la card) en 500. Mesuré sur composer_01 le 2026-09-22 par le
+         # contrat générique de suppression, invisible du smoke de page. Route absente
+         # (app sans card_html) → non mesuré, jamais bloquant.
+         + ("    from django.urls import reverse, NoReverseMatch\n"
+            "    try:\n        url=reverse('" + label + ":card_html', args=[it.id])\n"
+            "    except NoReverseMatch:\n        url=None\n"
+            "    if url:\n        r2=c.get(url)\n        print('card_html', r2.status_code)\n"
+            "        r=r2 if r2.status_code!=200 else r\n" if check_card else '') +
+         "finally:\n    it.delete()\n"
+         "raise SystemExit(0 if r.status_code==200 else 1)"],
+        capture_output=True, text=True, cwd=str(BASE_DIR))
+
+
 class Command(BaseCommand):
     help = "Bac à sable d'apps : create <app> / drop <app_NN> / list (route §10.3 marche S)"
+    # PAS de check système au démarrage : une jumelle CASSÉE (enregistrée, modèle refusé)
+    # bloquait la commande entière — `drop` compris, donc plus aucun moyen de la retirer (vécu le
+    # 2026-09-30 sur la 1ʳᵉ app de zéro). Les juges de la commande lancent leur propre
+    # `manage.py check` en sous-processus, là où il mesure quelque chose.
+    requires_system_checks = []
 
     def add_arguments(self, parser):
         parser.add_argument('action', choices=['create', 'drop', 'list', 'substitute', 'revert'])
         parser.add_argument('app', nargs='?', help='app source (create) ou label jumeau (drop/substitute)')
         parser.add_argument('cible', nargs='?',
                             help=f"substitute : {sorted(_SUBSTITUTABLE)} — fichier à passer en GÉNÉRÉ")
+        parser.add_argument('--from-manifest', default='',
+                            help="create : crée l'app DE ZÉRO depuis un manifeste `app` FICHIER "
+                                 "(ex. manifests/app_drafts/editor.json) — sans app source "
+                                 "(route « app de zéro », WAMA_APP_GENERATION_ROUTE §10.5)")
         parser.add_argument('--proprietaire', default='',
                             help="create : username du CRÉATEUR de la jumelle (visibilité "
                                  "« créateur + dev + admin », demande Fabien 03/09) ; "
@@ -385,6 +439,11 @@ class Command(BaseCommand):
                                  (e.get('substituted') or {}).items()) or '—'
                 self.stdout.write(f"  {e['label']}  ← {e.get('generated_from')}  "
                                   f"({e.get('created', '?')})  substitués : {subs}")
+            return
+
+        if action == 'create' and opts.get('from_manifest'):
+            self._create_from_manifest(opts['from_manifest'],
+                                       owner=opts.get('proprietaire') or '')
             return
 
         app = opts.get('app')
@@ -437,6 +496,157 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f'Jumelle {label} prête : /{label}/ (dev-only). '
+            '⚠ Redémarrer gunicorn/workers pour la servir.'))
+
+    # ── create DE ZÉRO depuis un manifeste fichier (route §10.5) ──────────────
+    def _create_from_manifest(self, path: str, owner: str = ''):
+        """Crée une app DE ZÉRO, sans app source : tout le code vient des gabarits appliqués au
+        manifeste. Deux temps, parce que les vues se génèrent depuis les MODÈLES :
+          1. apps / models / params / tasks → makemigrations + migrate ;
+          2. les modèles ainsi créés sont INTROSPECTÉS (`_data`, le même extracteur que pour
+             une app existante) → la facette `data` que `views_gen` exige → urls / views /
+             templates, puis check et smokes.
+        L'app naît dans le BAC À SABLE (dev seulement) sous le label `<clé>_NN` ; ce qui reste
+        à écrire est marqué `TROU DE GLU` — le terrain du rôle `codegen`, jamais rempli ici.
+        Un échec laisse l'app enregistrée pour diagnostic (`app_sandbox drop <label>`)."""
+        import importlib
+        import json
+
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.manifests.builtin.app import (_capabilities_target, _identity_target,
+                                                       _ports_target)
+        from wama.common.manifests.kinds import MANIFEST_KINDS
+
+        manifest_path = Path(path) if Path(path).is_absolute() else BASE_DIR / path
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        except (OSError, ValueError) as exc:
+            raise CommandError(f'Manifeste illisible : {manifest_path} ({exc})')
+        if manifest.get('manifest_kind') != 'app':
+            raise CommandError("Seul un manifeste de kind `app` crée une app.")
+        errors = MANIFEST_KINDS['app'].validate(manifest.get('body') or {})
+        if errors:
+            raise CommandError('Manifeste invalide : ' + ' ; '.join(errors[:5]))
+        key = manifest.get('key') or ''
+        if not re.fullmatch(r'[a-z_]+', key):
+            raise CommandError(f'Clé d\'app invalide : {key!r} (underscore_case, AGENTS.md).')
+        if key in APP_CATALOG or (WAMA_DIR / key).exists():
+            raise CommandError(f'{key} existe déjà : on ne crée DE ZÉRO qu\'une app nouvelle '
+                               f'(pour une app existante : `app_sandbox create {key}`).')
+
+        label = _next_label(key)
+        pkg = WAMA_DIR / label
+        self.stdout.write(f'App DE ZÉRO : {manifest_path.name} → wama/{label}')
+
+        def render(targets, payload):
+            """Rend les cibles ; un refus arrête tout AVANT d'écrire."""
+            out = []
+            for c in targets:
+                fname_c, mod_path, fn_name = _SUBSTITUTABLE[c]
+                rendered, raison = getattr(importlib.import_module(mod_path), fn_name)(payload)
+                if rendered is None:
+                    raise CommandError(f'Gabarit {c} : rien à générer — {raison}')
+                out.append((c, fname_c, rendered))
+            return out
+
+        holes = {}
+
+        def write(rendered_list):
+            for c, fname_c, rendered in rendered_list:
+                files = rendered if isinstance(rendered, dict) else {fname_c: rendered}
+                for name, content in files.items():
+                    text = _rename_text(content, key, label)
+                    if c == 'models':
+                        text = _patch_related_names(text, label)
+                    dest = (pkg / 'templates' / label / name if isinstance(rendered, dict)
+                            else pkg / name)
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_text(text, encoding='utf-8')
+                    holes[str(dest.relative_to(pkg))] = text.count('TROU DE GLU')
+                    self.stdout.write(f'  {dest.relative_to(pkg)} ← GÉNÉRÉ '
+                                      f'({len(text.splitlines())} lignes, '
+                                      f'{holes[str(dest.relative_to(pkg))]} trou(s) de glu)')
+
+        # 1. Premier temps : ce qui ne dépend que du manifeste.
+        first = render(['apps', 'models', 'params', 'tasks'], manifest)
+        (pkg / 'migrations').mkdir(parents=True, exist_ok=True)
+        (pkg / '__init__.py').write_text('', encoding='utf-8')
+        (pkg / 'migrations' / '__init__.py').write_text('', encoding='utf-8')
+        write(first)
+
+        # L'entrée de catalogue est calculée ICI (Django chargé) et STOCKÉE au registre :
+        # `inject_sandbox_catalog` la relit au boot sans rien importer (sandbox.py reste pur).
+        catalog = {**_identity_target(manifest), **_ports_target(manifest),
+                   **_capabilities_target(manifest)}
+        catalog['url_name'] = f"{label}:{(catalog.get('url_name') or 'x:index').split(':', 1)[-1]}"
+        try:
+            rel_manifest = manifest_path.relative_to(BASE_DIR).as_posix()
+        except ValueError:
+            rel_manifest = str(manifest_path)
+        entry = {'label': label, 'generated_from': '', 'from_manifest': rel_manifest,
+                 'catalog': catalog,
+                 'created': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+                 'created_by': owner, 'stage': 'S0-de-zero'}
+        _save_entry(entry)
+
+        def fail(message):
+            entry['stage'] = 'S0-de-zero-echec'
+            entry['failure'] = message
+            _save_entry(entry)
+            self.stderr.write(self.style.ERROR(
+                f'  ÉCHEC — {message}. L\'app reste enregistrée pour diagnostic ; '
+                f'`app_sandbox drop {label}` pour tout retirer.'))
+
+        for step in (['makemigrations', label], ['migrate', label]):
+            r = _manage(step)
+            self.stdout.write(f"  manage.py {' '.join(step)} → rc={r.returncode}")
+            if r.returncode != 0:
+                return fail(f"{' '.join(step)} : {_last_cause(r.stdout, r.stderr)}")
+
+        # 2. Deuxième temps : introspection des modèles créés → facette `data` → vues.
+        r = _manage(['shell', '-c',
+                     'import json;from wama.common.manifests.builtin.app import _data;'
+                     f"print('DATA=' + json.dumps(_data('{label}')))"])
+        line = next((ln for ln in (r.stdout or '').splitlines() if ln.startswith('DATA=')), '')
+        data = json.loads(line[5:]) if line else None
+        if not (data or {}).get('models'):
+            return fail(f'introspection des modèles de {label} vide '
+                        f'({_last_cause(r.stdout, r.stderr)})')
+        second_manifest = json.loads(json.dumps(manifest))
+        second_manifest['body']['data'] = data
+        try:
+            second = render(['urls', 'views', 'templates', 'base'], second_manifest)
+        except CommandError as exc:
+            return fail(str(exc))
+        write(second)
+
+        # 3. Juges : cohérence de paquet, check, page, file habitée (+ card seule).
+        unresolved = _imports_intra_paquet_non_resolus(label)
+        if unresolved:
+            return fail('symboles intra-paquet NON RÉSOLUS : ' + ' ; '.join(unresolved[:4]))
+        r = _manage(['check'])
+        if r.returncode != 0:
+            return fail(f'manage.py check KO ({_last_cause(r.stdout, r.stderr)})')
+        smoke = _smoke_page(label)
+        if smoke.returncode != 0:
+            return fail(f'smoke /{label}/ KO ({_last_cause(smoke.stdout, smoke.stderr)})')
+        item_model = ((manifest.get('body') or {}).get('processing') or {}).get('item_model')
+        details = []
+        if item_model:
+            populated = _smoke_populated_queue(label, item_model, check_card=True)
+            if populated.returncode == 1:
+                return fail('smoke file HABITÉE KO — le rendu de card lève '
+                            f'({_last_cause(populated.stdout, populated.stderr)})')
+            if populated.returncode == 2:
+                details.append('file habitée NON MESURÉE (témoin incréable)')
+
+        entry['stage'] = 'S2-de-zero'
+        entry['glue_holes'] = holes
+        _save_entry(entry)
+        total = sum(holes.values())
+        self.stdout.write(self.style.SUCCESS(
+            f'App {label} créée DE ZÉRO : /{label}/ (dev-only) — {total} trou(s) de glu à '
+            f'confier au rôle codegen{" ; " + " ; ".join(details) if details else ""}. '
             '⚠ Redémarrer gunicorn/workers pour la servir.'))
 
     # ── substitute (étape S2) ────────────────────────────────────────────────
@@ -553,13 +763,7 @@ class Command(BaseCommand):
                 if r2.returncode != 0:
                     verdict, details = 'revert', ['migrate de l’écart KO']
         if verdict == 'ok':
-            smoke = subprocess.run(
-                [sys.executable, '-c',
-                 "import os,django;os.environ.setdefault('DJANGO_SETTINGS_MODULE','wama.settings');"
-                 "django.setup();from django.test import Client;"
-                 f"r=Client().get('/{label}/',follow=True);print(r.status_code);"
-                 "raise SystemExit(0 if r.status_code==200 else 1)"],
-                capture_output=True, text=True, cwd=str(BASE_DIR))
+            smoke = _smoke_page(label)
             if smoke.returncode != 0:
                 verdict = 'revert'
                 details.append(f"smoke /{label}/ KO ({_last_cause(smoke.stdout, smoke.stderr)})")
@@ -578,29 +782,7 @@ class Command(BaseCommand):
         templates_ok = ((entry.get('substituted') or {}).get('templates') or {}).get('verdict') == 'ok'
         check_card = 'templates' in targets or templates_ok
         if verdict == 'ok' and item_model:
-            habite = subprocess.run(
-                [sys.executable, '-c',
-                 "import os,django;os.environ.setdefault('DJANGO_SETTINGS_MODULE','wama.settings');"
-                 "django.setup();from django.apps import apps;from django.test import Client;"
-                 "from wama.common.services.nightly_tests import get_test_dev_user;"
-                 f"M=apps.get_model('{label}','{item_model}');u=get_test_dev_user();\n"
-                 "try:\n    it=M.objects.create(user=u)\n"
-                 "except Exception as e:\n    print('temoin increable:',e);raise SystemExit(2)\n"
-                 "try:\n    c=Client();c.force_login(u);r=c.get('" + f'/{label}/' + "',follow=True)\n"
-                 "    print(r.status_code)\n"
-                 # La card SEULE aussi (`card_html`) : des vues GÉNÉRÉES rendent le partial généré
-                 # `_generic_card.html`, que des templates COPIÉS n'ont pas — page 200, mais 🗑/⚙/↻
-                 # (qui redemandent la card) en 500. Mesuré sur composer_01 le 2026-09-22 par le
-                 # contrat générique de suppression, invisible du smoke de page. Route absente
-                 # (app sans card_html) → non mesuré, jamais bloquant.
-                 + ("    from django.urls import reverse, NoReverseMatch\n"
-                    "    try:\n        url=reverse('" + label + ":card_html', args=[it.id])\n"
-                    "    except NoReverseMatch:\n        url=None\n"
-                    "    if url:\n        r2=c.get(url)\n        print('card_html', r2.status_code)\n"
-                    "        r=r2 if r2.status_code!=200 else r\n" if check_card else '') +
-                 "finally:\n    it.delete()\n"
-                 "raise SystemExit(0 if r.status_code==200 else 1)"],
-                capture_output=True, text=True, cwd=str(BASE_DIR))
+            habite = _smoke_populated_queue(label, item_model, check_card)
             if habite.returncode == 1:
                 verdict = 'revert'
                 # La CAUSE est la dernière ligne de la trace, jamais la première du flux :
@@ -739,8 +921,14 @@ class Command(BaseCommand):
         # --skip-checks : une jumelle CASSÉE (clash de modèles, import raté) bloquerait le
         # system check du sous-process — le drop doit toujours pouvoir nettoyer (œuf/poule
         # mesuré au pilote : le premier essai raté était indéboulonnable sans ça).
-        r = _manage(['migrate', label, 'zero', '--skip-checks'])
-        self.stdout.write(f'  manage.py migrate {label} zero → rc={r.returncode}')
+        # Aucune migration écrite (une création qui a échoué AVANT le premier makemigrations —
+        # vécu le 2026-09-30 sur la 1ʳᵉ app de zéro, modèle refusé par le check) : aucune table
+        # à retirer, et `migrate zero` buterait sur le même check système. Rien à désappliquer.
+        has_migrations = any((WAMA_DIR / label / 'migrations').glob('0*.py'))
+        r = (_manage(['migrate', label, 'zero', '--skip-checks']) if has_migrations
+             else subprocess.CompletedProcess([], 0, '', ''))
+        self.stdout.write(f'  manage.py migrate {label} zero → '
+                          f'{"rc=%d" % r.returncode if has_migrations else "sans objet (aucune migration)"}')
         if r.returncode != 0:
             for line in (r.stderr or r.stdout).strip().splitlines()[-5:]:
                 self.stdout.write(f'    {line}')
