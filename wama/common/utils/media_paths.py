@@ -12,6 +12,7 @@ This ensures:
 
 import os
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Union, Optional
 from django.conf import settings
@@ -437,6 +438,35 @@ class ReceivedInput:
                 if not block:
                     return
                 yield block
+
+    @contextmanager
+    def readable_path(self):
+        """Un chemin LISIBLE sur le disque, le temps du bloc — pour SONDER un fichier reçu avant de
+        créer l'élément (2026-09-30 : juger qu'un GLB peut parler avant de l'ajouter à la file).
+        Désignation : son `local_path`. Téléversement : le fichier temporaire de Django s'il
+        existe, sinon une copie jetable (un petit fichier reste en mémoire), supprimée à la sortie."""
+        if self.designated:
+            yield self.local_path
+            return
+        temp = getattr(self.value, 'temporary_file_path', None)
+        if callable(temp):
+            yield temp()
+            return
+        import os
+        import tempfile
+        suffix = Path(self.name or '').suffix
+        fd, path = tempfile.mkstemp(suffix=suffix, prefix='wama_received_')
+        try:
+            with os.fdopen(fd, 'wb') as out:
+                for block in self.value.chunks():
+                    out.write(block)
+            self.value.seek(0)
+            yield path
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
     def assign(self, instance, field):
         """Pose ce fichier dans le champ `field` d'un élément DÉJÀ créé, puis sa provenance.

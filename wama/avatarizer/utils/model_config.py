@@ -40,6 +40,15 @@ CODEFORMER_WEIGHTS_SUBDIRS = ['CodeFormer', 'facelib', 'realesrgan']
 MUSETALK_VRAM_GB = 8.0
 CODEFORMER_VRAM_GB = 3.0
 
+#: Le TIRAGE du modèle d'animation (2026-09-30) se fait parmi les modèles de l'avatarizer qui
+#: acceptent les entrées FOURNIES (`resolve_model_choice`, `available_inputs`/`consumes`) : une
+#: photo ne laisse que MuseTalk, un GLB que TalkingHead. Cette priorité ne départage que des
+#: candidats ÉGAUX : `musetalk-v1.0` est déclaré au catalogue mais son moteur exécute la v1.5
+#: (`musetalk_backend`, `--version v15`) — il ne doit jamais gagner un tirage.
+ANIMATION_MODEL_PRIORITY = ['talkinghead', 'musetalk-v1.5']
+#: Repli par NATURE d'avatar si le catalogue ne propose rien (première installation).
+ANIMATION_FALLBACK = {'work_object3d': 'talkinghead', 'work_image': 'musetalk-v1.5'}
+
 AVATARIZER_MODELS = {
     'musetalk-v1.5': {
         'model_id': 'musetalk-v1.5',

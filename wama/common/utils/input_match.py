@@ -82,6 +82,23 @@ def auto_entry(meta: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
             'inputs_optional': sorted(set().union(*alls) - req)}
 
 
+def work_token_for(path: str) -> Optional[str]:
+    """Le jeton de TRAVAIL qu'un fichier fournit, d'après sa NATURE (2026-09-30) — ou None.
+
+    Lu dans `INPUT_TYPES` : le jeton de groupe `travail` dont l'`accept` est la catégorie du
+    fichier (`work_image` pour une photo, `work_object3d` pour un GLB, `work_audio` pour un son).
+    C'est ce qui traduit « ce qu'on a » en `available_inputs` pour le tirage commun
+    (`resolve_model_choice`) — plutôt qu'un aiguillage par extension écrit dans chaque app.
+    Un fichier sans jeton dédié à sa nature rend None (`work_file`, générique, ne tranche rien)."""
+    from wama.common.app_registry import category_of_path
+    from wama.common.utils.app_modes import INPUT_TYPES
+    category = category_of_path(path)
+    for token, spec in INPUT_TYPES.items():
+        if spec.get('port') == 'travail' and spec.get('accept') == category:
+            return token
+    return None
+
+
 def input_attribute_verdict(capabilities: Optional[dict], token: str, path: str):
     """`(état, raison)` : ce FICHIER satisfait-il ce que le modèle exige des ATTRIBUTS de l'entrée
     `token` ? — capacité `input_attributes` (2026-09-30), jugée par `natures.asset_accepts`.
@@ -109,6 +126,34 @@ def input_attribute_verdict(capabilities: Optional[dict], token: str, path: str)
     spec = AssetSpec(require=dict(wanted.get('require') or {}),
                      prefer=dict(wanted.get('prefer') or {}))
     return asset_accepts(spec, nature, attributes)
+
+
+def app_attribute_verdict(source: str, token: str, path: str):
+    """`(état, raison)` pour une APP : ce fichier convient-il à AU MOINS UN de ses modèles qui
+    consomment `token` ? (2026-09-30) — le jugement à poser DÈS L'AJOUT d'un élément, avant que
+    le tirage ne choisisse le modèle au lancement.
+
+    Le meilleur état l'emporte (compatible > avertissement > refus) ; la raison est celle du
+    meilleur. Aucun modèle de l'app ne consomme ce jeton, ou aucun n'exige d'attribut : rien à
+    juger, `('compatible', '')`. Les étapes internes (`pipeline_stage`) ne comptent pas."""
+    from wama.media_library.natures import COMPATIBLE, INCOMPATIBLE, WARNING
+    try:
+        from wama.model_manager.models import AIModel
+        rows = list(AIModel.objects.filter(source=source).values_list('capabilities', flat=True))
+    except Exception:
+        return COMPATIBLE, ''
+    rank = {COMPATIBLE: 0, WARNING: 1, INCOMPATIBLE: 2}
+    best = None
+    for caps in rows:
+        caps = caps or {}
+        if caps.get('pipeline_stage'):
+            continue
+        if token not in set(caps.get('inputs_required') or []) | set(caps.get('inputs_optional') or []):
+            continue
+        verdict = input_attribute_verdict(caps, token, path)
+        if best is None or rank[verdict[0]] < rank[best[0]]:
+            best = verdict
+    return best or (COMPATIBLE, '')
 
 
 def input_labels() -> Dict[str, str]:

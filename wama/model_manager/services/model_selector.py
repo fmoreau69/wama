@@ -696,6 +696,14 @@ def select_model_id(source: Optional[str] = None, requires=None,
                 model_type=kwargs.get('model_type'),
                 cloud_keys=kwargs.get('cloud_keys'))[1]]
             cand = [i for i in cand if i in ids] if cand else ids
+            # ⚠ AUCUN candidat après filtrage = AUCUN modèle ne convient → le REPLI (2026-09-30).
+            # Passée telle quelle, la liste vide valait « aucune restriction » pour
+            # `select_model` (`if candidates:`) : le tirage piochait N'IMPORTE quel modèle de
+            # l'app. Mesuré sur l'avatarizer : entrées que rien n'accepte → `musetalk-v1.0`.
+            if not cand:
+                logger.info("[Select] %s : aucun modèle n'accepte ces entrées (%s) → repli %s",
+                            source, available_inputs, fallback)
+                return fallback
             # Sans source, `get_registry_models` rend déjà des clés ENTIÈRES : ne pas
             # préfixer (on fabriquerait « None:kokoro »).
             if source:
