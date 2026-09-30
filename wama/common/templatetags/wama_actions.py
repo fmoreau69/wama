@@ -294,10 +294,10 @@ def lot_slot(app):
     travail, prompt, référence, sortie, réglages, programmation (`BATCH_FORMAT.md`). D'où un
     onglet de la card, rendu comme les ports, jamais déclaré parmi eux.
 
-    Il donne à la règle 1 de BATCH_FORMAT (« l'intention déclarée prime ») son geste : un
-    `.txt` posé sur le port de travail est un CONTENU (converter, describer) ou un prompt
-    (composer, imager), posé ici c'est un LOT. Et une app SANS port de travail (composer,
-    synthesizer) garde son import de lot.
+    Il donne à la règle 1 de BATCH_FORMAT (« l'intention déclarée prime ») son geste : posé
+    ici, un fichier EST un lot ; posé sur le port de travail, c'est toujours sa STRUCTURE qui
+    décide (règle 2 — `WamaImport` tente la détection, puis retombe sur le contenu). Et une app
+    SANS port de travail (composer, synthesizer) garde son import de lot.
     """
     from wama.common.app_registry import APP_CATALOG
     from wama.common.utils.batch_parsers import SUPPORTED_BATCH_EXTENSIONS

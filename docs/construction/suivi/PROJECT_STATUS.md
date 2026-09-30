@@ -18904,3 +18904,21 @@ des installations) ; Lab après P3 ; versionnement des migrations (décision) ; 
   synthesizer comme le composer ; puis `input_slots(app, domain)` pour imager et enhancer.
   Question ouverte : colonnes de lot au nom des PORTS (`-i`/`-r` en alias). 🔴 Relancer WAMA
   (gunicorn HUP) pour servir ces gabarits et JS.
+
+## §PALIER — 2026-09-30 (nuit), « PORTAGE CARD v4 » — reader, describer, converter en v4 — 🔚 synthesizer (comme le composer), puis `input_slots(app, domain)` pour imager et enhancer, transcriber en dernier
+
+- ✅ **Reader, describer, converter en v4** (6 apps sur 10) — `accept` de chaque port = sa
+  déclaration exacte (8/8, 39/39, 60/60). Gestes rejoués sur 8011 : mêmes verdicts que la
+  référence prise sur HEAD. Grille inchangée pour les trois (98/99/99 %). Détail :
+  `CARD_DESIGN §11.11`, « Adoption v4 ».
+- ✅ **Métadonnée corrigée à la source** : description des jetons `work_file`/`work_audio`
+  (« TRANSFORMÉ… devient le résultat », faux pour le reader, le describer, le transcriber) →
+  « …que l'app TRAITE : c'est de lui que part le résultat (…) », reportée mot pour mot dans les 6
+  manifestes d'apps (sans régénération : `enhancer.json` est périmé par un autre chantier).
+- ⚠ **Leçon de mesure** (mémoire `reference_smoke_serveur_dev_ephemere`) : le 8011 met les
+  gabarits en cache — une 1ʳᵉ passe « v4 » a mesuré la v3 ; et un geste interrompu laisse ses
+  témoins (3 résidus du compte de test 22, supprimés par pk).
+- ⚠ **Rouge d'un AUTRE chantier, sur HEAD** : `tests_identifier_language` — budget « noms de
+  méthodes de test » mesuré 1311 pour 1310. Aucun nom signalé n'est absent de HEAD, et aucun des
+  noms ajoutés par les commits récents n'est signalé : l'écart est entré par un déplacement de
+  fichiers (candidat : `ddd50184`, tests de `cam_analyzer` en paquet). À recaler par son auteur.

@@ -8,14 +8,9 @@
 {% block extra_css %}
 {{ block.super }}
 <style>
-    /* Dragover de la card « Nouvel élément » commune (_new_item_card.html, tête de file —
-       2026-07-10, alignement reader/composer/transcriber/describer) : classe générique
-       .drop-zone.dragover (le JS ajoute juste 'dragover', converter garde son propre visuel). */
-    .drop-zone.dragover {
-        border-color: #20c997;
-        background: rgba(32,201,151,.06);
-        transform: scale(1.02);
-    }
+    /* (Visuel de survol PROPRE au converter — vert + scale(1.02) — retiré le 2026-09-30 au
+       passage en card v4 : la tuile Importer a son survol COMMUN (wama-input-slots.css), et un
+       agrandissement la faisait déborder de la zone de hauteur fixe.) */
     .job-card {
         background: #1e2329;
         border: 1px solid #2d3440;
@@ -379,8 +374,12 @@ document.addEventListener('DOMContentLoaded', function () {
     posé sur toutes les pages) : le littéral écrit à la main avait pris 14 extensions de retard sur
     `input_extensions` (archives + ebooks convertis par format_router mais grisés au sélecteur,
     mesuré 2026-08-30). Un littéral dérive de sa déclaration ; une dérivation ne le peut pas.
-    Contrôle mécanique des cards restantes : common/tests_catalogues (card ⟷ catalogue).{% endcomment %}
-{% include 'common/_new_item_card.html' with drop_zone_id='converterDropZone' file_input_id='converterFileInput' folder_input_id='converterFolderInput' file_accept=current_app_spec.input_extensions|join:',' formats_label='Images · Vidéos · Audio · Documents · Archives' show_batch_bar=True show_media_library=True show_url=True url_input_id='converterUrl' url_submit_id='converterUrlSubmit' url_placeholder='https://… (page web, YouTube, média distant)' batch_template_url=converter_batch_template_url collapsible=True %}
+    Contrôle mécanique des cards restantes : common/tests_catalogues (card ⟷ catalogue).
+    Depuis le passage en card v4 (2026-09-30, CARD_DESIGN §11.11) cette dérivation est celle du
+    PORT (`port_accept` : déclaré ∩ natures du port `work`, qui les couvre toutes) — même
+    résultat, plus de `file_accept` à passer. Onglets « Fichier de travail » et « Lot » ; ids
+    converterDropZone/FileInput/FolderInput/Url/UrlSubmit conservés (converter.js inchangé).{% endcomment %}
+{% include 'common/_new_item_card_v4.html' with app_id='converter' drop_zone_id='converterDropZone' file_input_id='converterFileInput' folder_input_id='converterFolderInput' formats_label='Images · Vidéos · Audio · Documents · Archives' show_batch_bar=True url_input_id='converterUrl' url_submit_id='converterUrlSubmit' url_placeholder='https://… (page web, YouTube, média distant)' batch_template_url=converter_batch_template_url collapsible=True %}
 
     {% comment %}Barre d'outils commune (tri/filtre/disposition Ligne-Mosaïque/actions globales),
     alignement reader/composer/transcriber/describer (2026-07-10, absente jusqu'ici).{% endcomment %}
