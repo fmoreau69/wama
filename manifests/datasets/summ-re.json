@@ -33,6 +33,13 @@
         "label": "Speaker track inside a meeting",
         "crosses": "meeting",
         "manipulated": false
+      },
+      {
+        "key": "degradation",
+        "role": "factor",
+        "label": "Controlled degradation profile applied to the meeting mix (wama/common/utils/audio_degradation.py, PROFILES)",
+        "crosses": "meeting",
+        "manipulated": true
       }
     ],
     "signals": [
@@ -43,7 +50,9 @@
       {"id": "meeting_mix", "data_type": "signal", "acquired": false,
        "description": "DERIVED: the tracks of a meeting resampled to 16 kHz, summed and peak-normalised (media library nature `speech`)"},
       {"id": "meeting_reference", "data_type": "segments", "acquired": false,
-       "description": "DERIVED: the segments of all tracks merged by start time, SRT with `[Locuteur NNN]` labels (media library nature `document`)"}
+       "description": "DERIVED: the segments of all tracks merged by start time, SRT with `[Locuteur NNN]` labels (media library nature `document`)"},
+      {"id": "degraded_mix", "data_type": "signal", "acquired": false,
+       "description": "DERIVED: the meeting mix under a declared degradation profile (deterministic), same reference as the mix"}
     ]
   }
 }

@@ -27,6 +27,13 @@ le reste est la chaîne existante :
     # tableau des mesures des cards posées (erreur par mot, accord de langue)
     python manage.py asr_eval_corpus fleurs-cs --require fr,en --exact --recordings 8 --user <login> --report
 
+    # BANC DES PRÉTRAITEMENTS (2026-09-30) : SUMM-RE sous dégradation CONTRÔLÉE, et un corpus RÉEL
+    # de qualité moyenne (CFPP2000) pour vérifier que la dégradation prédit la même chose
+    python manage.py asr_eval_corpus summ-re --user <login> --engines whisper --degrade noise_snr15 far_field --start
+    python manage.py asr_eval_corpus cfpp --recordings 3 --user <login> --engines whisper --level --start
+    # l'ordre « nivellement PUIS débruitage » sans toucher au worker : audio nivelé d'avance
+    python manage.py asr_eval_corpus cfpp --recordings 3 --user <login> --engines whisper --leveled-input --preprocess --start
+
 DEUX CORPUS, DEUX LECTURES, UNE CHAÎNE :
   · **SUMM-RE** — une RÉUNION MIXÉE, pas des pistes. Le corpus livre une piste micro-cravate par
     locuteur ; le cas d'usage réel est un enregistrement de salle. Les pistes sont
@@ -58,7 +65,20 @@ DEFAULT_ENGINES = ('transcriber:whisper', 'transcriber:qwen3-asr-1.7b', 'transcr
 
 #: Corpus déclarés : clé → manifeste `dataset` (la source, sa licence, sa langue y vivent).
 CORPORA = {'summ-re': 'manifests/datasets/summ-re.json',
-           'fleurs-cs': 'manifests/datasets/fleurs-cs.json'}
+           'fleurs-cs': 'manifests/datasets/fleurs-cs.json',
+           'cfpp': 'manifests/datasets/cfpp.json'}
+
+#: Séparateur des variantes dérivées d'un enregistrement : `<audio>__<profil>[__leveled]`.
+VARIANT_SEPARATOR = '__'
+#: CFPP : entretiens retenus entre 10 et 75 min (un enregistrement de quelques minutes est un
+#: fragment, un de plus d'une heure et quart coûte trop de GPU par configuration).
+CFPP_MIN_SECONDS, CFPP_MAX_SECONDS = 600, 4500
+#: Durée ESTIMÉE d'un MP3 de l'archive par sa taille (≈ 128 kbit/s, mesuré : 45 Mo pour 47 min).
+#: Lire les 42 fiches Dublin Core coûtait une requête chacune au Hub : 429 dès le plan
+#: (2026-09-30). L'estimation ne sert qu'à CHOISIR ; la durée versée est celle du décodage.
+MP3_BYTES_PER_SECOND = 16000
+#: Lecture de l'archive par blocs de 32 Mo : un MP3 de 100 Mo = 4 requêtes, pas 100.
+ARCHIVE_BLOCK_BYTES = 32 << 20
 
 SAMPLE_RATE = 16000
 PEAK = 0.9
@@ -73,6 +93,7 @@ class Recording:
     languages: list = field(default_factory=list)    # FLEURS-CS : langues annoncées
     row_group: tuple = None                          # FLEURS-CS : (fichier, bloc)
     tracks: dict = field(default_factory=dict)       # SUMM-RE : speaker → (échantillons, segments)
+    seconds: float = None                            # CFPP : durée ESTIMÉE (taille du mp3)
 
 
 def asset_name(corpus: str, split: str, recording_id: str) -> str:
@@ -152,20 +173,80 @@ def mix_tracks(tracks: dict):
     return mix
 
 
-def decode_track(wav_bytes: bytes):
-    """Audio encodé → échantillons float32 mono à 16 kHz."""
-    import io
+def resampled(samples, rate: int):
+    """Échantillons mono → float32 à 16 kHz (le décodeur commun garde parfois la fréquence
+    d'origine : sa branche soundfile ne rééchantillonne pas, `audio_decode.decode_audio`)."""
     from math import gcd
 
     import numpy as np
-    import soundfile as sf
     from scipy.signal import resample_poly
-    samples, rate = sf.read(io.BytesIO(wav_bytes), dtype='float32', always_2d=True)
-    samples = samples.mean(axis=1)
+    samples = np.asarray(samples, dtype=np.float32)
     if rate != SAMPLE_RATE:
-        g = gcd(SAMPLE_RATE, rate)
-        samples = resample_poly(samples, SAMPLE_RATE // g, rate // g).astype(np.float32)
+        g = gcd(SAMPLE_RATE, int(rate))
+        samples = resample_poly(samples, SAMPLE_RATE // g, int(rate) // g).astype(np.float32)
     return samples
+
+
+def decode_track(wav_bytes: bytes):
+    """Audio encodé → échantillons float32 mono à 16 kHz."""
+    import io
+
+    import soundfile as sf
+    samples, rate = sf.read(io.BytesIO(wav_bytes), dtype='float32', always_2d=True)
+    return resampled(samples.mean(axis=1), rate)
+
+
+def trs_cues(content: bytes) -> list:
+    """Transcription au format TRANSCRIBER (`.trs`) → [(début, fin, n° de locuteur, texte)].
+
+    Un tour (`Turn`) est découpé par ses `Sync` : chaque marque ouvre un passage qui court jusqu'à
+    la suivante (ou la fin du tour). Un tour à plusieurs locuteurs (`speaker="spk1 spk2"`) donne
+    la parole à chacun par `Who nb=…` sur le même passage — parole SUPERPOSÉE, donc deux répliques
+    aux mêmes temps. Les `Event` (pauses, bruits, « mm mm ») et les `Comment` sont des
+    annotations, pas des mots : ils sont retirés. Les locuteurs sont NUMÉROTÉS dans leur ordre de
+    déclaration — le fichier porte leurs vrais noms, qui ne sont jamais recopiés.
+    """
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(content)
+    number = {s.get('id'): index for index, s in enumerate(root.iter('Speaker'), 1)}
+    cues = []
+    for turn in root.iter('Turn'):
+        ids = (turn.get('speaker') or '').split()
+        turn_end = float(turn.get('endTime') or 0)
+        start = float(turn.get('startTime') or 0)
+        speaker = ids[0] if ids else ''
+        block = []                                      # [(locuteur, [mots])] du passage courant
+
+        def say(text):
+            if text and text.strip():
+                if not block or block[-1][0] != speaker:
+                    block.append((speaker, []))
+                block[-1][1].append(text)
+
+        def close(end):
+            for who, words in block:
+                text = ' '.join(' '.join(words).split())
+                if text and who in number and end > start:
+                    cues.append((start, end, number[who], text))
+            block.clear()
+
+        say(turn.text)
+        for child in turn:
+            if child.tag == 'Sync':
+                close(float(child.get('time') or start))
+                start = float(child.get('time') or start)
+            elif child.tag == 'Who':
+                index = int(child.get('nb') or 1) - 1
+                speaker = ids[index] if 0 <= index < len(ids) else speaker
+            say(child.tail)
+        close(turn_end)
+    return sorted(cues)
+
+
+def cues_srt(cues: list) -> str:
+    """Répliques `(début, fin, n°, texte)` → SRT étiqueté `[Locuteur N]` (lu par `parse_cues`)."""
+    return '\n'.join(f'{i}\n{srt_time(start)} --> {srt_time(end)}\n[Locuteur {who}] {text}\n'
+                     for i, (start, end, who, text) in enumerate(cues, 1))
 
 
 def select_by_languages(candidates: list, require: set, exact: bool, count: int = None) -> list:
@@ -215,6 +296,14 @@ class Command(BaseCommand):
                             help="Pipeline(s) de diarisation (pyannote : speaker-diarization-3.1, "
                                  "speaker-diarization-community-1) — une configuration par "
                                  "pipeline, mesurée en cpWER et DER. Absent : diarisation coupée.")
+        from wama.common.utils.audio_degradation import PROFILES
+        parser.add_argument('--degrade', nargs='+', choices=sorted(PROFILES), metavar='PROFILE',
+                            help="Pose les cards sur des VARIANTES dégradées de chaque "
+                                 "enregistrement (profils déclarés de `audio_degradation` : "
+                                 f"{', '.join(sorted(PROFILES))}) — même référence que l'original.")
+        parser.add_argument('--leveled-input', action='store_true',
+                            help="Pose les cards sur l'audio (ou la variante) NIVELÉ d'avance : "
+                                 "avec --preprocess, c'est l'ordre « nivellement puis débruitage ».")
         parser.add_argument('--start', action='store_true', help="Lance les cards posées.")
         parser.add_argument('--report', action='store_true',
                             help="Tableau des mesures des cards de --user sur ces enregistrements.")
@@ -228,11 +317,15 @@ class Command(BaseCommand):
         require = {x.strip() for x in o['require'].split(',') if x.strip()}
         if corpus == 'summ-re':
             recordings = self.plan_meetings(source, o['split'], o['recordings'])
+        elif corpus == 'cfpp':
+            o['split'] = 'all'                           # le corpus n'a pas de partition
+            recordings = self.plan_archive(source, o['recordings'])
         else:
             recordings = self.plan_tagged(source, o['split'], o['recordings'], require,
                                           o['exact'], o['languages_count'])
         for r in recordings:
             detail = (f"{len(r.speakers)} locuteurs" if r.speakers
+                      else f"~{r.seconds / 60:.0f} min (estimé)" if r.seconds
                       else f"langues {','.join(r.languages)}")
             self.stdout.write(f"  {r.recording_id} : {detail}, {len(r.files)} fichier(s)")
         if o['dry_run']:
@@ -241,8 +334,12 @@ class Command(BaseCommand):
             return self.report(o['user'], corpus, o['split'], recordings)
         if corpus == 'summ-re':
             assets = self.prepare_meetings(corpus, source, o['split'], recordings)
+        elif corpus == 'cfpp':
+            assets = self.prepare_archive(corpus, source, o['split'], recordings)
         else:
             assets = self.prepare_tagged(corpus, source, o['split'], recordings)
+        assets = [self.variant(asset, profile, o['leveled_input'])
+                  for asset in assets for profile in (o['degrade'] or [None])]
         if o['user']:
             from wama.common.backends.pyannote_diarizer import pipeline_choices
             served = [model_id for model_id, _ in pipeline_choices()]
@@ -462,6 +559,128 @@ class Command(BaseCommand):
             shutil.rmtree(work, ignore_errors=True)
         return self._assets(corpus, split, recordings)
 
+    # ── CFPP2000 : une ARCHIVE lue par plages (seuls les membres retenus sont lus) ─────────
+    def _archive(self, source):
+        import zipfile
+        from huggingface_hub import HfFileSystem
+        handle = HfFileSystem().open(self._remote(source, source['archive']), 'rb',
+                                     block_size=ARCHIVE_BLOCK_BYTES)
+        return handle, zipfile.ZipFile(handle)
+
+    def plan_archive(self, source, count):
+        """Les enregistrements de l'archive (un dossier `record-N` : mp3 + `.trs`), leur durée
+        ESTIMÉE par la taille du mp3 — le répertoire central du zip suffit, aucun membre n'est lu.
+        Plan gardé en cache pour la révision épinglée. Retenus : les `count` premiers dont la
+        durée estimée est dans [CFPP_MIN_SECONDS, CFPP_MAX_SECONDS]."""
+        import re
+        cache = self._plan_cache(source, 'all')
+        plan = json.loads(cache.read_text('utf-8')) if cache.exists() else None
+        if plan is None:
+            handle, archive = self.with_retry(lambda: self._archive(source))
+            try:
+                folders = {}
+                for info in archive.infolist():
+                    folder, _, leaf = info.filename.partition('/')
+                    if leaf:
+                        folders.setdefault(folder, []).append(info)
+            finally:
+                handle.close()
+            plan = []
+            for folder, infos in folders.items():
+                audio = [i for i in infos if i.filename.lower().endswith('.mp3')]
+                turns = [i for i in infos if i.filename.lower().endswith('.trs')]
+                if len(audio) == 1 and len(turns) == 1:
+                    plan.append([folder, audio[0].filename, turns[0].filename,
+                                 round(audio[0].file_size / MP3_BYTES_PER_SECOND)])
+            plan.sort(key=lambda row: int(re.sub(r'\D', '', row[0]) or 0))
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(json.dumps(plan), encoding='utf-8')
+        chosen = [Recording(folder, files={audio, turns}, seconds=seconds)
+                  for folder, audio, turns, seconds in plan
+                  if seconds and CFPP_MIN_SECONDS <= seconds <= CFPP_MAX_SECONDS][:count]
+        self.stdout.write(f"{source['repo_id']} : {len(chosen)} entretien(s) retenu(s) sur {len(plan)}")
+        return chosen
+
+    def prepare_archive(self, corpus, source, split, recordings):
+        from wama.common.utils.audio_decode import decode_audio
+        from wama.media_library.models import SystemAsset
+
+        todo = [r for r in recordings if not SystemAsset.objects.filter(
+            asset_type='speech', name=asset_name(corpus, split, r.recording_id)).exists()]
+        if not todo:
+            return self._assets(corpus, split, recordings)
+        work = Path(tempfile.mkdtemp(prefix=f'{corpus}_'))
+        handle, archive = self.with_retry(lambda: self._archive(source))
+        try:
+            for rec in todo:
+                audio = next(n for n in rec.files if n.lower().endswith('.mp3'))
+                turns = next(n for n in rec.files if n.lower().endswith('.trs'))
+                self.stdout.write(f"  lecture {rec.recording_id}")
+                mp3 = work / f'{rec.recording_id}.mp3'          # nom neutre : jamais le nom réel
+                mp3.write_bytes(self.with_retry(lambda: archive.read(audio)))
+                samples, rate = decode_audio(str(mp3), target_sr=SAMPLE_RATE, mono=True)
+                samples = resampled(samples, rate)
+                mp3.unlink(missing_ok=True)
+                cues = trs_cues(self.with_retry(lambda: archive.read(turns)))
+                self.ingest(corpus, source, split, rec.recording_id, samples, work,
+                            reference=(cues_srt(cues), 'srt'),
+                            attributes={'language': source.get('language', ''),
+                                        'speakers': len({c[2] for c in cues})},
+                            description=f"Entretien CFPP2000 {rec.recording_id} : "
+                                        f"{len({c[2] for c in cues})} locuteurs, "
+                                        f"{len(cues)} répliques, 16 kHz mono.")
+        finally:
+            handle.close()
+            shutil.rmtree(work, ignore_errors=True)
+        return self._assets(corpus, split, recordings)
+
+    # ── variantes : dégradation contrôlée, audio nivelé d'avance ───────────────────────────
+    def variant(self, asset, profile=None, leveled=False):
+        """L'enregistrement tel qu'on le posera : l'original, sa variante DÉGRADÉE par un profil
+        déclaré (`audio_degradation.PROFILES`), et/ou NIVELÉE d'avance (`speech_leveling`). Une
+        variante est un audio SYSTÈME à part (son lot à elle), qui garde la référence de
+        l'original (`attributes['reference']`). Idempotent : déjà versée, elle est reprise."""
+        if not profile and not leveled:
+            return asset
+        import soundfile as sf
+
+        from wama.common.utils.audio_decode import decode_audio
+        from wama.media_library.models import SystemAsset
+        from wama.media_library.system_files import ingest_system_file
+
+        parts = [asset.name] + ([profile] if profile else []) + (['leveled'] if leveled else [])
+        name = VARIANT_SEPARATOR.join(parts)
+        existing = SystemAsset.objects.filter(asset_type='speech', name=name).first()
+        if existing:
+            return existing
+        samples, rate = decode_audio(asset.file.path, target_sr=SAMPLE_RATE, mono=True)
+        samples = resampled(samples, rate)
+        steps = []
+        if profile:
+            from wama.common.utils.audio_degradation import PROFILES, degrade
+            samples = degrade(samples, SAMPLE_RATE, profile)
+            steps.append(PROFILES[profile]['label'])
+        if leveled:
+            from wama.common.utils.speech_leveling import level_speech
+            samples = level_speech(samples, SAMPLE_RATE)
+            steps.append('nivellement de la parole')
+        work = Path(tempfile.mkdtemp(prefix='variant_'))
+        try:
+            wav = work / f'{name}.wav'
+            sf.write(str(wav), samples, SAMPLE_RATE, subtype='PCM_16')
+            attributes = {**(asset.attributes or {}), 'base': asset.name,
+                          'reference': (asset.attributes or {}).get('reference')
+                          or f'{asset.name}_reference',
+                          'degradation': profile or '', 'leveled': bool(leveled)}
+            ingest_system_file('speech', name, wav, mime_type='audio/wav',
+                               duration=len(samples) / SAMPLE_RATE, attributes=attributes,
+                               description=f"{asset.name} — {', '.join(steps)}.",
+                               source_url=asset.source_url or '', license=asset.license or '')
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        self.stdout.write(self.style.SUCCESS(f"  variante {name} versée"))
+        return SystemAsset.objects.get(asset_type='speech', name=name)
+
     # ── commun : versement en médiathèque système ─────────────────────────────────────────
     def ingest(self, corpus, source, split, recording_id, samples, work, *, reference,
                attributes, description):
@@ -554,8 +773,10 @@ class Command(BaseCommand):
             if not new_cards:
                 self.stdout.write(f"  {asset.name} : configuration déjà posée (lot #{batch.pk})")
                 continue
-            reference = SystemAsset.objects.get(asset_type='document',
-                                                name=f'{asset.name}_reference')
+            # Une variante garde la référence de l'original (`variant`).
+            reference = SystemAsset.objects.get(
+                asset_type='document',
+                name=(asset.attributes or {}).get('reference') or f'{asset.name}_reference')
             # Toutes les cards du lot : le fichier de référence reste UN, partagé (le poser sur
             # les seules nouvelles en ferait une seconde copie).
             cards = [item.transcript for item in batch.items.select_related('transcript')]
@@ -589,8 +810,13 @@ class Command(BaseCommand):
         from wama.transcriber.models import Transcript
         from wama.transcriber.utils.transcript_documents import read_transcript_document
 
+        from wama.media_library.models import SystemAsset
         user = self._user(login)
-        for asset in self._assets(corpus, split, recordings):
+        bases = self._assets(corpus, split, recordings)
+        # Chaque original, puis ses variantes (dégradées, nivelées) : un lot chacune.
+        assets = [a for base in bases for a in [base] + list(SystemAsset.objects.filter(
+            asset_type='speech', name__startswith=base.name + VARIANT_SEPARATOR).order_by('name'))]
+        for asset in assets:
             self.stdout.write(f"\n{asset.name} — {asset.attributes.get('languages') or asset.attributes.get('language')}")
             for t in Transcript.objects.filter(user=user, audio=asset.file.name).order_by('pk'):
                 rows = {r.metric: r.value for r in ResultEvaluation.objects.filter(
@@ -605,7 +831,7 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f"  #{t.pk:<5} {t.backend:<34} langues={t.language_mode:<6} "
                     f"prétr={'oui' if t.preprocess_audio else 'non'} "
-                    f"nivel={'oui' if t.level_speech else 'non'} {t.status:<8} "
+                    f"nivel={'oui' if t.level_speech else 'non'} vad={t.vad_mode:<4} {t.status:<8} "
                     f"WER {fmt(rows.get('wer'))}  CER {fmt(rows.get('cer'))}  "
                     f"accord {fmt(agreement)}  entendues {','.join(heard) or '—'}"
                     + (f"  diar={t.diarization_model} cpWER {fmt(rows.get('cpwer'))} "

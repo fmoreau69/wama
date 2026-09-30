@@ -1,0 +1,44 @@
+{
+  "manifest_kind": "dataset",
+  "key": "cfpp",
+  "schema_version": "1.0",
+  "name": "CFPP2000 - French spoken in Paris, home interviews (ASR evaluation corpus)",
+  "description": "Non-directive interviews about Paris neighbourhoods (about one hour each, 2 to 4 speakers), recorded in ordinary conditions (homes, cafes) and transcribed verbatim, aligned by speech turn. Used by WAMA as a REAL medium-quality corpus, to check whether the controlled degradations of SUMM-RE (`audio_degradation.PROFILES`) predict the same preprocessing results (WAMA_QUALITE 9bis). Prepared on demand by `manage.py asr_eval_corpus cfpp`. The files carry the speakers' real names: WAMA relabels them `Locuteur N` and never copies a name. Citation required by the authors: the site http://cfpp2000.univ-paris3.fr/ and Branca-Rosoff S., Fleury S., Lefeuvre F., Pires M., 2012, Discours sur la ville. Presentation du Corpus de Francais Parle Parisien des annees 2000 (CFPP2000).",
+  "world": "data",
+  "visibility": "private",
+  "projects": [],
+  "source": {
+    "type": "url",
+    "ref": "https://huggingface.co/datasets/datasets-CNRS/CFPP"
+  },
+  "body": {
+    "source": {
+      "type": "other",
+      "ref": "hf://datasets/datasets-CNRS/CFPP/CFPP.zip",
+      "repo_id": "datasets-CNRS/CFPP",
+      "revision": "da51a7622f81e923eb0db9a089553af46fac0199",
+      "archive": "CFPP.zip",
+      "license": "CC-BY-NC-SA-3.0",
+      "language": "fr",
+      "origin": "https://doi.org/10.34847/cocoon.8bc96a4e-9899-30e4-99be-c72d216eb38b",
+      "splits": {"all": "42 recordings (mp3 + Transcriber .trs + Dublin Core metadata), about 50 h"}
+    },
+    "axes": [
+      {
+        "key": "recording",
+        "role": "observation",
+        "label": "Interview (one recording, all speakers)"
+      }
+    ],
+    "signals": [
+      {"id": "interview_audio", "data_type": "signal", "acquired": true,
+       "description": "Interview recording, MP3"},
+      {"id": "interview_turns", "data_type": "segments", "acquired": true,
+       "description": "Verbatim transcription in Transcriber format (.trs): turns timed by Sync marks, overlapping speech marked by Who"},
+      {"id": "interview_mix", "data_type": "signal", "acquired": false,
+       "description": "DERIVED: the recording decoded to 16 kHz mono (media library nature `speech`)"},
+      {"id": "interview_reference", "data_type": "segments", "acquired": false,
+       "description": "DERIVED: the turns as SRT with `[Locuteur N]` labels, noise and pause events dropped (media library nature `document`)"}
+    ]
+  }
+}
