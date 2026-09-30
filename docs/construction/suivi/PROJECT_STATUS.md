@@ -18955,3 +18955,30 @@ plus anciennes de la même clé ; le calendrier ne montre plus « en cours » un
 reprise depuis 24 h. Gardes `tests_install_history.OpenRequestsDoNotLingerTest` (+ contre-épreuve).
 **Session CLOSE** — restent, sans urgence : le Lab après P3 (non commencé, chantier à cadrer avec
 l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges d'autres chantiers.
+
+## §PALIER — 2026-09-30, « IMAGER SUR LA ROUTE F4b » (étape ⑥) + rôle `model` durci — ✅ `c5ef131e`, `7be54fef`, `c7b535a0` — 🔚 génération réelle Supra2-IMG depuis l'imager
+
+> Détail : `ROUTE §F4b` (bloc « Étape ⑥ LIVRÉE »), `INPUT_MODEL_MATCHING §5`, mécanisme `model_keys`.
+
+- ✅ **Imager, image ET vidéo** : options du select tirées du catalogue par TÂCHE (plus par source :
+  Supra2-IMG, installé depuis le model manager, est choisissable), logos en optgroup par la
+  capacité canonique `category` (`options_group="category"`, générique), valeurs = clés entières
+  (migration `imager/0023`, appliquée en base par la relance de 03:14 : 25 lignes préfixées,
+  5 `auto` intacts), tirage « auto » sans `source`, classe du lancement dérivée du moteur déclaré
+  (`tasks._image_backend_for`), modèle en chip de card (libellé du catalogue).
+- ✅ **Brique commune `model_keys`** (une lecture de `<source>:<id>`) — adoptée par l'imager, l'ETA,
+  `declaration_for`. ⚠ Une douzaine de conversions à la main restent dans le dépôt : ralliement au
+  fil des portages.
+- ✅ **Défaut commun corrigé** : aide du modèle et `cap_from` muets pour tout select à clés entières
+  (synthesizer, avatarizer compris) — méta lue sur le domaine du select.
+- ✅ **Rôle `model` / scout** (`role_utils.enforce_engine_facts`) : `transformers` doit être PROUVÉ
+  par les `architectures` du dépôt (cas LinTO, `ParakeetForRNNT`), formats de poids multiples
+  signalés (`.nemo`…), moteur qu'aucun backend ne sert DIT.
+- Smoke lecture seule sur la vraie base : page 200 ; image = 8 modèles historiques + Supra2 + Logos ;
+  vidéo = 5 + Minimax grisé. Grille : `model_options_catalog` VRAI pour l'imager.
+- Suite (common + model_manager + imager + synthesizer + avatarizer, WSL) : 2742 tests, 9 échecs lus
+  un par un — 2 à moi (corrigés : `tests_intent_vision`, docs générées), 7 d'AUTRES chantiers
+  (`tests_notifications` ×3, `tests_tool_api_lectures.AddItemToMediaLibrary`,
+  `tests_codegen_lot` imager `generation_settings`, `talkinghead` en WIP d'une autre instance).
+- 🔚 génération réelle de Supra2-IMG depuis l'imager (GPU libre) ; rejouer la chaîne d'intégration
+  avec qwen3.8 (même prompt) ; poids officiels Supra2 (option b).
