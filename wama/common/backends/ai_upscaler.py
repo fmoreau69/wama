@@ -18,24 +18,16 @@ from wama.common.backends.base import BaseModelBackend
 
 logger = logging.getLogger(__name__)
 
-# Import centralized model configuration
-try:
-    from .model_config import ENHANCER_MODELS, get_models_directory, get_model_path
-    MODEL_CONFIG_AVAILABLE = True
-except ImportError:
-    MODEL_CONFIG_AVAILABLE = False
-    ENHANCER_MODELS = {}
-
-# Model information - use centralized config or fallback
-MODELS_INFO = {
-    key: {
-        'scale': config['scale'],
-        'vram_usage': config['vram_usage'],
-        'description': config['description'],
-        'file': config['file']
-    }
-    for key, config in ENHANCER_MODELS.items()
-} if MODEL_CONFIG_AVAILABLE else {  # wama:redondance-ok — fallback dégradé si model_config indisponible (copie assumée)
+#: Modèles que ce backend sait exécuter — LITTÉRAL au niveau module, la forme que lit
+#: l'inventaire (`backend_inventory`, par AST) pour départager deux backends d'un même moteur.
+#: ⚠ S'appelait `MODELS_INFO` jusqu'au 2026-09-30, et n'était donc lu par personne : tant
+#: qu'`AIUpscaler` était le SEUL backend `onnxruntime`, la règle « un seul candidat » suffisait.
+#: Le 29/09, un second backend `onnxruntime` est arrivé (Supra2-IMG) — la résolution des 7
+#: upscalers est tombée à None (règle 3 : plusieurs candidats, aucun ne déclare le modèle), et
+#: l'upscale d'image de l'enhancer avec elle. Mesuré en portant l'agrandissement de sortie.
+#: La branche « config centralisée » qui précédait ce littéral était MORTE : elle importait un
+#: `.model_config` qui n'existe pas dans le substrat (constat du 21/09, cf. `__init__`).
+SUPPORTED_MODELS = {  # wama:redondance-ok — même inventaire que enhancer/utils/model_config (un backend n'importe pas son app)
     'RealESR_Gx4': {
         'scale': 4,
         'vram_usage': 2.5,
@@ -164,25 +156,21 @@ class AIUpscaler(BaseModelBackend):
         self.tile_size = tile_size
 
         # Get model info
-        if model_name not in MODELS_INFO:
+        if model_name not in SUPPORTED_MODELS:
             raise ValueError(f"Unknown model: {model_name}")
 
-        self.model_info = MODELS_INFO[model_name]
+        self.model_info = SUPPORTED_MODELS[model_name]
         self.scale_factor = self.model_info['scale']
 
         # Find models directory
         if models_dir is None:
-            if MODEL_CONFIG_AVAILABLE:
-                models_dir = str(get_models_directory())
-            else:
-                # ⚠ Mesuré le 2026-09-21 : `MODEL_CONFIG_AVAILABLE` est TOUJOURS faux ici —
-                # l'import relatif `.model_config` vise un module qui n'existe pas dans le
-                # substrat (il vit dans l'app, `enhancer/utils/model_config.py`, qu'un backend
-                # ne doit pas importer : tests_backend_inventory). Le repli pointait alors sur
-                # `AI-models/enhancer/onnx` (vide) alors que les poids vivent à
-                # `MODEL_PATHS['upscaling']['onnx']` — la même source que l'app lit. Chemin
-                # par les settings, une fois (règle AGENTS « le modèle par cache_dir=… »).
-                models_dir = _default_models_dir()
+            # ⚠ Mesuré le 2026-09-21 : l'ancienne branche « config centralisée » importait un
+            # `.model_config` qui n'existe pas dans le substrat (il vit dans l'app,
+            # `enhancer/utils/model_config.py`, qu'un backend ne doit pas importer :
+            # tests_backend_inventory) — elle ne s'exécutait jamais, retirée le 2026-09-30.
+            # Les poids vivent à `MODEL_PATHS['upscaling']['onnx']` — la même source que l'app
+            # lit. Chemin par les settings, une fois (règle AGENTS « le modèle par cache_dir=… »).
+            models_dir = _default_models_dir()
 
         self.models_dir = models_dir
         self.model_path = os.path.join(models_dir, self.model_info['file'])
