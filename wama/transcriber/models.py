@@ -30,8 +30,13 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # demandé. Optionnel, coupé par défaut : réintégré le 2026-09-29 pour être MESURÉ.
     level_speech = models.BooleanField(default=False, db_default=False)
 
-    # Backend selection
-    backend = models.CharField(max_length=32, default='auto', blank=True)  # auto, whisper, vibevoice
+    # MODÈLE de transcription — CLÉ DE CATALOGUE entière depuis le 2026-09-30 (route F4b ⑦) :
+    # `transcriber:qwen3-asr-1.7b`, `albert:whisper-large-v3`, `huggingface:org/nom` — la valeur même
+    # que sert le select. `auto` = tirage au lancement. Le nom du champ reste (frontière des
+    # DONNÉES : tool_api, fichiers de lot, réglages de volet le lisent). 128 : une clé de dépôt HF
+    # dépasse 32 (`huggingface:linagora/linto_stt_fr_fastconformer_pc` = 51).
+    backend = models.CharField(max_length=128, default='auto', blank=True,
+                               help_text="Clé de catalogue du modèle, ou « auto » (tirage au lancement)")
 
     # VibeVoice-specific options
     hotwords = models.TextField(blank=True, default='')  # Domain-specific terms
@@ -145,6 +150,15 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
 
     def __str__(self):
         return f"Transcript {self.id} ({self.user.username})"
+
+    def save(self, *args, **kwargs):
+        # Valeur de modèle = CLÉ DE CATALOGUE (route F4b ⑦, 2026-09-30). Normalisée ICI, point de
+        # passage de TOUS les écrivains (volet, modale, assistant `add_to_transcriber`, fichiers de
+        # lot, duplication) : un ancien nom de moteur ou un identifiant nu posté par une surface
+        # d'avant devient sa clé (`catalogue_value`). `auto` et le vide restent.
+        from .backends.manager import catalogue_value
+        self.backend = catalogue_value(self.backend)
+        super().save(*args, **kwargs)
 
     @property
     def filename(self):

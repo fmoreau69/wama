@@ -50,8 +50,10 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-#: Moteurs comparés par défaut — clés de catalogue ou moteurs, comme les accepte la card.
-DEFAULT_ENGINES = ('whisper', 'transcriber:qwen3-asr-1.7b', 'transcriber:canary-1b-v2',
+#: Modèles comparés par défaut — clés de catalogue, comme la card les stocke (un ancien nom de
+#: moteur passé à `--engines` est encore lu : `catalogue_value`). Un distant se passe par sa clé
+#: (`--engines albert:whisper-large-v3`) : il est appelé avec la clé Albert de `--user`.
+DEFAULT_ENGINES = ('transcriber:whisper', 'transcriber:qwen3-asr-1.7b', 'transcriber:canary-1b-v2',
                    'transcriber:parakeet-tdt-0.6b-v3')
 
 #: Corpus déclarés : clé → manifeste `dataset` (la source, sa licence, sa langue y vivent).
@@ -510,6 +512,7 @@ class Command(BaseCommand):
         from wama.common.utils.batch_common import attach_to_batch
         from wama.media_library.models import SystemAsset
         from wama.tool_api import add_to_transcriber, start_transcriber
+        from wama.transcriber.backends.manager import catalogue_value, engine_name_for
         from wama.transcriber.models import BatchTranscript, BatchTranscriptItem, Transcript
 
         user = self._user(login)
@@ -522,9 +525,13 @@ class Command(BaseCommand):
                    .first() or -1) + 1
             new_cards = []
             for engine in engines:
+                # La card stocke une CLÉ de catalogue (route F4b ⑦) : un ancien nom de moteur passé
+                # en option est lu comme elle l'écrit, sinon la configuration déjà posée ne se
+                # reconnaîtrait pas (idempotence ci-dessous).
+                engine = catalogue_value(engine)
                 # Le filtre de parole n'existe que chez Whisper (`workers._vad_filter_for`) :
                 # le varier sur un autre moteur poserait deux fois la même configuration.
-                engine_vad = vad if engine == 'whisper' else 'auto'
+                engine_vad = vad if engine_name_for(engine) == 'whisper' else 'auto'
                 # Sans pipeline demandé, diarisation coupée : elle ne change pas le texte mesuré
                 # (WER), seulement le temps. Demandée, elle se mesure en cpWER et DER.
                 speakers = ({'enable_diarization': True, 'diarization_model': diarization}

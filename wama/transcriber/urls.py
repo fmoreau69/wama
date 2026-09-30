@@ -51,8 +51,7 @@ urlpatterns = [
     # Preprocessing (toggle/status supprimées 2026-07-06 : routes mortes, cf. views A5-22)
     path('preprocessing/set/', views.set_preprocessing_preference, name='set_preprocessing'),
 
-    # VibeVoice-related endpoints
-    path('backends/', views.get_backends, name='backends'),
+    # `backends/` retiré le 2026-09-30 (route F4b ⑦) : les options du select viennent du catalogue.
     path('segments/<int:pk>/', views.get_segments, name='segments'),
     path('download_srt/<int:pk>/', views.download_srt, name='download_srt'),
     path('settings/<int:pk>/', views.update_settings, name='update_settings'),

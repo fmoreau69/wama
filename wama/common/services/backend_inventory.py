@@ -768,19 +768,19 @@ def resolve_entry(engine: str, model_id: str = '', entries=None,
     if not candidats:
         return None
     if len(candidats) == 1:
-        seul = candidats[0]
+        only = candidats[0]
         # Sous un contrat LIANT, le candidat unique qui DÉCLARE sa liste de modèles ne sert que
         # ceux-là (2026-09-30). `QwenASRBackend` est le seul backend de transcription du moteur
         # `transformers` : la règle 1 lui confiait FrWhisper et LinTO, deux modèles installés
         # « poids seulement » qu'il ne sait pas charger — en silence, jusqu'au lancement. Mesuré
         # sur tout le catalogue : ces deux routages-là changent, et aucun autre. Hors contrat
         # liant (moteur de bibliothèque partagé, `pyannote`), la liste reste indicative.
-        if (model_id and contract and contract[2] and seul.supported_models
-                and model_id not in seul.supported_models):
-            logger.debug("[engines] %s / %s : %s ne sert que %s", engine, model_id, seul.name,
-                         seul.supported_models)
+        if (model_id and contract and contract[2] and only.supported_models
+                and model_id not in only.supported_models):
+            logger.debug("[engines] %s / %s : %s ne sert que %s", engine, model_id, only.name,
+                         only.supported_models)
             return None
-        return seul
+        return only
     exacts = [e for e in candidats if model_id and model_id in e.supported_models]
     if len(exacts) == 1:
         return exacts[0]

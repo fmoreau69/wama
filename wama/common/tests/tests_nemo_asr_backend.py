@@ -121,6 +121,9 @@ class WiringTest(TestCase):
 
     def test_the_transcriber_routes_canary_and_parakeet_to_nemo(self):
         from wama.transcriber.backends.manager import TranscriberBackendManager as M
+        from wama.transcriber.catalogue_fixtures import transcription_catalogue
+        # Le moteur se RÉSOUT par le catalogue depuis le 2026-09-30 (route F4b ⑦).
+        transcription_catalogue('transcriber:canary-1b-v2', 'transcriber:parakeet-tdt-0.6b-v3')
         self.assertEqual('nemo', M._backend_for_model_key('transcriber:canary-1b-v2'))
         self.assertEqual('nemo', M._backend_for_model_key('parakeet-tdt-0.6b-v3'))
         self.assertEqual('canary-1b-v2',

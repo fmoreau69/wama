@@ -385,13 +385,8 @@ document.addEventListener('DOMContentLoaded', function () {
     modal.dataset.batchId = btn.dataset.batchId;
     const idBadge = document.getElementById('batchSettingsBatchId');
     if (idBadge) idBadge.textContent = '#' + btn.dataset.batchId;
-    // Les moteurs sont découverts en asynchrone dans le select du VOLET (`#backendSelect`) :
-    // recopie des options vers le select batch (source unique de la découverte).
-    const src = document.getElementById('backendSelect');
-    const dst = document.querySelector('#transcriberBatchParams [name="backend"]');
-    if (src && dst && src.options.length > dst.options.length) {
-      dst.innerHTML = src.innerHTML;
-    }
+    // The batch modal's model select is filled by WamaParams from the catalogue (its own source
+    // binding) — no more copying the panel's options.
     new bootstrap.Modal(modal).show();
   }
 
@@ -433,9 +428,9 @@ document.addEventListener('DOMContentLoaded', function () {
   // `#settingsModal`, `saveSettings` et la mise à jour de la card champ par champ vivaient ici).
   // La modale est GÉNÉRÉE du schéma à chaque ouverture ; ce qui reste propre au transcriber est
   // DÉCLARÉ en crochets :
-  //   - les valeurs viennent des data-* du ⚙ (la card les porte toutes) ;
-  //   - `decorate` recopie les moteurs découverts en asynchrone dans le select du volet
-  //     (`#backendSelect`, source unique de la découverte), puis resélectionne celui de la card ;
+  //   - les valeurs viennent des data-* du ⚙ (la card les porte toutes) — le select du modèle se
+  //     remplit du catalogue par la brique et resélectionne la valeur de la card (F4b ⑦ : le
+  //     crochet `decorate` qui recopiait les moteurs du volet est retiré) ;
   //   - `onSaved` re-rend la card depuis le serveur (plus de réécriture à la main de ses champs),
   //     puis relance si « Enregistrer et démarrer ».
   function openSettingsModal(btn) {
@@ -467,14 +462,6 @@ document.addEventListener('DOMContentLoaded', function () {
       footerTplId: 'transcriberSettingsFooterTpl',
       saveUrl: getUrl(config.settingsUrlTemplate, id),
       csrf: csrfToken,
-      decorate: function (host) {
-        const src = document.getElementById('backendSelect');
-        const dst = host.querySelector('[name="backend"]');
-        if (src && dst && src.options.length > dst.options.length) {
-          dst.innerHTML = src.innerHTML;
-          dst.value = values.backend;
-        }
-      },
       onSaved: function (savedId, restart) {
         refreshCard(savedId);
         if (restart) handleStart(savedId);
@@ -1049,52 +1036,9 @@ document.addEventListener('DOMContentLoaded', function () {
     updateDownloadAllState();
   }
 
-  // ======================================================================
-  // Async backends loading (non-blocking)
-  // ======================================================================
-  // Descriptif dynamique du moteur (sous le menu) — composant commun WamaModelHelp.
-  // Les descriptions viennent de l'endpoint backends (source : backend.description) ;
-  // BACKEND_FALLBACK ne sert que pour « auto » (et de repli si l'endpoint n'en a pas).
-  const BACKEND_FALLBACK = {
-    auto: 'Sélectionne automatiquement le meilleur moteur disponible.',
-  };
-  let _modelHelp = window.WamaModelHelp ? WamaModelHelp.init({
-    selectId: 'backendSelect', helpId: 'backendHelp', meta: {}, fallback: BACKEND_FALLBACK,
-  }) : null;
-
-  async function loadBackendsAsync() {
-    if (!config.backendsUrl) return;
-    try {
-      const resp = await fetch(config.backendsUrl);
-      if (!resp.ok) return;
-      const data = await resp.json();
-      const backends = data.backends || [];
-      if (!backends.length) return;
-      const meta = {};
-      backends.forEach(function (b) { meta[b.name] = b; });
-      if (_modelHelp) _modelHelp.setMeta(meta);   // descriptions dynamiques sous le menu
-
-      const options = backends.map(b => {
-        // Pas de suffixe « (diarisation) » : le Transcriber diarise TOUJOURS
-        // (VibeVoice nativement, Whisper/Qwen via pyannote) → info technique trompeuse.
-        return `<option value="${escapeHtml(b.name)}">${escapeHtml(b.display_name)}</option>`;
-      }).join('');
-
-      // Populate global panel selector and restore saved value
-      const globalSel = document.getElementById('backendSelect');
-      if (globalSel) {
-        const savedValue = globalSel.dataset.selected || 'auto';
-        globalSel.insertAdjacentHTML('beforeend', options);
-        globalSel.value = savedValue;
-        if (_modelHelp) _modelHelp.render();
-      }
-
-      // The item modal is generated on each open and copies these options from `#backendSelect`
-      // (its `decorate` hook) — no second list to populate here.
-    } catch (_) {
-      // silently ignore — "Auto" remains functional
-    }
-  }
+  // The model select is filled from the CATALOGUE by the common brick (WamaParams, `catalog`
+  // source — route F4b ⑦, 2026-09-30) in every context: panel, item modal, batch modal. The app's
+  // own filling (`loadBackendsAsync` + its `/transcriber/backends/` endpoint) is gone.
 
   initImport();
   initYoutube();
@@ -1102,7 +1046,6 @@ document.addEventListener('DOMContentLoaded', function () {
   initSpeech();
   initBulkActions();
   initInspector();
-  loadBackendsAsync();
 
   // Preview compacte (double-clic) → modal de RÉSULTAT de transcription (pas l'aperçu
   // audio de l'entrée). Émis par le composant commun .wama-card-preview (media-preview.js).

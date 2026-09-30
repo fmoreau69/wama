@@ -95,6 +95,10 @@ Re-clés par app (l'accesseur PRIME, jamais de déduction) : synthesizer `ENGINE
 **2026-09-29 — l'imager n'a plus rien à re-clé** : ses deux selects sont servis par le catalogue en
 clés entières, et sa méta d'appariement est lue sur le même domaine (`input_match_meta(task=…)`,
 image et vidéo réunies) — la meta et le select parlent enfin la même clé (`ROUTE §F4b` étape ⑥).
+**2026-09-30 — le transcriber non plus** : son select est servi au grain MODÈLE en clés entières
+(`task=transcription`), sa méta lue sur le même domaine, et `_backend_for_model_key` ne traduit plus
+par sous-chaîne — il RÉSOUT par le catalogue (`ROUTE §F4b` étape ⑦). Les anciens noms de moteur
+(`qwen_asr`…) sont une donnée de compatibilité déclarée (`LEGACY_ENGINE_MODELS`), pas une re-clé.
 
 Pour les apps à FILE (fichiers consommés au dépôt), la direction VIVANTE est MODÈLE→ENTRÉES
 (ligne d'état sous le select) ; le grisage entrée-d'abord s'activera avec les slots RETENUS

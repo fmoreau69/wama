@@ -77,7 +77,9 @@ class RemoteBackendThroughTheManagerTest(TestCase):
 
     def setUp(self):
         from wama.accounts.models import UserApiKey
+        from wama.transcriber.catalogue_fixtures import transcription_catalogue
         _remote_rows()
+        transcription_catalogue('transcriber:whisper')
         self.user = get_user_model().objects.create_user('asr_cloud', password='x')
         self.user.profile.cloud_policy = 'cloud_allowed'
         self.user.profile.save()

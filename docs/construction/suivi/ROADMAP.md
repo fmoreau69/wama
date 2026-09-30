@@ -1673,11 +1673,10 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    l'automatique, et la prévision dit ce tirage-là (`ROUTE §F4b`, brique d'auto-sélection) —
    effectif pour le transcriber dès que son select déclarera `options_cloud` ; ✅ au passage, les
    modèles installés « poids seulement » (FrWhisper, LinTO) ne sont plus confiés à Qwen3-ASR et
-   sont GRISÉS (`ROUTE §F4b` ④). ⏳ **Le SÉLECTEUR du transcriber au catalogue** : TRANCHÉ par
-   Fabien (grain modèle, clés entières, domaine `transcription`, `options_cloud`), REPORTÉ — une
-   autre instance modifiait le même soir les fichiers qu'il touche (`models.py`, `workers.py`,
-   migrations : diarisation `community-1`). D'ici là, Albert se choisit par l'assistant, l'API ou
-   `asr_eval_corpus`, pas par le menu.
+   sont GRISÉS (`ROUTE §F4b` ④). ✅ **Le SÉLECTEUR du transcriber au catalogue** : TRANCHÉ par
+   Fabien (grain modèle, clés entières, domaine `transcription`, `options_cloud`), livré le 30/09
+   après le commit du chantier diarisation qui occupait les mêmes fichiers (`ROUTE §F4b` étape
+   ⑦) — Albert est au menu pour qui a une clé, et « auto » le tire pour un profil « cloud autorisé ».
 4. ⏳ **Lever le verrou du catalogue** (§8d ①②, ordre fixé par Fabien le 15/09) — modèles cloud
    au catalogue par découverte, moteurs cloud à l'inventaire, `select_model` (VRAM/`is_downloaded`
    pour les locaux seulement, cloud seulement autorisé), réglage de profil, clés chiffrées par

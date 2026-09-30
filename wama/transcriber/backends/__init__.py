@@ -14,8 +14,8 @@ Usage:
     # Get best available backend
     backend = get_backend()
 
-    # Get specific backend
-    backend = get_backend('qwen_asr')  # or 'whisper', 'vibevoice'
+    # Get the backend of a catalogue model (or an old engine name: 'whisper', 'qwen_asr'…)
+    backend = get_backend('transcriber:qwen3-asr-1.7b')
 
     # Transcribe
     result = backend.transcribe('/path/to/audio.mp3', hotwords='WAMA, transcription')
@@ -31,7 +31,6 @@ from .manager import (
     TranscriberBackendManager,
     get_backend,
     get_available_backends,
-    get_backends_info,
 )
 
 __all__ = [
@@ -43,5 +42,4 @@ __all__ = [
     'TranscriberBackendManager',
     'get_backend',
     'get_available_backends',
-    'get_backends_info',
 ]

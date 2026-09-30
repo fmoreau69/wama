@@ -2,6 +2,14 @@
 Transcriber Backend Manager
 
 Manages transcription backend registration, availability checking, and selection.
+
+DEPUIS LE 2026-09-30 (route F4b, étape ⑦ — décision de Fabien) la valeur du select « Modèle de
+transcription » est une CLÉ DE CATALOGUE (`transcriber:qwen3-asr-1.7b`, `albert:whisper-large-v3`),
+et le moteur se RÉSOUT par le lien commun modèle ↔ moteur (`backend_for_key`) : la table par
+sous-chaîne (« qwen » → qwen_asr, « whisper » → whisper) n'existait que parce que les options
+n'étaient pas les clés du catalogue — elle est tombée avec lui. Les anciens NOMS DE MOTEUR se
+lisent encore (valeurs d'avant la migration 0027, appels d'outils, fichiers de lot) par une
+correspondance DÉCLARÉE : `LEGACY_ENGINE_MODELS`.
 """
 
 import logging
@@ -11,20 +19,68 @@ from wama.common.backends.speech_to_text_base import SpeechToTextBackend
 
 logger = logging.getLogger(__name__)
 
+#: Anciens NOMS DE MOTEUR stockés avant le grain modèle → le modèle que chacun chargeait par
+#: DÉFAUT (mesuré le 2026-09-30 dans les backends) : Whisper large-v3, `QwenASRBackend.DEFAULT_MODEL`
+#: = 1.7B, `NemoASRBackend.DEFAULT_MODEL` = Parakeet TDT 0.6B v3. Une DONNÉE de compatibilité
+#: (valeurs stockées, fichiers de lot, appels d'outils), pas une table de traduction d'options :
+#: les options SONT des clés. Recopiée telle quelle par la migration 0027 (qui ne doit pas dépendre
+#: du code courant). ⚠ Le JS d'avant associait `qwen_asr` au 0.6B : c'était faux.
+LEGACY_ENGINE_MODELS = {
+    'whisper': 'transcriber:whisper',
+    'vibevoice': 'transcriber:vibevoice-asr',
+    'qwen_asr': 'transcriber:qwen3-asr-1.7b',
+    'nemo': 'transcriber:parakeet-tdt-0.6b-v3',
+}
+
+#: Repli du tirage « auto » quand le catalogue ne propose rien (première installation).
+DEFAULT_MODEL_KEY = 'transcriber:whisper'
+
+#: Politique « Whisper d'abord » du tirage automatique — sous-chaînes de clé (`select_model`
+#: `priority`), INCHANGÉE (chantier C : le curseur arbitre DANS le palier, il ne la remplace pas).
+AUTO_PRIORITY = ['whisper', 'vibevoice', 'qwen']
+
+#: Ce que la card du transcriber FOURNIT au modèle : un audio. Affinage de RÉSOLUTION du tirage
+#: (permis, contrairement au domaine d'options) — il écarte un modèle qui exige autre chose.
+PROVIDED_INPUTS = ['work_audio']
+
+
+def catalogue_value(value) -> str:
+    """La valeur du select dans l'ESPACE DES CLÉS : `auto` et le vide inchangés, un ancien nom de
+    moteur → son modèle par défaut, un identifiant nu → clé du transcriber, une clé → telle quelle."""
+    from wama.common.utils.model_keys import catalog_key
+    v = (value or '').strip()
+    if v in LEGACY_ENGINE_MODELS:
+        return LEGACY_ENGINE_MODELS[v]
+    return catalog_key(v, 'transcriber')
+
+
+def is_auto_value(value) -> bool:
+    from wama.common.utils.auto_model import is_auto
+    return is_auto(value)
+
+
+def resolve_auto_key(item=None, user=None) -> str:
+    """Le modèle que « auto » retient MAINTENANT — une clé de catalogue. Brique COMMUNE : même
+    domaine que les options (`transcriber/params.py`), curseur de l'élément, distants que le
+    profil ouvre au tirage automatique (`options_cloud`), politique Whisper d'abord."""
+    from wama.common.utils.auto_model import resolve_model_choice
+    return resolve_model_choice('auto', app_id='transcriber', item=item, user=user,
+                                fallback=DEFAULT_MODEL_KEY, priority=AUTO_PRIORITY,
+                                available_inputs=PROVIDED_INPUTS) or DEFAULT_MODEL_KEY
+
 
 class TranscriberBackendManager:
     """
     Manager for transcription backends.
 
-    Handles backend registration, availability checking, and priority-based selection.
+    Handles backend registration, availability checking, and resolution of a catalogue model
+    to the backend that runs it.
     """
 
-    # Priority order for auto-selection (first available wins).
-    # Whisper d'abord : meilleure qualité FR, plus léger (~10 GB vs 16 GB pour
-    # VibeVoice), et la diarisation est assurée par pyannote (backend-agnostique).
-    # VibeVoice reste sélectionnable explicitement (diarisation native). qwen_asr
-    # en dernier : is_available()=True dès transformers installé, mais nécessite
-    # un téléchargement explicite + son intérêt (context biasing) est opt-in.
+    # Priority order of the STATIC fallback (catalogue empty or unreadable) — the automatic draw
+    # itself goes through the common brick (`resolve_auto_key`, same whisper-first policy).
+    # Whisper d'abord : meilleure qualité FR, plus léger (~10 GB vs 16 GB pour VibeVoice), et la
+    # diarisation est assurée par pyannote (backend-agnostique).
     BACKEND_PRIORITY = [
         'whisper',     # Défaut fiable : faster-whisper large-v3 + pyannote
         'vibevoice',   # Option : diarisation native (16 GB VRAM)
@@ -125,57 +181,51 @@ class TranscriberBackendManager:
 
     def get_backend(self, name: str = None, user=None) -> SpeechToTextBackend:
         """
-        Get a backend instance.
+        The backend that runs `name` — a catalogue key (`transcriber:qwen3-asr-1.7b`,
+        `albert:whisper-large-v3`), an old engine name (`whisper`, `qwen_asr`…), or `auto`/None.
 
         Args:
-            name: Backend name. If None or 'auto', select best available.
+            name: what the card asks for.
             user: whose rights and key a REMOTE model is called with (`_remote_backend`).
 
-        Returns:
-            Backend instance.
-
         Raises:
-            RuntimeError: If no backend is available.
+            RuntimeError: nothing serves `name` (never a silent substitute for an explicit model),
+                          or no backend at all is available.
         """
-        # Auto-select if no name provided
-        if name is None or name == 'auto':
-            return self._get_best_backend()
+        if name is None or is_auto_value(name):
+            return self._get_best_backend(user=user)
+        # Un NOM DE MOTEUR enregistré (smoke nocturne, aligneur, ancienne valeur) : ce moteur.
+        if name in self._backends:
+            return self._engine_instance(name, user=user)
+        key = catalogue_value(name)
+        # Un modèle DISTANT passe AVANT tout repli : lui substituer un moteur local serait une
+        # réponse fausse — et, pour la confidentialité, l'inverse d'une réponse fausse ne vaut pas mieux.
+        if self._is_remote_key(key):
+            return self._remote_backend(key, user)
+        engine = self._backend_for_model_key(key)
+        if engine is None:
+            raise RuntimeError(
+                f"« {key} » : aucun backend de transcription ne sert ce modèle (absent du "
+                "catalogue, moteur non déclaré, ou poids installés sans backend).")
+        return self._engine_instance(engine, user=user)
 
-        # Un modèle DISTANT du catalogue passe AVANT tout repli : lui substituer un moteur local
-        # serait une réponse fausse — `albert:whisper-large-v3` contient « whisper ».
-        remote = self._remote_backend(name, user)
-        if remote is not None:
-            return remote
-
-        # Un nom de MODÈLE du catalogue (`qwen3-asr-1.7b`, `transcriber:vibevoice-asr`) désigne
-        # son moteur par la même table que le catalogue (`_backend_for_model_key`). Sans cette
-        # traduction, l'essai de l'assistant du 2026-09-28 aurait transcrit en WHISPER, sans une
-        # erreur, une demande faite pour Qwen3-ASR : un nom inconnu retombait sur le meilleur
-        # moteur disponible. *Un repli silencieux sur une demande explicite est une réponse fausse.*
-        if name not in self._backends:
-            translated = self._backend_for_model_key(name)
-            if translated in self._backends:
-                logger.info(f"[TranscriberManager] '{name}' is a catalogue model → backend '{translated}'")
-                name = translated
-        if name not in self._backends:
-            logger.warning(f"[TranscriberManager] Unknown backend: {name}")
-            return self._get_best_backend()
-
+    def _engine_instance(self, engine: str, user=None, fallback: bool = True) -> SpeechToTextBackend:
+        """L'instance du moteur `engine`, s'il est disponible — sinon, `fallback`, le meilleur
+        disponible (repli TRANSPARENT : le worker le dit, `honours`)."""
         availability = self.check_availability()
-        if not availability.get(name, False):
-            # L'utilisateur a demandé CE moteur explicitement : avant de replier,
-            # forcer un re-test (l'indispo peut être une race d'import transitoire au
-            # démarrage, déjà résorbée au moment où la tâche tourne).
-            logger.info(f"[TranscriberManager] {name} marqué indisponible — re-test forcé")
+        if not availability.get(engine, False):
+            # Demandé explicitement : avant de replier, forcer un re-test (l'indispo peut être une
+            # race d'import transitoire au démarrage, déjà résorbée au moment où la tâche tourne).
+            logger.info(f"[TranscriberManager] {engine} marqué indisponible — re-test forcé")
             availability = self.check_availability(force=True)
-        if not availability.get(name, False):
-            logger.warning(f"[TranscriberManager] Backend not available: {name}")
-            return self._get_best_backend()
-
-        # Return cached instance or create new one
-        if name not in self._instances:
-            self._instances[name] = self._backends[name]()
-        return self._instances[name]
+        if not availability.get(engine, False):
+            if not fallback:
+                return None
+            logger.warning(f"[TranscriberManager] Backend not available: {engine}")
+            return self._get_best_backend(user=user)
+        if engine not in self._instances:
+            self._instances[engine] = self._backends[engine]()
+        return self._instances[engine]
 
     def _remote_backend(self, name: str, user) -> Optional[SpeechToTextBackend]:
         """Le backend d'un modèle DISTANT du catalogue, autorisé pour `user` — None si `name`
@@ -218,22 +268,24 @@ class TranscriberBackendManager:
         source = external_sources.by_key().get(prefix)
         return source is not None and source.kind == 'llm'
 
-    # Map model_key du catalogue AIModel → nom de backend interne.
-    # (le catalogue nomme finement : whisper-large-v3, vibevoice-asr, qwen3-asr-0.6b…)
     @classmethod
-    def _backend_for_model_key(cls, model_key: str) -> Optional[str]:
-        # Un modèle DISTANT n'a pas de moteur local, même s'il en porte le nom.
-        if cls._is_remote_key(model_key):
+    def _backend_for_model_key(cls, value: str) -> Optional[str]:
+        """NOM du moteur enregistré qui exécute `value` (clé, identifiant nu ou ancien nom de
+        moteur), ou None. Résolu par le CATALOGUE (`backend_for_key`) — plus par sous-chaîne."""
+        if value in LEGACY_ENGINE_MODELS:
+            return value
+        key = catalogue_value(value)
+        if not key or is_auto_value(key) or cls._is_remote_key(key):
             return None
-        mk = (model_key or '').lower()
-        if 'vibevoice' in mk:
-            return 'vibevoice'
-        if 'qwen' in mk:
-            return 'qwen_asr'
-        if 'whisper' in mk:
-            return 'whisper'
-        if 'canary' in mk or 'parakeet' in mk:
-            return 'nemo'
+        try:
+            from wama.common.backends.manager import backend_for_key
+            klass = backend_for_key(key)
+        except Exception as e:
+            logger.debug(f"[TranscriberManager] {key} : résolution impossible ({e})")
+            return None
+        for name, registered in cls.get_instance()._backends.items():
+            if klass is not None and registered is klass:
+                return name
         return None
 
     @staticmethod
@@ -259,7 +311,7 @@ class TranscriberBackendManager:
         """Le backend retenu est-il celui que la demande désignait (nom de moteur OU modèle du
         catalogue) ? Faux = un vrai repli, à dire à l'utilisateur. Comparer les noms seuls
         disait « indisponible — repli » pour `transcriber:qwen3-asr-1.7b` servi… par Qwen3-ASR."""
-        if not requested:
+        if not requested or is_auto_value(requested):
             return True
         if getattr(backend, 'catalogue_key', '') == requested:
             return True
@@ -267,7 +319,7 @@ class TranscriberBackendManager:
 
     @classmethod
     def catalogue_key_for(cls, backend_name: str, loaded_model: str = '') -> str:
-        """Clé catalogue du modèle EFFECTIVEMENT utilisé — l'inverse de `_backend_for_model_key`.
+        """Clé catalogue du modèle EFFECTIVEMENT utilisé par un moteur LOCAL.
 
         Le moteur (`whisper`, `qwen_asr`…) ne suffit pas quand le catalogue en porte plusieurs
         variantes (`qwen3-asr-0.6b` / `-1.7b`) : le modèle CHARGÉ tranche (`_current_model`
@@ -290,67 +342,31 @@ class TranscriberBackendManager:
             return matching[0]
         return f'transcriber:{backend_name}' if backend_name else ''
 
-    def _select_backend_via_model_manager(self, availability: Dict[str, bool]) -> Optional[str]:
+    def _get_best_backend(self, user=None) -> SpeechToTextBackend:
         """
-        Choix VRAM-aware du backend via la brique commune `select_model()`
-        (keep_loaded + budget VRAM + priorité whisper-first préservée).
+        The best available backend, for callers that hold no card (the worker draws « auto » itself,
+        with the card's cursor — `resolve_auto_key(item=…)`).
 
-        Renvoie un nom de backend DISPONIBLE, ou None → l'appelant retombe alors
-        sur la sélection statique BACKEND_PRIORITY (aucune régression si le
-        catalogue AIModel est vide ou le model_manager indisponible).
-        """
-        try:
-            from wama.model_manager.services import select_model
-        except Exception:
-            return None
-        try:
-            # availability_probe : ne retenir qu'un modèle dont le backend est
-            # réellement importable/disponible ici (au-delà du is_downloaded catalogue).
-            def _probe(m):
-                bname = self._backend_for_model_key(m.model_key)
-                return bool(bname) and availability.get(bname, False)
-
-            chosen = select_model(
-                source='transcriber',
-                prefer_loaded=True,          # keep_loaded : réutilise un backend déjà chargé
-                downloaded_only=False,       # la dispo runtime prime (availability_probe)
-                priority=['whisper', 'vibevoice', 'qwen'],  # même politique whisper-first
-                availability_probe=_probe,
-            )
-            if chosen is None:
-                return None
-            bname = self._backend_for_model_key(chosen.model_key)
-            if bname and availability.get(bname, False):
-                logger.info(f"[TranscriberManager] select_model → {chosen.model_key} → backend '{bname}'")
-                return bname
-        except Exception as e:
-            logger.debug(f"[TranscriberManager] select_model indisponible ({e}) → priorité statique")
-        return None
-
-    def _get_best_backend(self) -> SpeechToTextBackend:
-        """
-        Get the best available backend.
-
-        1) Tente un choix VRAM-aware centralisé via `select_model()` (model_manager).
-        2) À défaut (catalogue vide / model_manager KO), retombe sur la priorité
-           statique BACKEND_PRIORITY — comportement historique, aucune régression.
-
-        Returns:
-            Best available backend instance.
+        1) The COMMON draw (`resolve_auto_key`) → its catalogue key → its backend.
+        2) Failing that (empty catalogue, unresolvable draw, engine unavailable), the historical
+           static priority `BACKEND_PRIORITY` — no regression.
 
         Raises:
             RuntimeError: If no backend is available.
         """
+        try:
+            key = resolve_auto_key(user=user)
+            if self._is_remote_key(key):
+                return self._remote_backend(key, user)
+            engine = self._backend_for_model_key(key)
+            instance = self._engine_instance(engine, fallback=False) if engine else None
+            if instance is not None:
+                logger.info(f"[TranscriberManager] auto → {key} → backend '{engine}'")
+                return instance
+        except Exception as e:
+            logger.debug(f"[TranscriberManager] tirage commun indisponible ({e}) → priorité statique")
+
         availability = self.check_availability()
-
-        # 1) Choix centralisé VRAM-aware (brique commune). None → fallback statique.
-        mm_choice = self._select_backend_via_model_manager(availability)
-        if mm_choice:
-            if mm_choice not in self._instances:
-                self._instances[mm_choice] = self._backends[mm_choice]()
-            return self._instances[mm_choice]
-
-        # 2) Fallback : priorité statique historique.
         for backend_name in self.BACKEND_PRIORITY:
             if backend_name in self._backends and availability.get(backend_name, False):
                 if backend_name not in self._instances:
@@ -372,33 +388,6 @@ class TranscriberBackendManager:
             "or transformers+soundfile for Qwen3-ASR."
         )
 
-    def get_backends_info(self) -> List[Dict]:
-        """
-        Get information about all registered backends.
-
-        Returns:
-            List of backend info dicts.
-        """
-        availability = self.check_availability()
-        result = []
-
-        for name, backend_class in self._backends.items():
-            info = {
-                'name': name,
-                'display_name': backend_class.display_name,
-                'description': getattr(backend_class, 'description', ''),
-                'description_long': getattr(backend_class, 'description_long', ''),
-                'available': availability.get(name, False),
-                'supports_diarization': backend_class.supports_diarization,
-                'supports_timestamps': backend_class.supports_timestamps,
-                'supports_hotwords': backend_class.supports_hotwords,
-                'min_vram_gb': backend_class.min_vram_gb,
-                'recommended_vram_gb': backend_class.recommended_vram_gb,
-            }
-            result.append(info)
-
-        return result
-
     def unload_all(self) -> None:
         """Unload all loaded backend instances."""
         for name, instance in self._instances.items():
@@ -415,28 +404,26 @@ class TranscriberBackendManager:
 # Module-level convenience functions
 
 def backend_choice_values() -> List[str]:
-    """Domaine SERVEUR du select « Moteur de transcription » (`transcriber/params.py`, déclaré
-    `options_domain`) : les moteurs ENREGISTRÉS, puis les clés de catalogue qu'ils servent
-    (`transcriber:qwen3-asr-1.7b`) — `get_backend` traduit les secondes vers leur moteur.
+    """Domaine SERVEUR du select « Modèle de transcription » (`transcriber/params.py`, déclaré
+    `options_domain`) : ce que la porte des outils ACCEPTE et ce qu'elle ANNONCE à l'assistant.
 
-    POURQUOI (essai de l'assistant du 2026-09-28) : le schéma ne rend en statique que « auto »,
-    les moteurs arrivent par le navigateur ; la porte des outils prenait ce préfixe pour le
-    domaine entier et refusait à l'assistant TOUT moteur explicite. Enregistrés, pas seulement
-    disponibles : la disponibilité se juge au lancement, où un moteur absent est remplacé par
-    le meilleur disponible (journalisé)."""
-    manager = TranscriberBackendManager.get_instance()
-    values = list(manager._backends)
+    = `auto` + les modèles LANÇABLES du domaine du select (tâche `transcription`, sources
+    confondues, grisés exclus) + les modèles DISTANTS de transcription (qui a le droit de les
+    appeler se juge au lancement : `_remote_backend`, garde `cloud_access`) + les anciens noms de
+    moteur, tolérés en entrée et normalisés à l'enregistrement.
+
+    POURQUOI un domaine serveur (essai de l'assistant du 2026-09-28) : le navigateur remplit le
+    select, et une porte qui ne connaît que ses choix statiques refuse tout modèle explicite."""
+    values = ['auto']
     try:
-        from wama.model_manager.models import AIModel
-        for key in AIModel.objects.filter(source='transcriber').values_list('model_key', flat=True):
-            if manager._backend_for_model_key(key) in manager._backends:
-                values.append(key)
-        # Les modèles DISTANTS de transcription (2026-09-30) : le domaine dit ce qui EXISTE ; qui
-        # a le droit de l'appeler se juge au lancement (`_remote_backend`, garde `cloud_access`).
+        from wama.model_manager.services.model_selector import get_registry_models
+        _choices, info = get_registry_models(None, task='transcription')
+        values += [d['id'] for d in info if not d.get('backend_missing')]
         values += [row.model_key for row in remote_transcription_models()]
     except Exception as e:
         logger.debug(f"[TranscriberManager] catalogue unreadable for the choice domain: {e}")
-    return values
+    values += [v for v in LEGACY_ENGINE_MODELS if v not in values]
+    return list(dict.fromkeys(values))
 
 
 def remote_transcription_models() -> list:
@@ -452,12 +439,40 @@ def remote_transcription_models() -> list:
     return kept
 
 
+_ENGINE_NAME_CACHE: Dict[str, tuple] = {}
+
+
+def engine_name_for(value) -> str:
+    """Le NOM du moteur qui exécute `value` (`whisper`, `qwen_asr`, `albert`…) — la clé sous
+    laquelle l'estimation de durée apprend (`make_key('transcriber', backend.name)`), '' si aucun.
+
+    Lu à chaque rafraîchissement de la progression d'une card : un ancien nom et un distant se
+    lisent sans résolution, le reste est mémorisé une minute (une résolution relit l'inventaire)."""
+    import time
+    v = (value or '').strip()
+    if not v or is_auto_value(v):
+        return ''
+    if v in LEGACY_ENGINE_MODELS:
+        return v
+    key = catalogue_value(v)
+    back = {k: name for name, k in LEGACY_ENGINE_MODELS.items()}
+    if key in back:
+        return back[key]
+    if TranscriberBackendManager._is_remote_key(key):
+        return key.split(':', 1)[0]
+    now = time.monotonic()
+    hit = _ENGINE_NAME_CACHE.get(key)
+    if hit is None or now - hit[0] > 60:
+        hit = _ENGINE_NAME_CACHE[key] = (now, TranscriberBackendManager._backend_for_model_key(key) or '')
+    return hit[1]
+
+
 def get_backend(name: str = None, user=None) -> SpeechToTextBackend:
     """
     Get a transcription backend instance.
 
     Args:
-        name: Backend name ('whisper', 'vibevoice', 'auto', or None), or a catalogue model key.
+        name: a catalogue model key, an old engine name ('whisper', 'qwen_asr'…), 'auto' or None.
         user: whose rights and key a remote model is called with.
 
     Returns:
@@ -474,13 +489,3 @@ def get_available_backends() -> List[str]:
         List of available backend names.
     """
     return TranscriberBackendManager.get_instance().get_available_backends()
-
-
-def get_backends_info() -> List[Dict]:
-    """
-    Get information about all backends.
-
-    Returns:
-        List of backend info dicts.
-    """
-    return TranscriberBackendManager.get_instance().get_backends_info()

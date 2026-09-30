@@ -1210,9 +1210,11 @@ def add_to_transcriber(
     Args:
         user:               Django User instance
         file_path:          Path relative to MEDIA_ROOT (audio or video file)
-        backend:            'auto' | 'whisper' | 'vibevoice' | 'qwen_asr' — or a catalogue model
-                            key of the transcriber ('transcriber:qwen3-asr-1.7b'), resolved to its
-                            engine; an unknown name falls back to the best available engine
+        backend:            the transcription MODEL — 'auto' (drawn at launch) or a catalogue key
+                            ('transcriber:qwen3-asr-1.7b', 'transcriber:canary-1b-v2', or a remote
+                            one such as 'albert:whisper-large-v3', called with the user's key);
+                            old engine names ('whisper', 'qwen_asr'…) are still read as their
+                            default model. A model nothing can run is refused, never replaced
         preprocess_audio:   Apply audio preprocessing before transcription
         hotwords:           Domain-specific terms to improve recognition
         enable_diarization: Enable speaker diarization (VibeVoice only)

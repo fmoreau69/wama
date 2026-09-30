@@ -5,6 +5,7 @@ modèle `Transcript` ; seule la surcouche UI (libellés, options dynamiques, vis
 conditionnelle, basique/avancé) est déclarée ici. Voir `common/utils/param_schema.py`.
 """
 
+from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
 from .models import Transcript
 
@@ -20,6 +21,12 @@ PARAMS = derive_from_model(
         # (Whisper ne les utilise pas ; le câblage max_tokens était cassé). Le découpage des
         # audios longs se gère en interne (chunking + sync timestamps), pas via un plafond exposé.
         "backend",
+        # Curseur rapide/qualité commun (chantier C) : depuis que le select sert « auto » (F4b ⑦,
+        # 2026-09-30), toute app qui sert « auto » le porte (`tests_intent_vision`). Hors modèle
+        # (pas de colonne), comme au reader : un RÉGLAGE D'APP de l'utilisateur, lu au lancement
+        # par `quality_intent_of(item, 'transcriber')`. Il arbitre DANS le palier de la politique
+        # « Whisper d'abord » (`AUTO_PRIORITY`), il ne la remplace pas.
+        "quality_intent",
         "hotwords",
         "preprocess_audio",
         "level_speech",
@@ -37,14 +44,39 @@ PARAMS = derive_from_model(
         # continue de marcher, et on rend les deux depuis CE schéma unique sans collision d'ID.
         "backend": dict(
             chip=True,
-            type="select", options_source="backends", label="Moteur de transcription",
+            type="select", label="Modèle de transcription",
             icon="fa-microchip", dom_id={"panel": "backendSelect", "item": "settingsBackend"},
-            # « auto » rendu en statique (1ʳᵉ option) ; loadBackendsAsync append les modèles ensuite.
-            choices=[("auto", "Auto (meilleur disponible)")],
-            # Domaine SERVEUR des options ajoutées par le navigateur : sans lui, la porte des
-            # outils (assistant, API, studio) ne connaissait que « auto » (2026-09-28).
+            # ── Route F4b ⑦ (2026-09-30, décision de Fabien) — les options viennent du CATALOGUE,
+            # au grain MODÈLE (Qwen3-ASR 0.6B OU 1.7B, Canary OU Parakeet), bornées par la TÂCHE —
+            # jamais par la source : un modèle installé depuis le model manager entre sans une
+            # ligne de code, et s'il n'a pas de backend il est GRISÉ avec la raison (`backend_missing`).
+            # Valeurs = CLÉS entières (migration 0027). Jusque-là : une liste de MOTEURS servie par un
+            # endpoint propre à l'app et remplie en JS (`loadBackendsAsync`), traduite ensuite en
+            # modèle par sous-chaîne.
+            options_source="catalog",
+            options_query={"task": "transcription"},
+            # « auto » + prévision : le lancement résout (`backends.manager.resolve_auto_key`).
+            options_auto=True,
+            # Les modèles DISTANTS que la clé de l'utilisateur ouvre (Albert…), selon son niveau
+            # cloud — et, depuis le même soir, le tirage « auto » les reçoit aussi pour un profil
+            # « cloud autorisé » (`auto_model.declared_cloud_keys`).
+            options_cloud=True,
+            default="auto",
+            # Domaine SERVEUR : ce que la porte des outils ACCEPTE et annonce à l'assistant — sans
+            # lui elle ne connaîtrait aucun modèle (le navigateur remplit le select).
             options_domain="wama.transcriber.backends.manager.backend_choice_values",
-            help="",   # pas d'aide statique : le descriptif du moteur (backendHelp) s'affiche juste dessous
+            # Pas d'aide statique : le `help_text` du champ (« Clé de catalogue… ») est une note de
+            # DONNÉE, pas un texte pour l'utilisateur — vu à l'écran le 2026-09-30. Le descriptif
+            # du modèle choisi s'affiche sous le select (WamaModelHelp, méta lue sur le domaine).
+            help="",
+            help_source="transcriber",
+            help_fallback={"auto": "Choisit le modèle au lancement : Whisper d'abord, puis selon "
+                                   "la mémoire GPU libre et, si votre profil l'autorise, un modèle "
+                                   "distant."},
+        ),
+        "quality_intent": intent_param(
+            dom_id={"panel": "qualityIntent"}, contexts=("panel",),
+            show_if={"field": "backend", "equals": "auto"},
         ),
         "hotwords": dict(
             chip=True,

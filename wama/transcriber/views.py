@@ -211,14 +211,12 @@ def _auto_wrap_orphans(user):
 
 
 def _input_match_meta():
-    """Meta brique COMMUNE re-clée par backend (plusieurs modèles catalogue → un moteur,
-    ex. qwen3-asr-0.6b/1.7b → qwen_asr) + pseudo-choix 'auto' (politique transcriber)."""
+    """Meta brique COMMUNE sur le DOMAINE du select (tâche `transcription`) : ses clés sont les
+    clés de catalogue entières, donc les valeurs mêmes des options (route F4b ⑦, 2026-09-30 —
+    elle était re-clée par nom de moteur tant que le select listait des moteurs) + pseudo-choix
+    'auto' (intersection des requis)."""
     from wama.common.utils.input_match import auto_entry, input_match_meta
-    from wama.transcriber.backends.manager import TranscriberBackendManager
-    meta = input_match_meta(
-        'transcriber',
-        key=lambda mk: (TranscriberBackendManager._backend_for_model_key(mk)
-                        or mk.split(':', 1)[-1]))
+    meta = input_match_meta(task='transcription')
     if meta:
         meta['auto'] = auto_entry(meta)
     return meta
@@ -303,8 +301,8 @@ class IndexView(View):
         from wama.transcriber.params import PARAMS_JSON
         panel_values = _user_panel_values(user)
 
-        # Backends are loaded asynchronously by JS (via /transcriber/backends/) to avoid
-        # blocking the page render on heavy transformers imports (VibeVoice, Qwen3-ASR).
+        # Les modèles du select arrivent du CATALOGUE par la brique commune (WamaParams, source
+        # `catalog`) — l'ancien endpoint `/transcriber/backends/` et son JS sont retirés (F4b ⑦).
         return render(request, 'transcriber/index.html', {
             'batches_list': batches_list,
             'queue_count': queue_count,
@@ -313,10 +311,8 @@ class IndexView(View):
             'transcripts': all_transcripts,  # kept for global progress bar
             'params_json': json.dumps(PARAMS_JSON),
             'panel_values_json': json.dumps(panel_values),
-            # Appariement entrée↔modèles (brique commune input_match) : meta re-clée sur les
-            # noms de BACKEND du select (accesseur _backend_for_model_key — le catalogue nomme
-            # finement, le select nomme par moteur) ; 'auto' = politique d'app (intersection
-            # des requis, union du reste).
+            # Appariement entrée↔modèles (brique commune input_match) : meta sur les clés de
+            # catalogue, les valeurs mêmes du select ; 'auto' = intersection des requis.
             'input_match_meta': json.dumps(_input_match_meta()),
             'input_labels': json.dumps(_input_labels()),
         })
@@ -980,30 +976,29 @@ def _decorate_card(t):
     brique commune — même source pour tous les designs de card, donc aucune divergence possible.
     Le schéma existait déjà : ce portage n'a ajouté aucun mécanisme, seulement des déclarations.
 
-    Deux spécificités du transcriber, conservées à l'identique (rien ne devait être perdu) :
-      • le chip moteur montre le backend EFFECTIF (used_backend), pas le réglage demandé ;
-      • si le moteur demandé n'était pas disponible, le repli est signalé — sur la card v1 par
-        une icône d'alerte, ici par le variant du chip et son title.
+    Deux spécificités du transcriber, conservées (rien ne devait être perdu) :
+      • le chip montre le modèle EFFECTIF — la clé de catalogue que le worker a enregistrée
+        (`model_key`, route F4b ⑦ : libellé du catalogue), pas le réglage demandé ;
+      • si le modèle demandé n'a pas tourné, le repli est signalé par le variant du chip et
+        son title.
     """
     from wama.common.utils.card_chips import chips_by_section
     from wama.transcriber.params import PARAMS_JSON
 
-    # `values=` (brique, 31/08) remplace le proxy _View recopié reader/transcriber
-    # (nettoyage de l'audit, P6) : le moteur EFFECTIF prime sur le réglage.
-    t.chips = chips_by_section(t, PARAMS_JSON,
-                               values={'backend': t.used_backend or t.backend})
+    # `values=` (brique, 31/08) : le modèle EFFECTIF prime sur le réglage.
+    t.chips = chips_by_section(t, PARAMS_JSON, values={'backend': t.model_key or t.backend})
 
-    fallback = bool(t.used_backend and t.backend != 'auto' and t.used_backend != t.backend)
+    asked = t.backend and t.backend != 'auto'
+    fallback = bool(t.model_key and asked and t.model_key != t.backend)
     for chip in t.chips.get('settings', []):
         if chip.get('icon') == 'fa-microchip':
             if fallback:
                 chip['variant'] = 'warn'
-                chip['title'] = f"Demandé : {t.backend} (indisponible) — repli sur {t.used_backend}"
-            elif t.backend == 'auto':
-                # Tant qu'aucun moteur n'a tourné, la card v1 affichait « auto » — et non le
-                # libellé complet du choix (« Auto (meilleur disponible) »), trop long pour la
-                # colonne. Une fois le run fait, elle montre le moteur RETENU.
-                chip['label'] = f"{t.used_backend} (auto)" if t.used_backend else 'auto'
+                chip['title'] = f"Demandé : {t.backend} — a tourné : {t.model_key}"
+            elif not asked:
+                # Tant qu'aucun modèle n'a tourné, « auto » (le libellé complet du choix est trop
+                # long pour la colonne) ; une fois le run fait, le modèle RETENU.
+                chip['label'] = f"{chip.get('label')} (auto)" if t.model_key else 'auto'
             break
     return t
 
@@ -1046,7 +1041,10 @@ def progress(request, pk: int):
     if t.status in ('PENDING', 'RUNNING'):
         try:
             from wama.model_manager.services.eta_estimator import estimate, make_key
-            mdl = t.used_backend or (t.backend if t.backend and t.backend != 'auto' else None)
+            # L'estimation apprend sous le NOM DU MOTEUR (`workers`) ; la demande est une clé
+            # de modèle depuis la route F4b ⑦ — traduite, sans résolution à chaque rafraîchissement.
+            from wama.transcriber.backends.manager import engine_name_for
+            mdl = t.used_backend or engine_name_for(t.backend)
             dur = float(t.duration_seconds or 0)
             if mdl and dur > 0:
                 est = estimate(make_key('transcriber', mdl), size=dur,
@@ -1614,34 +1612,9 @@ def global_progress(request):
 # NEW: VibeVoice-related views
 # =============================================================================
 
-def get_backends(request):
-    """
-    Get list of available transcription backends.
-
-    Returns:
-        JSON with backend info including availability and features.
-    """
-    _BACKENDS_CACHE_KEY = 'transcriber_backends_info'
-    backends = cache.get(_BACKENDS_CACHE_KEY)
-    if backends is None:
-        try:
-            from .backends import get_backends_info
-            backends = get_backends_info()
-            cache.set(_BACKENDS_CACHE_KEY, backends, timeout=3600)
-        except ImportError:
-            # Le repli INVENTAIT un moteur : 'available': True alors que l'import venait
-            # d'échouer (donc whisper n'est justement PAS utilisable), et des capacités
-            # FAUSSES — 'supports_hotwords': False quand WhisperBackend les déclare True.
-            # Une panne se présentait ainsi comme un état nominal. L'erreur était en plus
-            # avalée sans la moindre trace. On journalise, et on ne répond que ce qu'on sait.
-            # Sûr côté client : le front ne lit que name/display_name de cet endpoint et
-            # traite déjà la liste vide (`if (!backends.length) return;`, index.js:1359) —
-            # il garde l'option « auto », qui laisse l'app choisir. Non mis en cache non
-            # plus : la panne peut être transitoire (course d'imports accelerate déjà vue).
-            logger.exception('[transcriber] get_backends_info indisponible — liste vide rendue')
-            backends = []
-    return JsonResponse({'backends': backends, 'default': 'auto'})
-
+# `get_backends` (liste de MOTEURS servie à `loadBackendsAsync`) est RETIRÉ le 2026-09-30 (route
+# F4b ⑦) : les options du select viennent du catalogue par l'endpoint commun
+# (`model_manager.api_model_options`, source `catalog` de WamaParams). Registre : REMOVAL_LEDGER.
 
 def get_segments(request, pk: int):
     """
@@ -1787,8 +1760,14 @@ get_user_transcriber_settings, save_user_transcriber_settings = make_panel_setti
 
 
 def _user_panel_values(user):
-    """Les réglages utilisateur, par NOM de param — ce que le volet rend et ce que l'API sert."""
-    return read_panel_settings(user, 'transcriber', _SCHEMA, key=user_setting_key)
+    """Les réglages utilisateur, par NOM de param — ce que le volet rend et ce que l'API sert.
+    Le modèle est lu dans l'ESPACE DES CLÉS (route F4b ⑦) : une préférence gardée avant le
+    2026-09-30 porte un nom de moteur (`whisper`), que le select ne propose plus."""
+    from wama.transcriber.backends.manager import catalogue_value
+    values = read_panel_settings(user, 'transcriber', _SCHEMA, key=user_setting_key)
+    if 'backend' in values:
+        values['backend'] = catalogue_value(values['backend']) or 'auto'
+    return values
 
 
 def _save_user_panel_values(user, data):
