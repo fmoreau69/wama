@@ -101,6 +101,74 @@ class MeasureTest(_WitnessSurface):
                 model_key=str, metrics=('wer', 'bleu')))
 
 
+def _turns(text):
+    """« locuteur|début|fin|texte » par ligne — des segments, pour le témoin de diarisation."""
+    segments = []
+    for line in (text or '').splitlines():
+        if line.strip():
+            speaker, start, end, words = line.split('|')
+            segments.append({'speaker_id': speaker, 'start_time': float(start),
+                             'end_time': float(end), 'text': words})
+    return segments
+
+
+def _read_turns(path):
+    with open(path, encoding='utf-8') as handle:
+        return _turns(handle.read())
+
+
+class SpeakerMetricsTest(_WitnessSurface):
+    """cpWER et DER (2026-09-30) : rangés sous le modèle qui ATTRIBUE les locuteurs, et sans
+    ligne quand la sortie n'est pas diarisée."""
+
+    REFERENCE = 'A|0|3|le chat dort\nB|3|6|le chien court'
+
+    def setUp(self):
+        super().setUp()
+        evaluation.register_evaluation(evaluation.EvaluationSpec(
+            surface=SURFACE, reference_field='melody_reference',
+            result_text=lambda item: ' '.join(s['text'] for s in _turns(item.prompt)) or None,
+            read_reference=lambda path: (' '.join(s['text'] for s in _read_turns(path)), {}),
+            model_key=lambda item: f'composer:{item.model}', reference_extensions=('.txt',),
+            metrics=('wer', 'cpwer', 'der'),
+            result_segments=lambda item: _turns(item.prompt), read_reference_segments=_read_turns,
+            segment_model_key=lambda item: 'diarizer:witness'))
+
+    def test_speaker_measures_are_filed_under_the_diarizer_the_card_keeps_its_model(self):
+        from wama.common.models import ResultEvaluation
+        item = self._item('x|0|3|le chat dort\nx|3|6|le chien court')
+        evaluation.attach_reference(SURFACE, [item], self._upload(self.REFERENCE))
+        rows = {r.metric: r for r in ResultEvaluation.objects.filter(app=SURFACE, object_id=item.pk)}
+        self.assertEqual(0.0, rows['wer'].value)
+        self.assertEqual(('diarizer:witness', 'diar_v1'), (rows['cpwer'].model_key, rows['cpwer'].protocol))
+        self.assertEqual(1.0, rows['cpwer'].value,
+                         'the 3 words of B given to A: missed for B AND inserted for A')
+        self.assertEqual(0.5, rows['der'].value)
+        self.assertEqual('composer:musicgen-small', rows['der'].detail['result_model_key'])
+        view = evaluation.item_evaluation(SURFACE, item)
+        self.assertEqual('composer:musicgen-small', view['model_key'])
+        summary = evaluation.batch_evaluation(SURFACE, [item])
+        self.assertEqual('composer:musicgen-small', summary['models'][0]['model_key'])
+        self.assertEqual(0.5, summary['models'][0]['rates']['der'])
+
+    def test_an_undiarized_result_has_no_speaker_rows_and_loses_the_old_ones(self):
+        from wama.common.models import ResultEvaluation
+        item = self._item('x|0|3|le chat dort\ny|3|6|le chien court')
+        evaluation.attach_reference(SURFACE, [item], self._upload(self.REFERENCE))
+        self.assertEqual(3, ResultEvaluation.objects.filter(app=SURFACE, object_id=item.pk).count())
+        item.prompt = '|0|3|le chat dort\n|3|6|le chien court'
+        item.save()
+        evaluation.evaluate(SURFACE, item)
+        self.assertEqual({'wer'}, set(ResultEvaluation.objects.filter(
+            app=SURFACE, object_id=item.pk).values_list('metric', flat=True)))
+
+    def test_a_speaker_metric_without_segment_readers_is_refused_at_declaration(self):
+        with self.assertRaisesMessage(ValueError, 'cpwer'):
+            evaluation.register_evaluation(evaluation.EvaluationSpec(
+                surface='x', reference_field='f', result_text=str, read_reference=_read_reference,
+                model_key=str, metrics=('wer', 'cpwer')))
+
+
 class ReferenceFileTest(_WitnessSurface):
 
     def test_one_reference_for_a_whole_batch_is_stored_ONCE(self):

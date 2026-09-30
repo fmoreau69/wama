@@ -28,6 +28,8 @@ import os
 from dataclasses import dataclass
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
+from wama.common.services.diarization_metrics import DIARIZATION_PROTOCOL
+
 logger = logging.getLogger(__name__)
 
 #: Version du protocole de mesure texte : normalisation de `text_metrics` (casse, ponctuation,
@@ -47,6 +49,22 @@ def _text_metrics():
         'wer': ('Taux d’erreur par mot (WER)', word_error_rate),
         'cer': ('Taux d’erreur par caractère (CER)', character_error_rate),
     }
+
+
+def _segment_metrics():
+    """Métriques qui lisent des SEGMENTS (locuteur, temps), pas un texte — la diarisation
+    (`diarization_metrics`, 2026-09-30). Une mesure sans objet y rend None : pas de ligne."""
+    from wama.common.services.diarization_metrics import (
+        cp_word_error_rate, diarization_error_rate,
+    )
+    return {
+        'cpwer': ('Taux d’erreur par mot, locuteurs compris (cpWER)', cp_word_error_rate),
+        'der': ('Taux d’erreur de diarisation (DER)', diarization_error_rate),
+    }
+
+
+def _all_metrics():
+    return {**_text_metrics(), **_segment_metrics()}
 
 
 @dataclass(frozen=True)
@@ -84,6 +102,16 @@ class EvaluationSpec:
     #: Langue du résultat (élément → code ISO ou '') — facultatif : la normalisation `text_v2`
     #: écrit les nombres en chiffres DANS cette langue (`text_metrics.comparable_words`).
     language: Optional[Callable[[object], str]] = None
+    #: Métriques À SEGMENTS (`cpwer`, `der`) — facultatif : les segments du résultat (élément →
+    #: liste de dicts `speaker_id`/`start_time`/`end_time`/`text`, None s'il n'en a pas) et ceux
+    #: de la référence (chemin → liste). Les deux vont ensemble avec ces métriques.
+    result_segments: Optional[Callable[[object], Optional[list]]] = None
+    read_reference_segments: Optional[Callable[[str], list]] = None
+    #: Le modèle qui a ATTRIBUÉ les locuteurs (élément → clé catalogue) : les mesures de
+    #: diarisation se rangent sous LUI, pas sous le moteur ASR — sans quoi l'indice interne
+    #: prêterait à Whisper la qualité de pyannote. None = `model_key`.
+    segment_model_key: Optional[Callable[[object], str]] = None
+    segment_protocol: str = DIARIZATION_PROTOCOL
 
 
 _REGISTRY: Dict[str, EvaluationSpec] = {}
@@ -91,10 +119,14 @@ _REGISTRY: Dict[str, EvaluationSpec] = {}
 
 def register_evaluation(spec: EvaluationSpec) -> None:
     """Appelé depuis le `apps.py:ready()` de l'app — le registre ne connaît jamais ses apps."""
-    known = _text_metrics()
+    known = _all_metrics()
     unknown = [m for m in spec.metrics if m not in known]
     if unknown:
         raise ValueError(f"métriques inconnues pour {spec.surface} : {unknown}")
+    segment_metrics = [m for m in spec.metrics if m in _segment_metrics()]
+    if segment_metrics and (spec.result_segments is None or spec.read_reference_segments is None):
+        raise ValueError(f"{spec.surface} déclare {segment_metrics} sans dire lire ses segments "
+                         f"(result_segments + read_reference_segments)")
     _REGISTRY[spec.surface] = spec
 
 
@@ -168,20 +200,43 @@ def evaluate(surface: str, item) -> List:
 
         from wama.common.models import ResultEvaluation
         written = []
-        known = _text_metrics()
+        text_metrics = _text_metrics()
+        segment_metrics = _segment_metrics()
+        segments = None
         for metric in spec.metrics:
-            measure = known[metric][1](reference_text, hypothesis, language=language or None)
+            common = {'user': getattr(item, 'user', None), 'direction': 'lower',
+                      'reference_sha256': sha, 'reference_name': name}
+            if metric in text_metrics:
+                measure = text_metrics[metric][1](reference_text, hypothesis,
+                                                  language=language or None)
+                defaults = {**common, 'model_key': model_key, 'protocol': spec.protocol,
+                            'detail': {**measure.as_dict(), 'reading': reading,
+                                       'language': language}}
+            else:
+                # Une métrique à segments qui échoue n'emporte pas les autres (best-effort).
+                try:
+                    if segments is None:
+                        segments = (spec.read_reference_segments(path),
+                                    spec.result_segments(item) or [])
+                    measure = segment_metrics[metric][1](*segments, language=language or None)
+                except Exception as exc:
+                    logger.warning('[evaluation] %s %s#%s impossible : %s',
+                                   metric, surface, item.pk, exc)
+                    measure = None
+                if measure is None:          # sans objet : sortie non diarisée, pas de temps…
+                    continue
+                speaker_key = (spec.segment_model_key(item) if spec.segment_model_key
+                               else model_key) or model_key
+                defaults = {**common, 'model_key': speaker_key, 'protocol': spec.segment_protocol,
+                            'detail': {**measure.as_dict(), 'reading': reading,
+                                       'language': language, 'result_model_key': model_key}}
             row, _ = ResultEvaluation.objects.update_or_create(
                 app=surface, object_type=type(item).__name__, object_id=item.pk, metric=metric,
-                defaults={
-                    'user': getattr(item, 'user', None), 'model_key': model_key,
-                    'value': measure.rate, 'direction': 'lower', 'protocol': spec.protocol,
-                    'reference_sha256': sha, 'reference_name': name,
-                    'detail': {**measure.as_dict(), 'reading': reading, 'language': language},
-                })
+                defaults={**defaults, 'value': measure.rate})
             written.append(row)
-        # Une métrique qui n'est plus déclarée ne doit pas survivre à côté des autres.
-        _rows_of(surface, item).exclude(metric__in=spec.metrics).delete()
+        # Une métrique qui n'est plus déclarée — ou plus mesurable (diarisation retirée à la
+        # relance) — ne doit pas survivre à côté des autres.
+        _rows_of(surface, item).exclude(metric__in=[r.metric for r in written]).delete()
         return written
     except Exception as exc:
         logger.warning('[evaluation] mesure %s#%s impossible : %s',
@@ -248,8 +303,10 @@ def item_evaluation(surface: str, item) -> Optional[dict]:
             return {'reference_name': os.path.basename(reference.name), 'metrics': [],
                     'pending': True}
         return None
-    labels = _text_metrics()
-    first = rows[0]
+    labels = _all_metrics()
+    # Le modèle de la card est celui des mesures de TEXTE ; une mesure de diarisation est rangée
+    # sous le diariseur (`segment_model_key`) et ne doit pas renommer la card.
+    first = next((r for r in rows if r.metric in _text_metrics()), rows[0])
     return {
         'reference_name': first.reference_name,
         'reference_sha256': first.reference_sha256,
@@ -260,9 +317,11 @@ def item_evaluation(surface: str, item) -> Optional[dict]:
         'reading': (first.detail or {}).get('reading') or {},
         'metrics': [{'metric': r.metric, 'label': labels.get(r.metric, (r.metric,))[0],
                      'value': r.value, 'direction': r.direction,
+                     'model_key': r.model_key, 'protocol': r.protocol,
                      **{k: (r.detail or {}).get(k) for k in (
                          'substitutions', 'deletions', 'insertions', 'errors',
-                         'reference_length', 'hypothesis_length', 'unit')}}
+                         'reference_length', 'hypothesis_length', 'unit',
+                         'attribution_errors', 'missed', 'false_alarm', 'confusion')}}
                     for r in sorted(rows, key=lambda r: spec.metrics.index(r.metric)
                                     if r.metric in spec.metrics else 99)],
         'pending': False,
@@ -294,15 +353,18 @@ def batch_evaluation(surface: str, items: Iterable) -> Optional[dict]:
     per_model: Dict[str, dict] = {}
     for r in rows:
         key, label = configurations.get(r.object_id, (r.model_key, _model_label(r.model_key)))
-        entry = per_model.setdefault(key, {'model_key': r.model_key, 'model_label': label,
+        # Le modèle de la CONFIGURATION (tête de sa clé), pas celui de la ligne : une ligne de
+        # diarisation est rangée sous le diariseur.
+        entry = per_model.setdefault(key, {'model_key': key.split('|', 1)[0], 'model_label': label,
                                            'items': set(), 'references': set(),
                                            'metrics': {}})
         entry['items'].add(r.object_id)
         entry['references'].add(r.reference_sha256)
         d = r.detail or {}
         agg = entry['metrics'].setdefault(r.metric, {'errors': 0, 'reference_length': 0})
-        agg['errors'] += int(d.get('errors') or 0)
-        agg['reference_length'] += int(d.get('reference_length') or 0)
+        # Flottants : le DER compte des SECONDES (un `int` tronquait chaque élément).
+        agg['errors'] += float(d.get('errors') or 0)
+        agg['reference_length'] += float(d.get('reference_length') or 0)
 
     primary = spec.metrics[0]
     models = []
@@ -320,7 +382,7 @@ def batch_evaluation(surface: str, items: Iterable) -> Optional[dict]:
     comparable = len({tuple(m['reference_set']) for m in models}) <= 1
     for m in models:
         del m['reference_set']
-    labels = _text_metrics()
+    labels = _all_metrics()
     return {'primary': primary, 'primary_label': labels[primary][0], 'models': models,
             'comparable': comparable, 'evaluated_items': len({r.object_id for r in rows}),
             'total_items': len(items)}

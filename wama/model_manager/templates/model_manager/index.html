@@ -1523,7 +1523,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         + (s.direction === 'lower' ? ' (plus bas = mieux)' : '')
                         + ' — ' + s.items + ' élément' + (s.items > 1 ? 's' : '') + ', '
                         + s.references + ' référence' + (s.references > 1 ? 's' : '') + ', '
-                        + s.reference_words + ' mots' + rank;
+                        + Math.round(s.reference_words) + ({ character: ' caractères',
+                            second: ' s de parole' }[s.unit] || ' mots') + rank;
                 }).join(' · ');
             } },
             { k: 'Indice a priori', get: function (m) {
