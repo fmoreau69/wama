@@ -201,6 +201,200 @@ def register_voice_language_scenarios():
                  timeout_s=240)
 
 
+def check_voice_library_pick(app: str, url_path: str, ids: dict):
+    """Un champ de VOIX ouvre la fenêtre commune de la médiathèque : AJOUTER (fichier nommé, puis
+    micro) et CHOISIR, sans quitter l'app (2026-09-30). (ok, detail).
+
+    Né d'une sonde de session le jour même. Ce qu'il garde : le bouton est posé par `WamaParams`
+    sur tout champ `options_source: 'voices'` (aucun code d'app) ; la fenêtre n'offre que la
+    nature Voix ; la card d'ajout y est celle de la page médiathèque ; « Enregistrer » produit un
+    webm que le serveur range en WAV (`Nature.to_pivot`) ; la voix ajoutée devient la valeur du
+    champ (`ua_<id>`). Le micro est le périphérique SIMULÉ de Chromium. Tout ce qui est créé l'est
+    sous le compte de test, et retiré.
+    """
+    import tempfile
+
+    from playwright.sync_api import sync_playwright
+    from wama.common.services.nightly_tests import SkipScenario, get_test_user
+    from wama.media_library.models import UserAsset
+
+    jeton = _test_session_key(app)
+    if not jeton:
+        raise SkipScenario('aucun compte de test disponible')
+    user = get_test_user()
+    before = set(UserAsset.objects.filter(user=user, asset_type='voice').values_list('pk', flat=True))
+    element = ids['open_item'](user) if ids.get('open_item') else None
+    voice = ids['voice']
+    wav = os.path.join(tempfile.gettempdir(), 'wama_probe_voice.wav')
+    with open(wav, 'wb') as fh:
+        fh.write(_wav_silence(1.0, 16000))
+    verdicts = []
+    choose_ready = "() => !document.getElementById('mp-choose').disabled"
+
+    def open_window(page):
+        page.click(f'[data-library-pick="{voice}"]')
+        page.wait_for_selector('#wama-mediapicker-modal.show', timeout=10000)
+        page.wait_for_selector('#mp-tabs [data-mp-tab]', timeout=10000)
+        page.click('#mp-add-toggle')
+        page.wait_for_selector('#mp-add [data-library-add="mp"]', timeout=5000)
+
+    def choose(page):
+        page.click('#mp-choose')
+        page.wait_for_selector('#wama-mediapicker-modal', state='hidden', timeout=5000)
+        return page.eval_on_selector(f'#{voice}', 's => [s.value, s.options[s.selectedIndex].text]')
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(args=['--use-fake-ui-for-media-stream',
+                                              '--use-fake-device-for-media-stream'])
+            try:
+                ctx = browser.new_context(viewport={'width': 1500, 'height': 1100},
+                                          permissions=['microphone'])
+                ctx.add_cookies(_cookie(jeton))
+                page = ctx.new_page()
+                errors = []
+                page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
+                resp = page.goto(BASE_URL + url_path, wait_until='networkidle')
+                v = _verdict_d_arrivee(page.url, _messages_a_l_ecran(page),
+                                       resp.status if resp else None, url_path)
+                if v is not None:
+                    return v
+                if element is not None:
+                    gear = f'.settings-btn[data-id="{element.pk}"]'
+                    page.locator(gear).first.click(timeout=15000)
+                    page.wait_for_selector('.modal.show', timeout=8000)
+                    page.wait_for_timeout(1500)
+                verdicts.append((page.locator(f'[data-library-pick="{voice}"]').count() == 1,
+                                 'bouton médiathèque posé sur le champ voix'))
+                if not verdicts[-1][0]:
+                    return _bilan(verdicts)
+                open_window(page)
+                tabs = page.eval_on_selector_all('#mp-tabs [data-mp-tab]', 'els => els.map(e => e.dataset.mpTab)')
+                verdicts.append((tabs == ['voice'], f'fenêtre limitée à la nature Voix ({tabs})'))
+                verdicts.append((page.is_visible('#mp-add [data-library-record]'),
+                                 '« Enregistrer » offert (voix déclarée recordable)'))
+                # 1. un FICHIER nommé
+                page.fill('#mp-add [data-library-name]', 'wama_probe_named_voice')
+                page.set_input_files('#mpFileInput', wav)
+                page.wait_for_function(choose_ready, timeout=20000)
+                value, label = choose(page)
+                verdicts.append((value.startswith('ua_') and label.endswith('wama_probe_named_voice'),
+                                 f'fichier ajouté puis choisi : {value} « {label} »'))
+                # 2. le MICRO
+                open_window(page)
+                page.fill('#mp-add [data-library-name]', 'wama_probe_recorded_voice')
+                page.click('#mp-add [data-library-record-btn]')
+                page.wait_for_timeout(2500)
+                page.click('#mp-add [data-library-record-btn]')
+                page.wait_for_function(choose_ready, timeout=30000)
+                value, label = choose(page)
+                verdicts.append((value.startswith('ua_') and label.endswith('wama_probe_recorded_voice'),
+                                 f'enregistrement ajouté puis choisi : {value}'))
+                keep = [x for x in errors if not any(tok in x for tok in IGNORED_CONSOLE)]
+                verdicts.append((not keep, f'console : {len(keep)} erreur(s) {keep[:1]}'))
+            finally:
+                browser.close()
+        recorded = UserAsset.objects.filter(user=user, name='wama_probe_recorded_voice').first()
+        verdicts.append((recorded is not None and recorded.file.name.endswith('.wav'),
+                         f'enregistrement rangé en WAV ({recorded and recorded.file.name})'))
+    finally:
+        for asset in UserAsset.objects.filter(user=user, asset_type='voice').exclude(pk__in=before):
+            _retirer(asset)
+        if element is not None:
+            type(element).objects.filter(pk=element.pk).delete()
+    return _bilan(verdicts)
+
+
+def check_share_consent(nature: str = 'voice'):
+    """Partager un asset qui porte une PERSONNE demande le consentement ; le retrait n'en demande
+    pas ; les deux sont tracés (`common.ShareConsent`) — 2026-09-30, décision de Fabien. (ok, detail).
+
+    Le geste RÉEL : la modale commune de partage (`WamaShare`) ouverte sur un asset témoin de la
+    page médiathèque. Sans case cochée, rien ne doit changer ; cochée, le partage s'applique ;
+    revenir au privé se fait sans condition.
+    """
+    from django.core.files.base import ContentFile
+    from playwright.sync_api import sync_playwright
+    from wama.common.models import ShareConsent
+    from wama.common.services.nightly_tests import SkipScenario, get_test_user
+    from wama.media_library.models import UserAsset
+
+    jeton = _test_session_key('media_library')
+    if not jeton:
+        raise SkipScenario('aucun compte de test disponible')
+    asset = UserAsset(user=get_test_user(), name='wama_probe_consent', asset_type=nature)
+    asset.file.save('wama_probe_consent.wav', ContentFile(_wav_silence()), save=True)
+    trace = ShareConsent.objects.filter(object_type='media_library.UserAsset', object_id=asset.pk)
+    modal = '.wama-share-modal'
+    verdicts = []
+
+    def visibility():
+        return UserAsset.objects.values_list('visibility', flat=True).get(pk=asset.pk)
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                ctx = browser.new_context()
+                ctx.add_cookies(_cookie(jeton))
+                page = ctx.new_page()
+                errors = []
+                page.on('pageerror', lambda e: errors.append(str(e)))
+                page.goto(BASE_URL + f'/media-library/?tab={nature}', wait_until='networkidle')
+
+                def open_share():
+                    page.evaluate("([pk, n]) => WamaShare.ouvrir('media_library', pk, n, 'element')",
+                                  [asset.pk, asset.name])
+                    page.wait_for_selector(f'{modal}.show', timeout=8000)
+                    page.wait_for_timeout(400)
+
+                open_share()
+                verdicts.append((page.locator(f'{modal} [data-consent]').is_hidden(),
+                                 'consentement caché tant que la portée est « Privé »'))
+                page.check(f'{modal} input[name="wama-share-portee"][value="public"]')
+                verdicts.append((page.is_visible(f'{modal} [data-consent]'),
+                                 'consentement montré pour « Public »'))
+                page.click(f'{modal} .wama-share-ok')
+                page.wait_for_timeout(800)
+                verdicts.append((visibility() == 'private' and not trace.exists(),
+                                 'sans validation : rien n’est partagé'))
+                page.check(f'{modal} [data-consent-check]')
+                page.click(f'{modal} .wama-share-ok')
+                page.wait_for_selector(modal, state='hidden', timeout=8000)
+                verdicts.append((visibility() == 'public' and trace.count() == 1,
+                                 'validé : partagé et tracé'))
+                page.wait_for_timeout(600)
+                open_share()
+                page.check(f'{modal} input[name="wama-share-portee"][value="private"]')
+                page.click(f'{modal} .wama-share-ok')
+                page.wait_for_selector(modal, state='hidden', timeout=8000)
+                verdicts.append((visibility() == 'private' and trace.count() == 2,
+                                 'retrait sans condition, tracé'))
+                verdicts.append((not errors, f'erreurs JS : {errors[:1]}'))
+            finally:
+                browser.close()
+    finally:
+        trace.delete()
+        _retirer(asset)
+    return _bilan(verdicts)
+
+
+def register_voice_library_scenarios():
+    """Les apps qui DÉCLARENT un champ de voix ; le geste est commun (le bouton aussi)."""
+    from wama.common.services.nightly_tests import register
+    for app, ids in (('synthesizer', {'voice': 'voice_preset'}),
+                     ('avatarizer', {'voice': 'settingsVoicePreset',
+                                     'open_item': _avatarizer_pipeline_item})):
+        register(id=f'{app}.voice_library_pick', app=app, stage='ui',
+                 description=f'{app} : le champ voix ouvre la médiathèque — ajouter (fichier, '
+                             'micro) puis choisir, sans quitter l’app',
+                 run=lambda ctx, a=app, i=ids: check_voice_library_pick(a, f'/{a}/', i),
+                 timeout_s=240)
+    register(id='media_library.share_consent', app='media_library', stage='ui',
+             description='partager une voix demande le consentement ; le retrait non ; tout est tracé',
+             run=lambda ctx: check_share_consent('voice'), timeout_s=180)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════════════
 # MÉDIATHÈQUE : les natures DÉRIVENT (A′) et un objet 3D se REND (§17ter trou 2)
 # ═══════════════════════════════════════════════════════════════════════════════════════

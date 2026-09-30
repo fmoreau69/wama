@@ -47,11 +47,6 @@ urlpatterns = [
     # Console
     path('console/', views.console_content, name='console'),
 
-    # Custom Voices (persistent cloning)
-    path('custom-voices/', views.list_custom_voices, name='list_custom_voices'),
-    path('custom-voices/upload/', views.upload_custom_voice, name='upload_custom_voice'),
-    path('custom-voices/delete/<int:pk>/', views.delete_custom_voice, name='delete_custom_voice'),
-
     # Import individual from server path (FileManager batch bypass)
     path('import-individual-from-path/', views.import_individual_from_path, name='import_individual_from_path'),
 

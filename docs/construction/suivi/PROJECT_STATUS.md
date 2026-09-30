@@ -19146,3 +19146,45 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
 - ⚠ Signalé par 04 : `79d14379` et `371db621` avaient emporté des fichiers ENTIERS avec son WIP
   (`model_capabilities.py`, `model_registry.py`) — réparé par elle (`883c5eaa`, `e1ff67e`).
   Leçon déjà écrite (`/commit-partiel`) : sur un fichier partagé, jamais `git commit <fichier>`.
+
+## §PALIER — 2026-09-30 (soir), « VOIX PERSONNELLES, CONSENTEMENT, MENTION IA, STUDIO = MÊME CHEMIN » — ✅ `e80348aa` + palier suivant — 🔴 RELANCER WAMA (migrations locales **synthesizer 0028**, destructive : `cv_1` → `ua_1` puis `DeleteModel CustomVoice` ; **common 0019** déjà appliquée, table neuve) — 🔚 portage Studio app par app (budget `UNWIRED_BUDGET`, 9 ports / 6 apps)
+
+> Question de Fabien : fonctionnement complet des voix personnalisées, droits, RGPD, licences ;
+> puis trois décisions (fenêtre médiathèque = la commune + sa card d'ajout ; consentement AU
+> PARTAGE, retrait libre ; métadonnée seule, chantier global) et une exigence : *« le studio doit
+> reproduire le comportement de l'app… ça doit être le même chemin, universel, sans pansement »*.
+> Domicile de l'état des lieux et des décisions : `MEDIA_STORAGE_TIERING §9.7` ; chantier global :
+> `ROADMAP §26` ; mémoire des partages : `WAMA_COLLABORATION §2.1` ; Studio : `ROUTE §10.6` (encadré).
+
+**Défauts mesurés puis corrigés** : « Enregistrer ma voix » refusé depuis février (POST réel → 400) ;
+voix créées hors du service commun ; `cv_` résolu sans vérifier le propriétaire ; voix supprimée
+ou dont le partage est retiré → **autre voix, sans message** ; import `server_path` du synthesizer
+(individuel ET lot) pointait le fichier d'un AUTRE utilisateur (seul le confinement était vérifié) ;
+`text_content` jamais enregistré à la création (les 5 chemins) ; nœud Studio : **un seul port
+transmis**, les autres liens ignorés en silence.
+
+**Livré** : `Nature.to_pivot` / `recordable` / `personal` ; `PIVOT_CONVERTERS` ;
+`VoiceUnavailable` ; card d'ajout commune `_new_item_card_library.html` + `library-add.js` (page ET
+fenêtre `MediaPicker`, option `add`/`only`) ; bouton médiathèque posé par `WamaParams` sur tout
+champ `options_source: 'voices'` ; R89 (voix propres au synthesizer retirées) ; consentement
+(`sharing.partager(consent=)`, `common.ShareConsent`, modale `WamaShare`) ; `generated_media.mark_as_generated`
+(synthesizer) ; service de création UNIQUE du synthesizer (`services.create_synthesis` : card,
+lot, import, outil) ; `tool_api.tool_arg_names`, `generic_runner.port_arguments` (convention
+« port = argument du même nom », erreur dite sinon) ; `app_card_ports` → `app_own_input_ports`
+dans l'inventaire commun ; `MEDIA_CATEGORY_LABELS` (tuile « filtrée : Objets 3D ») ; onglets de
+port sur une ligne (Lot jamais renvoyé à la ligne) — les deux retouches signalées par la session
+avatarizer.
+
+**Mesures** : gestes navigateur sur serveur éphémère — `tree_drop` + `import` des 10 apps **20 OK,
+3 skip** (cards « attache »), `synthesizer/avatarizer.voice_library_pick` **7/7 ×2**,
+`media_library.share_consent` **6/6**, `synthesizer.batch_import`/`settings` OK ; gestes versés au
+nocturne (`register_voice_library_scenarios`).
+
+**Hors de mon périmètre, relevé** : `tests_identifier_language` rouge sur HEAD (133 classes / 1312
+méthodes pour 132 / 1310 — commits d'une autre instance) ; `tests_backend_adoption`
+(`transcriber/apps.py:146` importe `PyannoteDiarizerBackend` par chemin, WIP) ;
+`tests_picker_list` (`audio/wav` ≠ `audio/x-wav`) ; `check_docs` : 3 références d'autrui.
+
+🔚 **Reste** : porter les 9 ports (un service de création par app, comme le pilote) ; `-r` du lot
+synthesizer (le service le sait désormais) ; décisions `MEDIA_STORAGE_TIERING §9.7` (attributs à
+l'ajout, licence d'un extrait tiers, sort des audios produits, XTTS non commercial, DPO).

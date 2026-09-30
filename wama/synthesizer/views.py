@@ -49,17 +49,9 @@ def _ensure_workers_imported():
 
 
 def _wrap_synthesis_in_batch(synthesis):
-    """Wrap a standalone VoiceSynthesis in a new BatchSynthesis-of-1."""
-    stem = os.path.splitext(os.path.basename(synthesis.text_file.name))[0] if synthesis.text_file else f'synthesis_{synthesis.id}'
-    output_filename = stem + '.wav'
-    batch = BatchSynthesis.objects.create(user=synthesis.user, total=1)
-    BatchSynthesisItem.objects.create(
-        batch=batch,
-        synthesis=synthesis,
-        output_filename=output_filename,
-        row_index=0,
-    )
-    return batch
+    """Un lot d'un élément — par le service unique de l'app (`services.wrap_in_batch`)."""
+    from .services import wrap_in_batch
+    return wrap_in_batch(synthesis)
 
 
 def consolidate(request):
@@ -259,296 +251,69 @@ class IndexView(View):
         return tts_model_help_meta(ENGINE_CATALOG_KEYS)
 
 
+def _card_created_response(synthesis, **extra):
+    """La réponse commune des deux vues de la card (fichier déposé, texte saisi)."""
+    return JsonResponse({
+        'id': synthesis.id,
+        'text_file_url': synthesis.text_file.url,
+        'text_file_label': os.path.basename(smart_str(synthesis.text_file.name)),
+        'status': synthesis.status,
+        'word_count': synthesis.word_count,
+        'duration_display': synthesis.duration_display,
+        'properties': synthesis.properties or 'En attente',
+        'options': {
+            'model': synthesis.get_tts_model_display(),
+            'language': synthesis.get_language_display(),
+            'voice': synthesis.get_voice_preset_display(),
+        },
+        **extra,
+    })
+
+
 @require_POST
 def upload(request):
-    """
-    Upload d'un fichier texte à synthétiser.
-    """
+    """La card reçoit un FICHIER DE TRAVAIL (téléversé, ou désigné : médiathèque, arbre) — et,
+    s'il y en a une, la VOIX DE RÉFÉRENCE. La création est LE chemin unique de l'app
+    (`services.create_synthesis`), le même que l'outil du Studio et de l'assistant."""
+    from .services import SynthesisRefused, create_synthesis
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    received = received_inputs(request, user, 'synthesizer')
+    if not received:
+        return JsonResponse({'error': received.refusal or 'Aucun fichier fourni'}, status=400)
+    voice = received_inputs(request, user, 'synthesizer', field='voice_reference')
     try:
-        # Récupérer l'utilisateur (authentifié ou anonyme)
-        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-        # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique `received_inputs` : une
-        # désignation se POINTE au lieu d'être recopiée, avec le même état du volet.
-        received = received_inputs(request, user, 'synthesizer')
-        if not received:
-            return JsonResponse({
-                'error': received.refusal or 'Aucun fichier fourni'
-            }, status=400)
-        text_file = received[0]
-
-        # Valider l'extension
-        allowed_extensions = ['txt', 'pdf', 'docx', 'csv', 'md']
-        ext = os.path.splitext(text_file.name)[1][1:].lower()
-        if ext not in allowed_extensions:
-            return JsonResponse({
-                'error': f'Format non supporté. Formats acceptés: {", ".join(allowed_extensions)}'
-            }, status=400)
-
-        # Récupérer les options avec gestion d'erreur
-        try:
-            tts_model = tts_catalog_key(request.POST.get('tts_model') or DEFAULT_TTS_MODEL)
-            language = request.POST.get('language', 'fr')
-            voice_preset = request.POST.get('voice_preset', 'default')
-            speed = float(request.POST.get('speed', 1.0))
-            pitch = float(request.POST.get('pitch', 1.0))
-            emotion_intensity = float(request.POST.get('emotion_intensity', 1.0))
-            # Higgs Audio specific options
-            multi_speaker = request.POST.get('multi_speaker', '0') == '1'
-            scene_description = request.POST.get('scene_description', '')
-            # Output format (Phase 3) — 'original' = WAV natif, sinon conversion inline
-            output_format = request.POST.get('output_format', 'original')
-            output_quality = request.POST.get('output_quality', 'balanced')
-            quality_intent = read_quality_intent(request.POST.get('quality_intent'))
-        except (ValueError, TypeError) as e:
-            return JsonResponse({
-                'error': f'Paramètres invalides: {str(e)}'
-            }, status=400)
-
-        # Voice reference (optionnel) — téléversée ou DÉSIGNÉE (médiathèque, arbre) : pointée.
-        voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
-        voice_reference = voice_received[0].value if voice_received else None
-
-        # Créer l'objet VoiceSynthesis
-        synthesis = VoiceSynthesis.objects.create(
-            user=user,
-            text_file=text_file.value,
-            tts_model=tts_model,
-            language=language,
-            voice_preset=voice_preset,
-            speed=speed,
-            pitch=pitch,
-            emotion_intensity=emotion_intensity,
-            voice_reference=voice_reference,
-            multi_speaker=multi_speaker,
-            scene_description=scene_description,
-            output_format=output_format,
-            output_quality=output_quality,
-            quality_intent=quality_intent,
-        )
-        text_file.record(synthesis, 'text_file')
-        if voice_received:
-            voice_received[0].record(synthesis, 'voice_reference')
-
-        # Extraire le texte et mettre à jour les métadonnées
-        try:
-            from .utils.text_extractor import extract_text_from_file, clean_text_for_tts
-            text_content = extract_text_from_file(synthesis.text_file.path)
-            synthesis.text_content = clean_text_for_tts(text_content)
-            synthesis.update_metadata()
-        except ImportError as e:
-            # Module d'extraction pas encore créé
-            synthesis.text_content = "Extraction en attente"
-            synthesis.word_count = 0
-            synthesis.save()
-            return JsonResponse({
-                'error': f"Module d'extraction non disponible: {str(e)}"
-            }, status=500)
-        except Exception as e:
-            synthesis.status = 'FAILURE'
-            synthesis.error_message = f"Erreur d'extraction: {str(e)}"
-            synthesis.save()
-            return JsonResponse({
-                'error': f"Impossible d'extraire le texte: {str(e)}"
-            }, status=400)
-
-        _wrap_synthesis_in_batch(synthesis)
-
-        return JsonResponse({
-            'id': synthesis.id,
-            'text_file_url': synthesis.text_file.url,
-            'text_file_label': os.path.basename(smart_str(synthesis.text_file.name)),
-            'status': synthesis.status,
-            'word_count': synthesis.word_count,
-            'duration_display': synthesis.duration_display,
-            'properties': synthesis.properties or 'En attente',
-            'options': {
-                'model': synthesis.get_tts_model_display(),
-                'language': synthesis.get_language_display(),
-                'voice': synthesis.get_voice_preset_display(),
-            }
-        })
-
-    except Exception as e:
-        # Capturer toute erreur non gérée
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Error in upload view: {error_details}")
-
-        return JsonResponse({
-            'error': f'Erreur serveur: {str(e)}'
-        }, status=500)
+        synthesis = create_synthesis(user, work_file=received[0],
+                                     reference_voice=voice[0] if voice else None,
+                                     params=request.POST.dict())
+    except (SynthesisRefused, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    return _card_created_response(synthesis)
 
 
 @require_POST
 def upload_text(request):
-    """
-    Créer un fichier DOCX à partir du texte saisi et l'ajouter à la file d'attente.
-    """
+    """La card reçoit le TEXTE saisi (le port `prompt`) — même chemin unique que `upload`."""
+    from .services import SynthesisRefused, create_synthesis
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    voice = received_inputs(request, user, 'synthesizer', field='voice_reference')
     try:
-        text_content = request.POST.get('text_content', '').strip()
-        title = request.POST.get('title', '').strip()
-
-        if not text_content:
-            return JsonResponse({
-                'error': 'Le texte ne peut pas être vide'
-            }, status=400)
-
-        # Générer un nom de fichier
-        if not title:
-            # Utiliser les premiers mots du texte comme titre
-            words = text_content.split()[:5]
-            title = ' '.join(words)
-            if len(text_content.split()) > 5:
-                title += '...'
-
-        # Limiter la longueur du titre
-        if len(title) > 50:
-            title = title[:50] + '...'
-
-        filename = f"{title}.docx"
-
-        # Créer un fichier DOCX avec python-docx
-        try:
-            from docx import Document
-            from docx.shared import Pt
-
-            doc = Document()
-
-            # Note: On n'ajoute PAS le titre au document DOCX
-            # Le titre sert uniquement pour le nom du fichier
-            # Seul le text_content sera synthétisé vocalement
-
-            # Ajouter uniquement le contenu (sans le titre)
-            # Split par paragraphes (double saut de ligne)
-            paragraphs = text_content.split('\n\n')
-            for para_text in paragraphs:
-                if para_text.strip():
-                    paragraph = doc.add_paragraph(para_text.strip())
-                    # Format basique
-                    for run in paragraph.runs:
-                        run.font.size = Pt(12)
-
-            # Sauvegarder dans un buffer
-            buffer = io.BytesIO()
-            doc.save(buffer)
-            buffer.seek(0)
-
-            # Créer un ContentFile pour Django
-            docx_file = ContentFile(buffer.read(), name=filename)
-
-        except ImportError:
-            return JsonResponse({
-                'error': 'Le module python-docx n\'est pas installé. Veuillez l\'installer avec: pip install python-docx'
-            }, status=500)
-        except Exception as e:
-            return JsonResponse({
-                'error': f'Erreur lors de la création du fichier DOCX: {str(e)}'
-            }, status=500)
-
-        # Récupérer les options (utiliser les valeurs par défaut si non fournies)
-        try:
-            tts_model = tts_catalog_key(request.POST.get('tts_model') or DEFAULT_TTS_MODEL)
-            language = request.POST.get('language', 'fr')
-            voice_preset = request.POST.get('voice_preset', 'default')
-            speed = float(request.POST.get('speed', 1.0))
-            pitch = float(request.POST.get('pitch', 1.0))
-            emotion_intensity = float(request.POST.get('emotion_intensity', 1.0))
-            # Higgs Audio specific options
-            multi_speaker = request.POST.get('multi_speaker', '0') == '1'
-            scene_description = request.POST.get('scene_description', '')
-            # Output format (Phase 3)
-            output_format = request.POST.get('output_format', 'original')
-            output_quality = request.POST.get('output_quality', 'balanced')
-            quality_intent = read_quality_intent(request.POST.get('quality_intent'))
-        except (ValueError, TypeError) as e:
-            return JsonResponse({
-                'error': f'Paramètres invalides: {str(e)}'
-            }, status=400)
-
-        # Récupérer l'utilisateur
-        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-        # Voice reference (optionnel) — téléversée ou DÉSIGNÉE (médiathèque, arbre) : pointée.
-        voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
-        voice_reference = voice_received[0].value if voice_received else None
-
-        # Créer l'objet VoiceSynthesis
-        synthesis = VoiceSynthesis.objects.create(
-            user=user,
-            text_file=docx_file,
-            tts_model=tts_model,
-            language=language,
-            voice_preset=voice_preset,
-            speed=speed,
-            pitch=pitch,
-            emotion_intensity=emotion_intensity,
-            voice_reference=voice_reference,
-            multi_speaker=multi_speaker,
-            scene_description=scene_description,
-            output_format=output_format,
-            output_quality=output_quality,
-            quality_intent=quality_intent,
-        )
-        if voice_received:
-            voice_received[0].record(synthesis, 'voice_reference')
-
-        # Mettre à jour les métadonnées
-        try:
-            from .utils.text_extractor import extract_text_from_file, clean_text_for_tts
-            extracted_text = extract_text_from_file(synthesis.text_file.path)
-            synthesis.text_content = clean_text_for_tts(extracted_text)
-            synthesis.update_metadata()
-        except ImportError:
-            # Si le module d'extraction n'existe pas, utiliser le texte brut
-            synthesis.text_content = text_content
-            synthesis.word_count = len(text_content.split())
-            synthesis.save()
-        except Exception as e:
-            synthesis.status = 'FAILURE'
-            synthesis.error_message = f"Erreur d'extraction: {str(e)}"
-            synthesis.save()
-            return JsonResponse({
-                'error': f"Impossible d'extraire le texte: {str(e)}"
-            }, status=400)
-
-        _wrap_synthesis_in_batch(synthesis)
-
-        # Re-persiste les choix du volet compose comme défauts du prochain chargement
-        # (brique COMMUNE user_settings).
-        try:
-            from wama.common.utils.user_settings import save_user_app_settings
-            save_user_app_settings(user, 'synthesizer', {
-                'preferred_language': synthesis.language,
-                'preferred_tts_model': synthesis.tts_model,
-                'preferred_voice_preset': synthesis.voice_preset,
-            })
-        except Exception:
-            pass
-
-        return JsonResponse({
-            'success': True,
-            'id': synthesis.id,
-            'text_file_url': synthesis.text_file.url,
-            'text_file_label': filename,
-            'status': synthesis.status,
-            'word_count': synthesis.word_count,
-            'duration_display': synthesis.duration_display,
-            'properties': synthesis.properties or 'En attente',
-            'options': {
-                'model': synthesis.get_tts_model_display(),
-                'language': synthesis.get_language_display(),
-                'voice': synthesis.get_voice_preset_display(),
-            }
+        synthesis = create_synthesis(user, prompt=request.POST.get('text_content', ''),
+                                     title=request.POST.get('title', ''),
+                                     reference_voice=voice[0] if voice else None,
+                                     params=request.POST.dict())
+    except (SynthesisRefused, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    # Re-persiste les choix du volet comme défauts du prochain chargement (brique COMMUNE).
+    try:
+        from wama.common.utils.user_settings import save_user_app_settings
+        save_user_app_settings(user, 'synthesizer', {
+            'preferred_language': synthesis.language,
+            'preferred_tts_model': synthesis.tts_model,
+            'preferred_voice_preset': synthesis.voice_preset,
         })
-
-    except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Error in upload_text view: {error_details}")
-
-        return JsonResponse({
-            'error': f'Erreur serveur: {str(e)}'
-        }, status=500)
+    except Exception:
+        pass
+    return _card_created_response(synthesis, success=True)
 
 
 def text_preview(request, pk: int):
@@ -869,60 +634,11 @@ def duplicate(request, pk: int):
     return JsonResponse({'duplicated': new_s.id})
 
 
-# ============================================================================
-# Custom Voices — délégué à media_library.UserAsset (type='voice')
-# Les routes /custom-voices/ sont conservées pour la compat avec le JS existant.
-# ============================================================================
-
-def list_custom_voices(request):
-    """Liste les voix personnalisées de l'utilisateur (via UserAsset)."""
-    from wama.media_library.models import UserAsset
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    assets = UserAsset.objects.filter(user=user, asset_type='voice').values('id', 'name', 'created_at')
-    return JsonResponse({'voices': [
-        {'id': a['id'], 'name': a['name'], 'created_at': a['created_at'].strftime('%d/%m/%Y')}
-        for a in assets
-    ]})
-
-
-@require_POST
-def upload_custom_voice(request):
-    """Upload d'une voix personnalisée — par LE geste d'ajout de la médiathèque.
-
-    ⚠ Jusqu'au 2026-09-30 cette vue créait l'asset elle-même, avec sa propre liste de formats :
-    l'enregistrement au micro (`recorded_voice.webm`) était REFUSÉ depuis février, et ni durée ni
-    attributs n'étaient lus. `add_file_to_library` convertit vers le pivot de la nature (webm →
-    wav), lit le fichier (durée, MIME) et refuse un nom déjà pris.
-    """
-    from wama.media_library.services import LibraryAddRefused, add_file_to_library
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    name  = request.POST.get('name', '').strip()
-    audio = request.FILES.get('audio')
-
-    if not name:
-        return JsonResponse({'error': 'Le nom est requis'}, status=400)
-    if not audio:
-        return JsonResponse({'error': 'Le fichier audio est requis'}, status=400)
-    try:
-        asset = add_file_to_library(user, 'voice', uploaded=audio, name=name)
-    except LibraryAddRefused as exc:
-        return JsonResponse({'error': str(exc)}, status=exc.status)
-    return JsonResponse({'id': asset.id, 'name': asset.name})
-
-
-@require_POST
-def delete_custom_voice(request, pk: int):
-    """Supprime une voix personnalisée (UserAsset)."""
-    from wama.media_library.models import UserAsset
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    asset = get_object_or_404(UserAsset, pk=pk, user=user, asset_type='voice')
-    # Le fichier ne part que s'il n'a plus d'autre porteur : une voix de la médiathèque partage
-    # souvent son fichier avec la voix CLONÉE du synthesizer (mesuré le 2026-09-23 sur `UserAsset #1`
-    # et `CustomVoice #1`). La brique commune juge le partage, tous modèles confondus.
-    from wama.common.utils.queue_duplication import delete_file_unless_shared
-    delete_file_unless_shared(asset, 'file')
-    asset.delete()
-    return JsonResponse({'deleted': pk})
+# ⚠ Les vues « Custom Voices » (liste, ajout, suppression — `/custom-voices/…`) sont RETIRÉES
+# le 2026-09-30 (REMOVAL_LEDGER R89) : les voix d'un utilisateur s'ajoutent, s'écoutent et se
+# suppriment dans la MÉDIATHÈQUE — sa page ou la fenêtre commune, que tout champ de voix ouvre
+# (`WamaParams`, `options_source: 'voices'`). La liste et la suppression n'avaient plus aucun
+# appelant ; l'ajout doublait `media_library.api_upload`.
 
 
 def console_content(request):
@@ -1153,50 +869,25 @@ def import_individual_from_path(request):
     Create a single VoiceSynthesis from a file already on the server (server_path relative to MEDIA_ROOT).
     Used when a batch file from FileManager is chosen for individual synthesis instead.
     """
-    from django.conf import settings as django_settings
-
     server_path = request.POST.get('server_path', '').strip()
     if not server_path:
         return JsonResponse({'error': 'server_path requis'}, status=400)
 
-    # 🔴 Confinement (05/09) : ce site faisait `Path(MEDIA_ROOT) / server_path` sans `resolve()`
-    # ni contrôle — un `../../…` lisait n'importe quel fichier du serveur et injectait son
-    # texte dans une card. LA garde commune, jamais un contrôle réécrit ici.
-    from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
-    try:
-        abs_path, server_path = resolve_under_media_root(server_path)
-    except OutsideMediaRoot:
-        return JsonResponse({'error': 'Chemin non autorisé'}, status=403)
-    except FileNotFoundError:
-        return JsonResponse({'error': 'Fichier introuvable'}, status=404)
-
+    # 🔴 Confinement (05/09), puis DROIT DE LECTURE (30/09) : ce site pointait `server_path` après
+    # le seul confinement dans MEDIA_ROOT — le fichier d'un AUTRE utilisateur passait. `designate`
+    # porte les trois gardes communes (confinement, existence, `readable_by`) ; la création est le
+    # chemin unique de l'app (`services.create_synthesis`).
+    from wama.common.utils.media_paths import InputRefused, designate
+    from .services import SynthesisRefused, create_synthesis
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    synthesis = VoiceSynthesis.objects.create(
-        user=user,
-        tts_model=tts_catalog_key(request.POST.get('tts_model') or DEFAULT_TTS_MODEL),
-        language=request.POST.get('language', 'fr'),
-        voice_preset=request.POST.get('voice_preset', 'default'),
-        speed=float(request.POST.get('speed', 1.0)),
-        pitch=float(request.POST.get('pitch', 1.0)),
-        emotion_intensity=1.0,
-        quality_intent=read_quality_intent(request.POST.get('quality_intent')),
-    )
-    synthesis.text_file.name = server_path
-    synthesis.save()
-
     try:
-        from .utils.text_extractor import extract_text_from_file, clean_text_for_tts
-        text_content = extract_text_from_file(str(abs_path))
-        synthesis.text_content = clean_text_for_tts(text_content)
-        synthesis.update_metadata()
-    except Exception:
-        synthesis.text_content = ''
-        synthesis.word_count = 0
-        synthesis.save()
-
-    _wrap_synthesis_in_batch(synthesis)
-
+        received = designate(server_path, user, 'synthesizer')
+    except InputRefused as exc:
+        return JsonResponse({'error': str(exc)}, status=403)
+    try:
+        synthesis = create_synthesis(user, work_file=received, params=request.POST.dict())
+    except (SynthesisRefused, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
     return JsonResponse({'success': True, 'id': synthesis.id})
 
 
@@ -1292,17 +983,13 @@ def batch_create(request):
     if not batch_file and not server_path:
         return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
 
-    # Global synthesis settings from the right panel
-    tts_model = tts_catalog_key(request.POST.get('tts_model') or DEFAULT_TTS_MODEL)
-    quality_intent = read_quality_intent(request.POST.get('quality_intent'))
-    language = request.POST.get('language', 'fr')
+    # Les défauts de LIGNE du parseur (voix, vitesse) ; les autres réglages du volet vont tels
+    # quels au service unique, qui les lit par le schéma.
     default_voice = request.POST.get('voice_preset', 'default')
     try:
         default_speed = float(request.POST.get('speed', 1.0))
-        default_pitch = float(request.POST.get('pitch', 1.0))
     except (ValueError, TypeError):
         default_speed = 1.0
-        default_pitch = 1.0
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
@@ -1311,13 +998,17 @@ def batch_create(request):
         if server_path:
             # File already on server (e.g. imported from FileManager) — parse directly
             # Même garde de confinement qu'`import_individual_from_path` (05/09, jumeau).
-            from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+            # + DROIT DE LECTURE (30/09, comme l'import individuel) : le fichier d'un autre passait.
+            from wama.common.utils.media_paths import (OutsideMediaRoot, readable_by,
+                                                       resolve_under_media_root)
             try:
                 abs_path, server_path = resolve_under_media_root(server_path)
             except OutsideMediaRoot:
                 return JsonResponse({'error': 'Chemin non autorisé'}, status=403)
             except FileNotFoundError:
                 return JsonResponse({'error': 'Fichier introuvable sur le serveur'}, status=404)
+            if not readable_by(server_path, user):
+                return JsonResponse({'error': 'Chemin non autorisé'}, status=403)
             ext = abs_path.suffix[1:].lower()
             if ext not in ('txt', 'pdf', 'docx', 'csv', 'md'):
                 return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
@@ -1360,28 +1051,16 @@ def batch_create(request):
         batch_file=batch_file if batch_file else None,
     )
 
+    # Chaque LIGNE est une synthèse créée par le chemin unique de l'app (`services.create_synthesis`)
+    # — ses réglages sont ceux du volet, surchargés par la ligne (voix, vitesse).
+    from .services import create_synthesis
+    base_params = request.POST.dict()
     created_ids = []
     for i, task in enumerate(tasks):
-        # Create a text ContentFile named after the desired output (with .txt extension)
-        stem = os.path.splitext(task['output_filename'])[0]
-        text_filename = stem + '.txt'
-        text_file_content = ContentFile(
-            task['text'].encode('utf-8'), name=text_filename
-        )
-
-        synthesis = VoiceSynthesis.objects.create(
-            user=user,
-            text_file=text_file_content,
-            text_content=task['text'],
-            tts_model=tts_model,
-            quality_intent=quality_intent,
-            language=language,
-            voice_preset=task['voice'],
-            speed=task['speed'],
-            pitch=default_pitch,
-        )
-        synthesis.update_metadata()
-
+        synthesis = create_synthesis(
+            user, prompt=task['text'], title=os.path.splitext(task['output_filename'])[0],
+            params={**base_params, 'voice_preset': task['voice'], 'speed': task['speed']},
+            wrap=False)
         BatchSynthesisItem.objects.create(
             batch=batch,
             synthesis=synthesis,

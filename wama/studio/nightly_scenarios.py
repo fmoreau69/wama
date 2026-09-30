@@ -109,3 +109,11 @@ def register_scenarios():
              description='Pipeline réel media_import → converter → médiathèque '
                          '(orchestration file studio, tâche app file default)',
              run=_run_pipeline_end_to_end, timeout_s=300)
+    # 2026-09-30 : chaque port AFFICHÉ au nœud doit être LU par l'outil de l'app (argument du même
+    # nom) — mesuré sur le catalogue RÉEL, dont les ports dérivent ; un test ne le peut pas (la base
+    # de test n'a pas les modèles).
+    from wama.studio.services.generic_runner import unwired_ports_report
+    register(id='studio.node_ports_wired', app='studio', stage='consistency',
+             description='les ports de chaque nœud d’app sont lus par son outil (budget du reste '
+                         'à porter, qui ne peut que descendre)',
+             run=lambda ctx: unwired_ports_report(), timeout_s=60)

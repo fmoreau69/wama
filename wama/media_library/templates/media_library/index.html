@@ -241,15 +241,16 @@
         <small class="text-muted ms-auto" id="resultCount"></small>
     </div>
 
-    {% comment %}Card d'entrée COMMUNE (2026-09-29, demande de Fabien) — remplace la zone « Ajouter »
-    propre à la page (un fichier à la fois, puis un formulaire nom/description/tags). Les gestes
-    de toutes les apps : déposer un ou plusieurs fichiers, un dossier, glisser depuis l'arbre.
-    La NATURE est celle de l'onglet ouvert (jamais devinée) ; le nom est celui du fichier et se
-    corrige ensuite par « Modifier » — on ajoute, puis on règle. Voie : `WamaImport` →
-    `api_upload` → `services.add_file_to_library`. Pas d'indication de réglages : la page n'a pas
-    de volet (`VOLET_AUCUN`). ⚠ JAMAIS de {# #} multi-ligne ici.{% endcomment %}
+    {% comment %}Card d'AJOUT COMMUNE (2026-09-29, demande de Fabien ; partagée avec la fenêtre commune
+    de sélection le 2026-09-30) — remplace la zone « Ajouter » propre à la page. Les gestes de
+    toutes les apps : déposer un ou plusieurs fichiers, un dossier, glisser depuis l'arbre, et
+    ENREGISTRER quand la nature le déclare (voix, parole). La NATURE est celle de l'onglet ouvert
+    (jamais devinée) ; le nom est celui du fichier et se corrige ensuite par « Modifier » — on
+    ajoute, puis on règle. Voie : `WamaLibraryAdd` → `WamaImport` → `api_upload` →
+    `services.add_file_to_library`. La page n'a pas de volet (`VOLET_AUCUN`).
+    ⚠ JAMAIS de {# #} multi-ligne ici.{% endcomment %}
     <div id="mlNewItemWrap">
-    {% include 'common/_new_item_card.html' with card_id='mlNewItem' drop_zone_id='mlDropZone' file_input_id='mlFileInput' folder_input_id='mlFolderInput' file_accept='' formats_label='' collapsible=True %}
+    {% include 'common/_new_item_card_library.html' with prefix='ml' collapsible=True %}
     </div>
 
     <!-- ── Panneau Mots-clés de prompt (tronc commun + perso) ──── -->

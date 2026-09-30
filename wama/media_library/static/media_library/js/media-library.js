@@ -8,15 +8,13 @@
 
     // ── Config ────────────────────────────────────────────────────────────────
 
-    // Les trois tables DÉRIVENT de la déclaration des natures servie par la page (`NATURES`,
-    // natures.py). Elles étaient recopiées ici en dur — et aucune n'avait `object3d`.
+    // Les tables DÉRIVENT de la déclaration des natures servie par la page (`NATURES`,
+    // natures.py). Elles étaient recopiées ici en dur — et aucune n'avait `object3d`. Les formats
+    // admis (et leur libellé) sont lus par la card d'ajout commune (`library-add.js`) depuis le
+    // 2026-09-30 ; ne reste ici que l'icône.
     const natures = (typeof NATURES === 'object' && NATURES) || {};
-    const ALLOWED_EXT = {};
-    const TYPE_HINTS = {};
     const TYPE_ICONS = {};
     Object.keys(natures).forEach(function (t) {
-        ALLOWED_EXT[t] = natures[t].extensions || [];
-        TYPE_HINTS[t]  = ALLOWED_EXT[t].map(function (e) { return e.toUpperCase(); }).join(', ');
         TYPE_ICONS[t]  = natures[t].icon || 'fa-file';
     });
     // Types qui utilisent un player audio — AUDIO_TYPES vient du script global de la page
@@ -39,10 +37,9 @@
     const searchInput     = document.getElementById('searchInput');
     const resultCount     = document.getElementById('resultCount');
     const loadMoreBtn     = document.getElementById('loadMoreBtn');
-    // Card d'entrée COMMUNE (`common/_new_item_card.html`, 2026-09-29) : elle remplace la zone
+    // Card d'ajout COMMUNE (`common/_new_item_card_library.html`, 2026-09-30) : elle remplace la zone
     // « Ajouter » propre à la page. La nature est celle de l'onglet ouvert.
     const newItemWrap     = document.getElementById('mlNewItemWrap');
-    const newItemInput    = document.getElementById('mlFileInput');
 
     // NB : la prévisualisation passe par le composant commun
     // (window.showPreviewModalWithNav) — pas de modal local.
@@ -593,40 +590,25 @@
         }
     }
 
-    // ── Ajout : la voie d'import COMMUNE (WamaImport) ─────────────────────────
-    // Ce qui vivait ici (zone de dépôt, un fichier à la fois, formulaire nom/description/tags,
-    // POST, insertion de la card) est le contrat de la brique. La page ne DÉCLARE que la nature
-    // (l'onglet ouvert) et ce qu'il faut rafraîchir ; le nom se corrige ensuite par « Modifier ».
-    // Glisser depuis l'arbre de fichiers arrive par la MÊME voie (désignation → `api_upload`, qui
-    // DÉPLACE le fichier dans la médiathèque).
-    function describeNewItemCard() {
-        const ext = ALLOWED_EXT[currentType] || [];
-        if (newItemInput) newItemInput.accept = ext.map(e => '.' + e).join(',');
-        const label = document.querySelector('#mlDropZone small');
-        if (label) label.textContent = (natures[currentType] || {}).label
-            ? `${natures[currentType].label} — ${TYPE_HINTS[currentType] || ''}` : '';
-    }
-    describeNewItemCard();
-
-    if (typeof window.WamaImport === 'function') {
-        WamaImport({
-            uploadUrl:     ML_URLS.upload,
-            csrfToken:     CSRF_TOKEN,
-            dropZoneId:    'mlDropZone',
-            fileInputId:   'mlFileInput',
-            folderInputId: 'mlFolderInput',
-            extraFields:   fd => fd.append('asset_type', currentType),
-            beforeFile:    file => {
-                if (file.designation) return true;          // le serveur juge (format, provenance)
-                const ext = (file.name || '').split('.').pop().toLowerCase();
-                if ((ALLOWED_EXT[currentType] || []).includes(ext)) return true;
-                toast(`Format .${ext} non admis ici. Attendu : ${TYPE_HINTS[currentType]}`, 'error');
-                return false;
-            },
-            afterImport:   () => { resetGrid(); loadAssets(true); loadCounts(); },
-        });
+    // ── Ajout : la card d'ajout COMMUNE (`WamaLibraryAdd`, 2026-09-30) ─────────
+    // Le câblage (formats de la nature, `WamaImport` → `api_upload`, « Enregistrer » d'une nature
+    // `recordable`) vivait ici ; il est passé dans `common/js/library-add.js` pour que la fenêtre
+    // commune de sélection (`MediaPicker`) ajoute EXACTEMENT comme cette page. La page ne DÉCLARE
+    // que la nature (l'onglet ouvert) et ce qu'il faut rafraîchir.
+    const addRoot = document.querySelector('[data-library-add="ml"]');
+    let libraryAdd = null;
+    function describeNewItemCard() { if (libraryAdd) libraryAdd.refresh(); }
+    if (addRoot && window.WamaLibraryAdd) {
+        Promise.resolve(WamaLibraryAdd.wire({
+            root:      addRoot,
+            csrfToken: CSRF_TOKEN,
+            toast:     toast,
+            getType:   () => (natures[currentType] ? currentType : ''),
+            getNature: key => natures[key],
+            onAdded:   () => { resetGrid(); loadAssets(true); loadCounts(); },
+        })).then(handle => { libraryAdd = handle; });
     } else {
-        console.error('[media_library] wama-import.js absent : la card d’entrée est inerte');
+        console.error('[media_library] library-add.js absent : la card d’ajout est inerte');
     }
 
     // ── Provider search ───────────────────────────────────────────────────────

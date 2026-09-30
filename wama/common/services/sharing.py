@@ -47,6 +47,61 @@ class RefusDePartage(Exception):
     """Refus MOTIVÉ : le motif est destiné à l'utilisateur, pas au journal."""
 
 
+# ── CONSENTEMENT : partager un élément qui porte une PERSONNE (2026-09-30) ──────────────────
+# Décision de Fabien : « s'il partage, c'est pour le rendre atteignable aux autres utilisateurs ;
+# il faut juste le prévenir et lui faire valider le consentement. Sinon, il annule. Il peut aussi
+# retirer le partage à tout moment. » L'élément DÉCLARE ce qu'il porte d'une personne
+# (`share_consent_subject()`) ; ce module n'en connaît aucun. Le texte validé est tracé
+# (`common.ShareConsent`), le retrait aussi.
+
+#: Le texte que l'on fait VALIDER. Versionné par sa date : une ligne de `ShareConsent` garde le
+#: texte EXACT, donc changer ce texte ne réécrit jamais ce qui a été consenti.
+CONSENT_STATEMENT = (
+    "Cet élément contient {subject}. En le partageant, je le rends utilisable par les personnes "
+    "de la portée choisie. J'atteste qu'il s'agit de la mienne, ou que j'ai l'accord de la ou des "
+    "personnes concernées pour ce partage. Je peux retirer ce partage à tout moment."
+)
+
+
+class ConsentRequired(RefusDePartage):
+    """Le partage d'un élément personnel attend le consentement de celui qui partage."""
+
+    def __init__(self, subject: str):
+        self.subject = subject
+        self.statement = CONSENT_STATEMENT.format(subject=subject)
+        super().__init__(f"consentement requis : cet élément contient {subject}")
+
+
+def consent_subject(element) -> str:
+    """Ce que l'élément porte d'une personne (« la voix d'une personne »), ou '' — DÉCLARÉ par
+    son modèle (`share_consent_subject()`). Un modèle qui ne déclare rien n'en demande pas."""
+    declared = getattr(element, 'share_consent_subject', None)
+    try:
+        return (declared() if callable(declared) else '') or ''
+    except Exception:
+        return ''
+
+
+def _consent_gate(subjects, visibility, consent: bool) -> str:
+    """Le sujet qui exige un consentement pour cette portée, ou '' ; lève s'il manque."""
+    subject = next((s for s in subjects if s), '')
+    if subject and visibility != ScopedVisibility.VIS_PRIVATE and not consent:
+        raise ConsentRequired(subject)
+    return subject
+
+
+def _record_consent(user, element, visibility, unite, projet, subject):
+    """Une ligne par geste sur un élément personnel : partage consenti ou retrait."""
+    from wama.common.models import ShareConsent
+    withdrawal = visibility == ScopedVisibility.VIS_PRIVATE
+    ShareConsent.objects.create(
+        object_type=element._meta.label, object_id=element.pk,
+        user=user if getattr(user, 'pk', None) else None,
+        username=getattr(user, 'username', '') or '',
+        visibility=visibility, scope_org_unit_id=unite, scope_project_id=projet,
+        subject=subject, statement='' if withdrawal else CONSENT_STATEMENT.format(subject=subject))
+
+
 def portees_offrables(user) -> list:
     """Ce que CET utilisateur peut offrir, avec les cibles réelles de chaque portée.
 
@@ -126,12 +181,16 @@ def _poser(objet, visibility, unite, projet):
     objet.save(update_fields=['visibility', 'scope_org_unit', 'scope_project'])
 
 
-def partager(user, element, visibility, org_unit_id=None, project_id=None) -> dict:
+def partager(user, element, visibility, org_unit_id=None, project_id=None,
+             consent: bool = False) -> dict:
     """Applique la portée à l'élément ET à son lot. Rend un compte-rendu.
 
     Le compte-rendu DIT ce qui a été touché (`lot` : id du lot propagé, ou None) : c'est ce qui
     permet à l'UI de ne pas annoncer un partage plus large qu'il n'est. Un service qui rend
     `True` laisse l'appelant inventer le message.
+
+    `consent` : celui qui partage a validé le texte de consentement. Exigé (`ConsentRequired`)
+    pour un élément qui DÉCLARE porter une personne, dès que la portée dépasse le privé.
     """
     if visibility not in PORTEES:
         raise RefusDePartage(f"portée inconnue : {visibility!r}")
@@ -143,7 +202,10 @@ def partager(user, element, visibility, org_unit_id=None, project_id=None) -> di
         raise RefusDePartage("seul le propriétaire peut partager")
 
     unite, projet = _verifier_cible(user, visibility, org_unit_id, project_id)
+    subject = _consent_gate([consent_subject(element)], visibility, consent)
     _poser(element, visibility, unite, projet)
+    if subject:
+        _record_consent(user, element, visibility, unite, projet, subject)
 
     lot = batch_of(element)
     lot_touche = None
@@ -160,7 +222,7 @@ def partager(user, element, visibility, org_unit_id=None, project_id=None) -> di
 
 
 def partager_lot(user, lot, modele_element, visibility,
-                 org_unit_id=None, project_id=None) -> dict:
+                 org_unit_id=None, project_id=None, consent: bool = False) -> dict:
     """Partage un LOT ENTIER : le lot et TOUS ses éléments.
 
     Question de Fabien (2026-09-08) : « est-ce que le partage fonctionne pour les batch ? » Il
@@ -181,15 +243,22 @@ def partager_lot(user, lot, modele_element, visibility,
         raise RefusDePartage("seul le propriétaire peut partager")
 
     unite, projet = _verifier_cible(user, visibility, org_unit_id, project_id)
+    from wama.common.utils.batch_common import batch_elements
+    elements = list(batch_elements(lot, modele_element))
+    # Le consentement se demande AVANT d'écrire quoi que ce soit : un lot à moitié partagé parce
+    # qu'un élément personnel a refusé en cours de route serait un partage à trous.
+    subjects = {e.pk: consent_subject(e) for e in elements}
+    _consent_gate([consent_subject(lot), *subjects.values()], visibility, consent)
     _poser(lot, visibility, unite, projet)
 
-    from wama.common.utils.batch_common import batch_elements
     touches, non_partageables = 0, 0
-    for element in batch_elements(lot, modele_element):
+    for element in elements:
         if not _porte_la_visibilite(element):
             non_partageables += 1
             continue
         _poser(element, visibility, unite, projet)
+        if subjects.get(element.pk):
+            _record_consent(user, element, visibility, unite, projet, subjects[element.pk])
         touches += 1
 
     return {'visibility': visibility, 'libelle': PORTEES[visibility],
@@ -202,9 +271,14 @@ def partager_lot(user, lot, modele_element, visibility,
 
 
 def etat(element) -> dict:
-    """La portée COURANTE d'un élément, telle que l'UI doit la pré-sélectionner."""
+    """La portée COURANTE d'un élément, telle que l'UI doit la pré-sélectionner — et, s'il porte
+    une personne, le texte de consentement que la modale fera valider AVANT d'envoyer (prévenir
+    d'abord, plutôt que refuser puis expliquer)."""
+    subject = consent_subject(element)
     return {
         'visibility': getattr(element, 'visibility', ScopedVisibility.VIS_PRIVATE),
         'org_unit_id': getattr(element, 'scope_org_unit_id', None),
         'project_id': getattr(element, 'scope_project_id', None),
+        'consent': ({'subject': subject, 'statement': CONSENT_STATEMENT.format(subject=subject)}
+                    if subject else None),
     }

@@ -179,6 +179,9 @@ ses modalités **dont son propre champ URL** — ce qui lève l'ambiguïté « c
 prompt, un travail ou une référence ? » sans recourir à la chronologie · un onglet **live** ·
 la **barre de lot** hors ports. Le studio en fait autant, avec le prompt en socket connectable
 (nœud source « Batch de prompts »). **Aucun conflit studio ↔ card v4.**
+⚠ *Précisé le 2026-09-30* : vrai des ports AFFICHÉS, faux des ports LUS — le runner n'en
+transmettait qu'un. Convention « port = argument du même nom de l'outil » et reste à porter :
+`WAMA_APP_GENERATION_ROUTE §10.6` (encadré du point 4).
 
 ⚠ **Un seul point du dépôt dit encore le contraire** : `INPUT_TYPES['prompt'].port == 'travail'`.
 C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse.

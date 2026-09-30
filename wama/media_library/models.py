@@ -134,6 +134,13 @@ class UserAsset(_AttributesMixin, ScopedVisibility, models.Model):
     def __str__(self):
         return f"{self.name} ({self.get_asset_type_display()}) — {self.user.username}"
 
+    def share_consent_subject(self) -> str:
+        """Ce que cet asset porte d'une PERSONNE (« la voix d'une personne »), ou '' — lu par le
+        service de partage commun (`common/services/sharing`), qui exige alors un consentement
+        pour toute portée au-delà du privé. Déclaré par la NATURE (`natures.Nature.personal`)."""
+        nature = ASSET_NATURES.get(self.asset_type)
+        return nature.personal if nature else ''
+
     @property
     def file_size_display(self):
         """Taille lisible (Ko, Mo)."""

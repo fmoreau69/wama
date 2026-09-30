@@ -67,7 +67,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
         <div class="wama-port-tabs" role="tablist">
         {% for p in ports %}
             <span class="wama-port-tab{% if forloop.first %} is-active{% endif %}{% if p.required %} is-required{% endif %}{% if p.one_of %} is-required-one-of{% endif %}"
-                  role="tab" data-port-tab="{{ p.id }}">
+                  role="tab" data-port-tab="{{ p.id }}" title="{{ p.label }}{% if p.required %} — requis{% elif p.one_of %} — requis, ou {{ p.one_of|join:', ' }}{% endif %}">
                 {% if p.kind == 'live' %}🎙{% elif p.group == 'reference' %}📎{% else %}🎞{% endif %}
                 {% comment %}« requis · ou … » : l'un des ports du groupe suffit (`app_input_ports`, 2026-09-30).{% endcomment %}
                 {{ p.label }}{% if p.required %}<span class="wama-port-k">requis</span>{% elif p.one_of %}<span class="wama-port-k" title="L'un ou l'autre suffit">requis · ou {{ p.one_of|join:', ' }}</span>{% endif %}
@@ -124,7 +124,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                         <div class="wama-mod wama-mod-library" data-mod="library" data-mod-library-btn title="Choisir dans la médiathèque">
                             <i class="fas fa-photo-film wama-mod-g text-info"></i>
                             <span>Médiathèque</span>
-                            <small>{% if p.library_prefer %}onglet : {{ p.library_prefer_label }}{% elif p.library_type != 'all' %}filtrée : {{ p.library_type }}{% else %}tous types{% endif %}</small>
+                            <small>{% if p.library_prefer %}onglet : {{ p.library_prefer_label }}{% elif p.library_type_label %}filtrée : {{ p.library_type_label }}{% else %}tous types{% endif %}</small>
                         </div>
                     </div>
                 </div>
@@ -178,7 +178,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                         <div class="wama-mod wama-mod-library" data-mod="library" data-mod-library-btn title="Importer depuis la médiathèque">
                             <i class="fas fa-photo-film wama-mod-g text-info"></i>
                             <span>Médiathèque</span>
-                            <small>{% if p.library_prefer %}onglet : {{ p.library_prefer_label }}{% elif p.library_type != 'all' %}filtrée : {{ p.library_type }}{% else %}tous types{% endif %}</small>
+                            <small>{% if p.library_prefer %}onglet : {{ p.library_prefer_label }}{% elif p.library_type_label %}filtrée : {{ p.library_type_label }}{% else %}tous types{% endif %}</small>
                         </div>
                         {% if url_input_id %}
                         <div class="wama-mod wama-mod-url" data-mod="url">
@@ -211,7 +211,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                         <div class="wama-mod wama-mod-library" data-mod="library" data-mod-library-btn title="Choisir dans la médiathèque">
                             <i class="fas fa-photo-film wama-mod-g text-info"></i>
                             <span>Médiathèque</span>
-                            <small>{% if p.library_type != 'all' %}filtrée : {{ p.library_type }}{% else %}tous types{% endif %}</small>
+                            <small>{% if p.library_type_label %}filtrée : {{ p.library_type_label }}{% else %}tous types{% endif %}</small>
                         </div>
                         <div class="wama-mod wama-mod-url" data-mod="url">
                             <div class="input-group input-group-sm">

@@ -1534,8 +1534,8 @@ def api_partage(request, surface: str, nature: str, pk: int):
     lecture seule par construction ; l'escalade est le jalon S3 `AccessGrant`.
     """
     from django.shortcuts import get_object_or_404
-    from wama.common.services.sharing import (RefusDePartage, etat, partager, partager_lot,
-                                              portees_offrables)
+    from wama.common.services.sharing import (ConsentRequired, RefusDePartage, etat, partager,
+                                              partager_lot, portees_offrables)
     from wama.common.utils.batch_common import batch_model_for_app
     from wama.common.utils.preview_registry import PreviewRegistry
 
@@ -1568,12 +1568,18 @@ def api_partage(request, surface: str, nature: str, pk: int):
     visibility = request.POST.get('visibility') or ''
     unite = request.POST.get('org_unit_id') or None
     projet = request.POST.get('project_id') or None
+    # Le consentement VALIDÉ dans la modale (élément qui porte une personne, 2026-09-30).
+    consent = request.POST.get('consent') == '1'
     try:
         if nature == 'lot':
             compte_rendu = partager_lot(request.user, cible, modele_element,
-                                        visibility, unite, projet)
+                                        visibility, unite, projet, consent=consent)
         else:
-            compte_rendu = partager(request.user, cible, visibility, unite, projet)
+            compte_rendu = partager(request.user, cible, visibility, unite, projet, consent=consent)
+    except ConsentRequired as refus:
+        # 409 et le TEXTE à valider : la modale le montre au lieu d'un refus sec.
+        return JsonResponse({'ok': False, 'consent_required': True, 'reason': str(refus),
+                             'statement': refus.statement}, status=409)
     except RefusDePartage as refus:
         return JsonResponse({'ok': False, 'reason': str(refus)}, status=400)
     return JsonResponse({'ok': True, **compte_rendu})

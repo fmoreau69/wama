@@ -1411,13 +1411,14 @@ class AppCardPortsTest(TestCase):
 
     Fabien's decision for the synthesizer: « either the user prompts, or drops a work file — it
     does the same thing ». No TTS model declares a document (it receives text): the app extracts
-    it, so the port is the app's (`has_text_file_input`), card-only — the Studio tool only takes
-    text, a document port there would be a lying port. And the reference voice is carried by the
+    it, so the port is the app's (`has_text_file_input`) — and, since the same day, the Studio's
+    too: the node's tool creates through the card's own path (Fabien: « if the app declares its
+    capabilities, the studio inherits them »). And the reference voice is carried by the
     `voice_preset` setting (volet, modal, inspector): a card tab would be a second home for it.
     ⚠ LOCAL witness entries for the mechanism, the real synthesizer for the adoption.
     """
 
-    APP = 'app_card_ports_witness'
+    APP = 'app_own_input_ports_witness'
 
     def _catalog(self, **capabilities):
         from unittest.mock import patch
@@ -1439,11 +1440,14 @@ class AppCardPortsTest(TestCase):
         self.assertEqual(['le texte saisi'], port['one_of'])
         self.assertFalse(port['required'])
 
-    def test_the_card_port_never_reaches_the_studio(self):
+    def test_the_app_port_reaches_the_studio_node_too(self):
+        """One inventory, two surfaces: what the card offers, the node offers."""
         from wama.common.app_registry import studio_node_ports
         with self._catalog(has_text_file_input=True):
             ids = [p['id'] for p in studio_node_ports(self.APP)['inputs']]
-        self.assertNotIn('work_file', ids)
+        self.assertIn('work_file', ids)
+        studio = [p['id'] for p in studio_node_ports('synthesizer')['inputs']]
+        self.assertIn('work_file', studio)
 
     def test_a_port_carried_by_a_setting_is_not_a_tab_but_stays_in_the_studio(self):
         from wama.common.app_registry import studio_node_ports

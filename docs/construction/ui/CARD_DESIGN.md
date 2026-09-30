@@ -1602,7 +1602,7 @@ l'ordre, sur les ports que `input_slots` rend pour chaque app :
   fichier de travail. Ça fait la même chose »* — et *« on garde bien aussi le batch. Très
   important »*. Aucun modèle TTS ne déclare de document (il reçoit du texte) : c'est l'APP qui le
   consomme (sa vue d'upload extrait le texte), d'où un port de CARD déclaré par une capacité
-  d'app, forme d'`app_result_ports` : `has_text_file_input` → `app_card_ports` → onglet
+  d'app, forme d'`app_result_ports` : `has_text_file_input` → `app_own_input_ports` → onglet
   « Fichier de travail » (les formats déclarés, « requis · ou le texte saisi », champ `one_of` de
   l'autre instance). ⚠ **Pas au Studio** : l'outil `synthesize_text` ne lit que du texte, un port
   document y serait mensonger — ⏳ à ouvrir quand l'outil lira un fichier. Le lot reste sous ses

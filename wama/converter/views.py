@@ -145,8 +145,8 @@ class IndexView(View):
         # Group jobs by batch for the queue UI (batch-of-1 → carte simple,
         # batch-of-N → groupe). Ordre : par batch le plus récent.
         from collections import OrderedDict
-        _nature_labels = {'image': 'Images', 'video': 'Vidéos', 'audio': 'Audio',
-                          'document': 'Documents', 'archive': 'Archives'}
+        # Libellés des catégories : la table COMMUNE, déclarée avec les catégories (2026-09-30).
+        from wama.common.app_registry import MEDIA_CATEGORY_LABELS as _nature_labels
         grouped = OrderedDict()
         for job in jobs:
             key = job.batch_id or f'loose-{job.id}'

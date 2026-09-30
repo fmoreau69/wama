@@ -1042,7 +1042,7 @@
             'describer': ['describer', 'describer_input', 'describer_output'],
             'enhancer': ['enhancer', 'enhancer_input', 'enhancer_output'],
             'imager': ['imager', 'imager_prompts', 'imager_references', 'imager_output_image', 'imager_output_video'],
-            'synthesizer': ['synthesizer', 'synthesizer_input', 'synthesizer_output', 'synthesizer_voices'],
+            'synthesizer': ['synthesizer', 'synthesizer_input', 'synthesizer_output'],
             'transcriber': ['transcriber', 'transcriber_input', 'transcriber_output'],
             'reader':      ['reader', 'reader_input', 'reader_output'],
             // WAMA Lab apps (nested under wama_lab)

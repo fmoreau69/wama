@@ -83,6 +83,14 @@ def _nature_label(nature):
     return found.label if found else nature
 
 
+def _category_label(category):
+    """Libellé AFFICHÉ d'une catégorie média (`3d` → « Objets 3D ») ; '' pour `all`."""
+    from wama.common.app_registry import MEDIA_CATEGORY_LABELS
+    if not category or category == 'all':
+        return ''
+    return MEDIA_CATEGORY_LABELS.get(category, category)
+
+
 def _result_reference_accept(surface):
     """Les extensions que l'app sait LIRE comme référence (sa déclaration), pour le sélecteur."""
     from wama.common.services.result_evaluation import evaluation_spec
@@ -211,16 +219,17 @@ def input_slots(app, domain=None):
     Le port `prompt` est EXCLU : ce n'est pas un slot de la zone de preview, c'est la cellule
     primaire au-dessus (§11.9 C — le seul élément autorisé à grandir).
     """
-    from wama.common.app_registry import (app_card_ports, app_ports_carried_elsewhere,
+    from wama.common.app_registry import (app_own_input_ports, app_ports_carried_elsewhere,
                                           studio_node_ports)
 
-    # Ports de la CARD seule (l'app les consomme, pas un nœud Studio : le fichier texte du
-    # synthesizer) EN TÊTE — c'est le port principal ; moins les ports qu'un RÉGLAGE porte
-    # (la voix de référence du synthesizer, choisie dans `voice_preset`). 2026-09-30.
-    card_ports = app_card_ports(app)
+    # UN inventaire pour la card et le nœud du Studio (`studio_node_ports`), qui porte EN TÊTE les
+    # ports que l'app consomme elle-même (le fichier de travail du synthesizer) ; moins les ports
+    # qu'un RÉGLAGE porte (la voix de référence du synthesizer, choisie dans `voice_preset`).
+    # `card_ports` ne sert plus qu'à leurs OBLIGATIONS (`known` ci-dessous). 2026-09-30.
+    card_ports = app_own_input_ports(app)
     carried = app_ports_carried_elsewhere(app)
-    ports = card_ports + [p for p in ((studio_node_ports(app) or {}).get('inputs') or [])
-                          if p.get('id') not in carried]
+    ports = [p for p in ((studio_node_ports(app) or {}).get('inputs') or [])
+             if p.get('id') not in carried]
     # Card d'un DOMAINE (imager image/vidéo, enhancer image-vidéo/audio — deux cards par page) :
     # seulement les ports dont le domaine accepte les natures (`ports_for_domain`, 2026-09-30).
     domain = domain or None
@@ -296,6 +305,8 @@ def input_slots(app, domain=None):
             # `media_library_type` n'accepte qu'UNE valeur : un port multi-nature (converter)
             # ouvre la médiathèque non filtrée plutôt que sur une nature arbitraire.
             'library_type': types[0] if len(types) == 1 else 'all',
+            # Son LIBELLÉ (« Objets 3D », pas la clé `3d`) — table déclarée avec les catégories.
+            'library_type_label': _category_label(types[0] if len(types) == 1 else 'all'),
             # L'ONGLET d'ouverture de la médiathèque, quand l'app le déclare (`library_natures`).
             'library_prefer': library_nature_for(app, port.get('id')),
             # Son LIBELLÉ, celui de la nature (« Objet 3D », pas la clé `object3d`).

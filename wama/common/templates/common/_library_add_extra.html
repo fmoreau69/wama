@@ -1,0 +1,23 @@
+{% comment %}Ce que la card d'AJOUT de la médiathèque porte en plus de la card d'entrée commune
+(2026-09-30) — incluse par `_new_item_card_library.html` via `extra_zone_template` : le NOM du prochain
+ajout, et « Enregistrer ». Aucun id : `library-add.js` retrouve ces éléments par leurs `data-*`
+sous sa racine (la page et la fenêtre commune en portent chacune une).{% endcomment %}
+<div class="mt-2">
+    {% comment %}Le NOM du prochain ajout (optionnel) : sans lui, l'asset prend le nom du fichier —
+    « Enregistrement 2026-09-30 … » pour une prise au micro, là où l'on veut « Ma voix ». Appliqué
+    au premier fichier envoyé, puis vidé.{% endcomment %}
+    <input type="text" class="form-control form-control-sm" data-library-name maxlength="200"
+           placeholder="Nom (optionnel) — sinon celui du fichier">
+</div>
+{% comment %}« Enregistrer » : CACHÉ par défaut, montré quand la NATURE de l'onglet est déclarée
+`recordable` (`media_library/natures.py`). Le fichier enregistré (webm) suit la voie commune
+d'ajout et est rangé en wav (`to_pivot`).{% endcomment %}
+<div class="mt-2 pt-2 border-top border-secondary" data-library-record hidden>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-info btn-sm" data-library-record-btn>
+            <i class="fas fa-microphone"></i> <span data-library-record-label>Enregistrer</span>
+        </button>
+        <span class="badge bg-danger" data-library-record-timer hidden>0 s</span>
+        <small class="text-muted" data-library-record-hint></small>
+    </div>
+</div>

@@ -103,11 +103,19 @@ def _derive_io_from_ports(app_id):
     trier — la variante manifeste (`projection.derive_io_from_ports`) trie, elle, parce
     qu'elle ne sert qu'à une comparaison insensible à l'ordre.
     """
-    from wama.common.app_registry import studio_node_ports
+    from wama.common.app_registry import app_input_ports, app_own_input_ports, studio_node_ports
     ports = studio_node_ports(app_id) or {}
+    # Un port déclaré « l'un OU l'autre » avec le prompt (`one_of`, ex. le fichier de travail du
+    # synthesizer) n'est PAS l'entrée principale : c'est le prompt qui l'est, et ce port arrive en
+    # argument nommé (`port_arguments`). Sans cette lecture, ajouter le fichier de travail au nœud
+    # aurait fait du synthesizer un nœud à DOCUMENT obligatoire (mesuré le 2026-09-30).
+    alternatives = {p['id'] for p in app_own_input_ports(app_id) + app_input_ports(app_id)
+                    if 'prompt' in (p.get('one_of') or [])}
     io = {}
     for p in ports.get('inputs', []):
         grp = p.get('group')
+        if p.get('id') in alternatives:
+            continue
         if grp == 'travail' and 'input_kinds' not in io:
             kinds = tuple(t for t in (p.get('types') or []) if t and t != 'prompt')
             if kinds:
@@ -181,6 +189,93 @@ def _node_params_spec(app_id, conf):
     return spec
 
 
+# ── Les PORTS du nœud → les arguments de l'outil (2026-09-30) ──────────────────────────────────
+# Constat de Fabien : « le studio utilise les apps en tant que card ; si l'app déclare ses
+# capacités, le studio en hérite, c'est tout ». Mesuré le même jour : le nœud AFFICHAIT tous les
+# ports de l'app (`studio_node_ports`, dérivés des modèles) mais le runner n'en transmettait
+# qu'UN — l'entrée principale ; les autres liens étaient ignorés sans un mot (synthesizer : voix de
+# référence ; composer : mélodie ; avatarizer : image, objet 3D…). La règle est désormais une
+# convention, pas une table : **un port arrive dans l'argument DU MÊME NOM de l'outil**
+# (`add_to_<app>`). Une app qui lit un port de plus l'ajoute à sa signature — rien ici ne change.
+# Un port que l'outil ne lit pas encore est une ERREUR DITE au lancement ; la liste de ces ports
+# est tenue par un test qui ne peut que descendre (`studio/tests_node_ports.py`).
+
+def _node_ports(app_id):
+    from wama.common.app_registry import studio_node_ports
+    return (studio_node_ports(app_id) or {}).get('inputs', [])
+
+
+def primary_ports(app_id) -> set:
+    """Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`)."""
+    conf = GENERIC_APPS[app_id]
+    ports = _node_ports(app_id)
+    if conf.get('primary_input') == 'prompt':
+        return {'prompt'} | {p['id'] for p in ports if p.get('group') == 'prompt'}
+    kinds = set(conf.get('input_kinds') or ())
+    return {p['id'] for p in ports
+            if p.get('group') == 'travail' and kinds & set(p.get('types') or [])}
+
+
+def unwired_ports(app_id) -> list:
+    """Les ports du nœud que l'outil de l'app ne LIT pas encore — le portage qui reste."""
+    from wama.tool_api import tool_arg_names
+    accepted = tool_arg_names(f'add_to_{app_id}')
+    primary = primary_ports(app_id)
+    return sorted(p['id'] for p in _node_ports(app_id)
+                  if p['id'] not in primary and p['id'] not in accepted)
+
+
+#: Ports AFFICHÉS au nœud que l'outil de l'app ne lit pas encore — le portage qui reste, MESURÉ
+#: sur le catalogue réel le 2026-09-30 (`ROUTE §10.6`, « on finit le port, jamais de colle côté
+#: studio »). Ne peut que DESCENDRE : une app qui lit un port de plus retire sa ligne ; un port non
+#: lu qui n'y figure pas fait échouer le geste nocturne `studio.node_ports_wired`.
+#: ⚠ Ne jamais AJOUTER une ligne pour faire passer un port neuf : c'est l'outil qu'on complète.
+UNWIRED_PORTS_BUDGET = {
+    'composer': ['reference_melody'],
+    'imager': ['work_image'],
+    'transcriber': ['reference_result', 'work_result'],
+    'enhancer': ['work_audio'],
+    'avatarizer': ['prompt', 'work_image', 'work_object3d'],
+    'anonymizer': ['prompt'],
+}
+
+
+def unwired_ports_report(measure=None):
+    """(ok, détail) — la liste MESURÉE des ports non lus confrontée au budget, dans les deux
+    sens : un port non lu hors budget (ajout), une ligne de budget soldée mais pas retirée."""
+    measure = measure or unwired_ports
+    measured = {app: measure(app) for app in GENERIC_APPS}
+    grown = {app: [p for p in ports if p not in UNWIRED_PORTS_BUDGET.get(app, [])]
+             for app, ports in measured.items()}
+    grown = {app: ports for app, ports in grown.items() if ports}
+    solved = {app: [p for p in ports if p not in measured.get(app, [])]
+              for app, ports in UNWIRED_PORTS_BUDGET.items()}
+    solved = {app: ports for app, ports in solved.items() if ports}
+    total = sum(len(p) for p in measured.values())
+    if grown:
+        return False, (f'port(s) du nœud NON LUS par l’outil, hors budget : {grown} — compléter '
+                       f'`add_to_<app>` (argument du même nom que le port), jamais le budget')
+    if solved:
+        return False, f'port(s) désormais lus : retirer du budget (il ne peut que descendre) : {solved}'
+    return True, f'{total} port(s) restant à porter, conformes au budget'
+
+
+def port_arguments(app_id, inputs) -> dict:
+    """Les liens reçus sur les ports NON principaux, en arguments nommés de l'outil.
+    Lève `ValueError` si un lien arrive sur un port que l'app ne lit pas encore."""
+    primary, unwired = primary_ports(app_id), set(unwired_ports(app_id))
+    args = {}
+    for port in _node_ports(app_id):
+        pid = port['id']
+        if pid in primary or not inputs.get(pid):
+            continue
+        if pid in unwired:
+            raise ValueError(f"Nœud {app_id} : le port « {port.get('label') or pid} » est branché, "
+                             f"mais l'app ne le lit pas encore (portage en cours) — débranchez-le.")
+        args[pid] = inputs[pid]
+    return args
+
+
 def build_generic_runner(app_id):
     conf = GENERIC_APPS[app_id]
 
@@ -190,11 +285,17 @@ def build_generic_runner(app_id):
         # ce qui relève du GRAPHE : d'où vient l'entrée principale, et les kwargs figés.
         from wama.tool_api import execute_tool, primary_arg_name
         tool = f'add_to_{app_id}'
+        # Les AUTRES ports branchés (voix de référence, fichier de travail, résultat existant…)
+        # arrivent dans l'argument DU MÊME NOM de l'outil (2026-09-30). Avant, seule l'entrée
+        # principale était transmise : un port branché était IGNORÉ en silence.
+        extra = port_arguments(app_id, inputs)
         if conf.get('primary_input') == 'prompt':
             primary = (inputs.get('prompt') or inputs.get('text')
                        or (params or {}).get('prompt') or (params or {}).get('text')
                        or (params or {}).get('text_content') or '').strip()
-            if not primary:
+            # « L'un OU l'autre » (ex. synthesizer : le texte OU un fichier de travail) : un
+            # prompt vide n'est une erreur que si aucun autre port n'apporte l'entrée.
+            if not primary and not extra:
                 raise ValueError(f"Nœud {app_id} : aucun prompt (connectez un nœud Texte "
                                  f"ou renseignez le paramètre).")
         else:
@@ -215,7 +316,9 @@ def build_generic_runner(app_id):
         kwarg = conf.get('input_kwarg') or primary_arg_name(tool)
         if not kwarg:
             raise ValueError(f"{app_id} : {tool} n'expose aucun paramètre d'entrée (contrat).")
-        call_args[kwarg] = primary
+        call_args.update(extra)
+        if primary:
+            call_args[kwarg] = primary
 
         res = execute_tool(tool, call_args, user)
         if not isinstance(res, dict):

@@ -213,8 +213,13 @@ def _tabs_for(asset_type: str, user_qs, system_qs) -> list:
             counts[key] = counts.get(key, 0) + n
     tabs = [{'key': category, 'exact': False, 'label': 'Tous', 'icon': 'fa-layer-group',
              'count': sum(counts.values())}]
+    # Un onglet de NATURE dit aussi ce que la card d'ajout de la fenêtre accepte (2026-09-30) :
+    # formats admis (conversion vers le pivot comprise) et « Enregistrer » — la déclaration de
+    # `natures_as_json`, jamais recopiée côté JS.
+    declared = natures_as_json()
     tabs += [{'key': k, 'exact': True, 'label': ASSET_NATURES[k].label,
-              'icon': ASSET_NATURES[k].icon, 'count': counts.get(k, 0)}
+              'icon': ASSET_NATURES[k].icon, 'count': counts.get(k, 0),
+              'extensions': declared[k]['extensions'], 'recordable': declared[k]['recordable']}
              for k in ASSET_NATURES if k in members]
     return tabs
 

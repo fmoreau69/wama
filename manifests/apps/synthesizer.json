@@ -625,87 +625,6 @@
           "fields": [
             {
               "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "on_delete": {
-                  "expr": "django.db.models.deletion.CASCADE",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'custom_voices'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "settings.AUTH_USER_MODEL",
-                  "imports": [
-                    "from django.conf import settings"
-                  ]
-                }
-              },
-              "name": "user"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "max_length": {
-                  "expr": "100",
-                  "imports": []
-                }
-              },
-              "name": "name"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.FileField",
-              "kwargs": {
-                "upload_to": {
-                  "expr": "wama.common.utils.media_paths.UploadToUserPath('synthesizer', 'custom_voices')",
-                  "imports": [
-                    "import wama.common.utils.media_paths"
-                  ]
-                },
-                "validators": {
-                  "expr": "[django.core.validators.FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac', 'ogg'])]",
-                  "imports": [
-                    "import django.core.validators"
-                  ]
-                }
-              },
-              "name": "audio"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.DateTimeField",
-              "kwargs": {
-                "auto_now_add": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "created_at"
-            }
-          ],
-          "manager": "",
-          "meta": {
-            "ordering": [
-              "name"
-            ],
-            "unique_together": [
-              [
-                "user",
-                "name"
-              ]
-            ]
-          },
-          "name": "CustomVoice"
-        },
-        {
-          "fields": [
-            {
-              "args": [],
               "class": "django.db.models.IntegerField",
               "kwargs": {
                 "db_index": {
@@ -1529,6 +1448,16 @@
     "ports": {
       "inputs": [
         {
+          "description": "Un fichier texte (TXT, MD, PDF, DOCX…) lu en entier — ou le texte saisi ci-dessus : l'un ou l'autre.",
+          "group": "travail",
+          "id": "work_file",
+          "label": "Fichier de travail",
+          "multi": true,
+          "types": [
+            "document"
+          ]
+        },
+        {
           "description": "La consigne écrite. C'est elle que le modèle exécute.",
           "group": "prompt",
           "id": "prompt",
@@ -1579,7 +1508,6 @@
         "console",
         "consolidate",
         "delete",
-        "delete_custom_voice",
         "download",
         "download_all",
         "duplicate",
@@ -1587,7 +1515,6 @@
         "help",
         "import_individual_from_path",
         "index",
-        "list_custom_voices",
         "merge",
         "move_to_batch",
         "preview",
@@ -1601,7 +1528,6 @@
         "text_preview",
         "update_settings",
         "upload",
-        "upload_custom_voice",
         "upload_text",
         "voice_preview"
       ],
@@ -1665,21 +1591,6 @@
           "name": "update_settings",
           "pattern": "settings/<int:pk>/",
           "view": "views.update_settings"
-        },
-        {
-          "name": "list_custom_voices",
-          "pattern": "custom-voices/",
-          "view": "views.list_custom_voices"
-        },
-        {
-          "name": "upload_custom_voice",
-          "pattern": "custom-voices/upload/",
-          "view": "views.upload_custom_voice"
-        },
-        {
-          "name": "delete_custom_voice",
-          "pattern": "custom-voices/delete/<int:pk>/",
-          "view": "views.delete_custom_voice"
         },
         {
           "name": "import_individual_from_path",
@@ -1778,10 +1689,12 @@
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max)",
             "pitch": "range — Hauteur de la voix (0.5 = grave, 2.0 = aigu) [0.5–2.0] (défaut : 1.0)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
+            "reference_voice": "str",
             "speed": "range — Vitesse de parole (0.5 = lent, 2.0 = rapide) [0.5–2.0] (défaut : 1.0)",
-            "text": "str (requis)",
+            "text": "str",
             "tts_model": "select — Clé catalogue du moteur TTS (AIModel.model_key) (défaut : 'synthesizer:coqui-xtts')",
-            "voice_preset": "select — Voix de référence (sa_…), voix clonée (ua_…) ou preset Bark (défaut : 'default')"
+            "voice_preset": "select — Voix de référence (sa_…), voix clonée (ua_…) ou preset Bark (défaut : 'default')",
+            "work_file": "str"
           },
           "description": "Ajoute un élément à la file d'attente de Synthesizer (Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…)) et renvoie son item_id."
         },

@@ -368,6 +368,12 @@
     <!-- Unified media preview (modal + fullscreen — common à toutes les apps) -->
     <script src="{% static_v 'common/js/media-preview.js' %}"></script>
     <script src="{% static_v 'common/js/media-picker.js' %}"></script>  {# MediaPicker global : import depuis la médiathèque dispo partout (brique commune) #}
+    <script src="{% static_v 'common/js/library-add.js' %}"></script>  {# WamaLibraryAdd global : la card d'AJOUT de la médiathèque (page + fenêtre commune) #}
+    {% comment %}La card d'AJOUT de la fenêtre commune de sélection (2026-09-30) : la MÊME que celle de
+    la page médiathèque (`_new_item_card_library.html`), rendue ici UNE fois et clonée par `MediaPicker`
+    à sa première ouverture. Un <template> est inerte : ni ids dans le document, ni requête, tant
+    que la fenêtre ne s'ouvre pas.{% endcomment %}
+    {% if user.is_authenticated %}<template id="wama-mediapicker-add-tpl">{% include 'common/_new_item_card_library.html' with prefix='mp' %}</template>{% endif %}
     <script src="{% static_v 'common/js/wama-model-help.js' %}"></script>  {# WamaModelHelp global : desc modèle (court/long+VRAM) sous les selects help_source (WamaParams) #}
     <script src="{% static_v 'common/js/wama-app-base.js' %}"></script>  {# WamaApp global : csrfFetch/getUrl/Poller/toast/maps statut (plomberie JS commune des apps) #}
     {# WamaAssistantVoice global : la voix de l'assistant (phrases, bouton 🔊/🔇/⏹) — AVANT le volet, qui la configure #}

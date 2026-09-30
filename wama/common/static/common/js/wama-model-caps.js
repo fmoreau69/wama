@@ -243,6 +243,29 @@
     };
   }
 
+  /*
+   * L'OPTION de voix que désigne un asset de la médiathèque (2026-09-30) — ce que rend la
+   * fenêtre commune de sélection (`MediaPicker`, `api_list`) traduit dans le vocabulaire du
+   * champ voix (`common/utils/voice_options.get_voice_groups`) :
+   *   asset SYSTÈME            → `sa_<id>`, groupe `reference` ;
+   *   asset d'un utilisateur   → `ua_<id>`, groupe `mine` (le mien) ou `shared` (« nom — propriétaire »).
+   * Jumeau de `get_voice_groups` côté serveur : mêmes préfixes, mêmes clés de groupe, même libellé
+   * d'une voix d'autrui. `WamaParams` s'en sert pour tout champ `options_source: 'voices'`.
+   */
+  function voiceOptionFor(asset) {
+    if (!asset || asset.id == null) return null;
+    if (asset.origin === 'system') {
+      return { value: 'sa_' + asset.id, group: 'reference', groupLabel: 'Voix de référence',
+               label: asset.name || ('sa_' + asset.id) };
+    }
+    const shared = asset.origin === 'shared';
+    return { value: 'ua_' + asset.id, group: shared ? 'shared' : 'mine',
+             groupLabel: shared ? 'Voix partagées' : 'Mes voix (clonage)',
+             label: shared ? (asset.name + ' — ' + (asset.owner || '')) : asset.name,
+             language: (asset.attributes || {}).language || '' };
+  }
+
   global.WamaModelCaps = { init: init, langFilter: langFilter,
-                           cloneVoiceFilter: cloneVoiceFilter, isClonedVoice: isClonedVoice };
+                           cloneVoiceFilter: cloneVoiceFilter, isClonedVoice: isClonedVoice,
+                           voiceOptionFor: voiceOptionFor };
 })(window);

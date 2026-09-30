@@ -73,22 +73,25 @@ class RecordedVoiceIsStoredAsWavTest(TestCase):
             add_file_to_library(self.user, 'voice', name='Broken',
                                 uploaded=SimpleUploadedFile('broken.webm', b'not audio'))
 
-    def test_the_synthesizer_record_button_route_accepts_the_recording(self):
-        """Le geste RÉEL : la route que poste la modale « Ajouter une voix »."""
-        from django.contrib.auth.models import Group
-        from wama.accounts.permissions import GROUP_PREFIX
+    def test_the_add_card_route_accepts_a_recording_with_its_name(self):
+        """Le geste RÉEL : ce que poste la card d'ajout commune (`library-add.js`) — page
+        médiathèque ET fenêtre commune — quand on enregistre au micro puis nomme la voix."""
+        from django.urls import reverse
         from wama.media_library.models import UserAsset
-        # Le rôle qui ouvre le synthesizer, comme `synthesizer/tests.py` : un test de vue doit
-        # FRANCHIR le portier d'app, jamais le contourner.
-        group, _ = Group.objects.get_or_create(name=f'{GROUP_PREFIX}communication')
-        self.user.groups.add(group)
-        client = self.client
-        client.force_login(self.user)
-        response = client.post('/synthesizer/custom-voices/upload/', {
-            'name': 'My recording',
-            'audio': SimpleUploadedFile('recorded_voice.webm', _webm_bytes(), content_type='audio/webm'),
+        self.client.force_login(self.user)
+        response = self.client.post(reverse('media_library:api_upload'), {
+            'asset_type': 'voice', 'name': 'My recording',
+            'file': SimpleUploadedFile('Enregistrement 2026-09-30.webm', _webm_bytes(),
+                                       content_type='audio/webm'),
         })
         self.assertEqual(response.status_code, 200, response.content)
         asset = UserAsset.objects.get(pk=response.json()['id'])
-        self.assertEqual(asset.asset_type, 'voice')
+        self.assertEqual((asset.asset_type, asset.name), ('voice', 'My recording'))
         self.assertTrue(asset.file.name.endswith('.wav'))
+
+    def test_the_synthesizer_has_no_voice_route_of_its_own_any_more(self):
+        """R89 : la voix s'ajoute par la médiathèque ; la route propre à l'app a disparu."""
+        from django.urls import NoReverseMatch, reverse
+        for name in ('list_custom_voices', 'upload_custom_voice', 'delete_custom_voice'):
+            with self.assertRaises(NoReverseMatch, msg=name):
+                reverse(f'synthesizer:{name}')
