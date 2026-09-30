@@ -960,8 +960,6 @@ class DiffusersBackend(ImageGenerationBackend):
                             resrv = torch.cuda.memory_reserved(0) / 1024**3
                             logger.info(f"[Diffusers] After image {img_idx+1}: allocated={alloc:.2f}GB reserved={resrv:.2f}GB")
 
-                        if params.upscale:
-                            img = self._upscale_image(img)
                         generated_images.append(img)
                         logger.info(f"[Diffusers] Image {img_idx+1}/{params.num_images} complete ({img.size[0]}x{img.size[1]})")
                     except Exception as gen_error:
@@ -1054,11 +1052,6 @@ class DiffusersBackend(ImageGenerationBackend):
 
                 if result.images:
                     img = result.images[0]
-
-                    # Apply upscaling if requested
-                    if params.upscale:
-                        img = self._upscale_image(img)
-
                     generated_images.append(img)
 
                 # Create new generator with incremented seed for next image
@@ -1168,11 +1161,6 @@ class DiffusersBackend(ImageGenerationBackend):
 
                 if result.images:
                     img = result.images[0]
-
-                    # Apply upscaling if requested
-                    if params.upscale:
-                        img = self._upscale_image(img)
-
                     generated_images.append(img)
 
                 # Create new generator with incremented seed for next image
@@ -1269,17 +1257,6 @@ class DiffusersBackend(ImageGenerationBackend):
             logger.error(f"Failed to load img2img pipeline: {e}")
             self._pipe_img2img = None
             return False
-
-    def _upscale_image(self, image, scale: int = 2):
-        """
-        Upscale an image using a simple method.
-
-        For better results, consider using Real-ESRGAN or similar.
-        """
-        from PIL import Image
-
-        new_size = (image.width * scale, image.height * scale)
-        return image.resize(new_size, Image.LANCZOS)
 
     def unload(self) -> None:
         """Unload the model from memory."""

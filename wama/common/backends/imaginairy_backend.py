@@ -159,7 +159,6 @@ class ImaginAiryBackend(ImageGenerationBackend):
                 steps=params.steps,
                 prompt_strength=params.guidance_scale,
                 seed=params.seed,
-                upscale=params.upscale,
             )
 
             generated_images: List[Image.Image] = []

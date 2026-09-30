@@ -254,7 +254,6 @@ def generate_image_task(self, generation_id):
             guidance_scale=generation.guidance_scale,
             seed=generation.seed,
             num_images=generation.num_images,
-            upscale=generation.upscale,
             # Multi-modal parameters
             generation_mode=generation.generation_mode or 'txt2img',
             reference_image=reference_image_path,
@@ -323,19 +322,22 @@ def generate_image_task(self, generation_id):
             _console(user_id, f"[Imager] Error: {error_msg}")
             return {'error': error_msg}
 
-        # Output-format conversion (Phase 3) — convert each PNG to the chosen
-        # image format (jpg/webp/…) ; no-op when 'original' or non-image format.
-        _fmt = (getattr(generation, 'output_format', '') or 'original').lower()
-        if _fmt not in ('', 'original'):     # « PNG + qualité » réencode aussi (2026-09-23)
-            try:
-                from wama.converter.utils.inline_convert import apply_inline_conversion
-                _preset = getattr(generation, 'output_quality', 'balanced') or 'balanced'
-                converted = []
-                for p in generated_paths:
-                    converted.append(apply_inline_conversion(p, _fmt, _preset))
-                generated_paths = converted
-            except Exception as _conv_err:
-                logger.warning(f"[Imager] conversion format sortie échouée: {_conv_err}")
+        # Réglages de SORTIE (brique commune, 2026-09-30) : agrandissement PUIS format, après
+        # n'importe quel backend. Un agrandissement DEMANDÉ qui échoue arrête la génération en
+        # le disant ; une conversion ratée garde le PNG natif (comportement historique).
+        from wama.common.utils.output_formats import apply_output_settings
+        try:
+            generated_paths = apply_output_settings(
+                generated_paths, generation, domain='image', app_id='imager',
+                console=lambda m: _console(user_id, f"[Imager] {m}"))
+        except Exception as out_err:
+            error_msg = f"Agrandissement de sortie échoué : {out_err}"
+            logger.error(error_msg)
+            generation.status = 'FAILURE'
+            generation.error_message = error_msg
+            generation.save()
+            _console(user_id, f"[Imager] Error: {error_msg}")
+            return {'error': error_msg}
 
         # Update generation with results
         try:

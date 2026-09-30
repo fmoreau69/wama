@@ -261,7 +261,8 @@ MECHANISMS = (
               "Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le "
               "domaine que le schéma déclare pour ses options (options_query), prévision "
               "affichée sous le select (options_auto) + curseur de QUALITÉ continu 0-100 "
-              "(intent_param, poids dans le score de select_model)",
+              "(intent_param, poids dans le score de select_model) ; `candidates_with` = le "
+              "BESOIN qui filtre avant le classement (capacité = valeur, ex. `scale`=4)",
               'wama/common/utils/auto_model.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md'),
     Mechanism('model_keys', 'Clé de catalogue ↔ identifiant',
               "UNE lecture de `<source>:<identifiant>` pour tout WAMA : seul le PREMIER segment "
@@ -1048,9 +1049,15 @@ MECHANISMS = (
               "des lignes pour des poids absents. Dry-run par défaut",
               'wama/common/management/commands/apply_manifests.py',
               'docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md'),
-    Mechanism('output_formats', 'Formats de sortie',
-              "Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter)",
-              'wama/common/utils/output_formats.py', ''),
+    Mechanism('output_formats', 'Réglages de sortie (formats, agrandissement)',
+              "Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire "
+              "converter) ET leur APPLICATION : `apply_output_settings` enchaîne agrandissement "
+              "(image) puis conversion après n'importe quel backend (2026-09-30). L'agrandissement "
+              "(`output_upscale`, opt-in `include_upscale`) tire l'upscaler du catalogue — tâche "
+              "`upscale`, capacité `scale` = facteur, curseur qualité de l'item — sans nommer ni "
+              "modèle ni app ; il vivait dans UN backend (diffusers, LANCZOS ×2), ignoré des autres",
+              'wama/common/utils/output_formats.py',
+              'docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.4'),
     Mechanism('license_audit', 'Audit des licences',
               "Vue dérivée : licences+auteurs des 4 registres, traversée par app. "
               "Ne voit PAS le code vendorisé (`static/vendors/`, codeformer) — inventorié à "

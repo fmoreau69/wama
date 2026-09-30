@@ -374,11 +374,11 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "default": {
-                  "expr": "'stable-diffusion-v1-5'",
+                  "expr": "'auto'",
                   "imports": []
                 },
                 "help_text": {
-                  "expr": "'AI model to use'",
+                  "expr": "'Clé de catalogue du modèle, ou « auto » (tirage au lancement)'",
                   "imports": []
                 },
                 "max_length": {
@@ -522,21 +522,6 @@
                 }
               },
               "name": "quality_intent"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "False",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'Upscale the generated image'",
-                  "imports": []
-                }
-              },
-              "name": "upscale"
             },
             {
               "args": [],
@@ -714,6 +699,29 @@
                 }
               },
               "name": "output_quality"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Agrandissement de la sortie : '', 'x2' ou 'x4'\"",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "8",
+                  "imports": []
+                }
+              },
+              "name": "output_upscale"
             },
             {
               "args": [],
@@ -1193,7 +1201,7 @@
           {
             "advanced": false,
             "cap_from": null,
-            "chip": false,
+            "chip": true,
             "chip_label": "",
             "choices": null,
             "contexts": [
@@ -1201,7 +1209,7 @@
               "batch",
               "panel"
             ],
-            "default": "stable-diffusion-v1-5",
+            "default": "auto",
             "dom_id": {
               "item": "settings_model",
               "panel": "model"
@@ -1221,13 +1229,15 @@
             "name": "model",
             "option_groups": null,
             "options_abilities": false,
-            "options_auto": false,
+            "options_auto": true,
             "options_cloud": false,
             "options_domain": null,
-            "options_group": "",
+            "options_group": "category",
             "options_mode": null,
-            "options_query": null,
-            "options_source": null,
+            "options_query": {
+              "task": "text-to-image,image-to-image"
+            },
+            "options_source": "catalog",
             "pills": [],
             "radio_name": "",
             "section": "settings",
@@ -1589,34 +1599,46 @@
             "unit": ""
           },
           {
-            "advanced": true,
+            "advanced": false,
             "cap_from": null,
             "chip": false,
             "chip_label": "",
-            "choices": null,
-            "contexts": [
-              "item",
-              "batch",
-              "panel"
+            "choices": [
+              [
+                "",
+                "Aucun"
+              ],
+              [
+                "x2",
+                "×2"
+              ],
+              [
+                "x4",
+                "×4"
+              ]
             ],
-            "default": false,
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": "",
             "dom_id": {
-              "item": "settings_upscale",
-              "panel": "upscale"
+              "item": "settings_output_upscale",
+              "panel": "output_upscale"
             },
             "group": "sortie",
-            "help": "Agrandit l'image générée (×2).",
+            "help": "Agrandissement par un modèle d'upscaling IA, appliqué après la génération.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
             "icon": "fa-expand",
             "inline": false,
-            "label": "Upscaler la sortie",
+            "label": "Agrandir la sortie",
             "max": null,
             "max_label": "",
             "min": null,
             "min_label": "",
-            "name": "upscale",
+            "name": "output_upscale",
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1631,7 +1653,7 @@
             "section": "settings",
             "show_if": null,
             "step": null,
-            "type": "toggle",
+            "type": "select",
             "unit": ""
           },
           {
@@ -1791,7 +1813,7 @@
           {
             "advanced": false,
             "cap_from": null,
-            "chip": false,
+            "chip": true,
             "chip_label": "",
             "choices": null,
             "contexts": [
@@ -1799,13 +1821,13 @@
               "batch",
               "panel"
             ],
-            "default": "stable-diffusion-v1-5",
+            "default": "auto",
             "dom_id": {
               "item": "video_settings_model",
               "panel": "panel_video_model"
             },
             "group": "modele",
-            "help": "AI model to use",
+            "help": "Clé de catalogue du modèle, ou « auto » (tirage au lancement)",
             "help_fallback": null,
             "help_html": "",
             "help_source": "imager",
@@ -1819,13 +1841,15 @@
             "name": "model",
             "option_groups": null,
             "options_abilities": false,
-            "options_auto": false,
+            "options_auto": true,
             "options_cloud": false,
             "options_domain": null,
             "options_group": "",
             "options_mode": null,
-            "options_query": null,
-            "options_source": null,
+            "options_query": {
+              "task": "text-to-video,image-to-video"
+            },
+            "options_source": "catalog",
             "pills": [],
             "radio_name": "",
             "section": "settings",
@@ -2626,7 +2650,7 @@
             "guidance_scale",
             "seed",
             "image_strength",
-            "upscale",
+            "output_upscale",
             "output_format",
             "output_quality"
           ],
@@ -2696,16 +2720,16 @@
             "guidance_scale": "range — À quel point suivre le prompt. [1–20] (défaut : 7.5)",
             "height": "int (défaut : 512)",
             "image_strength": "range — Influence de l'image de référence (img2img / style). 0=ignorer, 1=copier. [0–1] (défaut : 0.75)",
-            "model": "select — Modèle de génération (Auto = tirage VRAM-aware au lancement). (défaut : 'stable-diffusion-v1-5')",
+            "model": "select — Modèle de génération (Auto = tirage VRAM-aware au lancement). (défaut : 'auto')",
             "negative_prompt": "textarea — Ce qu'il faut éviter dans l'image.",
             "num_images": "select — Nombre d'images à générer en une passe. (choix : 1 | 2 | 3 | 4) (défaut : 1)",
             "output_format": "select — Format de sortie (choix : original | jpg | png | webp | tiff | bmp | gif | avif …)",
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max)",
+            "output_upscale": "select — Agrandissement par un modèle d'upscaling IA, appliqué après la génération. (choix :  | x2 | x4)",
             "prompt": "str (requis)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "seed": "number — Graine aléatoire (vide = aléatoire).",
             "steps": "range — Nombre d'étapes de diffusion. [1–100] (défaut : 30)",
-            "upscale": "toggle — Agrandit l'image générée (×2). (défaut : False)",
             "width": "int (défaut : 512)"
           },
           "description": "Ajoute un élément à la file d'attente de Imager (Génération d'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…)) et renvoie son item_id."

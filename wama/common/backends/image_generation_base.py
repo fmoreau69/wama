@@ -63,7 +63,10 @@ class GenerationParams:
     guidance_scale: float = 7.5
     seed: Optional[int] = None
     num_images: int = 1
-    upscale: bool = False
+    # ⚠ Plus d'`upscale` ici (retiré le 2026-09-30) : l'agrandissement est un réglage de SORTIE
+    # de l'app, appliqué après n'importe quel backend (`output_formats.apply_output_settings`).
+    # Porté par ce contrat, il n'était honoré que par `DiffusersBackend` (LANCZOS ×2) — tout
+    # backend dédié l'ignorait en silence.
 
     # Multi-modal generation parameters
     generation_mode: str = "txt2img"  # txt2img, img2img, style2img, describe2img

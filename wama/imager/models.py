@@ -294,9 +294,6 @@ class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
     quality_intent = models.IntegerField(null=True, blank=True,
                                          help_text="Curseur rapide/qualité 0-100 du tirage auto")
 
-    # Upscaling options
-    upscale = models.BooleanField(default=False, help_text="Upscale the generated image")
-
     # Output type (image or video)
     output_type = models.CharField(
         max_length=10,
@@ -341,6 +338,11 @@ class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
     # Format de sortie (conversion inline via Converter) — 'original' = PNG/MP4 natif
     output_format = models.CharField(max_length=20, default='original')
     output_quality = models.CharField(max_length=20, default='balanced')
+    # Agrandissement de sortie ('' / 'x2' / 'x4'), post-traitement COMMUN appliqué après tout
+    # backend (`output_formats.apply_output_settings`). Remplace le booléen `upscale` (2026-09-30),
+    # que seul le backend diffusers générique appliquait — les backends dédiés l'ignoraient.
+    output_upscale = models.CharField(max_length=8, blank=True, default='',
+                                      help_text="Agrandissement de la sortie : '', 'x2' ou 'x4'")
 
     # Status and progress
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')

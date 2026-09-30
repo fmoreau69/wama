@@ -338,7 +338,8 @@ def handle_txt2img(request, user):
     else:
         seed = None
     num_images = int(request.POST.get('num_images', 1))
-    upscale = request.POST.get('upscale', 'false').lower() == 'true'
+    # L'agrandissement de sortie (`output_upscale`) arrive avec les autres réglages de SORTIE,
+    # par `_apply_posted_output` (brique commune) — plus un booléen lu ici.
 
     # Create generation object
     generation = ImageGeneration.objects.create(
@@ -354,7 +355,6 @@ def handle_txt2img(request, user):
         guidance_scale=guidance_scale,
         seed=seed,
         num_images=num_images,
-        upscale=upscale,
         output_format=request.POST.get('output_format', 'original'),
         output_quality=request.POST.get('output_quality', 'balanced'),
         status='PENDING'

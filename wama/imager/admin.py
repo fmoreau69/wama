@@ -24,7 +24,7 @@ class ImageGenerationAdmin(admin.ModelAdmin):
             'fields': ('model', 'width', 'height')
         }),
         ('Generation Parameters', {
-            'fields': ('steps', 'guidance_scale', 'seed', 'num_images', 'upscale')
+            'fields': ('steps', 'guidance_scale', 'seed', 'num_images', 'output_upscale')
         }),
         ('Output', {
             'fields': ('generated_images',)

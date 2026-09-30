@@ -87,7 +87,8 @@ elle lit le **catalogue**.
 | Compteur d'items sur l'ONGLET | `app_modern_base.html` | badge `#queueCount` sur l'onglet « File d'attente » (rendu si la vue passe `queue_count`) — remplace le titre doublon dans l'onglet. Ordre d'onglet canonique : card d'entrée → progression globale → `_queue_toolbar` → file. |
 | `_global_progress.html` + `wama-eta.js` (+ `eta_estimator` serveur) | | barre globale + moteur ETA — **jamais d'ETA par app** |
 | `queue_duplication.py`, `batch_parsers.py`, `batch_import.js`, `media-picker.js` (chargé globalement) | `utils/`, `static/` | duplication/suppression sûres, imports batch, médiathèque |
-| `output_format_params_for_app` | `utils/output_formats.py` | params format/qualité de sortie (domaine + early/late binding déduits d'APP_CATALOG) |
+| `output_format_params_for_app` | `utils/output_formats.py` | params format/qualité de sortie (domaine + early/late binding déduits d'APP_CATALOG) ; `include_upscale` ajoute l'agrandissement |
+| `apply_output_settings` | `utils/output_formats.py` | APPLIQUE les réglages de sortie après n'importe quel backend : agrandissement (upscaler tiré du catalogue) puis format — jamais une boucle de conversion recopiée par app |
 | Réception « Envoyer vers app » | `static/common/js/wama-app-base.js` | listener `wama:fileimported` **GÉNÉRIQUE** (2026-07-31) : cible l'app via `window.WAMA_CURRENT_APP` (posé par `base.html` depuis `APP_CATALOG`). Il était recopié à l'identique dans **7 apps**, dont 3 l'avaient oublié. Une app qui sait intégrer l'item SANS recharger (reader : insertion de card) pose `detail.handled = true` ; le repli commun est reporté d'un tick pour rendre cette échappatoire possible. |
 
 ### Reclaim VRAM (une SEULE mécanique — 2026-07-31)

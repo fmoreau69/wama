@@ -729,6 +729,19 @@ média déjà rendu** (→ early binding : reformater = job du Converter) ?
   helper partagé `build_transcript_bytes(t, fmt)` (zéro duplication avec `batch_download`).*
 - **App render-based** (`export_binding='early'`) → format choisi à la génération ; le téléchargement
   sert le fichier produit tel quel. Reformatage ultérieur = Converter.
+- **Les réglages de SORTIE d'une app render-based s'appliquent en UN geste commun** (2026-09-30) :
+  `output_formats.apply_output_settings(chemins, item, domain=…)` — agrandissement (image) PUIS
+  conversion de format, APRÈS n'importe quel backend. Les params viennent de
+  `output_format_params_for_app` (`include_upscale=True` pour offrir `output_upscale`, OPT-IN :
+  un réglage offert doit être appliqué). ⚠ **L'agrandissement n'est PAS l'affaire du backend** :
+  il était un champ du contrat de génération (`GenerationParams.upscale`), honoré par le seul
+  `DiffusersBackend` (LANCZOS ×2) et ignoré en silence par les backends dédiés (Supra2-IMG,
+  constat Fabien). L'upscaler est TIRÉ du catalogue (tâche `upscale`, capacité `scale` =
+  facteur, curseur qualité de l'item) : un upscaler installé depuis le model manager y entre.
+  Adopté par l'imager (image) ; le converter y délègue son option `upscale`.
+  ⏳ Les autres apps render-based gardent leur boucle de conversion (composer, synthesizer,
+  anonymizer, enhancer) : les rallier est de l'ADOPTION, pas un manque de la brique ; la
+  vidéo (upscale image par image) attend l'extraction de la route vidéo de l'enhancer.
 
 - **Le geste « ranger en médiathèque » suit le même archétype** (2026-09-18, `CARD_DESIGN §2bis`) :
   early-binding → le fichier rendu est copié, le choix est le RÔLE d'asset (déclaré par l'app,
