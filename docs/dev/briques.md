@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**170 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**171 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -339,6 +339,17 @@ Bascule TEMPORAIRE du cache HuggingFace, restaurée en sortie : le levier D de `
 - **Module** : Bascule SCOPÉE du cache HuggingFace — LA brique anti-fuite (extraite le 2026-08-12).
 - **API publique** (1) :
   - `hf_cache_scope(cache_dir)` — Pose env + constantes huggingface_hub sur `cache_dir` LE TEMPS du bloc, puis
+
+### Clé de catalogue ↔ identifiant
+
+UNE lecture de `<source>:<identifiant>` pour tout WAMA : seul le PREMIER segment est la source, reconnue au vocabulaire `ModelSource` (`ollama:qwen3:4b` → `qwen3:4b`, là où un `rsplit` rendait `4b`). `catalog_key` est la tolérance d'ENTRÉE d'une app passée aux clés entières (valeur nue → sa source, `auto` intact). Née au portage F4b de l'imager (2026-09-29) ; consommée par l'imager, l'ETA (`make_key`) et `declaration_for`. ⚠ Une douzaine de conversions à la main vivent encore dans le dépôt (relevé du 29/09) — elles s'y rallient au fil des portages, pas en passe aveugle
+
+- **Domicile** : `wama/common/utils/model_keys.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F4b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : Clé de CATALOGUE d'un modèle ↔ identifiant dans sa source — UNE sémantique pour tout WAMA.
+- **API publique** (3) :
+  - `split_key(value: str) -> tuple` — `(source, identifiant)` — source vide quand la valeur n'est pas une clé de catalogue.
+  - `model_id(value: str) -> str` — L'identifiant DANS sa source : `imager:hunyuan-image-2.1` → `hunyuan-image-2.1`. Une
+  - `catalog_key(value: str, default_source: str) -> str` — La clé de catalogue d'une valeur de modèle : une clé est rendue telle quelle, un
 
 ### Couverture multi-modèles
 
@@ -831,7 +842,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 
 - **Domicile** : `wama/model_manager/services/cloud_models.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
-- **API publique** (12) :
+- **API publique** (14) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
@@ -844,6 +855,8 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
   - `refresh_key(row) -> tuple` — Relit chez le fournisseur les modèles ouverts à la clé `row` (`accounts.UserApiKey`), puis
   - `cloud_refusal(user) -> str` — Motif de refus si `user` est en « 100 % local », sinon ''. Sans utilisateur : ''.
   - `allowed_cloud_keys(user, automatic: bool=True) -> set` — `model_key` des modèles distants que `user` autorise — à passer à `select_model(cloud_keys=…)`.
+  - `class CloudAccessRefused(RuntimeError)` — Appel distant refusé — message lisible par l'utilisateur ; `status` = code HTTP à rendre.
+  - `cloud_access(user, source: str, model_id: str='') -> str` — La CLÉ avec laquelle `user` appelle `source` (et le modèle `model_id` s'il est nommé), ou
 
 ### Mémoire & RAG
 
@@ -1393,9 +1406,10 @@ Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la
 
 - **Domicile** : `wama/common/utils/model_declarations.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lire la DÉCLARATION d'un modèle sans importer l'app qui la porte.
-- **API publique** (2) :
+- **API publique** (3) :
   - `declarations(source: str) -> dict` — TOUTES les déclarations de modèle de l'app `source` (`{model_id: dict}`), `{}` si l'app
   - `declaration(source: str, model_id: str) -> Optional[dict]` — Déclaration de `model_id` telle que l'app `source` la porte, ou None.
+  - `declaration_for(value: str, default_source: str='') -> Optional[dict]` — Déclaration du modèle désigné par une CLÉ de catalogue — ou par un identifiant nu, lu dans
 
 ### Propositions de manifestes (geste « Valider »)
 
@@ -1873,7 +1887,7 @@ Modale commune de choix d'un asset de la médiathèque (filtrée par type), rend
 
 ### Vocabulaire des capacités
 
-Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI
+Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI ; `category` (vocabulaire fermé `MODEL_CATEGORIES`) range un select de modèle en optgroups (`options_group="category"`, 2026-09-29)
 
 - **Domicile** : `wama/common/utils/model_capabilities.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Vocabulaire CANONIQUE des capacités modèle (`AIModel.capabilities`) — SOURCE UNIQUE.
@@ -2051,8 +2065,9 @@ Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + r
 
 - **Domicile** : `wama/common/utils/audio_decode.py`
 - **Module** : Décodage audio robuste pour WAMA (WSL où torchcodec/torchaudio est cassé).
-- **API publique** (4) :
+- **API publique** (5) :
   - `decode_audio(path, target_sr: int=16000, mono: bool=True)` — Décode un fichier audio en (ndarray float32, sample_rate), robuste aux formats
+  - `transcode_to_wav(path, out_path, target_sr: int=16000)` — Réécrit un média en WAV PCM 16 bits mono à `target_sr`, via ffmpeg — rend `out_path`.
   - `probe_duration_seconds(path)` — Durée d'un média en secondes via ffprobe — SANS décoder (coût négligeable).
   - `decode_window(path, target_sr: int=16000, start_s: float=0.0, duration_s=None, mono: bool=True)` — Décode UNE FENÊTRE [start_s, start_s+duration_s] d'un média en (ndarray float32, sr),
   - `decode_for_pyannote(path, target_sr: int=16000)` — Décode en dict `{'waveform': (channels, time) torch.Tensor, 'sample_rate': int}`
