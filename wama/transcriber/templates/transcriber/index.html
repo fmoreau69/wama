@@ -142,9 +142,9 @@ par fillDetail.{% endcomment %}
     data-selected) est retiré avec l'endpoint `/transcriber/backends/`.{% endcomment %}
     var bs = document.getElementById('backendSelect');
 
-    // Appariement entrée↔modèles (brique commune wama-input-match) : meta du CATALOGUE re-clée
-    // par backend (vue). Fichiers consommés au dépôt (file) → direction vivante = MODÈLE→ENTRÉES
-    // (ligne d'état) ; les options async ajoutées par loadBackendsAsync sont re-lues au 1er change.
+    // Appariement entrée↔modèles (brique commune wama-input-match) : meta du CATALOGUE sur le
+    // domaine du select, clés entières (vue). Fichiers consommés au dépôt (file) → direction
+    // vivante = MODÈLE→ENTRÉES (ligne d'état).
     if (bs && window.WamaInputMatch) {
         var ims = document.createElement('small');
         ims.id = 'inputMatchStatus';
