@@ -637,20 +637,12 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
                                "fournisseur proposé par le sélecteur.", 'status': 400}
     if (source and source.kind == 'llm' and user is not None
             and getattr(user, 'is_authenticated', False)):
-        from wama.accounts.api_keys import key_for
-        from wama.model_manager.services.cloud_models import allowed_cloud_keys, cloud_refusal
-        refus = cloud_refusal(user)
-        if refus:
-            return None, {'error': refus, 'status': 403}
-        # Un modèle NOMMÉ doit être ouvert par la clé de CET utilisateur (découverte).
-        if llm_model and f"{source.key}:{llm_model}" not in allowed_cloud_keys(user, automatic=False):
-            return None, {'error': f"Le modèle « {llm_model} » n'est pas ouvert par votre clé "
-                                   f"{source.label}.", 'status': 403}
-        api_key = key_for(user, source.key)
-        if not api_key:
-            return None, {'error': f"Aucune clé d'API {source.label} dans votre profil : "
-                                   "ajoutez-la dans le volet « Clés d'API » de la page Profil.",
-                          'status': 400}
+        # Garde COMMUNE d'un appel distant (profil, modèle ouvert par la clé, clé posée).
+        from wama.model_manager.services.cloud_models import CloudAccessRefused, cloud_access
+        try:
+            api_key = cloud_access(user, source.key, llm_model or '')
+        except CloudAccessRefused as e:
+            return None, {'error': str(e), 'status': e.status}
     text, err = llm_chat(
         messages,
         model=llm_model,

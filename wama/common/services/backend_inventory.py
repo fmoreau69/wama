@@ -685,6 +685,22 @@ def _class_lineage(entry) -> Optional[set]:
     return seen
 
 
+def _liant_contracts(entry) -> set:
+    """Tâches dont le contrat LIANT est dans la lignée de l'entrée (vide si lignée illisible)."""
+    lineage = _class_lineage(entry)
+    if lineage is None:
+        return set()
+    return {task for task, (_mod, cls, liant) in TASK_CONTRACTS.items()
+            if liant and (cls in lineage or entry.name == cls)}
+
+
+def _is_remote_engine(engine: str) -> bool:
+    """Le moteur est-il un FOURNISSEUR distant (source `llm` d'`external_sources`) ?"""
+    from wama.common import external_sources
+    source = external_sources.by_key().get(engine)
+    return source is not None and source.kind == 'llm'
+
+
 def resolve_entry(engine: str, model_id: str = '', entries=None,
                   task: str = '') -> Optional[BackendEntry]:
     """ENTRÉE du vivier qui sait exécuter `model_id` avec `engine` — ou None. STATIQUE :
@@ -723,6 +739,16 @@ def resolve_entry(engine: str, model_id: str = '', entries=None,
             logger.debug("[engines] %s / %s : %d backend(s) écarté(s), hors contrat %s", engine,
                          model_id, len(candidats) - len(kept), contract[1])
         candidats = kept
+    if candidats and task and _is_remote_engine(engine):
+        # Le filtre INVERSE, réservé aux moteurs DISTANTS (2026-09-30) : un fournisseur sert
+        # toutes ses tâches sous le même moteur (`albert` = chat, embeddings, OCR, parole), donc
+        # un backend lié au contrat d'UNE tâche n'y exécute que celle-là. Sans lui, le premier
+        # backend distant (transcription) serait « le seul qui déclare ce moteur » pour les
+        # modèles de chat du même fournisseur. Généralisé à tous les moteurs, il déplaçait
+        # 8 routages mesurés sur le catalogue — dont `imager:qwen-image-edit`, qui perdait son
+        # backend (`image-to-image` n'a pas de contrat) : on ne l'étend donc pas.
+        candidats = [e for e in candidats
+                     if not _liant_contracts(e) or task in _liant_contracts(e)]
     if not candidats:
         return None
     if len(candidats) == 1:

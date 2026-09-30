@@ -82,6 +82,28 @@ def decode_audio(path, target_sr: int = 16000, mono: bool = True):
     raise RuntimeError(f"[audio_decode] aucun décodeur n'a pu lire : {path}")
 
 
+def transcode_to_wav(path, out_path, target_sr: int = 16000):
+    """
+    Réécrit un média en WAV PCM 16 bits mono à `target_sr`, via ffmpeg — rend `out_path`.
+
+    Pour ce qui exige un FICHIER lisible partout (soundfile, un fournisseur distant qui
+    n'accepte que wav/mp3) là où `decode_audio` rend un tableau en mémoire. 16 kHz mono est ce
+    qu'un modèle de parole consomme de toute façon : rien de ce qu'il entend n'est perdu.
+
+    Raises:
+        subprocess.CalledProcessError si ffmpeg échoue.
+    """
+    from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
+    _ff = get_ffmpeg_exe()
+    subprocess.run(
+        [_ff, '-nostdin', '-y', '-i', adapt_path_for_ffmpeg(str(path), _ff),
+         '-ac', '1', '-ar', str(target_sr), '-c:a', 'pcm_s16le',
+         adapt_path_for_ffmpeg(str(out_path), _ff)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True,
+    )
+    return str(out_path)
+
+
 def probe_duration_seconds(path):
     """
     Durée d'un média en secondes via ffprobe — SANS décoder (coût négligeable).

@@ -114,6 +114,11 @@ class SpeechToTextBackend(BaseModelBackend):
     # notamment aux moteurs génératifs (VibeVoice ≈ 60 min de budget tokens).
     max_audio_seconds: Optional[float] = None
 
+    #: Clé de catalogue du modèle pour lequel CETTE instance a été résolue — posée par le
+    #: gestionnaire pour un modèle DISTANT (`albert:whisper-large-v3`), vide pour un moteur local
+    #: qui sert plusieurs modèles (le modèle chargé tranche alors, `catalogue_key_for`).
+    catalogue_key: str = ''
+
     def __init__(self):
         self._loaded = False
         self._current_model = None

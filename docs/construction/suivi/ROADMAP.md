@@ -1637,6 +1637,22 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    compris — et un modèle nommé doit être ouvert par la clé. Reste la seule table à la main :
    `PROVIDER_SOURCES` (noms historiques de la surface → source). ⏳ Discord part toujours sur le
    fournisseur local (`gateway/core.py:208`) ; les apps ne passent pas encore `cloud_keys`.
+   🔄 **Premier moteur d'APP distant (2026-09-30, demande de Fabien) — la transcription par
+   Albert** (`albert:whisper-large-v3`, découvert au catalogue depuis le 15/09 sans qu'aucune app
+   ne l'exécute) : `common/backends/albert_asr_backend.py` (`ENGINE='albert'`, protocole OpenAI
+   `POST /audio/transcriptions`, `verbose_json`), résolu par le lien COMMUN modèle ↔ moteur ;
+   garde d'appel extraite de l'assistant en brique (`cloud_models.cloud_access`, l'assistant
+   l'adopte) ; `resolve_entry` gagne un filtre réservé aux moteurs DISTANTS (un fournisseur sert
+   toutes ses tâches sous un même moteur — généralisé, il déplaçait 8 routages mesurés, dont
+   `imager:qwen-image-edit`). Le transcriber résout une clé distante AVANT toute traduction par
+   nom (`albert:whisper-large-v3` contient « whisper ») et refuse au lieu de se replier en local.
+   But premier : **ÉVALUER** un modèle distant par la chaîne existante
+   (`asr_eval_corpus --engines whisper albert:whisper-large-v3`). Gardes :
+   `transcriber/tests_remote_transcription` (12, contre-épreuve 3 mutations / 3 rouges).
+   ⏳ Restent : le SÉLECTEUR du transcriber n'est pas au catalogue (`options_source="backends"`,
+   dette `ROUTE §F4b`) — le choix passe par l'assistant, l'API ou la commande, pas encore par le
+   menu ; pas de diarisation pour un moteur distant (la liste pyannote du worker est écrite par
+   NOM de moteur) ; l'`auto` n'arbitre pas le distant (`select_model` sans `cloud_keys`).
 4. ⏳ **Lever le verrou du catalogue** (§8d ①②, ordre fixé par Fabien le 15/09) — modèles cloud
    au catalogue par découverte, moteurs cloud à l'inventaire, `select_model` (VRAM/`is_downloaded`
    pour les locaux seulement, cloud seulement autorisé), réglage de profil, clés chiffrées par
@@ -1730,6 +1746,24 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    (`--mcp-config`) ; sélecteurs UI, API et Discord lus du catalogue (Discord est aujourd'hui figé
    sur `wama-dev-ai`, `gateway/core.py:208`). Ouvre aussi l'autre sens : WAMA CLIENT de serveurs
    MCP externes (mail, messagerie, dépôts…), chacun étant une question de confiance à trancher.
+   **Précisé le 2026-09-30 (mesure du code, question de Fabien « on utilise déjà Albert, Ollama
+   et Claude par le même chemin, non ? »)** — oui pour TROIS fournisseurs sur quatre, et ce reste
+   est donc plus petit que la phrase ci-dessus :
+   - ✅ **Ollama, Albert et l'API Anthropic partagent déjà UN chemin** : une seule boucle
+     (`run_assistant_turn`, passage obligé des trois surfaces), le fournisseur ne changeant que le
+     TRANSPORT (`assistant_engine._llm_call`), et chaque appel d'outil passe par la porte
+     `execute_tool` (`assistant_engine.py:1120`) — **la même** que celle du serveur MCP
+     (`mcp_server.py:150`). Les faire transiter par le protocole MCP ne changerait rien pour eux.
+   - ⏳ **La seule exception est l'ABONNEMENT Claude Code** : il tourne sa PROPRE boucle et ne voit
+     pas les outils de WAMA — lancé avec `--allowedTools`, sans `--mcp-config`
+     (`claude_code.py:211-215`) ; son docstring le dit (`assistant_engine.py:557-563`). **Le reste
+     « moitié prod » se réduit à lui passer le serveur `wama` par `--mcp-config`.**
+   - ⏳ **WAMA client de serveurs MCP EXTERNES** : rien encore — `mcp_client` ne connaît que la
+     surface dev (`dev_tools_for`, `call_dev_tool`).
+   - ⚠ **Ne pas confondre avec les modèles cloud DANS LES APPS** : ce n'est pas du MCP (protocole
+     d'OUTILS, pas routeur de modèles) mais le catalogue + `external_sources` + la garde
+     `cloud_models.cloud_access` (4b). Premier moteur d'app distant : la transcription par Albert
+     (`common/backends/albert_asr_backend.py`, 2026-09-30).
 - Restent aussi : supervision dans `start_wama_prod.sh` ; config Claude Code du projet ;
   déclaration au registre des mécanismes — REPORTÉE, `mecanismes.py` étant en cours de
   modification par une autre instance le 15/09.
