@@ -1,0 +1,84 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "indicator",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Détections en repère véhicule, avec orientation et montage de la caméra qui les a vues (profondeur `distance_m` facultative).",
+        "group": "travail",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "camera",
+          "veh_x",
+          "veh_y",
+          "cam_yaw",
+          "mount_x",
+          "mount_y"
+        ]
+      }
+    ],
+    "key": "camera_consistency",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par caméra ; plus bas = meilleur.",
+        "key": "per_camera",
+        "optional": false,
+        "produced_fields": [
+          "camera",
+          "n",
+          "behind_share",
+          "depth_rel_err_median",
+          "depth_rel_err_p90"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 20,
+        "description": "Observations minimales pour qu'une caméra soit résumée.",
+        "key": "min_obs",
+        "max": 100000,
+        "min": 1,
+        "type": "int",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "geometry",
+      "placement-quality",
+      "ab-metric",
+      "no-ground-truth"
+    ],
+    "visibility": "public"
+  },
+  "description": "Contrôle, par caméra et sans vérité terrain, qu'un placement monde est cohérent avec ce que la caméra voit : part des objets placés DERRIÈRE leur caméra (impossible, 0 = idéal) et écart relatif entre la profondeur annoncée par la caméra et celle de la position le long de son axe.",
+  "key": "camera_consistency",
+  "manifest_kind": "function",
+  "name": "Cohérence caméra ↔ position",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:camera_consistency",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}
