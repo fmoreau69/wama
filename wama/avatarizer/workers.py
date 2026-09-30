@@ -209,7 +209,7 @@ def generate_avatar(self, job_id: int):
         # laisse que MuseTalk, un GLB que TalkingHead — `available_inputs`/`consumes`), le
         # catalogue fait le reste (VRAM, backend présent). Plus d'aiguillage par extension ici :
         # un 3ᵉ modèle photo (SoulX-FlashHead…) entrera dans le même tirage sans toucher au worker.
-        from wama.avatarizer.utils.model_config import ANIMATION_FALLBACK, ANIMATION_MODEL_PRIORITY
+        from wama.avatarizer.utils.model_config import ANIMATION_FALLBACK
         from wama.common.utils.auto_model import resolve_model_choice
         from wama.common.utils.input_match import input_attribute_verdict, work_token_for
         from wama.model_manager.models import AIModel
@@ -218,7 +218,7 @@ def generate_avatar(self, job_id: int):
             raise ValueError("Avatar : une photo (JPG, PNG, WebP) ou un objet 3D riggé (.glb) est attendu.")
         available = ['work_audio', avatar_token] + (['prompt'] if (job.text_content or '').strip() else [])
         model_id = resolve_model_choice(
-            '', spec={'source': 'avatarizer', 'task': 'lip-sync', 'priority': ANIMATION_MODEL_PRIORITY},
+            '', spec={'source': 'avatarizer', 'task': 'lip-sync'},
             available_inputs=available, consumes=[avatar_token],
             fallback=ANIMATION_FALLBACK[avatar_token])
         model_key = model_id if ':' in model_id else f'avatarizer:{model_id}'

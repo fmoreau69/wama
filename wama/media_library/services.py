@@ -676,16 +676,21 @@ def resolve_visible_asset(user, asset_type: str, name: str) -> str:
     return ''
 
 
-def visible_asset_names(user, asset_type: str) -> list:
+def visible_asset_names(user, asset_type: str, attributes: dict | None = None) -> list:
     """Les NOMS des assets de cette nature que `user` voit (siens, partagés, système), sans doublon
-    — la liste d'un sélecteur qui désigne par nom (Studio)."""
+    — la liste d'un sélecteur qui désigne par nom (Studio).
+
+    `attributes` (2026-09-30) : ne garder que les assets qui PORTENT ces attributs (mesurés à
+    l'ingest, nature A′) — un avatar parlant est un `object3d` au visage ARKit, pas n'importe quel
+    maillage."""
     from .models import SystemAsset, UserAsset
     from wama.common.utils.scoping import listable_by
+    wanted = {'attributes__contains': attributes} if attributes else {}
     names = []
     if user is not None and getattr(user, 'id', None):
-        names += list(listable_by(UserAsset.objects.filter(asset_type=asset_type), user)
+        names += list(listable_by(UserAsset.objects.filter(asset_type=asset_type, **wanted), user)
                       .order_by('name').values_list('name', flat=True))
-    names += list(SystemAsset.objects.filter(asset_type=asset_type, is_active=True)
+    names += list(SystemAsset.objects.filter(asset_type=asset_type, is_active=True, **wanted)
                   .order_by('name').values_list('name', flat=True))
     return list(dict.fromkeys(names))
 

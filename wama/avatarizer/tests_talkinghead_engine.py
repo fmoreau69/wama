@@ -244,3 +244,18 @@ class AddTimeVerdictTest(TestCase):
         rel = _media(f'users/{self.user.id}/media_library/assets/scientist.glb', self._glb(True))
         UserAsset.objects.create(user=self.user, name='scientist', asset_type='object3d', file=rel)
         self.assertEqual(rel, designate_named_avatar('scientist', self.user).value)
+
+    def test_only_talking_3d_objects_join_the_avatar_names(self):
+        """Studio (liste par nom) : un objet 3D n'y entre que s'il PORTE un visage ARKit."""
+        from wama.media_library.models import UserAsset
+        from wama.media_library.services import visible_asset_names
+        UserAsset.objects.create(user=self.user, name='talker', asset_type='object3d',
+                                 file=_media(f'users/{self.user.id}/media_library/assets/t.glb'),
+                                 attributes={'rigged': True, 'face_rig': 'arkit'})
+        UserAsset.objects.create(user=self.user, name='mesh', asset_type='object3d',
+                                 file=_media(f'users/{self.user.id}/media_library/assets/m.glb'),
+                                 attributes={'rigged': False})
+        self.assertEqual(['talker'], visible_asset_names(self.user, 'object3d',
+                                                         attributes={'face_rig': 'arkit'}))
+        self.assertEqual(['mesh', 'talker'], visible_asset_names(self.user, 'object3d'),
+                         'sans filtre, la nature entière (comportement inchangé)')

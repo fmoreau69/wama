@@ -245,8 +245,12 @@ def api_run_options(request):
     # ne peuvent plus diverger. Le studio n'a besoin que des NOMS pour sa liste d'options.
     # 2026-09-29 : la liste est celle que l'utilisateur VOIT (les siens, les partagés, le système)
     # — la même que la card de l'avatarizer ; le nom choisi se résout par `designate_named_avatar`.
+    # 2026-09-30 : + les avatars 3D (objets 3D au visage ARKit, moteur TalkingHead de l'avatarizer)
+    # — filtrés sur l'attribut MESURÉ, pas sur toute la nature : un maillage TripoSR ne parle pas.
     from wama.media_library.services import visible_asset_names
-    gallery = visible_asset_names(request.user, 'avatar')
+    gallery = (visible_asset_names(request.user, 'avatar')
+               + visible_asset_names(request.user, 'object3d', attributes={'face_rig': 'arkit'}))
+    gallery = list(dict.fromkeys(gallery))
     return JsonResponse({'params_specs': specs, 'options': {'avatar_gallery': gallery}})
 
 

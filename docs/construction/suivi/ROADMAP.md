@@ -142,9 +142,9 @@
   une ligne, licences relevées, fichier sans licence jamais proposé — TalkingHead : `mpfb` CC0,
   `brunette` CC BY-NC, 3 autres non commerciaux) ; l'audio SANS texte passe par la transcription
   (`whisper_utils`, mots datés → lèvres, langue entendue → visèmes), rendu réel 18 s pour 10,7 s.
-  ⏳ Restent : le verdict d'attributs côté CARD (griser à la sélection), le tirage du moteur par
-  `resolve_model_choice` (au 2ᵉ modèle photo), les avatars cités par NOM dans un lot (`-r`, nature
-  `avatar` seule aujourd'hui), la ligne morte `musetalk-v1.0` (décision), la route vendor (D-a).
+  ✅ Soldés le même jour : verdict d'attributs DÈS L'AJOUT, tirage du modèle d'animation par
+  `resolve_model_choice`, avatars 3D cités par NOM (lot, Studio — objets au visage ARKit seuls),
+  retrait de `musetalk-v1.0` (R85). Route vendor (D-a) : cf. la décision D-a plus bas.
   Deux cas, deux podiums (état du 17/08) :
   - **(a) consignes OFFLINE** : ① **EchoMimicV3(-Flash)** (Ant, Apache-2.0, 01/2026, conçu 24 Go,
     12 Go quantifié, tête+corps, prompt-guidé — successeur naturel de MuseTalk) ; ② **StableAvatar**
