@@ -310,6 +310,74 @@ def mark_failed(session, pass_type: str, error_message: str, camera=None) -> Non
     )
 
 
+def calc_queue_key(session_id) -> str:
+    """File des passes de calcul demandées pendant qu'une chaîne tourne (même session)."""
+    return f'cam_analyzer_calc_queue:{session_id}'
+
+
+def queued_calc_passes(session_id) -> list:
+    from django.core.cache import cache
+    return list(cache.get(calc_queue_key(session_id)) or [])
+
+
+def _start_calc_chain(session_id, keys) -> list:
+    """Lance `keys` (déjà ordonnées) en CHAÎNE, verrou posé/rafraîchi, libération en fin ET sur
+    échec. Signatures IMMUABLES (`.si`) : chaque tâche reçoit la session, jamais le retour de la
+    précédente. Rend les noms de tâches lancées."""
+    from celery import chain
+    from django.core.cache import cache
+    from wama_lab.cam_analyzer.tasks import release_calc_chain_task
+    table = dispatch_table()
+    tasks = [table[k] for k in keys]
+    names = [t.__name__ for t in tasks]
+    sid = str(session_id)
+    cache.set(calc_chain_key(sid), names, timeout=CALC_CHAIN_TTL_S)
+    release = release_calc_chain_task.si(sid)
+    result = chain(*[t.si(sid) for t in tasks], release).apply_async(link_error=release)
+    cache.set(f"cam_analyzer_task_{sid}", result.id, timeout=86400)
+    return names
+
+
+def launch_calc_passes(session_id, pass_keys) -> dict:
+    """Point de lancement UNIQUE des passes de CALCUL (`run_passes`, entrées héritées) — elles
+    s'EMPILENT et se DÉPILENT, comme partout dans WAMA (demande de Fabien, 2026-09-30).
+
+    Une seule chaîne à la fois par session : deux chaînes simultanées s'entrelaçaient sur le worker
+    `default` (prefork) et jouaient chaque passe deux fois (2026-09-29). Mais une demande pendant
+    qu'une chaîne tourne n'est plus REFUSÉE (c'était un 409) : ses passes rejoignent la file de la
+    session, et `release_calc_chain_task` la dépile à la fin de la chaîne courante (ou sur son
+    échec). Verrou pris par `cache.add` (atomique) : deux clics simultanés ne lancent pas deux
+    chaînes. Rend `{'launched': [noms de tâches], 'queued': [passes mises en file]}`."""
+    from django.core.cache import cache
+    table = dispatch_table()
+    keys = [k for k in topological_order(set(pass_keys)) if table.get(k) is not None]
+    if not keys:
+        return {'launched': [], 'queued': []}
+    sid = str(session_id)
+    if cache.add(calc_chain_key(sid), keys, timeout=CALC_CHAIN_TTL_S):
+        return {'launched': _start_calc_chain(sid, keys), 'queued': []}
+    pending = queued_calc_passes(sid)
+    new = [k for k in keys if k not in pending]
+    cache.set(calc_queue_key(sid), pending + new, timeout=CALC_CHAIN_TTL_S)
+    return {'launched': [], 'queued': new}
+
+
+def dequeue_calc_passes(session_id) -> list:
+    """Fin d'une chaîne (`release_calc_chain_task`) : lance la chaîne suivante avec les passes en
+    FILE (ordonnées par dépendances), ou lève le verrou s'il n'y a plus rien. Le verrou n'est jamais
+    levé entre deux chaînes : `reconcile_interrupted_calc_passes` ne voit pas de trou."""
+    from django.core.cache import cache
+    sid = str(session_id)
+    pending = queued_calc_passes(sid)
+    cache.delete(calc_queue_key(sid))
+    if pending:
+        keys = [k for k in topological_order(set(pending)) if dispatch_table().get(k) is not None]
+        if keys:
+            return _start_calc_chain(sid, keys)
+    cache.delete(calc_chain_key(sid))
+    return []
+
+
 INTERRUPTED_MESSAGE = ("Interrompue : la chaîne de calculs qui la portait est terminée sans elle "
                        "(worker arrêté ou redémarré) — relançable.")
 
@@ -319,9 +387,9 @@ def reconcile_interrupted_calc_passes(session) -> int:
     relançable. Rend le nombre de passes réconciliées.
 
     PREUVE POSITIVE, pas une supposition (règle de `common.utils.process_control`) : une passe de
-    calcul ne s'exécute QUE dans une chaîne posée sous le verrou `calc_chain_key` — `run_passes` et
-    les deux points d'entrée hérités passent tous par `views._launch_calc_chain` —, et ce verrou
-    n'est levé qu'à la FIN de la chaîne (`release_calc_chain_task`, lien de succès ET d'échec) ou à
+    calcul ne s'exécute QUE dans une chaîne posée sous le verrou `calc_chain_key` — tout passe par
+    `launch_calc_passes` —, et ce verrou n'est levé qu'à la FIN de la dernière chaîne de la file
+    (`release_calc_chain_task` → `dequeue_calc_passes`, lien de succès ET d'échec) ou à
     l'expiration de `CALC_CHAIN_TTL_S`. Plus de verrou = plus de chaîne : une passe encore RUNNING
     a perdu son exécutant. Vécu le 2026-09-29 : worker `default` arrêté à 21:18:22 pendant les
     Indicateurs, verrou libéré à 21:19:24 par le lien d'échec, passe RUNNING à vie et bouton ⏳

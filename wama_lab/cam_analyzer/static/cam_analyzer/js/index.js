@@ -910,6 +910,8 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             const resp = await fetch(`${config.urls.listPasses}${currentSessionId}/passes/`);
             const data = await resp.json();
+            // Passes de calcul EN FILE derrière la chaîne en cours (elles s'empilent, 2026-09-30).
+            const _queued = new Set(data.queued_passes || []);
             const _rowHtml = (p) => {
                 const icon = STATUS_ICONS[p.status] || STATUS_ICONS.never;
                 const tip = _formatPassTooltip(p).replace(/"/g, '&quot;');
@@ -921,16 +923,25 @@ document.addEventListener('DOMContentLoaded', function () {
                     : `data-rp-run="${p.pass_type}"`;
                 // Bouton de CYCLE (décision 2026-06-30) : ▶ jamais lancée, ⏳ en cours (pas d'arrêt
                 // par passe côté serveur, d'où un sablier désactivé plutôt qu'un ⏹), ↻ sinon.
+                const _inQueue = _queued.has(p.pass_type);
                 const _running = p.status === 'running';
-                const _cycle = _running ? '⏳' : (p.status === 'never' ? '▶' : '↻');
+                const _busy = _running || _inQueue;
+                const _cycle = _busy ? '⏳' : (p.status === 'never' ? '▶' : '↻');
                 const _cycleTip = _running ? 'En cours…'
-                    : (p.status === 'never' ? 'Lancer ce passage seul' : 'Relancer ce passage seul');
+                    : (_inQueue ? 'En file — démarrera après les calculs en cours'
+                        : (p.status === 'never' ? 'Lancer ce passage seul' : 'Relancer ce passage seul'));
+                // Sélection multiple (étage Calculs) : la case survit aux re-rendus du suivi.
+                const _sel = (p.stage === 'calcul')
+                    ? `<input type="checkbox" class="form-check-input m-0" data-rp-sel="${p.pass_type}"
+                              title="Sélectionner pour « ▶ sélection »" ${passSelection.has(p.pass_type) ? 'checked' : ''}>`
+                    : '';
                 return `
                     <div class="d-flex align-items-center gap-2 py-1" title="${tip}">
+                        ${_sel}
                         <span style="width:16px;text-align:center">${icon}</span>
                         <span class="flex-grow-1 text-light" style="font-size:0.78rem;">${escapeHtml(p.label)}${camSuffix}</span>
                         <button type="button" class="btn btn-sm btn-outline-success py-0 px-1"
-                                ${dataPayload} title="${_cycleTip}" ${_running ? 'disabled' : ''}
+                                ${dataPayload} title="${_cycleTip}" ${_busy ? 'disabled' : ''}
                                 style="font-size:0.7rem;">${_cycle}</button>
                     </div>`;
             };
@@ -958,6 +969,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="d-flex align-items-center gap-2 mt-2 mb-1">
                         <span class="text-uppercase text-secondary flex-grow-1"
                               style="font-size:0.62rem;letter-spacing:0.08em;" title="${sub}">${title}</span>
+                        ${key === 'calcul' ? `<button type="button" class="btn btn-sm btn-outline-info py-0 px-1"
+                                data-rp-run-selected ${_blocked ? 'disabled' : ''}
+                                title="Lancer les passes cochées, enchaînées dans l'ordre des dépendances (en file si des calculs tournent déjà)"
+                                style="font-size:0.7rem;">▶ sélection</button>` : ''}
                         <button type="button" class="btn btn-sm ${key === 'analyse' ? 'btn-outline-success' : 'btn-outline-info'} py-0 px-1"
                                 data-rp-stage="${key}" ${_blocked ? 'disabled' : ''} title="${_stageTip}"
                                 style="font-size:0.7rem;">▶ tout</button>
@@ -1047,6 +1062,17 @@ document.addEventListener('DOMContentLoaded', function () {
             panel.querySelectorAll('[data-rp-stage]').forEach(btn => {
                 btn.addEventListener('click', () => runStage(btn.dataset.rpStage));
             });
+            panel.querySelectorAll('[data-rp-sel]').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    if (cb.checked) passSelection.add(cb.dataset.rpSel); else passSelection.delete(cb.dataset.rpSel);
+                });
+            });
+            panel.querySelector('[data-rp-run-selected]')?.addEventListener('click', async () => {
+                const types = [...passSelection];
+                if (!types.length) { alert('Cocher au moins une passe de calcul.'); return; }
+                passSelection.clear();
+                await runPasses(types, false);
+            });
             calcChainQueued = !!data.chain_queued;
             // Des passes tournent (ou une chaîne attend en file) sans que CETTE page les suive —
             // page rechargée en cours de chaîne, lancement depuis un autre onglet : suivre. Sans
@@ -1075,6 +1101,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (passesPollTimer) { clearInterval(passesPollTimer); passesPollTimer = null; }
     }
     let calcChainQueued = false;   // verrou serveur : une chaîne ▶ Calculs est en file ou en cours
+    const passSelection = new Set();   // passes de calcul cochées (« ▶ sélection »), gardées entre re-rendus
     function startPassesPolling() {
         stopPassesPolling();
         let seenRunning = false, ticks = 0, idleTicks = 0;
@@ -1139,6 +1166,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             const launched = data.launched || [];
+            // Des calculs tournent déjà : les passes demandées sont EN FILE (elles s'empilent) —
+            // suivre, elles démarreront à la fin de la chaîne en cours.
+            if ((data.queued || []).length) startPassesPolling();
             if (launched.includes('process_session_task')) {
                 // Analyse LOURDE : session.status pilote l'UI globale + polling session.
                 setAnalysisUI(true);
