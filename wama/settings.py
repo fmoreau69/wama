@@ -107,6 +107,9 @@ MODEL_PATHS = {
         'canary': AI_MODELS_DIR / "models" / "speech" / "canary-1b-v2",
         'parakeet': AI_MODELS_DIR / "models" / "speech" / "parakeet-tdt-0.6b-v3",
         'diarization': AI_MODELS_DIR / "models" / "speech" / "diarization",
+        # Successeur de speaker-diarization-3.1 (pyannote.audio 4, 2026-09-30) — le dossier où
+        # l'installeur générique l'a rangé ; le déclarer le rend au diariseur (`SUPPORTED_MODELS`).
+        'diarization_community': AI_MODELS_DIR / "models" / "speech" / "speaker-diarization-community-1",
         # Aligneurs acoustiques (alignement forcé, étage B — `Wav2Vec2AlignerBackend`).
         'alignment': AI_MODELS_DIR / "models" / "speech" / "alignment",
         'resemble_enhance': AI_MODELS_DIR / "models" / "speech" / "resemble-enhance",
