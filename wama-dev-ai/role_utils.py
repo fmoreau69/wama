@@ -219,6 +219,65 @@ def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_fil
     return manifest
 
 
+#: Clés qui, dans un fichier de config à la RACINE du dépôt, disent la taille de travail d'un
+#: modèle image (`pipeline_config.json` de Supra2-IMG : `image_size: 256`). Un entier = côté
+#: d'une image carrée. Liste DÉCLARÉE, à étendre au premier dépôt qui en porte une autre.
+RESOLUTION_KEYS = ('image_size',)
+
+
+def root_config_values(hf_id, keys, lister=repo_files, loader=None) -> dict:
+    """`{fichier: {clé: valeur}}` des clés `keys` trouvées dans les .json à la RACINE du dépôt."""
+    import json as _json
+
+    def _load(name):
+        from huggingface_hub import hf_hub_download
+        with open(hf_hub_download(hf_id, name), encoding='utf-8') as f:
+            return _json.load(f)
+
+    out = {}
+    for name in lister(hf_id):
+        if '/' in name or not name.endswith('.json'):
+            continue
+        try:
+            data = (loader or _load)(name)
+        except Exception:
+            continue
+        found = {k: data[k] for k in keys if isinstance(data, dict) and k in data}
+        if found:
+            out[name] = found
+    return out
+
+
+def enforce_resolution_facts(manifest, hf_id, concerns, lister=repo_files, loader=None):
+    """Pose `capabilities.native_resolution` quand un fichier de config du dépôt la DIT.
+
+    Vécu le 2026-09-30 : Supra2-IMG génère en 256×256 FIXE — `pipeline_config.json` le dit —,
+    mais aucun manifeste ne le portait, et l'imager lui proposait 896×512 (taille ignorée par le
+    backend, image de 256 px). Le fait mécanique prime sur le jugement du LLM, comme le moteur :
+    une valeur absente est posée, une valeur contraire est CORRIGÉE — et c'est dit. Le caractère
+    FIXE (`min_resolution` = `max_resolution`) reste à déclarer : un `image_size` dit la taille
+    de travail, pas qu'aucune autre n'est possible."""
+    values = root_config_values(hf_id, RESOLUTION_KEYS, lister=lister, loader=loader)
+    sizes = {int(v) for found in values.values() for v in found.values()
+             if isinstance(v, int) and not isinstance(v, bool) and v > 0}
+    if len(sizes) != 1:
+        if len(sizes) > 1:
+            concerns.append(f"tailles contradictoires dans les configs du dépôt : {values}")
+        return manifest
+    n = sizes.pop()
+    fact = f'{n}x{n}'
+    body = manifest.setdefault('body', {})
+    caps = body.setdefault('capabilities', {})
+    declared = str(caps.get('native_resolution') or '').lower()
+    if declared == fact:
+        return manifest
+    caps['native_resolution'] = fact
+    source = ', '.join(sorted(values))
+    concerns.append(f"native_resolution {'CORRIGÉE ' + repr(declared) + ' → ' if declared else 'POSÉE à '}"
+                    f"{fact!r} (fait mécanique : {source})")
+    return manifest
+
+
 def consigne_role(nom):
     """Consigne système d'un RÔLE de wama-dev-ai (`prompts/<nom>.txt`) — accesseur UNIQUE.
 

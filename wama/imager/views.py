@@ -1674,7 +1674,7 @@ def api_model_resolutions(request):
                 "min_size": 1024,
                 "max_size": 2048,
                 "default": "2048x2048",
-                "vram_warning": "...",
+                "fixed": false,
             },
             "resolutions": [
                 {"key": "2048x2048", "width": 2048, "height": 2048, "label": "...", "ratio": "1:1"},
@@ -1688,31 +1688,33 @@ def api_model_resolutions(request):
         IMAGE_RESOLUTION_PRESETS
     )
 
-    # La valeur du select est une CLÉ de catalogue (route F4b) ; la table de résolutions et la
-    # déclaration de l'imager parlent en IDENTIFIANT. Une clé d'une autre source (Supra2…) n'y
-    # figure pas : elle reçoit la configuration par défaut — et sa déclaration, None.
+    # La valeur du select est une CLÉ de catalogue (route F4b) : tailles, pas et guidage se
+    # lisent sur les CAPACITÉS du catalogue (2026-09-30), donc pour un modèle de n'importe quelle
+    # source — Supra2-IMG recevait jusque-là la configuration par défaut (256-1024, 30 pas).
     from wama.common.utils.model_keys import catalog_key, model_id as _model_id
+    from .models import _catalog_caps
     model_key = catalog_key(request.GET.get('model') or DEFAULT_IMAGE_MODEL, 'imager')
     model_name = _model_id(model_key)
 
-    config = get_model_resolution_config(model_name)
-    resolutions = get_recommended_resolutions(model_name)
+    config = get_model_resolution_config(model_key)
+    resolutions = get_recommended_resolutions(model_key)
 
-    # Pull model-specific defaults (guidance, steps) from backend
-    default_guidance_scale = 7.5
-    default_steps = 30
-    try:
-        # Les défauts (guidance, steps) sont une DÉCLARATION du modèle (IMAGER_MODELS), lue par
-        # le passe-plat commun — plus une table lue sur une classe de backend importée par
-        # chemin (2026-09-07). La déclaration d'app est d'ailleurs la source la plus complète :
-        # la table du backend ne portait ces défauts que pour deux modèles.
-        from wama.common.utils.model_declarations import declaration_for
-        model_info = declaration_for(model_key) or {}
-        if isinstance(model_info, dict):
-            default_guidance_scale = model_info.get('default_guidance_scale', 7.5)
-            default_steps = model_info.get('default_steps', 30)
-    except Exception:
-        pass
+    # Pas et guidage RECOMMANDÉS (capacités canoniques `recommended_steps` / `_guidance`), puis
+    # la déclaration d'app, puis les valeurs historiques.
+    caps = _catalog_caps(model_key)
+    default_guidance_scale = caps.get('recommended_guidance')
+    default_steps = caps.get('recommended_steps')
+    if default_guidance_scale is None or default_steps is None:
+        try:
+            from wama.common.utils.model_declarations import declaration_for
+            model_info = declaration_for(model_key) or {}
+            if default_guidance_scale is None:
+                default_guidance_scale = model_info.get('default_guidance_scale', 7.5)
+            if default_steps is None:
+                default_steps = model_info.get('default_steps', 30)
+        except Exception:
+            default_guidance_scale = 7.5 if default_guidance_scale is None else default_guidance_scale
+            default_steps = 30 if default_steps is None else default_steps
 
     return JsonResponse({
         'model': model_name,
@@ -1722,7 +1724,10 @@ def api_model_resolutions(request):
         # Flattened for JS compatibility
         'recommended': [r['key'] for r in resolutions],
         'default': config.get('default', '512x512'),
-        'vram_warning': config.get('vram_warning', ''),
+        # Une résolution FIXE se DIT (le volet grise les autres tailles) ; l'ancien
+        # `vram_warning` de la table n'a plus de source — la VRAM se lit dans l'aide du modèle.
+        'fixed': config.get('fixed', False),
+        'vram_warning': '',
         'default_guidance_scale': default_guidance_scale,
         'default_steps': default_steps,
     })

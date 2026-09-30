@@ -159,6 +159,8 @@ HUNYUAN_MODELS = {
         # ce chiffre change ce que le tirage propose : décision de Fabien).
         'composition': _pipeline_composition(transformer=True, text_encoder=True,
                                             text_encoder_2=False, vae=False),
+        # Tailles (2026-09-30, reprises de l'ex-`MODEL_RESOLUTION_CONFIG` de l'imager) : 2K natif.
+        'resolution': '2048x2048', 'min_resolution': 1024, 'max_resolution': 2048,
         'description': 'HunyuanImage 2.1 — qualité max, text rendering, 1K-4K',
         'description_long': "HunyuanImage 2.1 (Tencent) : génération d'images haut de gamme, "
                             "excellent rendu du texte dans l'image et résolutions 1K à 4K. "
@@ -384,6 +386,7 @@ STABLE_DIFFUSION_MODELS = {
         # Contrairement à SDXL, ce dépôt-ci n'a PAS de variante `.fp16` installée : le `variant`
         # demandé par le backend n'existe pas, diffusers retombe sur la pleine précision.
         'composition': _pipeline_composition(unet=False, text_encoder=False, vae=False),
+        'resolution': '512x512', 'min_resolution': 256, 'max_resolution': 768,
         'description': 'Stable Diffusion 1.5 — classique (compatibilité LoRA)',
         'description_long': "Stable Diffusion 1.5 (Runway/CompVis) : le classique historique de la "
                             "génération d'images, porté par le plus vaste écosystème de LoRA et de "
@@ -418,6 +421,7 @@ STABLE_DIFFUSION_MODELS = {
             text_encoder='text_encoder/model.fp16.safetensors',
             text_encoder_2='text_encoder_2/model.fp16.safetensors',
             vae='vae/diffusion_pytorch_model.fp16.safetensors'),
+        'resolution': '1024x1024', 'min_resolution': 512, 'max_resolution': 1536,
         'description': 'Stable Diffusion XL — haute résolution (compatibilité LoRA)',
         'description_long': "Stable Diffusion XL (Stability AI) : génération native en 1024 px, "
                             "compositions et anatomies bien plus fiables que SD 1.5, large choix "
@@ -457,7 +461,8 @@ QWEN_IMAGE_MODELS = {
         # là où le 21 de CogVideoX et le 23 de FastWan sont des SOMMES : les deux définitions
         # coexistent dans les tables, ce que la décision A vient précisément séparer.
         'composition': _pipeline_composition(transformer=True, text_encoder=True, vae=False),
-        'resolution': 2048,
+        # 1024 natif par défaut, jusqu'à 2K (la forme entière `2048` disait le seul maximum).
+        'resolution': '1024x1024', 'min_resolution': 512, 'max_resolution': 2048,
         # Alignés sur qwen_image_backend.SUPPORTED_MODELS (default_steps / default_true_cfg) :
         # Qwen attend 50 étapes et un true_cfg de 4.0, PAS les 30/7.5 de l'ère SD. Sans ces clés,
         # get_model_defaults() retombait sur les valeurs SD et bridait le modèle par défaut.
@@ -486,7 +491,7 @@ QWEN_IMAGE_MODELS = {
         # même poids que `qwen-image-2` (même dorsale MMDiT 20B, 5 shards au lieu de 9). La borne
         # prudente de 38 ci-dessus était donc juste : c'est maintenant MESURÉ, plus supposé.
         'composition': _pipeline_composition(transformer=True, text_encoder=True, vae=False),
-        'resolution': 2048,
+        'resolution': '1024x1024', 'min_resolution': 512, 'max_resolution': 2048,
         # Idem qwen-image-2 : valeurs du backend Qwen, pas celles de SD.
         'default_steps': 50,
         'default_guidance_scale': 4.0,
@@ -517,7 +522,7 @@ FLUX2_KLEIN_MODELS = {
         # racine, de 7,22 Go — exactement le poids du `transformer/` : c'est la copie monofichier
         # pour les chargeurs qui ne lisent pas l'arborescence diffusers, pas un composant.
         'composition': _pipeline_composition(transformer=False, text_encoder=True, vae=False),
-        'resolution': 1024,
+        'resolution': '1024x1024', 'min_resolution': 256, 'max_resolution': 1024,
         'description': 'FLUX.2 Klein 4B — ultra-rapide (<1 s), Apache 2.0',
         'description_long': "FLUX.2 Klein 4B (Black Forest Labs) : version distillée ultra-rapide "
                             "de FLUX.2 — image en moins d'une seconde, licence Apache 2.0. Parfait "
@@ -557,7 +562,7 @@ LOGO_MODELS = {
         # champ pour dire « hérite de la dorsale » — c'est une DÉCISION à prendre (héritage
         # d'empreinte pour les adaptateurs), pas un trou à boucher à la va-vite.
         'disk_gb': 24,
-        'resolution': 768,
+        'resolution': '768x768',
         'min_resolution': 512,
         'max_resolution': 768,
         # FLUX uses rectified flow — guidance_scale 3.5–7.5 (NOT 7.5–20 like SD)
@@ -607,7 +612,7 @@ FLUX_MODELS = {
         # `ae.safetensors` (le VAE au format original) : deux copies, pas des composants.
         'composition': _pipeline_composition(transformer=True, text_encoder_2=True,
                                             text_encoder=False, vae=False),
-        'resolution': '1024x1024',
+        'resolution': '1024x1024', 'min_resolution': 256, 'max_resolution': 1024,
         # FLUX = rectified flow : guidance 3.5, JAMAIS 7.5-20 comme SD (cf. LOGO_MODELS)
         'default_guidance_scale': 3.5,
         'default_steps': 28,
@@ -727,8 +732,10 @@ def get_model_defaults(model_id: str) -> dict:
     #   - str 'LxH'  (vidéo : '720x480', '1216x704') → résolution de travail exacte
     #   - int  N     (image : 2048 pour qwen, 1024 pour klein, 768 pour le logo) → côté MAXIMUM
     #     supporté, pas un défaut : générer du 2048x2048 par défaut serait lent et hasardeux.
-    # On les distingue ici plutôt que de laisser un parse rater en silence. (Uniformiser les
-    # déclarations serait le vrai correctif — hors périmètre de cette passe.)
+    # On les distingue ici plutôt que de laisser un parse rater en silence.
+    # ✅ Déclarations image UNIFORMISÉES le 2026-09-30 : 'LxH' natif + `min_resolution` /
+    # `max_resolution` (capacités canoniques, `resolution_caps_from_declaration`). La branche
+    # entière reste pour une déclaration qui garderait l'ancienne forme.
     resolution = cfg.get('resolution')
     width = height = 512
     if isinstance(resolution, str) and 'x' in resolution.lower():

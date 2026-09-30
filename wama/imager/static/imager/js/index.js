@@ -572,10 +572,26 @@
                     }
                 }
 
+                // La taille NATIVE du modèle peut manquer à la liste statique (Supra2-IMG : 256×256
+                // fixe, 2026-09-30) : on l'ajoute plutôt que de laisser le select sans valeur.
+                if (defaultResolution && !resolutionSelect.querySelector(
+                        'option[value="' + defaultResolution + '"]')) {
+                    const opt = document.createElement('option');
+                    opt.value = defaultResolution;
+                    opt.textContent = defaultResolution + ' (natif)';
+                    resolutionSelect.insertBefore(opt, resolutionSelect.firstChild);
+                }
+                // Résolution FIXE : les autres tailles restent LISTÉES mais grisées, avec la raison
+                // (lister n'est pas pouvoir choisir) — le backend les ignorerait.
+                const fixedSize = !!(data.config && data.config.fixed);
+
                 // Highlight recommended options and set default
                 const options = resolutionSelect.querySelectorAll('option');
                 options.forEach(option => {
                     const isRecommended = recommendedKeys.includes(option.value);
+                    option.disabled = fixedSize && !isRecommended;
+                    option.title = option.disabled
+                        ? 'Ce modèle ne génère qu\'en ' + defaultResolution + ' (résolution fixe)' : '';
                     // Add visual indicator for recommended resolutions
                     if (isRecommended) {
                         if (!option.textContent.includes('★')) {
