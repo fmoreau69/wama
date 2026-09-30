@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**169 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**170 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -382,7 +382,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (29) :
+- **API publique** (30) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -396,11 +396,12 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `register_after_install()` — Re-synchronise le catalogue `AIModel` pour que le modèle fraîchement installé apparaisse.
   - `replaced_model(cand)` — (nom Ollama de l'ancien modèle, espace qu'il rendra en Go) pour un candidat successeur,
   - `disk_space_guard(ref: str, *, reclaim_gb: float=0.0, force: bool=False, needed_gb: float | None=None)` — Refuse une installation qui saturerait le volume. Retourne None si l'installation peut
-  - `request_install(model_key: str, *, force: bool=False, variant_ref: str='', variant_file: str='', user=None) -> dict` — DEMANDE d'installation par CLÉ — corps unique du geste « Installer » : choix de variante,
+  - `request_install(model_key: str, *, force: bool=False, variant_ref: str='', variant_file: str='', user=None, via: str='') -> dict` — DEMANDE d'installation par CLÉ — corps unique du geste « Installer » : choix de variante,
+  - `dispatch_install(task, row, *, user_id=None, via='')` — SEUL point de dispatch des deux tâches d'installation : ouvre l'événement DATÉ du journal,
   - `install_candidate(cand, progress=None, token=None) -> dict` — Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
   - `weights_dir_of(model, index: dict | None=None) -> Path | None` — Dossier des POIDS d'une ligne de catalogue installée, ou None s'il ne se désigne pas.
   - `rows_depending_on(model, target: Path, index: dict | None=None) -> tuple[list, list]` — Les AUTRES lignes installées que retirer `target` toucherait — `(sharing, dependents)`.
-  - `uninstall_model(model_key: str, include_shared: bool=False) -> dict` — DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
+  - `uninstall_model(model_key: str, include_shared: bool=False, via: str='') -> dict` — DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
   - `spec_for_catalog_row(model) -> dict | None` — Spec d'installation DÉRIVÉ d'une ligne de catalogue non téléchargée — le geste « Installer »
   - `patterns_from_composition(composition) -> list | None` — `allow_patterns` DÉRIVÉS d'une `composition` déclarée (manifeste `model`,
   - `install_from_spec(spec: dict, token=None) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
@@ -410,8 +411,21 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `pip_install_packages(packages, timeout: int=1800, no_deps: bool=False, constraints=None) -> dict` — Installe des paquets pip dans le venv courant — pour rendre un backend disponible quand un
   - `ensure_backend_deps(backend_cls, timeout: int=1800) -> dict` — Installe les paquets manquants d'un backend (classe `BaseModelBackend`) si nécessaire.
   - `simuler_installation(spec: str, timeout: int=300, constraints=None) -> dict` — Ce qu'une installation ENTRAÎNERAIT — `pip install --dry-run`, LECTURE SEULE.
-  - `install_library(key: str, apply: bool=False) -> dict` — Installe UNE librairie depuis son registre (`common.models.Library`) — la JONCTION
+  - `install_library(key: str, apply: bool=False, via: str='') -> dict` — Installe UNE librairie depuis son registre (`common.models.Library`) — la JONCTION
   - `install_requirements(app_key: str, apply: bool=False) -> dict` — Le MARCHEUR d'app (« application = modèles + librairies », reste ③ de la route
+
+### Journal des installations
+
+Date chaque installation et désinstallation (modèle, librairie) avec son issue et sa VOIE (model manager, assistant, marcheur d'app, ligne de commande), aux points uniques de la route ; couche « Installations » du calendrier, inscrite par `register_instance_layer`. Best-effort : n'échoue jamais une installation
+
+- **Domicile** : `wama/model_manager/services/install_history.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md](../construction/ia/WAMA_MEMORY.md)
+- **Module** : Journal DATÉ des installations — l'écriture (`opened`/`record`) et la couche du calendrier.
+- **API publique** (5) :
+  - `opened(kind, key, *, name='', action='install', via='')` — Ouvre un événement `RUNNING` ; le bloc remplit `outcome` avec le résultat du driver.
+  - `record(kind, key, *, name='', action='install', via='', result=None, started_at=None)` — Un événement déjà TERMINÉ (désinstallation : un geste court et synchrone).
+  - `queued(kind, key, *, name='', via='')` — Ouvre l'événement AU DISPATCH, avec sa voie — la tâche le reprendra (`resumed`).
+  - `resumed(kind, key, *, name='')` — Reprend, dans la tâche, l'événement ouvert au dispatch (ou en ouvre un sans voie).
+  - `calendar_events(start, end)` — Les installations de `[start, end)` — couche de l'INSTANCE (inscrite par `apps.ready`).
 
 ### Mesure interne des modèles
 
@@ -564,7 +578,7 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
 
 - **Domicile** : `wama/common/services/calendar.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §9bis.1](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Calendrier — l'activité de WAMA posée sur l'axe du TEMPS. Doc : `WAMA_MEMORY.md §9bis.1` (la vue) ; plan d'ensemble — trois natures de temps, actions programmées, placement — : `WAMA_APP_GENERATION_ROUTE.md §10.6` point 13 (« le QUAND »).
-- **API publique** (15) :
+- **API publique** (18) :
   - `app_identity(app) -> tuple[str, str]` — `(libellé, couleur d'identité)` d'une app, pour les événements ET la légende.
   - `class CalendarEvent` — Un événement du calendrier. Volontairement MINCE, comme l'entrée du journal : le détail
   - `predicted_end(started_at, progress, now) -> datetime | None` — Fin prévue par le DÉBIT OBSERVÉ — la même règle que `wama-eta.js` côté navigateur :
@@ -578,6 +592,9 @@ Le journal sur l'axe du TEMPS — mêmes sources (Médias, Lab, Studio), interva
   - `reserved_window_conflicts(start, end) -> list[tuple[CalendarEvent, CalendarEvent]]` — Paires `(fenêtre réservée, autre entrée planifiée qui la chevauche)` dans `[start, end)`.
   - `declared_events(user, start, end) -> list[CalendarEvent]` — Les programmations ACTIVES de l'utilisateur (`ScheduledAction`, étape 3) — nature `voulu`.
   - `queue_events(user, start, end, entries) -> list[CalendarEvent]` — Les traitements des AUTRES dans la file GPU — couche de l'instance, ANONYME (étape 4).
+  - `register_instance_layer(key, *, label, app, events)` — Inscrit `events(start, end) -> list[CalendarEvent]` comme couche de l'instance.
+  - `nature_labels() -> dict` — Valeurs de la facette « Nature » : les natures de temps, la maintenance, puis les couches.
+  - `instance_layer_events(user, start, end) -> list[CalendarEvent]`
   - `events_for(user, start, end, *, with_maintenance=True) -> list[CalendarEvent]`
   - `to_ics(events, *, host='wama', now=None) -> str` — Les événements au format iCalendar. `host` qualifie les UID (uniques et STABLES : un
 
