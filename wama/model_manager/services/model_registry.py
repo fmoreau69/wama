@@ -656,8 +656,8 @@ class ModelRegistry:
                 # format HF + entrées consommées en ids d'`INPUT_TYPES`. Le `mode` du manifeste
                 # est un raccourci d'app ; il ne doit pas fuiter tel quel dans le catalogue.
                 from wama.common.utils.model_capabilities import (
-                    derive_inputs_from_tasks, sampling_caps_from_declaration,
-                    video_caps_from_declaration)
+                    derive_inputs_from_tasks, resolution_caps_from_declaration,
+                    sampling_caps_from_declaration, video_caps_from_declaration)
                 _derive = derive_inputs_from_tasks(_mode, is_video=_is_video)
                 _task = _derive['task']
                 _inputs_required = _derive['inputs_required']
@@ -737,6 +737,9 @@ class ModelRegistry:
                         # prolongation) — lues par l'écran (`cap_from`) et par la tâche.
                         **(video_caps_from_declaration(config, _derive['tokens'])
                            if _is_video else {}),
+                        # Bornes de TAILLE d'un modèle image (2026-09-30) — la même traduction
+                        # que la vidéo ; l'écran propose ses tailles depuis elles.
+                        **(resolution_caps_from_declaration(config) if not _is_video else {}),
                         # Réglages recommandés par l'éditeur (pas, guidage) — rappelés à l'écran.
                         **sampling_caps_from_declaration(config),
                     },
@@ -2750,11 +2753,11 @@ class ModelRegistry:
 
             # MuseTalk V1.5 (main model used by the avatarizer pipeline)
             musetalk_v15 = lipsync_dir / 'musetalk' / 'musetalkV15' / 'unet.pth'
-            musetalk_v10 = lipsync_dir / 'musetalk' / 'musetalk' / 'pytorch_model.bin'
 
+            # La v1.0 est RETIRÉE (2026-09-30, REMOVAL_LEDGER) : son moteur exécutait toujours la
+            # v1.5 (`--version v15`) — une ligne que rien n'exécutait, et 3,2 Go de poids.
             for model_id, unet_path, name, description in [
                 ('musetalk-v1.5', musetalk_v15, 'MuseTalk v1.5', 'Lip-sync pipeline v1.5 (UNet + DWPose + Whisper + SD-VAE + SyncNet)'),
-                ('musetalk-v1.0', musetalk_v10, 'MuseTalk v1.0', 'Lip-sync pipeline v1.0 (UNet + DWPose + Whisper + SD-VAE)'),
             ]:
                 is_downloaded = unet_path.exists()
                 self._models[f"avatarizer:{model_id}"] = ModelInfo(

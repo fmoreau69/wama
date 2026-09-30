@@ -5,8 +5,9 @@ Règle AGENTS.md « Ajout d'un nouveau modèle AI » : les chemins viennent de
 settings.MODEL_PATHS['lipsync'] (fallback AI-models/models/lipsync/) ; le cache HF des
 sous-processus MuseTalk (Whisper/DWPose) est isolé sous le dossier du modèle.
 
-CodeFormer = option « qualité supérieure » déclenchable par l'utilisateur (use_enhancer) ;
-quality_mode v15/v10 sélectionne la version MuseTalk. Découverte catalogue :
+CodeFormer = option « qualité supérieure » déclenchable par l'utilisateur (use_enhancer).
+MuseTalk = v1.5 seule (la v1.0 est retirée le 2026-09-30 : son moteur exécutait toujours la
+v1.5 — REMOVAL_LEDGER). TalkingHead = avatar 3D riggé, sans poids. Découverte catalogue :
 model_registry._discover_avatarizer_models().
 """
 from pathlib import Path
@@ -42,11 +43,9 @@ CODEFORMER_VRAM_GB = 3.0
 
 #: Le TIRAGE du modèle d'animation (2026-09-30) se fait parmi les modèles de l'avatarizer qui
 #: acceptent les entrées FOURNIES (`resolve_model_choice`, `available_inputs`/`consumes`) : une
-#: photo ne laisse que MuseTalk, un GLB que TalkingHead. Cette priorité ne départage que des
-#: candidats ÉGAUX : `musetalk-v1.0` est déclaré au catalogue mais son moteur exécute la v1.5
-#: (`musetalk_backend`, `--version v15`) — il ne doit jamais gagner un tirage.
-ANIMATION_MODEL_PRIORITY = ['talkinghead', 'musetalk-v1.5']
-#: Repli par NATURE d'avatar si le catalogue ne propose rien (première installation).
+#: photo ne laisse que MuseTalk, un GLB que TalkingHead ; entre deux modèles d'une même entrée,
+#: le tirage commun tranche (VRAM, curseur). Repli par NATURE d'avatar si le catalogue ne propose
+#: rien (première installation).
 ANIMATION_FALLBACK = {'work_object3d': 'talkinghead', 'work_image': 'musetalk-v1.5'}
 
 AVATARIZER_MODELS = {
@@ -58,15 +57,6 @@ AVATARIZER_MODELS = {
         'vram_gb': MUSETALK_VRAM_GB,
         'version': 'v15',
         'description': "MuseTalk V1.5 — lip-sync temps quasi réel, meilleure fidélité labiale.",
-    },
-    'musetalk-v1.0': {
-        'model_id': 'musetalk-v1.0',
-        'engine': 'musetalk',
-        'hf_id': 'TMElyralab/MuseTalk',
-        'type': 'lipsync',
-        'vram_gb': MUSETALK_VRAM_GB,
-        'version': 'v10',
-        'description': "MuseTalk V1.0 — version historique, fallback si les poids v1.5 manquent.",
     },
     # Avatar 3D riggé rendu en vidéo (2026-09-30) — PAS de poids : le moteur est TalkingHead
     # (vendorisé sous `static/vendors/`), l'« objet » animé est le GLB fourni par l'utilisateur.

@@ -376,9 +376,9 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
   `INPUT_TYPES`), puis `resolve_model_choice` (`available_inputs`/`consumes`) choisit parmi les
   modèles de l'app — une photo ne laisse que MuseTalk, un GLB que TalkingHead ; le worker exécute
   le modèle tiré par son moteur de catalogue. Mesuré sur la vraie base : photo → `musetalk-v1.5`,
-  GLB → `talkinghead`, avec ou sans texte. La ligne morte `musetalk-v1.0` ne gagne jamais grâce à
-  une PRIORITÉ déclarée (`model_config.ANIMATION_MODEL_PRIORITY`, paramètre `priority` du
-  sélecteur) — sa décision de retrait reste ouverte.
+  GLB → `talkinghead`, avec ou sans texte. La ligne morte `musetalk-v1.0` (candidate à égalité
+  pour une photo) est RETIRÉE le même jour, poids compris (`REMOVAL_LEDGER` R85) : entre deux
+  modèles d'une même entrée, c'est le tirage qui tranche, jamais un ordre figé.
 - 🔴 **Défaut de la brique trouvé en chemin, corrigé** : un tirage dont AUCUN modèle n'accepte
   les entrées piochait N'IMPORTE quel modèle de l'app (liste vide de candidats = « aucune
   restriction » pour `select_model`) ; mesuré : `musetalk-v1.0`. `select_model_id` rend
