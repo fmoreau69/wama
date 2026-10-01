@@ -912,11 +912,22 @@ def list_passes(request, session_id):
         logger.warning(f"recompute_stale failed: {exc}")
     # `chain_queued` : une chaîne de calculs est en FILE ou en cours (verrou de `run_passes`) —
     # le panneau continue de suivre même si aucune passe n'a encore démarré.
-    from .utils.pass_tracking import calc_chain_key as _calc_chain_key, queued_session_passes
-    return JsonResponse({'passes': get_passes_status(session),
+    from .utils.pass_tracking import (calc_chain_key as _calc_chain_key, queued_session_passes,
+                                      annotate_eta, chain_eta_remaining)
+    rows = get_passes_status(session)
+    queued = queued_session_passes(session.id)
+    # ETA par passe et total restant (2026-10-01) — service commun `eta_estimator`, rendu `WamaEta`
+    try:
+        annotate_eta(session, rows)
+        eta_chain = chain_eta_remaining(session, rows, queued)
+    except Exception:
+        logger.warning('ETA des passes indisponible', exc_info=True)
+        eta_chain = None
+    return JsonResponse({'passes': rows,
                          'chain_queued': bool(cache.get(_calc_chain_key(session.id))),
                          # passes EN FILE derrière la chaîne en cours (elles s'empilent, 2026-09-30)
-                         'queued_passes': queued_session_passes(session.id)})
+                         'queued_passes': queued,
+                         'eta_chain_s': eta_chain})
 
 
 @login_required
