@@ -60,3 +60,30 @@ class OrthoPerPassMeasureTest(SimpleTestCase):
         self.assertIn('decompose_passes(passes)', src)
         self.assertIn('reach_s=PASS_REACH_S', src)
         self.assertNotIn('decompose(rec)', src)
+
+
+class OrthoCorrectionMessageTest(SimpleTestCase):
+    """La ligne de console ne doit jamais faire échouer la passe APRÈS l'enregistrement des ancres
+    (2026-10-01 : `dec['camera']['de_m']`, ancien format, avait fait passer la passe en échec)."""
+
+    def _dec(self, separable=True):
+        from wama_data.functions.driving.trajectory_offset import decompose_passes
+        hs = (8.0, 180.0) if separable else (8.0, 9.0)
+        return decompose_passes([{'key': str(i), 'ts': 100.0 * i, 'heading_deg': h, 'along_m': a, 'n': 10}
+                                 for i, (h, a) in enumerate(zip(hs, (1.2, -0.8)))])
+
+    def test_with_anchors(self):
+        from wama_lab.cam_analyzer.tasks import ortho_correction_message
+        from wama_data.functions.driving.trajectory_offset import build_anchors, correction_report
+        dec = self._dec()
+        rep = correction_report(build_anchors([{}, {}], dec, reach_s=60.0))
+        msg = ortho_correction_message(dec, rep, 0, 2, 14)
+        self.assertIn('2/14 passages mesurés', msg)
+        self.assertIn('le long de la marche', msg)
+
+    def test_without_anchor_or_separability_it_still_speaks(self):
+        from wama_lab.cam_analyzer.tasks import ortho_correction_message
+        from wama_data.functions.driving.trajectory_offset import correction_report
+        self.assertIn('aucune ancre', ortho_correction_message(self._dec(), correction_report([]), 0, 2, 14))
+        self.assertIn('indiscernables', ortho_correction_message(self._dec(separable=False),
+                                                                 correction_report([]), 0, 2, 14))

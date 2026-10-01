@@ -62,3 +62,11 @@ class ComputeSnapshotTest(SimpleTestCase):
         snap = compute_snapshot(SimpleNamespace(config={}))
         self.assertEqual(set(snap), {f.key for f in REG if f.scope == 'compute'})
         self.assertNotIn('display_ema', snap)     # une bascule d'affichage n'invalide aucun calcul
+
+
+class FailedSideInputTest(TrackingIsCurrentTest):
+    def test_a_side_input_that_failed_after_the_tracking_does_not_invalidate_it(self):
+        """Une correction ortho ÉCHOUÉE n'a rien changé à ce que lit le tracking (2026-10-01)."""
+        ok, why, _ = self._check([tracking(), row('ortho_correction', status='failed',
+                                                  at=T0 + timedelta(minutes=5))])
+        self.assertTrue(ok, why)

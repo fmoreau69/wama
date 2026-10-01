@@ -2770,6 +2770,24 @@ def compute_ortho_recalage_task(self, session_id: str):
         return {'error': str(e), 'session_id': session_id}
 
 
+def ortho_correction_message(dec, rep, n_masks, n_passes, n_windows):
+    """Ligne de console de la correction ortho PAR PASSAGE. Le biais caméra est LE LONG DE LA
+    MARCHE (`along_m`) ; sans ancre, le rapport n'a ni `mean_alpha` ni décalage — la ligne le dit
+    au lieu de tomber (2026-10-01 : un `de_m` de l'ancien format avait fait échouer la passe APRÈS
+    l'enregistrement de ses ancres)."""
+    cam = dec.get('camera') or {}
+    head = (f"Correction de trajectoire : {n_passes}/{n_windows} passages mesurés ; biais caméra "
+            f"{float(cam.get('along_m') or 0.0):+.2f} m le long de la marche (projection, non appliqué)")
+    if not cam.get('separable'):
+        return head + (" — passages d'un seul sens : biais caméra et erreur GPS indiscernables, "
+                       "aucune correction appliquée.")
+    if not rep.get('n_anchors'):
+        return head + " — aucune ancre."
+    return (head + f" ; correction GPS sur {rep['n_anchors']} passages — moy {rep['mean_shift_m']:.1f} m, "
+            f"max {rep['max_shift_m']:.1f} m, atténuation moyenne ×{rep.get('mean_alpha', 1.0):.2f} "
+            f"({n_masks} masques satellite) — appliquée si ⚑ Recalage GPS par marquages ortho est ON.")
+
+
 @shared_task(bind=True)
 def compute_ortho_correction_task(self, session_id: str):
     """Étape 2b (2/2) — CALCULE les ancres de correction tirées du recalage mesuré ; la bascule
@@ -2838,13 +2856,8 @@ def compute_ortho_correction_task(self, session_id: str):
         session.save(update_fields=['results_summary'])
         mark_completed(session, 'ortho_correction', output_summary=rep)
 
-        _console(uid, f"Correction de trajectoire : biais caméra E {dec['camera']['de_m']:+.1f} / "
-                      f"N {dec['camera']['dn_m']:+.1f} m écarté (projection, non appliqué) ; "
-                      f"correction GPS locale sur {rep['n_anchors']} repères — "
-                      f"moy {rep['mean_shift_m']:.1f} m, max {rep['max_shift_m']:.1f} m, "
-                      f"atténuation moyenne ×{rep['mean_alpha']:.2f} "
-                      f"({len(masks)}/{len(dec.get('gps_local') or {})} masques satellite obtenus) "
-                      f"— appliquée si ⚑ Recalage GPS par marquages ortho est ON.")
+        _console(uid, ortho_correction_message(dec, rep, len(masks), len(passes),
+                                                measure.get('windows', 0)))
         return {'session_id': session_id, 'applied': True, **rep}
     except Exception as e:
         logger.error(f"compute_ortho_correction_task failed: {e}", exc_info=True)
