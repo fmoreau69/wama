@@ -746,6 +746,17 @@ def check_released_files():
                                  'informations du fichier : inutilisé, en rouge'))
                 page.click('#fileInfoModal [data-bs-dismiss="modal"]')
                 page.wait_for_selector('#fileInfoModal', state='hidden', timeout=10000)
+                # …et il figure dans l'onglet « Inutilisés » de la médiathèque, d'où on le supprime
+                # par son bouton de ligne (2026-10-01).
+                kept_row = f'#unusedList [data-unused-row="{ReleasedFile.objects.get(path=kept_rel).pk}"]'
+                page.goto(BASE_URL + '/media-library/?tab=unused', wait_until='networkidle', timeout=60000)
+                page.wait_for_selector(kept_row, timeout=15000)
+                verdicts.append((kept_path.name in page.inner_text(kept_row),
+                                 'onglet « Inutilisés » de la médiathèque : le fichier y figure'))
+                page.click(f'{kept_row} [data-unused-delete]')
+                page.wait_for_selector(kept_row, state='detached', timeout=15000)
+                verdicts.append((not kept_path.exists(), 'supprimé depuis la liste, un par un'))
+                page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
 
                 # ③ Card qui ne fait que DÉSIGNER : rien à proposer, rien de touché.
                 set_delete_files(page, True)

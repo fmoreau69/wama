@@ -1094,6 +1094,9 @@ les `confirm` natifs (`duplicate_delete`, `settings`, `batch_actions`, `delete_f
 `clear_all`) l'emploient ; les quatre qui retirent, rejoués sur converter et describer, **8/8 verts** (le ⚠ « 1 objet subsistait en base » de
 `duplicate_delete` est antérieur — présent aux rapports nocturnes depuis le 26/09).
 
+⚠ **13/13 depuis l'après-midi du 2026-10-01** : le témoin ② (gardé à la confirmation) est ensuite
+retrouvé dans l'onglet **« Inutilisés »** de la médiathèque et supprimé par son bouton de ligne.
+
 ### Barre COMMUNE de la médiathèque (2026-10-01)
 
 Scénario **`media_library.filter_bar`** (`ui_smoke_matching.py`), **8/8** au premier run, sur les

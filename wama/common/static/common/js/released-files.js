@@ -56,7 +56,8 @@
           : 'Ce fichier n’est plus utilisé par aucune card. Il reste dans votre espace.')
       + '</div>'
       + '<ul class="mb-2 ps-3">' + names + more + '</ul>'
-      + '<div class="d-flex gap-2 justify-content-end">'
+      + '<div class="d-flex gap-2 justify-content-end align-items-center">'
+      + '<a href="/media-library/?tab=unused" class="link-light small me-auto">Tous les fichiers inutilisés</a>'
       + '<button type="button" class="btn btn-sm btn-outline-secondary" data-released-keep>Garder</button>'
       + '<button type="button" class="btn btn-sm btn-outline-danger" data-released-delete>Supprimer</button>'
       + '</div></div>';

@@ -186,6 +186,46 @@ class AskingBeforeRemovalTest(TestCase):
         self.assertEqual(404, r.status_code)
 
 
+class UnusedListTest(TestCase):
+    """L'onglet « Inutilisés » de la médiathèque (2026-10-01) : TOUS les fichiers libérés, avec taille
+    et ancienneté, sans les marquer annoncés ; un fichier repris par une card n'y figure plus."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('unused_list', password='x')
+
+    def _release(self, name):
+        synthesis, rel, path = _owned_output(self.user, name)
+        release_card_file(synthesis, 'audio_output')
+        synthesis.delete()
+        return rel, path
+
+    def test_the_list_gives_size_and_age_and_announces_nothing(self):
+        rel, path = self._release('kept.wav')
+        listed = released_files.list_unused(self.user)
+        self.assertEqual([rel], [f['path'] for f in listed['files']])
+        self.assertEqual(path.stat().st_size, listed['files'][0]['size'])
+        self.assertEqual(path.stat().st_size, listed['total_size'])
+        self.assertEqual(0, listed['files'][0]['unused_days'])
+        self.assertEqual([rel], [f['path'] for f in released_files.take_unannounced(self.user)],
+                         'lire la liste ne vaut pas annonce')
+
+    def test_a_file_taken_back_leaves_the_list(self):
+        rel, _ = self._release('taken.wav')
+        again = VoiceSynthesis.objects.create(user=self.user, text_file='t.txt')
+        again.audio_output.name = rel
+        again.save(update_fields=['audio_output'])
+        self.assertEqual([], released_files.list_unused(self.user)['files'])
+
+    def test_the_route_and_the_library_tab(self):
+        rel, _ = self._release('routed.wav')
+        self.client.force_login(self.user)
+        data = self.client.get(reverse('common:api_released_files_all')).json()
+        self.assertEqual([rel], [f['path'] for f in data['files']])
+        other = get_user_model().objects.create_user('unused_other', password='x')
+        self.client.force_login(other)
+        self.assertEqual([], self.client.get(reverse('common:api_released_files_all')).json()['files'])
+
+
 class AnnounceRouteTest(TestCase):
 
     def test_the_page_reads_the_announcement_and_deletes_on_request(self):
