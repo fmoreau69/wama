@@ -262,6 +262,9 @@ def render_views(manifest: dict) -> tuple:
     # l'`audio_output` restaient sur le disque après suppression — vu par le contrat GÉNÉRIQUE
     # `tests_queue_delete_contract` dès que leurs vues ont été générées. Les sorties = les
     # champs fichier qui ne sont pas l'entrée (c'est ce que « Dupliquer » vide).
+    # ⚠ Depuis le 2026-10-02 le RETRAIT n'émet plus cette liste : les vues générées appellent
+    # `release_card_files(item)`, qui lit ce que la card porte (ses champs fichier, ses listes de
+    # chemins déclarées) — la liste ne sert plus qu'à dériver les SORTIES.
     champs_fichiers = [d['input_field']] + [n for n in d['file_fields'] if n != d['input_field']]
     champs_sortie = [n for n in champs_fichiers if n != d['input_field']]
     # Nom de fichier pour les propriétés d'ENTRÉE de la card (input_props_for) : le champ
@@ -923,8 +926,7 @@ def delete(request, pk):
     # rechargement de la page (2026-09-15).
     from wama.common.utils.batch_common import batch_snapshot, batch_state
     snapshot = batch_snapshot(item)
-    for _champ in {champs_fichiers!r}:
-        release_card_file(item, _champ)   # propriété + partage jugés par la brique
+    release_card_files(item)   # tout ce que la card porte ; propriété + partage jugés par la brique
     item.delete()
     # ⚠ NE PAS supprimer le lot vidé ici (retiré le 2026-09-09). C'était une REDUPLICATION du
     # mécanisme commun `batch_sync` — `register_batch_sync(<Item>, direct_fk=True)` est branché
@@ -969,8 +971,7 @@ def clear_all(request):
     user = _user(request)
     n = 0
     for item in {item}.objects.filter(user=user).exclude(status='RUNNING'):
-        for _champ in {champs_fichiers!r}:
-            release_card_file(item, _champ)
+        release_card_files(item)
         item.delete()
         n += 1
     {batch}.objects.filter(user=user, {items_related}__isnull=True).delete()
@@ -1076,10 +1077,10 @@ def {nom}(request, pk):
     fabrique_lot = f'''
 
 # Fabrique COMMUNE des VUES DE LOT (`batch_views`, 2026-09-22) : les six actions de lot,
-# paramétrées par le manifeste — champs FICHIER de la facette data, réglages déclarés, schéma.
+# paramétrées par le manifeste — champs de SORTIE de la facette data, réglages déclarés, schéma.
 _bv = make_batch_views(
     work_model={item}, batch_model={batch}, get_user=_user, task={task},
-    file_fields={champs_fichiers!r}, output_fields={champs_sortie!r},
+    output_fields={champs_sortie!r},
     params_fields={d['params_fields']!r}, schema=_SCHEMA,
     options_field={conteneur_options!r}, extra_names={hors_colonnes!r},
     {form_kwargs}, items_related='{items_related}',{bv_extra}{bv_output}
@@ -1273,7 +1274,7 @@ from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.detail_registry import normalize_status
 from wama.common.utils.process_control import begin_processing, stop_instance
 from wama.common.utils.batch_views import apply_item_settings, make_batch_views, read_settings_payload
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 {imports_forme}
 from wama.common.utils.queue_view import apply_queue_sort_filter
 

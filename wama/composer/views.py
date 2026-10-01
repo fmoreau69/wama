@@ -16,7 +16,7 @@ from django.utils.http import content_disposition_header
 
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
-from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance, release_card_file
+from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance, release_card_files
 from .models import ComposerBatch, ComposerBatchItem, ComposerGeneration
 from .utils.model_choice import (AUTO_MUSIC, AUTO_SFX, DEFAULT_MODEL, consumes_input, consumes_melody,
                                  is_valid, normalize)
@@ -96,7 +96,7 @@ def _copy_link_extra(new_gen, old_gen):
 _bv = make_batch_views(
     work_model=ComposerGeneration, batch_model=ComposerBatch, get_user=_get_user,
     task_for=_task_for, start_only_pending=True,
-    file_fields=('melody_reference', 'reference_score', 'audio_output'), output_fields=('audio_output',),
+    output_fields=('audio_output',),
     item_model=ComposerBatchItem, fk_name='generation',
     reset_on_start=_reset_for_relaunch,
     reset_on_duplicate={'status': 'PENDING', 'progress': 0, 'task_id': None,
@@ -648,13 +648,8 @@ def delete(request, pk):
     from wama.common.utils.batch_common import batch_snapshot, batch_state
     snapshot = batch_snapshot(gen)
 
-    # Delete output unconditionally
-    release_card_file(gen, 'audio_output')
-
-    # Références (mélodie, partition) : check refs before deleting
-    for field in ('melody_reference', 'reference_score'):
-        if getattr(gen, field):
-            release_card_file(gen, field)
+    # Sortie et références (mélodie, partition) : LIBÉRÉES par la brique, à l'échelle de la card.
+    release_card_files(gen)
 
     gen.delete()
 
@@ -821,10 +816,7 @@ def clear_all(request):
 
     gens = ComposerGeneration.objects.filter(user=user).exclude(status='RUNNING')
     for gen in gens:
-        release_card_file(gen, 'audio_output')
-        for field in ('melody_reference', 'reference_score'):
-            if getattr(gen, field):
-                release_card_file(gen, field)
+        release_card_files(gen)
 
     gens.delete()
     ComposerBatch.objects.filter(user=user).delete()

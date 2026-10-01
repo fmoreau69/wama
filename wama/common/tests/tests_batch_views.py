@@ -45,7 +45,7 @@ class DirectFormBatchViewsTest(TestCase):
                                               batch_row_index=0)
         self.views = make_batch_views(
             work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda r: self.u,
-            task=self.task, file_fields=('input_file', 'output_file'),
+            task=self.task,
             output_fields=('output_file',), params_fields=('output_format',),
             batch_attr='batch', row_field='batch_row_index',
             batch_extra=lambda lot: {'media_type': lot.media_type})

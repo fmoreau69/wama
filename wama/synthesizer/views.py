@@ -33,7 +33,8 @@ from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels as _input_labels
 from wama.common.utils.media_paths import received_inputs
 from wama.accounts.views import get_or_create_anonymous_user
-from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance, release_card_file
+from wama.common.utils.queue_duplication import (safe_delete_file, duplicate_instance, release_card_file,
+                                                  release_card_files)
 
 logger = logging.getLogger(__name__)
 
@@ -584,12 +585,8 @@ def delete(request, pk: int):
         except Exception:
             pass
 
-    # Input files may be shared with duplicates — only delete if no other row references them
-    release_card_file(synthesis, 'text_file')
-    release_card_file(synthesis, 'voice_reference')
-
-    # Output file is always unique to this synthesis — delete unconditionally
-    release_card_file(synthesis, 'audio_output')
+    # Texte, voix de référence et sortie : LIBÉRÉS par la brique (un fichier partagé reste)
+    release_card_files(synthesis)
 
     synthesis.delete()
     cache.delete(f"synthesizer_progress_{pk}")
@@ -763,12 +760,8 @@ def clear_all(request):
             except Exception:
                 pass
 
-        # Supprimer les fichiers
-        release_card_file(synthesis, 'text_file')
-
-        release_card_file(synthesis, 'audio_output')
-
-        release_card_file(synthesis, 'voice_reference')
+        # Libérer les fichiers (brique, à l'échelle de la card)
+        release_card_files(synthesis)
 
         cache.delete(f"synthesizer_progress_{synthesis.id}")
 
@@ -1121,7 +1114,7 @@ def _zip_name(batch):
 _bv = make_batch_views(
     work_model=VoiceSynthesis, batch_model=BatchSynthesis, get_user=_get_user,
     task_for=_task_for, reset_on_start=_reset_and_seed_progress,
-    file_fields=('text_file', 'voice_reference', 'audio_output'), output_fields=('audio_output',),
+    output_fields=('audio_output',),
     output_field='audio_output',
     item_model=BatchSynthesisItem, fk_name='synthesis',
     reset_on_duplicate={'status': 'PENDING', 'progress': 0, 'task_id': '', 'properties': '',

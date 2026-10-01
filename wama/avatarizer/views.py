@@ -24,7 +24,7 @@ from .params import PARAMS_JSON as _AVATAR_PARAMS_JSON
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.accounts.permissions import app_access
 from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 from wama.common.utils.batch_common import group_into_batches_by_nature
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels
@@ -434,16 +434,11 @@ def delete(request, pk):
     from wama.common.utils.batch_common import batch_snapshot, batch_state
     snapshot = batch_snapshot(job)
 
-    # safe_delete_file (brique commune) : ne supprime le fichier physique que s'il
-    # n'est référencé par aucune autre instance (fichiers partagés par duplication).
-    from wama.common.utils.queue_duplication import release_card_file
-    for field_name in ['audio_input', 'avatar_upload', 'output_video']:
-        try:
-            release_card_file(job, field_name)
-        except Exception:
-            pass
+    # Les fichiers de la card sont LIBÉRÉS par la brique (propriété + partage : un fichier
+    # partagé par duplication, ou seulement référencé, reste à sa place sans être annoncé).
+    release_card_files(job)
 
-    # ⚠ `safe_delete_file` ne connaît QUE les champs de fichier. L'avatarizer crée en plus un
+    # ⚠ La brique ne connaît QUE les fichiers que la card désigne. L'avatarizer crée en plus un
     # DOSSIER par job (`workers.py:194`, `job_<id>/`) qui survivait à la suppression de la card :
     # relevé le 2026-08-25, **13 dossiers `job_*` orphelins** contre 4 rattachés — et l'un d'eux
     # pesait 1715,7 Mo. La card partait, les fichiers restaient, et rien ne le disait.
@@ -571,8 +566,7 @@ def clear_all(request):
         # Même nettoyage que la vue delete() — par la brique : `audio_input` peut POINTER vers
         # un fichier de l'utilisateur (lot `-i`), et un `os.remove` direct l'effaçait (relevé le
         # 2026-09-22). La brique ne détruit que ce qui vit chez l'app, et que plus rien ne partage.
-        for field_name in ['audio_input', 'avatar_upload', 'output_video']:
-            release_card_file(job, field_name)
+        release_card_files(job)
         job.delete()  # signal batch_sync : recale total / supprime le batch vidé
         count += 1
     return JsonResponse({'deleted': count})
@@ -995,7 +989,6 @@ def _derive_quality_mode(job):
 _bv = make_batch_views(
     work_model=AvatarJob, batch_model=BatchAvatarJob, get_user=_get_user,
     task_for=_task_for,
-    file_fields=('audio_input', 'avatar_upload', 'output_video'),
     output_fields=('output_video',), output_field='output_video',
     params_fields=SETTINGS_FIELDS, schema=_SCHEMA, after_update=_derive_quality_mode,
     item_model=BatchAvatarJobItem, fk_name='job',

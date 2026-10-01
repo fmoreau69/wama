@@ -25,7 +25,7 @@ from django.conf import settings
 from django.utils.http import content_disposition_header
 
 from .models import Description, BatchDescription, BatchDescriptionItem
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.video_utils import upload_media_from_url
 
@@ -492,7 +492,7 @@ def _reset_and_clear_progress(description):
 _bv = make_batch_views(
     work_model=Description, batch_model=BatchDescription, get_user=get_user,
     task=_describe_content,
-    file_fields=('input_file', 'result_file'), output_fields=('result_file',),
+    output_fields=('result_file',),
     params_fields=SETTINGS_FIELDS, schema=_SCHEMA,
     item_model=BatchDescriptionItem, fk_name='description',
     reset_on_start=_reset_and_clear_progress,
@@ -715,10 +715,8 @@ def delete(request, pk):
     from wama.common.utils.batch_common import batch_snapshot, batch_state
     snapshot = batch_snapshot(description)
 
-    # Delete files
-    release_card_file(description, 'input_file')
-
-    release_card_file(description, 'result_file')
+    # Fichiers LIBÉRÉS par la brique, à l'échelle de la card
+    release_card_files(description)
 
     description.delete()  # signal batch_sync : recale total / supprime le batch vidé
 
@@ -779,8 +777,7 @@ def clear_all(request):
     count = descriptions.count()
 
     for desc in descriptions:
-        release_card_file(desc, 'input_file')
-        release_card_file(desc, 'result_file')
+        release_card_files(desc)
 
     descriptions.delete()
 

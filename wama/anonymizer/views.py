@@ -30,7 +30,7 @@ from django.utils.encoding import iri_to_uri
 from wama.accounts.permissions import app_access
 
 from .models import Media, BatchAnonymizer, BatchAnonymizerItem
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 from .tasks import process_single_media, process_user_media_batch, stop_process
 from .utils.media_utils import get_unique_filename
 from .utils.yolo_utils import get_model_path
@@ -788,7 +788,7 @@ def _read_batch(user, pk):
 _bv = make_batch_views(
     work_model=Media, batch_model=BatchAnonymizer, get_user=_get_user,
     task=process_single_media, reset_on_start=_reset_and_forget_progress,
-    file_fields=('file', 'output_file'), output_fields=('output_file',),
+    output_fields=('output_file',),
     read_lookup=_read_batch,
     params_fields=tuple(p['name'] for p in _ANON_PARAMS_JSON if p.get('name')),
     schema=_ANON_PARAMS_JSON, after_update=_mark_customised,
@@ -1094,10 +1094,9 @@ def clear_all_media(request):
             cache.delete(f"anon_lock:media:{media.id}")
             cache.delete(f"anon_task_owner:media:{media.id}")
 
-            # Entrée ET sortie : supprimées seulement si aucune autre ligne ne les désigne
-            # (la sortie était effacée par un chemin recalculé, qui ne l'atteignait jamais).
-            release_card_file(media, 'file')
-            release_card_file(media, 'output_file')
+            # Entrée ET sortie LIBÉRÉES par la brique, à l'échelle de la card (la sortie
+            # était effacée par un chemin recalculé, qui ne l'atteignait jamais).
+            release_card_files(media)
 
             media.delete()
 
@@ -1147,8 +1146,7 @@ def _supprimer_media(media, user):
     cache.delete(f"anon_lock:media:{media.pk}")
     cache.delete(f"anon_task_owner:media:{media.pk}")
 
-    release_card_file(media, 'file')
-    release_card_file(media, 'output_file')
+    release_card_files(media)
     media.delete()  # signal batch_sync : recale total / supprime le batch vidé
 
 

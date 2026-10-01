@@ -758,20 +758,26 @@ def _release_card_file(f: _AppFiles):
     COMMENTAIRE citant l'ancien nom (`find` brut), trois par leur relance — aucun des dix
     verdicts ne parlait du retrait d'une card. *Un critère doit suivre la règle qu'il mesure.*
 
-    Mesure une ADOPTION dans les vues, commentaires neutralisés : le verbe de la brique à
-    l'échelle de la card (`release_card_files` — ses champs fichier ET ses listes de chemins
-    déclarées, lus de ses déclarations) ou champ par champ (`release_card_file`). Le
-    FONCTIONNEMENT — les trois gestes de retrait, sur chaque app — est tenu par
-    `tests_queue_delete_contract` (champs fichier) et `tests_card_listed_files` (listes).
+    Mesure une ADOPTION dans les vues, commentaires neutralisés. VERT : le verbe à l'échelle de
+    la card (`release_card_files` — ses champs fichier ET ses listes de chemins déclarées, lus de
+    ses déclarations ; D35, les dix apps le 2026-10-02). PARTIEL : le seul verbe champ par champ
+    (`release_card_file`) — juste, mais d'après une liste de champs écrite dans la vue, qui peut
+    diverger du modèle (c'est l'état d'une jumelle pas encore régénérée). Le FONCTIONNEMENT —
+    les trois gestes de retrait, sur chaque app — est tenu par `tests_queue_delete_contract`
+    (champs fichier) et `tests_card_listed_files` (listes).
     """
-    release = f.find_code(VIEWS, r'\brelease_card_files?\(')
+    release = f.find_code(VIEWS, r'\brelease_card_files\(')
     if release:
         return True, release
+    per_field = f.find_code(VIEWS, r'\brelease_card_file\(')
+    if per_field:
+        return 'partial', (f"{per_field} : libération champ par champ, d'après une liste écrite "
+                           "dans la vue — `release_card_files(card)` lit ce que la card porte")
     replace_only = f.find_code(VIEWS, r'\bsafe_delete_file\(')
     if replace_only:
         return False, (f"{replace_only} : `safe_delete_file` seul — il EFFACE, il est réservé à la "
-                       "relance ; retirer une card passe par `release_card_file`")
-    return False, "aucun `release_card_file()` dans les vues — les fichiers d'une card retirée ne sont ni libérés ni annoncés"
+                       "relance ; retirer une card passe par `release_card_files`")
+    return False, "aucun `release_card_files()` dans les vues — les fichiers d'une card retirée ne sont ni libérés ni annoncés"
 
 
 def _card_in_batch(f: _AppFiles):
@@ -2128,7 +2134,7 @@ CRITERIA: list[Criterion] = [
     Criterion('duplicate_instance', 'F5', 'duplicate_instance() (brique commune)',
               lambda f: _present(f, VIEWS, r'duplicate_instance'),
               mechanism='queue_duplication'),
-    Criterion('release_card_file', 'F5', 'Retirer une card libère ses fichiers (release_card_file)',
+    Criterion('release_card_file', 'F5', 'Retirer une card libère ses fichiers (release_card_files)',
               _release_card_file, mechanism='queue_duplication'),
     Criterion('user_settings', 'F5', 'Réglages user persistés (brique user_settings)', _user_settings,
               mechanism='user_settings'),

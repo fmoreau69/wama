@@ -20,7 +20,7 @@ from .models import (Enhancement, AudioEnhancement,
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.console_utils import get_console_lines
 from ..common.utils.video_utils import upload_media_from_url, get_media_info
-from ..common.utils.queue_duplication import release_card_file, duplicate_instance
+from ..common.utils.queue_duplication import release_card_files, duplicate_instance
 from ..common.utils.scoping import visible_or_404
 
 logger = logging.getLogger(__name__)
@@ -609,11 +609,8 @@ def delete(request, pk: int):
     from wama.common.utils.batch_common import batch_snapshot, batch_state
     snapshot = batch_snapshot(enhancement)
 
-    # Input file may be shared with a duplicate — only delete if no other row references it
-    release_card_file(enhancement, 'input_file')
-
-    # Output file is unique to this enhancement — delete unconditionally
-    release_card_file(enhancement, 'output_file')
+    # Entrée et sortie LIBÉRÉES par la brique (une entrée partagée avec un doublon reste)
+    release_card_files(enhancement)
 
     enhancement.delete()  # signal batch_sync : recale total / supprime le batch vidé
     cache.delete(f"enhancer_progress_{pk}")
@@ -734,8 +731,7 @@ def clear_all(request):
     cleared = []
     for enhancement in enhancements:
         cleared.append(enhancement.id)
-        release_card_file(enhancement, 'input_file')
-        release_card_file(enhancement, 'output_file')
+        release_card_files(enhancement)
         cache.delete(f"enhancer_progress_{enhancement.id}")
 
     enhancements.delete()
@@ -1002,7 +998,7 @@ def _reset_media_and_clear_progress(e):
 _bv = make_batch_views(
     work_model=Enhancement, batch_model=BatchEnhancement, get_user=_get_user,
     task_for=_media_task,
-    file_fields=('input_file', 'output_file'), output_fields=('output_file',),
+    output_fields=('output_file',),
     output_name=lambda e: e.get_output_filename(),
     zip_name=lambda b: f"batch_enhancer_{b.id}_{datetime.date.today()}.zip",
     item_model=BatchEnhancementItem, fk_name='enhancement',
@@ -1277,11 +1273,8 @@ def audio_delete(request, pk: int):
     from wama.common.utils.batch_common import batch_snapshot, batch_state
     snapshot = batch_snapshot(ae)
 
-    # Input may be shared with a duplicate — only delete if no other row references it
-    release_card_file(ae, 'input_file')
-
-    # Output is unique — delete unconditionally
-    release_card_file(ae, 'output_file')
+    # Entrée et sortie LIBÉRÉES par la brique (une entrée partagée avec un doublon reste)
+    release_card_files(ae)
 
     ae.delete()  # signal batch_sync : recale total / supprime le batch vidé (+ fichier batch)
     cache.delete(f"audio_enhancer_progress_{pk}")
@@ -1376,14 +1369,13 @@ def audio_clear_all(request):
     cleared = []
     for ae in aes:
         cleared.append(ae.id)
-        release_card_file(ae, 'input_file')
-        release_card_file(ae, 'output_file')
+        release_card_files(ae)
         cache.delete(f"audio_enhancer_progress_{ae.id}")
     aes.delete()
     # Clean up orphan batch containers and their files
     batches = BatchAudioEnhancement.objects.filter(user=user)
     for batch in batches:
-        release_card_file(batch, 'batch_file')
+        release_card_files(batch)
     batches.delete()
     return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
 
@@ -1571,7 +1563,7 @@ def _audio_reset_for(request):
 _abv = make_batch_views(
     work_model=AudioEnhancement, batch_model=BatchAudioEnhancement, get_user=_get_user,
     task_for=_audio_task, start_reset_for=_audio_reset_for,
-    file_fields=('input_file', 'output_file'), output_fields=('output_file',),
+    output_fields=('output_file',),
     output_name=lambda ae: ae.get_output_filename(),
     zip_name=lambda b: f"audio_batch_{b.id}_{datetime.date.today()}.zip",
     item_model=BatchAudioEnhancementItem, fk_name='audio_enhancement',
