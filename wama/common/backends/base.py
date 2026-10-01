@@ -563,6 +563,10 @@ class BaseModelBackend(ABC):
     supports_hotwords: bool = False
     supports_streaming: bool = False
     supports_cloning: bool = False
+    #: Le moteur honore `vad_filter` (filtre de parole avant de transcrire, réglage `vad_mode`
+    #: d'une card). Jusqu'au 2026-10-01 le worker ne le passait qu'au moteur NOMMÉ `whisper` :
+    #: un autre moteur qui sait filtrer ne pouvait pas le recevoir.
+    supports_vad_filter: bool = False
     #: Borne LANGUE de `supports_timestamps` (cf. vocabulaire commun) : liste vide/None = la
     #: capacité vaut pour toutes les langues du moteur. Lire via `supports_timestamps_for()`,
     #: jamais le booléen seul — sinon la borne se perd au premier appelant qui l'ignore.

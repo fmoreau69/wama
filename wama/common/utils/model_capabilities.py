@@ -98,6 +98,7 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     "supports_hotwords":    "bool — biais lexical / hotwords",
     "supports_streaming":   "bool — inférence en flux (temps réel)",
     "supports_cloning":     "bool — clonage de voix (TTS)",
+    "supports_vad_filter":  "bool — filtre de parole (VAD) avant de transcrire, réglage `vad_mode` (ASR)",
     # Détection / segmentation
     "classes":             "list[str] — classes détectables (YOLO)",
     "text_promptable":     "bool — segmentation par prompt texte (SAM3)",

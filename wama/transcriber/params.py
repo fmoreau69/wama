@@ -104,7 +104,8 @@ PARAMS = derive_from_model(
                  "ou faits à bas niveau, neutre sur un enregistrement propre."),
         "vad_mode": dict(
             type="select", label="Filtre de parole (VAD)", icon="fa-wave-square",
-            help="Whisper saute les passages qu'il juge sans parole. « Auto » vérifie d'abord qu'il "
+            help="Whisper et Albert sautent les passages jugés sans parole. « Auto » vérifie "
+                 "d'abord que le filtre "
                  "ne rejette pas une parole lointaine (entretien enregistré à distance) et le "
                  "désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les "
                  "longs silences."),

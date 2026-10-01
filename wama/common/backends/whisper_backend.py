@@ -42,6 +42,7 @@ class WhisperBackend(SpeechToTextBackend):
     supports_timestamps  = True
     supports_hotwords    = True    # param NATIF `hotwords` de faster-whisper (cf. transcribe(), ~l.211)
     supports_streaming   = False
+    supports_vad_filter  = True    # `vad_filter` natif de faster-whisper (Silero)
 
     # Dépendances (contrat commun) : nom d'IMPORT ≠ nom pip.
     REQUIRED_PACKAGES = ['faster_whisper']

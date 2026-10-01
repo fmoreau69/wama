@@ -192,7 +192,10 @@ FLEURS-CS, `WAMA_QUALITE §9bis`. Le constat du 25/09 reposait sur des nombres d
 une erreur mesurée.)*
 
 - **Réglage de card et de lot** `vad_mode` (schéma `params.py`, pas dans le volet global : un
-  dépôt prend « auto »). Seul Whisper le lit ; les autres moteurs ne reçoivent pas l'argument.
+  dépôt prend « auto »). Le reçoivent les moteurs qui DÉCLARENT `supports_vad_filter` — Whisper
+  (natif) et, depuis le 2026-10-01, Albert (même VAD Silero appliqué avant l'envoi, temps replacés
+  sur l'audio d'origine) ; jusque-là le worker ne le passait qu'au moteur NOMMÉ `whisper`. Les
+  autres moteurs ne reçoivent pas l'argument.
 - **auto** : la brique commune `wama/common/utils/speech_activity.py` sonde 3 fenêtres de 2 min
   (quelques secondes de CPU) et compare le VAD à l'énergie ; s'il garde moins de **0,6×** l'actif,
   la card est transcrite **sans filtre** et la console le dit (chiffres compris). Une sonde qui

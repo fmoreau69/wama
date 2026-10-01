@@ -467,6 +467,21 @@ def engine_name_for(value) -> str:
     return hit[1]
 
 
+def filters_speech(value) -> bool:
+    """Le moteur qui exécute `value` (clé de catalogue ou ancien nom) honore-t-il le filtre de
+    parole (`supports_vad_filter`) ? Lu sur la CLASSE, sans instancier ni appeler le fournisseur
+    — pour qui pose des configurations (`asr_eval_corpus`) sans rien exécuter."""
+    key = catalogue_value(value)
+    manager = TranscriberBackendManager.get_instance()
+    cls = manager._backends.get(engine_name_for(key))
+    if cls is None and TranscriberBackendManager._is_remote_key(key):
+        from wama.common.backends.manager import backend_for_model
+        from wama.model_manager.models import AIModel
+        row = AIModel.objects.filter(model_key=key).first()
+        cls = backend_for_model(row) if row is not None else None
+    return bool(cls is not None and getattr(cls, 'supports_vad_filter', False))
+
+
 def get_backend(name: str = None, user=None) -> SpeechToTextBackend:
     """
     Get a transcription backend instance.

@@ -766,9 +766,28 @@ DEUX réunions valides (`007a_ECRH` 20 min, `012c_EBPZ` 19 min) :
   Albert reconnaît aussi bien (substitués du même ordre) mais **omet 70 à 250 mots de plus** par
   réunion. Ses segments durent 22 à 25 s et couvrent 92 à 97 % de l'audio (ceux du local : 1 à
   2 s) : il ne découpe visiblement PAS la parole en amont comme notre filtre. ⚠ Cause DÉDUITE, pas
-  mesurée. ⏳ **Test proposé, non lancé (attend le GO de Fabien)** : envoyer à Albert l'audio déjà
-  découpé par le filtre de parole de WAMA — si l'écart tombe, la chaîne est en cause, pas le
-  modèle. En regard : **0 Go de VRAM locale** et 5 à 8 s pour
+  mesurée — puis **RÉFUTÉE par la mesure le 2026-10-01** (GO de Fabien) : le worker ne passait le
+  filtre qu'au moteur NOMMÉ `whisper` ; il passe désormais par la capacité `supports_vad_filter`,
+  qu'Albert déclare (même VAD Silero, réglages par défaut, temps replacés sur l'audio d'origine).
+  Cards #1232-1242 (compte `evaluation`, mêmes lots, « filtre = auto ») ; les anciennes #1072-1082,
+  qui avaient tourné SANS filtre malgré leur `vad_mode='auto'`, sont réétiquetées `off` (ce
+  qu'elles ont exécuté). Variante ≤ 30 s par envoi mesurée sans écrire en base (même lecture de
+  référence, même fonction d'erreur ; étalonnage : les 11 valeurs stockées retrouvées à 0,1 près) :
+
+  | | Albert sans filtre | Albert filtre (un envoi) | Albert filtre (≤ 30 s / envoi) | Whisper local |
+  |---|---|---|---|---|
+  | SUMM-RE (3) | 31,6 % | 31,7 % | 32,2 % | 28,8 % |
+  | FLEURS-CS (8) | 44,5 % | **39,8 %** | 40,3 % | 45,1 % |
+
+  Omis en réunion, filtre compris : 1535 · 803 · 1094 (sans : 1508 · 808 · 1022) — le découpage ne
+  les réduit pas, et les segments restent de 22 à 27 s sur une parole déjà condensée. ⇒ L'écart
+  est dans le DÉCODAGE d'Albert (faisceau, conditionnement : non exposés par son API), pas dans
+  notre chaîne. Le filtre reste actif pour Albert (il aide l'audio multilingue, ne coûte rien en
+  réunion) ; l'envoi par morceaux, sans gain, a été retiré du code. ⚠ FLEURS reste très dispersé
+  (seed353 : 25,4 sans filtre, 30,7 avec, 42,9 par morceaux) : huit enregistrements ne tranchent
+  pas un écart de quelques points. ⚠ Le compte `evaluation` est « 100 % local » : il ne peut pas
+  rejouer Albert (refus voulu de `cloud_access`) — profil et clé à décider par Fabien.
+  En regard : **0 Go de VRAM locale** et 5 à 8 s pour
   19-26 min d'audio (mesuré à l'appel direct). ⚠ Trois réunions : un ordre de grandeur, pas un
   verdict ; et, pour de vrais entretiens, l'audio QUITTE la machine (verrou « sensibilité » de
   `ROADMAP §8d` ③, non tranché).
@@ -782,8 +801,8 @@ DEUX réunions valides (`007a_ECRH` 20 min, `012c_EBPZ` 19 min) :
   locale ; accord de langue par segment 48 %
   contre 46 %. Albert n'annonce qu'UNE langue par fichier (il transcrit d'un seul tenant, et son
   `language` TRADUIRAIT : il ne lui est jamais imposé). ⇒ Sur la parole spontanée (réunions),
-  Albert est ~3 points derrière ; sur la parole lue qui change de langue, à égalité — gratuit en
-  GPU, pas un remplaçant de qualité supérieure.
+  Albert est ~3 points derrière ; sur la parole lue qui change de langue, à égalité sans filtre et
+  devant avec (39,8 %, 2026-10-01) — gratuit en GPU, pas un remplaçant de qualité supérieure.
 - ⚠ **`008a_EARH` ÉCARTÉE** : la piste du locuteur 028 n'est « transcrite » que par des jetons
   (`sil`, `w_1 w_2 … w_14`, 1 768 jetons) alors que sa parole est dans l'audio — tous les moteurs
   y faisaient 66-69 %. `asr_eval_corpus` écarte désormais toute réunion dont une piste est masquée

@@ -1677,6 +1677,11 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    Fabien (grain modèle, clés entières, domaine `transcription`, `options_cloud`), livré le 30/09
    après le commit du chantier diarisation qui occupait les mêmes fichiers (`ROUTE §F4b` étape
    ⑦) — Albert est au menu pour qui a une clé, et « auto » le tire pour un profil « cloud autorisé ».
+   ✅ **Filtre de parole par CAPACITÉ** (2026-10-01) : `supports_vad_filter` au contrat commun
+   (Whisper, Albert) — le worker ne le passait qu'au moteur nommé `whisper`. Mesuré : il aide Albert
+   sur l'audio multilingue (44,5 → 39,8 %) mais ne comble pas l'écart en réunion, qui est dans son
+   décodage (`WAMA_QUALITE §9bis`). Reprise sur la limite de débit (429). ⏳ Le compte
+   `evaluation` est « 100 % local » : il ne peut pas évaluer un modèle distant (décision de Fabien).
 4. ⏳ **Lever le verrou du catalogue** (§8d ①②, ordre fixé par Fabien le 15/09) — modèles cloud
    au catalogue par découverte, moteurs cloud à l'inventaire, `select_model` (VRAM/`is_downloaded`
    pour les locaux seulement, cloud seulement autorisé), réglage de profil, clés chiffrées par
