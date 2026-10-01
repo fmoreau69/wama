@@ -196,7 +196,7 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
     #: Ce que la sonde des langues « entend » (jamais le vrai modèle `tiny` dans un test).
     heard = [('fr', 0.95)]
 
-    def _run(self, asr):
+    def _run(self, asr, task='transcribe_without_preprocessing'):
         from unittest import mock
         from wama.transcriber import workers
         with mock.patch.object(workers, 'get_backend', return_value=asr), \
@@ -205,7 +205,7 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
                 mock.patch('wama.common.utils.spoken_language.probe_languages',
                            return_value=self.heard) as self.probed, \
                 mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
-            workers.transcribe_without_preprocessing.run(self.item.pk)
+            getattr(workers, task).run(self.item.pk)
         self.item.refresh_from_db()
 
     def _asr(self, fail=False):
@@ -389,6 +389,26 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
             self._run(asr)
         self.assertTrue(leveled.called)
         self.assertTrue(asr.transcribe.call_args.kwargs['audio_path'].endswith('_leveled.wav'))
+
+    def test_denoising_always_comes_after_leveling(self):
+        """Order fixed by the preprocessing bench (2026-10-01): DeepFilterNet erases speech
+        recorded low, so asking for it levels first — even without the leveling option."""
+        from unittest import mock
+        Transcript.objects.filter(pk=self.item.pk).update(preprocess_audio=True, level_speech=False,
+                                                          status='RUNNING')
+        asr = self._asr()
+        calls = []
+
+        def denoise(t, path):
+            calls.append(('denoise', path))
+            return path.replace('.wav', '_cleaned.wav')
+        with mock.patch('wama.common.utils.speech_leveling.level_file',
+                        side_effect=lambda src, dst: calls.append(('level', src)) or dst), \
+                mock.patch('wama.transcriber.workers._preprocess_audio', side_effect=denoise):
+            self._run(asr, task='transcribe')       # la tâche qui GARDE le prétraitement
+        self.assertEqual(['level', 'denoise'], [step for step, _ in calls])
+        self.assertTrue(calls[1][1].endswith('_leveled.wav'), 'the denoiser gets the LEVELED audio')
+        self.assertTrue(asr.transcribe.call_args.kwargs['audio_path'].endswith('_leveled_cleaned.wav'))
 
     def test_without_the_option_nothing_is_leveled(self):
         from unittest import mock

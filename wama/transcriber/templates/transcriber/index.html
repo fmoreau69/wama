@@ -334,17 +334,19 @@ appliqués à tous les items non-RUNNING (batch_update_settings). {% endcomment 
             </div>
             <div class="modal-body" style="color: #000000;">
                 <h6>Qu'est-ce que le prétraitement audio ?</h6>
-                <p>Le prétraitement nettoie vos enregistrements avant la transcription :</p>
+                <p>Le prétraitement nettoie vos enregistrements avant la transcription, dans cet ordre :</p>
                 <ul>
-                    <li><strong>Débruitage IA (DeepFilterNet)</strong> : supprime le bruit de fond et la
-                        réverbération en préservant la parole (modèle neuronal, sûr pour la reconnaissance)</li>
+                    <li><strong>Nivellement de la parole</strong> : toujours appliqué en premier, pour que le
+                        débruiteur ne prenne pas une voix faible pour du bruit</li>
+                    <li><strong>Débruitage IA (DeepFilterNet)</strong> : atténue le bruit de fond</li>
                     <li><strong>Mise au format ASR</strong> : conversion en mono 16&nbsp;kHz + normalisation
                         légère (entrée native de Whisper)</li>
                 </ul>
                 <div class="alert alert-warning">
                     <i class="fas fa-circle-info"></i>
-                    Optionnel : Whisper est robuste au bruit et transcrit souvent très bien l'audio brut.
-                    N'activez le débruitage que pour des enregistrements vraiment dégradés.
+                    Mesuré sur des réunions et des entretiens : le débruitage fait perdre des mots sur un
+                    enregistrement propre ou lointain. Pour une voix faible ou lointaine, préférez le
+                    <strong>nivellement de la parole</strong> seul. Réservez le débruitage aux fonds très bruyants.
                 </div>
             </div>
             <div class="modal-footer" style="background-color: #f8f9fa; border-top: 1px solid #dee2e6;">

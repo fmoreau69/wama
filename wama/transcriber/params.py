@@ -87,11 +87,12 @@ PARAMS = derive_from_model(
         "preprocess_audio": dict(
             label="Prétraitement audio", icon="fa-wand-magic-sparkles",
             dom_id={"panel": "preprocessingToggle", "item": "settingsPreprocess"},
-            # Risque MESURÉ (2026-09-25, lots d'évaluation #443) : sur un entretien propre, le
-            # débruitage a fait passer l'erreur par mot de 32 à 37 % — ses artefacts gênent l'ASR.
-            help_html='Débruitage IA (DeepFilterNet) + 16 kHz mono<br>'
-                      '<span class="text-warning">Peut dégrader la transcription d\'un enregistrement '
-                      'déjà propre : à réserver aux fonds très bruyants.</span><br>'
+            # Risque MESURÉ (2026-09-25, lot #443 ; banc des prétraitements 2026-10-01,
+            # WAMA_QUALITE §9bis) : le débruitage ne bat jamais le nivellement seul, et sur un
+            # enregistrement BAS il efface la parole — d'où le nivellement imposé avant lui.
+            help_html='Débruitage IA (DeepFilterNet), la parole étant d\'abord nivelée<br>'
+                      '<span class="text-warning">Dégrade la transcription d\'un enregistrement '
+                      'propre ou lointain : à réserver aux fonds très bruyants.</span><br>'
                       '<a href="#" class="text-info text-decoration-none" data-bs-toggle="modal" '
                       'data-bs-target="#preprocessingModal"><i class="fas fa-circle-question"></i> En savoir plus</a>',
         ),
@@ -99,8 +100,8 @@ PARAMS = derive_from_model(
             label="Nivellement de la parole", icon="fa-sliders",
             help="Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont "
                  "remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué "
-                 "après le prétraitement. En cours d'évaluation : effet sur la transcription non "
-                 "encore établi."),
+                 "en premier, avant le prétraitement. Mesuré : aide les enregistrements lointains "
+                 "ou faits à bas niveau, neutre sur un enregistrement propre."),
         "vad_mode": dict(
             type="select", label="Filtre de parole (VAD)", icon="fa-wave-square",
             help="Whisper saute les passages qu'il juge sans parole. « Auto » vérifie d'abord qu'il "
