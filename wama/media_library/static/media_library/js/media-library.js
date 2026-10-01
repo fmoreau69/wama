@@ -26,7 +26,6 @@
     let currentType          = document.querySelector('#assetTypeTabs .nav-link.active')?.dataset.type || 'voice';
     let currentPage          = 1;
     let hasMore              = false;
-    let searchTimer          = null;
     let editingAsset         = null;
     let currentAssets        = [];   // assets visibles dans la grille (pour navigation)
     let currentSearchResults = [];   // résultats de recherche provider (pour navigation)
@@ -34,9 +33,34 @@
     // ── DOM ───────────────────────────────────────────────────────────────────
 
     const assetGrid       = document.getElementById('assetGrid');
-    const searchInput     = document.getElementById('searchInput');
-    const resultCount     = document.getElementById('resultCount');
     const loadMoreBtn     = document.getElementById('loadMoreBtn');
+    // BARRE COMMUNE (`wama-filter-bar.js`, mode `remote`, 2026-10-01) : recherche, filtres, tri et
+    // compteur. Elle dit QUOI charger (`wama:filter-change`) ; la grille reste chargée ici, page par
+    // page. Elle remplace le champ de recherche propre à la page.
+    const filterHost      = document.getElementById('mlFilterBar');
+    function filterBar() {
+        const el = filterHost && filterHost.querySelector('[data-wama-filter-bar]');
+        if (!el || !window.WamaFilterBar) return null;
+        let bar = WamaFilterBar.get(el);
+        if (!bar && el.getAttribute('data-monte') !== '1') {    // montage pas encore passé
+            el.setAttribute('data-monte', '1');
+            bar = WamaFilterBar.init({ bar: el });
+        }
+        return bar;
+    }
+    // Les filtres d'ATTRIBUTS portent leur nature (`data-f-nature`) : seuls ceux de l'onglet ouvert
+    // se montrent, et un filtre masqué revient à « Tous » — il ne doit rien restreindre en silence.
+    function syncFacetsWithTab() {
+        if (!filterHost) return;
+        filterHost.querySelectorAll('[data-f-nature]').forEach(col => {
+            col.hidden = col.dataset.fNature !== currentType;
+            if (col.hidden) col.querySelectorAll('select').forEach(s => { s.value = 'all'; });
+        });
+    }
+    function searchFor(text) {
+        const bar = filterBar();
+        if (bar) bar.setSearch(text);          // la barre annonce, la grille se recharge
+    }
     // Card d'ajout COMMUNE (`common/_new_item_card_library.html`, 2026-09-30) : elle remplace la zone
     // « Ajouter » propre à la page. La nature est celle de l'onglet ouvert.
     const newItemWrap     = document.getElementById('mlNewItemWrap');
@@ -78,14 +102,12 @@
 
     // ── Panels ────────────────────────────────────────────────────────────────
 
-    const libraryPanel = document.getElementById('assetGrid').parentElement
-        .querySelector('.ml-toolbar')?.parentElement;  // container
     const searchPanel   = document.getElementById('searchPanel');
     const keywordsPanel = document.getElementById('keywordsPanel');
     let _kwBrick = null;
 
     function showLibraryMode() {
-        document.querySelector('.ml-toolbar').style.display = '';
+        filterHost.style.display = '';
         newItemWrap.style.display = '';
         document.getElementById('assetGrid').style.display = '';
         document.getElementById('loadMoreBtn').parentElement.style.display = '';
@@ -94,7 +116,7 @@
     }
 
     function showSearchMode() {
-        document.querySelector('.ml-toolbar').style.display = 'none';
+        filterHost.style.display = 'none';
         newItemWrap.style.display = 'none';
         document.getElementById('assetGrid').style.display = 'none';
         document.getElementById('loadMoreBtn').parentElement.style.display = 'none';
@@ -104,7 +126,7 @@
     }
 
     function showKeywordsMode() {
-        document.querySelector('.ml-toolbar').style.display = 'none';
+        filterHost.style.display = 'none';
         newItemWrap.style.display = 'none';
         document.getElementById('assetGrid').style.display = 'none';
         document.getElementById('loadMoreBtn').parentElement.style.display = 'none';
@@ -139,9 +161,10 @@
             } else {
                 showLibraryMode();
                 describeNewItemCard();
-                searchInput.value = '';
-                resetGrid();
-                loadAssets(true);
+                syncFacetsWithTab();
+                // La recherche repart à vide ; la barre l'annonce, et c'est ce qui recharge la
+                // grille (un seul chemin de chargement).
+                searchFor('');
             }
         });
     });
@@ -153,12 +176,11 @@
         showKeywordsMode();
     }
 
-    // ── Recherche (debounce 300ms) ────────────────────────────────────────────
+    // ── Recherche, filtres, tri : la barre commune annonce, la grille recharge ──────────
 
-    searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => { resetGrid(); loadAssets(true); }, 300);
-    });
+    if (filterHost) {
+        filterHost.addEventListener('wama:filter-change', () => { resetGrid(); loadAssets(true); });
+    }
 
     // ── Chargement des assets ─────────────────────────────────────────────────
 
@@ -177,10 +199,15 @@
                 </div>`;
         }
 
-        const q = searchInput.value.trim();
+        const bar = filterBar();
+        const asked = bar ? bar.state() : { q: '', facets: {}, sort: '' };
+        const q = asked.q;
         const params = new URLSearchParams({ type: currentType, page: currentPage,
                                              scope: 'visible' });
         if (q) params.set('q', q);
+        if (asked.sort) params.set('sort', asked.sort);
+        // `origin` et `attr__<nature>__<attribut>` : les noms des filtres SONT les paramètres.
+        Object.entries(asked.facets).forEach(([key, value]) => params.set(key, value));
 
         try {
             const [userResp, sysResp] = await Promise.all([
@@ -197,7 +224,7 @@
             hasMore = userData.has_more || sysData.has_more;
             loadMoreBtn.style.display = hasMore ? 'inline-block' : 'none';
 
-            resultCount.textContent = total > 0 ? `${total} asset${total > 1 ? 's' : ''}` : '';
+            if (bar) bar.setCount(total > 0 ? `${total} asset${total > 1 ? 's' : ''}` : '');
 
             if (currentPage === 1) {
                 assetGrid.innerHTML = '';
@@ -399,11 +426,7 @@
         });
         // Filtre par tag
         card.querySelectorAll('.asset-tag').forEach(tagEl => {
-            tagEl.addEventListener('click', () => {
-                searchInput.value = tagEl.dataset.tag;
-                resetGrid();
-                loadAssets(true);
-            });
+            tagEl.addEventListener('click', () => searchFor(tagEl.dataset.tag));
         });
 
         return card;
@@ -554,11 +577,7 @@
                 : '';
             tagsWrap.innerHTML = tagsHtml;
             tagsWrap.querySelectorAll('.asset-tag').forEach(tagEl => {
-                tagEl.addEventListener('click', () => {
-                    searchInput.value = tagEl.dataset.tag;
-                    resetGrid();
-                    loadAssets(true);
-                });
+                tagEl.addEventListener('click', () => searchFor(tagEl.dataset.tag));
             });
         }
     }
@@ -854,6 +873,7 @@
     // ── Init ──────────────────────────────────────────────────────────────────
 
     loadCounts();
+    syncFacetsWithTab();
     if (currentType !== 'search') {
         loadAssets(true);
     }

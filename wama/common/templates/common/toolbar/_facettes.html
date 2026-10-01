@@ -7,9 +7,12 @@ barre de registre changerait de mise en page — ce que la demande interdit expl
 `valeur` est portée par la facette ELLE-MÊME et non par un dict `valeurs` séparé : Django ne
 sait pas indexer un dict par une variable sans filtre maison, et en ajouter un pour ça seul
 serait un mécanisme de plus à connaître.
+
+`nature` (option, 2026-10-01, médiathèque) : la facette ne vaut que pour une nature d'élément ;
+la page montre celles de l'onglet ouvert (`data-f-nature`), la brique ignore les masquées.
 {% endcomment %}
 {% for f in facettes %}
-<div class="col-auto">
+<div class="col-auto"{% if f.nature %} data-f-nature="{{ f.nature }}"{% endif %}>
   <label class="text-muted small me-2" for="f-{{ f.cle }}">{{ f.label }}&nbsp;:</label>
   <select class="form-select form-select-sm filter-select d-inline-block w-auto"
           id="f-{{ f.cle }}" name="{{ f.cle }}" data-f-facette="{{ f.cle }}">

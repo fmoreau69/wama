@@ -80,6 +80,12 @@ urlpatterns = [
     path('api/released-files/', views.api_released_files, name='api_released_files'),
     path('api/released-files/delete/', views.api_released_files_delete,
          name='api_released_files_delete'),
+    # …et (2026-10-01) la confirmation de suppression le DEMANDE d'avance : aperçu de ce que le
+    # retrait libérerait, puis « supprimer aussi » ou « garder » sur ces chemins.
+    path('api/released-files/preview/', views.api_released_files_preview,
+         name='api_released_files_preview'),
+    path('api/released-files/keep/', views.api_released_files_keep,
+         name='api_released_files_keep'),
     # ENVOYER VERS — résolveur en LECTURE SEULE : sorties de l'élément + apps éligibles +
     # l'endpoint qui reçoit. L'envoi lui-même passe par `filemanager:api_import`, celui qui
     # sert déjà « Envoyer vers… » — on ne duplique pas ses gardes.

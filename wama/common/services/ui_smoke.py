@@ -97,6 +97,50 @@ def _drop_new_sessions(before: set):
         return 0
 
 
+#: Répond à la confirmation COMMUNE (`WamaApp.ask`, `wama-app-base.js`) comme `d.accept()`
+#: répond à un `confirm` natif : à son ouverture complète (`shown.bs.modal` — un clic pendant la
+#: transition d'ouverture serait ignoré par Bootstrap), on règle la case puis on valide.
+_ANSWER_COMMON_CONFIRM = """(tick) => {
+    window.__wamaConfirmTick = tick;          // relu à chaque ouverture : un geste peut en changer
+    if (window.__wamaConfirmAnswerer) return;
+    window.__wamaConfirmAnswerer = true;
+    document.addEventListener('shown.bs.modal', (e) => {
+        const modal = e.target;
+        if (!modal.classList || !modal.classList.contains('wama-confirm')) return;
+        const box = modal.querySelector('[data-confirm-option]');
+        // Ce que la confirmation a PROPOSÉ, relu par les gestes qui en font leur objet.
+        (window.__wamaConfirmSeen = window.__wamaConfirmSeen || []).push(
+            {option: !!box, text: (modal.innerText || '').slice(0, 300)});
+        if (box) box.checked = !!window.__wamaConfirmTick;
+        const ok = modal.querySelector('[data-confirm-ok]');
+        if (ok) ok.click();
+    });
+}"""
+
+
+def accept_dialogs(page, delete_files: bool = True):
+    """Accepte TOUTES les confirmations d'un geste : les `confirm` natifs ET la confirmation
+    commune des retraits (`WamaApp.ask`, 2026-10-01 — case « supprimer aussi le fichier »).
+
+    `delete_files` règle cette case. Vrai par défaut pour le harnais : les témoins d'un geste
+    sont des fichiers du compte de test, et les garder les accumulerait nuit après nuit. Le geste
+    qui éprouve le choix lui-même (`common.released_files`) passe `False` là où il veut garder.
+    À appeler AVANT `goto` (script d'initialisation) ; il s'installe aussi sur la page courante.
+    """
+    page.on('dialog', lambda d: d.accept())
+    script = f'({_ANSWER_COMMON_CONFIRM})({"true" if delete_files else "false"});'
+    page.add_init_script(script)
+    set_delete_files(page, delete_files)
+
+
+def set_delete_files(page, delete_files: bool):
+    """Change la réponse à la case pour les confirmations SUIVANTES de la page courante."""
+    try:
+        page.evaluate(f'({_ANSWER_COMMON_CONFIRM})({"true" if delete_files else "false"})')
+    except Exception:
+        pass
+
+
 def _exercise_page(url, png_path, jeton=None, selector=None, timeout_ms=45000):
     """
     Charge `url` EN TANT QUE COMPTE DE TEST, PARCOURT LES ONGLETS, écrit la capture.
@@ -2254,7 +2298,7 @@ def check_app_duplicate_delete(app: str, url_path: str):
                 # La suppression demande confirmation sur plusieurs apps (`confirm()` natif).
                 # Sans ce gestionnaire, Playwright la refuse par défaut et le geste échouerait
                 # pour une raison qui n'a rien à voir avec ce qu'on mesure.
-                page.on('dialog', lambda d: d.accept())
+                accept_dialogs(page)
                 echecs = []
                 page.on('response', lambda r: (
                     echecs.append(f"{r.status} {r.url.split('?')[0]}")
@@ -2609,7 +2653,7 @@ def check_app_settings(app: str, url_path: str):
                 contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
                                        'domain': '127.0.0.1', 'path': '/'}])
                 page = contexte.new_page()
-                page.on('dialog', lambda d: d.accept())
+                accept_dialogs(page)
                 erreurs = []
                 page.on('pageerror', lambda e: erreurs.append(str(e)[:120]))
                 echecs = []
@@ -3364,7 +3408,7 @@ def check_app_batch_actions(app: str, url_path: str):
             contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
                                    'domain': '127.0.0.1', 'path': '/'}])
             page = contexte.new_page()
-            page.on('dialog', lambda d: d.accept())   # 🗑 confirme (confirm() natif)
+            accept_dialogs(page)   # 🗑 confirme (natif ou confirmation commune des retraits)
             echecs = []
             page.on('response', lambda r: (
                 echecs.append(f"{r.status} {r.url.split('?')[0]}")
@@ -3630,7 +3674,7 @@ def check_app_delete_from_batch(app: str, url_path: str):
             contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
                                    'domain': '127.0.0.1', 'path': '/'}])
             page = contexte.new_page()
-            page.on('dialog', lambda d: d.accept())   # 🗑 confirme (confirm() natif)
+            accept_dialogs(page)   # 🗑 confirme (natif ou confirmation commune des retraits)
             echecs = []
             page.on('response', lambda r: (
                 echecs.append(f"{r.status} {r.url.split('?')[0]}")
@@ -3812,7 +3856,7 @@ def check_app_clear_all(app: str, url_path: str):
             contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
                                    'domain': '127.0.0.1', 'path': '/'}])
             page = contexte.new_page()
-            page.on('dialog', lambda d: d.accept())   # `confirm('Supprimer tout ?')`
+            accept_dialogs(page)   # « Tout effacer » : confirmation commune des retraits
             posts = []
             page.on('response', lambda r: (
                 posts.append((r.status, r.url.split('?')[0]))

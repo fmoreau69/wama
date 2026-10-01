@@ -19335,3 +19335,50 @@ débruitage : `workers.py`, `params.py`, `models.py`, `tests_editor.py`, gabarit
 
 **Rouges vus, pas à moi** : budgets de noms de tests français (commits d'autres instances) ;
 `check_docs` 2 références cassées (hors de mes fichiers).
+
+## §PALIER — 2026-10-01 (matin), « LA CONFIRMATION DEMANDE LE SORT DU FICHIER + BARRE COMMUNE DE LA MÉDIATHÈQUE » — ✅ commit ci-dessous — 🔴 RELANCER WAMA (routes et vues neuves ; aucune migration) — 🔚 décisions ouvertes ci-dessous
+
+> Fabien, revenant sur D34 : *« j'ai peut-être été un peu vite… c'est aussi le risque de conserver
+> des médias inutiles »* ; puis, après avis (propriétaire unique, partager = pointer, copier et
+> transférer = gestes explicites) : *« pour 1, on va essayer décochée par défaut dans un 1er temps
+> et tu peux faire la barre commune dans la médiathèque. On traite le reste ensuite. »*
+> Domicile : `MEDIA_STORAGE_TIERING §8.6` D34 (complété) ; gestes : `WAMA_VERIFICATION`.
+
+**1. « Supprimer aussi le fichier » dans la confirmation (case décochée).** `released_files.freed_by`
+(ce que le retrait LIBÉRERAIT — propriété `owns_file`, partage jugé sur l'ensemble retiré via
+`file_references.referenced_outside`, une requête par champ fichier) ; routes
+`common:api_released_files_preview` (`surface`, `nature` ∈ element/lot/queue, `pk` — mêmes
+coordonnées que le partage) et `common:api_released_files_keep` ; `delete/` accepte des `paths`.
+Confirmation commune `WamaApp.ask` (`wama-app-base.js`, promesse `{ok, option}`) ;
+`queue-actions.js::confirmRemoval` pour card, lot et « Tout effacer » — la case n'apparaît que si
+quelque chose serait libéré ; décision appliquée AVANT la mise à jour de la file (sinon
+`released-files.js` ré-annoncerait). Harnais : `ui_smoke.accept_dialogs` / `set_delete_files`
+(répond à la confirmation commune comme à un `confirm` natif), adopté par les 5 gestes qui
+acceptaient les `confirm`.
+
+**2. Barre commune de la médiathèque.** Mode `remote` de `wama-filter-bar.js` (la page charge sa
+liste, la barre émet `wama:filter-change` ; `get`, `state`, `setSearch`, `setCount`) ; outil
+`sort_by` au registre de barre (`common/toolbar.py`, profil `registre` — ne rend rien sans
+`sort_options`) ; `_facettes.html` porte `data-f-nature`. Médiathèque : filtres Origine (miens /
+partagés / système) + attributs DÉRIVÉS des natures (`views._attribute_facets` : vocabulaire
+déclaré, ou valeurs présentes pour un texte libre ≤ 30) + tris `LIST_SORTS` ; `_apply_list_filters`
+commun à `api_list` et `api_system_list` (sans les nouveaux paramètres, réponse inchangée — la
+fenêtre de sélection des apps n'en passe aucun).
+
+**Mesures** : `tests_released_files` 38 OK (avec `tests_file_references`) ; `wama.media_library` +
+`tests_queue_toolbar` + `tests_released_files` : 231, seul rouge `tests_picker_list` mime (antérieur) ;
+gestes 8011 : `common.released_files` **11/11**, `media_library.filter_bar` **8/8** (nouveau),
+`duplicate_delete` / `batch_actions` / `delete_from_batch` / `clear_all` sur converter ET describer
+**8/8** ; V8 : `wama-app-base.js`, `queue-actions.js`, `wama-filter-bar.js`, `media-library.js`.
+Passe large `wama.common` + `media_library` + `filemanager` (2653) : 26 F / 5 E, AUCUN de ce
+palier — `editor_01` (jumelle créée le jour même par une autre instance), budgets de langue et
+imports de backends (travail en cours d'autres instances), `docs/dev/briques.md` 171 ≠ 175
+mécanismes (antérieur), `quality_intent` du transcriber (instance Albert) ; les contrats de
+suppression et `tests_endpoints`, rouges dans cette passe, sont VERTS rejoués seuls (une autre
+instance lançait ses tests sur la même base de test au même moment).
+
+🔚 **À trancher (Fabien)** : la rétention efface-t-elle de nouveau les fichiers possédés (et ceux
+gardés à la confirmation) ; gestes « Copier dans mon espace » / « Transférer à… » (règle proposée :
+après transfert la card ne désigne que des fichiers de son nouveau propriétaire — possédés DÉPLACÉS,
+désignés COPIÉS) ; repasser la case cochée par défaut après essai ; retirer l'annonce post-retrait
+si la confirmation suffit. Adoption possible du `sort_by` par le model manager (tri écrit à la main).

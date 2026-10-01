@@ -1599,7 +1599,53 @@ def api_released_files_delete(request):
     (toujours inutilisé, à cet utilisateur) juste avant ; un fichier repris entre-temps est gardé."""
     from wama.common.services.released_files import delete_released
     ids = [int(i) for i in request.POST.getlist('ids') if str(i).isdigit()]
-    return JsonResponse(delete_released(request.user, ids))
+    return JsonResponse(delete_released(request.user, ids, request.POST.getlist('paths')))
+
+
+@login_required
+@require_POST
+def api_released_files_keep(request):
+    """POST `ids` ou `paths` — l'utilisateur GARDE ces fichiers (case de la confirmation laissée
+    décochée) : rien n'est supprimé, et ils ne seront plus annoncés."""
+    from wama.common.services.released_files import keep_released
+    ids = [int(i) for i in request.POST.getlist('ids') if str(i).isdigit()]
+    return JsonResponse({'kept': keep_released(request.user, ids, request.POST.getlist('paths'))})
+
+
+@login_required
+def api_released_files_preview(request):
+    """GET `surface`, `nature` ∈ {element, lot, queue}, `pk` — les fichiers que ce retrait LIBÉRERAIT
+    (possédés, désignés par rien d'autre ensuite). La confirmation de suppression ne propose
+    « Supprimer aussi le fichier » que s'il y en a (décision de Fabien, 2026-10-01).
+
+    Mêmes coordonnées que le partage (`api_partage`) : la SURFACE de `PreviewRegistry` — l'enhancer
+    en a deux — et un pk cherché DANS LE PÉRIMÈTRE DE L'UTILISATEUR (404 sinon). `queue` = toute la
+    file de cette surface, ce que retire « Tout effacer ».
+    """
+    from django.shortcuts import get_object_or_404
+    from wama.common.services.released_files import freed_by
+    from wama.common.utils.batch_common import batch_elements, batch_model_for_app
+    from wama.common.utils.preview_registry import PreviewRegistry
+
+    surface = request.GET.get('surface') or ''
+    nature = request.GET.get('nature') or 'element'
+    model = PreviewRegistry.get_model(surface)
+    if model is None or nature not in ('element', 'lot', 'queue'):
+        return JsonResponse({'error': 'cible inconnue'}, status=404)
+    batch_model = batch_model_for_app(surface)
+    if nature == 'element':
+        instances = [get_object_or_404(model, pk=request.GET.get('pk'), user=request.user)]
+    elif nature == 'lot':
+        if batch_model is None:
+            return JsonResponse({'error': f"{surface} n'a pas de modèle de lot"}, status=404)
+        lot = get_object_or_404(batch_model, pk=request.GET.get('pk'), user=request.user)
+        instances = [lot, *batch_elements(lot, model)]
+    else:
+        instances = list(model.objects.filter(user=request.user))
+        if batch_model is not None:
+            instances += list(batch_model.objects.filter(user=request.user))
+    paths = freed_by(instances)
+    return JsonResponse({'files': [{'path': p, 'name': p.rsplit('/', 1)[-1]} for p in paths]})
 
 
 @login_required

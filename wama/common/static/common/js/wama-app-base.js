@@ -225,6 +225,69 @@
     return el;
   }
 
+  // ── Confirmation COMMUNE, avec une OPTION à cocher (2026-10-01) ────────────────────
+  // `window.confirm` ne sait porter qu'une question : il ne peut pas demander, dans le même geste,
+  // « supprimer aussi le fichier ? » (décision de Fabien : case DÉCOCHÉE par défaut). Cette
+  // modale le fait, et rend une promesse `{ok, option}`.
+  //   opts = { text, okLabel='Confirmer', danger=true,
+  //            option: {label, checked=false} | null,   // case proposée (absente si null)
+  //            details: ['nom', …] }                     // ce que l'option concerne (5 montrés)
+  // Repli sur `window.confirm` si Bootstrap manque : la question reste posée, l'option tombe.
+  // ⚠ Le harnais nocturne y répond par `ui_smoke.accept_dialogs` (comme il accepte un
+  // `confirm` natif) : ne pas renommer `.wama-confirm` / `[data-confirm-ok]` / `[data-confirm-option]`
+  // sans lui.
+  function ask(opts) {
+    opts = opts || {};
+    if (!global.bootstrap || !global.bootstrap.Modal) {
+      return Promise.resolve({ ok: global.confirm(opts.text || ''), option: false });
+    }
+    return new Promise(function (resolve) {
+      const modal = document.createElement('div');
+      modal.className = 'modal fade wama-confirm';
+      modal.tabIndex = -1;
+      const optionId = 'wama-confirm-opt-' + Date.now();
+      const names = (opts.details || []).slice(0, 5).map(function (n) {
+        return '<li class="text-truncate">' + escapeHtml(n) + '</li>';
+      }).join('');
+      const more = (opts.details || []).length > 5
+        ? '<li>… et ' + ((opts.details || []).length - 5) + ' autre(s)</li>' : '';
+      const option = opts.option ? (
+        '<div class="form-check mt-3">' +
+          '<input class="form-check-input" type="checkbox" id="' + optionId + '" data-confirm-option' +
+          (opts.option.checked ? ' checked' : '') + '>' +
+          '<label class="form-check-label" for="' + optionId + '">' + escapeHtml(opts.option.label) + '</label>' +
+          (names ? '<ul class="small mb-0 mt-1 ps-4 text-light">' + names + more + '</ul>' : '') +
+        '</div>') : '';
+      modal.innerHTML =
+        '<div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark text-light border-secondary">' +
+          '<div class="modal-body"><div style="white-space:pre-wrap">' + escapeHtml(opts.text || '') + '</div>' +
+            option + '</div>' +
+          '<div class="modal-footer border-secondary py-2">' +
+            '<button type="button" class="btn btn-sm btn-outline-light" data-confirm-cancel>Annuler</button>' +
+            '<button type="button" class="btn btn-sm ' + (opts.danger === false ? 'btn-primary' : 'btn-danger') +
+              '" data-confirm-ok>' + escapeHtml(opts.okLabel || 'Confirmer') + '</button>' +
+          '</div></div></div>';
+      document.body.appendChild(modal);
+      let answer = { ok: false, option: false };
+      const bs = global.bootstrap.Modal.getOrCreateInstance(modal);
+      modal.querySelector('[data-confirm-ok]').addEventListener('click', function () {
+        const box = modal.querySelector('[data-confirm-option]');
+        answer = { ok: true, option: !!(box && box.checked) };
+        bs.hide();
+      });
+      modal.querySelector('[data-confirm-cancel]').addEventListener('click', function () { bs.hide(); });
+      modal.addEventListener('shown.bs.modal', function () {
+        modal.querySelector('[data-confirm-ok]').focus();
+      });
+      modal.addEventListener('hidden.bs.modal', function () {
+        bs.dispose();
+        modal.remove();
+        resolve(answer);
+      });
+      bs.show();
+    });
+  }
+
   // ── Import par URL : câble le bloc URL de la carte commune (_new_item_card.html) ──
   // Élimine le handler fetch/CSRF/spinner/erreur dupliqué dans chaque app. L'app
   // déclare la capacité dans son template (show_url=True + url_input_id/url_submit_id)
@@ -697,6 +760,7 @@
     Poller: Poller,
     emptyState: emptyState,
     toast: toast,
+    ask: ask,
     filesFromServerPaths: filesFromServerPaths,
     injectFiles: injectFiles,
     designateInto: designateInto,

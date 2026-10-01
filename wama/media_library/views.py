@@ -55,6 +55,79 @@ def _readable_assets(request, user):
     return UserAsset.objects.owned_by(user)
 
 
+#: La BARRE COMMUNE de la page (2026-10-01, demande de Fabien : « on n'a que la recherche ;
+#: réutiliser la barre de filtrage/tri/recherche commune ») — mode `remote` de `wama-filter-bar.js` :
+#: la page charge sa liste elle-même, la barre lui dit QUOI charger. Les TRIS se déclarent ici une
+#: fois : la barre les propose (outil `sort_by`), les deux vues de liste les appliquent. Sans `sort`
+#: demandé, l'ordre reste celui d'avant (la fenêtre de sélection des apps ne le passe pas).
+LIST_SORTS = {
+    'recent': ('↓ Plus récent', ('-created_at', '-pk')),
+    'oldest': ('↑ Plus ancien', ('created_at', 'pk')),
+    'name':   ('Nom', ('name', 'pk')),
+    'size':   ('Taille', ('-file_size', 'pk')),
+}
+
+#: Au-delà de ce nombre de valeurs DIFFÉRENTES, un attribut libre n'est pas proposé en filtre : un
+#: menu de deux cents entrées n'aide plus à trouver, la recherche le fait mieux.
+FREE_FACET_MAX = 30
+
+ORIGIN_FACET = {'cle': 'origin', 'label': 'Origine', 'tous': 'Toutes',
+                'options': {'mine': 'Les miens', 'shared': 'Partagés avec moi',
+                            'system': 'Système'}}
+
+
+def _attribute_facets(user) -> list:
+    """Les filtres d'ATTRIBUTS, par nature — DÉRIVÉS de la déclaration (`natures.py`), jamais
+    écrits par onglet : un vocabulaire déclaré (`choices`, au moins deux valeurs) donne ses
+    valeurs ; un texte libre (la langue d'une voix) donne les valeurs PRÉSENTES dans ce que
+    l'utilisateur peut lire, système compris. Chaque filtre porte sa `nature` : la page ne montre
+    que ceux de l'onglet ouvert."""
+    from wama.common.utils.scoping import listable_by
+    from .natures import ASSET_NATURES
+    facets = []
+    for key, nature in ASSET_NATURES.items():
+        for attr, spec in nature.attributes.items():
+            if len(spec.choices) >= 2:
+                labels = dict(spec.labels)
+                options = {c: labels.get(c, c) for c in spec.choices}
+            elif spec.kind == 'str' and not spec.choices:
+                values = set()
+                for qs in (listable_by(UserAsset.objects.filter(asset_type=key), user),
+                           SystemAsset.objects.filter(is_active=True, asset_type=key)):
+                    values |= {v for v in qs.values_list(f'attributes__{attr}', flat=True)
+                               if isinstance(v, str) and v}
+                if not values or len(values) > FREE_FACET_MAX:
+                    continue
+                options = {v: v for v in sorted(values)}
+            else:
+                continue
+            facets.append({'cle': f'attr__{key}__{attr}', 'label': spec.label or attr,
+                           'tous': 'Tous', 'options': options, 'nature': key})
+    return facets
+
+
+def _apply_list_filters(qs, request, natures):
+    """Recherche, filtres d'attributs et tri demandés par la barre — UNE fois, pour les assets de
+    l'utilisateur comme pour ceux du système. Un filtre d'une AUTRE nature que celles affichées est
+    ignoré (onglet changé), un attribut non déclaré aussi : on ne filtre jamais sur une clé libre."""
+    from .natures import is_canonical_attribute
+    q = request.GET.get('q', '').strip()
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(tags__icontains=q) | Q(description__icontains=q))
+    for param, value in request.GET.items():
+        if not param.startswith('attr__') or not value or value == 'all':
+            continue
+        parts = param.split('__')
+        if len(parts) != 3:
+            continue
+        nature, attr = parts[1], parts[2]
+        if (natures is not None and nature not in natures) or not is_canonical_attribute(nature, attr):
+            continue
+        qs = qs.filter(asset_type=nature, **{f'attributes__{attr}': value})
+    sort = LIST_SORTS.get(request.GET.get('sort') or '')
+    return qs.order_by(*sort[1]) if sort else qs
+
+
 def _serialize_user_asset(a, user=None):
     """⚠ `is_mine` et `owner` ne sont pas décoratifs : depuis qu'une lecture peut rendre l'asset
     d'un autre, une card sans eux serait indiscernable de la mienne — et l'interface offrirait
@@ -150,6 +223,9 @@ def index(request):
         # donc `discoverable_apps()` la voit — mais ce n'est PAS une app du catalogue, d'où
         # son absence du test de non-régression des 10 apps (`tests_volet.PagesDAppTest`).
         'volet': VOLET_AUCUN,
+        # La barre commune (mode `remote`) : origine + attributs DÉRIVÉS des natures, tris déclarés.
+        'library_facets': [ORIGIN_FACET, *_attribute_facets(_get_user(request))],
+        'library_sorts': [(k, label) for k, (label, _order) in LIST_SORTS.items()],
     }
     return render(request, 'media_library/index.html', context)
 
@@ -238,17 +314,22 @@ def api_list(request):
     Sans ces options, la réponse est celle d'avant : la portée se DEMANDE (`?scope=`)."""
     user       = _get_user(request)
     asset_type = request.GET.get('type', '')
-    q          = request.GET.get('q', '').strip()
     page       = max(1, int(request.GET.get('page', 1)))
     natures    = _natures_for(asset_type, exact=request.GET.get('exact') == '1')
-    text       = Q(name__icontains=q) | Q(tags__icontains=q) | Q(description__icontains=q)
+    origin     = request.GET.get('origin') or 'all'
 
     # `select_related('user')` : le sérialiseur nomme le propriétaire d'un asset partagé — sans
     # lui, une page de 48 cards ferait 48 requêtes de plus.
     readable = _readable_assets(request, user).select_related('user')
     qs = readable.filter(asset_type__in=natures) if natures is not None else readable
-    if q:
-        qs = qs.filter(text)
+    qs = _apply_list_filters(qs, request, natures)
+    # ORIGINE (filtre de la barre) : les miens, ceux qu'on me partage, ou ceux du système seuls.
+    if origin == 'mine':
+        qs = qs.filter(user=user)
+    elif origin == 'shared':
+        qs = qs.exclude(user=user)
+    elif origin == 'system':
+        qs = qs.none()
 
     system_all = SystemAsset.objects.filter(is_active=True) \
         if request.GET.get('with_system') == '1' else None
@@ -258,12 +339,15 @@ def api_list(request):
         assets = [_serialize_user_asset(a, user) for a in qs[offset:offset + PAGE_SIZE]]
     else:
         system = system_all.filter(asset_type__in=natures) if natures is not None else system_all
-        if q:
-            system = system.filter(text)
+        system = _apply_list_filters(system, request, natures)
+        if origin in ('mine', 'shared'):
+            system = system.none()
+        if not request.GET.get('sort'):
+            system = system.order_by('asset_type', 'name')
         # Les miens, puis ceux qu'on me partage, puis ceux du système — l'ordre de la confiance.
         mine = [_serialize_user_asset(a, user) for a in qs]
         rows = ([a for a in mine if a['is_mine']] + [a for a in mine if not a['is_mine']]
-                + [_serialize_system_asset(a) for a in system.order_by('asset_type', 'name')])
+                + [_serialize_system_asset(a) for a in system])
         total  = len(rows)
         assets = rows[offset:offset + PAGE_SIZE]
 
@@ -455,16 +539,17 @@ def api_delete(request, pk: int):
 
 @login_required
 def api_system_list(request):
-    """GET /media-library/api/system/?type=voice&q=homme"""
+    """GET /media-library/api/system/?type=voice&q=homme — mêmes filtres et tri que `api_list`
+    (barre commune) ; `origin=mine|shared` n'en rend aucun."""
     asset_type = request.GET.get('type', '')
-    q          = request.GET.get('q', '').strip()
     page       = max(1, int(request.GET.get('page', 1)))
 
     qs = SystemAsset.objects.filter(is_active=True)
     if asset_type:
         qs = qs.filter(asset_type=asset_type)
-    if q:
-        qs = qs.filter(Q(name__icontains=q) | Q(tags__icontains=q) | Q(description__icontains=q))
+    qs = _apply_list_filters(qs, request, [asset_type] if asset_type else None)
+    if request.GET.get('origin') in ('mine', 'shared'):
+        qs = qs.none()
 
     total  = qs.count()
     offset = (page - 1) * PAGE_SIZE

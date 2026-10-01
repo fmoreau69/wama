@@ -398,6 +398,75 @@ def check_share_consent(nature: str = 'voice'):
     return _bilan(verdicts)
 
 
+def check_library_filter_bar():
+    """La BARRE COMMUNE de la médiathèque (2026-10-01, demande de Fabien) : recherche, origine,
+    filtres d'attributs de l'onglet, tri — en mode `remote`, la page recharge sa grille. (ok, detail)
+
+    Joué sur les voix SYSTÈME (présentes sur toute installation) : rien n'est créé.
+    """
+    from playwright.sync_api import sync_playwright
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.media_library.models import SystemAsset
+
+    session_token = _test_session_key('media_library')
+    if not session_token:
+        raise SkipScenario('aucun compte de test disponible')
+    if SystemAsset.objects.filter(is_active=True, asset_type='voice').count() < 2:
+        raise SkipScenario('moins de deux voix système : rien à filtrer ni à trier')
+    host = '#mlFilterBar'
+    names_js = "els => els.map(e => e.textContent.trim())"
+    verdicts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        try:
+            ctx = browser.new_context(viewport={'width': 1500, 'height': 1000})
+            ctx.add_cookies(_cookie(session_token))
+            page = ctx.new_page()
+            errors, asked = [], []
+            page.on('pageerror', lambda e: errors.append(str(e)))
+            page.on('request', lambda r: asked.append(r.url)
+                    if '/media-library/api/' in r.url and r.method == 'GET' else None)
+            page.goto(BASE_URL + '/media-library/?tab=voice', wait_until='networkidle')
+            verdicts.append((page.locator(f'{host} [data-wama-filter-bar][data-mode="remote"]').count() == 1,
+                             'barre commune montée (mode remote)'))
+            verdicts.append((page.locator(f'{host} [data-f-nature="voice"]:visible').count() >= 1,
+                             'filtres d’attributs de la voix montrés sur son onglet'))
+
+            asked.clear()
+            page.select_option(f'{host} select[data-f-facette="origin"]', 'system')
+            page.wait_for_timeout(1500)
+            total = page.locator('#assetGrid .asset-card').count()
+            system = page.locator('#assetGrid .asset-card.system-asset').count()
+            verdicts.append((any('origin=system' in u for u in asked) and total and total == system,
+                             f'« Origine : Système » : {system}/{total} cards système'))
+
+            asked.clear()
+            page.select_option(f'{host} select[data-f-role="sort"]', 'name')
+            page.wait_for_timeout(1500)
+            names = page.eval_on_selector_all('#assetGrid .asset-card .asset-name', names_js)
+            verdicts.append((any('sort=name' in u for u in asked) and len(names) >= 2
+                             and names[0].casefold() <= names[-1].casefold(),
+                             f'tri par nom transmis ({names[:1]} … {names[-1:]})'))
+            verdicts.append((bool(page.inner_text(f'{host} .wama-filter-count').strip()),
+                             'compteur rempli par la page'))
+
+            wanted = names[0] if names else ''
+            page.fill(f'{host} [data-f-role="recherche"]', wanted)
+            page.wait_for_timeout(1800)
+            found = page.eval_on_selector_all('#assetGrid .asset-card .asset-name', names_js)
+            verdicts.append((bool(found) and wanted in found,
+                             f'recherche « {wanted} » : {len(found)} résultat(s)'))
+
+            page.click('#assetTypeTabs .nav-link[data-type="avatar"]')
+            page.wait_for_timeout(1500)
+            verdicts.append((page.locator(f'{host} [data-f-nature="voice"]:visible').count() == 0,
+                             'onglet Avatars : les filtres de la voix disparaissent'))
+            verdicts.append((not errors, f'erreurs JS : {errors[:1]}'))
+        finally:
+            browser.close()
+    return _bilan(verdicts)
+
+
 def register_voice_library_scenarios():
     """Les apps qui DÉCLARENT un champ de voix ; le geste est commun (le bouton aussi)."""
     from wama.common.services.nightly_tests import register
@@ -412,6 +481,10 @@ def register_voice_library_scenarios():
     register(id='media_library.share_consent', app='media_library', stage='ui',
              description='partager une voix demande le consentement ; le retrait non ; tout est tracé',
              run=lambda ctx: check_share_consent('voice'), timeout_s=180)
+    register(id='media_library.filter_bar', app='media_library', stage='ui',
+             description='la barre commune de la médiathèque : origine, filtres de l’onglet, tri, '
+                         'recherche, compteur — la grille se recharge',
+             run=lambda ctx: check_library_filter_bar(), timeout_s=180)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════
