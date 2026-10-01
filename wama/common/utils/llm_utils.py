@@ -441,13 +441,17 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
     signature au modèle QUI ÉCRIT l'appel et au contrôle qui le juge — le rôle `codegen` avait
     passé `max_tokens` et `max_new_tokens`, `TypeError` assuré au premier lancement.
     """
+    from wama.common.utils.model_keys import AUTO, split_key
     llm_kwargs = {'num_predict': num_predict, 'think': think, 'timeout': timeout,
                   'temperature': temperature}
     key = (catalog_key or '').strip()
-    if not key or key == 'auto':
+    if not key or key == AUTO:
         return llm_chat(messages, model=None, provider='ollama', **llm_kwargs)
-    source, sep, model_id = key.partition(':')
-    if not sep or not model_id:
+    # La lecture UNIQUE de `<source>:<identifiant>` (brique `model_keys`, ralliée le 2026-10-01 :
+    # un `partition(':')` maison en était la 13ᵉ copie). Une valeur sans source connue n'est pas
+    # une clé de catalogue.
+    source, model_id = split_key(key)
+    if not source or not model_id:
         return None, f"clé de catalogue invalide : {catalog_key!r} (attendu <source>:<modèle>)"
     if source == 'ollama':
         return llm_chat(messages, model=model_id, provider='ollama', **llm_kwargs)
@@ -458,12 +462,37 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
     declared = external_sources.by_key().get(source)
     if declared is None or declared.kind != 'llm':
         return None, f"« {source} » n'est pas un fournisseur LLM déclaré dans WAMA"
-    from wama.model_manager.services.cloud_models import CloudAccessRefused, cloud_access
+    from wama.model_manager.services.cloud_models import CloudAccessRefused
     try:
-        api_key = cloud_access(user, source, model_id)
+        return chat_with_source(source, model_id, messages, user=user, **llm_kwargs)
     except CloudAccessRefused as refused:
         return None, str(refused)
-    return llm_chat(messages, model=model_id, provider=source, api_key=api_key, **llm_kwargs)
+
+
+def chat_with_source(source: str, model_id: Optional[str], messages: list, *, user=None,
+                     num_predict: Optional[int] = None, think: bool = False,
+                     timeout: Optional[float] = None, temperature: Optional[float] = None,
+                     ) -> tuple[Optional[str], Optional[str]]:
+    """Un appel à un fournisseur LLM DÉCLARÉ (`external_sources`, type `llm` : Albert, API
+    Anthropic…), avec la clé de l'UTILISATEUR quand il est connecté — `(texte, None)` ou
+    `(None, erreur)` de `llm_chat`. Le nom du fournisseur EST le nom de la source.
+
+    ⚠ LÈVE `CloudAccessRefused` (motif + statut HTTP) quand la garde commune refuse (profil
+    « 100 % local », modèle non ouvert par la clé, clé absente) : l'appelant choisit sa forme de
+    refus — `chat_with_catalog_model` la rend en message, l'assistant en statut.
+
+    POURQUOI une brique (2026-10-01) : ces lignes vivaient EN PRIVÉ dans l'assistant
+    (`assistant_engine._llm_call`) ; la 1ʳᵉ app à appeler un LLM par une clé de catalogue (le
+    Writer) les aurait recopiées. Sans utilisateur (rôles en ligne de commande), aucune clé n'est
+    passée : `llm_chat` prend celle de l'instance, comme avant.
+    """
+    api_key = None
+    if user is not None and getattr(user, 'is_authenticated', False):
+        from wama.model_manager.services.cloud_models import cloud_access
+        api_key = cloud_access(user, source, model_id or '')
+    return llm_chat(messages, model=model_id or None, provider=source, api_key=api_key,
+                    num_predict=num_predict, think=think, timeout=timeout,
+                    temperature=temperature)
 
 
 def extract_json_from_llm(text: str) -> Optional[dict]:

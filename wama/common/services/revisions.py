@@ -68,15 +68,32 @@ def settings_snapshot(app_id: str, item) -> dict:
     return snapshot
 
 
-def file_references(item) -> list:
-    """`[{field, path, sha256}]` des fichiers que `item` désigne (FileField non vides)."""
+def _text_fingerprint(value) -> str:
+    import hashlib
+    return hashlib.sha256(str(value).encode('utf-8')).hexdigest()
+
+
+def output_references(item, fields=None) -> list:
+    """`[{field, path, sha256}]` des SORTIES de `item`.
+
+    `fields` = les champs que le traitement vient d'écrire (clés `fields` du retour de la glu,
+    que le squelette connaît) : eux seuls sont des sorties. Un FileField y est référencé par son
+    chemin, un champ texte par l'empreinte de sa valeur (`path` vide). Sans `fields`, repli :
+    tous les FileField non vides — ce qui compte aussi les ENTRÉES (mesuré le 2026-10-01 : la
+    1ʳᵉ révision du Writer portait son document de référence comme sortie, et pas le document
+    produit, qui vit dans `result_text`)."""
     from django.db.models import FileField
 
     from wama.common.utils.provenance import sha256_of
 
+    by_name = {f.name: f for f in type(item)._meta.get_fields() if getattr(f, 'concrete', False)}
     refs = []
-    for field in type(item)._meta.get_fields():
+    for field in (by_name.values() if fields is None else
+                  [by_name[n] for n in fields if n in by_name]):
         if not isinstance(field, FileField):
+            value = getattr(item, field.name, None)
+            if fields is not None and value not in (None, ''):
+                refs.append({'field': field.name, 'path': '', 'sha256': _text_fingerprint(value)})
             continue
         value = getattr(item, field.name, None)
         name = getattr(value, 'name', '') or ''
@@ -97,9 +114,9 @@ def _target(app_id: str, item) -> dict:
 
 
 def record_revision(app_id: str, item, *, origin: str = 'process', user=None, outcome=None,
-                    model_keys=None, instruction: str = ''):
+                    model_keys=None, instruction: str = '', output_fields=None):
     """Donne à `item` sa révision suivante. Rend la ligne créée, ou None si rien n'a pu
-    être écrit (best-effort : ne lève jamais)."""
+    être écrit (best-effort : ne lève jamais). `output_fields` : cf. `output_references`."""
     try:
         from django.db import IntegrityError, transaction
         from django.db.models import Max
@@ -114,7 +131,7 @@ def record_revision(app_id: str, item, *, origin: str = 'process', user=None, ou
             model_keys=[str(k) for k in (model_keys or []) if k],
             instruction=instruction or '',
             settings=settings_snapshot(app_id, item),
-            outputs=file_references(item),
+            outputs=output_references(item, output_fields),
         )
         # Deux résultats simultanés sur le même élément sont rares mais possibles (relance
         # pendant un traitement) : la contrainte d'unicité tranche, on reprend le numéro suivant.
@@ -161,10 +178,11 @@ def get_revision(app_id: str, item, number: int):
     return revision
 
 
-def outputs_changed_since(revision) -> list:
+def outputs_changed_since(revision, item=None) -> list:
     """Les champs dont le fichier a changé (ou disparu) depuis `revision` — ce qui rend
     l'historique HONNÊTE tant que les sorties ne sont pas immuables. Un fichier sans
-    empreinte enregistrée n'est pas jugé."""
+    empreinte enregistrée n'est pas jugé ; une sortie TEXTE (`path` vide) ne l'est qu'avec
+    l'élément sous la main (`item`), sa valeur vivant en base."""
     from django.core.files.storage import default_storage
 
     from wama.common.utils.provenance import sha256_of
@@ -175,6 +193,12 @@ def outputs_changed_since(revision) -> list:
         if not recorded:
             continue
         path = ref.get('path') or ''
+        if not path:
+            if item is not None:
+                value = getattr(item, ref.get('field') or '', None)
+                if value in (None, '') or _text_fingerprint(value) != recorded:
+                    changed.append(ref.get('field'))
+            continue
         try:
             current = sha256_of(default_storage.path(path)) if path else ''
         except Exception:

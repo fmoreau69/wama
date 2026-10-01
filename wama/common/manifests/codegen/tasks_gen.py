@@ -60,29 +60,6 @@ def app_tasks(app_id: str) -> list:
     return out
 
 
-def _process_hole(node: dict, mark: str) -> list:
-    """Trou de glu d'UN process déclaré : sa déclaration en docstring (la matière du rôle
-    `codegen`), le contrat du squelette, et le `NotImplementedError` marqué."""
-    import textwrap
-    pid = node['id']
-    desc = (node.get('description') or '').replace('\\', '\\\\').replace('"""', '\\"\\"\\"')
-    lines = [f'def _process_{pid}(item, ctx):',
-             f'    """TROU DE GLU {mark} — process `{pid}` « {node.get("label") or pid} » '
-             f'({node.get("degree") or "required"}).',
-             '']
-    lines += textwrap.wrap(desc, width=92, initial_indent='    ', subsequent_indent='    ')
-    lines += ['',
-              f"    Lit : {', '.join(node.get('reads') or []) or '—'}.",
-              f"    Écrit (SEULES clés de `fields` du retour) : "
-              f"{', '.join(node.get('writes') or []) or '—'}.",
-              f"    Réglages surveillés : {', '.join(node.get('watched') or []) or '—'}.",
-              '',
-              '    Contrat (task_skeleton) : ctx.progress (0-100 DANS ce process) / ctx.console ;',
-              '    retour {fields, models, label} ; une exception = FAILURE de la tâche."""',
-              f"    raise NotImplementedError('{mark} process {pid} non généré (marche B)')"]
-    return lines
-
-
 def render_tasks(manifest: dict) -> tuple:
     """(source, raison) — fichier mince complet, ou (None, raison) si la facette ne porte pas
     de quoi le rendre (tasks lifecycle + item_model). Jamais de fichier partiel."""
@@ -138,22 +115,6 @@ def render_tasks(manifest: dict) -> tuple:
                     or ('media_type' if 'media_type' in params_fields else ''))
     compose = bool(routes and schema_symbole and nature_champ
                    and (result_kind == 'file' or result_field))
-
-    # ── Pipeline DÉCLARÉ (facette `pipelines`, §10.6 3.5 — 2026-10-01, Editor) ──────────────
-    # Quand l'app déclare ses process, le trou unique « corps de backend » devient : un
-    # ENCHAÎNEMENT généré (ordre topologique de la déclaration, brique commune
-    # `run_process_steps` — dans le squelette, jamais une chaîne à côté, piège 4.8) + UN TROU
-    # PAR PROCESS, dont la docstring porte la déclaration (description, lectures, écritures,
-    # réglages surveillés) : c'est la matière du rôle `codegen`. Mesuré le 2026-09-30 : sans
-    # étapes DÉCLARÉES, le rôle avait écrit le texte brut du LLM dans le `.html` — il ne pouvait
-    # pas deviner une intention absente de sa matière.
-    processes = []
-    if not compose and len(taches) == 1:
-        from ..builtin.app import pipeline_process_order
-        declared = [p for p in ((manifest.get('body') or {}).get('pipelines') or [])
-                    if isinstance(p, dict)]
-        if declared:
-            processes, _errs = pipeline_process_order(declared[0])
 
     for t in taches:
         fn = t['function']
@@ -253,21 +214,6 @@ def render_tasks(manifest: dict) -> tuple:
                 "    return {'fields': {'output_file': rel_dir + nom},",
                 '            \'label\': f".{fmt}"}',
             ]
-        elif processes:
-            lignes += [
-                f'def _process_{fn}(item, ctx):',
-                f'    """ENCHAÎNEMENT DÉCLARÉ {mark} — facette `pipelines` du manifeste :',
-                f"    {' → '.join(n['id'] for n in processes)}. Brique commune `run_process_steps`",
-                '    (le squelette persiste ce que chaque process écrit avant le suivant). PROVISOIRE',
-                '    jusqu\'au moteur commun (P3, WAMA_APP_GENERATION_ROUTE §10.6) : ne pas éditer."""',
-                '    from wama.common.utils.task_skeleton import run_process_steps',
-                '    return run_process_steps(item, ctx, [',
-            ]
-            lignes += [f"        ({n['id']!r}, {(n.get('label') or n['id'])!r}, "
-                       f"_process_{n['id']})," for n in processes]
-            lignes += ['    ])']
-            for n in processes:
-                lignes += ['', ''] + _process_hole(n, mark)
         else:
             lignes += [
                 f'def _process_{fn}(item, ctx):',

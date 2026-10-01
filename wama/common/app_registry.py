@@ -1670,5 +1670,12 @@ for _app_id, _long in _DESCRIPTION_LONG.items():
 try:
     from wama.common.sandbox import inject_sandbox_catalog
     inject_sandbox_catalog(APP_CATALOG)
+    # App créée DE ZÉRO depuis un manifeste (2026-10-01) : son entrée n'a pas de `conventions`
+    # (une jumelle les hérite de sa source). Le contrat d'entrée les exige ; une app qui NAÎT n'a
+    # rien de déclaré ni de mesuré → le défaut de `_conv()`, posé ICI où `_conv` vit — stocké au
+    # registre JSON, ses tuples deviendraient des listes (`AppCatalogConformiteTest`).
+    for _entry in APP_CATALOG.values():
+        if _entry.get('sandbox') and not _entry.get('generated_from'):
+            _entry.setdefault('conventions', _conv())
 except Exception:
     pass

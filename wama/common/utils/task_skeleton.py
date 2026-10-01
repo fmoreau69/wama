@@ -18,6 +18,12 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
                                     (ex. reader : dict {'pct','msg'}) DÉCLARE
                                     `progress_fn(item, pct, msg)` — la brique ne code aucun cas.
   - `ctx.console(msg, level=None)` : ligne console utilisateur (niveau auto si None), best-effort
+  - `ctx.app_id` : le label de l'app qui EXÉCUTE — à passer aux briques qui prennent une app
+                   (`process_prompt_for`, `app_media_dir`, `clear_partial`…), jamais écrit en
+                   dur : une jumelle de bac à sable (`writer_01`) n'a pas le label de son
+                   manifeste (`writer`). Ajouté le 2026-10-01 : la glu du Writer passait
+                   `'writer'` à la pipeline de prompts, qui ne trouvait aucune cible et rendait
+                   la consigne intacte — document de référence ignoré, sans un message.
   - retour : {'fields': {champs modèle à persister au succès},
               'eta':    (clé, taille, unité) pour `record_run` — optionnel,
               'label':  nom lisible du résultat (console ✓ + notification) — optionnel,
@@ -100,56 +106,6 @@ class TaskContext:
             pass
 
 
-class _StepContext:
-    """Le `ctx` d'UN process d'un enchaînement : même contrat que `TaskContext`, progression
-    ramenée à la tranche du process (le 2ᵉ de 2 va de 50 à 100)."""
-
-    def __init__(self, ctx, index: int, count: int):
-        self._ctx, self._low, self._span = ctx, 100 * index / count, 100 / count
-        self.app_id, self.item, self.user_id = ctx.app_id, ctx.item, ctx.user_id
-
-    def progress(self, pct: int, msg: str = None) -> None:
-        self._ctx.progress(int(self._low + self._span * max(0, min(100, pct)) / 100), msg)
-
-    def console(self, message: str, level: str = None) -> None:
-        self._ctx.console(message, level)
-
-
-def run_process_steps(item, ctx, steps) -> dict:
-    """Enchaîne les PROCESS d'un pipeline DÉCLARÉ dans une seule tâche — `steps` =
-    `[(process_id, libellé, fonction), …]` dans l'ordre topologique de la déclaration (facette
-    `pipelines` du manifeste `app`, `WAMA_APP_GENERATION_ROUTE §10.6`).
-
-    Chaque fonction garde le contrat d'un process d'app, `process(item, ctx) -> dict | None` —
-    celui que le moteur commun (P3, §10.6 4.5) réutilisera tel quel. Entre deux process, les
-    `fields` rendus sont PERSISTÉS et reposés sur l'élément : le process suivant lit ce que le
-    précédent a écrit (le fond, puis sa mise en forme). Le retour fusionne les `fields`, les
-    `models` employés et garde le dernier `label`/`eta`/`instruction` rendu.
-
-    ⚠ PROVISOIRE, et c'est dit : ce n'est pas le moteur commun (une ligne d'exécution par
-    process, états, péremption — P3). C'est la pièce qu'il RÉUNIRA (§10.6 4.5 : « il réunit trois
-    pièces existantes »), posée DANS le squelette — jamais une chaîne à côté (piège 4.8). Le statut,
-    l'ETA, la notification et l'annulation restent au squelette : un échec d'un process est
-    l'échec de la tâche.
-    """
-    steps = list(steps)
-    merged = {'fields': {}, 'models': []}
-    for index, (process_id, label, fn) in enumerate(steps):
-        ctx.console(f'▶ {label or process_id}')
-        out = fn(item, _StepContext(ctx, index, len(steps))) or {}
-        fields = dict(out.get('fields') or {})
-        if fields:
-            type(item).objects.filter(pk=item.pk).update(**fields)
-            item.refresh_from_db(fields=list(fields))
-            merged['fields'].update(fields)
-        merged['models'] += [m for m in (out.get('models') or []) if m not in merged['models']]
-        for key in ('label', 'eta', 'instruction', 'console_success'):
-            if out.get(key):
-                merged[key] = out[key]
-    ctx.progress(100)
-    return merged
-
-
 def _signal(item, app_id: str, signal: str, model_keys=None, detail=None):
     """Signal d'exécution, best-effort — comme `_notify`, il ne doit jamais faire échouer une
     tâche qui a par ailleurs abouti. Rend la ligne écrite (ou None) : la révision s'y rattache."""
@@ -168,8 +124,10 @@ def _revision(model, item_id: int, app_id: str, outcome, res: dict) -> None:
         from wama.common.services.revisions import record_revision
         fresh = model.objects.filter(pk=item_id).first()
         if fresh is not None:
+            # Les sorties = ce que la glu vient d'écrire, pas tous les fichiers de l'élément.
             record_revision(app_id, fresh, outcome=outcome, model_keys=res.get('models'),
-                            instruction=res.get('instruction') or '')
+                            instruction=res.get('instruction') or '',
+                            output_fields=list(res.get('fields') or {}))
     except Exception:
         pass
 

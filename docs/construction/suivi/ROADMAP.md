@@ -3741,7 +3741,7 @@ RÉFUTÉ** (test demandé par Fabien, 3 appels identiques sur le même dépôt) 
 
 ---
 
-## 21. App **Editor** — mise en forme assistée des sorties TEXTE (vision Fabien, 2026-09-01) → élargie le 2026-09-30 : documents HTML générés et hébergés (§21.5)
+## 21. App **Writer** (ex-« Editor ») — mise en forme assistée des sorties TEXTE (vision Fabien, 2026-09-01) → élargie le 2026-09-30 : documents HTML générés et hébergés (§21.5)
 
 > **Consigné le jour où la question s'est posée, à faire APRÈS le portage du monde Médias.**
 > Ne rien modifier d'ici là : la modale de texte du reader reste en l'état (cf. §21.1).
@@ -3914,7 +3914,13 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
 
 #### Étapes proposées
 
-1. Editor HTML : fond + forme + aperçu, cards envoyées, révisions (marche 8a).
+1. Writer HTML : fond + forme + aperçu, cards envoyées, révisions (marche 8a). 🔄 2026-10-01 :
+   créé DE ZÉRO au bac à sable (`writer_01`, `WAMA_APP_GENERATION_ROUTE §10.5`) — entrées par jetons
+   (`prompt`, `reference_document`), consigne par le pipeline de prompts (`kind: 'intent'`,
+   `reference_field`), UN process tant que P3 n'existe pas. ✅ Glu qwen3.8 appliquée, génération
+   réelle (154 s) : le terme témoin du document de référence est dans le HTML, la révision 1 porte
+   `result_text` et le modèle employé. Deux défauts d'outil corrigés en route : `ctx.app_id` absent
+   du contrat (référence ignorée sans message), entrées comptées comme sorties de révision.
 2. Publier (capacité commune).
 3. PDF par Chromium.
 4. docx / tex / pptx par Pandoc.
@@ -3925,7 +3931,9 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
 
 #### Décisions ouvertes
 
-- **D1 — Nom** : « Editor » (§21, 2026-09-01) convient-il à une app qui génère et publie ?
+- ~~**D1 — Nom**~~ ✅ **TRANCHÉ le 2026-10-01 (Fabien) : `Writer`.** « Editor » était trop large (un
+  futur éditeur vidéo ou audio) ; *Writer* suit la famille des apps en -er et fait la paire avec
+  **Reader** (lire / écrire des documents). Le §21 garde « Editor » dans son récit daté.
 - **D2 — Moteur de diapositives** à vendoriser (reveal.js ou autre) — licence, hors-ligne.
 - **D3 — Figer un rendu** de section : comment, et que devient-il quand le fond change ?
 - **D4 — Envoyer une CARD, pas un fichier** : l'app a besoin du contexte de la card (réglages,

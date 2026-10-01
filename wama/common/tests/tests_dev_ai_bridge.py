@@ -97,8 +97,13 @@ class ConsigneRoleTest(SimpleTestCase):
             with self.subTest(fichier=fichier):
                 self.assertIn('consigne_role', source,
                               f"{fichier} n'utilise plus l'accesseur unique")
-                self.assertNotIn("'prompts'", source.replace("PROMPTS_DIR", ""),
-                                 f"{fichier} recompose un chemin vers le dossier de consignes")
+                # Le CHEMIN, pas le mot (2026-10-01) : `'prompts'` est aussi le nom d'une facette
+                # du manifeste app, que run_codegen lit légitimement. Une garde par motif nu
+                # aurait interdit de nommer la facette ; elle vise la composition de chemin.
+                self.assertNotRegex(source.replace("PROMPTS_DIR", ""),
+                                    r"/\s*['\"]prompts['\"]|['\"]prompts['\"]\s*/"
+                                    r"|joinpath\([^)]*['\"]prompts['\"]",
+                                    f"{fichier} recompose un chemin vers le dossier de consignes")
 
 
 class CheckSkillsTest(SimpleTestCase):

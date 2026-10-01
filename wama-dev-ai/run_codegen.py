@@ -127,24 +127,41 @@ def champs_item(item_model: str, app_id: str = '') -> tuple:
     return champs, props
 
 
-#: Briques COMMUNES que la glu doit connaître, DÉRIVÉES du type des modèles requis. Sans elles,
-#: la matière ne montrait que les modules de l'app et deux glus d'exemple : une app qui appelle
-#: un LLM ne pouvait qu'inventer l'appel ou déclarer un trou (règle 6 du prompt) — mesuré sur
-#: la 1ʳᵉ app créée de zéro (Editor, 2026-09-30). Une entrée = (fichier, fonctions montrées).
-COMMON_BRICKS_BY_MODEL_TYPE = {
-    'llm': ('wama/common/utils/llm_utils.py', ('chat_with_catalog_model',)),
+#: Quelles briques COMMUNES la glu doit voir, selon ce que le manifeste COMPOSÉ déclare :
+#: déclencheur → (clé du MÉCANISME, fonctions montrées). L'EMPLACEMENT vient du registre des
+#: mécanismes (`wama/common/mecanismes.py` : domicile + annexes), jamais d'ici — une table de
+#: chemins écrite ici était un second index des briques (relevé le 2026-10-01).
+#: Pourquoi des briques dans la matière : sans elles, une app qui appelle un LLM ne pouvait
+#: qu'inventer l'appel ou déclarer un trou (règle 6 du prompt), mesuré sur la 1ʳᵉ app de zéro.
+BRICKS_BY_TRIGGER = {
+    ('model_type', 'llm'): ('llm', ('chat_with_catalog_model',)),
+    # Une facette `prompts` dit que la consigne passe par le pipeline de prompts (traduction,
+    # fichiers de RÉFÉRENCE, RAG) : `process_prompt_for` est le point d'entrée d'une app.
+    ('facet', 'prompts'): ('prompt_pipeline', ('process_prompt_for',)),
 }
 
-#: Même principe, DÉRIVÉ du type des PORTS d'entrée du manifeste (2026-10-01) : les deux modèles
-#: (gpt-oss, qwen3.8) lisaient un pdf/docx source comme des octets, alors que la brique qui sait les
-#: lire existait — la matière ne la montrait pas.
-COMMON_BRICKS_BY_PORT_TYPE = {
-    'document': ('wama/common/utils/batch_parsers.py', ('extract_batch_file_text',)),
-}
+
+def _brick_file(mechanism_key: str, names: tuple) -> Path:
+    """Le fichier du mécanisme (domicile ou annexe) qui DÉFINIT les fonctions demandées."""
+    from wama.common.mecanismes import by_key
+    m = by_key()[mechanism_key]
+    for rel_path in (m.home, *m.annexes):
+        p = REPO_ROOT / rel_path
+        if p.suffix == '.py' and p.exists():
+            defined = {n.name for n in ast.parse(p.read_text(encoding='utf-8')).body
+                       if isinstance(n, ast.FunctionDef)}
+            if set(names) <= defined:
+                return p
+    raise SystemExit(f'brique {names} introuvable dans le mécanisme {mechanism_key}')
 
 
-def _all_brick_tables():
-    return list(COMMON_BRICKS_BY_MODEL_TYPE.values()) + list(COMMON_BRICKS_BY_PORT_TYPE.values())
+def _triggered(resolus: list, man: dict) -> list:
+    model_types = {((m.get('body') or {}).get('identity') or {}).get('model_type')
+                   for m in resolus if m.get('manifest_kind') == 'model'}
+    facets = set(((man or {}).get('body') or {}))
+    return [v for (kind, value), v in BRICKS_BY_TRIGGER.items()
+            if (kind == 'model_type' and value in model_types)
+            or (kind == 'facet' and value in facets)]
 
 
 def signatures_briques() -> dict:
@@ -154,32 +171,25 @@ def signatures_briques() -> dict:
     import importlib
     import inspect
     out = {}
-    for chemin, noms in _all_brick_tables():
-        module = importlib.import_module(chemin[:-3].replace('/', '.'))
-        for nom in noms:
-            params = inspect.signature(getattr(module, nom)).parameters
+    for mechanism_key, names in BRICKS_BY_TRIGGER.values():
+        rel_path = _brick_file(mechanism_key, names).relative_to(REPO_ROOT)
+        module = importlib.import_module('.'.join(rel_path.with_suffix('').parts))
+        for name in names:
+            params = inspect.signature(getattr(module, name)).parameters
             if not any(p.kind == p.VAR_KEYWORD for p in params.values()):
-                out[nom] = set(params)
+                out[name] = set(params)
     return out
 
 
 def briques_communes(resolus: list, man: dict = None) -> str:
-    """Source des briques communes pertinentes (par AST) : celles des TYPES DE MODÈLES requis,
-    puis celles des TYPES DE PORTS d'entrée de l'app."""
-    model_types = {((m.get('body') or {}).get('identity') or {}).get('model_type')
-                   for m in resolus if m.get('manifest_kind') == 'model'}
-    port_types = {t for p in (((man or {}).get('body') or {}).get('ports') or {}).get('inputs') or []
-                  if isinstance(p, dict) for t in (p.get('types') or [])}
-    retenues = [COMMON_BRICKS_BY_MODEL_TYPE[t] for t in sorted(model_types)
-                if t in COMMON_BRICKS_BY_MODEL_TYPE]
-    retenues += [COMMON_BRICKS_BY_PORT_TYPE[t] for t in sorted(port_types)
-                 if t in COMMON_BRICKS_BY_PORT_TYPE]
-    blocs = []
-    for chemin, noms in retenues:
-        module = chemin[:-3].replace('/', '.')
-        blocs.append(f'# from {module} import {", ".join(noms)}\n'
-                     + _source_de(REPO_ROOT / chemin, noms))
-    return '\n\n'.join(blocs)
+    """Source des briques communes DÉCLENCHÉES par le manifeste composé (par AST)."""
+    blocks = []
+    for mechanism_key, names in _triggered(resolus, man):
+        p = _brick_file(mechanism_key, names)
+        module = '.'.join(p.relative_to(REPO_ROOT).with_suffix('').parts)
+        blocks.append(f'# from {module} import {", ".join(names)}   (mécanisme `{mechanism_key}`)\n'
+                      + _source_de(p, names))
+    return '\n\n'.join(blocks)
 
 
 def matiere_manifeste(app_id: str, manifest_path: str = '') -> tuple:
@@ -188,8 +198,8 @@ def matiere_manifeste(app_id: str, manifest_path: str = '') -> tuple:
     lui qui porte les `requires`, qu'une extraction de l'app générée ne retrouverait pas."""
     from wama.common.manifests.ingest import extract
     if manifest_path:
-        chemin = Path(manifest_path)
-        man = json.loads((chemin if chemin.is_absolute() else REPO_ROOT / chemin)
+        path = Path(manifest_path)
+        man = json.loads((path if path.is_absolute() else REPO_ROOT / path)
                          .read_text(encoding='utf-8'))
     else:
         man = extract('app', app_id)
@@ -197,9 +207,9 @@ def matiere_manifeste(app_id: str, manifest_path: str = '') -> tuple:
         raise SystemExit(f"app inconnue : {app_id}")
     body = man.get('body') or {}
     # Compaction : la glu n'a pas besoin des facettes UI (modes/studio/inspector/tool_api).
-    # `pipelines` GARDÉE (2026-10-01) : c'est elle qui dit ce que chaque process doit faire.
+    # `prompts` GARDÉE (2026-10-01) : elle dit que la consigne passe par le pipeline de prompts.
     garde = {k: body[k] for k in ('identity', 'params', 'processing', 'models',
-                                  'capabilities', 'ports', 'pipelines') if k in body}
+                                  'capabilities', 'ports', 'prompts') if k in body}
     compact = {k: v for k, v in man.items() if k != 'body'} | {'body': garde}
     resolus = []
     for r in man.get('requires') or []:
@@ -246,10 +256,10 @@ def _returned_field_keys(fn_node) -> set:
     return keys
 
 
-def controles(code: str, nom_impose: str, app_id: str = None, writes=None) -> dict:
-    """Contrôles mécaniques du bloc généré — le LLM propose, la chaîne juge. `writes` = les
-    écritures DÉCLARÉES du process (facette `pipelines`) : une clé de `fields` hors de cette
-    liste est signalée."""
+def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None) -> dict:
+    """Contrôles mécaniques du bloc généré — le LLM propose, la chaîne juge. `item_fields` = les
+    champs du modèle d'item : la règle 5 du prompt n'admet qu'eux comme clés de `fields`, et ce
+    contrôle la rend mécanique (elle n'était qu'une consigne)."""
     out = {'compile_ok': False, 'signature_ok': False, 'warnings': []}
     try:
         arbre = ast.parse(code)
@@ -284,10 +294,10 @@ def controles(code: str, nom_impose: str, app_id: str = None, writes=None) -> di
         out['signature_ok'] = args[:2] == ['item', 'ctx']
         if not out['signature_ok']:
             out['warnings'].append(f'signature {args} ≠ (item, ctx)')
-        if writes is not None:
-            hors = sorted(_returned_field_keys(cible) - set(writes))
+        if item_fields:
+            hors = sorted(_returned_field_keys(cible) - set(item_fields))
             if hors:
-                out['warnings'].append(f'fields hors des écritures déclarées {list(writes)} : {hors}')
+                out['warnings'].append(f'clés de fields hors des champs du modèle (règle 5) : {hors}')
     # Arguments DEVINÉS d'une brique commune (2026-10-01 : `max_tokens`, `max_new_tokens` passés
     # à la brique LLM — `TypeError` au premier lancement, invisible sans ce contrôle).
     signatures = signatures_briques()
@@ -300,6 +310,16 @@ def controles(code: str, nom_impose: str, app_id: str = None, writes=None) -> di
                 if inconnus:
                     out['warnings'].append(f'argument(s) inconnu(s) de la brique {nom} : '
                                            f'{inconnus} (acceptés : {sorted(signatures[nom])})')
+    # Label d'app ÉCRIT EN DUR dans un appel (2026-10-01 : `process_prompt_for('writer', …)` dans
+    # la jumelle `writer_01` — aucune cible trouvée, référence ignorée sans un message). Le label
+    # qui exécute est `ctx.app_id` ; on compare au label ET à sa forme sans suffixe de jumelle.
+    if app_id:
+        labels = {app_id, re.sub(r'_\d{2}$', '', app_id)}
+        hardcoded = sorted({a.value for n in ast.walk(arbre) if isinstance(n, ast.Call)
+                            for a in (*n.args, *(k.value for k in n.keywords))
+                            if isinstance(a, ast.Constant) and a.value in labels})
+        if hardcoded:
+            out['warnings'].append(f'label d\'app écrit en dur {hardcoded} : passer ctx.app_id')
     autres = [n for n in arbre.body
               if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Import,
                                     ast.ImportFrom))]
@@ -339,9 +359,6 @@ def main():
                          "manifests/app_drafts/editor.json) — remplace l'extraction live.")
     ap.add_argument('--task', default=None,
                     help='Fonction de tâche lifecycle (défaut : la seule déclarée).')
-    ap.add_argument('--process', default=None,
-                    help="Process DÉCLARÉ à écrire (facette `pipelines` du manifeste) : la glu "
-                         "visée devient `_process_<id>`, sa déclaration est mise en avant.")
     add_llm_arguments(ap, role='codegen')
     ap.add_argument('--truth', default=None,
                     help="Vérité terrain jointe à la revue : 'module.dotted:fonction'.")
@@ -354,21 +371,6 @@ def main():
     if not task:
         raise SystemExit(f"--task requis (lifecycle déclarées : {lifecycle})")
     nom_impose = f'_process_{task}'
-    # Process DÉCLARÉS (facette `pipelines`, §10.6 3.5) : une glu PAR process, jamais la tâche
-    # entière — l'enchaînement est généré (brique commune `run_process_steps`).
-    from wama.common.manifests.builtin.app import pipeline_process_order
-    pipelines = [p for p in ((man.get('body') or {}).get('pipelines') or []) if isinstance(p, dict)]
-    declares = pipeline_process_order(pipelines[0])[0] if pipelines else []
-    process_decl = None
-    if declares:
-        par_id = {n['id']: n for n in declares}
-        if args.process not in par_id:
-            raise SystemExit(f"--process requis : l'app DÉCLARE ses process "
-                             f"({', '.join(par_id)}) — une glu par process.")
-        process_decl = par_id[args.process]
-        nom_impose = f'_process_{args.process}'
-    elif args.process:
-        raise SystemExit("--process sans facette `pipelines` dans le manifeste")
 
     # Fichier mince du gabarit A2b : montre au modèle le wrapper et le trou EXACTS.
     from wama.common.manifests.codegen.tasks_gen import render_tasks
@@ -406,11 +408,6 @@ def main():
         f'Propriétés lisibles en plus : {", ".join(props) or "(aucune)"} — tout autre '
         f'attribut d\'item est INTERDIT.\n\n'
         f'FICHIER MINCE généré (le wrapper appelle ta glu) :\n{mince}\n\n'
-        + (f'PROCESS À ÉCRIRE — sa DÉCLARATION fait foi (ce qu\'il fait, ce qu\'il lit, les '
-           f'SEULES clés de `fields` qu\'il écrit) ; les autres process sont écrits à part, '
-           f'l\'enchaînement est généré :\n'
-           f'{json.dumps(process_decl, ensure_ascii=False, indent=1)}\n\n'
-           if process_decl else '') +
         f'Écris la fonction `{nom_impose}(item, ctx)` qui remplit ce trou '
         f'(bloc ```python seul).')[:MAX_MATTER_CHARS]
 
@@ -420,7 +417,7 @@ def main():
                        temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
     code = extract_code(reponse)
     verif = controles(code, nom_impose, args.app,
-                      writes=(process_decl or {}).get('writes') if process_decl else None)
+                      item_fields=[c.split(' (')[0] for c in champs])
 
     verite = None
     if args.truth:
@@ -431,11 +428,10 @@ def main():
     # `write_output` produit EXACTEMENT le même fichier qu'avant : le nom se compose
     # `{role}_{slug}_{horodatage}.json`, donc `codegen_{app}_{task}_{horodatage}.json` avec
     # ce slug, et l'enveloppe pose les mêmes `status`/`role` en tête. Vérifié avant bascule.
-    sortie = write_output('codegen', f'{args.app}_{args.process or task}', {
+    sortie = write_output('codegen', f'{args.app}_{task}', {
         'provider': args.provider,
         'model': model,
         'app': args.app, 'task': task, 'function': nom_impose,
-        'process': args.process,
         'checks': verif,
         'code': code,
         # La réponse BRUTE (2026-10-01) : un code mal extrait ne se diagnostique qu'en la relisant.

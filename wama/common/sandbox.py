@@ -64,6 +64,22 @@ def twin_source(label: str) -> str:
     return ''
 
 
+def born_declaration(label: str, facet: str):
+    """Facette DÉCLARÉE d'une app créée DE ZÉRO (`app_sandbox create --from-manifest`), telle que
+    son manifeste la portait, ou None.
+
+    Le pendant de `twin_source` pour une app SANS source : une jumelle emprunte les déclarations
+    de son app source ; une app née d'un manifeste n'a que le manifeste. Les registres indexés par
+    nom d'app (`APP_MODES`, `PROMPT_TARGETS`…) ne la connaissent pas — ce sont leurs ACCESSEURS qui
+    lisent ici, comme ils lisent `twin_source` (règle de la docstring ci-dessus). Les facettes sont
+    stockées au registre à la création : ce module reste pur (aucun import de la couche manifestes).
+    """
+    for e in load_registry():
+        if e.get('label') == label and not e.get('generated_from'):
+            return (e.get('declarations') or {}).get(facet)
+    return None
+
+
 def save_registry(entries: list) -> None:
     REGISTRY_PATH.write_text(
         json.dumps(entries, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')

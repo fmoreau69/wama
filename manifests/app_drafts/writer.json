@@ -24,8 +24,8 @@
       "color": "#3a7d5c",
       "icon": "fas fa-file-lines",
       "input_extensions": [".txt", ".md", ".html", ".htm", ".pdf", ".docx"],
-      "url_name": "editor:index",
-      "verbose_name": "Editor"
+      "url_name": "writer:index",
+      "verbose_name": "Writer"
     },
     "inspector": {
       "detail_registered": true,
@@ -37,7 +37,7 @@
         ],
         "result_file": "output_file",
         "result_text": "result_text",
-        "source_file": "source_document"
+        "source_file": "reference_document"
       },
       "preview": {
         "file_field": "output_file",
@@ -57,7 +57,7 @@
           "accepts": ["prompt", "document"],
           "icon": "fa-file-lines",
           "id": "document",
-          "inputs": ["prompt", "source_document"],
+          "inputs": ["prompt", "reference_document"],
           "label": "Document",
           "modes": []
         }
@@ -143,64 +143,33 @@
         ]
       }
     },
-    "pipelines": [
-      {
-        "key": "default",
-        "label": "Rédiger puis mettre en forme",
-        "nodes": [
-          {
-            "id": "draft_content",
-            "kind": "process",
-            "label": "Rédiger le fond",
-            "degree": "required",
-            "reads": ["prompt", "document_kind", "language", "source_document"],
-            "writes": ["result_text"],
-            "watched": ["prompt", "document_kind", "language", "model", "source_document"],
-            "description": "Rédige le FOND, et rien que le fond : un texte structuré en Markdown, dans la langue demandée, qui répond à la consigne (`prompt`) pour le type de document (`document_kind`). Structure attendue : un titre `#`, puis une section `##` par partie — pour une présentation, UNE section = UNE diapositive (titre court + 3 à 6 puces ou un paragraphe bref). Le document source (`source_document`), s'il existe, NOURRIT le contenu (faits, chiffres, termes) sans être recopié. AUCUNE mise en forme (ni HTML, ni CSS, ni consigne de style) : c'est le process suivant. Le modèle employé est le réglage `model` (clé de catalogue)."
-          },
-          {
-            "id": "render_format",
-            "kind": "process",
-            "label": "Mettre en forme",
-            "degree": "required",
-            "reads": ["result_text", "output_format", "style_instruction", "document_kind", "language"],
-            "writes": ["output_file"],
-            "watched": ["output_format", "style_instruction", "model"],
-            "description": "Rend le FOND (`result_text`, Markdown) dans le format de sortie (`output_format` ; HTML seul aujourd'hui) en suivant la consigne de forme (`style_instruction`). Le LLM écrit le langage SOURCE du format — pour HTML : UN document HTML autonome (CSS dans une balise <style>, AUCUNE ressource externe, aucun CDN, aucun script distant) —, jamais un binaire. Il ne réécrit PAS le fond : chaque section `##` devient une diapositive (présentation) ou une section (rapport, page), dans l'ordre. Le fichier produit est enregistré dans le champ `output_file`."
-          }
-        ],
-        "links": [
-          {"from": "draft_content", "to": "render_format"}
-        ]
-      }
-    ],
     "ports": {
       "inputs": [
         {
-          "description": "La consigne écrite : ce que le document doit dire.",
+          "description": "La consigne écrite. C'est elle que le modèle exécute.",
           "group": "prompt",
           "id": "prompt",
-          "label": "Consigne",
+          "label": "Prompt",
           "multi": false,
           "types": ["prompt"]
         },
         {
-          "description": "Un document ou le résultat d'une autre card, qui NOURRIT le fond. Il informe, il n'est pas recopié.",
+          "description": "Un document qui NOURRIT le contenu (faits, chiffres, termes) sans être recopié ni transformé.",
           "group": "reference",
-          "id": "source_document",
-          "label": "Document source",
+          "id": "reference_document",
+          "label": "Document de référence",
           "multi": false,
           "types": ["document"]
         }
       ],
       "outputs": [
-        {"id": "out", "label": "Document", "types": ["document"]}
+        {"id": "out", "label": "Sortie", "types": ["document"]}
       ]
     },
     "processing": {
       "anti_race": true,
       "backend_result": {"field": "result_text", "kind": "text"},
-      "batch_link_model": "EditorBatchItem",
+      "batch_link_model": "WriterBatchItem",
       "endpoints": [
         "about", "batch_create", "batch_delete", "batch_download", "batch_duplicate",
         "batch_preview", "batch_start", "batch_template", "batch_update", "card_html",
@@ -212,45 +181,55 @@
       "extra_routes": [
         {"name": "update_settings", "pattern": "settings/<int:pk>/", "view": "views.update_settings"}
       ],
-      "item_model": "EditorDocument",
+      "item_model": "WriterDocument",
       "model_spec": {
         "batch": {
           "link_batch_field": "batch",
           "link_batch_related": "items",
           "link_item_field": "document",
           "link_item_related": "batch_item",
-          "link_name": "EditorBatchItem",
-          "name": "EditorBatch",
-          "user_related_name": "editor_batches",
+          "link_name": "WriterBatchItem",
+          "name": "WriterBatch",
+          "user_related_name": "writer_batches",
           "verbose_name": "Lot de documents",
           "verbose_name_plural": "Lots de documents"
         },
         "item": {
-          "input_field": "source_document",
-          "name": "EditorDocument",
+          "input_field": "reference_document",
+          "name": "WriterDocument",
           "ordering": ["-created_at"],
           "params_fields": ["prompt", "document_kind", "output_format", "style_instruction",
                             "language", "model"],
-          "user_related_name": "editor_documents"
+          "user_related_name": "writer_documents"
         }
       },
       "processing_time": true,
       "statuses": ["PENDING", "AWAITING_RESOURCES", "RUNNING", "SUCCESS", "FAILURE"],
       "tasks": [
-        {"file": "tasks.py", "function": "generate_document_task", "lifecycle": true,
+        {"file": "tasks.py", "function": "write_document_task", "lifecycle": true,
          "task_name": null}
+      ]
+    },
+    "prompts": {
+      "targets": [
+        {
+          "field": "prompt",
+          "kind": "intent",
+          "model_field": "model",
+          "reference_field": "reference_document"
+        }
       ]
     },
     "studio": {
       "params_attr": "PARAMS_JSON",
-      "params_module": "wama.editor.params",
+      "params_module": "wama.writer.params",
       "runnable": true
     }
   },
-  "description": "Génère un document (présentation, rapport, page web) à partir d'une consigne, de documents et des résultats d'autres cards : le fond est rédigé par un LLM, la forme est rendue par format (HTML d'abord). Cas d'épreuve de la route « app de zéro » (ROADMAP §21.5, ROUTE §10.5).",
-  "key": "editor",
+  "description": "Rédige un document (présentation, rapport, page web) à partir d'une consigne et d'un document de référence : le fond est écrit par un LLM, puis mis en forme dans le format de sortie (HTML d'abord). Cas d'épreuve de la route « app de zéro » (ROADMAP §21.5, ROUTE §10.5).",
+  "key": "writer",
   "manifest_kind": "app",
-  "name": "Editor",
+  "name": "Writer",
   "projects": [],
   "requires": [
     {"key": "ollama:qwen3.8:latest", "kind": "model"},
