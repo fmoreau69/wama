@@ -19451,3 +19451,20 @@ si la confirmation suffit. Adoption possible du `sort_by` par le model manager (
 **Contrôles mesurés** : transcriber + routage + auto-modèle + model_manager + vram = **575 tests OK** ;
 `describer` + catalogues + cache HF : verts hors budgets de langue (pendings 4) ; manifestes :
 describer et transcriber régénérés, 20 périmés restants à d'autres chantiers.
+
+## §PALIER — 2026-10-01 (fin d'après-midi), « APRÈS LA RELANCE : VÉRIFIÉ + PRÉVISION = TIRAGE » — ✅ `9adb9981` — 🔴 recharger gunicorn (vue, schéma et JS neufs)
+
+- ✅ **Vérifié après la relance de 15:03** : `describer:whisper` absent du catalogue et du select ;
+  Kyutai STT validé par Fabien (proposition de 14:59, identité et langues corrigées mécaniquement)
+  → au select, GRISÉ « aucun backend de transcription ne sert ce modèle » (voulu) ; LinTO porte
+  désormais le moteur `nemo` (autre instance) et apparaît lançable.
+- ✅ **Défaut trouvé et corrigé** : la PRÉVISION du select annonçait Qwen3-ASR quand le lancement
+  tirait Whisper — politique « Whisper d'abord » et entrée fournie écrites dans le gestionnaire,
+  lues par le seul lancement. Champ de schéma `options_resolution` (lancement ET prévision) ;
+  garde `ThePreviewSaysWhatTheLaunchDrawsTest` + contre-épreuve ; mesuré sur un serveur jetable
+  (8011, arrêté) : prévision = tirage = `transcriber:whisper`. 669 tests verts hors `writer_01`
+  (app de bac à sable de l'instance « app de zéro », sans curseur — pas à moi).
+- ⚠ `9adb9981` a EMPORTÉ le champ `options_ports` d'une autre instance (`param_schema.py`, écrit
+  entre ma lecture et mon commit) ; contenu intact, auteur prévenu (instance -42).
+- ⚠ Compte `evaluation` : actif, rôle `recherche`, profil « 100 % local », **sans mot de passe** —
+  connexion à `/accounts/login/` après que Fabien en a posé un à `/admin/auth/user/193/password/`.
