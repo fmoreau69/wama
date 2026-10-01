@@ -177,6 +177,9 @@
     const unusedList = document.getElementById('unusedList');
     const unusedAll = document.getElementById('unusedSelectAll');
     const unusedDeleteBtn = document.getElementById('unusedDeleteSelected');
+    const unusedRenewBtn = document.getElementById('unusedRenewSelected');
+    const unusedRetention = document.getElementById('unusedRetention');
+    let unusedDays = 0;           // durée de conservation de l'utilisateur ; 0 = infinie
     const unusedSummary = document.getElementById('unusedSummary');
 
     function showUnusedMode() {
@@ -193,6 +196,9 @@
         const n = selectedUnused().length;
         unusedDeleteBtn.disabled = !n;
         unusedDeleteBtn.innerHTML = `<i class="fas fa-trash me-1"></i>Supprimer la sélection${n ? ` (${n})` : ''}`;
+        unusedRenewBtn.hidden = !unusedDays;
+        unusedRenewBtn.disabled = !n;
+        unusedRenewBtn.innerHTML = `<i class="fas fa-clock-rotate-left me-1"></i>Garder la sélection${n ? ` (${n})` : ''}`;
         unusedAll.checked = !!all.length && n === all.length;
         unusedAll.indeterminate = n > 0 && n < all.length;
     }
@@ -202,6 +208,13 @@
         let data = { files: [], total_size: 0 };
         try { data = await (await fetch(UNUSED_API + 'all/')).json(); } catch (_) {}
         const files = data.files || [];
+        // Rétention FINIE : la durée choisie s'applique aussi à ces fichiers — on le DIT, avec la
+        // date de chacun, et « Garder » leur redonne la durée (décision de Fabien, 2026-10-01).
+        unusedDays = data.retention_days || 0;
+        unusedRetention.hidden = false;
+        unusedRetention.innerHTML = unusedDays
+            ? `<i class="fas fa-clock me-1"></i>Votre durée de conservation est de ${unusedDays} jours : un fichier inutilisé est supprimé à son terme (annoncé avant). « Garder » lui redonne ${unusedDays} jours — la durée se règle dans <a href="/accounts/profile/" class="link-light">votre profil</a>.`
+            : `<i class="fas fa-infinity me-1"></i>Sans durée de conservation, rien n'est supprimé sans vous.`;
         const badge = document.getElementById('badge-unused');
         if (badge) badge.textContent = files.length;
         const size = window.WamaApp ? WamaApp.formatSize(data.total_size) : `${data.total_size} o`;
@@ -218,9 +231,11 @@
                 <input class="form-check-input mt-0" type="checkbox" data-unused-id="${f.id}" aria-label="Sélectionner ${esc(f.name)}">
                 <div class="flex-grow-1 text-truncate">
                     <a href="/filemanager/api/download/${encodeURI(f.path)}" class="text-light" title="${esc(f.path)}">${esc(f.name)}</a>
-                    <div class="small text-truncate" style="color:#a8a8c0;">inutilisé depuis ${f.unused_days} jour(s)${f.origin_label ? ` · ${esc(f.origin_label)}` : ''}</div>
+                    <div class="small text-truncate" style="color:#a8a8c0;">inutilisé depuis ${f.unused_days} jour(s)${f.origin_label ? ` · ${esc(f.origin_label)}` : ''}${f.deletes_on ? ` · <span style="color:#ffd27a;">supprimé le ${new Date(f.deletes_on).toLocaleDateString('fr-FR')}</span>` : ''}</div>
                 </div>
                 <span class="small text-nowrap" style="color:#c8c8d8;">${window.WamaApp ? WamaApp.formatSize(f.size) : f.size}</span>
+                ${f.deletes_on ? `<button type="button" class="btn btn-sm btn-outline-light" data-unused-renew="${f.id}" title="Garder : ${unusedDays} jours de plus">
+                    <i class="fas fa-clock-rotate-left"></i></button>` : ''}
                 <button type="button" class="btn btn-sm btn-outline-danger" data-unused-delete="${f.id}" title="Supprimer ce fichier">
                     <i class="fas fa-trash"></i></button>
             </div>`).join('');
@@ -247,12 +262,28 @@
         loadUnused();
     }
 
+    async function renewUnused(ids) {
+        if (!ids.length) return;
+        const fd = new FormData();
+        ids.forEach(id => fd.append('ids', id));
+        try {
+            await fetch(UNUSED_API + 'renew/', { method: 'POST', body: fd, headers: { 'X-CSRFToken': CSRF_TOKEN } });
+            toast(`${ids.length} fichier(s) gardé(s) ${unusedDays} jours de plus`);
+        } catch (_) {
+            toast('Impossible de garder ces fichiers', 'error');
+        }
+        loadUnused();
+    }
+
     if (unusedList) {
         unusedList.addEventListener('change', e => { if (e.target.matches('[data-unused-id]')) refreshUnusedSelection(); });
         unusedList.addEventListener('click', e => {
             const btn = e.target.closest('[data-unused-delete]');
             if (btn) deleteUnused([btn.dataset.unusedDelete], 'Supprimer ce fichier ? Cette action est définitive.');
+            const keep = e.target.closest('[data-unused-renew]');
+            if (keep) renewUnused([keep.dataset.unusedRenew]);
         });
+        unusedRenewBtn.addEventListener('click', () => renewUnused(selectedUnused()));
         unusedAll.addEventListener('change', () => {
             unusedList.querySelectorAll('input[data-unused-id]').forEach(c => { c.checked = unusedAll.checked; });
             refreshUnusedSelection();

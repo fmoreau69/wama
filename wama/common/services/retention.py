@@ -148,6 +148,12 @@ def purge_expired_media(dry_run=False):
     return summary
 
 
+def retention_days_by_user():
+    """{user_id: jours} de tous les utilisateurs à rétention FINIE (plafond global inclus) — lu une
+    fois par passe par ceux qui traitent tous les utilisateurs (`released_files`)."""
+    return _users_with_retention()
+
+
 def retention_days_for(user):
     """Rétention EFFECTIVE d'un utilisateur, en jours (plafond global inclus) ; 0 = aucune."""
     return _users_with_retention().get(getattr(user, 'pk', None), 0)

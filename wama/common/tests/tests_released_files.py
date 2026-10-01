@@ -226,6 +226,66 @@ class UnusedListTest(TestCase):
         self.assertEqual([], self.client.get(reverse('common:api_released_files_all')).json()['files'])
 
 
+class FiniteRetentionForUnusedFilesTest(TestCase):
+    """Rétention FINIE (décision de Fabien, 2026-10-01) : la durée choisie s'applique aussi aux
+    fichiers gardés — annoncés avant leur terme, supprimés au terme s'il ne répond pas, la liste de
+    ce qui est parti envoyée ensuite ; « Garder » leur redonne la durée. Jamais de suppression sans
+    annonce préalable."""
+
+    def setUp(self):
+        from wama.accounts.models import UserProfile
+        self.user = get_user_model().objects.create_user('finite_retention', password='x')
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        profile.media_retention_days = 10
+        profile.save()
+        synthesis, self.rel, self.path = _owned_output(self.user, 'kept_with_retention.wav')
+        release_card_file(synthesis, 'audio_output')
+        synthesis.delete()
+        self.now = timezone.now()
+
+    def _at(self, days):
+        return self.now + timedelta(days=days)
+
+    def test_announced_before_the_term_then_deleted_and_reported(self):
+        self.assertEqual(0, released_files.notify_long_unused(self._at(5)), 'trop tôt pour prévenir')
+        self.assertEqual(1, released_files.notify_long_unused(self._at(8)))
+        note = Notification.objects.get(recipient=self.user, kind='files_unused')
+        self.assertIn('bientôt supprimé', note.title)
+        self.assertIn('10 jours', note.body)
+        self.assertEqual({'deleted': 1, 'users': 1}, released_files.purge_expired_released(self._at(11)))
+        self.assertFalse(self.path.exists())
+        gone = Notification.objects.get(recipient=self.user, kind='files_deleted')
+        self.assertIn('kept_with_retention.wav', gone.body)
+
+    def test_never_deleted_without_having_been_announced(self):
+        self.assertEqual(0, released_files.purge_expired_released(self._at(30))['deleted'])
+        self.assertTrue(self.path.exists())
+
+    def test_keep_gives_the_whole_duration_again(self):
+        released_files.notify_long_unused(self._at(8))
+        row = ReleasedFile.objects.get(path=self.rel)
+        self.assertEqual(1, released_files.renew_released(self.user, ids=[row.pk]))
+        row.refresh_from_db()
+        self.assertIsNone(row.notified_at, 'il sera annoncé de nouveau avant son prochain terme')
+        self.assertEqual(0, released_files.purge_expired_released(self._at(11))['deleted'])
+        self.assertTrue(self.path.exists())
+
+    def test_the_list_says_when_it_will_go(self):
+        listed = released_files.list_unused(self.user)
+        self.assertEqual(10, listed['retention_days'])
+        self.assertTrue(listed['files'][0]['deletes_on'])
+
+    def test_infinite_retention_deletes_nothing(self):
+        other = get_user_model().objects.create_user('infinite_retention', password='x')
+        synthesis, _rel, path = _owned_output(other, 'kept_forever.wav')
+        release_card_file(synthesis, 'audio_output')
+        synthesis.delete()
+        released_files.notify_long_unused(self._at(400))
+        released_files.purge_expired_released(self._at(800))
+        self.assertTrue(path.exists())
+        self.assertIsNone(released_files.list_unused(other)['retention_days'] or None)
+
+
 class AnnounceRouteTest(TestCase):
 
     def test_the_page_reads_the_announcement_and_deletes_on_request(self):
