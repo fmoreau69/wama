@@ -26,8 +26,9 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
 
     # Options
     preprocess_audio = models.BooleanField(default=False)
-    # Nivellement de la parole (`common/utils/speech_leveling.py`), après le débruitage s'il est
-    # demandé. Optionnel, coupé par défaut : réintégré le 2026-09-29 pour être MESURÉ.
+    # Nivellement de la parole (`common/utils/speech_leveling.py`), EN PREMIER — et imposé quand
+    # le débruitage est demandé (banc du 2026-10-01, `workers._transcribe_item`). Optionnel,
+    # coupé par défaut.
     level_speech = models.BooleanField(default=False, db_default=False)
 
     # MODÈLE de transcription — CLÉ DE CATALOGUE entière depuis le 2026-09-30 (route F4b ⑦) :

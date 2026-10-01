@@ -488,19 +488,29 @@ def _transcribe_item(t, ctx):
     cleaned_path = None
 
     try:
-        # Step 1: Preprocessing (if enabled)
+        # Step 1: nivellement → débruitage → (filtre de parole, dans le moteur). Ordre fixé par le
+        # banc des prétraitements du 2026-09-30/10-01 (`WAMA_QUALITE §9bis`, décisions de Fabien) :
+        #   (a) le nivellement passe AVANT le débruitage — il battait l'ordre inverse sur 8
+        #       enregistrements sur 12 ;
+        #   (b) on ne débruite JAMAIS un audio non nivelé : DeepFilterNet efface une parole
+        #       enregistrée bas (−54 dBFS → texte vide, 100 % d'erreur, sans rien signaler) ;
+        #       demander le débruitage nivelle donc d'abord, et la console le dit.
+        # Les deux passent AVANT le filtre de parole et la sonde des langues, qui jugent l'audio
+        # que le moteur entendra.
+        cleaned_path = audio_path
+        level_first = getattr(t, 'level_speech', False) or t.preprocess_audio
+        if level_first:
+            if t.preprocess_audio and not getattr(t, 'level_speech', False):
+                _console(t.user_id, "Débruitage demandé : la parole est d'abord nivelée "
+                                    "(un audio enregistré bas serait effacé par le débruiteur).")
+            cleaned_path = _level_speech(t, audio_path, audio_path)
         if t.preprocess_audio:
             _set_status_message(t, "Prétraitement audio…")
             _set_partial_text(t.id, "🔧 Prétraitement audio...\n")
-            cleaned_path = _preprocess_audio(t, audio_path)
-        else:
-            cleaned_path = audio_path
-
-        # Step 1b: nivellement de la parole — APRÈS le débruitage (le bruit retiré n'est pas
-        # remonté), AVANT le filtre de parole et la sonde des langues (ils jugent l'audio que le
-        # moteur entendra).
-        if getattr(t, 'level_speech', False):
-            cleaned_path = _level_speech(t, audio_path, cleaned_path)
+            denoised = _preprocess_audio(t, cleaned_path)
+            if denoised != cleaned_path and cleaned_path != audio_path and os.path.exists(cleaned_path):
+                os.remove(cleaned_path)          # le nivelé intermédiaire ; jamais l'original
+            cleaned_path = denoised
 
         # Step 2: Get backend
         if not BACKENDS_AVAILABLE:
