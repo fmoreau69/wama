@@ -46,7 +46,12 @@ logger = logging.getLogger(__name__)
 #   gpu         charge GPU (un ▶ d'étage Analyse le dit à l'utilisateur ; le ▶ Calculs jamais) ;
 #   function    clé `FUNCTION_CATALOG` de la passe quand elle diffère de `cam_analyzer.<key>`
 #               (`depth` → `cam_analyzer.depth_analysis`) — c'est le nœud `function` que le
-#               registre devient au manifeste `pipeline` (D13, `pipeline_manifest()` ci-dessous).
+#               registre devient au manifeste `pipeline` (D13, `pipeline_manifest()` ci-dessous) ;
+#   eta_size    TAILLE de la passe pour l'ETA (unité `video_sec`, service commun
+#               `eta_estimator`) : 'analysed' (secondes de vidéo analysées — de la caméra pour une
+#               passe par caméra, la plus longue sinon), 'windows' (durée cumulée des fenêtres
+#               d'intersection), 'video' (vidéo entière). ETA PAR PROCESS, clé `cam_analyzer:<passe>`
+#               (ROUTE §10.6, 4.5 — ce registre est une des pièces du moteur commun).
 from dataclasses import dataclass, field as _field
 
 
@@ -60,6 +65,7 @@ class Pass:
     task: str = ''
     gpu: bool = False
     function: str = ''
+    eta_size: str = 'analysed'
 
     @property
     def function_key(self) -> str:
@@ -68,15 +74,16 @@ class Pass:
 
 PASSES: tuple = (
     # ── ANALYSE (perception) ────────────────────────────────────────────────────
-    Pass('extraction', 'analyse'),
-    Pass('intersection_windows', 'analyse', depends_on=('extraction',), watched=('intersections',)),
+    Pass('extraction', 'analyse', eta_size='video'),
+    Pass('intersection_windows', 'analyse', depends_on=('extraction',), watched=('intersections',),
+         eta_size='video'),
     Pass('yolo_detect', 'analyse', depends_on=('extraction',),
          watched=('model_path', 'iou_threshold', 'tracker'), per_camera=True, gpu=True),
     Pass('yolopv2_lanes', 'analyse', depends_on=('extraction',),
          watched=('road_model_path',), per_camera=True, gpu=True),
     Pass('sam3_markings', 'analyse', depends_on=('extraction', 'intersection_windows'),
          watched=('sam3_markings_enabled', 'sam3_markings_prompts', 'sam3_as_road_fallback'),
-         per_camera=True, task='analyze_sam3_only_task', gpu=True),
+         per_camera=True, task='analyze_sam3_only_task', gpu=True, eta_size='windows'),
     # Profondeur (Depth Pro) : lit les bbox (profondeur de contact) → dépend de la détection.
     Pass('depth', 'analyse', depends_on=('yolo_detect',), task='compute_depth_task', gpu=True,
          function='cam_analyzer.depth_analysis'),
@@ -86,7 +93,7 @@ PASSES: tuple = (
     # `global_tracking` pour cela seul, et cette dépendance d'une ANALYSE envers un CALCUL
     # empêchait de chaîner les deux étages en sous-pipelines (ROUTE §10.6 3.4).
     Pass('ortho_recalage', 'analyse', depends_on=('sam3_markings', 'intersection_windows'),
-         task='compute_ortho_recalage_task', gpu=True),
+         task='compute_ortho_recalage_task', gpu=True, eta_size='windows'),
     # ── CALCUL (dérivation, CPU, rejouable) ─────────────────────────────────────
     Pass('lane_events', 'calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
          task='compute_lane_events_task'),
@@ -105,15 +112,16 @@ PASSES: tuple = (
     # virages de la trace. Appliqué sous ⚑ measured_camera_fov (défaut OFF) — pas de dépendance
     # déclarée depuis l'aval, même raison que `lane_map_recalage`.
     Pass('camera_intrinsics', 'calcul', depends_on=('extraction',),
-         task='compute_camera_intrinsics_task'),
+         task='compute_camera_intrinsics_task', eta_size='video'),
     # Cap VISUEL (2026-09-30) : rotation vue par la caméra avant quand la navette roule — exige la
     # focale mesurée. Appliquée au filtre navette sous ⚑ visual_heading (défaut OFF).
-    Pass('visual_yaw', 'calcul', depends_on=('camera_intrinsics',), task='compute_visual_yaw_task'),
+    Pass('visual_yaw', 'calcul', depends_on=('camera_intrinsics',), task='compute_visual_yaw_task',
+         eta_size='video'),
     # Correction ortho (calcul pur + masque satellite BD TOPO) : ancres tirées de la MESURE
     # `ortho_recalage`, appliquées par ⚑ ortho_correction. Avant le tracking, même raison que
     # `lane_map_recalage` (et même absence de dépendance déclarée du tracking vers elle).
     Pass('ortho_correction', 'calcul', depends_on=('ortho_recalage',),
-         task='compute_ortho_correction_task'),
+         task='compute_ortho_correction_task', eta_size='windows'),
     Pass('global_tracking', 'calcul', depends_on=('yolo_detect', 'distance'),
          task='compute_global_tracking_task'),
     Pass('indicators', 'calcul', depends_on=('global_tracking', 'distance'),
@@ -257,6 +265,13 @@ def mark_started(session, pass_type: str, profile=None, camera=None) -> None:
     from wama_lab.cam_analyzer.models import AnalysisPass
 
     snapshot = _profile_snapshot(profile, _WATCHED.get(pass_type, []))
+    # La durée du run PRÉCÉDENT survit au lancement (ETA de la passe en cours, 2026-10-01) :
+    # `duration_s` repasse à None, la valeur reste lisible sous `previous_duration_s`.
+    prev = AnalysisPass.objects.filter(session=session, pass_type=pass_type, camera=camera) \
+        .only('duration_s', 'output_summary').first()
+    summary = dict((prev.output_summary or {}) if prev else {})
+    if prev is not None and prev.duration_s:
+        summary['previous_duration_s'] = prev.duration_s
     obj, _ = AnalysisPass.objects.update_or_create(
         session=session,
         pass_type=pass_type,
@@ -268,6 +283,7 @@ def mark_started(session, pass_type: str, profile=None, camera=None) -> None:
             'completed_at': None,
             'duration_s': None,
             'error_message': '',
+            'output_summary': summary,
         },
     )
     return obj
@@ -292,7 +308,147 @@ def mark_completed(session, pass_type: str, *, output_summary: dict | None = Non
     if output_summary is not None:
         obj.output_summary = output_summary
     obj.error_message = ''
+    # ETA (2026-10-01) : la taille du run voyage avec sa durée — c'est ce qui permet de RÉUTILISER
+    # cette durée à la prochaine relance, à l'échelle si la taille a changé.
+    size = pass_size_s(session, pass_type, camera.position if camera is not None else None)
+    if size:
+        obj.output_summary = {**(obj.output_summary or {}), 'eta_size_s': round(size, 1)}
     obj.save()
+    _record_pass_eta(session, pass_type, size, obj.duration_s)
+
+
+# ── ETA par process (2026-10-01, demande de Fabien) ──────────────────────────────────────
+# Rien de neuf : le service commun `model_manager.services.eta_estimator` (moyenne mobile PAR
+# MATÉRIEL, comptes de test exclus) apprend comme pour les apps média — ici en UN point,
+# `mark_completed`, que toutes les passes traversent — et l'affichage est `WamaEta` (commun).
+ETA_UNIT = 'video_sec'
+
+
+def eta_key(pass_type: str) -> str:
+    from wama.model_manager.services.eta_estimator import make_key
+    return make_key('cam_analyzer', pass_type)
+
+
+def pass_size_s(session, pass_type: str, position=None):
+    """Taille ETA d'une passe (secondes de vidéo concernées), selon son `eta_size` déclaré.
+    None quand rien ne la mesure (session sans caméra, sans fenêtre…)."""
+    try:
+        kind = _BY_KEY[pass_type].eta_size
+    except KeyError:
+        return None
+    if kind == 'windows':
+        total = sum(max(0.0, float(w.get('t_exit') or 0) - float(w.get('t_enter') or 0))
+                    for w in (getattr(session, 'intersection_windows', None) or []))
+        return total or None
+    durations = {c.position: float(c.duration or 0.0) for c in session.cameras.all()}
+    if kind == 'video':
+        v = durations.get(position) if position else max(durations.values(), default=0.0)
+        return v or None
+    ranges = ((getattr(session, 'config', None) or {}).get('analyzed_ranges') or {})
+
+    def analysed(pos):
+        # Registre de couverture PRÉSENT : une caméra sans plage n'a pas été analysée (0).
+        # ABSENT (session antérieure au registre) : la vidéo entière.
+        if not ranges:
+            return durations.get(pos, 0.0)
+        return sum(max(0.0, float(r[1]) - float(r[0])) for r in (ranges.get(pos) or []) if len(r) >= 2)
+    v = analysed(position) if position else max((analysed(p) for p in durations), default=0.0)
+    return v or None
+
+
+def _record_pass_eta(session, pass_type, size, duration_s) -> None:
+    """Apprentissage : la durée réelle nourrit le service commun (défensif, jamais bloquant)."""
+    if not size or not duration_s:
+        return
+    try:
+        from wama.model_manager.services.eta_estimator import record_run
+        record_run(eta_key(pass_type), size=size, unit=ETA_UNIT, process_seconds=duration_s,
+                   load_seconds=None, user=getattr(session, 'user', None))
+    except Exception:
+        pass
+
+
+def row_eta_seconds(size, last_duration, last_size, learned_seconds):
+    """Durée estimée d'une passe : sa DERNIÈRE durée sur cette session (le meilleur prédicteur
+    d'une relance), mise à l'échelle si la taille a changé ; sinon l'appris du service commun ;
+    sinon None — pas d'a priori générique, dont l'ordre de grandeur serait faux ici."""
+    if not size:
+        return None
+    if last_duration:
+        return float(last_duration) * (size / last_size) if last_size else float(last_duration)
+    return float(learned_seconds) if learned_seconds else None
+
+
+def annotate_eta(session, rows) -> None:
+    """Ajoute à chaque ligne du panneau `eta_seconds` (durée estimée) et, pour une passe EN
+    COURS, `eta_remaining_s` (estimée − écoulée, jamais négative)."""
+    from django.utils import timezone as _tz
+    from wama_lab.cam_analyzer.models import AnalysisPass
+    started = {(p.pass_type, p.camera.position if p.camera_id else None): p.started_at
+               for p in AnalysisPass.objects.filter(session=session, status=AnalysisPass.Status.RUNNING)
+               .select_related('camera')}
+    learned_cache = {}
+    try:
+        from wama.model_manager.services.eta_estimator import estimate
+    except Exception:
+        estimate = None
+    now = _tz.now()
+    for r in rows:
+        pt, pos = r.get('pass_type'), r.get('camera')
+        size = pass_size_s(session, pt, pos)
+        summ = r.get('output_summary') or {}
+        last = r.get('duration_s') or summ.get('previous_duration_s')
+        learned = None
+        if not last and size and estimate is not None:
+            k = (pt, round(size))
+            if k not in learned_cache:
+                # fallback 0 : sans apprentissage, `estimate` rend 0 — on n'affiche rien plutôt
+                # qu'un a priori générique d'un autre domaine
+                learned_cache[k] = estimate(eta_key(pt), size, ETA_UNIT, model_loaded=True,
+                                            fallback_seconds=0.0)
+            learned = learned_cache[k]
+        eta = row_eta_seconds(size, last, summ.get('eta_size_s'), learned)
+        r['eta_seconds'] = round(eta, 1) if eta else None
+        t0 = started.get((pt, pos)) or started.get((pt, None))
+        if r.get('status') == 'running' and eta and t0:
+            r['eta_remaining_s'] = round(max(0.0, eta - (now - t0).total_seconds()), 1)
+
+
+def chain_passes_key(session_id) -> str:
+    """Passes de la chaîne EN COURS et son heure de départ — pour le total restant du panneau."""
+    return f'cam_analyzer_chain_passes:{session_id}'
+
+
+def chain_eta_remaining(session, rows, queued=()):
+    """Temps restant de la chaîne en cours + des passes en file : passe en cours = son restant ;
+    passe de la chaîne pas encore jouée = sa durée estimée ; passe déjà terminée depuis le départ de
+    la chaîne = 0. None quand rien n'est en cours ni en file, ou qu'aucune durée n'est connue."""
+    from datetime import datetime, timezone as _dtz
+    from django.core.cache import cache
+    info = cache.get(chain_passes_key(session.id)) or {}
+    keys = list(dict.fromkeys(list(info.get('passes') or []) + list(queued or [])))
+    if not keys:
+        return None
+    t_chain = info.get('started')
+    total, known = 0.0, False
+    for r in rows:
+        if r.get('pass_type') not in keys:
+            continue
+        if r.get('status') == 'running':
+            rem = r.get('eta_remaining_s')
+        else:
+            done_at = r.get('completed_at')
+            fresh = False
+            if done_at and t_chain and r.get('status') == 'completed':
+                try:
+                    fresh = datetime.fromisoformat(done_at).astimezone(_dtz.utc).timestamp() >= t_chain
+                except ValueError:
+                    fresh = False
+            rem = 0.0 if fresh and r.get('pass_type') not in (queued or ()) else r.get('eta_seconds')
+        if rem is not None:
+            total += rem
+            known = True
+    return round(total, 1) if known else None
 
 
 def mark_failed(session, pass_type: str, error_message: str, camera=None) -> None:
@@ -378,6 +534,11 @@ def _start_session_chain(session_id, items) -> list:
     ttl = DETECTION_CHAIN_TTL_S if any(it['key'] == 'detection' for it in items) \
         else CALC_CHAIN_TTL_S
     cache.set(calc_chain_key(sid), names, timeout=ttl)
+    import time as _time
+    _pk = []
+    for it in items:
+        _pk += (list(DETECTION_KEYS) + list(DETECTION_DOWNSTREAM)) if it['key'] == 'detection' else [it['key']]
+    cache.set(chain_passes_key(sid), {'passes': _pk, 'started': _time.time()}, timeout=ttl)
     # `cancel_analysis` révoque la tâche GPU suivie : l'id de la chaîne est celui de son DERNIER
     # maillon (la libération) — le révoquer ne couperait rien et laisserait le verrou en place.
     tracked = next((s for s, n in zip(sigs, names) if n in _CANCELLABLE), None)
@@ -423,6 +584,7 @@ def abort_session_chain(session_id, task=None) -> None:
     sid = str(session_id)
     cache.delete(session_queue_key(sid))
     cache.delete(calc_chain_key(sid))
+    cache.delete(chain_passes_key(sid))
 
 
 def launch_session_passes(session_id, pass_keys, detect_force=False) -> dict:
@@ -464,6 +626,7 @@ def dequeue_session_passes(session_id) -> list:
     if items:
         return _start_session_chain(sid, items)
     cache.delete(calc_chain_key(sid))
+    cache.delete(chain_passes_key(sid))
     return []
 
 

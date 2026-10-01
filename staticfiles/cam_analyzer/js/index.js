@@ -927,6 +927,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _running = p.status === 'running';
                 const _busy = _running || _inQueue;
                 const _cycle = _busy ? '⏳' : (p.status === 'never' ? '▶' : '↻');
+                // ETA (2026-10-01) : restant d'une passe en cours, durée d'une passe en file — format
+                // commun `WamaEta` (≈, arrondi grossier : une estimation apprise, pas une mesure).
+                const _etaS = _running ? p.eta_remaining_s : (_inQueue ? p.eta_seconds : null);
+                const _eta = (_etaS != null && window.WamaEta) ? WamaEta.format(_etaS, 'low') : null;
                 const _cycleTip = _running ? 'En cours…'
                     : (_inQueue ? 'En file — démarrera après la chaîne en cours'
                         : (p.status === 'never' ? 'Lancer ce passage seul' : 'Relancer ce passage seul'));
@@ -941,6 +945,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         ${_sel}
                         <span style="width:16px;text-align:center">${icon}</span>
                         <span class="flex-grow-1 text-light" style="font-size:0.78rem;">${escapeHtml(p.label)}${camSuffix}</span>
+                        ${_eta ? `<span class="text-secondary" style="font-size:0.7rem;" title="Durée restante estimée (apprise des exécutions précédentes)">${_eta}</span>` : ''}
                         <button type="button" class="btn btn-sm btn-outline-success py-0 px-1"
                                 ${dataPayload} title="${_cycleTip}" ${_busy ? 'disabled' : ''}
                                 style="font-size:0.7rem;">${_cycle}</button>
@@ -980,7 +985,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                     ${group.map(_rowHtml).join('')}`;
             }).join('');
+            // Total restant de la chaîne en cours + des passes en file (somme serveur).
+            const _chainEta = (data.eta_chain_s != null && window.WamaEta)
+                ? WamaEta.format(data.eta_chain_s, 'low') : null;
             panel.innerHTML = `
+                ${_chainEta ? `<div class="small text-info mb-1" title="Passe en cours + passes de la chaîne et de la file, estimées d'après les exécutions précédentes">⏱ Reste ${_chainEta}</div>` : ''}
                 ${rows || '<div class="text-secondary">Aucun passage enregistré.</div>'}
                 <div class="d-grid gap-1 mt-2">
                     <button type="button" class="btn btn-sm btn-success" id="rpRunMissingBtn"
