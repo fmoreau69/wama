@@ -246,8 +246,9 @@ Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA
 
 - **Domicile** : `wama/common/utils/task_skeleton.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Squelette COMMUN des tâches Celery d'item (brique F5 — marche A2 de la route §10.3).
-- **API publique** (3) :
+- **API publique** (4) :
   - `class TaskContext` — Poignées offertes à la glu : progress + console. `progress_fn` permet à une app de
+  - `run_process_steps(item, ctx, steps) -> dict` — Enchaîne les PROCESS d'un pipeline DÉCLARÉ dans une seule tâche — `steps` =
   - `class TaskTimeLimitExceeded(Exception)` — Le traitement a dépassé sa durée max (`resource_governor.task_time_limit_s`).
   - `run_item_task(task, *, app_id: str, model, item_id: int, process, vram_needed=None, model_key=None, error_field: str='error_message', ingest_derive=None, notif…` — Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
 
@@ -1040,10 +1041,11 @@ Range le RÉSULTAT d'un élément comme asset, lu au schéma canonique du détai
 
 - **Domicile** : `wama/media_library/services.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §2bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Le GESTE « ranger une sortie d'app dans ma médiathèque » — brique COMMUNE.
-- **API publique** (20) :
+- **API publique** (21) :
   - `enrich_asset_from_file(asset) -> None` — Ce que le FICHIER dit de l'asset — MIME, taille, et les `attributes` que la sonde commune
   - `candidate_asset_types(nom_fichier: str) -> list` — Rôles d'asset admissibles pour cette extension, dans l'ordre de `ASSET_TYPES`.
   - `class LibraryAddRefused(ValueError)` — Ajout refusé (nature inconnue, format non admis, nom déjà pris, déplacement impossible) —
+  - `estimate_attributes(asset_type: str, path) -> dict` — Ce qu'on peut PROPOSER des attributs demandés à l'ajout (`on_add` + `estimate`) en écoutant
   - `add_file_to_library(user, asset_type: str, *, uploaded=None, source=None, name: str='', description: str='', tags: str='', attributes=None, license: str='', au…` — Ajoute UN fichier à la médiathèque de `user`, comme asset de la nature `asset_type`.
   - `admissible_roles(detail: dict, nom_fichier: str) -> list` — Les rôles que le geste PROPOSE pour cette sortie — et donc les seuls qu'il accepte.
   - `export_choices(app: str, detail: dict) -> list` — Les CHOIX que le geste propose pour cette sortie — `[{key, label, asset_type, format}]`.
@@ -1112,7 +1114,7 @@ Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama loca
   - `ollama_chat(messages: list, model: str='', num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, keep_alive: Optional[str…` — Send a chat request to the local Ollama server.
   - `default_cloud_model(provider: str) -> str` — Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon `CLOUD_DEFAULT_MODELS`.
   - `llm_chat(messages: list, model: str=None, provider: str=None, num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, api_k…` — Unified LLM chat function — provider-agnostic entry point.
-  - `chat_with_catalog_model(catalog_key: str, messages: list, *, user=None, **llm_kwargs) -> tuple[Optional[str], Optional[str]]` — Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
+  - `chat_with_catalog_model(catalog_key: str, messages: list, *, user=None, num_predict: Optional[int]=4096, think: bool=False, timeout: float=300.0, temperature:…` — Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
   - `extract_json_from_llm(text: str) -> Optional[dict]` — Extract the first valid JSON object from an LLM response.
   - `generate_meeting_summary(text: str, language: str='fr', speakers: Optional[list]=None, model: str='', provider: Optional[str]=None) -> str` — Generate a structured meeting summary (compte-rendu de réunion).
   - `verify_text_coherence(text: str, content_hint: str='transcription', language: str='fr', model: str='', provider: Optional[str]=None) -> dict` — Verify text coherence and suggest corrections.
@@ -2481,7 +2483,7 @@ LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur
 
 - **Domicile** : `wama/common/tts/voice_refs.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9.4](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Voix de RÉFÉRENCE — la brique COMMUNE : résolution d'un preset en fichier, groupes du menu, libellés, téléchargement. Les voix VIVENT EN MÉDIATHÈQUE (`SystemAsset(asset_type='voice')`, `media_library/system/`) depuis le 2026-09-13 — plan `MEDIA_STORAGE_TIERING §9.4`.
-- **API publique** (13) :
+- **API publique** (14) :
   - `attributes_from_voice_id(voice_id: str) -> Dict` — Les `attributes` (nature `voice`) qu'un identifiant de preset PORTE.
   - `voice_reference_groups() -> List[Dict]` — Les optgroups du menu « voix de référence », DÉRIVÉS de la médiathèque :
   - `readable_voice_assets(user)` — Les voix de médiathèque qu'un utilisateur a le DROIT d'employer : les SIENNES **et celles
@@ -2492,6 +2494,7 @@ LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur
   - `model_supports_cloning(model_key: str) -> Optional[bool]` — Le moteur du modèle `model_key` CLONE-t-il ? — `True`/`False` si quelque chose le dit,
   - `speaker_wav_for(model_key: str, voice_preset: str, user=None, reference_path: Optional[str]=None, language: str='') -> Optional[str]` — LA porte des workers et des aperçus : le `speaker_wav` à passer au service TTS.
   - `ingest_voice_file(name: str, path, *, source_url: str='', license: str='', description: str='', replace: bool=False)` — Verse UN fichier de voix dans la médiathèque comme `SystemAsset(voice)` nommé `name`,
+  - `estimate_voice_gender(path) -> str` — Le genre que la voix d'un FICHIER fait entendre ('male' / 'female'), '' si la mesure ne
   - `needs_voice_download() -> bool` — Vrai si une voix du catalogue n'est pas (encore) en médiathèque.
   - `download_missing_voice_refs(force: bool=False, names=None) -> Dict[str, str]` — Télécharge les voix de référence manquantes et les VERSE en médiathèque.
   - `describe_voice(preset_value: str, user=None) -> str` — Le libellé d'une valeur de `voice_preset`, quelle que soit sa forme — pour AFFICHER
