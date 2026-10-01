@@ -293,7 +293,8 @@ class Command(BaseCommand):
         parser.add_argument('--level', action='store_true',
                             help="Cards avec le nivellement de la parole (`speech_leveling`).")
         parser.add_argument('--vad', choices=('auto', 'on', 'off'), default='auto',
-                            help="Filtre de parole de Whisper (sans effet sur les autres moteurs).")
+                            help="Filtre de parole des moteurs qui le déclarent (Whisper, "
+                                 "Albert) ; sans effet sur les autres.")
         parser.add_argument('--language-mode', nargs='+', choices=('auto', 'single', 'multi'),
                             default=['auto'],
                             help="Réglage(s) « Langues parlées » des cards posées — plusieurs "
@@ -757,7 +758,7 @@ class Command(BaseCommand):
         from wama.common.utils.batch_common import attach_to_batch
         from wama.media_library.models import SystemAsset
         from wama.tool_api import add_to_transcriber, start_transcriber
-        from wama.transcriber.backends.manager import catalogue_value, engine_name_for
+        from wama.transcriber.backends.manager import catalogue_value, filters_speech
         from wama.transcriber.models import BatchTranscript, BatchTranscriptItem, Transcript
 
         user = self._user(login)
@@ -774,9 +775,10 @@ class Command(BaseCommand):
                 # en option est lu comme elle l'écrit, sinon la configuration déjà posée ne se
                 # reconnaîtrait pas (idempotence ci-dessous).
                 engine = catalogue_value(engine)
-                # Le filtre de parole n'existe que chez Whisper (`workers._vad_filter_for`) :
-                # le varier sur un autre moteur poserait deux fois la même configuration.
-                engine_vad = vad if engine_name_for(engine) == 'whisper' else 'auto'
+                # Le filtre de parole n'existe que chez les moteurs qui le déclarent (Whisper,
+                # Albert — `supports_vad_filter`) : le varier sur un autre moteur poserait deux
+                # fois la même configuration.
+                engine_vad = vad if filters_speech(engine) else 'auto'
                 # Sans pipeline demandé, diarisation coupée : elle ne change pas le texte mesuré
                 # (WER), seulement le temps. Demandée, elle se mesure en cpWER et DER.
                 speakers = ({'enable_diarization': True, 'diarization_model': diarization}

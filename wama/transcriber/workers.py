@@ -570,7 +570,9 @@ def _transcribe_item(t, ctx):
         transcribe_kwargs = {}
         if t.hotwords:
             transcribe_kwargs['hotwords'] = t.hotwords
-        if backend.name == 'whisper':      # seul moteur qui filtre par VAD avant de transcrire
+        # Filtre de parole : par CAPACITÉ déclarée (`supports_vad_filter`), plus par le nom
+        # `whisper` — Albert le reçoit depuis le 2026-10-01 (même jumeau que la diarisation).
+        if getattr(backend, 'supports_vad_filter', False):
             transcribe_kwargs['vad_filter'] = _vad_filter_for(t, cleaned_path)
         language_mode, forced_language, fallback_language = _language_plan(t, cleaned_path, backend)
         if language_mode == 'multi' and backend.name == 'whisper':

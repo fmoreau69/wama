@@ -213,8 +213,12 @@
                   "expr": "'auto'",
                   "imports": []
                 },
+                "help_text": {
+                  "expr": "'Clé de catalogue du modèle, ou « auto » (tirage au lancement)'",
+                  "imports": []
+                },
                 "max_length": {
-                  "expr": "32",
+                  "expr": "128",
                   "imports": []
                 }
               },
@@ -245,6 +249,31 @@
                 }
               },
               "name": "enable_diarization"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "wama.common.backends.pyannote_diarizer.pipeline_choices",
+                  "imports": [
+                    "import wama.common.backends.pyannote_diarizer"
+                  ]
+                },
+                "db_default": {
+                  "expr": "'speaker-diarization-3.1'",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'speaker-diarization-3.1'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "64",
+                  "imports": []
+                }
+              },
+              "name": "diarization_model"
             },
             {
               "args": [],
@@ -1309,6 +1338,9 @@
             "work_file"
           ],
           "label": "Transcription",
+          "library_natures": {
+            "work_audio": "audio"
+          },
           "modes": [],
           "variant": "info"
         }
@@ -1323,12 +1355,7 @@
             "cap_from": null,
             "chip": true,
             "chip_label": "",
-            "choices": [
-              [
-                "auto",
-                "Auto (meilleur disponible)"
-              ]
-            ],
+            "choices": null,
             "contexts": [
               "item",
               "batch",
@@ -1341,12 +1368,14 @@
             },
             "group": "",
             "help": "",
-            "help_fallback": null,
+            "help_fallback": {
+              "auto": "Choisit le modèle au lancement : Whisper d'abord, puis selon la mémoire GPU libre et, si votre profil l'autorise, un modèle distant."
+            },
             "help_html": "",
-            "help_source": null,
+            "help_source": "transcriber",
             "icon": "fa-microchip",
             "inline": false,
-            "label": "Moteur de transcription",
+            "label": "Modèle de transcription",
             "max": null,
             "max_label": "",
             "min": null,
@@ -1354,19 +1383,67 @@
             "name": "backend",
             "option_groups": null,
             "options_abilities": false,
-            "options_auto": false,
-            "options_cloud": false,
+            "options_auto": true,
+            "options_cloud": true,
             "options_domain": "wama.transcriber.backends.manager.backend_choice_values",
             "options_group": "",
             "options_mode": null,
-            "options_query": null,
-            "options_source": "backends",
+            "options_query": {
+              "task": "transcription"
+            },
+            "options_source": "catalog",
             "pills": [],
             "radio_name": "",
             "section": "settings",
             "show_if": null,
             "step": null,
             "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel"
+            ],
+            "default": 50,
+            "dom_id": {
+              "panel": "qualityIntent"
+            },
+            "group": "",
+            "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-gauge-high",
+            "inline": false,
+            "label": "Rapide ↔ Qualité",
+            "max": 100,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "quality_intent",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_domain": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "auto",
+              "field": "backend"
+            },
+            "step": 1,
+            "type": "intent",
             "unit": ""
           },
           {
@@ -1434,7 +1511,7 @@
             "group": "",
             "help": "",
             "help_fallback": null,
-            "help_html": "Débruitage IA (DeepFilterNet) + 16 kHz mono<br><span class=\"text-warning\">Peut dégrader la transcription d'un enregistrement déjà propre : à réserver aux fonds très bruyants.</span><br><a href=\"#\" class=\"text-info text-decoration-none\" data-bs-toggle=\"modal\" data-bs-target=\"#preprocessingModal\"><i class=\"fas fa-circle-question\"></i> En savoir plus</a>",
+            "help_html": "Débruitage IA (DeepFilterNet), la parole étant d'abord nivelée<br><span class=\"text-warning\">Dégrade la transcription d'un enregistrement propre ou lointain : à réserver aux fonds très bruyants.</span><br><a href=\"#\" class=\"text-info text-decoration-none\" data-bs-toggle=\"modal\" data-bs-target=\"#preprocessingModal\"><i class=\"fas fa-circle-question\"></i> En savoir plus</a>",
             "help_source": null,
             "icon": "fa-wand-magic-sparkles",
             "inline": false,
@@ -1475,7 +1552,7 @@
             "default": false,
             "dom_id": "",
             "group": "",
-            "help": "Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué après le prétraitement. En cours d'évaluation : effet sur la transcription non encore établi.",
+            "help": "Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué en premier, avant le prétraitement. Mesuré : aide les enregistrements lointains ou faits à bas niveau, neutre sur un enregistrement propre.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1531,7 +1608,7 @@
             "default": "auto",
             "dom_id": "",
             "group": "",
-            "help": "Whisper saute les passages qu'il juge sans parole. « Auto » vérifie d'abord qu'il ne rejette pas une parole lointaine (entretien enregistré à distance) et le désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les longs silences.",
+            "help": "Whisper et Albert sautent les passages jugés sans parole. « Auto » vérifie d'abord que le filtre ne rejette pas une parole lointaine (entretien enregistré à distance) et le désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les longs silences.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1660,6 +1737,58 @@
             "show_if": null,
             "step": null,
             "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "speaker-diarization-3.1",
+                "pyannote 3.1"
+              ],
+              [
+                "speaker-diarization-community-1",
+                "pyannote community-1"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "speaker-diarization-3.1",
+            "dom_id": "",
+            "group": "",
+            "help": "community-1 succède à 3.1 (mêmes auteurs). En cours d'évaluation sur des réunions annotées : le meilleur des deux n'est pas encore établi.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-users-gear",
+            "inline": false,
+            "label": "Modèle de diarisation",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "diarization_model",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_domain": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": "enable_diarization",
+            "step": null,
+            "type": "select",
             "unit": ""
           },
           {
@@ -1861,7 +1990,6 @@
       "batch_link_model": "BatchTranscriptItem",
       "endpoints": [
         "about",
-        "backends",
         "batch_create",
         "batch_delete",
         "batch_download",
@@ -2023,11 +2151,6 @@
           "view": "views.set_preprocessing_preference"
         },
         {
-          "name": "backends",
-          "pattern": "backends/",
-          "view": "views.get_backends"
-        },
-        {
           "name": "segments",
           "pattern": "segments/<int:pk>/",
           "view": "views.get_segments"
@@ -2098,6 +2221,7 @@
             "vad_mode",
             "language_mode",
             "enable_diarization",
+            "diarization_model",
             "generate_summary",
             "summary_type",
             "verify_coherence"
@@ -2168,16 +2292,18 @@
       "descriptions": {
         "add_to_transcriber": {
           "args": {
-            "backend": "select — Moteur de transcription (choix : auto | whisper | vibevoice | qwen_asr | nemo | transcriber:qwen3-asr-0.6b | transcriber:qwen3-asr-1.7b | transcriber:vibevoice-asr …) (défaut : 'auto')",
+            "backend": "select — Modèle de transcription (choix : auto | transcriber:vibevoice-asr | transcriber:canary-1b-v2 | transcriber:qwen3-asr-1.7b | huggingface:kyutai/stt-1b-en_fr-trfs | transcriber:parakeet-tdt-0.6b-v3 | transcriber:whisper | transcriber:qwen3-asr-0.6b …) (défaut : 'auto')",
+            "diarization_model": "select — community-1 succède à 3.1 (mêmes auteurs). En cours d'évaluation sur des réunions annotées : le meilleur des deux n'est pas encore établi. (choix : speaker-diarization-3.1 | speaker-diarization-community-1) (défaut : 'speaker-diarization-3.1')",
             "enable_diarization": "toggle — Séparation des locuteurs (pyannote) (défaut : True)",
             "file_path": "str (requis)",
             "generate_summary": "toggle — Générer un résumé (défaut : False)",
             "hotwords": "textarea — Séparés par des virgules",
             "language_mode": "select — « Auto » écoute plusieurs passages de l'audio avant de transcrire : s'il entend plusieurs langues, chaque passage est transcrit dans la sienne. « Une seule » garde la même langue partout (évite qu'un passage bruité soit traduit). « Plusieurs » la redécide à chaque passage de 30 s. (choix : auto | single | multi) (défaut : 'auto')",
-            "level_speech": "toggle — Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué après le prétraitement. En cours d'évaluation : effet sur la transcription non encore établi. (défaut : False)",
+            "level_speech": "toggle — Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué en premier, avant le prétraitement. Mesuré : aide les enregistrements lointains ou faits à bas niveau, neutre sur un enregistrement propre. (défaut : False)",
             "preprocess_audio": "toggle — Prétraitement audio (défaut : False)",
+            "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "summary_type": "radio (choix : structured | meeting) (défaut : 'structured')",
-            "vad_mode": "select — Whisper saute les passages qu'il juge sans parole. « Auto » vérifie d'abord qu'il ne rejette pas une parole lointaine (entretien enregistré à distance) et le désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les longs silences. (choix : auto | on | off) (défaut : 'auto')",
+            "vad_mode": "select — Whisper et Albert sautent les passages jugés sans parole. « Auto » vérifie d'abord que le filtre ne rejette pas une parole lointaine (entretien enregistré à distance) et le désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les longs silences. (choix : auto | on | off) (défaut : 'auto')",
             "verify_coherence": "toggle — Score + correction proposée côte à côte (défaut : False)"
           },
           "description": "Ajoute un élément à la file d'attente de Transcriber (Transcription audio/vidéo en texte (Whisper)) et renvoie son item_id."

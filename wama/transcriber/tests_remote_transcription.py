@@ -10,7 +10,9 @@ CE QUE CES GARDES PROTÈGENT :
 - l'appel passe la garde commune (`cloud_access`) : « 100 % local » refuse, un modèle que la clé
   de CET utilisateur n'ouvre pas refuse, et la clé transmise est la sienne ;
 - le backend lit le protocole mesuré le 2026-09-30 (`verbose_json`) et ne traduit pas la sortie
-  par erreur (`language` n'est envoyé que s'il est imposé).
+  par erreur (`language` n'est envoyé que s'il est imposé) ;
+- le filtre de parole (2026-10-01) n'envoie que la parole et replace les horodatages sur l'audio
+  d'origine — un temps décalé ruinerait la diarisation et l'éditeur sans rien signaler.
 Aucun appel réseau : le point d'entrée d'Albert est simulé à la forme qu'il rend réellement.
 """
 import tempfile
@@ -115,6 +117,13 @@ class RemoteBackendThroughTheManagerTest(TestCase):
         with self.assertRaisesMessage(RuntimeError, "n'est pas ouvert"):
             self.manager.get_backend(ASR_KEY, user=other)
 
+    def test_the_evaluation_varies_the_speech_filter_only_where_it_exists(self):
+        """`asr_eval_corpus` lit la capacité sur la CLASSE, sans clé ni appel (2026-10-01)."""
+        from wama.transcriber.backends.manager import filters_speech
+        self.assertTrue(filters_speech(ASR_KEY))
+        self.assertTrue(filters_speech('whisper'))
+        self.assertFalse(filters_speech('qwen_asr'))
+
     def test_the_choice_domain_offers_the_remote_model(self):
         self.assertIn(ASR_KEY, backend_choice_values())
         self.assertNotIn('albert:gpt-oss-120b', backend_choice_values())
@@ -158,12 +167,61 @@ class AlbertProtocolTest(TestCase):
         self.assertIn('413', result.error)
         self.assertIn('File size limit exceeded', result.error)
 
+    def test_the_rate_limit_is_waited_out_not_reported_as_a_failure(self):
+        """Albert plafonne à 10 requêtes par minute : un 429 se patiente (2026-10-01)."""
+        busy = mock.Mock(status_code=429, text='', headers={'Retry-After': '0'})
+        done = mock.Mock(status_code=200, text='', json=mock.Mock(return_value=VERBOSE_JSON))
+        with mock.patch('requests.post', side_effect=[busy, done]) as post, \
+                mock.patch('time.sleep') as slept:
+            result = self.backend.transcribe(audio_path=self.audio)
+        self.assertTrue(result.success)
+        self.assertEqual(2, post.call_count)
+        slept.assert_called_once_with(0.0)
+
     def test_without_a_key_nothing_is_sent(self):
         self.backend.authorize('')
         with self._post() as post:
             result = self.backend.transcribe(audio_path=self.audio)
         self.assertFalse(result.success)
         post.assert_not_called()
+
+    def _speech_at(self, spans):
+        """Un audio de 4 s, et le VAD qui y entend `spans` (échantillons à 16 kHz)."""
+        import numpy as np
+        import soundfile as sf
+        sf.write(self.audio, np.full(64000, 0.1, dtype='float32'), 16000)
+        return mock.patch('faster_whisper.vad.get_speech_timestamps', return_value=spans)
+
+    def test_the_speech_filter_sends_only_speech_and_puts_times_back_on_the_original(self):
+        """Parole de 1 à 2 s et de 3 à 4 s : 2 s envoyées, et un segment à 0,5 s / 1,2 s de
+        l'envoi revient à 1,5 s / 3,2 s de l'audio d'origine (2026-10-01)."""
+        import soundfile as sf
+        sent = {}
+
+        def capture(*args, **kwargs):
+            sent['seconds'] = sf.info(kwargs['files']['file'][1]).duration
+            payload = dict(VERBOSE_JSON, segments=[
+                {'text': ' un', 'start': 0.5, 'end': 0.9}, {'text': ' deux', 'start': 1.2,
+                                                           'end': 1.8}])
+            return mock.Mock(status_code=200, text='', json=mock.Mock(return_value=payload))
+
+        with self._speech_at([{'start': 16000, 'end': 32000}, {'start': 48000, 'end': 64000}]), \
+                mock.patch('requests.post', side_effect=capture):
+            result = self.backend.transcribe(audio_path=self.audio, vad_filter=True)
+        self.assertAlmostEqual(2.0, sent['seconds'], places=2)
+        self.assertEqual([(1.5, 1.9), (3.2, 3.8)],
+                         [(s.start_time, s.end_time) for s in result.segments])
+
+    def test_without_the_filter_the_whole_audio_is_sent(self):
+        with self._speech_at([{'start': 16000, 'end': 32000}]) as vad, self._post():
+            self.backend.transcribe(audio_path=self.audio)
+        vad.assert_not_called()
+
+    def test_no_speech_heard_means_no_request_and_an_empty_transcript(self):
+        with self._speech_at([]), self._post() as post:
+            result = self.backend.transcribe(audio_path=self.audio, vad_filter=True)
+        post.assert_not_called()
+        self.assertEqual((True, ''), (result.success, result.text))
 
     def test_a_16k_mono_wav_is_sent_as_is_and_anything_else_is_converted(self):
         self.assertEqual(self.audio, self.backend._upload_path(self.audio, self.folder))

@@ -30,6 +30,17 @@ Mesuré le 2026-09-30 sur l'API réelle (clé d'instance) :
     documentée (erreur 413 prévue) — d'où `max_audio_seconds`, sous la plus longue mesure ;
   • ⚠ `language` n'IMPOSE pas la langue de l'audio : il TRADUIT la sortie vers cette langue. Il
     n'est donc passé que lorsque l'orchestration en impose une (réglage « une seule langue »).
+
+LE FILTRE DE PAROLE (2026-10-01) : mesuré sur trois réunions SUMM-RE, Albert OMETTAIT 70 à 250
+mots de plus que le Whisper local, avec des segments de 22 à 25 s couvrant tout l'audio — il ne
+découpe pas la parole en amont. `vad_filter` fait donc ici ce que fait faster-whisper : le VAD
+Silero repère les passages parlés, seuls ceux-ci sont envoyés (bout à bout), et les horodatages
+rendus sont replacés sur l'audio d'origine (`SpeechTimestampsMap`). Même détecteur, mêmes
+réglages par défaut que le local : la comparaison ne mesure que le moteur.
+Mesuré le jour même (`WAMA_QUALITE §9bis`) : le filtre aide l'audio multilingue (FLEURS-CS
+44,5 → 39,8 %) mais NE RÉDUIT PAS les omissions en réunion (31,6 → 31,7 %), pas plus qu'un envoi
+par morceaux de ≤ 30 s (32,2 %, essayé puis retiré) : l'écart avec le local est dans le décodage
+d'Albert, que son API ne règle pas.
 """
 
 import logging
@@ -42,6 +53,10 @@ from typing import Optional
 from .speech_to_text_base import SpeechToTextBackend, TranscriptionResult, TranscriptionSegment
 
 logger = logging.getLogger(__name__)
+
+
+class _Refused(Exception):
+    """Albert a refusé un envoi (HTTP ≠ 200, limite de débit persistante) — message prêt."""
 
 
 class AlbertTranscriptionBackend(SpeechToTextBackend):
@@ -63,6 +78,7 @@ class AlbertTranscriptionBackend(SpeechToTextBackend):
     supports_timestamps = True
     supports_hotwords = False
     supports_streaming = False
+    supports_vad_filter = True
 
     REQUIRED_PACKAGES = ['requests']
     min_vram_gb = 0
@@ -72,6 +88,10 @@ class AlbertTranscriptionBackend(SpeechToTextBackend):
     max_audio_seconds = 1500
     #: Délai d'une requête : 26 min d'audio ont pris 7,5 s ; la marge couvre une file chargée.
     REQUEST_TIMEOUT_S = 600
+    #: Albert plafonne à 10 requêtes par minute (429 au-delà, mesuré le 2026-09-29) : un lot de
+    #: cards, ou un long audio que l'orchestration découpe, attend et recommence au lieu d'échouer.
+    RATE_LIMIT_WAIT_S = 7.0
+    RATE_LIMIT_RETRIES = 6
 
     def __init__(self):
         super().__init__()
@@ -107,10 +127,54 @@ class AlbertTranscriptionBackend(SpeechToTextBackend):
         from wama.common.utils.audio_decode import transcode_to_wav
         return transcode_to_wav(audio_path, os.path.join(tmp_dir, 'albert_upload.wav'))
 
+    @staticmethod
+    def _speech_only(wav_path: str, tmp_dir: str):
+        """Les seuls passages parlés de `wav_path` (wav 16 kHz mono), bout à bout, selon le VAD
+        de faster-whisper → (chemin du wav envoyé, carte des temps) ; (None, None) sans parole.
+        La carte replace un temps de l'audio envoyé sur l'audio d'origine."""
+        import soundfile as sf
+        from faster_whisper.vad import (SpeechTimestampsMap, VadOptions, collect_chunks,
+                                        get_speech_timestamps)
+        wave, sr = sf.read(wav_path, dtype='float32')
+        spans = get_speech_timestamps(wave, VadOptions(), sampling_rate=sr)
+        if not spans:
+            return None, None
+        chunks, _ = collect_chunks(wave, spans, sampling_rate=sr)
+        out = os.path.join(tmp_dir, 'albert_speech.wav')
+        sf.write(out, chunks[0], sr, subtype='PCM_16')
+        logger.info(f"[Albert ASR] filtre de parole : {len(spans)} passages, "
+                    f"{len(chunks[0]) / max(len(wave), 1):.0%} de l'audio envoyé")
+        return out, SpeechTimestampsMap(spans, sr)
+
+    def _post(self, path: str, data: dict) -> dict:
+        """Un envoi ; attend et recommence sur la limite de débit (HTTP 429). Lève `_Refused`."""
+        import requests
+        from wama.common import external_sources
+        for attempt in range(self.RATE_LIMIT_RETRIES + 1):
+            with open(path, 'rb') as fh:
+                response = requests.post(
+                    f"{external_sources.base_url(self.ENGINE)}/audio/transcriptions",
+                    headers={'Authorization': f'Bearer {self._api_key}'},
+                    files={'file': (os.path.basename(path), fh, 'audio/wav')},
+                    data=data, timeout=self.REQUEST_TIMEOUT_S)
+            if response.status_code == 429 and attempt < self.RATE_LIMIT_RETRIES:
+                wait = response.headers.get('Retry-After') if response.headers else None
+                time.sleep(float(wait) if wait and str(wait).replace('.', '', 1).isdigit()
+                           else self.RATE_LIMIT_WAIT_S)
+                continue
+            if response.status_code != 200:
+                try:
+                    detail = response.json().get('detail') or response.text
+                except ValueError:
+                    detail = response.text
+                raise _Refused(f"Albert a refusé la transcription (HTTP {response.status_code}) : "
+                               f"{str(detail)[:300]}")
+            return response.json()
+        raise _Refused("Albert : limite de débit toujours atteinte")
+
     def transcribe(self, audio_path: str, language: str = None, hotwords: str = None,
                    **kwargs) -> TranscriptionResult:
         import requests
-        from wama.common import external_sources
 
         if not self._loaded or not self._current_model:
             return TranscriptionResult(success=False, text='', error="modèle distant non chargé")
@@ -118,28 +182,23 @@ class AlbertTranscriptionBackend(SpeechToTextBackend):
             return TranscriptionResult(success=False, text='',
                                        error="aucune clé Albert posée pour cet appel")
         tmp_dir = tempfile.mkdtemp(prefix='wama_albert_')
+        time_map = None
+        data = {'model': self._current_model, 'response_format': 'verbose_json'}
+        if language:
+            data['language'] = language
+        t0 = time.time()
         try:
             upload = self._upload_path(audio_path, tmp_dir)
-            data = {'model': self._current_model, 'response_format': 'verbose_json'}
-            if language:
-                data['language'] = language
-            t0 = time.time()
-            with open(upload, 'rb') as fh:
-                response = requests.post(
-                    f"{external_sources.base_url(self.ENGINE)}/audio/transcriptions",
-                    headers={'Authorization': f'Bearer {self._api_key}'},
-                    files={'file': (os.path.basename(upload), fh, 'audio/wav')},
-                    data=data, timeout=self.REQUEST_TIMEOUT_S)
-            if response.status_code != 200:
-                try:
-                    detail = response.json().get('detail') or response.text
-                except ValueError:
-                    detail = response.text
-                return TranscriptionResult(
-                    success=False, text='',
-                    error=f"Albert a refusé la transcription (HTTP {response.status_code}) : "
-                          f"{str(detail)[:300]}")
-            payload = response.json()
+            # Filtre de parole : défaut FAUX ici — c'est l'orchestration qui décide (`vad_mode`
+            # de la card, sonde du champ lointain), comme elle le fait pour Whisper.
+            if kwargs.get('vad_filter', False):
+                upload, time_map = self._speech_only(upload, tmp_dir)
+                if upload is None:
+                    return TranscriptionResult(success=True, text='', language=language or '',
+                                               segments=[])
+            payload = self._post(upload, data)
+        except _Refused as e:
+            return TranscriptionResult(success=False, text='', error=str(e))
         except requests.RequestException as e:
             return TranscriptionResult(success=False, text='', error=f"Albert injoignable : {e}")
         except Exception as e:
@@ -148,12 +207,16 @@ class AlbertTranscriptionBackend(SpeechToTextBackend):
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
+        def _original(seconds, is_end=False):
+            seconds = float(seconds or 0.0)
+            return time_map.get_original_time(seconds, is_end=is_end) if time_map else seconds
+
         detected = payload.get('language') or language or ''
         segments = [
             TranscriptionSegment(
                 speaker_id='',
-                start_time=float(seg.get('start') or 0.0),
-                end_time=float(seg.get('end') or 0.0),
+                start_time=_original(seg.get('start')),
+                end_time=_original(seg.get('end'), is_end=True),
                 text=(seg.get('text') or '').strip(),
                 language=detected or None,
             )

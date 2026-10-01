@@ -213,6 +213,8 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         from wama.common.backends.speech_to_text_base import TranscriptionResult, TranscriptionSegment
         asr = mock.MagicMock(display_name='Fake ASR', _current_model='fake-1')
         asr.name = 'fake'
+        # Une capacité se DÉCLARE : un MagicMock répondrait « vrai » à toute question.
+        asr.supports_vad_filter = False
         asr.load.return_value = True
         asr.transcribe.return_value = TranscriptionResult(
             success=not fail, text='bonjour à tous', language='fr', error='boom' if fail else None,
@@ -235,6 +237,7 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         Transcript.objects.filter(pk=self.item.pk).update(vad_mode=mode, status='RUNNING')
         asr = self._asr()
         asr.name = 'whisper'
+        asr.supports_vad_filter = True
         probe = {'vad': 0.2, 'energy': 0.7, 'rejects': rejects}
         with mock.patch('wama.common.utils.speech_activity.vad_rejects_speech',
                         return_value=probe) as probed:
@@ -299,6 +302,21 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         asr = self._asr()
         self._run(asr)
         self.assertNotIn('vad_filter', asr.transcribe.call_args.kwargs)
+
+    def test_the_declared_capability_decides_not_the_engine_name(self):
+        """Until 2026-10-01 only the engine NAMED `whisper` got the filter: Albert, which can
+        filter, never received it — the cause measured of its extra omissions."""
+        from unittest import mock
+        received = {}
+        for engine, capable in (('albert', True), ('whisper', False)):
+            Transcript.objects.filter(pk=self.item.pk).update(vad_mode='on', status='RUNNING')
+            asr = self._asr()
+            asr.name = engine
+            asr.supports_vad_filter = capable
+            with mock.patch('wama.common.utils.speech_activity.vad_rejects_speech'):
+                self._run(asr)
+            received[engine] = asr.transcribe.call_args.kwargs.get('vad_filter')
+        self.assertEqual({'albert': True, 'whisper': None}, received)
 
     def _language_kwargs(self, mode, engine='whisper', heard=None, in_passes=False):
         Transcript.objects.filter(pk=self.item.pk).update(language_mode=mode, status='RUNNING')
