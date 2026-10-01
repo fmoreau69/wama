@@ -41,3 +41,22 @@ class CalibrationReferenceTest(SimpleTestCase):
         block = src[src.index('_pos_by_stat = '):src.index('placement_spread = track_position_spread')]
         self.assertIn('calibration_reference', block)
         self.assertNotIn('_stat_set', block)
+
+
+class OrthoPerPassMeasureTest(SimpleTestCase):
+    """Mesure PAR PASSAGE du recalage ortho (2026-10-01) : ce qu'elle rend est rangé tel quel dans
+    `results_summary` — un flottant numpy y casserait l'écriture JSON."""
+
+    def test_the_measure_casts_projected_values_to_python_floats(self):
+        src = inspect.getsource(__import__(
+            'wama_lab.cam_analyzer.utils.ortho_markings', fromlist=['measure_passes']).measure_passes)
+        self.assertIn('delta = float(map_near - min(pts))', src)
+        self.assertIn('stamps.append(float(tg))', src)
+
+    def test_the_correction_pass_measures_per_pass_not_per_place(self):
+        from wama_lab.cam_analyzer import tasks
+        src = inspect.getsource(tasks.compute_ortho_correction_task)
+        self.assertIn('measure_passes(session)', src)
+        self.assertIn('decompose_passes(passes)', src)
+        self.assertIn('reach_s=PASS_REACH_S', src)
+        self.assertNotIn('decompose(rec)', src)

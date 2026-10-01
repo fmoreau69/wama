@@ -401,20 +401,28 @@ _spec('ortho_correction', 'Correction de trajectoire (ortho)',
       "CALCULE les ancres de correction tirées du recalage mesuré ; la bascule ⚑ ortho_correction "
       "choisit à la lecture de les appliquer (serveur : `ego_pose.effective_gps_track` ; affichage : "
       "même interpolation). "
-      "La médiane globale est tenue pour un biais de PROJECTION caméra et n'est PAS appliquée ; "
-      "seul l'écart LOCAL par intersection corrige le GPS, interpolé entre repères et atténué "
-      "là où le ciel est dégagé (masquage satellite BD TOPO). Séparée de la mesure : "
-      "recalibrer le seuil ne doit pas relancer la segmentation SAM3 des tuiles ortho.",
+      "Mesure PAR PASSAGE (2026-10-01) : à chaque traversée, écart LE LONG DE LA MARCHE entre le "
+      "bord proche d'un passage piéton vu par la caméra avant et le même passage sur l'orthophoto. "
+      "La médiane des passages (constante dans le repère véhicule) est le biais de PROJECTION caméra "
+      "et n'est PAS appliquée ; le reste de chaque passage, rapporté à son cap, corrige le GPS — "
+      "seulement si des passages de sens opposés le rendent séparable. Ancres datées en temps GPS, "
+      "de portée limitée (±60 s), atténuées là où le ciel est dégagé (masquage satellite BD TOPO). "
+      "Séparée de la mesure : recalibrer ne relance pas la segmentation SAM3 des tuiles ortho.",
       FC.TRANSFORM, 'cam_analyzer.tasks:compute_ortho_correction_task', ['geo', 'gnss'],
       inputs=[PortSpec('recalage', DT.SCALAR, required_fields=['de_m', 'dn_m'],
-                       description="Offsets MESURÉS par `ortho_recalage`, par intersection.")],
+                       description="Passages piétons segmentés sur l'orthophoto par `ortho_recalage` "
+                                   "(`ortho_markings`), confrontés aux marquages SAM3 de la caméra "
+                                   "avant, frame par frame.")],
       outputs=[PortSpec('ortho_correction', DT.TABLE,
-                        produced_fields=['anchors', 'camera_bias', 'sky_mask_deg', 'report'],
+                        produced_fields=['anchors', 'camera_bias', 'passes', 'measure',
+                                         'sky_mask_deg', 'report'],
                         description="Ce qui est PERSISTÉ de la correction : les `anchors` "
                                     "(quelques repères, jamais une trace dupliquée — tout "
                                     "consommateur rejoue l'interpolation), le `camera_bias` "
-                                    "écarté à dessein, et le masquage de ciel qui atténue la "
-                                    "correction là où le GPS est déjà bon.")])
+                                    "écarté à dessein, les `passes` mesurés (écart le long de la "
+                                    "marche par traversée) et le rapport de `measure`, et le "
+                                    "masquage de ciel qui atténue la correction là où le GPS est "
+                                    "déjà bon.")])
 
 _spec('shuttle_filter', 'Filtre de trajectoire navette (Kalman+RTS)',
       "Lisse position et cap de la NAVETTE (brique pure driving.ego_track_filter), stocke la "

@@ -244,3 +244,84 @@ class CleTemporelleDeclareeTest(unittest.TestCase):
 
 if __name__ == "__main__":       # exécution directe encore possible
     unittest.main(verbosity=2)
+
+
+class PerPassDecompositionTest(unittest.TestCase):
+    """Recalage ortho PAR PASSAGE (2026-10-01) : un biais caméra suit le cap, une erreur GPS est
+    géographique. Cas réel : 14 traversées du même carrefour, dans les deux sens."""
+
+    def _passes(self, gps_north_m, camera_along_m):
+        """Navette 4 m trop au SUD (erreur GPS) + biais caméra fixe, passages nord puis sud."""
+        out = []
+        for i, hd in enumerate((5.0, 185.0, 6.0, 184.0)):
+            # écart le long de la marche = biais caméra + projection de l'erreur GPS sur le cap
+            along = camera_along_m + gps_north_m * math.cos(math.radians(hd))
+            out.append({'key': str(i), 'ts': 100.0 * i, 'heading_deg': hd, 'along_m': along, 'n': 10})
+        return out
+
+    def test_a_geographic_gps_error_is_recovered_and_the_camera_bias_removed(self):
+        dec = oa.decompose_passes(self._passes(gps_north_m=4.0, camera_along_m=-0.5))
+        self.assertTrue(dec['camera']['separable'])
+        self.assertAlmostEqual(dec['camera']['along_m'], -0.5, places=1)
+        for v in dec['gps_local'].values():       # chaque passage : avancer la navette de 4 m au NORD
+            self.assertAlmostEqual(v['dn_m'], 4.0, delta=0.15)
+            # seule la composante LE LONG de la marche est mesurée : rapportée au cap (5-6°),
+            # elle laisse ~0,4 m vers l'est — le latéral relève du recalage voie + carte
+            self.assertAlmostEqual(v['de_m'], 0.0, delta=0.5)
+
+    def test_passes_in_a_single_direction_are_not_separable(self):
+        same_way = [p for p in self._passes(4.0, -0.5) if p['heading_deg'] < 90]
+        dec = oa.decompose_passes(same_way)
+        self.assertFalse(dec['camera']['separable'])
+        self.assertEqual(dec['gps_local'], {}, "rien n'est attribué au GPS quand on ne peut pas trancher")
+
+    def test_no_pass_gives_no_correction(self):
+        self.assertEqual(oa.decompose_passes([])['gps_local'], {})
+
+    def test_anchors_take_the_gps_time_of_the_pass_not_the_window(self):
+        dec = oa.decompose_passes(self._passes(4.0, 0.0))
+        wins = [{'t_enter': 0.0, 't_exit': 9999.0}] * 4     # bornes VIDÉO : ne doivent pas servir
+        anchors = oa.build_anchors(wins, dec, reach_s=60.0)
+        self.assertEqual([a['ts'] for a in anchors], [0.0, 100.0, 200.0, 300.0])
+        self.assertTrue(all(a['reach_s'] == 60.0 for a in anchors))
+
+
+class AnchorReachTest(unittest.TestCase):
+    A = [{'ts': 100.0, 'de_m': 0.0, 'dn_m': 4.0, 'n': 10, 'reach_s': 60.0},
+         {'ts': 400.0, 'de_m': 0.0, 'dn_m': -2.0, 'n': 10, 'reach_s': 60.0}]
+
+    def test_full_correction_at_the_pass_and_none_far_from_it(self):
+        self.assertEqual(oa.offset_at(self.A, 100.0), (0.0, 4.0))
+        self.assertEqual(oa.offset_at(self.A, 250.0), (0.0, 0.0), "entre deux passages lointains : rien")
+        self.assertEqual(oa.offset_at(self.A, 0.0), (0.0, 0.0), "jamais d'extrapolation ni de maintien")
+
+    def test_the_correction_fades_linearly_within_the_reach(self):
+        self.assertAlmostEqual(oa.offset_at(self.A, 130.0)[1], 2.0)
+        self.assertAlmostEqual(oa.offset_at(self.A, 370.0)[1], -1.0)
+
+    def test_anchors_without_reach_keep_the_historical_interpolation(self):
+        old = [{k: v for k, v in a.items() if k != 'reach_s'} for a in self.A]
+        self.assertAlmostEqual(oa.offset_at(old, 250.0)[1], 1.0)
+        self.assertEqual(oa.offset_at(old, 0.0), (0.0, 4.0))
+
+    def test_the_display_mirror_computes_the_same_offsets(self):
+        """`_orthoOffsetAt` (index.js) est un miroir : on l'exécute (V8) sur les mêmes ancres."""
+        import re
+        from pathlib import Path
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent')
+        src = (Path(__file__).resolve().parents[3]
+               / 'wama_lab/cam_analyzer/static/cam_analyzer/js/index.js').read_text(encoding='utf-8')
+        start = src.index('function _orthoOffsetAt(')
+        body = src[start:src.index('\n    }\n', start) + 6]
+        ctx = MiniRacer()
+        ctx.eval(body)
+        import json
+        for anchors in (self.A, [{k: v for k, v in a.items() if k != 'reach_s'} for a in self.A]):
+            for ts in (0.0, 100.0, 130.0, 250.0, 370.0, 500.0):
+                js = ctx.eval(f'_orthoOffsetAt({json.dumps(anchors)}, {ts})')
+                py = oa.offset_at(anchors, ts)
+                self.assertAlmostEqual(js[0], py[0], places=9, msg=f'ts={ts}')
+                self.assertAlmostEqual(js[1], py[1], places=9, msg=f'ts={ts}')

@@ -2791,21 +2791,25 @@ def compute_ortho_correction_task(self, session_id: str):
     from .models import AnalysisSession
     from .utils.pass_tracking import mark_started, mark_completed, mark_failed
     from wama_data.functions.driving.trajectory_offset import (
-        decompose, build_anchors, correction_report)
+        decompose_passes, build_anchors, correction_report, PASS_REACH_S)
     from wama_data.functions.geo.ign_vector import sky_mask_at
+    from .utils.ortho_markings import measure_passes
 
     session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
     uid = session.user_id
     try:
         mark_started(session, 'ortho_correction', session.profile)
-        rec = (session.results_summary or {}).get('ortho_recalage') or {}
-        if not rec.get('per_window'):
+        if not (session.results_summary or {}).get('ortho_markings'):
             mark_failed(session, 'ortho_correction', "aucun recalage ortho mesuré")
             _console(uid, "Correction de trajectoire : aucun recalage mesuré "
                           "(lancer d'abord la passe « Recalage ortho »).")
             return {'session_id': session_id, 'applied': False, 'reason': 'no_recalage'}
 
-        dec = decompose(rec)
+        # PAR PASSAGE (2026-10-01) : chaque traversée d'un passage piéton est une mesure datée.
+        # L'agrégation par lieu de `match_recalage` faisait de 14 traversées du même carrefour une
+        # seule mesure, entièrement classée en biais caméra — correction nulle partout.
+        passes, measure = measure_passes(session)
+        dec = decompose_passes(passes)
         wins = session.intersection_windows or []
         masks = {}
         for wi in (dec.get('gps_local') or {}):
@@ -2817,12 +2821,16 @@ def compute_ortho_correction_task(self, session_id: str):
             except Exception:
                 logger.warning("[ortho] masque satellite indisponible pour le repère %r", wi)
 
-        anchors = build_anchors(wins, dec, masks or None)
+        anchors = build_anchors(wins, dec, masks or None, reach_s=PASS_REACH_S)
         rep = correction_report(anchors)
+        rep.update(passes_measured=len(passes), windows_with_ortho=measure.get('windows', 0),
+                   separable=dec['camera']['separable'], camera_along_m=dec['camera']['along_m'])
         rs = session.results_summary or {}
         rs['ortho_correction'] = {
             'anchors': anchors,
             'camera_bias': dec['camera'],
+            'passes': passes,
+            'measure': measure,
             'sky_mask_deg': masks,
             'report': rep,
         }
