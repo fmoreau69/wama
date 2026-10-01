@@ -340,6 +340,32 @@ class IdentityIsTheRequestedOneTest(SimpleTestCase):
         self.assertEqual(1, len(concerns))
         self.assertIn('stt-2.6b-en', concerns[0])
 
+    def test_a_wrong_identity_takes_the_wrong_name_with_it(self):
+        manifest = {'key': 'huggingface:kyutai/stt-2.6b-en', 'name': 'stt-2.6b-en', 'body': {}}
+        self.role_utils.enforce_identity(manifest, self.KEY, self.HF, [])
+        self.assertEqual('stt-1b-en_fr-trfs', manifest['name'])
+
+    def test_the_card_languages_override_the_llms(self):
+        manifest = {'body': {'capabilities': {'languages': ['en']}}}
+        concerns = []
+        self.role_utils.enforce_language_facts(manifest, ['en', 'fr'], concerns)
+        self.assertEqual(['en', 'fr'], manifest['body']['capabilities']['languages'])
+        self.assertIn('CORRIGÉES', concerns[0])
+
+    def test_a_card_without_languages_leaves_them_alone(self):
+        manifest = {'body': {'capabilities': {'languages': ['fr']}}}
+        concerns = []
+        self.role_utils.enforce_language_facts(manifest, [], concerns)
+        self.assertEqual((['fr'], []), (manifest['body']['capabilities']['languages'], concerns))
+
+    def test_the_card_languages_are_read_from_the_yaml_header(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            Path(folder, 'README.md').write_text('---\nlanguage:\n- en\n- fr-FR\nlicense: cc-by-4.0\n'
+                                                 '---\n# Card\n', encoding='utf-8')
+            self.assertEqual(['en', 'fr'], self.role_utils.card_languages('org/repo', folder))
+
     def test_the_right_identity_says_nothing(self):
         manifest = {'key': self.KEY, 'body': {'identity': {'hf_id': self.HF}}}
         concerns = []

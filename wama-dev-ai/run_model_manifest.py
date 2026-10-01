@@ -56,7 +56,8 @@ django.setup()
 
 from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, enforce_engine_facts, enforce_identity, enforce_resolution_facts,
+    add_llm_arguments, call_llm, card_languages, enforce_engine_facts, enforce_identity,
+    enforce_language_facts, enforce_resolution_facts,
     enforce_vendor_engine, extract_json,
     fetch as _fetch,
     manifest_examples, model_vocabularies, resolve_model, write_output)
@@ -226,6 +227,9 @@ def main():
         enforce_identity(manifest, f'huggingface:{args.hf}', args.hf, concerns)
     # Fait mécanique sur le moteur (partagé avec le scout) : `diffusers` doit être PROUVÉ.
     hf_id = _lire(manifest, ('body', 'identity', 'hf_id'))
+    # Les langues que la FICHE déclare (le snapshot installé d'abord) — 2026-10-01, Kyutai.
+    snapshot = provenance.split('snapshot:', 1)[1] if provenance.startswith('snapshot:') else None
+    enforce_language_facts(manifest, card_languages(hf_id, snapshot), concerns)
     if hf_id:
         enforce_engine_facts(manifest, hf_id, concerns)
         enforce_resolution_facts(manifest, hf_id, concerns)
