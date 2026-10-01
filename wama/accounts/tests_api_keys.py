@@ -215,3 +215,20 @@ class HuggingFaceKeyTest(TestCase):
         self.assertEqual(200, r.status_code, r.content)
         refresh.assert_not_called()
         self.assertEqual('hf_abc', api_keys.key_for(self.user, 'huggingface'))
+
+
+@override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
+class ProfileKeySaveStaysFastTest(TestCase):
+    """2026-10-02: the profile's « Enregistrer » ran the full catalogue sync in the request (over
+    two minutes, nothing visible). The view now asks for the background update."""
+
+    def test_the_view_asks_for_the_catalogue_update_in_the_background(self):
+        user = get_user_model().objects.create_user('fast_key_save', password='x')
+        self.client.force_login(user)
+        with mock.patch('wama.model_manager.services.cloud_models.refresh_key',
+                        return_value=(3, '')) as refresh:
+            r = self.client.post(reverse('accounts:profile-api-key-save', args=['albert']),
+                                 data=json.dumps({'api_key': CLAIR}),
+                                 content_type='application/json')
+        self.assertEqual(3, r.json()['models_count'])
+        self.assertTrue(refresh.call_args.kwargs.get('background'))
