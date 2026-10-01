@@ -2060,3 +2060,30 @@ génération sur GPU (le GPU servait une campagne d'évaluation du transcriber �
 pas une option) ; et l'emploi par le COMPOSER, qui appelle `composer:<modèle>` — un modèle venu
 du catalogue (`huggingface:…`) n'y paraît qu'avec l'étape F4b du composer (sélecteur tiré du
 catalogue par tâche, faite pour l'imager et le transcriber).
+
+## Session du 2026-10-01 (soir) : trois modèles de transcription par les rôles — le rôle `backend` sans essai écrit du code qui ÉCHOUE à chaque appel
+
+LinTO FR (NeMo), FrWhisper et Kyutai STT 1B fr/en, installés par la prospection, ont été menés
+par les rôles jusqu'au Valider (`backend` joué par l'assistant sur Albert). Trois familles de
+trous, chacune comblée par un fait mécanique ou une brique, jamais par une consigne :
+
+| étape | trou rencontré → comblé |
+|---|---|
+| rôle `model` | le LLM écrivait l'identité d'un AUTRE modèle (la fiche de Kyutai, partagée, cite `stt-2.6b-en`) → `enforce_identity` ; les langues lues ailleurs que dans la fiche → `card_languages`, qui délègue à `prospector.card_facts` (codes courts depuis ce jour) ; un `.nemo` sans moteur proposé → `FORMAT_ENGINES` ; aucune anatomie pour un modèle simple → `enforce_component_facts` (le rôle `backend` l'exige) |
+| moteur au catalogue | LinTO posé en `transformers` (le `library_name` de la fiche, jamais confronté à la lib installée) → corrigé en `nemo` et servi par `NemoASRBackend` ; ⏳ l'installation devrait vérifier `library_name` contre la librairie réellement installée |
+| rôle `backend` | « contrôles : OK », « résolution simulée : CE backend » — et **aucun essai** : `smoke: pas de smoke pour le contrat SpeechToTextBackend`. Joués à la main sur GPU, **les deux échouaient à chaque transcription** : Kyutai passait l'audio EN POSITION au processeur (lu comme une image → entrée vide) à 16 kHz au lieu de 24 ; FrWhisper passait par le `pipeline` transformers, qui importe torchcodec (cassé dans le venv) quelle que soit l'entrée. Le code du rôle est versionné TEL QUEL (b193bbc3), les corrections à part (2fd9d25e, 70b08f61) : l'écart mesure ce que le rôle a raté |
+| aval du Valider | un backend validé était introuvable par le transcriber (liste de moteurs écrite en dur) et ses mesures se rangeaient sous la clé du MOTEUR → le gestionnaire adopte la classe que le catalogue désigne, `catalogue_key_for` reçoit la demande de la card (9dd171bb) |
+
+⭐ **Ce que la revue a trouvé en plus, et qui valait pour tout le dépôt** : `audio_decode.decode_audio`
+laisse un WAV à sa fréquence NATIVE. Trois consommateurs rééchantillonnaient chacun à leur façon,
+les deux backends neufs l'avaient oublié — Kyutai a d'abord « entendu » un audio accéléré de moitié,
+et rendait pourtant un texte lisible, ce qui l'aurait laissé passer. → `decode_audio_at`, fréquence
+GARANTIE, cinq consommateurs (70b08f61).
+
+**Mesuré sur GPU** (5 min de SUMM-RE 007a) : FrWhisper 24 segments en 77 s, horodatage grossier
+(ce fine-tune émet rarement ses jetons de temps : souvent un segment par fenêtre de 30 s) ;
+Kyutai 79 segments en 345 s, plus lent que le temps réel ; LinTO 60 s en 3,8 s.
+⏳ **Restent** : un essai du contrat `SpeechToTextBackend` dans le rôle `backend` (un extrait
+court, transcrit, « texte non vide et segments ordonnés ») — c'est le trou qui a laissé passer
+deux backends morts ; la campagne d'évaluation des trois (LinTO : seul SUMM-RE, qu'il n'a jamais
+vu, le mesure sans biais — sa fiche cite CFPP2000 et FLEURS parmi ses données d'entraînement).
