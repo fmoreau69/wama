@@ -28,6 +28,30 @@ class DeclarationTest(SimpleTestCase):
         self.assertEqual('parakeet-tdt-0.6b-v3', B.model_id_for(None))
         self.assertEqual('parakeet-tdt-0.6b-v3', B.model_id_for('nemo'))
 
+    def test_linto_is_served_under_its_catalogue_key(self):
+        """LinTO (2026-10-01) was installed by prospection: its catalogue key, and the rule of
+        `backend_for_model` (last segment of the key), both name it — never the default."""
+        from wama.common.services.backend_proposals import model_id_of
+        from wama.transcriber.backends.manager import TranscriberBackendManager
+        key = 'huggingface:linagora/linto_stt_fr_fastconformer_pc'
+        self.assertEqual(model_id_of(key), NemoASRBackend.model_id_for(key))
+        self.assertEqual(model_id_of(key),
+                         TranscriberBackendManager.model_for_request(NemoASRBackend, key))
+        spec = NemoASRBackend.SUPPORTED_MODELS[model_id_of(key)]
+        self.assertEqual(key, spec['model_key'])
+        self.assertNotIn('settings_key', spec, 'its folder comes from the catalogue, not MODEL_PATHS')
+        self.assertIsNone(TranscriberBackendManager.model_for_request(
+            NemoASRBackend, 'huggingface:linagora/another-model'), 'counter-check')
+
+    def test_linto_loads_from_the_folder_its_catalogue_row_designates(self):
+        from pathlib import Path
+        from unittest import mock
+        backend = NemoASRBackend()
+        with mock.patch('wama.common.utils.model_components.installed_snapshot',
+                        return_value=Path('/nowhere/snap')) as found:
+            self.assertFalse(backend.load('huggingface:linagora/linto_stt_fr_fastconformer_pc'))
+        found.assert_called_once_with('huggingface:linagora/linto_stt_fr_fastconformer_pc')
+
     def test_only_canary_demands_its_language(self):
         self.assertTrue(NemoASRBackend.SUPPORTED_MODELS['canary-1b-v2']['multitask'])
         self.assertFalse(NemoASRBackend.SUPPORTED_MODELS['parakeet-tdt-0.6b-v3']['multitask'])
@@ -49,6 +73,33 @@ class StampsToSegmentsTest(SimpleTestCase):
     def test_without_segment_stamps_one_segment_spans_the_chunk(self):
         segs = NemoASRBackend._segments_of(SimpleNamespace(text='Bonjour.', timestamp={}), 9.4)
         self.assertEqual([(0.0, 9.4, 'Bonjour.')], [(s.start_time, s.end_time, s.text) for s in segs])
+
+    @staticmethod
+    def _unpunctuated(seconds=30.0):
+        """LinTO (2026-10-01): timed words, but ONE segment for the whole span (no punctuation)."""
+        words, t = [], 0.0
+        while t < seconds:
+            words.append({'word': 'mot', 'start': round(t, 2), 'end': round(t + 0.3, 2)})
+            t += 0.4 if int(t) % 8 else 1.2        # a long pause every ~8 s
+        return SimpleNamespace(text=' '.join(w['word'] for w in words), timestamp={
+            'word': words, 'segment': [{'segment': 'mot …', 'start': 0.0, 'end': words[-1]['end']}]})
+
+    def test_a_long_unpunctuated_span_is_cut_at_the_pauses_of_its_words(self):
+        segs = NemoASRBackend._segments_of(self._unpunctuated(), 30.0)
+        self.assertGreater(len(segs), 2)
+        self.assertTrue(all(s.end_time - s.start_time <= NemoASRBackend.MAX_SEGMENT_SECONDS for s in segs))
+        self.assertEqual(sum(len(s.words) for s in segs),
+                         len(self._unpunctuated().timestamp['word']), 'no word lost')
+
+    def test_short_punctuated_segments_are_left_as_they_are(self):
+        """Counter-check: Parakeet's own segments (cut on punctuation) do not move."""
+        hyp = SimpleNamespace(text='Bonjour. Merci.', timestamp={
+            'word': [{'word': 'Bonjour.', 'start': 0.1, 'end': 0.5},
+                     {'word': 'Merci.', 'start': 2.4, 'end': 2.9}],
+            'segment': [{'segment': 'Bonjour.', 'start': 0.1, 'end': 0.5},
+                        {'segment': 'Merci.', 'start': 2.4, 'end': 2.9}]})
+        segs = NemoASRBackend._segments_of(hyp, 3.0)
+        self.assertEqual(['Bonjour.', 'Merci.'], [s.text for s in segs])
 
 
 class LanguageTest(SimpleTestCase):

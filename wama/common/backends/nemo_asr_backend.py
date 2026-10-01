@@ -49,9 +49,20 @@ class NemoASRBackend(SpeechToTextBackend):
                          'multitask': True, 'max_audio_seconds': 30},
         'parakeet-tdt-0.6b-v3': {'hf_id': 'nvidia/parakeet-tdt-0.6b-v3', 'settings_key': 'parakeet',
                                  'multitask': False, 'max_audio_seconds': 600},
+        # LinTO STT FR FastConformer (Linagora, CC-BY 4.0, 2026-10-01) — installé par la
+        # prospection, intégré par la chaîne (rôle `model` : moteur `nemo` prouvé par le `.nemo`).
+        # Sans `settings_key` : ses poids se trouvent par sa CLÉ de catalogue (cf.
+        # `model_components.installed_snapshot` — déclarer son dossier dans `MODEL_PATHS` le
+        # sortirait du balayage générique). Clé = dernier segment de la clé de catalogue, la règle
+        # de `backend_for_model`. Français seul ; passe de 600 s comme Parakeet (même famille
+        # FastConformer), NON mesurée sur ce modèle.
+        'linagora/linto_stt_fr_fastconformer_pc': {
+            'hf_id': 'linagora/linto_stt_fr_fastconformer_pc',
+            'model_key': 'huggingface:linagora/linto_stt_fr_fastconformer_pc',
+            'multitask': False, 'max_audio_seconds': 600},
     }
     name = "nemo"
-    display_name = "NVIDIA NeMo (Canary / Parakeet)"
+    display_name = "NVIDIA NeMo (Canary / Parakeet / LinTO)"
     description = "NVIDIA NeMo — Canary 1B v2 / Parakeet TDT v3, 25 langues européennes, heure au mot."
     description_long = (
         "Moteurs ASR NVIDIA : Canary 1B v2 (le plus précis en français parmi les modèles ouverts, "
@@ -160,9 +171,14 @@ class NemoASRBackend(SpeechToTextBackend):
 
             # Levier B de `hf_weights` : l'archive `.nemo` se charge par CHEMIN ; on la tire DANS
             # le dossier de famille (motif : l'archive seule, pas le reste du dépôt).
-            from wama.common.utils.hf_weights import poids_locaux
-            snapshot = Path(poids_locaux(spec['hf_id'], self._family_dir(spec['settings_key']),
-                                         patterns=['*.nemo']))
+            if spec.get('settings_key'):
+                from wama.common.utils.hf_weights import poids_locaux
+                snapshot = Path(poids_locaux(spec['hf_id'], self._family_dir(spec['settings_key']),
+                                             patterns=['*.nemo']))
+            else:
+                # Modèle installé par la prospection : ses poids se désignent par la CLÉ.
+                from wama.common.utils.model_components import installed_snapshot
+                snapshot = installed_snapshot(spec['model_key'])
             archive = next(iter(sorted(snapshot.glob('*.nemo'))), None)
             if archive is None:
                 raise FileNotFoundError(f"aucune archive .nemo dans {snapshot}")
@@ -236,7 +252,33 @@ class NemoASRBackend(SpeechToTextBackend):
             segments = [TranscriptionSegment(speaker_id='', start_time=0.0,
                                              end_time=round(duration, 2), text=text,
                                              words=words or None)]
-        return segments
+        return [part for segment in segments for part in NemoASRBackend._split_long(segment)]
+
+    #: Un segment plus long est recoupé aux pauses de ses mots (2026-10-01). NeMo coupe ses
+    #: segments sur la PONCTUATION : LinTO n'en rendait aucune, et 30 s de parole sortaient en UN
+    #: segment — rien pour la diarisation, l'éditeur ni le SRT. Les mots, eux, sont horodatés.
+    MAX_SEGMENT_SECONDS = 12.0
+    #: Pause entre deux mots qui ouvre un nouveau segment.
+    PAUSE_SECONDS = 0.5
+
+    @staticmethod
+    def _split_long(segment: TranscriptionSegment) -> List[TranscriptionSegment]:
+        words = segment.words or []
+        if (segment.end_time - segment.start_time) <= NemoASRBackend.MAX_SEGMENT_SECONDS or not words:
+            return [segment]
+        groups = [[words[0]]]
+        for word in words[1:]:
+            current = groups[-1]
+            pause = word['start'] - current[-1]['end']
+            too_long = word['end'] - current[0]['start'] > NemoASRBackend.MAX_SEGMENT_SECONDS
+            if pause >= NemoASRBackend.PAUSE_SECONDS or too_long:
+                groups.append([word])
+            else:
+                current.append(word)
+        return [TranscriptionSegment(speaker_id=segment.speaker_id, start_time=group[0]['start'],
+                                     end_time=group[-1]['end'],
+                                     text=' '.join(w['word'] for w in group).strip(), words=group)
+                for group in groups]
 
     def transcribe(self, audio_path: str, language: str = None, **kwargs) -> TranscriptionResult:
         """Transcribe one audio file (≤ `max_audio_seconds`; the common chunking cuts longer ones)."""
