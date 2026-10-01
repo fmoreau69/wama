@@ -139,6 +139,15 @@ def _entry_moved(entry, new_rel: str):
     return {**entry, 'path': new} if isinstance(entry, dict) else new
 
 
+def relocated_list(value, mapping) -> list:
+    """La liste `value` dont chaque entrée désignant un chemin de `mapping` (relatif → nouveau
+    relatif) est réécrite à sa nouvelle adresse, FORME CONSERVÉE (`_entry_moved`) ; les autres
+    entrées sont inchangées. Pour une COPIE de fichier (transfert, duplication d'une card reçue —
+    2026-10-02) : `repoint` réécrirait aussi l'original, seule l'entrée de la copie doit changer."""
+    return [_entry_moved(entry, mapping[_entry_rel(entry)]) if _entry_rel(entry) in mapping else entry
+            for entry in (value or [])]
+
+
 #: Au-delà de ce nombre de chemins cherchés d'un coup (l'aperçu d'un « Tout effacer »), les listes
 #: non vides sont balayées plutôt que filtrées condition par condition.
 _PREFILTER_MAX = 20
