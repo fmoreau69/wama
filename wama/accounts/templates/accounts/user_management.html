@@ -55,8 +55,8 @@
                                            title="Rôles métier CUMULATIFS (indépendants du rôle ci-contre) — définissent l'accès aux applications WAMA. Pour un accès complet (test), préférer le rôle Développeur ci-contre plutôt que cocher tous les métiers (certaines apps techniques exigent aussi ce tier)."></i>
                                     </th>
                                     <th>Statut</th>
-                                    <th>Date d'inscription</th>
-                                    <th>Dernière connexion</th>
+                                    <th>Inscription</th>
+                                    <th>Connexion</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -68,18 +68,21 @@
                                     data-s-username="{{ item.user.username|lower }}"
                                     data-s-joined="{{ item.user.date_joined|date:'U' }}"
                                     data-s-login="{% if item.user.last_login %}{{ item.user.last_login|date:'U' }}{% endif %}">
-                                    <td>
+                                    {% comment %}`overflow-wrap:anywhere` : les identifiants et adresses des comptes de
+                                    test n'ont pas d'espace (`wama_rights_communication`) — sans coupure, ils
+                                    élargissaient le tableau de 315 px à 1500 px de large (mesuré le 2026-10-01).{% endcomment %}
+                                    <td style="overflow-wrap:anywhere; min-width:7rem;">
                                         <i class="fas fa-user me-2"></i>
                                         {{ item.user.username }}
                                         {% if item.user == request.user %}
                                         <span class="badge bg-info ms-1">Vous</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ item.user.email|default:"-" }}</td>
+                                    <td style="overflow-wrap:anywhere; min-width:7rem;">{{ item.user.email|default:"-" }}</td>
                                     <td>{{ item.user.first_name }} {{ item.user.last_name }}</td>
                                     <td>
                                         <select class="form-select form-select-sm bg-dark text-white border-secondary role-select"
-                                                style="min-width:10rem;"
+                                                style="min-width:9rem;"
                                                 data-user-id="{{ item.user.id }}"
                                                 {% if item.user.username == 'anonymous' %}disabled{% endif %}>
                                             <option value="admin" {% if item.role == 'admin' %}selected{% endif %}>
@@ -137,8 +140,8 @@
                                         <span class="badge bg-danger status-badge">Inactif</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ item.user.date_joined|date:"d/m/Y H:i" }}</td>
-                                    <td>{{ item.user.last_login|date:"d/m/Y H:i"|default:"Jamais" }}</td>
+                                    <td>{{ item.user.date_joined|date:"d/m/Y" }}<br><small class="text-muted">{{ item.user.date_joined|date:"H:i" }}</small></td>
+                                    <td>{% if item.user.last_login %}{{ item.user.last_login|date:"d/m/Y" }}<br><small class="text-muted">{{ item.user.last_login|date:"H:i" }}</small>{% else %}Jamais{% endif %}</td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
                                             {% if item.user.username != 'anonymous' and item.user != request.user %}
