@@ -224,14 +224,8 @@ class NemoASRBackend(SpeechToTextBackend):
 
     def _load_audio(self, audio_path: str):
         """Mono float32 at 16 kHz, whatever the container (m4a/aac/mp3/video): common decoder."""
-        import numpy as np
-
-        from wama.common.utils.audio_decode import decode_audio
-        audio, sr = decode_audio(audio_path, target_sr=16000, mono=True)
-        if sr != 16000:
-            import librosa
-            audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
-        return np.asarray(audio, dtype=np.float32)
+        from wama.common.utils.audio_decode import decode_audio_at
+        return decode_audio_at(audio_path, target_sr=16000)[0]
 
     @staticmethod
     def _segments_of(hypothesis, duration: float) -> List[TranscriptionSegment]:

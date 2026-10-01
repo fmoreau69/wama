@@ -182,15 +182,8 @@ def mix_tracks(tracks: dict):
 def resampled(samples, rate: int):
     """Échantillons mono → float32 à 16 kHz (le décodeur commun garde parfois la fréquence
     d'origine : sa branche soundfile ne rééchantillonne pas, `audio_decode.decode_audio`)."""
-    from math import gcd
-
-    import numpy as np
-    from scipy.signal import resample_poly
-    samples = np.asarray(samples, dtype=np.float32)
-    if rate != SAMPLE_RATE:
-        g = gcd(SAMPLE_RATE, int(rate))
-        samples = resample_poly(samples, SAMPLE_RATE // g, int(rate) // g).astype(np.float32)
-    return samples
+    from wama.common.utils.audio_decode import resample
+    return resample(samples, rate, SAMPLE_RATE)
 
 
 def decode_track(wav_bytes: bytes):

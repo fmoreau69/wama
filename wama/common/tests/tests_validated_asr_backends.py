@@ -15,6 +15,34 @@ from wama.common.backends.frwhisper_backend import FrWhisperBackend
 from wama.common.backends.stt_1b_en_fr_trfs_backend import KyutaiSttBackend
 
 
+class DecodedAtTheModelRateTest(SimpleTestCase):
+    """`decode_audio` leaves a WAV at its NATIVE rate; Kyutai then heard 16 kHz as 24 kHz (sped up
+    by half, 2026-10-01). `decode_audio_at` guarantees the rate a speech model expects."""
+
+    def _wav(self, rate, seconds=1.0):
+        import tempfile
+
+        import numpy as np
+        import soundfile as sf
+        handle = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        handle.close()
+        self.addCleanup(lambda: __import__('os').unlink(handle.name))
+        sf.write(handle.name, np.zeros(int(rate * seconds), dtype='float32'), rate)
+        return handle.name
+
+    def test_a_wav_comes_back_at_the_requested_rate(self):
+        from wama.common.utils.audio_decode import decode_audio, decode_audio_at
+        path = self._wav(16000)
+        self.assertEqual(16000, decode_audio(path, target_sr=24000)[1], 'the trap: native rate')
+        audio, rate = decode_audio_at(path, target_sr=24000)
+        self.assertEqual((24000, 24000), (rate, len(audio)))
+
+    def test_counter_check_a_wav_already_at_the_rate_is_untouched(self):
+        from wama.common.utils.audio_decode import decode_audio_at
+        audio, rate = decode_audio_at(self._wav(16000), target_sr=16000)
+        self.assertEqual((16000, 16000), (rate, len(audio)))
+
+
 class TheCatalogueResolvesThemTest(SimpleTestCase):
     """Three transcription backends now drive `transformers`: the model id decides."""
 
