@@ -1604,6 +1604,41 @@ def api_released_files_delete(request):
 
 @login_required
 @require_POST
+def api_transfer(request):
+    """POST `surface`, `pk`, `to` (identifiant ou e-mail), `consent` — « Transférer à… » : la card
+    change de propriétaire (`common/services/card_transfer.py`, 2026-10-01).
+
+    Coordonnées = celles du partage (`api_partage`) : la SURFACE de `PreviewRegistry` et un pk
+    cherché parmi les cards DE L'UTILISATEUR (404 sinon). Les refus PRÉVUS (destinataire inconnu,
+    consentement à valider) répondent 200 avec un motif : un statut d'erreur pour un cas prévu rend
+    le contrôle aveugle (leçon du gestionnaire de fichiers, `WAMA_VERIFICATION`). La réponse dit
+    ce que devient le lot quitté (`batch`), pour que la file se mette à jour sans rechargement."""
+    from django.shortcuts import get_object_or_404
+    from wama.common.services.card_transfer import (TransferConsentRequired, find_recipient,
+                                                    transfer_card)
+    from wama.common.services.sharing import RefusDePartage
+    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    from wama.common.utils.preview_registry import PreviewRegistry
+
+    model = PreviewRegistry.get_model(request.POST.get('surface') or '')
+    if model is None:
+        return JsonResponse({'error': 'surface inconnue'}, status=404)
+    element = get_object_or_404(model, pk=request.POST.get('pk'), user=request.user)
+    try:
+        recipient = find_recipient(request.POST.get('to'), request.user)
+        snapshot = batch_snapshot(element)
+        report = transfer_card(request.user, element, recipient,
+                               consent=request.POST.get('consent') in ('1', 'true', 'on'))
+    except TransferConsentRequired as exc:
+        return JsonResponse({'transferred': False, 'consent_required': True,
+                             'statement': exc.statement})
+    except RefusDePartage as exc:
+        return JsonResponse({'transferred': False, 'reason': str(exc)})
+    return JsonResponse({'transferred': True, **report, 'batch': batch_state(snapshot, model)})
+
+
+@login_required
+@require_POST
 def api_released_files_renew(request):
     """POST `ids` — « Garder » un fichier inutilisé quand la rétention est FINIE : il repart pour
     une durée complète, et sera de nouveau annoncé avant son prochain terme."""

@@ -818,6 +818,10 @@
 
     window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted,
                                 applyBatchState: applyBatchState,
+                                // Une card qui QUITTE la file sans être supprimée (« Transférer
+                                // à… », 2026-10-01) : même séquence que la suppression — elle
+                                // part, son lot dit ce qu'il devient, sans rechargement.
+                                removeCard: standardFollowUp,
                                 onBatchSettings: onBatchSettings,
                                 onBatchStarted: onBatchStarted,
                                 onBatchStartBody: onBatchStartBody,

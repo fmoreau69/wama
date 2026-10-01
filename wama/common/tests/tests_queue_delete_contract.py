@@ -565,6 +565,81 @@ class DuplicatingAndRestartingKeepFilesTest(TestCase):
         print(f'\n[relance : {started} démarrage(s) réellement lancé(s) sur les témoins]')
 
 
+class TransferringACardTest(TestCase):
+    """« Transférer à… » (2026-10-01, `WAMA_COLLABORATION §3bis`) — sur CHAQUE app, sans en nommer :
+    la card change de propriétaire ; ce qu'elle POSSÉDAIT est DÉPLACÉ chez le nouveau, ce qu'elle
+    ne faisait que DÉSIGNER est COPIÉ (l'ancien garde l'original). Elle naît privée chez lui."""
+
+    _account_for = SuppressionDansChaqueAppTest._compte_pour
+    setUp = DeletingACardRemovesTheFilesItOwnsTest.setUp
+    _witness = DeletingACardRemovesTheFilesItOwnsTest._witness
+    _fleet = DeletingACardRemovesTheFilesItOwnsTest._fleet
+
+    def _transfer(self, surface, pk, to, consent=False):
+        data = {'surface': surface, 'pk': pk, 'to': to}
+        if consent:
+            data['consent'] = '1'
+        return self.client.post(reverse('common:api_transfer'), data)
+
+    def test_owned_files_move_and_designated_files_are_copied(self):
+        from wama.common.utils.media_paths import app_media_dir
+        recipient = User.objects.create_user('transfer_recipient', password='x',
+                                             email='recipient@example.org')
+        for surface, _route, account, model, app_home in self._fleet():
+            with self.subTest(surface=surface):
+                owned, owned_files = self._witness(model, account, app_home)
+                if not owned_files:
+                    continue
+                res = self._transfer(surface, owned.pk, 'transfer_recipient').json()
+                self.assertTrue(res.get('transferred'), res)
+                owned.refresh_from_db()
+                self.assertEqual(recipient.pk, owned.user_id)
+                self.assertEqual('private', owned.visibility)
+                theirs = app_media_dir(model._meta.app_label, recipient.pk, '')
+                for f in model._meta.concrete_fields:
+                    name = str(getattr(owned, f.name) or '') if isinstance(f, models.FileField) else ''
+                    if name:
+                        self.assertTrue(name.startswith(theirs), f'{f.name} : {name}')
+                        self.assertTrue((Path(self.tmp) / name).exists(), f'{f.name} : absent')
+                self.assertEqual([], [p.name for p in owned_files if p.exists()],
+                                 'un fichier POSSÉDÉ est déplacé, pas laissé à l’ancien')
+
+                temp = f'users/{account.id}/temp'
+                designating, ref_files = self._witness(model, account, temp)
+                res = self._transfer(surface, designating.pk, 'recipient@example.org').json()
+                self.assertTrue(res.get('transferred'), res)
+                self.assertEqual([], [p.name for p in ref_files if not p.exists()],
+                                 'un fichier seulement DÉSIGNÉ reste à l’ancien propriétaire')
+                designating.refresh_from_db()
+                for f in model._meta.concrete_fields:
+                    name = str(getattr(designating, f.name) or '') if isinstance(f, models.FileField) else ''
+                    if name:
+                        self.assertTrue(name.startswith(theirs), f'{f.name} : {name}')
+
+    def test_guards(self):
+        surface, _route, account, model, app_home = next(iter(self._fleet()))
+        mine, _ = self._witness(model, account, app_home)
+        other = User.objects.create_user('transfer_other_owner', password='x')
+        theirs = _instance(model, other)
+        self.assertEqual(404, self._transfer(surface, theirs.pk, account.username).status_code)
+        unknown = self._transfer(surface, mine.pk, 'nobody-at-all').json()
+        self.assertFalse(unknown['transferred'])
+        self.assertIn('aucun compte', unknown['reason'])
+        self.assertFalse(self._transfer(surface, mine.pk, account.username).json()['transferred'],
+                         'on ne se transfère pas sa propre card')
+
+    def test_a_card_carrying_a_person_asks_for_consent(self):
+        from wama.common.services.card_transfer import TransferConsentRequired, transfer_card
+        from wama.media_library.models import UserAsset
+        owner = User.objects.create_user('transfer_voice_owner', password='x')
+        recipient = User.objects.create_user('transfer_voice_recipient', password='x')
+        voice = UserAsset.objects.create(user=owner, name='voix', asset_type='voice',
+                                         file=f'users/{owner.id}/media_library/assets/v.wav')
+        with self.assertRaises(TransferConsentRequired) as ctx:
+            transfer_card(owner, voice, recipient)
+        self.assertIn('transfer_voice_recipient', ctx.exception.statement)
+
+
 class SafeDeleteFileContractTest(TestCase):
     """Le contrat de LA brique : `safe_delete_file` ne détruit qu'un fichier de l'app, non partagé.
 

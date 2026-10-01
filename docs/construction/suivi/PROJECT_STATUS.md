@@ -19588,3 +19588,20 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
   des références selon l'usage) ; sources cards/RAG, hébergement, promotion hors bac à sable ;
   `RunOutcome` garde aussi des lignes d'une jumelle retirée (même classe que les révisions) ;
   `AGENTS.md` cite un `§S` de la route qui n'existe pas sous ce titre (décision de Fabien).
+
+## §PALIER — 2026-10-01 (nuit), « TRANSFÉRER À… » — ✅ commit ci-dessous — 🔴 RELANCER WAMA (route neuve) — 🔚 transférer un LOT entier ; files du converter et de l'imager (cards reçues invisibles)
+
+> Fabien : *« Je propose qu'on termine "Transférer à...", puis on clôture. »*
+
+- **Geste** : menu « … » de la card → « Transférer à… » → destinataire (identifiant ou e-mail) ;
+  consentement si la card porte une personne ; la card quitte la file sans rechargement.
+- **Service** `common/services/card_transfer.py` : propriétaire seul, pas pendant un traitement ;
+  `batch_common.leave_batch` (nouvelle brique, deux formes de lot) ; possédés non partagés
+  DÉPLACÉS (`file_references.repoint`), autres COPIÉS ; privée chez le nouveau, notifié ;
+  consentement tracé (`ShareConsent`, `visibility='transfer'`). Route `common:api_transfer` (refus
+  prévus en 200 + motif). `WamaApp.ask` gagne un champ texte (`input`) ;
+  `WamaQueueActions.removeCard` exposé. Registre : annexe de `item_sharing`.
+- **Mesures** : `TransferringACardTest` 3/3 (10 apps + jumelles : déplacés / copiés, gardes,
+  consentement) ; geste `common.card_transfer` 5/5 (8011, clic droit → saisie → card partie sans
+  rechargement → en base au destinataire, fichier déplacé).
+- Détail : `WAMA_COLLABORATION §3bis.1`, `WAMA_VERIFICATION`.

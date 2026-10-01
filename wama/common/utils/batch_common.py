@@ -483,6 +483,41 @@ def batch_of(element):
     return None
 
 
+def leave_batch(element):
+    """Sort `element` de son lot SANS l'en recréer un — il redevient orphelin, et la file de son
+    (nouveau) propriétaire l'enveloppera dans son propre lot au prochain affichage
+    (`auto_wrap_orphans`, les 10 apps). Le lot quitté est recalé, et supprimé s'il est vide.
+
+    Écrit le 2026-10-01 pour « Transférer à… » (`common/services/card_transfer.py`) : la card change
+    de propriétaire, le lot reste à l'ancien. Mêmes deux formes que `batch_of` :
+      • par LIAISON : la ligne de liaison est supprimée (le signal `batch_sync` recale le total et
+        supprime le lot vidé) ;
+      • FK DIRECTE : la FK est vidée, le total recalé ici (pas de signal en forme directe —
+        `queue_manipulation.make_queue_manipulation_views_direct`).
+    Rend le lot quitté (ou None)."""
+    lot = batch_of(element)
+    if lot is None:
+        return None
+    if getattr(element, 'batch_id', None) == lot.pk:          # FK DIRECTE
+        element.batch = None
+        element.save(update_fields=['batch'])
+        n = lot.items.count()
+        if n == 0:
+            lot.delete()
+        elif getattr(lot, 'total', n) != n:
+            lot.total = n
+            lot.save(update_fields=['total'])
+        return lot
+    for f in element._meta.related_objects:                   # par LIAISON
+        if not getattr(f, 'one_to_one', False):
+            continue
+        link = getattr(element, f.get_accessor_name(), None)
+        if link is not None and getattr(link, 'batch_id', None) == lot.pk:
+            link.delete()
+            break
+    return lot
+
+
 def batch_elements(lot, element_model):
     """Les ÉLÉMENTS d'un lot, DANS L'ORDRE DES LIGNES — le pendant DESCENDANT de `batch_of`.
 

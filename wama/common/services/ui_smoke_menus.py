@@ -876,6 +876,85 @@ def check_received_card_duplicate():
     return _bilan(verdicts)
 
 
+def check_card_transfer():
+    """« Transférer à… » par le VRAI chemin : clic droit sur une card → entrée du menu → saisie du
+    destinataire → la card QUITTE la file sans rechargement ; en base, elle est au destinataire,
+    privée, son fichier déplacé chez lui (2026-10-01, `WAMA_COLLABORATION §3bis`). (ok, detail)
+
+    ⚠ Pas de `accept_dialogs` ici : la réponse automatique validerait la boîte AVANT la saisie.
+    Destinataire : le compte de test DÉVELOPPEUR ; le témoin est supprimé au nettoyage.
+    """
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario, get_test_dev_user
+    from wama.common.utils.media_paths import app_media_dir
+    from wama.describer.models import BatchDescription, Description
+    from wama.describer.views import _wrap_description_in_batch
+
+    page_path = '/describer/'
+    session_token, uid = _test_session_key('describer'), _test_account_id('describer')
+    recipient = get_test_dev_user()
+    if not (session_token and uid and recipient) or recipient.pk == uid:
+        raise SkipScenario('deux comptes de test distincts sont nécessaires')
+    from django.contrib.auth import get_user_model
+    owner = get_user_model().objects.get(pk=uid)
+    home = app_media_dir('describer', uid, 'input')
+    folder = Path(settings.MEDIA_ROOT) / home
+    folder.mkdir(parents=True, exist_ok=True)
+    name = 'wama_temoin_transfert.txt'
+    source = _temoin(folder, name, '.txt')
+    item = Description.objects.create(user=owner, filename=name)
+    item.input_file.name = f'{home}/{name}'
+    item.save(update_fields=['input_file'])
+    _wrap_description_in_batch(item)
+    card = f".wama-card[data-id='{item.pk}']"
+    before, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav = p.chromium.launch()
+            ctx = nav.new_context(viewport={'width': 1500, 'height': 1000})
+            ctx.add_cookies(_cookie(session_token))
+            page = ctx.new_page()
+            errors = []
+            page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
+            page.on('pageerror', lambda e: errors.append(f'PAGEERROR {e}'))
+            try:
+                resp = page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(page, resp, page_path)
+                if refused_page:
+                    return refused_page
+                page.evaluate("() => { window.__wamaNoReload = 'meme-page'; }")
+                page.locator(card).first.click(button='right')
+                entry = page.locator('.wama-card-menu .wama-cm-item:has-text("Transférer à")')
+                verdicts.append((entry.count() == 1, 'le menu de la card propose « Transférer à… »'))
+                entry.first.click()
+                page.wait_for_selector('.wama-confirm.show [data-confirm-input]', timeout=10000)
+                page.fill('.wama-confirm.show [data-confirm-input]', recipient.username)
+                page.click('.wama-confirm.show [data-confirm-ok]')
+                page.wait_for_selector(card, state='detached', timeout=15000)
+                verdicts.append((page.evaluate("() => window.__wamaNoReload") == 'meme-page',
+                                 'la card quitte la file sans rechargement'))
+                verdicts.append(_console(errors))
+            finally:
+                nav.close()
+    finally:
+        _drop_new_sessions(before)
+    item.refresh_from_db()
+    moved = Path(settings.MEDIA_ROOT) / item.input_file.name if item.input_file else None
+    verdicts.append((item.user_id == recipient.pk and item.visibility == 'private',
+                     'la card est au destinataire, privée'))
+    verdicts.append((bool(moved) and moved.exists() and not source.exists()
+                     and item.input_file.name.startswith(app_media_dir('describer', recipient.pk, '')),
+                     f'son fichier a été DÉPLACÉ chez lui ({item.input_file.name})'))
+    # Ménage : la card (et son lot éventuel chez le destinataire), le fichier.
+    BatchDescription.objects.filter(items__description=item).delete()
+    Description.objects.filter(pk=item.pk).delete()
+    if moved:
+        moved.unlink(missing_ok=True)
+    source.unlink(missing_ok=True)
+    return _bilan(verdicts)
+
+
 def register_menu_scenarios():
     from wama.common.services.nightly_tests import register
     register(id='common.tree_menu_keyboard', app='common', stage='ui',
@@ -912,6 +991,10 @@ def register_menu_scenarios():
              description="⧉ sur une card REÇUE crée une card à soi : privée, fichiers copiés chez "
                          "soi, original intact",
              run=lambda ctx: check_received_card_duplicate(), timeout_s=240)
+    register(id='common.card_transfer', app='common', stage='ui',
+             description="« Transférer à… » depuis le menu de la card : elle quitte la file sans "
+                         "rechargement, appartient au destinataire, son fichier déplacé chez lui",
+             run=lambda ctx: check_card_transfer(), timeout_s=240)
     register(id='common.nav_sandbox_keyboard', app='common', stage='ui',
              description='Sous-menu « Bac à sable » au CLAVIER, sans détournement par Bootstrap',
              run=lambda ctx: check_nav_sandbox_keyboard(), timeout_s=180)
