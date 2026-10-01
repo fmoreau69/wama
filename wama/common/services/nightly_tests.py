@@ -158,8 +158,12 @@ def get_test_dev_user():
 # exacte de `NamedTemporaryFile`, pas un `tmp` au sens large : un fichier que quelqu'un aurait
 # nommé `tmp_export.csv` n'est pas à nous et ne doit pas disparaître.
 _MOTIF_TEMOIN = re.compile(r'^(wama_temoin_|tmp[A-Za-z0-9_]{8})')
-# Les comptes de test connus (même liste que `_test_session_key` dans ui_smoke).
-TEST_USERNAMES = (TEST_USERNAME, TEST_DEV_USERNAME, 'ui_smoke_v3', 'pw_smoke',
+# Les comptes de test connus (même liste que `_test_session_key` dans ui_smoke). Tous portent le
+# préfixe `wama_` (`accounts.permissions.TEST_ACCOUNT_PREFIX`, renommage du 2026-10-01 :
+# `ui_smoke_v3` et `pw_smoke` l'ont reçu) — garde `accounts/tests_account_kinds`. ⚠ Cette liste
+# est l'EXCLUSION des statistiques apprises : `wama_evaluation` est un compte de test au sens de
+# la page des utilisateurs mais n'y figure PAS (il nourrit l'ETA, décision de Fabien du 30/09).
+TEST_USERNAMES = (TEST_USERNAME, TEST_DEV_USERNAME, 'wama_ui_smoke_v3', 'wama_pw_smoke',
                   'wama_rights_commun', 'wama_rights_communication', 'wama_rights_recherche',
                   'wama_rights_developpeur')
 

@@ -26,6 +26,29 @@ TIER_CHOICES = [
 ]
 BYPASS_TIERS = {'developpeur', 'admin'}   # voient toutes les apps (gating d'apps contourné)
 
+# ── Nature d'un compte (2026-10-01, demande de Fabien) ──────────────────────
+#: Un compte qui n'est PAS une personne porte ce préfixe : tests nocturnes, smoke, droits,
+#: évaluation. C'est le NOM qui le dit — un compte créé `wama_…` depuis la page rejoint seul la
+#: section des comptes de test. ⚠ Ne pas confondre avec l'EXCLUSION des statistiques apprises
+#: (`nightly_tests.TEST_USERNAMES`) : le compte d'évaluation est un compte de test au sens de
+#: cette section, mais il NOURRIT l'ETA (décision de Fabien du 30/09). Tout compte exclu porte le
+#: préfixe (garde `tests_account_kinds`), l'inverse n'est pas vrai.
+TEST_ACCOUNT_PREFIX = 'wama_'
+ANONYMOUS_USERNAME = 'anonymous'
+ACCOUNT_KINDS = {
+    'person': 'Utilisateurs',
+    'test': 'Comptes de test et système',
+}
+
+
+def account_kind(user) -> str:
+    """'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
+    sinon — c'est la section de la page de gestion des utilisateurs."""
+    username = getattr(user, 'username', '') or ''
+    if username.startswith(TEST_ACCOUNT_PREFIX) or username == ANONYMOUS_USERNAME:
+        return 'test'
+    return 'person'
+
 # ── Rôles métier ───────────────────────────────────────────────────────────
 ROLES = {
     'communication': 'Communication',

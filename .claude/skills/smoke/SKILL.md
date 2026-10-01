@@ -58,8 +58,8 @@ le RENDU RÉEL, pas la structure du code.
 - ⚠ **Aucune lecture ORM À L'INTÉRIEUR de `sync_playwright()`** — Django lève
   `SynchronousOnlyOperation`. Préparer sessions, ids et comptes AVANT d'ouvrir le contexte, et
   faire les comptages/nettoyages APRÈS l'avoir refermé. Piège rencontré deux fois le 22/08.
-- ⚠ **Se connecter avec un compte de TEST existant** (`wama_nightly_test`, `ui_smoke_v3`,
-  `pw_smoke`), jamais en anonyme : depuis la fermeture du 22/08, le compte anonyme n'a plus aucun
+- ⚠ **Se connecter avec un compte de TEST existant** (`wama_nightly_test`, `wama_ui_smoke_v3`,
+  `wama_pw_smoke` — préfixe `wama_` depuis le 2026-10-01), jamais en anonyme : depuis la fermeture du 22/08, le compte anonyme n'a plus aucun
   rôle ni tier utilisateur — une passe anonyme mesure des DROITS en croyant mesurer un
   comportement. Ne pas forger un compte : en inventer un inventerait ses droits.
 - ⚠ JAMAIS d'action destructive : pas de suppression d'items, pas de « Tout effacer », pas de

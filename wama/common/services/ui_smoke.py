@@ -295,7 +295,7 @@ def check_app_page(app: str, url_path: str, selector: str | None = None):
     # ramènerait le défaut le jour où le compte de test manque.
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3) "
                            "— une page mesurée en VISITEUR n'est pas la page de l'app")
     try:
         status, errors, found, tabs, dropped, atterri, refus = _exercise_page(
@@ -720,7 +720,7 @@ def _test_session_key(app: str | None = None):
     """Clé de session d'un compte de TEST existant, ou None.
 
     On ne crée aucun compte ARBITRAIRE : le dépôt a ses comptes déclarés (`wama_nightly_test`,
-    `ui_smoke_v3`), avec leurs rôles. En forger un ici inventerait des droits et masquerait
+    `wama_ui_smoke_v3`), avec leurs rôles. En forger un ici inventerait des droits et masquerait
     justement ce que le scénario doit voir.
     ⚠ Exception DÉCLARÉE (2026-08-30) : une JUMELLE de bac à sable (`generated_from` au
     catalogue) est dev-gated par conception (`sandbox.py` : rôle ingenierie + tier
@@ -741,7 +741,7 @@ def _test_session_key(app: str | None = None):
         except Exception:
             u = None
     if u is None:
-        for nom in ('wama_nightly_test', 'ui_smoke_v3', 'pw_smoke'):
+        for nom in ('wama_nightly_test', 'wama_ui_smoke_v3', 'wama_pw_smoke'):
             u = get_user_model().objects.filter(username=nom, is_active=True).first()
             if u:
                 break
@@ -844,7 +844,7 @@ def check_app_import(app: str, url_path: str):
     # refuse l'accès synchrone (SynchronousOnlyOperation). Le jeton est donc préparé ici.
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
     try:
         with sync_playwright() as p:
@@ -1029,7 +1029,7 @@ def check_app_send_to(app: str, url_path: str):
 
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
     uid = _test_account_id(app)
     if not uid:
@@ -1323,7 +1323,7 @@ def check_app_tree_drop(app: str, url_path: str):
     session_key = _test_session_key(app)
     uid = _test_account_id(app)
     if not session_key or not uid:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
     # TOUS les modèles de l'app qui appartiennent à un utilisateur, pas seulement le principal
     # (`PreviewRegistry`) : la card AUDIO de l'enhancer crée des `AudioEnhancement`, que ni ce
     # compte ni la garde du harnais ne voyaient — un élément créé aurait été lu « rien créé » et
@@ -1615,7 +1615,7 @@ def check_app_url_import(app: str, url_path: str):
 
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
     uid = _test_account_id(app)
     if not uid:
@@ -2001,7 +2001,7 @@ def check_app_folder_import(app: str, url_path: str):
 
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
 
     # ⚠ Toute lecture ORM AVANT `sync_playwright()` (SynchronousOnlyOperation à l'intérieur).
@@ -2284,7 +2284,7 @@ def check_app_duplicate_delete(app: str, url_path: str):
     sessions_before = _session_keys()
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
     detail = ''
     try:
@@ -2642,7 +2642,7 @@ def check_app_settings(app: str, url_path: str):
     sessions_before = _session_keys()
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
     detail = ''
     try:
@@ -3397,7 +3397,7 @@ def check_app_batch_actions(app: str, url_path: str):
 
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
 
     # Le montage crée deux éléments pour obtenir un lot ; la garde les retire en sortie.
     with _garde_de_montage(app, 'batch_actions') as _nettoyes:
@@ -3512,7 +3512,7 @@ def check_app_batch_import(app: str, url_path: str):
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
 
     # Le geste CRÉE des éléments et un lot : la garde retire en sortie ceux de ce passage,
     # et rien d'autre (différence d'ids) — jamais un objet du travail réel de l'utilisateur.
@@ -3663,7 +3663,7 @@ def check_app_delete_from_batch(app: str, url_path: str):
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
 
     detail = ''
     with _garde_de_montage(app, 'delete_from_batch') as _nettoyes:
@@ -3846,7 +3846,7 @@ def check_app_clear_all(app: str, url_path: str):
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
 
     with _garde_de_montage(app, 'clear_all') as _nettoyes:
       with sync_playwright() as p:
@@ -4207,7 +4207,7 @@ def check_app_inspector_actions(app: str, url_path: str):
 
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
 
     # ⚠ Le chemin « card MÈRE » EXIGE un lot multi-éléments : `_queue_entry.html` ne pose
     # `.batch-group` QUE si le lot n'est pas unitaire. Or le compte de test n'en possède
@@ -4417,7 +4417,7 @@ def check_volet_deselection(app: str, url_path: str):
     # que le scénario d'import.
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3) "
                            "— la page d'app exige une session")
     try:
         with sync_playwright() as p:
@@ -4515,7 +4515,7 @@ def check_volet_instances(app: str, url_path: str):
     sessions_before = _session_keys()
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
     try:
         with sync_playwright() as p:
             navigateur = p.chromium.launch()
@@ -5034,7 +5034,7 @@ def check_app_queue_search(app: str, url_path: str):
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
 
     with _garde_de_montage(app, 'queue_search') as _nettoyes:
       with sync_playwright() as p:
@@ -5145,7 +5145,7 @@ def check_app_batch_extract(app: str, url_path: str):
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     jeton = _test_session_key(app)
     if not jeton:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
 
     with _garde_de_montage(app, 'batch_extract') as _nettoyes:
       with sync_playwright() as p:
@@ -6123,7 +6123,7 @@ def check_app_worker_death(app: str, url_path: str):
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     token = _test_session_key(app)
     if not token:
-        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
 
     card_state = """(id) => {
         const c = document.querySelector('.wama-card[data-id="' + id + '"]:not(.is-batch)');

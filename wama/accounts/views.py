@@ -681,8 +681,9 @@ def add_user(username, first_name, last_name, email):
 
 #: Nom du compte de service qui porte les requêtes non authentifiées. Une constante parce que
 #: trois endroits doivent désigner LE MÊME compte : cette fabrique, la garde de
-#: `grant_default_roles` et le test qui verrouille l'invariant.
-ANONYMOUS_USERNAME = 'anonymous'
+#: `grant_default_roles` et le test qui verrouille l'invariant — et, depuis le 2026-10-01, la
+#: nature des comptes (`permissions.account_kind`), où elle est désormais définie.
+from wama.accounts.permissions import ANONYMOUS_USERNAME  # noqa: E402  (ré-export : ses lecteurs l'importent d'ici)
 
 #: Mémo de process : l'invariant n'a besoin d'être reposé qu'une fois par worker (cf. docstring).
 _CLOSURE_VERIFIEE = False
@@ -756,27 +757,42 @@ def get_or_create_anonymous_user():
 @admin_required
 def user_management(request):
     """Display the user management page."""
-    from wama.accounts.permissions import ROLES, ROLE_DESCRIPTIONS, GROUP_PREFIX
+    from wama.accounts.permissions import (ACCOUNT_KINDS, GROUP_PREFIX, ROLE_DESCRIPTIONS, ROLES,
+                                           account_kind)
 
-    users = User.objects.all().order_by('username')
+    users = User.objects.all().order_by('username').prefetch_related('groups')
     groups = Group.objects.all().order_by('name')
 
-    # Add role info to each user
-    users_with_roles = []
+    # Une SECTION par nature de compte (2026-10-01, demande de Fabien) : les personnes, puis les
+    # comptes de test et le compte système — `account_kind`, défini une fois.
+    sections = {kind: [] for kind in ACCOUNT_KINDS}
     for user in users:
         # Rôles MÉTIER actifs (axe B, cumulatifs, Groups 'role:*') — indépendants du tier ci-dessus.
         active_metier = {g.name[len(GROUP_PREFIX):] for g in user.groups.all()
                          if g.name.startswith(GROUP_PREFIX)}
-        users_with_roles.append({
+        sections[account_kind(user)].append({
             'user': user,
             'role': get_user_role(user),
-            'groups': list(user.groups.values_list('name', flat=True)),
+            'groups': [g.name for g in user.groups.all()],
             'metier_cells': [{'key': k, 'label': label, 'active': k in active_metier}
                              for k, label in ROLES.items()],
         })
 
+    # Barre COMMUNE de filtre / tri / recherche (`common/_filter_bar.html`, mode client) : les
+    # facettes se déclarent avec leurs libellés, le tri lit `data-s-<clé>` sur chaque ligne.
+    role_labels = {'admin': 'Admin', 'dev': 'Développeur', 'user': 'Utilisateur',
+                   'anonymous': 'Anonyme'}
     context = {
-        'users': users_with_roles,
+        'sections': [{'kind': kind, 'label': label, 'users': sections[kind]}
+                     for kind, label in ACCOUNT_KINDS.items()],
+        'facets': [
+            # Clé `tier` et non `role` : `data-f-role` est l'attribut RÉSERVÉ de la brique
+            # (recherche, tri) — une facette `role` le poserait sur chaque ligne.
+            {'cle': 'tier', 'label': 'Rôle', 'options': role_labels},
+            {'cle': 'statut', 'label': 'Statut', 'options': {'actif': 'Actif', 'inactif': 'Inactif'}},
+        ],
+        'sorts': [('username:asc', 'Nom'), ('joined:desc', 'Inscription récente'),
+                  ('login:desc', 'Dernière connexion')],
         'groups': groups,
         'available_roles': ['admin', 'dev', 'user'],
         # Catalogue des métiers pour l'en-tête de colonnes (tooltip = description).
