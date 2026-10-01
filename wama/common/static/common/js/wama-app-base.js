@@ -231,7 +231,9 @@
   // modale le fait, et rend une promesse `{ok, option}`.
   //   opts = { text, okLabel='Confirmer', danger=true,
   //            option: {label, checked=false} | null,   // case proposée (absente si null)
-  //            details: ['nom', …] }                     // ce que l'option concerne (5 montrés)
+  //            details: ['nom', …],                      // ce que l'option concerne (5 montrés)
+  //            input: {label, placeholder, value} | null } // champ texte (« Transférer à… »)
+  // Rend `{ok, option, value}` — `value` : le texte saisi (champ `input`), '' sinon.
   // Repli sur `window.confirm` si Bootstrap manque : la question reste posée, l'option tombe.
   // ⚠ Le harnais nocturne y répond par `ui_smoke.accept_dialogs` (comme il accepte un
   // `confirm` natif) : ne pas renommer `.wama-confirm` / `[data-confirm-ok]` / `[data-confirm-option]`
@@ -239,13 +241,25 @@
   function ask(opts) {
     opts = opts || {};
     if (!global.bootstrap || !global.bootstrap.Modal) {
-      return Promise.resolve({ ok: global.confirm(opts.text || ''), option: false });
+      if (opts.input) {
+        const typed = global.prompt(opts.text || '', opts.input.value || '');
+        return Promise.resolve({ ok: typed !== null, option: false, value: (typed || '').trim() });
+      }
+      return Promise.resolve({ ok: global.confirm(opts.text || ''), option: false, value: '' });
     }
     return new Promise(function (resolve) {
       const modal = document.createElement('div');
       modal.className = 'modal fade wama-confirm';
       modal.tabIndex = -1;
       const optionId = 'wama-confirm-opt-' + Date.now();
+      const inputId = 'wama-confirm-input-' + Date.now();
+      const input = opts.input ? (
+        '<div class="mt-3"><label class="form-label small" for="' + inputId + '">' +
+          escapeHtml(opts.input.label || '') + '</label>' +
+          '<input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" id="' +
+          inputId + '" data-confirm-input autocomplete="off" placeholder="' +
+          escapeHtml(opts.input.placeholder || '') + '" value="' + escapeHtml(opts.input.value || '') + '">' +
+        '</div>') : '';
       const names = (opts.details || []).slice(0, 5).map(function (n) {
         return '<li class="text-truncate">' + escapeHtml(n) + '</li>';
       }).join('');
@@ -261,23 +275,29 @@
       modal.innerHTML =
         '<div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark text-light border-secondary">' +
           '<div class="modal-body"><div style="white-space:pre-wrap">' + escapeHtml(opts.text || '') + '</div>' +
-            option + '</div>' +
+            input + option + '</div>' +
           '<div class="modal-footer border-secondary py-2">' +
             '<button type="button" class="btn btn-sm btn-outline-light" data-confirm-cancel>Annuler</button>' +
             '<button type="button" class="btn btn-sm ' + (opts.danger === false ? 'btn-primary' : 'btn-danger') +
               '" data-confirm-ok>' + escapeHtml(opts.okLabel || 'Confirmer') + '</button>' +
           '</div></div></div>';
       document.body.appendChild(modal);
-      let answer = { ok: false, option: false };
+      let answer = { ok: false, option: false, value: '' };
       const bs = global.bootstrap.Modal.getOrCreateInstance(modal);
+      const field = modal.querySelector('[data-confirm-input]');
       modal.querySelector('[data-confirm-ok]').addEventListener('click', function () {
         const box = modal.querySelector('[data-confirm-option]');
-        answer = { ok: true, option: !!(box && box.checked) };
+        answer = { ok: true, option: !!(box && box.checked), value: field ? field.value.trim() : '' };
         bs.hide();
       });
+      if (field) {
+        field.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter') { ev.preventDefault(); modal.querySelector('[data-confirm-ok]').click(); }
+        });
+      }
       modal.querySelector('[data-confirm-cancel]').addEventListener('click', function () { bs.hide(); });
       modal.addEventListener('shown.bs.modal', function () {
-        modal.querySelector('[data-confirm-ok]').focus();
+        (field || modal.querySelector('[data-confirm-ok]')).focus();
       });
       modal.addEventListener('hidden.bs.modal', function () {
         bs.dispose();

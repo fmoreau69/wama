@@ -1107,6 +1107,14 @@ intact. Joué sur le describer : la file du converter et celle de l'imager ne mo
 les cards reçues (`WAMA_COLLABORATION §3bis.1`). ⚠ Le premier montage du témoin (card sans lot,
 puis lot non partagé) donnait un faux rouge : la file se construit à partir des LOTS.
 
+### « Transférer à… » (2026-10-01)
+
+Scénario **`common.card_transfer`** (`ui_smoke_menus.py`), **5/5** au premier run (8011), par le
+VRAI chemin : clic droit sur une card du describer → « Transférer à… » → saisie du destinataire
+(compte de test développeur) → la card quitte la file SANS rechargement ; en base elle est au
+destinataire, privée, son fichier DÉPLACÉ chez lui. ⚠ Ce geste n'emploie pas `accept_dialogs` :
+la réponse automatique validerait la boîte avant la saisie.
+
 ### Barre COMMUNE de la médiathèque (2026-10-01)
 
 Scénario **`media_library.filter_bar`** (`ui_smoke_matching.py`), **8/8** au premier run, sur les

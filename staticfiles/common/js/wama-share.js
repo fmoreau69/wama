@@ -301,7 +301,63 @@
         return true;
     }
 
+    /**
+     * « TRANSFÉRER À… » (2026-10-01, `WAMA_COLLABORATION §3bis`) — la card change de propriétaire.
+     * Le serveur (`common/services/card_transfer.py`) applique la règle des fichiers (possédés
+     * déplacés, désignés copiés) ; ici : demander le destinataire, faire valider le consentement
+     * si la card porte une personne (même règle que le partage), puis retirer la card de la file
+     * (`WamaQueueActions.removeCard` — le lot quitté dit ce qu'il devient, sans rechargement).
+     */
+    function transfer(card, name) {
+        var c = coordonnees(card);
+        if (!c || !(global.WamaApp && WamaApp.ask)) return;
+        WamaApp.ask({
+            text: 'Transférer « ' + (name || 'cette card') + ' » à un autre compte ? Elle ne sera '
+                + 'plus à vous : ses fichiers partent avec elle (ceux qu’elle ne faisait que '
+                + 'désigner sont copiés, vous gardez les vôtres).',
+            okLabel: 'Transférer', danger: false,
+            input: { label: 'Destinataire', placeholder: 'identifiant ou adresse e-mail' },
+        }).then(function (answer) {
+            if (answer.ok && answer.value) send(c, card, answer.value, false);
+        });
+    }
+
+    function send(c, card, recipient, consent) {
+        var fd = new FormData();
+        fd.append('surface', c.surface);
+        fd.append('pk', c.pk);
+        fd.append('to', recipient);
+        if (consent) fd.append('consent', '1');
+        fetch('/common/api/transfer/', { method: 'POST', body: fd, credentials: 'same-origin',
+                                         headers: { 'X-CSRFToken': WamaApp.csrfToken() } })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (res.consent_required) {
+                    WamaApp.ask({ text: res.statement, okLabel: 'Transférer', danger: false,
+                                  option: { label: 'Je valide ce consentement', checked: false } })
+                        .then(function (a) {
+                            if (a.ok && a.option) send(c, card, recipient, true);
+                            else if (a.ok) WamaApp.toast('Transfert annulé : consentement non validé', 'warning');
+                        });
+                    return;
+                }
+                if (!res.transferred) {
+                    WamaApp.toast('Transfert impossible : ' + (res.reason || res.error || 'erreur'), 'error');
+                    return;
+                }
+                WamaApp.toast('Card transférée à ' + res.to + ' (' + res.moved + ' fichier(s) déplacé(s), '
+                              + res.copied + ' copié(s))', 'success');
+                if (global.WamaQueueActions && WamaQueueActions.removeCard) {
+                    WamaQueueActions.removeCard(c.pk, card, res.batch);
+                } else {
+                    location.reload();
+                }
+            })
+            .catch(function () { WamaApp.toast('Transfert impossible (réseau)', 'error'); });
+    }
+
     global.WamaShare = { ouvrir: ouvrir, ouvrirPourCard: ouvrirPourCard,
                          ouvrirPourLot: ouvrirPourLot,
-                         coordonnees: coordonnees, coordonneesDuLot: coordonneesDuLot };
+                         coordonnees: coordonnees, coordonneesDuLot: coordonneesDuLot,
+                         transfer: transfer };
 })(window);

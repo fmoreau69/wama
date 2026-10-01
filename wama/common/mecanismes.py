@@ -458,9 +458,12 @@ MECHANISMS = (
               "niveaux (un lot partagé aux éléments privés s'affiche VIDE chez le destinataire). "
               "Portées OFFRABLES dérivées de l'utilisateur (unités qui le couvrent, projets dont "
               "il est membre) : une portée sans cible réelle n'est pas proposée. Lecture seule "
-              "par construction — l'écriture est le jalon S3 `AccessGrant`, et la modale le DIT",
+              "par construction — l'écriture est le jalon S3 `AccessGrant`, et la modale le DIT. "
+              "Depuis le 2026-10-01 : « Dupliquer » une card reçue (`scoping.duplicable_or_404`) et "
+              "« Transférer à… » (`card_transfer` : possédés déplacés, désignés copiés)",
               'wama/common/services/sharing.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
-              annexes=('wama/common/static/common/js/wama-share.js',)),
+              annexes=('wama/common/static/common/js/wama-share.js',
+                       'wama/common/services/card_transfer.py')),
     Mechanism('send_to', "Envoyer vers (chaînage progressif, hors studio)",
               "La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studio. "
               "RÉSOLVEUR en lecture seule : il rend les chemins de sortie (clé canonique "

@@ -92,6 +92,8 @@ urlpatterns = [
     # « Garder » quand la rétention est finie : une durée complète de plus (2026-10-01).
     path('api/released-files/renew/', views.api_released_files_renew,
          name='api_released_files_renew'),
+    # « Transférer à… » (2026-10-01) : une card change de propriétaire, ses fichiers la suivent.
+    path('api/transfer/', views.api_transfer, name='api_transfer'),
     # ENVOYER VERS — résolveur en LECTURE SEULE : sorties de l'élément + apps éligibles +
     # l'endpoint qui reçoit. L'envoi lui-même passe par `filemanager:api_import`, celui qui
     # sert déjà « Envoyer vers… » — on ne duplique pas ses gardes.

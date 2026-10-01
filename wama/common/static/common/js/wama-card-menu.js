@@ -539,6 +539,15 @@
             } else if (dispo) {
                 // L'entrée COMMUNE (celle de l'arbre aussi) : mêmes coordonnées, même modale.
                 entrees.push(entreePartager(dispo, nom));
+                // TRANSFÉRER À… (2026-10-01) : céder la card — le serveur refuse si elle n'est pas
+                // à vous (même règle que « Partager… », qui n'est offert qu'au propriétaire côté
+                // serveur). Une card à la fois, comme le partage.
+                if (WamaShare.transfer) {
+                    entrees.push({
+                        icone: 'fas fa-right-left', libelle: 'Transférer à…',
+                        agir: function () { WamaShare.transfer(card, nom); },
+                    });
+                }
             }
         }
 
