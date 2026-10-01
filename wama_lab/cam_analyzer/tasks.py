@@ -2576,6 +2576,8 @@ def _run_global_tracking(session):
         stat = _gt.get('stationary_gids', [])
         rs = session.results_summary or {}
         rs['stationary_global_tracks'] = stat
+        # Immobiles COMPACTS : référence de la calibration sol (2026-10-01), distincte des garés.
+        rs['calibration_reference_gids'] = _gt.get('calibration_reference_gids') or []
         # Ancres monde des stationnés (lat/lon, médiane du track) : l'affichage dessine
         # les garés à position FIXE au lieu de la reconstruction par frame (jitter).
         rs['stationary_anchors'] = _gt.get('stationary_anchors', {})
