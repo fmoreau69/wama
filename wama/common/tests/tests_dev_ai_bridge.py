@@ -317,6 +317,52 @@ class DiffusersEngineMustBeProvenTest(SimpleTestCase):
         self.assertEqual([], concerns)
 
 
+class SimpleModelAnatomyTest(SimpleTestCase):
+    """The `backend` role demands `composition.components`; a single-piece model never got one
+    (2026-10-01: FrWhisper, Kyutai, LinTO). File lists are the real repositories'."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    def _anatomy(self, files, engine=None, components=None):
+        composition = {'runtime': {'engine': engine}} if engine else {}
+        if components:
+            composition['components'] = components
+        manifest, concerns = {'body': {'composition': composition}}, []
+        self.role_utils.enforce_component_facts(manifest, 'org/repo', concerns,
+                                                lister=lambda _hf: list(files))
+        return manifest['body'].get('composition', {}).get('components'), concerns
+
+    def test_sharded_weights_are_designated_by_their_pattern(self):
+        components, concerns = self._anatomy(
+            ['config.json', 'model-00001-of-00002.safetensors', 'model-00002-of-00002.safetensors',
+             'model.safetensors.index.json'], engine='transformers')
+        self.assertEqual([{'role': 'model', 'pattern': 'model-*.safetensors', 'format': 'safetensors'}],
+                         components)
+        self.assertIn('POSÉE', concerns[0])
+
+    def test_a_single_weight_file_is_designated_by_its_name(self):
+        components, _ = self._anatomy(['config.json', 'model.safetensors'], engine='transformers')
+        self.assertEqual('model.safetensors', components[0]['pattern'])
+
+    def test_several_formats_take_the_one_that_proves_the_engine(self):
+        components, _ = self._anatomy(['model.safetensors', 'linto_stt_fr_fastconformer_pc.nemo'],
+                                      engine='nemo')
+        self.assertEqual('linto_stt_fr_fastconformer_pc.nemo', components[0]['pattern'])
+
+    def test_several_formats_without_proof_declare_nothing_and_say_so(self):
+        components, concerns = self._anatomy(['model.safetensors', 'model.onnx'], engine='transformers')
+        self.assertIsNone(components)
+        self.assertIn('NON posée', concerns[0])
+
+    def test_a_declared_anatomy_is_left_alone(self):
+        declared = [{'role': 'acoustic_model', 'pattern': 'a.safetensors'}]
+        components, concerns = self._anatomy(['a.safetensors', 'b.safetensors'], components=declared)
+        self.assertEqual((declared, []), (components, concerns))
+
+
 class IdentityIsTheRequestedOneTest(SimpleTestCase):
     """Real case (2026-10-01, gpt-oss-120b on Albert): asked for `kyutai/stt-1b-en_fr-trfs`, the
     LLM wrote the key of ANOTHER model (`kyutai/stt-2.6b-en`) — and the engine check then read
