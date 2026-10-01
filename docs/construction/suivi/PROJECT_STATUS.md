@@ -19804,3 +19804,41 @@ Session dédiée ouverte sur le chantier `WAMA_APP_GENERATION_ROUTE.md §10.6` (
   (`copy_subfolder`, dérivé d'`app_media_dir`).
 - Gardes `ListedFilesFollowTheCardTest` (3) + contre-épreuve (rouge sans le branchement) ; voisins
   128 OK (dont `tests_card_listed_files` de l'autre instance). Domicile : `WAMA_COLLABORATION §3bis.1`.
+
+## §PALIER — 2026-10-02, « TROIS MOTEURS DE TRANSCRIPTION PAR LES RÔLES + REVÉRIFICATION DE SESSION » — ✅ commits ci-dessous — 🔴 RELANCER WAMA — 🔚 essai du contrat STT dans le rôle `backend` · campagne d'évaluation des trois
+
+> Fabien : *« C'est validé, tu peux appliquer tes corrections »*, puis *« une revérification
+> complète de la session (tout est bien aligné, on a rien réinventé ?) et du rapport »*.
+
+- **FrWhisper et Kyutai STT 1B** validés par Fabien, versionnés TELS QUE le rôle les a écrits
+  (`b193bbc3`), corrigés après essai GPU (`2fd9d25e`) ; LinTO servi par NeMo depuis `ad96cdf5`.
+  Les deux backends du rôle échouaient à CHAQUE transcription — le rôle n'a aucun essai pour le
+  contrat `SpeechToTextBackend` (détail : `PROSPECTION_PIPELINE §Session du 2026-10-01 (soir)`).
+- **Aval du Valider** (`9dd171bb`) : le transcriber ADOPTE le backend que le catalogue désigne (sa
+  liste de moteurs était écrite en dur) ; les mesures se rangent sous la clé du MODÈLE
+  (`catalogue_key_for(requested=)` — LinTO partait sous `transcriber:nemo`) ;
+  `segments_from_words` au module du contrat (NeMo + Kyutai).
+- **Revérification** (`70b08f61`) — deux gestes recodés en double, ramenés à leur brique :
+  `audio_decode.decode_audio_at` (fréquence GARANTIE ; 5 consommateurs, dont Qwen3-ASR qui lit
+  désormais le MP3 ; Kyutai avait d'abord tourné sur un 16 kHz pris pour du 24 kHz) ;
+  `card_languages` délègue à `prospector.card_facts`, qui rend des codes COURTS. Gardes que la
+  session avait fait rougir, réparées : import de classe par chemin (`transcriber/apps.py` →
+  `pyannote_diarizer.catalogue_key_for`) ; FrWhisper pris pour exemple « sans backend »
+  (`tests_backend_contract_routing`, `tests_model_select` — le rouge signalé plus haut par une autre
+  instance le 02/10, `8d4ae7ff`).
+- ⚠ **Incident git** : `70b08f61` (pathspec sur `wama/common/mecanismes.py`, co-édité) a emporté
+  deux lignes d'autres instances. D35 `release_card_files` GARDÉE (son code est arrivé dans
+  `061f2571`, -2f confirme) ; la phrase « Adoptée le jour même par imager, avatarizer, composer
+  et synthesizer » (`prompt_entry` / `addToQueue`) RETIRÉE de HEAD (`ff9d52fa`) — toujours dans
+  l'arbre, à commiter par son auteur (ni -42 ni -2f ; -ae prévenu).
+- **Rapport d'évaluation** (Claude Docs `cf2a277f…`, rev 25) : section Albert d'une autre instance
+  revérifiée en base (44,5 → 39,8 % sur FLEURS-CS ; Whisper local 45,1 % sur les MÊMES 8
+  enregistrements, après correctif — l'égalité avec le « avant » du tableau des correctifs est une
+  coïncidence) ; suites : trois moteurs intégrés, biais d'entraînement de LinTO (CFPP2000, FLEURS),
+  limites de FrWhisper (horodatage grossier) et Kyutai (plus lent que le temps réel). Consigné
+  aussi dans `WAMA_QUALITE` (`a42837c4`).
+- **Laissé, pas à moi** : `WAMA_MECANISMES.md` non régénérée (la description `audio_decode` a
+  changé — à la prochaine régénération) ; budgets de langue des tests et du code dépassés par
+  d'autres chantiers (aucun identifiant de cette session ; -42 coordonne) ; `check_docs` : 3
+  références cassées, aucune de cette session (ROUTE:327 vient de `195a3c81`).
+- 🔴 **RELANCER WAMA** : sans quoi le transcriber ne voit ni les deux backends ni l'adoption.
