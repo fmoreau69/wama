@@ -994,6 +994,22 @@ comme en sortie), ≈ 14 × le temps réel. WER de corpus :
 - 🔜 Décisions (a)-(c) ci-dessus inchangées ; s'y ajoute (d) : ne pas proposer l'amélioration
   de l'enhancer comme prétraitement du transcriber.
 
+**Suite (2026-10-01, soir) — trois moteurs de plus, exécutables, PAS encore évalués.** LinTO FR
+(NeMo), FrWhisper et Kyutai STT 1B fr/en sont intégrés par les rôles (chaîne et trous :
+`PROSPECTION_PIPELINE.md §Session du 2026-10-01 (soir)`), essayés sur GPU, sélectionnables
+dans une card du transcriber. Trois points qui CONDITIONNENT leur lecture, à poser avant la
+campagne :
+- ⚠ **Biais d'entraînement de LinTO** : sa fiche cite CFPP2000 et FLEURS parmi ses données ;
+  seul SUMM-RE (déclaré « exclusivement pour l'évaluation ») le mesure sans biais. Son score CFPP
+  ne se compare pas aux autres ; FLEURS-CS est bâti sur la partie TEST de FLEURS — à vérifier
+  avant de retenir son score multilingue.
+- **FrWhisper** : horodatage grossier (souvent un segment par fenêtre de 30 s) → son WER se lit,
+  son cpWER/DER pénalise d'abord ses repères de temps.
+- **Kyutai** : 345 s pour 5 min d'audio (plus lent que le temps réel), une passe ≤ 300 s.
+- ⚠ Une première mesure de Kyutai avait tourné sur un audio à 16 kHz pris pour du 24 kHz
+  (`decode_audio` garde la fréquence native d'un WAV) — texte lisible mais faux ; corrigé par
+  `decode_audio_at`, avant toute campagne.
+
 ---
 
 ## Voir aussi
