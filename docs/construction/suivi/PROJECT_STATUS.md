@@ -19382,3 +19382,41 @@ gardés à la confirmation) ; gestes « Copier dans mon espace » / « Transfér
 après transfert la card ne désigne que des fichiers de son nouveau propriétaire — possédés DÉPLACÉS,
 désignés COPIÉS) ; repasser la case cochée par défaut après essai ; retirer l'annonce post-retrait
 si la confirmation suffit. Adoption possible du `sort_by` par le model manager (tri écrit à la main).
+
+## §PALIER — 2026-10-01 (après-midi), « COMPOSER AU CATALOGUE + accelerate 1.12 + MATRICE DE PARITÉ DU TRANSPORT » — livré, NON POUSSÉ — 🔚 relancer WAMA (migration composer 0012), entrée partition/MIDI, transport commun
+
+- ✅ **Composer, route F4b** (`b0d82a1b`) : le sélecteur est tiré du CATALOGUE par TÂCHE
+  (`text-to-music`, `text-to-audio`), groupé par le serveur, avec un « auto » PAR GROUPE
+  (`auto:<tâche>`, brique commune `model_keys.auto_task`, endpoint `auto=group`). C'est la
+  décision « pas de 2 modes », reconduite par Fabien : pas de nouveau domaine. YuE2, ACE-Step 1.5
+  et MiniMax-Music3 y entrent sans code (smoke navigateur sur serveur éphémère : groupes, auto
+  par groupe, aide, curseur, 0 erreur console). Valeurs = clés entières ; les anciennes valeurs
+  (`musicgen-small`, `auto-music`) restent LUES (`composer/utils/model_choice.normalize`) ;
+  `generation_type` est DÉRIVÉ de la tâche. Correctif latent : `IndexError` de
+  `api_model_options` sur un domaine vide groupé par tâche.
+- ✅ **Route library : `constraints.no_deps`** (même commit), validé au manifeste et passé à la
+  simulation et à pip. accelerate 1.12.0 installé par cette voie : sans `--no-deps`, pip
+  rétrogradait `nvidia-nccl-cu12`.
+- ✅ **Transport commun, étape ①** (`acf37bde`) : cartographie et **matrice de parité** dans
+  `ROUTE §F3b` — ce que l'éditeur du transcriber et le cam_analyzer doivent garder, ligne à ligne.
+  Règle posée : aucune ligne ne passe à la brique sans le geste qui l'atteste, avant et après.
+  ⚠ Ce commit a EMPORTÉ un hunk d'une autre instance (ROUTE, Kyutai / `describer:whisper`
+  « retiré », R28), écrit entre mon diff et mon commit à pathspec. L'historique n'est pas réécrit
+  (`d3b600b2` était déjà par-dessus) ; les instances ce et 7d sont prévenues : R28 reste du WIP
+  non commité tant que son auteur ne l'a pas posé.
+- 🔴 **À RELANCER** : WAMA (gunicorn + workers). La migration `composer 0012` (gitignorée,
+  max_length 128 + valeurs → clés) passe au relancement, AVANT gunicorn. Elle n'a PAS été
+  appliquée à chaud : le code en service lit encore `auto-music`. Le nouveau code lit les deux
+  formes. accelerate 1.12 ne sert qu'après relancement des workers.
+- 🔚 **Reste** :
+  - **Entrée partition/MIDI** : nature `partition` (`.abc`, `.mid`, `.musicxml`) et jeton
+    d'entrée commun ; YuE2 la déclare en entrée optionnelle ; conversion MIDI/MusicXML → ABC
+    (librairie par la route library) ; backend YuE en deux temps (plan ABC éditable → rendu `abc=`).
+  - **Page d'édition YuE**, bâtie sur le transport commun.
+  - **Transport commun ②-④** en session dédiée (`ROUTE §F3b`). Premier consommateur : l'onde
+    d'entrée du volet ; l'éditeur et le cam_analyzer seulement après leur matrice attestée et la
+    décision de Fabien.
+  - Rouges vus, PAS à moi : `tests_backend_adoption` (`transcriber/apps.py:146`, import de
+    `PyannoteDiarizerBackend`), `tests_doc_plans` (`docs/dev/briques.md` régénérée sur des
+    mécanismes non commités), `tests_intent_vision` (`editor_01` sans curseur), et
+    `tests_notifications` (adresses).
