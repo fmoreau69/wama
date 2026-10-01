@@ -76,6 +76,42 @@ class TranscriptionResult:
         }
 
 
+#: Longueur maximale d'un segment bâti sur des mots horodatés (2026-10-01) : au-delà, il se
+#: recoupe. Venue de NeMo (LinTO ne ponctue pas : 30 s de parole sortaient en UN segment, rien
+#: pour la diarisation, l'éditeur ni le SRT), partagée avec Kyutai le jour même — deux moteurs
+#: qui rendent des MOTS horodatés sans couper eux-mêmes.
+MAX_SEGMENT_SECONDS = 12.0
+#: Pause entre deux mots qui ouvre un nouveau segment.
+PAUSE_SECONDS = 0.5
+
+
+def segments_from_words(words: List[dict], speaker_id: str = '',
+                        max_seconds: float = MAX_SEGMENT_SECONDS,
+                        pause_seconds: float = PAUSE_SECONDS,
+                        sentence_ends: str = '') -> List[TranscriptionSegment]:
+    """Regroupe des mots horodatés (`{'word', 'start', 'end'}`) en segments : un nouveau s'ouvre à
+    une pause ≥ `pause_seconds`, quand le segment en cours dépasserait `max_seconds`, ou — si
+    `sentence_ends` est donné — après un mot qui finit une phrase. Pour un moteur qui émet ses mots
+    avec un retard VARIABLE (Kyutai), l'écart entre deux mots ne mesure pas un silence : c'est sa
+    ponctuation qui coupe, la pause n'étant plus qu'un filet large."""
+    if not words:
+        return []
+    groups = [[words[0]]]
+    for word in words[1:]:
+        current = groups[-1]
+        pause = word['start'] - current[-1]['end']
+        too_long = word['end'] - current[0]['start'] > max_seconds
+        sentence_over = bool(sentence_ends) and current[-1]['word'].endswith(tuple(sentence_ends))
+        if pause >= pause_seconds or too_long or sentence_over:
+            groups.append([word])
+        else:
+            current.append(word)
+    return [TranscriptionSegment(speaker_id=speaker_id, start_time=group[0]['start'],
+                                 end_time=group[-1]['end'],
+                                 text=' '.join(w['word'] for w in group).strip(), words=group)
+            for group in groups]
+
+
 class SpeechToTextBackend(BaseModelBackend):
     """
     Contrat des moteurs de reconnaissance de parole — spécialisation de `BaseModelBackend`.

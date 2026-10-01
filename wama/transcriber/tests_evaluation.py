@@ -46,6 +46,74 @@ class CatalogueKeyOfTheModelActuallyUsedTest(TestCase):
                          TranscriberBackendManager.catalogue_key_for('qwen_asr', ''))
 
 
+LINTO_KEY = 'huggingface:linagora/linto_stt_fr_fastconformer_pc'
+
+#: Au niveau du MODULE, comme l'écrit la chaîne d'intégration (`ValidatedBackendTest`).
+SUPPORTED_MODELS = {'org/Mixed-Case-ASR': {}}
+
+
+class _ValidatedBackend:
+    """Fabriqué à la demande : une sous-classe ABSTRAITE définie à l'import du module de tests
+    serait relevée comme backend par les balayages qui parcourent les sous-classes."""
+
+    @staticmethod
+    def make():
+        from wama.common.backends.speech_to_text_base import SpeechToTextBackend
+
+        class ValidatedASR(SpeechToTextBackend):
+            name = 'validated_asr'
+
+            def load(self, model_name=None):
+                return True
+
+            def unload(self):
+                pass
+
+            def transcribe(self, audio_path, language=None, hotwords=None, **kwargs):
+                return None
+        ValidatedASR.__module__ = __name__
+        return ValidatedASR
+
+
+class AModelInstalledByProspectionTest(TestCase):
+    """2026-10-01 : LinTO, FrWhisper et Kyutai sont entrés par la prospection — clés
+    `huggingface:…`, hors de la source `transcriber`, et deux d'entre eux avec un backend ÉCRIT
+    par la chaîne d'intégration, hors de la liste du gestionnaire. Deux trous en aval du Valider."""
+
+    def setUp(self):
+        from wama.transcriber.catalogue_fixtures import transcription_catalogue, transcription_row
+        transcription_catalogue('transcriber:canary-1b-v2', 'transcriber:parakeet-tdt-0.6b-v3')
+        transcription_row(LINTO_KEY, engine='nemo')
+
+    def test_its_measures_are_filed_under_its_own_key_not_its_engine(self):
+        M = TranscriberBackendManager
+        self.assertEqual(LINTO_KEY, M.catalogue_key_for(
+            'nemo', 'linagora/linto_stt_fr_fastconformer_pc', requested=LINTO_KEY))
+        self.assertEqual('transcriber:nemo', M.catalogue_key_for(
+            'nemo', 'linagora/linto_stt_fr_fastconformer_pc'), 'counter-check: the old filing')
+
+    def test_a_request_its_engine_does_not_serve_is_never_taken(self):
+        self.assertEqual('transcriber:whisper', TranscriberBackendManager.catalogue_key_for(
+            'whisper', 'large-v3', requested=LINTO_KEY))
+
+    def test_a_validated_backend_outside_the_registration_list_is_adopted(self):
+        from unittest import mock
+        klass = _ValidatedBackend.make()
+        backends = TranscriberBackendManager.get_instance()._backends
+        self.addCleanup(backends.pop, 'validated_asr', None)
+        with mock.patch('wama.common.backends.manager.backend_for_key', return_value=klass):
+            self.assertEqual('validated_asr',
+                             TranscriberBackendManager._backend_for_model_key('huggingface:org/x'))
+        self.assertIs(klass, backends['validated_asr'])
+
+    def test_a_module_level_list_is_read_and_its_case_does_not_decide(self):
+        klass = _ValidatedBackend.make()
+        M = TranscriberBackendManager
+        self.assertEqual('org/Mixed-Case-ASR',
+                         M.model_for_request(klass(), 'huggingface:org/mixed-case-asr'))
+        self.assertIsNone(M.model_for_request(klass(), 'huggingface:org/other'), 'counter-check')
+
+
 class ACatalogueModelNameSelectsItsEngineTest(TestCase):
     """Assistant test of 2026-09-28: the tool docstring listed whisper/vibevoice only, and an
     unknown `backend` fell back to the best engine — a request made for Qwen3-ASR by its catalogue

@@ -647,7 +647,8 @@ def _transcribe_item(t, ctx):
         resolved_for = getattr(backend, 'catalogue_key', '')
         t.model_key = (resolved_for if isinstance(resolved_for, str) and resolved_for
                        else TranscriberBackendManager.catalogue_key_for(
-                           backend.name, getattr(backend, '_current_model', '') or ''))
+                           backend.name, getattr(backend, '_current_model', '') or '',
+                           requested=backend_name))
 
         # Save segments if available (diarization)
         num_segments = _save_segments(t, result)

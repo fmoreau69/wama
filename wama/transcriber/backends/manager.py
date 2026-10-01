@@ -13,6 +13,7 @@ correspondance DÉCLARÉE : `LEGACY_ENGINE_MODELS`.
 """
 
 import logging
+import sys
 from typing import Dict, List, Optional, Type
 
 from wama.common.backends.speech_to_text_base import SpeechToTextBackend
@@ -279,9 +280,21 @@ class TranscriberBackendManager:
         except Exception as e:
             logger.debug(f"[TranscriberManager] {key} : résolution impossible ({e})")
             return None
-        for name, registered in cls.get_instance()._backends.items():
-            if klass is not None and registered is klass:
+        if klass is None:
+            return None
+        backends = cls.get_instance()._backends
+        for name, registered in backends.items():
+            if registered is klass:
                 return name
+        # Un backend de transcription VALIDÉ par la chaîne d'intégration (2026-10-01 : FrWhisper,
+        # Kyutai) vit dans `common/backends/` sans figurer à `_register_backends` : sans ceci, le
+        # catalogue le résolvait et la card répondait « aucun backend ne sert ce modèle ». Le
+        # gestionnaire ADOPTE ce que le catalogue lui désigne — il ne connaît pas ses producteurs.
+        if (isinstance(klass, type) and issubclass(klass, SpeechToTextBackend)
+                and klass.name and klass.name not in backends):
+            backends[klass.name] = klass
+            logger.info(f"[TranscriberManager] Adopted: {klass.name} ({key})")
+            return klass.name
         return None
 
     @staticmethod
@@ -299,8 +312,13 @@ class TranscriberBackendManager:
         if getattr(backend, 'catalogue_key', '') == requested:
             return requested.split(':', 1)[-1]
         model_id = requested.split(':', 1)[-1].strip().lower()
-        served = getattr(backend, 'SUPPORTED_MODELS', None) or {}
-        return model_id if model_id in served else None
+        owner = backend if isinstance(backend, type) else type(backend)
+        # La liste vit sur la CLASSE (NeMo, Qwen) ou au niveau du MODULE (backends écrits par la
+        # chaîne d'intégration, comme ceux de l'imager) : la même double lecture que l'inventaire
+        # (`backend_inventory`). La casse du catalogue (`aihpi/FrWhisper`) ne décide pas.
+        served = (getattr(owner, 'SUPPORTED_MODELS', None)
+                  or getattr(sys.modules.get(owner.__module__), 'SUPPORTED_MODELS', None) or {})
+        return next((declared for declared in served if str(declared).lower() == model_id), None)
 
     @classmethod
     def honours(cls, backend, requested: str) -> bool:
@@ -314,7 +332,7 @@ class TranscriberBackendManager:
         return backend.name == requested or cls._backend_for_model_key(requested) == backend.name
 
     @classmethod
-    def catalogue_key_for(cls, backend_name: str, loaded_model: str = '') -> str:
+    def catalogue_key_for(cls, backend_name: str, loaded_model: str = '', requested: str = '') -> str:
         """Clé catalogue du modèle EFFECTIVEMENT utilisé par un moteur LOCAL.
 
         Le moteur (`whisper`, `qwen_asr`…) ne suffit pas quand le catalogue en porte plusieurs
@@ -322,6 +340,12 @@ class TranscriberBackendManager:
         du contrat `speech_to_text_base`, lu AVANT `unload()`, qui le remet à None). Une mesure
         attribuée au mauvais modèle fausserait son indice interne — on préfère alors la clé du
         moteur, qui ne prétend pas savoir la variante.
+
+        `requested` : la demande de la card. Un modèle installé par la PROSPECTION
+        (`huggingface:linagora/…`, `huggingface:aihpi/FrWhisper`) n'est pas rangé sous la source
+        `transcriber` ; sans elle, ses mesures partaient sous la clé du moteur (`transcriber:nemo`)
+        — 2026-10-01. Elle n'est retenue que si ce moteur la sert, et le modèle chargé tranche
+        toujours.
         """
         try:
             from wama.model_manager.models import AIModel
@@ -330,10 +354,14 @@ class TranscriberBackendManager:
                     if cls._backend_for_model_key(k) == backend_name]
         except Exception:
             keys = []
+        wanted = catalogue_value(requested) if requested else ''
+        if (wanted and wanted not in keys and not is_auto_value(wanted)
+                and cls._backend_for_model_key(wanted) == backend_name):
+            keys.append(wanted)
         if len(keys) == 1:
             return keys[0]
         loaded = (loaded_model or '').lower().rsplit('/', 1)[-1]
-        matching = [k for k in keys if k.split(':', 1)[-1].lower() == loaded]
+        matching = [k for k in keys if k.split(':', 1)[-1].lower().rsplit('/', 1)[-1] == loaded]
         if len(matching) == 1:
             return matching[0]
         return f'transcriber:{backend_name}' if backend_name else ''
