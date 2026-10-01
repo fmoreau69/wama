@@ -796,45 +796,34 @@ class ModelRegistry:
 
                 is_loaded = model_id == 'blip' and blip_loaded
                 hf_id = config.get('model_id')
-                source_type = config.get('source', 'huggingface')
 
                 # Check if model is downloaded
                 is_downloaded = False
                 model_format = ''
                 cache_dirs = []
 
-                # Special handling for Whisper (uses .pt files, not HuggingFace format)
-                if 'whisper' in model_id.lower() or source_type == 'openai':
-                    whisper_dir = model_paths.get('speech', {}).get('whisper')
-                    if whisper_dir:
-                        whisper_path = Path(whisper_dir)
-                        if whisper_path.exists():
-                            # Check for any .pt files (base.pt, small.pt, etc.)
-                            pt_files = list(whisper_path.glob('*.pt'))
-                            is_downloaded = len(pt_files) > 0
-                            if is_downloaded:
-                                model_format = 'pt'
-                else:
-                    # HuggingFace models (BLIP)
-                    if 'blip' in model_id.lower():
-                        blip_dir = model_paths.get('vlm', {}).get('blip')
-                        if blip_dir:
-                            cache_dirs.append(Path(blip_dir))
+                # HuggingFace models (BLIP). La branche « Whisper en .pt » est partie avec
+                # `describer:whisper` le 2026-10-01 : le describer transcrit par
+                # `transcriber:whisper`, il ne déclare plus de modèle de parole (R28).
+                if 'blip' in model_id.lower():
+                    blip_dir = model_paths.get('vlm', {}).get('blip')
+                    if blip_dir:
+                        cache_dirs.append(Path(blip_dir))
 
-                    # Add generic directories as fallback
-                    vlm_root = model_paths.get('vlm', {}).get('root')
-                    if vlm_root:
-                        cache_dirs.append(Path(vlm_root))
-                    hf_cache = model_paths.get('cache', {}).get('huggingface')
-                    if hf_cache:
-                        cache_dirs.append(Path(hf_cache))
+                # Add generic directories as fallback
+                vlm_root = model_paths.get('vlm', {}).get('root')
+                if vlm_root:
+                    cache_dirs.append(Path(vlm_root))
+                hf_cache = model_paths.get('cache', {}).get('huggingface')
+                if hf_cache:
+                    cache_dirs.append(Path(hf_cache))
 
-                    # Check if model is downloaded in any of the directories
-                    for cache_dir in cache_dirs:
-                        if cache_dir and cache_dir.exists():
-                            if _check_hf_model_downloaded(cache_dir, hf_id):
-                                is_downloaded = True
-                                break
+                # Check if model is downloaded in any of the directories
+                for cache_dir in cache_dirs:
+                    if cache_dir and cache_dir.exists():
+                        if _check_hf_model_downloaded(cache_dir, hf_id):
+                            is_downloaded = True
+                            break
 
                 # Detect format (for HF models it's typically safetensors or bin)
                 if is_downloaded and not model_format:

@@ -5,7 +5,6 @@ Centralized configuration for all models used by the Describer application.
 Uses the centralized AI-models directory structure from settings.py.
 """
 
-import os
 import logging
 from pathlib import Path
 
@@ -24,17 +23,12 @@ MODEL_PATHS = getattr(settings, 'MODEL_PATHS', {})
 BLIP_DIR = MODEL_PATHS.get('vlm', {}).get('blip',
     settings.AI_MODELS_DIR / "models" / "vlm" / "blip")
 
-# Speech models (Whisper)
-WHISPER_DIR = MODEL_PATHS.get('speech', {}).get('whisper',
-    settings.AI_MODELS_DIR / "models" / "speech" / "whisper")
-
 # HuggingFace cache (shared)
 HF_CACHE_DIR = MODEL_PATHS.get('cache', {}).get('huggingface',
     settings.AI_MODELS_DIR / "cache" / "huggingface")
 
 # Ensure directories exist
 BLIP_DIR.mkdir(parents=True, exist_ok=True)
-WHISPER_DIR.mkdir(parents=True, exist_ok=True)
 HF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
@@ -58,32 +52,11 @@ DESCRIBER_MODELS = {
         'source': 'huggingface',
     },
 
-    # Audio transcription
-    'whisper': {
-        # ⚠ DIVERGENCE DÉCLARATION ↔ CODE, mesurée le 2026-09-06 et NON corrigée ici (elle
-        # touche le catalogue et la taille annoncée, pas le moteur) : cette entrée annonce
-        # `openai/whisper-base` via « la lib whisper, pas HF », alors que le Describer passe
-        # par la brique COMMUNE `common/utils/whisper_utils.transcribe_audio`, qui délègue au
-        # backend du Transcriber (`transcriber.backends.manager.get_backend`) — donc
-        # **faster-whisper, large-v3**. C'est cette ligne qui m'a fait écrire que ce modèle
-        # « n'avait aucun backend » : j'ai lu une déclaration au lieu de tracer le chaînage.
-        # Le `size_gb: 0.3` et les `variants` décrivent eux aussi whisper-base, pas large-v3.
-        'model_id': 'openai/whisper-base',
-        # Le moteur RÉEL, lu dans `WhisperBackend.ENGINE` au bout de la chaîne d'appels.
-        # Describer et Transcriber partagent le BACKEND et diffèrent par le MODÈLE : c'est
-        # exactement ce que le lien modèle↔moteur doit savoir exprimer.
-        'engine': 'faster-whisper',
-        'type': 'speech-to-text',
-        'task': 'automatic-speech-recognition',
-        'local_dir': WHISPER_DIR,
-        'description': "Whisper — transcription audio (description de contenus sonores)",
-        'description_long': "Whisper (OpenAI) : reconnaissance vocale multilingue utilisée par le "
-                            "Describer pour transcrire la piste audio d'un média avant d'en "
-                            "générer la description. Robuste au bruit et aux accents.",
-        'size_gb': 0.3,
-        'source': 'openai',  # Uses whisper library, not HF
-        'variants': ['tiny', 'base', 'small', 'medium', 'large'],
-    },
+    # Transcription audio : PAS de modèle propre. Le describer passe par la brique commune
+    # `common/utils/whisper_utils.transcribe_audio`, qui charge `large-v3` par le backend du
+    # transcriber — donc le modèle `transcriber:whisper`. L'entrée `whisper` qui vivait ici
+    # annonçait `openai/whisper-base` à 0,3 Go (divergence relevée le 2026-09-06) : un doublon
+    # sous une fausse identité, présent au menu du transcriber. Retirée le 2026-10-01 (R28).
 }
 
 
@@ -92,12 +65,8 @@ def setup_model_environment():
     Setup environment variables for model caching.
     Call this before loading any models.
     """
-    # Whisper uses its own cache
-    os.environ['WHISPER_CACHE'] = str(WHISPER_DIR)
-
     logger.info(f"Model cache directories configured:")
     logger.info(f"  BLIP: {BLIP_DIR}")
-    logger.info(f"  Whisper: {WHISPER_DIR}")
 
 
 def get_model_path(model_key: str) -> Path:
@@ -105,7 +74,7 @@ def get_model_path(model_key: str) -> Path:
     Get the local path for a model.
 
     Args:
-        model_key: Key from DESCRIBER_MODELS (e.g., 'blip', 'whisper')
+        model_key: Key from DESCRIBER_MODELS (e.g., 'blip')
 
     Returns:
         Path to the model directory
