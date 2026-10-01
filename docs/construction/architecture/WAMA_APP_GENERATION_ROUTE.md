@@ -221,7 +221,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     de 30 Mo (`wama-audio-player.js:188`, `MAX_DECODE_BYTES`) et `unified_preview` ne fournit des
     pics qu'à la face « pendant » (`preview_utils.py:254-257`), jamais à l'entrée. Or le
     transcriber CALCULE déjà ces pics pour son éditeur (`workers.compute_waveform_peaks`, statut
-    `Transcript.waveform_status`, lecture `views.py:684`) : ils existaient pour les deux cards du
+    `Transcript.waveform_status`, lecture `wama/transcriber/views.py:677` `waveform_peaks`) : ils existaient pour les deux cards du
     lot #489 (MP3 de 136 Mo, 2 h 22) sans que le volet s'en serve. Le calcul de pics est déjà
     commun (`common/utils/waveform.compute_peaks`) ; leur **stockage et leur service** ne le sont
     pas.
