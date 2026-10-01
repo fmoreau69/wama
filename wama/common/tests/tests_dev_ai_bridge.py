@@ -297,6 +297,61 @@ class DiffusersEngineMustBeProvenTest(SimpleTestCase):
         self.assertEqual(1, len(concerns))
         self.assertIn('AUCUN backend', concerns[0])
 
+    LINTO_FILES = ('config.json', 'model.safetensors', 'linto_stt_fr_fastconformer_pc.nemo')
+
+    def test_a_removed_engine_gives_way_to_the_one_the_weight_format_proves(self):
+        """Real case (2026-10-01, LinTO): transformers removed, the `.nemo` proves `nemo`."""
+        manifest, concerns = self._enforce(self._manifest('transformers'), ['ParakeetForRNNT'],
+                                           files=self.LINTO_FILES)
+        self.assertEqual('nemo', manifest['body']['composition']['runtime']['engine'])
+        self.assertTrue(any('PROPOSÉ' in c and '.nemo' in c for c in concerns), concerns)
+
+    def test_a_manifest_without_engine_gets_the_proven_one(self):
+        manifest, _ = self._enforce({'body': {}}, None, files=self.LINTO_FILES)
+        self.assertEqual('nemo', manifest['body']['composition']['runtime']['engine'])
+
+    def test_a_format_that_proves_nothing_poses_nothing(self):
+        manifest, concerns = self._enforce({'body': {}}, None,
+                                           files=('config.json', 'model.safetensors'))
+        self.assertNotIn('composition', manifest['body'])
+        self.assertEqual([], concerns)
+
+
+class IdentityIsTheRequestedOneTest(SimpleTestCase):
+    """Real case (2026-10-01, gpt-oss-120b on Albert): asked for `kyutai/stt-1b-en_fr-trfs`, the
+    LLM wrote the key of ANOTHER model (`kyutai/stt-2.6b-en`) — and the engine check then read
+    that other model's config and removed a valid engine."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    KEY, HF = 'huggingface:kyutai/stt-1b-en_fr-trfs', 'kyutai/stt-1b-en_fr-trfs'
+
+    def test_another_models_identity_is_replaced_and_said(self):
+        manifest = {'key': 'huggingface:kyutai/stt-2.6b-en',
+                    'body': {'identity': {'hf_id': 'kyutai/stt-2.6b-en'}}}
+        concerns = []
+        self.role_utils.enforce_identity(manifest, self.KEY, self.HF, concerns)
+        self.assertEqual((self.KEY, self.HF, self.KEY),
+                         (manifest['key'], manifest['body']['identity']['hf_id'],
+                          manifest['body']['identity']['platform_ref']))
+        self.assertEqual(1, len(concerns))
+        self.assertIn('stt-2.6b-en', concerns[0])
+
+    def test_the_right_identity_says_nothing(self):
+        manifest = {'key': self.KEY, 'body': {'identity': {'hf_id': self.HF}}}
+        concerns = []
+        self.role_utils.enforce_identity(manifest, self.KEY, self.HF, concerns)
+        self.assertEqual([], concerns)
+
+    def test_the_model_role_imposes_it_before_the_engine_check(self):
+        source = (DEV_AI / 'run_model_manifest.py').read_text(encoding='utf-8')
+        self.assertLess(source.index('enforce_identity(manifest'),
+                        source.index('enforce_engine_facts(manifest'),
+                        'the engine check must read the REQUESTED model')
+
 
 class InstallChannelFromRepoFactsTest(SimpleTestCase):
     """`librarian --repo` : le canal d'installation se pose d'après les FAITS du dépôt.

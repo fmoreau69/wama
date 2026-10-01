@@ -176,6 +176,52 @@ def signal_weight_formats(hf_id, concerns, lister=repo_files):
     return by_ext
 
 
+def enforce_identity(manifest, key, hf_id, concerns, platform_ref=None):
+    """La clé et l'identité du manifeste sont celles du modèle DEMANDÉ — jamais celles que le LLM
+    a écrites.
+
+    Vécu le 2026-10-01 (gpt-oss-120b sur Albert, `--catalog huggingface:kyutai/stt-1b-en_fr-trfs`) :
+    le LLM a rendu la clé `huggingface:kyutai/stt-2.6b-en`, un AUTRE modèle, non installé. Le
+    manifeste était « VALIDE », et le contrôle du moteur a lu le `config.json` de ce modèle-là :
+    il a RETIRÉ `transformers`, alors que le vrai `config.json` nomme une classe que le
+    transformers installé possède. *Une identité fausse fausse tous les faits mécaniques qui en
+    dépendent.* Elle est donc imposée, et la correction est DITE : le reste du manifeste a pu
+    décrire l'autre modèle, il est à relire."""
+    body = manifest.setdefault('body', {})
+    identity = body.setdefault('identity', {})
+    ref = platform_ref or key
+    wrong = [f"{name} {value!r}" for name, value, expected in (
+        ('clé', manifest.get('key'), key), ('hf_id', identity.get('hf_id'), hf_id),
+        ('platform_ref', identity.get('platform_ref'), ref)) if value and value != expected]
+    manifest['key'] = key
+    identity['hf_id'] = hf_id
+    identity['platform_ref'] = ref
+    if wrong:
+        concerns.append(f"identité CORRIGÉE (fait mécanique) : le LLM avait écrit {', '.join(wrong)} "
+                        f"pour {key!r} — le manifeste a pu décrire un autre modèle, à relire")
+    return manifest
+
+
+#: Formats de poids qui PROUVENT un moteur à eux seuls : l'archive ne s'ouvre que par lui.
+#: Vécu le 2026-10-01 (LinTO FastConformer) : le dépôt porte un `.nemo`, le moteur `transformers`
+#: proposé est retiré à juste titre, mais AUCUN moteur n'était proposé alors que le backend NeMo
+#: existe. Un format absent de cette table ne prouve rien (`.safetensors` se lit par dix libs).
+FORMAT_ENGINES = {'.nemo': 'nemo'}
+
+
+def _engine_from_format(manifest, by_ext, concerns):
+    """Pose le moteur que le FORMAT des poids prouve, s'il n'y en a aucun et qu'un backend le sert."""
+    from wama.common.backends.manager import known_engines
+    for ext, engine in FORMAT_ENGINES.items():
+        if ext in by_ext and engine in known_engines():
+            composition = manifest.setdefault('body', {}).setdefault('composition', {})
+            composition.setdefault('runtime', {})['engine'] = engine
+            concerns.append(f"engine {engine!r} PROPOSÉ (fait mécanique) : le dépôt porte "
+                            f"{sorted(by_ext[ext])[0]} et un backend sert le moteur {engine!r} — "
+                            f"qu'il serve CE modèle reste à vérifier")
+            return
+
+
 def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_files):
     """Retire `composition.runtime.engine` quand le dépôt ne le PROUVE pas, et dit ce qu'il porte.
 
@@ -194,10 +240,11 @@ def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_fil
     Les faits mécaniques priment sur le jugement du LLM, comme la licence ou la taille.
     `reader` remplace le lecteur du fait (tests) ; `lister`, l'inventaire du dépôt.
     """
-    signal_weight_formats(hf_id, concerns, lister=lister)
+    by_ext = signal_weight_formats(hf_id, concerns, lister=lister)
     runtime = (((manifest.get('body') or {}).get('composition') or {}).get('runtime') or {})
     engine = runtime.get('engine')
     if not engine:
+        _engine_from_format(manifest, by_ext, concerns)
         return manifest
     proof = ENGINE_PROOFS.get(engine)
     if proof is None:
@@ -216,6 +263,7 @@ def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_fil
         manifest['body']['composition'].pop('runtime', None)
     concerns.append(f"engine {engine!r} RETIRÉ (fait mécanique) : {reason}, "
                     f"{failure} — un backend dédié reste à écrire")
+    _engine_from_format(manifest, by_ext, concerns)
     return manifest
 
 
