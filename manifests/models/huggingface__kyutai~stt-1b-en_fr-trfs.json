@@ -1,0 +1,78 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_audio"
+      ],
+      "languages": [
+        "en",
+        "fr"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "supports_streaming": true,
+      "supports_timestamps": true,
+      "task": "transcription"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "safetensors",
+          "pattern": "model.safetensors",
+          "role": "model"
+        }
+      ],
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
+    "extra_info": {
+      "category": "speech",
+      "family": "stt-1b-en_fr-trfs",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "Kyutai",
+      "description_short": "Snapshot HF stt-1b-en_fr-trfs — installé, en attente d'intégration",
+      "hf_id": "kyutai/stt-1b-en_fr-trfs",
+      "license": "cc-by-4.0",
+      "model_type": "speech",
+      "platform_ref": "huggingface:kyutai/stt-1b-en_fr-trfs",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 2.5124377235770226,
+      "ram_gb": 0.0,
+      "vram_gb": 3.2
+    }
+  },
+  "description": "Snapshot HuggingFace installé (speech/stt-1b-en_fr-trfs) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:kyutai/stt-1b-en_fr-trfs",
+  "manifest_kind": "model",
+  "name": "stt-1b-en_fr-trfs",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:kyutai/stt-1b-en_fr-trfs",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

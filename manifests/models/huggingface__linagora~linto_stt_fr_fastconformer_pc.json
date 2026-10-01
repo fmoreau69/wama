@@ -13,6 +13,13 @@
       "task": "transcription"
     },
     "composition": {
+      "components": [
+        {
+          "format": "nemo",
+          "pattern": "linto_stt_fr_fastconformer_pc.nemo",
+          "role": "model"
+        }
+      ],
       "runtime": {
         "engine": "nemo"
       }
@@ -20,6 +27,12 @@
     "extra_info": {
       "category": "speech",
       "family": "linto_stt_fr_fastconformer_pc",
+      "vram_measured": {
+        "at": "2026-10-01T13:27:14+00:00",
+        "last_gb": 0.88,
+        "max_gb": 0.88,
+        "n": 3
+      },
       "vram_provenance": "estimated"
     },
     "formats": {
