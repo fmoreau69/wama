@@ -676,9 +676,11 @@ def download(request, pk):
 def duplicate(request, pk):
     """Duplicate a Description sharing the same input file, resetting results."""
     user = get_user(request)
-    description = get_object_or_404(Description, pk=pk, user=user)
+    from wama.common.utils.scoping import duplicable_or_404
+    description = duplicable_or_404(Description, user, pk=pk)
     new_desc = duplicate_instance(
         description,
+        for_user=user,
         reset_fields={
             'status': 'PENDING',
             'progress': 0,

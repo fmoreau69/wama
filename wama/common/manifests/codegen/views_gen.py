@@ -861,9 +861,11 @@ def delete(request, pk):
     vues['duplicate'] = f'''@require_POST
 def duplicate(request, pk):
     user = _user(request)
-    item = get_object_or_404({item}, pk=pk, user=user)
+    from wama.common.utils.scoping import duplicable_or_404
+    item = duplicable_or_404({item}, user, pk=pk)   # le sien OU reçu : la copie est à soi
     new = duplicate_instance(
         instance=item,
+        for_user=user,
         reset_fields={{'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''}},
         clear_fields={champs_sortie!r},
     )

@@ -625,9 +625,11 @@ def delete(request, pk: int):
 def duplicate(request, pk: int):
     """Duplicate an Enhancement sharing the same input_file, resetting results."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
+    from wama.common.utils.scoping import duplicable_or_404
+    enhancement = duplicable_or_404(Enhancement, user, pk=pk)
     new_e = duplicate_instance(
         enhancement,
+        for_user=user,
         reset_fields={
             'status': 'PENDING',
             'progress': 0,
@@ -1291,9 +1293,11 @@ def audio_delete(request, pk: int):
 def audio_duplicate(request, pk: int):
     """Duplicate an AudioEnhancement sharing the same input_file, resetting results."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+    from wama.common.utils.scoping import duplicable_or_404
+    ae = duplicable_or_404(AudioEnhancement, user, pk=pk)
     new_ae = duplicate_instance(
         ae,
+        for_user=user,
         reset_fields={
             'status': 'PENDING',
             'progress': 0,

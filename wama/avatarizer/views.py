@@ -466,15 +466,20 @@ def duplicate(request, pk):
     Si le job appartient à un lot, la copie rejoint le MÊME lot (élément frère).
     """
     user = _get_user(request)
-    job = get_object_or_404(AvatarJob, pk=pk, user=user)
+    from wama.common.utils.scoping import duplicable_or_404
+    job = duplicable_or_404(AvatarJob, user, pk=pk)
 
     copy = duplicate_instance(
         job,
+        for_user=user,
         reset_fields={'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''},
         clear_fields=['output_video'],
     )
 
-    orig_item = BatchAvatarJobItem.objects.filter(job=job).select_related('batch').first()
+    # Le lot d'origine n'accueille que la copie de SA PROPRE card : celle d'une card reçue est à
+    # celui qui duplique, elle se range chez lui (2026-10-01).
+    orig_item = (BatchAvatarJobItem.objects.filter(job=job).select_related('batch').first()
+                 if copy.user_id == job.user_id else None)
     if orig_item:
         from django.db.models import Max
         batch = orig_item.batch

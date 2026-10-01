@@ -555,9 +555,12 @@ def delete(request, pk: int):
 @require_POST
 def duplicate(request, pk: int):
     """Duplicate an item, sharing the input file but resetting all results."""
-    item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
+    user = _get_user(request)
+    from wama.common.utils.scoping import duplicable_or_404
+    item = duplicable_or_404(ReadingItem, user, pk=pk)
     new_item = duplicate_instance(
         item,
+        for_user=user,
         reset_fields={
             'status': 'PENDING',
             'progress': 0,

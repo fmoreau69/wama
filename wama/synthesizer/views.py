@@ -602,9 +602,11 @@ def delete(request, pk: int):
 def duplicate(request, pk: int):
     """Duplicate a VoiceSynthesis sharing the same text_file, resetting all results."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    from wama.common.utils.scoping import duplicable_or_404
+    synthesis = duplicable_or_404(VoiceSynthesis, user, pk=pk)
     new_s = duplicate_instance(
         synthesis,
+        for_user=user,
         reset_fields={
             'status': 'PENDING',
             'progress': 0,

@@ -1286,9 +1286,11 @@ def delete(request, pk: int):
 def duplicate(request, pk: int):
     """Duplicate a Transcript sharing the same audio file, resetting all results."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import duplicable_or_404
+    t = duplicable_or_404(Transcript, user, pk=pk)
     new_t = duplicate_instance(
         t,
+        for_user=user,
         reset_fields={
             'status': 'PENDING',
             'progress': 0,

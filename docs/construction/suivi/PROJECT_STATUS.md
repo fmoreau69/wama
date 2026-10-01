@@ -19502,6 +19502,27 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
 - ⚠ Une erreur unique, non reproduite sur deux relances, au premier passage de
   `tests_account_kinds` + `tests_access_points` + `tests_nightly` — non nommée (sortie filtrée).
 
+## §PALIER — 2026-10-01 (soir), « RÉTENTION FINIE DES FICHIERS INUTILISÉS + DUPLIQUER UNE CARD REÇUE » — ✅ `d5f4cb12` + commit ci-dessous — 🔴 RELANCER WAMA — 🔚 converter et imager : la file ne montre pas les cards reçues
+
+> Fabien : rétention finie × fichier gardé = « ok avec ce que tu proposes » (annonce avant le
+> terme, « Garder » remet le délai à zéro, silence = suppression puis liste notifiée) ; puis
+> « fais la duplication d'une card reçue » (mode lecture de `WAMA_COLLABORATION §3bis`).
+
+- **Rétention finie** (`d5f4cb12`) : `released_files.notify_long_unused` à deux régimes,
+  `purge_expired_released` (jamais sans annonce préalable), `renew_released`, onglet « Inutilisés »
+  avec date de suppression et « Garder » ; détail `MEDIA_STORAGE_TIERING §8.6` D34.
+- **Dupliquer une card reçue** : `scoping.duplicable_or_404` + `duplicate_instance(for_user=…)` —
+  copie au demandeur, privée, hors du lot d'autrui, fichiers COPIÉS chez lui ; 11 vues des 10 apps
+  + gabarit généré (+ jumelles régénérées à la main, non versionnées). Détail
+  `WAMA_COLLABORATION §3bis.1`.
+- **Mesures** : contrat de parc `test_a_received_card_is_duplicated_into_the_requesters_own_card`
+  (10 apps + jumelles ; contre-épreuve 404) ; geste `common.received_card_duplicate` 6/6 ;
+  `tests_released_files` 26 OK.
+- ⚠ **Écart mesuré** : files du **converter** (IndexView `filter(user=user)`) et de l'**imager**
+  (choix écrit) = propriétaire seul → une card partagée n'y apparaît pas chez le destinataire. La
+  doc §3bis.2 disait « le destinataire voit la card dans le lot du propriétaire » : vrai pour les 8
+  apps sur `batch_common`, faux pour ces deux-là.
+
 ## §PALIER — 2026-10-01 (soir), « PARTITIONS/MIDI LIVRÉS + DEUX CHANTIERS DÉDIÉS À LANCER » — `24d36358`, `607f7416`, non poussés — 🔚 lancer le chantier PIPELINE (§10.6) et le chantier SURFACES (§F3b) en sessions dédiées ; page d'édition YuE2 SUSPENDUE à eux
 
 - ✅ **Partitions de bout en bout** (`24d36358`, `607f7416`) : nature `score`, port `reference_score`,

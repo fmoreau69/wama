@@ -1097,6 +1097,16 @@ les `confirm` natifs (`duplicate_delete`, `settings`, `batch_actions`, `delete_f
 ⚠ **13/13 depuis l'après-midi du 2026-10-01** : le témoin ② (gardé à la confirmation) est ensuite
 retrouvé dans l'onglet **« Inutilisés »** de la médiathèque et supprimé par son bouton de ligne.
 
+### « Dupliquer » une card REÇUE (2026-10-01)
+
+Scénario **`common.received_card_duplicate`** (`ui_smoke_menus.py`), **6/6** au premier run complet
+(8011) : une card du compte de test DÉVELOPPEUR, rangée dans son lot et partagée en public par le
+service commun (`partager`), apparaît dans la file du describer du compte de test ; ⧉ y crée une
+card À LUI, privée, dont le fichier est une copie dans son dossier ; le fichier du propriétaire est
+intact. Joué sur le describer : la file du converter et celle de l'imager ne montrent pas encore
+les cards reçues (`WAMA_COLLABORATION §3bis.1`). ⚠ Le premier montage du témoin (card sans lot,
+puis lot non partagé) donnait un faux rouge : la file se construit à partir des LOTS.
+
 ### Barre COMMUNE de la médiathèque (2026-10-01)
 
 Scénario **`media_library.filter_bar`** (`ui_smoke_matching.py`), **8/8** au premier run, sur les

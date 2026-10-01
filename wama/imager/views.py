@@ -1412,13 +1412,14 @@ def batch_update(request, batch_id):
 def duplicate_generation(request, generation_id):
     """Duplicate a generation (share reference_image, reset outputs)"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # `owned_or_404` : la duplication ne modifie pas la source, mais elle CRÉE un objet à
-    # partir d'elle et partage son fichier de référence. Tant qu'`ObjectGrant` n'existe pas,
-    # on s'en tient à la règle simple — le partage donne à VOIR, rien d'autre.
-    generation = owned_or_404(ImageGeneration, user, id=generation_id)
+    # `duplicable_or_404` (2026-10-01, `WAMA_COLLABORATION §3bis`) : dupliquer ne modifie pas la
+    # source — on duplique tout ce qu'on peut VOIR ; la copie d'une card reçue est À SOI
+    # (propriétaire, privée, fichiers copiés chez soi : `duplicate_instance(for_user=…)`).
+    from wama.common.utils.scoping import duplicable_or_404
+    generation = duplicable_or_404(ImageGeneration, user, id=generation_id)
     from wama.common.utils.queue_duplication import duplicate_instance
     new_gen = duplicate_instance(generation, reset_fields=_RESET_DUPLICATION,
-                                 clear_fields=['output_video'])
+                                 clear_fields=['output_video'], for_user=user)
     return JsonResponse({'duplicated': new_gen.id})
 
 
