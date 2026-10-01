@@ -174,6 +174,14 @@ def repoint(old_path, new_path, *, folder=False) -> dict:
             prov.ref = _moved(prov.ref)
             prov.save(update_fields=['ref'])
             counts['sources'] += 1
+        # Un fichier LIBÉRÉ (aucune card ne l'appelle, 2026-09-30) garde sa note à sa nouvelle
+        # adresse : déplacé, il reste inutilisé depuis la même date.
+        from wama.common.models import ReleasedFile
+        rows = (ReleasedFile.objects.filter(path__startswith=old + '/') if folder
+                else ReleasedFile.objects.filter(path=old))
+        for row in rows:
+            row.path = _moved(row.path)
+            row.save(update_fields=['path'])
     return counts
 
 

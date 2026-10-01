@@ -1124,9 +1124,15 @@ MECHANISMS = (
     # Déclarés parce que AGENTS.md les nomme explicitement « ce qui existe déjà dans common/ —
     # à utiliser, ne pas recréer » : ne pas les tracer ici laisserait la carte en dessous des
     # instructions du dépôt.
+    # Retirer une card LIBÈRE ses fichiers au lieu de les effacer (2026-09-30, MEDIA_STORAGE_TIERING
+    # D34) : `release_card_file` décide, `released_files` prévient (annonce, notification, info en
+    # rouge) et ne supprime que sur le geste de l'utilisateur.
     Mechanism('queue_duplication', 'Duplication et suppression sûres',
-              "duplicate_instance() et safe_delete_file() — fichiers partagés entre items",
-              'wama/common/utils/queue_duplication.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md'),
+              "duplicate_instance(), release_card_file() (retirer une card libère et prévient) et "
+              "safe_delete_file() (relance) — fichiers partagés entre items",
+              'wama/common/utils/queue_duplication.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
+              annexes=('wama/common/services/released_files.py',
+                       'wama/common/static/common/js/released-files.js')),
     Mechanism('batch', 'Import par lot',
               "Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot",
               'wama/common/utils/batch_parsers.py', 'docs/construction/ui/BATCH_FORMAT.md',

@@ -19188,3 +19188,36 @@ méthodes pour 132 / 1310 — commits d'une autre instance) ; `tests_backend_ado
 🔚 **Reste** : porter les 9 ports (un service de création par app, comme le pilote) ; `-r` du lot
 synthesizer (le service le sait désormais) ; décisions `MEDIA_STORAGE_TIERING §9.7` (attributs à
 l'ajout, licence d'un extrait tiers, sort des audios produits, XTTS non commercial, DPO).
+
+## §PALIER — 2026-10-01 (nuit), « RETIRER UNE CARD LIBÈRE SES FICHIERS — ON PRÉVIENT, ON NE SUPPRIME PAS » — ✅ commit ci-dessous — 🔴 RELANCER WAMA (routes et JS neufs ; migration **common 0021** `ReleasedFile` additive, déjà appliquée) — 🔚 durée du temp (D9 recadré), prévenir pour le temp
+
+> Décision de Fabien (2026-09-30) : *« prévenir l'utilisateur que le fichier devient orphelin à la
+> suppression d'une card uniquement ; sinon une notification lorsqu'un fichier reste inutilisé trop
+> longtemps, et l'afficher dans les infos du fichier, en rouge. La suppression est un geste explicite
+> de l'utilisateur, mais il est prévenu. »* Domicile : `MEDIA_STORAGE_TIERING §8.6` **D34** (D9 recadré).
+
+**Livré** : `queue_duplication.release_card_file` (mêmes règles que `safe_delete_file` — propriété +
+partage dans tout le dépôt — mais NOTE au lieu d'effacer) adopté par les gestes qui RETIRENT une card
+dans les 10 apps (supprimer, tout effacer, lot via `batch_views`/`BatchMixin`), la rétention
+(champs ET listes de chemins) et le gabarit GÉNÉRÉ (`views_gen`) ; `safe_delete_file` reste à la
+seule relance. Service `common/services/released_files.py` + modèle `common.ReleasedFile` ; routes
+`common:api_released_files(_delete)` ; `released-files.js` (annonce une fois, sur `media:deleted` et
+au chargement, « Garder » / « Supprimer ») ; notification groupée `files_unused` après 30 j (ou la
+rétention de l'utilisateur si plus courte) dans la tâche de rétention ; `filemanager.api_info.usage`
+→ ligne « Utilisation » en ROUGE ; `repoint` déplace aussi la note ; `FileManager.showInfo(path)`.
+Docs : `AGENTS.md` (briques + bouton Supprimer), `WAMA_APP_CONVENTIONS §5/§12`, `WAMA_VERIFICATION`,
+registre `mecanismes.py` (annexes de `queue_duplication`).
+
+**Mesures** : contrats de parc RÉÉCRITS à la nouvelle règle (`tests_queue_delete_contract` : possédé
+→ gardé ET signalé, référencé → gardé NON signalé, partagé par une copie → signalé avec la dernière
+card ; `tests_retention` idem) + `tests_released_files` (9) : **69 tests OK** ; premier passage sur
+l'ancien jeu = 82 échecs, tous des assertions « le fichier disparaît » ou hors périmètre ci-dessous.
+Geste navigateur **`common.released_files` 7/7** (serveur éphémère 8011) ; versé au nocturne.
+
+**Hors de mon périmètre, relevé** (rouges avant ce palier) : `tests_picker_list` (`audio/wav` ≠
+`audio/x-wav`) ; `tests_codegen_lot.ItemEditRouteAliasTest` (imager `generation_settings` en trou de glu).
+
+🔚 **Reste** : D9 — la question n'est plus « quand effacer le temp » mais « au bout de combien
+prévenir » (un fichier du temp inutilisé est déjà dit en rouge par `status_of`, sans date) ; régénérer
+la carte `WAMA_MECANISMES` (annexes ajoutées au registre — laissée à la prochaine régénération, la
+doc porte du WIP d'autrui).

@@ -25,7 +25,7 @@ from .tasks import read_document_task, _count_pdf_pages, _extract_natural_text
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels as _input_labels
-from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
 
 logger = logging.getLogger(__name__)
 
@@ -546,7 +546,7 @@ def delete(request, pk: int):
     # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
     from wama.common.utils.batch_common import batch_snapshot, batch_state
     snapshot = batch_snapshot(item)
-    safe_delete_file(item, 'input_file')
+    release_card_file(item, 'input_file')
     cache.delete(f'reader_progress_{pk}')
     item.delete()  # signal batch_sync : recale total / supprime le batch vidé (+ son fichier batch)
     return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, ReadingItem)})
@@ -652,13 +652,13 @@ def clear_all(request):
     user = _get_user(request)
     items = ReadingItem.objects.filter(user=user)
     for item in items:
-        safe_delete_file(item, 'input_file')
+        release_card_file(item, 'input_file')
         cache.delete(f'reader_progress_{item.id}')
     items.delete()
     # Clean up orphan batch containers and their files
     batches = BatchReadingItem.objects.filter(user=user)
     for batch in batches:
-        safe_delete_file(batch, 'batch_file')
+        release_card_file(batch, 'batch_file')
     batches.delete()
     return JsonResponse({'ok': True})
 

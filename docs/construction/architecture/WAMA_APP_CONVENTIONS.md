@@ -532,7 +532,7 @@ Les deux doivent rester **synchronisées**.
 | 2 | **Démarrer / Relancer** | `btn-outline-success` (start) / `btn-outline-secondary` (restart) / `btn-outline-warning disabled` (running) | `start` / `restart` | Adaptatif selon statut |
 | 3 | **Télécharger** | `btn-outline-info` | — (lien `<a>`) | Disabled si pas de résultat |
 | 4 | **Dupliquer** | `btn-warning` (jaune — tranché 2026-07-25, aligne `CARD_DESIGN §2` : zéro collision de teinte) | `duplicate` | Partage le fichier source (§12) |
-| 5 | **Supprimer** | `btn-outline-danger` | `delete` | `safe_delete_file()` (§12) |
+| 5 | **Supprimer** | `btn-outline-danger` | `delete` | `release_card_file()` (§12) — retire la card, LIBÈRE ses fichiers (l'utilisateur est prévenu, il supprime) |
 
 **Boutons supplémentaires** (spécifiques à l'app) : insérés **avant** le bouton Paramètres (position 0)
 ou **entre** Télécharger et Dupliquer (position 3.5), selon leur nature.
@@ -1609,15 +1609,20 @@ media/
 
 ```python
 # TOUJOURS utiliser ces fonctions — ne pas dupliquer la logique
-from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
+from wama.common.utils.queue_duplication import release_card_file, safe_delete_file, duplicate_instance
 
-# Suppression d'un item
+# Suppression d'un item — la card est retirée, ses fichiers sont LIBÉRÉS, jamais effacés
+# (décision du 2026-09-30, MEDIA_STORAGE_TIERING D34) : s'ils lui appartenaient et que plus rien
+# ne les porte, l'utilisateur est prévenu et c'est LUI qui les supprime.
 def delete(request, pk):
     item = get_object_or_404(MyItem, pk=pk, user=user)
-    safe_delete_file(item, 'input_file')   # Ne supprime que si non partagé
-    safe_delete_file(item, 'output_file')  # Toujours supprimer les outputs
+    release_card_file(item, 'input_file')
+    release_card_file(item, 'output_file')
     cache.delete(f'<app>_progress_{pk}')
     item.delete()
+
+# Relance d'un item — l'ancien RÉSULTAT est remplacé par le nouveau : là, et là seulement,
+# `safe_delete_file(item, 'output_file')` efface (mêmes règles de propriété et de partage).
 
 # Duplication d'un item
 def duplicate(request, pk):
@@ -1634,7 +1639,7 @@ def duplicate(request, pk):
 
 | Fichier | Fonctions clés | Usage |
 |---------|---------------|-------|
-| `queue_duplication.py` | `safe_delete_file()`, `duplicate_instance()` | Delete / Duplicate items |
+| `queue_duplication.py` | `release_card_file()`, `safe_delete_file()`, `duplicate_instance()` | Retirer une card (libère) / relancer (efface l'ancien résultat) / dupliquer |
 | `batch_parsers.py` | `extract_batch_file_text()`, `parse_media_list_batch()` | Lecture fichiers batch |
 | `batch_views.py` | `make_batch_views()` — les six vues de lot (▶, réglages, 🗑, ⧉, ZIP, état) | Actions de lot (10/10 depuis le 2026-09-23) |
 | `media_paths.py` | `upload_to_user_input()`, `upload_to_user_output()`, `UploadToUserPath` | Chemins fichiers |
@@ -2490,7 +2495,7 @@ Lors d'un audit d'une app, vérifier dans l'ordre :
 1. urls.py       → présence des 15+ URL patterns standard ?
 2. models.py     → champs status/task_id/progress/error_message présents ?
 3. views.py      → select_for_update() dans start() ?
-4. views.py      → safe_delete_file() dans delete() ?
+4. views.py      → release_card_file() dans delete() / clear_all() ? (safe_delete_file : relance seule)
 5. views.py      → duplicate_instance() dans duplicate() ?
 6. templates/    → _item_card.html existe ?
 7. templates/    → index.html inclut _item_card.html ?

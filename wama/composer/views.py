@@ -16,7 +16,7 @@ from django.utils.http import content_disposition_header
 
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
-from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
+from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance, release_card_file
 from .models import ComposerBatch, ComposerBatchItem, ComposerGeneration
 from .utils.model_config import COMPOSER_MODELS, MUSIC_MODELS, SFX_MODELS, clamp_duration
 
@@ -650,11 +650,11 @@ def delete(request, pk):
     snapshot = batch_snapshot(gen)
 
     # Delete output unconditionally
-    safe_delete_file(gen, 'audio_output')
+    release_card_file(gen, 'audio_output')
 
     # Melody reference: check refs before deleting
     if gen.melody_reference:
-        safe_delete_file(gen, 'melody_reference')
+        release_card_file(gen, 'melody_reference')
 
     gen.delete()
 
@@ -818,9 +818,9 @@ def clear_all(request):
 
     gens = ComposerGeneration.objects.filter(user=user).exclude(status='RUNNING')
     for gen in gens:
-        safe_delete_file(gen, 'audio_output')
+        release_card_file(gen, 'audio_output')
         if gen.melody_reference:
-            safe_delete_file(gen, 'melody_reference')
+            release_card_file(gen, 'melody_reference')
 
     gens.delete()
     ComposerBatch.objects.filter(user=user).delete()

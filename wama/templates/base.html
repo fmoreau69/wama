@@ -369,6 +369,7 @@
     <script src="{% static_v 'common/js/media-preview.js' %}"></script>
     <script src="{% static_v 'common/js/media-picker.js' %}"></script>  {# MediaPicker global : import depuis la médiathèque dispo partout (brique commune) #}
     <script src="{% static_v 'common/js/library-add.js' %}"></script>  {# WamaLibraryAdd global : la card d'AJOUT de la médiathèque (page + fenêtre commune) #}
+    {% if user.is_authenticated %}<script src="{% static_v 'common/js/released-files.js' %}"></script>{% endif %}  {# WamaReleasedFiles : annonce les fichiers qu'une card retirée a libérés (2026-09-30) #}
     {% comment %}La card d'AJOUT de la fenêtre commune de sélection (2026-09-30) : la MÊME que celle de
     la page médiathèque (`_new_item_card_library.html`), rendue ici UNE fois et clonée par `MediaPicker`
     à sa première ouverture. Un <template> est inerte : ni ids dans le document, ni requête, tant

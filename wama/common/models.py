@@ -227,9 +227,9 @@ class BatchMixin:
         """Supprime le fichier batch partagé s'il n'est plus référencé. Défensif.
         Appelable aussi explicitement sur les chemins bulk (queryset.delete ne passe pas par delete())."""
         try:
-            from wama.common.utils.queue_duplication import safe_delete_file
+            from wama.common.utils.queue_duplication import release_card_file
             if hasattr(self, 'batch_file'):
-                safe_delete_file(self, 'batch_file')
+                release_card_file(self, 'batch_file')
         except Exception:
             pass
 
@@ -594,6 +594,31 @@ class ShareConsent(models.Model):
     def __str__(self):
         what = 'retrait' if self.is_withdrawal else self.visibility
         return f'{self.username or self.user_id} · {self.object_type}#{self.object_id} · {what}'
+
+
+class ReleasedFile(models.Model):
+    """Un fichier que plus aucune card n'appelle — GARDÉ, l'utilisateur prévenu (2026-09-30).
+
+    Décision de Fabien : retirer une card ne supprime plus son fichier ; on le note ici, on
+    l'annonce, on le signale s'il reste inutilisé, et la suppression reste un GESTE EXPLICITE
+    (`common/services/released_files.py`, qui porte le pourquoi). La ligne n'est pas crue sur
+    parole : chaque lecture revérifie qu'aucune card n'a repris le fichier.
+    """
+    path = models.CharField(max_length=1000, unique=True)          # relatif à MEDIA_ROOT
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True,
+                             related_name='released_files')
+    origin = models.CharField(max_length=200, blank=True, default='')  # la card qui l'a libéré
+    released_at = models.DateTimeField(db_index=True)
+    announced_at = models.DateTimeField(null=True, blank=True)     # annoncé à l'écran
+    notified_at = models.DateTimeField(null=True, blank=True)      # notification « inutilisé »
+
+    class Meta:
+        ordering = ['-released_at']
+        verbose_name = 'Fichier libéré'
+        verbose_name_plural = 'Fichiers libérés'
+
+    def __str__(self):
+        return f'{self.path} (libéré le {self.released_at:%Y-%m-%d})'
 
 
 class PromptScoped(models.Model):

@@ -30,7 +30,7 @@ from django.utils.encoding import iri_to_uri
 from wama.accounts.permissions import app_access
 
 from .models import Media, BatchAnonymizer, BatchAnonymizerItem
-from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
 from .tasks import process_single_media, process_user_media_batch, stop_process
 from .utils.media_utils import get_unique_filename
 from .utils.yolo_utils import get_model_path
@@ -1096,8 +1096,8 @@ def clear_all_media(request):
 
             # Entrée ET sortie : supprimées seulement si aucune autre ligne ne les désigne
             # (la sortie était effacée par un chemin recalculé, qui ne l'atteignait jamais).
-            safe_delete_file(media, 'file')
-            safe_delete_file(media, 'output_file')
+            release_card_file(media, 'file')
+            release_card_file(media, 'output_file')
 
             media.delete()
 
@@ -1147,8 +1147,8 @@ def _supprimer_media(media, user):
     cache.delete(f"anon_lock:media:{media.pk}")
     cache.delete(f"anon_task_owner:media:{media.pk}")
 
-    safe_delete_file(media, 'file')
-    safe_delete_file(media, 'output_file')
+    release_card_file(media, 'file')
+    release_card_file(media, 'output_file')
     media.delete()  # signal batch_sync : recale total / supprime le batch vidé
 
 

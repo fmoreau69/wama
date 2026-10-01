@@ -3,9 +3,11 @@ WAMA — Common utilities for queue item duplication and safe file deletion.
 
 Usage across apps
 -----------------
-1. In the app's delete view:
-       from wama.common.utils.queue_duplication import safe_delete_file
-       safe_delete_file(instance, 'audio')      # only deletes if no other row shares the file
+1. In the app's delete / clear_all views (a card is REMOVED):
+       from wama.common.utils.queue_duplication import release_card_file
+       release_card_file(instance, 'audio')     # never deletes: the file is released, the user
+                                                # is warned and deletes it explicitly (2026-09-30)
+   `safe_delete_file` is kept for a card REPLACING its own result (relaunch).
 
 2. In the app's duplicate view:
        from wama.common.utils.queue_duplication import duplicate_instance
@@ -61,6 +63,11 @@ def owns_file(instance, file_name: str) -> bool:
 
 def safe_delete_file(instance, field_name: str) -> bool:
     """
+    ⚠ Depuis le 2026-09-30, RÉSERVÉ au REMPLACEMENT d'un fichier par SA card (l'ancien rendu
+    qu'une relance régénère, un fichier de travail interne d'une tâche). Une card qu'on RETIRE
+    ne supprime plus ses fichiers : elle les LIBÈRE (`release_card_file`), l'utilisateur est
+    prévenu et la suppression reste un geste explicite (décision de Fabien).
+
     Delete a FileField's physical file only if it is the card's OWN file and no other row
     still uses it.
 
@@ -91,6 +98,34 @@ def safe_delete_file(instance, field_name: str) -> bool:
     try:
         field.delete(save=False)
         return True
+    except Exception:
+        return False
+
+
+def release_card_file(instance, field_name: str) -> bool:
+    """Une card qu'on RETIRE (supprimer, tout effacer, lot, rétention) LIBÈRE son fichier : il
+    reste sur le disque, l'utilisateur en est prévenu, et c'est LUI qui le supprime s'il le veut
+    (décision de Fabien, 2026-09-30 — `common/services/released_files.py`).
+
+    Mêmes deux règles que `safe_delete_file`, qui décident si le fichier DEVIENT orphelin :
+      * il appartient à la card (`owns_file`) — un fichier qu'elle ne faisait que RÉFÉRENCER
+        (temp, médiathèque, montage) reste à sa place et n'est pas signalé : il a son propre maître ;
+      * aucune autre ligne, d'aucun modèle, ne le porte (`is_shared_elsewhere`).
+    Rend `True` si le fichier vient d'être libéré (noté, à annoncer), `False` sinon. Ne lève jamais.
+    """
+    field = getattr(instance, field_name, None)
+    if field is None or not field.name:
+        return False
+    file_name = field.name
+    try:
+        if not owns_file(instance, file_name) or is_shared_elsewhere(instance, field_name, file_name):
+            return False
+        from wama.common.services.released_files import release_path
+        from django.contrib.auth import get_user_model
+        owner = _owner_id(instance)
+        user = get_user_model().objects.filter(pk=owner).first() if owner else None
+        return release_path(file_name, user,
+                            origin=f'{instance._meta.label}#{instance.pk} · {field_name}') is not None
     except Exception:
         return False
 

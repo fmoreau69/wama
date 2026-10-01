@@ -256,15 +256,19 @@ class CheminDeLotTest(SimpleTestCase):
         (`_fichier_de_l_app`) est devenue REDONDANTE le 2026-09-22 — la brique juge propriété
         ET partage (`owns_file`, `is_shared_elsewhere`) — et retirée le jour même (décision de
         Fabien). On tient l'ABSENCE : une règle vit à un endroit, et une copie générée avait
-        déjà dérivé une fois (ancien domicile des médias). Les TROIS vues appellent la brique."""
+        déjà dérivé une fois (ancien domicile des médias). Les TROIS vues appellent la brique —
+        `release_card_file` depuis le 2026-09-30 : retirer une card LIBÈRE ses fichiers, elle ne
+        les efface plus (`MEDIA_STORAGE_TIERING` D34)."""
         self.assertNotIn('_fichier_de_l_app', self.src, 'la garde redondante est réémise')
         self.assertNotIn('app_media_dir', self.src)
         # (`batch_delete` vit dans la fabrique `batch_views` depuis le 22/09 — tenue là-bas.)
         for view in ('delete', 'clear_all'):
             corps = _fonction(self.src, view)
             self.assertIsNotNone(corps, f'{view} absente')
-            self.assertIn('safe_delete_file(item, _champ)', corps,
-                          f'{view} ne passe pas par la brique de suppression')
+            self.assertIn('release_card_file(item, _champ)', corps,
+                          f'{view} ne passe pas par la brique de libération')
+            self.assertNotIn('safe_delete_file', corps,
+                             f'{view} efface les fichiers de la card au lieu de les libérer')
 
     def test_global_progress_parle_le_contrat_du_composant_commun(self):
         """Trou A3 (audit 31/08) : l'émission renvoyait {running, pending, percent} — la

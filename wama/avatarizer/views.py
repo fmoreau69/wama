@@ -24,7 +24,7 @@ from .params import PARAMS_JSON as _AVATAR_PARAMS_JSON
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.accounts.permissions import app_access
 from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
-from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
 from wama.common.utils.batch_common import group_into_batches_by_nature
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels
@@ -436,10 +436,10 @@ def delete(request, pk):
 
     # safe_delete_file (brique commune) : ne supprime le fichier physique que s'il
     # n'est référencé par aucune autre instance (fichiers partagés par duplication).
-    from wama.common.utils.queue_duplication import safe_delete_file
+    from wama.common.utils.queue_duplication import release_card_file
     for field_name in ['audio_input', 'avatar_upload', 'output_video']:
         try:
-            safe_delete_file(job, field_name)
+            release_card_file(job, field_name)
         except Exception:
             pass
 
@@ -567,7 +567,7 @@ def clear_all(request):
         # un fichier de l'utilisateur (lot `-i`), et un `os.remove` direct l'effaçait (relevé le
         # 2026-09-22). La brique ne détruit que ce qui vit chez l'app, et que plus rien ne partage.
         for field_name in ['audio_input', 'avatar_upload', 'output_video']:
-            safe_delete_file(job, field_name)
+            release_card_file(job, field_name)
         job.delete()  # signal batch_sync : recale total / supprime le batch vidé
         count += 1
     return JsonResponse({'deleted': count})

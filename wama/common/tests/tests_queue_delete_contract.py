@@ -276,8 +276,12 @@ class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
       • « possédé » — chaque champ fichier pointe DANS le domicile de l'app (`app_media_dir`) ;
       • « référencé » — chaque champ pointe dans l'espace de l'utilisateur (`users/<u>/temp/`),
         comme une source envoyée depuis le gestionnaire de fichiers.
-    Le premier doit disparaître du disque, le second y rester : supprimer TROP serait aussi un
-    défaut, et c'est la moitié du test.
+    ⚠ RÉÉCRIT LE 2026-10-01 (décision de Fabien du 30/09, `MEDIA_STORAGE_TIERING` D34) : retirer
+    une card ne SUPPRIME plus rien, elle LIBÈRE. Le premier témoin reste sur le disque ET devient
+    un fichier libéré (une ligne `ReleasedFile` : l'utilisateur en sera prévenu) ; le second reste
+    sur le disque SANS être signalé — il a son propre maître. La règle de propriété garde donc tout
+    son poids : c'est elle qui décide de PRÉVENIR, et un témoin possédé non signalé serait la même
+    fuite muette qu'avant, déplacée du disque à l'annonce.
     """
 
     _account_for = SuppressionDansChaqueAppTest._compte_pour
@@ -329,17 +333,29 @@ class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
             yield (surface, delete_route, account, model,
                    app_media_dir(model._meta.app_label, account.id, 'output'))
 
-    def test_each_app_removes_the_files_it_owns(self):
+    def _not_released(self, files):
+        """Les témoins qu'aucune ligne `ReleasedFile` ne signale (donc dont personne ne sera prévenu)."""
+        from wama.common.models import ReleasedFile
+        rels = {p: p.relative_to(self.tmp).as_posix() for p in files}
+        noted = set(ReleasedFile.objects.filter(path__in=list(rels.values()))
+                    .values_list('path', flat=True))
+        return [p.name for p, rel in rels.items() if rel not in noted]
+
+    def _lost(self, files):
+        return [p.name for p in files if not p.exists()]
+
+    def test_each_app_releases_the_files_it_owns(self):
         for surface, route, account, model, app_home in self._fleet():
             with self.subTest(surface=surface):
                 el, files = self._witness(model, account, app_home)
                 if not files:
                     continue                      # élément sans fichier : rien à éprouver
                 self._delete_card(route, el)
-                left_over = [p.name for p in files if p.exists()]
-                self.assertEqual([], left_over, 'supprimer la card a laissé les fichiers de l’app '
-                                             'sur le disque — la règle de propriété ne les '
-                                             'reconnaît pas comme siens')
+                self.assertEqual([], self._lost(files), 'retirer la card a SUPPRIMÉ ses fichiers : '
+                                                        'la suppression est un geste de l’utilisateur')
+                self.assertEqual([], self._not_released(files),
+                                 'les fichiers de l’app ne sont pas signalés comme libérés — la règle '
+                                 'de propriété ne les reconnaît pas comme siens')
 
     # ── Les TROIS gestes qui suppriment, et ce qu'aucun ne doit détruire ─────────────────────────
     #
@@ -401,17 +417,20 @@ class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
             for gesture, files in self._by_gesture(surface, route, account, model,
                                                  f'users/{account.id}/temp'):
                 with self.subTest(surface=surface, gesture=gesture):
-                    lost = [p.name for p in files if not p.exists()]
-                    self.assertEqual([], lost, f'« {gesture} » a détruit des fichiers de '
-                                               'l’utilisateur que la card ne faisait que RÉFÉRENCER')
+                    self.assertEqual([], self._lost(files), f'« {gesture} » a détruit des fichiers '
+                                     'de l’utilisateur que la card ne faisait que RÉFÉRENCER')
+                    self.assertEqual(sorted(p.name for p in files), sorted(self._not_released(files)),
+                                     f'« {gesture} » signale comme libéré un fichier que la card ne '
+                                     'faisait que RÉFÉRENCER — il a son propre maître')
 
-    def test_every_deletion_gesture_removes_the_files_the_app_owns(self):
+    def test_every_deletion_gesture_releases_the_files_the_app_owns(self):
         for surface, route, account, model, app_home in self._fleet():
             for gesture, files in self._by_gesture(surface, route, account, model, app_home):
                 with self.subTest(surface=surface, gesture=gesture):
-                    left_over = [p.name for p in files if p.exists()]
-                    self.assertEqual([], left_over, f'« {gesture} » a laissé sur le disque des '
-                                                    'fichiers qui appartenaient à l’app')
+                    self.assertEqual([], self._lost(files), f'« {gesture} » a SUPPRIMÉ des fichiers '
+                                                            'au lieu de les libérer')
+                    self.assertEqual([], self._not_released(files), f'« {gesture} » n’a pas signalé '
+                                     'les fichiers de l’app qu’il vient de rendre orphelins')
 
     def test_every_app_offers_the_three_deletion_gestures(self):
         """Non-vacuité : un geste introuvable ferait sauter ses sous-tests EN SILENCE."""
@@ -422,7 +441,8 @@ class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
 
     def test_a_file_shared_by_a_duplicate_survives_until_its_last_card_goes(self):
         """« Dupliquer » PARTAGE le fichier (`duplicate_instance`, par contrat) : supprimer
-        l'original ne doit pas casser la copie, et le fichier part avec la dernière card."""
+        l'original ne doit ni casser la copie ni annoncer un orphelin, et le fichier n'est libéré
+        qu'avec la dernière card."""
         from wama.common.utils.queue_duplication import duplicate_instance
         for surface, route, account, model, app_home in self._fleet():
             with self.subTest(surface=surface):
@@ -431,12 +451,14 @@ class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
                     continue
                 duplicate = duplicate_instance(original)
                 self._delete_card(route, original)
-                lost = [p.name for p in files if not p.exists()]
-                self.assertEqual([], lost, 'supprimer l’original a détruit un fichier que sa '
-                                           'COPIE utilise encore')
+                self.assertEqual([], self._lost(files), 'supprimer l’original a détruit un fichier '
+                                                        'que sa COPIE utilise encore')
+                self.assertEqual(sorted(p.name for p in files), sorted(self._not_released(files)),
+                                 'un fichier que la copie utilise encore est annoncé orphelin')
                 self._delete_card(route, duplicate)
-                left_over = [p.name for p in files if p.exists()]
-                self.assertEqual([], left_over, 'la dernière card partie, le fichier est resté')
+                self.assertEqual([], self._lost(files))
+                self.assertEqual([], self._not_released(files),
+                                 'la dernière card partie, le fichier n’est pas signalé comme libéré')
 
 
 class DuplicatingAndRestartingKeepFilesTest(TestCase):

@@ -137,12 +137,16 @@ class CardOutputTest(TestCase):
         self.assertEqual(media.file.name, copy.file.name)
         self.assertFalse(copy.output_file)
 
-    def test_deleting_a_card_deletes_its_own_output(self):
+    def test_deleting_a_card_releases_its_own_output(self):
+        """Depuis le 2026-09-30 (`MEDIA_STORAGE_TIERING` D34) la card part, sa sortie RESTE et
+        devient un fichier libéré — l'utilisateur est prévenu et la supprime lui-même."""
+        from wama.common.models import ReleasedFile
         own = self._file('output', 'shared_blurred_sam3_5.png')
-        media = self._media(status='SUCCESS',
-                            output_file=os.path.relpath(own, self.root).replace(os.sep, '/'))
+        rel = os.path.relpath(own, self.root).replace(os.sep, '/')
+        media = self._media(status='SUCCESS', output_file=rel)
         self.client.post(f'/anonymizer/delete/{media.pk}/')
-        self.assertFalse(os.path.exists(own))
+        self.assertTrue(os.path.exists(own))
+        self.assertTrue(ReleasedFile.objects.filter(path=rel).exists())
 
     def test_download_all_zips_each_card_output(self):
         a = self._file('output', 'shared_blurred_sam3_1.png', b'a')

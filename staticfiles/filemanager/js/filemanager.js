@@ -2199,12 +2199,21 @@
         }
 
         const table = modal.querySelector('.file-info-table');
+        // L'USAGE (2026-09-30) : combien de cards l'appellent ; s'il n'en a plus aucune, on le dit
+        // EN ROUGE (depuis quand, s'il a été libéré par une card) — la suppression reste un geste
+        // de l'utilisateur, il est simplement prévenu.
+        const u = data.usage;
+        const usageRow = !u ? '' : (u.unused
+            ? `<tr><td>Utilisation</td><td class="text-danger fw-semibold">Utilisé par aucune card ni la médiathèque${
+                u.unused_days != null ? ` depuis ${u.unused_days} jour(s)` : ''} — vous pouvez le supprimer s'il ne vous sert plus</td></tr>`
+            : `<tr><td>Utilisation</td><td>Utilisé par ${u.cards} élément(s) (cards, médiathèque)</td></tr>`);
         table.innerHTML = `
             <tr><td>Nom</td><td>${escapeHtml(data.name)}</td></tr>
             <tr><td>Chemin</td><td>${escapeHtml(data.path)}</td></tr>
             <tr><td>Type</td><td>${escapeHtml(data.mime)}</td></tr>
             <tr><td>Taille</td><td>${formatFileSize(data.size)}</td></tr>
             <tr><td>Modifié</td><td>${formatDate(data.modified)}</td></tr>
+            ${usageRow}
         `;
 
         const bsModal = new bootstrap.Modal(modal);
@@ -2427,6 +2436,9 @@
         importMultipleToApp: importMultipleToApp,
         getFileManagerData: getFileManagerData,
         handleDropFromFileManager: handleDropFromFileManager,
-        showToast: showToast
+        showToast: showToast,
+        // Les informations d'un fichier désigné par son CHEMIN (pas par un nœud de l'arbre) : ce
+        // que lit le geste nocturne `common.released_files` (usage en rouge, 2026-10-01).
+        showInfo: function (path) { showFileInfo({ data: { path: path } }); }
     };
 })();
