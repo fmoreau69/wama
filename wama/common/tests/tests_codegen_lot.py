@@ -256,17 +256,20 @@ class CheminDeLotTest(SimpleTestCase):
         (`_fichier_de_l_app`) est devenue REDONDANTE le 2026-09-22 — la brique juge propriété
         ET partage (`owns_file`, `is_shared_elsewhere`) — et retirée le jour même (décision de
         Fabien). On tient l'ABSENCE : une règle vit à un endroit, et une copie générée avait
-        déjà dérivé une fois (ancien domicile des médias). Les TROIS vues appellent la brique —
-        `release_card_file` depuis le 2026-09-30 : retirer une card LIBÈRE ses fichiers, elle ne
-        les efface plus (`MEDIA_STORAGE_TIERING` D34)."""
+        déjà dérivé une fois (ancien domicile des médias). Les TROIS vues appellent la brique :
+        retirer une card LIBÈRE ses fichiers, elle ne les efface plus (`MEDIA_STORAGE_TIERING`
+        D34, 2026-09-30) — et à l'échelle de la CARD depuis le 2026-10-02 (`release_card_files`,
+        D35) : aucune liste de champs n'est émise, la brique lit ce que la card porte."""
         self.assertNotIn('_fichier_de_l_app', self.src, 'la garde redondante est réémise')
         self.assertNotIn('app_media_dir', self.src)
         # (`batch_delete` vit dans la fabrique `batch_views` depuis le 22/09 — tenue là-bas.)
         for view in ('delete', 'clear_all'):
             corps = _fonction(self.src, view)
             self.assertIsNotNone(corps, f'{view} absente')
-            self.assertIn('release_card_file(item, _champ)', corps,
+            self.assertIn('release_card_files(item)', corps,
                           f'{view} ne passe pas par la brique de libération')
+            self.assertNotIn('release_card_file(item, ', corps,
+                             f'{view} libère de nouveau champ par champ, d’après une liste émise')
             self.assertNotIn('safe_delete_file', corps,
                              f'{view} efface les fichiers de la card au lieu de les libérer')
 
@@ -779,9 +782,11 @@ class LinkFormViewsTest(SimpleTestCase):
         chemin parallèle à la brique, retiré sur remarque de Fabien)."""
         self.assertNotIn('_batch_elements', self.src)
         # Les six vues de lot viennent de la FABRIQUE commune, avec la forme à liaison déclarée
-        # et les champs FICHIER lus à la facette data (`result_file` du describer compris).
+        # et les champs de SORTIE lus à la facette data (`result_file` du describer). Les champs
+        # fichier à libérer ne sont plus émis : la fabrique les lit sur l'élément (2026-10-02).
         self.assertIn("item_model=BatchDescriptionItem, fk_name='description', items_related='items'", self.src)
-        self.assertIn("file_fields=['input_file', 'result_file'], output_fields=['result_file']", self.src)
+        self.assertIn("output_fields=['result_file']", self.src)
+        self.assertNotIn('file_fields=', self.src)
         for view in ('batch_start', 'batch_update', 'batch_delete', 'batch_duplicate',
                      'batch_download', 'batch_status'):
             self.assertIsNone(self._fonction(view) or None, f'{view} encore écrite dans le généré')

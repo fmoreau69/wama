@@ -33,7 +33,7 @@ from django.db import transaction
 from .models import ConversionJob, ConversionProfile, ConversionBatch
 from .utils.format_router import detect_media_type, get_output_formats, SUPPORTED_CONVERSIONS
 from ..accounts.views import get_or_create_anonymous_user
-from ..common.utils.queue_duplication import safe_delete_file, release_card_file, duplicate_instance
+from ..common.utils.queue_duplication import safe_delete_file, release_card_files, duplicate_instance
 from ..common.utils.param_schema import schema_extra_params, schema_model_kwargs
 # Le chemin d'un fichier d'app se COMPOSE (`get_relative_media_path`), il ne
 # s'écrit pas — préalable au domicile unique par utilisateur (2026-09-11).
@@ -575,10 +575,9 @@ def delete(request, pk):
     from wama.common.utils.batch_common import batch_snapshot, batch_state
     snapshot = batch_snapshot(job)
 
-    # Output : supprimé seulement s'il est dans le dossier média du Converter
-    release_card_file(job, 'output_file')
-    # Input : idem — jamais les fichiers utilisateur seulement référencés
-    release_card_file(job, 'input_file')
+    # Entrée et sortie LIBÉRÉES par la brique : seulement ce qui vit dans le dossier média
+    # du Converter — jamais les fichiers utilisateur seulement référencés.
+    release_card_files(job)
 
     job.delete()   # signal post_delete (batch_sync) : recale le total / supprime le lot vidé
     return JsonResponse({'success': True, 'batch': batch_state(snapshot, ConversionJob)})
@@ -667,8 +666,7 @@ def clear_all(request):
     """Delete all jobs for the current user."""
     jobs = ConversionJob.objects.filter(user=request.user)
     for job in jobs:
-        release_card_file(job, 'output_file')
-        release_card_file(job, 'input_file')
+        release_card_files(job)
     jobs.delete()  # signal batch_sync (apps.py) : recale total / supprime le lot vidé
     return JsonResponse({'success': True})
 
@@ -797,20 +795,14 @@ def batch_create(request):
 # Batch actions (groupe) — démarrer / régler / supprimer
 # ────────────────────────────────────────────────────────────────────────────
 
-def _delete_job_files(job):
-    """Supprime input/output d'un job s'ils appartiennent au Converter."""
-    release_card_file(job, 'output_file')
-    release_card_file(job, 'input_file')
-
-
 # ── Quatre vues de lot par la fabrique COMMUNE (`batch_views.make_batch_views`, portage
 # 2026-09-23, 10ᵉ et dernière app réelle — ROUTE §11 #36) ; seule app à FK DIRECTE
 # (`ConversionJob.batch` + `batch_row_index`), la forme que `tests_batch_views` mesure en premier.
 # Spécificités DÉCLARÉES : ▶ de lot ne lance que les PENDING qui ONT un format de sortie
 # (`start_only_pending` + `startable` — un job sans format se règle par la modale de lot, il n'est
 # ni lancé ni compté) ; la tâche s'importe paresseusement ; la copie de lot garde `media_type`
-# (le lot est HOMOGÈNE par nature) ; les fichiers d'un job se suppriment par `_delete_job_files`
-# (propriété jugée par `safe_delete_file`) ; `@login_required` gardé, comme sur toutes les vues
+# (le lot est HOMOGÈNE par nature) ; les fichiers d'un job sont libérés par la fabrique
+# (`release_card_files`, propriété et partage jugés) ; `@login_required` gardé, comme sur toutes les vues
 # de l'app. `batch_update` reste local (réglages par `poser_reglages` + geste de qualité du lot,
 # assumé), lu par `batch_elements`.
 from wama.common.utils.batch_views import make_batch_views
@@ -824,11 +816,10 @@ def _task_for(_job):
 _bv = make_batch_views(
     work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda request: request.user,
     task_for=_task_for, start_only_pending=True, startable=lambda job: bool(job.output_format),
-    file_fields=(), output_fields=('output_file',),
+    output_fields=('output_file',),
     batch_attr='batch', row_field='batch_row_index',
     batch_extra=lambda lot: {'media_type': lot.media_type},
     zip_name=lambda lot: f'converter_batch_{lot.id}.zip',
-    on_delete=_delete_job_files,
 )
 batch_start = login_required(_bv['batch_start'])
 batch_delete = login_required(_bv['batch_delete'])

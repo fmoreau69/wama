@@ -23,7 +23,7 @@ Prérequis de convention — les mêmes que la fabrique de file :
 Usage (views.py de l'app) :
     from wama.common.utils.batch_views import make_batch_views
     _bv = make_batch_views(work_model=Description, batch_model=BatchDescription, get_user=get_user,
-                           task=describe_content, file_fields=('input_file', 'result_file'),
+                           task=describe_content,
                            output_fields=('result_file',), params_fields=(...), schema=PARAMS_JSON,
                            item_model=BatchDescriptionItem, fk_name='description')
     batch_start, batch_delete = _bv['batch_start'], _bv['batch_delete'] …

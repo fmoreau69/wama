@@ -25,7 +25,7 @@ from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels as _input_labels
 from wama.accounts.permissions import app_access
 from wama.accounts.views import get_or_create_anonymous_user
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 from wama.common.utils.scoping import visible_or_404
 
 logger = logging.getLogger(__name__)
@@ -91,19 +91,6 @@ SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'level_speech', 'v
                    'generate_summary', 'summary_type', 'verify_coherence',
                    'temperature', 'max_tokens')
 
-#: Les champs FICHIER d'un transcript — UNE liste, lue par la fabrique de lots (duplication,
-#: suppression d'un lot) ET par `delete`/`clear_all`. Ces deux vues écrivaient `'audio'` en dur :
-#: le contrat générique de suppression (`tests_queue_delete_contract`) l'a montré dès l'ajout de
-#: `reference_result`, resté sur le disque après la card.
-CARD_FILE_FIELDS = ('audio', 'reference_result', 'work_result')
-
-
-def _delete_card_files(t):
-    """Chaque fichier de la card, sous la règle de `safe_delete_file` (propriété + partage)."""
-    for field in CARD_FILE_FIELDS:
-        release_card_file(t, field)
-
-
 def _get_user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
@@ -136,7 +123,6 @@ def _forget_transcript(t):
 _bv = make_batch_views(
     work_model=Transcript, batch_model=BatchTranscript, get_user=_get_user,
     task_for=_task_for,
-    file_fields=CARD_FILE_FIELDS,
     output_fields=('segments_json', 'key_points', 'action_items', 'coherence_score'),
     params_fields=SETTINGS_FIELDS, schema=_SCHEMA,
     item_model=BatchTranscriptItem, fk_name='transcript',
@@ -1276,7 +1262,7 @@ def delete(request, pk: int):
     # Output files are unique to this transcript — always delete
     _cleanup_output_files(t, user.id)
     # Files may be shared (duplicate, batch reference) — only deleted when no other row holds them
-    _delete_card_files(t)
+    release_card_files(t)
     t.delete()  # signal post_delete (batch_sync) : recale total / supprime le batch vidé
     cache.delete(f"transcriber_progress_{pk}")
     return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, Transcript)})
@@ -1368,7 +1354,7 @@ def clear_all(request):
         _cleanup_output_files(transcript, user.id)
         # Les fichiers peuvent être PARTAGÉS (dupliqué / import filemanager / référence d'un lot) :
         # même règle que delete() (avant 2026-07-06 : unlink inconditionnel → cassait les doublons).
-        _delete_card_files(transcript)
+        release_card_files(transcript)
         cache.delete(f"transcriber_progress_{transcript.id}")
         transcript.delete()  # signal post_delete (batch_sync) : recale total / purge le batch vidé
     return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
