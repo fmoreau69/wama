@@ -363,6 +363,27 @@ def _manage(args: list) -> subprocess.CompletedProcess:
                           capture_output=True, text=True, cwd=str(BASE_DIR))
 
 
+def replace_glue_hole(source: str, function: str, code: str) -> str:
+    """`source` où la fonction `function` — encore un TROU DE GLU — est remplacée par `code`.
+    Lève `ValueError` si la fonction est absente, si elle n'est plus un trou (on n'écrase JAMAIS
+    une glu écrite), ou si le résultat ne compile pas. Pure : aucun fichier touché."""
+    import ast
+    target = next((n for n in ast.parse(source).body
+                   if isinstance(n, ast.FunctionDef) and n.name == function), None)
+    if target is None:
+        raise ValueError(f'{function} absente du fichier.')
+    lines = source.splitlines(keepends=True)
+    if 'TROU DE GLU' not in ''.join(lines[target.lineno - 1:target.end_lineno]):
+        raise ValueError(f"{function} n'est plus un trou de glu : rien n'est écrasé.")
+    new_source = (''.join(lines[:target.lineno - 1]) + code.rstrip('\n') + '\n'
+                  + ''.join(lines[target.end_lineno:]))
+    try:
+        compile(new_source, 'tasks.py', 'exec')
+    except SyntaxError as exc:
+        raise ValueError(f'Le fichier résultant ne compile pas : {exc}')
+    return new_source
+
+
 def _smoke_page(label: str) -> subprocess.CompletedProcess:
     """La page de la jumelle répond-elle 200 ? Sous-process frais (le boot relit le registre).
     rc 0 = 200, rc 1 = autre statut ou exception."""
@@ -414,7 +435,8 @@ class Command(BaseCommand):
     requires_system_checks = []
 
     def add_arguments(self, parser):
-        parser.add_argument('action', choices=['create', 'drop', 'list', 'substitute', 'revert'])
+        parser.add_argument('action', choices=['create', 'drop', 'list', 'substitute', 'revert',
+                                               'glue'])
         parser.add_argument('app', nargs='?', help='app source (create) ou label jumeau (drop/substitute)')
         parser.add_argument('cible', nargs='?',
                             help=f"substitute : {sorted(_SUBSTITUTABLE)} — fichier à passer en GÉNÉRÉ")
@@ -450,7 +472,9 @@ class Command(BaseCommand):
         if not app:
             raise CommandError(f"app_sandbox {action} exige un nom d'app.")
 
-        if action == 'create':
+        if action == 'glue':
+            self._apply_glue(app, opts.get('cible'), applied_by=opts.get('proprietaire') or '')
+        elif action == 'create':
             self._create(app, owner=opts.get('proprietaire') or '')
         elif action == 'substitute':
             self._substitute(app, opts.get('cible'))
@@ -648,6 +672,55 @@ class Command(BaseCommand):
             f'App {label} créée DE ZÉRO : /{label}/ (dev-only) — {total} trou(s) de glu à '
             f'confier au rôle codegen{" ; " + " ; ".join(details) if details else ""}. '
             '⚠ Redémarrer gunicorn/workers pour la servir.'))
+
+    # ── glue : APPLIQUER une glu validée (sortie du rôle `codegen`) ────────────
+    def _apply_glue(self, label: str, output_path: str, applied_by: str = ''):
+        """Remplace le TROU DE GLU d'une fonction de `tasks.py` d'une app du BAC À SABLE par la
+        glu qu'un rôle `codegen` a proposée (`wama-dev-ai/outputs/codegen_*.json`).
+
+        Le geste « Valider → appliquer » existait pour les modèles et les backends
+        (`backend_proposals.apply`), pas pour une glu d'app : la chaîne « app de zéro » s'arrêtait
+        à une sortie qu'il fallait coller à la main (2026-10-01). Gardes : app du bac à sable
+        SEULEMENT (jamais une app réelle) ; sortie encore `PENDING_HUMAN_VALIDATION` ; fonction
+        visée encore marquée TROU DE GLU (jamais écraser une glu déjà écrite) ; mêmes renommages
+        que la génération (`<clé>` → `<label>`) ; le fichier résultant doit COMPILER. La sortie
+        passe `APPLIED` (qui, quand, où) — convention de `backend_proposals`.
+        Appliquer est une DÉCISION HUMAINE : la commande la sert, elle ne la prend pas."""
+        import json
+
+        entry = next((e for e in load_registry() if e.get('label') == label), None)
+        if not entry:
+            raise CommandError(f'{label} n\'est pas une app du bac à sable.')
+        if not output_path:
+            raise CommandError('app_sandbox glue <label> <sortie codegen .json>')
+        out_file = Path(output_path) if Path(output_path).is_absolute() else BASE_DIR / output_path
+        data = json.loads(out_file.read_text(encoding='utf-8'))
+        if data.get('role') != 'codegen':
+            raise CommandError('Sortie qui n\'est pas celle du rôle codegen.')
+        # APPLIED est admis : RÉ-appliquer une glu déjà validée sur une app RÉGÉNÉRÉE (ses trous
+        # sont revenus) ne redemande pas la décision — elle a eu lieu ; chaque application est tracée.
+        if data.get('status') not in ('PENDING_HUMAN_VALIDATION', 'APPLIED'):
+            raise CommandError(f"Sortie {data.get('status')} : elle ne s'applique pas.")
+        if data.get('app') != label:
+            raise CommandError(f"Glu écrite pour {data.get('app')}, pas pour {label}.")
+        function = data.get('function') or ''
+        key = LABEL_RE.match(label).group('base')
+        code = _rename_text(data.get('code') or '', key, label)
+
+        tasks_path = WAMA_DIR / label / 'tasks.py'
+        try:
+            new_source = replace_glue_hole(tasks_path.read_text(encoding='utf-8'), function, code)
+        except ValueError as exc:
+            raise CommandError(str(exc))
+        tasks_path.write_text(new_source, encoding='utf-8')
+        now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        data.setdefault('applications', []).append({'by': applied_by or None, 'at': now})
+        data.update(status='APPLIED', applied_by=applied_by or None, applied_at=now,
+                    written=f'wama/{label}/tasks.py::{function}')
+        out_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+        self.stdout.write(self.style.SUCCESS(
+            f'{function} ← glu {data.get("model")} appliquée dans wama/{label}/tasks.py. '
+            '⚠ Redémarrer les workers pour qu\'ils la chargent.'))
 
     # ── substitute (étape S2) ────────────────────────────────────────────────
     def _substitute(self, label: str, cible: str):

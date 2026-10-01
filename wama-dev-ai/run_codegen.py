@@ -135,6 +135,17 @@ COMMON_BRICKS_BY_MODEL_TYPE = {
     'llm': ('wama/common/utils/llm_utils.py', ('chat_with_catalog_model',)),
 }
 
+#: Même principe, DÉRIVÉ du type des PORTS d'entrée du manifeste (2026-10-01) : les deux modèles
+#: (gpt-oss, qwen3.8) lisaient un pdf/docx source comme des octets, alors que la brique qui sait les
+#: lire existait — la matière ne la montrait pas.
+COMMON_BRICKS_BY_PORT_TYPE = {
+    'document': ('wama/common/utils/batch_parsers.py', ('extract_batch_file_text',)),
+}
+
+
+def _all_brick_tables():
+    return list(COMMON_BRICKS_BY_MODEL_TYPE.values()) + list(COMMON_BRICKS_BY_PORT_TYPE.values())
+
 
 def signatures_briques() -> dict:
     """{nom de brique : noms de paramètres acceptés} — pour JUGER les appels de la glu. Une
@@ -143,7 +154,7 @@ def signatures_briques() -> dict:
     import importlib
     import inspect
     out = {}
-    for chemin, noms in COMMON_BRICKS_BY_MODEL_TYPE.values():
+    for chemin, noms in _all_brick_tables():
         module = importlib.import_module(chemin[:-3].replace('/', '.'))
         for nom in noms:
             params = inspect.signature(getattr(module, nom)).parameters
@@ -152,13 +163,19 @@ def signatures_briques() -> dict:
     return out
 
 
-def briques_communes(resolus: list) -> str:
-    """Source des briques communes pertinentes pour les modèles requis (par AST)."""
-    types = {((m.get('body') or {}).get('identity') or {}).get('model_type')
-             for m in resolus if m.get('manifest_kind') == 'model'}
+def briques_communes(resolus: list, man: dict = None) -> str:
+    """Source des briques communes pertinentes (par AST) : celles des TYPES DE MODÈLES requis,
+    puis celles des TYPES DE PORTS d'entrée de l'app."""
+    model_types = {((m.get('body') or {}).get('identity') or {}).get('model_type')
+                   for m in resolus if m.get('manifest_kind') == 'model'}
+    port_types = {t for p in (((man or {}).get('body') or {}).get('ports') or {}).get('inputs') or []
+                  if isinstance(p, dict) for t in (p.get('types') or [])}
+    retenues = [COMMON_BRICKS_BY_MODEL_TYPE[t] for t in sorted(model_types)
+                if t in COMMON_BRICKS_BY_MODEL_TYPE]
+    retenues += [COMMON_BRICKS_BY_PORT_TYPE[t] for t in sorted(port_types)
+                 if t in COMMON_BRICKS_BY_PORT_TYPE]
     blocs = []
-    for model_type in sorted(t for t in types if t in COMMON_BRICKS_BY_MODEL_TYPE):
-        chemin, noms = COMMON_BRICKS_BY_MODEL_TYPE[model_type]
+    for chemin, noms in retenues:
         module = chemin[:-3].replace('/', '.')
         blocs.append(f'# from {module} import {", ".join(noms)}\n'
                      + _source_de(REPO_ROOT / chemin, noms))
@@ -371,7 +388,7 @@ def main():
     corps = json.dumps(man, ensure_ascii=False, indent=1)
     jambes = '\n'.join(json.dumps(m, ensure_ascii=False) for m in resolus)
     inventaire = inventaire_app(args.app)
-    briques = briques_communes(resolus)
+    briques = briques_communes(resolus, man)
     champs, props = champs_item(proc.get('item_model') or '', args.app)
     user_msg = (
         f'CONTRAT de la brique run_item_task (docstring de task_skeleton.py) :\n{contrat}\n\n'

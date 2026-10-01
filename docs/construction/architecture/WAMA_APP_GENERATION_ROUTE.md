@@ -2853,8 +2853,37 @@ script — probablement le délai de 900 s du rôle), le 2ᵉ a abouti.
 `common/utils/batch_parsers.py` lit txt/csv/pdf/docx pour les fichiers de lot — mais la matière ne
 la montre pas : à ajouter aux briques dérivées des ports (type `document`), comme l'a été la brique LLM.
 Sorties : `wama-dev-ai/outputs/codegen_editor_01_{draft_content_2026-10-01_02-17,
-render_format_2026-10-01_02-02}.json` (`PENDING_HUMAN_VALIDATION`). ⏳ **Juge profond** : appliquer
-une paire de glues dans `editor_01` et produire une vraie présentation — décision de Fabien.
+render_format_2026-10-01_02-02}.json` (`PENDING_HUMAN_VALIDATION`).
+
+**✅ JUGE PROFOND PASSÉ le 2026-10-01 (GO de Fabien : « poursuivre avec GPU pour la glue »)** —
+l'Editor, app créée DE ZÉRO, a produit une **vraie présentation HTML**, écrite de bout en bout par
+les glues de `qwen3.8` (aucune ligne d'app écrite par Claude). Le chemin :
+1. `batch_parsers.extract_batch_file_text` ajouté à la matière (briques DÉRIVÉES des TYPES DE PORTS,
+   `COMMON_BRICKS_BY_PORT_TYPE`) → la glu `draft_content` régénérée lit désormais pdf/docx par la
+   brique, ses deux erreurs prévues traitées et dites ;
+2. **geste manquant ajouté** : `app_sandbox glue <label> <sortie.json>` — « valider → appliquer »
+   existait pour les modèles et les backends (`backend_proposals.apply`), pas pour une glu d'app.
+   Bac à sable seul, trou de glu exigé (une glu écrite n'est jamais écrasée), mêmes renommages que la
+   génération, compilation exigée ; sortie `APPLIED` (qui, quand) ; ré-application admise sur une app
+   régénérée (`replace_glue_hole`, `ApplyingAGlueTest`) ;
+3. **1ᵉʳ vrai passage : fond produit, forme en échec** (`timed out` à 300 s). Le fond, PERSISTÉ par
+   `run_process_steps` avant l'étape suivante, a survécu — la « sortie intermédiaire » dont P3 aura
+   besoin pour relancer un seul process (§10.6 4.6). Cause : la glu avait RECOPIÉ le `timeout=300` du
+   défaut de ma brique. ⭐ *Un défaut écrit dans une signature devient une constante dans tout ce
+   qu'un modèle génère à partir d'elle.* → `chat_with_catalog_model` : `timeout=None` et
+   `num_predict=None` par défaut — dans une tâche, la borne est la DURÉE MAX du squelette ;
+4. glu `render_format` régénérée (sans délai), `editor_01` recréé, paire appliquée → **`SUCCESS` en
+   89 s** : fond de 3 424 caractères, `editor_2_20261001_071415.html` — **11 diapositives** (titre +
+   une par section `##`), consigne de forme suivie (fond clair, titres bleu foncé), HTML complet
+   (`<!DOCTYPE html>` … `</html>`, la fenêtre de contexte d'Ollama n'a rien tronqué), **aucune
+   ressource externe, aucun script** ; **révision 1** (marche 8a) avec l'empreinte du fichier.
+
+**Ce que le juge a encore montré** : (a) la révision n'a NI modèle NI instruction (`model_keys=[]`) —
+la clé `models` n'était pas écrite au contrat du squelette, donc absente de la matière (ajoutée au
+docstring de `task_skeleton`) ; (b) le contenu est GÉNÉRIQUE et parfois inexact sur WAMA (« suivi des
+accès », « LIMS ») : le modèle n'avait que la consigne — la vraie valeur de l'Editor (les sources sont
+des CARDS, le RAG, `ROADMAP §21.5`) n'est pas branchée ; c'est le prochain chantier de l'app, pas de
+la route.
 
 **La chaîne SŒUR « dépôt → MODÈLE exécutable » — bouclée hors terminal le 2026-09-29.** Un modèle
 n'a pas le trou de l'app (il ne demande pas de manifeste `app`) ; il en avait d'autres, mesurés sur

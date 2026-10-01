@@ -23,6 +23,11 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
               'label':  nom lisible du résultat (console ✓ + notification) — optionnel,
               'instruction': ce qui a été demandé pour obtenir ce résultat (prompt de
                              modification) — gardé dans la RÉVISION de l'élément ; optionnel,
+              'models': [clés de catalogue des modèles employés] — attribuent le résultat
+                        (signal `produit` de RunOutcome, révision) ; une clé `auto` se rend
+                        RÉSOLUE. Ajouté au contrat le 2026-10-01 : la 1ʳᵉ génération réelle de
+                        l'Editor avait une révision SANS modèle — la clé n'était écrite nulle part
+                        dans ce contrat, donc dans la matière du rôle `codegen` ; optionnel,
               'console_success': ligne ✓ personnalisée (remplace « ✓ Terminé : <label> ») — optionnel}
     La glu peut retourner À TOUT MOMENT (ex. chemin court PDF natif du reader) : le retour
     déclenche le flux de succès standard.
