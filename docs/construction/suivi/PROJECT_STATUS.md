@@ -19605,3 +19605,45 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
   consentement) ; geste `common.card_transfer` 5/5 (8011, clic droit → saisie → card partie sans
   rechargement → en base au destinataire, fichier déplacé).
 - Détail : `WAMA_COLLABORATION §3bis.1`, `WAMA_VERIFICATION`.
+
+## §CLÔTURE — 2026-10-01 (nuit), « FICHIERS LIBÉRÉS, MÉDIATHÈQUE, PARTAGE (DUPLIQUER UNE CARD REÇUE, TRANSFÉRER À…) » — ✅ clos — 🔚 voir ci-dessous
+
+**Livré (non poussé au moment d'écrire, plus le commit de cette clôture)** : `4e441a80` retirer une
+card libère et prévient · `31eb7a10` confirmation « supprimer aussi le fichier » (case décochée) +
+barre commune de la médiathèque (mode `remote`, outil `sort_by`) · `38393094` la rétention EFFACE de
+nouveau (correction de Fabien) · `56c6b1c3` onglet « Inutilisés » · `d5f4cb12` rétention finie des
+fichiers gardés (annonce, « Garder », suppression puis liste) · `4ee43263` dupliquer une card reçue ·
+`18c4ec9c` « Transférer à… ». Domiciles : `MEDIA_STORAGE_TIERING §8.6` D34, `WAMA_COLLABORATION
+§3bis.1`, `WAMA_VERIFICATION` (gestes `common.released_files` 13/13, `media_library.filter_bar` 8/8,
+`common.received_card_duplicate` 6/6, `common.card_transfer` 5/5).
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : rien n'est bloquant ici. Le premier reste utile est de faire
+APPARAÎTRE les cards reçues dans la file du **converter** et de l'**imager** (propriétaire seul
+aujourd'hui — IndexView du converter, choix écrit de l'imager), sans quoi le mode lecture, la
+duplication d'une card reçue et son transfert n'y existent pas pour le destinataire.
+
+**Ouverts, nommément** (aucun n'a été annoncé puis non fait dans la session) :
+1. Transférer un LOT entier (le geste ne cède qu'une card à la fois).
+2. La case « Supprimer aussi le fichier » : décochée par défaut, à revoir à l'usage (Fabien).
+3. Retirer l'encart d'annonce après suppression si la confirmation suffit (décision de Fabien, reportée).
+4. D9 (`MEDIA_STORAGE_TIERING`) : durée du dossier temporaire et des 5 apps hors rétention —
+   antérieur ; l'onglet « Inutilisés » ne liste que les fichiers LIBÉRÉS par une card, pas les
+   orphelins plus anciens (ex. les 3 du converter relevés le 22/09).
+5. Régénérer les docs générées (`WAMA_MECANISMES`, `docs/dev/briques.md`) : le registre a bougé
+   (annexes `item_sharing`, `queue_duplication`, rôle de `wama-filter-bar`), mais ces fichiers
+   portent du WIP d'une autre instance — laissé à la prochaine régénération.
+
+**Pendings système** : 🔴 RELANCER WAMA (routes `api/released-files/{preview,keep,all,renew}/`,
+`api/transfer/`, vues de la médiathèque) ; migration `common 0021` (ReleasedFile) déjà appliquée ;
+push à la décision de Fabien. Aucun worker recyclé, aucun compte réel touché ; le compte de test
+(id 22) a reçu une rétention de 10 j le temps d'une mesure, RÉTABLIE ; témoins de gestes nettoyés.
+
+**Contrôles attendus au prochain /reprise (mesurés ce soir)** : périmètre de session **182 tests
+OK** (released_files, retention, queue_delete_contract, file_references, sharing, queue_toolbar,
+CheminDeLotTest, tests_list_filters, anonymizer.tests_output_file, filemanager) ;
+`check_redundancy` 74 trouvailles, **0 dans les fichiers de la session** ; `check_docs` 3 références
+cassées sur 2486 — 3 cibles distinctes, aucune de cette session (route Transcriber, deux vieilles
+lignes de ce journal). Rouges CONNUS hors périmètre, relevés dans la passe large : budgets de langue,
+`tests_backend_adoption`, `tests_picker_list` (mime), `tests_codegen_lot.ItemEditRouteAliasTest`
+(imager), `test_chaque_mecanisme_a_sa_section` (171 ≠ 175), `tests_endpoints` (colonne
+`writer_01.quality_intent` absente de la base de test, jumelle d'une autre instance).
