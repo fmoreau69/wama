@@ -242,7 +242,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   - **Faits revérifiés le 2026-09-30** : `wama-shuttle.js` n'est chargé que par
     `cam_analyzer/base.html` — l'éditeur ne peut pas s'en servir et garde son propre transport
     (`transcriber/static/transcriber/js/edit.js`) ; `wama-audio-player.js` est monté globalement
-    (`templates/base.html:382`) et rechargé par `transcriber/edit.html:337`.
+    (`templates/base.html:389`) et rechargé par `transcriber/edit.html:337`.
   - **Démarche demandée** : ① CARTOGRAPHIER complètement les deux transports les plus avancés —
     l'éditeur du transcriber (audio + texte : onde zoomable sur pics serveur, vitesse, shuttle,
     lecture arrière, synchronisation texte↔temps) et le cam_analyzer (4 vidéos synchronisées, pas
@@ -250,6 +250,57 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     de chacun en **schéma-driven** (capacités), tirables entièrement ou partiellement partout —
     preview de card, volet droit, éditeur, cam_analyzer, filemanager ; ④ l'onde d'entrée du volet
     est le premier consommateur, et le plus simple.
+  - ✅ **① FAIT — cartographie (2026-10-01, lue au code sur HEAD)** et **MATRICE DE PARITÉ** qui en
+    découle. Demande de Fabien le jour même : *« je veux que tu t'assures qu'on ne perd aucune
+    fonctionnalité et qu'on ne casse rien dans la page d'édition du Transcriber et dans le cam
+    analyzer »*. **Règle du chantier : aucune ligne de cette matrice ne passe à la brique commune
+    sans le geste qui l'atteste, joué AVANT et APRÈS sur la même page** ; une ligne sans geste
+    = le portage de cette page n'est pas commencé.
+    **Constat central** : aucun des transports n'a d'objet AXE — chacun prend un élément média
+    (ou la seekbar du cam) pour source de vérité et appelle ses vues lui-même, l'inverse du
+    contrat §5bis. **Doublons mesurés** (même fonction écrite N fois) : échelle J/K/L (copie de
+    `wama-shuttle.js` dans `edit.js`), lecture arrière par minuterie (×2), pas image (×2, l'un
+    figé à 1/30), saut (±5 s / ±10 s), vitesse (×3), Espace (×3), garde « en saisie » (×6),
+    seekbar à garde de glisser (×2), format de temps (×4), boucle tête→vues (×3), clic vue→temps
+    (×3 familles), dessin d'onde (×2), câblage shuttle+arrière (×2). **Conflit de touches** :
+    ←/→ = ±5 s (éditeur), ±1 image (cam), fichier suivant (modale de preview).
+
+    | page | fonction à GARDER | spécificité ou commun ? |
+    |---|---|---|
+    | éditeur | un `<audio>`, lecture EXCLUSIVE (`WamaAudioPlayer.play`) | commun (existe) |
+    | éditeur | vitesse 0,5–2 par pas de 0,25 | commun (vitesse) |
+    | éditeur | shuttle J/K/L ±16, arrière silencieux par minuterie | commun (shuttle ; niveaux déclarés) |
+    | éditeur | Espace, ←/→ ±5 s, Tab/Maj+Tab = segment suivant/précédent | commun + saut DÉCLARÉ (5 s) + navigation par segments = spécificité |
+    | éditeur | deux modes Navigation / Édition (Entrée, Échap), ↑/↓ sélection, Ctrl+Entrée coupe à la tête, C frontières, R Touch/Latch, Alt+L suivi, Alt+↑/↓ | spécificité de l'éditeur (raccourcis déclarés, jamais captés par la brique en mode Édition) |
+    | éditeur | onde zoomable sur PICS SERVEUR (fenêtre 4 s…240 s, molette autour du pointeur, glisser = défiler), trous hachurés, repères et poignées de segments, bandes d'écriture, tête de lecture | vue abonnée (onde fenêtrée) |
+    | éditeur | carte de chaleur fenêtrée (clic = aller), minimap + rectangle de vue (clic = aller), fenêtre qui suit | vues abonnées |
+    | éditeur | liste de segments : surlignage du segment joué + défilement auto, ▶ par segment | vue abonnée |
+    | éditeur | aller à un timecode (saisie) | commun (parseur de temps) |
+    | éditeur | verrou de suivi persistant (localStorage) | spécificité |
+    | éditeur | pics : statut none/pending/ready/failed, sondage 2,5 s, calcul déclenché par le serveur | à rendre COMMUN (stockage + service des pics) |
+    | éditeur | retimage et modes d'écriture (curseur d'écriture suivi par le serveur) | spécificité, branchée sur l'axe |
+    | cam | 4 `<video>` muettes synchronisées, caméra de référence, correction de dérive > 0,3 s, décalage par caméra | commun (N médias attachés à un axe) + décalage DÉCLARÉ par média |
+    | cam | lecture / pause / STOP / aller, boucle rAF | commun |
+    | cam | pas image selon les fps de la caméra (←/→, Maj = ×10), arrière image par image (R) | commun (pas image fps-aware) |
+    | cam | shuttle J/K/L niveaux `[-4…4]`, sélecteur de vitesse 0,25–2 | commun (niveaux déclarés) |
+    | cam | position persistée (localStorage), restaurée au chargement | commun (option) |
+    | cam | superpositions de détection dessinées au temps PROPRE de chaque caméra | vue abonnée (par média) |
+    | cam | repères d'intersections sur la seekbar, minimap, info de passage, curseur de proximité | vues abonnées |
+    | cam | clic carte GPS (conversion temps GPS → vidéo), clic graphique, liste de segments, puces de temps, sélection d'intersection (amorce 2 s) | vues → axe ; conversion GPS = spécificité |
+
+    **Défauts relevés au passage — à traiter par la brique, pas à recopier** : dans le cam, un
+    niveau de shuttle négatif lance l'arrière à la vitesse du SÉLECTEUR, pas à celle du niveau ;
+    `syncPlay` remet la vitesse du sélecteur, que le shuttle réécrase, et le sélecteur n'est
+    jamais mis à jour par le shuttle. Dans l'éditeur, l'onde commune est masquée, mais le lecteur
+    télécharge et décode quand même le fichier entier sous 30 Mo ; `wama-audio-player.js` est
+    chargé DEUX fois (deux registres, deux écouteurs de clic délégués — effet en navigateur non
+    vérifié) ; le `<audio controls>` du volet droit n'est pas synchronisé ; au-delà de 100 min,
+    `MAX_BUCKETS` plafonne la densité et le `"bps": 50` stocké devient faux (le rendu proportionnel
+    de l'éditeur n'en souffre pas).
+    **Ordre proposé, inchangé** : la brique naît À CÔTÉ des transports existants ; premier
+    consommateur = l'onde d'entrée du volet (④, aucun transport existant touché) ; l'éditeur et
+    le cam ne se portent qu'une fois **toutes leurs lignes** attestées par des gestes rejoués, et
+    sur décision de Fabien.
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,
@@ -574,10 +625,11 @@ d'annoncer un modèle que le lancement ne retiendrait pas (règle du 27/09).
 - **Gardes** : `transcriber/tests_model_select` (13) + fixtures de catalogue partagées
   (`transcriber/catalogue_fixtures`, les lignes déclarent leur moteur comme en production).
 
-⚠ Deux données du catalogue restent à corriger À LEUR SOURCE, hors de ce portage : Kyutai STT n'a
-aucune capacité (installé sans manifeste — la chaîne d'intégration de l'autre instance) ;
-`describer:whisper` s'annonce « whisper-base » alors que le describer passe par large-v3
-(divergence consignée dans sa déclaration depuis le 06/09) — un doublon mal nommé dans le menu.
+⚠ Deux données du catalogue restaient à corriger À LEUR SOURCE, hors de ce portage : Kyutai STT n'a
+aucune capacité (installé sans manifeste — la chaîne d'intégration, rejouée par une autre instance
+le 2026-10-01) ; `describer:whisper` s'annonçait « whisper-base » alors que le describer passe par
+large-v3 — ✅ **retiré le 2026-10-01** (`REMOVAL_LEDGER` R28) : le describer transcrit par
+`transcriber:whisper`, le menu n'a plus de doublon.
 
 
 **Ce qu'il ne faut PAS casser** : la lecture BIDIRECTIONNELLE des capacités dans la card
