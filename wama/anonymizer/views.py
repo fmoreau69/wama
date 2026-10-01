@@ -1416,9 +1416,11 @@ def get_sam3_examples(request):
 def duplicate_media(request, media_id):
     """Duplicate a Media item sharing the same input file, resetting processing state."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    media = get_object_or_404(Media, pk=media_id, user=user)
+    from wama.common.utils.scoping import duplicable_or_404
+    media = duplicable_or_404(Media, user, pk=media_id)
     new_media = duplicate_instance(
         media,
+        for_user=user,
         reset_fields={'status': 'PENDING', 'blur_progress': 0},
         clear_fields=['output_file'],   # l'entrée se partage, la sortie jamais (2026-09-27)
     )

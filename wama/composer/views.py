@@ -685,7 +685,8 @@ def delete(request, pk):
 def duplicate(request, pk):
     """Duplicate a single generation sharing the source, resetting the result."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
+    from wama.common.utils.scoping import duplicable_or_404
+    gen = duplicable_or_404(ComposerGeneration, user, id=pk)
     try:
         output_filename = gen.batch_item.output_filename
     except ComposerBatchItem.DoesNotExist:
@@ -693,6 +694,7 @@ def duplicate(request, pk):
 
     new_gen = duplicate_instance(
         gen,
+        for_user=user,
         reset_fields={
             'status': 'PENDING', 'progress': 0,
             'task_id': None, 'error_message': '',
@@ -703,7 +705,9 @@ def duplicate(request, pk):
     # Fille d'un VRAI batch (total > 1) : dupliquer en frère DANS le batch.
     # Card UNITAIRE (batch-de-1) : la copie devient une card indépendante (nouveau batch-de-1) —
     # sinon la duplication transformait la card en batch de 2 (bug signalé 2026-07-03).
-    orig_item = ComposerBatchItem.objects.filter(generation=gen).select_related('batch').first()
+    # La copie d'une card REÇUE se range chez celui qui duplique, jamais dans le lot d'autrui.
+    orig_item = (ComposerBatchItem.objects.filter(generation=gen).select_related('batch').first()
+                 if new_gen.user_id == gen.user_id else None)
     if orig_item and orig_item.batch.total > 1:
         from django.db.models import Max
         batch = orig_item.batch

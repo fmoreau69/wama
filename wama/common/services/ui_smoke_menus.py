@@ -793,6 +793,89 @@ def check_released_files():
     return _bilan(verdicts)
 
 
+def check_received_card_duplicate():
+    """⧉ sur une card REÇUE crée une card À SOI : privée, ses fichiers copiés chez soi, l'original
+    intact (2026-10-01, `WAMA_COLLABORATION §3bis`, mode lecture). (ok, detail)
+
+    Joué sur le DESCRIBER : sa file passe par la brique commune (`batch_common`), qui montre les
+    lots partagés. ⚠ Le converter et l'imager construisent encore une file « propriétaire seul »
+    (`converter/views.py` IndexView, `imager/views.py` — choix daté et écrit) : une card qu'on y
+    partage n'apparaît pas chez le destinataire.
+    Le propriétaire est le compte de test DÉVELOPPEUR ; sa card témoin n'est publique que le temps
+    du geste (repassée privée puis supprimée au nettoyage). Le destinataire est le compte de test.
+    """
+    from django.contrib.auth import get_user_model
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario, get_test_dev_user
+    from wama.common.services.sharing import partager
+    from wama.common.utils.media_paths import app_media_dir
+    from wama.describer.models import BatchDescription, Description
+    from wama.describer.views import _wrap_description_in_batch
+
+    page_path = '/describer/'
+    session_token, uid = _test_session_key('describer'), _test_account_id('describer')
+    owner = get_test_dev_user()
+    if not (session_token and uid and owner) or owner.pk == uid:
+        raise SkipScenario('deux comptes de test distincts sont nécessaires')
+    requester = get_user_model().objects.get(pk=uid)
+    owner_home = app_media_dir('describer', owner.pk, 'input')
+    folder = Path(settings.MEDIA_ROOT) / owner_home
+    folder.mkdir(parents=True, exist_ok=True)
+    name = 'wama_temoin_card_recue.txt'
+    source = _temoin(folder, name, '.txt')
+    item = Description.objects.create(user=owner, filename=name)
+    item.input_file.name = f'{owner_home}/{name}'
+    item.save(update_fields=['input_file'])
+    # Un VRAI partage : la card dans son lot (la file se construit à partir des lots), partagée par
+    # le service commun — qui pose la visibilité sur la card ET sur son lot.
+    owner_batch = _wrap_description_in_batch(item)
+    partager(owner, item, 'public')
+    before_ids = set(Description.objects.filter(user=requester).values_list('pk', flat=True))
+    before, verdicts, copies = _session_keys(), [], []
+    button = f".wama-card[data-id='{item.pk}'] .duplicate-btn"
+    try:
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, session_token)
+            try:
+                resp = page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(page, resp, page_path)
+                if refused_page:
+                    return refused_page
+                shown = page.locator(button).count() > 0
+                verdicts.append((shown, 'la card reçue est dans la file du destinataire, avec ⧉'))
+                if shown:
+                    page.evaluate(f"() => document.querySelector(\"{button}\").click()")
+                    page.wait_for_timeout(3500)
+                verdicts.append(_console(errors))
+            finally:
+                nav.close()
+    finally:
+        _drop_new_sessions(before)
+        copies = list(Description.objects.filter(user=requester).exclude(pk__in=before_ids))
+        partager(owner, item, 'private')
+    copy = copies[0] if len(copies) == 1 else None
+    verdicts.append((copy is not None, f'{len(copies)} copie(s) créée(s) chez le destinataire'))
+    if copy is not None:
+        copied = Path(settings.MEDIA_ROOT) / copy.input_file.name if copy.input_file else None
+        verdicts.append((copy.visibility == 'private', 'la copie naît privée'))
+        verdicts.append((bool(copied) and copied.exists()
+                         and copy.input_file.name.startswith(app_media_dir('describer', uid, '')),
+                         f'son fichier est une copie chez le destinataire ({copy.input_file.name})'))
+    verdicts.append((source.exists(), 'le fichier du propriétaire est intact'))
+    # Ménage : les lignes témoins (lots compris) et leurs fichiers.
+    for c in copies:
+        path = Path(settings.MEDIA_ROOT) / c.input_file.name if c.input_file else None
+        BatchDescription.objects.filter(user=requester, items__description=c).delete()
+        Description.objects.filter(pk=c.pk).delete()
+        if path:
+            path.unlink(missing_ok=True)
+    Description.objects.filter(pk=item.pk).delete()
+    BatchDescription.objects.filter(pk=owner_batch.pk).delete()
+    source.unlink(missing_ok=True)
+    return _bilan(verdicts)
+
+
 def register_menu_scenarios():
     from wama.common.services.nightly_tests import register
     register(id='common.tree_menu_keyboard', app='common', stage='ui',
@@ -825,6 +908,10 @@ def register_menu_scenarios():
                          "(case décochée) ; gardé, il est dit en rouge ; seulement désigné, rien "
                          "n'est proposé ; un retrait hors confirmation l'annonce",
              run=lambda ctx: check_released_files(), timeout_s=240)
+    register(id='common.received_card_duplicate', app='common', stage='ui',
+             description="⧉ sur une card REÇUE crée une card à soi : privée, fichiers copiés chez "
+                         "soi, original intact",
+             run=lambda ctx: check_received_card_duplicate(), timeout_s=240)
     register(id='common.nav_sandbox_keyboard', app='common', stage='ui',
              description='Sous-menu « Bac à sable » au CLAVIER, sans détournement par Bootstrap',
              run=lambda ctx: check_nav_sandbox_keyboard(), timeout_s=180)

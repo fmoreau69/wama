@@ -588,9 +588,11 @@ def delete(request, pk):
 @require_POST
 def duplicate(request, pk):
     """Duplicate a ConversionJob (shared input file, no output)."""
-    job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
+    from wama.common.utils.scoping import duplicable_or_404
+    job = duplicable_or_404(ConversionJob, request.user, pk=pk)
     new_job = duplicate_instance(
         instance=job,
+        for_user=request.user,
         reset_fields={
             'status':        'PENDING',
             'progress':      0,

@@ -19,7 +19,9 @@ Usage across apps
 
 Design notes
 ------------
-- Files are NEVER copied on duplication. Both rows point to the same relative path.
+- Files are NEVER copied when duplicating ONE'S OWN card. Both rows point to the same relative
+  path. A card RECEIVED through a share (`duplicate_instance(for_user=…)`) is the exception: its
+  copy belongs to the requester, so its files are copied to them (2026-10-01).
 - safe_delete_file() destroys a file only if it is the card's OWN file (`owns_file`: it lives
   in the app's home for the card's owner) AND no other row still uses it
   (`is_shared_elsewhere`). A file the card only references is never destroyed; a file still
@@ -27,6 +29,9 @@ Design notes
 - duplicate_instance() fetches a fresh DB copy of the row to avoid mutating the
   caller's in-memory object.
 """
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _owner_id(instance):
@@ -184,13 +189,26 @@ def delete_file_unless_shared(instance, field_name: str) -> bool:
         return False
 
 
-def duplicate_instance(instance, reset_fields=None, clear_fields=None):
+def is_received(instance, user) -> bool:
+    """La card appartient-elle à QUELQU'UN D'AUTRE que `user` (une card qu'on lui a partagée) ?"""
+    owner = _owner_id(instance)
+    return owner is not None and getattr(user, 'pk', None) is not None and owner != user.pk
+
+
+def duplicate_instance(instance, reset_fields=None, clear_fields=None, *, for_user=None):
     """
     Create a new DB row that shares the same input file(s) as the original.
 
     Files are NOT copied. The new row gets the same FileField path as the original.
     Use safe_delete_file() in the delete view of the app so that shared files are
     only removed from disk when the last referencing row is deleted.
+
+    ``for_user`` (2026-10-01, `WAMA_COLLABORATION §3bis` — « dupliquer une card reçue ») : quand
+    la card appartient à quelqu'un d'autre, la copie devient l'objet de ``for_user`` — elle lui
+    appartient, elle est privée, elle sort du lot du propriétaire, et chacun de ses fichiers est
+    COPIÉ chez lui (règle accordée par Fabien : *après le geste, la card ne désigne plus que des
+    fichiers de son propriétaire* — le propriétaire peut supprimer les siens sans casser la copie).
+    Sa propre card : comportement inchangé (fichiers PARTAGÉS, pas recopiés).
 
     Args:
         instance:     Source model instance. Not mutated.
@@ -199,16 +217,20 @@ def duplicate_instance(instance, reset_fields=None, clear_fields=None):
         clear_fields: list of field names to blank/nullify on the new row.
                       FileFields and nullable fields → None if null=True, else ''.
                       Use for output files and result/text fields that must start empty.
+        for_user:     who asks for the copy (None = the owner, as before).
 
     Returns:
         The new, saved model instance.
     """
     model_class = type(instance)
+    received = for_user is not None and is_received(instance, for_user)
 
     # Fetch a clean copy from the DB so we don't mutate the caller's in-memory object
     obj = model_class.objects.get(pk=instance.pk)
     obj.pk = None
     obj._state.adding = True
+    if received:
+        _make_own(obj, for_user)
 
     if reset_fields:
         for field_name, value in reset_fields.items():
@@ -230,4 +252,51 @@ def duplicate_instance(instance, reset_fields=None, clear_fields=None):
                     pass
 
     obj.save()
+    if received:
+        _copy_files_to(obj, for_user)
     return obj
+
+
+def _make_own(obj, user):
+    """La copie d'une card reçue devient l'objet de `user` : propriétaire, visibilité privée, et
+    hors du lot du propriétaire d'origine (une FK directe vers un lot est vidée — l'app la range
+    ensuite comme une card neuve)."""
+    from django.db import models as dj_models
+    from wama.common.utils.batch_common import batch_model_for
+    for name, value in (('user', user), ('visibility', 'private'), ('scope_org_unit', None),
+                        ('scope_project', None)):
+        if any(f.name == name for f in obj._meta.concrete_fields):
+            setattr(obj, name, value)
+    batch_model = batch_model_for(type(obj))
+    for f in obj._meta.concrete_fields:
+        if (isinstance(f, dj_models.ForeignKey) and batch_model is not None
+                and f.related_model is batch_model and f.null):
+            setattr(obj, f.name, None)
+
+
+def _copy_files_to(obj, user):
+    """Chaque fichier que la copie désigne est COPIÉ chez `user` (dossier d'entrée de l'app), et la
+    copie le désigne là. La provenance (`kind='app'`) garde l'adresse de l'original."""
+    import os
+    from django.conf import settings
+    from django.db import models as dj_models
+    from wama.common.utils.media_paths import copy_into_app_input
+    changed = []
+    for f in obj._meta.concrete_fields:
+        if not isinstance(f, dj_models.FileField):
+            continue
+        name = getattr(getattr(obj, f.name, None), 'name', '') or ''
+        source = os.path.join(settings.MEDIA_ROOT, name) if name else ''
+        if not name or not os.path.isfile(source):
+            continue
+        try:
+            _dest, rel = copy_into_app_input(source, obj._meta.app_label, user.pk,
+                                             for_instance=obj, field=f.name,
+                                             provenance_kind='app', provenance_ref=name)
+        except Exception as exc:  # pragma: no cover — la copie reste utilisable sans ce fichier
+            logger.warning('[duplicate] copie de %s pour %s impossible : %s', name, user, exc)
+            continue
+        setattr(obj, f.name, rel)
+        changed.append(f.name)
+    if changed:
+        obj.save(update_fields=changed)

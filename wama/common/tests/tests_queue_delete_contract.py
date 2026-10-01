@@ -504,6 +504,39 @@ class DuplicatingAndRestartingKeepFilesTest(TestCase):
                     if name:
                         self.assertIn(name, originals, f'la copie désigne un fichier inconnu ({f.name})')
 
+    def test_a_received_card_is_duplicated_into_the_requesters_own_card(self):
+        """« Dupliquer » une card REÇUE (2026-10-01, `WAMA_COLLABORATION §3bis`, mode lecture) : la
+        copie appartient à celui qui duplique, elle est privée, et chacun de ses fichiers est une
+        COPIE chez lui — le propriétaire peut supprimer les siens sans casser la copie. Les
+        originaux ne bougent pas. Contre-épreuve : la card PRIVÉE d'autrui reste introuvable."""
+        from wama.common.utils.media_paths import app_media_dir
+        owner = User.objects.create_user('received_card_owner', password='x')
+        for surface, route, account, model, _home in self._fleet():
+            with self.subTest(surface=surface):
+                owner_home = app_media_dir(model._meta.app_label, owner.id, 'output')
+                original, files = self._witness(model, owner, owner_home)
+                if not files:
+                    continue
+                url = self._route_for(route, 'duplicate', [original.pk])
+                refused = self.client.post(url, data='{}', content_type='application/json')
+                self.assertEqual(404, refused.status_code, 'la card PRIVÉE d’autrui a été dupliquée')
+
+                model.objects.filter(pk=original.pk).update(visibility='public')
+                before_rows = set(model.objects.values_list('pk', flat=True))
+                self._post(url)
+                copy = model.objects.exclude(pk__in=before_rows).get()
+                self.assertEqual(account.pk, copy.user_id, 'la copie doit appartenir au demandeur')
+                self.assertEqual('private', copy.visibility, 'la copie naît privée')
+                mine = app_media_dir(model._meta.app_label, account.id, '')
+                for f in model._meta.concrete_fields:
+                    name = str(getattr(copy, f.name) or '') if isinstance(f, models.FileField) else ''
+                    if name:
+                        self.assertTrue(name.startswith(mine), f'{f.name} désigne {name}, pas un '
+                                        'fichier du demandeur')
+                        self.assertTrue((Path(self.tmp) / name).exists(), f'{f.name} : copie absente')
+                self.assertEqual([], [p.name for p in files if not p.exists()],
+                                 'les fichiers du propriétaire ont bougé')
+
     def test_restarting_never_destroys_a_referenced_input_nor_a_shared_file(self):
         from unittest import mock
         from wama.common.utils.queue_duplication import duplicate_instance

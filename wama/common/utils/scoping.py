@@ -50,8 +50,21 @@ def owned_or_404(model, user, **kwargs):
     """
     Objet que `user` a le droit de MODIFIER — aujourd'hui : le sien, point.
 
-    À utiliser dans TOUS les chemins mutants : démarrer, arrêter, supprimer, dupliquer,
-    enregistrer des paramètres. Une card partagée n'est donc jamais modifiable par le
-    destinataire, même si une vue de lecture la lui a montrée.
+    À utiliser dans TOUS les chemins mutants : démarrer, arrêter, supprimer, enregistrer des
+    paramètres. Une card partagée n'est donc jamais modifiable par le destinataire, même si une
+    vue de lecture la lui a montrée.
     """
     return get_object_or_404(model.objects.owned_by(user), **kwargs)
+
+
+def duplicable_or_404(model, user, **kwargs):
+    """
+    Objet que `user` peut DUPLIQUER : tout ce qu'il peut voir (le sien, ou partagé avec lui).
+
+    Décision de Fabien (`WAMA_COLLABORATION §3bis`, mode lecture : « dupliquer ⧉ → sa copie » ;
+    construit le 2026-10-01). Dupliquer ne modifie pas la source : la copie est un objet NEUF qui
+    appartient à celui qui duplique — `queue_duplication.duplicate_instance(for_user=…)` en fait
+    son objet (propriétaire, visibilité privée, hors du lot d'autrui, fichiers copiés chez lui).
+    Le compte anonyme ne duplique que ce qu'il possède (`listable_by`).
+    """
+    return get_object_or_404(listable_by(model.objects.all(), user), **kwargs)
