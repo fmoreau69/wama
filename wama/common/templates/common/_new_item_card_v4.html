@@ -211,6 +211,23 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                  data-port-library="{{ p.library_type }}">
                 <div class="wama-port-face wama-port-face-mods is-active" data-port-face="mods">
                     <div class="wama-mods">
+                        {% comment %}ORDRE CONSTANT des modalités sur TOUS les ports : Importer · Médiathèque ·
+                        URL (décision de Fabien, 2026-10-01) — du plus proche au plus distant (le poste, puis
+                        WAMA, puis le web), du plus courant au plus rare, et le moins de déplacement pour le
+                        geste le plus fréquent. Il REMPLACE l'ordre par port acté le 05/09 (`CARD_DESIGN
+                        §11.11 B` : la référence ouvrait sur la médiathèque) : à l'usage, une tuile qui change
+                        de place d'un onglet à l'autre embrouille plus qu'elle n'aide.{% endcomment %}
+                        <div class="drop-zone wama-mod wama-mod-import" data-mod="import" data-port-import-self>
+                            <i class="fas fa-paperclip text-info wama-mod-g"></i>
+                            <span>Importer</span>
+                            {# Même règle que le port de travail : le JETON dit à quoi il sert. #}
+                            {% comment %}`firstof`, pas `default:reference_hint` : un argument de filtre ABSENT du
+                               contexte lève VariableDoesNotExist — mesuré le 2026-09-22 sur l'index
+                               GÉNÉRÉ de composer_01, qui ne passe pas `reference_hint` (composer et
+                               imager le passent à l'include ; un appelant ne le doit pas).{% endcomment %}
+                            <small>{% firstof p.description reference_hint 'depuis le poste' %}</small>
+                            <input type="file" id="{{ rid }}" accept="{{ p.accept }}" style="display:none">
+                        </div>
                         <div class="wama-mod wama-mod-library" data-mod="library" data-mod-library-btn title="Choisir dans la médiathèque">
                             <i class="fas fa-photo-film wama-mod-g text-info"></i>
                             <span>Médiathèque</span>
@@ -226,17 +243,6 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                                        id="{% firstof reference_url_id rid|add:'Url' %}">
                             </div>
                             <small>téléchargée au lancement — un fichier joint prime</small>
-                        </div>
-                        <div class="drop-zone wama-mod wama-mod-import" data-mod="import" data-port-import-self style="flex:1.2">
-                            <i class="fas fa-paperclip text-info wama-mod-g"></i>
-                            <span>Importer</span>
-                            {# Même règle que le port de travail : le JETON dit à quoi il sert. #}
-                            {% comment %}`firstof`, pas `default:reference_hint` : un argument de filtre ABSENT du
-                               contexte lève VariableDoesNotExist — mesuré le 2026-09-22 sur l'index
-                               GÉNÉRÉ de composer_01, qui ne passe pas `reference_hint` (composer et
-                               imager le passent à l'include ; un appelant ne le doit pas).{% endcomment %}
-                            <small>{% firstof p.description reference_hint 'depuis le poste' %}</small>
-                            <input type="file" id="{{ rid }}" accept="{{ p.accept }}" style="display:none">
                         </div>
                     </div>
                 </div>

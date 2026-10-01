@@ -138,6 +138,11 @@ BRICKS_BY_TRIGGER = {
     # Une facette `prompts` dit que la consigne passe par le pipeline de prompts (traduction,
     # fichiers de RÉFÉRENCE, RAG) : `process_prompt_for` est le point d'entrée d'une app.
     ('facet', 'prompts'): ('prompt_pipeline', ('process_prompt_for',)),
+    # Un select de modèle avec « auto » (`options_auto`) : la valeur se TIRE au lancement par la
+    # brique commune, avec le domaine, le curseur et les distants déclarés au schéma — le même
+    # chemin que la prévision « Prévu : … » (2026-10-01 : la 1ʳᵉ glu du Writer passait `auto`
+    # tel quel à la brique LLM, qui tirait par un autre chemin que la prévision).
+    ('param_flag', 'options_auto'): ('auto_model', ('resolve_model_choice',)),
 }
 
 
@@ -158,10 +163,14 @@ def _brick_file(mechanism_key: str, names: tuple) -> Path:
 def _triggered(resolus: list, man: dict) -> list:
     model_types = {((m.get('body') or {}).get('identity') or {}).get('model_type')
                    for m in resolus if m.get('manifest_kind') == 'model'}
-    facets = set(((man or {}).get('body') or {}))
+    body = (man or {}).get('body') or {}
+    facets = set(body)
+    param_flags = {flag for schema in ((body.get('params') or {}).get('schemas') or {}).values()
+                   for field in schema or [] for flag, on in field.items() if on is True}
     return [v for (kind, value), v in BRICKS_BY_TRIGGER.items()
             if (kind == 'model_type' and value in model_types)
-            or (kind == 'facet' and value in facets)]
+            or (kind == 'facet' and value in facets)
+            or (kind == 'param_flag' and value in param_flags)]
 
 
 def signatures_briques() -> dict:
@@ -256,7 +265,8 @@ def _returned_field_keys(fn_node) -> set:
     return keys
 
 
-def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None) -> dict:
+def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None,
+              settings_fields=None) -> dict:
     """Contrôles mécaniques du bloc généré — le LLM propose, la chaîne juge. `item_fields` = les
     champs du modèle d'item : la règle 5 du prompt n'admet qu'eux comme clés de `fields`, et ce
     contrôle la rend mécanique (elle n'était qu'une consigne)."""
@@ -298,6 +308,12 @@ def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None) 
             hors = sorted(_returned_field_keys(cible) - set(item_fields))
             if hors:
                 out['warnings'].append(f'clés de fields hors des champs du modèle (règle 5) : {hors}')
+        # Un RÉGLAGE réécrit au succès (2026-10-01 : `'model': <modèle tiré>` — le choix « auto »
+        # de l'utilisateur perdu à la première génération). `fields` porte des résultats.
+        overwritten = sorted(_returned_field_keys(cible) & set(settings_fields or ()))
+        if overwritten:
+            out['warnings'].append(f'fields réécrit un RÉGLAGE de l\'utilisateur : {overwritten} '
+                                   f'(le modèle employé va dans `models`)')
     # Arguments DEVINÉS d'une brique commune (2026-10-01 : `max_tokens`, `max_new_tokens` passés
     # à la brique LLM — `TypeError` au premier lancement, invisible sans ce contrôle).
     signatures = signatures_briques()
@@ -417,7 +433,18 @@ def main():
                        temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
     code = extract_code(reponse)
     verif = controles(code, nom_impose, args.app,
-                      item_fields=[c.split(' (')[0] for c in champs])
+                      item_fields=[c.split(' (')[0] for c in champs],
+                      settings_fields=((proc.get('model_spec') or {}).get('item') or {})
+                      .get('params_fields'))
+    # Une brique que le manifeste DÉCLENCHE et que la glu n'appelle pas (2026-10-01 : `auto`
+    # passé tel quel à la brique LLM au lieu d'être tiré par `resolve_model_choice`) — la
+    # montrer dans la matière ne suffit pas, l'oubli doit se voir.
+    if verif['compile_ok']:
+        called = {getattr(n.func, 'id', None) or getattr(n.func, 'attr', None)
+                  for n in ast.walk(ast.parse(code)) if isinstance(n, ast.Call)}
+        for _key, names in _triggered(resolus, man):
+            verif['warnings'] += [f'brique déclenchée par le manifeste non appelée : {name}'
+                                  for name in names if name not in called]
 
     verite = None
     if args.truth:

@@ -421,7 +421,13 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
     l'aurait recopié.
 
     Règles :
-      - `auto` (ou vide) → le funnel LOCAL du catalogue (`modele_par_defaut`, VRAM-aware) ;
+      - `auto` (ou vide) → REFUSÉ, avec le geste à faire : « auto » n'est pas une clé, il se
+        TIRE avant l'appel — par `auto_model.resolve_model_choice(item.model, app_id=…,
+        item=item)` dans une app (domaine, curseur et distants de SON schéma : le chemin de la
+        prévision « Prévu : … »), par `modele_par_defaut()` hors app. ⚠ Jusqu'au 2026-10-01 cette
+        branche partait d'elle-même au funnel `modele_par_defaut` : une app qui oubliait de tirer
+        passait par un AUTRE chemin que sa prévision — l'écran annonçait un modèle, le lancement en
+        prenait un autre (relevé par Fabien sur le Writer). Refuser rend l'oubli visible ;
       - `ollama:<nom>` → Ollama, en local ;
       - `<source>:<modèle>` d'une source déclarée de type `llm` (`external_sources`) → le nom du
         fournisseur EST le nom de la source (albert, anthropic) ; la clé est celle de
@@ -441,12 +447,15 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
     signature au modèle QUI ÉCRIT l'appel et au contrôle qui le juge — le rôle `codegen` avait
     passé `max_tokens` et `max_new_tokens`, `TypeError` assuré au premier lancement.
     """
-    from wama.common.utils.model_keys import AUTO, split_key
+    from wama.common.utils.model_keys import split_key
     llm_kwargs = {'num_predict': num_predict, 'think': think, 'timeout': timeout,
                   'temperature': temperature}
     key = (catalog_key or '').strip()
-    if not key or key == AUTO:
-        return llm_chat(messages, model=None, provider='ollama', **llm_kwargs)
+    from wama.common.utils.auto_model import is_auto
+    if is_auto(key):
+        return None, ("« auto » n'est pas une clé de catalogue : le tirer avant l'appel — "
+                      "`resolve_model_choice` dans une app (le chemin de la prévision), "
+                      "`modele_par_defaut()` hors app")
     # La lecture UNIQUE de `<source>:<identifiant>` (brique `model_keys`, ralliée le 2026-10-01 :
     # un `partition(':')` maison en était la 13ᵉ copie). Une valeur sans source connue n'est pas
     # une clé de catalogue.

@@ -3926,6 +3926,15 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
    réelle (154 s) : le terme témoin du document de référence est dans le HTML, la révision 1 porte
    `result_text` et le modèle employé. Deux défauts d'outil corrigés en route : `ctx.app_id` absent
    du contrat (référence ignorée sans message), entrées comptées comme sorties de révision.
+   ✅ Le soir, sur les remarques de Fabien à la page : bouton « Ajouter à la file » (le
+   générateur ne savait pas faire une card à consigne — mode attache dérivé des ports, brique
+   commune `WamaApp.addToQueue`), curseur rapide/qualité au manifeste, choix « auto » tiré par le
+   seul chemin de la prévision, tuiles Importer · Médiathèque · URL sur tous les ports
+   (`WAMA_APP_GENERATION_ROUTE §10.5`, fin du bloc REVÉRIFICATION). Mesuré : ajout consigne +
+   référence, prévision = lancement (qwen3.8), réglage resté « auto ».
+   🔚 Ensuite (décisions) : la référence de MISE EN PAGE (entrée `reference_layout` et lecture des
+   références selon l'usage — contenu ou forme), les sources cards/RAG, l'hébergement, la
+   promotion hors du bac à sable.
 2. Publier (capacité commune).
 3. PDF par Chromium.
 4. docx / tex / pptx par Pandoc.

@@ -19558,3 +19558,33 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
   cours, sinon au prochain palier qui touche ce fichier. Test périmé `test_ne_DEVINE_pas_le_role…`
   (rôle déclaré du composer depuis le 19/09) ; `audio/x-wav` sous Linux ; `transcriber/apps.py:146` ;
   doc dérivée `briques.md` ; `writer_01` (colonne absente de la base de test).
+
+## §PALIER — 2026-10-01 (soir), « WRITER : LA ROUTE RÉALIGNÉE, UNE CARD À CONSIGNE, UN SEUL « AUTO » » — ✅ commits `6de227cb` + ci-dessous, non poussés — 🔴 RELANCER WAMA (`writer_01` recréée, `wama-app-base.js` neuf) — 🔚 adoption de `addToQueue` par 4 apps, référence de mise en page
+
+- **Route « app de zéro » réalignée** (`6de227cb`) : Editor → **Writer** ; les réinventions de la
+  session retirées (facette `pipelines`, enchaîneur de process, tri maison, port écrit à la main)
+  — récit en `WAMA_MANIFEST_SPEC §3.1`, décision n°11 rouverte. Glu du Writer écrite par
+  **qwen3.8** (rôle `codegen`), jamais par Claude ; génération réelle avec document de référence.
+- **Le soir, sur la page (remarques de Fabien)** — `ROUTE §10.5`, fin du bloc REVÉRIFICATION :
+  - pas de bouton « Ajouter à la file » : le générateur ne connaissait que « le dépôt crée ».
+    Mode attache DÉRIVÉ des ports (`views_gen.prompt_entry` : consigne sans port de travail,
+    mesuré sans faux positif sur les 10 apps) ; brique JS commune **`WamaApp.addToQueue`**
+    (mécanisme `add_to_queue`, attestée en V8) ; vue d'ajout par `received_inputs` ;
+  - deux chemins « auto » : `chat_with_catalog_model` REFUSE désormais `auto` (une app tire par
+    `resolve_model_choice`, le chemin de la prévision) ; curseur au manifeste du Writer, forme
+    vérifiée contre la route, la grille et les adopteurs ; contrôles `codegen` « brique
+    déclenchée non appelée » et « `fields` réécrit un RÉGLAGE » ;
+  - tuiles **Importer · Médiathèque · URL** sur tous les ports (`CARD_DESIGN §11.11 B`) ;
+  - `app_sandbox` : `--proprietaire` → `--owner`, `cible` → `target`, `drop` → **`remove`**
+    (qui purge aussi les révisions de la jumelle — un élément neuf héritait de celles d'un ancien
+    au même numéro) ; budget de langue du code 2686 → 2679.
+- **Mesuré** : ajout vide refusé avec motif ; consigne + référence + curseur 20 → prévision
+  qwen3.8 = lancé qwen3.8, réglage resté « auto », terme témoin de la référence dans le HTML.
+  Génération de 742 s, tout dans l'appel au modèle — cause non établie (autres process ?).
+- **Tests** : 438 lancés ; 5 échecs connus, hors de ce chantier (imager `ItemEditRouteAliasTest`,
+  budgets de NOMS de tests dépassés par d'autres instances).
+- 🔚 **Restes** : adoption de `WamaApp.addToQueue` par imager, avatarizer, composer, synthesizer
+  (portage avec leurs gestes nocturnes) ; référence de MISE EN PAGE (`reference_layout`, lecture
+  des références selon l'usage) ; sources cards/RAG, hébergement, promotion hors bac à sable ;
+  `RunOutcome` garde aussi des lignes d'une jumelle retirée (même classe que les révisions) ;
+  `AGENTS.md` cite un `§S` de la route qui n'existe pas sous ce titre (décision de Fabien).

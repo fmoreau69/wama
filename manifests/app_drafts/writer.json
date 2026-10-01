@@ -139,6 +139,22 @@
             "options_source": "catalog",
             "section": "settings",
             "type": "select"
+          },
+          {
+            "chip": false,
+            "contexts": ["item", "batch", "panel"],
+            "default": 50,
+            "group": "modele",
+            "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
+            "icon": "fa-gauge-high",
+            "label": "Rapide ↔ Qualité",
+            "max": 100,
+            "min": 0,
+            "name": "quality_intent",
+            "section": "settings",
+            "show_if": {"equals": "auto", "field": "model"},
+            "step": 1,
+            "type": "intent"
           }
         ]
       }
@@ -199,7 +215,7 @@
           "name": "WriterDocument",
           "ordering": ["-created_at"],
           "params_fields": ["prompt", "document_kind", "output_format", "style_instruction",
-                            "language", "model"],
+                            "language", "model", "quality_intent"],
           "user_related_name": "writer_documents"
         }
       },
