@@ -64,6 +64,47 @@ def decompose(rec):
     return {'camera': {'de_m': round(gde, 3), 'dn_m': round(gdn, 3)}, 'gps_local': local}
 
 
+#: Portée temporelle d'une ancre PAR PASSAGE (s) : la correction s'éteint linéairement au-delà.
+#: L'erreur GPS varie d'un passage à l'autre (mesuré ENA_CASA : ≈ 1 m sur trois passages, 5 à 7 m sur
+#: un quatrième) — tenir une ancre jusqu'à la suivante, plusieurs minutes plus loin, propagerait une
+#: erreur locale sur des kilomètres. Valeur PROVISOIRE (≈ une traversée d'intersection et ses abords).
+PASS_REACH_S = 60.0
+
+
+def decompose_passes(passes):
+    """Sépare biais caméra et erreur GPS à partir d'écarts LE LONG DE LA MARCHE mesurés passage par
+    passage (même décision que `decompose`, du 2026-07-28 : séparer les deux biais par leur
+    SIGNATURE — ici l'orientation plutôt que le lieu).
+
+    Un biais de projection caméra est constant dans le repère du VÉHICULE (il suit le cap) ; une
+    erreur GPS est GÉOGRAPHIQUE et propre à chaque passage. Le biais caméra est donc la médiane des
+    écarts le long de la marche ; le reste de chaque passage, rapporté à son cap, est l'erreur GPS.
+    Séparable seulement si la navette passe dans des sens OPPOSÉS (deux caps à plus de 90°) — sinon
+    les deux biais se projettent sur le même axe : rien n'est attribué au GPS.
+
+    `passes` : [{'key', 'ts', 'heading_deg', 'along_m', 'n'}]. Retourne
+    {'camera': {'along_m', 'separable', 'n_passes'}, 'gps_local': {key: {'de_m', 'dn_m', 'n', 'ts',
+    'along_m'}}} — `de_m/dn_m` s'AJOUTENT à la trace (dérivation du signe : en-tête du module).
+    """
+    ps = [p for p in (passes or []) if p.get('along_m') is not None and p.get('heading_deg') is not None]
+    if not ps:
+        return {'camera': {'along_m': 0.0, 'separable': False, 'n_passes': 0}, 'gps_local': {}}
+    vals = sorted(float(p['along_m']) for p in ps)
+    mid = len(vals) // 2
+    bias = vals[mid] if len(vals) % 2 else (vals[mid - 1] + vals[mid]) / 2.0
+    hs = [math.radians(float(p['heading_deg'])) for p in ps]
+    separable = any(math.cos(a - b) < 0 for i, a in enumerate(hs) for b in hs[i + 1:])
+    local = {}
+    if separable:
+        for p, h in zip(ps, hs):
+            r = float(p['along_m']) - bias
+            local[str(p['key'])] = {'de_m': round(r * math.sin(h), 3), 'dn_m': round(r * math.cos(h), 3),
+                                    'n': int(p.get('n') or 0), 'ts': float(p['ts']),
+                                    'along_m': round(r, 3)}
+    return {'camera': {'along_m': round(bias, 3), 'separable': separable, 'n_passes': len(ps)},
+            'gps_local': local}
+
+
 def _landmark_time(w):
     """Instant représentatif d'un repère : `ts` direct, sinon milieu de `t_enter`/`t_exit`.
 
@@ -82,15 +123,18 @@ def _landmark_time(w):
     return (float(te) + float(tx)) / 2.0
 
 
-def build_anchors(landmarks, decomposed, mask_by_key=None):
+def build_anchors(landmarks, decomposed, mask_by_key=None, reach_s=None):
     """Points d'ancrage temporels de la correction GPS.
 
     `landmarks` : liste de repères indexée par les clés de `decomposed['gps_local']`.
     Chaque repère porte `ts`, ou `t_enter`/`t_exit`.
     `mask_by_key` : {clé: mean_deg} issu de `geo.ign_vector` (masquage satellite).
     Absent → aucune rétraction (alpha = 1), comportement neutre.
+    Un écart qui porte son propre `ts` (mesure PAR PASSAGE, en temps GPS) l'emporte sur l'instant
+    du repère — les bornes des fenêtres cam_analyzer sont en temps VIDÉO, pas celui de la trace.
+    `reach_s` : portée de chaque ancre (cf. `offset_at`) ; None → interpolation historique.
 
-    Retourne [{'ts', 'de_m', 'dn_m', 'n', 'alpha'}] trié par temps.
+    Retourne [{'ts', 'de_m', 'dn_m', 'n', 'alpha'(, 'reach_s')}] trié par temps.
     """
     wins = landmarks or []
     mask_by_window = mask_by_key
@@ -101,7 +145,7 @@ def build_anchors(landmarks, decomposed, mask_by_key=None):
         except (ValueError, IndexError, TypeError):
             logger.warning("[trajectory_offset] repère %r hors de la liste — ignoré", wi)
             continue
-        ts = _landmark_time(w)
+        ts = off['ts'] if off.get('ts') is not None else _landmark_time(w)
         if ts is None:
             continue
 
@@ -113,13 +157,16 @@ def build_anchors(landmarks, decomposed, mask_by_key=None):
             mean_deg = float(mask_by_window[wi] or 0.0)
             alpha = max(0.0, min(1.0, mean_deg / FULL_TRUST_MASK_DEG))
 
-        anchors.append({
+        anchor = {
             'ts': float(ts),
             'de_m': off['de_m'] * alpha,
             'dn_m': off['dn_m'] * alpha,
             'n': off['n'],
             'alpha': round(alpha, 3),
-        })
+        }
+        if reach_s is not None:
+            anchor['reach_s'] = float(reach_s)
+        anchors.append(anchor)
     anchors.sort(key=lambda a: a['ts'])
     return anchors
 
@@ -132,6 +179,25 @@ def offset_at(anchors, ts):
     """
     if not anchors:
         return 0.0, 0.0
+    # Ancres À PORTÉE (`reach_s`, mesure par passage) : chacune pèse 1 en son instant et s'éteint
+    # linéairement à ±reach_s ; les ancres qui se recouvrent se mélangent au prorata de leur poids ×
+    # fiabilité, et l'ensemble est atténué par le plus fort de ces poids — loin de toute ancre, aucune
+    # correction (et jamais d'extrapolation).
+    if all(a.get('reach_s') for a in anchors):
+        num_e = num_n = tot = 0.0
+        fade = 0.0
+        for a in anchors:
+            w = max(0.0, 1.0 - abs(ts - a['ts']) / float(a['reach_s']))
+            if w <= 0:
+                continue
+            k = w * max(int(a.get('n') or 0), 1)
+            num_e += k * a['de_m']
+            num_n += k * a['dn_m']
+            tot += k
+            fade = max(fade, w)
+        if tot <= 0:
+            return 0.0, 0.0
+        return fade * num_e / tot, fade * num_n / tot
     if len(anchors) == 1 or ts <= anchors[0]['ts']:
         return anchors[0]['de_m'], anchors[0]['dn_m']
     if ts >= anchors[-1]['ts']:
@@ -240,7 +306,9 @@ SPEC = register(FunctionSpec(
         # là où un TYPE le garantit, pas partout par uniformité de façade.
         PortSpec('anchors', DataType.TABLE, required_fields=['ts', 'de_m', 'dn_m'],
                  cardinality='many',
-                 description="Offsets ancrés (sortie de `build_anchors`)."),
+                 description="Offsets ancrés (sortie de `build_anchors`). Une ancre qui porte "
+                             "`reach_s` (mesure par passage) s'éteint linéairement au-delà : loin "
+                             "de toute ancre, aucune correction."),
     ],
     outputs=[
         PortSpec('track', DataType.GEO_TRACK,
@@ -249,12 +317,13 @@ SPEC = register(FunctionSpec(
                  description="Trace corrigée EN PLACE : `lat`/`lon` portent la position "
                              "corrigée, et l'originale survit sous `lat_raw`/`lon_raw`. "
                              "`corr_de_m`/`corr_dn_m` disent de combien chaque point a bougé "
-                             "— sans eux la correction serait invérifiable après coup. Hors "
-                             "des bornes d'ancrage, l'offset EXTRÊME est MAINTENU (jamais "
-                             "extrapolé : une extrapolation diverge et corromprait le début "
-                             "et la fin de trace) — le point est donc corrigé, pas laissé "
-                             "tel quel. Seul un point sans coordonnées ou sans instant "
-                             "ressort inchangé, et lui seul n'a pas de champs de correction."),
+                             "— sans eux la correction serait invérifiable après coup. Ancres "
+                             "SANS portée : hors des bornes d'ancrage, l'offset EXTRÊME est "
+                             "MAINTENU (jamais extrapolé : une extrapolation diverge et "
+                             "corromprait le début et la fin de trace). Ancres À PORTÉE "
+                             "(`reach_s`) : loin de toute ancre l'offset vaut 0 — le point porte "
+                             "alors des champs de correction nuls. Seul un point sans coordonnées "
+                             "ou sans instant ressort inchangé, sans champs de correction."),
     ],
     params=[
         ParamSpec('full_trust_mask_deg', 'float', FULL_TRUST_MASK_DEG, 0.0, 45.0, unit='°',

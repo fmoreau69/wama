@@ -48,6 +48,39 @@ CROSSING_MAX_HALF_M = 4.0   # demi-longueur max d'un passage piéton dessiné (u
 CROSSING_ON_ROAD_M = 3.5    # un passage PARALLÈLE à la rue ne peut pas être sur la trajectoire
 
 
+def contact_points(det, gp, yaw_rad, mount, max_lateral_m=15.0):
+    """Points de CONTACT AU SOL d'un marquage SAM3, en repère VÉHICULE (latéral droite, avant),
+    origine = centre arrière : la caméra est replacée par son orientation et son montage.
+
+    BORD BAS du polygone seulement (ligne de contact au sol) : près de l'horizon, dY/dv explose —
+    projeter toute la hauteur du polygone étale le marquage sur des mètres LE LONG de la visée et
+    la PCA se verrouille sur l'axe du corridor (biais mesuré 2 itérations de suite). On garde, par
+    colonne (8 paquets en u), le point le plus BAS : une profondeur par colonne → l'étendue restante
+    est la vraie latérale. Partagé par l'agrégation monde et la mesure par passage du recalage ortho
+    (2026-10-01)."""
+    pts = det.get('polygon') or []
+    if not pts and det.get('bbox'):
+        b = det['bbox']
+        pts = [[b[0], b[3]], [b[2], b[3]], [(b[0] + b[2]) / 2, b[3]]]
+    cols = {}
+    for pt in pts[:60]:
+        cbin = int(pt[0] // 24)
+        if cbin not in cols or pt[1] > cols[cbin][1]:
+            cols[cbin] = pt
+    out = []
+    for pt in cols.values():
+        xy = gp.project(pt[0], pt[1])
+        if not xy:
+            continue
+        X, Y = xy
+        if not (MIN_RANGE_M <= Y <= MAX_RANGE_M) or abs(X) > max_lateral_m:
+            continue
+        # caméra → véhicule (rotation yaw + montage)
+        out.append((Y * math.sin(yaw_rad) + X * math.cos(yaw_rad) + mount[0],
+                    Y * math.cos(yaw_rad) - X * math.sin(yaw_rad) + mount[1]))
+    return out
+
+
 def snap_crossing(bearing, corridor_bearing, extent_m, distance_to_path_m):
     """Axe d'un passage piéton agrégé (⚑ marking_axis_snap) : calé sur la plus proche des deux
     directions du corridor — en travers de la rue de la navette, ou parallèle (il traverse alors
@@ -162,33 +195,9 @@ def aggregate_markings(session, min_obs=3, max_pts=6000):
             se, sn, sh = _shuttle_pose_at(sh_traj, video_to_gps_time(session, df.timestamp))
             for d in dets:
                 kind = _LABEL_KIND[(d.get('label') or d.get('class_name') or '').lower()]
-                pts = d.get('polygon') or []
-                if not pts and d.get('bbox'):
-                    b = d['bbox']
-                    pts = [[b[0], b[3]], [b[2], b[3]], [(b[0] + b[2]) / 2, b[3]]]
-                # BORD BAS du polygone seulement (ligne de contact au sol) : près de
-                # l'horizon, dY/dv explose — projeter toute la hauteur du polygone
-                # étale le marquage sur des mètres LE LONG de la visée et la PCA se
-                # verrouille sur l'axe du corridor (biais mesuré 2 itérations de suite).
-                # On garde, par colonne (8 paquets en u), le point le plus BAS : une
-                # profondeur par colonne → l'étendue restante est la vraie latérale.
-                _cols = {}
-                for pt in pts[:60]:
-                    cbin = int(pt[0] // 24)
-                    if cbin not in _cols or pt[1] > _cols[cbin][1]:
-                        _cols[cbin] = pt
-                world_pts = []
-                for pt in _cols.values():
-                    xy = gp.project(pt[0], pt[1])
-                    if not xy:
-                        continue
-                    X, Y = xy
-                    if not (MIN_RANGE_M <= Y <= MAX_RANGE_M) or abs(X) > 15:
-                        continue
-                    # caméra → véhicule (rotation yaw + montage) → monde
-                    lat_v = Y * math.sin(yaw) + X * math.cos(yaw) + mnt[0]
-                    lon_v = Y * math.cos(yaw) - X * math.sin(yaw) + mnt[1]
-                    world_pts.append(ego_to_world(se, sn, sh, lat_v, lon_v))
+                # contact au sol (bord bas par colonne, cf. `contact_points`) → monde
+                world_pts = [ego_to_world(se, sn, sh, lat_v, lon_v)
+                             for lat_v, lon_v in contact_points(d, gp, yaw, mnt)]
                 if not world_pts:
                     continue
                 # rattachement au lieu le plus proche (≤ 35 m) — sur le centroïde,

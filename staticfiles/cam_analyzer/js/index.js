@@ -2876,6 +2876,20 @@ document.addEventListener('DOMContentLoaded', function () {
     // produirait un affichage qui ment sur la correction réellement calculée.
     function _orthoOffsetAt(anchors, ts) {
         if (!anchors || !anchors.length) return [0, 0];
+        // Ancres À PORTÉE (`reach_s`, mesure par passage, 2026-10-01) : poids 1 en leur instant,
+        // extinction linéaire à ±reach_s, mélange au prorata poids × fiabilité, atténuation par le
+        // plus fort poids — loin de toute ancre, aucune correction. Miroir de `offset_at`.
+        if (anchors.every(a => a.reach_s)) {
+            let ne = 0, nn = 0, tot = 0, fade = 0;
+            for (const a of anchors) {
+                const w = Math.max(0, 1 - Math.abs(ts - a.ts) / a.reach_s);
+                if (w <= 0) continue;
+                const k = w * Math.max(a.n || 0, 1);
+                ne += k * a.de_m; nn += k * a.dn_m; tot += k;
+                fade = Math.max(fade, w);
+            }
+            return tot > 0 ? [fade * ne / tot, fade * nn / tot] : [0, 0];
+        }
         if (anchors.length === 1 || ts <= anchors[0].ts) return [anchors[0].de_m, anchors[0].dn_m];
         const last = anchors[anchors.length - 1];
         if (ts >= last.ts) return [last.de_m, last.dn_m];

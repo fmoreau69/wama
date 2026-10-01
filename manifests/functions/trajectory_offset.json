@@ -25,7 +25,7 @@
       {
         "cardinality": "many",
         "data_type": "table",
-        "description": "Offsets ancrés (sortie de `build_anchors`).",
+        "description": "Offsets ancrés (sortie de `build_anchors`). Une ancre qui porte `reach_s` (mesure par passage) s'éteint linéairement au-delà : loin de toute ancre, aucune correction.",
         "group": "travail",
         "key": "anchors",
         "optional": false,
@@ -42,7 +42,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "Trace corrigée EN PLACE : `lat`/`lon` portent la position corrigée, et l'originale survit sous `lat_raw`/`lon_raw`. `corr_de_m`/`corr_dn_m` disent de combien chaque point a bougé — sans eux la correction serait invérifiable après coup. Hors des bornes d'ancrage, l'offset EXTRÊME est MAINTENU (jamais extrapolé : une extrapolation diverge et corromprait le début et la fin de trace) — le point est donc corrigé, pas laissé tel quel. Seul un point sans coordonnées ou sans instant ressort inchangé, et lui seul n'a pas de champs de correction.",
+        "description": "Trace corrigée EN PLACE : `lat`/`lon` portent la position corrigée, et l'originale survit sous `lat_raw`/`lon_raw`. `corr_de_m`/`corr_dn_m` disent de combien chaque point a bougé — sans eux la correction serait invérifiable après coup. Ancres SANS portée : hors des bornes d'ancrage, l'offset EXTRÊME est MAINTENU (jamais extrapolé : une extrapolation diverge et corromprait le début et la fin de trace). Ancres À PORTÉE (`reach_s`) : loin de toute ancre l'offset vaut 0 — le point porte alors des champs de correction nuls. Seul un point sans coordonnées ou sans instant ressort inchangé, sans champs de correction.",
         "key": "track",
         "optional": false,
         "produced_fields": [

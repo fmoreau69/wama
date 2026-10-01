@@ -164,6 +164,110 @@ def _dist_m(lat1, lon1, lat2, lon2):
     return math.hypot((lat2 - lat1) * m_lat, (lon2 - lon1) * m_lon)
 
 
+#: Un passage piéton de la caméra et celui de l'orthophoto ne sont appariés qu'à moins de cet écart
+#: le long de la marche (au-delà : autre marquage).
+PASS_MATCH_M = 8.0
+#: Le passage ortho doit couper la route de la navette : son étendue latérale (repère navette)
+#: englobe la trajectoire à cette marge près ; côté caméra, seuls les points de contact à moins de
+#: `PASS_LATERAL_M` de l'axe comptent (un passage d'une rue latérale ne dit rien du « le long »).
+PASS_PATH_MARGIN_M = 1.0
+PASS_LATERAL_M = 6.0
+PASS_MIN_OBS = 5
+
+
+def measure_passes(session):
+    """Écart LE LONG DE LA MARCHE, passage par passage, entre un passage piéton vu par la caméra
+    avant et le même passage sur l'orthophoto (2026-10-01).
+
+    Pourquoi par passage : `match_recalage` compare des marquages agrégés PAR LIEU (tous passages
+    confondus). Sur ENA_CASA les 14 fenêtres appariées sont 14 traversées du MÊME carrefour : une
+    seule mesure, recopiée 14 fois, que la décomposition classait entièrement en biais caméra —
+    correction nulle partout, alors que la navette était dessinée 5 à 7 m trop en arrière à 2983 s.
+
+    Pourquoi le BORD PROCHE : la caméra voit le bord bas du marquage (le plus proche) ; le bord proche
+    du polygone ortho change donc avec le sens de marche. Comparer des centres fabriquerait un écart
+    qui s'inverse avec le sens — la signature même qui sépare biais caméra et biais GPS.
+
+    Rend (passes, rapport) : passes = [{'key', 'ts' (temps GPS), 'heading_deg', 'along_m', 'n'}],
+    `along_m` > 0 : la carte place le passage PLUS LOIN que la caméra ne le voit — la navette est
+    dessinée en arrière de sa position vraie."""
+    import statistics
+    from ..models import DetectionFrame
+    from .marking_world import _LABEL_KIND, _projector_for, contact_points
+    from .ego_pose import effective_gps_track
+    from .prediction_adapter import (make_local_frame, shuttle_trajectory, antenna_offset,
+                                     camera_geometry, _shuttle_pose_at, video_to_gps_time)
+    rs = session.results_summary or {}
+    ortho = rs.get('ortho_markings') or {}
+    report = {'windows': 0, 'measured': 0, 'skipped': {}}
+    cam = session.cameras.filter(position='front').first()
+    if cam is None or not ortho:
+        report['reason'] = 'pas de caméra avant' if cam is None else 'aucun passage ortho segmenté'
+        return [], report
+    geo = camera_geometry(session).get('front')
+    gp, _cal = _projector_for(cam, geo) if geo else (None, False)
+    if gp is None:
+        report['reason'] = 'caméra avant sans calibration sol (lancer « Tracking 360° »)'
+        return [], report
+    # la mesure ne lit JAMAIS sa propre correction (même règle que `marking_world`)
+    gt = effective_gps_track(session, ortho=False)
+    to_local = make_local_frame(gt)
+    sh_traj = shuttle_trajectory(gt, to_local, antenna=antenna_offset(session))
+    yaw, mnt = math.radians(geo['yaw']), geo.get('mount') or (0.0, 0.0)
+    passes = []
+    for wi, w in enumerate(session.intersection_windows or []):
+        polys = [[to_local(p[0], p[1]) for p in oc.get('poly_latlon') or []]
+                 for oc in ortho.get(str(wi)) or ortho.get(wi) or []]
+        polys = [p for p in polys if len(p) >= 3]
+        if not polys or w.get('t_enter') is None or w.get('t_exit') is None:
+            continue
+        report['windows'] += 1
+        deltas, stamps, heads = [], [], []
+        qs = (DetectionFrame.objects.filter(camera=cam, timestamp__gte=w['t_enter'],
+                                            timestamp__lte=w['t_exit'])
+              .order_by('frame_number').only('detections', 'timestamp'))
+        for df in qs.iterator(chunk_size=500):
+            dets = [d for d in (df.detections or []) if d.get('type') == 'sam3_marking'
+                    and _LABEL_KIND.get((d.get('label') or d.get('class_name') or '').lower()) == 'crossing']
+            if not dets:
+                continue
+            tg = video_to_gps_time(session, df.timestamp)
+            se, sn, hd = _shuttle_pose_at(sh_traj, tg)
+            ue, un = math.sin(math.radians(hd)), math.cos(math.radians(hd))
+            # bord proche (repère navette) des passages ortho qui COUPENT la route, devant
+            ahead = []
+            for P in polys:
+                along = [(e - se) * ue + (n - sn) * un for e, n in P]
+                lat = [(e - se) * un - (n - sn) * ue for e, n in P]
+                if min(lat) <= PASS_PATH_MARGIN_M and max(lat) >= -PASS_PATH_MARGIN_M and min(along) > 0:
+                    ahead.append(min(along))
+            if not ahead:
+                continue
+            map_near = min(ahead)
+            for d in dets:
+                pts = [lo for la, lo in contact_points(d, gp, yaw, mnt) if abs(la) <= PASS_LATERAL_M]
+                if not pts:
+                    continue
+                # flottants PYTHON : la projection rend du numpy, que `results_summary` (JSON)
+                # refuserait à l'écriture
+                delta = float(map_near - min(pts))
+                if abs(delta) <= PASS_MATCH_M:
+                    deltas.append(delta)
+                    stamps.append(float(tg))
+                    heads.append(float(hd))
+        if len(deltas) < PASS_MIN_OBS:
+            report['skipped'][str(wi)] = len(deltas)
+            continue
+        # cap médian en circulaire (un passage plein nord oscille entre 359° et 1°)
+        hx = statistics.median(math.sin(math.radians(h)) for h in heads)
+        hy = statistics.median(math.cos(math.radians(h)) for h in heads)
+        passes.append({'key': str(wi), 'ts': round(statistics.median(stamps), 2),
+                       'heading_deg': round(math.degrees(math.atan2(hx, hy)) % 360.0, 1),
+                       'along_m': round(statistics.median(deltas), 2), 'n': len(deltas)})
+    report['measured'] = len(passes)
+    return passes, report
+
+
 def match_recalage(session, ortho_crossings, max_match_m=12.0):
     """Apparie chaque crossing CAMÉRA (marking_world) au crossing ORTHO le plus proche
     et retourne l'offset médian (décalage caméra→ortho) par intersection + global.
