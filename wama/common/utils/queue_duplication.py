@@ -4,9 +4,12 @@ WAMA — Common utilities for queue item duplication and safe file deletion.
 Usage across apps
 -----------------
 1. In the app's delete / clear_all views (a card is REMOVED):
-       from wama.common.utils.queue_duplication import release_card_file
-       release_card_file(instance, 'audio')     # never deletes: the file is released, the user
-                                                # is warned and deletes it explicitly (2026-09-30)
+       from wama.common.utils.queue_duplication import release_card_files
+       release_card_files(instance)             # never deletes: every file the card holds is
+                                                # released, the user is warned and deletes it
+                                                # explicitly (2026-09-30)
+   It reads the card's declarations (its FileFields, its declared path lists);
+   `release_card_file(instance, 'audio')` is the same gesture for ONE field.
    `safe_delete_file` is kept for a card REPLACING its own result (relaunch).
 
 2. In the app's duplicate view:
@@ -125,14 +128,51 @@ def release_card_file(instance, field_name: str) -> bool:
     try:
         if not owns_file(instance, file_name) or is_shared_elsewhere(instance, field_name, file_name):
             return False
-        from wama.common.services.released_files import release_path
-        from django.contrib.auth import get_user_model
-        owner = _owner_id(instance)
-        user = get_user_model().objects.filter(pk=owner).first() if owner else None
-        return release_path(file_name, user,
-                            origin=f'{instance._meta.label}#{instance.pk} · {field_name}') is not None
+        return _note_released(instance, field_name, file_name)
     except Exception:
         return False
+
+
+def _note_released(instance, field_name: str, file_name: str) -> bool:
+    """Note le fichier comme libéré par cette card (qui, quand, d'où) ; le fichier n'est pas touché."""
+    from django.contrib.auth import get_user_model
+    from wama.common.services.released_files import release_path
+    owner = _owner_id(instance)
+    user = get_user_model().objects.filter(pk=owner).first() if owner else None
+    return release_path(file_name, user,
+                        origin=f'{instance._meta.label}#{instance.pk} · {field_name}') is not None
+
+
+def release_card_files(instance) -> int:
+    """Le retrait à l'échelle de la CARD : elle libère TOUT ce qu'elle porte, lu de ses
+    déclarations — jamais d'une liste de champs écrite dans la vue (2026-10-01).
+
+      * chacun de ses `FileField` (`release_card_file`) — la même énumération que l'aperçu de la
+        confirmation (`released_files.freed_by`) et que la purge de rétention : le geste ne peut
+        donc plus libérer autre chose que ce que son aperçu a annoncé ;
+      * chaque entrée de ses LISTES DE CHEMINS déclarées (`file_references.listed_paths`), sous
+        les deux mêmes règles : elle vit chez l'app de la card, et aucun champ fichier du dépôt
+        ne la désigne.
+
+    Né du reste que la décision D34 laissait : les images de l'imager (`generated_images`, une
+    liste et non un `FileField`) étaient EFFACÉES à la main au retrait de la card, sans règle de
+    propriété ni de partage, alors que sa vidéo était libérée. Rend le nombre de fichiers libérés.
+    Ne lève jamais.
+    """
+    from django.db import models as dj_models
+    from wama.common.utils.file_references import is_referenced_elsewhere, listed_paths
+    released = 0
+    for f in instance._meta.concrete_fields:
+        if isinstance(f, dj_models.FileField) and release_card_file(instance, f.name):
+            released += 1
+    try:
+        for field_name, file_name in listed_paths(instance):
+            if (owns_file(instance, file_name) and not is_referenced_elsewhere(file_name)
+                    and _note_released(instance, field_name, file_name)):
+                released += 1
+    except Exception:
+        pass
+    return released
 
 
 def is_shared_elsewhere(instance, field_name: str, file_name: str) -> bool:
@@ -200,8 +240,8 @@ def duplicate_instance(instance, reset_fields=None, clear_fields=None, *, for_us
     Create a new DB row that shares the same input file(s) as the original.
 
     Files are NOT copied. The new row gets the same FileField path as the original.
-    Use safe_delete_file() in the delete view of the app so that shared files are
-    only removed from disk when the last referencing row is deleted.
+    Use release_card_file() in the delete view of the app: a file still shared with a
+    duplicate stays untouched, and is released only when its last referencing row goes.
 
     ``for_user`` (2026-10-01, `WAMA_COLLABORATION §3bis` — « dupliquer une card reçue ») : quand
     la card appartient à quelqu'un d'autre, la copie devient l'objet de ``for_user`` — elle lui

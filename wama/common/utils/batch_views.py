@@ -44,7 +44,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from wama.common.utils.batch_common import attach_to_batch, batch_elements
 from wama.common.utils.process_control import begin_processing
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 
 #: Remise à zéro d'un élément relancé / dupliqué — l'idiome des 10 apps.
 DEFAULT_RESET = {'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''}
@@ -146,8 +146,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
 
     Args:
         task            : tâche Celery de l'élément (`.delay(id)`) — sans elle, `batch_start` répond 400.
-        file_fields     : champs FICHIER de l'élément (entrée en tête) — supprimés avec lui par
-                          `safe_delete_file` (propriété + partage jugés par la brique).
+        file_fields     : PLUS LU depuis le 2026-10-01 — `batch_delete` libère ce que l'élément
+                          PORTE, lu de ses déclarations (`release_card_files` : ses `FileField`
+                          et ses listes de chemins déclarées), comme l'aperçu de la confirmation.
+                          Gardé à la signature pour les appelants et les jumelles pas encore
+                          régénérées (`REMOVAL_LEDGER`) ; ne plus le passer.
         output_fields   : champs fichier de SORTIE — vidés à la duplication.
         output_field    : champ servi par `batch_download` (absent du modèle → 404 JSON).
         params_fields / schema / options_field / extra_names : cf. `apply_item_settings`.
@@ -282,8 +285,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             _revoke_quietly(item)
             if on_delete is not None:
                 on_delete(item)
-            for field in file_fields:
-                release_card_file(item, field)
+            release_card_files(item)
             item.delete()
         # Le lot VIDÉ est purgé par le signal ; ne reste qu'un lot qui n'avait AUCUN élément —
         # par requête, jamais par l'instance (son id est parti avec le dernier élément).

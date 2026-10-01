@@ -1010,7 +1010,8 @@ le passé.*
   `update`↔`save_settings`) + endpoints spécifiques déclarés (`edit`, `realtime`, `waveform_peaks`…).
 - **Batch = 2 schémas** : FK directe (converter `ConversionJob.batch`) vs through-model (transcriber
   `BatchTranscript`+`BatchTranscriptItem`). Comportement unifié par `BatchMixin`, schéma non. Helpers communs
-  `group_into_batches_by_nature()`, `duplicate_instance()`, `safe_delete_file()`.
+  `group_into_batches_by_nature()`, `duplicate_instance()`, `release_card_files()` (retirer une
+  card libère ce qu'elle porte — `MEDIA_STORAGE_TIERING` D34/D35), `safe_delete_file()` (relance).
 - **Manifeste** : `processing.{item_model + noms de champs réels, statuses + flag normalisation, task/queue/
   progress pattern, batch:{kind:fk|through}, endpoints: socle standard vs spécifiques}`.
 

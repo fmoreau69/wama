@@ -923,10 +923,10 @@ def get_batch_children(request, batch_id):
 # `<int:pk>`, dernière graphie déviante). Spécificités DÉCLARÉES en kwargs : ▶ de lot ne lance
 # que les PENDING (contrat WamaBatchImport, comme le composer) ; la tâche se choisit PAR
 # élément (image ou vidéo, `is_video_generation`) ; le cache de progression s'oublie au
-# démarrage et à la suppression, avec les sorties `generated_images` (liste de chemins, pas un
-# FileField — `_forget_outputs`, partagé avec la suppression d'UNE génération) ; les trois
-# champs fichier passent par la brique (partagés à la duplication) ; le lot copié garde son
-# `domain` (l'onglet). `batch_update` (un schéma PAR élément, image ou vidéo) et
+# démarrage et à la suppression (`_forget_progress`) ; les fichiers de la génération — ses
+# trois champs fichier ET ses images (`generated_images`, liste de chemins déclarée à la
+# rétention) — sont LIBÉRÉS par la fabrique (`release_card_files`), rien n'est effacé ; le lot
+# copié garde son `domain` (l'onglet). `batch_update` (un schéma PAR élément, image ou vidéo) et
 # `get_batch_children` (lecture PARTAGÉE) restent locaux, assumés, lus par `batch_elements`.
 from wama.common.utils.batch_views import make_batch_views
 
@@ -940,21 +940,25 @@ def _task_for(gen):
     return generate_video_task if gen.is_video_generation else generate_image_task
 
 
+def _forget_progress(gen):
+    cache.delete(f"imager_progress_{gen.id}")
+
+
 def _reset_and_forget_progress(gen):
     gen.progress = 0
     gen.error_message = ''
-    cache.delete(f"imager_progress_{gen.id}")
+    _forget_progress(gen)
 
 
 _bv = make_batch_views(
     work_model=ImageGeneration, batch_model=GenerationBatch, get_user=_get_user,
     task_for=_task_for, start_only_pending=True,
-    file_fields=('reference_image', 'prompt_file', 'output_video'), output_fields=('output_video',),
+    output_fields=('output_video',),
     item_model=GenerationBatchItem, fk_name='generation',
     reset_on_start=_reset_and_forget_progress,
     reset_on_duplicate=_RESET_DUPLICATION,
     batch_extra=lambda lot: {'domain': lot.domain},
-    on_delete=lambda gen: _forget_outputs(gen),
+    on_delete=_forget_progress,
 )
 batch_start = _bv['batch_start']
 batch_delete = _bv['batch_delete']
@@ -1269,29 +1273,19 @@ def download(request, generation_id):
 
 
 def _purger_generation(generation):
-    """Sorties, fichiers d'entrée et tâche Celery d'UNE génération, puis la ligne.
+    """Fichiers et tâche Celery d'UNE génération, puis la ligne — le retrait de « Supprimer »
+    comme de « Tout effacer » (le lot passe par la fabrique, qui fait le même geste).
 
-    Extrait de `delete_generation` le 2026-08-27 en ouvrant `batch_delete` : la suppression
-    d'un lot est la MÊME suppression, N fois. La recopier aurait fait diverger les deux au
-    premier champ ajouté à `clear_fields` — exactement ce que le commentaire ci-dessous
-    reproche déjà à un `os.remove` brut.
+    Les fichiers sont LIBÉRÉS par la brique, à l'échelle de la card (`release_card_files`,
+    2026-10-01) : ses champs fichier ET ses images (`generated_images`, liste de chemins
+    déclarée à la rétention). Jusque-là les images étaient effacées ici par un `os.remove`,
+    sans règle de propriété ni de partage, pendant que la vidéo était libérée — le reste que
+    la décision D34 de `MEDIA_STORAGE_TIERING` avait laissé. `duplicate_instance` PARTAGE les
+    fichiers d'entrée : la brique ne libère que ce que plus aucune ligne ne désigne.
     """
-    _forget_outputs(generation)
-
-    # FileFields → `release_card_file` (libérés, jamais effacés — 2026-09-30) : `duplicate_instance` PARTAGE les fichiers (il ne
-    # les copie pas), donc supprimer le fichier d'une ligne casserait ses doublons. La
-    # brique ne l'efface que si plus aucune autre ligne ne le référence.
-    #   • reference_image / prompt_file : PARTAGÉS (non listés dans `clear_fields`) — ils
-    #     n'étaient tout simplement JAMAIS supprimés, donc laissés à fuir sur le disque ;
-    #   • output_video : vidé à la duplication aujourd'hui, mais on passe quand même par
-    #     la brique — un `os.remove` brut redeviendrait faux au premier changement de
-    #     `clear_fields`, sans que rien ne le signale.
-    from wama.common.utils.queue_duplication import release_card_file
-    for _champ in ('output_video', 'reference_image', 'prompt_file'):
-        try:
-            release_card_file(generation, _champ)
-        except Exception as e:
-            logger.warning(f"release_card_file({_champ}) a échoué : {e}")
+    _forget_progress(generation)
+    from wama.common.utils.queue_duplication import release_card_files
+    release_card_files(generation)
 
     # Revoke Celery task if still queued/running
     if generation.task_id:
@@ -1302,20 +1296,6 @@ def _purger_generation(generation):
             pass
 
     generation.delete()
-
-
-def _forget_outputs(generation):
-    """Les sorties qu'aucune brique ne connaît : `generated_images` (LISTE de chemins, pas un
-    FileField — jamais partagée, vidée à la duplication) et le cache de progression. Appelé
-    par `_purger_generation` (une génération) et par la fabrique des vues de lot (`on_delete`),
-    qui fait le reste — fichiers LIBÉRÉS par `release_card_file`, révocation, ligne."""
-    for image_path in generation.generated_images:
-        if os.path.exists(image_path):
-            try:
-                os.remove(image_path)
-            except Exception as e:
-                logger.warning(f"Failed to delete image {image_path}: {str(e)}")
-    cache.delete(f"imager_progress_{generation.id}")
 
 
 @require_http_methods(["POST"])
@@ -1448,33 +1428,12 @@ def clear_all(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generations = ImageGeneration.objects.filter(user=user)
-
-        # Révocation Celery + fichiers. Même règle que `delete_generation` : les FileFields
-        # passent par `release_card_file` (partage possible entre doublons), la liste de
-        # chemins `generated_images` se supprime directement.
-        from celery.result import AsyncResult
-        from wama.common.utils.queue_duplication import release_card_file
+        # La MÊME suppression que `delete_generation`, N fois (fichiers libérés, tâche révoquée,
+        # ligne) — elle était recopiée ici, et la copie effaçait les images à la main.
+        generations = list(ImageGeneration.objects.filter(user=user))
         for generation in generations:
-            if generation.task_id:
-                try:
-                    AsyncResult(generation.task_id).revoke(terminate=False)
-                except Exception:
-                    pass
-            for image_path in generation.generated_images:
-                if os.path.exists(image_path):
-                    try:
-                        os.remove(image_path)
-                    except Exception as e:
-                        logger.warning(f"Failed to delete image {image_path}: {str(e)}")
-            for _champ in ('output_video', 'reference_image', 'prompt_file'):
-                try:
-                    release_card_file(generation, _champ)
-                except Exception as e:
-                    logger.warning(f"release_card_file({_champ}) a échoué : {e}")
-
-        count = generations.count()
-        generations.delete()
+            _purger_generation(generation)
+        count = len(generations)
         logger.info(f"Cleared {count} generations for user {user.username}")
 
         return JsonResponse({'success': True, 'deleted': count})

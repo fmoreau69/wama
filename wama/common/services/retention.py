@@ -40,19 +40,6 @@ RETENTION_MODELS = [
 ]
 
 
-def _relative_to_media(path):
-    """Chemin relatif à MEDIA_ROOT (la forme que `owns_file` compare) ; '' s'il est HORS de
-    MEDIA_ROOT — et alors `owns_file` refuse, ce qui est voulu : la purge ne sort jamais de là."""
-    from django.conf import settings
-    if not os.path.isabs(path):
-        return path.replace('\\', '/')
-    root = os.path.abspath(settings.MEDIA_ROOT)
-    absolute = os.path.abspath(path)
-    if os.path.commonpath([root, absolute]) != root:
-        return ''
-    return os.path.relpath(absolute, root).replace('\\', '/')
-
-
 def _delete_path(rel):
     """Efface un fichier relatif à MEDIA_ROOT et oublie sa note de fichier libéré. Fail-safe."""
     from django.conf import settings
@@ -66,7 +53,8 @@ def _delete_path(rel):
         logger.debug("retention: suppression %s a échoué : %s", rel, e)
 
 
-def _purge_instance(obj, path_lists):
+def _purge_instance(obj):
+    from wama.common.utils.file_references import listed_paths
     from wama.common.utils.queue_duplication import owns_file, safe_delete_file
     from wama.common.services.released_files import still_used
     # 1) FileField/ImageField découverts automatiquement → EFFACÉS (propriété + partage respectés).
@@ -80,15 +68,11 @@ def _purge_instance(obj, path_lists):
     # 2) Champs de chemins (listes JSON) → seulement ce qui vit CHEZ l'app (`owns_file`, la même
     #    règle que pour les FileField) et que rien d'autre ne porte. Jusqu'au 2026-09-22 ces listes
     #    étaient effacées sans aucune règle : un chemin référencé hors du domicile de l'app y
-    #    passait comme le reste.
-    for pl in path_lists or []:
-        val = getattr(obj, pl, None)
-        if isinstance(val, (list, tuple)):
-            for p in val:
-                path = p if isinstance(p, str) else (p or {}).get('path') if isinstance(p, dict) else None
-                rel = _relative_to_media(path) if path else ''
-                if rel and owns_file(obj, rel) and not still_used(rel):
-                    _delete_path(rel)
+    #    passait comme le reste. Les entrées se lisent par `file_references.listed_paths`, comme
+    #    au retrait d'une card (`queue_duplication.release_card_files`) — une lecture, deux gestes.
+    for _field, rel in listed_paths(obj):
+        if owns_file(obj, rel) and not still_used(rel):
+            _delete_path(rel)
     # 3) Supprimer l'enregistrement.
     obj.delete()
 
@@ -125,7 +109,6 @@ def purge_expired_media(dry_run=False):
             continue
         date_field = entry.get('date', 'created_at')
         user_field = entry.get('user', 'user')
-        path_lists = entry.get('path_lists', [])
         pin_field = entry.get('pin')
         count = 0
         for user_id, days in retentions.items():
@@ -138,7 +121,7 @@ def purge_expired_media(dry_run=False):
                 continue
             for obj in list(qs):
                 try:
-                    _purge_instance(obj, path_lists)
+                    _purge_instance(obj)
                     count += 1
                 except Exception as e:  # pragma: no cover
                     logger.warning("retention: échec purge %s #%s : %s", entry['model'], obj.pk, e)
