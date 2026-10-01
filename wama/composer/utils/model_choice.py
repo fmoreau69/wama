@@ -85,32 +85,23 @@ def consumes_melody(value) -> bool:
     key = normalize(value)
     if auto_task(key):
         return False
-    try:
-        from wama.model_manager.models import AIModel
-        row = AIModel.objects.filter(model_key=key).only('capabilities').first()
-        caps = (row.capabilities or {}) if row else {}
-    except Exception:
-        caps = {}
-    accepted = set(caps.get('inputs_required') or []) | set(caps.get('inputs_optional') or [])
-    return 'reference_melody' in accepted or model_id(key) == 'musicgen-melody'
-
-
-def _accepted(caps) -> set:
-    caps = caps or {}
-    return set(caps.get('inputs_required') or []) | set(caps.get('inputs_optional') or [])
+    return consumes_input(key, 'reference_melody') or model_id(key) == 'musicgen-melody'
 
 
 def consumes_input(value, token: str) -> bool:
     """Le modèle prend-il l'entrée `token` (capacité DÉCLARÉE au catalogue) ? Pour un « auto » de
     groupe : oui si AU MOINS UN modèle de sa tâche la déclare — le tirage choisira alors parmi
-    eux (`auto_model.resolve_auto_model`, `consumes`). Ne lève jamais."""
+    eux (`auto_model.resolve_auto_model`, `consumes`). Le jugement est celui du sélecteur
+    commun (`model_selector.matches_inputs`, `consumes`) — jamais une relecture des capacités
+    ici. Ne lève jamais."""
     key = normalize(value)
     try:
         from wama.model_manager.models import AIModel
+        from wama.model_manager.services.model_selector import matches_inputs
         task = auto_task(key)
         rows = (AIModel.objects.filter(capabilities__task=task) if task
                 else AIModel.objects.filter(model_key=key))
-        return any(token in _accepted(c) for c in rows.values_list('capabilities', flat=True))
+        return any(matches_inputs(m, consumes=[token]) for m in rows.only('capabilities'))
     except Exception:
         return False
 

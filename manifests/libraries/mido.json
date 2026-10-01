@@ -1,0 +1,40 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "importlib-metadata",
+      "packaging"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "mido-connect",
+        "mido-play",
+        "mido-ports",
+        "mido-serve"
+      ]
+    },
+    "identity": {
+      "author": "Ole Martin Bjorndalen <ombdalen@gmail.com>",
+      "license": "MIT",
+      "repository": "https://github.com/mido/mido",
+      "summary": "MIDI Objects for Python",
+      "version": "1.3.3"
+    },
+    "install": {
+      "pip": "mido==1.3.3",
+      "requires_python": "~=3.7"
+    }
+  },
+  "description": "MIDI Objects for Python",
+  "key": "mido",
+  "manifest_kind": "library",
+  "name": "mido",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:mido==1.3.3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

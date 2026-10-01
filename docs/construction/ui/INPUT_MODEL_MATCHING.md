@@ -428,13 +428,28 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
   modèle ne la suit pas), tirage « auto » borné aux modèles qui la consomment, contrat
   `MusicGenerationBackend.generate(score_path=)` — AudioCraft et audio.cpp la REFUSENT en le
   disant (`refuse_score`), YuE2 donne un ABC au pipeline (`abc=`, phase de plan sautée).
-- ⏳ **MIDI et MusicXML → ABC** : refusés en le disant par YuE2 tant que la conversion n'est pas
-  câblée. Voie retenue : le compilateur du moteur (`skills/yue2-music/instrumental/scripts/
-  compile_score.py`, notes → ABC au format d'entraînement de YuE2), alimenté par un lecteur MIDI
-  à installer par la route `library` (aucun n'est présent : ni `mido`, ni `pretty_midi`, ni
-  `music21`). Un convertisseur générique produirait un ABC hors des conventions de YuE2.
+- ✅ **MIDI → ABC** (même jour, feu vert de Fabien pour `mido`) : `mido` 1.3.3 installé par la
+  route `library` — manifeste proposé par le rôle `librarian` (Albert), version exacte posée à la
+  mesure PyPI (le dépôt la déclare dynamique), `propose → plan → apply`, simulation sans
+  rétrogradation. YuE2 lit le MIDI (`YuE2Backend._midi_events`) et le donne au compilateur DU
+  MOTEUR, importé tel quel (`skills/yue2-music/instrumental/scripts/compile_score.py`, notes → ABC
+  au format d'entraînement de YuE2) — un convertisseur générique produirait un ABC hors de ses
+  conventions. Ce que la conversion FAIT, et dit : ligne de dessus (le compilateur n'accepte
+  qu'une mélodie), batterie (canal 10) écartée, quantification au 1/8 de noire, tempo/mesure/
+  tonalité du fichier (sinon 120, 4/4, Do) ; dialecte INSTRUMENTAL (mélodie en voix `Ins`, aucun
+  accord inféré). Lecture MIDI gardée dans le backend : un seul consommateur — à extraire dans
+  `common/` au second.
+- ⏳ **MusicXML** : refusé en le disant (mido ne lit que le MIDI) — l'exporter en MIDI ou en ABC.
+- **Audit d'alignement (question de Fabien : « on a rien réinventé d'inutile ? »)** — une
+  réinvention et deux incohérences, corrigées le jour même : `consumes_input` relisait les
+  capacités à la main → il appelle `model_selector.matches_inputs(consumes=…)` (la brique
+  extraite du composer pour toutes les apps ; `consumes_melody` aussi) ; l'inventaire des modèles
+  d'une app avait deux lectures (`app_input_ports` élargi, `input_match.app_attribute_verdict`
+  resté sur la source) → un seul accesseur, `app_registry.app_model_capabilities` ; le panneau de
+  référence secondaire recopiait celui du travail secondaire → une seule branche de gabarit.
   Gardes : `tests_score_input` (nature, jeton, drapeau + contre-épreuve avatarizer, ids de card,
-  chaîne outil → tirage → moteurs, port lu par le studio).
+  chaîne outil → tirage → moteurs, conversion MIDI — accord réduit, batterie écartée —, port lu
+  par le studio).
 
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 

@@ -136,12 +136,11 @@ def app_attribute_verdict(source: str, token: str, path: str):
     Le meilleur état l'emporte (compatible > avertissement > refus) ; la raison est celle du
     meilleur. Aucun modèle de l'app ne consomme ce jeton, ou aucun n'exige d'attribut : rien à
     juger, `('compatible', '')`. Les étapes internes (`pipeline_stage`) ne comptent pas."""
+    from wama.common.app_registry import app_model_capabilities
     from wama.media_library.natures import COMPATIBLE, INCOMPATIBLE, WARNING
-    try:
-        from wama.model_manager.models import AIModel
-        rows = list(AIModel.objects.filter(source=source).values_list('capabilities', flat=True))
-    except Exception:
-        return COMPATIBLE, ''
+    # L'inventaire des modèles de l'app est CELUI de ses ports (`app_model_capabilities`,
+    # 2026-10-01) : un modèle que le select propose sans être de la source est jugé aussi.
+    rows = app_model_capabilities(source)
     rank = {COMPATIBLE: 0, WARNING: 1, INCOMPATIBLE: 2}
     best = None
     for caps in rows:

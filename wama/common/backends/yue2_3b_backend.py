@@ -40,7 +40,8 @@ class YuE2Backend(MusicGenerationBackend):
 
     # ── métadonnées requises par le contrat commun ───────────────────────
     ENGINE = "yue"
-    REQUIRED_PACKAGES = ["torch", "soundfile"]
+    # `mido` (2026-10-01, route library) : lecture des partitions MIDI (`_midi_events`).
+    REQUIRED_PACKAGES = ["torch", "soundfile", "mido"]
     name = "YuE2-3B"
     display_name = "YuE2‑3B – Text‑to‑Music"
     recommended_vram_gb = 8.8
@@ -107,23 +108,105 @@ class YuE2Backend(MusicGenerationBackend):
         except Exception:
             pass
 
-    @staticmethod
-    def _score_abc(score_path: str) -> str:
+    #: Le compilateur de partition DU MOTEUR (vendorisé, importé tel quel — jamais recopié) :
+    #: notes → ABC dans le dialecte instrumental de YuE2 (mélodie en voix `Ins`).
+    SCORE_COMPILER_DIR = "skills/yue2-music/instrumental/scripts"
+    #: Grille de quantification : 1/8 de noire (= L:1/32), la grille binaire du compilateur.
+    MIDI_GRID = 8
+
+    @classmethod
+    def _score_abc(cls, score_path: str) -> str:
         """Le texte ABC d'une partition — ou un refus qui DIT pourquoi.
 
-        MIDI et MusicXML se convertiront par le compilateur de partition du moteur
-        (`skills/yue2-music/instrumental/scripts/compile_score.py` : notes → ABC au format
-        d'entraînement de YuE2), à partir d'un lecteur MIDI qui n'est pas encore installé — un
-        convertisseur générique produirait un ABC hors de ses conventions."""
+        - `.abc` : donné tel quel ;
+        - `.mid`/`.midi` (2026-10-01) : lu par `mido` (route `library`), réduit à UNE ligne
+          mélodique (`_midi_events`), puis compilé par le compilateur du moteur — un
+          convertisseur générique produirait un ABC hors des conventions de YuE2 ;
+        - MusicXML : refusé en le disant (mido ne lit que le MIDI)."""
         suffix = Path(score_path).suffix.lower()
+        if suffix in (".mid", ".midi"):
+            compiler = cls.import_vendored("compile_score", subdir=cls.SCORE_COMPILER_DIR)
+            try:
+                text, _check = compiler.compile_events(cls._midi_events(score_path))
+            except (ValueError, KeyError, TypeError) as exc:
+                raise ValueError(f"Partition MIDI non convertible pour YuE2 : {exc}") from exc
+            return text
         if suffix != ".abc":
             raise ValueError(
-                f"YuE2‑3B suit une partition ABC ; la conversion {suffix or 'de ce fichier'} → ABC "
-                "n'est pas encore disponible. Fournir le fichier en .abc.")
+                f"YuE2‑3B suit une partition ABC ou MIDI ; la conversion {suffix or 'de ce fichier'} → ABC "
+                "n'est pas disponible (MusicXML : l'exporter en MIDI ou en ABC).")
         text = Path(score_path).read_text(encoding="utf-8", errors="replace").strip()
         if not text:
             raise ValueError("La partition ABC fournie est vide.")
         return text
+
+    @classmethod
+    def _midi_events(cls, midi_path: str) -> dict:
+        """Un fichier MIDI → les ÉVÉNEMENTS du compilateur du moteur (`event-schema.md`) :
+        `{bpm, key, bars, notes}`, temps en noires (fractions sur la grille `MIDI_GRID`).
+
+        Le compilateur n'accepte qu'UNE ligne mélodique : la polyphonie est réduite à la note la
+        plus HAUTE de chaque attaque (ligne de dessus), chaque note s'arrête à l'attaque suivante,
+        et la batterie (canal 10) est écartée. Tempo, mesure et tonalité : les premiers que le
+        fichier déclare, sinon 120, 4/4, Do. Une seule consommatrice aujourd'hui — à extraire
+        dans `common/` au second consommateur d'une lecture MIDI."""
+        import math
+        from fractions import Fraction
+
+        import mido
+
+        midi = mido.MidiFile(midi_path)
+        tpb = midi.ticks_per_beat or 480
+        tempo, meter, key = None, None, None
+        started, notes, tick = {}, [], 0
+        for msg in mido.merge_tracks(midi.tracks):
+            tick += msg.time
+            if msg.type == "set_tempo" and tempo is None:
+                tempo = msg.tempo
+            elif msg.type == "time_signature" and meter is None:
+                meter = (msg.numerator, msg.denominator)
+            elif msg.type == "key_signature" and key is None:
+                key = msg.key
+            elif msg.type in ("note_on", "note_off") and getattr(msg, "channel", 0) != 9:
+                slot = (msg.channel, msg.note)
+                if msg.type == "note_on" and msg.velocity > 0:
+                    started.setdefault(slot, tick)
+                elif slot in started:
+                    notes.append((started.pop(slot), tick, msg.note))
+        if not notes:
+            raise ValueError("aucune note jouée dans le fichier MIDI (batterie exceptée)")
+
+        def q(ticks):
+            return Fraction(round(ticks * cls.MIDI_GRID / tpb), cls.MIDI_GRID)
+
+        lead = {}
+        for start, end, pitch in notes:
+            s, e = q(start), q(end)
+            e = max(e, s + Fraction(1, cls.MIDI_GRID))
+            if s not in lead or pitch > lead[s][1]:
+                lead[s] = (e, pitch)
+        onsets = sorted(lead)
+        events = []
+        for i, s in enumerate(onsets):
+            e, pitch = lead[s]
+            if i + 1 < len(onsets):
+                e = min(e, onsets[i + 1])
+            events.append([str(s), str(e - s), int(pitch)])
+        num, den = meter or (4, 4)
+        bar = Fraction(4 * num, den)
+        end = max(Fraction(ev[0]) + Fraction(ev[1]) for ev in events)
+        n_bars = max(1, math.ceil(end / bar))
+        try:
+            compiler = cls.import_vendored("compile_score", subdir=cls.SCORE_COMPILER_DIR)
+            compiler.key_accidentals(key or "C")
+        except Exception:
+            key = None                                   # tonalité illisible : Do, sans deviner
+        return {
+            "bpm": max(1, round(mido.tempo2bpm(tempo))) if tempo else 120,
+            "key": key or "C",
+            "bars": [{"meter": f"{num}/{den}"}] + [{} for _ in range(n_bars - 1)],
+            "notes": events,
+        }
 
     # ------------------------------------------------------------------
     # Génération
