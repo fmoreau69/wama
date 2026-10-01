@@ -170,14 +170,18 @@ def purge_expired_media_task(dry_run=False):
 
     res = purge_expired_media(dry_run=dry_run)
     logger.info("[retention] %s", res)
-    # Fichiers LIBÉRÉS restés inutilisés trop longtemps (2026-09-30) : UNE notification par
-    # utilisateur, jamais une suppression — c'est lui qui décide (`released_files`).
+    # Fichiers INUTILISÉS (2026-10-01, décisions de Fabien) : rétention FINIE → ceux qui ont passé
+    # leur terme ET ont été annoncés sont supprimés (puis l'utilisateur reçoit la liste) ; ensuite
+    # UNE notification par utilisateur pour les nouveaux (« bientôt supprimés » si rétention finie,
+    # « inutilisés depuis… » sinon). L'ordre compte : ce qui vient d'être supprimé n'est pas annoncé.
     if not dry_run:
         try:
-            from wama.common.services.released_files import notify_long_unused
+            from wama.common.services.released_files import (notify_long_unused,
+                                                             purge_expired_released)
+            res['unused_files_deleted'] = purge_expired_released()['deleted']
             res['unused_files_notified'] = notify_long_unused()
         except Exception as e:  # pragma: no cover
-            logger.warning("notification des fichiers inutilisés a échoué : %s", e)
+            logger.warning("traitement des fichiers inutilisés a échoué : %s", e)
     return res
 
 

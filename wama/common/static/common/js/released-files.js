@@ -82,8 +82,15 @@
     });
   }
 
+  // La LISTE des fichiers inutilisés (onglet « Inutilisés » de la médiathèque, `data-released-files-list`)
+  // dit déjà tout : l'encart y ferait doublon, et masquerait ses boutons.
+  function listShown() {
+    var el = document.querySelector('[data-released-files-list]');
+    return !!(el && el.offsetParent !== null);
+  }
+
   function check() {
-    if (busy) return;
+    if (busy || listShown()) return;
     busy = true;
     fetch(LIST_URL, { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.json() : { files: [] }; })
@@ -93,8 +100,11 @@
   }
 
   document.addEventListener('media:deleted', function () { setTimeout(check, 300); });
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', check);
-  else check();
+  // Au chargement, un temps pour que la page montre son panneau (la médiathèque ouvre l'onglet
+  // « Inutilisés » par son JS) avant de décider s'il faut annoncer.
+  function checkSoon() { setTimeout(check, 600); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', checkSoon);
+  else checkSoon();
 
   global.WamaReleasedFiles = { check: check };
 })(window);

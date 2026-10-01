@@ -1603,6 +1603,16 @@ def api_released_files_delete(request):
 
 
 @login_required
+@require_POST
+def api_released_files_renew(request):
+    """POST `ids` — « Garder » un fichier inutilisé quand la rétention est FINIE : il repart pour
+    une durée complète, et sera de nouveau annoncé avant son prochain terme."""
+    from wama.common.services.released_files import renew_released
+    ids = [int(i) for i in request.POST.getlist('ids') if str(i).isdigit()]
+    return JsonResponse({'renewed': renew_released(request.user, ids)})
+
+
+@login_required
 def api_released_files_all(request):
     """GET — TOUS les fichiers inutilisés de l'utilisateur (onglet « Inutilisés » de la
     médiathèque), avec taille et ancienneté. Lecture seule : rien n'est marqué annoncé."""

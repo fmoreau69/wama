@@ -34,9 +34,9 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-#: Au-delà, un fichier libéré et toujours inutilisé fait l'objet d'une notification. Réglable par
-#: `settings.WAMA_UNUSED_FILE_NOTICE_DAYS` ; la rétention de l'utilisateur, si elle est plus courte,
-#: prime (c'est la durée qu'il a lui-même choisie pour ses médias).
+#: Rétention INFINIE : au-delà, un fichier libéré et toujours inutilisé fait l'objet d'une
+#: notification. Réglable par `settings.WAMA_UNUSED_FILE_NOTICE_DAYS`. Avec une rétention FINIE,
+#: c'est la durée choisie qui s'applique (pré-avis, puis suppression — `purge_expired_released`).
 UNUSED_NOTICE_DAYS = 30
 
 
@@ -111,9 +111,12 @@ def list_unused(user) -> dict:
     où il les supprime un par un ou par sélection. Ne marque rien comme annoncé (c'est une lecture),
     mais oublie ceux qu'une card a repris ou qui ont disparu : la liste ne montre que du vrai.
     Rend `{'files': [...], 'total_size': octets}`, le plus anciennement inutilisé d'abord."""
+    from datetime import timedelta
     from django.conf import settings
     from wama.common.models import ReleasedFile
+    from wama.common.services.retention import retention_days_for
     now = timezone.now()
+    days = retention_days_for(user)
     files, total = [], 0
     for row in _forget_if_used(ReleasedFile.objects.filter(user=user).order_by('released_at')):
         try:
@@ -121,9 +124,14 @@ def list_unused(user) -> dict:
         except OSError:
             size = 0
         total += size
+        # Rétention FINIE : la date à laquelle il partira (au plus tôt après le pré-avis).
+        deletes_on = (max(row.released_at + timedelta(days=days),
+                          (row.notified_at or now) + timedelta(days=min(pre_notice_days(), days)))
+                      if days else None)
         files.append({**_as_dict(row), 'size': size, 'unused_days': (now - row.released_at).days,
-                      'origin_label': origin_label(row.origin)})
-    return {'files': files, 'total_size': total}
+                      'origin_label': origin_label(row.origin),
+                      'deletes_on': deletes_on.date().isoformat() if deletes_on else None})
+    return {'files': files, 'total_size': total, 'retention_days': days}
 
 
 def count_unused(user) -> int:
@@ -228,40 +236,111 @@ def status_of(path) -> dict:
             'unused_days': (timezone.now() - since).days if since else None}
 
 
-def notice_days_for(user) -> int:
+def pre_notice_days() -> int:
+    """Combien de jours AVANT sa suppression un fichier inutilisé est annoncé — le même pré-avis que
+    les médias des cards (`settings.WAMA_RETENTION_NOTICE_DAYS`, 3 par défaut), au moins un jour."""
     from django.conf import settings
-    days = int(getattr(settings, 'WAMA_UNUSED_FILE_NOTICE_DAYS', UNUSED_NOTICE_DAYS) or UNUSED_NOTICE_DAYS)
-    try:
-        own = user.profile.effective_retention_days()
-    except Exception:
-        own = 0
-    return min(days, own) if own else days
+    return max(1, int(getattr(settings, 'WAMA_RETENTION_NOTICE_DAYS', 3) or 3))
+
+
+def unused_notice_days() -> int:
+    """Rétention INFINIE : au-delà, un fichier inutilisé fait l'objet d'UNE notification."""
+    from django.conf import settings
+    return int(getattr(settings, 'WAMA_UNUSED_FILE_NOTICE_DAYS', UNUSED_NOTICE_DAYS) or UNUSED_NOTICE_DAYS)
+
+
+def _names(rows) -> str:
+    names = ', '.join(os.path.basename(r.path) for r in rows[:5])
+    return names + (f' (et {len(rows) - 5} autre(s))' if len(rows) > 5 else '')
 
 
 def notify_long_unused(now=None) -> int:
-    """UNE notification par utilisateur pour ses fichiers libérés restés inutilisés au-delà du
-    seuil, jamais deux fois pour le même fichier. Rend le nombre de notifications créées."""
+    """UNE notification par utilisateur pour ses fichiers inutilisés, jamais deux fois pour le même
+    fichier. Rend le nombre de notifications créées. Deux régimes (décisions de Fabien, 2026-10-01) :
+
+      * rétention INFINIE — au-delà de `unused_notice_days()`, « inutilisés depuis… » : rien n'est
+        supprimé sans lui, il fait le ménage dans la médiathèque (onglet « Inutilisés ») ;
+      * rétention FINIE de N jours — `pre_notice_days()` avant le terme, « seront supprimés le… » :
+        la durée qu'il a choisie s'applique aussi aux fichiers qu'il a gardés, mais il est PRÉVENU
+        (il peut avoir oublié sa durée) et « Garder » leur redonne N jours (`renew_released`).
+    """
     from collections import defaultdict
     from datetime import timedelta
     from wama.common.models import ReleasedFile
+    from wama.common.services.retention import retention_days_by_user
     from wama.common.utils.notifications import notify_in_app
     now = now or timezone.now()
+    retention = retention_days_by_user()
+    pre = pre_notice_days()
     by_user = defaultdict(list)
     rows = ReleasedFile.objects.filter(notified_at__isnull=True, user__isnull=False).select_related('user')
     for row in _forget_if_used(rows):
-        if row.released_at <= now - timedelta(days=notice_days_for(row.user)):
+        days = retention.get(row.user_id)
+        threshold = max(0, days - pre) if days else unused_notice_days()
+        if row.released_at <= now - timedelta(days=threshold):
             by_user[row.user].append(row)
     sent = 0
     for user, files in by_user.items():
-        names = ', '.join(os.path.basename(r.path) for r in files[:5])
-        more = f' (et {len(files) - 5} autre(s))' if len(files) > 5 else ''
-        days = notice_days_for(user)
-        sent += notify_in_app(
-            [user], 'files_unused',
-            f'{len(files)} fichier(s) inutilisé(s) depuis plus de {days} jours',
-            body=(f"Plus aucune card ne les utilise : {names}{more}. Ils occupent encore votre "
-                  "espace ; supprimez-les depuis la médiathèque (onglet « Inutilisés ») si vous n'en avez "
-                  "plus besoin — rien n'est supprimé sans vous."),
-            url='/media-library/?tab=unused')
+        days = retention.get(user.pk)
+        if days:
+            first = min(r.released_at for r in files) + timedelta(days=days)
+            # Jamais avant le pré-avis : une durée raccourcie ne supprime rien sans prévenir.
+            first = max(first, now + timedelta(days=pre))
+            title = f'{len(files)} fichier(s) inutilisé(s) bientôt supprimé(s)'
+            body = (f"Plus aucune card ne les utilise : {_names(files)}. Votre durée de conservation "
+                    f"est de {days} jours : ils seront supprimés à partir du {first:%d/%m/%Y}. "
+                    "« Garder », dans la médiathèque (onglet « Inutilisés »), leur redonne cette "
+                    "durée ; elle se règle dans votre profil.")
+        else:
+            title = f'{len(files)} fichier(s) inutilisé(s) depuis plus de {unused_notice_days()} jours'
+            body = (f"Plus aucune card ne les utilise : {_names(files)}. Ils occupent encore votre "
+                    "espace ; supprimez-les depuis la médiathèque (onglet « Inutilisés ») si vous n'en "
+                    "avez plus besoin — rien n'est supprimé sans vous.")
+        sent += notify_in_app([user], 'files_unused', title, body=body, url='/media-library/?tab=unused')
         ReleasedFile.objects.filter(pk__in=[r.pk for r in files]).update(notified_at=now)
     return sent
+
+
+def renew_released(user, ids=None, paths=None) -> int:
+    """« Garder » (rétention finie) : le fichier repart pour une durée complète — compté depuis
+    maintenant, annoncé de nouveau avant son prochain terme."""
+    return _rows_for(user, ids, paths).update(released_at=timezone.now(), notified_at=None)
+
+
+def purge_expired_released(now=None) -> dict:
+    """Rétention FINIE : un fichier inutilisé resté au-delà de la durée choisie est SUPPRIMÉ — mais
+    seulement s'il a été annoncé au moins `pre_notice_days()` avant (sinon il le sera d'abord), et
+    l'utilisateur reçoit ensuite la liste de ce qui a été supprimé. Rétention infinie : rien.
+    Rend `{'deleted': n, 'users': k}`."""
+    from collections import defaultdict
+    from datetime import timedelta
+    from django.urls import reverse
+    from wama.common.models import ReleasedFile
+    from wama.common.services.retention import retention_days_by_user
+    from wama.common.utils.notifications import notify_in_app
+    now = now or timezone.now()
+    retention = retention_days_by_user()
+    if not retention:
+        return {'deleted': 0, 'users': 0}
+    pre = pre_notice_days()
+    due = defaultdict(list)
+    for row in ReleasedFile.objects.filter(user_id__in=list(retention), notified_at__isnull=False) \
+            .select_related('user'):
+        days = retention[row.user_id]
+        if (row.released_at <= now - timedelta(days=days)
+                and row.notified_at <= now - timedelta(days=min(pre, days))):
+            due[row.user].append(row)
+    deleted = 0
+    for user, rows in due.items():
+        result = delete_released(user, ids=[r.pk for r in rows])
+        gone = [r for r in rows if r.path in result['deleted']]
+        if not gone:
+            continue
+        deleted += len(gone)
+        notify_in_app(
+            [user], 'files_deleted', f'{len(gone)} fichier(s) inutilisé(s) supprimé(s)',
+            body=(f"Supprimés au terme de votre durée de conservation ({retention[user.pk]} jours) : "
+                  f"{_names(gone)}. Plus aucune card ne les utilisait. La durée se règle dans votre "
+                  "profil."),
+            url=reverse('accounts:profile'))
+    return {'deleted': deleted, 'users': len(due)}

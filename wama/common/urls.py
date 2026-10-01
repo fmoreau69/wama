@@ -89,6 +89,9 @@ urlpatterns = [
     # …et la LISTE complète, où l'utilisateur les gère (onglet « Inutilisés » de la médiathèque).
     path('api/released-files/all/', views.api_released_files_all,
          name='api_released_files_all'),
+    # « Garder » quand la rétention est finie : une durée complète de plus (2026-10-01).
+    path('api/released-files/renew/', views.api_released_files_renew,
+         name='api_released_files_renew'),
     # ENVOYER VERS — résolveur en LECTURE SEULE : sorties de l'élément + apps éligibles +
     # l'endpoint qui reçoit. L'envoi lui-même passe par `filemanager:api_import`, celui qui
     # sert déjà « Envoyer vers… » — on ne duplique pas ses gardes.
