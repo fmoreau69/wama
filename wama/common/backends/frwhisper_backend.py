@@ -170,9 +170,9 @@ class FrWhisperBackend(SpeechToTextBackend):
             return TranscriptionResult(success=False, text="", error=error_msg)
 
         try:
-            from wama.common.utils.audio_decode import decode_audio
+            from wama.common.utils.audio_decode import decode_audio_at
 
-            audio, sr = decode_audio(audio_path, target_sr=SAMPLING_RATE)
+            audio, sr = decode_audio_at(audio_path, target_sr=SAMPLING_RATE)
             # Plus de 30 s : transcription longue SÉQUENTIELLE de Whisper (caractéristiques non
             # tronquées) ; sinon la forme courte, complétée à 30 s.
             inputs = self._processor(audio, sampling_rate=sr, return_tensors="pt", truncation=False,

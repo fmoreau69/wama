@@ -114,7 +114,10 @@ def card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str = '
     if isinstance(language, str):
         language = [language]
     if isinstance(language, (list, tuple)):
-        codes = [str(x).strip().lower() for x in language if x and str(x).strip()]
+        # Code COURT (`fr-FR` → `fr`, 2026-10-01) : `lang_routing._handles` compare des codes
+        # exacts, une langue régionale ne s'y apparierait jamais. Doublons retirés, ordre gardé.
+        codes = list(dict.fromkeys(str(x).strip().lower().replace('_', '-').split('-')[0]
+                                   for x in language if x and str(x).strip()))
         if any(c in ('multilingual', 'multi') for c in codes):
             caps['languages'] = ['*']
         elif codes:

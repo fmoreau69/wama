@@ -140,17 +140,10 @@ class QwenASRBackend(SpeechToTextBackend):
                    or settings.AI_MODELS_DIR / 'models' / 'speech' / 'qwen_asr')
 
     def _load_audio(self, audio_path: str):
-        """Load audio as a mono float32 numpy array at 16 kHz → (array, 16000)."""
-        import numpy as np
-        import soundfile as sf
-
-        audio, sr = sf.read(audio_path, dtype='float32', always_2d=True)
-        audio = audio.mean(axis=1) if audio.shape[1] > 1 else audio[:, 0]
-        if sr != 16000:
-            import librosa
-            audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
-            sr = 16000
-        return audio.astype(np.float32), sr
+        """Load audio as a mono float32 numpy array at 16 kHz → (array, 16000) — common decoder,
+        so a compressed container (mp3/m4a) reads too (soundfile alone did not)."""
+        from wama.common.utils.audio_decode import decode_audio_at
+        return decode_audio_at(audio_path, target_sr=16000)
 
     @staticmethod
     def _runtime_language(language: Optional[str]) -> Optional[str]:

@@ -1100,6 +1100,9 @@ class FaitsDeLaCarteTest(TestCase):
         self.assertEqual(['en'], card_facts('text-to-image', [], {'language': 'en'})['capabilities']['languages'])
         self.assertEqual(['*'], card_facts('text-to-speech', [], {'language': 'multilingual'})['capabilities']['languages'])
         self.assertNotIn('languages', card_facts('text-to-speech', [], {})['capabilities'])
+        # Code COURT (2026-10-01) : le routage compare des codes exacts.
+        self.assertEqual(['en', 'fr'], card_facts(
+            'automatic-speech-recognition', [], {'language': ['en', 'fr-FR', 'fr_CA']})['capabilities']['languages'])
 
     def _card(self, **attrs):
         class _Card:

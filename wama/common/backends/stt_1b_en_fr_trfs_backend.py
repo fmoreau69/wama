@@ -214,11 +214,13 @@ class KyutaiSttBackend(SpeechToTextBackend):
             return TranscriptionResult(success=False, text="", error=error_msg)
 
         try:
-            from wama.common.utils.audio_decode import decode_audio
+            from wama.common.utils.audio_decode import decode_audio_at
 
             extractor = self._processor.feature_extractor
-            # 1️⃣ Lecture audio, au taux du modèle (24 kHz)
-            audio, sr = decode_audio(audio_path, target_sr=extractor.sampling_rate)
+            # 1️⃣ Lecture audio, au taux du modèle (24 kHz) GARANTI : `decode_audio` laisse un
+            #    WAV à sa fréquence native, et le processeur ne la vérifie pas (essai du
+            #    2026-10-01 : un 16 kHz pris pour du 24 kHz, accéléré de moitié).
+            audio, sr = decode_audio_at(audio_path, target_sr=extractor.sampling_rate)
 
             # 2️⃣ Préparer les entrées — `audio=` NOMMÉ : en position, le processeur le lit
             #    comme une image et rend un dict vide (constaté le 2026-10-01).

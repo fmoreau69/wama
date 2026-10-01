@@ -206,9 +206,12 @@ def enforce_identity(manifest, key, hf_id, concerns, platform_ref=None):
 
 
 def card_languages(hf_id, snapshot=None) -> list:
-    """Langues DÉCLARÉES par la fiche du modèle (en-tête YAML `language`), codes courts ; [] si
-    la fiche n'en dit rien. Lue dans le snapshot installé, sinon sur le Hub."""
+    """Langues DÉCLARÉES par la fiche du modèle (en-tête YAML `language`) ; [] si la fiche n'en
+    dit rien. Lue dans le snapshot installé, sinon sur le Hub. La traduction en vocabulaire WAMA
+    (codes courts, `multilingual` → `['*']`) est celle de la prospection, `card_facts` : un
+    manifeste porte les mêmes faits qu'un candidat prospecté."""
     from huggingface_hub.repocard import metadata_load
+    from wama.model_manager.services.prospector import card_facts
     try:
         readme = Path(snapshot) / 'README.md' if snapshot else None
         if readme is None or not readme.is_file():
@@ -217,9 +220,7 @@ def card_languages(hf_id, snapshot=None) -> list:
         meta = metadata_load(readme) or {}
     except Exception:
         return []
-    languages = meta.get('language') or []
-    languages = [languages] if isinstance(languages, str) else languages
-    return [str(code).lower().split('-')[0] for code in languages if code]
+    return card_facts('', card_data=meta)['capabilities'].get('languages', [])
 
 
 def enforce_language_facts(manifest, languages, concerns):

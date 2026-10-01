@@ -1137,9 +1137,12 @@ MECHANISMS = (
     # instructions du dépôt.
     # Retirer une card LIBÈRE ses fichiers au lieu de les effacer (2026-09-30, MEDIA_STORAGE_TIERING
     # D34) : `release_card_file` décide, `released_files` prévient (annonce, notification, info en
-    # rouge) et ne supprime que sur le geste de l'utilisateur.
+    # rouge) et ne supprime que sur le geste de l'utilisateur. D35 (2026-10-01) : le retrait se
+    # fait à l'échelle de la CARD (`release_card_files`), listes de chemins déclarées comprises.
     Mechanism('queue_duplication', 'Duplication et suppression sûres',
-              "duplicate_instance(), release_card_file() (retirer une card libère et prévient) et "
+              "duplicate_instance(), release_card_files() (retirer une card libère TOUT ce qu'elle "
+              "porte et prévient : ses champs fichier et ses listes de chemins déclarées, lus par "
+              "`file_references.listed_paths` ; release_card_file() = le même geste pour un champ) et "
               "safe_delete_file() (relance) — fichiers partagés entre items ; la confirmation "
               "commune d'un retrait (`WamaApp.ask`) demande d'avance « supprimer aussi le "
               "fichier ? », case décochée (`released_files.freed_by`)",
@@ -1514,7 +1517,8 @@ MECHANISMS = (
               "fichier joint ou désigné par port (`appendInput`), URL postée seulement si l'élément "
               "la garde (sinon refusée, motif dit), rien n'est lancé (règle des deux temps). Côté "
               "serveur : `received_inputs`. Mode DÉRIVÉ des ports par le générateur "
-              "(`views_gen.prompt_entry` : consigne sans port de travail)",
+              "(`views_gen.prompt_entry` : consigne sans port de travail). Adoptée le jour même "
+              "par imager, avatarizer, composer et synthesizer (leur formulaire maison retiré)",
               'wama/common/static/common/js/wama-app-base.js', 'docs/construction/ui/CARD_DESIGN.md',
               annexes=('wama/common/manifests/codegen/templates_gen.py',
                        'wama/common/manifests/codegen/views_gen.py'),
@@ -1689,6 +1693,8 @@ MECHANISMS = (
               'wama/common/services/retention.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md'),
     Mechanism('audio_decode', 'Décodage audio robuste',
               "Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + repli ffmpeg. "
+              "`decode_audio` laisse un WAV à sa fréquence NATIVE ; un modèle de parole passe par "
+              "`decode_audio_at` (fréquence GARANTIE, `resample`) — 2026-10-01, cinq consommateurs. "
               "Annexe torchaudio_compat = l'autre forme du même problème : shims soundfile posés DANS "
               "torchaudio pour les libs tierces qui l'appellent en interne (Coqui, DeepFilterNet)",
               'wama/common/utils/audio_decode.py', '',

@@ -82,6 +82,30 @@ def decode_audio(path, target_sr: int = 16000, mono: bool = True):
     raise RuntimeError(f"[audio_decode] aucun décodeur n'a pu lire : {path}")
 
 
+def resample(samples, rate: int, target_sr: int):
+    """Échantillons mono → float32 à `target_sr` (polyphase, scipy) ; inchangés s'ils y sont."""
+    from math import gcd
+
+    import numpy as np
+    samples = np.asarray(samples, dtype=np.float32)
+    if int(rate) == int(target_sr):
+        return samples
+    from scipy.signal import resample_poly
+    g = gcd(int(target_sr), int(rate))
+    return resample_poly(samples, int(target_sr) // g, int(rate) // g).astype(np.float32)
+
+
+def decode_audio_at(path, target_sr: int = 16000):
+    """(mono float32 à `target_sr` GARANTI, `target_sr`) — ce qu'attend un modèle de parole.
+
+    `decode_audio` laisse un WAV/FLAC à sa fréquence NATIVE (branche soundfile). Trois
+    consommateurs rééchantillonnaient chacun à leur façon (NeMo, Qwen3-ASR, le banc
+    `asr_eval_corpus`), et deux backends neufs l'ont oublié le 2026-10-01 : Kyutai a « entendu »
+    un 16 kHz pris pour du 24 kHz, accéléré de moitié. Ce geste-là est unique, ici."""
+    arr, sr = decode_audio(path, target_sr=target_sr, mono=True)
+    return resample(arr, sr, target_sr), int(target_sr)
+
+
 def transcode_to_wav(path, out_path, target_sr: int = 16000):
     """
     Réécrit un média en WAV PCM 16 bits mono à `target_sr`, via ffmpeg — rend `out_path`.
