@@ -151,7 +151,7 @@ class EnginesFollowOrRefuseTheScoreTest(SimpleTestCase):
             MusicGenerationBackend.refuse_score('/x/tune.abc', 'AudioCraft')
         MusicGenerationBackend.refuse_score(None, 'AudioCraft')     # rien fourni : rien à dire
 
-    def test_yue2_reads_an_abc_score_and_rejects_midi_until_converted(self):
+    def test_yue2_reads_an_abc_score_and_rejects_musicxml_in_words(self):
         import tempfile
         from pathlib import Path
         from wama.common.backends.yue2_3b_backend import YuE2Backend
@@ -159,7 +159,45 @@ class EnginesFollowOrRefuseTheScoreTest(SimpleTestCase):
             abc = Path(tmp, 'tune.abc')
             abc.write_text('X:1\nK:C\nCDEF|\n', encoding='utf-8')
             self.assertTrue(YuE2Backend._score_abc(str(abc)).startswith('X:1'))
-            midi = Path(tmp, 'tune.mid')
-            midi.write_bytes(b'MThd')
-            with self.assertRaisesMessage(ValueError, '.mid → ABC'):
-                YuE2Backend._score_abc(str(midi))
+            xml = Path(tmp, 'tune.musicxml')
+            xml.write_text('<score-partwise/>', encoding='utf-8')
+            with self.assertRaisesMessage(ValueError, 'MusicXML'):
+                YuE2Backend._score_abc(str(xml))
+
+    @staticmethod
+    def _midi(path, notes, *, drum=None, tempo_bpm=90, meter=(3, 4), key='G'):
+        """Un petit MIDI : `notes` = [(début, durée, hauteur)] en noires ; 480 ticks par noire."""
+        import mido
+        mid = mido.MidiFile(ticks_per_beat=480)
+        track = mido.MidiTrack()
+        mid.tracks.append(track)
+        track.append(mido.MetaMessage('set_tempo', tempo=mido.bpm2tempo(tempo_bpm), time=0))
+        track.append(mido.MetaMessage('time_signature', numerator=meter[0], denominator=meter[1], time=0))
+        track.append(mido.MetaMessage('key_signature', key=key, time=0))
+        events = []
+        for start, dur, pitch in notes:
+            events += [(start * 480, 'note_on', pitch, 0), ((start + dur) * 480, 'note_off', pitch, 0)]
+        if drum:
+            events += [(0, 'note_on', drum, 9), (480, 'note_off', drum, 9)]
+        now = 0
+        for tick, kind, pitch, channel in sorted(events, key=lambda e: (e[0], e[1] == 'note_on')):
+            track.append(mido.Message(kind, note=pitch, velocity=80, channel=channel, time=int(tick - now)))
+            now = tick
+        mid.save(path)
+
+    def test_yue2_turns_a_midi_into_its_own_abc_dialect_through_the_engine_compiler(self):
+        import tempfile
+        from pathlib import Path
+        from wama.common.backends.yue2_3b_backend import YuE2Backend
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp, 'tune.mid'))
+            # Un accord (G4+B4+D5) à l'attaque, puis deux notes ; une note de batterie à écarter.
+            self._midi(path, [(0, 1, 67), (0, 1, 71), (0, 1, 74), (1, 1, 72), (2, 1, 71)], drum=36)
+            events = YuE2Backend._midi_events(path)
+            self.assertEqual((90, 'G', [{'meter': '3/4'}]), (events['bpm'], events['key'], events['bars']))
+            self.assertEqual([['0', '1', 74], ['1', '1', 72], ['2', '1', 71]], events['notes'],
+                             'the chord is reduced to its TOP note, the drum is left out')
+            abc = YuE2Backend._score_abc(path)
+        self.assertIn('V: Ins', abc)
+        self.assertIn('Q:1/4=90', abc)
+        self.assertIn('K:G', abc)

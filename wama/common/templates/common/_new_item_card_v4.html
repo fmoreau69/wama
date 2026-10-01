@@ -103,12 +103,15 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                     </div>
                 </div>
             </div>
-            {% elif p.group == 'travail' and not p.primary %}
+            {% elif p.group == 'travail' and not p.primary or p.secondary_reference %}
             {% comment %}Port de travail SECONDAIRE (2026-09-29 — l'avatarizer : l'audio est le port
             principal, l'image d'avatar le second). Les ids historiques restent au port PRINCIPAL
             (`WamaImport`, gestes nocturnes) ; celui-ci reçoit des ids DÉRIVÉS de son port, et sa
             tuile Importer est câblée par `wama-input-slots.js` (`data-port-import-self`) : pas
-            d'URL, de dossier ni de lot ici — ce sont des gestes du port principal.{% endcomment %}
+            d'URL, de dossier ni de lot ici — ce sont des gestes du port principal.
+            Même forme pour une RÉFÉRENCE SECONDAIRE (2026-10-01 — la partition de YuE2 à côté de la
+            mélodie du composer) : les ids `reference_*` de l'app restent à la PREMIÈRE référence,
+            celle-ci reçoit `<card>-<port>-*` ; son champ URL serait le `source_url` de la première.{% endcomment %}
             {% with pid=card_id|default:'newItemCard'|add:'-'|add:p.id %}
             <div class="wama-port-pane{% if forloop.first %} is-active{% endif %}{% if p.required %} is-required{% endif %}{% if p.one_of %} is-required-one-of{% endif %}{% if p.one_of_first %} is-one-of-first{% endif %}"
                  id="{{ pid }}-pane" data-port-pane="{{ p.id }}" data-port-kind="file" data-port-input="{{ pid }}-input"
@@ -116,7 +119,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                 <div class="wama-port-face wama-port-face-mods is-active" data-port-face="mods">
                     <div class="wama-mods">
                         <div class="drop-zone wama-mod wama-mod-import" id="{{ pid }}-drop" data-mod="import" data-port-import-self>
-                            <i class="fas fa-cloud-upload-alt text-primary wama-mod-g"></i>
+                            <i class="fas {% if p.group == 'reference' %}fa-paperclip text-info{% else %}fa-cloud-upload-alt text-primary{% endif %} wama-mod-g"></i>
                             <span>Importer</span>
                             <small>{% firstof p.description 'depuis le poste' %}</small>
                             <input type="file" id="{{ pid }}-input" accept="{{ p.accept }}" style="display:none">
@@ -199,39 +202,6 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                     <div class="wama-files-meta" data-files-meta></div>
                 </div>
             </div>
-            {% elif p.secondary_reference %}
-            {% comment %}Port de RÉFÉRENCE SECONDAIRE (2026-10-01 — la partition de YuE2 à côté de la
-            mélodie du composer). Les ids `reference_*` déclarés par l'app restent à la PREMIÈRE
-            référence ; celle-ci reçoit des ids dérivés de son port (`<card>-<port>-input`), comme un
-            port de travail secondaire. Pas d'URL : le champ `source_url` de l'app est celui de la
-            première référence.{% endcomment %}
-            {% with pid=card_id|default:'newItemCard'|add:'-'|add:p.id %}
-            <div class="wama-port-pane{% if forloop.first %} is-active{% endif %}" id="{{ pid }}-pane"
-                 data-port-pane="{{ p.id }}" data-port-kind="file" data-port-input="{{ pid }}-input"
-                 data-port-library="{{ p.library_type }}">
-                <div class="wama-port-face wama-port-face-mods is-active" data-port-face="mods">
-                    <div class="wama-mods">
-                        <div class="wama-mod wama-mod-library" data-mod="library" data-mod-library-btn title="Choisir dans la médiathèque">
-                            <i class="fas fa-photo-film wama-mod-g text-info"></i>
-                            <span>Médiathèque</span>
-                            <small>{% if p.library_type_label %}filtrée : {{ p.library_type_label }}{% else %}tous types{% endif %}</small>
-                        </div>
-                        <div class="drop-zone wama-mod wama-mod-import" id="{{ pid }}-drop" data-mod="import" data-port-import-self style="flex:1.2">
-                            <i class="fas fa-paperclip text-info wama-mod-g"></i>
-                            <span>Importer</span>
-                            <small>{% firstof p.description 'depuis le poste' %}</small>
-                            <input type="file" id="{{ pid }}-input" accept="{{ p.accept }}" style="display:none">
-                        </div>
-                    </div>
-                </div>
-                <div class="wama-port-face wama-port-face-files" data-port-face="files">
-                    <div class="wama-files-head"><span class="wama-files-back" data-files-back>‹ modalités</span> · <span data-files-title>fichier</span></div>
-                    <div class="wama-files-list" data-files-list></div>
-                    <div class="wama-files-meta" data-files-meta></div>
-                </div>
-                <span id="{{ pid }}-chip" class="d-none"></span>
-            </div>
-            {% endwith %}
             {% else %}
             {% comment %}Port de RÉFÉRENCE — les ids v3 sont honorés (`reference_*`), ce qui préserve
             le câblage d'attache et l'appariement `WamaInputMatch` de composer et imager.{% endcomment %}

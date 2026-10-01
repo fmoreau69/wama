@@ -363,6 +363,26 @@ def _select_models_capabilities(app_id):
         return []
 
 
+def app_model_capabilities(app_id) -> list:
+    """Les capacités des modèles DE l'app — l'inventaire UNIQUE dont dérivent ses ports
+    (`app_input_ports`) et le jugement de ses entrées (`input_match.app_attribute_verdict`).
+
+    Ceux de sa SOURCE (`AIModel.source`, le lien app↔modèles historique), plus — si son select
+    de modèle le déclare (`Param.options_ports`, 2026-10-01) — ceux que ce select PROPOSE. Depuis
+    la route F4b un select se borne par la TÂCHE : le composer propose YuE2 (`huggingface:`), qui
+    accepte une partition — lu par la source seule, il entrait au select sans ouvrir de port. Le
+    select, le tirage « auto » et la card parlent ainsi du MÊME inventaire. Un modèle présent des
+    deux côtés ne change rien : l'union des entrées est idempotente. Ne lève jamais ([] si le
+    catalogue est illisible)."""
+    try:
+        from wama.model_manager.models import AIModel
+        rows = list(AIModel.objects.filter(source=app_id)
+                    .values_list('capabilities', flat=True))
+    except Exception:
+        return []
+    return rows + _select_models_capabilities(app_id)
+
+
 def app_input_ports(app_id, domain=None):
     """Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
 
@@ -407,19 +427,9 @@ def app_input_ports(app_id, domain=None):
     # lit dans `generated_from`, elle ne se devine pas.
     source = (APP_CATALOG.get(app_id) or {}).get('generated_from') or app_id
 
-    try:
-        from wama.model_manager.models import AIModel
-        lignes = list(AIModel.objects.filter(source=source)
-                      .values_list('capabilities', flat=True))
-    except Exception:
+    lignes = app_model_capabilities(source)
+    if not lignes:
         return []
-    # + les modèles que le SELECT de l'app propose, s'il le déclare (`options_ports`, 2026-10-01).
-    # Depuis la route F4b un select se borne par la TÂCHE, plus par la source : le composer propose
-    # YuE2 (`huggingface:`), qui accepte une partition — sans cette ligne, le modèle entrait au
-    # select et son entrée n'ouvrait aucun port. Le select, le tirage « auto » et la card parlent
-    # ainsi du MÊME inventaire. Un doublon (modèle de la source ET du domaine) ne change rien :
-    # l'union des entrées est idempotente.
-    lignes += _select_models_capabilities(source)
 
     vises = {d.strip() for d in str(domain).split('_') if d.strip()} if domain else None
 
