@@ -1115,6 +1115,10 @@ VRAI chemin : clic droit sur une card du describer → « Transférer à… » �
 destinataire, privée, son fichier DÉPLACÉ chez lui. ⚠ Ce geste n'emploie pas `accept_dialogs` :
 la réponse automatique validerait la boîte avant la saisie.
 
+Et **`common.batch_transfer`**, **6/6** le même soir : « Transférer le lot à… » sur la card MÈRE
+d'un lot de deux cards du describer → le groupe quitte la file sans rechargement ; en base, le lot
+et ses deux cards sont au destinataire, le lot les garde, leurs fichiers sont déplacés.
+
 ### Barre COMMUNE de la médiathèque (2026-10-01)
 
 Scénario **`media_library.filter_bar`** (`ui_smoke_matching.py`), **8/8** au premier run, sur les

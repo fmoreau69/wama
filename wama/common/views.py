@@ -1605,8 +1605,9 @@ def api_released_files_delete(request):
 @login_required
 @require_POST
 def api_transfer(request):
-    """POST `surface`, `pk`, `to` (identifiant ou e-mail), `consent` — « Transférer à… » : la card
-    change de propriétaire (`common/services/card_transfer.py`, 2026-10-01).
+    """POST `surface`, `pk`, `to` (identifiant ou e-mail), `consent`, `nature` (element | lot) —
+    « Transférer à… » : la card, ou le lot entier, change de propriétaire
+    (`common/services/card_transfer.py`, 2026-10-01).
 
     Coordonnées = celles du partage (`api_partage`) : la SURFACE de `PreviewRegistry` et un pk
     cherché parmi les cards DE L'UTILISATEUR (404 sinon). Les refus PRÉVUS (destinataire inconnu,
@@ -1615,20 +1616,33 @@ def api_transfer(request):
     ce que devient le lot quitté (`batch`), pour que la file se mette à jour sans rechargement."""
     from django.shortcuts import get_object_or_404
     from wama.common.services.card_transfer import (TransferConsentRequired, find_recipient,
-                                                    transfer_card)
+                                                    transfer_card, transfer_lot)
     from wama.common.services.sharing import RefusDePartage
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    from wama.common.utils.batch_common import batch_model_for_app, batch_snapshot, batch_state
     from wama.common.utils.preview_registry import PreviewRegistry
 
-    model = PreviewRegistry.get_model(request.POST.get('surface') or '')
+    surface = request.POST.get('surface') or ''
+    model = PreviewRegistry.get_model(surface)
     if model is None:
         return JsonResponse({'error': 'surface inconnue'}, status=404)
-    element = get_object_or_404(model, pk=request.POST.get('pk'), user=request.user)
+    consent = request.POST.get('consent') in ('1', 'true', 'on')
+    # `nature=lot` (2026-10-01) : le LOT entier part, avec ses cards — mêmes coordonnées que le
+    # partage d'un lot (`api_partage`) : la surface d'une card fille, le pk du lot.
+    is_lot = request.POST.get('nature') == 'lot'
+    if is_lot:
+        batch_model = batch_model_for_app(surface)
+        if batch_model is None:
+            return JsonResponse({'error': f"{surface} n'a pas de modèle de lot"}, status=404)
+        target = get_object_or_404(batch_model, pk=request.POST.get('pk'), user=request.user)
+    else:
+        target = get_object_or_404(model, pk=request.POST.get('pk'), user=request.user)
     try:
         recipient = find_recipient(request.POST.get('to'), request.user)
-        snapshot = batch_snapshot(element)
-        report = transfer_card(request.user, element, recipient,
-                               consent=request.POST.get('consent') in ('1', 'true', 'on'))
+        if is_lot:
+            return JsonResponse({'transferred': True, 'nature': 'lot',
+                                 **transfer_lot(request.user, target, model, recipient, consent)})
+        snapshot = batch_snapshot(target)
+        report = transfer_card(request.user, target, recipient, consent=consent)
     except TransferConsentRequired as exc:
         return JsonResponse({'transferred': False, 'consent_required': True,
                              'statement': exc.statement})

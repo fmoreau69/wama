@@ -19647,3 +19647,17 @@ lignes de ce journal). Rouges CONNUS hors périmètre, relevés dans la passe la
 `tests_backend_adoption`, `tests_picker_list` (mime), `tests_codegen_lot.ItemEditRouteAliasTest`
 (imager), `test_chaque_mecanisme_a_sa_section` (171 ≠ 175), `tests_endpoints` (colonne
 `writer_01.quality_intent` absente de la base de test, jumelle d'une autre instance).
+
+## §PALIER — 2026-10-01 (nuit, après clôture), « TRANSFÉRER UN LOT ENTIER » — ✅ commit ci-dessous — 🔴 RELANCER WAMA — 🔚 listes de chemins (transfert + duplication)
+
+> Fabien, sur le point 1 des ouverts de la `§CLÔTURE 2026-10-01 (nuit)` : *« On fait ça déjà ? ça me
+> semble un trou important et le fonctionnement d'un batch est proche du fonctionnement d'une card. »*
+
+- « Transférer le lot à… » sur la card mère ; `card_transfer.transfer_lot` (lot + cards d'un bloc,
+  rien ne sort du lot) ; passation des fichiers jugée sur l'ENSEMBLE cédé, commune à la card et au
+  lot (fichier commun à deux cards : déplacé une fois). Route `api_transfer` + `nature=lot`.
+- Mesures : `TransferringACardTest` 5/5 (dont le lot, 10 apps + jumelles) ; voisins 111 OK ; gestes
+  `common.batch_transfer` 6/6, `common.card_transfer` toujours 5/5 après le remaniement.
+- ⏳ **Ouvert, nommé** : les LISTES DE CHEMINS (imager `generated_images`…) ne suivent ni le
+  transfert ni la duplication d'une card reçue — à brancher sur `file_references.listed_paths`,
+  en cours chez l'instance des fichiers libérés (signalé à elle). Point 1 de la clôture : SOLDÉ.

@@ -322,11 +322,27 @@
         });
     }
 
+    /** Le LOT entier (depuis sa card mère ou une card du groupe) : lot et cards partent ensemble. */
+    function transferLot(el, name) {
+        var c = coordonneesDuLot(el);
+        if (!c || !(global.WamaApp && WamaApp.ask)) return;
+        WamaApp.ask({
+            text: 'Transférer le lot « ' + (name || 'ce lot') + ' » et toutes ses cards à un autre '
+                + 'compte ? Ils ne seront plus à vous : leurs fichiers partent avec eux (ceux qu’ils '
+                + 'ne faisaient que désigner sont copiés, vous gardez les vôtres).',
+            okLabel: 'Transférer le lot', danger: false,
+            input: { label: 'Destinataire', placeholder: 'identifiant ou adresse e-mail' },
+        }).then(function (answer) {
+            if (answer.ok && answer.value) send(c, el, answer.value, false);
+        });
+    }
+
     function send(c, card, recipient, consent) {
         var fd = new FormData();
         fd.append('surface', c.surface);
         fd.append('pk', c.pk);
         fd.append('to', recipient);
+        if (c.nature === 'lot') fd.append('nature', 'lot');
         if (consent) fd.append('consent', '1');
         fetch('/common/api/transfer/', { method: 'POST', body: fd, credentials: 'same-origin',
                                          headers: { 'X-CSRFToken': WamaApp.csrfToken() } })
@@ -345,9 +361,15 @@
                     WamaApp.toast('Transfert impossible : ' + (res.reason || res.error || 'erreur'), 'error');
                     return;
                 }
-                WamaApp.toast('Card transférée à ' + res.to + ' (' + res.moved + ' fichier(s) déplacé(s), '
+                var what = res.nature === 'lot' ? 'Lot (' + res.cards + ' card(s)) transféré' : 'Card transférée';
+                WamaApp.toast(what + ' à ' + res.to + ' (' + res.moved + ' fichier(s) déplacé(s), '
                               + res.copied + ' copié(s))', 'success');
-                if (global.WamaQueueActions && WamaQueueActions.removeCard) {
+                if (res.nature === 'lot') {
+                    // Le lot part en entier : son groupe quitte la file, rien à recalculer.
+                    var group = document.querySelector('.batch-group[data-batch-id="' + c.pk + '"]');
+                    if (group) group.remove(); else location.reload();
+                    if (global.WamaFM && WamaFM.deleted) WamaFM.deleted();
+                } else if (global.WamaQueueActions && WamaQueueActions.removeCard) {
                     WamaQueueActions.removeCard(c.pk, card, res.batch);
                 } else {
                     location.reload();
@@ -359,5 +381,5 @@
     global.WamaShare = { ouvrir: ouvrir, ouvrirPourCard: ouvrirPourCard,
                          ouvrirPourLot: ouvrirPourLot,
                          coordonnees: coordonnees, coordonneesDuLot: coordonneesDuLot,
-                         transfer: transfer };
+                         transfer: transfer, transferLot: transferLot };
 })(window);

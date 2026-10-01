@@ -536,6 +536,13 @@
                     icone: 'fas fa-share-nodes', libelle: 'Partager le lot…',
                     agir: function () { WamaShare.ouvrirPourLot(card, nom); },
                 });
+                // TRANSFÉRER LE LOT… (2026-10-01) : le lot et ses cards changent de propriétaire.
+                if (WamaShare.transferLot) {
+                    entrees.push({
+                        icone: 'fas fa-right-left', libelle: 'Transférer le lot à…',
+                        agir: function () { WamaShare.transferLot(card, nom); },
+                    });
+                }
             } else if (dispo) {
                 // L'entrée COMMUNE (celle de l'arbre aussi) : mêmes coordonnées, même modale.
                 entrees.push(entreePartager(dispo, nom));
