@@ -11,6 +11,27 @@ from django.test import SimpleTestCase, TestCase
 from wama.common.backends.nemo_asr_backend import NemoASRBackend
 
 
+class WordsToSegmentsTest(SimpleTestCase):
+    """`segments_from_words` (contract module, 2026-10-01): moved out of NeMo when Kyutai needed it.
+    Kyutai emits its words with a VARIABLE delay, so a gap between two words is not a silence —
+    its own punctuation cuts, the pause becomes a wide safety net."""
+
+    WORDS = [{'word': w, 'start': s, 'end': s + 0.08} for w, s in (
+        ('On', 0.0), ('est', 0.4), ('une', 0.8), ('association', 2.3), ('?', 2.5),
+        ('Donc', 2.7), ('il', 2.9), ('faut.', 3.1))]
+
+    def test_the_punctuation_cuts_when_asked_and_a_late_word_stays_in_its_sentence(self):
+        from wama.common.backends.speech_to_text_base import segments_from_words
+        segs = segments_from_words(self.WORDS, pause_seconds=2.0, sentence_ends='.?!')
+        self.assertEqual(['On est une association ?', 'Donc il faut.'], [s.text for s in segs])
+        self.assertEqual((0.0, 2.58), (segs[0].start_time, segs[0].end_time))
+
+    def test_counter_check_without_sentence_ends_the_pause_alone_decides(self):
+        from wama.common.backends.speech_to_text_base import segments_from_words
+        segs = segments_from_words(self.WORDS)
+        self.assertEqual(['On est une', 'association ? Donc il faut.'], [s.text for s in segs])
+
+
 class DeclarationTest(SimpleTestCase):
 
     def test_the_runtime_installs_without_its_pins_and_the_list_is_exhaustive(self):

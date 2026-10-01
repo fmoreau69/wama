@@ -22,7 +22,8 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 
-from .speech_to_text_base import SpeechToTextBackend, TranscriptionResult, TranscriptionSegment
+from .speech_to_text_base import (MAX_SEGMENT_SECONDS, SpeechToTextBackend, TranscriptionResult,
+                                  TranscriptionSegment, segments_from_words)
 
 logger = logging.getLogger(__name__)
 
@@ -255,30 +256,16 @@ class NemoASRBackend(SpeechToTextBackend):
         return [part for segment in segments for part in NemoASRBackend._split_long(segment)]
 
     #: Un segment plus long est recoupé aux pauses de ses mots (2026-10-01). NeMo coupe ses
-    #: segments sur la PONCTUATION : LinTO n'en rendait aucune, et 30 s de parole sortaient en UN
-    #: segment — rien pour la diarisation, l'éditeur ni le SRT. Les mots, eux, sont horodatés.
-    MAX_SEGMENT_SECONDS = 12.0
-    #: Pause entre deux mots qui ouvre un nouveau segment.
-    PAUSE_SECONDS = 0.5
+    #: segments sur la PONCTUATION : LinTO n'en rendait aucune. Le regroupement est COMMUN
+    #: (`speech_to_text_base.segments_from_words`, partagé avec Kyutai).
+    MAX_SEGMENT_SECONDS = MAX_SEGMENT_SECONDS
 
     @staticmethod
     def _split_long(segment: TranscriptionSegment) -> List[TranscriptionSegment]:
         words = segment.words or []
         if (segment.end_time - segment.start_time) <= NemoASRBackend.MAX_SEGMENT_SECONDS or not words:
             return [segment]
-        groups = [[words[0]]]
-        for word in words[1:]:
-            current = groups[-1]
-            pause = word['start'] - current[-1]['end']
-            too_long = word['end'] - current[0]['start'] > NemoASRBackend.MAX_SEGMENT_SECONDS
-            if pause >= NemoASRBackend.PAUSE_SECONDS or too_long:
-                groups.append([word])
-            else:
-                current.append(word)
-        return [TranscriptionSegment(speaker_id=segment.speaker_id, start_time=group[0]['start'],
-                                     end_time=group[-1]['end'],
-                                     text=' '.join(w['word'] for w in group).strip(), words=group)
-                for group in groups]
+        return segments_from_words(words, segment.speaker_id, NemoASRBackend.MAX_SEGMENT_SECONDS)
 
     def transcribe(self, audio_path: str, language: str = None, **kwargs) -> TranscriptionResult:
         """Transcribe one audio file (≤ `max_audio_seconds`; the common chunking cuts longer ones)."""
