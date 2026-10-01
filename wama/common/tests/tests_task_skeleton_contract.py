@@ -100,6 +100,25 @@ class TaskSkeletonOutcomeContractTest(TestCase):
                     app=app, object_type=model.__name__, object_id=item.pk)
                     .order_by('-number')])
 
+    def test_a_revision_names_as_outputs_only_what_the_glue_wrote(self):
+        """The element's other files (its INPUTS) are not outputs — measured on the Writer's
+        1st real revision, which named its reference document and not the document produced."""
+        from django.db.models import FileField
+        from wama.common.models import ItemRevision
+        for app, model in _adopters():
+            file_fields = [f.name for f in model._meta.get_fields() if isinstance(f, FileField)]
+            if not file_fields:
+                continue
+
+            def glue(item, ctx, model=model, file_fields=file_fields):
+                model.objects.filter(pk=item.pk).update(**{f: 'users/some.bin' for f in file_fields})
+                return {}
+            with self.subTest(app=app):
+                item = self._run(app, model, glue)
+                revision = ItemRevision.objects.get(app=app, object_type=model.__name__,
+                                                    object_id=item.pk)
+                self.assertEqual([], revision.outputs)
+
     def test_a_failure_gives_no_revision(self):
         """A revision is a state a RESULT gave; a failure produced none."""
         from wama.common.models import ItemRevision

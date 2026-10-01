@@ -2885,6 +2885,33 @@ accès », « LIMS ») : le modèle n'avait que la consigne — la vraie valeur 
 des CARDS, le RAG, `ROADMAP §21.5`) n'est pas branchée ; c'est le prochain chantier de l'app, pas de
 la route.
 
+**🔴 REVÉRIFICATION du 2026-10-01 (demande de Fabien : « Comment se fait-il qu'on soit passé à côté
+de la route ? »).** Confrontée aux décisions et au code, la session avait **réinventé quatre
+mécanismes et dupliqué deux briques** — tous testés, tous verts. Corrigé :
+
+| réinvention | ce qui existait | correction |
+|---|---|---|
+| facette `pipelines` + nœud `kind: process` | kind `pipeline` (`builtin/pipeline.py:35`) ; « un process d'app EST un pipeline à 1 nœud » (30/08) ; étapes internes d'une app Médias = décision n°11 / P4 | retirée (`WAMA_MANIFEST_SPEC §3.1` garde le récit) ; le Writer est UN process |
+| `pipeline_process_order` | `studio/tasks.py:56`, `pass_tracking.py:220` | retiré |
+| `task_skeleton.run_process_steps` | `_run_app_function` (`studio/tasks.py:250`) ; §10.6 4.5 interdit une 4ᵉ pièce | retiré |
+| port `source_document` écrit à la main | ports DÉRIVÉS (`app_registry.py:440-497`) des jetons `INPUT_TYPES` | jeton `reference_document` (rôle × nature, règle du `work_object3d`) dans `modes.inputs` |
+| clé de catalogue découpée à la main | `model_keys.split_key` (« UNE lecture pour tout WAMA », `mecanismes.py:267-275`) | `chat_with_catalog_model` y passe ; `_resolve_model` rallié à `catalog_key` |
+| lecteur de documents (`batch_parsers`) dans la matière | `PROMPT_TARGETS.reference_field` + `reference_comprehension` (`prompt_pipeline.py:194-203`) | cible `prompts` `kind: 'intent'` du Writer ; le rôle reçoit `process_prompt_for` |
+
+Et les briques du rôle `codegen` ne sont plus une table de CHEMINS (second index) : déclencheur →
+clé de MÉCANISME, l'emplacement vient du registre (`BRICKS_BY_TRIGGER`). Le geste de l'assistant
+vers un fournisseur déclaré est la brique commune `llm_utils.chat_with_source`, adoptée par les deux.
+Le bac à sable sert les MODES et les CIBLES DE PROMPTS d'une app née d'un manifeste
+(`sandbox.born_declaration`, pendant de `twin_source`).
+**Les quatre causes** (consignées en mémoire `feedback_route_verifiee_a_chaque_brique`) : recherche
+faite au départ et pas à chaque brique ; « à formaliser » lu comme « à inventer » ; manifeste autoré
+recopié d'un manifeste EXTRAIT (une projection prise pour une entrée) ; tests verts pris pour une
+preuve d'alignement. ⚠ Et un défaut de la doctrine : le `§S` « ce qu'une génération ne doit plus
+redécouvrir » que cite `AGENTS.md` comme source obligatoire **n'existe pas** sous ce titre ici (seuls
+`§S2bis`, `§S2ter`) — à corriger dans AGENTS.md (décision de Fabien). Le catalogue de fonctions et
+l'exécuteur du studio ne figurent pas non plus au registre des mécanismes.
+**Renommé : l'Editor est le Writer** (`writer`, décision de Fabien — paire avec Reader).
+
 **La chaîne SŒUR « dépôt → MODÈLE exécutable » — bouclée hors terminal le 2026-09-29.** Un modèle
 n'a pas le trou de l'app (il ne demande pas de manifeste `app`) ; il en avait d'autres, mesurés sur
 Supra2-IMG et comblés : recherche par URL / dépôt nommé (`prospector.named_repo`) → installation
@@ -3461,11 +3488,13 @@ possible **sans aucun process**.
 8. Les apps Lab entrent-elles dans `APP_CATALOG` (6.1) ?
 9. Monde du studio (`transverse` dans `WORLDS` ; le journal invente un monde `studio`).
 10. Rôle assistant produisant `pipeline` / `dataset` (où, avec quel RAG).
-11. ~~Facette « pipelines proposés » du manifeste `app` (`WAMA_MANIFEST_SPEC`).~~ 🔄 **TRANCHÉE
-    pour son premier cas le 2026-10-01 (Fabien)** : facette `pipelines` (nœuds `process` + liens,
-    `reads`/`writes`/`watched`/`description`), formalisme au `WAMA_MANIFEST_SPEC §3.1` ; premier
-    porteur l'Editor ; exécution PROVISOIRE dans une tâche (`task_skeleton.run_process_steps`) en
-    attendant P3. Restent : extraction depuis les apps existantes, degrés `optional`/`open`, studio.
+11. Facette « pipelines proposés » du manifeste `app` (`WAMA_MANIFEST_SPEC`). ⚠ **TOUJOURS OUVERTE.**
+    Une facette `pipelines` à nœuds `process` a été écrite le 2026-10-01 pour le Writer, puis
+    **RETIRÉE le jour même** à la revérification demandée par Fabien : elle doublait le kind
+    `pipeline`, un tri topologique existant et le moteur commun — et elle supposait le cas d'une
+    app Médias à plusieurs process, que la route renvoie au pilote **P4** (`WAMA_MANIFEST_SPEC §3.1`
+    garde le récit). Ce qui reste établi : un process d'app est un pipeline à UN nœud (30/08) ; les
+    FONCTIONS du catalogue sont des process du monde Data, pas les étapes internes d'une app Médias.
 
 #### 10. Pièges relevés — à ne pas refaire
 

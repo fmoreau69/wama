@@ -261,49 +261,37 @@ body:                                   # (sous l'enveloppe commune)
 (endpoints standard), modales+inspecteur (`params`+`inspector`), le nœud studio (`ports`+`studio`), le
 gating (`access`), le câblage prompts/tool_api.
 
-### 3.1 Facette `pipelines` — les PROCESS que l'app propose (formalisée le 2026-10-01)
+### 3.1 ~~Facette `pipelines`~~ — RETIRÉE le 2026-10-01 : une réinvention (décision n°11 toujours ouverte)
 
-> Décision ouverte n°11 de `WAMA_APP_GENERATION_ROUTE.md §10.6` (« facette pipelines proposés du
-> manifeste `app` »), tranchée pour son premier cas par Fabien le 2026-10-01 : *déclarer les étapes
-> comme process du pipeline universel*. Premier porteur : l'Editor (`manifests/app_drafts/editor.json`).
-> **Pourquoi** : mesuré la veille, le rôle `codegen` avait écrit le texte brut d'un LLM dans un
-> `.html` — l'intention « le fond, puis sa mise en forme » n'était écrite qu'au `ROADMAP`, hors de sa
-> matière. *Ce qu'une glu doit faire se DÉCLARE au manifeste ; aucun modèle ne devine une intention
-> absente de sa matière.*
+> Formalisée puis retirée le même jour (commits `145f920b` → retrait), après revérification
+> demandée par Fabien. Gardé ici pour que la prochaine génération ne la réécrive pas.
 
-```yaml
-pipelines:                          # liste : une app peut proposer plusieurs pipelines (§10.6 3.5)
-  - key: default                    # le premier est celui que la card porte par défaut
-    label: "Rédiger puis mettre en forme"
-    nodes:                          # vocabulaire du kind `pipeline` (nodes + links)
-      - id: draft_content           # identifiant anglais (AGENTS.md §nommage) → `_process_<id>`
-        kind: process               # seul kind admis DANS une app (≠ source|sink|app|function du
-                                    #   kind `pipeline`, qui compose des apps et des fonctions)
-        label: "Rédiger le fond"    # libellé affiché (console, card)
-        degree: required            # required | optional | open (§10.6 3.2)
-        reads:   [prompt, document_kind, language, source_document]   # champs de l'élément lus
-        writes:  [result_text]      # les SEULES clés de `fields` que le process rend
-        watched: [prompt, document_kind, language, model, source_document]  # réglages dont un
-                                    #   changement le rend STALE (§10.6 3.3 ; péremption = P3)
-        description: "…"            # CE QUE LE PROCESS FAIT — la matière du rôle `codegen`
-    links:
-      - {from: draft_content, to: render_format}   # acyclique ; à égalité, l'ordre déclaré tranche
-```
+**Ce qu'elle était** : une liste d'étapes écrite DANS le manifeste `app`, avec un nœud `kind: process`
+inventé, son propre tri topologique et un enchaîneur dans le squelette de tâche — pour dire que le
+Writer (alors « Editor ») rédige le fond PUIS le met en forme.
 
-- **Validation** (rejet à l'ingest, `builtin/app.py::_validate_pipelines`) : ids uniques, kind
-  `process`, degré connu, `reads`/`writes`/`watched` = listes de noms, liens vers des nœuds connus,
-  **pas de cycle** (`pipeline_process_order`, l'ordre topologique écrit UNE fois).
-- **Génération** (`codegen/tasks_gen.py`) : l'app déclarant un pipeline, sa tâche devient un
-  ENCHAÎNEMENT généré — brique commune `task_skeleton.run_process_steps`, qui persiste ce que chaque
-  process écrit avant le suivant — et **un trou de glu par process**, dont la docstring porte la
-  déclaration. Le rôle `codegen` écrit alors une glu PAR process (`run_codegen --process <id>`), et
-  un contrôle mécanique signale toute clé de `fields` hors de `writes`.
-- ⚠ **Provisoire côté exécution, pas côté déclaration** : sans le moteur commun (P3, §10.6 4.5), le
-  pipeline s'exécute dans UNE tâche (un statut, une ETA, une notification). La déclaration, elle, est
-  déjà celle que P3 lira — une ligne d'exécution par process, péremption par `watched`.
-- ⏳ **Pas encore** : extraction depuis une app existante (aucune ne déclare ses process — la facette
-  n'entre donc pas dans `APP_FACETS`, qui ferait signaler 10 apps « incomplètes ») ; degrés
-  `optional`/`open` exécutés ; projection vers le studio (le même objet en graphe, §10.6 5.4).
+**Pourquoi c'était faux** (confronté aux décisions et au code) :
+- un pipeline se déclare par le kind `pipeline` existant (nœuds `source | sink | app | function`,
+  `builtin/pipeline.py:35`) — pas par un second formalisme dans le manifeste d'app ;
+- **un process d'application EST un pipeline à UN nœud** (Fabien, 30/08 : `WAMA_MANIFEST_ARCHITECTURE
+  §8` ; « un cas normal », `WAMA_APP_GENERATION_ROUTE §10.6` 7) : entrée → process de l'app → sortie ;
+- les **fonctions** du catalogue sont des process du monde **Data** (`§10.6` 6.3 B) ; les process
+  internes d'une app **Médias** (diarisation, résumé… du transcriber) ne sont PAS des fonctions, et
+  la façon de les déclarer n'est PAS encore formalisée — c'est la **décision ouverte n°11** de `§10.6`,
+  dont le pilote est le transcriber à la marche **P4** ;
+- deux tris topologiques existaient déjà (`studio/tasks.py:56`, `cam_analyzer/utils/pass_tracking.py:220`)
+  et l'enchaîneur était la « quatrième pièce » que `§10.6` 4.5 interdit d'écrire à côté du moteur commun.
+
+**Comment une app Médias se déclare AUJOURD'HUI** (le Writer, `manifests/app_drafts/writer.json`) :
+- ses **entrées** par les jetons d'`app_modes.INPUT_TYPES`, dans `modes.domains[].inputs`
+  (`['prompt', 'reference_document']`) — les ports de la card v4 en DÉRIVENT
+  (`app_registry.studio_node_ports`) ; la facette `ports` ne déclare que les NATURES (jetons pour
+  ids, comme le composer) ;
+- sa **consigne** par une cible de `PROMPT_TARGETS` (facette `prompts`) : `kind: 'intent'` et
+  `reference_field` — le pipeline de prompts comprend le document de référence ;
+- son **traitement** en **un seul process** tant que le moteur commun (P3) n'existe pas
+  (`§10.6` 11) : une glu qui rédige puis met en forme. Les deux étapes ne deviendront deux process
+  qu'avec la décision n°11 et P4.
 
 ---
 

@@ -607,8 +607,13 @@ class Command(BaseCommand):
             rel_manifest = manifest_path.relative_to(BASE_DIR).as_posix()
         except ValueError:
             rel_manifest = str(manifest_path)
+        # Les DÉCLARATIONS que les accesseurs des registres indexés par nom d'app relisent pour une
+        # app sans source (`sandbox.born_declaration`) : modes (→ ports dérivés, card d'entrée v4)
+        # et cibles de prompts (→ pipeline de prompts, fichiers de référence).
+        declarations = {f: (manifest.get('body') or {}).get(f)
+                        for f in ('modes', 'prompts') if (manifest.get('body') or {}).get(f)}
         entry = {'label': label, 'generated_from': '', 'from_manifest': rel_manifest,
-                 'catalog': catalog,
+                 'catalog': catalog, 'declarations': declarations,
                  'created': datetime.now(timezone.utc).isoformat(timespec='seconds'),
                  'created_by': owner, 'stage': 'S0-de-zero'}
         _save_entry(entry)

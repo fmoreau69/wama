@@ -90,12 +90,18 @@ PROMPT_TARGETS = {
 
 
 def prompt_targets(app: str) -> list:
-    """Targets de prompt déclarés pour une app (liste, vide si aucune)."""
-    return PROMPT_TARGETS.get(app, [])
+    """Targets de prompt déclarés pour une app (liste, vide si aucune).
+
+    Une app créée DE ZÉRO depuis un manifeste (bac à sable) n'est pas dans `PROMPT_TARGETS` : ses
+    targets sont ceux de sa facette `prompts`, lus par `sandbox.born_declaration` (2026-10-01)."""
+    if app in PROMPT_TARGETS:
+        return PROMPT_TARGETS[app]
+    from wama.common.sandbox import born_declaration   # module PUR — aucun cycle
+    return list(((born_declaration(app, 'prompts') or {}).get('targets')) or [])
 
 
 def _target(app: str, field: str):
-    for t in PROMPT_TARGETS.get(app, []):
+    for t in prompt_targets(app):
         if t['field'] == field:
             return t
     return None
@@ -122,9 +128,13 @@ def _resolve_model(app: str, instance, tgt, model_id=None):
     if not mid:
         return None, tgt.get('default_model_type'), None
     try:
+        from wama.common.utils.model_keys import catalog_key
         from wama.model_manager.models import AIModel
         source = tgt.get('source', app)
-        m = AIModel.objects.filter(model_key=f"{source}:{mid}").first()
+        # `catalog_key` (brique `model_keys`, ralliée le 2026-10-01) : une valeur déjà CLÉ
+        # (`ollama:qwen3.8:latest`, l'imager depuis F4b) est rendue telle quelle, un identifiant nu
+        # reçoit `source`. Le `f"{source}:{mid}"` d'avant fabriquait `imager:imager:…` sur une clé.
+        m = AIModel.objects.filter(model_key=catalog_key(str(mid), source)).first()
         return ((m.capabilities if m else None),
                 (m.model_type if m else tgt.get('default_model_type')),
                 (m.prompt_contract or None) if m else None)

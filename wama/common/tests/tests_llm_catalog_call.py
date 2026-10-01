@@ -13,6 +13,11 @@ from wama.common.utils import llm_utils
 MESSAGES = [{'role': 'user', 'content': 'bonjour'}]
 
 
+class _User:
+    """A signed-in user: the common guard only applies to one (as in the assistant)."""
+    is_authenticated = True
+
+
 class CatalogKeyRoutingTest(SimpleTestCase):
 
     def _call(self, key, **kw):
@@ -34,7 +39,7 @@ class CatalogKeyRoutingTest(SimpleTestCase):
         self.assertEqual(('ollama', 'qwen3.8:latest'), (kwargs['provider'], kwargs['model']))
 
     def test_a_remote_key_goes_through_the_common_guard_with_the_users_key(self):
-        user = object()
+        user = _User()
         with mock.patch('wama.model_manager.services.cloud_models.cloud_access',
                         return_value='user-key') as guard:
             _result, chat = self._call('albert:gpt-oss-120b', user=user)
@@ -47,10 +52,17 @@ class CatalogKeyRoutingTest(SimpleTestCase):
         from wama.model_manager.services.cloud_models import CloudAccessRefused
         with mock.patch('wama.model_manager.services.cloud_models.cloud_access',
                         side_effect=CloudAccessRefused('profil 100 % local', 403)):
-            (text, err), chat = self._call('albert:gpt-oss-120b', user=object())
+            (text, err), chat = self._call('albert:gpt-oss-120b', user=_User())
         self.assertIsNone(text)
         self.assertIn('100 % local', err)
         chat.assert_not_called()
+
+    def test_without_a_user_the_instance_key_serves_and_no_guard_runs(self):
+        """Command-line roles have no user: `llm_chat` takes the instance key, as before."""
+        with mock.patch('wama.model_manager.services.cloud_models.cloud_access') as guard:
+            _result, chat = self._call('albert:gpt-oss-120b')
+        guard.assert_not_called()
+        self.assertIsNone(chat.call_args[1]['api_key'])
 
     def test_the_signature_is_explicit_so_a_guessed_argument_fails_at_once(self):
         """No `**kwargs` relay: the codegen role had passed `max_tokens` / `max_new_tokens`

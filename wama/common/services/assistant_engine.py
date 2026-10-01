@@ -622,9 +622,8 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
         return _claude_code_call(messages, user=user)
 
     from wama.common import external_sources
-    from wama.common.utils.llm_utils import llm_chat
+    from wama.common.utils.llm_utils import chat_with_source, llm_chat
     llm_provider = _PROVIDER_ALIAS.get(provider, provider)
-    api_key = None
     # Fournisseur DÉCLARÉ (source `llm` : Albert, API Anthropic…) → clé personnelle exigée.
     source = external_sources.by_key().get(llm_provider)
     # ⚠ Un fournisseur NON déclaré (`openai`, `mistral`…) n'a ni clé personnelle ni garde « 100 %
@@ -635,22 +634,19 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
             and (source is None or source.kind != 'llm')):
         return None, {'error': f"Fournisseur « {provider} » non déclaré dans WAMA : choisissez un "
                                "fournisseur proposé par le sélecteur.", 'status': 400}
-    if (source and source.kind == 'llm' and user is not None
-            and getattr(user, 'is_authenticated', False)):
-        # Garde COMMUNE d'un appel distant (profil, modèle ouvert par la clé, clé posée).
-        from wama.model_manager.services.cloud_models import CloudAccessRefused, cloud_access
+    if source and source.kind == 'llm':
+        # Fournisseur déclaré : la brique COMMUNE (garde + clé de l'utilisateur), partagée avec les
+        # apps qui appellent un LLM par une clé de catalogue (`chat_with_catalog_model`, 2026-10-01).
+        from wama.model_manager.services.cloud_models import CloudAccessRefused
         try:
-            api_key = cloud_access(user, source.key, llm_model or '')
+            text, err = chat_with_source(source.key, llm_model, messages, user=user,
+                                         num_predict=4096, timeout=180.0)
         except CloudAccessRefused as e:
             return None, {'error': str(e), 'status': e.status}
-    text, err = llm_chat(
-        messages,
-        model=llm_model,
-        provider=llm_provider,
-        num_predict=4096,
-        timeout=180.0,
-        api_key=api_key,
-    )
+    else:
+        # Non déclaré : seulement sans utilisateur (refusé plus haut sinon) — clé d'instance.
+        text, err = llm_chat(messages, model=llm_model, provider=llm_provider,
+                             num_predict=4096, timeout=180.0)
     if text is None:
         return None, {'error': err or 'LLM error', 'status': 502}
     return text, {'input_tokens': 0, 'output_tokens': 0}

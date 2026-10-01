@@ -88,11 +88,33 @@ class OutputsTest(_Base):
 
     def test_files_are_referenced_with_their_fingerprint(self):
         self._write_output(b'first result')
-        refs = revisions.file_references(self.item)
+        refs = revisions.output_references(self.item)
         self.assertEqual(['output_file'], [r['field'] for r in refs],
                          'an empty FileField (input_file) must not be referenced')
         self.assertEqual('users/out.txt', refs[0]['path'])
         self.assertEqual(64, len(refs[0]['sha256']))
+
+    def test_only_the_fields_the_process_wrote_are_outputs(self):
+        """Measured on the Writer's 1st real revision: its INPUT document was recorded as an
+        output, and the document it produced (a text field) was not."""
+        self._write_output(b'result')
+        self.item.input_file.name = 'users/in.png'
+        self.item.output_format = 'webp'
+        self.item.save(update_fields=['input_file', 'output_format'])
+        refs = revisions.output_references(self.item, ['output_file', 'output_format', 'status'])
+        self.assertEqual(['output_file', 'output_format', 'status'], [r['field'] for r in refs])
+        text = refs[1]
+        self.assertEqual(('', 64), (text['path'], len(text['sha256'])))
+
+    def test_a_text_output_changed_since_the_revision_is_named_with_the_element(self):
+        self.item.output_format = 'webp'
+        self.item.save(update_fields=['output_format'])
+        revision = revisions.record_revision('converter', self.item, output_fields=['output_format'])
+        self.assertEqual([], revisions.outputs_changed_since(revision, self.item))
+        self.item.output_format = 'avif'
+        self.assertEqual(['output_format'], revisions.outputs_changed_since(revision, self.item))
+        self.assertEqual([], revisions.outputs_changed_since(revision),
+                         'without the element, a text output is not judged')
 
     def test_a_file_overwritten_since_the_revision_is_named(self):
         """Until outputs are immutable, the fingerprint keeps the history honest."""

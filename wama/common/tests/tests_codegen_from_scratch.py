@@ -1,6 +1,6 @@
 """Creating an app FROM SCRATCH out of a hand-written manifest — the route « app de zéro »
 (`WAMA_APP_GENERATION_ROUTE.md §10.5`, priority set by Fabien on 2026-09-30; test case: the
-Editor, `manifests/app_drafts/editor.json`).
+Writer, `manifests/app_drafts/writer.json`).
 
 The generators were written against EXISTING apps (a twin copies its source, then swaps files
 for generated ones). Creating from scratch has no source to lean on: whatever the manifest
@@ -14,7 +14,7 @@ from pathlib import Path
 from django.conf import settings
 from django.test import SimpleTestCase
 
-DRAFT = Path(settings.BASE_DIR) / 'manifests' / 'app_drafts' / 'editor.json'
+DRAFT = Path(settings.BASE_DIR) / 'manifests' / 'app_drafts' / 'writer.json'
 
 
 def _class_fields(src: str, class_name: str) -> set:
@@ -25,54 +25,6 @@ def _class_fields(src: str, class_name: str) -> set:
             return {t.id for stmt in node.body if isinstance(stmt, ast.Assign)
                     for t in stmt.targets if isinstance(t, ast.Name)}
     return set()
-
-
-class DeclaredProcessesTest(SimpleTestCase):
-    """The `pipelines` facet of an app manifest (§10.6 3.5, open decision n°11 formalised on the
-    Editor, 2026-10-01): the processes an app proposes, each with what it reads, writes and
-    watches. Measured on 2026-09-30: without DECLARED steps, the codegen role wrote the LLM's raw
-    text into the `.html` — no model can guess an intention absent from its matter."""
-
-    def _manifest(self):
-        return json.loads(DRAFT.read_text(encoding='utf-8'))
-
-    def test_the_editor_facet_is_valid_and_ordered(self):
-        from wama.common.manifests.builtin.app import pipeline_process_order, validate_app_body
-        manifest = self._manifest()
-        self.assertEqual([], validate_app_body(manifest['body']))
-        order, errors = pipeline_process_order(manifest['body']['pipelines'][0])
-        self.assertEqual([], errors)
-        self.assertEqual(['draft_content', 'render_format'], [n['id'] for n in order])
-
-    def test_a_cycle_or_a_dangling_link_is_refused_at_ingest(self):
-        from wama.common.manifests.builtin.app import validate_app_body
-        manifest = self._manifest()
-        pipeline = manifest['body']['pipelines'][0]
-        for links, expected in (
-                ([{'from': 'draft_content', 'to': 'render_format'},
-                  {'from': 'render_format', 'to': 'draft_content'}], 'cycle'),
-                ([{'from': 'draft_content', 'to': 'ghost'}], 'inconnu')):
-            with self.subTest(expected=expected):
-                pipeline['links'] = links
-                errors = validate_app_body(manifest['body'])
-                self.assertTrue(any(expected in e for e in errors), errors)
-
-    def test_the_task_chains_the_declared_processes_and_leaves_one_hole_each(self):
-        from wama.common.manifests.codegen.tasks_gen import render_tasks
-        src, reason = render_tasks(self._manifest())
-        self.assertIsNotNone(src, reason)
-        tree = ast.parse(src)
-        functions = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
-        self.assertIn('_process_draft_content', functions)
-        self.assertIn('_process_render_format', functions)
-        chain = ast.get_source_segment(src, functions['_process_generate_document_task'])
-        self.assertIn('run_process_steps', chain)
-        self.assertLess(chain.index('_process_draft_content'), chain.index('_process_render_format'),
-                        'the declared order (links) is not the chained order')
-        render_doc = ast.get_docstring(functions['_process_render_format'])
-        self.assertIn('output_file', render_doc, 'the declaration (writes) is not in the hole')
-        self.assertIn('HTML', render_doc, 'the declared intention is not in the hole')
-        compile(src, 'tasks.py', 'exec')
 
 
 class ApplyingAGlueTest(SimpleTestCase):
@@ -114,22 +66,22 @@ class ManifestBornAppJoinsTheCatalogTest(SimpleTestCase):
         from unittest import mock
 
         from wama.common import sandbox
-        entry = {'label': 'editor_01', 'generated_from': '',
-                 'from_manifest': 'manifests/app_drafts/editor.json',
-                 'catalog': {'label': 'Editor', 'url_name': 'editor_01:index',
+        entry = {'label': 'writer_01', 'generated_from': '',
+                 'from_manifest': 'manifests/app_drafts/writer.json',
+                 'catalog': {'label': 'Writer', 'url_name': 'writer_01:index',
                              'input_types': ['prompt'], 'has_batch': True},
                  'created': '2026-09-30T20:00:00+00:00'}
         catalog = {'converter': {'label': 'Converter'}}
         with mock.patch.object(sandbox, 'load_registry', return_value=[entry]), \
-                mock.patch.object(sandbox, 'sandbox_labels', return_value=['editor_01']):
+                mock.patch.object(sandbox, 'sandbox_labels', return_value=['writer_01']):
             sandbox.inject_sandbox_catalog(catalog)
-        born = catalog.get('editor_01')
+        born = catalog.get('writer_01')
         self.assertIsNotNone(born, 'the manifest-born app is missing from the catalog')
         self.assertTrue(born['sandbox'])
         self.assertIn('BAC À SABLE', born['label'])
-        self.assertEqual('editor_01:index', born['url_name'])
-        self.assertEqual('manifests/app_drafts/editor.json', born['from_manifest'])
-        self.assertEqual(['converter', 'editor_01'], sorted(catalog))
+        self.assertEqual('writer_01:index', born['url_name'])
+        self.assertEqual('manifests/app_drafts/writer.json', born['from_manifest'])
+        self.assertEqual(['converter', 'writer_01'], sorted(catalog))
         self.assertEqual(['converter'], sandbox.non_sandbox_apps(catalog),
                          'a sandbox app must stay out of the conformity grid')
 
@@ -140,20 +92,20 @@ class DeclaredResultFieldsAreGeneratedTest(SimpleTestCase):
     skeleton left them all to « TROU DE GLU » while `apps_gen` registered the preview on
     `output_file`, a field the generated model did not have."""
 
-    def test_the_editor_draft_gets_its_declared_result_fields(self):
+    def test_the_writer_draft_gets_its_declared_result_fields(self):
         from wama.common.manifests.codegen.models_gen import render_models
         manifest = json.loads(DRAFT.read_text(encoding='utf-8'))
         src, reason = render_models(manifest)
         self.assertIsNotNone(src, reason)
-        fields = _class_fields(src, 'EditorDocument')
+        fields = _class_fields(src, 'WriterDocument')
         self.assertIn('output_file', fields, 'the previewed output file is missing')
         self.assertIn('result_text', fields, 'the text result (the « fond ») is missing')
-        self.assertEqual(1, src.count('source_document = '),
+        self.assertEqual(1, src.count('reference_document = '),
                          'the input field must not come back as a result field')
         compile(src, 'models.py', 'exec')
 
-    def test_the_status_column_fits_every_state_it_declares(self):
-        """Measured on the first real creation from scratch (Editor, 2026-09-30): the skeleton
+    def test_the_status_column_fits_every_state_it_lists(self):
+        """Measured on the first real creation from scratch (the Editor, now the Writer, 2026-09-30): the skeleton
         froze `max_length=16` while the common vocabulary has `AWAITING_RESOURCES` (18) —
         `makemigrations` refused the app (fields.E009). Reading the choices never showed it."""
         from wama.common.manifests.codegen.models_gen import render_models

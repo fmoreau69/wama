@@ -117,6 +117,13 @@ INPUT_TYPES = {
                         'description': "Un extrait de voix à IMITER. La voix produite lui ressemblera ; l'extrait n'est pas modifié."},
     'reference_melody': {'label': 'Mélodie de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference',
                         'description': "Une mélodie qui ORIENTE la composition. Elle guide, elle n'est pas remixée."},
+    # Rôle « référence » × nature `document` (2026-10-01) — même règle que `work_object3d` : le
+    # vocabulaire des rôles suit les NATURES. `reference_file` ne convenait pas à une app « consigne
+    # d'abord » (le Writer) : sans `accept`, il prend les natures de l'APP, que la dérivation de
+    # repli range aussi en port de TRAVAIL (`app_registry.studio_node_ports`) — deux onglets pour un
+    # seul document. Premier consommateur : le Writer (ROADMAP §21.5).
+    'reference_document': {'label': 'Document de référence', 'kind': 'file', 'accept': 'document', 'multi': False, 'port': 'reference',
+                           'description': "Un document qui NOURRIT le contenu (faits, chiffres, termes) sans être recopié ni transformé."},
     # ── Entrées consommées par l'APP, jamais par un modèle (2026-09-23) ─────────────────
     # Les jetons ci-dessus sont lus par un MODÈLE (ils arrivent par ses `inputs_required`/
     # `inputs_optional`). Ces deux-là sont lus par l'app AUTOUR du modèle : aucun moteur ne les
@@ -387,9 +394,12 @@ def get_app_modes(app: str) -> dict:
     """
     if app in APP_MODES:
         return APP_MODES[app]
-    from wama.common.sandbox import twin_source   # module PUR (json/pathlib) — aucun cycle
+    from wama.common.sandbox import born_declaration, twin_source   # module PUR — aucun cycle
     src = twin_source(app)
-    return APP_MODES.get(src, {}) if src else {}
+    if src:
+        return APP_MODES.get(src, {})
+    # App créée DE ZÉRO depuis un manifeste (2026-10-01) : ses modes sont ceux qu'il déclarait.
+    return born_declaration(app, 'modes') or {}
 
 
 def get_domains(app: str) -> list:
