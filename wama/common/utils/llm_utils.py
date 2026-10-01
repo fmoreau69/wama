@@ -405,8 +405,9 @@ def llm_chat(
 
 
 def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
-                            num_predict: Optional[int] = 4096, think: bool = False,
-                            timeout: float = 300.0, temperature: Optional[float] = None,
+                            num_predict: Optional[int] = None, think: bool = False,
+                            timeout: Optional[float] = None,
+                            temperature: Optional[float] = None,
                             ) -> tuple[Optional[str], Optional[str]]:
     """
     Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
@@ -427,8 +428,15 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
         l'UTILISATEUR, par la garde commune `cloud_access` (profil « 100 % local », modèle ouvert
         par sa clé, clé posée) — jamais la clé d'instance pour un utilisateur connecté ;
       - l'abonnement Claude Code (`claude_code:*`) n'est pas un appel LiteLLM : refusé ici.
-    `num_predict` (jetons max, `None` = sans plafond — utile à un modèle qui raisonne), `think`,
-    `timeout`, `temperature` : ceux de `llm_chat`.
+    `num_predict` (jetons max) : `None` par défaut = sans plafond — même raison que `timeout`
+    ci-dessous : un document entier (le HTML d'une dizaine de diapositives) dépasse vite un plafond
+    écrit d'avance, et la glu RECOPIE le défaut qu'elle lit ici. `think`, `temperature` : ceux de
+    `llm_chat`.
+    `timeout` : `None` par défaut, et c'est voulu — dans une tâche, la borne est la DURÉE MAX du
+    squelette (`task_skeleton._time_guard`, réglable au profil et par modèle). Un délai plus court
+    posé ici ajoute un échec arbitraire : mesuré le 2026-10-01, la 1ʳᵉ génération réelle de
+    l'Editor (HTML d'une dizaine de diapositives, qwen3.8 local) est tombée sur un `300` que la glu
+    avait RECOPIÉ du défaut de cette signature. Ne le fixer que pour un appel interactif.
     ⚠ Signature EXPLICITE, pas de `**kwargs` qui relaie (2026-10-01) : un relais cache la vraie
     signature au modèle QUI ÉCRIT l'appel et au contrôle qui le juge — le rôle `codegen` avait
     passé `max_tokens` et `max_new_tokens`, `TypeError` assuré au premier lancement.

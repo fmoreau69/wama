@@ -61,6 +61,11 @@ class CatalogKeyRoutingTest(SimpleTestCase):
         with self.assertRaises(TypeError):
             llm_utils.chat_with_catalog_model('auto', MESSAGES, max_tokens=10)
 
+    def test_no_call_timeout_by_default_the_task_max_duration_bounds_it(self):
+        """The 1st real Editor run fell on a 300 s the glue had COPIED from this default."""
+        _result, chat = self._call('ollama:qwen3.8:latest')
+        self.assertIsNone(chat.call_args[1]['timeout'])
+
     def test_undeclared_sources_and_the_subscription_are_refused(self):
         for key in ('openai:gpt-4o', 'claude_code:default', 'no-colon'):
             with self.subTest(key=key):

@@ -75,6 +75,36 @@ class DeclaredProcessesTest(SimpleTestCase):
         compile(src, 'tasks.py', 'exec')
 
 
+class ApplyingAGlueTest(SimpleTestCase):
+    """`app_sandbox glue` — the « validate → apply » gesture the route lacked for an app's glue
+    (it existed for models and backends). Held here: a hole is replaced, a written glue is never
+    overwritten, and a result that does not compile is refused."""
+
+    SOURCE = ('def _process_x(item, ctx):\n'
+              '    """TROU DE GLU [manifest-gen app:demo] — process x."""\n'
+              "    raise NotImplementedError('x')\n\n\n"
+              'def other():\n    return 1\n')
+
+    def test_the_hole_is_replaced_and_the_rest_kept(self):
+        from wama.common.management.commands.app_sandbox import replace_glue_hole
+        out = replace_glue_hole(self.SOURCE, '_process_x',
+                                "def _process_x(item, ctx):\n    return {'fields': {}}\n")
+        self.assertNotIn('TROU DE GLU', out)
+        self.assertIn("return {'fields': {}}", out)
+        self.assertIn('def other():', out)
+
+    def test_a_written_glue_is_never_overwritten(self):
+        from wama.common.management.commands.app_sandbox import replace_glue_hole
+        written = replace_glue_hole(self.SOURCE, '_process_x', 'def _process_x(item, ctx):\n    return {}\n')
+        with self.assertRaises(ValueError):
+            replace_glue_hole(written, '_process_x', 'def _process_x(item, ctx):\n    return None\n')
+
+    def test_a_glue_that_does_not_compile_is_refused(self):
+        from wama.common.management.commands.app_sandbox import replace_glue_hole
+        with self.assertRaises(ValueError):
+            replace_glue_hole(self.SOURCE, '_process_x', 'def _process_x(item, ctx:\n    pass\n')
+
+
 class ManifestBornAppJoinsTheCatalogTest(SimpleTestCase):
     """An app created from scratch has no source to clone: its catalog entry is computed at
     creation (Django loaded) and stored in the registry; the boot-time injection only reads it —
