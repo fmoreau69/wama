@@ -401,3 +401,77 @@ class FullKeyChipTest(TestCase):
                  'options_query': {'task': 'text-to-image'}}
         self.assertEqual(['Image installée'],
                          [c['label'] for c in card_chips.chips_for(_Item(), [field])])
+
+
+class GroupAutoOptionsTest(TestCase):
+    """One « auto » PER GROUP (`auto=group`, 2026-10-01, composer): a task-bound auto
+    (`auto:<task>`) heads each task group — the decision « no 2 modes: group server-side + one
+    auto per group ». The domain is bounded by the TASK, never by the source: a model of the
+    task installed from elsewhere (YuE2, prospected) joins the menu without a line of code."""
+
+    def setUp(self):
+        _model('composer:musicgen-small', 'MusicGen small', task='text-to-music', model_type='music')
+        _model('huggingface:m-a-p/YuE2-3B', 'YuE2 3B', task='text-to-music', model_type='music')
+        _model('composer:audiogen-medium', 'AudioGen', task='text-to-audio', model_type='music')
+        user = get_user_model().objects.create_user(username='group_auto', password='x')
+        self.client = Client()
+        self.client.force_login(user)
+
+    def _groups(self, auto):
+        r = self.client.get(URL, {'task': 'text-to-music,text-to-audio', 'group': 'task',
+                                  'auto': auto})
+        self.assertEqual(r.status_code, 200)
+        return r.json()['groups']
+
+    def _by_task(self, auto):
+        return {g.get('task'): [o[0] if isinstance(o, list) else o['value'] for o in g['options']]
+                for g in self._groups(auto)}
+
+    def test_each_task_group_is_headed_by_its_own_auto(self):
+        groups = self._by_task('group')
+        self.assertEqual('auto:text-to-music', groups['text-to-music'][0])
+        self.assertEqual('auto:text-to-audio', groups['text-to-audio'][0])
+        self.assertNotIn(None, groups, 'no anonymous head group holding a bare « auto »')
+
+    def test_a_model_of_the_task_from_another_source_joins_the_menu(self):
+        groups = self._by_task('group')
+        self.assertIn('huggingface:m-a-p/YuE2-3B', groups['text-to-music'])
+        self.assertIn('composer:audiogen-medium', groups['text-to-audio'])
+        self.assertNotIn('composer:audiogen-medium', groups['text-to-music'])
+
+    def test_the_single_auto_is_unchanged(self):
+        values = [v for vs in self._by_task('1').values() for v in vs]
+        self.assertIn('auto', values)
+        self.assertFalse([v for v in values if v.startswith('auto:')])
+
+
+class TaskBoundAutoTest(TestCase):
+    """`auto:<task>` (model_keys): an « auto » bounded to a task — never a catalogue key."""
+
+    def test_the_task_is_read_from_the_value(self):
+        from wama.common.utils.model_keys import auto_task
+        self.assertEqual('text-to-music', auto_task('auto:text-to-music'))
+        self.assertEqual('', auto_task('auto'))
+        self.assertEqual('', auto_task('composer:musicgen-small'))
+        self.assertEqual('', auto_task(None))
+
+    def test_it_is_an_auto_and_is_never_prefixed(self):
+        from wama.common.utils.auto_model import is_auto
+        from wama.common.utils.model_keys import catalog_key
+        self.assertTrue(is_auto('auto:text-to-audio'))
+        self.assertEqual('auto:text-to-audio', catalog_key('auto:text-to-audio', 'composer'))
+
+    def test_the_resolution_is_bounded_to_the_task_of_the_auto(self):
+        from unittest import mock
+        from wama.common.utils.auto_model import resolve_model_choice
+        seen = {}
+
+        def fake_select(source, **kw):
+            seen.update(kw, source=source)
+            return 'huggingface:m-a-p/YuE2-3B'
+
+        with mock.patch('wama.model_manager.services.select_model_id', fake_select):
+            self.assertEqual('huggingface:m-a-p/YuE2-3B', resolve_model_choice(
+                'auto:text-to-music', spec={'task': 'text-to-music,text-to-audio'}))
+        self.assertEqual('text-to-music', seen['task'])
+        self.assertIsNone(seen['source'])

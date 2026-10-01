@@ -20,6 +20,15 @@ from __future__ import annotations
 
 #: Valeur d'un select de modèle qui demande le tirage au lancement (`auto_model.AUTO`).
 AUTO = 'auto'
+#: « auto » BORNÉ À UNE TÂCHE : `auto:text-to-music` (2026-10-01) — l'« auto » d'un GROUPE quand
+#: un select réunit plusieurs tâches (composer : musique / ambiances). Jamais une clé de catalogue.
+AUTO_TASK_PREFIX = 'auto:'
+
+
+def auto_task(value) -> str:
+    """La tâche d'un « auto » borné (`auto:text-to-music` → `text-to-music`), sinon ''."""
+    value = (value or '').strip()
+    return value[len(AUTO_TASK_PREFIX):] if value.startswith(AUTO_TASK_PREFIX) else ''
 #: Préfixe des CANDIDATS de prospection (`prospect_ollama.PROPOSED_PREFIX`) — une source de fait.
 PROPOSED = 'proposed'
 
@@ -56,7 +65,7 @@ def catalog_key(value: str, default_source: str) -> str:
     C'est la tolérance d'ENTRÉE d'une app passée aux clés entières : l'assistant, un fichier de
     lot, une ligne écrite avant la migration donnent encore l'identifiant nu."""
     value = (value or '').strip()
-    if not value or value == AUTO:
+    if not value or value == AUTO or auto_task(value):
         return value
     source, _ = split_key(value)
     return value if source else f'{default_source}:{value}'

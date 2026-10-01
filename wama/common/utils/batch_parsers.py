@@ -358,11 +358,13 @@ def _parse_composer_lines(
     default_duration: float,
 ) -> Tuple[List[Dict], List[str]]:
     """Parse pipe-separated Composer batch lines into task dicts."""
-    from wama.composer.utils.model_config import COMPOSER_MODELS
+    # Route F4b (2026-10-01) : un modèle est valide s'il est du DOMAINE du composer (catalogue,
+    # tâches musique/ambiance) — plus seulement de sa liste ; la valeur est normalisée en clé.
+    from wama.composer.utils.model_choice import generation_type as _generation_type
+    from wama.composer.utils.model_choice import is_valid, normalize
 
     tasks: List[Dict] = []
     warnings: List[str] = []
-    valid_models = set(COMPOSER_MODELS.keys())
 
     # Bornes de durée : DÉCLARÉES au schéma, pas recopiées ici. La version précédente clampait
     # à 1–30 s alors que le schéma dit 10–600 s : un import batch à 120 s (valeur pourtant
@@ -400,11 +402,11 @@ def _parse_composer_lines(
             continue
 
         # Column 3: model (optional)
-        model = default_model
+        model = normalize(default_model)
         if len(parts) > 2 and parts[2]:
             m = parts[2]
-            if m in valid_models:
-                model = m
+            if is_valid(m):
+                model = normalize(m)
             else:
                 warnings.append(
                     f"Ligne {line_num} : modèle '{m}' inconnu, utilisation de '{default_model}'"
@@ -427,7 +429,7 @@ def _parse_composer_lines(
                     f"utilisation de {default_duration}s"
                 )
 
-        generation_type = COMPOSER_MODELS.get(model, {}).get('type', 'music')
+        generation_type = _generation_type(model)
 
         tasks.append({
             'output_filename': filename,

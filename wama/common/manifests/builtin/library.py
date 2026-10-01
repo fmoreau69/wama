@@ -63,6 +63,12 @@ def validate_library_body(body: dict) -> list[str]:
     if pins is not None and (not isinstance(pins, list)
                              or not all(isinstance(p, str) for p in pins)):
         errs.append("constraints.pip doit être une liste de spécificateurs « nom==version »")
+    # `constraints.no_deps` (2026-10-01) : installer SANS les dépendances — le pendant du
+    # `PIP_NO_DEPS` des backends, pour une librairie dont la résolution déplacerait le venv
+    # (accelerate 1.12 : pip rétrogradait nvidia-nccl-cu12 pour satisfaire le pin de torch).
+    no_deps = (body.get('constraints') or {}).get('no_deps') if isinstance(body.get('constraints'), dict) else None
+    if no_deps is not None and not isinstance(no_deps, bool):
+        errs.append("constraints.no_deps doit être un booléen")
     deps = body.get('dependencies')
     if deps is not None and not isinstance(deps, list):
         errs.append("dependencies doit être une liste")

@@ -104,8 +104,10 @@ def intent_param(**overrides) -> dict:
 
 
 def is_auto(value) -> bool:
-    """Cette valeur demande-t-elle le tirage automatique ? (vide compris)."""
-    return not value or str(value).strip().lower() == AUTO
+    """Cette valeur demande-t-elle le tirage automatique ? (vide compris, et l'« auto » borné à
+    une tâche — `auto:text-to-music`, l'« auto » d'un groupe de select)."""
+    from wama.common.utils.model_keys import auto_task
+    return not value or str(value).strip().lower() == AUTO or bool(auto_task(str(value)))
 
 
 def candidates_with(capability: str, value, **filters) -> list:
@@ -242,6 +244,11 @@ def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, it
     if requested and not is_auto(requested):
         return requested
     domain = dict(spec) if spec is not None else (catalog_domain(app_id) or {})
+    # « auto » d'un GROUPE (`auto:<tâche>`) : il borne le tirage à SA tâche — le domaine du select
+    # en réunit plusieurs (composer : musique / ambiances, 2026-10-01).
+    from wama.common.utils.model_keys import auto_task
+    if auto_task(requested):
+        domain['task'] = auto_task(requested)
     if 'quality_intent' not in overrides and (item is not None or user is not None):
         overrides['quality_intent'] = quality_intent_of(item, app_id, user)
     # Distants DÉCLARÉS au schéma et autorisés par le profil (`declared_cloud_keys`) ; un

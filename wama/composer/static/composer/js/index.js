@@ -76,10 +76,10 @@
         const type = document.querySelector('input[name="gen_type"]:checked')?.value || 'music';
         const opts = Array.from(modelSelect.options);
         if (type === 'music') {
-            const first = opts.find(o => o.value.startsWith('musicgen'));
+            const first = opts.find(o => o.value.includes('musicgen'));
             if (first) modelSelect.value = first.value;
         } else {
-            const first = opts.find(o => o.value.startsWith('audiogen'));
+            const first = opts.find(o => o.value.includes('audiogen'));
             if (first) modelSelect.value = first.value;
         }
         updateEstimate();
@@ -129,7 +129,7 @@
         // pas de setter maison, route unique).
         const bhost = document.getElementById('composerBatchParams');
         if (window.WamaParams && bhost) {
-            const vals = { model: fd.model || 'auto-music', duration: fd.duration || 10 };
+            const vals = { model: fd.model || 'auto:text-to-music', duration: fd.duration || 10 };
             if (fd.outputFormat) vals.output_format = fd.outputFormat;
             if (fd.outputQuality) vals.output_quality = fd.outputQuality;
             WamaParams.apply(bhost, vals);   // une clé absente n'écrase pas le champ
@@ -212,7 +212,7 @@
             // backend generate_unconditional / chroma-seule). Cf. INPUT_MODEL_MATCHING.md.
             const prompt = promptInput?.value.trim() || '';
 
-            const modelId = modelSelect?.value || 'musicgen-small';
+            const modelId = modelSelect?.value || 'auto:text-to-music';
             const duration = getSelectedDuration();
 
             const formData = new FormData();
@@ -273,7 +273,7 @@
     // Reset options handler
     document.getElementById('resetOptions')?.addEventListener('click', () => {
         if (modelSelect) {
-            const firstMusic = Array.from(modelSelect.options).find(o => o.value.startsWith('musicgen'));
+            const firstMusic = Array.from(modelSelect.options).find(o => o.value.includes('musicgen'));
             if (firstMusic) modelSelect.value = firstMusic.value;
             updateEstimate();
         }

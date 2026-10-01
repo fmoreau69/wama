@@ -621,7 +621,9 @@
       // `options_auto` (schéma, route F4b) : « auto » en 1ʳᵉ option + PRÉVISION du modèle
       // retenu. Hors de `options_query` À DESSEIN : c'est un drapeau d'UI, pas une borne de
       // domaine — les consommateurs serveur du domaine (chips de card…) ne doivent pas le voir.
-      if (p.options_auto) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'auto=1';
+      // `options_auto: "group"` (2026-10-01) : un « auto:<tâche> » par groupe de tâche.
+      if (p.options_auto) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'auto=' +
+        (p.options_auto === 'group' ? 'group' : '1');
       // `options_cloud` (2026-09-16) : même nature que `options_auto` — un drapeau d'UI, pas une
       // borne de domaine. Le serveur ajoute alors les modèles DISTANTS que les clés de CET
       // utilisateur ouvrent, selon son niveau cloud.

@@ -111,6 +111,45 @@ class ContraintesPipTest(TestCase):
         self.assertTrue(validate_library_body(dict(corps, constraints={'pip': 'a==1'})))
 
 
+class NoDepsConstraintTest(ContraintesPipTest):
+    """`constraints.no_deps` (2026-10-01, accelerate 1.12) : la librairie s'installe — et se
+    SIMULE — sans ses dépendances, pour ne pas laisser pip rétrograder nvidia-nccl-cu12."""
+
+    def _plan_and_install(self, constraints):
+        from unittest.mock import patch
+        Library.objects.create(key='accelerate', name='accelerate', pip_spec='accelerate==1.12.0',
+                               constraints=constraints, is_allowed=True)
+        seen = []
+        _, run = self._capture()
+
+        def recording(cmd, **kwargs):
+            seen.append(list(cmd))
+            return run(cmd, **kwargs)
+        with patch('subprocess.run', side_effect=recording), \
+                patch('wama.model_manager.services.model_installer._replay_patches',
+                      return_value={'ok': True}):
+            plan = install_library('accelerate', apply=False)
+            install_library('accelerate', apply=True)
+        return plan, seen
+
+    def test_no_deps_reaches_the_simulation_and_the_installation(self):
+        plan, seen = self._plan_and_install({'no_deps': True})
+        self.assertTrue(plan['plan']['no_deps'])
+        pip_calls = [c for c in seen if 'pip' in c and 'install' in c]
+        self.assertTrue(pip_calls and all('--no-deps' in c for c in pip_calls), pip_calls)
+
+    def test_without_the_constraint_dependencies_are_resolved(self):
+        """Contre-épreuve : sans `no_deps`, rien ne change (pip résout les dépendances)."""
+        _, seen = self._plan_and_install({})
+        self.assertFalse([c for c in seen if '--no-deps' in c])
+
+    def test_the_manifest_refuses_a_non_boolean_no_deps(self):
+        from wama.common.manifests.builtin.library import validate_library_body
+        corps = {'identity': {'version': '1.0'}, 'install': {'pip': 'x==1.0'}}
+        self.assertEqual([], validate_library_body(dict(corps, constraints={'no_deps': True})))
+        self.assertTrue(validate_library_body(dict(corps, constraints={'no_deps': 'yes'})))
+
+
 class InstallLibraryTest(TestCase):
     def _lib(self, **surcharges):
         champs = dict(key='kokoro-onnx', name='kokoro-onnx',

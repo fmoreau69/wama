@@ -1325,7 +1325,9 @@ def api_model_options(request):
             value = opt['value'] if isinstance(opt, dict) else opt[0]
             by_task.setdefault(task_of.get(value, ''), []).append(opt)
         keys = [k for k in order if k in by_task] + [k for k in by_task if k not in order]
-        groups = [{'group': labels.get(k, k or 'Autres'), 'options': by_task[k]} for k in keys]
+        # `task` voyage avec le groupe (le JS l'ignore) : c'est lui que l'« auto » de GROUPE nomme.
+        groups = [{'group': labels.get(k, k or 'Autres'), 'task': k, 'options': by_task[k]}
+                  for k in keys]
     elif request.GET.get('group') == 'category':
         # Un groupe par CATÉGORIE de présentation (capacité canonique `category`, 2026-09-29 —
         # 1ᵉʳ consommateur : les logos de l'imager). Les modèles SANS catégorie restent HORS
@@ -1347,13 +1349,23 @@ def api_model_options(request):
     # valeur brute au dispatch des apps pas encore branchées. La prévision emprunte le
     # MÊME chemin que le tirage réel (VRAM libre du moment) ; elle est une photo, le
     # lancement réévalue.
-    if request.GET.get('auto') in ('1', 'true'):
+    # `auto=group` (2026-10-01) : un « auto » PAR GROUPE de tâche, `auto:<tâche>` — la décision
+    # « composer : remettre les 2 modes ? → non, grouper côté serveur + un auto par groupe »
+    # (PROJECT_STATUS, palier du 08/09). Le tirage le borne à sa tâche (`resolve_model_choice`).
+    if request.GET.get('auto') == 'group' and any(g.get('task') for g in groups):
+        from wama.common.utils.auto_model import AUTO_LABEL
+        from wama.common.utils.model_keys import AUTO_TASK_PREFIX
+        for g in groups:
+            if g.get('task'):
+                g['options'].insert(0, [f"{AUTO_TASK_PREFIX}{g['task']}", AUTO_LABEL])
+    elif request.GET.get('auto') in ('1', 'true', 'group'):
         from wama.common.utils.auto_model import AUTO, AUTO_LABEL, predict_model_choice
         # « auto » en tête de la LISTE, jamais DANS un groupe nommé : il rejoint le premier
         # groupe s'il est anonyme (liste plate, ou modèles sans catégorie), sinon il ouvre le
         # sien (liste groupée par tâche). Inséré dans le GROUPE et non dans `options` : un
         # regroupement construit ses propres listes (2026-09-29).
-        if groups[0].get('group'):
+        # Un domaine VIDE regroupé par tâche ne rend aucun groupe : « auto » ouvre alors le sien.
+        if not groups or groups[0].get('group'):
             groups.insert(0, {'options': [[AUTO, AUTO_LABEL]]})
         else:
             groups[0]['options'].insert(0, [AUTO, AUTO_LABEL])

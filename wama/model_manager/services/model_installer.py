@@ -1575,7 +1575,8 @@ def _replay_patches() -> dict:
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
 
 
-def simuler_installation(spec: str, timeout: int = 300, constraints=None) -> dict:
+def simuler_installation(spec: str, timeout: int = 300, constraints=None,
+                         no_deps: bool = False) -> dict:
     """Ce qu'une installation ENTRAÎNERAIT — `pip install --dry-run`, LECTURE SEULE.
 
     POURQUOI (2026-09-07, recadrage Fabien : « l'intérêt est de vérifier si une librairie peut
@@ -1612,6 +1613,7 @@ def simuler_installation(spec: str, timeout: int = 300, constraints=None) -> dic
     try:
         proc = subprocess.run(
             [sys.executable, '-m', 'pip', 'install', '--dry-run', spec,
+             *(['--no-deps'] if no_deps else []),
              *(['-c', constraints_path] if constraints_path else [])],
             capture_output=True, text=True, timeout=timeout)
     except Exception as e:
@@ -1674,6 +1676,8 @@ def install_library(key: str, apply: bool = False, via: str = '') -> dict:
     # `constraints.pip` : versions du venv que CETTE installation ne doit pas déplacer
     # (cf. `pip_constraint_errors`). Déclarées au manifeste, projetées au registre, et enfin LUES.
     constraints = list((lib.constraints or {}).get('pip') or [])
+    # `constraints.no_deps` : installer SANS les dépendances (cf. validate_library_body).
+    no_deps = bool((lib.constraints or {}).get('no_deps'))
     err = pip_spec_error(spec) or ' ; '.join(pip_constraint_errors(constraints))
     if err:
         return {'ok': False, 'library': key, 'error': err}
@@ -1687,6 +1691,7 @@ def install_library(key: str, apply: bool = False, via: str = '') -> dict:
     plan = {'library': key, 'spec': spec, 'installed_version': constat,
             'already_satisfied': constat == version_cible,
             'constraints': constraints,
+            'no_deps': no_deps,
             'allowed': lib.is_allowed,
             'venv': sys.executable,
             'venv_win': "non traité (venv historique/temporaire — prod cible full-Linux)",
@@ -1698,7 +1703,7 @@ def install_library(key: str, apply: bool = False, via: str = '') -> dict:
         # la seule façon de voir ce que l'installation traînerait avec elle (cf.
         # `simuler_installation`). Une simulation qui échoue ne condamne pas le plan — elle
         # est REPORTÉE telle quelle, l'appelant décide.
-        plan['simulation'] = simuler_installation(spec, constraints=constraints)
+        plan['simulation'] = simuler_installation(spec, constraints=constraints, no_deps=no_deps)
         return {'ok': True, 'plan': plan, 'would_install': constat != version_cible}
 
     if not lib.is_allowed:
@@ -1713,7 +1718,7 @@ def install_library(key: str, apply: bool = False, via: str = '') -> dict:
         # inscrit — un plan, ou une version déjà satisfaite, n'installe rien.
         from .install_history import opened
         with opened('library', key, name=lib.name or key, via=via) as outcome:
-            res = pip_install_packages([spec], constraints=constraints)
+            res = pip_install_packages([spec], constraints=constraints, no_deps=no_deps)
             if not res.get('ok'):
                 outcome.update({'ok': False, 'error': res.get('error')})
                 return {'ok': False, 'library': key, 'error': res.get('error'), 'plan': plan}
