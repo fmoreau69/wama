@@ -154,13 +154,16 @@ class TheToolDoorDomainTest(TestCase):
 
     def test_launchable_keys_and_old_names_pass_a_greyed_model_does_not(self):
         transcription_catalogue('transcriber:whisper', 'transcriber:qwen3-asr-1.7b')
+        # FrWhisper servait d'exemple de poids SANS backend jusqu'au 2026-10-01, où il en a reçu un
+        # (`frwhisper_backend`) : il est désormais proposé, et l'exemple grisé est inventé.
         transcription_row('huggingface:aihpi/FrWhisper', engine='transformers')
+        transcription_row('huggingface:org/unlisted-asr', engine='transformers')
         values = backend_choice_values()
         for value in ('auto', 'transcriber:whisper', 'transcriber:qwen3-asr-1.7b', 'whisper',
-                      'qwen_asr'):
+                      'qwen_asr', 'huggingface:aihpi/FrWhisper'):
             with self.subTest(value=value):
                 self.assertIn(value, values)
-        self.assertNotIn('huggingface:aihpi/FrWhisper', values,
+        self.assertNotIn('huggingface:org/unlisted-asr', values,
                          'weights installed without a backend are greyed, not offered')
 
 
