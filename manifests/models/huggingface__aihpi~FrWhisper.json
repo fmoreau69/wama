@@ -13,6 +13,13 @@
       "task": "transcription"
     },
     "composition": {
+      "components": [
+        {
+          "format": "safetensors",
+          "pattern": "model-*.safetensors",
+          "role": "model"
+        }
+      ],
       "runtime": {
         "engine": "transformers"
       }
@@ -20,7 +27,6 @@
     "extra_info": {
       "category": "speech",
       "family": "FrWhisper",
-      "pipeline_class": "WhisperForConditionalGeneration",
       "vram_provenance": "estimated"
     },
     "formats": {

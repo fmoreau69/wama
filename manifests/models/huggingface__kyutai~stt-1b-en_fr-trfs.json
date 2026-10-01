@@ -5,34 +5,31 @@
         "work_audio"
       ],
       "languages": [
+        "en",
         "fr"
       ],
       "modalities": [
         "audio"
       ],
+      "supports_streaming": true,
+      "supports_timestamps": true,
       "task": "transcription"
     },
     "composition": {
       "components": [
         {
-          "format": "nemo",
-          "pattern": "linto_stt_fr_fastconformer_pc.nemo",
+          "format": "safetensors",
+          "pattern": "model.safetensors",
           "role": "model"
         }
       ],
       "runtime": {
-        "engine": "nemo"
+        "engine": "transformers"
       }
     },
     "extra_info": {
       "category": "speech",
-      "family": "linto_stt_fr_fastconformer_pc",
-      "vram_measured": {
-        "at": "2026-10-01T13:27:14+00:00",
-        "last_gb": 0.88,
-        "max_gb": 0.88,
-        "n": 3
-      },
+      "family": "stt-1b-en_fr-trfs",
       "vram_provenance": "estimated"
     },
     "formats": {
@@ -41,12 +38,12 @@
       "preferred_format": null
     },
     "identity": {
-      "author": "linagora",
-      "description_short": "Snapshot HF linto_stt_fr_fastconformer_pc — installé, en attente d'intégration",
-      "hf_id": "linagora/linto_stt_fr_fastconformer_pc",
+      "author": "Kyutai",
+      "description_short": "Snapshot HF stt-1b-en_fr-trfs — installé, en attente d'intégration",
+      "hf_id": "kyutai/stt-1b-en_fr-trfs",
       "license": "cc-by-4.0",
       "model_type": "speech",
-      "platform_ref": "huggingface:linagora/linto_stt_fr_fastconformer_pc",
+      "platform_ref": "huggingface:kyutai/stt-1b-en_fr-trfs",
       "source": "huggingface"
     },
     "prompts": {
@@ -60,20 +57,20 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.8533780016005039,
+      "disk_gb": 2.5124377235770226,
       "ram_gb": 0.0,
-      "vram_gb": 1.1
+      "vram_gb": 3.2
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/linto_stt_fr_fastconformer_pc) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
-  "key": "huggingface:linagora/linto_stt_fr_fastconformer_pc",
+  "description": "Snapshot HuggingFace installé (speech/stt-1b-en_fr-trfs) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:kyutai/stt-1b-en_fr-trfs",
   "manifest_kind": "model",
-  "name": "linto_stt_fr_fastconformer_pc",
+  "name": "stt-1b-en_fr-trfs",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "AIModel:huggingface:linagora/linto_stt_fr_fastconformer_pc",
+    "ref": "AIModel:huggingface:kyutai/stt-1b-en_fr-trfs",
     "type": "extract"
   },
   "visibility": "public",
