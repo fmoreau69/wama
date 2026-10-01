@@ -122,6 +122,98 @@ class CheckSourceTest(SimpleTestCase):
         self.assertIn('Org/Other', ' '.join(res['errors']))
 
 
+MUSIC = ('music_generation_base', 'MusicGenerationBackend')
+
+VENDORED_GOOD = '''
+from typing import Callable, Optional
+from .music_generation_base import MusicGenerationBackend, split_caption_lyrics
+
+SUPPORTED_MODELS = {"m-a-p/YuE2-3B": {}}
+
+
+class SongBackend(MusicGenerationBackend):
+    ENGINE = "yue"
+    VENDORED = True
+    REQUIRED_PACKAGES: list = []
+
+    def load(self, model=None):
+        self._p = self.import_vendored("yue2.pipeline", subdir="src")
+        return True
+
+    @property
+    def is_loaded(self):
+        return True
+
+    def unload(self):
+        import torch
+        torch.cuda.set_per_process_memory_fraction(1.0)
+
+    def generate(self, model_id, prompt, duration, output_path, melody_path=None,
+                 progress_callback=None, on_audio=None):
+        style, lyrics = split_caption_lyrics(prompt)
+        return output_path
+'''
+
+
+class VendoredEngineCheckTest(SimpleTestCase):
+    """Les règles d'un backend dont le moteur est VENDORISÉ (2026-10-01, YuE2) — sur un faux clone."""
+
+    def setUp(self):
+        from django.test import override_settings
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        pkg = Path(tmp.name) / 'yue' / 'src' / 'yue2'
+        pkg.mkdir(parents=True)
+        (pkg / '__init__.py').write_text('', encoding='utf-8')
+        (pkg / 'pipeline.py').write_text(
+            'import torch\ntorch.cuda.set_per_process_memory_fraction(0.9)\n', encoding='utf-8')
+        override = override_settings(BACKEND_VENDOR_DIR=tmp.name)
+        override.enable()
+        self.addCleanup(override.disable)
+        patcher = mock.patch.object(bp, '_is_vendored_engine', lambda engine: engine == 'yue')
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _check(self, code):
+        return bp.check_source(code, engine='yue', model_id='m-a-p/YuE2-3B', contract=MUSIC)
+
+    def test_a_well_formed_vendored_backend_passes(self):
+        res = self._check(VENDORED_GOOD)
+        self.assertTrue(res['ok'], res['errors'])
+
+    def test_the_music_contract_requires_generate(self):
+        self.assertIn('generate', bp.required_methods(MUSIC))
+        self.assertEqual(MUSIC, bp.contract_for_task('text-to-music'))
+
+    def test_each_vendored_defect_is_named(self):
+        cases = {
+            'VENDORED = True': VENDORED_GOOD.replace('    VENDORED = True\n', ''),
+            'import_vendored(...)': VENDORED_GOOD.replace(
+                'self.import_vendored("yue2.pipeline", subdir="src")', 'None'),
+            'PAQUET': VENDORED_GOOD.replace('"yue2.pipeline", subdir="src"',
+                                            '"pipeline", subdir="src/yue2"'),
+            'aucun module': VENDORED_GOOD.replace('yue2.pipeline', 'yue2.nowhere'),
+            'plafonne la VRAM': VENDORED_GOOD.replace(
+                'torch.cuda.set_per_process_memory_fraction(1.0)', 'pass'),
+            'nomme le code VENDORISÉ': VENDORED_GOOD.replace('REQUIRED_PACKAGES: list = []',
+                                                             'REQUIRED_PACKAGES = ["yue2"]'),
+        }
+        for expected, code in cases.items():
+            res = self._check(code)
+            self.assertFalse(res['ok'], expected)
+            self.assertTrue(any(expected in e for e in res['errors']), (expected, res['errors']))
+
+    def test_an_annotated_class_attribute_is_read(self):
+        """Contre-épreuve du faux positif : `REQUIRED_PACKAGES: list = []` est bien déclaré."""
+        res = self._check(VENDORED_GOOD)
+        self.assertFalse([e for e in res['errors'] if 'REQUIRED_PACKAGES' in e])
+
+    def test_a_non_vendored_engine_is_not_held_to_these_rules(self):
+        res = bp.check_source(VENDORED_GOOD.replace('"yue"', '"audiocraft"'), engine='audiocraft',
+                              model_id='m-a-p/YuE2-3B', contract=MUSIC)
+        self.assertFalse([e for e in res['errors'] if 'VENDORISÉ' in e or 'VRAM' in e], res['errors'])
+
+
 class SimulatedResolutionTest(SimpleTestCase):
 
     def test_the_proposed_backend_wins_its_model_over_the_upscaler_of_the_same_engine(self):
@@ -228,6 +320,18 @@ class ComponentPathsTest(TestCase):
         self.row.save()
         with self.assertRaisesRegex(ComponentsUnavailable, 'anatomie'):
             component_paths('huggingface:Org/Img-ONNX')
+
+    def test_a_sibling_repo_is_given_with_the_cache_dir_of_the_model(self):
+        """Un dépôt FRÈRE (YuE2 → son VAE) : son identifiant et le cache_dir du modèle principal,
+        pour qu'il arrive À CÔTÉ de lui ; component_paths, lui, ne le rend pas (aucun motif)."""
+        from wama.common.utils.model_components import component_paths, component_repos
+        self.row.composition = {'components': [{'role': 'dit', 'pattern': 'dit/model.onnx'},
+                                               {'role': 'vae', 'repo': 'Org/Img-Vae'}],
+                                'runtime': {'engine': 'onnxruntime'}}
+        self.row.save()
+        self.assertEqual({'vae': ('Org/Img-Vae', self.repo.parent)},
+                         component_repos('huggingface:Org/Img-ONNX'))
+        self.assertNotIn('vae', component_paths('huggingface:Org/Img-ONNX'))
 
 
 class OnnxProvidersTest(SimpleTestCase):

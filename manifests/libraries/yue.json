@@ -1,0 +1,46 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "torch",
+      "transformers",
+      "huggingface-hub",
+      "safetensors",
+      "tiktoken",
+      "numpy",
+      "soundfile",
+      "accelerate"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "yue2"
+      ]
+    },
+    "identity": {
+      "author": null,
+      "license": "Apache-2.0",
+      "repository": "https://github.com/multimodal-art-projection/YuE",
+      "summary": "YuE2 music generation with editable symbolic plans",
+      "version": "18a07bb628f0"
+    },
+    "install": {
+      "vendor": {
+        "commit": "18a07bb628f070c2eede44c3143834818e856a73",
+        "engine": "yue",
+        "repo": "multimodal-art-projection/YuE"
+      }
+    }
+  },
+  "description": "YuE2 music generation with editable symbolic plans",
+  "key": "yue",
+  "manifest_kind": "library",
+  "name": "yue2-infer",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "github:multimodal-art-projection/YuE@18a07bb628f070c2eede44c3143834818e856a73",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

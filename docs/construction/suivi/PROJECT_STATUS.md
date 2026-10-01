@@ -19221,3 +19221,30 @@ Geste navigateur **`common.released_files` 7/7** (serveur éphémère 8011) ; ve
 prévenir » (un fichier du temp inutilisé est déjà dit en rouge par `status_of`, sans date) ; régénérer
 la carte `WAMA_MECANISMES` (annexes ajoutées au registre — laissée à la prochaine régénération, la
 doc porte du WIP d'autrui).
+
+## §PALIER — 2026-10-01 (matin), « YuE2 PAR LES RÔLES + ACCELERATE MESURÉ » — ✅ YuE2 intégré (code, poids, anatomie, backend) — 🔚 génération GPU après la campagne d'évaluation, sélecteur F4b du composer, décision `accelerate`
+
+- ✅ **YuE2 de bout en bout par les mécanismes** (décision de Fabien) : `librarian` → Valider
+  (`library:yue`, voie vendor `18a07bb628f0`) → `install_library` → `scout --seed-candidate` →
+  `request_install` (6,8 Go) → rôle `model` → Valider (moteur `yue`, composants `model` +
+  `vae=m-a-p/YuE2-Vae`) → rôle `backend` (3 passes) → revue (4 corrections) → Valider
+  (`wama/common/backends/yue2_3b_backend.py`). Détail et 7 trous comblés : `PROSPECTION_PIPELINE
+  §Session du 2026-10-01`. Chargement mesuré (66 s, 0 Go VRAM, VAE 506 Mo rangé à côté, plafond de
+  VRAM rendu à 1,0).
+- ✅ **Mécanismes neufs** : contrat `MusicGenerationBackend` (`TASK_CONTRACTS['text-to-music']`,
+  non liant ; AudioCraft et audio.cpp en dérivent, `split_caption_lyrics` remontée) ;
+  `BaseModelBackend.vendor_dir/import_vendored` (TripoSR y passe) ; `component_repos` (dépôts
+  frères) ; dérivation du moteur muette sur le code distant (`_remote_only`) ; contrôles
+  `check_source` des moteurs vendorisés.
+- ✅ **`accelerate` 1.6 → 1.12.0 MESURÉ sans toucher au venv** (version jetable en tête du
+  `PYTHONPATH`) : 32/32 API et appels réels, et mêmes 4 échecs que la référence sur les modules
+  rejoués. À installer en `--no-deps` (sinon pip rétrograde `nvidia-nccl-cu12`, piège déjà écrit
+  `requirements_linux.txt:18`) ; 1.12.0 et non 1.13.0 (`qwen-asr`/`qwen-tts` épinglent 1.12.0).
+  Décision de Fabien, non prise.
+- ⏳ Génération YuE2 sur GPU : REPORTÉE (campagne d'évaluation du transcriber sur la carte) ; le
+  composer n'appelle que `composer:<modèle>` → YuE2 n'y paraîtra qu'avec son étape F4b. 🔴 Relancer
+  WAMA pour que les workers importent le backend et le contrat neuf.
+- ⚠ Suite complète du 01/10 rejouée pendant qu'un commit d'une autre instance (`4e441a80`,
+  suppression des fichiers) changeait le code : ~75 échecs de suppression ARTEFACTS, disparus au
+  rejeu. Rouges réels non à moi : budgets de langue (+8 code depuis HEAD), import par chemin du
+  transcriber (`apps.py:146`).

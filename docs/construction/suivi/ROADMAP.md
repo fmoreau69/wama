@@ -2359,6 +2359,13 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
 > *« Il me semblait qu'on avait ajouté un modèle dans Composer pour générer de la musique à partir
 > d'une référence »*, puis `github.com/multimodal-art-projection/YuE`.
 > **Aucune décision prise, rien d'installé, aucun modèle chargé.**
+> ✅ **MàJ 2026-10-01 — YuE2 INTÉGRÉ par les rôles** (décision de Fabien : « déjà YuE alors »,
+> par les mécanismes de WAMA) : code vendorisé (`library:yue`), poids `huggingface:m-a-p/YuE2-3B`
+> + VAE au catalogue (moteur `yue`), backend `yue2_3b_backend` sous le contrat neuf
+> `MusicGenerationBackend` (tâche `text-to-music`). Chaîne et trous comblés :
+> `PROSPECTION_PIPELINE §Session du 2026-10-01`. ⏳ Restent : la génération GPU (reportée — campagne
+> d'évaluation en cours sur la carte), l'emploi par le composer (sélecteur F4b), et le PLAN
+> éditable (D-b ci-dessous) — l'artefact ABC existe côté moteur (`SymbolicPlan`), rien ne le montre.
 
 **Ce que le catalogue a déjà** (mesuré ce jour) : `composer:musicgen-melody`, conditionné par une
 mélodie de référence mais **non téléchargé** — la génération par référence ne marche donc nulle

@@ -189,6 +189,14 @@ def main():
     print(f'[librarian] → {sortie.relative_to(REPO_ROOT)}')
     for note in notes:
         print(f'[librarian] canal : {note}')
+    # La proposition entre au MAGASIN, en bac à sable, comme celle du rôle `model` (2026-10-01) :
+    # c'est là que le geste « Valider » du model manager la trouve. Sans ce dépôt, un manifeste
+    # de librairie ne pouvait entrer au corpus que par un terminal.
+    if cle:
+        from wama.common.manifests.proposals import propose
+        obj = propose(manifest, origin=str(sortie.relative_to(REPO_ROOT)))
+        print(f'[librarian] proposition en attente de validation : {obj.manifest_kind}:{obj.key}'
+              + (f' ({len(obj.errors)} erreur(s))' if obj.errors else ''))
     print(f'[librarian] validation : {len(erreurs)} erreur(s)'
           + (f' — {erreurs[:3]}' if erreurs else ' — manifeste VALIDE'))
     if verite:

@@ -2033,3 +2033,30 @@ les exigences du dépôt, lues AU COMMIT, sont confrontées au venv de référen
 Lecture : **YuE est le seul client sans décision de venv** ; `accelerate` 1.6.0 bloque trois des
 cinq (une montée à décider, avec sa simulation). Aucun n'a de backend : les déclarer rend le
 moteur installable, pas utilisable — le backend reste la marche suivante, par moteur.
+
+## Session du 2026-10-01 : YuE2 de bout en bout PAR LES RÔLES — et sept trous de la chaîne
+
+Décision de Fabien : *« déjà YuE alors […] Ok pour les manifestes et les backends, mais par les
+mécanismes de wama en local ou Albert »*. Toute la chaîne a été jouée par ses gestes (rôles
+wama-dev-ai sur Albert, « Valider » du model manager, route `library`, installateur), et chaque
+trou rencontré a été comblé par un CONTRÔLE MÉCANIQUE, jamais par une consigne :
+
+| étape | geste | trou rencontré → comblé |
+|---|---|---|
+| librairie | `librarian --repo` → proposition → Valider | le rôle n'écrivait que dans `outputs/` → `propose()` comme le rôle `model` ; l'export au corpus d'une 1ʳᵉ librairie vendorisée ne trouvait rien (« corpus écrit » faux) → `extract_library` relit le registre |
+| code | `install_library yue --allow --apply` | — (voie vendor : `18a07bb628f0`, `yue2` s'importe dans le venv tel quel) |
+| poids | `scout --hf m-a-p/YuE2-3B --seed-candidate` → `request_install` | — (6,8 Go en 299 s, `AI-models/models/music/YuE2-3B`) |
+| anatomie | rôle `model` → Valider | la DÉRIVATION posait `transformers` sur un `config.json` à code distant (`auto_map`, `YuE2ForCausalLM` inconnue) → `_remote_only` ; le rôle rendait une composition VIDE → `enforce_vendor_engine` : moteur = la librairie vendorisée que le README CITE, composants = les dépôts que le `from_pretrained` vendorisé charge par défaut (`model`, `vae=m-a-p/YuE2-Vae`) |
+| backend | rôle `backend` → revue → Valider | voisins hors sujet (profondeur, visages) → classement par TÂCHE (moteurs non partagés) ; code vendorisé absent de sa matière → `vendor_material` ; PAS de contrat `text-to-music` (signature du composer recopiée dans 2 backends) → `MusicGenerationBackend` + `TASK_CONTRACTS`, `split_caption_lyrics` remontée ; contrôles : `VENDORED`, `import_vendored` au nom de paquet complet, plafond de VRAM du processus rendu à `unload()`, `REQUIRED_PACKAGES` sans le paquet vendorisé, forme ANNOTÉE lue ; dépôt frère (VAE) → `component_repos` (id + `cache_dir` du modèle) |
+
+**Revue humaine, au-delà des contrôles** (consignée dans la proposition `…_revue.json`) : 4
+corrections, dont 2 que seule l'exécution aurait montrées — `progress=` transmis à `__call__`
+(`TypeError` dans `SongRequest`) et le VAE passé comme dossier de cache. Le rôle a convergé en
+TROIS passes (`05-05` → `05-26` → `05-40`), chacune avec moins de défauts que la précédente.
+
+**Mesuré** : chargement seul 66 s (vérification d'intégrité), 0 Go de VRAM au chargement, VAE
+téléchargé (506 Mo) À CÔTÉ du modèle, plafond de VRAM 0,917 → rendu 1,0. ⏳ **Pas encore** : la
+génération sur GPU (le GPU servait une campagne d'évaluation du transcriber — la fausser n'était
+pas une option) ; et l'emploi par le COMPOSER, qui appelle `composer:<modèle>` — un modèle venu
+du catalogue (`huggingface:…`) n'y paraît qu'avec l'étape F4b du composer (sélecteur tiré du
+catalogue par tâche, faite pour l'imager et le transcriber).

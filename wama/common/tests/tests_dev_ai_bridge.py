@@ -414,6 +414,75 @@ class InstallChannelFromRepoFactsTest(SimpleTestCase):
         self.assertTrue(seen[0].endswith('/repos/TMElyralab/MuseTalk/commits/main'), seen)
 
 
+class VendorEngineFromSourcesTest(SimpleTestCase):
+    """Un modèle servi par un moteur VENDORISÉ : moteur et composants posés par les FAITS.
+
+    Cas réel du 2026-10-01 : YuE2-3B, composition rendue VIDE par le rôle alors que son README
+    cite le dépôt vendorisé et que le code vendorisé nomme ses dépôts par défaut."""
+
+    LIBS = [{'key': 'yue', 'repo': 'multimodal-art-projection/YuE', 'engine': 'yue'},
+            {'key': 'musetalk', 'repo': 'TMElyralab/MuseTalk', 'engine': 'musetalk'}]
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    def setUp(self):
+        import tempfile
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        src = self.root / 'yue' / 'src' / 'yue2'
+        src.mkdir(parents=True)
+        (src / 'pipeline.py').write_text(
+            'class P:\n'
+            '    @classmethod\n'
+            '    def from_pretrained(cls, model="m-a-p/YuE2-3B", *, vae="m-a-p/YuE2-Vae",\n'
+            '                        cache_dir=None):\n'
+            '        pass\n', encoding='utf-8')
+        (src / 'tokenizer.py').write_text(
+            'def from_pretrained(path="someone/other-repo"):\n    pass\n', encoding='utf-8')
+        tests = self.root / 'yue' / 'tests'
+        tests.mkdir()
+        (tests / 'test_x.py').write_text(
+            'def from_pretrained(model="m-a-p/YuE2-3B", extra="x/should-not-count"):\n    pass\n',
+            encoding='utf-8')
+
+    def _enforce(self, sources, manifest=None):
+        concerns = []
+        manifest = manifest or {'body': {'composition': {}}}
+        self.role_utils.enforce_vendor_engine(manifest, 'm-a-p/YuE2-3B', sources, concerns,
+                                              libraries=self.LIBS, vendor_root=self.root)
+        return manifest, concerns
+
+    def test_a_cited_vendored_repo_gives_engine_and_components(self):
+        manifest, _ = self._enforce('See https://github.com/multimodal-art-projection/YuE for code.')
+        compo = manifest['body']['composition']
+        self.assertEqual('yue', compo['runtime']['engine'])
+        self.assertEqual([{'role': 'model', 'pattern': '*.safetensors'},
+                          {'role': 'vae', 'repo': 'm-a-p/YuE2-Vae'}], compo['components'],
+                         "le from_pretrained qui charge CE modèle, jamais un autre ni les tests")
+
+    def test_no_citation_leaves_the_manifest_alone(self):
+        """Contre-épreuve : sans citation d'un dépôt vendorisé, rien n'est posé."""
+        manifest, concerns = self._enforce('github.com/some/unrelated-repo')
+        self.assertEqual({}, manifest['body']['composition'])
+        self.assertEqual([], concerns)
+
+    def test_two_cited_engines_are_left_to_judgment(self):
+        manifest, concerns = self._enforce('github.com/multimodal-art-projection/YuE and '
+                                           'github.com/TMElyralab/MuseTalk')
+        self.assertEqual({}, manifest['body']['composition'])
+        self.assertTrue(any('PLUSIEURS' in c for c in concerns), concerns)
+
+    def test_declared_components_are_kept(self):
+        manifest = {'body': {'composition': {'components': [{'role': 'x', 'pattern': 'a.bin'}]}}}
+        manifest, _ = self._enforce('github.com/multimodal-art-projection/YuE', manifest)
+        self.assertEqual([{'role': 'x', 'pattern': 'a.bin'}],
+                         manifest['body']['composition']['components'])
+
+
 class FournisseurDesRolesTest(SimpleTestCase):
     """`role_utils.call_llm` (2026-09-15, Albert API) : les rôles choisissent leur fournisseur.
 

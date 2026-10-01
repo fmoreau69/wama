@@ -394,6 +394,88 @@ def enforce_install_channel(manifest, repo, packaging, sha, notes, published=Non
     return manifest
 
 
+_HF_REPO_ID = re.compile(r'^[\w.-]+/[\w.-]+$')
+
+
+def vendored_libraries() -> list:
+    """`[{key, repo, engine}]` des librairies VENDORISÉES du registre (route library, voie vendor)."""
+    from wama.common.models import Library
+    return [{'key': lib.key, 'repo': lib.vendor.get('repo', ''), 'engine': lib.vendor.get('engine', '')}
+            for lib in Library.objects.exclude(vendor={}) if lib.vendor]
+
+
+def vendor_loader_defaults(engine_dir, hf_id) -> list:
+    """`[(argument, dépôt HF)]` lus par AST dans le `from_pretrained` du code vendorisé qui charge
+    `hf_id` par DÉFAUT — c'est le code lui-même qui dit de quels dépôts le modèle se compose
+    (YuE : `from_pretrained(model="m-a-p/YuE2-3B", *, vae="m-a-p/YuE2-Vae")`). Les tests sont ignorés."""
+    import ast
+    found = []
+    for path in sorted(Path(engine_dir).rglob('*.py')):
+        if 'tests' in path.parts:
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding='utf-8', errors='replace'))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef) or node.name != 'from_pretrained':
+                continue
+            args = node.args
+            pairs = list(zip(args.args[len(args.args) - len(args.defaults):], args.defaults))
+            pairs += [(a, d) for a, d in zip(args.kwonlyargs, args.kw_defaults) if d is not None]
+            repos = [(a.arg, d.value) for a, d in pairs
+                     if isinstance(d, ast.Constant) and isinstance(d.value, str)
+                     and _HF_REPO_ID.match(d.value)]
+            if any(repo.lower() == hf_id.lower() for _, repo in repos):
+                found += [r for r in repos if r not in found]
+    return found
+
+
+def enforce_vendor_engine(manifest, hf_id, sources_text, concerns, libraries=None, vendor_root=None):
+    """Moteur et composants d'un modèle servi par un moteur VENDORISÉ — posés par les FAITS.
+
+    Vécu le 2026-10-01 (YuE2-3B) : la découverte devinait `transformers` (retiré à juste titre :
+    `YuE2ForCausalLM` n'existe pas dans le transformers installé) et le rôle rendait une
+    composition VIDE — donc un modèle que le rôle `backend` refuse. Les faits étaient là : le
+    README cite `github.com/multimodal-art-projection/YuE`, dépôt d'une librairie VENDORISÉE
+    déclarée, et le code de celle-ci nomme ses dépôts par défaut. Deux faits, aucun jugement.
+    Ne touche à rien si les sources ne citent aucune — ou plusieurs — librairie vendorisée.
+    """
+    libs = libraries if libraries is not None else vendored_libraries()
+    cited = {m.lower().removesuffix('.git')
+             for m in re.findall(r'github\.com/([\w.-]+/[\w.-]+)', sources_text or '')}
+    matches = [lib for lib in libs if lib['repo'] and lib['repo'].lower() in cited]
+    if len(matches) != 1:
+        if len(matches) > 1:
+            concerns.append(f"sources citant PLUSIEURS moteurs vendorisés "
+                            f"({', '.join(m['engine'] for m in matches)}) — moteur laissé au jugement")
+        return manifest
+    lib = matches[0]
+    body = manifest.setdefault('body', {})
+    compo = body.get('composition') if isinstance(body.get('composition'), dict) else {}
+    runtime = compo.setdefault('runtime', {})
+    if runtime.get('engine') not in (None, '', lib['engine']):
+        concerns.append(f"engine {runtime['engine']!r} REMPLACÉ par {lib['engine']!r} : les "
+                        f"sources citent le dépôt vendorisé {lib['repo']}")
+    runtime['engine'] = lib['engine']
+    if not compo.get('components'):
+        from django.conf import settings
+        root = Path(vendor_root or settings.BACKEND_VENDOR_DIR) / lib['engine']
+        defaults = vendor_loader_defaults(root, hf_id) if root.is_dir() else []
+        if defaults:
+            compo['components'] = [
+                {'role': arg, 'pattern': '*.safetensors'} if repo.lower() == hf_id.lower()
+                else {'role': arg, 'repo': repo}
+                for arg, repo in defaults]
+            concerns.append(f"composants lus dans le code vendorisé ({lib['engine']}) : "
+                            + ', '.join(f'{a}={r}' for a, r in defaults))
+        else:
+            concerns.append(f"moteur vendorisé {lib['engine']!r} posé, composants NON lus "
+                            f"(code absent de {root} ou sans from_pretrained par défaut)")
+    body['composition'] = compo
+    return manifest
+
+
 #: Clés qui, dans un fichier de config à la RACINE du dépôt, disent la taille de travail d'un
 #: modèle image (`pipeline_config.json` de Supra2-IMG : `image_size: 256`). Un entier = côté
 #: d'une image carrée. Liste DÉCLARÉE, à étendre au premier dépôt qui en porte une autre.

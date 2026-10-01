@@ -56,7 +56,8 @@ django.setup()
 
 from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, enforce_engine_facts, enforce_resolution_facts, extract_json,
+    add_llm_arguments, call_llm, enforce_engine_facts, enforce_resolution_facts,
+    enforce_vendor_engine, extract_json,
     fetch as _fetch,
     manifest_examples, model_vocabularies, resolve_model, write_output)
 
@@ -170,6 +171,8 @@ def main():
 
     provenance, matiere = (sources_catalog(args.catalog) if args.catalog
                            else sources_hf(args.hf))
+    # Les sources COMPLÈTES servent aux contrôles mécaniques ; seul le LLM lit la version tronquée.
+    full_sources = matiere
     matiere = matiere[:MAX_SOURCE_CHARS]
 
     # En local, `cfg` sert AUSSI au besoin en VRAM plus bas : le modèle et ce besoin doivent venir
@@ -217,6 +220,9 @@ def main():
     if hf_id:
         enforce_engine_facts(manifest, hf_id, concerns)
         enforce_resolution_facts(manifest, hf_id, concerns)
+        # Moteur VENDORISÉ cité par les sources (2026-10-01, YuE2) : APRÈS le retrait d'un
+        # moteur non prouvé, pour que le fait remplace la conjecture.
+        enforce_vendor_engine(manifest, hf_id, full_sources, concerns)
         for c in concerns:
             print(f'[model] {c}')
 

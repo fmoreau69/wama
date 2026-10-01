@@ -39,12 +39,9 @@ VENDOR_DIR = Path(getattr(settings, 'BACKEND_VENDOR_DIR', None)
 
 
 def _vendored_tsr():
-    """Le paquet `tsr` vendorisé, importé depuis SON dossier — jamais installé dans le venv."""
-    import importlib
-    import sys
-    if str(VENDOR_DIR) not in sys.path:
-        sys.path.insert(0, str(VENDOR_DIR))
-    return importlib.import_module('tsr.system')
+    """Le paquet `tsr` vendorisé, importé depuis SON dossier — jamais installé dans le venv
+    (geste commun `BaseModelBackend.import_vendored`)."""
+    return TripoSRBackend.import_vendored('tsr.system')
 
 
 class TripoSRBackend(BaseModelBackend):
