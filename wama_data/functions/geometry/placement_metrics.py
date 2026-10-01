@@ -20,8 +20,19 @@ Métrique #2 — **cohérence caméra ↔ position monde** (`camera_consistency`
     venir de sources différentes (sol/profondeur vs pinhole), et un écart s'y lit.
   Né d'un diagnostic : un véhicule étiqueté 32,8 m était dessiné à 43 m de sa caméra.
 
-À venir (non implémentée — pas de stub inerte) :
-  #3 discontinuité au hand-off inter-caméras (saut de position à la transition de track).
+Métrique #3 — **continuité de suivi** (`tracking_continuity`, 2026-10-01) : un suivi multi-caméras
+  peut DUPLIQUER un objet (deux identifiants pour un véhicule vu par deux caméras) ou le PERDRE
+  (une trajectoire d'une même caméra éclatée sur plusieurs identifiants). Trois compteurs, sans
+  vérité terrain :
+  · chaînes de détecteur ÉCLATÉES — une trajectoire d'une caméra (même identifiant de détecteur)
+    portée par plus d'un identifiant global ;
+  · paires PROCHES ENTRE CAMÉRAS — deux identifiants simultanés, restés proches au moins
+    `min_frames` images, que AUCUNE caméra n'a vus ensemble (doublons probables) ;
+  · paires proches VUES ENSEMBLE par une même caméra — deux objets prouvés distincts (deux boîtes
+    d'une même image) : la référence de ce que « proche » veut dire pour de vrais voisins ;
+  · RELAIS RATÉS — un identifiant quitte une caméra et, dans `relay_frames` images, un AUTRE naît au
+    même endroit de l'image (boîtes qui se recouvrent) : le même objet a perdu son identifiant. C'est
+    la perte qu'un compteur de chaînes ne voit pas quand le détecteur, lui aussi, change de numéro.
 
 Pur (numpy) : le cœur `track_position_spread` ne dépend ni de Django ni de pandas et se teste
 hors serveur. Le wrapper `placement_spread` (FunctionSpec) l'adapte à un `TypedFrame`.
@@ -115,6 +126,154 @@ def camera_consistency(observations, *, min_obs=20):
                     'depth_rel_err_median': round(float(np.median(err)), 4) if err.size else None,
                     'depth_rel_err_p90': round(float(np.percentile(err, 90)), 4) if err.size else None}
     return out
+
+
+def tracking_continuity(observations, *, root=None, close_m=4.0, min_frames=12, chain_gap_frames=48,
+                        relay_frames=6, relay_iou=0.3):
+    """Cœur PUR de la métrique #3 (aucune dépendance Django/pandas).
+
+    observations : itérable de (frame, camera, chain_id, track_id, x, y[, bbox]) — `chain_id`
+        identifie la trajectoire du détecteur DANS sa caméra (None si inconnue), `track_id`
+        l'identifiant global, (x, y) la position monde (m), `bbox` [x0, y0, x1, y1] facultative
+        (sans elle, les relais ratés ne sont pas comptés).
+    root : fonction track_id → identifiant final (fusions faites après coup) ; identité par défaut.
+    chain_gap_frames : un trou plus long COUPE la chaîne — un détecteur relancé (analyse par fenêtres)
+        RÉUTILISE ses numéros pour d'autres objets ; sans cette coupure, ces réutilisations comptaient
+        comme des éclatements (63 % mesurés à tort le 2026-10-01).
+
+    Rend {'chains', 'chain_splits', 'tracks', 'cross_camera_close_pairs', 'same_camera_close_pairs',
+    'relay_breaks'}.
+    """
+    from collections import defaultdict
+    r = root or (lambda g: g)
+    raw_chains = defaultdict(list)
+    by_frame = defaultdict(list)
+    tracks = set()
+    first_last = {}                     # (caméra, gid) -> [1re image, boîte, dernière image, boîte]
+    for ob in observations:
+        fr, cam, chain_id, g, x, y = ob[:6]
+        box = ob[6] if len(ob) > 6 else None
+        g = r(g)
+        tracks.add(g)
+        if box is not None:
+            fl = first_last.get((cam, g))
+            if fl is None:
+                first_last[(cam, g)] = [fr, box, fr, box]
+            else:
+                if fr < fl[0]:
+                    fl[0], fl[1] = fr, box
+                if fr > fl[2]:
+                    fl[2], fl[3] = fr, box
+        if chain_id is not None:
+            raw_chains[(cam, chain_id)].append((fr, g))
+        by_frame[fr].append((g, cam, x, y))
+    chains = defaultdict(set)
+    for key, seq in raw_chains.items():
+        seq.sort(key=lambda s: s[0])
+        part, last = 0, None
+        for fr, g in seq:
+            if last is not None and fr - last > chain_gap_frames:
+                part += 1
+            chains[(key, part)].add(g)
+            last = fr
+    close = defaultdict(int)
+    together = set()
+    for rows in by_frame.values():
+        n = len(rows)
+        for i in range(n):
+            gi, ci, xi, yi = rows[i]
+            for j in range(i + 1, n):
+                gj, cj, xj, yj = rows[j]
+                if gi == gj:
+                    continue
+                key = (gi, gj) if gi < gj else (gj, gi)
+                if ci == cj:
+                    together.add(key)
+                if (xi - xj) ** 2 + (yi - yj) ** 2 < close_m * close_m:
+                    close[key] += 1
+    persistent = [k for k, c in close.items() if c >= min_frames]
+    # relais ratés : par caméra, une fin et un début d'identifiants DIFFÉRENTS, proches dans le temps
+    # et au même endroit de l'image
+    relay_breaks = 0
+    by_cam = defaultdict(list)
+    for (cam, g), (f0, b0, f1, b1) in first_last.items():
+        by_cam[cam].append((g, f0, b0, f1, b1))
+    for rows in by_cam.values():
+        starts = sorted(rows, key=lambda r: r[1])
+        import bisect
+        keys = [s[1] for s in starts]
+        for g, _f0, _b0, f1, b1 in rows:
+            i = bisect.bisect_right(keys, f1)
+            while i < len(starts) and starts[i][1] - f1 <= relay_frames:
+                g2, _sf, sb = starts[i][0], starts[i][1], starts[i][2]
+                if g2 != g and _iou(b1, sb) >= relay_iou:
+                    relay_breaks += 1
+                    break
+                i += 1
+    return {'chains': len(chains),
+            'chain_splits': sum(1 for s in chains.values() if len(s) > 1),
+            'tracks': len(tracks),
+            'cross_camera_close_pairs': sum(1 for k in persistent if k not in together),
+            'same_camera_close_pairs': sum(1 for k in persistent if k in together),
+            'relay_breaks': relay_breaks}
+
+
+def _iou(a, b):
+    """Recouvrement de deux boîtes [x0, y0, x1, y1] (0 si l'une manque)."""
+    if not a or not b or len(a) < 4 or len(b) < 4:
+        return 0.0
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def tracking_continuity_frame(observations: TypedFrame, *, frame_field='frame', camera_field='camera',
+                              chain_field='chain_id', track_field='track_id', x_field='x', y_field='y',
+                              close_m=4.0, min_frames=12) -> TypedFrame:
+    """Wrapper FunctionSpec de la métrique #3 : une ligne de compteurs (plus bas = meilleur pour les
+    éclatements et les paires entre caméras ; les paires d'une même caméra sont la référence)."""
+    import pandas as pd
+    df = observations.df
+    rows = [(r[frame_field], r[camera_field], r[chain_field] if chain_field in df.columns else None,
+             r[track_field], float(r[x_field]), float(r[y_field])) for _, r in df.iterrows()]
+    res = tracking_continuity(rows, close_m=close_m, min_frames=min_frames)
+    return TypedFrame(pd.DataFrame([res]), DataType.TABLE, meta={'lower_is_better': True})
+
+
+TRACKING_CONTINUITY_SPEC = register(FunctionSpec(
+    key='tracking_continuity',
+    name='Continuité de suivi multi-caméras',
+    description="Compte, sans vérité terrain, ce qu'un suivi multi-caméras DUPLIQUE ou PERD : "
+                "trajectoires de détecteur éclatées sur plusieurs identifiants, paires d'identifiants "
+                "restés proches qu'aucune caméra n'a vus ensemble (doublons probables), et en "
+                "référence les paires proches qu'une même caméra a vues ensemble (vrais voisins).",
+    category=FunctionCategory.INDICATOR,
+    tags=['tracking', 'multi-camera', 'ab-metric', 'no-ground-truth'],
+    inputs=[
+        PortSpec('observations', DataType.DETECTIONS,
+                 required_fields=['frame', 'camera', 'track_id', 'x', 'y'],
+                 description="Une ligne par détection suivie : image, caméra, identifiant de la "
+                             "trajectoire du détecteur (`chain_id`, facultatif), identifiant global "
+                             "et position monde."),
+    ],
+    outputs=[
+        PortSpec('counts', DataType.TABLE,
+                 produced_fields=['chains', 'chain_splits', 'tracks', 'cross_camera_close_pairs',
+                                  'same_camera_close_pairs', 'relay_breaks'],
+                 description='Une ligne de compteurs ; éclatements et paires entre caméras : plus '
+                             'bas = meilleur.'),
+    ],
+    params=[
+        ParamSpec('close_m', 'float', 4.0, 0.5, 20.0, unit='m',
+                  description='Distance en deçà de laquelle deux identifiants sont « proches ».'),
+        ParamSpec('min_frames', 'int', 12, 1, 1000,
+                  description='Images proches requises pour compter une paire.'),
+    ],
+    cost={'cpu_bound': True},
+    fn=tracking_continuity_frame,
+))
 
 
 def _positions_by_track_from_df(df, id_field, coord_field, x_field, y_field):
