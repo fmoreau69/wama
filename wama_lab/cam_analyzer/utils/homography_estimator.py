@@ -30,11 +30,24 @@ logger = logging.getLogger(__name__)
 Y_MIN, Y_MAX = 2.0, 15.0
 
 
+def calibration_reference(results_summary) -> set:
+    """Gids des immobiles sur lesquels la calibration se JUGE : la référence compacte du tracking
+    (`calibration_reference_gids`, même vide — une liste vide est une mesure), sinon, pour un
+    tracking antérieur à elle, les garés."""
+    rs = results_summary or {}
+    ref = rs.get('calibration_reference_gids')
+    return set(ref if ref is not None else (rs.get('stationary_global_tracks') or []))
+
+
 def _collect_static_obs(session, position, max_gids=40, max_per_gid=120):
-    """Observations bas-de-bbox des STATIONNÉS sur une caméra : (u, v, t_gps, dist_pinhole)."""
+    """Observations bas-de-bbox des immobiles de RÉFÉRENCE sur une caméra : (u, v, t_gps,
+    dist_pinhole). La référence est `calibration_reference_gids` (immobiles compacts) et non les
+    garés : sous ⚑ parked_off_road ces derniers tolèrent le bruit de placement que la calibration
+    doit mesurer, et toutes les caméras étaient rejetées (2026-10-01). Repli sur les garés pour une
+    session dont le tracking est antérieur à la référence."""
     from ..models import DetectionFrame
     from .prediction_adapter import video_to_gps_time
-    stat = set((session.results_summary or {}).get('stationary_global_tracks') or [])
+    stat = calibration_reference(session.results_summary)
     if not stat:
         return {}, (384, 248)
     cam = session.cameras.filter(position=position).first()

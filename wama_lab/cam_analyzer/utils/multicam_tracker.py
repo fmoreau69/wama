@@ -785,27 +785,16 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         _rejets = {'moins_de_5_obs': 0, 'vu_moins_de_4s': 0, 'pas_un_vehicule': 0,
                    'sur_voie': 0, 'bord_de_voie': 0, 'avance': 0, 'retenu': 0}
     _candidats = []          # descripteurs des tracks qui ATTEIGNENT la décision
-    for gid, hist in track_hist.items():
-        hs = sorted(hist)
-        d = track_descriptors(hs)
-        dur = d['duree']
-        if d['n_obs'] < 5:
-            _rejets['moins_de_5_obs'] += 1
-            continue
-        _candidats.append(d)
-        if dur < 4.0:
-            _rejets['vu_moins_de_4s'] += 1
-            d['porte'] = 'vu_moins_de_4s'
-            continue
-        if _footprint is not None:
-            porte = off_road_gate(hs, cls_votes.get(gid), _footprint, _edge)
-            if porte == 'retenu' and d['net_sur_chemin'] > MAX_NET_OVER_PATH:
-                porte = 'avance'
-            _rejets[porte] += 1
-            d['porte'] = porte
-            if porte == 'retenu':
-                stationary_gids.append(gid)
-            continue
+    # RÉFÉRENCE DE CALIBRATION SOL (2026-10-01) : les immobiles COMPACTS — portes d'étalement, de
+    # vitesse et de carrefour —, évaluées QUELLE QUE SOIT la règle des garés. Deux rôles, deux
+    # besoins : la qualification « garé » (⚑ parked_off_road) tolère le bruit de placement, la
+    # calibration le MESURE. Mesuré le 2026-09-30/10-01 (rejeu, écritures neutralisées) : sur les
+    # garés « hors voies » (1433-1694 objets, observés à 19 m) la calibration rendait un étalement de
+    # 2,7 à 7,8 m et rejetait toutes les caméras — placement 100 % pinhole ; sur les compacts (115-155,
+    # à 13 m) 0,64 à 1,45 m, toutes acceptées, quel que soit le placement de départ.
+    calibration_reference = []
+
+    def _compactness_gate(d, hs):
         spread = d['spread_first']
         # La porte d'ÉTALEMENT — elle écarte 45,4 % des candidats (mesuré 09/09).
         # `path_ratio_max` permet de lui substituer le rapport SANS DIMENSION (§D.3 bis).
@@ -825,21 +814,44 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         else:
             trop = d['net_sur_chemin'] >= path_ratio_max
         if trop:
-            _rejets['trop_etale'] += 1
-            d['porte'] = 'trop_etale'
-            continue
-        if (spread / dur) >= 0.7:
-            _rejets['trop_rapide'] += 1
-            d['porte'] = 'trop_rapide'
-            continue
+            return 'trop_etale'
+        if (spread / d['duree']) >= 0.7:
+            return 'trop_rapide'
         if _near_intersection(hs):
-            _rejets['pres_intersection'] += 1
-            d['porte'] = 'pres_intersection'
+            return 'pres_intersection'
+        return 'retenu'
+
+    for gid, hist in track_hist.items():
+        hs = sorted(hist)
+        d = track_descriptors(hs)
+        dur = d['duree']
+        if d['n_obs'] < 5:
+            _rejets['moins_de_5_obs'] += 1
             continue
-        _rejets['retenu'] += 1
-        d['porte'] = 'retenu'
-        stationary_gids.append(gid)
+        _candidats.append(d)
+        if dur < 4.0:
+            _rejets['vu_moins_de_4s'] += 1
+            d['porte'] = 'vu_moins_de_4s'
+            continue
+        compact = _compactness_gate(d, hs)
+        if compact == 'retenu':
+            calibration_reference.append(gid)
+        if _footprint is not None:
+            porte = off_road_gate(hs, cls_votes.get(gid), _footprint, _edge)
+            if porte == 'retenu' and d['net_sur_chemin'] > MAX_NET_OVER_PATH:
+                porte = 'avance'
+            _rejets[porte] += 1
+            d['porte'] = porte
+            if porte == 'retenu':
+                stationary_gids.append(gid)
+            continue
+        _rejets[compact] += 1
+        d['porte'] = compact
+        if compact == 'retenu':
+            stationary_gids.append(gid)
     _stat_set = set(stationary_gids)
+    logger.info('[référence de calibration] %s immobiles compacts (garés retenus : %s, règle %s)',
+                len(calibration_reference), len(stationary_gids), _stationary_rule)
     logger.info('[stationnés] %s', ' · '.join(f'{k}={v}' for k, v in _rejets.items()))
 
     # Distribution des grandeurs CANDIDATES sur la population qui atteint la décision
@@ -1108,14 +1120,17 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     placement_spread = None
     try:
         from wama_data.functions.geometry.placement_metrics import track_position_spread
+        # Sur la RÉFÉRENCE de calibration, pas sur les garés : cette métrique tranche la source
+        # de calibration, et doit mesurer la même population qu'elle (cf. `calibration_reference`).
         _pos_by_stat = {gid: [(h[2], h[3]) for h in track_hist.get(gid, [])]
-                        for gid in _stat_set}
+                        for gid in calibration_reference}
         placement_spread = track_position_spread(_pos_by_stat, min_obs=3)
     except Exception:
         logger.warning('placement_spread (métrique de cohérence) échouée', exc_info=True)
 
     return {'tracks': next_id - 1, 'stationary_gids': stationary_gids,
             'stationary_anchors': stationary_anchors,
+            'calibration_reference_gids': calibration_reference,
             'placement_spread': placement_spread,
             'placement_sources': dict(_src_counts),
             'stationary_rejects': _rejets,
