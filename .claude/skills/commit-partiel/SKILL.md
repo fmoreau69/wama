@@ -209,6 +209,14 @@ mais c'est défaire son geste dans son dos.
   temporaire ; un fichier de plus est un changement d'autrui défait.
   ⭐ *Un index isolé protège de l'index des autres, pas de leurs commits.*
 
+- ⚠ **2026-10-01 — « hunks=0, patch VIDE » alors que le fichier porte bien mes lignes : le
+  répertoire COURANT n'était pas la racine du dépôt.** Les scripts de ce skill appellent `git`
+  dans le cwd (le terminal de la session était dans un sous-dossier, `manifests/apps`) : le diff
+  rendait vide, et un script qui ne trouve rien ne lève pas. ✅ Lancer le geste depuis un script
+  qui fait lui-même `cd <racine>` en tête (le `cd` est alors DANS le script, pas en préfixe de
+  commande — règle de `CLAUDE.md`), et lire le compte « hunks=… miens=… » avant d'appliquer :
+  zéro sur un fichier qu'on sait avoir touché = mauvais répertoire, pas « rien à moi ».
+
 ## 4. Docs générées
 
 Un bloc régénéré (`doc_facts`) projette le REGISTRE tel qu'il est dans l'arbre, WIP d'autrui

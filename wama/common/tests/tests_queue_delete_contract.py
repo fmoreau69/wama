@@ -616,6 +616,21 @@ class TransferringACardTest(TestCase):
                     if name:
                         self.assertTrue(name.startswith(theirs), f'{f.name} : {name}')
 
+    def test_a_transferred_card_leaves_the_owners_batch(self):
+        """La card sort du LOT de l'ancien propriétaire (`batch_common.leave_batch`), dans les DEUX
+        formes de rattachement ; le lot quitté se recale, et la réponse dit ce qu'il devient."""
+        from wama.common.utils.batch_common import batch_of
+        User.objects.create_user('transfer_batch_recipient', password='x')
+        for surface, _route, account, model, _home in self._fleet():
+            with self.subTest(surface=surface):
+                lot, (first, second) = _lot_de(model, account, 2)
+                res = self._transfer(surface, first.pk, 'transfer_batch_recipient').json()
+                self.assertTrue(res.get('transferred'), res)
+                first.refresh_from_db()
+                self.assertIsNone(batch_of(first), 'la card transférée est restée dans le lot')
+                self.assertEqual(second.pk and lot.pk, batch_of(second).pk)
+                self.assertEqual(1, res['batch']['total'], 'le lot quitté dit ce qu’il devient')
+
     def test_guards(self):
         surface, _route, account, model, app_home = next(iter(self._fleet()))
         mine, _ = self._witness(model, account, app_home)

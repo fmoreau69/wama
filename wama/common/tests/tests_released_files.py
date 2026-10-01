@@ -209,6 +209,17 @@ class UnusedListTest(TestCase):
         self.assertEqual([rel], [f['path'] for f in released_files.take_unannounced(self.user)],
                          'lire la liste ne vaut pas annonce')
 
+    def test_the_origin_reads_as_an_app_and_a_role(self):
+        """L'origine affichée est LISIBLE (app · rôle du fichier), jamais la clé technique ; une
+        origine illisible se rend telle quelle plutôt que de lever."""
+        self.assertEqual('fichier de lot',
+                         released_files.origin_label('composer.ComposerBatch#1 · batch_file').split(' · ')[1])
+        self.assertTrue(released_files.origin_label('synthesizer.VoiceSynthesis#3 · audio_output')
+                        .endswith(' · sortie'))
+        self.assertTrue(released_files.origin_label('converter.ConversionJob#9 · input_file')
+                        .endswith(' · entrée'))
+        self.assertEqual('n’importe quoi', released_files.origin_label('n’importe quoi'))
+
     def test_a_file_taken_back_leaves_the_list(self):
         rel, _ = self._release('taken.wav')
         again = VoiceSynthesis.objects.create(user=self.user, text_file='t.txt')
