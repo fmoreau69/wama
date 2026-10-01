@@ -754,7 +754,21 @@ DEUX réunions valides (`007a_ECRH` 20 min, `012c_EBPZ` 19 min) :
   Le MÊME modèle rend donc environ 3 points de plus chez Albert : ce qui diffère est la CHAÎNE —
   le Whisper local passe par notre filtre de parole et nos réglages de décodage, Albert par les
   siens (inconnus). Albert fait MIEUX que le Whisper local SANS filtre (34,0 % · 95,5 % · 36,1 %) :
-  il se place entre les deux réglages locaux. En regard : **0 Go de VRAM locale** et 5 à 8 s pour
+  il se place entre les deux réglages locaux. **D'où vient l'écart — décomposé** (détail de
+  `ResultEvaluation`, substitués / omis / ajoutés, réunion par réunion) :
+
+  | réunion | local + filtre | Albert | local sans filtre |
+  |---|---|---|---|
+  | 007a | S350 · D1255 · I142 | S368 · D1508 · I120 | S309 · D1682 · I90 |
+  | 012c | S257 · D581 · I73 | S201 · D808 · I30 | S206 · D2965 · I1 |
+  | 013c | S226 · D955 · I82 | S208 · D1022 · I49 | S234 · D1206 · I55 |
+
+  Albert reconnaît aussi bien (substitués du même ordre) mais **omet 70 à 250 mots de plus** par
+  réunion. Ses segments durent 22 à 25 s et couvrent 92 à 97 % de l'audio (ceux du local : 1 à
+  2 s) : il ne découpe visiblement PAS la parole en amont comme notre filtre. ⚠ Cause DÉDUITE, pas
+  mesurée. ⏳ **Test proposé, non lancé (attend le GO de Fabien)** : envoyer à Albert l'audio déjà
+  découpé par le filtre de parole de WAMA — si l'écart tombe, la chaîne est en cause, pas le
+  modèle. En regard : **0 Go de VRAM locale** et 5 à 8 s pour
   19-26 min d'audio (mesuré à l'appel direct). ⚠ Trois réunions : un ordre de grandeur, pas un
   verdict ; et, pour de vrais entretiens, l'audio QUITTE la machine (verrou « sensibilité » de
   `ROADMAP §8d` ③, non tranché).
