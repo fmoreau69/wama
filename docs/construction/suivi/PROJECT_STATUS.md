@@ -19661,3 +19661,31 @@ lignes de ce journal). Rouges CONNUS hors périmètre, relevés dans la passe la
 - ⏳ **Ouvert, nommé** : les LISTES DE CHEMINS (imager `generated_images`…) ne suivent ni le
   transfert ni la duplication d'une card reçue — à brancher sur `file_references.listed_paths`,
   en cours chez l'instance des fichiers libérés (signalé à elle). Point 1 de la clôture : SOLDÉ.
+
+## §CLÔTURE — 2026-10-01 (nuit), « ALBERT FILTRÉ, PRÉVISION = TIRAGE, COMPTES `wama_*` » — ✅ tout vérifié EN SERVICE après les deux rechargements — 🔚 décision : ouvrir ou non le compte `wama_evaluation` aux modèles distants
+
+- ✅ Vérifié en service (gunicorn rechargé par Fabien) : page des utilisateurs — 6 + 10 comptes,
+  recherche, facettes, tri, 0 erreur console, 0 px de débordement à 1500/1920 (11/37 px à 1366
+  avec l'explorateur ouvert, accepté) ; prévision du select du transcriber = tirage =
+  `transcriber:whisper` ; `wama_evaluation` actif avec mot de passe.
+- Commits de la journée : `d3b600b2` (filtre de parole par capacité, Albert), `c4db2e95` (R28),
+  `9adb9981` (prévision = tirage), `560d027d` + `abf215d8` (comptes en sections, barre commune),
+  et les blocs de suivi `9a5b7328`, `04e42049`, `4baf4e34`, plus ce bloc.
+
+**Pendings, nommés :**
+1. 🔚 **Compte `wama_evaluation`** : profil « 100 % local » → il ne peut pas évaluer un modèle
+   distant. L'ouvrir (profil + clé Albert) est une décision de Fabien.
+2. ⏳ **Verrou « sensibilité »** d'Albert (l'audio quitte la machine, `ROADMAP §8d` ③) : non tranché.
+3. ⏳ **Pousser** : la branche a 24 commits d'avance (toutes instances), aucun poussé ici.
+4. ⏳ Kyutai STT : grisé faute de backend — un backend est en cours chez une autre instance
+   (`stt_1b_en_fr_trfs_backend.py` modifié dans l'arbre, pas à moi).
+5. Pas à moi, constatés : budgets de langue des noms de test dépassés (classes 133 > 132,
+   méthodes > 1310) ; `writer_01` sans curseur (`tests_intent_vision`) ; `check_docs` 3 cassées
+   (`ROUTE:327` de `195a3c81`, `PROJECT_STATUS` 17217/17277) ; 19 manifestes périmés d'autres
+   chantiers.
+
+**Contrôles mesurés à la clôture** : `check_redundancy` 74 trouvailles, aucune dans mon code
+(la ligne `tests_card_designs._declared` rapproche par le NOM `declared_resolution` — faux positif
+ancien, qui visait `declared_engines` avant) ; tests du jour verts (accounts 75, transcriber +
+auto_model + model_manager 669 hors `writer_01`) ; une erreur unique non reproduite (2 relances
+vertes) lors d'un passage `tests_account_kinds` + `tests_access_points` + `tests_nightly`.
