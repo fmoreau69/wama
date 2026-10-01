@@ -56,7 +56,8 @@ django.setup()
 
 from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, card_languages, enforce_engine_facts, enforce_identity,
+    add_llm_arguments, call_llm, card_languages, enforce_component_facts, enforce_engine_facts,
+    enforce_identity,
     enforce_language_facts, enforce_resolution_facts,
     enforce_vendor_engine, extract_json,
     fetch as _fetch,
@@ -236,6 +237,8 @@ def main():
         # Moteur VENDORISÉ cité par les sources (2026-10-01, YuE2) : APRÈS le retrait d'un
         # moteur non prouvé, pour que le fait remplace la conjecture.
         enforce_vendor_engine(manifest, hf_id, full_sources, concerns)
+        # L'anatomie d'un modèle SIMPLE, APRÈS le moteur (le format retenu peut en dépendre).
+        enforce_component_facts(manifest, hf_id, concerns)
         for c in concerns:
             print(f'[model] {c}')
 

@@ -259,6 +259,45 @@ def _engine_from_format(manifest, by_ext, concerns):
             return
 
 
+def enforce_component_facts(manifest, hf_id, concerns, lister=repo_files):
+    """Pose l'ANATOMIE d'un modèle SIMPLE quand le manifeste n'en déclare aucune.
+
+    Vécu le 2026-10-01 (FrWhisper, Kyutai, LinTO) : le rôle `backend` exige
+    `composition.components`, et un modèle d'un seul tenant n'en recevait jamais — l'anatomie
+    n'avait été pensée que pour les modèles COMPOSÉS. Le fait est mécanique : les poids du dépôt
+    sont d'UN format → un composant `model` qui les désigne (le fichier, ou le motif des fichiers
+    découpés `x-00001-of-0000N`). Plusieurs formats → celui du moteur prouvé par le format
+    (`FORMAT_ENGINES`), sinon RIEN : choisir serait deviner, et c'est dit."""
+    from wama.model_manager.services.prospector import _WEIGHT_EXTS
+    body = manifest.setdefault('body', {})
+    composition = body.get('composition') or {}
+    if composition.get('components'):
+        return manifest
+    by_ext = {}
+    for path in lister(hf_id):
+        ext = next((e for e in _WEIGHT_EXTS if path.lower().endswith(e)), None)
+        if ext and '/' not in path:                      # les poids du modèle, à la racine
+            by_ext.setdefault(ext, []).append(path)
+    engine = (composition.get('runtime') or {}).get('engine')
+    proven = [ext for ext, eng in FORMAT_ENGINES.items() if eng == engine and ext in by_ext]
+    if len(by_ext) == 1:
+        ext = next(iter(by_ext))
+    elif proven:
+        ext = proven[0]
+    else:
+        if by_ext:
+            concerns.append(f"anatomie NON posée : poids en {len(by_ext)} formats "
+                            f"({', '.join(sorted(by_ext))}) et aucun ne prouve le moteur")
+        return manifest
+    files = sorted(by_ext[ext])
+    shard = re.match(r'^(.+)-\d{5}-of-\d{5}' + re.escape(ext) + '$', files[0])
+    pattern = (files[0] if len(files) == 1 else f'{shard.group(1)}-*{ext}' if shard else f'*{ext}')
+    body.setdefault('composition', composition)['components'] = [
+        {'role': 'model', 'pattern': pattern, 'format': ext.lstrip('.')}]
+    concerns.append(f"anatomie POSÉE (fait mécanique) : un composant `model` = {pattern}")
+    return manifest
+
+
 def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_files):
     """Retire `composition.runtime.engine` quand le dépôt ne le PROUVE pas, et dit ce qu'il porte.
 
