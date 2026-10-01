@@ -352,7 +352,7 @@ class SimpleModelAnatomyTest(SimpleTestCase):
                                       engine='nemo')
         self.assertEqual('linto_stt_fr_fastconformer_pc.nemo', components[0]['pattern'])
 
-    def test_several_formats_without_proof_declare_nothing_and_say_so(self):
+    def test_several_formats_without_proof_choose_nothing_and_say_so(self):
         components, concerns = self._anatomy(['model.safetensors', 'model.onnx'], engine='transformers')
         self.assertIsNone(components)
         self.assertIn('NON posée', concerns[0])
