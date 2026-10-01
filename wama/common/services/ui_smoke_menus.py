@@ -955,6 +955,89 @@ def check_card_transfer():
     return _bilan(verdicts)
 
 
+def check_batch_transfer():
+    """« Transférer le lot à… » depuis la card MÈRE : le groupe quitte la file sans rechargement ;
+    en base, le lot ET ses deux cards sont au destinataire, leurs fichiers déplacés (2026-10-01).
+    (ok, detail) — même montage et même réserve que `check_card_transfer`."""
+    from django.contrib.auth import get_user_model
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario, get_test_dev_user
+    from wama.common.utils.media_paths import app_media_dir
+    from wama.describer.models import BatchDescription, BatchDescriptionItem, Description
+    from wama.describer.views import _wrap_description_in_batch
+
+    page_path = '/describer/'
+    session_token, uid = _test_session_key('describer'), _test_account_id('describer')
+    recipient = get_test_dev_user()
+    if not (session_token and uid and recipient) or recipient.pk == uid:
+        raise SkipScenario('deux comptes de test distincts sont nécessaires')
+    owner = get_user_model().objects.get(pk=uid)
+    home = app_media_dir('describer', uid, 'input')
+    folder = Path(settings.MEDIA_ROOT) / home
+    folder.mkdir(parents=True, exist_ok=True)
+    items, sources = [], []
+    for i in range(2):
+        name = f'wama_temoin_lot_transfert_{i}.txt'
+        sources.append(_temoin(folder, name, '.txt'))
+        el = Description.objects.create(user=owner, filename=name)
+        el.input_file.name = f'{home}/{name}'
+        el.save(update_fields=['input_file'])
+        items.append(el)
+    lot = _wrap_description_in_batch(items[0])
+    BatchDescriptionItem.objects.create(batch=lot, description=items[1], row_index=1)
+    BatchDescription.objects.filter(pk=lot.pk).update(total=2)
+    group = f".batch-group[data-batch-id='{lot.pk}']"
+    before, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav = p.chromium.launch()
+            ctx = nav.new_context(viewport={'width': 1500, 'height': 1000})
+            ctx.add_cookies(_cookie(session_token))
+            page = ctx.new_page()
+            errors = []
+            page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
+            page.on('pageerror', lambda e: errors.append(f'PAGEERROR {e}'))
+            try:
+                resp = page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(page, resp, page_path)
+                if refused_page:
+                    return refused_page
+                page.evaluate("() => { window.__wamaNoReload = 'meme-page'; }")
+                page.locator(f'{group} .wama-card.is-batch').first.click(button='right')
+                entry = page.locator('.wama-card-menu .wama-cm-item:has-text("Transférer le lot")')
+                verdicts.append((entry.count() == 1, 'le menu de la card mère propose « Transférer le lot à… »'))
+                entry.first.click()
+                page.wait_for_selector('.wama-confirm.show [data-confirm-input]', timeout=10000)
+                page.fill('.wama-confirm.show [data-confirm-input]', recipient.username)
+                page.click('.wama-confirm.show [data-confirm-ok]')
+                page.wait_for_selector(group, state='detached', timeout=15000)
+                verdicts.append((page.evaluate("() => window.__wamaNoReload") == 'meme-page',
+                                 'le lot quitte la file sans rechargement'))
+                verdicts.append(_console(errors))
+            finally:
+                nav.close()
+    finally:
+        _drop_new_sessions(before)
+    lot.refresh_from_db()
+    for el in items:
+        el.refresh_from_db()
+    moved = [Path(settings.MEDIA_ROOT) / el.input_file.name for el in items if el.input_file]
+    verdicts.append((lot.user_id == recipient.pk and all(el.user_id == recipient.pk for el in items),
+                     'le lot et ses deux cards sont au destinataire'))
+    verdicts.append((BatchDescriptionItem.objects.filter(batch=lot).count() == 2,
+                     'le lot garde ses deux cards'))
+    verdicts.append((len(moved) == 2 and all(m.exists() for m in moved)
+                     and not any(s.exists() for s in sources),
+                     'leurs fichiers ont été DÉPLACÉS chez lui'))
+    # Ménage : le lot, ses cards, les fichiers.
+    Description.objects.filter(pk__in=[el.pk for el in items]).delete()
+    BatchDescription.objects.filter(pk=lot.pk).delete()
+    for path in moved + sources:
+        path.unlink(missing_ok=True)
+    return _bilan(verdicts)
+
+
 def register_menu_scenarios():
     from wama.common.services.nightly_tests import register
     register(id='common.tree_menu_keyboard', app='common', stage='ui',
@@ -995,6 +1078,10 @@ def register_menu_scenarios():
              description="« Transférer à… » depuis le menu de la card : elle quitte la file sans "
                          "rechargement, appartient au destinataire, son fichier déplacé chez lui",
              run=lambda ctx: check_card_transfer(), timeout_s=240)
+    register(id='common.batch_transfer', app='common', stage='ui',
+             description="« Transférer le lot à… » depuis la card mère : le groupe quitte la file, "
+                         "le lot et ses cards appartiennent au destinataire, fichiers déplacés",
+             run=lambda ctx: check_batch_transfer(), timeout_s=240)
     register(id='common.nav_sandbox_keyboard', app='common', stage='ui',
              description='Sous-menu « Bac à sable » au CLAVIER, sans détournement par Bootstrap',
              run=lambda ctx: check_nav_sandbox_keyboard(), timeout_s=180)

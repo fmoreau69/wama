@@ -80,81 +80,152 @@ def _moved_path(name: str, app: str, old_owner: int, new_owner: int) -> str:
     return candidate
 
 
-def _hand_over_files(element, new_owner) -> dict:
-    """Applique la règle des fichiers ; rend {champ: nouveau chemin} et les comptes."""
+def _hand_over_files(objects, new_owner) -> dict:
+    """Applique la règle des fichiers à un ENSEMBLE cédé d'un bloc (une card, ou un lot et ses
+    cards) ; rend `{'fields': {(label, pk): {champ: chemin}}, 'moved', 'copied'}`.
+
+    Le partage se juge sur l'ENSEMBLE, pas card par card (même règle que `released_files.freed_by`) :
+    un fichier que deux cards du même lot portent est à l'ensemble, il est DÉPLACÉ une fois et ses
+    deux liens suivent ; un fichier qu'une card RESTÉE chez l'ancien porte encore est COPIÉ."""
     from django.conf import settings
     from django.db import models as dj_models
-    from wama.common.utils.file_references import repoint
+    from wama.common.utils.file_references import referenced_outside, repoint
     from wama.common.utils.media_paths import copy_into_app_input
-    from wama.common.utils.queue_duplication import is_shared_elsewhere, owns_file
-    app, old_owner = element._meta.app_label, element.user_id
-    fields, moved, copied = {}, 0, 0
-    for f in element._meta.concrete_fields:
-        if not isinstance(f, dj_models.FileField):
-            continue
-        name = getattr(getattr(element, f.name, None), 'name', '') or ''
-        source = os.path.join(settings.MEDIA_ROOT, name) if name else ''
-        if not name or not os.path.isfile(source):
-            continue
-        if owns_file(element, name) and not is_shared_elsewhere(element, f.name, name):
-            new = _moved_path(name, app, old_owner, new_owner.pk)
-            os.makedirs(os.path.dirname(os.path.join(settings.MEDIA_ROOT, new)), exist_ok=True)
-            shutil.move(source, os.path.join(settings.MEDIA_ROOT, new))
-            repoint(name, new)                       # cette card, ses provenances, sa note éventuelle
-            fields[f.name] = new
-            moved += 1
-        else:
-            _dest, new = copy_into_app_input(source, app, new_owner.pk, for_instance=element,
-                                             field=f.name, provenance_kind='app',
-                                             provenance_ref=name)
-            fields[f.name] = new
-            copied += 1
+    from wama.common.utils.queue_duplication import owns_file
+
+    def files_of(obj):
+        for f in obj._meta.concrete_fields:
+            if isinstance(f, dj_models.FileField):
+                name = getattr(getattr(obj, f.name, None), 'name', '') or ''
+                if name and os.path.isfile(os.path.join(settings.MEDIA_ROOT, name)):
+                    yield f.name, name
+
+    inside = {(o._meta.label, o.pk) for o in objects}
+    owned = {name for o in objects for _f, name in files_of(o) if owns_file(o, name)}
+    outside = referenced_outside(owned, inside)
+    fields, moved_to, copied_to, moved, copied = {}, {}, {}, 0, 0
+    for obj in objects:
+        app = obj._meta.app_label
+        for field, name in files_of(obj):
+            if name in owned and name not in outside:
+                if name not in moved_to:
+                    new = _moved_path(name, app, obj.user_id, new_owner.pk)
+                    target = os.path.join(settings.MEDIA_ROOT, new)
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    shutil.move(os.path.join(settings.MEDIA_ROOT, name), target)
+                    repoint(name, new)               # toutes les cards de l'ensemble, provenances, note
+                    moved_to[name] = new
+                    moved += 1
+                new = moved_to[name]
+            else:
+                if (app, name) not in copied_to:
+                    _dest, copied_to[(app, name)] = copy_into_app_input(
+                        os.path.join(settings.MEDIA_ROOT, name), app, new_owner.pk,
+                        for_instance=obj, field=field, provenance_kind='app', provenance_ref=name)
+                    copied += 1
+                new = copied_to[(app, name)]
+            fields.setdefault((obj._meta.label, obj.pk), {})[field] = new
     return {'fields': fields, 'moved': moved, 'copied': copied}
+
+
+def _make_theirs(obj, new_owner, fields):
+    """La ligne devient celle du nouveau propriétaire : ses chemins, lui, privée."""
+    obj.refresh_from_db()
+    for name, value in (fields or {}).items():
+        setattr(obj, name, value)
+    obj.user = new_owner
+    for name, value in (('visibility', 'private'), ('scope_org_unit', None), ('scope_project', None)):
+        if any(f.name == name for f in obj._meta.concrete_fields):
+            setattr(obj, name, value)
+    obj.save()
+
+
+def _check_transferable(user, objects):
+    for obj in objects:
+        if not any(f.name == 'user' for f in obj._meta.concrete_fields):
+            raise RefusDePartage("cet élément n'est pas transférable (pas de propriétaire direct)")
+        if obj.user_id != getattr(user, 'pk', None):
+            raise RefusDePartage("seul le propriétaire peut transférer")
+        if getattr(obj, 'status', '') == 'RUNNING':
+            raise RefusDePartage("traitement en cours : transférez une fois terminé")
+
+
+def _consent(user, objects, recipient, consent: bool):
+    """Les sujets à consentir (une card qui porte une personne) ; lève s'il manque l'accord."""
+    subjects = [(o, consent_subject(o)) for o in objects]
+    subjects = [(o, s) for o, s in subjects if s]
+    if subjects and not consent:
+        raise TransferConsentRequired(subjects[0][1], recipient.username)
+    return subjects
+
+
+def _record_consents(user, subjects, recipient):
+    from wama.common.models import ShareConsent
+    for obj, subject in subjects:
+        ShareConsent.objects.create(
+            object_type=obj._meta.label, object_id=obj.pk, user=user, username=user.username,
+            visibility='transfer', subject=subject,
+            statement=TRANSFER_STATEMENT.format(subject=subject, recipient=recipient.username))
+
+
+def _label(obj) -> str:
+    return str(getattr(obj, 'name', '') or getattr(obj, 'filename', '') or
+               getattr(obj, 'input_filename', '') or f'#{obj.pk}')
 
 
 def transfer_card(user, element, recipient, consent: bool = False) -> dict:
     """Cède `element` (une card de `user`) à `recipient`. Rend un compte-rendu
     `{'to', 'moved', 'copied', 'lot'}` ; lève `RefusDePartage` (motif pour l'utilisateur) ou
     `TransferConsentRequired` (le texte à valider)."""
-    from wama.common.models import ShareConsent
     from wama.common.utils.batch_common import leave_batch
     from wama.common.utils.notifications import notify_in_app
-    if not any(f.name == 'user' for f in element._meta.concrete_fields):
-        raise RefusDePartage("cet élément n'est pas transférable (pas de propriétaire direct)")
-    if element.user_id != getattr(user, 'pk', None):
-        raise RefusDePartage("seul le propriétaire peut transférer")
-    if getattr(element, 'status', '') == 'RUNNING':
-        raise RefusDePartage("traitement en cours : transférez-la une fois terminé")
-    subject = consent_subject(element)
-    if subject and not consent:
-        raise TransferConsentRequired(subject, recipient.username)
+    _check_transferable(user, [element])
+    subjects = _consent(user, [element], recipient, consent)
 
     with transaction.atomic():
         lot = leave_batch(element)
-        handed = _hand_over_files(element, recipient)
-        element.refresh_from_db()
-        for name, value in handed['fields'].items():
-            setattr(element, name, value)
-        element.user = recipient
-        for name, value in (('visibility', 'private'), ('scope_org_unit', None),
-                            ('scope_project', None)):
-            if any(f.name == name for f in element._meta.concrete_fields):
-                setattr(element, name, value)
-        element.save()
-        if subject:
-            ShareConsent.objects.create(
-                object_type=element._meta.label, object_id=element.pk, user=user,
-                username=user.username, visibility='transfer', subject=subject,
-                statement=TRANSFER_STATEMENT.format(subject=subject, recipient=recipient.username))
+        handed = _hand_over_files([element], recipient)
+        _make_theirs(element, recipient, handed['fields'].get((element._meta.label, element.pk)))
+        _record_consents(user, subjects, recipient)
 
-    label = str(getattr(element, 'name', '') or getattr(element, 'filename', '') or
-                getattr(element, 'input_filename', '') or f'#{element.pk}')
     notify_in_app([recipient], 'card_transferred',
                   f"{user.username} vous a transféré une card",
-                  body=(f"« {label} » ({element._meta.app_label}) est désormais à vous, avec ses "
-                        f"fichiers. Elle est privée : à vous de la partager si besoin."),
+                  body=(f"« {_label(element)} » ({element._meta.app_label}) est désormais à vous, "
+                        f"avec ses fichiers. Elle est privée : à vous de la partager si besoin."),
                   url=f'/{element._meta.app_label}/')
     logger.info('[transfer] %s#%s : %s → %s (%d déplacé(s), %d copié(s))', element._meta.label,
                 element.pk, user.username, recipient.username, handed['moved'], handed['copied'])
     return {'to': recipient.username, 'moved': handed['moved'], 'copied': handed['copied'],
             'lot': lot.pk if lot is not None else None}
+
+
+def transfer_lot(user, lot, element_model, recipient, consent: bool = False) -> dict:
+    """Cède un LOT ENTIER (2026-10-01, demande de Fabien : « un trou important ; le fonctionnement
+    d'un batch est proche de celui d'une card ») : le lot ET toutes ses cards changent de
+    propriétaire d'un bloc. Rien ne sort du lot — c'est le lot qui part, rangé tel quel chez le
+    nouveau. Mêmes gardes que la card (propriétaire, rien en cours, consentement si une card porte
+    une personne) ; règle des fichiers jugée sur l'ENSEMBLE (`_hand_over_files`)."""
+    from wama.common.utils.batch_common import batch_elements
+    from wama.common.utils.notifications import notify_in_app
+    elements = list(batch_elements(lot, element_model))
+    objects = [lot, *elements]
+    _check_transferable(user, objects)
+    subjects = _consent(user, objects, recipient, consent)
+
+    with transaction.atomic():
+        handed = _hand_over_files(objects, recipient)
+        for obj in objects:
+            _make_theirs(obj, recipient, handed['fields'].get((obj._meta.label, obj.pk)))
+        _record_consents(user, subjects, recipient)
+
+    app = element_model._meta.app_label
+    notify_in_app([recipient], 'card_transferred',
+                  f"{user.username} vous a transféré un lot de {len(elements)} card(s)",
+                  body=(f"Le lot ({app}) est désormais à vous, avec ses cards et leurs fichiers. "
+                        f"Il est privé : à vous de le partager si besoin."),
+                  url=f'/{app}/')
+    logger.info('[transfer] lot %s#%s (%d card(s)) : %s → %s (%d déplacé(s), %d copié(s))',
+                lot._meta.label, lot.pk, len(elements), user.username, recipient.username,
+                handed['moved'], handed['copied'])
+    return {'to': recipient.username, 'moved': handed['moved'], 'copied': handed['copied'],
+            'cards': len(elements)}

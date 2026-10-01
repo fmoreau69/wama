@@ -631,6 +631,54 @@ class TransferringACardTest(TestCase):
                 self.assertEqual(second.pk and lot.pk, batch_of(second).pk)
                 self.assertEqual(1, res['batch']['total'], 'le lot quitté dit ce qu’il devient')
 
+    def test_a_whole_batch_is_transferred_with_its_cards(self):
+        """Le LOT entier (2026-10-01) : lot et cards changent de propriétaire d'un bloc, rien ne
+        sort du lot ; un fichier que deux cards du lot portent est DÉPLACÉ une fois, les deux liens
+        suivent (le partage se juge sur l'ensemble cédé)."""
+        from wama.common.utils.batch_common import batch_elements
+        from wama.common.utils.media_paths import app_media_dir
+        recipient = User.objects.create_user('transfer_lot_recipient', password='x')
+        for surface, _route, account, model, app_home in self._fleet():
+            with self.subTest(surface=surface):
+                lot, (first, second) = _lot_de(model, account, 2)
+                first, files1 = self._witness(model, account, app_home, el=first)
+                second, files2 = self._witness(model, account, app_home, el=second)
+                if not files1:
+                    continue
+                shared_field = next(f.name for f in model._meta.concrete_fields
+                                    if isinstance(f, models.FileField))
+                # La 2ᵉ card porte désormais le fichier de la 1ʳᵉ : le sien n'est plus porté par
+                # personne, il sort du témoin (le transfert n'a pas à déplacer un fichier orphelin).
+                replaced = Path(self.tmp) / getattr(second, shared_field).name
+                setattr(second, shared_field, getattr(first, shared_field).name)
+                second.save(update_fields=[shared_field])
+                replaced.unlink()
+                files2 = [p for p in files2 if p != replaced]
+                res = self._transfer_lot(surface, lot.pk, 'transfer_lot_recipient').json()
+                self.assertTrue(res.get('transferred'), res)
+                lot.refresh_from_db()
+                self.assertEqual(recipient.pk, lot.user_id)
+                kept = list(batch_elements(lot, model))
+                self.assertEqual({first.pk, second.pk}, {e.pk for e in kept}, 'le lot garde ses cards')
+                theirs = app_media_dir(model._meta.app_label, recipient.pk, '')
+                for el in kept:
+                    self.assertEqual(recipient.pk, el.user_id)
+                    self.assertEqual('private', el.visibility)
+                    for f in model._meta.concrete_fields:
+                        name = str(getattr(el, f.name) or '') if isinstance(f, models.FileField) else ''
+                        if name:
+                            self.assertTrue(name.startswith(theirs), f'{f.name} : {name}')
+                            self.assertTrue((Path(self.tmp) / name).exists(), f'{f.name} : absent')
+                a, b = (next(e for e in kept if e.pk == pk) for pk in (first.pk, second.pk))
+                self.assertEqual(getattr(a, shared_field).name, getattr(b, shared_field).name,
+                                 'le fichier commun aux deux cards est déplacé UNE fois')
+                self.assertEqual([], [p.name for p in files1 + files2 if p.exists()],
+                                 'plus rien chez l’ancien propriétaire')
+
+    def _transfer_lot(self, surface, pk, to):
+        return self.client.post(reverse('common:api_transfer'),
+                                {'surface': surface, 'pk': pk, 'to': to, 'nature': 'lot'})
+
     def test_guards(self):
         surface, _route, account, model, app_home = next(iter(self._fleet()))
         mine, _ = self._witness(model, account, app_home)
