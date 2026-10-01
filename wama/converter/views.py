@@ -33,7 +33,7 @@ from django.db import transaction
 from .models import ConversionJob, ConversionProfile, ConversionBatch
 from .utils.format_router import detect_media_type, get_output_formats, SUPPORTED_CONVERSIONS
 from ..accounts.views import get_or_create_anonymous_user
-from ..common.utils.queue_duplication import safe_delete_file, duplicate_instance
+from ..common.utils.queue_duplication import safe_delete_file, release_card_file, duplicate_instance
 from ..common.utils.param_schema import schema_extra_params, schema_model_kwargs
 # Le chemin d'un fichier d'app se COMPOSE (`get_relative_media_path`), il ne
 # s'écrit pas — préalable au domicile unique par utilisateur (2026-09-11).
@@ -576,9 +576,9 @@ def delete(request, pk):
     snapshot = batch_snapshot(job)
 
     # Output : supprimé seulement s'il est dans le dossier média du Converter
-    safe_delete_file(job, 'output_file')
+    release_card_file(job, 'output_file')
     # Input : idem — jamais les fichiers utilisateur seulement référencés
-    safe_delete_file(job, 'input_file')
+    release_card_file(job, 'input_file')
 
     job.delete()   # signal post_delete (batch_sync) : recale le total / supprime le lot vidé
     return JsonResponse({'success': True, 'batch': batch_state(snapshot, ConversionJob)})
@@ -665,8 +665,8 @@ def clear_all(request):
     """Delete all jobs for the current user."""
     jobs = ConversionJob.objects.filter(user=request.user)
     for job in jobs:
-        safe_delete_file(job, 'output_file')
-        safe_delete_file(job, 'input_file')
+        release_card_file(job, 'output_file')
+        release_card_file(job, 'input_file')
     jobs.delete()  # signal batch_sync (apps.py) : recale total / supprime le lot vidé
     return JsonResponse({'success': True})
 
@@ -797,8 +797,8 @@ def batch_create(request):
 
 def _delete_job_files(job):
     """Supprime input/output d'un job s'ils appartiennent au Converter."""
-    safe_delete_file(job, 'output_file')
-    safe_delete_file(job, 'input_file')
+    release_card_file(job, 'output_file')
+    release_card_file(job, 'input_file')
 
 
 # ── Quatre vues de lot par la fabrique COMMUNE (`batch_views.make_batch_views`, portage

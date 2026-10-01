@@ -25,7 +25,7 @@ from django.conf import settings
 from django.utils.http import content_disposition_header
 
 from .models import Description, BatchDescription, BatchDescriptionItem
-from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.video_utils import upload_media_from_url
 
@@ -714,9 +714,9 @@ def delete(request, pk):
     snapshot = batch_snapshot(description)
 
     # Delete files
-    safe_delete_file(description, 'input_file')
+    release_card_file(description, 'input_file')
 
-    safe_delete_file(description, 'result_file')
+    release_card_file(description, 'result_file')
 
     description.delete()  # signal batch_sync : recale total / supprime le batch vidé
 
@@ -777,8 +777,8 @@ def clear_all(request):
     count = descriptions.count()
 
     for desc in descriptions:
-        safe_delete_file(desc, 'input_file')
-        safe_delete_file(desc, 'result_file')
+        release_card_file(desc, 'input_file')
+        release_card_file(desc, 'result_file')
 
     descriptions.delete()
 

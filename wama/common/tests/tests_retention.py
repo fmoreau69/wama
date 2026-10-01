@@ -5,11 +5,17 @@ modèles, et n'avait AUCUN test : un geste qui détruit des fichiers sans interv
 contrat. Or c'est exactement là qu'une règle manquante coûte le plus — personne ne regarde.
 
 Ce que le contrat exige, pour CHAQUE modèle déclaré (`RETENTION_MODELS`), sans en nommer un :
-  - un élément expiré dont les fichiers vivent CHEZ l'app : l'élément et ses fichiers partent ;
-  - un élément expiré qui ne fait que RÉFÉRENCER des fichiers de l'utilisateur : les fichiers restent ;
+  - un élément expiré dont les fichiers vivent CHEZ l'app : l'élément part, ses fichiers sont
+    LIBÉRÉS (restent sur le disque, signalés à l'utilisateur) ;
+  - un élément expiré qui ne fait que RÉFÉRENCER des fichiers de l'utilisateur : les fichiers
+    restent, sans être signalés ;
   - un élément expiré dont les fichiers sont PARTAGÉS par une copie récente : ils restent, la copie
-    les utilise encore ;
+    les utilise encore, et rien n'est annoncé orphelin ;
   - les listes de chemins (`path_lists`) suivent la règle de propriété, comme les champs.
+
+⚠ RÉÉCRIT LE 2026-10-01 (décision de Fabien du 30/09, `MEDIA_STORAGE_TIERING` D34) : la purge ne
+SUPPRIME plus aucun fichier — « la suppression est un geste explicite de l'utilisateur, mais il
+est prévenu ». Elle libère ; la règle de propriété décide QUI est prévenu de quoi.
 """
 import shutil
 import tempfile
@@ -68,7 +74,14 @@ class RetentionFollowsTheDeletionRuleTest(TestCase):
         from wama.common.utils.media_paths import app_media_dir
         return app_media_dir(model._meta.app_label, self.user.id, 'output')
 
-    def test_expired_items_lose_their_own_files_and_keep_the_ones_they_reference(self):
+    def _released(self, files):
+        """Les témoins signalés comme libérés (une ligne `ReleasedFile` pour leur chemin)."""
+        from wama.common.models import ReleasedFile
+        rels = {p.relative_to(self.tmp).as_posix(): p.name for p in files}
+        noted = ReleasedFile.objects.filter(path__in=list(rels)).values_list('path', flat=True)
+        return sorted(rels[r] for r in noted)
+
+    def test_expired_items_release_their_own_files_and_keep_the_ones_they_reference(self):
         from wama.common.services.retention import purge_expired_media
         cases = []
         for model, _lists in self._models():
@@ -80,11 +93,15 @@ class RetentionFollowsTheDeletionRuleTest(TestCase):
             with self.subTest(model=model._meta.label):
                 self.assertFalse(model.objects.filter(pk__in=[owned.pk, referenced.pk]).exists(),
                                  'un élément expiré a survécu à la purge')
-                self.assertEqual([], [p.name for p in owned_files if p.exists()],
-                                 'la purge a laissé les fichiers de l’app sur le disque')
+                self.assertEqual([], [p.name for p in owned_files if not p.exists()],
+                                 'la purge a SUPPRIMÉ des fichiers : elle doit les libérer')
+                self.assertEqual(sorted(p.name for p in owned_files), self._released(owned_files),
+                                 'les fichiers de l’app ne sont pas signalés comme libérés')
                 self.assertEqual([], [p.name for p in ref_files if not p.exists()],
                                  'la purge a DÉTRUIT des fichiers que l’élément ne faisait que '
                                  'référencer')
+                self.assertEqual([], self._released(ref_files),
+                                 'un fichier seulement RÉFÉRENCÉ est signalé — il a son propre maître')
 
     def test_a_file_shared_by_a_recent_copy_survives_the_purge(self):
         from wama.common.services.retention import purge_expired_media
@@ -101,6 +118,8 @@ class RetentionFollowsTheDeletionRuleTest(TestCase):
                 self.assertTrue(model.objects.filter(pk=copy.pk).exists())
                 self.assertEqual([], [p.name for p in files if not p.exists()],
                                  'la purge a détruit un fichier que la COPIE récente utilise encore')
+                self.assertEqual([], self._released(files),
+                                 'un fichier que la COPIE récente utilise encore est annoncé orphelin')
 
     def test_path_lists_follow_the_ownership_rule(self):
         from wama.common.services.retention import purge_expired_media
@@ -118,5 +137,9 @@ class RetentionFollowsTheDeletionRuleTest(TestCase):
         purge_expired_media()
         for model, field, own, ref in cases:
             with self.subTest(model=model._meta.label, field=field):
-                self.assertFalse(own.exists(), 'un chemin de la liste, chez l’app, est resté')
+                self.assertTrue(own.exists(), 'un chemin de la liste, chez l’app, a été SUPPRIMÉ')
+                self.assertEqual([own.name], self._released([own]),
+                                 'un chemin de la liste, chez l’app, n’est pas signalé comme libéré')
                 self.assertTrue(ref.exists(), 'un chemin de la liste, HORS de l’app, a été détruit')
+                self.assertEqual([], self._released([ref]),
+                                 'un chemin de la liste, HORS de l’app, est signalé comme libéré')

@@ -3,8 +3,10 @@ Rétention des médias — purge automatique des sorties au-delà de la durée c
 (`UserProfile.media_retention_days`, bornée par `settings.WAMA_MAX_RETENTION_DAYS`).
 
 Déclaratif + introspection : on enregistre seulement le modèle (et d'éventuels champs de chemins JSON) ;
-les **FileField/ImageField sont découverts automatiquement** et supprimés via `safe_delete_file`
-(qui respecte les références partagées). Puis l'enregistrement est supprimé. Fail-safe, idempotent.
+les **FileField/ImageField sont découverts automatiquement** et LIBÉRÉS via `release_card_file`
+(qui respecte les références partagées) — jamais effacés depuis le 2026-09-30 : l'utilisateur est
+prévenu et supprime lui-même (`common/services/released_files.py`). Puis l'enregistrement est
+supprimé. Fail-safe, idempotent.
 
 Pré-avis : `upcoming_expirations(days)` liste ce qui expirera bientôt (pour notifier — câblage séparé).
 """
@@ -31,20 +33,6 @@ RETENTION_MODELS = [
 ]
 
 
-def _delete_path(path):
-    """Supprime un fichier (absolu ou relatif à MEDIA_ROOT). Fail-safe."""
-    try:
-        if not path:
-            return
-        if not os.path.isabs(path):
-            from django.conf import settings
-            path = os.path.join(settings.MEDIA_ROOT, path)
-        if os.path.isfile(path):
-            os.remove(path)
-    except Exception as e:  # pragma: no cover
-        logger.debug("retention: échec suppression chemin %s : %s", path, e)
-
-
 def _relative_to_media(path):
     """Chemin relatif à MEDIA_ROOT (la forme que `owns_file` compare) ; '' s'il est HORS de
     MEDIA_ROOT — et alors `owns_file` refuse, ce qui est voulu : la purge ne sort jamais de là."""
@@ -59,28 +47,34 @@ def _relative_to_media(path):
 
 
 def _purge_instance(obj, path_lists):
-    from wama.common.utils.queue_duplication import safe_delete_file
-    # 1) FileField/ImageField découverts automatiquement → safe_delete (respecte refs partagées).
+    from wama.common.utils.queue_duplication import release_card_file
+    # 1) FileField/ImageField découverts automatiquement → LIBÉRÉS (refs partagées respectées).
     for f in obj._meta.fields:
         if isinstance(f, models.FileField):  # ImageField hérite de FileField
             try:
                 if getattr(obj, f.name):
-                    safe_delete_file(obj, f.name)
+                    release_card_file(obj, f.name)
             except Exception as e:  # pragma: no cover
-                logger.debug("retention: safe_delete %s.%s a échoué : %s", obj, f.name, e)
-    # 2) Champs de chemins (listes JSON) → suppression disque, mais seulement ce qui vit CHEZ
-    #    l'app (`owns_file`, la même règle que `safe_delete_file`). Jusqu'au 2026-09-22 ces listes
+                logger.debug("retention: libération %s.%s a échoué : %s", obj, f.name, e)
+    # 2) Champs de chemins (listes JSON) → seulement ce qui vit CHEZ l'app (`owns_file`, la même
+    #    règle que pour les FileField). Jusqu'au 2026-09-22 ces listes
     #    étaient effacées sans aucune règle : un chemin référencé hors du domicile de l'app y
     #    passait comme le reste. (Le PARTAGE n'est pas en jeu ici : la duplication vide ces listes,
     #    vérifié sur `imager._RESET_DUPLICATION`.)
+    #    ⚠ Depuis le 2026-09-30 ces chemins sont LIBÉRÉS, plus effacés (décision de Fabien : la
+    #    suppression d'un fichier est un geste explicite de l'utilisateur, prévenu) — comme les
+    #    FileField ci-dessus, par `release_card_file`.
     from wama.common.utils.queue_duplication import owns_file
+    from wama.common.services.released_files import release_path, still_used
     for pl in path_lists or []:
         val = getattr(obj, pl, None)
         if isinstance(val, (list, tuple)):
             for p in val:
                 path = p if isinstance(p, str) else (p or {}).get('path') if isinstance(p, dict) else None
-                if path and owns_file(obj, _relative_to_media(path)):
-                    _delete_path(path)
+                rel = _relative_to_media(path) if path else ''
+                if rel and owns_file(obj, rel) and not still_used(rel):
+                    release_path(rel, getattr(obj, 'user', None),
+                                 origin=f'{obj._meta.label}#{obj.pk} · {pl} (rétention)')
     # 3) Supprimer l'enregistrement.
     obj.delete()
 

@@ -844,7 +844,7 @@ def delete(request, pk):
     from wama.common.utils.batch_common import batch_snapshot, batch_state
     snapshot = batch_snapshot(item)
     for _champ in {champs_fichiers!r}:
-        safe_delete_file(item, _champ)   # propriété + partage jugés par la brique
+        release_card_file(item, _champ)   # propriété + partage jugés par la brique
     item.delete()
     # ⚠ NE PAS supprimer le lot vidé ici (retiré le 2026-09-09). C'était une REDUPLICATION du
     # mécanisme commun `batch_sync` — `register_batch_sync(<Item>, direct_fk=True)` est branché
@@ -888,7 +888,7 @@ def clear_all(request):
     n = 0
     for item in {item}.objects.filter(user=user).exclude(status='RUNNING'):
         for _champ in {champs_fichiers!r}:
-            safe_delete_file(item, _champ)
+            release_card_file(item, _champ)
         item.delete()
         n += 1
     {batch}.objects.filter(user=user, {items_related}__isnull=True).delete()
@@ -1191,7 +1191,7 @@ from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.detail_registry import normalize_status
 from wama.common.utils.process_control import begin_processing, stop_instance
 from wama.common.utils.batch_views import apply_item_settings, make_batch_views, read_settings_payload
-from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
 {imports_forme}
 from wama.common.utils.queue_view import apply_queue_sort_filter
 

@@ -1063,6 +1063,24 @@ premier run complet — il joue les deux issues, parce qu'elles cassent séparé
 > les confirmations — ce qui rendrait la moitié A inobservable (on ne peut pas mesurer un refus
 > avec un harnais qui accepte tout). Il enregistre donc les messages et décide sur leur contenu.
 
+### Geste de RETRAIT d'une card (2026-10-01) — le fichier reste, l'utilisateur est PRÉVENU
+
+L'autre bout de la même question, posé par la décision de Fabien du 2026-09-30
+(`MEDIA_STORAGE_TIERING §8.6` D34) : *retirer une card ne supprime plus ses fichiers ; on prévient,
+c'est l'utilisateur qui supprime.* Scénario **`common.released_files`** (`ui_smoke_menus.py`),
+**7/7** au premier run (serveur éphémère 8011, compte de test, page du converter) :
+
+| étape | ce qui est exercé | attendu |
+|---|---|---|
+| ① | 🗑 d'une card qui POSSÈDE son entrée (`queue-actions.js`, chaîne servie) | l'annonce (`released-files.js`) nomme le fichier ; le fichier est **toujours sur le disque** |
+| ② | « Supprimer » dans l'annonce | fichier parti — le geste explicite |
+| ③ | second témoin : « Garder », puis `FileManager.showInfo(chemin)` | fichier gardé ; ses informations disent « utilisé par aucune card » **en rouge** |
+| ④ | rechargement de la page | **aucune** ré-annonce (une fois par fichier) |
+
+Les contrats Python tiennent la RÈGLE sur tout le parc (`tests_queue_delete_contract`,
+`tests_retention`, `tests_released_files`) ; ce geste tient la CHAÎNE servie. Sur l'ancien code il
+ne peut qu'être rouge : le fichier serait parti avant que l'annonce existe.
+
 ---
 
 ## 3ter. Les DROITS — une TROISIÈME grille, qui ne mesure ni une adoption ni un geste

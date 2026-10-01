@@ -25,7 +25,7 @@ from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels as _input_labels
 from wama.accounts.permissions import app_access
 from wama.accounts.views import get_or_create_anonymous_user
-from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
 from wama.common.utils.scoping import visible_or_404
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ CARD_FILE_FIELDS = ('audio', 'reference_result', 'work_result')
 def _delete_card_files(t):
     """Chaque fichier de la card, sous la règle de `safe_delete_file` (propriété + partage)."""
     for field in CARD_FILE_FIELDS:
-        safe_delete_file(t, field)
+        release_card_file(t, field)
 
 
 def _get_user(request):

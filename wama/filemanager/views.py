@@ -761,6 +761,9 @@ def api_delete(request):
 
             # Also delete from UserFile if it's a temp file
             UserFile.objects.filter(user=user, file=file_path).delete()
+            # Un fichier LIBÉRÉ que l'utilisateur supprime : sa note n'a plus d'objet.
+            from wama.common.models import ReleasedFile
+            ReleasedFile.objects.filter(path=file_path).delete()
             # Confirmée : les cards RESTENT, détachées du fichier disparu — l'utilisateur leur
             # recharge une entrée s'il veut les réutiliser.
             detached = detach(file_path) if in_use['count'] else 0
@@ -1136,6 +1139,13 @@ def api_info(request):
     try:
         stat = full_path.stat()
         mime_type = mimetypes.guess_type(full_path.name)[0] or 'application/octet-stream'
+        # L'USAGE du fichier (2026-09-30, décision de Fabien) : combien de cards l'appellent, et,
+        # s'il n'est plus utilisé, depuis quand — affiché en rouge ; on prévient, on ne supprime pas.
+        # Un fichier MONTÉ (NAS, cloud) n'est pas un fichier de WAMA : rien à en dire.
+        usage_status = None
+        if not file_path.startswith('mounts/'):
+            from wama.common.services.released_files import status_of
+            usage_status = status_of(file_path)
 
         return JsonResponse({
             'name': full_path.name,
@@ -1144,6 +1154,7 @@ def api_info(request):
             'mime': mime_type,
             'modified': stat.st_mtime,
             'created': stat.st_ctime,
+            'usage': usage_status,
         })
     except Exception as e:
         logger.error(f"Error getting info for {file_path}: {e}")

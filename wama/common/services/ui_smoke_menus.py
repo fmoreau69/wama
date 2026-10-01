@@ -655,6 +655,91 @@ def check_tree_delete_in_use():
     return _bilan(verdicts)
 
 
+def check_released_files():
+    """Retirer une card PRÉVIENT que son fichier n'est plus utilisé ; c'est l'utilisateur qui
+    supprime ; les informations du fichier le disent en rouge. (ok, detail)
+
+    Décision de Fabien du 2026-09-30 (`MEDIA_STORAGE_TIERING` D34) : *« la suppression est un geste
+    explicite de l'utilisateur, mais il est prévenu »*. Les contrats Python attestent la règle sur
+    les 10 apps ; ici on JOUE la chaîne servie : 🗑 de la card (`queue-actions.js`) → `media:deleted`
+    → annonce (`released-files.js`) → « Supprimer » → fichier parti ; et, pour un second témoin
+    gardé, l'information du fichier (`FileManager.showInfo`) en rouge.
+    """
+    from django.contrib.auth import get_user_model
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.models import ReleasedFile
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.utils.media_paths import app_media_dir
+    from wama.converter.models import ConversionJob
+
+    session_token, uid = _test_session_key('converter'), _test_account_id('converter')
+    if not (session_token and uid):
+        raise SkipScenario('aucun compte de test disponible')
+    user = get_user_model().objects.get(pk=uid)
+    home = app_media_dir('converter', uid, 'input')
+    folder = Path(settings.MEDIA_ROOT) / home
+    folder.mkdir(parents=True, exist_ok=True)
+
+    # ORM HORS du contexte Playwright : deux cards qui POSSÈDENT leur entrée (domicile de l'app).
+    witnesses = []
+    for name in ('wama_temoin_libere_suppr.mp4', 'wama_temoin_libere_garde.mp4'):
+        path = _temoin(folder, name, '.mp4')
+        job = ConversionJob.objects.create(user=user, input_filename=name, media_type='video',
+                                           output_format='', status='PENDING')
+        job.input_file.name = f'{home}/{name}'
+        job.save(update_fields=['input_file'])
+        witnesses.append((job, path, f'{home}/{name}'))
+    (gone_job, gone_path, _gone_rel), (kept_job, kept_path, kept_rel) = witnesses
+    before, verdicts = _session_keys(), []
+    announce = '#wama-released-files [data-released-files]'
+    remove = "(pk) => document.querySelector(`.wama-card[data-id='${pk}'] .delete-btn[data-delete-url]`)?.click()"
+
+    try:
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, session_token)
+            try:
+                resp = page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(page, resp, PAGE)
+                if refused_page:
+                    return refused_page
+                # ① 🗑 de la card : elle part, son fichier RESTE, l'annonce le nomme.
+                page.evaluate(remove, gone_job.pk)
+                page.wait_for_selector(announce, timeout=15000)
+                text = page.inner_text(announce)
+                verdicts.append((gone_path.name in text, f'annoncé : « {text[:90]} »'))
+                verdicts.append((gone_path.exists(), 'retirer la card ne supprime PAS le fichier'))
+                # ② « Supprimer » : le geste explicite.
+                page.click(f'{announce} [data-released-delete]')
+                page.wait_for_selector(announce, state='detached', timeout=10000)
+                verdicts.append((not gone_path.exists(), '« Supprimer » supprime le fichier'))
+
+                # ③ Second témoin : « Garder », puis ses informations disent l'abandon EN ROUGE.
+                page.evaluate(remove, kept_job.pk)
+                page.wait_for_selector(announce, timeout=15000)
+                page.click(f'{announce} [data-released-keep]')
+                verdicts.append((kept_path.exists(), '« Garder » garde le fichier'))
+                page.evaluate('(path) => FileManager.showInfo(path)', kept_rel)
+                page.wait_for_selector('#fileInfoModal.show', timeout=10000)
+                red = page.locator('#fileInfoModal .file-info-table td.text-danger')
+                verdicts.append((red.count() == 1 and 'aucune card' in red.inner_text(),
+                                 'informations du fichier : inutilisé, en rouge'))
+                # ④ Annoncé UNE fois : une nouvelle page ne le ré-annonce pas.
+                page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
+                page.wait_for_timeout(1500)
+                verdicts.append((page.locator(announce).count() == 0, 'annoncé une seule fois'))
+                verdicts.append(_console(errors))
+            finally:
+                nav.close()
+    finally:
+        _drop_new_sessions(before)
+        for job, path, rel in witnesses:
+            ConversionJob.objects.filter(pk=job.pk).delete()
+            ReleasedFile.objects.filter(path=rel).delete()
+            path.unlink(missing_ok=True)
+    return _bilan(verdicts)
+
+
 def register_menu_scenarios():
     from wama.common.services.nightly_tests import register
     register(id='common.tree_menu_keyboard', app='common', stage='ui',
@@ -682,6 +767,11 @@ def register_menu_scenarios():
              description="Arbre : supprimer un fichier qu'une card UTILISE prévient (combien de "
                          "cards), un refus ne supprime rien, une confirmation détache la card",
              run=lambda ctx: check_tree_delete_in_use(), timeout_s=240)
+    register(id='common.released_files', app='common', stage='ui',
+             description="Retirer une card prévient que son fichier n'est plus utilisé (une fois) ; "
+                         "« Supprimer » le supprime, « Garder » le garde, ses informations le disent "
+                         "en rouge",
+             run=lambda ctx: check_released_files(), timeout_s=240)
     register(id='common.nav_sandbox_keyboard', app='common', stage='ui',
              description='Sous-menu « Bac à sable » au CLAVIER, sans détournement par Bootstrap',
              run=lambda ctx: check_nav_sandbox_keyboard(), timeout_s=180)

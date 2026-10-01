@@ -1278,7 +1278,7 @@ def _purger_generation(generation):
     """
     _forget_outputs(generation)
 
-    # FileFields → `safe_delete_file` : `duplicate_instance` PARTAGE les fichiers (il ne
+    # FileFields → `release_card_file` (libérés, jamais effacés — 2026-09-30) : `duplicate_instance` PARTAGE les fichiers (il ne
     # les copie pas), donc supprimer le fichier d'une ligne casserait ses doublons. La
     # brique ne l'efface que si plus aucune autre ligne ne le référence.
     #   • reference_image / prompt_file : PARTAGÉS (non listés dans `clear_fields`) — ils
@@ -1286,12 +1286,12 @@ def _purger_generation(generation):
     #   • output_video : vidé à la duplication aujourd'hui, mais on passe quand même par
     #     la brique — un `os.remove` brut redeviendrait faux au premier changement de
     #     `clear_fields`, sans que rien ne le signale.
-    from wama.common.utils.queue_duplication import safe_delete_file
+    from wama.common.utils.queue_duplication import release_card_file
     for _champ in ('output_video', 'reference_image', 'prompt_file'):
         try:
-            safe_delete_file(generation, _champ)
+            release_card_file(generation, _champ)
         except Exception as e:
-            logger.warning(f"safe_delete_file({_champ}) a échoué : {e}")
+            logger.warning(f"release_card_file({_champ}) a échoué : {e}")
 
     # Revoke Celery task if still queued/running
     if generation.task_id:
@@ -1308,7 +1308,7 @@ def _forget_outputs(generation):
     """Les sorties qu'aucune brique ne connaît : `generated_images` (LISTE de chemins, pas un
     FileField — jamais partagée, vidée à la duplication) et le cache de progression. Appelé
     par `_purger_generation` (une génération) et par la fabrique des vues de lot (`on_delete`),
-    qui fait le reste — fichiers par `safe_delete_file`, révocation, ligne."""
+    qui fait le reste — fichiers LIBÉRÉS par `release_card_file`, révocation, ligne."""
     for image_path in generation.generated_images:
         if os.path.exists(image_path):
             try:
@@ -1450,10 +1450,10 @@ def clear_all(request):
         generations = ImageGeneration.objects.filter(user=user)
 
         # Révocation Celery + fichiers. Même règle que `delete_generation` : les FileFields
-        # passent par `safe_delete_file` (partage possible entre doublons), la liste de
+        # passent par `release_card_file` (partage possible entre doublons), la liste de
         # chemins `generated_images` se supprime directement.
         from celery.result import AsyncResult
-        from wama.common.utils.queue_duplication import safe_delete_file
+        from wama.common.utils.queue_duplication import release_card_file
         for generation in generations:
             if generation.task_id:
                 try:
@@ -1468,9 +1468,9 @@ def clear_all(request):
                         logger.warning(f"Failed to delete image {image_path}: {str(e)}")
             for _champ in ('output_video', 'reference_image', 'prompt_file'):
                 try:
-                    safe_delete_file(generation, _champ)
+                    release_card_file(generation, _champ)
                 except Exception as e:
-                    logger.warning(f"safe_delete_file({_champ}) a échoué : {e}")
+                    logger.warning(f"release_card_file({_champ}) a échoué : {e}")
 
         count = generations.count()
         generations.delete()

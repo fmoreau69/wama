@@ -1585,6 +1585,24 @@ def api_partage(request, surface: str, nature: str, pk: int):
     return JsonResponse({'ok': True, **compte_rendu})
 
 @login_required
+def api_released_files(request):
+    """GET — les fichiers que des cards retirées ont LIBÉRÉS et que l'utilisateur n'a pas encore vus
+    annoncés ; ils le sont désormais (une fois). `common/services/released_files.py`."""
+    from wama.common.services.released_files import take_unannounced
+    return JsonResponse({'files': take_unannounced(request.user)})
+
+
+@login_required
+@require_POST
+def api_released_files_delete(request):
+    """POST `ids` — LE geste explicite : supprimer des fichiers libérés. Chacun est revérifié
+    (toujours inutilisé, à cet utilisateur) juste avant ; un fichier repris entre-temps est gardé."""
+    from wama.common.services.released_files import delete_released
+    ids = [int(i) for i in request.POST.getlist('ids') if str(i).isdigit()]
+    return JsonResponse(delete_released(request.user, ids))
+
+
+@login_required
 def api_envoyer_vers(request, surface: str, pk: int):
     """ENVOYER VERS — quelles apps peuvent recevoir la sortie de cet élément, et par où.
 

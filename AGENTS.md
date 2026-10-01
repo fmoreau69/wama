@@ -578,7 +578,7 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 
 ### Ce qui existe déjà dans `common/` (à utiliser, ne pas recréer)
 
-- `queue_duplication.py` : `duplicate_instance()`, `safe_delete_file()`
+- `queue_duplication.py` : `duplicate_instance()`, `release_card_file()` (retirer une card LIBÈRE ses fichiers, jamais d'effacement silencieux — `MEDIA_STORAGE_TIERING` D34), `safe_delete_file()` (relance seule : remplacer l'ancien résultat)
 - `batch_parsers.py` : parsing fichiers batch (txt/csv/pdf/docx)
 - `batch_import.js` : UI import batch avec détection automatique
 - `wama-queue.js` : batch collapse + persistance localStorage
@@ -769,7 +769,7 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
 |-----------|---------------|
 | Bouton Paramètres (pos.1) | Modale avec tous les paramètres de l'item |
 | Bouton Dupliquer (pos.4) | `duplicate_instance()` de `wama/common/utils/queue_duplication.py` |
-| Bouton Supprimer (pos.5) | vue `delete()` + `safe_delete_file()` pour fichiers partagés |
+| Bouton Supprimer (pos.5) | vue `delete()` + `release_card_file()` — la card part, ses fichiers sont LIBÉRÉS et l'utilisateur prévenu (`common/services/released_files.py`) |
 | Bouton Démarrer individuel | sauf si traitement automatique au dépôt |
 | Bouton "Démarrer tout" | vue `start_all()` |
 | Bouton "Tout effacer" | vue `clear_all()` |

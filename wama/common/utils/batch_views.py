@@ -44,7 +44,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from wama.common.utils.batch_common import attach_to_batch, batch_elements
 from wama.common.utils.process_control import begin_processing
-from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
+from wama.common.utils.queue_duplication import duplicate_instance, release_card_file
 
 #: Remise à zéro d'un élément relancé / dupliqué — l'idiome des 10 apps.
 DEFAULT_RESET = {'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''}
@@ -283,7 +283,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             if on_delete is not None:
                 on_delete(item)
             for field in file_fields:
-                safe_delete_file(item, field)
+                release_card_file(item, field)
             item.delete()
         # Le lot VIDÉ est purgé par le signal ; ne reste qu'un lot qui n'avait AUCUN élément —
         # par requête, jamais par l'instance (son id est parti avec le dernier élément).

@@ -75,6 +75,11 @@ urlpatterns = [
     # UNE route pour les 12 files × 2 natures.
     path('api/partage/<str:surface>/<str:nature>/<int:pk>/', views.api_partage,
          name='api_partage'),
+    # FICHIERS LIBÉRÉS (2026-09-30, décision de Fabien) : retirer une card ne supprime plus son
+    # fichier — la page suivante l'ANNONCE (une fois) et offre de le supprimer, geste explicite.
+    path('api/released-files/', views.api_released_files, name='api_released_files'),
+    path('api/released-files/delete/', views.api_released_files_delete,
+         name='api_released_files_delete'),
     # ENVOYER VERS — résolveur en LECTURE SEULE : sorties de l'élément + apps éligibles +
     # l'endpoint qui reçoit. L'envoi lui-même passe par `filemanager:api_import`, celui qui
     # sert déjà « Envoyer vers… » — on ne duplique pas ses gardes.

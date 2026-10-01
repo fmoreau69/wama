@@ -33,7 +33,7 @@ from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels as _input_labels
 from wama.common.utils.media_paths import received_inputs
 from wama.accounts.views import get_or_create_anonymous_user
-from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
+from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance, release_card_file
 
 logger = logging.getLogger(__name__)
 
@@ -585,11 +585,11 @@ def delete(request, pk: int):
             pass
 
     # Input files may be shared with duplicates — only delete if no other row references them
-    safe_delete_file(synthesis, 'text_file')
-    safe_delete_file(synthesis, 'voice_reference')
+    release_card_file(synthesis, 'text_file')
+    release_card_file(synthesis, 'voice_reference')
 
     # Output file is always unique to this synthesis — delete unconditionally
-    safe_delete_file(synthesis, 'audio_output')
+    release_card_file(synthesis, 'audio_output')
 
     synthesis.delete()
     cache.delete(f"synthesizer_progress_{pk}")
@@ -706,7 +706,7 @@ def start_all(request):
             options_changed = True
         if voice_reference:
             # Supprimer l'ancienne référence si elle existe
-            safe_delete_file(synthesis, 'voice_reference')
+            release_card_file(synthesis, 'voice_reference')
             synthesis.voice_reference = voice_reference
             options_changed = True
         if multi_speaker_raw is not None:
@@ -762,11 +762,11 @@ def clear_all(request):
                 pass
 
         # Supprimer les fichiers
-        safe_delete_file(synthesis, 'text_file')
+        release_card_file(synthesis, 'text_file')
 
-        safe_delete_file(synthesis, 'audio_output')
+        release_card_file(synthesis, 'audio_output')
 
-        safe_delete_file(synthesis, 'voice_reference')
+        release_card_file(synthesis, 'voice_reference')
 
         cache.delete(f"synthesizer_progress_{synthesis.id}")
 

@@ -20,7 +20,7 @@ from .models import (Enhancement, AudioEnhancement,
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.console_utils import get_console_lines
 from ..common.utils.video_utils import upload_media_from_url, get_media_info
-from ..common.utils.queue_duplication import safe_delete_file, duplicate_instance
+from ..common.utils.queue_duplication import release_card_file, duplicate_instance
 from ..common.utils.scoping import visible_or_404
 
 logger = logging.getLogger(__name__)
@@ -610,10 +610,10 @@ def delete(request, pk: int):
     snapshot = batch_snapshot(enhancement)
 
     # Input file may be shared with a duplicate — only delete if no other row references it
-    safe_delete_file(enhancement, 'input_file')
+    release_card_file(enhancement, 'input_file')
 
     # Output file is unique to this enhancement — delete unconditionally
-    safe_delete_file(enhancement, 'output_file')
+    release_card_file(enhancement, 'output_file')
 
     enhancement.delete()  # signal batch_sync : recale total / supprime le batch vidé
     cache.delete(f"enhancer_progress_{pk}")
@@ -732,8 +732,8 @@ def clear_all(request):
     cleared = []
     for enhancement in enhancements:
         cleared.append(enhancement.id)
-        safe_delete_file(enhancement, 'input_file')
-        safe_delete_file(enhancement, 'output_file')
+        release_card_file(enhancement, 'input_file')
+        release_card_file(enhancement, 'output_file')
         cache.delete(f"enhancer_progress_{enhancement.id}")
 
     enhancements.delete()
@@ -1276,10 +1276,10 @@ def audio_delete(request, pk: int):
     snapshot = batch_snapshot(ae)
 
     # Input may be shared with a duplicate — only delete if no other row references it
-    safe_delete_file(ae, 'input_file')
+    release_card_file(ae, 'input_file')
 
     # Output is unique — delete unconditionally
-    safe_delete_file(ae, 'output_file')
+    release_card_file(ae, 'output_file')
 
     ae.delete()  # signal batch_sync : recale total / supprime le batch vidé (+ fichier batch)
     cache.delete(f"audio_enhancer_progress_{pk}")
@@ -1372,14 +1372,14 @@ def audio_clear_all(request):
     cleared = []
     for ae in aes:
         cleared.append(ae.id)
-        safe_delete_file(ae, 'input_file')
-        safe_delete_file(ae, 'output_file')
+        release_card_file(ae, 'input_file')
+        release_card_file(ae, 'output_file')
         cache.delete(f"audio_enhancer_progress_{ae.id}")
     aes.delete()
     # Clean up orphan batch containers and their files
     batches = BatchAudioEnhancement.objects.filter(user=user)
     for batch in batches:
-        safe_delete_file(batch, 'batch_file')
+        release_card_file(batch, 'batch_file')
     batches.delete()
     return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
 
