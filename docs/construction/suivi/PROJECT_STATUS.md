@@ -19248,3 +19248,44 @@ doc porte du WIP d'autrui).
   suppression des fichiers) changeait le code : ~75 échecs de suppression ARTEFACTS, disparus au
   rejeu. Rouges réels non à moi : budgets de langue (+8 code depuis HEAD), import par chemin du
   transcriber (`apps.py:146`).
+
+## §CLÔTURE — 2026-09-30 → 10-01, « MODÈLE DISTANT DANS UNE APP (Albert) + SÉLECTEUR DU TRANSCRIBER AU CATALOGUE » — ✅ livré et mesuré — 🔚 GO/NO-GO du test « Albert sur audio pré-découpé » (`WAMA_QUALITE §9bis`)
+
+- ✅ **AnythingLLM évalué** (`59cf62b4`) : rejeté comme composant et comme UI (`ROADMAP §16.2`),
+  compatible comme client MCP ; piste « présélection d'outils » versée à `WAMA_HARNESS` écart 3.
+- ✅ **1ᵉʳ moteur d'app DISTANT** (`1fef570f`) : `albert:whisper-large-v3` exécutable par le
+  transcriber (`common/backends/albert_asr_backend.py`) ; garde d'appel en brique
+  `cloud_models.cloud_access` (l'assistant l'adopte). Détail : `ROADMAP §8d 4b`.
+- ✅ **Diarisation par CAPACITÉ** (`52e011ed`) : NeMo et les distants enfin diarisés.
+- ✅ **Sélecteur du transcriber au catalogue** (`5fcf6ddc` + `1d90f835`, `ROUTE §F4b` ⑦) : grain
+  modèle, clés entières, `options_cloud`, curseur rapide/qualité ; migration transcriber 0027
+  appliquée en base (91 cards) ; R86-R88 au `REMOVAL_LEDGER`.
+- ✅ **Albert mesuré** (`95727056`, `04160eb1`, `c7e9d3c3` + ce commit, `WAMA_QUALITE §9bis`) :
+  SUMM-RE 31,6 % contre 28,8 % (Whisper local) ; FLEURS-CS 44,5 % contre 45,1 % (8 lots, valeurs
+  d'APRÈS les correctifs de langue, vérifié en base). Écart décomposé : Albert OMET plus de mots
+  (segments 22-25 s, pas de découpage de la parole en amont — déduit, pas mesuré).
+- ✅ **Rapport partagé** : le document Claude Docs « Évaluation des moteurs de transcription WAMA »
+  (ouvert par une autre instance le 29/09) porte désormais une section Albert, et son introduction,
+  sa liste de moteurs et sa date (30/09) sont alignées.
+- ✅ Celery relancé le 01/10 (11:39 / 12:37) : le tirage « auto » du worker porte le code neuf.
+
+**Pendings, nommés :**
+1. ⏳ **Test Albert sur audio déjà découpé par notre filtre de parole** — proposé, NON lancé, attend
+   le GO de Fabien.
+2. ⏳ **Verrou « sensibilité »** (`ROADMAP §8d` ③) : l'audio quitte la machine — non tranché (Fabien).
+3. ⏳ `--mcp-config` absent de l'abonnement Claude Code (`ROADMAP §8d` 5) — hors de notre main.
+4. ⏳ Données du catalogue à corriger À LEUR SOURCE (hors de ce portage) : Kyutai STT sans
+   capacités (chaîne d'intégration) ; `describer:whisper` libellé « whisper-base » alors qu'il
+   sert large-v3 (doublon au menu).
+5. ⏳ WAMA client de serveurs MCP EXTERNES (mail, messagerie, dépôts) : rien encore (`ROADMAP §8d`).
+
+**Rouges vus à la clôture, pas à moi :** `tests_intent_vision.EveryAutoSelectCarriesTheSliderTest`
+(`editor_01`, app de bac à sable non versionnée de l'instance « app de zéro », sans curseur) ;
+`check_docs` 2 cassées + 1 périmée (`PROJECT_STATUS` 17217/17277, `ROUTE:224` de `148febdc`).
+
+**Contrôles mesurés à la clôture (01/10)** : périmètre transcriber + routage + auto-modèle +
+model_manager = **150 + 419 tests**, seul rouge réel ci-dessus (2 autres « erreurs » = noms de
+modules de test devinés à tort, relancés au bon chemin : verts) ; `check_redundancy` 75 trouvailles,
+**0** dans mes fichiers de session ; `check_docs` 2 cassées / 1 périmée sur 2463.
+⚠ L'arbre porte du WIP d'une autre instance dans le transcriber (nivellement imposé avant le
+débruitage : `workers.py`, `params.py`, `models.py`, `tests_editor.py`, gabarit) — pas à moi.
