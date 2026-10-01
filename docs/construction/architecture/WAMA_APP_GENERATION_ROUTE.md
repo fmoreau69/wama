@@ -301,6 +301,38 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     consommateur = l'onde d'entrée du volet (④, aucun transport existant touché) ; l'éditeur et
     le cam ne se portent qu'une fois **toutes leurs lignes** attestées par des gestes rejoués, et
     sur décision de Fabien.
+  - 🧭 **ÉLARGISSEMENT DU 2026-10-01 — les PAGES D'ÉDITION entrent dans ce chantier (« chantier
+    SURFACES »).** Question de Fabien, avant de lancer la page d'édition de YuE2 : *« l'idée étant
+    que les pages d'édition (spécifiques) soient construites par briques UI réutilisables pour
+    mutualiser entre les apps […] sinon j'ai peur qu'on construise des pages d'édition à la pelle
+    et qu'on perde progressivement l'alignement avec la philosophie de WAMA »*.
+    **Ce qui est déjà posé, et qu'il ne faut pas redécouvrir** :
+    - une page d'édition est une **SURFACE** (`§10.6`, vocabulaire) : ouverte depuis une card, on
+      y regarde et on y fait des gestes, **sans état d'exécution** ; un geste qui modifie la donnée
+      **devient un process déclaré** du pipeline de la card (règle §10.6 « B. On explore ») ;
+    - `§13` (proposition NON VALIDÉE d'août) : pas d'UI générée arbitraire, mais **N archétypes
+      DÉCLARÉS + emplacements** ; l'archétype « timeline / segments / heatmap » EST l'éditeur du
+      transcriber, construit à la main ;
+    - l'architecture cible des vues est celle de BIND (`WAMA_DATA_WORLD §4`) : des **vues
+      déclaratives** (elles disent ce qu'elles consomment) **abonnées à un axe partagé**,
+      configurées par déclaration, avec des **widgets** de sélection réutilisés — et `§5bis` : le
+      magnéto pilote l'AXE, jamais les vues.
+    **Briques réutilisables qui EXISTENT** (`wama/common/static/common/js/`) : `wama-params.js`
+    (formulaires rendus du schéma), `wama-inspector.js`, `wama-audio-player.js`, `wama-shuttle.js`,
+    `media-preview.js`, `wama-3d-viewer.js`, `wama-filter-bar.js`, `wama-eta.js`.
+    **Ce qui MANQUE pour composer une page d'édition au lieu de l'écrire** : (1) l'**axe** (le
+    transport commun de ce chantier) et le **contrat de vue abonnée** ; (2) la **déclaration d'une
+    surface** (quelles vues, sur quel axe, quels panneaux tirés du schéma, quels gestes → quels
+    process) ; (3) les **vues** elles-mêmes, aujourd'hui enfermées dans des pages : onde fenêtrée
+    sur pics serveur, liste de segments, carte de chaleur, minimap (`transcriber/.../edit.js`,
+    1428 l.) ; et pour YuE2 une vue **partition** (aucun moteur de rendu ABC n'est vendorisé —
+    `abcjs` est le candidat évident, route `library`/vendor).
+    **Conséquence, proposée à Fabien** : la page d'édition de YuE2 ne s'écrit PAS avant ce chantier
+    — elle en devient un **consommateur pilote** (axe audio + vue partition + vue paroles + gestes
+    « éditer la partition » → process `plan` modifié, rendu `STALE`), à côté de la parité de
+    l'éditeur du transcriber. Elle dépend AUSSI du chantier PIPELINE (`§10.6`, brief « état au
+    2026-10-01 ») pour ses deux process. **`§13` devient la décision à prendre en ouverture de
+    session** : archétypes déclarés oui/non, et lesquels.
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,
@@ -3582,6 +3614,32 @@ possible **sans aucun process**.
 | **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script | P3, P5, décisions 5-7 |
 | **P8** | rôle assistant → manifeste `pipeline` / `dataset` | P3 |
 
+> 📍 **BRIEF DE SESSION DÉDIÉE — état MESURÉ le 2026-10-01** (demande de Fabien : *« l'idée du
+> pipeline porté par une card n'est pas encore complètement intégrée dans les apps média […] ça
+> ferait 2 chantiers dédiés à lancer »* — l'autre est le chantier SURFACES, `§F3b`).
+> - **Fait** : P0 (15/09) ; P2, six pièces (17-18/09 : six états dont `STALE`, alias unifiés,
+>   présentation déclarée) — son reste attend P3. Depuis : passes du cam_analyzer ouvertes au
+>   studio (`3d8dc994`), ETA par process du pipeline cam (`c80d8f62`), capacité `pipeline_stage`
+>   (`150a5337`), card « les ENTRÉES, le volet les RÉGLAGES » (`8b2b76ad`).
+> - **Pas commencé** : **P1** — `APP_CATALOG` ne porte aucune clé `world` (mesuré : seuls les
+>   manifestes et le calendrier en parlent) ; **P3** — l'exécution par process n'existe que dans
+>   le cam_analyzer (`AnalysisPass`, `pass_tracking.py`), le studio garde son exécuteur
+>   (`studio/tasks.py`), les apps Médias leur tâche unique (`task_skeleton` pour celles qui l'ont).
+>   **Aucune card d'app Médias n'affiche de lignes de process** (P5). La décision n°11 (étapes
+>   internes déclarées) reste OUVERTE : la facette écrite le 01/10 a été retirée comme réinvention
+>   (point 11 ci-dessus).
+> - **Ce que la session doit lire AVANT de proposer** : cette section en entier (vocabulaire,
+>   3 couches, décisions ouvertes n°1-11, pièges §10) ; la revérification du 2026-10-01 (table
+>   « réinvention / ce qui existait », plus haut dans ce fichier) — quatre mécanismes avaient été
+>   réinventés en voulant aller vite sur ce sujet précis.
+> - **Candidat pilote apparu le 2026-10-01, à arbitrer par Fabien** : **YuE2 en deux temps** —
+>   process `plan` (consigne → partition ABC) puis `render` (partition → audio) ; éditer la
+>   partition rend le rendu `STALE`. Deux process au lieu des quatre du transcriber (P4), et le cas
+>   d'usage même de `STALE`. Le pipeline vendorisé l'expose déjà (`pipeline.plan()`, `abc=` —
+>   `vendor/yue/src/yue2/pipeline.py:255-269`). Sa page d'édition relève du chantier SURFACES.
+> - **Ordre recommandé** : P1 (petit, indépendant) ; P3 en extrayant cam_analyzer + exécuteur
+>   studio (« on RÉUNIT les pièces ») ; puis le pilote (transcriber P4 ou YuE2) ; P5 ensuite.
+
 **Le portage des apps Médias continue EN PARALLÈLE** sur tout ce qui ne dépend pas de la façon dont
 une tâche s'exécute (classement des critères rouges de la grille au 15/09,
 `logs/conformity_report.json`, fonctions de `common/services/conformity_checker.py`) :
@@ -3865,3 +3923,10 @@ plusieurs archétypes déclarés + emplacements** (= principe 4, « spécificit�
 ⇒ Le chantier n'est **pas** d'inventer une génération d'UI, mais d'**extraire et déclarer les
 archétypes déjà présents**, comme cela a été fait pour F1–F8. À arbitrer avant tout engagement : c'est
 un chantier de nature très différente de « générer des UI », et il ne doit pas être lancé par défaut.
+
+> 🧭 **Orientation exprimée par Fabien le 2026-10-01** (pas encore l'arbitrage complet) : *« les pages
+> d'édition (spécifiques) [doivent être] construites par briques UI réutilisables pour mutualiser
+> entre les apps »* — c'est la direction de cette proposition. Le chantier qui la porte est le
+> chantier SURFACES, élargissement du brief « preview globale + transport commun » (`§F3b`) : c'est
+> en ouverture de cette session que se tranche ce qui reste ouvert ici (quels archétypes, déclarés
+> comment).
