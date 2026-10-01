@@ -39,6 +39,7 @@ def parse_batch_file(
     from wama.common.utils.batch_parsers import (
         extract_batch_file_text, is_structured_batch_text, parse_unified_batch,
     )
+    from wama.composer.utils.model_choice import generation_type, is_valid, normalize
     from wama.composer.utils.model_config import COMPOSER_MODELS, clamp_duration
 
     # Legacy pipe positionnel si pas de batch structuré → comportement inchangé.
@@ -54,11 +55,10 @@ def parse_batch_file(
             warnings.append(f"Ligne {it['line_num']} : prompt (-p) requis, ignorée")
             continue
         model = it['options'].get('model') or default_model
-        if model not in COMPOSER_MODELS:
-            model = default_model
+        model = normalize(model) if is_valid(model) else normalize(default_model)
         # Auto-modèle : si une référence audio (-r) est fournie → modèle melody.
         if it.get('reference') and 'musicgen-melody' in COMPOSER_MODELS:
-            model = 'musicgen-melody'
+            model = normalize('musicgen-melody')
         try:
             duration = float(it['options'].get('duration', default_duration))
         except (ValueError, TypeError):
@@ -74,7 +74,7 @@ def parse_batch_file(
             'prompt': prompt,
             'model': model,
             'duration': duration,
-            'generation_type': COMPOSER_MODELS[model]['type'],
+            'generation_type': generation_type(model),
             'reference': it.get('reference'),
             'line_num': it['line_num'],
         })

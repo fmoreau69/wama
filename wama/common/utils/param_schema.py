@@ -94,8 +94,10 @@ class Param:
                                                 # libellé `CATEGORY_LABELS`, les sans-catégorie
                                                 # hors groupe — 2026-09-29). Drapeau d'UI, comme
                                                 # `options_auto`.
-    options_auto: bool = False                  # select `catalog` : servir « auto » en 1ʳᵉ option
+    options_auto: bool | str = False            # select `catalog` : servir « auto » en 1ʳᵉ option
                                                 # (+ PRÉVISION du modèle retenu sous le select).
+                                                # "group" (2026-10-01) : un « auto:<tâche> » en tête
+                                                # de CHAQUE groupe de tâche (`options_group="task"`).
                                                 # OPT-IN par app : ne le déclarer QUE si le chemin de
                                                 # lancement résout « auto » (brique commune
                                                 # `common/utils/auto_model.py`) — sinon la valeur

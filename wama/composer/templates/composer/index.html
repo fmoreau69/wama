@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', function () {
         batchCreateUrl: '{% url "composer:import_batch" %}',
         csrfToken: '{{ csrf_token }}',
         formDataBuilder: function (fd) {
-            fd.append('default_model', document.getElementById('modelSelect')?.value || 'musicgen-small');
+            fd.append('default_model', document.getElementById('modelSelect')?.value || 'auto:text-to-music');
             fd.append('default_duration', document.getElementById('durationSlider')?.value || 10);
         },
         afterCreate: function (data, autoStart) {
@@ -365,7 +365,9 @@ le script d'app. NE PAS remonter cette balise au-dessus du bloc de rendu.
 // Descriptif du moteur sous le select (brique commune ; meta = catalogue model_manager).
 (function () {
     if (!window.WamaModelHelp) return;
-    WamaModelHelp.fetchCatalogMeta('composer', { keyBy: 'id' }).then(function (meta) {
+    {% comment %}Route F4b (2026-10-01) : la meta se lit sur le DOMAINE du select (les deux tâches),
+    clée par la clé de catalogue — un modèle venu d'ailleurs (YuE2) a aussi son aide.{% endcomment %}
+    WamaModelHelp.fetchCatalogMeta('composer', { query: '?task=text-to-music,text-to-audio' }).then(function (meta) {
         WamaModelHelp.init({ selectId: 'modelSelect', helpId: 'modelHelp', meta: meta });
     }).catch(function () {});
 })();

@@ -305,17 +305,20 @@ class ImagerAndComposerPassTheSliderTest(TestCase):
         from wama.composer.models import ComposerGeneration
         from wama.composer.utils.auto_model import resolve_auto_model
         u = get_user_model().objects.create_user('c_composer', password='x')
-        gen = ComposerGeneration.objects.create(user=u, prompt='x', model='auto-music',
+        gen = ComposerGeneration.objects.create(user=u, prompt='x', model='auto:text-to-music',
                                                 generation_type='music', quality_intent=12)
         seen = {}
 
         def fake_select(source, **kw):
-            seen.update(kw)
-            return 'musicgen-small'
+            seen.update(kw, source=source)
+            return 'composer:musicgen-small'
 
         with mock.patch('wama.model_manager.services.select_model_id', fake_select):
-            self.assertEqual(resolve_auto_model(gen), 'musicgen-small')
+            # Route F4b (2026-10-01) : clés de catalogue, tirage borné par la TÂCHE de l'auto
+            # de groupe, sans source — un modèle de la tâche venu d'ailleurs (YuE2) est candidat.
+            self.assertEqual(resolve_auto_model(gen), 'composer:musicgen-small')
         self.assertEqual(seen.get('quality_intent'), 12)
+        self.assertIsNone(seen.get('source'))
 
     def test_both_schemas_carry_the_slider_conditioned_on_auto(self):
         from wama.common.utils.param_schema import schema_for_app

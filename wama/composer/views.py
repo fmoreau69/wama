@@ -18,17 +18,13 @@ from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance, release_card_file
 from .models import ComposerBatch, ComposerBatchItem, ComposerGeneration
-from .utils.model_config import COMPOSER_MODELS, MUSIC_MODELS, SFX_MODELS, clamp_duration
+from .utils.model_choice import (AUTO_MUSIC, AUTO_SFX, DEFAULT_MODEL, consumes_melody, is_valid,
+                                 normalize)
+from .utils.model_config import COMPOSER_MODELS, clamp_duration
 
-# Pseudo-modèles « choix automatique » — résolus à l'exécution par capacités + VRAM libre
-# (utils/auto_model.py). Le type reste dérivé du choix dans le select, conformément à la
-# décision 2026-07-02 (pas de switch de type ; un auto par optgroup).
-AUTO_MODELS = {'auto-music': 'music', 'auto-sfx': 'sfx'}
-
-
-def _model_type(model_id):
-    """Type music/sfx d'un id de modèle réel OU d'un pseudo-modèle auto-*."""
-    return AUTO_MODELS.get(model_id) or COMPOSER_MODELS[model_id]['type']
+# Route F4b (2026-10-01) : le modèle est une CLÉ DE CATALOGUE (ou un « auto » de groupe), le type
+# musique/bruitage s'en DÉRIVE au `save()` (utils/model_choice) — plus de pseudo-modèles propres
+# au composer ni de liste de l'app pour valider.
 
 logger = logging.getLogger(__name__)
 
@@ -215,9 +211,9 @@ class IndexView(View):
             'active_count': active_count,
             'q_sort': q_sort,
             'q_filter': q_filter,
-            'music_models': MUSIC_MODELS,
-            'sfx_models': SFX_MODELS,
-            'all_models': COMPOSER_MODELS,
+            # Estimation côté JS : facteurs des modèles DU composer, indexés par la valeur même
+            # des options (la clé de catalogue).
+            'all_models': {f'composer:{mid}': cfg for mid, cfg in COMPOSER_MODELS.items()},
             'params_json': json.dumps(_COMPOSER_PARAMS_JSON),
             # Appariement card↔modèles (WamaInputMatch) : besoins d'entrées par modèle depuis le
             # CATALOGUE + libellés d'INPUT_TYPES. Cf. INPUT_MODEL_MATCHING.md.
@@ -243,11 +239,11 @@ def generate(request):
     # (tool_api/studio) hérite ainsi du modèle préféré au lieu d'un défaut codé en dur.
     from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
     last = get_user_app_settings(user, 'composer', {
-        'model': 'musicgen-small', 'duration': 10.0,
+        'model': DEFAULT_MODEL, 'duration': 10.0,
         'output_format': 'original', 'output_quality': 'balanced'})
 
-    model_id = request.POST.get('model') or last['model']
-    if model_id not in COMPOSER_MODELS and model_id not in AUTO_MODELS:
+    model_id = normalize(request.POST.get('model') or last['model'])
+    if not is_valid(model_id):
         return JsonResponse({'error': 'Modèle invalide'}, status=400)
 
     try:
@@ -256,11 +252,8 @@ def generate(request):
     except (ValueError, TypeError):
         duration = 10.0
 
-    generation_type = _model_type(model_id)
-
     gen = ComposerGeneration.objects.create(
         user=user,
-        generation_type=generation_type,
         prompt=prompt,
         model=model_id,
         quality_intent=_intent_posted(request.POST),
@@ -278,7 +271,7 @@ def generate(request):
 
     # Melody reference (musicgen-melody only) — téléversée ou DÉSIGNÉE (médiathèque, arbre),
     # brique `received_inputs` (2026-09-28) : une désignation se POINTE.
-    if model_id == 'musicgen-melody':
+    if consumes_melody(model_id):
         from wama.common.utils.media_paths import received_inputs
         melody = received_inputs(request, user, 'composer', field='melody_reference')
         if melody:
@@ -364,9 +357,9 @@ def import_batch(request):
     batch_file = request.FILES['batch_file']
 
     # Default params for items without explicit model/duration
-    default_model = request.POST.get('default_model', 'musicgen-small')
-    if default_model not in COMPOSER_MODELS and default_model not in AUTO_MODELS:
-        default_model = 'musicgen-small'
+    default_model = normalize(request.POST.get('default_model') or DEFAULT_MODEL)
+    if not is_valid(default_model):
+        default_model = DEFAULT_MODEL
     try:
         default_duration = float(request.POST.get('default_duration', 10))
         default_duration = clamp_duration(default_duration)
@@ -416,7 +409,6 @@ def import_batch(request):
     for task_data in tasks:
         gen = ComposerGeneration.objects.create(
             user=user,
-            generation_type=task_data['generation_type'],
             prompt=task_data['prompt'],
             model=task_data['model'],
             duration=task_data['duration'],
@@ -477,20 +469,22 @@ def stop(request, pk):
 
 
 def _input_match_meta():
-    """Meta commune (brique `input_match`) + pseudo-modèles auto-* (POLITIQUE composer).
+    """Meta commune (brique `input_match`) sur le DOMAINE du select (les deux tâches) + les deux
+    « auto » de groupe (POLITIQUE composer).
 
-    La lecture catalogue vit dans `common/utils/input_match.py` (extraite d'ici le 2026-08-17,
-    adoption ×7) ; ne reste ici que l'union par groupe des auto-* — l'auto accepte ce qu'au
-    moins UN candidat de son groupe accepte ; la résolution runtime (utils/auto_model.py)
-    restreint ensuite.
+    Route F4b (2026-10-01) : bornée par la TÂCHE, la meta est clée sur les clés de catalogue
+    entières — les valeurs mêmes des options (un modèle venu d'ailleurs, YuE2, y entre). Ne reste
+    ici que l'union par groupe des « auto » — l'auto accepte ce qu'au moins UN candidat de son
+    groupe accepte ; la résolution au lancement (utils/auto_model.py) restreint ensuite.
     """
     from wama.common.utils.input_match import input_match_meta
-    meta = input_match_meta('composer', extra_caps=('task',))
+    from .utils.model_choice import SFX_TASK, TASKS
+    meta = input_match_meta(task=','.join(TASKS), extra_caps=('task',))
     if not meta:
         return {}
-    unions = {'auto-music': set(), 'auto-sfx': set()}
+    unions = {AUTO_MUSIC: set(), AUTO_SFX: set()}
     for entry in meta.values():
-        auto_id = ('auto-sfx' if entry.pop('task', None) == 'text-to-audio' else 'auto-music')
+        auto_id = AUTO_SFX if entry.pop('task', None) == SFX_TASK else AUTO_MUSIC
         unions[auto_id] |= set(entry['inputs_required']) | set(entry['inputs_optional'])
     for auto_id, accepted in unions.items():
         meta[auto_id] = {'inputs_required': [], 'inputs_optional': sorted(accepted)}
@@ -523,8 +517,8 @@ def update_settings(request, pk):
     from wama.composer.params import PARAMS_JSON as _schema
     data = read_settings_payload(request, _schema, [p['name'] for p in _schema])
 
-    model_id = data.get('model', gen.model)
-    if model_id not in COMPOSER_MODELS and model_id not in AUTO_MODELS:
+    model_id = normalize(data.get('model', gen.model))
+    if not is_valid(model_id):
         return JsonResponse({'error': 'Modèle invalide'}, status=400)
 
     try:
@@ -533,12 +527,9 @@ def update_settings(request, pk):
     except (ValueError, TypeError):
         duration = gen.duration
 
-    # Update generation type based on new model (auto-* compris)
-    generation_type = _model_type(model_id)
-
+    # Le type musique/bruitage se DÉRIVE du modèle au `save()` (utils/model_choice).
     gen.model = model_id
     gen.duration = duration
-    gen.generation_type = generation_type
     if str(data.get('quality_intent', '')) != '':
         gen.quality_intent = _intent_posted(data)
     # Prompt éditable (modale complète P1) — on ne l'écrase pas s'il est vide.
@@ -598,9 +589,10 @@ def progress(request, pk):
     if gen.status in ('PENDING', 'RUNNING'):
         try:
             from wama.model_manager.services.eta_estimator import estimate
-            cfg = COMPOSER_MODELS.get(gen.model) or {}
+            from .utils.model_choice import config
+            cfg = config(gen.model)
             dur = float(gen.duration or 0)
-            est = estimate(f'composer:{gen.model}', size=dur, unit='audio_sec',
+            est = estimate(normalize(gen.model), size=dur, unit='audio_sec',
                            model_loaded=False)
             if not est:
                 # Repli a-priori déclaré au catalogue (temps ≈ durée × gen_factor + overhead).
@@ -736,9 +728,8 @@ def batch_update(request, pk):
     for g in batch_elements(batch, ComposerGeneration):     # brique : ordre des lignes garanti
         if g.status == 'RUNNING':
             continue
-        if model and (model in COMPOSER_MODELS or model in AUTO_MODELS):
-            g.model = model
-            g.generation_type = _model_type(model)
+        if model and is_valid(model):
+            g.model = normalize(model)      # le type se dérive au save()
         if request.POST.get('quality_intent', '') != '':
             g.quality_intent = _intent_posted(request.POST)
         if duration:

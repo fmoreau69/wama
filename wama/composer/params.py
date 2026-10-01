@@ -9,7 +9,7 @@ cardSettings générique lit les data-model/data-duration de la racine de card.
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import Param, schema_to_dicts
 from wama.common.utils.output_formats import output_format_params_for_app
-from wama.composer.utils.model_config import COMPOSER_MODELS
+from wama.composer.utils.model_choice import AUTO_MUSIC, AUTO_SFX, TASKS
 
 PANEL = ("panel",)
 PANEL_ITEM = ("panel", "item")
@@ -23,41 +23,31 @@ PARAMS = [
     # seulement, donc l'ordre du VOLET (Modèle → Durée → Format → Qualité) est inchangé.
     Param(name="prompt", type="textarea", label="Prompt", icon="fa-pen",
           dom_id={"item": "settingsPrompt"}, contexts=("item",)),
-    # `option_groups` depuis COMPOSER_MODELS (même source que le <select> legacy), groupés par
-    # MODE Musique/Bruitages — miroir des optgroups du volet ; le JS masque le groupe non
-    # pertinent selon le generation_type de l'item. Volet : select serveur (#modelSelect,
-    # initFromSchema lit/applique par dom_id sans re-rendre) ; modale : rendue par WamaParams (P1).
-    # help_source : descriptif court + VRAM sous le select (catalogue, 18/08) ; les pseudo-
-    # options auto-* sont HORS catalogue → repli statique.
+    # Route F4b (2026-10-01) : les options viennent du CATALOGUE, bornées par la TÂCHE — jamais par
+    # la source : un modèle installé depuis le model manager (YuE2, prospecté) entre sans une ligne
+    # de code. Valeurs = CLÉS ENTIÈRES (migration des lignes : `utils/model_choice.normalize`).
+    # Groupes par tâche (Musique / Ambiances) et un « auto » PAR GROUPE (`auto:<tâche>`) — la
+    # décision « pas de 2 modes : grouper côté serveur + un auto par groupe » ; le type
+    # musique/bruitage se DÉRIVE du modèle choisi (décision 2026-07-02, pas de switch de type).
     Param(name="model", type="select", label="Modèle", icon="fa-music", chip=True,
           help_source="composer",
           help_fallback={
-              "auto-music": "Choix automatique : le plus gros modèle MUSIQUE tenant dans la VRAM libre au lancement.",
-              "auto-sfx": "Choix automatique : le plus gros modèle BRUITAGES tenant dans la VRAM libre au lancement.",
+              AUTO_MUSIC: "Choix automatique : le meilleur modèle MUSIQUE tenant dans la VRAM libre au lancement.",
+              AUTO_SFX: "Choix automatique : le meilleur modèle AMBIANCE / BRUITAGE tenant dans la VRAM libre au lancement.",
           },
           dom_id={"panel": "modelSelect", "item": "settingsModel", "batch": "batchSettingsModel"},
           contexts=PANEL_ITEM_BATCH,
-          option_groups=[
-              # « auto-* » en tête de CHAQUE groupe (décision 2026-07-02 : pas de switch de type,
-              # le type est dérivé du « modèle » choisi — l'auto respecte ce contrat par groupe).
-              # Résolution à l'exécution : capacités catalogue + VRAM libre via select_model()
-              # — cf. composer/utils/auto_model.py.
-              ("🎵 Musique (MusicGen)", [("auto-music", "🧠 Choix automatique — le plus gros modèle "
-                                          "musique tenant dans la VRAM libre au lancement")] +
-                                        [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
-                                         if cfg.get('type') == 'music']),
-              ("⚡ Bruitages (AudioGen)", [("auto-sfx", "🧠 Choix automatique — le plus gros modèle "
-                                           "bruitages tenant dans la VRAM libre au lancement")] +
-                                         [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
-                                          if cfg.get('type') != 'music']),
-          ]),
-    # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur « auto-* », lu au
+          options_source="catalog",
+          options_query={"task": ",".join(TASKS)},
+          options_group="task", options_auto="group",
+          default=AUTO_MUSIC),
+    # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur les « auto », lu au
     # LANCEMENT par le tirage (`resolve_auto_model` → `item=gen`). Rendu par le renderer commun
     # (volet : même hôte que le modèle ; modale/lot : lu génériquement par WamaParams.read).
     Param(name="quality_intent", dom_id={"panel": "qualityIntent", "item": "settingsQualityIntent",
                                           "batch": "batchSettingsQualityIntent"},
           contexts=PANEL_ITEM_BATCH,
-          **intent_param(show_if={"field": "model", "in": ["auto-music", "auto-sfx"]})),
+          **intent_param(show_if={"field": "model", "in": [AUTO_MUSIC, AUTO_SFX]})),
     Param(name="duration", type="range", label="Durée", icon="fa-clock", min=10, max=600, step=5,
           unit="s", min_label="10s", max_label="10min", chip=True,
           dom_id={"panel": "durationSlider", "item": "settingsDuration",

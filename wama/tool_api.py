@@ -980,26 +980,31 @@ def compose_music(
     Args:
         user:     Django User instance
         prompt:   Text description of the sound/music to generate (English preferred)
-        model:    One of 'musicgen-small', 'musicgen-medium', 'musicgen-melody',
-                  'audiogen-medium'
+        model:    A catalogue key of the text-to-music / text-to-audio tasks
+                  ('composer:musicgen-small', 'huggingface:m-a-p/YuE2-3B'…), a bare
+                  composer id ('musicgen-small'), or a group auto
+                  ('auto:text-to-music', 'auto:text-to-audio')
         duration: Duration in seconds (1–30, default 10)
 
     Returns:
         {"generation_id": int, "model": str, "generation_type": str,
          "duration": float, "status": "pending"}
     """
-    from wama.composer.utils.model_config import COMPOSER_MODELS
+    # Route F4b (2026-10-01) : le domaine du composer est celui du CATALOGUE (ses deux tâches),
+    # plus la liste de l'app — un modèle installé ailleurs (YuE2) est accepté ici aussi.
+    from wama.composer.utils.model_choice import TASKS, generation_type as _type_of, is_valid, normalize
 
     prompt = prompt.strip()
     if not prompt:
         return {'error': 'Prompt requis'}
 
-    if model not in COMPOSER_MODELS:
-        valid = ', '.join(COMPOSER_MODELS.keys())
-        return {'error': f"Modèle invalide '{model}'. Disponibles : {valid}"}
+    if not is_valid(model):
+        return {'error': f"Modèle invalide '{model}' : il faut un modèle des tâches "
+                         f"{' / '.join(TASKS)} (voir le catalogue), ou un « auto » de groupe."}
 
+    model = normalize(model)
     duration = max(1.0, min(30.0, float(duration)))
-    generation_type = COMPOSER_MODELS[model]['type']
+    generation_type = _type_of(model)
 
     from wama.composer.models import ComposerGeneration
     gen = ComposerGeneration.objects.create(

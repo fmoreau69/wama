@@ -57,7 +57,9 @@ def compose_task(self, generation_id: int):
     except Exception as exc:
         logger.warning(f"[Composer] ensure_local_input({generation_id}) : {exc}")
 
-    if gen.model in ('auto-music', 'auto-sfx'):
+    from wama.common.utils.auto_model import is_auto
+    from wama.common.utils.model_keys import model_id as _model_id
+    if is_auto(gen.model):
         from wama.composer.utils.auto_model import resolve_auto_model
         gen.model = resolve_auto_model(gen)
         gen.save(update_fields=['model'])
@@ -67,7 +69,7 @@ def compose_task(self, generation_id: int):
     # Durée plafonnée par la capacité du modèle FINAL (source unique = clamp_duration : schéma +
     # max_duration du modèle). Seul point où le vrai modèle est connu (auto-* résolu ci-dessus).
     from wama.composer.utils.model_config import clamp_duration
-    _capped = clamp_duration(gen.duration, gen.model)
+    _capped = clamp_duration(gen.duration, _model_id(gen.model))
     if _capped != gen.duration:
         _console(user_id, f"[Composer] Durée {gen.duration:g}s → {_capped:g}s (max du modèle {gen.model})")
         gen.duration = _capped
@@ -98,7 +100,7 @@ def compose_task(self, generation_id: int):
         # il ne rattachait le fichier à aucune card, alors que le composer était la seule app
         # à prompt sans identifiant ni index dans son nom.
         from wama.common.utils.output_naming import compose_output_name
-        output_filename = compose_output_name(app='composer', model=gen.model,
+        output_filename = compose_output_name(app='composer', model=_model_id(gen.model),
                                               item_id=gen.id, ext='.wav')
         output_abs_path = os.path.join(output_dir, output_filename)
         output_rel_path = os.path.relpath(output_abs_path, settings.MEDIA_ROOT)
@@ -123,7 +125,10 @@ def compose_task(self, generation_id: int):
         # import de classe par chemin — le motif que la ROUTE §10.3 interdit.
         # ⚠ Aucun repli « par défaut » : un modèle non résolu arrête le job en le DISANT.
         from wama.common.backends.manager import backend_for_key
-        catalog_key = f'composer:{gen.model}'
+        # La valeur stockée EST la clé de catalogue (route F4b, 2026-10-01) — un modèle venu
+        # d'ailleurs (YuE2, `huggingface:m-a-p/YuE2-3B`) se résout comme un modèle du composer.
+        from wama.composer.utils.model_choice import normalize
+        catalog_key = normalize(gen.model)
         classe = backend_for_key(catalog_key)
         if classe is None:
             raise RuntimeError(
@@ -137,7 +142,7 @@ def compose_task(self, generation_id: int):
                                 console=lambda m: _console(user_id, f"[Composer] ⏳ {m}"))
         from wama.common.utils.preview_utils import emit_streaming_peaks, clear_partial
         backend.generate(
-            model_id=gen.model,
+            model_id=_model_id(catalog_key),
             prompt=routed_prompt,
             duration=gen.duration,
             output_path=output_abs_path,
@@ -173,7 +178,7 @@ def compose_task(self, generation_id: int):
         # Seeding ETA : génération audio → temps ∝ durée produite (clé par modèle)
         try:
             from wama.model_manager.services.eta_estimator import record_run
-            record_run(f'composer:{gen.model}', size=float(gen.duration or 0),
+            record_run(catalog_key, size=float(gen.duration or 0),
                        unit='audio_sec', process_seconds=gen.processing_seconds, load_seconds=None,
                        user=gen.user)
         except Exception:

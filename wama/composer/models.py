@@ -24,7 +24,9 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
     generation_type = models.CharField(max_length=10, choices=GENERATION_TYPE_CHOICES, default='music')
     prompt = models.TextField()
     duration = models.FloatField(default=10.0, help_text='Durée en secondes (10–600)')
-    model = models.CharField(max_length=64, default='musicgen-small')
+    # Clé de CATALOGUE du modèle, ou un « auto » de groupe (`auto:text-to-music`…) — route F4b,
+    # 2026-10-01 (`utils/model_choice`). 128 : une clé de dépôt HF dépasse vite 64 caractères.
+    model = models.CharField(max_length=128, default='composer:musicgen-small')
     # Curseur rapide/qualité commun (chantier C, 2026-09-20) : guide le tirage « auto-* » au
     # LANCEMENT (`resolve_model_choice(item=…)`). Null = équilibré (50).
     quality_intent = models.IntegerField(null=True, blank=True,
@@ -73,6 +75,19 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
     def __str__(self):
         return f"[{self.get_generation_type_display()}] {self.prompt[:40]} ({self.model})"
 
+    def save(self, *args, **kwargs):
+        # Valeur de modèle = CLÉ DE CATALOGUE (route F4b, 2026-10-01). Normalisée ICI, point de
+        # passage de TOUS les écrivains (vues, modale, lot, assistant, duplication) — et le type
+        # musique/bruitage s'en DÉRIVE (la tâche du modèle), il n'est plus posé par chaque vue.
+        from wama.composer.utils.model_choice import generation_type, normalize
+        self.model = normalize(self.model)
+        self.generation_type = generation_type(self.model)
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'model' in update_fields \
+                and 'generation_type' not in update_fields:
+            kwargs['update_fields'] = list(update_fields) + ['generation_type']
+        super().save(*args, **kwargs)
+
     @property
     def gear_data(self):
         """data-* du bouton ⚙ (reflet dans le volet inspecteur + préremplissage modale JS) —
@@ -86,20 +101,25 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
         return f"{int(self.duration)}s"
 
     def get_model_label(self):
-        from wama.composer.utils.model_config import COMPOSER_MODELS
-        return COMPOSER_MODELS.get(self.model, {}).get('description', self.model)
+        from wama.composer.utils.model_choice import label_of
+        return label_of(self.model)
 
     @property
     def estimated_seconds(self) -> int:
         """Temps de génération estimé (s). Apprend des runs réels (ETA seeding) ;
         l'heuristique statique sert de démarrage à froid (fallback) tant qu'aucun run
         n'est enregistré pour ce modèle sur ce matériel."""
+        from wama.common.utils.model_keys import model_id
+        from wama.composer.utils.model_choice import normalize
         from wama.composer.utils.model_config import estimate_seconds
-        static = estimate_seconds(self.model, self.duration)
+        key = normalize(self.model)
+        static = estimate_seconds(model_id(key), self.duration)
         try:
             from wama.model_manager.services.eta_estimator import estimate
+            # Clé ETA = la clé de catalogue (identique à l'ancienne `composer:<id>` pour les
+            # modèles du composer : l'historique appris est conservé).
             return int(round(estimate(
-                f'composer:{self.model}', size=float(self.duration or 0),
+                key, size=float(self.duration or 0),
                 unit='audio_sec', model_loaded=True, fallback_seconds=static)))
         except Exception:
             return static

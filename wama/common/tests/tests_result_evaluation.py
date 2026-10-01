@@ -31,7 +31,7 @@ def _spec():
         surface=SURFACE, reference_field='melody_reference',
         result_text=lambda item: item.prompt or None,
         read_reference=_read_reference,
-        model_key=lambda item: f'composer:{item.model}',
+        model_key=lambda item: item.model,
         reference_extensions=('.txt',))
 
 
@@ -129,7 +129,7 @@ class SpeakerMetricsTest(_WitnessSurface):
             surface=SURFACE, reference_field='melody_reference',
             result_text=lambda item: ' '.join(s['text'] for s in _turns(item.prompt)) or None,
             read_reference=lambda path: (' '.join(s['text'] for s in _read_turns(path)), {}),
-            model_key=lambda item: f'composer:{item.model}', reference_extensions=('.txt',),
+            model_key=lambda item: item.model, reference_extensions=('.txt',),
             metrics=('wer', 'cpwer', 'der'),
             result_segments=lambda item: _turns(item.prompt), read_reference_segments=_read_turns,
             segment_model_key=lambda item: 'diarizer:witness'))
@@ -339,7 +339,7 @@ class AgreementWithoutReferenceTest(_WitnessSurface):
         evaluation.register_evaluation(evaluation.EvaluationSpec(
             surface=SURFACE, reference_field='melody_reference',
             result_text=lambda item: item.prompt or None, read_reference=_read_reference,
-            model_key=lambda item: f'composer:{item.model}', reference_extensions=('.txt',),
+            model_key=lambda item: item.model, reference_extensions=('.txt',),
             input_identity=lambda item: f'input-{item.duration}', disagreement=disagreement))
 
     def test_two_engines_on_one_input_share_one_disagreement_and_nobody_wins(self):
