@@ -35,13 +35,9 @@ LEGACY_ENGINE_MODELS = {
 #: Repli du tirage « auto » quand le catalogue ne propose rien (première installation).
 DEFAULT_MODEL_KEY = 'transcriber:whisper'
 
-#: Politique « Whisper d'abord » du tirage automatique — sous-chaînes de clé (`select_model`
-#: `priority`), INCHANGÉE (chantier C : le curseur arbitre DANS le palier, il ne la remplace pas).
-AUTO_PRIORITY = ['whisper', 'vibevoice', 'qwen']
-
-#: Ce que la card du transcriber FOURNIT au modèle : un audio. Affinage de RÉSOLUTION du tirage
-#: (permis, contrairement au domaine d'options) — il écarte un modèle qui exige autre chose.
-PROVIDED_INPUTS = ['work_audio']
+# La politique « Whisper d'abord » et l'entrée que la card fournit (un audio) se DÉCLARENT au
+# schéma (`params.py`, `options_resolution` du select) depuis le 2026-10-01 : le lancement et la
+# PRÉVISION du select les lisent au même endroit. Elles vivaient ici, lues par le seul lancement.
 
 
 def catalogue_value(value) -> str:
@@ -62,11 +58,11 @@ def is_auto_value(value) -> bool:
 def resolve_auto_key(item=None, user=None) -> str:
     """Le modèle que « auto » retient MAINTENANT — une clé de catalogue. Brique COMMUNE : même
     domaine que les options (`transcriber/params.py`), curseur de l'élément, distants que le
-    profil ouvre au tirage automatique (`options_cloud`), politique Whisper d'abord."""
+    profil ouvre au tirage automatique (`options_cloud`), politique Whisper d'abord et entrée
+    fournie (`options_resolution`) — tout lu au schéma, comme la prévision du select."""
     from wama.common.utils.auto_model import resolve_model_choice
     return resolve_model_choice('auto', app_id='transcriber', item=item, user=user,
-                                fallback=DEFAULT_MODEL_KEY, priority=AUTO_PRIORITY,
-                                available_inputs=PROVIDED_INPUTS) or DEFAULT_MODEL_KEY
+                                fallback=DEFAULT_MODEL_KEY) or DEFAULT_MODEL_KEY
 
 
 class TranscriberBackendManager:

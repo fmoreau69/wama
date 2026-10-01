@@ -113,7 +113,26 @@ class Param:
                                                 # `options_auto` : une app dont le backend est
                                                 # LOCAL ne doit pas proposer un modèle distant
                                                 # qu'elle ne saurait pas exécuter.
-    show_if: Any = None                         # visibilité conditionnelle. string = nom d'un champ
+    options_resolution: Optional[dict] = None   # select `catalog` à `options_auto` : affinages du
+                                                # TIRAGE « auto » — {"priority": [sous-chaînes de
+                                                # clé], "available_inputs": [entrées que l'élément
+                                                # FOURNIT]}. Lus par le LANCEMENT
+                                                # (`auto_model.resolve_model_choice`) ET par la
+                                                # PRÉVISION (le navigateur les transmet à l'endpoint) :
+                                                # un seul lieu. Jusqu'au 2026-10-01 le transcriber les
+                                                # passait au lancement seul — la prévision annonçait
+                                                # Qwen3-ASR quand le lancement tirait Whisper. Hors
+                                                # d'`options_query` À DESSEIN : ils affinent le
+                                                # TIRAGE, jamais la liste (lister n'est pas choisir).
+    options_ports: bool = False                 # select `catalog` : les modèles qu'il PROPOSE sont
+                                                # ceux de l'app — leurs entrées ouvrent les PORTS de
+                                                # la card (`app_registry.app_input_ports`), en plus
+                                                # de ceux de sa source (2026-10-01). Sans lui, un
+                                                # modèle venu d'une autre source (YuE2 au composer)
+                                                # entre au select mais pas à la card. OPT-IN : le
+                                                # select de voix de l'avatarizer propose des modèles
+                                                # d'une ÉTAPE, pas ceux de l'app.
+    show_if: Any = None                        # visibilité conditionnelle. string = nom d'un champ
                                                 # (visible si « truthy » : toggle coché / valeur non vide).
                                                 # dict = condition par VALEUR : {"field": "media_type",
                                                 # "in": ["video","image"]} ou {"field": "use_sam3",

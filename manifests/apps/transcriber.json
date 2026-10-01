@@ -1391,6 +1391,16 @@
             "options_query": {
               "task": "transcription"
             },
+            "options_resolution": {
+              "available_inputs": [
+                "work_audio"
+              ],
+              "priority": [
+                "whisper",
+                "vibevoice",
+                "qwen"
+              ]
+            },
             "options_source": "catalog",
             "pills": [],
             "radio_name": "",
@@ -1434,6 +1444,7 @@
             "options_group": "",
             "options_mode": null,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1483,6 +1494,7 @@
             "options_group": "",
             "options_mode": null,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1529,6 +1541,7 @@
             "options_group": "",
             "options_mode": null,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1572,6 +1585,7 @@
             "options_group": "",
             "options_mode": null,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1628,6 +1642,7 @@
             "options_group": "",
             "options_mode": null,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1684,6 +1699,7 @@
             "options_group": "",
             "options_mode": null,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1730,6 +1746,7 @@
             "options_group": "",
             "options_mode": null,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1782,6 +1799,7 @@
             "options_group": "",
             "options_mode": null,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1828,6 +1846,7 @@
             "options_group": "",
             "options_mode": null,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1880,6 +1899,7 @@
             "options_group": "",
             "options_mode": null,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": {
@@ -1929,6 +1949,7 @@
             "options_group": "",
             "options_mode": null,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -2292,7 +2313,7 @@
       "descriptions": {
         "add_to_transcriber": {
           "args": {
-            "backend": "select — Modèle de transcription (choix : auto | transcriber:vibevoice-asr | transcriber:canary-1b-v2 | transcriber:qwen3-asr-1.7b | huggingface:kyutai/stt-1b-en_fr-trfs | transcriber:parakeet-tdt-0.6b-v3 | transcriber:whisper | transcriber:qwen3-asr-0.6b …) (défaut : 'auto')",
+            "backend": "select — Modèle de transcription (choix : auto | transcriber:vibevoice-asr | transcriber:canary-1b-v2 | transcriber:qwen3-asr-1.7b | transcriber:parakeet-tdt-0.6b-v3 | transcriber:whisper | transcriber:qwen3-asr-0.6b | huggingface:linagora/linto_stt_fr_fastconformer_pc …) (défaut : 'auto')",
             "diarization_model": "select — community-1 succède à 3.1 (mêmes auteurs). En cours d'évaluation sur des réunions annotées : le meilleur des deux n'est pas encore établi. (choix : speaker-diarization-3.1 | speaker-diarization-community-1) (défaut : 'speaker-diarization-3.1')",
             "enable_diarization": "toggle — Séparation des locuteurs (pyannote) (défaut : True)",
             "file_path": "str (requis)",

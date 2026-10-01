@@ -119,6 +119,37 @@ class TheAutoDrawTest(TestCase):
         self.assertEqual('transcriber:whisper', resolve_auto_key())
 
 
+class ThePreviewSaysWhatTheLaunchDrawsTest(TestCase):
+    """2026-10-01, after the restart: the select announced Qwen3-ASR while the launch drew
+    Whisper — the whisper-first policy and the provided input lived in the manager, read by the
+    launch only. They are declared on the schema now (`options_resolution`) and travel with the
+    select's request, built here the way `wama-params.js` builds it."""
+
+    def setUp(self):
+        # Ranks as measured in production: without the policy, Qwen3-ASR wins the draw.
+        transcription_row('transcriber:whisper', benchmark_index=6.237)
+        transcription_row('transcriber:qwen3-asr-1.7b', benchmark_index=5.683)
+        self.user = get_user_model().objects.create_user('preview_draw', password='x')
+        self.client.force_login(self.user)
+        from wama.transcriber.params import PARAMS_JSON
+        self.field = next(p for p in PARAMS_JSON if p['name'] == 'backend')
+
+    def _preview(self, with_resolution=True):
+        query = dict(self.field['options_query'], auto='1', cloud='1')
+        if with_resolution:
+            query.update({k: ','.join(v) for k, v in self.field['options_resolution'].items()})
+        response = self.client.get('/model-manager/api/models/options/', query)
+        return response.json()['auto_preview']['id']
+
+    def test_the_preview_draws_the_model_the_launch_draws(self):
+        self.assertEqual('transcriber:whisper', resolve_auto_key(user=self.user))
+        self.assertEqual(resolve_auto_key(user=self.user), self._preview())
+
+    def test_without_the_declared_refinements_the_preview_would_differ(self):
+        """Counter-proof: the case is one where the refinements change the answer."""
+        self.assertEqual('transcriber:qwen3-asr-1.7b', self._preview(with_resolution=False))
+
+
 class TheToolDoorDomainTest(TestCase):
 
     def test_launchable_keys_and_old_names_pass_a_greyed_model_does_not(self):
