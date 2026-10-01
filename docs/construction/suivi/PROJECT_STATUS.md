@@ -19420,3 +19420,34 @@ si la confirmation suffit. Adoption possible du `sort_by` par le model manager (
     `PyannoteDiarizerBackend`), `tests_doc_plans` (`docs/dev/briques.md` régénérée sur des
     mécanismes non commités), `tests_intent_vision` (`editor_01` sans curseur), et
     `tests_notifications` (adresses).
+
+## §PALIER — 2026-10-01 (après-midi), « ALBERT SUR AUDIO PRÉ-DÉCOUPÉ + describer:whisper RETIRÉ » — ✅ `d3b600b2`, `c4db2e95` — 🔴 RELANCER WAMA (worker et `sync_models` portent l'ancien code) — 🔚 profil du compte `evaluation` face aux modèles distants
+
+- ✅ **Test demandé par Fabien, mené** (`WAMA_QUALITE §9bis`) : le worker ne passait le filtre de
+  parole qu'au moteur NOMMÉ `whisper` → capacité `supports_vad_filter` au contrat commun (Whisper,
+  Albert), Albert applique le VAD Silero de faster-whisper avant l'envoi et replace les temps.
+  Résultat : FLEURS-CS 44,5 → **39,8 %**, SUMM-RE 31,6 → 31,7 % (omissions inchangées) ; un envoi
+  par morceaux ≤ 30 s (32,2 / 40,3 %) n'apporte rien et a été retiré. ⇒ l'écart avec le Whisper
+  local est dans le DÉCODAGE d'Albert, pas dans notre chaîne. Reprise sur 429 ajoutée.
+- ✅ Cards #1232-1242 rangées dans le compte `evaluation` (lots d'origine) ; posées d'abord par
+  erreur sous `fabien.moreau` → 11 lots vides et 11 copies de référence du jour retirés de ce compte.
+  #1072-1082 réétiquetées `vad_mode='off'` (elles avaient tourné sans filtre).
+- ✅ **`describer:whisper` retiré** (R28, `c4db2e95`) : déclaration, branche de découverte, ligne
+  de catalogue #23, manifestes. `describer:blip` reste (vrai moteur).
+- ✅ Rapport partagé Claude Docs : section Albert mise à jour (tableau des trois configurations).
+
+**Pendings, nommés :**
+1. 🔴 **Relancer WAMA** : tant que les workers et `sync_models` tournent sur l'ancien code, Albert
+   ne reçoit pas le filtre, et une découverte de modèles RECRÉERAIT la ligne `describer:whisper`.
+2. ⏳ **Compte `evaluation` en « 100 % local »** : il ne peut pas rejouer un modèle distant
+   (`cloud_access` refuse, voulu). Profil + clé Albert pour ce compte : décision de Fabien.
+3. ⏳ **Kyutai STT** : rejoué par une instance non identifiée (rôle `model`, outputs 13:21/13:26) ;
+   mon passage de 13:30 l'a doublé. Les deux propositions portent une identité FAUSSE
+   (`huggingface:kyutai/stt-2.6b-en`) — à REJETER au model manager ; une garde d'identité est en
+   cours d'écriture dans `wama-dev-ai/role_utils.py` par cette instance (non commitée).
+4. ⏳ Budgets de langue des identifiants dépassés par d'autres chantiers (+2 code, +1 classe,
+   +7 méthodes de test au 01/10 après-midi) — pas les miens (le mien, `declares`, renommé).
+
+**Contrôles mesurés** : transcriber + routage + auto-modèle + model_manager + vram = **575 tests OK** ;
+`describer` + catalogues + cache HF : verts hors budgets de langue (pendings 4) ; manifestes :
+describer et transcriber régénérés, 20 périmés restants à d'autres chantiers.
