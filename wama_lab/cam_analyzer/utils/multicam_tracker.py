@@ -29,6 +29,13 @@ PARKABLE_FAMILIES = ('four_wheel', 'two_wheel')
 #: mobiles) p50 0,81. Ce n'est PAS le critère réfuté au §D.3 bis (séparer étalés et retenus) :
 #: seulement l'élimination des tracks qui AVANCENT franchement.
 MAX_NET_OVER_PATH = 0.8
+#: ⚑ parked_motion_guard — déplacement ROBUSTE (médiane du 1er tiers → médiane du dernier tiers du
+#: track) au-delà duquel un « hors voies » n'est pas garé : il faut LES DEUX (≥ 5 m et ≥ 0,5 m/s).
+#: Mesuré le 2026-10-01 sur 1547 « hors voies » : p50 6,7 m, p75 16,4 m, p90 36 m — dont G2759,
+#: traversant l'intersection (25,6 m, 4,9 m/s), figé en garé. Seuil NON validé (aucune vérité
+#: terrain ; un critère « revu à un autre tour » s'est révélé non discriminant, 90 % partout).
+PARKED_MOVE_M = 5.0
+PARKED_MOVE_MPS = 0.5
 
 from .artifact_filter import is_giant_reflection as _giant_reflection
 
@@ -129,6 +136,25 @@ def off_road_gate(hs, votes, footprint, edge, margin_m=OFF_ROAD_MARGIN_M):
     if signed < margin_m:
         return 'bord_de_voie'
     return 'retenu'
+
+
+def robust_displacement(hs):
+    """(distance m, vitesse m/s) entre la position MÉDIANE du premier tiers et celle du dernier
+    tiers d'un track `[(fn, t, e, n, classe)]` trié — le bruit de placement s'y moyenne, un vrai
+    déplacement reste. Le rapport net/chemin (`MAX_NET_OVER_PATH`) ne le voit pas : le bruit
+    allonge le chemin (G2759 : 25,6 m parcourus, net/chemin 0,27)."""
+    n = len(hs)
+    if n < 3:
+        return 0.0, 0.0
+    k = max(n // 3, 1)
+
+    def med(part, i):
+        v = sorted(h[i] for h in part)
+        return v[len(v) // 2]
+    a, b = hs[:k], hs[-k:]
+    dist = math.hypot(med(b, 2) - med(a, 2), med(b, 3) - med(a, 3))
+    dt = med(b, 1) - med(a, 1)
+    return dist, (dist / dt if dt > 1e-6 else 0.0)
 
 
 def track_descriptors(hs):
@@ -783,7 +809,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                'trop_rapide': 0, 'pres_intersection': 0, 'retenu': 0}
     if _footprint is not None:
         _rejets = {'moins_de_5_obs': 0, 'vu_moins_de_4s': 0, 'pas_un_vehicule': 0,
-                   'sur_voie': 0, 'bord_de_voie': 0, 'avance': 0, 'retenu': 0}
+                   'sur_voie': 0, 'bord_de_voie': 0, 'avance': 0, 'pres_intersection': 0,
+                   'en_mouvement': 0, 'retenu': 0}
     _candidats = []          # descripteurs des tracks qui ATTEIGNENT la décision
     # RÉFÉRENCE DE CALIBRATION SOL (2026-10-01) : les immobiles COMPACTS — portes d'étalement, de
     # vitesse et de carrefour —, évaluées QUELLE QUE SOIT la règle des garés. Deux rôles, deux
@@ -840,6 +867,15 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             porte = off_road_gate(hs, cls_votes.get(gid), _footprint, _edge)
             if porte == 'retenu' and d['net_sur_chemin'] > MAX_NET_OVER_PATH:
                 porte = 'avance'
+            # Près d'une INTERSECTION : jamais garé — la règle d'ORIGINE du filtre (« voiture arrêtée
+            # au carrefour = pertinente »), que la branche hors voies contournait depuis le
+            # 2026-09-30 : un véhicule TRAVERSANT le carrefour (G2759) y était figé en garé.
+            if porte == 'retenu' and _near_intersection(hs):
+                porte = 'pres_intersection'
+            if porte == 'retenu' and _feat.get('parked_motion_guard', True):
+                _dist, _speed = robust_displacement(hs)
+                if _dist >= PARKED_MOVE_M and _speed >= PARKED_MOVE_MPS:
+                    porte = 'en_mouvement'
             _rejets[porte] += 1
             d['porte'] = porte
             if porte == 'retenu':

@@ -119,7 +119,16 @@ FEATURES = [
             "carrefour — peut repartir et n'est jamais garé ; piétons exclus, et un track qui "
             "AVANCE franchement (déplacement net / chemin > 0,8) aussi. Remplace les seuils "
             "d'étalement en mètres, qui mesuraient le bruit de placement plus que le mouvement. "
-            "OFF = règle historique. Emprise indisponible : règle historique, dite en console.",
+            "OFF = règle historique. Emprise indisponible : règle historique, dite en console. "
+            "Près d'une intersection, jamais garé (règle d'origine du filtre, rétablie le 2026-10-01).",
+            default=True, scope='compute'),
+    Feature('parked_motion_guard', 'Garés : trajectoire immobile exigée',
+            "Sous « Garés = hors des voies », un track ne peut être garé que s'il ne SE DÉPLACE pas : "
+            "position médiane du premier tiers contre celle du dernier tiers (le bruit de placement "
+            "s'y moyenne, un vrai déplacement reste) — à partir de 5 m ET 0,5 m/s, c'est un véhicule "
+            "qui roule. Demande de Fabien (2026-10-01) : un véhicule de l'intersection figé en garé "
+            "est une interaction PERDUE ; mieux vaut un garé affiché mobile. Seuil non validé contre "
+            "une vérité terrain — compté en console. OFF = sans cette garde.",
             default=True, scope='compute'),
     Feature('sam3_label_arbitration', 'SAM3 : un marquage, un seul label',
             "Les prompts SAM3 sont interrogés séparément : un même marquage pouvait sortir sous "
