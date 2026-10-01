@@ -85,6 +85,8 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import models, transaction
 
+from wama.common.utils.file_references import path_list_fields
+
 #: ⚠ `SOUS_DOSSIERS = ('input', 'output')` vivait ici et RESTREIGNAIT le périmètre. Retiré le
 #: 2026-09-12 : il excluait `synthesizer/<uid>/custom_voices`, `composer/<uid>/batch_imports` et
 #: `cam_analyzer/<uid>/input/rtmaps` — des octets d'utilisateur comme les autres. Ce qui délimite
@@ -155,25 +157,6 @@ def cible(valeur: str):
     if app in HORS_PERIMETRE or not uid.isdigit():
         return None
     return '/'.join(['users', uid, app, *parts[2:]])
-
-
-def path_list_fields():
-    """(modèle, champ) portant une LISTE de chemins (JSON) — lus dans la déclaration que la
-    rétention tient DÉJÀ (`retention.RETENTION_MODELS[…]['path_lists']`), jamais une 2ᵉ liste.
-
-    ⚠ Le TROU que la migration du 2026-09-12 a laissé (relevé le 2026-09-23 par Fabien : « on a
-    perdu la preview imager image à 4 images ») : `champs_fichier` balaie les `FileField` et les
-    champs TEXTE, pas les `JSONField`. Les images de l'imager ont été DÉPLACÉES (le plan part du
-    disque) mais `generated_images` a gardé ses chemins ABSOLUS d'avant — l'aperçu, qui ne rend
-    que les fichiers existants, restait vide sur toutes les générations multi-images.
-    """
-    from wama.common.services.retention import RETENTION_MODELS
-    for entry in RETENTION_MODELS:
-        for name in entry.get('path_lists') or ():
-            try:
-                yield django_apps.get_model(entry['model']), name
-            except LookupError:
-                continue
 
 
 def realign_path_lists(racine: Path, apply: bool, filtre: str = '') -> int:

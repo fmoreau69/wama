@@ -746,6 +746,34 @@ def _delete_batch_state(f: _AppFiles):
     return False, None
 
 
+def _release_card_file(f: _AppFiles):
+    """Retirer une card LIBÈRE ses fichiers par la brique (`release_card_file`, 2026-10-01).
+
+    ⚠ CE CRITÈRE S'APPELAIT `safe_delete` et cherchait `safe_delete_file` dans les vues. Juste
+    tant que retirer une card EFFAÇAIT ; faux depuis la décision D34 de `MEDIA_STORAGE_TIERING`
+    (`4e441a80`) : la brique a deux verbes sous une même règle (propriété + partage) —
+    `release_card_file` pour une card qu'on RETIRE, `safe_delete_file` pour une card qui REMPLACE
+    son résultat (relance). Mesuré le jour du recalage : les cinq apps qui n'ont aucune relance
+    dans leurs vues étaient ROUGES pour avoir suivi la règle, deux étaient vertes par un
+    COMMENTAIRE citant l'ancien nom (`find` brut), trois par leur relance — aucun des dix
+    verdicts ne parlait du retrait d'une card. *Un critère doit suivre la règle qu'il mesure.*
+
+    Mesure une ADOPTION dans les vues, commentaires neutralisés : le verbe de la brique à
+    l'échelle de la card (`release_card_files` — ses champs fichier ET ses listes de chemins
+    déclarées, lus de ses déclarations) ou champ par champ (`release_card_file`). Le
+    FONCTIONNEMENT — les trois gestes de retrait, sur chaque app — est tenu par
+    `tests_queue_delete_contract` (champs fichier) et `tests_card_listed_files` (listes).
+    """
+    release = f.find_code(VIEWS, r'\brelease_card_files?\(')
+    if release:
+        return True, release
+    replace_only = f.find_code(VIEWS, r'\bsafe_delete_file\(')
+    if replace_only:
+        return False, (f"{replace_only} : `safe_delete_file` seul — il EFFACE, il est réservé à la "
+                       "relance ; retirer une card passe par `release_card_file`")
+    return False, "aucun `release_card_file()` dans les vues — les fichiers d'une card retirée ne sont ni libérés ni annoncés"
+
+
 def _card_in_batch(f: _AppFiles):
     """La card rendue SEULE (`card_html`) connaît sa position dans la file (2026-09-15).
 
@@ -2100,9 +2128,8 @@ CRITERIA: list[Criterion] = [
     Criterion('duplicate_instance', 'F5', 'duplicate_instance() (brique commune)',
               lambda f: _present(f, VIEWS, r'duplicate_instance'),
               mechanism='queue_duplication'),
-    Criterion('safe_delete', 'F5', 'safe_delete_file() (fichiers partagés)',
-              lambda f: _present(f, VIEWS, r'safe_delete_file'),
-              mechanism='queue_duplication'),
+    Criterion('release_card_file', 'F5', 'Retirer une card libère ses fichiers (release_card_file)',
+              _release_card_file, mechanism='queue_duplication'),
     Criterion('user_settings', 'F5', 'Réglages user persistés (brique user_settings)', _user_settings,
               mechanism='user_settings'),
     Criterion('start_all', 'F5', 'Vue start_all',

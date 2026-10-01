@@ -49,6 +49,69 @@ def file_field_models():
     return found
 
 
+def path_list_fields():
+    """(modèle, champ) portant une LISTE de chemins (JSON) hors `FileField` — lus dans la
+    déclaration que la rétention tient DÉJÀ (`retention.RETENTION_MODELS[…]['path_lists']`),
+    jamais une 2ᵉ liste. Lecteurs : la purge de rétention, le retrait d'une card
+    (`queue_duplication.release_card_files`), l'aperçu de ce qu'un retrait libère
+    (`released_files.freed_by`) et le réalignement de `migrate_media_to_user_home`.
+
+    ⚠ Le TROU que la migration du 2026-09-12 a laissé (relevé le 2026-09-23 par Fabien : « on a
+    perdu la preview imager image à 4 images ») : `champs_fichier` balaie les `FileField` et les
+    champs TEXTE, pas les `JSONField`. Les images de l'imager ont été DÉPLACÉES (le plan part du
+    disque) mais `generated_images` a gardé ses chemins ABSOLUS d'avant — l'aperçu, qui ne rend
+    que les fichiers existants, restait vide sur toutes les générations multi-images.
+
+    ⚠ CE QUE L'INDEX CI-DESSOUS NE FAIT PAS ENCORE (mesuré le 2026-10-01) : `direct_references`,
+    `is_referenced_elsewhere`, `referenced_outside`, `repoint` et `detach` ne lisent que les
+    `FileField`. Un fichier désigné par une liste seule est donc dit « inutilisé » par le
+    gestionnaire de fichiers, et ne suit ni un déplacement ni un transfert de card.
+    """
+    from django.apps import apps as django_apps
+    from wama.common.services.retention import RETENTION_MODELS
+    for entry in RETENTION_MODELS:
+        for name in entry.get('path_lists') or ():
+            try:
+                yield django_apps.get_model(entry['model']), name
+            except LookupError:
+                continue
+
+
+def relative_to_media(path) -> str:
+    """Chemin relatif à MEDIA_ROOT (la forme que `owns_file` compare) ; '' s'il est HORS de
+    MEDIA_ROOT — et alors `owns_file` refuse, ce qui est voulu : rien ne sort jamais de là."""
+    import os
+    from django.conf import settings
+    path = str(path or '')
+    if not os.path.isabs(path):
+        return path.replace('\\', '/')
+    root = os.path.abspath(settings.MEDIA_ROOT)
+    absolute = os.path.abspath(path)
+    if os.path.commonpath([root, absolute]) != root:
+        return ''
+    return os.path.relpath(absolute, root).replace('\\', '/')
+
+
+def listed_paths(instance) -> list:
+    """`[(champ, chemin relatif à MEDIA_ROOT)]` pour chaque entrée des listes de chemins DÉCLARÉES
+    de cette card (`path_list_fields`). Une entrée est un chemin, ou un dict qui le porte sous
+    `path` ; absolue ou relative, elle est rendue relative. Une entrée hors de MEDIA_ROOT est
+    sautée. Modèle sans liste déclarée : `[]`."""
+    out = []
+    for model, name in path_list_fields():
+        if not isinstance(instance, model):
+            continue
+        value = getattr(instance, name, None)
+        if not isinstance(value, (list, tuple)):
+            continue
+        for entry in value:
+            path = entry if isinstance(entry, str) else (entry or {}).get('path') if isinstance(entry, dict) else None
+            rel = relative_to_media(path) if path else ''
+            if rel:
+                out.append((name, rel))
+    return out
+
+
 def _lookup(field_name: str, path: str, folder: bool) -> dict:
     return {f'{field_name}__startswith': path + '/'} if folder else {field_name: path}
 
