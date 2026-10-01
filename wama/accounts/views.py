@@ -293,7 +293,9 @@ def api_key_save(request, slug):
     if not is_llm_source(slug, request.user):
         return JsonResponse({'success': True, 'has_key': True})
     from wama.model_manager.services.cloud_models import refresh_key
-    count, error = refresh_key(row)
+    # Le catalogue se met à jour EN TÂCHE DE FOND (2026-10-02) : dans la requête, la
+    # synchronisation complète prenait plus de deux minutes, page figée.
+    count, error = refresh_key(row, background=True)
     return JsonResponse({'success': True, 'has_key': True, 'models_count': count,
                          'discovery_error': error})
 

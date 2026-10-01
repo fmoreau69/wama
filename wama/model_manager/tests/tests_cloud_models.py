@@ -431,3 +431,43 @@ class CleDeLAssistantTest(TestCase):
             text, _ = assistant_engine._llm_call([], None, 'albert', user=self.user)
         self.assertEqual('ok', text)
         self.assertEqual('sk-perso', chat.call_args.kwargs['api_key'])
+
+
+@override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
+class CatalogueUpdateInTheBackgroundTest(TestCase):
+    """2026-10-02 — saving a key on the profile ran the FULL catalogue sync inside the request:
+    over two minutes, a button that seemed dead, a double submission. The provider's listing stays
+    immediate (it tells how many models the key opens); the catalogue update leaves the request."""
+
+    def setUp(self):
+        from wama.accounts.models import UserApiKey
+        self.user = get_user_model().objects.create_user('background_cloud', password='x')
+        self.row = UserApiKey.objects.create(user=self.user, source='albert', api_key='sk-test')
+        _sync_cloud_seul(self)
+
+    def _refresh_in_background(self):
+        with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS), \
+                mock.patch('wama.model_manager.tasks.register_cloud_key_task.delay') as delay, \
+                self.captureOnCommitCallbacks(execute=True):
+            result = cloud_models.refresh_key(self.row, background=True)
+        return result, delay
+
+    def test_the_count_is_immediate_and_the_catalogue_update_is_queued(self):
+        (count, error), delay = self._refresh_in_background()
+        self.assertEqual((4, ''), (count, error))
+        delay.assert_called_once_with(self.row.pk)
+        self.assertFalse(AIModel.objects.filter(model_key='albert:gemma-4-31b-it').exists(),
+                         'the catalogue is not touched inside the request')
+
+    def test_the_queued_task_registers_what_the_key_opens(self):
+        from wama.model_manager.tasks import register_cloud_key_task
+        self._refresh_in_background()
+        self.assertEqual({'registered': True, 'source': 'albert', 'open_models': 4},
+                         register_cloud_key_task(self.row.pk))
+        self.assertTrue(AIModel.objects.filter(model_key='albert:gemma-4-31b-it').exists())
+
+    def test_a_key_removed_before_the_task_runs_is_not_an_error(self):
+        from wama.model_manager.tasks import register_cloud_key_task
+        pk = self.row.pk
+        self.row.delete()
+        self.assertEqual({'registered': False}, register_cloud_key_task(pk))

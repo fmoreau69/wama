@@ -843,9 +843,9 @@ async function loadKeys(group) {
                 <div class="input-group input-group-sm">
                     <input type="password" id="key-${id}"
                            class="form-control bg-dark text-light border-secondary"
-                           placeholder="${p.has_key ? '••••••••••••' : (p.api_key_label || 'Clé API')}"
+                           placeholder="${p.has_key ? 'Clé enregistrée (jamais réaffichée) — saisir pour la remplacer' : (p.api_key_label || 'Clé API')}"
                            autocomplete="off">
-                    <button class="btn btn-outline-secondary" type="button" ${act('toggle')} title="Afficher / masquer">
+                    <button class="btn btn-outline-secondary" type="button" ${act('toggle')} title="Afficher / masquer la saisie (une clé enregistrée n'est jamais renvoyée au navigateur)">
                         <i class="fas fa-eye" id="eye-${id}"></i>
                     </button>
                     <button class="btn btn-outline-primary" type="button" ${act('save')} title="Enregistrer">
@@ -864,11 +864,21 @@ async function loadKeys(group) {
     }
 }
 
-async function sendKey(group, slug, key) {
+async function sendKey(group, slug, key, btn) {
     const id = `${group}-${slug}`;
+    // Retour IMMÉDIAT (2026-10-02) : sans lui, un enregistrement lent semblait sans effet et se
+    // faisait cliquer deux fois. Le rendu à neuf qui suit un succès remet le bouton à l'état.
+    const original = btn ? btn.innerHTML : '';
+    const restore = () => { if (btn) { btn.disabled = false; btn.innerHTML = original; } };
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+    }
+    showMsg(document.getElementById(`msg-${id}`), key ? 'Enregistrement et lecture des modèles ouverts…' : 'Suppression…');
     try {
         const data = await postJson(KEY_GROUPS[group].save.replace('SLUG', slug), { api_key: key });
         if (!data.success) {
+            restore();
             showMsg(document.getElementById(`msg-${id}`), data.error || 'Erreur', true);
             return;
         }
@@ -877,9 +887,10 @@ async function sendKey(group, slug, key) {
         const msg = document.getElementById(`msg-${id}`);
         if (!key) showMsg(msg, '✓ Clé supprimée');
         else if (data.discovery_error) showMsg(msg, `Clé enregistrée, modèles non lus : ${data.discovery_error}`, true);
-        else if (data.models_count !== undefined) showMsg(msg, `✓ Clé enregistrée — ${data.models_count} modèle(s) ouvert(s)`);
+        else if (data.models_count !== undefined) showMsg(msg, `✓ Clé enregistrée — ${data.models_count} modèle(s) ouvert(s) ; le catalogue se met à jour en arrière-plan`);
         else showMsg(msg, '✓ Clé enregistrée');
     } catch(e) {
+        restore();
         showMsg(document.getElementById(`msg-${id}`), 'Erreur réseau', true);
     }
 }
@@ -897,9 +908,9 @@ document.addEventListener('click', (e) => {
     } else if (keyAction === 'save') {
         const key = input.value.trim();
         if (!key) { showMsg(document.getElementById(`msg-${id}`), 'Saisissez une clé.', true); return; }
-        sendKey(group, slug, key);
+        sendKey(group, slug, key, btn);
     } else if (keyAction === 'delete') {
-        if (confirm('Supprimer la clé ?')) sendKey(group, slug, '');
+        if (confirm('Supprimer la clé ?')) sendKey(group, slug, '', btn);
     }
 });
 

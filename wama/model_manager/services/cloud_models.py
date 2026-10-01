@@ -267,13 +267,18 @@ def retire_unlisted(source: str) -> int:
     return retired
 
 
-def refresh_key(row) -> tuple:
+def refresh_key(row, background: bool = False) -> tuple:
     """Relit chez le fournisseur les modèles ouverts à la clé `row` (`accounts.UserApiKey`), puis
     passe par la MÊME chaîne qu'une installation : synchronisation du catalogue (la découverte
     cloud lit la liste gardée sur la clé), provenance par le manifeste, corpus.
 
     Rend (nombre de modèles, message d'erreur ou ''). Une erreur est GARDÉE sur la ligne et la
     liste précédente conservée : un fournisseur injoignable ne ferme rien à l'utilisateur.
+
+    `background` (2026-10-02) : la lecture chez le fournisseur reste immédiate — elle dit combien
+    de modèles la clé ouvre —, la mise à jour du CATALOGUE (`register_open_models`, synchronisation
+    complète) part en tâche de fond. Faite dans la requête du profil, elle a pris plus de deux
+    minutes : bouton « Enregistrer » sans effet visible, serveur web bloqué, double envoi.
     """
     from django.utils import timezone
 
@@ -291,7 +296,22 @@ def refresh_key(row) -> tuple:
     row.open_models = keys_for(row.source, listing)
     row.discovered_at, row.discovery_error = timezone.now(), ''
     row.save(update_fields=['remote_listing', 'open_models', 'discovered_at', 'discovery_error'])
+    if background:
+        # Après la validation de la transaction : la tâche relit la ligne ENREGISTRÉE — et un
+        # test (TestCase, jamais validé) n'envoie rien au broker.
+        from django.db import transaction
+        from wama.model_manager.tasks import register_cloud_key_task
+        pk = row.pk
+        transaction.on_commit(lambda: register_cloud_key_task.delay(pk))
+    else:
+        register_open_models(row)
+    return len(row.open_models), ''
 
+
+def register_open_models(row) -> None:
+    """Le CATALOGUE suit la liste gardée sur la clé `row` : la partie LONGUE de `refresh_key`
+    (synchronisation complète, retraits, provenance), lancée en tâche de fond depuis le profil."""
+    listing = row.remote_listing or []
     # Synchronisation COMMUNE (celle d'une installation), puis retrait de ce que plus aucune clé
     # n'ouvre, puis provenance : l'identité d'éditeur (dépôt HuggingFace servi) entre par le
     # manifeste et le corpus reçoit la ligne — exactement `record_after_install`, sans spec.
@@ -311,7 +331,6 @@ def refresh_key(row) -> tuple:
                 set_identity(key, identity)
             except Exception:
                 logger.warning("provenance non enregistrée pour %s", key, exc_info=True)
-    return len(row.open_models), ''
 
 
 def cloud_refusal(user) -> str:
