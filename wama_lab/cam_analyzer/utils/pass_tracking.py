@@ -692,7 +692,9 @@ def tracking_is_current(session, features) -> tuple:
         return False, 'bascules changées depuis : ' + ', '.join(changed), summary
     for key in TRACKING_SIDE_INPUTS:
         r = rows.get(key)
-        if r is not None and r.completed_at and r.completed_at > gt.completed_at:
+        # seule une passe TERMINÉE a changé ce que lit le tracking — une passe en échec non
+        # (2026-10-01 : une correction ortho échouée faisait refaire le tracking)
+        if r is not None and r.status == AnalysisPass.Status.COMPLETED and r.completed_at                 and r.completed_at > gt.completed_at:
             return False, f'« {key} » recalculé après le tracking', summary
     return True, 'à jour', summary
 
