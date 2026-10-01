@@ -10,8 +10,10 @@ AVANT : retirer une card EFFAÇAIT son fichier sur-le-champ (`safe_delete_file`)
 ligne ne le portait — sans le dire. DÉSORMAIS :
   1. retirer une card (supprimer, tout effacer, lot, rétention) LIBÈRE ses fichiers : ils restent
      sur le disque, une ligne `ReleasedFile` note qui, quand, d'où (`release_path`) ;
-  2. la page qui suit l'ANNONCE une fois (`take_unannounced` → `released-files.js`) et offre de
-     les supprimer — le geste explicite (`delete_released`) ;
+  2. la confirmation de suppression le DEMANDE d'avance, case décochée (`freed_by` → aperçu,
+     puis `delete_released` ou `keep_released` sur ces chemins — complément du 2026-10-01) ; un
+     retrait qui ne passe pas par elle (assistant, rétention) est ANNONCÉ une fois à la page qui
+     suit (`take_unannounced` → `released-files.js`) ;
   3. un fichier encore inutilisé après `UNUSED_NOTICE_DAYS` fait l'objet d'UNE notification
      groupée (`notify_long_unused`, tâche quotidienne) ;
   4. ses informations dans le gestionnaire de fichiers le disent en rouge (`status_of`).
@@ -90,13 +92,57 @@ def take_unannounced(user) -> list:
     return [_as_dict(r) for r in rows]
 
 
-def delete_released(user, ids) -> dict:
-    """LE geste explicite : supprimer des fichiers libérés. Chacun est REVÉRIFIÉ — appartenance,
-    toujours inutilisé — juste avant ; un fichier repris par une card entre-temps est GARDÉ."""
+def freed_by(instances) -> list:
+    """AVANT de retirer `instances` (une card, un lot et ses éléments, toute une file) : les
+    fichiers qu'elles POSSÈDENT et que plus rien d'autre ne désignera ensuite — ceux que le retrait
+    va libérer, donc ceux sur lesquels on peut demander « supprimer aussi le fichier ? ».
+
+    Décision de Fabien du 2026-10-01 (complète D34) : *« à la suppression de la dernière card
+    utilisant un même média, on demande à l'utilisateur s'il veut supprimer le média »* — case
+    DÉCOCHÉE par défaut. Mêmes règles que `release_card_file` (propriété par `owns_file`, partage
+    dans TOUT le dépôt), mais sur l'ENSEMBLE retiré : un fichier partagé entre deux cards d'un même
+    lot est libéré quand le lot part, alors que la question posée card par card dirait « partagé ».
+    """
     from django.conf import settings
+    from django.db import models as dj_models
+    from wama.common.utils.file_references import referenced_outside
+    from wama.common.utils.queue_duplication import owns_file
+    inside, candidates = set(), set()
+    for obj in instances:
+        inside.add((obj._meta.label, obj.pk))
+        for f in obj._meta.concrete_fields:
+            if not isinstance(f, dj_models.FileField):
+                continue
+            name = _norm(getattr(getattr(obj, f.name, None), 'name', '') or '')
+            if (name and owns_file(obj, name)
+                    and os.path.isfile(os.path.join(settings.MEDIA_ROOT, name))):
+                candidates.add(name)
+    return sorted(candidates - referenced_outside(candidates, inside))
+
+
+def _rows_for(user, ids=None, paths=None):
     from wama.common.models import ReleasedFile
+    rows = ReleasedFile.objects.filter(user=user)
+    if paths:
+        return rows.filter(path__in=[_norm(p) for p in paths])
+    return rows.filter(pk__in=list(ids or []))
+
+
+def keep_released(user, ids=None, paths=None) -> int:
+    """L'utilisateur a choisi de GARDER (case laissée décochée) : rien n'est supprimé, et ces
+    fichiers ne sont plus annoncés — la question a déjà été posée. Ils restent signalés dans leurs
+    informations et par la notification « inutilisé depuis… »."""
+    return _rows_for(user, ids, paths).filter(announced_at__isnull=True) \
+        .update(announced_at=timezone.now())
+
+
+def delete_released(user, ids=None, paths=None) -> dict:
+    """LE geste explicite : supprimer des fichiers libérés (désignés par leur ligne ou leur chemin).
+    Chacun est REVÉRIFIÉ — appartenance, toujours inutilisé — juste avant ; un fichier repris par
+    une card entre-temps est GARDÉ."""
+    from django.conf import settings
     deleted, kept = [], []
-    for row in ReleasedFile.objects.filter(user=user, pk__in=list(ids or [])):
+    for row in _rows_for(user, ids, paths):
         if still_used(row.path):
             kept.append(row.path)
             row.delete()

@@ -123,6 +123,69 @@ class LongUnusedNotificationTest(TestCase):
         self.assertEqual(0, released_files.notify_long_unused(later))
 
 
+class AskingBeforeRemovalTest(TestCase):
+    """La confirmation DEMANDE d'avance (2026-10-01) : aperçu de ce que le retrait libérerait,
+    puis la décision — supprimer ou garder — sur ces chemins-là."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('asked', password='x')
+
+    def test_the_last_card_of_a_file_frees_it(self):
+        synthesis, rel, _ = _owned_output(self.user)
+        self.assertEqual([rel], released_files.freed_by([synthesis]))
+
+    def test_a_file_another_card_still_uses_is_not_offered(self):
+        synthesis, rel, _ = _owned_output(self.user)
+        twin = VoiceSynthesis.objects.create(user=self.user, text_file='t.txt')
+        twin.audio_output.name = rel
+        twin.save(update_fields=['audio_output'])
+        self.assertEqual([], released_files.freed_by([synthesis]))
+        # …mais retirer les DEUX (un lot, toute la file) le libère bien.
+        self.assertEqual([rel], released_files.freed_by([synthesis, twin]))
+
+    def test_a_file_the_card_only_designates_is_never_offered(self):
+        path = Path(settings.MEDIA_ROOT) / f'users/{self.user.id}/temp/source.wav'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'x')
+        card = VoiceSynthesis.objects.create(user=self.user, text_file='x.txt')
+        card.audio_output.name = f'users/{self.user.id}/temp/source.wav'
+        card.save(update_fields=['audio_output'])
+        self.assertEqual([], released_files.freed_by([card]))
+
+    def test_keeping_means_not_announced_again(self):
+        synthesis, rel, path = _owned_output(self.user)
+        release_card_file(synthesis, 'audio_output')
+        synthesis.delete()
+        self.assertEqual(1, released_files.keep_released(self.user, paths=[rel]))
+        self.assertEqual([], released_files.take_unannounced(self.user))
+        self.assertTrue(path.exists())
+        self.assertTrue(released_files.status_of(rel)['unused'], 'toujours dit inutilisé')
+
+    def test_the_preview_route_and_the_decision_by_path(self):
+        synthesis, rel, path = _owned_output(self.user)
+        self.client.force_login(self.user)
+        url = reverse('common:api_released_files_preview')
+        files = self.client.get(url, {'surface': 'synthesizer', 'nature': 'element',
+                                      'pk': synthesis.pk}).json()['files']
+        self.assertEqual([rel], [f['path'] for f in files])
+        queue = self.client.get(url, {'surface': 'synthesizer', 'nature': 'queue'}).json()['files']
+        self.assertEqual([rel], [f['path'] for f in queue])
+        # Le retrait, puis la case cochée : suppression par CHEMIN.
+        release_card_file(synthesis, 'audio_output')
+        synthesis.delete()
+        done = self.client.post(reverse('common:api_released_files_delete'), {'paths': [rel]}).json()
+        self.assertEqual([rel], done['deleted'])
+        self.assertFalse(path.exists())
+
+    def test_the_preview_of_someone_elses_card_is_refused(self):
+        synthesis, _rel, _ = _owned_output(self.user)
+        other = get_user_model().objects.create_user('curious', password='x')
+        self.client.force_login(other)
+        r = self.client.get(reverse('common:api_released_files_preview'),
+                            {'surface': 'synthesizer', 'nature': 'element', 'pk': synthesis.pk})
+        self.assertEqual(404, r.status_code)
+
+
 class AnnounceRouteTest(TestCase):
 
     def test_the_page_reads_the_announcement_and_deletes_on_request(self):

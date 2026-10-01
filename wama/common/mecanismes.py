@@ -412,7 +412,10 @@ MECHANISMS = (
               "ne survivait pas à la restauration. `data-cible-dans` BORNE la recherche — sans "
               "quoi deux files sur une même page se filtreraient l'une l'autre. `data-cible-vivante` "
               "(2026-09-28, calendrier) : une liste RE-RENDUE par un composant est relue à chaque "
-              "application, et le composant appelle `WamaFilterBar.refresh(barre)` après rendu",
+              "application, et le composant appelle `WamaFilterBar.refresh(barre)` après rendu. "
+              "Mode `remote` (2026-10-01, médiathèque) : la page charge sa liste elle-même, la "
+              "barre émet `wama:filter-change` ({q, facets, sort}) ; outil de tri `sort_by` déclaré "
+              "par la page",
               'wama/common/static/common/js/wama-filter-bar.js', 'docs/construction/ui/CARD_DESIGN.md',
               annexes=('wama/common/templates/common/_filter_bar.html',),
               symbol='WamaFilterBar'),      # global de base.html : compté par son symbole
@@ -1129,7 +1132,9 @@ MECHANISMS = (
     # rouge) et ne supprime que sur le geste de l'utilisateur.
     Mechanism('queue_duplication', 'Duplication et suppression sûres',
               "duplicate_instance(), release_card_file() (retirer une card libère et prévient) et "
-              "safe_delete_file() (relance) — fichiers partagés entre items",
+              "safe_delete_file() (relance) — fichiers partagés entre items ; la confirmation "
+              "commune d'un retrait (`WamaApp.ask`) demande d'avance « supprimer aussi le "
+              "fichier ? », case décochée (`released_files.freed_by`)",
               'wama/common/utils/queue_duplication.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
               annexes=('wama/common/services/released_files.py',
                        'wama/common/static/common/js/released-files.js')),

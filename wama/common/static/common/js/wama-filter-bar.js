@@ -13,6 +13,13 @@
  *     que la page courante, donc mentirait. La barre soumet alors son formulaire, débouncée.
  *     Le geste est identique à l'écran ; seul le mécanisme diffère.
  *
+ *   • `remote` (2026-10-01, médiathèque) — la page CHARGE ELLE-MÊME sa liste (fetch paginé) :
+ *     soumettre un formulaire la rechargerait, filtrer le DOM mentirait (une page sur N). La
+ *     barre ne fait alors que DIRE ce qui est demandé : à chaque changement, débouncé, elle
+ *     émet `wama:filter-change` (detail = `state()` : `{q, facets, sort}`) ; la page recharge
+ *     et écrit son total par `WamaFilterBar.setCount`. Les facettes masquées (`hidden` sur leur
+ *     colonne — une facette d'un autre onglet) ne comptent pas.
+ *
  * LES OPTIONS SE DÉRIVENT DU DOM en mode client (`data-f-<facette>`) : une option ne peut pas
  * mentir puisqu'elle vient de ce qui est affiché, et une page n'a rien à déclarer. En mode
  * server, le DOM ne porte qu'une page — les options DOIVENT donc être déclarées côté serveur.
@@ -156,7 +163,7 @@
 
         function actif() {
             if (recherche && recherche.value.trim()) { return true; }
-            return selects.some(function (s) { return s.value && s.value !== 'all'; });
+            return $$('[data-f-facette]', bar).some(function (s) { return s.value && s.value !== 'all'; });
         }
 
         function appliquerClient() {
@@ -200,6 +207,24 @@
             if (vide) { vide.style.display = (visibles === 0 && elements.length) ? 'block' : 'none'; }
         }
 
+        // Mode `remote` : l'état demandé, relu à chaque fois (une page peut montrer ou masquer
+        // des facettes selon son onglet). Une facette dont la colonne est masquée ne compte pas.
+        function state() {
+            var facets = {};
+            $$('[data-f-facette]', bar).forEach(function (s) {
+                var col = s.closest('[data-f-nature]');
+                if (col && col.hidden) { return; }
+                if (s.value && s.value !== 'all') { facets[s.getAttribute('data-f-facette')] = s.value; }
+            });
+            var sorter = $('[data-f-role="sort"]', bar);
+            return { q: recherche ? recherche.value.trim() : '', facets: facets,
+                     sort: sorter ? sorter.value : '' };
+        }
+
+        function annoncer() {
+            bar.dispatchEvent(new CustomEvent('wama:filter-change', { bubbles: true, detail: state() }));
+        }
+
         var minuteur = null;
         function soumettre() {
             if (!form) { return; }
@@ -215,12 +240,20 @@
             bar.classList.toggle('is-filtered', actif());
             if (mode === 'client') { appliquerClient(); return; }
             if (minuteur) { clearTimeout(minuteur); }
-            minuteur = setTimeout(soumettre, immediat ? 0 : DEBOUNCE_MS);
+            minuteur = setTimeout(mode === 'remote' ? annoncer : soumettre, immediat ? 0 : DEBOUNCE_MS);
         }
 
-        selects.forEach(function (s) {
-            s.addEventListener('change', function () { surChangement(true); });
-        });
+        if (mode === 'remote') {
+            // DÉLÉGATION : les facettes et le tri sont lus au moment du changement, pas photographiés
+            // au montage — la page peut en montrer d'autres selon l'onglet.
+            bar.addEventListener('change', function (ev) {
+                if (ev.target.matches('[data-f-facette], [data-f-role="sort"]')) { surChangement(true); }
+            });
+        } else {
+            selects.forEach(function (s) {
+                s.addEventListener('change', function () { surChangement(true); });
+            });
+        }
         if (recherche) {
             recherche.addEventListener('input', function () { surChangement(false); });
             // Entrée = « maintenant », sans attendre le debounce. Et on empêche la soumission
@@ -235,11 +268,11 @@
                 surChangement(true);
             });
         }
-        if (reset && mode === 'client') {
+        if (reset && mode !== 'server') {
             reset.addEventListener('click', function (ev) {
                 ev.preventDefault();
                 if (recherche) { recherche.value = ''; }
-                selects.forEach(function (s) { s.value = 'all'; });
+                $$('[data-f-facette]', bar).forEach(function (s) { s.value = 'all'; });
                 surChangement(true);
             });
         }
@@ -257,9 +290,25 @@
         bar.classList.toggle('is-filtered', actif());
         if (mode === 'client') { appliquerClient(); }
 
-        var api = { appliquer: surChangement, elements: elements };
+        var api = {
+            appliquer: surChangement, elements: elements, state: state,
+            // Mode `remote` : la PAGE dit ce qu'elle a chargé (le total vient du serveur).
+            setCount: function (text) { if (compteur) { compteur.textContent = text || ''; } },
+            // Une recherche posée par la page (clic sur un tag) passe par la barre : le champ
+            // affiché et la liste chargée ne divergent jamais.
+            setSearch: function (text) {
+                if (recherche) { recherche.value = text || ''; }
+                surChangement(true);
+            },
+        };
         mounted.set(bar, api);
         return api;
+    }
+
+    /** L'instance d'une barre montée (`init` ou montage automatique), ou null. */
+    function get(bar) {
+        var element = typeof bar === 'string' ? $(bar) : bar;
+        return (element && mounted.get(element)) || null;
     }
 
     // Barres montées, pour `refresh` : un composant qui re-rend sa liste n'a pas à connaître
@@ -281,7 +330,7 @@
         });
     }
 
-    global.WamaFilterBar = { init: init, autoInit: autoInit, sort: sortElements, refresh: refresh };
+    global.WamaFilterBar = { init: init, autoInit: autoInit, sort: sortElements, refresh: refresh, get: get };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', autoInit);

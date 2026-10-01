@@ -1081,6 +1081,27 @@ Les contrats Python tiennent la RÈGLE sur tout le parc (`tests_queue_delete_con
 `tests_retention`, `tests_released_files`) ; ce geste tient la CHAÎNE servie. Sur l'ancien code il
 ne peut qu'être rouge : le fichier serait parti avant que l'annonce existe.
 
+⚠ **Réécrit le même jour, 11/11** — la confirmation DEMANDE désormais d'avance (décision de
+Fabien, case « Supprimer aussi le fichier » décochée). Quatre témoins : ① case cochée → fichier
+supprimé, rien d'annoncé ; ② case décochée → gardé, pas ré-annoncé, rouge dans ses informations ;
+③ card qui ne fait que DÉSIGNER un fichier du temp → aucune case proposée ; ④ retrait hors
+confirmation (POST direct, comme l'assistant) → annonce → « Supprimer ».
+⚠ **Le harnais répond à la confirmation commune** comme à un `confirm` natif :
+`ui_smoke.accept_dialogs(page, delete_files=True)` (case COCHÉE par défaut pour le harnais — les
+témoins sont des fichiers du compte de test, les garder les accumulerait nuit après nuit) ;
+`set_delete_files(page, …)` change la réponse en cours de geste. Les cinq gestes qui acceptaient
+les `confirm` natifs (`duplicate_delete`, `settings`, `batch_actions`, `delete_from_batch`,
+`clear_all`) l'emploient ; les quatre qui retirent, rejoués sur converter et describer, **8/8 verts** (le ⚠ « 1 objet subsistait en base » de
+`duplicate_delete` est antérieur — présent aux rapports nocturnes depuis le 26/09).
+
+### Barre COMMUNE de la médiathèque (2026-10-01)
+
+Scénario **`media_library.filter_bar`** (`ui_smoke_matching.py`), **8/8** au premier run, sur les
+voix SYSTÈME (rien n'est créé) : barre montée en mode `remote` ; filtres d'attributs de la voix
+montrés sur son onglet, retirés sur l'onglet Avatars ; « Origine : Système » → seules des cards
+système ; tri par nom transmis ; compteur rempli par la page ; recherche d'un nom → trouvé ; aucune
+erreur JS.
+
 ---
 
 ## 3ter. Les DROITS — une TROISIÈME grille, qui ne mesure ni une adoption ni un geste

@@ -1,0 +1,17 @@
+{% comment %}OUTIL « sort_by » — un TRI que la page DÉCLARE (2026-10-01, première adoptante : la
+médiathèque). `sort_options` = [(valeur, libellé)], `sort_value` = la valeur courante.
+La brique `wama-filter-bar.js` le lit par `data-f-role="sort"` : en mode `client` elle réordonne
+les éléments affichés (`data-s-<clé>`), en mode `remote` elle le transmet à la page avec la
+recherche et les filtres. Rien n'est rendu sans `sort_options`.
+⚠ Enveloppe PROPRE (comme `facettes`) : la colonne n'existe que si l'outil a quelque chose à montrer.{% endcomment %}
+{% if sort_options %}
+<div class="col-auto">
+  <label class="text-muted small me-2" for="f-sort">Trier&nbsp;:</label>
+  <select class="form-select form-select-sm filter-select d-inline-block w-auto"
+          id="f-sort" name="sort" data-f-role="sort">
+    {% for value, label in sort_options %}
+    <option value="{{ value }}" {% if sort_value == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+</div>
+{% endif %}

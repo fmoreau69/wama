@@ -58,6 +58,11 @@ OUTILS = {
     'recherche': Outil('recherche', "Rechercher", 'common/toolbar/_recherche.html'),
     'facettes': Outil('facettes', "Facettes déclarées", 'common/toolbar/_facettes.html',
                       enveloppe_propre=True),
+    # TRI déclaré par la page (2026-10-01, médiathèque) : `sort_options` = [(valeur, libellé)].
+    # Distinct de `tri`, qui est le tri de FILE (réordonne par la session, recharge la page).
+    # Ne rend RIEN sans `sort_options` : les 15 registres qui n'en déclarent pas restent identiques.
+    'sort_by': Outil('sort_by', "Trier (ordres déclarés par la page)",
+                     'common/toolbar/_sort_by.html', enveloppe_propre=True),
     'disposition': Outil('disposition', "Ligne / mosaïque", 'common/toolbar/_disposition.html'),
     'densite': Outil('densite', "Densité des cards", 'common/toolbar/_densite.html'),
     'pile': Outil('pile', "Empiler autour de la sélection", 'common/toolbar/_pile.html'),
@@ -84,7 +89,7 @@ PROFILS = {
     # tableaux ou des grilles de tuiles, pas des files — leur ordre vient du serveur.
     'registre': {
         'enveloppe': 'registre',
-        'outils': ('facettes', 'recherche', 'compteur', 'reinitialiser'),
+        'outils': ('facettes', 'sort_by', 'recherche', 'compteur', 'reinitialiser'),
     },
 }
 

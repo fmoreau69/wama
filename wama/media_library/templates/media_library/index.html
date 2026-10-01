@@ -38,11 +38,7 @@
 }
 .ml-tabs .nav-link.active .ml-badge { background: #0d6efd22; color: #6ea8fe; }
 
-/* ── Toolbar ────────────────────────────────────────────────────── */
-.ml-toolbar {
-    display: flex; gap: .6rem; align-items: center;
-    padding: .9rem 0; flex-wrap: wrap;
-}
+/* ── Recherche des fournisseurs (la grille, elle, a la barre commune) ── */
 .ml-search { flex: 1; min-width: 200px; max-width: 360px; }
 .ml-search .input-group-text { background: #1e1e2e; border-color: #444; color: #888; }
 .ml-search input {
@@ -231,14 +227,13 @@
 <!-- ── Contenu principal ────────────────────────────────────────── -->
 <div class="container-fluid px-4 py-3" style="background:#0d0d1a; min-height: calc(100vh - 175px);">
 
-    <!-- Toolbar -->
-    <div class="ml-toolbar">
-        <!-- Recherche -->
-        <div class="ml-search input-group input-group-sm">
-            <span class="input-group-text"><i class="fas fa-search"></i></span>
-            <input type="text" id="searchInput" class="form-control" placeholder="Rechercher par nom ou tag…">
-        </div>
-        <small class="text-muted ms-auto" id="resultCount"></small>
+    {% comment %}La BARRE COMMUNE (2026-10-01, demande de Fabien) — recherche, filtres, tri, compteur,
+    en mode `remote` : la page charge sa grille elle-même (paginée), la barre dit QUOI charger
+    (`wama:filter-change`). Les filtres sont DÉRIVÉS des natures (`views._attribute_facets`) et
+    portent leur nature : la page ne montre que ceux de l'onglet ouvert. Elle remplace le champ de
+    recherche propre à la page.{% endcomment %}
+    <div id="mlFilterBar" class="mb-3">
+    {% include 'common/_filter_bar.html' with mode='remote' facettes=library_facets sort_options=library_sorts sort_value='recent' placeholder='Rechercher par nom ou tag…' %}
     </div>
 
     {% comment %}Card d'AJOUT COMMUNE (2026-09-29, demande de Fabien ; partagée avec la fenêtre commune

@@ -110,6 +110,35 @@ def is_referenced_elsewhere(path, *, label='', pk=None, field='') -> bool:
     return False
 
 
+def referenced_outside(paths, inside) -> set:
+    """Parmi `paths`, ceux qu'une ligne HORS de `inside` (ensemble de `(label, pk)`) désigne.
+
+    La question d'une SUPPRESSION GROUPÉE (2026-10-01) : « si je retire ces cards-là, lesquels de
+    leurs fichiers ne servent plus à personne ? ». `is_referenced_elsewhere` y répond pour UN
+    chemin et UNE ligne exclue ; ici l'ensemble à retirer est quelconque (une card, un lot, toute
+    une file), et la réponse tient en UNE requête par champ fichier du dépôt, quel que soit le
+    nombre de chemins — c'est ce qui rend l'aperçu d'un « Tout effacer » abordable.
+    """
+    wanted = {_normalized(p) for p in paths if _normalized(p)}
+    if not wanted:
+        return set()
+    outside = set()
+    for model, fields in file_field_models():
+        label = model._meta.label
+        if label in EXCLUDED_MODELS:
+            continue
+        for field in fields:
+            try:
+                rows = model.objects.filter(**{f'{field.name}__in': list(wanted)}) \
+                    .values_list('pk', field.name)
+                for pk, name in rows:
+                    if (label, pk) not in inside:
+                        outside.add(_normalized(name))
+            except Exception:
+                continue
+    return outside
+
+
 def source_references(path, *, folder=False) -> list:
     """Les provenances dont la SOURCE est ce chemin (ou un chemin sous ce dossier)."""
     path = _normalized(path)

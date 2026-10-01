@@ -16,7 +16,8 @@ from pathlib import Path
 from django.conf import settings
 
 from .ui_smoke import (BASE_URL, IGNORED_CONSOLE, _drop_new_sessions, _exiger_la_page,
-                       _fichier_temoin, _session_keys, _test_account_id, _test_session_key)
+                       _fichier_temoin, _session_keys, _test_account_id, _test_session_key,
+                       accept_dialogs, set_delete_files)
 from .ui_smoke_matching import _bilan, _cookie, _retirer
 
 ARBRE = '#filemanager-tree'
@@ -50,7 +51,7 @@ def _ouvrir(p, jeton):
     errors = []
     page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
     page.on('pageerror', lambda e: errors.append(f'PAGEERROR {e}'))
-    page.on('dialog', lambda d: d.accept())
+    accept_dialogs(page)
     return nav, page, errors
 
 
@@ -656,14 +657,16 @@ def check_tree_delete_in_use():
 
 
 def check_released_files():
-    """Retirer une card PRÉVIENT que son fichier n'est plus utilisé ; c'est l'utilisateur qui
-    supprime ; les informations du fichier le disent en rouge. (ok, detail)
+    """Retirer la DERNIÈRE card d'un fichier demande s'il faut le supprimer aussi (case décochée) ;
+    gardé, il est dit en rouge dans ses informations ; un retrait hors confirmation l'annonce. (ok, detail)
 
-    Décision de Fabien du 2026-09-30 (`MEDIA_STORAGE_TIERING` D34) : *« la suppression est un geste
-    explicite de l'utilisateur, mais il est prévenu »*. Les contrats Python attestent la règle sur
-    les 10 apps ; ici on JOUE la chaîne servie : 🗑 de la card (`queue-actions.js`) → `media:deleted`
-    → annonce (`released-files.js`) → « Supprimer » → fichier parti ; et, pour un second témoin
-    gardé, l'information du fichier (`FileManager.showInfo`) en rouge.
+    Décisions de Fabien du 2026-09-30 (`MEDIA_STORAGE_TIERING` D34) puis du 2026-10-01 (la question
+    posée DANS la confirmation, case décochée par défaut). Les contrats Python attestent la règle
+    sur les 10 apps ; ici on JOUE la chaîne servie, quatre témoins du converter :
+      ① card qui POSSÈDE son fichier, case COCHÉE → fichier supprimé, rien d'annoncé ensuite ;
+      ② idem, case laissée DÉCOCHÉE → fichier gardé, pas ré-annoncé, informations EN ROUGE ;
+      ③ card qui ne fait que DÉSIGNER un fichier du temp → aucune case proposée, fichier intact ;
+      ④ retrait HORS confirmation (POST direct, comme l'assistant) → annonce → « Supprimer ».
     """
     from django.contrib.auth import get_user_model
     from playwright.sync_api import sync_playwright
@@ -681,19 +684,33 @@ def check_released_files():
     folder = Path(settings.MEDIA_ROOT) / home
     folder.mkdir(parents=True, exist_ok=True)
 
-    # ORM HORS du contexte Playwright : deux cards qui POSSÈDENT leur entrée (domicile de l'app).
+    temp = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
+    temp.mkdir(parents=True, exist_ok=True)
+
+    # ORM HORS du contexte Playwright : trois cards qui POSSÈDENT leur entrée (domicile de l'app),
+    # une qui DÉSIGNE un fichier du temp de l'utilisateur.
     witnesses = []
-    for name in ('wama_temoin_libere_suppr.mp4', 'wama_temoin_libere_garde.mp4'):
-        path = _temoin(folder, name, '.mp4')
+    for name, where, rel_dir in (('wama_temoin_libere_suppr.mp4', folder, home),
+                                 ('wama_temoin_libere_garde.mp4', folder, home),
+                                 ('wama_temoin_libere_designe.mp4', temp, f'users/{uid}/temp'),
+                                 ('wama_temoin_libere_direct.mp4', folder, home)):
+        path = _temoin(where, name, '.mp4')
         job = ConversionJob.objects.create(user=user, input_filename=name, media_type='video',
                                            output_format='', status='PENDING')
-        job.input_file.name = f'{home}/{name}'
+        job.input_file.name = f'{rel_dir}/{name}'
         job.save(update_fields=['input_file'])
-        witnesses.append((job, path, f'{home}/{name}'))
-    (gone_job, gone_path, _gone_rel), (kept_job, kept_path, kept_rel) = witnesses
+        witnesses.append((job, path, f'{rel_dir}/{name}'))
+    ((gone_job, gone_path, _r1), (kept_job, kept_path, kept_rel),
+     (ref_job, ref_path, _r3), (direct_job, direct_path, _r4)) = witnesses
     before, verdicts = _session_keys(), []
     announce = '#wama-released-files [data-released-files]'
-    remove = "(pk) => document.querySelector(`.wama-card[data-id='${pk}'] .delete-btn[data-delete-url]`)?.click()"
+    button = "`.wama-card[data-id='${pk}'] .delete-btn[data-delete-url]`"
+    remove = f"(pk) => document.querySelector({button})?.click()"
+    seen = "() => (window.__wamaConfirmSeen || []).splice(0)"
+
+    def removed(page, pk):
+        page.wait_for_function(f"(pk) => !document.querySelector({button})", arg=pk, timeout=15000)
+        page.wait_for_timeout(1200)          # la décision sur les fichiers, puis l'annonce éventuelle
 
     try:
         with sync_playwright() as p:
@@ -703,31 +720,56 @@ def check_released_files():
                 refused_page = _exiger_la_page(page, resp, PAGE)
                 if refused_page:
                     return refused_page
-                # ① 🗑 de la card : elle part, son fichier RESTE, l'annonce le nomme.
+                page.evaluate(seen)
+                # ① Dernière card du fichier, case COCHÉE : le fichier part avec elle.
+                set_delete_files(page, True)
                 page.evaluate(remove, gone_job.pk)
-                page.wait_for_selector(announce, timeout=15000)
-                text = page.inner_text(announce)
-                verdicts.append((gone_path.name in text, f'annoncé : « {text[:90]} »'))
-                verdicts.append((gone_path.exists(), 'retirer la card ne supprime PAS le fichier'))
-                # ② « Supprimer » : le geste explicite.
-                page.click(f'{announce} [data-released-delete]')
-                page.wait_for_selector(announce, state='detached', timeout=10000)
-                verdicts.append((not gone_path.exists(), '« Supprimer » supprime le fichier'))
+                removed(page, gone_job.pk)
+                asked = page.evaluate(seen)
+                verdicts.append((len(asked) == 1 and asked[0]['option'],
+                                 f'la confirmation propose « supprimer aussi le fichier » ({asked})'))
+                verdicts.append((not gone_path.exists(), 'case cochée : le fichier est supprimé'))
+                verdicts.append((page.locator(announce).count() == 0, 'rien d’annoncé ensuite'))
 
-                # ③ Second témoin : « Garder », puis ses informations disent l'abandon EN ROUGE.
+                # ② Case laissée DÉCOCHÉE : gardé, pas ré-annoncé, dit en rouge.
+                set_delete_files(page, False)
                 page.evaluate(remove, kept_job.pk)
-                page.wait_for_selector(announce, timeout=15000)
-                page.click(f'{announce} [data-released-keep]')
-                verdicts.append((kept_path.exists(), '« Garder » garde le fichier'))
+                removed(page, kept_job.pk)
+                page.evaluate(seen)
+                verdicts.append((kept_path.exists(), 'case décochée : le fichier est gardé'))
+                verdicts.append((page.locator(announce).count() == 0,
+                                 'gardé à la confirmation : pas annoncé une seconde fois'))
                 page.evaluate('(path) => FileManager.showInfo(path)', kept_rel)
                 page.wait_for_selector('#fileInfoModal.show', timeout=10000)
                 red = page.locator('#fileInfoModal .file-info-table td.text-danger')
                 verdicts.append((red.count() == 1 and 'aucune card' in red.inner_text(),
                                  'informations du fichier : inutilisé, en rouge'))
-                # ④ Annoncé UNE fois : une nouvelle page ne le ré-annonce pas.
-                page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
-                page.wait_for_timeout(1500)
-                verdicts.append((page.locator(announce).count() == 0, 'annoncé une seule fois'))
+                page.click('#fileInfoModal [data-bs-dismiss="modal"]')
+                page.wait_for_selector('#fileInfoModal', state='hidden', timeout=10000)
+
+                # ③ Card qui ne fait que DÉSIGNER : rien à proposer, rien de touché.
+                set_delete_files(page, True)
+                page.evaluate(remove, ref_job.pk)
+                removed(page, ref_job.pk)
+                asked = page.evaluate(seen)
+                verdicts.append((len(asked) == 1 and not asked[0]['option'],
+                                 f'fichier seulement désigné : aucune case ({asked})'))
+                verdicts.append((ref_path.exists(), 'le fichier du temp est intact'))
+
+                # ④ Retrait HORS confirmation (POST direct, comme l'assistant) : l'annonce le dit.
+                page.evaluate("""(pk) => {
+                    const b = document.querySelector(`.wama-card[data-id='${pk}'] .delete-btn[data-delete-url]`);
+                    const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+                    return fetch(b.dataset.deleteUrl, {method: 'POST', headers: {'X-CSRFToken': csrf,
+                        'Content-Type': 'application/json'}, body: '{}'}).then(() => WamaFM.deleted());
+                }""", direct_job.pk)
+                page.wait_for_selector(announce, timeout=15000)
+                text = page.inner_text(announce)
+                verdicts.append((direct_path.name in text and direct_path.exists(),
+                                 f'retrait hors confirmation : annoncé, fichier gardé (« {text[:80]} »)'))
+                page.click(f'{announce} [data-released-delete]')
+                page.wait_for_selector(announce, state='detached', timeout=10000)
+                verdicts.append((not direct_path.exists(), '« Supprimer » de l’annonce supprime le fichier'))
                 verdicts.append(_console(errors))
             finally:
                 nav.close()
@@ -768,9 +810,9 @@ def register_menu_scenarios():
                          "cards), un refus ne supprime rien, une confirmation détache la card",
              run=lambda ctx: check_tree_delete_in_use(), timeout_s=240)
     register(id='common.released_files', app='common', stage='ui',
-             description="Retirer une card prévient que son fichier n'est plus utilisé (une fois) ; "
-                         "« Supprimer » le supprime, « Garder » le garde, ses informations le disent "
-                         "en rouge",
+             description="Retirer la dernière card d'un fichier demande s'il faut le supprimer "
+                         "(case décochée) ; gardé, il est dit en rouge ; seulement désigné, rien "
+                         "n'est proposé ; un retrait hors confirmation l'annonce",
              run=lambda ctx: check_released_files(), timeout_s=240)
     register(id='common.nav_sandbox_keyboard', app='common', stage='ui',
              description='Sous-menu « Bac à sable » au CLAVIER, sans détournement par Bootstrap',

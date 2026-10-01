@@ -232,6 +232,93 @@
         if (window.WamaFM && WamaFM.deleted) WamaFM.deleted();   // l'arborescence se rafraîchit
     }
 
+    // ── RETIRER, c'est aussi décider du sort des fichiers (2026-10-01) ─────────────────────
+    //
+    // Décision de Fabien : retirer une card ne supprime plus son fichier (`MEDIA_STORAGE_TIERING`
+    // D34) ; mais si c'était la DERNIÈRE card à l'utiliser, la confirmation DEMANDE s'il faut le
+    // supprimer aussi — case DÉCOCHÉE par défaut. Les trois retraits (card, lot, « Tout effacer »)
+    // passent ici, une fois :
+    //   1. le serveur dit d'avance ce que le retrait LIBÉRERAIT (`api/released-files/preview/`,
+    //      mêmes coordonnées `{surface, pk}` que le partage — `WamaShare.coordonnees`) ;
+    //   2. la confirmation commune (`WamaApp.ask`) ne propose la case que s'il y en a ;
+    //   3. après le retrait, la décision s'applique à CES chemins (`delete/` ou `keep/`), et le
+    //      serveur revérifie chacun : un fichier repris entre-temps par une card est gardé.
+    // Une app qui pose `data-confirm="false"` ne demande rien : ses fichiers libérés seront
+    // annoncés par `released-files.js`, comme tout retrait qui ne passe pas par ici.
+    const RELEASED_API = '/common/api/released-files/';
+
+    function removalTarget(btn, nature) {
+        if (!window.WamaShare) return null;
+        if (nature === 'element') {
+            const card = btn.closest('.wama-card');
+            const c = card && WamaShare.coordonnees(card);
+            return c ? { surface: c.surface, pk: c.pk, nature: nature } : null;
+        }
+        if (nature === 'lot') {
+            const c = WamaShare.coordonneesDuLot(btn);
+            return c ? { surface: c.surface, pk: c.pk, nature: nature } : null;
+        }
+        // FILE : la surface se lit sur une card de la même file (même domaine que le bouton).
+        const domain = domainOf(btn);
+        const hosts = document.querySelectorAll('.wama-card[data-preview-url], .wama-card [data-preview-url]');
+        for (let i = 0; i < hosts.length; i++) {
+            if (domain && domainOf(hosts[i]) !== domain) continue;
+            const c = WamaShare.coordonnees(hosts[i]);
+            if (c) return { surface: c.surface, pk: '', nature: 'queue' };
+        }
+        return null;
+    }
+
+    function previewFreedFiles(target) {
+        if (!target) return Promise.resolve([]);
+        const q = new URLSearchParams({ surface: target.surface, nature: target.nature, pk: target.pk });
+        return fetch(RELEASED_API + 'preview/?' + q.toString(), { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : { files: [] }; })
+            .then(function (d) { return d.files || []; })
+            .catch(function () { return []; });
+    }
+
+    // Rend `{ok, files, deleteFiles}` — `files` : ce que le retrait libérera, `deleteFiles` : la case.
+    function confirmRemoval(btn, nature, defaultText) {
+        const confirmAttr = btn.dataset.confirm;
+        if (confirmAttr === 'false') return Promise.resolve({ ok: true, files: [], deleteFiles: false });
+        const text = confirmAttr || defaultText;
+        return previewFreedFiles(removalTarget(btn, nature)).then(function (files) {
+            if (!(window.WamaApp && WamaApp.ask)) {
+                return { ok: window.confirm(text), files: [], deleteFiles: false };
+            }
+            const one = files.length === 1;
+            const option = files.length ? {
+                label: one ? 'Supprimer aussi son fichier — plus aucune card ne l’utilisera'
+                           : 'Supprimer aussi les ' + files.length + ' fichiers que plus aucune card n’utilisera',
+                checked: false,
+            } : null;
+            return WamaApp.ask({ text: text, okLabel: 'Supprimer', option: option,
+                                 details: files.map(function (f) { return f.name; }) })
+                .then(function (a) { return { ok: a.ok, files: files, deleteFiles: a.ok && a.option }; });
+        });
+    }
+
+    // Après le retrait : appliquer la décision sur les fichiers libérés. Toujours résolue — un
+    // échec ici laisse les fichiers en place (ils seront annoncés), jamais la file à moitié à jour.
+    function settleFreedFiles(answer) {
+        if (!answer || !answer.files.length) return Promise.resolve();
+        const fd = new FormData();
+        answer.files.forEach(function (f) { fd.append('paths', f.path); });
+        return fetch(RELEASED_API + (answer.deleteFiles ? 'delete/' : 'keep/'),
+                     { method: 'POST', body: fd, credentials: 'same-origin',
+                       headers: { 'X-CSRFToken': getCsrf() } })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (!answer.deleteFiles || !(window.WamaApp && WamaApp.toast)) return;
+                const n = (res.deleted || []).length, kept = (res.kept || []).length;
+                WamaApp.toast(n + ' fichier(s) supprimé(s)'
+                              + (kept ? ' ; ' + kept + ' gardé(s) — repris par une card' : ''),
+                              kept ? 'warning' : 'success');
+            })
+            .catch(function () {});
+    }
+
     // Séquence STANDARD — le DOM commun suffit à la conduire : `.wama-card[data-id]` est porté
     // par les 11 cards du dépôt (vérifié le 2026-08-23), `.batch-group` par tous les lots.
     //
@@ -343,14 +430,13 @@
         if (!url) return;
 
         // Confirmation CENTRALISÉE : chaque app réécrivait la sienne, avec des libellés
-        // différents et parfois aucune. `data-confirm` permet un message propre à l'app
-        // (« supprimer aussi le fichier source ? ») ; `data-confirm="false"` la supprime
-        // quand la suppression est déjà gardée en amont.
-        const confirmAttr = btn.dataset.confirm;
-        if (confirmAttr !== 'false'
-            && !window.confirm(confirmAttr || 'Supprimer cet élément ? Cette action est définitive.')) {
-            return;
-        }
+        // différents et parfois aucune. `data-confirm` permet un message propre à l'app ;
+        // `data-confirm="false"` la supprime quand la suppression est déjà gardée en amont.
+        // Depuis le 2026-10-01 elle porte aussi la case « supprimer aussi le fichier »
+        // (`confirmRemoval`, plus haut).
+        confirmRemoval(btn, 'element', 'Supprimer cet élément ? Cette action est définitive.')
+        .then(function (answer) {
+        if (!answer.ok) return;
 
         btn.disabled = true;
         const icon = btn.querySelector('i');
@@ -361,6 +447,10 @@
         .then(readResponse)
         .then(function (data) {
             if (data.deleted || data.success || data.status === 'deleted') {
+              // La décision sur les fichiers AVANT la mise à jour de la file : celle-ci émet
+              // `media:deleted`, que `released-files.js` écoute — sans cet ordre, il annoncerait
+              // des fichiers sur lesquels l'utilisateur vient de répondre.
+              return settleFreedFiles(answer).then(function () {
                 const id = btn.dataset.id;
                 // Sans rechargement de la page, lot compris : `data.batch` dit ce qu'il devient.
                 standardFollowUp(id, btn, data.batch);
@@ -368,6 +458,7 @@
                 // pourquoi ce n'est pas une spécificité mais un mécanisme commun non encore adopté.
                 const followUp = pickFollowUp(btn);
                 if (followUp) followUp(id, data, btn);
+              });
             } else {
                 alert(data.error || 'Suppression impossible');
                 btn.disabled = false;
@@ -378,6 +469,7 @@
             alert('Erreur réseau lors de la suppression');
             btn.disabled = false;
             if (icon) { icon.className = initialIcon; }
+        });
         });
     });
 
@@ -468,13 +560,29 @@
             // pas par défaut mais qu'une app veut protéger — le synthesizer confirmait sa
             // duplication de lot, seul des 8 ; porter sans cela aurait RETIRÉ une garde à
             // l'utilisateur au nom de l'uniformité. `data-confirm="false"` neutralise.
+            // Un RETRAIT (lot, file) passe par la confirmation commune qui demande aussi le sort
+            // des fichiers libérés (`confirmRemoval`, 2026-10-01) ; les autres actions gardent
+            // leur `confirm` natif, inchangé.
+            if (options.removal) {
+                confirmRemoval(btn, options.removal, options.confirmText)
+                    .then(function (answer) { if (answer.ok) run(btn, url, iconState(btn), answer); });
+                return;
+            }
             const confirmAttr = btn.dataset.confirm;
             const text = (confirmAttr && confirmAttr !== 'false') ? confirmAttr : options.confirmText;
             if (text && confirmAttr !== 'false' && !window.confirm(text)) return;
+            run(btn, url, iconState(btn), null);
+        });
 
-            btn.disabled = true;
+        function iconState(btn) {
             const icon = btn.querySelector('i');
-            const initialIcon = icon ? icon.className : '';
+            return { el: icon, initial: icon ? icon.className : '' };
+        }
+
+        function run(btn, url, ic, answer) {
+            const icon = ic.el;
+            const initialIcon = ic.initial;
+            btn.disabled = true;
             if (icon) { icon.className = 'fas fa-spinner fa-spin'; }
 
             post(url, options.body ? options.body(btn) : null)
@@ -496,21 +604,25 @@
                 // Des fichiers ont disparu : l'arborescence du gestionnaire doit le savoir.
                 // Repris de transcriber/describer/enhancer, qui l'appelaient chacun — un
                 // rechargement ne le remplace pas (le filemanager vit dans une autre surface).
-                if (options.notifyFiles) notifyFileManager();
-                // Un lot touche N cards, leurs compteurs, sa propre card mère et parfois son
-                // existence même (lot vidé) : le recharger est ce que faisaient DÉJÀ les 8 apps,
-                // et c'est le seul rendu correct sans réécrire l'agrégat côté client. Les rares
-                // retraits chirurgicaux (transcriber retirait le `.batch-group` à la main) ne
-                // sont PAS repris : sur un lot, l'agrégat à recalculer est trop large pour
-                // qu'un retrait de nœud soit fiable — et 7 apps sur 8 rechargeaient déjà.
-                location.reload();
+                // La décision sur les fichiers libérés D'ABORD (retraits seulement) : le
+                // rechargement qui suit ne doit pas les annoncer une seconde fois.
+                return settleFreedFiles(answer).then(function () {
+                    if (options.notifyFiles) notifyFileManager();
+                    // Un lot touche N cards, leurs compteurs, sa propre card mère et parfois son
+                    // existence même (lot vidé) : le recharger est ce que faisaient DÉJÀ les 8 apps,
+                    // et c'est le seul rendu correct sans réécrire l'agrégat côté client. Les rares
+                    // retraits chirurgicaux (transcriber retirait le `.batch-group` à la main) ne
+                    // sont PAS repris : sur un lot, l'agrégat à recalculer est trop large pour
+                    // qu'un retrait de nœud soit fiable — et 7 apps sur 8 rechargeaient déjà.
+                    location.reload();
+                });
             })
             .catch(function () {
                 alert('Erreur réseau');
                 btn.disabled = false;
                 if (icon) { icon.className = initialIcon; }
             });
-        });
+        }
     }
 
     function batchAction(cssClass, attribute, options) {
@@ -520,7 +632,7 @@
 
     batchAction('batch-delete-btn', 'data-batch-delete-url',
                 { confirmText: 'Supprimer ce lot et tous ses éléments ? Cette action est définitive.',
-                  notifyFiles: true });
+                  notifyFiles: true, removal: 'lot' });
     batchAction('batch-duplicate-btn', 'data-batch-duplicate-url', {});
 
     // ▶ LOT — la seule des trois qui ne soit PAS uniforme, et c'est MESURÉ (2026-08-23) :
@@ -655,7 +767,7 @@
     });
     queueAction('data-queue-clear-url',
                  { confirmText: 'Effacer TOUS les éléments de la file ? Cette action est définitive.',
-                   notifyFiles: true });
+                   notifyFiles: true, removal: 'queue' });
 
     // Compteurs de la card mère TENUS À JOUR quand une fille change d'état (2026-09-24).
     // `updateBatchHeader` n'était appelée qu'après un 🗑 : pendant un traitement, chaque app
