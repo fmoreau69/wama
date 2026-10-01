@@ -13,7 +13,9 @@ DEUX FAÇONS DE DÉSIGNER UN FICHIER, et une seule met la card en péril :
   * DIRECTEMENT — un `FileField` porte ce chemin : la copie de travail de la card, sa sortie, ou
     un POINTEUR vers une source (`text_file` du synthesizer importé depuis le serveur, `-i` de
     l'avatarizer). Si le fichier disparaît, la card perd son entrée. C'est ce que compte la
-    confirmation.
+    confirmation. Une entrée d'une LISTE DE CHEMINS déclarée (`path_list_fields` — les images
+    d'une génération de l'imager) désigne le fichier au même titre : depuis le 2026-10-02 chaque
+    question et chaque geste de ce module lit les deux formes.
   * PAR SA SOURCE — `InputProvenance` dit que la copie de travail d'une card VIENT de ce fichier.
     La card a sa copie : supprimer la source ne lui ôte rien, on dit seulement qu'elle a disparu
     (décision du 2026-09-11, `utils/provenance.py::referenced_by`). Déplacer la source, en
@@ -54,7 +56,8 @@ def path_list_fields():
     déclaration que la rétention tient DÉJÀ (`retention.RETENTION_MODELS[…]['path_lists']`),
     jamais une 2ᵉ liste. Lecteurs : la purge de rétention, le retrait d'une card
     (`queue_duplication.release_card_files`), l'aperçu de ce qu'un retrait libère
-    (`released_files.freed_by`) et le réalignement de `migrate_media_to_user_home`.
+    (`released_files.freed_by`), le réalignement de `migrate_media_to_user_home`, et l'index de ce
+    module (`_rows_listing`).
 
     ⚠ Le TROU que la migration du 2026-09-12 a laissé (relevé le 2026-09-23 par Fabien : « on a
     perdu la preview imager image à 4 images ») : `champs_fichier` balaie les `FileField` et les
@@ -62,10 +65,11 @@ def path_list_fields():
     disque) mais `generated_images` a gardé ses chemins ABSOLUS d'avant — l'aperçu, qui ne rend
     que les fichiers existants, restait vide sur toutes les générations multi-images.
 
-    ⚠ CE QUE L'INDEX CI-DESSOUS NE FAIT PAS ENCORE (mesuré le 2026-10-01) : `direct_references`,
-    `is_referenced_elsewhere`, `referenced_outside`, `repoint` et `detach` ne lisent que les
-    `FileField`. Un fichier désigné par une liste seule est donc dit « inutilisé » par le
-    gestionnaire de fichiers, et ne suit ni un déplacement ni un transfert de card.
+    ⚠ Le MÊME trou, dans l'index, jusqu'au 2026-10-02 : `direct_references`,
+    `is_referenced_elsewhere`, `referenced_outside`, `repoint` et `detach` ne lisaient que les
+    `FileField`. Une image de l'imager était dite « inutilisée » par le gestionnaire de fichiers,
+    et la ranger dans la médiathèque (qui DÉPLACE le fichier, puis `repoint`) la faisait
+    disparaître de sa card.
     """
     from django.apps import apps as django_apps
     from wama.common.services.retention import RETENTION_MODELS
@@ -105,11 +109,84 @@ def listed_paths(instance) -> list:
         if not isinstance(value, (list, tuple)):
             continue
         for entry in value:
-            path = entry if isinstance(entry, str) else (entry or {}).get('path') if isinstance(entry, dict) else None
-            rel = relative_to_media(path) if path else ''
+            rel = _entry_rel(entry)
             if rel:
                 out.append((name, rel))
     return out
+
+
+def _entry_path(entry) -> str:
+    """Le chemin que porte une entrée de liste : la chaîne elle-même, ou la clé `path` d'un dict."""
+    if isinstance(entry, str):
+        return entry
+    if isinstance(entry, dict):
+        return str(entry.get('path') or '')
+    return ''
+
+
+def _entry_rel(entry) -> str:
+    path = _entry_path(entry)
+    return relative_to_media(path) if path else ''
+
+
+def _entry_moved(entry, new_rel: str):
+    """La même entrée à sa nouvelle adresse, FORME CONSERVÉE : absolue reste absolue (c'est ce
+    que lisent l'aperçu et les téléchargements de l'app), un dict garde ses autres clés."""
+    import os
+    from django.conf import settings
+    new = (os.path.join(settings.MEDIA_ROOT, *new_rel.split('/'))
+           if os.path.isabs(_entry_path(entry)) else new_rel)
+    return {**entry, 'path': new} if isinstance(entry, dict) else new
+
+
+#: Au-delà de ce nombre de chemins cherchés d'un coup (l'aperçu d'un « Tout effacer »), les listes
+#: non vides sont balayées plutôt que filtrées condition par condition.
+_PREFILTER_MAX = 20
+
+
+def _rows_listing(paths, *, folder=False):
+    """`(modèle, champ, pk, liste, [index])` pour chaque ligne dont une liste de chemins DÉCLARÉE
+    porte l'un de `paths` (ou, `folder=True`, un chemin SOUS l'un d'eux) ; `index` = les entrées
+    concernées. Le jumeau, pour les listes, de la requête par `FileField` des fonctions
+    ci-dessous.
+
+    La base PRÉFILTRE sur le DERNIER segment du chemin (nom du fichier, ou du dossier) : c'est la
+    seule sous-chaîne commune à toutes les formes stockées — relative, absolue, et absolue écrite
+    depuis Windows, dont les séparateurs sont échappés dans le JSON (mesuré : le chemin relatif
+    entier n'y est pas une sous-chaîne, six tests rouges depuis `venv_win`). L'égalité est ensuite
+    jugée ici, entrée par entrée, sur le chemin rendu relatif — une sous-chaîne n'est pas une
+    désignation. Ne lève jamais : un modèle illisible est sauté, comme pour les champs fichier.
+    """
+    from django.db.models import Q
+    wanted = {p for p in map(_normalized, paths) if p}
+    if not wanted:
+        return
+    for model, name in path_list_fields():
+        rows = model.objects.all()
+        if len(wanted) <= _PREFILTER_MAX:
+            condition = Q()
+            for path in wanted:
+                condition |= Q(**{f'{name}__icontains': path.rsplit('/', 1)[-1]})
+            rows = rows.filter(condition)
+        try:
+            rows = list(rows.values_list('pk', name))
+        except Exception:
+            continue
+        for pk, value in rows:
+            if not isinstance(value, list):
+                continue
+            hits = [i for i, entry in enumerate(value)
+                    if _designates(_entry_rel(entry), wanted, folder)]
+            if hits:
+                yield model, name, pk, value, hits
+
+
+def _designates(rel: str, wanted, folder: bool) -> bool:
+    if not rel:
+        return False
+    if folder:
+        return any(rel.startswith(path + '/') for path in wanted)
+    return rel in wanted
 
 
 def _lookup(field_name: str, path: str, folder: bool) -> dict:
@@ -117,10 +194,13 @@ def _lookup(field_name: str, path: str, folder: bool) -> dict:
 
 
 def direct_references(path, *, folder=False) -> list:
-    """Les cards dont un `FileField` porte ce chemin (ou, `folder=True`, un chemin SOUS ce dossier).
+    """Les cards dont un `FileField` — ou une entrée d'une liste de chemins déclarée — porte ce
+    chemin (ou, `folder=True`, un chemin SOUS ce dossier).
 
-    Rend `[{'label', 'app', 'object_type', 'pk', 'field', 'name'}]`, trié. Ne lève jamais : un
-    modèle illisible (table absente d'une jumelle, par exemple) est sauté, pas fatal.
+    Rend `[{'label', 'app', 'object_type', 'pk', 'field', 'name'}]`, trié ; une référence portée
+    par une liste a en plus `'listed': True` (son champ ne se vide pas, on en retire l'entrée —
+    cf. `detach`). Ne lève jamais : un modèle illisible (table absente d'une jumelle, par
+    exemple) est sauté, pas fatal.
     """
     path = _normalized(path)
     if not path:
@@ -139,6 +219,11 @@ def direct_references(path, *, folder=False) -> list:
                                 'field': field.name, 'name': name})
             except Exception:
                 continue
+    for model, name, pk, value, hits in _rows_listing([path], folder=folder):
+        for i in hits:
+            out.append({'label': model._meta.label, 'app': model._meta.app_label,
+                        'object_type': model.__name__, 'pk': pk,
+                        'field': name, 'name': _entry_rel(value[i]), 'listed': True})
     return sorted(out, key=lambda r: (r['label'], r['pk'], r['field']))
 
 
@@ -170,6 +255,11 @@ def is_referenced_elsewhere(path, *, label='', pk=None, field='') -> bool:
                     return True
             except Exception:
                 continue
+    # Les listes de chemins déclarées désignent au même titre (2026-10-02) — même exclusion :
+    # la ligne pour laquelle on pose la question ne se compte pas elle-même.
+    for model, name, row_pk, _value, _hits in _rows_listing([path]):
+        if not (model._meta.label == label and name == field and row_pk == pk):
+            return True
     return False
 
 
@@ -199,6 +289,9 @@ def referenced_outside(paths, inside) -> set:
                         outside.add(_normalized(name))
             except Exception:
                 continue
+    for model, _name, pk, value, hits in _rows_listing(wanted):
+        if (model._meta.label, pk) not in inside:
+            outside.update(_entry_rel(value[i]) for i in hits)
     return outside
 
 
@@ -262,6 +355,13 @@ def repoint(old_path, new_path, *, folder=False) -> dict:
                 for pk, name in rows:
                     model.objects.filter(pk=pk).update(**{field.name: _moved(name)})
                     counts['direct'] += 1
+        # Les entrées des listes de chemins suivent aussi, forme conservée (2026-10-02) : sans
+        # cela, ranger une image dans la médiathèque la faisait disparaître de sa card.
+        for model, name, pk, value, hits in _rows_listing([old], folder=folder):
+            for i in hits:
+                value[i] = _entry_moved(value[i], _moved(_entry_rel(value[i])))
+            model.objects.filter(pk=pk).update(**{name: value})
+            counts['direct'] += len(hits)
         for prov in source_references(old, folder=folder):
             prov.ref = _moved(prov.ref)
             prov.save(update_fields=['ref'])
@@ -280,7 +380,8 @@ def repoint(old_path, new_path, *, folder=False) -> dict:
 def detach(path, *, folder=False) -> int:
     """Le fichier a été supprimé (après confirmation) : les cards qui le désignaient restent,
     leur champ est VIDÉ — elles n'annoncent plus un fichier qui n'existe pas, et
-    `check_media_integrity` ne les compte pas en « référencé mais absent ».
+    `check_media_integrity` ne les compte pas en « référencé mais absent ». Une LISTE de chemins
+    perd la seule entrée concernée : ses autres fichiers restent.
 
     Les provenances ne sont PAS touchées : qu'une source ait disparu est un fait qu'on garde
     (la card, elle, a sa copie). Rend le nombre de liens détachés.
@@ -288,7 +389,13 @@ def detach(path, *, folder=False) -> int:
     detached = 0
     with transaction.atomic():
         for ref in direct_references(path, folder=folder):
+            if ref.get('listed'):
+                continue
             from django.apps import apps as django_apps
             model = django_apps.get_model(ref['label'])
             detached += model.objects.filter(pk=ref['pk']).update(**{ref['field']: ''})
+        for model, name, pk, value, hits in _rows_listing([path], folder=folder):
+            kept = [entry for i, entry in enumerate(value) if i not in hits]
+            model.objects.filter(pk=pk).update(**{name: kept})
+            detached += len(hits)
     return detached

@@ -167,7 +167,9 @@ def release_card_files(instance) -> int:
             released += 1
     try:
         for field_name, file_name in listed_paths(instance):
-            if (owns_file(instance, file_name) and not is_referenced_elsewhere(file_name)
+            if (owns_file(instance, file_name)
+                    and not is_referenced_elsewhere(file_name, label=instance._meta.label,
+                                                    pk=instance.pk, field=field_name)
                     and _note_released(instance, field_name, file_name)):
                 released += 1
     except Exception:

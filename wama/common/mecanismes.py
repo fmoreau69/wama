@@ -517,10 +517,14 @@ MECHANISMS = (
               "« référencés mais absents » comptés par `check_media_integrity`. ⚠ DEUX façons de "
               "désigner, une seule met la card en péril : par un `FileField` (elle perd son "
               "fichier) ou par sa PROVENANCE (elle a sa copie — information, jamais un blocage). "
+              "Une entrée d'une LISTE DE CHEMINS déclarée (`path_list_fields`, les images d'une "
+              "génération de l'imager) désigne au même titre qu'un `FileField` : chaque question et "
+              "chaque geste lit les deux formes (D35, 2026-10-02). "
               "⚠ `filemanager.UserFile` est exclu : c'est l'index du gestionnaire lui-même",
               'wama/common/utils/file_references.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
-              annexes=('wama/common/tests/tests_file_references.py',)),
+              annexes=('wama/common/tests/tests_file_references.py',
+                       'wama/common/tests/tests_card_listed_files.py')),
     Mechanism('toolbar_registry', "Barre d'outils générale (registre + profils)",
               "UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de "
               "surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire "

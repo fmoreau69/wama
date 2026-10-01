@@ -54,9 +54,8 @@ def _delete_path(rel):
 
 
 def _purge_instance(obj):
-    from wama.common.utils.file_references import listed_paths
+    from wama.common.utils.file_references import is_referenced_elsewhere, listed_paths
     from wama.common.utils.queue_duplication import owns_file, safe_delete_file
-    from wama.common.services.released_files import still_used
     # 1) FileField/ImageField découverts automatiquement → EFFACÉS (propriété + partage respectés).
     for f in obj._meta.fields:
         if isinstance(f, models.FileField):  # ImageField hérite de FileField
@@ -70,8 +69,11 @@ def _purge_instance(obj):
     #    étaient effacées sans aucune règle : un chemin référencé hors du domicile de l'app y
     #    passait comme le reste. Les entrées se lisent par `file_references.listed_paths`, comme
     #    au retrait d'une card (`queue_duplication.release_card_files`) — une lecture, deux gestes.
-    for _field, rel in listed_paths(obj):
-        if owns_file(obj, rel) and not still_used(rel):
+    #    L'index des références lit les listes (2026-10-02) : l'élément purgé s'EXCLUT lui-même,
+    #    sans quoi sa propre liste le ferait passer pour encore utilisé.
+    for field, rel in listed_paths(obj):
+        if owns_file(obj, rel) and not is_referenced_elsewhere(
+                rel, label=obj._meta.label, pk=obj.pk, field=field):
             _delete_path(rel)
     # 3) Supprimer l'enregistrement.
     obj.delete()
