@@ -1,0 +1,68 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_audio"
+      ],
+      "languages": [
+        "fr"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "task": "transcription"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "nemo"
+      }
+    },
+    "extra_info": {
+      "category": "speech",
+      "family": "linto_stt_fr_fastconformer_pc",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "linagora",
+      "description_short": "Snapshot HF linto_stt_fr_fastconformer_pc — installé, en attente d'intégration",
+      "hf_id": "linagora/linto_stt_fr_fastconformer_pc",
+      "license": "cc-by-4.0",
+      "model_type": "speech",
+      "platform_ref": "huggingface:linagora/linto_stt_fr_fastconformer_pc",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.8533780016005039,
+      "ram_gb": 0.0,
+      "vram_gb": 1.1
+    }
+  },
+  "description": "Snapshot HuggingFace installé (speech/linto_stt_fr_fastconformer_pc) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:linagora/linto_stt_fr_fastconformer_pc",
+  "manifest_kind": "model",
+  "name": "linto_stt_fr_fastconformer_pc",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:linagora/linto_stt_fr_fastconformer_pc",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
