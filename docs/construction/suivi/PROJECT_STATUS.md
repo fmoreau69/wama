@@ -19501,3 +19501,39 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
   wama_evaluation` (les blocs plus haut qui disent `--user evaluation` datent d'avant).
 - ⚠ Une erreur unique, non reproduite sur deux relances, au premier passage de
   `tests_account_kinds` + `tests_access_points` + `tests_nightly` — non nommée (sortie filtrée).
+
+## §PALIER — 2026-10-01 (soir), « PARTITIONS/MIDI LIVRÉS + DEUX CHANTIERS DÉDIÉS À LANCER » — `24d36358`, `607f7416`, non poussés — 🔚 lancer le chantier PIPELINE (§10.6) et le chantier SURFACES (§F3b) en sessions dédiées ; page d'édition YuE2 SUSPENDUE à eux
+
+- ✅ **Partitions de bout en bout** (`24d36358`, `607f7416`) : nature `score`, port `reference_score`,
+  card du composer mise à jour SEULE par les capacités de YuE2 (`Param.options_ports`), chaîne jusqu'au
+  moteur ; **MIDI** lu par `mido` 1.3.3 (route library : rôle librarian/Albert → propose/plan/apply →
+  simulation sans rétrogradation) et compilé par le compilateur DU MOTEUR (`compile_score.py`, importé
+  tel quel) ; MusicXML refusé en le disant. Audit d'alignement demandé par Fabien : une réinvention et
+  deux incohérences corrigées (`matches_inputs`, inventaire unique `app_model_capabilities`, une branche
+  de gabarit). Domicile : `INPUT_MODEL_MATCHING §6.9`. WAMA relancé par Fabien après `607f7416` : la
+  chaîne est en service (génération GPU d'une partition ABC/MIDI par YuE2 pas encore jouée).
+- 📍 **CHANTIER 1 — PIPELINE porté par la card (session dédiée à lancer)** — domicile
+  `ROUTE §10.6`, bloc « BRIEF DE SESSION DÉDIÉE — état MESURÉ le 2026-10-01 » sous la table des
+  marches. En bref : P0 et P2 faits ; **P1 et P3 pas commencés** (aucune clé `world` dans
+  `APP_CATALOG` ; exécution par process seulement dans le cam_analyzer) ; aucune card d'app Médias
+  n'affiche ses process ; décision n°11 ouverte. Candidat pilote à arbitrer : **YuE2 en deux process**
+  (`plan` → partition, `render` → audio ; éditer la partition rend le rendu `STALE`), à côté du
+  transcriber (P4). Lire d'abord la revérification du 2026-10-01 (quatre réinventions sur ce sujet).
+- 📍 **CHANTIER 2 — SURFACES : preview globale, transport commun ET pages d'édition par briques
+  (session dédiée à lancer)** — domicile `ROUTE §F3b`, brief « PREVIEW GLOBALE + TRANSPORT COMMUN » :
+  matrice de parité (éditeur du transcriber, cam_analyzer) + bloc « ÉLARGISSEMENT DU 2026-10-01 — les
+  PAGES D'ÉDITION entrent dans ce chantier ». Question de Fabien : construire les pages d'édition
+  par **briques UI réutilisables**, pas « à la pelle ». Ce qui est posé : surface (`§10.6`),
+  archétypes déclarés (`§13`, proposition — **à trancher en ouverture de session**), vues abonnées
+  à un axe (`WAMA_DATA_WORLD §4`/§5bis). Ce qui manque : l'axe et le contrat de vue, la déclaration
+  d'une surface, les vues extraites de `edit.js`, une vue partition (pas de moteur ABC vendorisé —
+  `abcjs` candidat).
+- ⏸ **Page d'édition YuE2 : SUSPENDUE** (recommandation, à confirmer par Fabien) — elle devient un
+  consommateur pilote du chantier 2, avec ses deux process issus du chantier 1. L'écrire maintenant
+  serait la première page « à la pelle » que la question de Fabien veut éviter.
+- 🔚 Rouges vus, PAS à moi : budget de langue des noms de test (133 > 132, 1316 > 1310) et
+  `BUDGET_CODE` à 2679 non commité dans l'arbre — ni « ce » ni « 7d » n'en sont l'auteur (vérifié
+  par eux) ; l'arbre mesure 2678 : le −1 vient de `607f7416`. À caler par l'auteur du changement en
+  cours, sinon au prochain palier qui touche ce fichier. Test périmé `test_ne_DEVINE_pas_le_role…`
+  (rôle déclaré du composer depuis le 19/09) ; `audio/x-wav` sous Linux ; `transcriber/apps.py:146` ;
+  doc dérivée `briques.md` ; `writer_01` (colonne absente de la base de test).
