@@ -2839,8 +2839,22 @@ Chaque itération de `gpt-oss-120b` a débusqué un défaut de l'OUTIL, pas du m
 | **v3** | compile, 0 avertissement, n'écrit que ses champs déclarés, suit l'intention (fond en Markdown `#`/`##` sans HTML ; HTML autonome, CSS inline, aucune ressource externe, fond non modifié), consigne transmise à la révision (8a) | — reste perfectible : pdf/docx sources lus comme du texte brut ; « une section = une diapositive » non repris ; clôture ```` ```html ```` éventuelle non retirée |
 
 Les glues v3 attendent la validation de Fabien (`PENDING_HUMAN_VALIDATION`, non appliquées).
-⏳ `qwen3.8` : GPU toujours tenu (21 Go, 90 %) — un script d'arrière-plan attend 18,5 Go libres puis
-joue les deux process, sans rien interrompre.
+
+**`qwen3.8` (local), joué à 01h38 dès que le GPU s'est libéré** (script d'arrière-plan, rien
+interrompu) — même matière, mêmes contrôles : **0 avertissement sur les deux process, et les
+MEILLEURES glues des deux modèles.** Elle reprend ce que gpt-oss avait perdu de la déclaration : une
+consigne de STRUCTURE par type de document (présentation : une section `##` = une diapositive, 5 à 12 ;
+rapport ; page), le document source tronqué (12 000 car.), débarrassé de ses balises et signalé quand
+illisible, la consigne vide refusée ; côté forme, « une section = une diapositive », la clôture
+```` ```html ```` retirée et la présence d'un document HTML vérifiée. **Coût : ~15 min par process**
+contre ~1 min sur Albert ; le 1ᵉʳ essai de `draft_content` a échoué sans trace (sortie filtrée par mon
+script — probablement le délai de 900 s du rôle), le 2ᵉ a abouti.
+⚠ **Défaut commun aux deux modèles** : un pdf/docx source est lu comme des octets. La brique existe —
+`common/utils/batch_parsers.py` lit txt/csv/pdf/docx pour les fichiers de lot — mais la matière ne
+la montre pas : à ajouter aux briques dérivées des ports (type `document`), comme l'a été la brique LLM.
+Sorties : `wama-dev-ai/outputs/codegen_editor_01_{draft_content_2026-10-01_02-17,
+render_format_2026-10-01_02-02}.json` (`PENDING_HUMAN_VALIDATION`). ⏳ **Juge profond** : appliquer
+une paire de glues dans `editor_01` et produire une vraie présentation — décision de Fabien.
 
 **La chaîne SŒUR « dépôt → MODÈLE exécutable » — bouclée hors terminal le 2026-09-29.** Un modèle
 n'a pas le trou de l'app (il ne demande pas de manifeste `app`) ; il en avait d'autres, mesurés sur
