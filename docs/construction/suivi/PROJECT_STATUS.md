@@ -19289,3 +19289,49 @@ modules de test devinés à tort, relancés au bon chemin : verts) ; `check_redu
 **0** dans mes fichiers de session ; `check_docs` 2 cassées / 1 périmée sur 2463.
 ⚠ L'arbre porte du WIP d'une autre instance dans le transcriber (nivellement imposé avant le
 débruitage : `workers.py`, `params.py`, `models.py`, `tests_editor.py`, gabarit) — pas à moi.
+
+## §CLÔTURE — 2026-09-30 → 10-01, « DIARISATION MESURÉE + BANC DES PRÉTRAITEMENTS + COMPTE D'ÉVALUATION » — ✅ livré, mesuré, en service — 🔚 mot de passe du compte `evaluation` (Fabien), sort du lot #489
+
+- ✅ **Diarisation mesurée** : métriques cpWER / DER (`8160145e`, `diarization_metrics`, rangées sous
+  le DIARISEUR), réglage de card `diarization_model` (`2d33a85f`, migration transcriber 0026),
+  `asr_eval_corpus --diarization` (`98342d3a`). pyannote 3.1 ≈ community-1 sur SUMM-RE (`6ad50033`) :
+  défaut 3.1 gardé.
+- ✅ **Évaluation** : une référence Sonal aux extraits VIDES ne compte plus ce que le moteur y entend
+  (`04bc371d`, `covered_spans`) ; sonde du VAD « auto » échantillonnée selon la durée (`bd81913e`) et
+  décision écrite dans les deux cas (`05732b53`).
+- ✅ **Banc des prétraitements** (108 cards Whisper ; `7b262259`, `dbb2f012`) : dégradation CONTRÔLÉE
+  (`common/utils/audio_degradation.py`, facteur manipulé du manifeste SUMM-RE) + corpus RÉEL de
+  qualité moyenne CFPP2000 (`manifests/datasets/cfpp.json`, CC-BY-NC-SA-3.0, noms réels jamais
+  recopiés) + variantes nivelées / améliorées (Resemble). Résultats : `WAMA_QUALITE §9bis`
+  (`f655fbb6`, `7a46b465`) — le **nivellement seul** est le meilleur prétraitement ; DeepFilterNet
+  EFFACE une parole enregistrée bas ; l'amélioration Resemble fait dériver la langue.
+- ✅ **Décisions de Fabien appliquées** (`8104adcb`) : nivellement → débruitage, jamais de débruitage
+  sur un audio non nivelé, débruitage réservé aux fonds très bruyants (aide + modale), amélioration
+  de l'enhancer non branchée en prétraitement. Worker GPU relancé 12:37, gunicorn rechargé (HUP).
+- ✅ **Compte `evaluation`** (#193, local, tier utilisateur, rôle `recherche`, mot de passe NON posé) :
+  354 cards de corpus (SUMM-RE, FLEURS-CS, CFPP), 76 lots, 720 mesures et 680 fichiers (références,
+  sorties, pics d'onde) déplacés depuis `fabien.moreau`, vérifiés lisibles. Les prochaines
+  évaluations : `asr_eval_corpus … --user evaluation`. Compte RÉEL : il nourrit l'ETA (décision Fabien).
+- ✅ **Rapport partagé** (Claude Docs « Évaluation des moteurs de transcription WAMA », rév. 20) :
+  sections « Prétraitements » (graphique) et « Diarisation », protocole, introduction, date.
+- ✅ **Brief de la session dédiée « preview globale + transport commun »** : `ROUTE §F3b` (`148febdc`,
+  référence corrigée `11bd0093`).
+
+**Pendings, nommés :**
+1. ⏳ **Mot de passe du compte `evaluation`** : à poser par Fabien (`/admin/auth/user/193/password/`).
+2. ⏳ **Lot #489 (Bonneuil)** : cards #724/#725 de Fabien + #1048-#1051, #1070 ajoutées pour le banc
+   (et `users/1/transcriber/input/Bonneuil_plateforme_partagee_021225_nivele.wav`, 750 Mo) — à ranger
+   dans `evaluation` ou à retirer : décision de Fabien. Les 3 cards « female » (voix système) restent.
+3. ⏳ **Session dédiée preview/transport** à lancer (brief `ROUTE §F3b`).
+4. ⏳ **Chaîne d'intégration** : rejouer le rôle `model` corrigé (`7be54fef`) sur LinTO, FrWhisper,
+   Kyutai, puis le rôle `backend` — pas fait.
+5. ⏳ Non mesuré : Resemble avec la langue IMPOSÉE (aucun réglage de card pour l'imposer) ; seuil du
+   VAD « auto » (couper le VAD aidait CFPP 3/3 alors que la sonde l'a gardé).
+6. ⏳ Attributs des variantes (`base`, `reference`, `degradation`, `leveled`, `enhancement`) à déclarer
+   dans la nature `speech` (`media_library/natures.py`, WIP d'une autre instance au moment du banc) ;
+   `speech_leveling.level_file` annonce 16 kHz mais garde la fréquence d'origine.
+7. ⚠ Deux relances de WAMA (30/09 14:25, 20:51) ont coupé chacune une tâche GPU d'évaluation
+   (#1048, #1118, relancées à la main) : vérifier la file GPU avant de relancer.
+
+**Rouges vus, pas à moi** : budgets de noms de tests français (commits d'autres instances) ;
+`check_docs` 2 références cassées (hors de mes fichiers).
