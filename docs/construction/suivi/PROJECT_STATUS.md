@@ -19755,3 +19755,39 @@ générées (171 mécanismes écrits pour 176), 2 cam_analyzer, 1 codegen, 1 `au
 `run_item_task` maintenant ? `composer/tasks.py:62-65` écrit le modèle tiré dans le réglage
 `model`, ce qui efface le choix « auto ») ; sinon les restes « à faire maintenant » de
 `ROUTE §10.6` (`model_caps_ui` composer et imager, `detail_spec`).
+
+## §PALIER — 2026-10-02, « PIPELINE PORTÉ PAR LA CARD — P1, 1ʳᵉ pièce : chaque app du catalogue DÉCLARE son monde » — ✅ commit ci-dessous, non poussé — 🔚 décisions n°8 et n°9 (Lab au catalogue, monde du studio) pour la suite de P1 ; n°1-3 et le pilote avant tout code P3
+
+Session dédiée ouverte sur le chantier `WAMA_APP_GENERATION_ROUTE.md §10.6` (GO de Fabien : P1 d'abord).
+
+- ✅ **La déclaration** : clé `world` sur les dix entrées d'`APP_CATALOG` (toutes `media`), accesseur
+  `app_registry.app_world()` sans repli (une app sans monde rend None, l'enveloppe refuse le
+  manifeste), `extract_app` le lit ; `GROUP_TO_WORLD` et `_app_group` retirés de
+  `manifests/builtin/app.py`. Le monde entre dans la facette d'identité (`IDENTITY_FIELDS`,
+  `CATALOG_FIELD_ORDER`, `_identity_target`) : une app générée ou créée de zéro naît avec le monde
+  de son manifeste. Corpus : transcriber, reader, describer, converter passent à `media`.
+- **Mesuré (WSL, base de test isolée)** : 314 tests des modules touchés (`tests_catalogues`,
+  `tests_codegen_lot`, `tests_codegen_from_scratch`, `tests_codegen_templates`,
+  `tests_process_states`, `tests_dev_ai_bridge`, `tests_manifest_proposals`) — un seul rouge,
+  antérieur et pas de ce palier : `tests_codegen_lot.ItemEditRouteAliasTest` (imager). Quatre gardes
+  neuves dans `tests_catalogues.AppCatalogConformiteTest`. `manifest_roundtrip --all` : fidélité OK
+  sur les dix apps, facettes projetables inchangées. `manifest_export --check` : plus aucun manifeste
+  d'app périmé ; restent 17 manifestes `model` périmés, d'autres chantiers. `manage.py check` vert.
+- ⏳ **Restes de P1**, détaillés au point 6.1 de la route : ① surfaces hors catalogue (Lab, Studio,
+  Médiathèque, gestion des modèles) + journal et calendrier qui LISENT le monde — suspendu aux
+  décisions n°8 et n°9 ; ② monde des fonctions (une fonction `pure` ne porte pas son déclarant) ;
+  ③ `category` réduit à trois sous-groupes et surfaces dérivées (menu, accueil, `/apps/`, catalogue
+  du studio, explorateur).
+- **Laissé dans l'arbre, pas à moi** : `manifests/apps/transcriber.json` porte deux hunks
+  régénérés avec le mien (choix du sélecteur de modèles, `scipy` sorti des `requires`) — seul le
+  hunk `world` est commité. `writer_01` (bac à sable) n'a pas la clé `world` à son registre : elle
+  la reçoit à sa prochaine création.
+- **État de la suite complète à l'ouverture de session** (4703 tests, base isolée, avant ce palier) :
+  `FAILED (failures=14)`, 12 tests, 8 causes, aucune dans le périmètre du chantier. Trois ne
+  figuraient pas à la clôture du 01/10 : `tests_notifications` ×3 (les adresses réelles
+  d'administration et de support remplacent celles que les tests attendent),
+  `transcriber.tests_model_select.TheToolDoorDomainTest` (FrWhisper désormais proposé, le test
+  l'attend grisé), `tests_settings_surfaces` (`quality_intent` du transcriber sur une seule surface).
+- **Pendings système** : relancer WAMA n'est pas requis pour ce palier (aucune surface servie ne
+  lit encore `world`) ; la base de test `test_wama_db_reprise_pipeline` est gardée le temps de la
+  session, à supprimer à la clôture.

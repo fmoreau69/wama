@@ -265,10 +265,12 @@ conformité média appliquée à tort à une app data. ⚠ Ne jamais faire du mo
 de réutilisation : il manque une traçabilité, pas une autorisation.
 
 ✅ **DÉCIDÉ le 2026-09-15 (Fabien) : chaque app DÉCLARE son monde** ; menus, accueil, pages d'app et
-catalogues en dérivent (`WAMA_APP_GENERATION_ROUTE.md §10.6` point 6.1). ⏳ **Non implémenté** —
-mesuré le même jour : le monde est encore déduit de `GROUP_TO_WORLD`
-(`wama/common/manifests/builtin/app.py:36-44`), d'où transcriber, reader et describer rangés `data`
-et converter `transverse` dans `manifests/apps/`. La piste `origine`/`portee` ci-dessus reste une
+catalogues en dérivent (`WAMA_APP_GENERATION_ROUTE.md §10.6` point 6.1). 🔄 **Déclaration livrée le
+2026-10-02** pour les dix apps du catalogue (`world` dans `APP_CATALOG`, accesseur
+`app_registry.app_world()`) : la déduction par le groupe de la matrice d'accès est retirée, et
+transcriber, reader, describer et converter, qu'elle rangeait `data` ou `transverse`, sont en
+`media` dans `manifests/apps/`. ⏳ Restent les surfaces hors catalogue, le monde des fonctions et
+les surfaces dérivées (même point 6.1). La piste `origine`/`portee` ci-dessus reste une
 proposition non actée.
 
 ---

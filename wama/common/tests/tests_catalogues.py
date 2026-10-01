@@ -462,6 +462,60 @@ class AppCatalogConformiteTest(TestCase):
                     self.assertEqual(categorie, derive_category(spec),
                                      "la catégorie déclarée contredit les types déclarés")
 
+    def test_every_app_declares_a_known_world(self):
+        """Chaque app DÉCLARE son monde (`WAMA_APP_GENERATION_ROUTE §10.6` point 6.1, marche P1).
+
+        Les jumelles de bac à sable sont écartées : une jumelle hérite du monde de sa source par
+        clonage, mais une app née d'un manifeste AVANT cette marche n'a pas la clé au registre du
+        bac à sable — elle la reçoit à sa prochaine création (`_identity_target`).
+        """
+        from wama.common.app_registry import APP_CATALOG, app_world
+        from wama.common.manifests.envelope import WORLDS
+        from wama.common.sandbox import non_sandbox_apps
+        for name in non_sandbox_apps(APP_CATALOG):
+            with self.subTest(app=name):
+                self.assertIn(app_world(name), WORLDS, "monde non déclaré, ou hors vocabulaire")
+
+    def test_the_manifest_world_is_the_declared_one_not_the_access_group(self):
+        """Le monde du manifeste SUIT la déclaration et ne bouge plus avec la matrice d'accès.
+
+        Il était déduit du groupe d'affichage des droits : transcriber, reader et describer
+        sortaient `data`, le converter `transverse`. Déplacer une app de groupe ne doit plus rien
+        changer à son monde — c'est la contre-épreuve de la déduction retirée.
+        """
+        from unittest.mock import patch
+        from wama.accounts import permissions
+        from wama.common.manifests.ingest import extract
+        for name in ('transcriber', 'reader', 'describer', 'converter'):
+            with self.subTest(app=name):
+                self.assertEqual(extract('app', name)['world'], 'media')
+        with patch.dict(permissions.APP_GROUP, {'imager': 'Utilitaires'}):
+            self.assertEqual(extract('app', 'imager')['world'], 'media')
+
+    def test_an_app_without_a_declared_world_gives_an_invalid_manifest(self):
+        """Aucun repli : sans monde déclaré le manifeste est REFUSÉ, il ne devient pas
+        `transverse` en silence."""
+        from unittest.mock import patch
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.manifests.ingest import extract, validate
+        entry = {k: v for k, v in APP_CATALOG['converter'].items() if k != 'world'}
+        with patch.dict(APP_CATALOG, {'converter': entry}):
+            manifest = extract('app', 'converter')
+        self.assertIsNone(manifest['world'])
+        self.assertTrue(any('world' in e for e in validate(manifest)),
+                        "un manifeste sans monde doit être refusé à la validation")
+
+    def test_a_generated_catalog_entry_carries_the_world_of_its_manifest(self):
+        """Une app générée naît avec son monde : la facette d'identité le porte jusqu'à l'entrée
+        de catalogue (write-back et création de zéro passent par `_identity_target`)."""
+        from wama.common.manifests.builtin.app import (CATALOG_FIELD_ORDER, IDENTITY_FIELDS,
+                                                       _identity_target, _render_entry_lines)
+        self.assertIn('world', IDENTITY_FIELDS)
+        self.assertIn('world', CATALOG_FIELD_ORDER)
+        target = _identity_target({'key': 'demo', 'name': 'Demo', 'world': 'data', 'body': {}})
+        self.assertEqual(target['world'], 'data')
+        self.assertIn("        'world': 'data',", _render_entry_lines('demo', target))
+
     def test_types_d_entree_et_de_sortie_declares(self):
         # L'appariement entrée ↔ app (médiathèque, « envoyer vers ») se fait sur ces tuples :
         # vides, l'app devient injoignable par ce chemin sans que rien ne le dise.
