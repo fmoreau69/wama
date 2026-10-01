@@ -13,12 +13,12 @@ import os
 from pathlib import Path
 from typing import Callable, Optional
 
-from wama.common.backends.base import BaseModelBackend
+from wama.common.backends.music_generation_base import MusicGenerationBackend
 
 logger = logging.getLogger(__name__)
 
 
-class AudioCraftBackend(BaseModelBackend):
+class AudioCraftBackend(MusicGenerationBackend):
     """
     Unified backend for MusicGen (music) and AudioGen (SFX).
 
@@ -55,10 +55,6 @@ class AudioCraftBackend(BaseModelBackend):
 
     def unload(self) -> None:
         self._warm = False
-
-    def process(self, **kwargs):
-        """Point d'entrée générique (contrat commun) → délègue à generate()."""
-        return self.generate(**kwargs)
 
     def generate(
         self,

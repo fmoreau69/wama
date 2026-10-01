@@ -1,0 +1,79 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "prompt"
+      ],
+      "languages": [
+        "zh",
+        "en"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "task": "text-to-music"
+    },
+    "composition": {
+      "components": [
+        {
+          "pattern": "*.safetensors",
+          "role": "model"
+        },
+        {
+          "repo": "m-a-p/YuE2-Vae",
+          "role": "vae"
+        }
+      ],
+      "runtime": {
+        "engine": "yue"
+      }
+    },
+    "extra_info": {
+      "category": "music",
+      "family": "YuE2-3B",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "m-a-p",
+      "description_short": "Snapshot HF YuE2-3B — installé, en attente d'intégration",
+      "hf_id": "m-a-p/YuE2-3B",
+      "license": "cc-by-nc-4.0",
+      "model_type": "music",
+      "platform_ref": "huggingface:m-a-p/YuE2-3B",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 6.7947214134037495,
+      "ram_gb": 0.0,
+      "vram_gb": 8.8
+    }
+  },
+  "description": "Snapshot HuggingFace installé (music/YuE2-3B) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:m-a-p/YuE2-3B",
+  "manifest_kind": "model",
+  "name": "YuE2-3B",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:m-a-p/YuE2-3B",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

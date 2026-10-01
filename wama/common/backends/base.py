@@ -514,6 +514,24 @@ class BaseModelBackend(ABC):
     #: lancement, en `RuntimeError`).
     VENDORED: bool = False
 
+    @classmethod
+    def vendor_dir(cls) -> Path:
+        """Dossier du code vendorisé du moteur — racine DÉCLARÉE (`BACKEND_VENDOR_DIR`) + ENGINE."""
+        from django.conf import settings
+        return Path(settings.BACKEND_VENDOR_DIR) / cls.ENGINE
+
+    @classmethod
+    def import_vendored(cls, module: str, subdir: str = ''):
+        """Importe un module du code VENDORISÉ du moteur — jamais installé dans le venv, mis sur
+        le chemin d'import le temps de l'importer (`subdir` : `src` pour un dépôt en disposition
+        src/). Un seul geste pour tous les moteurs vendorisés (2026-10-01 ; TripoSR le faisait à
+        la main, et le backend de YuE2 proposé par le rôle `backend` l'avait oublié)."""
+        import sys
+        root = cls.vendor_dir() / subdir if subdir else cls.vendor_dir()
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        return importlib.import_module(module)
+
     #: POURQUOI ce backend est conservé alors qu'aucun modèle ne le désigne — vide = en service.
     #:
     #: Déclaré le 2026-09-08 (demande de Fabien : « pour les backends morts, on les laisse —
@@ -580,8 +598,7 @@ class BaseModelBackend(ABC):
             except (ImportError, ValueError, ModuleNotFoundError):
                 missing.append(mod)
         if cls.VENDORED and cls.ENGINE:
-            from django.conf import settings
-            if not (Path(settings.BACKEND_VENDOR_DIR) / cls.ENGINE / '.git').exists():
+            if not (cls.vendor_dir() / '.git').exists():
                 missing.append(f'vendor:{cls.ENGINE} (manage.py install_library {cls.ENGINE})')
         return missing
 

@@ -45,6 +45,23 @@ FAMILLES_OLLAMA = {
 }
 
 
+def _remote_only(config: dict) -> bool:
+    """Le `config.json` ne décrit QUE du code distant : `auto_map` déclaré et aucune de ses
+    `architectures` dans le transformers installé. La même preuve que celle du rôle `model`
+    (`role_utils.ENGINE_PROOFS`) — appliquée ici à la dérivation, qui sinon posait le moteur
+    qu'il réfute ensuite."""
+    if not config.get('auto_map'):
+        return False
+    names = config.get('architectures') or []
+    if not names:
+        return True
+    try:
+        import transformers
+    except Exception:
+        return True
+    return not any(hasattr(transformers, name) for name in names)
+
+
 def _type_ollama(task: str):
     """CATÉGORIE d'un modèle Ollama, DÉRIVÉE de sa tâche — membre `ModelType`, jamais une chaîne.
 
@@ -471,9 +488,14 @@ class ModelRegistry:
                         break
                     if config.is_file():
                         donnees = _json.loads(config.read_text(encoding='utf-8'))
-                        moteur = 'transformers'
                         classe = ','.join(donnees.get('architectures') or []) \
                             or donnees.get('model_type') or ''
+                        # Code DISTANT (`auto_map`) dont aucune classe n'est dans le transformers
+                        # installé : la signature ne PROUVE pas le moteur (2026-10-01, YuE2-3B
+                        # dérivé `transformers` alors que son moteur est le pipeline vendorisé
+                        # `yue`). Le vide reste un vide — une déclaration validée le comblera ; un
+                        # moteur faux, lui, aurait bloqué cette déclaration.
+                        moteur = (None if _remote_only(donnees) else 'transformers')
                         break
             except (OSError, ValueError) as e:      # illisible : on ne conclut pas
                 logger.debug(f"[engines] signature illisible pour {cle} : {e}")

@@ -225,6 +225,23 @@ class VendoredEnginesCorpusTest(TestCase):
         with override_settings(BACKEND_VENDOR_DIR='/nowhere'):
             self.assertFalse([m for m in cls.missing_packages() if m.startswith('vendor:')])
 
+    def test_a_validated_vendor_library_extracts_before_reaching_the_corpus(self):
+        """« Valider » projette au registre PUIS exporte au corpus : l'export d'une PREMIÈRE
+        librairie vendorisée doit trouver son manifeste au registre (2026-10-01, YuE)."""
+        key = 'never_in_corpus_engine'
+        manifest = {'manifest_kind': 'library', 'key': key, 'name': 'Never', 'schema_version': '1.0',
+                    'world': 'transverse', 'visibility': 'public', 'projects': [],
+                    'body': {'identity': {'version': 'a' * 12, 'license': 'MIT'},
+                             'install': {'vendor': _valid_vendor(engine=key)},
+                             'dependencies': ['torch']}}
+        self.assertIsNone(extract_library(key), 'contre-épreuve : rien avant la projection')
+        write_back_library(manifest, apply=True)
+        extracted = extract_library(key)
+        self.assertEqual(extracted['body']['install']['vendor']['engine'], key)
+        self.assertEqual(validate_library_body(extracted['body']), [])
+        self.assertEqual(write_back_library(extracted)['would_change'], [],
+                         "l'aller-retour registre → manifeste → registre ne change rien")
+
     def test_a_pip_library_still_goes_through_pip(self):
         """Contre-épreuve : la délégation ne capte que les librairies vendorisées."""
         Library.objects.create(key='some-pip-lib', name='x', pip_spec='some-pip-lib==1.0')

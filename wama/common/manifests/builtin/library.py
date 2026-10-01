@@ -171,9 +171,39 @@ def authored_vendor_manifest(key: str) -> Optional[dict]:
     try:
         manifest = json.loads(path.read_text(encoding='utf-8'))
     except (OSError, ValueError):
-        return None
+        return _vendor_manifest_from_registry(key)
     install = ((manifest.get('body') or {}).get('install') or {})
     return manifest if install.get('vendor') else None
+
+
+def _vendor_manifest_from_registry(key: str) -> Optional[dict]:
+    """Le manifeste d'une librairie vendorisée PAS ENCORE au corpus, relu au registre `Library`.
+
+    C'est l'inverse exact de `write_back_library` : le geste « Valider » d'une proposition
+    projette au registre PUIS exporte au corpus (`proposals.apply` → `manifest_export`). Sans ce
+    retour, l'export d'une première librairie vendorisée ne trouvait rien — ni corpus, ni paquet
+    installé — et le geste annonçait un corpus écrit qui ne l'était pas (2026-10-01, YuE).
+    """
+    from wama.common.models import Library
+    lib = Library.objects.filter(key=key).exclude(vendor={}).first()
+    if lib is None or not lib.vendor:
+        return None
+    return {
+        'manifest_kind': 'library', 'key': lib.key, 'schema_version': '1.0',
+        'name': lib.name or lib.key, 'description': (lib.summary or '')[:500],
+        'world': 'transverse', 'visibility': 'public', 'projects': [],
+        'source': {'type': 'authored',
+                   'ref': f"github:{lib.vendor.get('repo')}@{lib.vendor.get('commit')}"},
+        'body': {
+            'identity': {'version': lib.version, 'license': lib.license or None,
+                         'author': lib.author or None, 'summary': lib.summary or None,
+                         'repository': lib.repository or None},
+            'install': {'vendor': dict(lib.vendor)},
+            'entry_points': lib.entry_points or {},
+            'dependencies': list(lib.dependencies or []),
+            'constraints': lib.constraints or {},
+        },
+    }
 
 
 def extract_library(key: str) -> Optional[dict]:

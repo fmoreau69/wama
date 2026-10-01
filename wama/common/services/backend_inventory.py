@@ -657,6 +657,9 @@ TASK_CONTRACTS = {
     'text-to-video': ('image_generation_base', 'ImageGenerationBackend', True),
     'image-to-video': ('image_generation_base', 'ImageGenerationBackend', True),
     'text-to-speech': ('tts_base', 'TTSBackend', True),
+    # 2026-10-01 : la signature que le composer appelle, enfin DÉCLARÉE (cf. music_generation_base).
+    # Non liant, comme `detect` : il donne la forme d'un NOUVEAU backend sans en refuser un.
+    'text-to-music': ('music_generation_base', 'MusicGenerationBackend', False),
     'transcription': ('speech_to_text_base', 'SpeechToTextBackend', True),
     'detect': ('detection_base', 'DetectionBackend', False),
 }

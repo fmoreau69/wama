@@ -90,6 +90,70 @@ def _literal(node):
         return None
 
 
+def _is_vendored_engine(engine: str) -> bool:
+    """Le moteur est-il celui d'une librairie VENDORISÉE du registre (route library, voie vendor) ?"""
+    try:
+        from wama.common.models import Library
+        return any((lib.vendor or {}).get('engine') == engine
+                   for lib in Library.objects.exclude(vendor={}))
+    except Exception:
+        return False
+
+
+def _vendored_code_caps_process_vram(engine: str) -> bool:
+    """Le code vendorisé pose-t-il un plafond de VRAM à l'échelle du PROCESSUS ? (YuE2 : ~92 %,
+    réglage qui survit au déchargement — mesuré au constructeur de `YuE2Pipeline`, 2026-10-01)."""
+    from django.conf import settings
+    root = Path(settings.BACKEND_VENDOR_DIR) / engine
+    for path in root.rglob('*.py'):
+        if 'tests' in path.parts:
+            continue
+        try:
+            if 'set_per_process_memory_fraction' in path.read_text(encoding='utf-8', errors='ignore'):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _vendored_top_packages(engine: str) -> set:
+    """Paquets de premier niveau du clone (racine ou `src/`) — des noms d'import ABSENTS du venv."""
+    from django.conf import settings
+    root = Path(settings.BACKEND_VENDOR_DIR) / engine
+    return {p.parent.name for base in (root, root / 'src') if base.is_dir()
+            for p in base.glob('*/__init__.py')}
+
+
+def _vendored_import_errors(tree, engine: str) -> list:
+    """Chaque `import_vendored('<module>', subdir=…)` désigne-t-il un module IMPORTABLE du clone ?
+
+    Mesuré le 2026-10-01 (YuE2) : le rôle avait écrit `import_vendored('pipeline',
+    subdir='src/yue2')` — le fichier existe, mais c'est un module d'un PAQUET (`yue2/__init__.py`,
+    imports relatifs) : importé seul, il échoue au premier `from .storage import …`. La règle :
+    un module situé dans un paquet s'importe par son nom COMPLET depuis la racine du paquet."""
+    from django.conf import settings
+    root = Path(settings.BACKEND_VENDOR_DIR) / engine
+    errors = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and getattr(node.func, 'attr', '') == 'import_vendored'
+                and node.args and isinstance(node.args[0], ast.Constant)):
+            continue
+        module = str(node.args[0].value)
+        subdir = next((str(k.value.value) for k in node.keywords
+                       if k.arg == 'subdir' and isinstance(k.value, ast.Constant)), '')
+        base = root / subdir if subdir else root
+        target = base.joinpath(*module.split('.'))
+        if not (target.with_suffix('.py').is_file() or (target / '__init__.py').is_file()):
+            errors.append(f"import_vendored({module!r}, subdir={subdir!r}) : aucun module à "
+                          f"{target.relative_to(root)} dans le clone")
+        elif (base / '__init__.py').is_file():
+            errors.append(f"import_vendored({module!r}, subdir={subdir!r}) : « {subdir} » est un "
+                          f"PAQUET — importer par le nom complet depuis sa racine "
+                          f"(ex. subdir={str(Path(subdir).parent)!r}, "
+                          f"module='{Path(subdir).name}.{module}')")
+    return errors
+
+
 def check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> dict:
     """Contrôles de FORME d'un module de backend proposé. `ok` = aucune erreur."""
     errors, warnings = [], []
@@ -122,6 +186,11 @@ def check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> d
     for s in cls.body:
         if isinstance(s, ast.Assign) and len(s.targets) == 1 and isinstance(s.targets[0], ast.Name):
             attrs[s.targets[0].id] = _literal(s.value)
+        elif (isinstance(s, ast.AnnAssign) and isinstance(s.target, ast.Name)
+              and s.value is not None):
+            # `REQUIRED_PACKAGES: list = []` — la forme ANNOTÉE, celle d'audiocpp_backend : la
+            # lire comme absente refusait un backend juste (2026-10-01, YuE2).
+            attrs[s.target.id] = _literal(s.value)
         elif isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef)):
             defined.add(s.name)
     if attrs.get('ENGINE') != engine:
@@ -136,6 +205,26 @@ def check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> d
     if NETWORK_FETCH.search(code):
         errors.append('téléchargement au chargement (snapshot_download/hf_hub_download) : les '
                       'poids sont installés, ils se lisent par component_paths')
+    if _is_vendored_engine(engine):
+        # Le code d'un moteur vendorisé n'est PAS dans le venv (2026-10-01 : le backend de YuE2
+        # proposé importait `yue2` à nu — ImportError au premier chargement, invisible ici).
+        if attrs.get('VENDORED') is not True:
+            errors.append(f"moteur VENDORISÉ « {engine} » : déclarer VENDORED = True (le clone "
+                          "absent entre alors dans missing_packages)")
+        if 'import_vendored(' not in code:
+            errors.append(f"moteur VENDORISÉ « {engine} » : importer son code par "
+                          "self.import_vendored(...) — il n'est pas installé dans le venv")
+        errors += _vendored_import_errors(tree, engine)
+        own = _vendored_top_packages(engine) & set(attrs.get('REQUIRED_PACKAGES') or [])
+        if own:
+            errors.append(f"REQUIRED_PACKAGES nomme le code VENDORISÉ lui-même ({sorted(own)}) : "
+                          "il n'est pas dans le venv, missing_packages() le déclarerait absent à "
+                          "vie — VENDORED = True suffit à dire que le clone est requis")
+        if (_vendored_code_caps_process_vram(engine)
+                and not re.search(r'set_per_process_memory_fraction\(\s*1(\.0*)?\b', code)):
+            errors.append(f"le moteur VENDORISÉ « {engine} » plafonne la VRAM de TOUT le processus "
+                          "(set_per_process_memory_fraction) : la rendre (1.0) dans unload(), sinon "
+                          "le worker GPU partagé reste bridé pour les modèles suivants")
     if 'component_paths' not in code:
         warnings.append("n'emploie pas component_paths : d'où viennent les poids ?")
     if 'NotImplementedError' in code:

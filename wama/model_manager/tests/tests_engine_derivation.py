@@ -65,6 +65,29 @@ class DerivationDuMoteurTest(TestCase):
             self.assertEqual(info.extra_info['pipeline_class'],
                              'TableTransformerForObjectDetection')
 
+    def test_remote_code_unknown_to_transformers_derives_no_engine(self):
+        """YuE2-3B (2026-10-01) : `auto_map` + `YuE2ForCausalLM`, absente du transformers installé
+        — dériver `transformers` posait un moteur faux qui bloquait ensuite la déclaration."""
+        with TemporaryDirectory() as d:
+            p = _snapshot(Path(d) / 'models--m-a-p--YuE2-3B', 'config.json',
+                          {'architectures': ['YuE2ForCausalLM'],
+                           'auto_map': {'AutoModelForCausalLM': 'modeling_yue2.YuE2ForCausalLM'}})
+            r = self._registre('huggingface:m-a-p/YuE2-3B', p)
+            r._overlay_engines_derived_from_disk()
+            self.assertNotIn('runtime', r._models['huggingface:m-a-p/YuE2-3B'].composition)
+
+    def test_remote_code_whose_class_transformers_knows_keeps_transformers(self):
+        """Contre-épreuves : une classe que transformers CONNAÎT, ou un config sans `auto_map`,
+        gardent la dérivation d'avant."""
+        for name, config in (('known', {'architectures': ['BertModel'], 'auto_map': {'x': 'y'}}),
+                             ('plain', {'architectures': ['SomethingCustom']})):
+            with self.subTest(name), TemporaryDirectory() as d:
+                p = _snapshot(Path(d) / f'models--o--{name}', 'config.json', config)
+                r = self._registre(f'huggingface:o/{name}', p)
+                r._overlay_engines_derived_from_disk()
+                self.assertEqual('transformers',
+                                 r._models[f'huggingface:o/{name}'].composition['runtime']['engine'])
+
     def test_une_composition_deja_posee_par_la_decouverte_est_INTOUCHEE(self):
         with TemporaryDirectory() as d:
             p = _snapshot(Path(d) / 'models--a--b', 'config.json', {'architectures': ['X']})

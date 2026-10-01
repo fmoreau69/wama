@@ -41,6 +41,28 @@ def snapshot_dir(model) -> Path | None:
     return revs[-1] if revs else None
 
 
+def component_repos(model_key: str) -> dict:
+    """`{rôle: (dépôt HF, cache_dir)}` des composants DÉPÔTS FRÈRES du modèle (`repo` déclaré).
+
+    `component_paths` ne les rend pas — ils n'ont pas de motif de fichier dans le dépôt du
+    modèle. Le `cache_dir` est celui du modèle principal : passé au `from_pretrained` du moteur,
+    il range le dépôt frère À CÔTÉ de lui dans `AI-models`, au premier usage s'il manque
+    (2026-10-01, YuE2 : son VAE `m-a-p/YuE2-Vae`). Jamais le cache global, jamais l'environnement.
+    """
+    from wama.model_manager.models import AIModel
+    from wama.model_manager.services.model_installer import weights_dir_of
+    row = AIModel.objects.filter(model_key=model_key).first()
+    if row is None:
+        raise ComponentsUnavailable(f"{model_key} : absent du catalogue")
+    repo_dir = weights_dir_of(row)
+    if repo_dir is None:
+        raise ComponentsUnavailable(f"{model_key} : poids introuvables sur le disque")
+    cache_dir = repo_dir.parent if repo_dir.name.startswith('models--') else repo_dir
+    return {c['role']: (c['repo'], cache_dir)
+            for c in ((row.composition or {}).get('components') or [])
+            if c.get('role') and c.get('repo') and not c.get('pattern')}
+
+
 def component_paths(model_key: str) -> dict:
     """`{rôle: Path}` pour chaque composant DÉCLARÉ du modèle `model_key`.
 

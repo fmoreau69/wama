@@ -20,7 +20,8 @@ import subprocess
 from pathlib import Path
 from typing import Callable, Optional
 
-from wama.common.backends.base import BaseModelBackend
+from wama.common.backends.music_generation_base import (  # noqa: F401 — split_caption_lyrics
+    MusicGenerationBackend, split_caption_lyrics)             # réexportée (tests, appelants)
 
 logger = logging.getLogger(__name__)
 
@@ -96,24 +97,8 @@ def _snapshot_root(cache_dir, hf_id: str) -> Optional[Path]:
         return None
 
 
-def split_caption_lyrics(prompt: str) -> tuple[str, str]:
-    """
-    (caption, lyrics) depuis le prompt unique du composer. Le contrat MiniMax-Music3 met la
-    DESCRIPTION en tête et les PAROLES dans des sections taguées (`[verse]`, `[chorus]`…) :
-    on coupe à la première ligne qui ouvre un tag. Sans tag de paroles → instrumental
-    (`[instrumental]` — les paroles sont requises par le moteur, le tag est la convention
-    pour ne pas en chanter). Annoncé dans la description du modèle, pas de magie cachée.
-    """
-    lignes = (prompt or '').splitlines()
-    for i, l in enumerate(lignes):
-        if l.strip().startswith('['):
-            caption = '\n'.join(lignes[:i]).strip()
-            lyrics = '\n'.join(lignes[i:]).strip()
-            return caption or 'A song.', lyrics
-    return (prompt or '').strip() or 'An instrumental piece.', '[instrumental]'
 
-
-class AudioCppBackend(BaseModelBackend):
+class AudioCppBackend(MusicGenerationBackend):
     """
     Génération musicale par le moteur audio.cpp — sous-processus, aucun paquet Python requis.
 
@@ -142,9 +127,6 @@ class AudioCppBackend(BaseModelBackend):
 
     def unload(self) -> None:
         self._warm = False
-
-    def process(self, **kwargs):
-        return self.generate(**kwargs)
 
     # ------------------------------------------------------------------
 
