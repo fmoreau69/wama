@@ -134,8 +134,9 @@ jusqu'à diff nul. C'est le mécanisme qui garantit que le formalisme a capté l
 ```yaml
 body:                                   # (sous l'enveloppe commune)
   # F1 IDENTITÉ            [APP_CATALOG]
-  # (world = champ d'ENVELOPPE, pas de body — ✅ FAIT : media|data|lab|transverse, mapping
-  #  GROUP_TO_WORLD dans builtin/app.py)
+  # (world = champ d'ENVELOPPE, pas de body — ✅ FAIT : media|data|lab|transverse, DÉCLARÉ par
+  #  l'app dans APP_CATALOG et lu par app_registry.app_world() depuis le 2026-10-02 ; il était
+  #  déduit du groupe de la matrice d'accès)
   category, url_name, icon, color, input_extensions
 
   # F2 CAPACITÉS & PORTS   [fusionne APP_CATALOG.input/output_types ⟷ GENERIC_APPS.input_kinds/output_type

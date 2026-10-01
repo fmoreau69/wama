@@ -32,17 +32,6 @@ from ..kinds import ManifestKind, register_kind
 
 logger = logging.getLogger(__name__)
 
-# APP_GROUP (permissions) → world (spec §1.1 : le monde classe la FINALITÉ).
-GROUP_TO_WORLD = {
-    'Production': 'media',
-    'Recherche / Analyse': 'data',
-    'Utilitaires': 'transverse',
-    'Orchestration': 'transverse',
-    'Technique': 'transverse',
-    'WAMA Lab': 'lab',
-    'Autres': 'transverse',
-}
-
 # Facettes attendues d'un manifeste `app` complet (pour signaler les trous par app).
 # `data` (2026-08-18, marche S2) : SPINE DE DONNÉES introspecté — tous les modèles Django de
 # l'app, champs sérialisés par le MÊME sérialiseur que les migrations (fidélité de schéma par
@@ -207,13 +196,16 @@ def _data(app_id: str) -> Optional[dict]:
 
 
 def extract_app(app_id: str) -> Optional[dict]:
-    from wama.common.app_registry import APP_CATALOG, studio_node_ports
+    from wama.common.app_registry import APP_CATALOG, app_world, studio_node_ports
 
     cat = APP_CATALOG.get(app_id)
     if cat is None:
         return None
 
-    world = GROUP_TO_WORLD.get(_app_group(app_id), 'transverse')
+    # Le monde est DÉCLARÉ par l'app (route §10.6 point 6.1, marche P1) — il n'est plus déduit
+    # du groupe de la matrice d'accès. Sans déclaration il reste None : l'enveloppe le refuse,
+    # ce qui vaut mieux qu'un `transverse` posé par défaut que personne ne relirait.
+    world = app_world(app_id)
 
     body: dict[str, Any] = {}
 
@@ -325,14 +317,6 @@ def _librairies(app_id: str, body: dict | None = None) -> list:
 
 
 # ── Helpers d'extraction (best-effort, jamais bloquants) ────────────────────────
-def _app_group(app_id):
-    try:
-        from wama.accounts.permissions import app_group
-        return app_group(app_id)
-    except Exception:
-        return 'Autres'
-
-
 def _ports(raw) -> dict:
     """studio_node_ports() renvoie déjà des ports {id,label,group,types,multi}. On les répartit
     entrées/sorties et on NE régresse PAS la preview (group=travail|prompt = entrée de travail)."""
@@ -856,7 +840,9 @@ def _project_access(app_id: str, access: dict, *, apply: bool) -> dict:
 # ── Facettes → APP_CATALOG (app_registry.py) — moteur COMMUN d'écriture code (§10.3) ─
 # TROIS facettes écrivent dans la MÊME entrée APP_CATALOG, chacune possédant des champs
 # DISJOINTS (moteur commun, un champ n'appartient qu'à une facette) :
-#   identity     → label/category/icon/url_name/description/input_extensions
+#   identity     → label/category/world/icon/url_name/description/input_extensions
+#                  (`world` vient de l'ENVELOPPE, comme `label` et `description` : une app
+#                  générée naît avec son monde déclaré — route §10.6 point 6.1)
 #   ports        → input_types/output_types (inversion de `studio_node_ports` : le port
 #                  travail rend les médias DANS L'ORDRE (= priorité, §10.1), le port prompt
 #                  redevient un 'text' en QUEUE ; les ports `reference` sont IGNORÉS ici —
@@ -869,11 +855,12 @@ def _project_access(app_id: str, access: dict, *, apply: bool) -> dict:
 #                  les écrire depuis le manifeste projetterait une mesure comme déclaration.
 # `color` est EXCLUE : dérivée à l'import par `_assign_derived_colors()` (teinte de catégorie
 # + rang alphabétique) — l'écrire la figerait en override.
-CATALOG_FIELD_ORDER = ('label', 'category', 'icon', 'url_name', 'description',
+CATALOG_FIELD_ORDER = ('label', 'category', 'world', 'icon', 'url_name', 'description',
                        'input_extensions', 'input_types', 'batch_type', 'has_batch',
                        'has_url_import', 'has_youtube', 'has_result_import',
                        'has_reference_result', 'has_live_input', 'output_types')
-IDENTITY_FIELDS = ('label', 'category', 'icon', 'url_name', 'description', 'input_extensions')
+IDENTITY_FIELDS = ('label', 'category', 'world', 'icon', 'url_name', 'description',
+                   'input_extensions')
 PORTS_FIELDS = ('input_types', 'output_types')
 #: Capacités qui ouvrent les ports du RÉSULTAT (`app_registry.RESULT_CAPABILITY_TOKENS`).
 RESULT_CAPABILITY_FIELDS = ('has_result_import', 'has_reference_result')
@@ -900,6 +887,7 @@ def _identity_target(manifest: dict) -> dict:
     return {
         'label': manifest.get('name') or manifest.get('key'),
         'category': ident.get('category'),
+        'world': manifest.get('world'),
         'icon': ident.get('icon'),
         'url_name': ident.get('url_name'),
         'description': manifest.get('description') or '',

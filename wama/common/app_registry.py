@@ -898,11 +898,29 @@ def get_apps_by_category():
     return out
 
 
+def app_world(app_id: str) -> str | None:
+    """Monde DÉCLARÉ d'une app du catalogue — `media | data | lab | transverse`, le vocabulaire
+    de `manifests/envelope.WORLDS` — ou None si elle n'en déclare pas.
+
+    Chaque app déclare son monde (décision du 2026-09-15, `WAMA_APP_GENERATION_ROUTE.md §10.6`
+    point 6.1, marche P1). Il était DÉDUIT du groupe de la matrice d'accès : un libellé de
+    navigation renommé déplaçait une app de monde en silence, et transcriber, reader et
+    describer sortaient `data`, le converter `transverse`.
+
+    Aucun repli, à dessein : une app sans monde rend None et c'est l'appelant qui le dit — un
+    manifeste sans monde est refusé à la validation de l'enveloppe.
+    ⏳ Les surfaces hors catalogue (Lab, Studio, Médiathèque) ne déclarent pas encore le leur ici ;
+    le journal porte toujours ses propres constantes (`journal.MONDE_*`).
+    """
+    return (APP_CATALOG.get(app_id) or {}).get('world')
+
+
 APP_CATALOG = {
 
     'anonymizer': {
         'label':       'Anonymizer',
         'category': 'transform',  # cf. APP_CATEGORIES (dérivable de input/output_types)
+        'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-user-secret',
         'url_name':    'anonymizer:index',
         'description': 'Floutage automatique de visages et plaques sur images et vidéos.',
@@ -949,6 +967,7 @@ APP_CATALOG = {
     'avatarizer': {
         'label':       'Avatarizer',
         'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
+        'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-user-circle',
         'url_name':    'avatarizer:index',
         'description': 'Génération de vidéos d\'avatars parlants : une photo animée par IA (MuseTalk + '
@@ -1008,6 +1027,7 @@ APP_CATALOG = {
     'composer': {
         'label':       'Composer',
         'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
+        'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-music',
         'url_name':    'composer:index',
         'description': 'Génération de musique et effets sonores par IA.',
@@ -1060,6 +1080,7 @@ APP_CATALOG = {
     'converter': {
         'label':       'Converter',
         'category': 'transform',  # cf. APP_CATEGORIES (dérivable de input/output_types)
+        'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-exchange-alt',
         'url_name':    'converter:index',
         'description': 'Conversion de formats : image, vidéo, audio, documents, archives (Pillow + FFmpeg + Pandoc).',
@@ -1121,6 +1142,7 @@ APP_CATALOG = {
     'describer': {
         'label':       'Describer',
         'category': 'understand',  # cf. APP_CATEGORIES (dérivable de input/output_types)
+        'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-search-plus',
         'url_name':    'describer:index',
         'description': 'Description automatique d\'images, vidéos, fichiers audio et documents par LLM.',
@@ -1168,6 +1190,7 @@ APP_CATALOG = {
     'enhancer': {
         'label':       'Enhancer',
         'category': 'transform',  # cf. APP_CATEGORIES (dérivable de input/output_types)
+        'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-magic',
         'url_name':    'enhancer:index',
         'description': 'Upscaling IA d\'images/vidéos et amélioration audio (Resemble, DeepFilterNet).',
@@ -1213,6 +1236,7 @@ APP_CATALOG = {
     'imager': {
         'label':       'Imager',
         'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
+        'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-image',
         'url_name':    'imager:index',
         'description': 'Génération d\'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…).',
@@ -1271,6 +1295,7 @@ APP_CATALOG = {
     'reader': {
         'label':       'Reader (OCR)',
         'category': 'understand',  # cf. APP_CATEGORIES (dérivable de input/output_types)
+        'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-book-open',
         'url_name':    'reader:index',
         'description': 'Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR).',
@@ -1316,6 +1341,7 @@ APP_CATALOG = {
     'synthesizer': {
         'label':       'Synthesizer',
         'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
+        'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-microphone',
         'url_name':    'synthesizer:index',
         'description': 'Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…).',
@@ -1372,6 +1398,7 @@ APP_CATALOG = {
     'transcriber': {
         'label':       'Transcriber',
         'category': 'understand',  # cf. APP_CATEGORIES (dérivable de input/output_types)
+        'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-file-alt',
         'url_name':    'transcriber:index',
         'description': 'Transcription audio/vidéo en texte (Whisper).',
