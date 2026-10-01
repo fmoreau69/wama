@@ -904,7 +904,10 @@ d'avance, `--leveled-input`). VAD « auto » sauf 5 et 6. WER de corpus (Σ erre
   enregistrements**, massivement sur les audios bas ou dégradés (CFPP 34,8 contre 87,3 ; champ
   lointain 43,4 contre 57,3), un peu moins bien sur l'audio propre (31,3 contre 30,3). L'ordre
   proposé par Fabien est donc le bon QUAND on débruite. Mais **aucune configuration avec
-  débruitage ne bat le nivellement seul** : sur ces corpus, le débruitage n'apporte rien.
+  débruitage ne bat le nivellement seul** : sur ces corpus, le débruitage DeepFilterNet n'apporte
+  rien. ⚠ « Débruitage » = ce que fait le prétraitement du transcriber, et RIEN D'AUTRE
+  (`transcriber/utils/audio_preprocessor.py:52-82` : DeepFilterNet + normalisation de crête). Ce
+  n'est pas l'AMÉLIORATION de l'enhancer (remarque de Fabien, 2026-10-01) → mesurée ci-dessous.
 - ⭐ **Le nivellement aide sur le réel** : CFPP 34,4 → 30,4, et sur les **3 entretiens** (−4,6 ;
   −6,0 ; −2,1). Même sens sur le champ lointain (3/3). Avec un bruit stationnaire à 15 dB il est
   mitigé (1 réunion +10,6, les 2 autres −0,2 et −1,8) ; neutre sur l'audio propre.
@@ -925,6 +928,38 @@ d'avance, `--leveled-input`). VAD « auto » sauf 5 et 6. WER de corpus (Σ erre
 - ⚠ Deux relances de WAMA pendant les traitements (30/09 14:25 et 20:51) ont coupé une tâche
   GPU chacune (#1048, #1118, relancées à la main) ; la file elle-même a survécu (sauvegarde
   RDB de Redis : 35 messages retrouvés).
+
+**Suite (2026-10-01) — l'AMÉLIORATION de l'enhancer, Resemble Enhance.** Remarque de Fabien : *« À
+la base c'est amélioration ou amélioration + débruitage ; le débruitage n'est qu'une option. »*
+Le banc ci-dessus n'avait mesuré que le débruitage DeepFilterNet. 36 cards de plus (Whisper,
+VAD auto) sur des audios améliorés d'avance par la brique de l'enhancer (`run_audio_enhancement`,
+réglages par défaut de l'app : force 0,5, 64 évaluations ; `asr_eval_corpus --enhance-input`).
+Sonde préalable : Resemble CONSERVE le niveau d'une parole enregistrée bas (−49 dBFS en entrée
+comme en sortie), ≈ 14 × le temps réel. WER de corpus :
+
+| condition | rien | nivellement | DFN | nivel. → DFN | **amélioration** | nivel. → amélioration | amélioration + débruitage | nivel. → amélioration + débruitage |
+|---|---|---|---|---|---|---|---|---|
+| CFPP réel | 34,4 | **30,4** | 88,7 | 34,8 | 51,7 | 51,4 | 73,3 | 58,7 |
+| SUMM-RE champ lointain | 40,3 | **36,5** | 56,0 | 43,4 | 87,2 | 89,3 | 92,7 | 95,3 |
+| SUMM-RE propre | **28,9** | 29,4 | 31,8 | 31,3 | 30,8 | 31,6 | 35,9 | 35,6 |
+
+- ⚠⚠ **L'amélioration Resemble NUIT à l'ASR dès que l'audio est dégradé** — et plus encore avec son
+  débruitage. Deux mécanismes, lus dans les sorties : (1) **DÉRIVE DE LANGUE** — sur l'audio
+  amélioré, Whisper n'entend plus du français : 11 des 12 cards champ lointain sortent en tout ou
+  partie en anglais, gallois, breton, danois (*« I'm Jane, you're Lester… »* sur une réunion
+  française), 3 cards CFPP aussi (mode amélioration + débruitage) ; (2) **CONTENU ALTÉRÉ** — même
+  détecté français, le texte boucle ou se substitue (CFPP 5 : 67,8 %, boucles *« C'est mon frère.
+  C'est mon frère. »*). Le modèle GÉNÉRATIF restaure une parole qu'il ne comprend pas, et en
+  change les sons. Sur l'audio PROPRE, il est à peu près neutre.
+- Le nivellement préalable ne le sauve pas (contrairement au débruitage DeepFilterNet, que le
+  nivellement sauvait : son défaut était le NIVEAU, celui de Resemble est le CONTENU).
+- ⇒ **Le meilleur prétraitement mesuré reste le nivellement seul** (VAD « auto ») ; sur le réel,
+  nivellement + VAD coupé fait aussi bien. L'amélioration de l'enhancer sert l'ÉCOUTE humaine,
+  pas la transcription — à ne pas brancher en prétraitement de l'ASR.
+- Non mesuré : Resemble avec la langue IMPOSÉE (isolerait l'effet acoustique de la dérive de
+  langue) ; d'autres réglages de Resemble (force, évaluations).
+- 🔜 Décisions (a)-(c) ci-dessus inchangées ; s'y ajoute (d) : ne pas proposer l'amélioration
+  de l'enhancer comme prétraitement du transcriber.
 
 ---
 
