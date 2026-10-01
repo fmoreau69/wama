@@ -193,11 +193,11 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "default": {
-                  "expr": "'musicgen-small'",
+                  "expr": "'composer:musicgen-small'",
                   "imports": []
                 },
                 "max_length": {
-                  "expr": "64",
+                  "expr": "128",
                   "imports": []
                 }
               },
@@ -242,6 +242,27 @@
                 }
               },
               "name": "melody_reference"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('composer', 'input')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "reference_score"
             },
             {
               "args": [],
@@ -770,7 +791,9 @@
             "options_domain": null,
             "options_group": "",
             "options_mode": null,
+            "options_ports": false,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -791,7 +814,7 @@
               "item",
               "batch"
             ],
-            "default": null,
+            "default": "auto:text-to-music",
             "dom_id": {
               "batch": "batchSettingsModel",
               "item": "settingsModel",
@@ -800,8 +823,8 @@
             "group": "",
             "help": "",
             "help_fallback": {
-              "auto-music": "Choix automatique : le plus gros modèle MUSIQUE tenant dans la VRAM libre au lancement.",
-              "auto-sfx": "Choix automatique : le plus gros modèle BRUITAGES tenant dans la VRAM libre au lancement."
+              "auto:text-to-audio": "Choix automatique : le meilleur modèle AMBIANCE / BRUITAGE tenant dans la VRAM libre au lancement.",
+              "auto:text-to-music": "Choix automatique : le meilleur modèle MUSIQUE tenant dans la VRAM libre au lancement."
             },
             "help_html": "",
             "help_source": "composer",
@@ -813,54 +836,19 @@
             "min": null,
             "min_label": "",
             "name": "model",
-            "option_groups": [
-              [
-                "🎵 Musique (MusicGen)",
-                [
-                  [
-                    "auto-music",
-                    "🧠 Choix automatique — le plus gros modèle musique tenant dans la VRAM libre au lancement"
-                  ],
-                  [
-                    "musicgen-small",
-                    "MusicGen Small — génération rapide, 300M params"
-                  ],
-                  [
-                    "musicgen-medium",
-                    "MusicGen Medium — meilleure qualité, 1.5B params"
-                  ],
-                  [
-                    "musicgen-melody",
-                    "MusicGen Melody — conditionné par mélodie de référence"
-                  ],
-                  [
-                    "minimax-music3",
-                    "MiniMax-Music3 — chansons complètes avec paroles chantées (Q8)"
-                  ]
-                ]
-              ],
-              [
-                "⚡ Bruitages (AudioGen)",
-                [
-                  [
-                    "auto-sfx",
-                    "🧠 Choix automatique — le plus gros modèle bruitages tenant dans la VRAM libre au lancement"
-                  ],
-                  [
-                    "audiogen-medium",
-                    "AudioGen Medium — bruitages et sons d'ambiance, 1.5B params"
-                  ]
-                ]
-              ]
-            ],
+            "option_groups": null,
             "options_abilities": false,
-            "options_auto": false,
+            "options_auto": "group",
             "options_cloud": false,
             "options_domain": null,
-            "options_group": "",
+            "options_group": "task",
             "options_mode": null,
-            "options_query": null,
-            "options_source": null,
+            "options_ports": true,
+            "options_query": {
+              "task": "text-to-music,text-to-audio"
+            },
+            "options_resolution": null,
+            "options_source": "catalog",
             "pills": [],
             "radio_name": "",
             "section": "settings",
@@ -906,7 +894,9 @@
             "options_domain": null,
             "options_group": "",
             "options_mode": null,
+            "options_ports": false,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -914,8 +904,8 @@
             "show_if": {
               "field": "model",
               "in": [
-                "auto-music",
-                "auto-sfx"
+                "auto:text-to-music",
+                "auto:text-to-audio"
               ]
             },
             "step": 1,
@@ -959,7 +949,9 @@
             "options_domain": null,
             "options_group": "",
             "options_mode": null,
+            "options_ports": false,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1039,7 +1031,9 @@
             "options_domain": null,
             "options_group": "",
             "options_mode": null,
+            "options_ports": false,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1099,7 +1093,9 @@
             "options_domain": null,
             "options_group": "",
             "options_mode": null,
+            "options_ports": false,
             "options_query": null,
+            "options_resolution": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1143,6 +1139,16 @@
           "multi": false,
           "types": [
             "audio"
+          ]
+        },
+        {
+          "description": "Une partition (ABC, MIDI ou MusicXML) que le modèle SUIT : mélodie, accords, structure. Il l'interprète, il ne la recopie pas.",
+          "group": "reference",
+          "id": "reference_score",
+          "label": "Partition",
+          "multi": false,
+          "types": [
+            "score"
           ]
         }
       ],
@@ -1333,11 +1339,12 @@
         "add_to_composer": {
           "args": {
             "duration": "range — Durée [10–600s] (défaut : 10.0)",
-            "model": "select — Modèle (défaut : 'musicgen-small')",
+            "model": "select — Modèle (défaut : 'auto:text-to-music')",
             "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus)",
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max)",
             "prompt": "textarea — Prompt (requis)",
-            "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)"
+            "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
+            "reference_score": "str"
           },
           "description": "Ajoute un élément à la file d'attente de Composer (Génération de musique et effets sonores par IA) et renvoie son item_id."
         },

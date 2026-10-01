@@ -215,6 +215,13 @@ ASSET_NATURES: Dict[str, Nature] = {
         # nature est `3d`. Le champ reste pour les natures qui portent VRAIMENT une donnée du
         # monde Data (un `.csv` rangé en médiathèque → `table`), jamais pour créer un jumeau.
     ),
+    # Partitions (2026-10-01) — la musique NOTÉE : ABC, MIDI, MusicXML. Extensions ⊂
+    # `app_registry.SCORE_EXTENSIONS` (sans point). Pas une nature audio : une partition n'a pas
+    # de son, un modèle l'INTERPRÈTE (YuE2, port `reference_score`).
+    'score': Nature(
+        label='Partition', category='score', icon='fa-file-audio',
+        extensions=('abc', 'mid', 'midi', 'musicxml', 'mxl'),
+    ),
 }
 
 for _k, _n in ASSET_NATURES.items():
@@ -236,7 +243,7 @@ del _k, _n
 #: nocturne du studio écrivait `asset_type='audio'` tel quel — d'où une ligne hors vocabulaire.
 CATEGORY_DEFAULT: Dict[str, str] = {
     'audio': 'audio_music', 'image': 'image', 'video': 'video',
-    'document': 'document', '3d': 'object3d',
+    'document': 'document', '3d': 'object3d', 'score': 'score',
 }
 for _c, _t in CATEGORY_DEFAULT.items():
     if _t not in ASSET_NATURES or ASSET_NATURES[_t].category != _c:

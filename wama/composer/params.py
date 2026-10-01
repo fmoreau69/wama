@@ -40,6 +40,9 @@ PARAMS = [
           options_source="catalog",
           options_query={"task": ",".join(TASKS)},
           options_group="task", options_auto="group",
+          # Les modèles proposés SONT ceux du composer : leurs entrées ouvrent les ports de la card
+          # (la partition de YuE2, 2026-10-01) — `app_registry.app_input_ports`.
+          options_ports=True,
           default=AUTO_MUSIC),
     # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur les « auto », lu au
     # LANCEMENT par le tirage (`resolve_auto_model` → `item=gen`). Rendu par le renderer commun

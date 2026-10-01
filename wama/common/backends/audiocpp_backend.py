@@ -156,7 +156,9 @@ class AudioCppBackend(MusicGenerationBackend):
         melody_path: Optional[str] = None,   # contrat commun — non supporté par ce moteur
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
+        score_path: Optional[str] = None,
     ) -> str:
+        self.refuse_score(score_path, 'audio.cpp')
         from wama.common.services.resource_governor import vram_reservation
         # Passe-plat COMMUN : le backend lit la déclaration sans importer l'app.
         # Le jour où il rejoint le substrat, cette ligne ne change pas — c'est

@@ -95,6 +95,26 @@ def consumes_melody(value) -> bool:
     return 'reference_melody' in accepted or model_id(key) == 'musicgen-melody'
 
 
+def _accepted(caps) -> set:
+    caps = caps or {}
+    return set(caps.get('inputs_required') or []) | set(caps.get('inputs_optional') or [])
+
+
+def consumes_input(value, token: str) -> bool:
+    """Le modèle prend-il l'entrée `token` (capacité DÉCLARÉE au catalogue) ? Pour un « auto » de
+    groupe : oui si AU MOINS UN modèle de sa tâche la déclare — le tirage choisira alors parmi
+    eux (`auto_model.resolve_auto_model`, `consumes`). Ne lève jamais."""
+    key = normalize(value)
+    try:
+        from wama.model_manager.models import AIModel
+        task = auto_task(key)
+        rows = (AIModel.objects.filter(capabilities__task=task) if task
+                else AIModel.objects.filter(model_key=key))
+        return any(token in _accepted(c) for c in rows.values_list('capabilities', flat=True))
+    except Exception:
+        return False
+
+
 def label_of(value) -> str:
     """Libellé lisible : la description de l'app, sinon le nom du catalogue, sinon la valeur."""
     key = normalize(value)

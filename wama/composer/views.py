@@ -18,8 +18,8 @@ from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance, release_card_file
 from .models import ComposerBatch, ComposerBatchItem, ComposerGeneration
-from .utils.model_choice import (AUTO_MUSIC, AUTO_SFX, DEFAULT_MODEL, consumes_melody, is_valid,
-                                 normalize)
+from .utils.model_choice import (AUTO_MUSIC, AUTO_SFX, DEFAULT_MODEL, consumes_input, consumes_melody,
+                                 is_valid, normalize)
 from .utils.model_config import COMPOSER_MODELS, clamp_duration
 
 # Route F4b (2026-10-01) : le modèle est une CLÉ DE CATALOGUE (ou un « auto » de groupe), le type
@@ -96,7 +96,7 @@ def _copy_link_extra(new_gen, old_gen):
 _bv = make_batch_views(
     work_model=ComposerGeneration, batch_model=ComposerBatch, get_user=_get_user,
     task_for=_task_for, start_only_pending=True,
-    file_fields=('melody_reference', 'audio_output'), output_fields=('audio_output',),
+    file_fields=('melody_reference', 'reference_score', 'audio_output'), output_fields=('audio_output',),
     item_model=ComposerBatchItem, fk_name='generation',
     reset_on_start=_reset_for_relaunch,
     reset_on_duplicate={'status': 'PENDING', 'progress': 0, 'task_id': None,
@@ -276,6 +276,13 @@ def generate(request):
         melody = received_inputs(request, user, 'composer', field='melody_reference')
         if melody:
             melody[0].assign(gen, 'melody_reference')
+    # Partition de référence (port `reference_score`, 2026-10-01) — même brique, même règle :
+    # jointe si le modèle la DÉCLARE (un « auto » la fera tirer parmi ceux qui la consomment).
+    if consumes_input(model_id, 'reference_score'):
+        from wama.common.utils.media_paths import received_inputs
+        score = received_inputs(request, user, 'composer', field='reference_score')
+        if score:
+            score[0].assign(gen, 'reference_score')
 
     # Wrap in batch-of-1
     _wrap_generation_in_batch(gen)
@@ -644,9 +651,10 @@ def delete(request, pk):
     # Delete output unconditionally
     release_card_file(gen, 'audio_output')
 
-    # Melody reference: check refs before deleting
-    if gen.melody_reference:
-        release_card_file(gen, 'melody_reference')
+    # Références (mélodie, partition) : check refs before deleting
+    for field in ('melody_reference', 'reference_score'):
+        if getattr(gen, field):
+            release_card_file(gen, field)
 
     gen.delete()
 
@@ -810,8 +818,9 @@ def clear_all(request):
     gens = ComposerGeneration.objects.filter(user=user).exclude(status='RUNNING')
     for gen in gens:
         release_card_file(gen, 'audio_output')
-        if gen.melody_reference:
-            release_card_file(gen, 'melody_reference')
+        for field in ('melody_reference', 'reference_score'):
+            if getattr(gen, field):
+                release_card_file(gen, field)
 
     gens.delete()
     ComposerBatch.objects.filter(user=user).delete()

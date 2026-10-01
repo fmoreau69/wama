@@ -52,6 +52,7 @@ class MusicGenerationBackend(BaseModelBackend):
         melody_path: Optional[str] = None,
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
+        score_path: Optional[str] = None,
     ) -> str:
         """Écrit l'audio généré dans `output_path` et rend ce chemin.
 
@@ -65,5 +66,15 @@ class MusicGenerationBackend(BaseModelBackend):
         `melody_path`       : audio de référence facultatif — un moteur qui ne l'accepte pas le
                               REFUSE en le disant, jamais en l'ignorant ;
         `progress_callback` : reçoit un pourcentage (0-100) ;
-        `on_audio`          : facultatif, `(tableau, fréquence)` d'un aperçu pendant le calcul.
+        `on_audio`          : facultatif, `(tableau, fréquence)` d'un aperçu pendant le calcul ;
+        `score_path`        : partition facultative (ABC, MIDI, MusicXML — port `reference_score`,
+                              2026-10-01) — même règle que la mélodie : un moteur qui ne la suit
+                              pas la REFUSE en le disant (`refuse_score`), jamais en l'ignorant.
         """
+
+    @staticmethod
+    def refuse_score(score_path: Optional[str], engine: str) -> None:
+        """Le refus COMMUN d'une partition par un moteur qui ne la suit pas."""
+        if score_path:
+            raise ValueError(f"{engine} ne suit pas de partition — choisir un modèle qui la déclare "
+                             f"(entrée « Partition », ex. YuE2).")

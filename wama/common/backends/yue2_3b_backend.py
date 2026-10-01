@@ -107,6 +107,24 @@ class YuE2Backend(MusicGenerationBackend):
         except Exception:
             pass
 
+    @staticmethod
+    def _score_abc(score_path: str) -> str:
+        """Le texte ABC d'une partition — ou un refus qui DIT pourquoi.
+
+        MIDI et MusicXML se convertiront par le compilateur de partition du moteur
+        (`skills/yue2-music/instrumental/scripts/compile_score.py` : notes → ABC au format
+        d'entraînement de YuE2), à partir d'un lecteur MIDI qui n'est pas encore installé — un
+        convertisseur générique produirait un ABC hors de ses conventions."""
+        suffix = Path(score_path).suffix.lower()
+        if suffix != ".abc":
+            raise ValueError(
+                f"YuE2‑3B suit une partition ABC ; la conversion {suffix or 'de ce fichier'} → ABC "
+                "n'est pas encore disponible. Fournir le fichier en .abc.")
+        text = Path(score_path).read_text(encoding="utf-8", errors="replace").strip()
+        if not text:
+            raise ValueError("La partition ABC fournie est vide.")
+        return text
+
     # ------------------------------------------------------------------
     # Génération
     # ------------------------------------------------------------------
@@ -119,6 +137,7 @@ class YuE2Backend(MusicGenerationBackend):
         melody_path: Optional[str] = None,
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
+        score_path: Optional[str] = None,
     ) -> str:
         """
         Génère un fichier audio à partir du *prompt*.
@@ -132,6 +151,10 @@ class YuE2Backend(MusicGenerationBackend):
         - *on_audio* : callback ``(numpy.ndarray, int)`` appelé une fois que le
           tableau audio final est disponible.
         """
+        # *score_path* (port `reference_score`, 2026-10-01) : une partition ABC est donnée telle
+        # quelle au pipeline (`abc=`, « Using provided score ») ; MIDI et MusicXML sont REFUSÉS
+        # en le disant tant que leur conversion n'est pas câblée (`_score_abc`).
+        abc = self._score_abc(score_path) if score_path else None
         if melody_path is not None:
             raise ValueError("YuE2‑3B ne supporte pas le paramètre melody_path")
 
@@ -164,6 +187,7 @@ class YuE2Backend(MusicGenerationBackend):
                 lyrics=lyrics,
                 cot="full",
                 seed=seed,
+                **({"abc": abc} if abc else {}),
             )
         except Exception as exc:
             logger.exception("Échec de la génération YuE2‑3B")

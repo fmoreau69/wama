@@ -124,6 +124,12 @@ INPUT_TYPES = {
     # seul document. Premier consommateur : le Writer (ROADMAP §21.5).
     'reference_document': {'label': 'Document de référence', 'kind': 'file', 'accept': 'document', 'multi': False, 'port': 'reference',
                            'description': "Un document qui NOURRIT le contenu (faits, chiffres, termes) sans être recopié ni transformé."},
+    # Rôle « référence » × nature `score` (2026-10-01) — même règle : le rôle suit la NATURE. Une
+    # partition GUIDE la composition comme une mélodie de référence, mais par ses notes et non par
+    # un son. Premier consommateur : YuE2 (composer), qui suit une partition ABC.
+    'reference_score': {'label': 'Partition', 'kind': 'file', 'accept': 'score', 'multi': False, 'port': 'reference',
+                        'description': "Une partition (ABC, MIDI ou MusicXML) que le modèle SUIT : "
+                                       "mélodie, accords, structure. Il l'interprète, il ne la recopie pas."},
     # ── Entrées consommées par l'APP, jamais par un modèle (2026-09-23) ─────────────────
     # Les jetons ci-dessus sont lus par un MODÈLE (ils arrivent par ses `inputs_required`/
     # `inputs_optional`). Ces deux-là sont lus par l'app AUTOUR du modèle : aucun moteur ne les
