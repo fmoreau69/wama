@@ -3140,8 +3140,11 @@ document.addEventListener('DOMContentLoaded', function () {
             makeZoneLayer('map_buildings', 'buildings', (d, layer) =>
                 (d.buildings || []).forEach(b => (b.rings || []).forEach(ring => {
                     if (Array.isArray(ring) && ring.length >= 3) {
-                        L.polygon(ring, { color: '#9e9e9e', weight: 1, opacity: 0.8,
-                            fillColor: '#757575', fillOpacity: 0.35, interactive: false }).addTo(layer);
+                        // Teinte BRIQUE (2026-10-01, demande de Fabien) : le gris d'origine se perdait
+                        // sur l'orthophoto ; couleur absente des autres couches (objets vert/orange/
+                        // rouge, voies cyan/violet, navette jaune).
+                        L.polygon(ring, { color: '#ff8a65', weight: 1.2, opacity: 0.9,
+                            fillColor: '#bf360c', fillOpacity: 0.35, interactive: false }).addTo(layer);
                     }
                 }))),
             // ⚑ map_road_zones — emprise de CHAUSSÉE : axes IGN élargis de leur largeur puis UNIS
