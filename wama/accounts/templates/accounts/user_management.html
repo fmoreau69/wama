@@ -19,11 +19,30 @@
                 </button>
             </div>
 
-            <!-- Users Table -->
-            <div class="card bg-dark border-secondary">
+            {% comment %}Barre COMMUNE (filtre / tri / recherche, mode client) — 2026-10-01, demande de
+            Fabien. Les lignes portent `data-f-tier` / `data-f-statut` (facettes) et `data-s-*` (tri) ;
+            chaque section est un groupe (`data-f-groupe`) qui disparaît quand le filtre la vide.{% endcomment %}
+            {% include 'common/_filter_bar.html' with facettes=facets cible='.user-row' mode='client' sort_options=sorts sort_value='username:asc' placeholder='Rechercher un compte (identifiant, email, nom)…' %}
+            <div class="wama-filter-empty text-muted text-center py-3" style="display:none;">
+                Aucun compte ne correspond.
+            </div>
+
+            {% for section in sections %}
+            <!-- Section : {{ section.label }} -->
+            <div class="card bg-dark border-secondary mb-4" data-f-groupe="{{ section.kind }}"
+                 data-account-section="{{ section.kind }}">
+                <div class="card-header border-secondary d-flex align-items-center">
+                    <h5 class="mb-0 text-light">
+                        <i class="fas fa-{% if section.kind == 'test' %}flask{% else %}users{% endif %} me-2"></i>{{ section.label }}
+                    </h5>
+                    <span class="badge bg-secondary ms-2">{{ section.users|length }}</span>
+                    {% if section.kind == 'test' %}
+                    <span class="text-muted small ms-3">Identifiants préfixés <code>wama_</code>, et le compte système anonyme</span>
+                    {% endif %}
+                </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-dark table-hover">
+                        <table class="table table-dark table-hover mb-0">
                             <thead>
                                 <tr>
                                     <th>Utilisateur</th>
@@ -37,12 +56,18 @@
                                     </th>
                                     <th>Statut</th>
                                     <th>Date d'inscription</th>
+                                    <th>Dernière connexion</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for item in users %}
-                                <tr data-user-id="{{ item.user.id }}">
+                                {% for item in section.users %}
+                                <tr class="user-row" data-user-id="{{ item.user.id }}"
+                                    data-f-tier="{{ item.role }}"
+                                    data-f-statut="{% if item.user.is_active %}actif{% else %}inactif{% endif %}"
+                                    data-s-username="{{ item.user.username|lower }}"
+                                    data-s-joined="{{ item.user.date_joined|date:'U' }}"
+                                    data-s-login="{% if item.user.last_login %}{{ item.user.last_login|date:'U' }}{% endif %}">
                                     <td>
                                         <i class="fas fa-user me-2"></i>
                                         {{ item.user.username }}
@@ -54,6 +79,7 @@
                                     <td>{{ item.user.first_name }} {{ item.user.last_name }}</td>
                                     <td>
                                         <select class="form-select form-select-sm bg-dark text-white border-secondary role-select"
+                                                style="min-width:10rem;"
                                                 data-user-id="{{ item.user.id }}"
                                                 {% if item.user.username == 'anonymous' %}disabled{% endif %}>
                                             <option value="admin" {% if item.role == 'admin' %}selected{% endif %}>
@@ -112,6 +138,7 @@
                                         {% endif %}
                                     </td>
                                     <td>{{ item.user.date_joined|date:"d/m/Y H:i" }}</td>
+                                    <td>{{ item.user.last_login|date:"d/m/Y H:i"|default:"Jamais" }}</td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
                                             {% if item.user.username != 'anonymous' and item.user != request.user %}
@@ -136,7 +163,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="8" class="text-center">Aucun utilisateur trouvé</td>
+                                    <td colspan="9" class="text-center text-muted">Aucun compte dans cette section</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -144,6 +171,7 @@
                     </div>
                 </div>
             </div>
+            {% endfor %}
 
             <!-- Roles Legend -->
             <div class="card bg-dark border-secondary mt-4">
