@@ -56,3 +56,63 @@ class CameraConsistencyTest(SimpleTestCase):
         by_cam = out.df.set_index('camera')
         self.assertEqual(by_cam.loc['right', 'behind_share'], 1.0)
         self.assertEqual(by_cam.loc['front', 'behind_share'], 0.0)
+
+
+class TrackingContinuityTest(SimpleTestCase):
+    """Métrique #3 : ce qu'un suivi multi-caméras duplique ou perd (2026-10-01)."""
+
+    def test_a_detector_chain_carried_by_two_track_ids_is_a_split(self):
+        from wama_data.functions.geometry.placement_metrics import tracking_continuity
+        obs = [(f, 'front', 7, 1 if f < 5 else 2, float(f), 0.0) for f in range(10)]
+        res = tracking_continuity(obs)
+        self.assertEqual((res['chains'], res['chain_splits']), (1, 1))
+        # recollé après coup : plus d'éclatement
+        self.assertEqual(tracking_continuity(obs, root=lambda g: 1)['chain_splits'], 0)
+
+    def test_close_ids_never_seen_together_are_probable_duplicates(self):
+        from wama_data.functions.geometry.placement_metrics import tracking_continuity
+        obs = []
+        for f in range(20):
+            obs.append((f, 'front', 1, 10, float(f), 0.0))
+            obs.append((f, 'right', 5, 11, float(f), 2.5))        # même objet, autre caméra, 2,5 m
+        res = tracking_continuity(obs)
+        self.assertEqual((res['cross_camera_close_pairs'], res['same_camera_close_pairs']), (1, 0))
+
+    def test_close_ids_seen_together_by_one_camera_are_real_neighbours(self):
+        from wama_data.functions.geometry.placement_metrics import tracking_continuity
+        obs = []
+        for f in range(20):
+            obs.append((f, 'front', 1, 10, float(f), 0.0))
+            obs.append((f, 'front', 2, 11, float(f), 2.5))         # deux boîtes d'une même image
+        res = tracking_continuity(obs)
+        self.assertEqual((res['cross_camera_close_pairs'], res['same_camera_close_pairs']), (0, 1))
+
+    def test_a_brief_encounter_is_not_counted(self):
+        from wama_data.functions.geometry.placement_metrics import tracking_continuity
+        obs = [(f, 'front', 1, 10, 0.0, 0.0) for f in range(5)] + \
+              [(f, 'left', 3, 11, 1.0, 0.0) for f in range(5)]
+        self.assertEqual(tracking_continuity(obs)['cross_camera_close_pairs'], 0)
+
+    def test_a_reused_detector_number_after_a_long_gap_is_another_chain(self):
+        """Analyse par fenêtres : le détecteur repart et réutilise ses numéros pour d'autres objets."""
+        from wama_data.functions.geometry.placement_metrics import tracking_continuity
+        obs = [(f, 'front', 7, 1, 0.0, 0.0) for f in range(10)] + \
+              [(f, 'front', 7, 2, 50.0, 0.0) for f in range(500, 510)]
+        res = tracking_continuity(obs)
+        self.assertEqual((res['chains'], res['chain_splits']), (2, 0))
+
+    def test_a_new_id_born_where_another_just_left_is_a_relay_break(self):
+        """Le détecteur change de numéro ET le suivi aussi : même objet, identifiant perdu."""
+        from wama_data.functions.geometry.placement_metrics import tracking_continuity
+        box = [100, 50, 160, 90]
+        obs = [(f, 'front', 1, 10, 0.0, 0.0, box) for f in range(10)] + \
+              [(f, 'front', 2, 11, 0.0, 0.0, box) for f in range(12, 20)]
+        self.assertEqual(tracking_continuity(obs)['relay_breaks'], 1)
+        self.assertEqual(tracking_continuity(obs, root=lambda g: 10)['relay_breaks'], 0,
+                         "recollé : plus de perte")
+
+    def test_a_new_object_elsewhere_in_the_image_is_not_a_relay_break(self):
+        from wama_data.functions.geometry.placement_metrics import tracking_continuity
+        obs = [(f, 'front', 1, 10, 0.0, 0.0, [100, 50, 160, 90]) for f in range(10)] + \
+              [(f, 'front', 2, 11, 9.0, 0.0, [300, 50, 360, 90]) for f in range(12, 20)]
+        self.assertEqual(tracking_continuity(obs)['relay_breaks'], 0)

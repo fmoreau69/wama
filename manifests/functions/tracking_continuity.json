@@ -1,0 +1,94 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "indicator",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Une ligne par détection suivie : image, caméra, identifiant de la trajectoire du détecteur (`chain_id`, facultatif), identifiant global et position monde.",
+        "group": "travail",
+        "key": "observations",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "frame",
+          "camera",
+          "track_id",
+          "x",
+          "y"
+        ]
+      }
+    ],
+    "key": "tracking_continuity",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne de compteurs ; éclatements et paires entre caméras : plus bas = meilleur.",
+        "key": "counts",
+        "optional": false,
+        "produced_fields": [
+          "chains",
+          "chain_splits",
+          "tracks",
+          "cross_camera_close_pairs",
+          "same_camera_close_pairs",
+          "relay_breaks"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 4.0,
+        "description": "Distance en deçà de laquelle deux identifiants sont « proches ».",
+        "key": "close_m",
+        "max": 20.0,
+        "min": 0.5,
+        "type": "float",
+        "unit": "m"
+      },
+      {
+        "choices": null,
+        "default": 12,
+        "description": "Images proches requises pour compter une paire.",
+        "key": "min_frames",
+        "max": 1000,
+        "min": 1,
+        "type": "int",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "tracking",
+      "multi-camera",
+      "ab-metric",
+      "no-ground-truth"
+    ],
+    "visibility": "public"
+  },
+  "description": "Compte, sans vérité terrain, ce qu'un suivi multi-caméras DUPLIQUE ou PERD : trajectoires de détecteur éclatées sur plusieurs identifiants, paires d'identifiants restés proches qu'aucune caméra n'a vus ensemble (doublons probables), et en référence les paires proches qu'une même caméra a vues ensemble (vrais voisins).",
+  "key": "tracking_continuity",
+  "manifest_kind": "function",
+  "name": "Continuité de suivi multi-caméras",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:tracking_continuity",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

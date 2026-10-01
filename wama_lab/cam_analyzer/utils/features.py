@@ -77,6 +77,23 @@ FEATURES = [
             "360° ne les fond plus dans le même véhicule (la fusion de doublons reste permise ENTRE "
             "caméras). OFF = une file de voitures garées proches pouvait porter un seul numéro.",
             default=True, scope='compute'),
+    Feature('chain_lock_priority', 'Tracking : les objets déjà suivis d\'abord',
+            "Dans chaque image, les détections d'une trajectoire DÉJÀ suivie récupèrent leur numéro "
+            "avant que les nouvelles ne cherchent le véhicule le plus proche. Sans cet ordre, une "
+            "nouvelle détection traitée en premier pouvait prendre le numéro d'un véhicule suivi, qui "
+            "devait alors en changer : un même véhicule éclaté sur plusieurs numéros. A/B : "
+            "« Continuité du suivi » en console (chaînes éclatées, doublons, recollement). "
+            "Mesuré sur ENA_CASA (2026-10-01) : chaînes éclatées 867 → 724, sans fusion abusive.",
+            default=True, scope='compute'),
+    Feature('birth_same_camera_guard', 'Tracking : un véhicule déjà vu par la caméra ne s\'absorbe pas',
+            "Une NOUVELLE trajectoire d'une caméra ne peut pas rejoindre un véhicule que cette même "
+            "caméra voit déjà par une autre trajectoire (vue il y a moins de 0,5 s) : c'est un autre "
+            "objet. Sans cette garde, une trajectoire née pendant une détection manquée du voisin s'y "
+            "fondait, puis les deux se disputaient le numéro. Une boîte qui recouvre la dernière de "
+            "l'autre trajectoire reste permise (le détecteur a changé de numéro pour le même véhicule). "
+            "Mesuré sur ENA_CASA avec la précédente (2026-10-01) : chaînes éclatées 867 → 597, doublons "
+            "28 → 25, relais ratés 39 → 38, aucune fusion abusive. A/B : « Continuité du suivi ».",
+            default=True, scope='compute'),
     Feature('class_family_gate', 'Porte de famille de classe (tracking)',
             "Le tracking 360° ne relie jamais un deux-roues (moto, vélo) à un quatre-roues "
             "(voiture, camion, bus) ni à un piéton : ni au rattachement d'une nouvelle chaîne, "

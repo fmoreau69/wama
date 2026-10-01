@@ -483,6 +483,10 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             if reset_tracker_fields(f.detections, _reset):
                 dirty.add(f)
 
+    _continuity_obs = []   # (image, caméra, chaîne détecteur, gid, e, n) — métrique #3
+    _chain_switch = defaultdict(int)
+    _live_chain = {}   # (gid, caméra) -> (chaîne détecteur, dernier instant) — ⚑ birth_same_camera_guard
+    _birth_guard = _feat.get('birth_same_camera_guard', True)
     for fn in all_fns:
         t = fn / fps * scale + off
         se, sn, sh = _shuttle_pose_at(sh_traj, t)
@@ -560,10 +564,21 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         # voulue plus haut est INTER-caméras). Mesuré le 2026-09-29 : trois voitures garées en
         # file vues à gauche, toutes G4712 (2,3 / 4,3 / 4,7 m).
         _claimed = defaultdict(dict)     # pos -> {gid: [bbox, ...]}
+        # ⚑ chain_lock_priority (2026-10-01) : les chaînes DÉJÀ verrouillées réclament leur gid AVANT
+        # que les chaînes nouvelles ne cherchent un plus-proche-voisin. Sans cet ordre, une chaîne
+        # nouvelle traitée en premier pouvait prendre le gid d'un objet suivi, que sa propre chaîne
+        # trouvait ensuite « pris par une autre boîte » : 1111 changements forcés de gid mesurés.
+        if _feat.get('chain_lock_priority', True):
+            def _locked_first(item):
+                _d, _pos = item[1], item[4]
+                _k = (_pos, _d.get('track_id')) if _d.get('track_id') is not None else None
+                return 0 if (_k and _k in chain and (t - chain[_k]['t']) <= 4.0) else 1
+            dets_here.sort(key=_locked_first)
         for f, d, e, n, pos, relaxed in dets_here:
             _tid = d.get('track_id')
             ck = (pos, _tid) if _tid is not None else None
             best = None
+            _lock_note = None
             # ── VERROU DE CHAÎNE ── : un track YOLO par caméra est une chaîne
             # temporellement cohérente — une fois appariée à un gid, elle le GARDE.
             # L'association frame par frame faisait churner le gid sur un même track
@@ -574,6 +589,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 if _same_cam_excl and best is not None and \
                         claims_distinct_box(_claimed[pos].get(best['id']), d.get('bbox')):
                     best = None          # le gid est déjà pris par un AUTRE objet de cette caméra
+                    _lock_note = 'verrou_pris_par_autre_boite'
+            elif ck and ck in chain:
+                _lock_note = 'verrou_expire'
             if best is None:
                 # NN — STRICT pour les mesures dégradées (ratio < 0.7, jamais de
                 # création) : c'est le pont physique du dépassement — le véhicule qui
@@ -591,6 +609,19 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                         continue
                     if _same_cam_excl and claims_distinct_box(_claimed[pos].get(tr['id']), d.get('bbox')):
                         continue
+                    # ⚑ birth_same_camera_guard (2026-10-01) : CETTE caméra voit déjà ce track par une
+                    # AUTRE chaîne, vivante il y a moins de 0,5 s (une détection manquée ne la tue
+                    # pas) — c'est un autre objet. L'exclusion ci-dessus ne voyait que l'image en cours :
+                    # une chaîne née pendant une détection manquée du voisin s'y fondait, puis les deux
+                    # chaînes se disputaient le gid (913 changements forcés mesurés).
+                    # Une boîte qui RECOUVRE la dernière de l'autre chaîne n'est pas un autre objet :
+                    # c'est le détecteur qui a changé de numéro pour le même véhicule — elle doit
+                    # pouvoir reprendre son gid (sans quoi la garde fabriquait des pertes).
+                    if _birth_guard:
+                        _lv = _live_chain.get((tr['id'], pos))
+                        if (_lv is not None and _lv[0] != ck and t - _lv[1] <= 0.5
+                                and box_iou(_lv[2], d.get('bbox')) < DUPLICATE_BOX_IOU):
+                            continue
                     pe = tr['e'] + tr['ve'] * dt
                     pn = tr['n'] + tr['vn'] * dt
                     ratio = math.hypot(e - pe, n - pn) / (gate_m + 1.5 * dt)
@@ -620,9 +651,14 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     best['vn'] = 0.7 * best['vn'] + 0.3 * rvn
                     best['e'], best['n'], best['last_t'] = e, n, t
             d['global_track_id'] = best['id']
+            _continuity_obs.append((fn, pos, _tid, best['id'], e, n, d.get('bbox')))
+            # Diagnostic (2026-10-01) : une chaîne de détecteur qui CHANGE de gid, et pourquoi.
+            if ck and ck in chain and chain[ck]['gid'] != best['id']:
+                _chain_switch[_lock_note or 'autre'] += 1
             _claimed[pos].setdefault(best['id'], []).append(d.get('bbox'))
             if ck:
                 chain[ck] = {'gid': best['id'], 't': t}   # verrou de chaîne (voir plus haut)
+                _live_chain[(best['id'], pos)] = (ck, t, d.get('bbox'))
             _bb = d.get('bbox')
             if (not relaxed and isinstance(_bb, (list, tuple)) and len(_bb) >= 4
                     and _bb[0] > 8 and _bb[2] < _cam_dims.get(pos, (384, 248))[0] - 8):
@@ -703,8 +739,13 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     _fam_of = ({g: dominant_family(v, min_share=0.6) for g, v in cls_votes.items()}
                if _family_gate else {})
     _stitch_refused = 0
+    # Diagnostic (2026-10-01) : pour chaque début de tracklet, POURQUOI il n'a pas été recollé — un
+    # recollement qui écarte l'essentiel de ses candidats doit dire par quelle porte.
+    _stitch_diag = defaultdict(int)
     for gid, t0, e0, n0 in _starts:
         best_g, best_ratio = None, 1.0
+        _slow_in_gate = False
+        _near = None
         for og, fit in _endfit.items():
             if _root(og) == _root(gid):
                 continue
@@ -713,12 +754,14 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             if gap <= 0 or gap > stitch_gap_s:
                 continue
             sp = math.hypot(ve, vn)
-            if sp < 1.0 and gap > 2.0:
-                continue
             dtp = t0 - tw                     # horizon de prédiction depuis le point sain
             pe = ew + ve * dtp
             pn = nw + vn * dtp
             ratio = math.hypot(e0 - pe, n0 - pn) / (gate_m + 1.5 * gap)
+            if sp < 1.0 and gap > 2.0:
+                _slow_in_gate = _slow_in_gate or ratio < 1.0
+                continue
+            _near = ratio if _near is None else min(_near, ratio)
             if ratio < best_ratio:
                 # ⚑ class_family_gate — compté seulement quand le recollement aurait eu LIEU
                 # (dans le gate) : c'est la métrique A/B, pas le nombre de paires examinées
@@ -728,6 +771,15 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 best_g, best_ratio = og, ratio
         if best_g is not None:
             alias[_root(gid)] = _root(best_g)
+            _stitch_diag['recolle'] += 1
+        elif _near is not None and _near < 1.0:
+            _stitch_diag['refuse_famille'] += 1
+        elif _slow_in_gate:
+            _stitch_diag['bloque_lent_trou_sup_2s'] += 1
+        elif _near is not None and _near < 2.0:
+            _stitch_diag['juste_hors_gate'] += 1
+        else:
+            _stitch_diag['aucun_candidat'] += 1
 
     if alias:
         # Remap gid → racine PARTOUT : historiques, votes de classe, détections annotées
@@ -1112,6 +1164,16 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             if w:
                 d['world_en'] = [round(w[0], 2), round(w[1], 2)]
 
+    # Métrique #3 (2026-10-01) : ce que le suivi DUPLIQUE ou PERD, après recollement (gids racines).
+    continuity = None
+    try:
+        from wama_data.functions.geometry.placement_metrics import tracking_continuity
+        continuity = tracking_continuity(_continuity_obs, root=_root)
+        continuity['stitch'] = dict(_stitch_diag)
+        continuity['chain_switch'] = dict(_chain_switch)
+        logger.info('[tracking 360°] continuité : %s', continuity)
+    except Exception:
+        logger.warning('tracking_continuity (contrôle qualité) échoué', exc_info=True)
     stale_reset = stale_fields_report(_reset)
     logger.info('[tracking 360°] état du calcul précédent : %s', stale_reset)
 
@@ -1182,4 +1244,5 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'ghosts_in_footprint_removed': ghosts_in_footprint,
             'ghost_boundary_jump_m': _quantiles(ghost_jumps, (0.5, 0.9, 0.99)),
             'stale_fields_reset': stale_reset,
-            'camera_consistency': camera_check}
+            'camera_consistency': camera_check,
+            'continuity': continuity}

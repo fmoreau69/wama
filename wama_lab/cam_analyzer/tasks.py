@@ -2602,6 +2602,18 @@ def _run_global_tracking(session):
                 + (f", écart de profondeur méd. {v['depth_rel_err_median'] * 100:.0f} %"
                    if v.get('depth_rel_err_median') is not None else '')
                 for c, v in _cc.items()))
+        # Continuité de suivi (2026-10-01) : chaînes éclatées, doublons probables entre caméras, et
+        # pourquoi le recollement n'a pas eu lieu — l'A/B de tout levier du tracking.
+        _ct = _gt.get('continuity') or {}
+        rs['tracking_continuity'] = _ct
+        if _ct:
+            _sd = _ct.get('stitch') or {}
+            _console(session.user_id,
+                     f"Continuité du suivi : {_ct.get('chain_splits')}/{_ct.get('chains')} chaînes de "
+                     f"détecteur éclatées · {_ct.get('cross_camera_close_pairs')} paires proches entre "
+                     f"caméras (doublons probables ; {_ct.get('same_camera_close_pairs')} paires proches "
+                     f"de vrais voisins) · {_ct.get('relay_breaks')} relais ratés · recollement : "
+                     + ", ".join(f"{k} {v}" for k, v in sorted(_sd.items())))
         _st = _gt.get('stale_fields_reset') or {}
         rs['stale_fields_reset'] = _st
         if _st.get('dropped_gid') or _st.get('dropped_world_en'):
