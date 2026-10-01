@@ -103,7 +103,7 @@ def safe_delete_file(instance, field_name: str) -> bool:
 
 
 def release_card_file(instance, field_name: str) -> bool:
-    """Une card qu'on RETIRE (supprimer, tout effacer, lot, rétention) LIBÈRE son fichier : il
+    """Une card que l'utilisateur RETIRE (supprimer, tout effacer, lot) LIBÈRE son fichier : il
     reste sur le disque, l'utilisateur en est prévenu, et c'est LUI qui le supprime s'il le veut
     (décision de Fabien, 2026-09-30 — `common/services/released_files.py`).
 

@@ -8,11 +8,11 @@ La suppression est un geste explicite de l'utilisateur, mais il est prévenu. »
 
 AVANT : retirer une card EFFAÇAIT son fichier sur-le-champ (`safe_delete_file`) dès qu'aucune autre
 ligne ne le portait — sans le dire. DÉSORMAIS :
-  1. retirer une card (supprimer, tout effacer, lot, rétention) LIBÈRE ses fichiers : ils restent
+  1. retirer une card (supprimer, tout effacer, lot) LIBÈRE ses fichiers : ils restent
      sur le disque, une ligne `ReleasedFile` note qui, quand, d'où (`release_path`) ;
   2. la confirmation de suppression le DEMANDE d'avance, case décochée (`freed_by` → aperçu,
      puis `delete_released` ou `keep_released` sur ces chemins — complément du 2026-10-01) ; un
-     retrait qui ne passe pas par elle (assistant, rétention) est ANNONCÉ une fois à la page qui
+     retrait qui ne passe pas par elle (assistant, `data-confirm="false"`) est ANNONCÉ une fois à la page qui
      suit (`take_unannounced` → `released-files.js`) ;
   3. un fichier encore inutilisé après `UNUSED_NOTICE_DAYS` fait l'objet d'UNE notification
      groupée (`notify_long_unused`, tâche quotidienne) ;
@@ -23,7 +23,9 @@ ligne — l'état écrit n'est jamais cru sur parole.
 
 ⚠ Ce qui reste un EFFACEMENT réel, hors de ce module : le résultat qu'une card RÉGÉNÈRE (relance :
 l'ancien rendu est remplacé par le sien, `safe_delete_file`), les fichiers de travail internes d'une
-tâche, et la suppression VOULUE d'un asset de la médiathèque ou d'un fichier du gestionnaire.
+tâche, la suppression VOULUE d'un asset de la médiathèque ou d'un fichier du gestionnaire — et la
+PURGE DE RÉTENTION : une durée choisie par l'utilisateur vaut consentement à la suppression
+(Fabien, 2026-10-01 ; `services/retention.py`). Ce module sert donc surtout la rétention INFINIE.
 """
 import logging
 import os
