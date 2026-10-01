@@ -19490,3 +19490,14 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
   `tests_released_files` 18 OK après la dernière retouche ; geste `common.released_files` **13/13**
   (le fichier gardé est retrouvé dans l'onglet et supprimé par sa ligne) ; capture de l'onglet relue.
   Constat : le compte de test porte 8 fichiers de lot du composer laissés par des gestes nocturnes.
+
+## §PALIER — 2026-10-01 (soir), « COMPTES DE TEST `wama_*` EN SECTION + BARRE COMMUNE » — ✅ `560d0270` — 🔴 recharger gunicorn (vue neuve : d'ici là la page des utilisateurs s'affiche VIDE, gabarit neuf lu par l'ancienne vue)
+
+- ✅ Demande de Fabien : comptes renommés au préfixe `wama_` (`evaluation` → `wama_evaluation`,
+  `ui_smoke_v3` → `wama_ui_smoke_v3`, `pw_smoke` → `wama_pw_smoke`) ; page de gestion en deux
+  sections (« Utilisateurs », « Comptes de test et système ») sous la barre COMMUNE de filtre / tri /
+  recherche. Règle et garde : `PROFILES_PERMISSIONS §1.4bis`, `accounts/tests_account_kinds`.
+- ⚠ **Consigne changée** : les évaluations se posent désormais par `asr_eval_corpus … --user
+  wama_evaluation` (les blocs plus haut qui disent `--user evaluation` datent d'avant).
+- ⚠ Une erreur unique, non reproduite sur deux relances, au premier passage de
+  `tests_account_kinds` + `tests_access_points` + `tests_nightly` — non nommée (sortie filtrée).
