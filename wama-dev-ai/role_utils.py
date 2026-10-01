@@ -197,8 +197,45 @@ def enforce_identity(manifest, key, hf_id, concerns, platform_ref=None):
     identity['hf_id'] = hf_id
     identity['platform_ref'] = ref
     if wrong:
+        # Le NOM suit l'identité fautive (« stt-2.6b-en » pour stt-1b-en_fr-trfs, même run) :
+        # il redevient celui du dépôt demandé.
+        manifest['name'] = hf_id.rsplit('/', 1)[-1]
         concerns.append(f"identité CORRIGÉE (fait mécanique) : le LLM avait écrit {', '.join(wrong)} "
                         f"pour {key!r} — le manifeste a pu décrire un autre modèle, à relire")
+    return manifest
+
+
+def card_languages(hf_id, snapshot=None) -> list:
+    """Langues DÉCLARÉES par la fiche du modèle (en-tête YAML `language`), codes courts ; [] si
+    la fiche n'en dit rien. Lue dans le snapshot installé, sinon sur le Hub."""
+    from huggingface_hub.repocard import metadata_load
+    try:
+        readme = Path(snapshot) / 'README.md' if snapshot else None
+        if readme is None or not readme.is_file():
+            from huggingface_hub import hf_hub_download
+            readme = hf_hub_download(hf_id, 'README.md')
+        meta = metadata_load(readme) or {}
+    except Exception:
+        return []
+    languages = meta.get('language') or []
+    languages = [languages] if isinstance(languages, str) else languages
+    return [str(code).lower().split('-')[0] for code in languages if code]
+
+
+def enforce_language_facts(manifest, languages, concerns):
+    """Les langues du modèle sont celles que sa FICHE déclare, pas celles que le LLM a lues ailleurs.
+
+    Vécu le 2026-10-01 (Kyutai) : la fiche, partagée par deux modèles, décrit aussi un modèle
+    anglais seul ; le LLM a écrit `['en']` pour un modèle `['en', 'fr']`. Au geste « Valider »,
+    ce champ VIDE au catalogue aurait été comblé avec la valeur fausse."""
+    if not languages:
+        return manifest
+    capabilities = manifest.setdefault('body', {}).setdefault('capabilities', {})
+    current = capabilities.get('languages') or []
+    if sorted(set(current)) != sorted(set(languages)):
+        capabilities['languages'] = list(languages)
+        concerns.append(f"langues {'CORRIGÉES' if current else 'POSÉES'} (fait mécanique, fiche du "
+                        f"modèle) : {list(languages)}" + (f" au lieu de {current}" if current else ''))
     return manifest
 
 
