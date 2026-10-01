@@ -19702,3 +19702,56 @@ vertes) lors d'un passage `tests_account_kinds` + `tests_access_points` + `tests
   `albert:whisper-large-v3` — il peut désormais évaluer Albert.
 - ⚠ Tant que Celery n'est pas relancé, une clé enregistrée au profil n'entre au catalogue qu'au
   prochain `sync_models` périodique (le worker ignore la tâche neuve).
+
+## §PALIER — 2026-10-02, « PORTAGE : RETIRER UNE CARD À L'ÉCHELLE DE LA CARD (D35) » — ✅ `061f2571` `68a2d0cf` `0e2a9d87` (non poussés) — 🔴 RELANCER WAMA (gunicorn et workers : vues, brique et index neufs ; aucune migration) — 🔚 décision P3 pour `backend_routes` / `task_skeleton`, jumelles à régénérer (R90)
+
+Session ouverte par `/reprise` sur le portage des apps. Le point d'entrée du 26/09 (`backend_routes`
+puis `task_skeleton`) CONTREDIT `ROUTE §10.6` (ces deux critères « en attente de P3 », sauf la nuance
+du 15/09 pour une app à un seul process, jamais confirmée) : **non tranché, laissé à Fabien**. Le
+travail a porté sur ce que la confrontation a trouvé en recalant un critère de grille.
+
+- ✅ **Critère `safe_delete` → `release_card_file`** : il cherchait encore `safe_delete_file` dans
+  les vues (5 apps alignées rouges, 2 vertes par un commentaire). VERT = verbe de card, PARTIEL =
+  champ par champ. Garde `tests_conformity_card_removal`.
+- ✅ **D35** (`MEDIA_STORAGE_TIERING §8.6`) : les images de l'imager (`generated_images`, liste de
+  chemins hors `FileField`) étaient effacées par `os.remove` au retrait de la card. Désormais
+  `queue_duplication.release_card_files(card)` libère tout ce qu'elle porte, lu de ses
+  déclarations ; `file_references.listed_paths` = UNE lecture des listes (retrait, aperçu
+  `freed_by`, purge de rétention). Déclaration inchangée (`RETENTION_MODELS[…]['path_lists']`).
+- ✅ **L'index des références lit les listes** (`direct_references` / `usage`,
+  `is_referenced_elsewhere`, `referenced_outside`, `repoint`, `detach`) : une image rangée dans la
+  médiathèque, déplacée ou renommée ne disparaît plus de sa card ; le gestionnaire ne la dit plus
+  « inutilisée ». ⚠ Le premier préfiltre (chemin relatif entier) était vert sous WSL et rouge 6 fois
+  depuis `venv_win` (séparateurs échappés dans le JSON) — préfiltre sur le dernier segment.
+- ✅ **R90** : les dix apps et le générateur retirent une card par `release_card_files` ; plus
+  aucune liste de champs fichier écrite dans une vue (mesuré avant : chaque liste était exactement
+  l'ensemble des champs fichier du modèle — aucun comportement ne change).
+
+**Mesuré** : 495 tests (contrat des trois gestes × chaque app, générateur, dix apps), 2 rouges
+antérieurs et hors périmètre (`tests_codegen_lot.ItemEditRouteAliasTest`,
+`transcriber.tests_model_select` — déjà rouges dans la suite complète du 01/10, mêmes assertions) ;
+grille **904/941** ; `check_docs` : aucune cible cassée venant de ce chantier. Contre-épreuves
+faites (listes neutralisées dans la brique : 3 rouges ; dans l'index : 6 rouges).
+
+**État de la suite complète au /reprise du 01/10** (WSL, base de test privée) : 4665 tests,
+`FAILED (failures=21, errors=13)` — 14 par la jumelle `writer_01` en cours de génération, 6 du
+chantier transcriber / FrWhisper, 4 budgets de langue, 3 notifications (adresses du `.env`), 2 docs
+générées (171 mécanismes écrits pour 176), 2 cam_analyzer, 1 codegen, 1 `audio/x-wav`, 1
+`tests_tool_api_lectures`. Aucun n'est de ce chantier ; l'attribution fine n'a pas été établie.
+
+**Restes nommés** :
+1. Jumelles du bac à sable à RÉGÉNÉRER, puis retirer `file_fields` de la signature de
+   `make_batch_views` (R90).
+2. Transfert de card et duplication d'une card reçue : les fichiers LISTÉS ne sont ni déplacés ni
+   copiés (instance « partage », `WAMA_COLLABORATION §3bis.1` — `repoint` fait suivre l'entrée).
+3. `check_media_integrity` : son relevé des références vives ne lit que les champs fichier
+   (budgets à remesurer avant d'y ajouter les listes).
+4. Transcriber : `_cleanup_output_files` efface encore `.txt` / `.srt` hors champ au retrait — à
+   vérifier : sont-ils encore écrits ?
+5. `doc_facts` : blocs générés périmés (`WAMA_MECANISMES`, `docs/dev/briques.md`), non régénérés
+   — le registre porte du travail non commité d'autres instances.
+
+🔚 **POINT D'ENTRÉE** : trancher P3 (une app à un seul process — le composer — peut-elle adopter
+`run_item_task` maintenant ? `composer/tasks.py:62-65` écrit le modèle tiré dans le réglage
+`model`, ce qui efface le choix « auto ») ; sinon les restes « à faire maintenant » de
+`ROUTE §10.6` (`model_caps_ui` composer et imager, `detail_spec`).
