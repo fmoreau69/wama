@@ -1,28 +1,32 @@
 """
-Backend Kyutai STT 1B (en/fr) – moteur : transformers.
+Backend Kyutai STT 1B (en/fr) – moteur : transformers.
 
-Les poids sont déjà présents dans le catalogue :
-`huggingface:kyutai/stt-1b-en_fr-trfs`.  
-Le composant « model » pointe vers le fichier `model.safetensors`.  
+Les poids sont déjà présents dans le catalogue :
+`huggingface:kyutai/stt-1b-en_fr-trfs`.
+Le composant « model » pointe vers le fichier `model.safetensors`.
 Le répertoire contenant ce fichier regroupe également le tokenizer
-(`tokenizer.json`, `processor` etc.) ; c’est ce répertoire qui est passé à
-`from_pretrained` de `transformers`.
+(`tokenizer.json`, `processor` etc.) ; c’est ce répertoire qui est passé à
+`from_pretrained` de `transformers`.
 
-Limites :
+Limites :
 - Pas de diarisation native.
 - Pas de hot‑words.
-- Les timestamps ne sont pas fournis par défaut ; le backend renvoie
-  uniquement le texte complet.
-- Le modèle accepte les audios 24 kHz (il n’effectue pas de resampling).
+- Le modèle travaille à 24 kHz : l'audio est décodé et rééchantillonné par la brique commune
+  (`audio_decode`), jamais par torchcodec (cassé dans le venv).
 
-Moteur : `transformers` (classe `KyutaiSpeechToTextForConditionalGeneration`).
-VRAM recommandée ≈ 3.2 Go (voir manifeste).
+Horodatage (corrigé le 2026-10-01, après le Valider) : le modèle émet UN jeton par trame audio
+(80 ms), avec un retard fixe déclaré par son extracteur (`audio_delay_seconds`, 0,5 s). Le temps
+d'un mot se lit donc sur la position de ses jetons ; les mots se regroupent en segments aux
+pauses (`segments_from_words`, commun avec NeMo).
+
+Moteur : `transformers` (classe `KyutaiSpeechToTextForConditionalGeneration`).
+VRAM recommandée ≈ 3.2 Go (voir manifeste).
 """
 
 import logging
 from pathlib import Path
 
-from .speech_to_text_base import SpeechToTextBackend, TranscriptionResult, TranscriptionSegment
+from .speech_to_text_base import SpeechToTextBackend, TranscriptionResult, segments_from_words
 from wama.common.utils.model_components import component_paths
 
 logger = logging.getLogger(__name__)
@@ -32,11 +36,17 @@ logger = logging.getLogger(__name__)
 # ----------------------------------------------------------------------
 SUPPORTED_MODELS = {
     "kyutai/stt-1b-en_fr-trfs": {
-        "name": "Kyutai STT 1B (en/fr)",
-        "description": "Modèle de transcription streaming (anglais / français) : 1 B paramètres, 0.5 s de latence.",
+        "name": "Kyutai STT 1B (en/fr)",
+        "description": "Modèle de transcription streaming (anglais / français) : 1 B paramètres, 0.5 s de latence.",
         "vram": 3.2,
     }
 }
+
+#: Kyutai émet ses mots avec un retard VARIABLE (jusqu'à ~1,5 s mesuré le 2026-10-01) : l'écart
+#: entre deux mots ne mesure pas un silence. Les segments se coupent sur SA ponctuation ; la pause
+#: n'est plus qu'un filet large.
+SENTENCE_ENDS = '.?!…'
+PAUSE_SECONDS = 2.0
 
 
 class KyutaiSttBackend(SpeechToTextBackend):
@@ -51,30 +61,32 @@ class KyutaiSttBackend(SpeechToTextBackend):
     # ------------------------------------------------------------------
     ENGINE = "transformers"
     name = "kyutai_stt_1b"
-    display_name = "Kyutai STT 1B (en/fr)"
-    description = "Transcription streaming (anglais / français) – modèle 1 B paramètres."
+    display_name = "Kyutai STT 1B (en/fr)"
+    description = "Transcription streaming (anglais / français) – modèle 1 B paramètres."
     description_long = (
         "Modèle de reconnaissance de parole streaming basé sur Transformers. "
-        "Fonctionne en mode offline ; aucune diarisation ni hot‑words. "
-        "Utilise le tokenizer et le modèle fournis dans le catalogue HF."
+        "Fonctionne en mode offline ; aucune diarisation ni hot‑words. "
+        "Horodatage par mot déduit des trames audio (80 ms)."
     )
 
     # Capacités déclarées
     supports_diarization = False
-    supports_timestamps = False
+    supports_timestamps = True
     supports_hotwords = False
     supports_streaming = False
     supports_vad_filter = False
 
-    # Dépendances Python (import‑only)
-    REQUIRED_PACKAGES = ["transformers", "torch", "soundfile", "numpy"]
+    # Dépendances Python (import‑only) — le décodage passe par la brique commune.
+    REQUIRED_PACKAGES = ["transformers", "torch"]
     # Pas de paquet pip différent du nom d'import
     PIP_PACKAGES = None
 
     # Ressources
     min_vram_gb = 0
     recommended_vram_gb = 3.2
-    max_audio_seconds = None  # pas de limitation connue
+    #: Une passe au plus : la fenêtre d'attention du modèle est de 375 trames (30 s), glissante ;
+    #: mesuré sans défaut à 75 s le 2026-10-01. Au-delà, la découpe commune du worker.
+    max_audio_seconds = 300
 
     def __init__(self):
         super().__init__()
@@ -89,7 +101,7 @@ class KyutaiSttBackend(SpeechToTextBackend):
     def load(self, model_name: str = None) -> bool:
         """
         Charge le modèle et le processeur depuis le répertoire du catalogue.
-        Le paramètre `model_name` est ignoré ; le backend ne supporte qu’un seul
+        Le paramètre `model_name` est ignoré ; le backend ne supporte qu’un seul
         modèle (celui indiqué dans `self.catalogue_key`).
         """
         try:
@@ -114,7 +126,7 @@ class KyutaiSttBackend(SpeechToTextBackend):
             self._model = KyutaiSpeechToTextForConditionalGeneration.from_pretrained(
                 str(root_dir),
                 device_map=self._device,
-                torch_dtype="auto",
+                dtype="auto",
             )
 
             self._loaded = True
@@ -122,7 +134,7 @@ class KyutaiSttBackend(SpeechToTextBackend):
             logger.info("[Kyutai STT] Modèle chargé avec succès")
             return True
         except Exception as exc:  # pragma: no cover – log et renvoie False
-            logger.error(f"[Kyutai STT] Échec du chargement du modèle : {exc}")
+            logger.error(f"[Kyutai STT] Échec du chargement du modèle : {exc}")
             self._loaded = False
             return False
 
@@ -148,6 +160,35 @@ class KyutaiSttBackend(SpeechToTextBackend):
     # ------------------------------------------------------------------
     # Transcription
     # ------------------------------------------------------------------
+    def _words(self, token_ids, frame_seconds: float, delay_seconds: float) -> list:
+        """Mots horodatés depuis la sortie : un jeton par trame, un mot commence à chaque pièce
+        préfixée de `▁` (SentencePiece). Les jetons de remplissage et spéciaux ne portent rien."""
+        tokenizer = self._processor.tokenizer
+        silent = set(tokenizer.all_special_ids) | {self._model.config.pad_token_id,
+                                                  self._model.config.bos_token_id}
+        words, pieces = [], []
+
+        def close():
+            text = tokenizer.convert_tokens_to_string([p for _, p in pieces]).strip()
+            if text:
+                words.append({'word': text, 'start': round(pieces[0][0], 2),
+                              'end': round(pieces[-1][0] + frame_seconds, 2)})
+
+        for index, token_id in enumerate(token_ids):
+            if token_id in silent:
+                continue
+            piece = tokenizer.convert_ids_to_tokens(token_id)
+            if piece is None:
+                continue
+            at = max(0.0, index * frame_seconds - delay_seconds)
+            if piece.startswith('▁') and pieces:
+                close()
+                pieces = []
+            pieces.append((at, piece))
+        if pieces:
+            close()
+        return words
+
     def transcribe(
         self,
         audio_path: str,
@@ -165,7 +206,7 @@ class KyutaiSttBackend(SpeechToTextBackend):
             **kwargs: Ignorés.
 
         Retourne:
-            TranscriptionResult contenant le texte complet.
+            TranscriptionResult : texte complet et segments horodatés.
         """
         if not self.is_loaded:
             error_msg = "Modèle non chargé – appelez `load()` avant `transcribe()`."
@@ -173,26 +214,15 @@ class KyutaiSttBackend(SpeechToTextBackend):
             return TranscriptionResult(success=False, text="", error=error_msg)
 
         try:
-            # 1️⃣ Lecture audio
-            import numpy as np
-            import soundfile as sf
+            from wama.common.utils.audio_decode import decode_audio
 
-            audio, sr = sf.read(audio_path, dtype="float32")
-            if audio.ndim > 1:  # garder le premier canal si stéréo
-                audio = audio[:, 0]
-            # Le modèle attend 24 kHz ; on prévient si le taux diffère
-            if sr != 24000:
-                logger.warning(
-                    f"[Kyutai STT] Taux d'échantillonnage {sr} Hz ≠ 24000 Hz – le modèle peut dégrader la qualité."
-                )
+            extractor = self._processor.feature_extractor
+            # 1️⃣ Lecture audio, au taux du modèle (24 kHz)
+            audio, sr = decode_audio(audio_path, target_sr=extractor.sampling_rate)
 
-            # 2️⃣ Préparer les entrées avec le processeur
-            inputs = self._processor(
-                audio,
-                sampling_rate=sr,
-                return_tensors="pt",
-                padding=True,
-            )
+            # 2️⃣ Préparer les entrées — `audio=` NOMMÉ : en position, le processeur le lit
+            #    comme une image et rend un dict vide (constaté le 2026-10-01).
+            inputs = self._processor(audio=audio, return_tensors="pt")
             inputs = {k: v.to(self._device) for k, v in inputs.items()}
 
             # 3️⃣ Génération
@@ -200,14 +230,18 @@ class KyutaiSttBackend(SpeechToTextBackend):
 
             # 4️⃣ Décodage
             decoded = self._processor.batch_decode(output_tokens, skip_special_tokens=True)
-            transcript = decoded[0] if decoded else ""
+            transcript = decoded[0].strip() if decoded else ""
+            frame_seconds = self._model.config.codec_config.frame_size / sr
+            words = self._words(output_tokens[0].tolist(), frame_seconds,
+                                float(getattr(extractor, 'audio_delay_seconds', 0.0) or 0.0))
 
             return TranscriptionResult(
                 success=True,
                 text=transcript,
                 language=language or "",
-                segments=[],
+                segments=segments_from_words(words, pause_seconds=PAUSE_SECONDS,
+                                             sentence_ends=SENTENCE_ENDS),
             )
         except Exception as exc:  # pragma: no cover – log et renvoie l’erreur
-            logger.error(f"[Kyutai STT] Erreur de transcription : {exc}")
+            logger.error(f"[Kyutai STT] Erreur de transcription : {exc}")
             return TranscriptionResult(success=False, text="", error=str(exc))

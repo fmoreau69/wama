@@ -54,8 +54,10 @@ class ContractRoutingTest(SimpleTestCase):
 
 
 class DeclaredModelListTest(SimpleTestCase):
-    """`QwenASRBackend` is the only transcription backend of the `transformers` engine: rule 1
-    handed it FrWhisper and LinTO, two models installed « weights only » that it cannot load."""
+    """`QwenASRBackend` was the only transcription backend of the `transformers` engine: rule 1
+    handed it FrWhisper and LinTO, two models installed « weights only » that it cannot load.
+    Since 2026-10-01 FrWhisper has its own backend (`tests_validated_asr_backends`) — the unlisted
+    model here is therefore a made-up one."""
 
     @classmethod
     def setUpClass(cls):
@@ -70,7 +72,7 @@ class DeclaredModelListTest(SimpleTestCase):
         self.assertEqual('QwenASRBackend', self._chosen('qwen3-asr-1.7b'))
 
     def test_an_unlisted_model_is_not_handed_to_the_single_candidate(self):
-        self.assertIsNone(self._chosen('aihpi/FrWhisper'))
+        self.assertIsNone(self._chosen('org/unlisted-asr'))
 
     def test_the_select_greys_it_with_the_reason_and_keeps_the_listed_one(self):
         invalidate_engine_cache()
@@ -80,7 +82,7 @@ class DeclaredModelListTest(SimpleTestCase):
                                    composition={'runtime': {'engine': 'transformers'}},
                                    source='huggingface', is_proposed=False, execution='local')
         self.assertIn('aucun backend de transcription',
-                      backend_missing(row('huggingface:aihpi/FrWhisper')) or '')
+                      backend_missing(row('huggingface:org/unlisted-asr')) or '')
         self.assertIsNone(backend_missing(row('transcriber:qwen3-asr-1.7b')))
         # Hors contrat liant, le verdict reste permissif (rien ne change pour `detect`).
         self.assertIsNone(backend_missing(row('huggingface:org/unlisted', task='detect')))

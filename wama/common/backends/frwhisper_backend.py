@@ -1,18 +1,26 @@
 """
-Backend : FrWhisper (transformers)
+Backend : FrWhisper (transformers)
 
 Ce backend charge les poids déjà présents dans le snapshot
 ``huggingface:aihpi/FrWhisper`` via la fonction utilitaire
 ``component_paths``.  Le moteur déclaré est **transformers** et le
 modèle est un Whisper‑large‑v3 fine‑tuned pour le français.  La
-transcription s’effectue avec le pipeline ``automatic-speech-recognition``
-de 🤗 transformers ; les timestamps sont renvoyés sous forme de
-segments.  Le modèle nécessite environ **7.4 Go VRAM**.
+transcription s’effectue par ``generate`` (transcription longue séquentielle
+de Whisper) ; les timestamps sont renvoyés sous forme de segments.  Le modèle nécessite environ **7.4 Go VRAM**.
 
-Limites :
+Limites :
 - Pas de diarisation ni de hot‑words.
-- Le pipeline impose la langue française (config generation fourni).
-- Aucun streaming ; le fichier audio complet est traité en une passe.
+- Aucun streaming ; le fichier audio complet est traité en une passe.
+
+Corrigé le 2026-10-01, après le Valider (essai réel) :
+- PLUS de `pipeline` : il importe torchcodec quelle que soit l'entrée, et torchcodec est cassé
+  dans le venv. Le modèle et son processeur sont appelés directement, l'audio décodé par la
+  brique commune (`audio_decode`) ;
+- transcription longue SÉQUENTIELLE de Whisper (pas de `chunk_length_s`, que transformers
+  déclare expérimental pour un seq2seq) ;
+- la langue demandée est passée au décodage ; float16 sur GPU.
+- ⚠ Horodatage GROSSIER : ce fine-tune émet rarement ses jetons de temps, un segment couvre
+  souvent une fenêtre de 30 s — la diarisation en pâtit, pas le texte.
 """
 
 from pathlib import Path
@@ -34,11 +42,14 @@ SUPPORTED_MODELS = {
     }
 }
 
+#: Taux d'entrée de Whisper.
+SAMPLING_RATE = 16000
+
 
 class FrWhisperBackend(SpeechToTextBackend):
     """
     Backend de transcription français basé sur le modèle *FrWhisper*.
-    Utilise le moteur ``transformers`` (pipeline ASR).
+    Utilise le moteur ``transformers`` (``WhisperForConditionalGeneration``).
     """
 
     # ------------------------------------------------------------------
@@ -50,8 +61,8 @@ class FrWhisperBackend(SpeechToTextBackend):
     description = "Whisper large‑v3 fine‑tuned for French speech (transformers)."
     description_long = (
         "Modèle Whisper large‑v3 adapté au français conversationnel. "
-        "Transcription multilingue, mais la langue est forcée en français "
-        "par la configuration du modèle. Retourne les timestamps par segment."
+        "La langue demandée est passée au décodage ; à défaut, Whisper la détecte. "
+        "Retourne les timestamps par segment."
     )
 
     # Capacités du backend
@@ -61,20 +72,22 @@ class FrWhisperBackend(SpeechToTextBackend):
     supports_streaming = False
     supports_vad_filter = False
 
-    # Dépendances Python (import name)
-    REQUIRED_PACKAGES = ["transformers", "torch", "soundfile"]
+    # Dépendances Python (import name) — le décodage passe par la brique commune.
+    REQUIRED_PACKAGES = ["transformers", "torch"]
     # Pas de paquet pip différent à déclarer
     PIP_PACKAGES = None
 
     # Ressources
     min_vram_gb = 0
     recommended_vram_gb = 7.4
-    max_audio_seconds = None  # Whisper gère les longues séquences (chunking interne)
+    max_audio_seconds = None  # transcription longue séquentielle de Whisper
 
     def __init__(self):
         super().__init__()
-        self._pipeline = None
-        self._model_dir = None
+        self._model = None
+        self._processor = None
+        self._device = None
+        self._dtype = None
 
     # ------------------------------------------------------------------
     # Chargement / déchargement
@@ -83,60 +96,48 @@ class FrWhisperBackend(SpeechToTextBackend):
         """
         Charge le modèle depuis le snapshot local.
 
-        ``model_name`` n’est pas utilisé : le backend ne gère qu’un seul
+        ``model_name`` n’est pas utilisé : le backend ne gère qu’un seul
         modèle (identifié par le catalogue ``huggingface:aihpi/FrWhisper``).
         """
         try:
-            # 1️⃣ Récupérer le répertoire contenant les poids et les fichiers
-            #    de configuration/tokenizer.
+            # 1️⃣ Le répertoire du composant « model » porte aussi config et tokenizer.
             paths = component_paths("huggingface:aihpi/FrWhisper")
             if "model" not in paths:
-                logger.error("[FrWhisper] Aucun composant « model » trouvé dans le snapshot.")
+                logger.error("[FrWhisper] Aucun composant « model » trouvé dans le snapshot.")
                 return False
-            # Le répertoire parent contient l’ensemble des fichiers du modèle.
-            self._model_dir = paths["model"].parent
+            model_dir = paths["model"].parent
 
-            # 2️⃣ Importer le pipeline uniquement si le backend est réellement chargé.
-            from transformers import pipeline
+            # 2️⃣ Imports lourds seulement au chargement. PAS de `pipeline` : il importe torchcodec
+            #    quelle que soit l'entrée, et torchcodec est cassé dans le venv (2026-10-01).
+            import torch
+            from transformers import WhisperForConditionalGeneration, WhisperProcessor
 
-            # Sélection du device : CUDA si disponible, sinon CPU.
-            device = -1
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    device = 0
-            except Exception:
-                pass
-
-            logger.info(f"[FrWhisper] Chargement du pipeline depuis {self._model_dir} (device={device})")
-            self._pipeline = pipeline(
-                "automatic-speech-recognition",
-                model=str(self._model_dir),
-                tokenizer=str(self._model_dir),
-                device=device,
-                chunk_length_s=30,          # même valeur que le README recommande
-                return_timestamps=True,    # on veut les segments
-            )
+            self._device = "cuda" if torch.cuda.is_available() else "cpu"
+            self._dtype = torch.float16 if self._device == "cuda" else torch.float32
+            logger.info(f"[FrWhisper] Chargement depuis {model_dir} ({self._device})")
+            self._processor = WhisperProcessor.from_pretrained(str(model_dir))
+            self._model = WhisperForConditionalGeneration.from_pretrained(
+                str(model_dir), dtype=self._dtype).to(self._device)
             self._loaded = True
             self._current_model = "aihpi/FrWhisper"
             return True
         except Exception as exc:
-            logger.error(f"[FrWhisper] Échec du chargement du modèle : {exc}")
+            logger.error(f"[FrWhisper] Échec du chargement du modèle : {exc}")
             self._loaded = False
             return False
 
     def unload(self) -> None:
-        """Libère le pipeline et les ressources GPU éventuelles."""
-        if self._pipeline is not None:
-            logger.info("[FrWhisper] Déchargement du pipeline.")
+        """Libère le modèle et les ressources GPU éventuelles."""
+        if self._model is not None:
+            logger.info("[FrWhisper] Déchargement du modèle.")
+            self._model = None
+            self._processor = None
             try:
                 import torch
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
             except Exception:
                 pass
-            self._pipeline = None
-        self._model_dir = None
         self._loaded = False
         self._current_model = None
 
@@ -154,57 +155,61 @@ class FrWhisperBackend(SpeechToTextBackend):
         Transcrit le fichier audio indiqué.
 
         Args:
-            audio_path: Chemin vers le fichier audio (wav, mp3, …). Le pipeline
-                accepte directement le chemin.
-            language: Ignoré ; la langue est forcée en français par le modèle.
-            hotwords: Non supporté ; le paramètre est simplement ignoré.
+            audio_path: Chemin vers le fichier audio (wav, mp3, …), décodé par la brique commune.
+            language: Langue imposée au décodage (code ISO), sinon détectée par Whisper.
+            hotwords: Non supporté ; le paramètre est simplement ignoré.
             **kwargs: Paramètres supplémentaires (non utilisés).
 
         Retourne:
             TranscriptionResult contenant le texte complet et, si disponible,
             la liste des segments avec timestamps.
         """
-        if not self.is_loaded or self._pipeline is None:
+        if not self.is_loaded or self._model is None:
             error_msg = "[FrWhisper] Backend non chargé – appel à load() requis."
             logger.error(error_msg)
             return TranscriptionResult(success=False, text="", error=error_msg)
 
         try:
-            # Le pipeline accepte le chemin du fichier audio.
-            result = self._pipeline(audio_path)
+            from wama.common.utils.audio_decode import decode_audio
 
-            # Texte complet
-            text = result.get("text", "")
+            audio, sr = decode_audio(audio_path, target_sr=SAMPLING_RATE)
+            # Plus de 30 s : transcription longue SÉQUENTIELLE de Whisper (caractéristiques non
+            # tronquées) ; sinon la forme courte, complétée à 30 s.
+            inputs = self._processor(audio, sampling_rate=sr, return_tensors="pt", truncation=False,
+                                     padding="longest", return_attention_mask=True)
+            if inputs.input_features.shape[-1] < 3000:
+                inputs = self._processor(audio, sampling_rate=sr, return_tensors="pt",
+                                         return_attention_mask=True)
+            inputs = inputs.to(self._device, self._dtype)
+            options = {"return_timestamps": True, "return_segments": True, "task": "transcribe"}
+            if language:
+                options["language"] = language.split("-")[0].lower()
+            output = self._model.generate(**inputs, **options)
 
-            # Langue – le modèle force le français, mais on récupère quand même
-            # le champ éventuel.
-            detected_language = result.get("language", "fr")
-
-            # Construction des segments (chunks) si présents.
+            # ⚠ Ce fine-tune émet rarement ses jetons d'horodatage : un segment couvre souvent
+            # toute une fenêtre de 30 s (mesuré le 2026-10-01). Le texte, lui, est complet.
             segments = []
-            chunks = result.get("chunks", [])
-            for idx, chunk in enumerate(chunks):
-                # Chaque chunk possède « timestamp » = [start, end] (en secondes)
-                ts = chunk.get("timestamp", [0.0, 0.0])
-                start, end = float(ts[0]), float(ts[1])
-                seg = TranscriptionSegment(
-                    speaker_id="0",          # pas de diarisation
-                    start_time=start,
-                    end_time=end,
-                    text=chunk.get("text", ""),
-                    confidence=None,        # non fourni par le pipeline
-                )
-                segments.append(seg)
+            for part in output["segments"][0]:
+                text = self._processor.decode(part["tokens"], skip_special_tokens=True).strip()
+                if text:
+                    segments.append(TranscriptionSegment(
+                        speaker_id="",               # pas de diarisation
+                        start_time=round(float(part["start"]), 2),
+                        end_time=round(float(part["end"]), 2),
+                        text=text,
+                    ))
 
             return TranscriptionResult(
                 success=True,
-                text=text,
-                language=detected_language,
+                # Les fenêtres se recollent par une espace : décodées d'un bloc, elles se
+                # soudaient (« un peuje crois »).
+                text=" ".join(s.text for s in segments),
+                language=language or "",
                 segments=segments,
                 error=None,
             )
         except Exception as exc:
-            logger.error(f"[FrWhisper] Erreur pendant la transcription : {exc}")
+            logger.error(f"[FrWhisper] Erreur pendant la transcription : {exc}")
             return TranscriptionResult(
                 success=False,
                 text="",

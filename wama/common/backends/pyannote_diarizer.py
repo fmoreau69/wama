@@ -318,6 +318,13 @@ def pipeline_choices() -> list:
             for model_id, spec in PyannoteDiarizerBackend.SUPPORTED_MODELS.items()]
 
 
+def catalogue_key_for(model_name: Optional[str]) -> str:
+    """Clé de catalogue du pipeline `model_name` (défaut si vide) — sous laquelle se rangent les
+    mesures de diarisation. Fonction de MODULE, comme `diarize` : une app n'importe pas la classe
+    d'un backend par son chemin (`tests_backend_adoption`)."""
+    return PyannoteDiarizerBackend.catalogue_key_for(model_name)
+
+
 def is_available() -> bool:
     """Return True if pyannote.audio is installed."""
     return PyannoteDiarizerBackend.is_available()

@@ -143,9 +143,8 @@ class TranscriberConfig(AppConfig):
             engine = TranscriberBackendManager.get_instance()._backends.get(item.used_backend or '')
             if engine is not None and getattr(engine, 'supports_diarization', False):
                 return _model_key(item)
-            from wama.common.backends.pyannote_diarizer import PyannoteDiarizerBackend
-            return PyannoteDiarizerBackend.catalogue_key_for(
-                getattr(item, 'diarization_model', '') or None)
+            from wama.common.backends.pyannote_diarizer import catalogue_key_for
+            return catalogue_key_for(getattr(item, 'diarization_model', '') or None)
 
         register_evaluation(EvaluationSpec(
             surface='transcriber', reference_field='reference_result',
