@@ -51,7 +51,10 @@ class PyannoteDiarizerBackend(BaseModelBackend):
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'pyannote'
     #: Pipelines servis (2026-09-30) : clé = segment du catalogue après `transcriber:` ;
-    #: `settings_key` = dossier dans `MODEL_PATHS['speech']`. `community-1` est le successeur de
+    #: `settings_key` = dossier dans `MODEL_PATHS['speech']` (3.1, déclaré par l'app). Sans
+    #: `settings_key`, le dossier vient du CATALOGUE par `model_key` (community-1, installé par la
+    #: prospection) : le déclarer dans `MODEL_PATHS` l'avait sorti du balayage générique
+    #: (2026-10-01, `model_components.installed_snapshot`). `community-1` est le successeur de
     #: 3.1 par les mêmes auteurs (pyannote.audio 4) — même moteur, donc pas un second backend.
     #: `model_key` = la ligne du CATALOGUE (`AIModel`, relevé le 2026-09-30) : c'est sous elle que
     #: se rangent les mesures de diarisation (`diarization_metrics`) — 3.1 a été déclaré par
@@ -63,8 +66,7 @@ class PyannoteDiarizerBackend(BaseModelBackend):
                                     'label': 'pyannote 3.1'},
         'speaker-diarization-community-1': {
             'hf_id': 'pyannote/speaker-diarization-community-1',
-            'settings_key': 'diarization_community',
-            'model_key': 'huggingface:pyannote/speaker-diarization-community-1',
+            'model_key':'huggingface:pyannote/speaker-diarization-community-1',
             'label': 'pyannote community-1'},
     }
     name = "pyannote"
@@ -127,10 +129,15 @@ class PyannoteDiarizerBackend(BaseModelBackend):
             from pathlib import Path
 
             from django.conf import settings as _s
-            _dia_dir = _s.MODEL_PATHS.get('speech', {}).get(
-                spec['settings_key'],
-                _s.AI_MODELS_DIR / "models" / "speech" / "diarization"
-            )
+            if spec.get('settings_key'):
+                _dia_dir = _s.MODEL_PATHS.get('speech', {}).get(
+                    spec['settings_key'],
+                    _s.AI_MODELS_DIR / "models" / "speech" / "diarization"
+                )
+            else:
+                # snapshots/<rév> → models--org--nom → famille : le cache_dir du modèle.
+                from wama.common.utils.model_components import installed_snapshot
+                _dia_dir = installed_snapshot(spec['model_key']).parent.parent.parent
             Path(_dia_dir).mkdir(parents=True, exist_ok=True)
             _cache = str(_dia_dir)
             logger.info(f"[pyannote] Cache → {_cache}")

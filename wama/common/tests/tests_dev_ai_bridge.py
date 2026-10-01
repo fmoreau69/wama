@@ -310,7 +310,7 @@ class DiffusersEngineMustBeProvenTest(SimpleTestCase):
         manifest, _ = self._enforce({'body': {}}, None, files=self.LINTO_FILES)
         self.assertEqual('nemo', manifest['body']['composition']['runtime']['engine'])
 
-    def test_a_format_that_proves_nothing_poses_nothing(self):
+    def test_a_format_that_proves_nothing_adds_nothing(self):
         manifest, concerns = self._enforce({'body': {}}, None,
                                            files=('config.json', 'model.safetensors'))
         self.assertNotIn('composition', manifest['body'])

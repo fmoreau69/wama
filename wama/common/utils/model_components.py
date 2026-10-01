@@ -41,6 +41,26 @@ def snapshot_dir(model) -> Path | None:
     return revs[-1] if revs else None
 
 
+def installed_snapshot(model_key: str) -> Path:
+    """Snapshot sur disque d'un modèle du CATALOGUE, désigné par sa clé — pour un backend qui
+    charge un modèle installé par la prospection (dossier choisi par l'installeur générique).
+
+    ⚠ La voie est la CLÉ, jamais un dossier déclaré dans `settings.MODEL_PATHS` : y déclarer le
+    dossier d'un modèle découvert par le balayage générique le SORT de ce balayage
+    (`model_registry`, dédup par famille) — sa ligne n'est plus rafraîchie, et devient
+    orpheline. Vécu le 2026-10-01 sur pyannote community-1. Le `cache_dir` à passer à
+    `from_pretrained` est le parent du dépôt : `installed_snapshot(…).parent.parent.parent`.
+    """
+    from wama.model_manager.models import AIModel
+    row = AIModel.objects.filter(model_key=model_key).first()
+    if row is None:
+        raise ComponentsUnavailable(f"{model_key} : absent du catalogue")
+    snapshot = snapshot_dir(row)
+    if snapshot is None:
+        raise ComponentsUnavailable(f"{model_key} : poids introuvables sur le disque")
+    return snapshot
+
+
 def component_repos(model_key: str) -> dict:
     """`{rôle: (dépôt HF, cache_dir)}` des composants DÉPÔTS FRÈRES du modèle (`repo` déclaré).
 
