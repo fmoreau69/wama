@@ -896,8 +896,7 @@
     },
     "models": {
       "catalog_keys": [
-        "describer:blip",
-        "describer:whisper"
+        "describer:blip"
       ],
       "source_attr": "DESCRIBER_MODELS"
     },
@@ -1460,14 +1459,6 @@
     {
       "key": "describer:blip",
       "kind": "model"
-    },
-    {
-      "key": "describer:whisper",
-      "kind": "model"
-    },
-    {
-      "key": "faster-whisper",
-      "kind": "library"
     },
     {
       "key": "torch",
