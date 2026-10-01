@@ -19689,3 +19689,16 @@ lignes de ce journal). Rouges CONNUS hors périmètre, relevés dans la passe la
 ancien, qui visait `declared_engines` avant) ; tests du jour verts (accounts 75, transcriber +
 auto_model + model_manager 669 hors `writer_01`) ; une erreur unique non reproduite (2 relances
 vertes) lors d'un passage `tests_account_kinds` + `tests_access_points` + `tests_nightly`.
+
+## §PALIER — 2026-10-02 (nuit), « CLÉ D'API AU PROFIL : PAGE FIGÉE » — ✅ `5e3c96f2` — 🔴 recharger gunicorn ET relancer Celery (tâche neuve `model_manager.register_cloud_key`)
+
+- ✅ Constat (compte `wama_evaluation`, clé Albert de Fabien) : « Enregistrer » semblait sans effet.
+  Journal : clé écrite à 00:50:35, réponses à 00:52:53/54 (double clic), polling du serveur web
+  arrêté entre-temps. Cause : `refresh_key` lançait la synchronisation COMPLÈTE du catalogue dans
+  la requête ; la lecture chez Albert, elle, prend 0,1 s (mesuré). Le catalogue part en tâche de
+  fond ; la page montre un indicateur et ne trompe plus (une clé enregistrée n'est jamais
+  réaffichée : l'œil ne montre que la saisie).
+- ✅ `wama_evaluation` : profil « cloud autorisé », clé Albert posée, 10 modèles ouverts dont
+  `albert:whisper-large-v3` — il peut désormais évaluer Albert.
+- ⚠ Tant que Celery n'est pas relancé, une clé enregistrée au profil n'entre au catalogue qu'au
+  prochain `sync_models` périodique (le worker ignore la tâche neuve).
