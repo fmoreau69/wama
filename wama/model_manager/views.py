@@ -1388,9 +1388,15 @@ def api_model_options(request):
             if cloud_keys is not None:
                 from .services.cloud_models import allowed_cloud_keys
                 auto_cloud = allowed_cloud_keys(request.user, automatic=True)
+            # Affinages du tirage DÉCLARÉS au schéma de l'app (`options_resolution`), transmis par
+            # le navigateur : sans eux la prévision ignorait la politique de l'app (2026-10-01 :
+            # « Qwen3-ASR » annoncé, Whisper tiré au lancement).
+            from wama.common.utils.auto_model import RESOLUTION_KEYS
+            refine = {k: [v for v in request.GET.get(k, '').split(',') if v]
+                      for k in RESOLUTION_KEYS if request.GET.get(k)}
             preview = predict_model_choice(
                 {'task': task, 'model_type': model_type,
-                 'modality': modality, 'source': source,
+                 'modality': modality, 'source': source, **refine,
                  **({'cloud_keys': list(auto_cloud)} if auto_cloud else {}),
                  **({'quality_intent': quality_intent} if quality_intent else {})})
         except Exception as e:                      # la prévision ne casse jamais la liste

@@ -615,6 +615,12 @@ d'annoncer un modèle que le lancement ne retiendrait pas (règle du 27/09).
   « auto » : `resolve_auto_key(item=…)` — brique commune, curseur de la card, distants du profil,
   Whisper d'abord, et les entrées que la card FOURNIT (`work_audio`) : `describer:whisper`, qui
   exige `work_file` et s'annonce à 0,3 Go, n'emporte plus le palier Whisper (mesuré).
+  ✅ **2026-10-01 — la PRÉVISION dit enfin le tirage** : la politique et l'entrée fournie vivaient
+  dans le gestionnaire, lues par le seul lancement ; après la relance, le select annonçait
+  Qwen3-ASR quand le lancement tirait Whisper. Elles se DÉCLARENT au schéma
+  (`options_resolution` : `priority`, `available_inputs`), le lancement les lit
+  (`auto_model.declared_resolution`), le navigateur les transmet à l'endpoint qui les passe à la
+  prévision. Garde : `ThePreviewSaysWhatTheLaunchDrawsTest` (avec contre-épreuve).
 - **Retirés** : l'endpoint `/transcriber/backends/` et `get_backends_info`, `loadBackendsAsync`,
   les deux recopies d'options vers les modales, `#backendHelp` et son pont `data-selected`, et le
   grisage de la diarisation par `WamaModelCaps` — il la désactivait pour WHISPER (le catalogue dit

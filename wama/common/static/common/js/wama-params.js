@@ -628,6 +628,16 @@
       // borne de domaine. Le serveur ajoute alors les modèles DISTANTS que les clés de CET
       // utilisateur ouvrent, selon son niveau cloud.
       if (p.options_cloud) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'cloud=1';
+      // `options_resolution` (2026-10-01) : les affinages du TIRAGE « auto » déclarés au schéma
+      // (priorité, entrées fournies) — le lancement les lit au même schéma ; sans eux la
+      // PRÉVISION annonçait un autre modèle que celui que le lancement retient.
+      if (p.options_auto && p.options_resolution) {
+        Object.keys(p.options_resolution).sort().forEach(function (k) {
+          var v = p.options_resolution[k];
+          if (v && v.length) url += (url.indexOf('?') >= 0 ? '&' : '?') +
+            encodeURIComponent(k) + '=' + encodeURIComponent([].concat(v).join(','));
+        });
+      }
       // `options_abilities` (2026-09-17) : le libellé porte les capacités déclarées du modèle.
       if (p.options_abilities) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'abilities=1';
       // `options_group` (2026-09-27) : drapeau d'UI lui aussi — les options arrivent groupées.

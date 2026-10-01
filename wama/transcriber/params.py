@@ -25,7 +25,7 @@ PARAMS = derive_from_model(
         # 2026-09-30), toute app qui sert « auto » le porte (`tests_intent_vision`). Hors modèle
         # (pas de colonne), comme au reader : un RÉGLAGE D'APP de l'utilisateur, lu au lancement
         # par `quality_intent_of(item, 'transcriber')`. Il arbitre DANS le palier de la politique
-        # « Whisper d'abord » (`AUTO_PRIORITY`), il ne la remplace pas.
+        # « Whisper d'abord » (`options_resolution` du select), il ne la remplace pas.
         "quality_intent",
         "hotwords",
         "preprocess_audio",
@@ -57,6 +57,12 @@ PARAMS = derive_from_model(
             options_query={"task": "transcription"},
             # « auto » + prévision : le lancement résout (`backends.manager.resolve_auto_key`).
             options_auto=True,
+            # Politique « Whisper d'abord » et entrée que la card FOURNIT (un audio : un modèle qui
+            # exige autre chose ne sort pas du tirage). Déclarées ICI, lues par le lancement ET la
+            # prévision — jusqu'au 2026-10-01 elles vivaient dans le gestionnaire, et la prévision
+            # annonçait Qwen3-ASR quand le lancement tirait Whisper.
+            options_resolution={"priority": ["whisper", "vibevoice", "qwen"],
+                                "available_inputs": ["work_audio"]},
             # Les modèles DISTANTS que la clé de l'utilisateur ouvre (Albert…), selon son niveau
             # cloud — et, depuis le même soir, le tirage « auto » les reçoit aussi pour un profil
             # « cloud autorisé » (`auto_model.declared_cloud_keys`).

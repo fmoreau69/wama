@@ -179,6 +179,20 @@ def declared_cloud_keys(app_id: str, user):
         return None
 
 
+#: Affinages du tirage qu'un schéma peut déclarer (`options_resolution`) — les autres clés sont
+#: ignorées : une borne de DOMAINE n'a rien à faire là (elle vit dans `options_query`).
+RESOLUTION_KEYS = ('priority', 'available_inputs')
+
+
+def declared_resolution(app_id: str) -> dict:
+    """Les affinages du tirage « auto » DÉCLARÉS au schéma de `app_id` (`options_resolution`),
+    {} sinon. Le lancement les lit ici ; la prévision les reçoit du navigateur, qui les tient du
+    même schéma — c'est ce qui fait dire la même chose aux deux (2026-10-01)."""
+    field = catalog_field(app_id) if app_id else None
+    declared = (field or {}).get('options_resolution') or {}
+    return {k: list(v) for k, v in declared.items() if k in RESOLUTION_KEYS and v}
+
+
 def intent_field_for(app_id: str):
     """Nom du champ « curseur » déclaré au schéma de l'app (`type='intent'`), ou None.
 
@@ -251,6 +265,11 @@ def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, it
         domain['task'] = auto_task(requested)
     if 'quality_intent' not in overrides and (item is not None or user is not None):
         overrides['quality_intent'] = quality_intent_of(item, app_id, user)
+    # Affinages DÉCLARÉS au schéma (`options_resolution`) ; un appelant qui en passe garde la main
+    # (l'imager pose `available_inputs` selon l'élément).
+    if spec is None:
+        for key, value in declared_resolution(app_id).items():
+            overrides.setdefault(key, value)
     # Distants DÉCLARÉS au schéma et autorisés par le profil (`declared_cloud_keys`) ; un
     # appelant qui passe lui-même `cloud_keys` (l'assistant) garde la main.
     if 'cloud_keys' not in overrides and spec is None:
