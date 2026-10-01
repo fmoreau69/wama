@@ -707,6 +707,72 @@ class TransferringACardTest(TestCase):
         self.assertIn('transfer_voice_recipient', ctx.exception.statement)
 
 
+class ListedFilesFollowTheCardTest(TestCase):
+    """Les LISTES de chemins déclarées (`file_references.listed_paths` — aujourd'hui les images
+    d'une génération de l'imager) suivent le transfert et la duplication d'une card reçue
+    (2026-10-02, branchement demandé par Fabien) : une image POSSÉDÉE est déplacée (forme de l'entrée
+    conservée : absolue reste absolue), une image DÉSIGNÉE est copiée et seule SON entrée change."""
+
+    setUp = DeletingACardRemovesTheFilesItOwnsTest.setUp
+
+    def _file(self, rel):
+        path = Path(self.tmp) / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'x')
+        return path
+
+    def _generation(self, owner):
+        from wama.common.utils.media_paths import app_media_dir
+        from wama.imager.models import ImageGeneration
+        owned = self._file(f"{app_media_dir('imager', owner.id, 'output')}/img_owned.png")
+        designated = self._file(f'users/{owner.id}/temp/img_designated.png')
+        gen = _instance(ImageGeneration, owner)
+        ImageGeneration.objects.filter(pk=gen.pk).update(
+            generated_images=[str(owned), f'users/{owner.id}/temp/img_designated.png'])
+        gen.refresh_from_db()
+        return gen, owned, designated
+
+    def test_a_transfer_moves_owned_images_and_copies_designated_ones(self):
+        from wama.common.services.card_transfer import transfer_card
+        from wama.common.utils.media_paths import app_media_dir
+        owner = User.objects.create_user('listed_owner', password='x')
+        recipient = User.objects.create_user('listed_recipient', password='x')
+        gen, owned, designated = self._generation(owner)
+        transfer_card(owner, gen, recipient)
+        gen.refresh_from_db()
+        moved, copied = gen.generated_images
+        self.assertTrue(Path(moved).is_absolute(), 'forme de l’entrée conservée (absolue)')
+        self.assertTrue(Path(moved).exists() and not owned.exists(), 'image possédée DÉPLACÉE')
+        self.assertIn(app_media_dir('imager', recipient.id, 'output'), moved.replace('\\', '/'))
+        self.assertTrue(copied.startswith(app_media_dir('imager', recipient.id, '')), copied)
+        self.assertTrue((Path(self.tmp) / copied).exists(), 'copie de l’image désignée absente')
+        self.assertTrue(designated.exists(), 'l’original désigné reste à l’ancien propriétaire')
+
+    def test_duplicating_for_another_user_copies_the_listed_images(self):
+        from wama.common.utils.queue_duplication import duplicate_instance
+        from wama.common.utils.media_paths import app_media_dir
+        owner = User.objects.create_user('listed_dup_owner', password='x')
+        requester = User.objects.create_user('listed_dup_requester', password='x')
+        gen, owned, designated = self._generation(owner)
+        before = list(gen.generated_images)
+        copy = duplicate_instance(gen, for_user=requester)
+        gen.refresh_from_db()
+        self.assertEqual(before, gen.generated_images, 'la liste de l’original ne bouge pas')
+        mine = app_media_dir('imager', requester.id, '')
+        for entry in copy.generated_images:
+            rel = str(Path(entry).relative_to(self.tmp)).replace('\\', '/') if Path(entry).is_absolute() else entry
+            self.assertTrue(rel.startswith(mine), entry)
+            self.assertTrue((Path(self.tmp) / rel).exists(), entry)
+        self.assertTrue(owned.exists() and designated.exists(), 'les fichiers du propriétaire restent')
+
+    def test_copy_subfolder_keeps_the_place_in_the_app_home(self):
+        from wama.common.utils.queue_duplication import copy_subfolder
+        self.assertEqual('output', copy_subfolder('users/3/imager/output/a.png', 'imager'))
+        self.assertEqual('output/videos', copy_subfolder('users/3/imager/output/videos/a.mp4', 'imager'))
+        self.assertEqual('input', copy_subfolder('users/3/temp/a.png', 'imager'))
+        self.assertEqual('input', copy_subfolder('users/3/describer/output/a.png', 'imager'))
+
+
 class SafeDeleteFileContractTest(TestCase):
     """Le contrat de LA brique : `safe_delete_file` ne détruit qu'un fichier de l'app, non partagé.
 

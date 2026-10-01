@@ -82,31 +82,40 @@ def _moved_path(name: str, app: str, old_owner: int, new_owner: int) -> str:
 
 def _hand_over_files(objects, new_owner) -> dict:
     """Applique la règle des fichiers à un ENSEMBLE cédé d'un bloc (une card, ou un lot et ses
-    cards) ; rend `{'fields': {(label, pk): {champ: chemin}}, 'moved', 'copied'}`.
+    cards) ; rend `{'fields': {(label, pk): {champ: chemin}}, 'lists': {(label, pk): {champ:
+    {ancien: nouveau}}}, 'moved', 'copied'}`.
+
+    Les LISTES de chemins déclarées comptent comme les champs fichier (2026-10-02,
+    `file_references.listed_paths`) : un fichier listé DÉPLACÉ voit son entrée réécrite en base par
+    `repoint` (rien à reposer) ; un fichier listé COPIÉ ne change que SON ENTRÉE, jamais le champ
+    entier (`_make_theirs` → `relocated_list`).
 
     Le partage se juge sur l'ENSEMBLE, pas card par card (même règle que `released_files.freed_by`) :
     un fichier que deux cards du même lot portent est à l'ensemble, il est DÉPLACÉ une fois et ses
     deux liens suivent ; un fichier qu'une card RESTÉE chez l'ancien porte encore est COPIÉ."""
     from django.conf import settings
     from django.db import models as dj_models
-    from wama.common.utils.file_references import referenced_outside, repoint
+    from wama.common.utils.file_references import listed_paths, referenced_outside, repoint
     from wama.common.utils.media_paths import copy_into_app_input
-    from wama.common.utils.queue_duplication import owns_file
+    from wama.common.utils.queue_duplication import copy_subfolder, owns_file
 
     def files_of(obj):
-        for f in obj._meta.concrete_fields:
-            if isinstance(f, dj_models.FileField):
-                name = getattr(getattr(obj, f.name, None), 'name', '') or ''
-                if name and os.path.isfile(os.path.join(settings.MEDIA_ROOT, name)):
-                    yield f.name, name
+        """(champ, chemin, listé ?) pour chaque fichier que la ligne porte et qui existe."""
+        found = [(f.name, getattr(getattr(obj, f.name, None), 'name', '') or '', False)
+                 for f in obj._meta.concrete_fields if isinstance(f, dj_models.FileField)]
+        found += [(field, rel, True) for field, rel in listed_paths(obj)]
+        for field, name, listed in found:
+            if name and os.path.isfile(os.path.join(settings.MEDIA_ROOT, name)):
+                yield field, name, listed
 
     inside = {(o._meta.label, o.pk) for o in objects}
-    owned = {name for o in objects for _f, name in files_of(o) if owns_file(o, name)}
+    owned = {name for o in objects for _f, name, _l in files_of(o) if owns_file(o, name)}
     outside = referenced_outside(owned, inside)
-    fields, moved_to, copied_to, moved, copied = {}, {}, {}, 0, 0
+    fields, lists, moved_to, copied_to, moved, copied = {}, {}, {}, {}, 0, 0
     for obj in objects:
         app = obj._meta.app_label
-        for field, name in files_of(obj):
+        key = (obj._meta.label, obj.pk)
+        for field, name, listed in files_of(obj):
             if name in owned and name not in outside:
                 if name not in moved_to:
                     new = _moved_path(name, app, obj.user_id, new_owner.pk)
@@ -116,23 +125,37 @@ def _hand_over_files(objects, new_owner) -> dict:
                     repoint(name, new)               # toutes les cards de l'ensemble, provenances, note
                     moved_to[name] = new
                     moved += 1
+                if listed:
+                    continue                         # `repoint` a réécrit l'entrée en base
                 new = moved_to[name]
             else:
                 if (app, name) not in copied_to:
-                    _dest, copied_to[(app, name)] = copy_into_app_input(
-                        os.path.join(settings.MEDIA_ROOT, name), app, new_owner.pk,
-                        for_instance=obj, field=field, provenance_kind='app', provenance_ref=name)
+                    source = os.path.join(settings.MEDIA_ROOT, name)
+                    if listed:
+                        _dest, copied_to[(app, name)] = copy_into_app_input(
+                            source, app, new_owner.pk, subfolder=copy_subfolder(name, app))
+                    else:
+                        _dest, copied_to[(app, name)] = copy_into_app_input(
+                            source, app, new_owner.pk, for_instance=obj, field=field,
+                            provenance_kind='app', provenance_ref=name)
                     copied += 1
                 new = copied_to[(app, name)]
-            fields.setdefault((obj._meta.label, obj.pk), {})[field] = new
-    return {'fields': fields, 'moved': moved, 'copied': copied}
+                if listed:
+                    lists.setdefault(key, {}).setdefault(field, {})[name] = new
+                    continue
+            fields.setdefault(key, {})[field] = new
+    return {'fields': fields, 'lists': lists, 'moved': moved, 'copied': copied}
 
 
-def _make_theirs(obj, new_owner, fields):
-    """La ligne devient celle du nouveau propriétaire : ses chemins, lui, privée."""
+def _make_theirs(obj, new_owner, fields, lists=None):
+    """La ligne devient celle du nouveau propriétaire : ses chemins, lui, privée. Une liste de
+    chemins ne voit changer que les ENTRÉES copiées (`lists` : {champ: {ancien: nouveau}})."""
+    from wama.common.utils.file_references import relocated_list
     obj.refresh_from_db()
     for name, value in (fields or {}).items():
         setattr(obj, name, value)
+    for name, mapping in (lists or {}).items():
+        setattr(obj, name, relocated_list(getattr(obj, name), mapping))
     obj.user = new_owner
     for name, value in (('visibility', 'private'), ('scope_org_unit', None), ('scope_project', None)):
         if any(f.name == name for f in obj._meta.concrete_fields):
@@ -185,7 +208,8 @@ def transfer_card(user, element, recipient, consent: bool = False) -> dict:
     with transaction.atomic():
         lot = leave_batch(element)
         handed = _hand_over_files([element], recipient)
-        _make_theirs(element, recipient, handed['fields'].get((element._meta.label, element.pk)))
+        key = (element._meta.label, element.pk)
+        _make_theirs(element, recipient, handed['fields'].get(key), handed['lists'].get(key))
         _record_consents(user, subjects, recipient)
 
     notify_in_app([recipient], 'card_transferred',
@@ -215,7 +239,8 @@ def transfer_lot(user, lot, element_model, recipient, consent: bool = False) -> 
     with transaction.atomic():
         handed = _hand_over_files(objects, recipient)
         for obj in objects:
-            _make_theirs(obj, recipient, handed['fields'].get((obj._meta.label, obj.pk)))
+            key = (obj._meta.label, obj.pk)
+            _make_theirs(obj, recipient, handed['fields'].get(key), handed['lists'].get(key))
         _record_consents(user, subjects, recipient)
 
     app = element_model._meta.app_label

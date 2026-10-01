@@ -340,5 +340,37 @@ def _copy_files_to(obj, user):
             continue
         setattr(obj, f.name, rel)
         changed.append(f.name)
+    # Les LISTES de chemins déclarées (2026-10-02 — ex. les images d'une génération de l'imager) :
+    # chaque fichier listé est copié à la même place relative chez `user`, et seule l'ENTRÉE de la
+    # liste de la copie change (`relocated_list`) — l'original garde la sienne.
+    from wama.common.utils.file_references import listed_paths, relocated_list
+    mapping = {}
+    for field, rel in listed_paths(obj):
+        source = os.path.join(settings.MEDIA_ROOT, rel)
+        if rel in mapping.get(field, {}) or not os.path.isfile(source):
+            continue
+        try:
+            _dest, new = copy_into_app_input(source, obj._meta.app_label, user.pk,
+                                             subfolder=copy_subfolder(rel, obj._meta.app_label))
+        except Exception as exc:  # pragma: no cover
+            logger.warning('[duplicate] copie de %s pour %s impossible : %s', rel, user, exc)
+            continue
+        mapping.setdefault(field, {})[rel] = new
+    for field, moves in mapping.items():
+        setattr(obj, field, relocated_list(getattr(obj, field), moves))
+        changed.append(field)
     if changed:
         obj.save(update_fields=changed)
+
+
+def copy_subfolder(rel: str, app: str) -> str:
+    """Le sous-dossier d'app où COPIER `rel` chez un autre propriétaire : sa place relative dans le
+    domicile de l'app (`users/<uid>/<app>/<sous-dossier>/…`) quand il y vit — une image de sortie
+    reste une sortie —, sinon `input` (un fichier désigné du temp ou de la médiathèque)."""
+    import re
+    from wama.common.utils.media_paths import app_media_dir
+    # La FORME du domicile vient d'`app_media_dir`, jamais recomposée ici : on la lit sur un gabarit.
+    pattern = (re.escape(app_media_dir('XAPPX', 'XUIDX', 'XSUBX'))
+               .replace('XAPPX', re.escape(app)).replace('XUIDX', r'\d+').replace('XSUBX', '(.+)'))
+    m = re.match(rf'^{pattern}/[^/]+$', rel.replace('\\', '/'))
+    return m.group(1) if m else 'input'

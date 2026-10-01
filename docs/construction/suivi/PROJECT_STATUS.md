@@ -19791,3 +19791,16 @@ Session dédiée ouverte sur le chantier `WAMA_APP_GENERATION_ROUTE.md §10.6` (
 - **Pendings système** : relancer WAMA n'est pas requis pour ce palier (aucune surface servie ne
   lit encore `world`) ; la base de test `test_wama_db_reprise_pipeline` est gardée le temps de la
   session, à supprimer à la clôture.
+
+## §PALIER — 2026-10-02, « LISTES DE CHEMINS BRANCHÉES SUR LE TRANSFERT ET LA DUPLICATION » — ✅ commit ci-dessous — 🔴 RELANCER WAMA — 🔚 rien de neuf (solde le ⏳ du palier « Transférer un lot entier »)
+
+> Fabien : *« Oui, fais le branchement des listes de chemins. »* Sur `listed_paths` et l'index des
+> références de l'instance de portage (`061f2571`, `68a2d0cf`, `0e2a9d87`).
+
+- Transfert (`card_transfer._hand_over_files`) : fichiers listés énumérés avec les champs fichier ;
+  POSSÉDÉ → déplacé, `repoint` réécrit l'entrée (forme conservée) ; DÉSIGNÉ → copié, seule son
+  entrée change (`file_references.relocated_list`, nouvelle aide publique). Duplication d'une card
+  reçue (`queue_duplication._copy_files_to`) : fichiers listés copiés à la même place relative
+  (`copy_subfolder`, dérivé d'`app_media_dir`).
+- Gardes `ListedFilesFollowTheCardTest` (3) + contre-épreuve (rouge sans le branchement) ; voisins
+  128 OK (dont `tests_card_listed_files` de l'autre instance). Domicile : `WAMA_COLLABORATION §3bis.1`.
