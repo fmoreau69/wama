@@ -56,7 +56,7 @@ django.setup()
 
 from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, enforce_engine_facts, enforce_resolution_facts,
+    add_llm_arguments, call_llm, enforce_engine_facts, enforce_identity, enforce_resolution_facts,
     enforce_vendor_engine, extract_json,
     fetch as _fetch,
     manifest_examples, model_vocabularies, resolve_model, write_output)
@@ -214,9 +214,18 @@ def main():
                 f'Produis le manifeste `model` de ce modèle (JSON seul).')
     reponse = call_llm(args.provider, model, PROMPT, user_msg, keep_alive=keep_alive)
     manifest = extract_json(reponse)
-    # Fait mécanique sur le moteur (partagé avec le scout) : `diffusers` doit être PROUVÉ.
     concerns = []
-    hf_id = args.hf or _lire(manifest, ('body', 'identity', 'hf_id'))
+    # L'IDENTITÉ d'abord : c'est d'elle que dépendent tous les faits mécaniques qui suivent
+    # (2026-10-01 : une clé d'un autre modèle a fait retirer un moteur valide).
+    if args.catalog:
+        from wama.model_manager.models import AIModel
+        row = AIModel.objects.get(model_key=args.catalog)
+        enforce_identity(manifest, args.catalog,
+                         row.hf_id or args.catalog.split(':', 1)[-1], concerns, row.platform_ref)
+    else:
+        enforce_identity(manifest, f'huggingface:{args.hf}', args.hf, concerns)
+    # Fait mécanique sur le moteur (partagé avec le scout) : `diffusers` doit être PROUVÉ.
+    hf_id = _lire(manifest, ('body', 'identity', 'hf_id'))
     if hf_id:
         enforce_engine_facts(manifest, hf_id, concerns)
         enforce_resolution_facts(manifest, hf_id, concerns)
