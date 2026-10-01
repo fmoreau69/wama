@@ -306,7 +306,11 @@ class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
         for f in model._meta.concrete_fields:
             if not isinstance(f, models.FileField):
                 continue
-            rel = f'{folder}/temoin_{el.pk}_{f.name}.bin'
+            # Le MODÈLE dans le nom : deux surfaces partagent parfois un domicile ET des noms de
+            # champ (`enhancer` / `audio_enhancer`) — à pk égal, un témoin en écrasait un autre
+            # et le sous-test suivant lisait la note `ReleasedFile` du précédent (relevé par une
+            # autre instance le 2026-10-01 ; vert en suite complète par le seul décalage des pk).
+            rel = f'{folder}/temoin_{model._meta.model_name}_{el.pk}_{f.name}.bin'
             path = Path(self.tmp) / rel
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b'x')
