@@ -16,6 +16,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
+from wama.common.services.released_files import count_unused
 from wama.common.utils.volet import VOLET_AUCUN
 
 from .models import (UserAsset, SystemAsset, MediaProvider, UserProviderConfig, PromptKeyword,
@@ -226,6 +227,8 @@ def index(request):
         # La barre commune (mode `remote`) : origine + attributs DÉRIVÉS des natures, tris déclarés.
         'library_facets': [ORIGIN_FACET, *_attribute_facets(_get_user(request))],
         'library_sorts': [(k, label) for k, (label, _order) in LIST_SORTS.items()],
+        # Onglet « Inutilisés » (2026-10-01) : les fichiers que plus aucune card n'utilise.
+        'unused_count': count_unused(request.user),
     }
     return render(request, 'media_library/index.html', context)
 

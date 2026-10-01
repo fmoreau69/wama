@@ -1603,6 +1603,14 @@ def api_released_files_delete(request):
 
 
 @login_required
+def api_released_files_all(request):
+    """GET — TOUS les fichiers inutilisés de l'utilisateur (onglet « Inutilisés » de la
+    médiathèque), avec taille et ancienneté. Lecture seule : rien n'est marqué annoncé."""
+    from wama.common.services.released_files import list_unused
+    return JsonResponse(list_unused(request.user))
+
+
+@login_required
 @require_POST
 def api_released_files_keep(request):
     """POST `ids` ou `paths` — l'utilisateur GARDE ces fichiers (case de la confirmation laissée

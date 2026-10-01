@@ -86,6 +86,53 @@ def _as_dict(row) -> dict:
             'origin': row.origin, 'released_at': row.released_at.isoformat()}
 
 
+def origin_label(origin: str) -> str:
+    """L'origine LISIBLE d'un fichier libéré : « Composer · fichier de lot » plutôt que la clé
+    technique `composer.ComposerBatch#151 · batch_file` (qui reste stockée, pour la trace)."""
+    from django.apps import apps as django_apps
+    try:
+        target, field = [part.strip() for part in origin.split('·', 1)]
+        label = target.split('#', 1)[0]
+        model = django_apps.get_model(label)
+        app = django_apps.get_app_config(model._meta.app_label).verbose_name
+        name = field.split(' ')[0]
+        role = ('fichier de lot' if 'batch' in name
+                else 'sortie' if any(k in name for k in ('output', 'result', 'generated'))
+                else 'entrée' if any(k in name for k in ('input', 'source', 'reference', 'text_file'))
+                else str(model._meta.get_field(name).verbose_name))
+        return f'{app} · {role}'
+    except Exception:
+        return origin or ''
+
+
+def list_unused(user) -> dict:
+    """TOUS les fichiers inutilisés de `user` — la liste de la médiathèque (onglet « Inutilisés »,
+    décision de Fabien du 2026-10-01 : *« la médiathèque est l'endroit où l'on gère ses médias »*),
+    où il les supprime un par un ou par sélection. Ne marque rien comme annoncé (c'est une lecture),
+    mais oublie ceux qu'une card a repris ou qui ont disparu : la liste ne montre que du vrai.
+    Rend `{'files': [...], 'total_size': octets}`, le plus anciennement inutilisé d'abord."""
+    from django.conf import settings
+    from wama.common.models import ReleasedFile
+    now = timezone.now()
+    files, total = [], 0
+    for row in _forget_if_used(ReleasedFile.objects.filter(user=user).order_by('released_at')):
+        try:
+            size = os.path.getsize(os.path.join(settings.MEDIA_ROOT, row.path))
+        except OSError:
+            size = 0
+        total += size
+        files.append({**_as_dict(row), 'size': size, 'unused_days': (now - row.released_at).days,
+                      'origin_label': origin_label(row.origin)})
+    return {'files': files, 'total_size': total}
+
+
+def count_unused(user) -> int:
+    """Le compte affiché sur l'onglet — lu sur les lignes, sans revérifier chaque fichier (la liste,
+    elle, revérifie à l'ouverture)."""
+    from wama.common.models import ReleasedFile
+    return ReleasedFile.objects.filter(user=user).count() if getattr(user, 'pk', None) else 0
+
+
 def take_unannounced(user) -> list:
     """Les fichiers libérés de `user` pas encore annoncés — et ils le sont désormais (une fois)."""
     from wama.common.models import ReleasedFile
@@ -213,8 +260,8 @@ def notify_long_unused(now=None) -> int:
             [user], 'files_unused',
             f'{len(files)} fichier(s) inutilisé(s) depuis plus de {days} jours',
             body=(f"Plus aucune card ne les utilise : {names}{more}. Ils occupent encore votre "
-                  "espace ; supprimez-les depuis le gestionnaire de fichiers si vous n'en avez "
+                  "espace ; supprimez-les depuis la médiathèque (onglet « Inutilisés ») si vous n'en avez "
                   "plus besoin — rien n'est supprimé sans vous."),
-            url='/filemanager/')
+            url='/media-library/?tab=unused')
         ReleasedFile.objects.filter(pk__in=[r.pk for r in files]).update(notified_at=now)
     return sent

@@ -213,6 +213,14 @@
                     <span class="ml-badge" id="badge-keywords">{{ keyword_count }}</span>
                 </a>
             </li>
+            <!-- Onglet Inutilisés (2026-10-01) : les fichiers que plus aucune card n'utilise -->
+            <li class="nav-item">
+                <a class="nav-link {% if active_tab == 'unused' %}active{% endif %}"
+                   href="#" data-type="unused">
+                    <i class="fas fa-file-circle-exclamation"></i> Inutilisés
+                    <span class="ml-badge" id="badge-unused">{{ unused_count }}</span>
+                </a>
+            </li>
             <!-- Onglet Rechercher (providers externes) -->
             <li class="nav-item">
                 <a class="nav-link {% if active_tab == 'search' %}active{% endif %}"
@@ -259,6 +267,33 @@
             </div>
         </div>
         <div id="keywordsManager"></div>
+    </div>
+
+    {% comment %}Panneau INUTILISÉS (2026-10-01, décision de Fabien : « la médiathèque est l'endroit où
+    l'on gère ses médias ») — les fichiers qu'une card retirée a laissés et que plus rien n'utilise
+    (`common/services/released_files.list_unused`). On les supprime un par un ou par sélection ; rien
+    ne part sans ce geste. Ce sont des FICHIERS, pas des assets : ils ne sont pas dans la grille.{% endcomment %}
+    <div id="unusedPanel" style="display:none;">
+        <div class="d-flex align-items-start mb-3 gap-2">
+            <i class="fas fa-file-circle-exclamation mt-1" style="color:#ffc107;"></i>
+            <div>
+                <div class="fw-semibold">Fichiers inutilisés</div>
+                <small style="color:#c8c8d8;">Plus aucune card ni la médiathèque ne les utilise. Ils occupent
+                    encore votre espace : supprimez ceux dont vous n'avez plus besoin — rien n'est
+                    supprimé sans vous.</small>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="unusedSelectAll">
+                <label class="form-check-label" for="unusedSelectAll">Tout sélectionner</label>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="unusedDeleteSelected" disabled>
+                <i class="fas fa-trash me-1"></i>Supprimer la sélection
+            </button>
+            <span class="ms-auto small" style="color:#c8c8d8;" id="unusedSummary"></span>
+        </div>
+        <div id="unusedList"></div>
     </div>
 
     <!-- ── Panneau Rechercher (providers externes) ─────────────── -->

@@ -2205,7 +2205,8 @@
         const u = data.usage;
         const usageRow = !u ? '' : (u.unused
             ? `<tr><td>Utilisation</td><td class="text-danger fw-semibold">Utilisé par aucune card ni la médiathèque${
-                u.unused_days != null ? ` depuis ${u.unused_days} jour(s)` : ''} — vous pouvez le supprimer s'il ne vous sert plus</td></tr>`
+                u.unused_days != null ? ` depuis ${u.unused_days} jour(s)` : ''} — vous pouvez le supprimer s'il ne vous sert plus
+                (<a href="/media-library/?tab=unused" class="link-light">fichiers inutilisés</a>)</td></tr>`
             : `<tr><td>Utilisation</td><td>Utilisé par ${u.cards} élément(s) (cards, médiathèque)</td></tr>`);
         table.innerHTML = `
             <tr><td>Nom</td><td>${escapeHtml(data.name)}</td></tr>

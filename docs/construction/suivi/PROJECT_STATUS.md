@@ -19468,3 +19468,25 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
   entre ma lecture et mon commit) ; contenu intact, auteur prévenu (instance -42).
 - ⚠ Compte `evaluation` : actif, rôle `recherche`, profil « 100 % local », **sans mot de passe** —
   connexion à `/accounts/login/` après que Fabien en a posé un à `/admin/auth/user/193/password/`.
+
+## §PALIER — 2026-10-01 (après-midi), « RÉTENTION RÉTABLIE + ONGLET « INUTILISÉS » DE LA MÉDIATHÈQUE » — ✅ `38393094` + commit ci-dessous — 🔴 RELANCER WAMA (routes neuves) — 🔚 rétention finie × fichier gardé (proposition de Fabien à cadrer), gestes Copier/Transférer à construire
+
+> Fabien : *« si l'utilisateur applique une période de rétention qui n'est pas nulle, c'est qu'il
+> souhaite la suppression des fichiers au bout de la durée qu'il indique. Il n'est pas question de
+> retirer ce fonctionnement. La question se pose quand l'utilisateur ne configure pas la rétention. »*
+> Puis : liste des fichiers inutilisés, suppression un par un et par sélection, dans la médiathèque.
+
+- **Rétention** (`38393094`) : la purge EFFACE de nouveau (propriété + partage) ; `4e441a80` l'avait
+  fait « libérer » — lecture trop large de D34. Contrat `tests_retention` rétabli.
+- **Onglet « Inutilisés »** de la médiathèque : `released_files.list_unused` / `count_unused` /
+  `origin_label` (origine lisible : « Composer · fichier de lot »), route
+  `common:api_released_files_all` (chemin écrit EN CLAIR dans le JS : un `{% url %}` neuf ferait
+  tomber la page en 500 avant relance, gabarit lu à chaud) ; la notification, l'annonce et la ligne
+  rouge du gestionnaire y mènent. Pas de pastille sur les assets (un asset est rangé exprès).
+- **Copier / Transférer à…** : règle des fichiers accordée, consignée en `WAMA_COLLABORATION §3bis.1`
+  — ⚠ ces deux gestes y existaient DÉJÀ (« dupliquer ⧉ → sa copie », « changement de
+  propriétaire ») : je les avais reproposés sans avoir relu §3bis ; seul le sort des fichiers manquait.
+- **Mesures** : `tests_released_files` + `tests_retention` + `tests_list_filters` 28 OK ;
+  `tests_released_files` 18 OK après la dernière retouche ; geste `common.released_files` **13/13**
+  (le fichier gardé est retrouvé dans l'onglet et supprimé par sa ligne) ; capture de l'onglet relue.
+  Constat : le compte de test porte 8 fichiers de lot du composer laissés par des gestes nocturnes.

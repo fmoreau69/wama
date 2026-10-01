@@ -104,34 +104,31 @@
 
     const searchPanel   = document.getElementById('searchPanel');
     const keywordsPanel = document.getElementById('keywordsPanel');
+    const unusedPanel   = document.getElementById('unusedPanel');
     let _kwBrick = null;
 
-    function showLibraryMode() {
-        filterHost.style.display = '';
-        newItemWrap.style.display = '';
-        document.getElementById('assetGrid').style.display = '';
-        document.getElementById('loadMoreBtn').parentElement.style.display = '';
-        searchPanel.style.display = 'none';
-        if (keywordsPanel) keywordsPanel.style.display = 'none';
+    // UN panneau visible à la fois : la grille (avec sa barre et sa card d'ajout), les fournisseurs,
+    // les mots-clés ou les fichiers inutilisés.
+    function showPanel(which) {
+        const grid = which === 'library';
+        filterHost.style.display = grid ? '' : 'none';
+        newItemWrap.style.display = grid ? '' : 'none';
+        document.getElementById('assetGrid').style.display = grid ? '' : 'none';
+        document.getElementById('loadMoreBtn').parentElement.style.display = grid ? '' : 'none';
+        searchPanel.style.display = which === 'search' ? 'block' : 'none';
+        if (keywordsPanel) keywordsPanel.style.display = which === 'keywords' ? 'block' : 'none';
+        if (unusedPanel) unusedPanel.style.display = which === 'unused' ? 'block' : 'none';
     }
 
+    function showLibraryMode() { showPanel('library'); }
+
     function showSearchMode() {
-        filterHost.style.display = 'none';
-        newItemWrap.style.display = 'none';
-        document.getElementById('assetGrid').style.display = 'none';
-        document.getElementById('loadMoreBtn').parentElement.style.display = 'none';
-        searchPanel.style.display = 'block';
-        if (keywordsPanel) keywordsPanel.style.display = 'none';
+        showPanel('search');
         loadProviderButtons();
     }
 
     function showKeywordsMode() {
-        filterHost.style.display = 'none';
-        newItemWrap.style.display = 'none';
-        document.getElementById('assetGrid').style.display = 'none';
-        document.getElementById('loadMoreBtn').parentElement.style.display = 'none';
-        searchPanel.style.display = 'none';
-        if (keywordsPanel) keywordsPanel.style.display = 'block';
+        showPanel('keywords');
         // Mode gestion : pas de prompt cible — seuls l'ajout/suppression de mots-clés perso comptent.
         if (window.WamaPromptChips && !_kwBrick) {
             _kwBrick = WamaPromptChips.init({
@@ -158,6 +155,8 @@
                 showSearchMode();
             } else if (currentType === 'keywords') {
                 showKeywordsMode();
+            } else if (currentType === 'unused') {
+                showUnusedMode();
             } else {
                 showLibraryMode();
                 describeNewItemCard();
@@ -169,11 +168,108 @@
         });
     });
 
-    // Init : si l'onglet actif est 'search' / 'keywords', afficher le bon panneau
+    // ── FICHIERS INUTILISÉS (2026-10-01, décision de Fabien) ─────────────────────────────
+    // Les fichiers qu'une card retirée a laissés et que plus rien n'utilise. On les supprime un par
+    // un ou par sélection ; le serveur REVÉRIFIE chacun (repris par une card entre-temps → gardé).
+    // ⚠ Chemin écrit en clair, comme `released-files.js` : un `{% url %}` vers une route neuve
+    // ferait tomber cette page en 500 tant que le serveur n'a pas été relancé (gabarit lu à chaud).
+    const UNUSED_API = '/common/api/released-files/';
+    const unusedList = document.getElementById('unusedList');
+    const unusedAll = document.getElementById('unusedSelectAll');
+    const unusedDeleteBtn = document.getElementById('unusedDeleteSelected');
+    const unusedSummary = document.getElementById('unusedSummary');
+
+    function showUnusedMode() {
+        showPanel('unused');
+        loadUnused();
+    }
+
+    function selectedUnused() {
+        return [...unusedList.querySelectorAll('input[data-unused-id]:checked')].map(c => c.dataset.unusedId);
+    }
+
+    function refreshUnusedSelection() {
+        const all = unusedList.querySelectorAll('input[data-unused-id]');
+        const n = selectedUnused().length;
+        unusedDeleteBtn.disabled = !n;
+        unusedDeleteBtn.innerHTML = `<i class="fas fa-trash me-1"></i>Supprimer la sélection${n ? ` (${n})` : ''}`;
+        unusedAll.checked = !!all.length && n === all.length;
+        unusedAll.indeterminate = n > 0 && n < all.length;
+    }
+
+    async function loadUnused() {
+        unusedList.innerHTML = '<div class="text-center py-4" style="color:#c8c8d8;"><i class="fas fa-spinner fa-spin me-1"></i>Chargement…</div>';
+        let data = { files: [], total_size: 0 };
+        try { data = await (await fetch(UNUSED_API + 'all/')).json(); } catch (_) {}
+        const files = data.files || [];
+        const badge = document.getElementById('badge-unused');
+        if (badge) badge.textContent = files.length;
+        const size = window.WamaApp ? WamaApp.formatSize(data.total_size) : `${data.total_size} o`;
+        unusedSummary.textContent = files.length ? `${files.length} fichier(s) · ${size}` : '';
+        if (!files.length) {
+            unusedList.innerHTML = `<div class="text-center py-5" style="color:#c8c8d8;">
+                <i class="fas fa-circle-check fa-2x mb-2 d-block" style="color:#20c997;"></i>
+                Aucun fichier inutilisé.</div>`;
+            refreshUnusedSelection();
+            return;
+        }
+        unusedList.innerHTML = files.map(f => `
+            <div class="d-flex align-items-center gap-3 py-2 px-2 border-bottom" style="border-color:#2a2a3e !important;" data-unused-row="${f.id}">
+                <input class="form-check-input mt-0" type="checkbox" data-unused-id="${f.id}" aria-label="Sélectionner ${esc(f.name)}">
+                <div class="flex-grow-1 text-truncate">
+                    <a href="/filemanager/api/download/${encodeURI(f.path)}" class="text-light" title="${esc(f.path)}">${esc(f.name)}</a>
+                    <div class="small text-truncate" style="color:#a8a8c0;">inutilisé depuis ${f.unused_days} jour(s)${f.origin_label ? ` · ${esc(f.origin_label)}` : ''}</div>
+                </div>
+                <span class="small text-nowrap" style="color:#c8c8d8;">${window.WamaApp ? WamaApp.formatSize(f.size) : f.size}</span>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-unused-delete="${f.id}" title="Supprimer ce fichier">
+                    <i class="fas fa-trash"></i></button>
+            </div>`).join('');
+        refreshUnusedSelection();
+    }
+
+    async function deleteUnused(ids, label) {
+        if (!ids.length) return;
+        const ok = window.WamaApp && WamaApp.ask
+            ? (await WamaApp.ask({ text: label, okLabel: 'Supprimer' })).ok
+            : window.confirm(label);
+        if (!ok) return;
+        const fd = new FormData();
+        ids.forEach(id => fd.append('ids', id));
+        try {
+            const res = await (await fetch(UNUSED_API + 'delete/', { method: 'POST', body: fd,
+                headers: { 'X-CSRFToken': CSRF_TOKEN } })).json();
+            const n = (res.deleted || []).length, kept = (res.kept || []).length;
+            toast(`${n} fichier(s) supprimé(s)` + (kept ? ` ; ${kept} gardé(s) — repris par une card` : ''));
+            if (window.WamaFM && WamaFM.deleted) WamaFM.deleted();
+        } catch (_) {
+            toast('Suppression impossible', 'error');
+        }
+        loadUnused();
+    }
+
+    if (unusedList) {
+        unusedList.addEventListener('change', e => { if (e.target.matches('[data-unused-id]')) refreshUnusedSelection(); });
+        unusedList.addEventListener('click', e => {
+            const btn = e.target.closest('[data-unused-delete]');
+            if (btn) deleteUnused([btn.dataset.unusedDelete], 'Supprimer ce fichier ? Cette action est définitive.');
+        });
+        unusedAll.addEventListener('change', () => {
+            unusedList.querySelectorAll('input[data-unused-id]').forEach(c => { c.checked = unusedAll.checked; });
+            refreshUnusedSelection();
+        });
+        unusedDeleteBtn.addEventListener('click', () => {
+            const ids = selectedUnused();
+            deleteUnused(ids, `Supprimer ${ids.length} fichier(s) ? Cette action est définitive.`);
+        });
+    }
+
+    // Init : si l'onglet actif est 'search' / 'keywords' / 'unused', afficher le bon panneau
     if (currentType === 'search') {
         showSearchMode();
     } else if (currentType === 'keywords') {
         showKeywordsMode();
+    } else if (currentType === 'unused') {
+        showUnusedMode();
     }
 
     // ── Recherche, filtres, tri : la barre commune annonce, la grille recharge ──────────
@@ -874,7 +970,7 @@
 
     loadCounts();
     syncFacetsWithTab();
-    if (currentType !== 'search') {
+    if (!['search', 'keywords', 'unused'].includes(currentType)) {
         loadAssets(true);
     }
 
