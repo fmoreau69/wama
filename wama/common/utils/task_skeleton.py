@@ -24,7 +24,10 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
                    manifeste (`writer`). Ajouté le 2026-10-01 : la glu du Writer passait
                    `'writer'` à la pipeline de prompts, qui ne trouvait aucune cible et rendait
                    la consigne intacte — document de référence ignoré, sans un message.
-  - retour : {'fields': {champs modèle à persister au succès},
+  - retour : {'fields': {champs modèle à persister au succès — des RÉSULTATS, jamais un RÉGLAGE :
+                         écrire le modèle tiré dans le champ `model` remplacerait le choix
+                         « auto » de l'utilisateur (relance figée, curseur masqué). Le modèle
+                         EMPLOYÉ va dans `models`, ci-dessous ; 2026-10-01},
               'eta':    (clé, taille, unité) pour `record_run` — optionnel,
               'label':  nom lisible du résultat (console ✓ + notification) — optionnel,
               'instruction': ce qui a été demandé pour obtenir ce résultat (prompt de

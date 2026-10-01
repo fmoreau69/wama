@@ -87,7 +87,7 @@ class ArgumentsTest(SimpleTestCase):
 
     def test_le_bac_a_sable_exige_ses_arguments(self):
         self.assertEqual(['app_sandbox', 'list'], dev_tools.sandbox_command('list')[2:])
-        self.assertEqual(['app_sandbox', 'create', 'converter', '--proprietaire', 'fab'],
+        self.assertEqual(['app_sandbox', 'create', 'converter', '--owner', 'fab'],
                          dev_tools.sandbox_command('create', 'converter', owner='fab')[2:])
         with self.assertRaises(dev_tools.DevToolError):
             dev_tools.sandbox_command('substitute', 'converter_01')

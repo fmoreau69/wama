@@ -707,6 +707,116 @@
     });
   }
 
+  /** AJOUT À LA FILE depuis la card d'entrée — le geste du mode ATTACHE (`depot_cree=False`).
+   *
+   *  POURQUOI une brique (2026-10-01, demande de Fabien) : imager, avatarizer, composer et
+   *  synthesizer écrivaient chacun le même formulaire — consigne, réglages, fichier joint par
+   *  port (ou désigné depuis la médiathèque), POST, bouton « Envoi… », toast, card affichée —
+   *  et le générateur d'apps en écrivait une 5ᵉ version (Writer). Une seule ici.
+   *  Règle des deux temps (CARD_DESIGN §11.11) : on AJOUTE, rien n'est lancé ; ▶ lance.
+   *
+   *  opts = {
+   *    url:          vue d'ajout de l'app (POST, réponse JSON `{id}` ou `{error}`) ;
+   *    button:       le bouton (élément ou id) — la brique s'y abonne ;
+   *    csrfToken:    facultatif (repli : `csrfToken()` de la page) ;
+   *    prompt:       {inputId, field} — la consigne de la card, postée sous `field` ;
+   *    paramsHostId: hôte `WamaParams` dont les valeurs sont postées (les réglages du volet) ;
+   *                  la consigne de la card PRIME sur un champ homonyme du volet ;
+   *    ports:        [{inputId, field, urlField}] — fichier joint OU désigné (`appendInput`) ;
+   *                  sans fichier, l'URL du port (`[data-port-url]` de son onglet) est postée sous
+   *                  `urlField`. Un port SANS `urlField` dont l'URL est remplie est REFUSÉ, avec
+   *                  le motif : une URL ignorée en silence est le pire des cas ;
+   *    extraFields:  function (fd) — les champs propres à l'app ;
+   *    validate:     function (fd) → message d'erreur, ou '' ;
+   *    onAdded:      function (data) — défaut : recharger la page ;
+   *    reset:        vider la consigne et les ports après l'ajout (défaut true).
+   *  }
+   *  Rend la fonction de soumission (appel programmatique, tests). */
+  function addToQueue(opts) {
+    opts = opts || {};
+    const button = typeof opts.button === 'string' ? document.getElementById(opts.button)
+                                                   : opts.button;
+    const urlOf = function (inputId) {
+      const pane = inputId && document.querySelector('[data-port-input="' + inputId + '"]');
+      const el = pane && pane.querySelector('[data-port-url]');
+      return el ? el : null;
+    };
+
+    function build() {
+      const fd = new FormData();
+      const host = opts.paramsHostId && document.getElementById(opts.paramsHostId);
+      if (host && global.WamaParams && global.WamaParams.read) {
+        const v = global.WamaParams.read(host);
+        Object.keys(v).forEach(function (k) {
+          if (v[k] !== '' && v[k] != null) fd.append(k, v[k]);
+        });
+      }
+      const p = opts.prompt;
+      const promptEl = p && document.getElementById(p.inputId);
+      if (promptEl) fd.set(p.field || 'prompt', promptEl.value.trim());
+      let refusal = '';
+      (opts.ports || []).forEach(function (port) {
+        const input = document.getElementById(port.inputId);
+        if (appendInput(fd, input, port.field || 'file')) return;
+        const url = urlOf(port.inputId);
+        const value = url && url.value.trim();
+        if (!value) return;
+        if (port.urlField) fd.append(port.urlField, value);
+        else refusal = refusal || ("Cette app ne télécharge pas encore depuis une URL : importez le "
+                                   + "fichier ou prenez-le dans la médiathèque.");
+      });
+      if (typeof opts.extraFields === 'function') opts.extraFields(fd);
+      return { fd: fd, refusal: refusal || (typeof opts.validate === 'function' ? opts.validate(fd) : '') };
+    }
+
+    function clear() {
+      const promptEl = opts.prompt && document.getElementById(opts.prompt.inputId);
+      if (promptEl) promptEl.value = '';
+      (opts.ports || []).forEach(function (port) {
+        const input = document.getElementById(port.inputId);
+        if (input) { try { input.value = ''; } catch (e) { /* lecture seule */ } clearDesignation(input); }
+        const url = urlOf(port.inputId);
+        if (url) url.value = '';
+      });
+    }
+
+    function submit() {
+      const built = build();
+      if (built.refusal) { toast(built.refusal, 'error'); return Promise.resolve(null); }
+      const idle = button ? button.innerHTML : '';
+      if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Envoi…';
+      }
+      return csrfFetch(opts.url, opts.csrfToken || csrfToken(), { method: 'POST', body: built.fd })
+        // Un 400 porte le motif du refus en JSON : le lire, pas le remplacer.
+        .then(function (r) { return r.status === 400 ? r.json() : jsonOrExplain(r); })
+        .then(function (data) {
+          if (!data || data.error) {
+            toast((data && data.error) || 'Ajout refusé.', 'error');
+            return null;
+          }
+          toast('Ajouté à la file — réglez-le si besoin, puis ▶ pour lancer.', 'success');
+          if (global.WamaFM && global.WamaFM.uploaded) global.WamaFM.uploaded();
+          if (opts.reset !== false) clear();
+          if (typeof opts.onAdded === 'function') opts.onAdded(data);
+          else global.location.reload();
+          return data;
+        })
+        .catch(function (err) { toast(String(err && err.message || err), 'error'); return null; })
+        .then(function (data) {
+          if (button) { button.disabled = false; button.innerHTML = idle; }
+          return data;
+        });
+    }
+
+    if (button && !button._wamaAddToQueue) {
+      button._wamaAddToQueue = true;
+      button.addEventListener('click', function (e) { e.preventDefault(); submit(); });
+    }
+    return submit;
+  }
+
   /** Card rendue par le SERVEUR (vue `card_html` de l'app), prête à insérer — ou null.
    *
    *  Source unique du markup (CARD_DESIGN §3) : le JS ne reconstruit jamais une card, il la
@@ -769,6 +879,7 @@
     appendFile: appendFile,
     appendInput: appendInput,
     pickFromLibrary: pickFromLibrary,
+    addToQueue: addToQueue,
     fetchCard: fetchCard,
     initUrlImport: initUrlImport,
     pauseDomMedia: pauseDomMedia,

@@ -3002,6 +3002,33 @@ redécouvrir » que cite `AGENTS.md` comme source obligatoire **n'existe pas** s
 l'exécuteur du studio ne figurent pas non plus au registre des mécanismes.
 **Renommé : l'Editor est le Writer** (`writer`, décision de Fabien — paire avec Reader).
 
+**Le même soir, deux manques de GABARIT vus par Fabien sur la page (2026-10-01).**
+1. **Aucun bouton « Ajouter à la file ».** Les générateurs ne connaissaient que la forme « le dépôt
+   crée l'élément ». Une app à CONSIGNE ne peut pas naître d'un dépôt : imager, avatarizer, composer
+   et synthesizer déclarent `depot_cree=False` à la main et écrivent chacun le même formulaire.
+   Ce n'était pas un trou de glu (le gabarit le marquait comme tel). La forme se DÉRIVE désormais des
+   ports du manifeste — une consigne et AUCUN port de travail (`views_gen.prompt_entry`, lu par la
+   vue ET le gabarit ; « port prompt ⇒ attache » mesuré FAUX sur l'anonymizer et le synthesizer,
+   imager et avatarizer restent déclarés à la main faute de `required` aux ports) : la card porte
+   la consigne et le bouton, la vue d'ajout passe par `received_inputs` et ne lance rien. La
+   consigne ne traverse pas la cascade des réglages : vide, elle aurait repris la dernière
+   enregistrée. Le geste est une BRIQUE commune, `WamaApp.addToQueue` (mécanisme `add_to_queue`) :
+   consigne + réglages du volet + fichier joint ou désigné par port ; l'URL d'un port n'est postée
+   que si l'élément la garde (`source_url`), sinon elle est REFUSÉE avec son motif — une URL
+   ignorée en silence était le cas du Writer. Attestée en V8 (parse + comportement).
+   ⏳ **Adoption** : imager, avatarizer, composer et synthesizer gardent leur formulaire écrit à
+   la main — portage à faire, app par app, avec leurs gestes nocturnes.
+   **Ordre des tuiles** : constant sur tous les ports, Importer · Médiathèque · URL (Fabien,
+   2026-10-01 — `CARD_DESIGN §11.11 B`).
+2. **Le choix « auto » avait deux chemins.** La prévision « Prévu : … » passe par
+   `auto_model.resolve_model_choice` ; la brique LLM tirait `auto` d'elle-même par un autre funnel
+   (`modele_par_defaut`). Elle REFUSE désormais `auto` (`llm_utils.chat_with_catalog_model`) : une
+   app le tire par `resolve_model_choice`, et le rôle `codegen` reçoit cette brique dès qu'un
+   select déclare `options_auto` — avec deux contrôles, « brique déclenchée non appelée » et
+   « `fields` réécrit un RÉGLAGE » (la 2ᵉ glu écrivait le modèle tiré dans `model`). Mesuré :
+   prévision au curseur 20 = qwen3.8, lancé = qwen3.8, réglage resté `auto`. Le curseur rapide/qualité entre au manifeste du
+   Writer (`type: 'intent'`, colonne `IntegerField(null=True)` — `models_gen` n'avait pas ce type).
+
 **La chaîne SŒUR « dépôt → MODÈLE exécutable » — bouclée hors terminal le 2026-09-29.** Un modèle
 n'a pas le trou de l'app (il ne demande pas de manifeste `app`) ; il en avait d'autres, mesurés sur
 Supra2-IMG et comblés : recherche par URL / dépôt nommé (`prospector.named_repo`) → installation

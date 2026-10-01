@@ -25,13 +25,17 @@ class CatalogKeyRoutingTest(SimpleTestCase):
             result = llm_utils.chat_with_catalog_model(key, MESSAGES, **kw)
         return result, chat
 
-    def test_auto_goes_to_the_local_catalog_funnel(self):
-        (text, err), chat = self._call('auto', num_predict=10)
-        self.assertEqual(('ok', None), (text, err))
-        _args, kwargs = chat.call_args
-        self.assertEqual('ollama', kwargs['provider'])
-        self.assertIsNone(kwargs['model'], 'auto must leave the choice to the funnel')
-        self.assertEqual(10, kwargs['num_predict'])
+    def test_auto_is_refused_with_the_gesture_to_make(self):
+        """ONE « auto » path (2026-10-01): an app draws with `resolve_model_choice` — the path of
+        the preview under its select. This branch used to fall back on its own to a second
+        funnel (`modele_par_defaut`): an app that forgot to draw announced one model and launched
+        another. Refused, the omission is visible; nothing is called."""
+        for key in ('auto', '', 'auto:text-generation'):
+            with self.subTest(key=key):
+                (text, err), chat = self._call(key)
+                self.assertIsNone(text)
+                self.assertIn('resolve_model_choice', err)
+                chat.assert_not_called()
 
     def test_an_ollama_key_keeps_its_full_model_name(self):
         _result, chat = self._call('ollama:qwen3.8:latest')

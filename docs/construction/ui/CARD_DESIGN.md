@@ -1238,6 +1238,15 @@ médiathèque ou l'URL. Une rangée unique de modalités imposerait le même ord
 l'enchaînement **travail → référence est chronologique**, alors qu'un axe modalité ne l'est
 pas. La maquette rend les deux ordres visibles côte à côte.
 
+⚠ **ORDRE DES TUILES CONSTANT — décision de Fabien, 2026-10-01** (elle remplace l'ordre PAR PORT
+ci-dessus ; le choix du port d'abord tient). Mesuré ce jour-là : le port de travail montrait
+Importer · Médiathèque · URL, le port de référence Médiathèque · URL · Importer — vu sur le
+Writer et le composer. *« À l'usage, ça embrouille que l'ordre change. »* Ordre retenu sur
+**tous** les ports : **Importer · Médiathèque · URL** — de gauche à droite, du plus proche au
+plus distant (le poste, puis WAMA, puis le web) et du plus courant au plus rare, ce qui réduit
+le déplacement de la souris pour le geste le plus fréquent. Un port qui n'a pas une modalité
+la saute, sans réordonner les autres. Domicile : `common/_new_item_card_v4.html`.
+
 ⚠ Ports déclarés (`studio_node_ports()`) : anonymizer · converter · describer · enhancer ·
 reader · transcriber = **1** · avatarizer, synthesizer, composer = **2** · imager = **3**.
 **Jamais plus de 2 ports FICHIER** — donc jamais plus de 3 onglets.

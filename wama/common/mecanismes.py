@@ -809,7 +809,10 @@ MECHANISMS = (
               "ce qu'appelle une app dont le réglage « Modèle » est tiré du catalogue (route F4b). "
               "`chat_with_source` (2026-10-01) : l'appel à un fournisseur DÉCLARÉ avec la clé de "
               "l'UTILISATEUR (garde commune `cloud_access`, refus levé avec son statut) — partagé "
-              "par l'assistant et les apps, il vivait en privé dans l'assistant",
+              "par l'assistant et les apps, il vivait en privé dans l'assistant. "
+              "`auto` y est REFUSÉ : il se tire AVANT l'appel — `auto_model.resolve_model_choice` "
+              "dans une app (le chemin de la prévision « Prévu : … »), `modele_par_defaut` hors "
+              "app (2026-10-01 : un repli interne faisait annoncer un modèle et en lancer un autre)",
               'wama/common/utils/llm_utils.py', ''),
     Mechanism('assistant_skills', "Skills de rôle de l'assistant",
               "Posture et domaine de l'assistant (science, design, dev) + rappel du "
@@ -1495,9 +1498,24 @@ MECHANISMS = (
     Mechanism('new_item_card', 'Card « Nouvel élément »',
               "Card d'entrée dépliable commune — les 6 modalités du partial : dépôt, URL, "
               "médiathèque, lot, dossier, live + slot de référence typé (extra_zone) — "
-              "auto-init",
+              "auto-init. v4 : un onglet par PORT, ses tuiles dans un ordre CONSTANT sur tous les "
+              "ports — Importer · Médiathèque · URL, du plus proche au plus distant (Fabien, "
+              "2026-10-01, `CARD_DESIGN §11.11 B`)",
               'wama/common/static/common/js/wama-new-item-card.js', 'docs/construction/ui/MODES_QUEUE_UX.md',
-              annexes=('wama/common/templates/common/_new_item_card.html',)),
+              annexes=('wama/common/templates/common/_new_item_card.html',
+                       'wama/common/templates/common/_new_item_card_v4.html')),
+    # Le geste d'AJOUT du mode attache : la card porte une consigne, le fichier est JOINT, un
+    # bouton crée l'élément. Quatre apps l'écrivaient chacune, le générateur en émettait une 5ᵉ.
+    Mechanism('add_to_queue', "Ajout à la file (mode attache)",
+              "Bouton « Ajouter à la file » de la card d'entrée : consigne + réglages du volet + "
+              "fichier joint ou désigné par port (`appendInput`), URL postée seulement si l'élément "
+              "la garde (sinon refusée, motif dit), rien n'est lancé (règle des deux temps). Côté "
+              "serveur : `received_inputs`. Mode DÉRIVÉ des ports par le générateur "
+              "(`views_gen.prompt_entry` : consigne sans port de travail)",
+              'wama/common/static/common/js/wama-app-base.js', 'docs/construction/ui/CARD_DESIGN.md',
+              annexes=('wama/common/manifests/codegen/templates_gen.py',
+                       'wama/common/manifests/codegen/views_gen.py'),
+              symbol='addToQueue'),
     # La card d'entrée porte les MODALITÉS ; celle-ci porte le GESTE d'envoi. Elles se
     # complètent : `new_item_card` déplie/replie, `batch_import` traite les fichiers de LOT,
     # `WamaApp.initUrlImport` le champ URL — et personne ne prenait le fichier ORDINAIRE.

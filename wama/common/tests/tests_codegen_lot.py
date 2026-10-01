@@ -543,7 +543,7 @@ class LotBoutEnBoutTest(TestCase):
 
     Les tests ci-dessus portent sur le GABARIT ; celui-ci exerce la vue réellement montée dans
     une app. Il SKIPPE si le bac à sable n'existe pas (il est destructible par conception,
-    `app_sandbox drop`) — un test qui exigerait sa présence casserait le jour où on le retire.
+    `app_sandbox remove`) — un test qui exigerait sa présence casserait le jour où on le retire.
 
     ⚠ Pourquoi pas le scénario nocturne `converter_01.import` : il SKIPPE, parce que le compte
     de test nocturne est détourné (302) sur cette app — trou de DROITS mesuré le 2026-08-22,

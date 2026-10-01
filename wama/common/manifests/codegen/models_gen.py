@@ -63,6 +63,11 @@ def _champ_option(entry: dict) -> str:
                 f"choices=[{rendu}], default={defaut!r})")
     if t == 'toggle':
         return f"{nom} = models.BooleanField(default={bool(d)})"
+    if t == 'intent':
+        # Le curseur rapide/qualité (`auto_model.intent_param`) : un entier 0-100, VIDE = suivre
+        # le réglage de l'utilisateur puis équilibré (`quality_intent_of`). Forme majoritaire
+        # du parc (converter, enhancer, composer, imager). Sans ce cas, il devenait un CharField.
+        return f"{nom} = models.IntegerField(null=True, blank=True)"
     if t in ('number', 'range'):
         bornes = (d, entry.get('min'), entry.get('max'), entry.get('step'))
         if any(isinstance(x, float) for x in bornes):

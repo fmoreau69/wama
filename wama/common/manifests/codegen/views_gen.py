@@ -45,6 +45,32 @@ from wama.common.app_registry import MEDIA_CATEGORIES
 from wama.common.manifests.codegen.urls_gen import ROUTE_ALIASES, alias_fits, route_variants
 
 
+def prompt_entry(body: dict, fields=None) -> tuple:
+    """(mode attache ?, champ de la consigne) — dérivés des déclarations du manifeste, partagés
+    par la vue (`upload`) et le gabarit (`templates_gen`) pour qu'ils ne divergent jamais.
+
+    Mode attache = un port `prompt` déclaré et AUCUN port de travail : la consigne est l'entrée
+    principale, rien ne peut naître d'un dépôt. Le champ = celui de sa cible de prompt
+    (`prompts.targets[].field`), sinon `prompt`. `fields` : les colonnes de l'élément, pour ne
+    rendre qu'un champ qui existe (None = ne pas vérifier).
+
+    ⚠ MESURÉ sur les 10 apps le 2026-10-01 (« port prompt ⇒ attache » était FAUX deux fois) :
+    l'anonymizer a un port prompt (le concept SAM3, facultatif) et CRÉE au dépôt de sa vidéo ;
+    le synthesizer a les deux gestes (texte + bouton, fichier de travail déposé = élément).
+    Le vrai critère est « la consigne est-elle REQUISE pour créer ? » — les ports déclarés au
+    manifeste ne portent pas `required` aujourd'hui. Avec « sans port de travail » : 0 faux
+    positif (Writer, composer) ; imager et avatarizer (travail + consigne, attache déclarée à la
+    main) restent hors de la dérivation — un manque nommé, pas une erreur."""
+    groups = {p.get('group') for p in ((body.get('ports') or {}).get('inputs') or [])}
+    if 'prompt' not in groups or 'travail' in groups:
+        return False, ''
+    exists = (lambda n: True) if fields is None else (lambda n: n in fields)
+    targets = (body.get('prompts') or {}).get('targets') or []
+    field = next((t['field'] for t in targets if t.get('field') and exists(t['field'])),
+                 'prompt' if exists('prompt') else '')
+    return True, field
+
+
 def _donnees(manifest: dict) -> dict:
     """Paramètres du gabarit dérivés du manifeste — (dict, jamais None) ; clé '_raison'
     posée si un préalable manque."""
@@ -97,6 +123,14 @@ def _donnees(manifest: dict) -> dict:
 
     champs = {f['name']: f for f in data_models[item].get('fields') or []}
     d['champ_noms'] = set(champs)
+    # FORME D'ENTRÉE — dérivée des PORTS déclarés (2026-10-01, règle exacte : `prompt_entry`).
+    # Une consigne sans port de travail : l'élément ne peut pas naître d'un dépôt, il naît du
+    # bouton « Ajouter à la file » (mode ATTACHE, `depot_cree=False` — imager, avatarizer,
+    # composer, synthesizer le déclarent à la main). Le générateur ne connaissait que la forme
+    # « le dépôt crée » : la 1ʳᵉ app consigne-d'abord née de zéro (le Writer) n'avait aucun
+    # moyen d'ajouter un élément (relevé par Fabien). Le champ de la consigne est celui de sa
+    # cible de prompt (`PROMPT_TARGETS`), sinon la colonne `prompt`.
+    d['prompt_first'], d['prompt_field'] = prompt_entry(body, champs)
     d['a_output'] = 'output_file' in champs
     d['file_fields'] = [n for n, f in champs.items()
                         if str(f.get('class', '')).rsplit('.', 1)[-1] in ('FileField', 'ImageField')]
@@ -504,6 +538,52 @@ def upload(request):
     {f"kwargs['{d['name_field']}'] = f.name" if d['name_field'] else ''}
     {up_nature}{up_reglages}
     item = {item}.objects.create(**kwargs){up_wrap}
+    return JsonResponse({{'id': item.id, 'status': item.status, 'warning': _avert}})'''
+    if d['prompt_first']:
+        # Mode ATTACHE : la consigne et les réglages arrivent par la cascade (POST > défauts),
+        # le fichier est FACULTATIF et peut être DÉSIGNÉ (médiathèque) — brique `received_inputs`,
+        # celle des vues de création du composer et de l'avatarizer. Rien n'est lancé : on
+        # ajoute, on règle, puis ▶ (CARD_DESIGN §11.11, règle des deux temps).
+        p_field = d['prompt_field']
+        vide = (f"not str(kwargs.get('{p_field}') or '').strip()" if p_field else 'True')
+        # URL d'un port (`WamaApp.addToQueue` la poste sous `source_url` quand l'élément peut la
+        # garder — même condition qu'au gabarit) : téléchargée AU LANCEMENT (`ensure_local_input`).
+        has_url = 'source_url' in d['champ_noms']
+        ligne_url = ("\n    _url = (request.POST.get('source_url') or '').strip()"
+                     "\n    if f is None and _url:\n        kwargs['source_url'] = _url"
+                     if has_url else '')
+        if has_url:
+            vide += " and not kwargs.get('source_url')"
+        # La CONSIGNE vient de la card seule : passée par la cascade, une consigne vide
+        # retomberait sur la DERNIÈRE consigne enregistrée, et chaque ajout l'enregistrerait
+        # comme défaut du suivant. Elle sort du POST donné à la cascade et se pose après.
+        att_reglages = up_reglages.replace('request.POST', '_poste')
+        if p_field:
+            att_reglages = (f"\n    _poste = request.POST.copy()\n    _poste.pop('{p_field}', None)"
+                            + att_reglages
+                            + f"\n    kwargs['{p_field}'] = (request.POST.get('{p_field}') or '').strip()")
+        vues['upload'] = f'''@require_POST
+def upload(request):
+    """Ajout à la file depuis la card d'entrée : consigne + fichier facultatif (téléversé ou
+    désigné). Mode ATTACHE dérivé du port `prompt` du manifeste."""
+    from wama.common.utils.media_paths import received_inputs
+    user = _user(request)
+    received = received_inputs(request, user, '{app}', field='file')
+    kwargs = {{'user': user}}
+    f = received[0] if received else None
+    if f is not None:
+        kwargs['{d['input_field']}'] = f.value
+        {f"kwargs['{d['name_field']}'] = f.name" if d['name_field'] else ''}
+    if f is not None:
+        {up_nature.replace(chr(10) + '    ', chr(10) + '        ')}
+    else:
+        _avert = received.refusal{att_reglages}{ligne_url}
+    if f is None and {vide}:
+        return JsonResponse({{'error': received.refusal or 'Rien à ajouter : écrivez une consigne '
+                                       'ou joignez un fichier.'}}, status=400)
+    item = {item}.objects.create(**kwargs){up_wrap}
+    if f is not None:
+        f.record(item, '{d['input_field']}')   # provenance d'un fichier DÉSIGNÉ
     return JsonResponse({{'id': item.id, 'status': item.status, 'warning': _avert}})'''
 
     # APERÇU DE LOT — conventionnel, plus un stub (2026-08-22). Le parsing d'un fichier de lot

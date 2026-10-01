@@ -66,6 +66,12 @@ def render_index(manifest: dict) -> tuple:
         exts = retenues or exts
     accept = ','.join(exts) or '*/*'
     mark = _GEN_MARK.format(app_id=app)
+    # Mode ATTACHE (port `prompt`) — la MÊME dérivation que la vue d'ajout (`views_gen`).
+    from wama.common.manifests.codegen.views_gen import prompt_entry
+    _item = (((body.get('processing') or {}).get('model_spec') or {}).get('item') or {}).get('name')
+    _cols = {f['name'] for m in ((body.get('data') or {}).get('models') or [])
+             if m.get('name') == _item for f in m.get('fields') or []} or None
+    prompt_first, prompt_field = prompt_entry(body, _cols)
 
     # Import par URL — DÉRIVÉ des capacités du manifeste (2026-08-19). La jumelle converter_01
     # n'offrait pas le champ URL alors que l'app source l'a : ce n'était PAS un trou de glu
@@ -451,6 +457,37 @@ def render_index(manifest: dict) -> tuple:
     // non généré : joindre le fichier du slot au POST de création est un geste d'app
     // (`depot_cree=False`/FormData) que la marche B remplit. Le slot est visible et nommé
     // plutôt qu'absent — l'écart avec l'app en place EST la mesure.{surplus}
+''' if not prompt_first else surplus.lstrip('\n') + ('\n' if surplus else '')
+
+    # MODE ATTACHE — dérivé des ports (`views_gen.prompt_entry`, la vue et le gabarit lisent la
+    # MÊME dérivation). La card porte la consigne et un bouton « Ajouter à la file » ; le fichier
+    # du slot y est JOINT, jamais un élément créé au dépôt. Le geste est la brique commune
+    # `WamaApp.addToQueue` (wama-app-base.js) — celui que quatre apps écrivaient à la main.
+    attach_bits = attach_js = ''
+    if prompt_first:
+        p_param = next((f for s in ((body.get('params') or {}).get('schemas') or {}).values()
+                        for f in s or [] if f.get('name') == prompt_field), {})
+        placeholder = (p_param.get('help') or 'Décrivez ce que vous voulez obtenir…').replace("'", '’')
+        attach_bits = (f" depot_cree=False show_prompt=True prompt_input_id='{app}Prompt'"
+                       f" prompt_placeholder='{placeholder}' prompt_rows=3"
+                       f" primary_btn_id='{app}AddBtn' primary_btn_label='Ajouter à la file d’attente'"
+                       " primary_btn_icon='fa-plus'")
+        # L'URL d'un port n'est postée que si l'élément a de quoi la garder (`source_url`,
+        # téléchargée au lancement) ; sinon la brique REFUSE une URL remplie, motif à l'appui.
+        url_field = ", urlField: 'source_url'" if 'source_url' in (_cols or ()) else ''
+        ports_js = (f"[{{ inputId: '{app}RefInput', field: 'file'{url_field} }}]"
+                    if refs else '[]')   # attache ⇒ aucun port de travail
+        attach_js = f'''
+    // AJOUT À LA FILE (mode attache) — brique commune : consigne + réglages du volet + fichier
+    // joint ou désigné ; rien n'est lancé — on ajoute, on règle, puis ▶.
+    WamaApp.addToQueue({{
+        url:          "{{% url '{app}:{route_upload}' %}}",
+        csrfToken:    CSRF,
+        button:       '{app}AddBtn',
+        prompt:       {{ inputId: '{app}Prompt', field: '{prompt_field or 'prompt'}' }},
+        paramsHostId: '{app}PanelParams',
+        ports:        {ports_js},
+    }});
 '''
 
     src = f'''{{% extends '{app}/base.html' %}}
@@ -505,7 +542,7 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
     celle-ci ne se rebranche qu'en passant les 8 gestes de `converter_01`. `app_id` remplace
     les littéraux de modalité ; `file_accept`/`show_media_library`/`reference_*` restent
     émis parce que la v3 les lit (les 10 apps) et que la v4 honore les ids `reference_*`.{{% endcomment %}}
-    {{% include 'common/_new_item_card_v4.html' with app_id='{app}' drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' folder_input_id='{app}FolderInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits} %}}
+    {{% include 'common/_new_item_card_v4.html' with app_id='{app}' drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' folder_input_id='{app}FolderInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits}{attach_bits} %}}
     <hr class="border-secondary">
 
 {urls_file}    {{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='{app}StartAllBtn' clear_id='{app}ClearAllBtn' download_id='{app}DownloadAllBtn' show_download=True{bits_file} %}}
@@ -600,7 +637,7 @@ document.addEventListener('DOMContentLoaded', function () {{
 
     // Import de DOSSIER : porté par la brique (`folderInputId` + traversée du drop) depuis le
     // 05/09 — le câblage qui vivait ICI n'existait pour aucune app hors générateur.
-{url_js}{ref_js}{insp_js}{params_js}{batch_js}{poll_js}}});
+{url_js}{ref_js}{attach_js}{insp_js}{params_js}{batch_js}{poll_js}}});
 </script>
 {{% endblock %}}
 '''

@@ -1,7 +1,7 @@
 """Bac à sable d'apps — jumelles EXÉCUTABLES (route §10.3, marche S, actée Fabien 2026-08-18).
 
   python manage.py app_sandbox create converter        # → jumelle TÉMOIN `converter_01`
-  python manage.py app_sandbox drop converter_01       # migrate zero + retrait complet
+  python manage.py app_sandbox remove converter_01     # migrate zero + retrait complet
   python manage.py app_sandbox list
 
 Étape S1 (jumelle TÉMOIN) : COPIE du code réel sous un label suffixé `_NN` — prouve la
@@ -26,7 +26,7 @@ portent l'ancien app_label) — `makemigrations <label>` FRAIS en sous-process (
 courant ne connaît pas encore la jumelle), puis `migrate <label>` → tables `<label>_*`
 vierges. Drop symétrique : `migrate <label> zero` AVANT le retrait du registre/package.
 
-⚠ Après create/drop : REDÉMARRER gunicorn/workers (INSTALLED_APPS est lu au boot).
+⚠ Après create/remove : REDÉMARRER gunicorn/workers (INSTALLED_APPS est lu au boot).
 """
 from __future__ import annotations
 
@@ -427,27 +427,31 @@ def _smoke_populated_queue(label: str, item_model: str, check_card: bool) \
 
 
 class Command(BaseCommand):
-    help = "Bac à sable d'apps : create <app> / drop <app_NN> / list (route §10.3 marche S)"
+    help = "Bac à sable d'apps : create <app> / remove <app_NN> / list (route §10.3 marche S)"
     # PAS de check système au démarrage : une jumelle CASSÉE (enregistrée, modèle refusé)
-    # bloquait la commande entière — `drop` compris, donc plus aucun moyen de la retirer (vécu le
+    # bloquait la commande entière — `remove` compris, donc plus aucun moyen de la retirer (vécu le
     # 2026-09-30 sur la 1ʳᵉ app de zéro). Les juges de la commande lancent leur propre
     # `manage.py check` en sous-processus, là où il mesure quelque chose.
     requires_system_checks = []
 
     def add_arguments(self, parser):
-        parser.add_argument('action', choices=['create', 'drop', 'list', 'substitute', 'revert',
+        parser.add_argument('action', choices=['create', 'remove', 'list', 'substitute', 'revert',
                                                'glue'])
-        parser.add_argument('app', nargs='?', help='app source (create) ou label jumeau (drop/substitute)')
-        parser.add_argument('cible', nargs='?',
-                            help=f"substitute : {sorted(_SUBSTITUTABLE)} — fichier à passer en GÉNÉRÉ")
+        parser.add_argument('app', nargs='?', help='app source (create) ou label jumeau (remove/substitute)')
+        # Options et arguments en ANGLAIS (AGENTS.md, décision du 2026-09-14 : une option de ligne
+        # de commande est du code). Renommés le 2026-10-01 : `cible` → `target`, `--proprietaire`
+        # → `--owner` (relevé par Fabien sur la page du Writer).
+        parser.add_argument('target', nargs='?',
+                            help=f"substitute/revert : {sorted(_SUBSTITUTABLE)} — fichier à passer "
+                                 "en GÉNÉRÉ ; glue : sortie du rôle codegen à appliquer")
         parser.add_argument('--from-manifest', default='',
                             help="create : crée l'app DE ZÉRO depuis un manifeste `app` FICHIER "
-                                 "(ex. manifests/app_drafts/editor.json) — sans app source "
+                                 "(ex. manifests/app_drafts/writer.json) — sans app source "
                                  "(route « app de zéro », WAMA_APP_GENERATION_ROUTE §10.5)")
-        parser.add_argument('--proprietaire', default='',
+        parser.add_argument('--owner', default='',
                             help="create : username du CRÉATEUR de la jumelle (visibilité "
                                  "« créateur + dev + admin », demande Fabien 03/09) ; "
-                                 "vide = jumelle d'opérateur, dev/admin seuls")
+                                 "vide = jumelle d'opérateur, dev/admin seuls ; glue : qui applique")
 
     def handle(self, *args, **opts):
         action = opts['action']
@@ -465,7 +469,7 @@ class Command(BaseCommand):
 
         if action == 'create' and opts.get('from_manifest'):
             self._create_from_manifest(opts['from_manifest'],
-                                       owner=opts.get('proprietaire') or '')
+                                       owner=opts.get('owner') or '')
             return
 
         app = opts.get('app')
@@ -473,15 +477,15 @@ class Command(BaseCommand):
             raise CommandError(f"app_sandbox {action} exige un nom d'app.")
 
         if action == 'glue':
-            self._apply_glue(app, opts.get('cible'), applied_by=opts.get('proprietaire') or '')
+            self._apply_glue(app, opts.get('target'), applied_by=opts.get('owner') or '')
         elif action == 'create':
-            self._create(app, owner=opts.get('proprietaire') or '')
+            self._create(app, owner=opts.get('owner') or '')
         elif action == 'substitute':
-            self._substitute(app, opts.get('cible'))
+            self._substitute(app, opts.get('target'))
         elif action == 'revert':
-            self._revert(app, opts.get('cible'))
+            self._revert(app, opts.get('target'))
         else:
-            self._drop(app)
+            self._remove(app)
 
     # ── create ───────────────────────────────────────────────────────────────
     def _create(self, src: str, owner: str = ''):
@@ -515,7 +519,7 @@ class Command(BaseCommand):
             if r.returncode != 0:
                 self.stderr.write(self.style.ERROR(
                     '  ÉCHEC — la jumelle reste enregistrée pour diagnostic ; '
-                    f'`app_sandbox drop {label}` pour tout retirer.'))
+                    f'`app_sandbox remove {label}` pour tout retirer.'))
                 return
 
         self.stdout.write(self.style.SUCCESS(
@@ -532,7 +536,7 @@ class Command(BaseCommand):
              templates, puis check et smokes.
         L'app naît dans le BAC À SABLE (dev seulement) sous le label `<clé>_NN` ; ce qui reste
         à écrire est marqué `TROU DE GLU` — le terrain du rôle `codegen`, jamais rempli ici.
-        Un échec laisse l'app enregistrée pour diagnostic (`app_sandbox drop <label>`)."""
+        Un échec laisse l'app enregistrée pour diagnostic (`app_sandbox remove <label>`)."""
         import importlib
         import json
 
@@ -624,7 +628,7 @@ class Command(BaseCommand):
             _save_entry(entry)
             self.stderr.write(self.style.ERROR(
                 f'  ÉCHEC — {message}. L\'app reste enregistrée pour diagnostic ; '
-                f'`app_sandbox drop {label}` pour tout retirer.'))
+                f'`app_sandbox remove {label}` pour tout retirer.'))
 
         for step in (['makemigrations', label], ['migrate', label]):
             r = _manage(step)
@@ -728,7 +732,7 @@ class Command(BaseCommand):
             '⚠ Redémarrer les workers pour qu\'ils la chargent.'))
 
     # ── substitute (étape S2) ────────────────────────────────────────────────
-    def _substitute(self, label: str, cible: str):
+    def _substitute(self, label: str, requested: str):
         """Remplace UN fichier copié de la jumelle par sa version GÉNÉRÉE (gabarit codegen
         sur le manifeste extrait LIVE de la SOURCE), puis re-mesure. Le fichier copié est
         préservé en `.temoin` (= la référence du diff copie↔généré). ÉCHEC → auto-revert :
@@ -741,10 +745,10 @@ class Command(BaseCommand):
         # (vécu sur converter_01 : `update_job` → `update_settings`, smoke 404 dans les deux
         # ordres, l'include de la jumelle tombant à l'import). Ensemble : générées, mesurées et
         # revertées comme UNE substitution.
-        targets = [c for c in (cible or '').split('+') if c]
+        targets = [c for c in (requested or '').split('+') if c]
         unknown = [c for c in targets if c not in _SUBSTITUTABLE]
         if not targets or unknown:
-            raise CommandError(f'Cible inconnue : {cible} (attendu {sorted(_SUBSTITUTABLE)}, '
+            raise CommandError(f'Cible inconnue : {requested} (attendu {sorted(_SUBSTITUTABLE)}, '
                                'ou plusieurs jointes par « + »).')
         entries = load_registry()
         entry = next((e for e in entries if e['label'] == label), None)
@@ -792,18 +796,18 @@ class Command(BaseCommand):
                 if c == 'models':
                     texte = _patch_related_names(texte, label)
                 if isinstance(rendered, dict):
-                    cible_path = WAMA_DIR / label / 'templates' / label / nom
+                    dest_path = WAMA_DIR / label / 'templates' / label / nom
                 else:
-                    cible_path = WAMA_DIR / label / nom
-                cible_path.parent.mkdir(parents=True, exist_ok=True)
-                t = cible_path.with_name(cible_path.name + '.temoin')
-                if cible_path.exists() and not t.exists():
-                    shutil.copy2(cible_path, t)   # référence du diff, préservée UNE fois
+                    dest_path = WAMA_DIR / label / nom
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                t = dest_path.with_name(dest_path.name + '.temoin')
+                if dest_path.exists() and not t.exists():
+                    shutil.copy2(dest_path, t)   # référence du diff, préservée UNE fois
                 if temoin is None and t.exists():
-                    temoin, target, text = t, cible_path, texte   # diff/revert = 1er fichier témoin
-                cible_path.write_text(texte, encoding='utf-8')
-                ecrits.append((cible_path, t))
-                self.stdout.write(f'{cible_path.relative_to(WAMA_DIR / label)} ← GÉNÉRÉ '
+                    temoin, target, text = t, dest_path, texte   # diff/revert = 1er fichier témoin
+                dest_path.write_text(texte, encoding='utf-8')
+                ecrits.append((dest_path, t))
+                self.stdout.write(f'{dest_path.relative_to(WAMA_DIR / label)} ← GÉNÉRÉ '
                                   f'({len(texte.splitlines())} lignes)')
         if temoin is None:                     # aucun fichier préexistant (tout est neuf)
             target, text = ecrits[0][0], ecrits[0][0].read_text(encoding='utf-8')
@@ -884,11 +888,11 @@ class Command(BaseCommand):
         # Multi-fichiers : chaque fichier revient à SON témoin ; un fichier NEUF (sans
         # témoin) est retiré.
         if verdict == 'revert':
-            for _cible_path, _t in ecrits:
+            for _dest_path, _t in ecrits:
                 if _t.exists():
-                    shutil.copy2(_t, _cible_path)
+                    shutil.copy2(_t, _dest_path)
                 else:
-                    _cible_path.unlink(missing_ok=True)
+                    _dest_path.unlink(missing_ok=True)
             if withdrawn:
                 _restore_retired_modules(label, withdrawn)
             # Le COUPLE se défait ensemble : des templates qui échouent laissaient des vues
@@ -917,7 +921,7 @@ class Command(BaseCommand):
                 f'ÉCHEC — {fname} REVENU au témoin. TROU documenté : ' + ' ; '.join(details)))
         else:
             self.stdout.write(self.style.SUCCESS(
-                f'{cible} : GÉNÉRÉ tient ({" ; ".join(details) or "aucun écart"})'))
+                f'{requested} : GÉNÉRÉ tient ({" ; ".join(details) or "aucun écart"})'))
         for c in targets:
             entry.setdefault('substituted', {})[c] = {
                 'verdict': verdict, 'details': details,
@@ -928,44 +932,44 @@ class Command(BaseCommand):
         _save_entry(entry)
 
     # ── revert (retour MANUEL au témoin) ─────────────────────────────────────
-    def _revert(self, label: str, cible: str):
+    def _revert(self, label: str, target: str):
         """Ramène UNE cible substituée à sa copie témoin (`.temoin`) — le geste qu'aucun
         outil n'offrait quand la substitution avait « tenu » au smoke mais cassait à
         l'usage (describer_01, 2026-09-03 : templates générés × views copiées — page 200,
         boutons morts). Fichier GÉNÉRÉ sans témoin (neuf, marqué manifest-gen) → retiré."""
-        if cible not in _SUBSTITUTABLE:
-            raise CommandError(f'Cible inconnue : {cible} (attendu {sorted(_SUBSTITUTABLE)}).')
+        if target not in _SUBSTITUTABLE:
+            raise CommandError(f'Cible inconnue : {target} (attendu {sorted(_SUBSTITUTABLE)}).')
         entries = load_registry()
         entry = next((e for e in entries if e['label'] == label), None)
         if not entry:
             raise CommandError(f'{label} absent du registre.')
 
-        fname = _SUBSTITUTABLE[cible][0]
-        if cible == 'templates':
-            candidats = sorted((WAMA_DIR / label / 'templates' / label).glob('*.html'))
+        fname = _SUBSTITUTABLE[target][0]
+        if target == 'templates':
+            candidates = sorted((WAMA_DIR / label / 'templates' / label).glob('*.html'))
         else:
-            candidats = [WAMA_DIR / label / fname]
-        restaures, retires = [], []
-        for p in candidats:
+            candidates = [WAMA_DIR / label / fname]
+        restored, removed = [], []
+        for p in candidates:
             if not p.is_file():
                 continue
             t = p.with_name(p.name + '.temoin')
             if t.exists():
                 shutil.copy2(t, p)
-                restaures.append(p.name)
+                restored.append(p.name)
             elif 'manifest-gen' in p.read_text(encoding='utf-8', errors='replace')[:600]:
                 p.unlink()
-                retires.append(p.name)
-        if cible == 'tasks':
+                removed.append(p.name)
+        if target == 'tasks':
             # Les modules de tâches COPIÉS que la substitution avait retirés (`workers.py`)
             # reviennent avec elle : leur témoin est le seul `.py.temoin` sans `.py` en face.
             for t in sorted((WAMA_DIR / label).glob('*.py.temoin')):
                 p = t.with_name(t.name[:-len('.temoin')])
                 if p.name != fname and not p.exists():
                     shutil.copy2(t, p)
-                    restaures.append(p.name)
-        if not restaures and not retires:
-            raise CommandError(f'{cible} : aucun témoin ni fichier généré — rien à ramener.')
+                    restored.append(p.name)
+        if not restored and not removed:
+            raise CommandError(f'{target} : aucun témoin ni fichier généré — rien à ramener.')
 
         # Smoke : la jumelle revenue doit RENDRE (même juge que la substitution).
         smoke = subprocess.run(
@@ -975,20 +979,20 @@ class Command(BaseCommand):
              f"r=Client().get('/{label}/',follow=True);print(r.status_code);"
              "raise SystemExit(0 if r.status_code==200 else 1)"],
             capture_output=True, text=True, cwd=str(BASE_DIR))
-        etat = 'OK' if smoke.returncode == 0 else f'KO ({(smoke.stdout or smoke.stderr).strip()[:80]})'
+        state = 'OK' if smoke.returncode == 0 else f'KO ({(smoke.stdout or smoke.stderr).strip()[:80]})'
 
-        entry.setdefault('substituted', {})[cible] = {
+        entry.setdefault('substituted', {})[target] = {
             'verdict': 'reverted-manuel',
-            'details': [f'restaurés : {restaures}', f'retirés : {retires}', f'smoke {etat}'],
+            'details': [f'restaurés : {restored}', f'retirés : {removed}', f'smoke {state}'],
             'at': datetime.now(timezone.utc).isoformat(timespec='seconds')}
         _save_entry(entry)
         style = self.style.SUCCESS if smoke.returncode == 0 else self.style.ERROR
         self.stdout.write(style(
-            f'{cible} REVENU au témoin — restaurés {restaures}, retirés {retires}, '
-            f'smoke /{label}/ {etat}. ⚠ Recharger gunicorn pour servir la copie.'))
+            f'{target} REVENU au témoin — restaurés {restored}, retirés {removed}, '
+            f'smoke /{label}/ {state}. ⚠ Recharger gunicorn pour servir la copie.'))
 
-    # ── drop ─────────────────────────────────────────────────────────────────
-    def _drop(self, label: str):
+    # ── remove ─────────────────────────────────────────────────────────────────
+    def _remove(self, label: str):
         if not LABEL_RE.match(label):
             raise CommandError(f'Label jumeau invalide : {label} (attendu <app>_NN).')
         entries = load_registry()
@@ -997,7 +1001,7 @@ class Command(BaseCommand):
 
         # 1. Tables : migrate zero PENDANT que la jumelle est encore enregistrée.
         # --skip-checks : une jumelle CASSÉE (clash de modèles, import raté) bloquerait le
-        # system check du sous-process — le drop doit toujours pouvoir nettoyer (œuf/poule
+        # system check du sous-process — le retrait doit toujours pouvoir nettoyer (œuf/poule
         # mesuré au pilote : le premier essai raté était indéboulonnable sans ça).
         # Aucune migration écrite (une création qui a échoué AVANT le premier makemigrations —
         # vécu le 2026-09-30 sur la 1ʳᵉ app de zéro, modèle refusé par le check) : aucune table
@@ -1011,6 +1015,14 @@ class Command(BaseCommand):
             for line in (r.stderr or r.stdout).strip().splitlines()[-5:]:
                 self.stdout.write(f'    {line}')
             raise CommandError('migrate zero a échoué — rien retiré (relancer après correction).')
+
+        # 1 bis. Révisions de ses éléments (`common.ItemRevision`, désignées par app + type +
+        # numéro) : sans cette purge, la jumelle RECRÉÉE sous le même label repart à l'élément
+        # n°1 et hérite de l'historique des anciens — mesuré le 2026-10-01 sur writer_01, un
+        # élément neuf portait une « révision 1 » qu'il n'avait jamais produite.
+        from wama.common.models import ItemRevision
+        purged, _ = ItemRevision.objects.filter(app=label).delete()
+        self.stdout.write(f'  révisions de {label} purgées : {purged}')
 
         # 2. Registre puis package (l'ordre inverse laisserait une entrée orpheline,
         #    inoffensive grâce à la garde sandbox_labels(), mais sale).

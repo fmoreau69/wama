@@ -10,10 +10,10 @@ ni dans `TOOL_REGISTRY` ni importé par `tool_api`. `tests_mcp_dev_tools` le gar
 CE QU'IL OUVRE (décision Fabien du 2026-09-15 : « rôles + bac à sable ») :
   • les RÔLES wama-dev-ai (librarian, model, scout, integrator, codegen) — ils écrivent une
     PROPOSITION dans `wama-dev-ai/outputs/` (PENDING_HUMAN_VALIDATION) et n'appliquent rien ;
-  • le BAC À SABLE (`app_sandbox` : create, substitute, revert, drop, list) — l'app d'origine
+  • le BAC À SABLE (`app_sandbox` : create, substitute, revert, remove, list) — l'app d'origine
     n'est jamais modifiée ;
   • le HARNAIS `app_regen_check`, SANS `--force` : sa garde (refus sur dev/main) reste entière ;
-  • le RECHARGEMENT de gunicorn, qu'exigent create/drop/revert.
+  • le RECHARGEMENT de gunicorn, qu'exigent create/remove/revert.
 
 CE QU'IL NE FAIT PAS : appliquer une proposition (write_back, écriture dans `wama/`), commiter,
 installer une librairie. La règle écrite en tête des outils de plan de `tool_api` vaut ici :
@@ -68,7 +68,7 @@ ROLES = {
     'backend':    {'script': 'run_backend.py',
                    'args': {'catalog': str, 'dry_run': bool, 'no_smoke': bool}},
 }
-SANDBOX_ACTIONS = ('create', 'substitute', 'revert', 'drop', 'list')
+SANDBOX_ACTIONS = ('create', 'substitute', 'revert', 'remove', 'list')
 
 _UNSAFE_CHARS = re.compile(r'[\x00-\x1f]')
 _JOB_ID = re.compile(r'^\d{8}-\d{6}-[0-9a-f]{6}$')
@@ -141,7 +141,7 @@ def sandbox_command(action: str, app: str = '', target: str = '', owner: str = '
                                f"tasks, views, templates)")
         argv.append(_clean(target, 'target'))
     if action == 'create' and owner:
-        argv += ['--proprietaire', _clean(owner, 'owner')]
+        argv += ['--owner', _clean(owner, 'owner')]
     return argv
 
 
@@ -219,11 +219,11 @@ def dev_run_role(user, role: str, args: dict = None, provider: str = '', model: 
 
 
 def dev_sandbox(user, action: str, app: str = '', target: str = '') -> dict:
-    """Bac à sable d'apps en tâche de fond : create, substitute, revert, drop, list — l'app d'origine n'est jamais modifiée.
+    """Bac à sable d'apps en tâche de fond : create, substitute, revert, remove, list — l'app d'origine n'est jamais modifiée.
 
     create app=<app source> : jumelle <app>_NN dont le demandeur est le créateur. substitute /
-    revert app=<jumelle> target=<apps|urls|models|params|tasks|views|templates>. drop
-    app=<jumelle>. Après create, revert ou drop : dev_reload_web pour servir le changement.
+    revert app=<jumelle> target=<apps|urls|models|params|tasks|views|templates>. remove
+    app=<jumelle>. Après create, revert ou remove : dev_reload_web pour servir le changement.
     """
     owner = getattr(user, 'username', '') if action == 'create' else ''
     return start_job(user, f'sandbox:{action}', sandbox_command(action, app, target, owner))
