@@ -392,6 +392,50 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
   désormais le repli. Touche toute app qui tire par entrées (imager img2vid, composer…).
   Garde `EmptyDrawFallsBackTest`, contre-épreuve faite.
 
+### 6.9 Partitions, et les modèles du SELECT qui ouvrent des ports (2026-10-01)
+
+> Demande de Fabien : *« transmettre un fichier MIDI tout aussi bien qu'une partition […] la card
+> d'entrée se met à jour toute seule selon les capacités déclarées des moteurs »* — puis :
+> *« il faut juste créer les types de médias manquants, mais la card doit se mettre à jour
+> elle-même »*. Rien n'est écrit pour le composer : tout est déclaré.
+
+- **Nature `score`** (`app_registry.MEDIA_CATEGORIES`, `SCORE_EXTENSIONS` : `.abc .mid .midi
+  .musicxml .mxl` ; `.xml` nu reste un document) et nature d'asset `score` de la médiathèque
+  (`natures.py`, onglet « Partition »). `category_of_path`, `port_accept` (repli par nature) et le
+  filtre de la tuile Médiathèque en DÉRIVENT.
+- **Jeton `reference_score`** (`INPUT_TYPES`, rôle référence × nature `score` — même règle que
+  `reference_document`). YuE2 le déclare en `inputs_optional`, posé par la voie des PROPOSITIONS
+  (`proposals.propose/plan/apply` : un seul vide comblé, aucune divergence).
+- 🔴 **Le trou trouvé en chemin — les modèles « d'une app » n'étaient que ceux de sa SOURCE.**
+  `app_input_ports` lisait `AIModel.source=app` : la règle §6.3 date d'avant la route F4b. Depuis,
+  un select se borne par la TÂCHE, et le composer propose YuE2 (`huggingface:`) — qui entrait au
+  select sans jamais ouvrir de port. **Correctif déclaratif, OPT-IN** : `Param.options_ports=True`
+  dit « les modèles que je propose sont ceux de l'app » ; `app_input_ports` y ajoute alors les
+  modèles du domaine du select (même lecture que l'endpoint, `get_registry_models`). Le select,
+  le tirage « auto » et la card parlent du même inventaire. **Pourquoi pas pour tous** (mesuré sur
+  les 11 apps) : ajouter le domaine ne changeait que l'avatarizer — son select de VOIX propose des
+  modèles TTS (une étape), dont la voix de référence aurait ouvert un port. Composer seul déclare
+  le drapeau ; imager, transcriber, synthesizer le pourront (mesuré : aucun port ne bouge).
+- **Card v4 : plusieurs ports de RÉFÉRENCE.** Tous recevaient les ids `reference_*` de l'app — un
+  second onglet de référence aurait dupliqué `melodyInput`. Comme pour les ports de travail, la
+  première référence garde les ids historiques, les suivantes reçoivent `<card>-<port>-*`
+  (`input_slots.secondary_reference`). Vérifié au navigateur : onglet « Partition », médiathèque
+  ouverte sur `type=score`, ligne d'appariement « Prompt, Mélodie de référence, Partition », 0
+  erreur console, aucun id dupliqué.
+- **La chaîne jusqu'au moteur** (le budget `UNWIRED_PORTS_BUDGET` interdit un port AFFICHÉ et non
+  LU) : champ `ComposerGeneration.reference_score` (nommé comme le port), vue `generate`
+  (`received_inputs`), outil `compose_music(reference_score=)` (refusé AVANT création si le
+  modèle ne la suit pas), tirage « auto » borné aux modèles qui la consomment, contrat
+  `MusicGenerationBackend.generate(score_path=)` — AudioCraft et audio.cpp la REFUSENT en le
+  disant (`refuse_score`), YuE2 donne un ABC au pipeline (`abc=`, phase de plan sautée).
+- ⏳ **MIDI et MusicXML → ABC** : refusés en le disant par YuE2 tant que la conversion n'est pas
+  câblée. Voie retenue : le compilateur du moteur (`skills/yue2-music/instrumental/scripts/
+  compile_score.py`, notes → ABC au format d'entraînement de YuE2), alimenté par un lecteur MIDI
+  à installer par la route `library` (aucun n'est présent : ni `mido`, ni `pretty_midi`, ni
+  `music21`). Un convertisseur générique produirait un ABC hors des conventions de YuE2.
+  Gardes : `tests_score_input` (nature, jeton, drapeau + contre-épreuve avatarizer, ids de card,
+  chaîne outil → tirage → moteurs, port lu par le studio).
+
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 
 **Demande de Fabien** : *« il faut que les paramètres modale/inspecteur tirent leurs infos des

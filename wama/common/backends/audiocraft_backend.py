@@ -65,6 +65,7 @@ class AudioCraftBackend(MusicGenerationBackend):
         melody_path: Optional[str] = None,
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
+        score_path: Optional[str] = None,
     ) -> str:
         """
         Generate audio and save to output_path.
@@ -81,6 +82,7 @@ class AudioCraftBackend(MusicGenerationBackend):
         Returns:
             output_path (same as input, for convenience)
         """
+        self.refuse_score(score_path, 'AudioCraft')
         # Passe-plat COMMUN : le backend lit la déclaration sans importer l'app.
         # Le jour où il rejoint le substrat, cette ligne ne change pas — c'est
         # tout l'objet de l'étape 2.

@@ -1,6 +1,9 @@
 {
   "body": {
     "capabilities": {
+      "inputs_optional": [
+        "reference_score"
+      ],
       "inputs_required": [
         "prompt"
       ],

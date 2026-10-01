@@ -56,6 +56,12 @@ ARCHIVE_EXTENSIONS = ('.zip', '.tar', '.gz', '.tgz', '.bz2', '.tbz2',
 # typage des ports studio / TYPE_GROUPS médiathèque en DÉRIVENT (zéro code par consommateur).
 OBJECT3D_EXTENSIONS = ('.glb', '.gltf', '.obj', '.fbx', '.stl', '.ply',
                        '.usd', '.usdz', '.dae')
+# Partitions (2026-10-01, demande de Fabien : « transmettre un fichier MIDI tout aussi bien qu'une
+# partition ») — la musique NOTÉE, pas l'audio : ABC (texte, le format que YuE2 planifie), MIDI
+# (événements de notes) et MusicXML (`.mxl` = compressé). Même geste que la 3D : déclarée UNE fois
+# ici, catégorie `score` ; ports, `accept`, médiathèque et `category_of_path` en DÉRIVENT. `.xml` nu
+# reste un document : l'extension ne dit pas qu'il s'agit d'une partition.
+SCORE_EXTENSIONS = ('.abc', '.mid', '.midi', '.musicxml', '.mxl')
 
 
 # ---------------------------------------------------------------------------
@@ -69,13 +75,13 @@ OBJECT3D_EXTENSIONS = ('.glb', '.gltf', '.obj', '.fbx', '.stl', '.ply',
 # bas). L'ancienne catégorie n'existait que pour reconnaître les fichiers de lot — besoin
 # dissous par les zones de rôle de la card. `dataset` entre dans le même geste (fichiers du
 # monde Data — leurs extensions arrivent par `register_category_extensions`, jamais en dur).
-MEDIA_CATEGORIES = ('image', 'video', 'audio', 'document', 'archive', 'dataset', '3d')
+MEDIA_CATEGORIES = ('image', 'video', 'audio', 'document', 'archive', 'dataset', '3d', 'score')
 
 #: Ce qu'on AFFICHE d'une catégorie (2026-09-30) — déclaré avec elle. La tuile Médiathèque de la
 #: card v4 disait « filtrée : 3d » (la clé), et le converter tenait sa propre table de libellés.
 MEDIA_CATEGORY_LABELS = {'image': 'Images', 'video': 'Vidéos', 'audio': 'Audio',
                          'document': 'Documents', 'archive': 'Archives',
-                         'dataset': 'Jeux de données', '3d': 'Objets 3D'}
+                         'dataset': 'Jeux de données', '3d': 'Objets 3D', 'score': 'Partitions'}
 
 # Formats TEXTE STRUCTURÉ (sous-titres, données sérialisées) : nature 'document', mais AUCUNE
 # app ne les convertit — ils ne rejoignent donc PAS DOCUMENT_EXTENSIONS, qui EST la politique
@@ -89,7 +95,7 @@ def _build_cat_of():
     for cat, exts in (('image', IMAGE_EXTENSIONS), ('video', VIDEO_EXTENSIONS),
                       ('audio', AUDIO_EXTENSIONS), ('archive', ARCHIVE_EXTENSIONS),
                       ('document', DOCUMENT_EXTENSIONS + STRUCTURED_TEXT_EXTENSIONS),
-                      ('3d', OBJECT3D_EXTENSIONS)):
+                      ('3d', OBJECT3D_EXTENSIONS), ('score', SCORE_EXTENSIONS)):
         for e in exts:
             m.setdefault(e.lstrip('.').lower(), cat)
     return m
@@ -130,7 +136,7 @@ def media_extensions() -> dict:
 
 
 def category_of_path(path):
-    """Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d') d'un chemin
+    """Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
     d'après son extension. Source UNIQUE (studio, previews, etc.) — défaut 'document'.
     ⚠ Extension seule, par contrat : un `.trip` bidon sera dit `dataset` ici et refusé par la
     SONDE d'intake (qui atteste par le CONTENU) — divergence acceptée."""
@@ -337,6 +343,26 @@ def _domaine_dune_tache(task):
     return str(task).rsplit('-to-', 1)[-1].strip() or None
 
 
+def _select_models_capabilities(app_id):
+    """Les capacités des modèles que le select de modèle de l'app PROPOSE — si ce select le
+    déclare (`Param.options_ports`), sinon []. Même lecture que l'endpoint du select
+    (`get_registry_models` sur `options_query`) : un seul inventaire. Ne lève jamais."""
+    try:
+        from wama.common.utils.auto_model import catalog_field
+        field = catalog_field(app_id)
+        if not field or not field.get('options_ports'):
+            return []
+        query = dict(field.get('options_query') or {})
+        from wama.model_manager.services import get_registry_models
+        _choices, info = get_registry_models(query.pop('source', None), **query)
+        return [d.get('capabilities') for d in info]
+    except Exception:
+        import logging
+        logging.getLogger(__name__).debug('[app_registry] modèles du select de %s illisibles',
+                                          app_id, exc_info=True)
+        return []
+
+
 def app_input_ports(app_id, domain=None):
     """Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
 
@@ -387,6 +413,13 @@ def app_input_ports(app_id, domain=None):
                       .values_list('capabilities', flat=True))
     except Exception:
         return []
+    # + les modèles que le SELECT de l'app propose, s'il le déclare (`options_ports`, 2026-10-01).
+    # Depuis la route F4b un select se borne par la TÂCHE, plus par la source : le composer propose
+    # YuE2 (`huggingface:`), qui accepte une partition — sans cette ligne, le modèle entrait au
+    # select et son entrée n'ouvrait aucun port. Le select, le tirage « auto » et la card parlent
+    # ainsi du MÊME inventaire. Un doublon (modèle de la source ET du domaine) ne change rien :
+    # l'union des entrées est idempotente.
+    lignes += _select_models_capabilities(source)
 
     vises = {d.strip() for d in str(domain).split('_') if d.strip()} if domain else None
 

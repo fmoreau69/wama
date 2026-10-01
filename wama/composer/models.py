@@ -37,6 +37,13 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
         upload_to=upload_to_user_input('composer'),
         blank=True, null=True,
     )
+    # Partition de référence (2026-10-01) — ABC, MIDI ou MusicXML, suivie par un modèle qui la
+    # DÉCLARE (`reference_score`, YuE2). Nommé comme son PORT : la card, l'outil `add_to_composer`
+    # et le nœud du Studio parlent du même nom. Nullable : sûr pour le code en service.
+    reference_score = models.FileField(
+        upload_to=upload_to_user_input('composer'),
+        blank=True, null=True,
+    )
 
     # Ingest média déclaratif commun (source_ingest.ensure_local_input, appelé en tête de
     # tâche) : URL de MÉLODIE de référence (YouTube/lien audio) → téléchargée vers

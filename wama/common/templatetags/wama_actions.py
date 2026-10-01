@@ -268,7 +268,7 @@ def input_slots(app, domain=None):
     from wama.common.app_registry import port_accept
     from wama.common.utils.app_modes import library_nature_for
     slots = []
-    primary_seen = False
+    primary_seen = reference_seen = False
     for port in ports:
         if port.get('group') == 'prompt':
             continue
@@ -290,6 +290,13 @@ def input_slots(app, domain=None):
         # dropzones au même id.
         primary = travail and not primary_seen
         primary_seen = primary_seen or primary
+        # Même règle pour les RÉFÉRENCES (2026-10-01) : la première garde les ids historiques que
+        # l'app déclare (`reference_input_id` — composer `melodyInput`, imager) ; les suivantes
+        # (la partition de YuE2 à côté de la mélodie) reçoivent des ids dérivés de leur port.
+        # Sans cela, deux onglets de référence rendaient deux `<input>` au même id.
+        reference = port.get('group') == 'reference'
+        secondary_reference = reference and reference_seen
+        reference_seen = reference_seen or reference
         others = alternatives.get(port.get('id')) or []
         one_of_group = frozenset(others + [port.get('id')]) if others else None
         one_of_first = bool(one_of_group) and one_of_group not in seen_groups
@@ -302,6 +309,7 @@ def input_slots(app, domain=None):
             'group': port.get('group'),
             'accept': accept,
             'primary': primary,
+            'secondary_reference': secondary_reference,
             # `media_library_type` n'accepte qu'UNE valeur : un port multi-nature (converter)
             # ouvre la médiathèque non filtrée plutôt que sur une nature arbitraire.
             'library_type': types[0] if len(types) == 1 else 'all',

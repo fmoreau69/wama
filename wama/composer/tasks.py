@@ -108,6 +108,11 @@ def compose_task(self, generation_id: int):
         melody_abs = None
         if gen.melody_reference:
             melody_abs = os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
+        # Partition de référence (port `reference_score`, 2026-10-01) : passée au contrat de la
+        # tâche (`score_path`) — un moteur qui ne la suit pas la refuse en le disant.
+        score_abs = None
+        if gen.reference_score:
+            score_abs = os.path.join(settings.MEDIA_ROOT, gen.reference_score.name)
 
         # PromptPipeline (§16.6) : MusicGen/AudioCraft est entraîné en anglais → un prompt FR
         # est traduit avant génération (métadonnée PROMPT_TARGETS['composer'], KIND generative).
@@ -147,6 +152,7 @@ def compose_task(self, generation_id: int):
             duration=gen.duration,
             output_path=output_abs_path,
             melody_path=melody_abs,
+            score_path=score_abs,
             progress_callback=lambda p: _set_progress(generation_id, p),
             # Preview « pendant » (COMMUN) : publie l'audio produit → onde de la face during.
             # Dormant tant que composer ne déclare pas la capacité during_preview (rôle manifeste).

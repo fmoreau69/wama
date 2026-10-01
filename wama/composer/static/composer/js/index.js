@@ -229,6 +229,11 @@
             // WamaInputMatch garantit qu'un modèle incompatible n'est pas sélectionnable.
             // Fichier joint OU désigné (médiathèque, arbre — pointé, jamais re-téléversé).
             const hasMelody = WamaApp.appendInput(formData, melodyInput, 'melody_reference');
+            // Partition (port `reference_score`, 2026-10-01) — onglet DÉRIVÉ des capacités (YuE2) :
+            // son <input> est celui que la card déclare pour le port, posté sous le nom du port.
+            const scorePane = document.querySelector('#composerNewCard [data-port-pane="reference_score"]');
+            const scoreInput = scorePane && document.getElementById(scorePane.dataset.portInput);
+            if (scoreInput) WamaApp.appendInput(formData, scoreInput, 'reference_score');
 
             // Mélodie par URL (slot url de la card, champ SANS bouton d'import) : partie du
             // payload — téléchargée AU LANCEMENT par ensure_local_input (WAMA_INGEST).

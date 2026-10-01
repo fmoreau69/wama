@@ -23,11 +23,13 @@ from wama.media_library.models import (ALLOWED_EXTENSIONS, ASSET_TYPE_CATEGORY, 
 #: ⚠ Nature `speech` AJOUTÉE le 2026-09-28 (décision Fabien : les jeux d'évaluation ASR vont en
 #: médiathèque SYSTÈME, `WAMA_QUALITE §9bis`) — une réunion n'est pas une voix de clonage — et
 #: `srt`/`vtt` admis en `document` (les références de ces jeux). Empreinte recalée à la mesure.
+#: ⚠ Nature `score` AJOUTÉE le 2026-10-01 (demande de Fabien : importer une partition ou un MIDI
+#: — catégorie `score` d'`app_registry`, port `reference_score` de YuE2). Recalée à la mesure.
 ASSET_TYPES_AVANT = [
     ('voice', 'Voix'), ('speech', 'Parole enregistrée'), ('audio_music', 'Musique'),
     ('audio_sfx', 'Bruitage'),
     ('image', 'Image'), ('video', 'Vidéo'), ('document', 'Document'),
-    ('avatar', 'Avatar'), ('object3d', 'Objet 3D'),
+    ('avatar', 'Avatar'), ('object3d', 'Objet 3D'), ('score', 'Partition'),
 ]
 ALLOWED_AVANT = {  # empreinte FIGÉE de l'ancien littéral — c'est la recopie qui est le test
     # ⚠ Les trois natures AUDIO ont quitté l'empreinte le 2026-09-19 (décision Fabien : « pourquoi
@@ -42,11 +44,12 @@ ALLOWED_AVANT = {  # empreinte FIGÉE de l'ancien littéral — c'est la recopie
     'document':    ['pdf', 'txt', 'docx', 'md', 'csv', 'srt', 'vtt'],  # wama:redondance-ok — empreinte figée (test)
     'avatar':      ['jpg', 'jpeg', 'png', 'webp'],  # wama:redondance-ok — empreinte figée (test)
     'object3d':    ['glb', 'gltf', 'obj', 'fbx', 'stl', 'ply', 'usdz'],  # wama:redondance-ok — empreinte figée (test)
+    'score':       ['abc', 'mid', 'midi', 'musicxml', 'mxl'],  # wama:redondance-ok — empreinte figée (test)
 }
 CATEGORIE_AVANT = {
     'voice': 'audio', 'speech': 'audio', 'audio_music': 'audio', 'audio_sfx': 'audio',
     'image': 'image', 'avatar': 'image', 'video': 'video',
-    'document': 'document', 'object3d': '3d',
+    'document': 'document', 'object3d': '3d', 'score': 'score',
 }
 
 

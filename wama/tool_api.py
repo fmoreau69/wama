@@ -972,6 +972,7 @@ def compose_music(
     prompt: str,
     model: str = 'musicgen-small',
     duration: float = 10.0,
+    reference_score: str = None,
     **params,
 ) -> dict:
     """
@@ -985,6 +986,8 @@ def compose_music(
                   composer id ('musicgen-small'), or a group auto
                   ('auto:text-to-music', 'auto:text-to-audio')
         duration: Duration in seconds (1–30, default 10)
+        reference_score: Path (relative to MEDIA_ROOT) of a score to follow — ABC, MIDI or
+                  MusicXML (port `reference_score`); only for a model that declares it (YuE2)
 
     Returns:
         {"generation_id": int, "model": str, "generation_type": str,
@@ -992,7 +995,8 @@ def compose_music(
     """
     # Route F4b (2026-10-01) : le domaine du composer est celui du CATALOGUE (ses deux tâches),
     # plus la liste de l'app — un modèle installé ailleurs (YuE2) est accepté ici aussi.
-    from wama.composer.utils.model_choice import TASKS, generation_type as _type_of, is_valid, normalize
+    from wama.composer.utils.model_choice import (TASKS, consumes_input, generation_type as _type_of,
+                                                   is_valid, normalize)
 
     prompt = prompt.strip()
     if not prompt:
@@ -1001,6 +1005,19 @@ def compose_music(
     if not is_valid(model):
         return {'error': f"Modèle invalide '{model}' : il faut un modèle des tâches "
                          f"{' / '.join(TASKS)} (voir le catalogue), ou un « auto » de groupe."}
+
+    # Port `reference_score` (2026-10-01) : désigné par son chemin, comme les ports du synthesizer
+    # — refusé AVANT de créer quoi que ce soit si le modèle ne le prend pas (jamais ignoré en silence).
+    received_score = None
+    if reference_score:
+        if not consumes_input(model, 'reference_score'):
+            return {'error': f"Le modèle « {model} » ne suit pas de partition — choisir un modèle "
+                             f"qui la déclare (ex. 'huggingface:m-a-p/YuE2-3B') ou 'auto:text-to-music'."}
+        from wama.common.utils.media_paths import InputRefused, designate
+        try:
+            received_score = designate(reference_score, user, 'composer')
+        except InputRefused as e:
+            return {'error': str(e)}
 
     model = normalize(model)
     duration = max(1.0, min(30.0, float(duration)))
@@ -1015,6 +1032,8 @@ def compose_music(
         duration=duration,
         **schema_model_kwargs('composer', params),
     )
+    if received_score is not None:
+        received_score.assign(gen, 'reference_score')
 
     # Wrap in batch-of-1
     from wama.composer.views import _wrap_generation_in_batch
