@@ -1,0 +1,34 @@
+{% comment %}
+WAMA — Les PROCESS d'une card (ROUTE §10.6 point 5.1, marche P5 — 2026-10-03). Commun : une card
+dont l'app déclare un pipeline (`process_pipeline.register_app_pipeline`) montre une ligne par
+process, GÉNÉRÉE des lignes d'exécution (`AppPipeline.card_rows`) — aucune app n'écrit la sienne.
+
+Rendu : une bande pleine largeur de la grille v3 (`grid-column: 1 / -1`, comme la barre), sous les
+cinq sections — la grille garde ses cinq pistes alignées entre cards. Rien n'est rendu à moins de
+DEUX process : une card à un seul process (le cas normal, et le composer avec un modèle qui ne
+planifie pas) a son état dans la section État, la bande ne lui dirait rien de plus.
+
+Variables :
+  processes — liste de `{key, label, degree, status, duration_s, model_key, output_label, error}`
+              (`AppPipeline.card_rows`), vide ou absente = rien.
+Contrat JS : `[data-processes]` > `.wcv3-proc[data-process=<clé>]` > `.wama-status-dot[data-s]` +
+`.wcv3-proc-note` — mis à jour en place par `WamaApp.updateProcessRows(card, rows)` pendant le
+traitement (le re-rendu serveur complet n'arrive qu'en fin de tâche).
+Usage : {% include 'common/_card_processes.html' with processes=elem.processes %}
+{% endcomment %}
+{% if processes|length > 1 %}
+<div class="wcv3-processes" style="grid-column:1/-1;" data-processes>
+  <span class="wcv3-lbl">Process</span>
+  <span class="wcv3-proc-flow">
+  {% for p in processes %}
+    {% if not forloop.first %}<i class="fas fa-arrow-right-long wcv3-proc-sep" aria-hidden="true"></i>{% endif %}
+    <span class="wcv3-proc{% if p.degree == 'optional' %} wcv3-proc--optional{% endif %}" data-process="{{ p.key }}"
+          title="{{ p.label }}{% if p.model_key %} · {{ p.model_key }}{% endif %}{% if p.output_label %} · {{ p.output_label }}{% endif %}{% if p.error %} · {{ p.error|truncatechars:160 }}{% endif %}">
+      <span class="wama-status-dot" data-s="{{ p.status }}"></span>
+      <span class="wcv3-proc-name">{{ p.label }}</span>
+      <small class="wcv3-proc-note text-white-50">{% if p.status == 'SUCCESS' and p.duration_s %}{{ p.duration_s|floatformat:0 }} s{% elif p.status == 'STALE' %}périmé{% elif p.status == 'FAILURE' %}échec{% elif p.status == 'RUNNING' %}en cours{% elif p.status == 'AWAITING_RESOURCES' %}attend{% endif %}</small>
+    </span>
+  {% endfor %}
+  </span>
+</div>
+{% endif %}

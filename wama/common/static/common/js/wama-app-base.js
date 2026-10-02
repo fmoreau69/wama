@@ -903,8 +903,32 @@
       + ' ' + SIZE_UNITS[i];
   }
 
+  /** Les PROCESS d'une card (bande `common/_card_processes.html`, ROUTE §10.6 5.1) mis à jour
+   *  EN PLACE pendant le traitement, depuis les `processes` que la vue de progression renvoie
+   *  (`[{key, status, duration_s, …}]`). Le re-rendu serveur complet n'arrive qu'en fin de tâche :
+   *  sans ceci, « Partition ● en cours → Rendu » ne bougerait pas sous les yeux de l'utilisateur.
+   *  Une ligne absente du DOM n'est pas créée (la bande est GÉNÉRÉE côté serveur, pas ici). */
+  const PROCESS_NOTES = { RUNNING: 'en cours', AWAITING_RESOURCES: 'attend', STALE: 'périmé',
+                          FAILURE: 'échec', PENDING: '' };
+  function updateProcessRows(card, rows) {
+    if (!card || !Array.isArray(rows)) return;
+    rows.forEach(function (row) {
+      const el = card.querySelector('.wcv3-proc[data-process="' + row.key + '"]');
+      if (!el) return;
+      const dot = el.querySelector('.wama-status-dot');
+      if (dot) dot.dataset.s = row.status;
+      const note = el.querySelector('.wcv3-proc-note');
+      if (note) {
+        note.textContent = (row.status === 'SUCCESS' && row.duration_s)
+          ? Math.round(row.duration_s) + ' s'
+          : (PROCESS_NOTES[row.status] || '');
+      }
+    });
+  }
+
   global.WamaApp = {
     formatSize: formatSize,
+    updateProcessRows: updateProcessRows,
     escapeHtml: escapeHtml,
     getUrl: getUrl,
     csrfHeaders: csrfHeaders,

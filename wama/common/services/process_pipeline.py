@@ -38,7 +38,7 @@ import os
 from dataclasses import dataclass
 from typing import Callable
 
-from wama.common.models import JOB_SUCCESS
+from wama.common.models import JOB_AWAITING_RESOURCES, JOB_PENDING, JOB_RUNNING, JOB_SUCCESS
 from wama.common.services import process_runs
 from wama.common.services.process_runs import OPTIONAL, REQUIRED
 
@@ -53,6 +53,8 @@ class ProcessSpec:
     propres au cam_analyzer, plus le degré de liberté du point 3.2.
 
       key         identifiant du process dans SON pipeline = le nœud de sa ligne d'exécution ;
+      label       libellé COURT pour la card (« Partition », « Rendu ») — le nom long est celui
+                  du `FunctionSpec` au catalogue ; vide = la clé ;
       depends_on  amonts : ordre de lancement, et propagation de la péremption ;
       watched     réglages de l'ÉLÉMENT dont le changement rend le process périmé ;
       degree      `required` (son échec fait échouer la card) | `optional` ;
@@ -64,6 +66,7 @@ class ProcessSpec:
                   un modèle qui ne sait pas faire le premier.
     """
     key: str
+    label: str = ''
     depends_on: tuple = ()
     watched: tuple = ()
     degree: str = REQUIRED
@@ -257,6 +260,52 @@ class AppPipeline:
         rows = self.rows(item)
         return process_runs.aggregate(
             (rows[spec.key].status, spec.degree) for spec in self.specs if spec.key in rows)
+
+    # ── Ce que la CARD affiche (P5) ─────────────────────────────────────────────────────────
+    def shown_state(self, item, rows: dict | None = None) -> str:
+        """L'état que la card MONTRE — l'adaptateur unique de `§10.6` 5.1 (le bouton de cycle,
+        le point d'état et la bordure le lisent, jamais `item.status` en dur).
+
+        L'élément reste la vérité de ce qui est EN VOL : `RUNNING` / `AWAITING_RESOURCES` sont
+        posés par le lanceur avant qu'aucune ligne n'existe. Hors de ces deux états, les lignes
+        disent plus que lui (un rendu périmé sous un élément « réussi ») : on montre l'état
+        déduit dès qu'un process a tourné. Sans ligne, l'élément seul."""
+        status = getattr(item, 'status', None)
+        if status in (JOB_RUNNING, JOB_AWAITING_RESOURCES):
+            return status
+        if rows is None:
+            self.refresh(item)
+            rows = self.rows(item)
+        if not rows:
+            return status or JOB_PENDING
+        return process_runs.aggregate(
+            (rows[spec.key].status, spec.degree) for spec in self.specs if spec.key in rows)
+
+    def card_rows(self, item, model_key=None) -> list:
+        """Une ligne d'affichage par process de la card, dans l'ordre du graphe : ceux qui ont
+        tourné, plus ceux qui ont lieu pour le modèle donné (`model_key` : le réglage quand il
+        est désigné ; sous « auto », None — on ne devine pas le tirage, on montre ce qui a
+        tourné). `{key, label, degree, status, duration_s, model_key, output_label, error}`."""
+        self.refresh(item)
+        rows = self.rows(item)
+        out = []
+        for spec in self.ordered():
+            row = rows.get(spec.key)
+            if row is None and not (model_key and (spec.applies is None
+                                                  or spec.applies(item, model_key))):
+                continue
+            summary = (row.output_summary or {}) if row is not None else {}
+            out.append({
+                'key': spec.key,
+                'label': spec.label or spec.key,
+                'degree': spec.degree,
+                'status': row.status if row is not None else JOB_PENDING,
+                'duration_s': row.duration_s if row is not None else None,
+                'model_key': row.model_key if row is not None else '',
+                'output_label': summary.get('label') or '',
+                'error': (row.error_message or '') if row is not None else '',
+            })
+        return out
 
 
 #: Pipelines déclarés, par app — inscrits depuis le `function_specs.py` de chaque app. Lu par

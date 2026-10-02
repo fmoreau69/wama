@@ -51,9 +51,15 @@ class CardsStatutAwaitingTest(SimpleTestCase):
         du générateur, et 4 sites JS. Ce qui doit être tenu, c'est l'attribut : sans lui la card
         n'a plus AUCUNE couleur d'état.
         """
+        # Depuis P5 (2026-10-03) une card dont l'app déclare un pipeline porte l'état MONTRÉ par
+        # l'adaptateur (`elem.shown_state`, repli sur `elem.status`) : l'attribut reste la
+        # contrainte, l'expression peut être l'une ou l'autre.
+        accepted = ('data-status="{{ elem.status }}"',
+                    'data-status="{{ elem.shown_state|default:elem.status }}"')
         for chemin in GABARITS_DE_CARD:
-            self.assertIn('data-status="{{ elem.status }}"', _lire(chemin),
-                          f"{chemin} : la racine de card ne porte pas `data-status`")
+            texte = _lire(chemin)
+            self.assertTrue(any(forme in texte for forme in accepted),
+                            f"{chemin} : la racine de card ne porte pas `data-status`")
 
     def test_aucune_chaine_de_classe_d_etat_nulle_part_LE_GENERATEUR_COMPRIS(self):
         """⚠ Cette garde couvre le GÉNÉRATEUR, et c'est tout son intérêt.
