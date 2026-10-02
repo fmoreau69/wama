@@ -3169,9 +3169,9 @@ les agrège elle-même) — garde `studio/tests_declared_pipelines`. ⏳ Le comp
 type de nœud `pipeline` (3.1) n'existe pas pour le composer de ses deux étages.
 
 **3.5 Où vivent les pipelines.** Dans le code (registre, pour ceux qu'une app propose), en base
-(`StudioPipeline`, ceux d'un utilisateur), au corpus (`manifests/pipelines/`). Une app DÉCLARE son ou
-ses pipelines proposés — facette du manifeste `app` à formaliser dans `WAMA_MANIFEST_SPEC` (décision
-ouverte n°11).
+(`StudioPipeline`, ceux d'un utilisateur), au corpus (`manifests/pipelines/`). Une app DÉCLARE son
+pipeline dans son `function_specs.py` (`register_app_pipeline`, clé = celle de l'app) — décision
+n°11, tranchée le 2026-10-02 (point 9) ; 1ᵉʳ cas hors Lab : `manifests/pipelines/composer.json`.
 
 **3.6 Entrées et sorties.**
 - **Entrées** — Médias : les modalités de la card d'entrée (dépôt, URL, médiathèque, lot, dossier,
@@ -3379,10 +3379,74 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 >   CHAQUE app du squelette : ligne écrite au succès et à l'échec, modèle lisible pendant le
 >   traitement, ligne refermée par un arrêt et par une réconciliation ; contre-épreuve : fermeture
 >   neutralisée → la divergence apparaît.
-> ⏳ **Restent de P3** : le moteur pour PLUSIEURS process (ordre, lancement ciblé, entrées
-> rapatriées avant de résoudre modèle et VRAM), l'adoption par le cam_analyzer (`AnalysisPass` →
-> `ProcessRun`, coordonnée avec l'instance qui y travaille) et par l'exécuteur du studio
-> (`node_states`), le type de nœud `pipeline`, le pipeline sans process (§11 #35).
+>
+> 🔄 **P3, paliers B et C LIVRÉS le 2026-10-02 — une card d'app Médias porte PLUSIEURS process,
+> et le composer en est le pilote** (décision n°11 tranchée le jour même, point 9).
+> - **`common/services/process_pipeline.py`** — le registre des passes du cam_analyzer rendu
+>   indépendant de la session : `ProcessSpec` (les champs de `pass_tracking.Pass` : `key`,
+>   `depends_on`, `watched`, `function`, `gpu` ; plus `degree` du point 3.2, `share` = part de la
+>   barre de progression, `applies(item, model_key)` = le process a-t-il lieu pour cet élément)
+>   et `register_app_pipeline(app, specs)`, qui inscrit le registre comme source de manifeste
+>   `pipeline` sous la clé de l'app. `graph()` rend la forme CANVAS de `pass_tracking.
+>   pipeline_graph` — le studio l'ouvre sans rien apprendre.
+> - **Un seul tri** : `topo_order` est remonté de `studio/tasks.py` dans
+>   `manifests/builtin/pipeline.py` (à côté de `graph_to_body`) ; le studio l'importe de là, le
+>   moteur ordonne par lui. Pas de troisième fonction d'ordre.
+> - **Ce qu'un lancement JOUE** (`steps_to_run`) : les process qui ne sont plus à jour, et tout
+>   leur aval. Une card dont tous les process sont à jour, relancée, rejoue TOUT (l'utilisateur
+>   redemande un résultat). ⚠ « Tous à jour » se lit sur les ÉTATS avant les fichiers : le
+>   lanceur a déjà retiré l'ancienne sortie quand la tâche pose la question (`reset` de
+>   `begin_processing`) — lire le fichier d'abord ferait d'une relance complète une reprise du
+>   dernier process.
+> - **Les trois causes de péremption de 4.3 sont écrites** (`refresh`) : réglage surveillé
+>   changé ; amont périmé ou en échec (cascade) ; **entrée remplacée** — la photo d'un process
+>   garde l'EMPREINTE de la sortie de chaque amont (`@upstream` : taille + condensé), donc une
+>   partition corrigée à la main périme le rendu sans qu'aucun réglage n'ait bougé. Un amont
+>   qui n'a jamais tourné (process sans objet pour ce modèle) ne périme personne.
+> - **Le squelette joue N process dans UNE tâche** : `run_item_task(pipeline=…,
+>   processes={clé: glu})`. Chaque glu garde le contrat d'un process ; ses `fields` sont écrits
+>   dès qu'elle a rendu (la suivante les lit sur `item`, et ils survivent à l'échec d'un aval) ;
+>   une ligne `ProcessRun` par process (`process_kind = function`, clé du catalogue, photo,
+>   modèle employé, `output_ref`) ; ETA apprise PAR PROCESS ; la barre de la card est partagée
+>   selon `share`. Les lanceurs, `begin_processing`, l'arrêt (une tâche à révoquer) et la
+>   réconciliation ne changent pas. Une app à un seul process passe toujours `process=` : rien
+>   ne bouge pour elle.
+> - **⚠ La frontière de P2 est tenue** : `STALE` reste l'état d'une LIGNE. L'élément garde ses
+>   cinq états tant que l'interface le lit (P6) ; `AppPipeline.card_state(item)` rend l'état
+>   DÉDUIT (règle 4.4) à qui veut l'afficher — c'est ce que P5 lira.
+> - **Pilote — le composer** (`composer/function_specs.py`, `composer/tasks.py`) : deux process,
+>   `plan` (consigne → partition ABC) puis `render` (→ audio). `plan` n'a lieu que si le moteur
+>   du modèle DÉCLARE `supports_score_planning` (capacité de moteur neuve, portée par
+>   `BaseModelBackend` et le vocabulaire commun ; YuE2 la déclare et expose `plan_score()`, qui
+>   appelle le `plan()` de son pipeline vendorisé) ET si l'utilisateur n'a pas fourni sa propre
+>   partition. Tous les autres modèles gardent un seul process, `render`, et le comportement
+>   d'avant. La partition écrite est un fichier de la card (`ComposerGeneration.planned_score`,
+>   migration additive `composer/0014`, colonne nullable) : retrait, rétention et index des
+>   fichiers la voient par les mécanismes existants ; la ligne n'en garde que le pointeur
+>   (décision n°2). Mesuré par `composer/tests_pipeline.py` : un rendu en échec se relance sans
+>   réécrire la partition ; changer la durée ne rejoue que le rendu ; changer la consigne rejoue
+>   les deux ; une partition corrigée à la main se rend sans être replanifiée ; sous « auto »,
+>   un rendu relancé seul emploie le modèle qui a écrit la partition qu'il reprend (réserve ③),
+>   une relance complète retire au sort.
+> - **Ajustement de la réserve ②** (dit à l'instance « portage ») : le lanceur pose toujours
+>   `RUNNING` sur l'ÉLÉMENT sous verrou ; c'est le moteur qui pose `RUNNING` sur la ligne de
+>   CHAQUE process, à son départ — sous « auto », le premier process à jouer n'est pas connu
+>   avant le tirage.
+> - **Trois limites déclarées** : ① aucune génération GPU réelle n'a été jouée (les tests
+>   emploient un moteur de substitution, et la vraie classe `YuE2Backend` sur un pipeline de
+>   substitution) — la 1ʳᵉ génération YuE2 en deux process reste à faire avec l'accord de Fabien ;
+>   ② la card n'AFFICHE pas ses process (P5) : la partition écrite n'est visible que dans
+>   l'explorateur de fichiers ; ③ une app à pipeline qui déclarerait `vram_needed` écrirait son
+>   attente de VRAM sur le nœud `main` (le composer ne le déclare pas) — à reprendre avec
+>   « rapatrier les entrées avant de résoudre modèle et VRAM ». Et une conséquence assumée :
+>   `ProcessRun.output_ref` n'est pas suivi par le gestionnaire de fichiers (`repoint`) — une
+>   partition DÉPLACÉE ou une card transférée fait rejouer le process (sortie lue comme
+>   disparue), jamais reprendre un fichier qui n'est plus là. L'ETA du process `plan` n'est pas
+>   apprise (sa glu ne rend pas de taille).
+> ⏳ **Restent de P3** : les entrées rapatriées avant de résoudre modèle et VRAM, l'adoption par
+> le cam_analyzer (`Pass` → `ProcessSpec`, `AnalysisPass` → `ProcessRun`, coordonnée avec
+> l'instance qui y travaille) et par l'exécuteur du studio (`node_states`), le type de nœud
+> `pipeline`, le pipeline sans process (§11 #35).
 
 **4.3 `STALE` — ce que c'est exactement** (repris de cam_analyzer, décision du 07/05,
 `ROADMAP §9.2.bis` ; code `pass_tracking.py:250-302`).
@@ -3761,13 +3825,24 @@ possible **sans aucun process**.
    ✅ **TRANCHÉE le 2026-10-02 (Fabien)** : le studio est `transverse`. « Studio » est le libellé
    d'une app, pas un cinquième monde ; le journal et le calendrier le rangent sous « Transversal ».
 10. Rôle assistant produisant `pipeline` / `dataset` (où, avec quel RAG).
-11. Facette « pipelines proposés » du manifeste `app` (`WAMA_MANIFEST_SPEC`). ⚠ **TOUJOURS OUVERTE.**
-    Une facette `pipelines` à nœuds `process` a été écrite le 2026-10-01 pour le Writer, puis
-    **RETIRÉE le jour même** à la revérification demandée par Fabien : elle doublait le kind
-    `pipeline`, un tri topologique existant et le moteur commun — et elle supposait le cas d'une
-    app Médias à plusieurs process, que la route renvoie au pilote **P4** (`WAMA_MANIFEST_SPEC §3.1`
-    garde le récit). Ce qui reste établi : un process d'app est un pipeline à UN nœud (30/08) ; les
-    FONCTIONS du catalogue sont des process du monde Data, pas les étapes internes d'une app Médias.
+11. ~~Facette « pipelines proposés » du manifeste `app` (`WAMA_MANIFEST_SPEC`).~~ ✅ **TRANCHÉE le
+    2026-10-02 (Fabien)** : *« le cam analyzer est déjà sur le fonctionnement pipeline. Si c'est
+    réutilisable pour le monde media, c'est ok. On ne réinvente rien, on suit la route où ce qui
+    est déjà en place »*. Les process internes d'une app Médias se déclarent **comme les passes du
+    cam_analyzer** : un registre de process en code (`ProcessSpec`, la généralisation de
+    `pass_tracking.Pass`), chaque process un `FunctionSpec binding: app` du catalogue, le registre
+    inscrit comme source de manifeste `pipeline` (`register_pipeline_source`) sous la clé de l'app.
+    **Aucune facette neuve au manifeste `app`** : le pipeline d'une app se retrouve par SA clé
+    (`process_pipeline.app_pipeline(app)`, `manifests/pipelines/<app>.json`).
+    Ce que cela corrige : la phrase « les FONCTIONS du catalogue sont des process du monde Data,
+    pas les étapes internes d'une app Médias » (ici et `WAMA_MANIFEST_SPEC §3.1`) était un constat
+    du 01/10, pas une règle — le cam_analyzer déclarait déjà ses étapes internes en fonctions liées
+    à l'app depuis le 09/09. Ce qui reste établi : un process d'app est un pipeline à UN nœud
+    (30/08), et c'est le cas normal — une app ne déclare un pipeline que si sa card porte
+    plusieurs process.
+    Historique : une facette `pipelines` à nœuds `process` avait été écrite le 2026-10-01 pour le
+    Writer, puis RETIRÉE le jour même (elle doublait le kind `pipeline`, un tri topologique
+    existant et le moteur commun — `WAMA_MANIFEST_SPEC §3.1` garde le récit).
 
 #### 10. Pièges relevés — à ne pas refaire
 
@@ -3791,7 +3866,7 @@ possible **sans aucun process**.
 | **P1** ✅ 02/10 | déclarer le monde (`world`) et dériver menus/accueil/pages/catalogues — quatre pièces livrées (point 6.1) : déclaration (catalogue ET hors catalogue), journal / calendrier / fonctions, groupage par monde du menu, de l'accueil et de `/apps/`, explorateur de fichiers | — (indépendant, petit) |
 | **P2** | vocabulaire d'états commun + `STALE` + brique d'agrégation ; studio et cam_analyzer alignés | — |
 | **P3** | moteur commun + ligne d'exécution, **extraits de cam_analyzer** (1er utilisateur : sémantique complète et testée) et de l'exécuteur du studio ; type de nœud `pipeline` ; pipeline sans process accepté | P2 |
-| **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). Le **transcriber** en 4 process (étapes déjà numérotées, résultats déjà rangés à part) vient ensuite — A/B objectif (qualité, VRAM, durée) | P3 |
+| **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») — reste la 1ʳᵉ génération GPU réelle. Le **transcriber** en 4 process (étapes déjà numérotées, résultats déjà rangés à part) vient ensuite — A/B objectif (qualité, VRAM, durée) | P3 |
 | **P5** | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) | P3 (le renommage et le glisser-déposer : à tout moment) |
 | **P6** | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les 7 apps qui ne l'ont pas | P4 |
 | **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script | P3, P5, décisions 5-7 |
@@ -3829,6 +3904,13 @@ possible **sans aucun process**.
 >   (le jour même, instance « portage » : `compose_task` passe par `run_item_task`,
 >   `composer/tasks.py:31` ; la nuance du 15/09 ci-dessous est confirmée par Fabien — une app à
 >   un seul process l'adopte sans attendre P3). Un pilote YuE2 n'a donc plus ce préalable.
+> - **État au soir du 2026-10-02** : P1 fait ; P3 paliers A, B et C livrés (point 4 : ligne
+>   d'exécution, moteur à plusieurs process, pilote composer `plan` → `render`) ; décisions n°1,
+>   2, 3, 8, 9 et 11 tranchées. **La prochaine session reprend par** : ① la 1ʳᵉ génération YuE2
+>   réelle en deux process (GPU, accord de Fabien) ; ② P5 — la card qui AFFICHE ses process
+>   (`AppPipeline.card_state`, lignes `ProcessRun`) ; ③ l'alignement du cam_analyzer et de
+>   l'exécuteur du studio sur `ProcessSpec` / `ProcessRun`, à coordonner avec les instances qui y
+>   travaillent ; ④ le transcriber en 4 process.
 > - **Trois entrées de conception pour P3, relevées le 2026-10-02 par l'instance « portage »** en
 >   portant le composer :
 >   1. *(vérifié dans le code)* le squelette résout `vram_needed` (`task_skeleton.py:358-365`)

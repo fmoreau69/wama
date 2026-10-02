@@ -567,6 +567,10 @@ class BaseModelBackend(ABC):
     #: d'une card). Jusqu'au 2026-10-01 le worker ne le passait qu'au moteur NOMMÉ `whisper` :
     #: un autre moteur qui sait filtrer ne pouvait pas le recevoir.
     supports_vad_filter: bool = False
+    #: Le moteur sait écrire la partition d'un morceau AVANT de le jouer, en une étape qu'on
+    #: peut appeler seule (`MusicGenerationBackend.plan_score`). C'est ce qui donne à la card du
+    #: composer un process `plan` distinct du rendu (ROUTE §10.6, pilote P3 — 2026-10-02).
+    supports_score_planning: bool = False
     #: Borne LANGUE de `supports_timestamps` (cf. vocabulaire commun) : liste vide/None = la
     #: capacité vaut pour toutes les langues du moteur. Lire via `supports_timestamps_for()`,
     #: jamais le booléen seul — sinon la borne se perd au premier appelant qui l'ignore.

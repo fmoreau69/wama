@@ -37,7 +37,12 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
                         RÉSOLUE. Ajouté au contrat le 2026-10-01 : la 1ʳᵉ génération réelle de
                         l'Editor avait une révision SANS modèle — la clé n'était écrite nulle part
                         dans ce contrat, donc dans la matière du rôle `codegen` ; optionnel,
-              'console_success': ligne ✓ personnalisée (remplace « ✓ Terminé : <label> ») — optionnel}
+              'console_success': ligne ✓ personnalisée (remplace « ✓ Terminé : <label> ») — optionnel,
+              'output_ref': chemin (relatif à MEDIA_ROOT) de CE QUE LE PROCESS A RENDU — gardé sur
+                            sa ligne d'exécution ; c'est ce qui permet à un aval de se savoir
+                            périmé quand cette sortie est remplacée (2026-10-02) ; optionnel}
+  - `ctx.step` : clé du process en cours quand la card en porte plusieurs (None sinon) ;
+    `ctx.reset_progress()` : barre de la card à zéro, hors de la part du process en cours.
     La glu peut retourner À TOUT MOMENT (ex. chemin court PDF natif du reader) : le retour
     déclenche le flux de succès standard.
   - une exception = FAILURE (message tronqué dans `error_field`, console ✗, notification
@@ -83,8 +88,27 @@ class TaskContext:
         self.item = item
         self.user_id = getattr(item, 'user_id', None)
         self._progress_fn = progress_fn
+        #: Process en cours quand la card en porte plusieurs (clé du `ProcessSpec`) ; None pour
+        #: une app à un seul process.
+        self.step = None
+        self._window = (0.0, 100.0)
+
+    def enter_step(self, step, start_pct: float, end_pct: float) -> None:
+        """Le squelette entre dans un process d'un pipeline : la glu continue d'annoncer 0-100
+        pour SON travail, la card reçoit la part de barre qui lui revient."""
+        self.step = step
+        self._window = (float(start_pct), float(end_pct))
+
+    def reset_progress(self) -> None:
+        """Barre de la CARD remise à zéro (un échec relançable) — hors de toute part de process :
+        `progress(0)` dans un pipeline ne ramène qu'au début du process en cours."""
+        self._window = (0.0, 100.0)
+        self.progress(0)
 
     def progress(self, pct: int, msg: str = None) -> None:
+        if self._window != (0.0, 100.0):
+            low, high = self._window
+            pct = low + (high - low) * max(0.0, min(100.0, float(pct))) / 100.0
         if self._progress_fn is not None:
             self._progress_fn(self.item, pct, msg or '')
             return
@@ -312,12 +336,51 @@ def _measure_against_reference(app_id: str, model, item_id: int, ctx) -> None:
                        app_id, item_id, exc)
 
 
-def run_item_task(task, *, app_id: str, model, item_id: int, process,
+def _record_eta(eta, seconds: float, item) -> None:
+    """ETA d'UN process (`(clé, taille, unité)` rendu par sa glu), best-effort."""
+    if not eta:
+        return
+    try:
+        from wama.model_manager.services.eta_estimator import record_run
+        key, size, unit = eta
+        record_run(key, size=size, unit=unit, process_seconds=seconds, load_seconds=None,
+                   user=getattr(item, 'user', None))
+    except Exception:
+        pass
+
+
+def _selected_steps(app_id, item, process, pipeline, processes, resolved_key) -> list:
+    """Les process que CE lancement joue : `[(nœud, clé de process, glu, spec|None)]`.
+
+    Une app à un seul process : sa glu, sur le nœud `main`. Une app qui DÉCLARE un pipeline
+    (`process_pipeline.AppPipeline`) : les process qui ne sont pas à jour et leur aval, dans
+    l'ordre du graphe — un résultat encore valable n'est pas rejoué."""
+    from wama.common.services import process_runs
+    if pipeline is None:
+        return [(process_runs.MAIN_NODE, app_id, process, None)]
+    specs = pipeline.steps_to_run(item, resolved_key)
+    if not specs:
+        raise RuntimeError("aucun process à jouer pour cet élément")
+    missing = [spec.key for spec in specs if spec.key not in (processes or {})]
+    if missing:
+        raise RuntimeError(f"process sans glu : {', '.join(missing)}")
+    return [(spec.key, pipeline.function_key(spec), processes[spec.key], spec) for spec in specs]
+
+
+def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                   vram_needed=None, model_key=None,
                   error_field: str = 'error_message', ingest_derive=None,
-                  notify_label: str = None, progress_fn=None):
+                  notify_label: str = None, progress_fn=None,
+                  pipeline=None, processes=None):
     """Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
-    module. `task` = la tâche Celery liée (bind=True) — requis par la garde de redélivrance."""
+    module. `task` = la tâche Celery liée (bind=True) — requis par la garde de redélivrance.
+
+    PLUSIEURS PROCESS (ROUTE §10.6, marche P3 palier B — 2026-10-02) : une app qui déclare un
+    pipeline passe `pipeline=` (son `AppPipeline`) et `processes={clé: glu}` à la place de
+    `process`. Chaque glu garde le MÊME contrat ; le squelette joue celles que le lancement
+    retient (`pipeline.steps_to_run`), l'une après l'autre dans cette tâche, et tient une ligne
+    d'exécution par process. Les `fields` d'un process sont écrits dès qu'il a rendu — la glu
+    suivante les lit sur `item` — et sa sortie se nomme par la clé `output_ref` du retour."""
     close_old_connections()
     logger.info(f"=== {app_id} task START | item={item_id} task={task.request.id} ===")
     try:
@@ -414,39 +477,70 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
     # squelette a UN process, donc une ligne. Elle porte ce que l'élément ne disait pas pendant
     # le traitement : le modèle EMPLOYÉ quand le réglage est resté « auto ». L'élément reste la
     # vérité lue par l'interface ; la ligne est écrite aux mêmes instants que lui.
+    # Avec PLUSIEURS process (palier B), la boucle ci-dessous tient une ligne par process joué ;
+    # `node` est le process EN COURS — c'est sa ligne qu'un échec referme.
     from wama.common.services import process_runs
-    process_runs.safely(process_runs.start, item, process_key=app_id,
-                        model_key=resolved_key or '',
-                        task_id=getattr(getattr(task, 'request', None), 'id', '') or '')
+    task_ref = getattr(getattr(task, 'request', None), 'id', '') or ''
+    node = process_runs.MAIN_NODE if pipeline is None else None
+    process_key = app_id
     try:
         with _time_guard(limit_s):
-            res = process(item, ctx) or {}
-        fields = dict(res.get('fields') or {})
+            steps = _selected_steps(app_id, item, process, pipeline, processes, resolved_key)
+            total_share = sum(spec.share if spec is not None else 1 for *_x, spec in steps) or 1
+            done_share, written, used = 0, {}, []
+            for index, (node, process_key, glue, spec) in enumerate(steps):
+                share = spec.share if spec is not None else 1
+                if spec is not None:
+                    ctx.enter_step(spec.key, 100.0 * done_share / total_share,
+                                   100.0 * (done_share + share) / total_share)
+                process_runs.safely(
+                    process_runs.start, item, node, process_key=process_key,
+                    kind='app' if spec is None else 'function',
+                    settings_snapshot=pipeline.snapshot(spec, item) if spec is not None else None,
+                    model_key=resolved_key or '', task_id=task_ref)
+                t_step = time.time()
+                res = glue(item, ctx) or {}
+                used += [k for k in (res.get('models') or []) if k and k not in used]
+                written.update(res.get('fields') or {})
+                if index == len(steps) - 1:
+                    break             # le DERNIER process rend la card : flux de succès ci-dessous
+                # Un process INTERMÉDIAIRE a rendu : ses champs sont écrits tout de suite (la glu
+                # suivante les lit sur `item`, et ils survivent à l'échec d'un aval), sa ligne
+                # passe en succès, son ETA s'apprend — sans attendre la fin de la card.
+                if res.get('fields'):
+                    model.objects.filter(pk=item_id).update(**res['fields'])
+                    for name, value in res['fields'].items():
+                        setattr(item, name, value)
+                process_runs.safely(
+                    process_runs.succeed, item, node, process_key=process_key,
+                    output_ref=res.get('output_ref') or '',
+                    model_key=(res.get('models') or [None])[0],
+                    output_summary={'label': res['label']} if res.get('label') else None)
+                _record_eta(res.get('eta'), time.time() - t_step, item)
+                if res.get('label'):
+                    ctx.console(res.get('console_success') or f"✓ {res['label']}", level='info')
+                done_share += share
+        last_model = next((k for k in (res.get('models') or []) if k), None)
+        # Ce que la CARD a produit = ce que tous ses process joués ont écrit et employé.
+        res = dict(res, fields=written, models=used or res.get('models'))
+        fields = dict(written)
         fields['status'] = 'SUCCESS'
         if _has_field(model, 'progress'):
             fields['progress'] = 100
         if _has_field(model, 'processing_seconds'):
             fields['processing_seconds'] = round(time.time() - t0, 1)
         model.objects.filter(pk=item_id).update(**fields)
-        used = [k for k in (res.get('models') or []) if k]
-        process_runs.safely(process_runs.succeed, item, process_key=app_id,
-                            model_key=used[0] if used else None,
+        process_runs.safely(process_runs.succeed, item, node, process_key=process_key,
+                            output_ref=res.get('output_ref') or '',
+                            model_key=last_model,
                             output_summary={'label': res['label']} if res.get('label') else None)
+        ctx.enter_step(None, 0, 100)
         ctx.progress(100)
         _measure_against_reference(app_id, model, item_id, ctx)
         nom = res.get('label') or _item_label(item, item_id)
         ctx.console(res.get('console_success') or f"✓ Terminé : {nom}", level='info')
         logger.info(f"=== {app_id} task DONE | item={item_id} ===")
-        eta = res.get('eta')
-        if eta:
-            try:
-                from wama.model_manager.services.eta_estimator import record_run
-                cle, taille, unite = eta
-                record_run(cle, size=taille, unit=unite,
-                           process_seconds=time.time() - t0, load_seconds=None,
-                           user=getattr(item, 'user', None))
-            except Exception:
-                pass
+        _record_eta(res.get('eta'), time.time() - t_step, item)
         # Signal d'exécution (RunOutcome, §16.7) : la LIGNE DE BASE de toute boucle
         # d'auto-amélioration — sans elle, un « corrigé » ou un « supprimé » plus tard ne se
         # rattache à aucune production. Posée ici, dans le squelette commun, elle couvre d'un
@@ -470,7 +564,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         if _has_field(model, error_field):
             fields[error_field] = msg
         model.objects.filter(pk=item_id).update(**fields)
-        process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
+        if node is not None:
+            process_runs.safely(process_runs.fail, item, node, msg, process_key=process_key)
         nom = _item_label(item, item_id)
         ctx.console(f"✗ {msg}", level='error')
         _signal(item, app_id, 'echec', None, {'erreur': 'duree_max'})
@@ -482,7 +577,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         if _has_field(model, error_field):
             fields[error_field] = msg
         model.objects.filter(pk=item_id).update(**fields)
-        process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
+        if node is not None:
+            process_runs.safely(process_runs.fail, item, node, msg, process_key=process_key)
         nom = _item_label(item, item_id)
         ctx.console(f"✗ Erreur ({nom}) : {msg}", level='error')
         # Un échec est un fait aussi informatif qu'un succès : un modèle qui échoue souvent sur

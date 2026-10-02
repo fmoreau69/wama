@@ -53,26 +53,10 @@ def _console(user_id, message, level='info'):
         pass
 
 
-def topo_order(graph):
-    """Ordre topologique des nœuds ({id: [ids amont]}) ; lève ValueError si cycle."""
-    nodes = {n['id']: n for n in graph.get('nodes', [])}
-    incoming = {nid: set() for nid in nodes}
-    for l in graph.get('links', []):
-        if l['from'] in nodes and l['to'] in nodes:
-            incoming[l['to']].add(l['from'])
-    order, ready = [], [nid for nid, deps in incoming.items() if not deps]
-    pending = {nid: set(deps) for nid, deps in incoming.items() if deps}
-    while ready:
-        nid = ready.pop(0)
-        order.append(nid)
-        for other, deps in list(pending.items()):
-            deps.discard(nid)
-            if not deps:
-                del pending[other]
-                ready.append(other)
-    if pending:
-        raise ValueError('Le graphe contient un cycle — exécution impossible.')
-    return [nodes[nid] for nid in order]
+# L'ordre topologique vit avec le graphe (`manifests/builtin/pipeline.py`) depuis le 2026-10-02 :
+# le moteur à plusieurs process d'une app ordonne par le même tri. Le nom reste importable d'ici
+# (`services/launch.py` et les tests du studio le lisent à cette adresse).
+from wama.common.manifests.builtin.pipeline import topo_order  # noqa: E402,F401
 
 
 # ── Nœuds SOURCE (cards d'entrée) : produisent une valeur depuis leurs params ──

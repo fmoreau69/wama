@@ -1,0 +1,67 @@
+{
+  "body": {
+    "app": "composer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "composer.tasks:compose_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "prompt",
+        "description": "La consigne de génération.",
+        "group": "travail",
+        "key": "prompt",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "score",
+        "description": "Partition à suivre, OPTIONNELLE : sans elle, le modèle compose librement.",
+        "group": "reference",
+        "key": "score",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "composer.render",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Le morceau ou le bruitage généré.",
+        "key": "audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "music",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Génère l'audio depuis la consigne — en suivant une partition quand le modèle en prend une (celle que `composer.plan` a écrite, ou celle que l'utilisateur fournit).",
+  "key": "composer.render",
+  "manifest_kind": "function",
+  "name": "Composer — rendre le son",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:composer.render",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

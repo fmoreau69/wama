@@ -61,6 +61,15 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
         upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )
+    # Partition ÉCRITE par le process `plan` (ROUTE §10.6, pilote P3 — 2026-10-02) : la sortie
+    # d'un process intermédiaire est un fichier de la card comme un autre (retrait, rétention,
+    # index des fichiers la voient par ce champ) ; la ligne d'exécution n'en garde que le
+    # pointeur. Distincte de `reference_score`, que l'utilisateur FOURNIT. Nullable : sûr pour
+    # le code en service.
+    planned_score = models.FileField(
+        upload_to=upload_to_user_output('composer'),
+        blank=True, null=True,
+    )
 
     # Format de sortie (conversion inline via Converter) — 'original' = WAV natif
     output_format = models.CharField(max_length=20, default='original')

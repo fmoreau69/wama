@@ -262,10 +262,18 @@ body:                                   # (sous l'enveloppe commune)
 (endpoints standard), modales+inspecteur (`params`+`inspector`), le nœud studio (`ports`+`studio`), le
 gating (`access`), le câblage prompts/tool_api.
 
-### 3.1 ~~Facette `pipelines`~~ — RETIRÉE le 2026-10-01 : une réinvention (décision n°11 toujours ouverte)
+### 3.1 ~~Facette `pipelines`~~ — RETIRÉE le 2026-10-01 : une réinvention (décision n°11 tranchée le 2026-10-02)
 
 > Formalisée puis retirée le même jour (commits `145f920b` → retrait), après revérification
 > demandée par Fabien. Gardé ici pour que la prochaine génération ne la réécrive pas.
+>
+> ✅ **Décision n°11 tranchée le 2026-10-02 (Fabien)** — domicile : `WAMA_APP_GENERATION_ROUTE
+> §10.6` point 9. Une app Médias qui porte PLUSIEURS process les déclare **comme le cam_analyzer
+> déclare ses passes** : registre en code (`common/services/process_pipeline.ProcessSpec`), chaque
+> process un `FunctionSpec binding: app`, le tout exporté par le kind `pipeline` EXISTANT sous la
+> clé de l'app (`manifests/pipelines/composer.json`, 1ᵉʳ cas). **Le manifeste `app` ne gagne aucune
+> facette** : c'est ce que la facette retirée ci-dessous cherchait à dire, par le formalisme qui
+> existait déjà.
 
 **Ce qu'elle était** : une liste d'étapes écrite DANS le manifeste `app`, avec un nœud `kind: process`
 inventé, son propre tri topologique et un enchaîneur dans le squelette de tâche — pour dire que le
@@ -276,10 +284,12 @@ Writer (alors « Editor ») rédige le fond PUIS le met en forme.
   `builtin/pipeline.py:35`) — pas par un second formalisme dans le manifeste d'app ;
 - **un process d'application EST un pipeline à UN nœud** (Fabien, 30/08 : `WAMA_MANIFEST_ARCHITECTURE
   §8` ; « un cas normal », `WAMA_APP_GENERATION_ROUTE §10.6` 7) : entrée → process de l'app → sortie ;
-- les **fonctions** du catalogue sont des process du monde **Data** (`§10.6` 6.3 B) ; les process
+- ~~les **fonctions** du catalogue sont des process du monde **Data** (`§10.6` 6.3 B) ; les process
   internes d'une app **Médias** (diarisation, résumé… du transcriber) ne sont PAS des fonctions, et
-  la façon de les déclarer n'est PAS encore formalisée — c'est la **décision ouverte n°11** de `§10.6`,
-  dont le pilote est le transcriber à la marche **P4** ;
+  la façon de les déclarer n'est PAS encore formalisée~~ — ⚠ **corrigé le 2026-10-02** : c'était
+  un constat, faux pour le Lab (les passes du cam_analyzer sont des `FunctionSpec binding: app`
+  depuis le 09/09) et levé pour les Médias par la décision n°11 (encadré ci-dessus). Le pilote
+  est le composer (`plan` → `render`), le transcriber vient ensuite ;
 - deux tris topologiques existaient déjà (`studio/tasks.py:56`, `cam_analyzer/utils/pass_tracking.py:220`)
   et l'enchaîneur était la « quatrième pièce » que `§10.6` 4.5 interdit d'écrire à côté du moteur commun.
 
@@ -290,9 +300,10 @@ Writer (alors « Editor ») rédige le fond PUIS le met en forme.
   ids, comme le composer) ;
 - sa **consigne** par une cible de `PROMPT_TARGETS` (facette `prompts`) : `kind: 'intent'` et
   `reference_field` — le pipeline de prompts comprend le document de référence ;
-- son **traitement** en **un seul process** tant que le moteur commun (P3) n'existe pas
-  (`§10.6` 11) : une glu qui rédige puis met en forme. Les deux étapes ne deviendront deux process
-  qu'avec la décision n°11 et P4.
+- son **traitement** en **un seul process** (`§10.6` 11) : une glu qui rédige puis met en forme.
+  ⏳ Depuis le 2026-10-02 le moyen d'en faire deux process existe (décision n°11, moteur à
+  plusieurs process : `run_item_task(pipeline=…, processes=…)`) ; le Writer n'y est pas porté —
+  le composer est le pilote.
 
 ---
 

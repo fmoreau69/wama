@@ -152,6 +152,20 @@ MECHANISMS = (
               "`status` ; l'arrêt et la réconciliation referment les lignes ouvertes",
               'wama/common/services/process_runs.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_runs.py',)),
+    # Ajouté le 2026-10-02 (P3 palier B, décision n°11) : le registre des passes du cam_analyzer
+    # rendu indépendant de la session — 1er adopteur, le composer (`plan` → `render`).
+    Mechanism('process_pipeline', "Pipeline déclaré d'une app (plusieurs process)",
+              "Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages "
+              "surveillés, degré, condition d'application) comme le cam_analyzer déclare ses "
+              "passes ; le registre devient un manifeste `pipeline` à nœuds `function` "
+              "(`register_app_pipeline`). Dit ce qu'un lancement JOUE (`steps_to_run` : ce qui "
+              "n'est plus à jour et son aval ; une card à jour relancée rejoue tout), ce qui est "
+              "PÉRIMÉ (`refresh` : réglage changé, sortie d'amont remplacée, cascade) et l'état "
+              "déduit de la card (`card_state`). L'exécution reste au squelette de tâche "
+              "(`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process",
+              'wama/common/services/process_pipeline.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
+              annexes=('wama/common/tests/tests_process_pipeline.py',),
+              depends_on=('process_runs',)),
     Mechanism('model_readiness', 'Annonce de téléchargement des poids',
               "Un modèle jamais utilisé télécharge ses poids À LA PREMIÈRE EXÉCUTION (37 appels "
               "`from_pretrained`/`snapshot_download` dans les backends) — et RIEN ne le disait : "

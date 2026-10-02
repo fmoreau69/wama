@@ -70,8 +70,24 @@ def snapshot(settings, watched) -> dict:
     if settings is None:
         return {}
     if isinstance(settings, dict):
-        return {key: settings.get(key) for key in watched}
-    return {key: getattr(settings, key, None) for key in watched}
+        return {key: plain(settings.get(key)) for key in watched}
+    return {key: plain(getattr(settings, key, None)) for key in watched}
+
+
+def plain(value):
+    """Une valeur de réglage sous sa forme ÉCRITE en JSON — la photo est relue de la base avant
+    d'être comparée, les deux côtés doivent donc avoir la même forme : un champ fichier devient
+    son chemin, un tuple une liste, tout ce que JSON ne porte pas sa représentation texte."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [plain(entry) for entry in value]
+    if isinstance(value, dict):
+        return {str(key): plain(entry) for key, entry in value.items()}
+    name = getattr(value, 'name', None)          # FieldFile : son chemin relatif, '' si vide
+    if hasattr(value, 'storage'):
+        return name or ''
+    return str(value)
 
 
 def _write(item, node_id, instance_key, defaults):

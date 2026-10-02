@@ -55,7 +55,11 @@ def _auto_wrap_orphans(user):
 
 
 def _reset_for_relaunch(gen):
-    """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race (begin_processing)."""
+    """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race (begin_processing).
+
+    ⚠ `planned_score` n'est PAS remis à zéro : c'est le résultat du process `plan`, qu'un
+    lancement REPREND quand il vaut encore (`function_specs.PIPELINE`) — le moteur le réécrit
+    quand il rejoue ce process."""
     safe_delete_file(gen, 'audio_output')
     gen.progress = 0
     gen.audio_output = None
@@ -96,7 +100,7 @@ def _copy_link_extra(new_gen, old_gen):
 _bv = make_batch_views(
     work_model=ComposerGeneration, batch_model=ComposerBatch, get_user=_get_user,
     task_for=_task_for, start_only_pending=True,
-    output_fields=('audio_output',),
+    output_fields=('audio_output', 'planned_score'),
     item_model=ComposerBatchItem, fk_name='generation',
     reset_on_start=_reset_for_relaunch,
     reset_on_duplicate={'status': 'PENDING', 'progress': 0, 'task_id': None,
@@ -695,7 +699,7 @@ def duplicate(request, pk):
             'task_id': None, 'error_message': '',
             'exported_to_library': False,
         },
-        clear_fields=['audio_output'],
+        clear_fields=['audio_output', 'planned_score'],
     )
     # Fille d'un VRAI batch (total > 1) : dupliquer en frère DANS le batch.
     # Card UNITAIRE (batch-de-1) : la copie devient une card indépendante (nouveau batch-de-1) —
