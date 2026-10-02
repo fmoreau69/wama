@@ -20092,3 +20092,22 @@ défaut ; **pilote = le composer** (YuE2 : `plan` → `render`). Plan soumis à 
   dit que les process internes d'une app Médias ne sont PAS des fonctions.
 - **Non fait** : `AnalysisPass` du cam_analyzer et `node_states` du studio ne sont pas portés
   sur `ProcessRun` (hors plan de ce palier).
+
+## §CLÔTURE — 2026-10-02 (matin), « LENTEURS DE CHARGEMENT + ALBERT TRANCHÉ + SYNC CLOUD SEULE » — ✅ `ff1dfb65`, `0468d535`, `ac4a12be`, `a4b8635e` — 🔴 recharger gunicorn ET relancer Celery
+
+- ✅ **Lenteurs mesurées et corrigées** (cProfile, compte de Fabien, `ff1dfb65`) : accueil
+  0,53 → 0,06 s, transcriber 1,71 → 0,61 s. Trois causes : `static_v` sans cache en DEBUG (le
+  serveur en service tourne `DEBUG = True`, `settings.py:27`) ; le menu qui évaluait les droits
+  app par app (52 requêtes, 26 lectures du registre des bacs à sable) ; la file qui chargeait les
+  segments des transcriptions, deux fois (`QUEUE_DEFERRED_FIELDS`, différés par la brique
+  commune). Restent sur le transcriber : 0,18 s (accord entre moteurs, segments relus pour 17
+  cards) et 0,09 s (comptes de locuteurs, une requête par card) — non traités.
+- ✅ **Mise à jour du catalogue après une clé** réduite aux modèles distants (`0468d535`) :
+  285 → 14,7 s, sans réconciliation (une découverte partielle ne prouve aucune disparition).
+- ✅ **Albert : verrou de sensibilité TRANCHÉ** par Fabien (`ac4a12be`) — le cloud est un choix de
+  l'utilisateur, Albert est l'hébergement souverain de la DINUM. Idée consignée comme intention
+  (`a4b8635e`, `ROADMAP §8d`) : DIRE quand une donnée part dans le cloud (prévision, console).
+- Mesures non refaites EN SERVICE : les chiffres ci-dessus sont en processus ; à remesurer après
+  le rechargement (sonde de temps de page dans le scratchpad de session).
+- ⚠ Rouge PRÉEXISTANT, pas à moi : `tests_codegen_lot.ItemEditRouteAliasTest` (imager
+  `generation_settings` rendu en trou de glu) — rejoué sans mes fichiers : même échec.
