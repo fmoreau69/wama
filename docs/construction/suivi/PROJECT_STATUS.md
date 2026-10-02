@@ -20175,3 +20175,51 @@ manifeste `app`. `WAMA_MANIFEST_SPEC §3.1` corrigé (il disait l'inverse, par c
   process) ; ETA du process `plan` non apprise ; cam_analyzer (`Pass` → `ProcessSpec`,
   `AnalysisPass` → `ProcessRun`) et exécuteur du studio (`node_states`) non portés ; le Writer
   reste à un process.
+
+## §PALIER — 2026-10-02 (soir), « PORTAGE : PLUS AUCUNE VUE DE LOT LOCALE — ZIP multi-format (A) et réglages de lot (B) par la fabrique » — ✅ `ac34a4af`, `60d047b4`, `8903057d`, non poussés — 🔴 RELANCER WAMA (gunicorn + workers) — 🔚 contexte `batch` du format/qualité du synthesizer ; C (`detail_spec`) et D (`model_caps_ui`) proposés, pas lancés
+
+**Décision de Fabien (2026-10-02)** : les vues de lot « restées locales et assumées » ne sont pas
+des spécificités — on uniformise, en confrontant doc et code, sans rien réinventer.
+
+**A — `batch_download` multi-format (`ac34a4af`).** Les trois vues locales (describer, reader,
+transcriber) étaient la même vue ; leurs trois différences étaient déjà DÉCLARÉES (formats au
+catalogue, rendu enregistré par `register_export_builder`) et lues par le ⬇ de la card et celui de
+la barre. La fabrique les lit ; la card mère rend son ZIP par la brique du ⬇ commun ; trois vues
+et trois partials retirés (`REMOVAL_LEDGER` R91).
+
+**B — `batch_update` (`60d047b4`).** Confronté au code, app par app : la vue de lot RÉÉCRIVAIT les
+règles de la route d'élément à côté d'elle. La fabrique reçoit `apply_settings` — la fonction de
+réglage de l'app, celle que `update_settings` appelle aussi — et écrit en deux temps (un refus =
+400, aucune fille écrite). Cinq vues locales retirées : composer, converter, enhancer, imager,
+synthesizer (`REMOVAL_LEDGER` R92). Route du synthesizer alignée (`batch/<pk>/update/`).
+
+| ce que la confrontation a trouvé | où | comment |
+|---|---|---|
+| modèle invalide ignoré en silence au lot, refusé à l'élément | composer | lecture des deux vues |
+| `speed`/`pitch` remis à 1.0 dès qu'ils n'étaient pas postés ; JSON seul | synthesizer | lecture |
+| app comptée VERTE avec une vue de lot à la main (`batch_update_settings`) | synthesizer / critère | le motif du critère ne connaissait qu'une graphie — élargi, tenu par un test |
+| la modale de lot affiche un format de sortie que le serveur n'écrit pas | **reader**, déjà sur la fabrique | **par la garde générique**, pas par la lecture : deux listes de champs (élément 4, lot 3) |
+
+**Garde générique** (aucune app nommée, une app neuve y entre seule) :
+`tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest` poste chaque réglage postable
+par un lot à la route d'élément ET à la route de lot, et compare ce qui est écrit — 9 apps à lots,
+toutes mesurées ; chaque `<app>:batch_update` doit ÊTRE la vue de la fabrique.
+
+**Mesures.** Grille 908/941 → **910/939** ; `batch_views_common` **VRAI 10/10**. 485 tests sur les
+dix apps et le commun : 2 rouges ANTÉRIEURS hors périmètre (`ItemEditRouteAliasTest` : stub imager
+du générateur ; `tests_settings_surfaces` : `quality_intent` du transcriber sur une seule
+surface). Vérifié SUR HEAD en worktree (154 tests ; seule erreur = l'artefact documenté
+`IntegrationReelleTest`, poids absents d'un arbre neuf). JS du composer : parse V8 du fichier servi.
+
+**Restes, nommés.**
+- synthesizer : ouvrir le contexte `batch` du format/qualité de sortie (`params.py` — la condition
+  notée le 17/08 est levée) ; demande une vérification navigateur de la modale générée.
+- jumelles du bac à sable : à régénérer (R90 : elles passent encore `file_fields=`).
+- `doc_facts --check` : blocs `conformite`, `modeles`, `outils` périmés — pas les miens
+  (`mecanismes` et `dev-briques` régénérés depuis HEAD, `8903057d`).
+- ⚠ **18 manifestes de MODÈLES régénérés dans l'arbre, NON commités** : `manifest_export --kind app`
+  a écrit tout le corpus périmé, pas les seules apps. Ils projettent le catalogue tel qu'il est
+  dans l'arbre (travail en cours d'autres instances compris) — à commiter par qui porte ces
+  modèles ; seuls `apps/imager.json` et `apps/synthesizer.json` sont partis avec `60d047b4`.
+- aucun geste navigateur joué sur les modales de lot : le code servi est l'ancien tant que WAMA
+  n'est pas relancé.
