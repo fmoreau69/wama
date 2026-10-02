@@ -20312,3 +20312,15 @@ Accord de Fabien (« ok pour la génération YuE2 en deux process »). Élément
   le pic mesuré 8,0 Go.
 - **Non fait** : la génération par le worker en service avec le code corrigé (il faut le
   relancer) ; la base de test isolée de la session est encore en place.
+
+## §PALIER — 2026-10-02 (midi), « MODEL MANAGER LENT : RELEVÉS DE L HÔTE WINDOWS » — ✅ `610d9108` — 🔴 recharger gunicorn
+
+- ✅ **Remesuré EN SERVICE** après la relance (page HTML, 2ᵉ/3ᵉ appel) : accueil 0,05 s, transcriber
+  0,40 s, la plupart des apps 0,09-0,16 s ; 1ᵉʳ appel après relance encore lent (caches froids).
+- ✅ **Model manager (1,6 s)** : la page attendait des programmes Windows lancés depuis WSL
+  (`wmic cpu` 1,29 s, RAM 0,24 s) — et le PIED DE PAGE de chaque onglet les relançait toutes les
+  quelques secondes (2,33 s par appel, un processus gunicorn occupé à chaque fois). Relevés de
+  l'hôte (CPU, RAM, disque) partagés 5 s par le cache Redis : footer 0,05 s, model manager
+  0,09 s cache chaud. GPU inchangée (`nvidia-smi` 0,06 s). Garde `tests_system_monitor`.
+- ⚠ Budgets de langue toujours dépassés par d'autres chantiers (code 2681 > 2678, classes 133,
+  méthodes 1317) — rien dans les fichiers de ce palier.
