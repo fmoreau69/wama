@@ -244,7 +244,8 @@ def measure_mount_yaw(session, sh, windows, to_frame_for, to_tg_for, fov_h_for):
     `fov_h_for(pos)` : champ H du sténopé de la caméra (mesuré pour l'avant/l'arrière s'il l'est,
     saisi pour les latérales). La caméra avant est le CONTRÔLE : si elle ne retrouve pas son lacet
     saisi à `YAW_CONTROL_MAX_DEG` près, aucune latérale n'est déclarée applicable."""
-    from wama_data.functions.geometry.known_motion_yaw import fit_mount_yaw
+    from wama_data.functions.geometry.known_motion_yaw import (fit_mount_yaw, fit_yaw_by_period,
+                                                               detect_yaw_changes)
     from .prediction_adapter import camera_geometry, configured_yaw_map
     geo = camera_geometry(session)
     prior = configured_yaw_map(session)
@@ -276,6 +277,13 @@ def measure_mount_yaw(session, sh, windows, to_frame_for, to_tg_for, fov_h_for):
             continue
         if pos == 'front':
             lags = (res['lag_s'],)
+        # Lacet PAR PÉRIODE (tangage, distorsion, retard de la session fixés) et ruptures : une
+        # caméra tombée puis remise en cours de session — DIAGNOSTIC, rien n'est appliqué par période.
+        periods = fit_yaw_by_period(pairs, sh, image_size=size, focal_px=fx, mount=geo[pos]['mount'],
+                                    yaw0_deg=res['yaw_deg'], pitch_deg=res['pitch_deg'], k1=res['k1'],
+                                    lag_s=res['lag_s'])
+        res['by_period'] = periods
+        res['changes'] = detect_yaw_changes(periods)
         res.update({'yaw_prior_deg': prior[pos], 'fov_h_used': round(fov_h, 2)})
         out[pos] = res
     out['control'] = apply_yaw_control(out, prior['front'])

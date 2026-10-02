@@ -2044,6 +2044,16 @@ def compute_camera_intrinsics_task(self, session_id: str):
                      + (", AU BORD de la grille" if y.get('at_bound') else "") + ")"
                      + (" — appliqué si ⚑ Orientation des latérales MESURÉE est ON"
                         if y.get('applicable') else " — non appliqué"))
+            per = y.get('by_period') or []
+            ok_per = [q['yaw_deg'] for q in per if q.get('measured')]
+            if per:
+                _console(session.user_id,
+                         f"Orientation [{p}] par période ({len(ok_per)}/{len(per)} mesurées)"
+                         + (f" : {min(ok_per)}° → {max(ok_per)}°" if ok_per else "")
+                         + "".join(f" — RUPTURE entre {c['between'][0]:.0f} et {c['between'][1]:.0f} s "
+                                   f"({c['yaw_before']}° → {c['yaw_after']}°, {c['delta_deg']:+.1f}°)"
+                                   for c in (y.get('changes') or []))
+                         + ("" if y.get('changes') else " — aucune rupture"))
         _console(session.user_id,
                  f"Orientation — contrôle caméra avant : {ctl.get('yaw_deg')}° "
                  + ("(OK)" if ctl.get('ok') else f"(ÉCHEC : écart > {ctl.get('max_deg')}°, latérales refusées)"))
