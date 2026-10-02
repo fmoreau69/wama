@@ -235,8 +235,12 @@ class YuE2Backend(MusicGenerationBackend):
     def plan_score(self, model_id: str, prompt: str,
                    progress_callback: Optional[Callable[[int], None]] = None) -> str:
         """La partition ABC que le moteur écrit pour *prompt* — l'étape `plan()` de son pipeline,
-        appelée seule. `generate(score_path=…)` la reprend telle quelle (« Using provided
-        score ») : même découpe style/paroles, même graine, donc le même morceau qu'en un appel."""
+        appelée seule. `generate(score_path=…)` la reprend par son TEXTE (« Using provided
+        score ») : même découpe style/paroles, même graine.
+
+        ⚠ « Le même morceau qu'en un appel » n'est PAS garanti, et n'a pas été mesuré : en un
+        appel le rendu suit les jetons d'origine de la partition ; ici elle fait un aller-retour
+        texte → jetons (`tokenizer.decode` au plan, `encode` au rendu) qui peut en différer."""
         if not self.is_loaded:
             self.load()
         style, lyrics = split_caption_lyrics(prompt)

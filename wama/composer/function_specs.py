@@ -54,7 +54,9 @@ register(FunctionSpec(
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['audio', 'music', 'gpu'],
     inputs=[PortSpec('prompt', 'prompt', description="La consigne de génération."),
-            PortSpec('score', 'score', optional=True, group='reference',
+            # Nommé comme l'ENTRÉE de l'app (`reference_score` : la card, `compose_music`, le
+            # nœud du studio) — un nom pour une même entrée ; `score` est son TYPE.
+            PortSpec('reference_score', 'score', optional=True, group='reference',
                      description="Partition à suivre, OPTIONNELLE : sans elle, le modèle "
                                  "compose librement.")],
     outputs=[PortSpec('audio', 'audio', description="Le morceau ou le bruitage généré.")]))

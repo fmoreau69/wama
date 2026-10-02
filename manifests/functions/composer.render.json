@@ -21,7 +21,7 @@
         "data_type": "score",
         "description": "Partition à suivre, OPTIONNELLE : sans elle, le modèle compose librement.",
         "group": "reference",
-        "key": "score",
+        "key": "reference_score",
         "optional": true,
         "produced_fields": [],
         "required_fields": []
