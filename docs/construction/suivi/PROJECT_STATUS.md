@@ -20377,3 +20377,30 @@ Demande de Fabien : « fais le rangement chez le destinataire (§3bis.2) ».
 - Rouges PRÉEXISTANTS rencontrés : `tests_codegen_lot.ItemEditRouteAliasTest` (imager) ; budgets
   `tests_identifier_language` décalés (code 2677/2678, classes 133/132, méthodes 1316/1310) par
   des commits d'autres instances ce soir — aucun identifiant de ce palier n'y figure.
+
+## §PALIER — 2026-10-02, « CAMPAGNE DES TROIS MOTEURS + ESSAI DE TRANSCRIPTION DU RÔLE `backend` » — ✅ commits ci-dessous — 🔴 RELANCER WAMA (gunicorn ; le worker GPU tourne déjà le code) — 🔚 CFPP non mesuré · régénérer WAMA_MECANISMES
+
+> Fabien : *« Lance la campagne d'évaluation des trois moteurs et corriges le trou que tu signales. »*
+
+- **Le trou, comblé** (`a9d549a`) : le rôle `backend` ESSAIE un backend de transcription
+  (`backend_proposals.SMOKES`, CPU, extrait de parole réelle calé sur des segments entiers de la
+  référence, garde-fou WER ≤ 75 %). Calibré : les deux backends du rôle échouent, les corrigés
+  passent. Son premier essai a trouvé deux défauts de plus dans FrWhisper (segment hors de
+  l'audio ; il s'arrêtait en cours de fenêtre quand on lui imposait les jetons de temps) →
+  fenêtres de 30 s coupées dans une pause (`speech_activity.pause_windows`).
+- **Campagne** : 66 cards (#1244–#1309, compte `wama_evaluation`, lots existants), 3 moteurs ×
+  {rien, nivellement} × {3 réunions SUMM-RE, 8 FLEURS-CS fr+en}. Résultats et lecture :
+  `WAMA_QUALITE §9bis (Campagne 2026-10-02)` et le rapport Claude Docs (rev 29). En bref : aucun
+  ne bat Whisper sur les réunions ; Kyutai nivelé 2ᵉ en multilingue (27,5 %) ; l'écart est
+  d'omission.
+- **Trois défauts d'intégration que seule la file mélangée a montrés** : Kyutai en
+  `inference_mode` (`341af61`) ; NeMo sans graphes CUDA (`8ef3557` — LinTO réutilisé après Kyutai
+  corrompait le contexte CUDA et toute la file tombait ; passait avec `CUDA_LAUNCH_BLOCKING=1`) ;
+  le worker ne décharge pas en fin de card (commentaire faux corrigé, `ca60c30`).
+- **Découpage des audios longs dans une PAUSE** (`8f2243e`) : la limite v1 de
+  `TRANSCRIBER_CORRECTION §10.5` est levée pour tous les moteurs découpés ; LinTO en passes de
+  30 s (en 600 s il omettait la moitié des mots : 61 % → 43,7 %).
+- **Laissé** : CFPP non mesuré (LinTO l'a vu à l'entraînement ; ~1 h de GPU par card Kyutai) ;
+  `WAMA_MECANISMES.md` à régénérer (descriptions `speech_activity`, `audio_decode`) ; le rapport
+  `asr_eval_corpus --report` exige le réseau (proxy UGE en 503 ce soir) — les chiffres viennent
+  directement des mesures en base.
