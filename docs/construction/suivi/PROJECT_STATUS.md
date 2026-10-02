@@ -19842,3 +19842,20 @@ Session dédiée ouverte sur le chantier `WAMA_APP_GENERATION_ROUTE.md §10.6` (
   d'autres chantiers (aucun identifiant de cette session ; -42 coordonne) ; `check_docs` : 3
   références cassées, aucune de cette session (ROUTE:327 vient de `195a3c81`).
 - 🔴 **RELANCER WAMA** : sans quoi le transcriber ne voit ni les deux backends ni l'adoption.
+
+## §CLÔTURE — 2026-10-02 (nuit), « CLÉ D'API EN TÂCHE DE FOND : VÉRIFIÉ EN SERVICE » — ✅ gunicorn et Celery relancés par Fabien — 🔚 rien de bloquant ; décisions ouvertes ci-dessous
+
+- ✅ Le worker relancé exécute `model_manager.register_cloud_key` : 10 modèles rangés pour la clé
+  de `wama_evaluation`, en **285 s** — la durée que la page du profil subissait avant `5e3c96f2`.
+  Profil de `wama_evaluation` en service : texte d'attente explicite, badge « ✓ Configuré »,
+  0 erreur console (aucun clic sur « Enregistrer » : la clé n'a pas été réécrite).
+- Contrôles : tests du correctif 62 verts ; `check_redundancy` 75, aucune trouvaille dans le code
+  de ce palier.
+
+**Pendings, nommés (session close) :**
+1. ⏳ **Pousser** : 41 commits d'avance sur `origin/dev` (toutes instances).
+2. ⏳ **Verrou « sensibilité »** d'Albert (`ROADMAP §8d` ③) : non tranché.
+3. ⏳ La synchronisation complète du catalogue dure ~5 min : hors de la requête désormais, mais
+   elle reste lourde pour une seule clé (piste : ne synchroniser que la source de la clé).
+4. Pas à moi, constatés : budgets de langue des noms de test, `writer_01` sans curseur,
+   `check_docs` 3 cassées.
