@@ -20526,3 +20526,37 @@ venir GRISÉS et la demande de PROPRIÉTÉ ; le propriétaire prévenu par la cl
 - 🔴 relancer WAMA (vues, routes, modèle). Non poussé. Ouverts : modes modification / collaboration
   (variantes, écriture partagée) ; ranger une card reçue dans SES lots ; la cloche reste un lien,
   pas un panneau.
+
+## §PALIER — 2026-10-03 (nuit), « PIPELINE PORTÉ PAR LA CARD — P5, 1ʳᵉ pièce : la card AFFICHE ses process et UN état (composer) » — ✅ commit ci-dessous, non poussé — 🔴 recharger gunicorn + `staticfiles` déjà synchronisés (bande, CSS, JS commun) — 🔚 ▶ et ⚙ par process · « ▶ tout / compléter » · gabarit généré (5.2) · lot (5.3) · studio (5.4)
+
+Après la génération réelle par la vraie file (bloc précédent), GO de Fabien pour poursuivre.
+
+- ✅ **Bande des process** (`common/_card_processes.html`, CSS dans `wama-card-v3.css`) : une
+  ligne par process, générée des lignes d'exécution (`AppPipeline.card_rows`), pleine largeur sous
+  les cinq sections — à partir de DEUX process seulement. `WamaApp.updateProcessRows` (JS commun)
+  la met à jour pendant le traitement depuis les `processes` de la vue de progression.
+- ✅ **État montré par l'adaptateur unique** (`AppPipeline.shown_state`) : élément = vérité de ce
+  qui est en vol ; sinon l'état déduit des lignes. Un rendu périmé se voit sur la card (point,
+  libellé « Périmé », bouton « Recalculer ce qui est périmé ») alors que l'élément reste
+  `SUCCESS` en base — la frontière de P2 tient.
+- ✅ **Composer** : `_decorate_generation` / `_pipeline_view` posent `processes`, `shown_state`,
+  `shown_state_label` ; le gabarit les lit (repli `status`) ; la vue `progress` renvoie
+  `processes` et `shown_state`. Partition nommée par sa NATURE (`compose_output_name(nature=
+  'score')` → `score<id>_…abc`) — remarque de la session partitions/MIDI.
+- **Mesuré (WSL, base isolée)** : 127 tests verts (pipeline, composer, UI des statuts, nommage) +
+  63 (intégrité des gabarits, codegen) ; `check_templates` : 0 défaut sur 166 gabarits (un
+  commentaire `{# #}` multi-ligne de ma main a fui dans le HTML au 1ᵉʳ essai — attrapé par le
+  test de rendu, remplacé par `{% comment %}`). JS parsés par V8, `staticfiles/` synchronisés.
+- ⚠ **Vu, pas à moi** : `wama-app-base.js` (source ET `staticfiles/`) porte 105 lignes non
+  commitées d'une autre session (notifications) qui appellent `/common/api/notifications/recent/`,
+  route que le gunicorn relancé ne porte pas → `console.error` sur chaque page (mesuré par la
+  session portage). Mes hunks de ce fichier sont posés seuls.
+- ✅ **Vu au navigateur** (serveur de dev jetable 8011, compte de test, card #282) : bande
+  « ● Partition périmé → ● Rendu périmé », état « Périmé », bouton « Recalculer ce qui est
+  périmé », 0 erreur console. La capture a attrapé un nom de process INVISIBLE (texte sombre
+  hérité sur la card — le piège de contraste récurrent) : couleur explicite posée, revu.
+  ⚠ #282 est « périmé » parce que le scénario nocturne `composer.settings` a reposté ses
+  réglages (modèle → `auto`, curseur → 50, consigne renvoyée avec des `\r\n` par le textarea) :
+  la péremption dit vrai ; mais une consigne IDENTIQUE renvoyée par un formulaire change de fins
+  de ligne — à normaliser à l'enregistrement (`update_settings`, domaine du portage).
+- **Non fait** : ▶/⚙ par process ; gabarit généré ; les autres apps n'ont pas de pipeline.

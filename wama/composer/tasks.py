@@ -157,8 +157,9 @@ def _backend(gen, catalog_key):
     return gen._backend
 
 
-def _output_place(gen, ctx, catalog_key, ext):
-    """(dossier relatif, nom, chemin absolu) d'une sortie de cette card.
+def _output_place(gen, ctx, catalog_key, ext, nature=''):
+    """(dossier relatif, nom, chemin absolu) d'une sortie de cette card ; `nature` quand la sortie
+    n'est pas celle de l'app (la partition : `score<id>_…`, pas `audio<id>_…`).
 
     Le dossier vient de la brique (`app_media_dir`) : il décide où le fichier atterrit ET ce que
     la base retient. Composé à la main (`composer/<uid>/output`) jusqu'au 2026-10-02, il aurait
@@ -177,7 +178,7 @@ def _output_place(gen, ctx, catalog_key, ext):
     abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
     os.makedirs(abs_dir, exist_ok=True)
     name = compose_output_name(app=ctx.app_id, model=model_id(catalog_key), item_id=gen.id,
-                               ext=ext)
+                               ext=ext, nature=nature)
     return rel_dir, name, os.path.join(abs_dir, name)
 
 
@@ -199,7 +200,7 @@ def _plan(gen, ctx):
     except Exception:
         ctx.reset_progress()
         raise
-    rel_dir, name, abs_path = _output_place(gen, ctx, catalog_key, '.abc')
+    rel_dir, name, abs_path = _output_place(gen, ctx, catalog_key, '.abc', nature='score')
     with open(abs_path, 'w', encoding='utf-8') as handle:
         handle.write(text)
     score_rel = f'{rel_dir}/{name}'

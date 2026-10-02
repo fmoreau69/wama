@@ -414,6 +414,9 @@
             if (lbl) lbl.textContent = labelsV3[status] || status;
         }
 
+        // PROCESS de la card (P5) : les lignes bougent pendant le traitement — brique commune.
+        if (window.WamaApp && WamaApp.updateProcessRows) WamaApp.updateProcessRows(card, data?.processes);
+
         // ETA COMMUNE (WamaEta) : seedSeconds = estimation a priori/apprise renvoyée par
         // progress (eta_estimator serveur) — remplace le remaining-time client maison (B4-13).
         const etaEl = card.querySelector('.wama-eta');

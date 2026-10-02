@@ -124,11 +124,27 @@ batch_update = _bv['batch_update']
 
 
 def _decorate_generation(g):
-    """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips."""
+    """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips ;
+    PROCESS de la card et état MONTRÉ, générés des lignes d'exécution (P5, `_pipeline_view`)."""
     from wama.common.utils.card_chips import chips_by_section
     from wama.composer.params import PARAMS_JSON
     g.chips = chips_by_section(g, PARAMS_JSON)
+    g.processes, g.shown_state, g.shown_state_label = _pipeline_view(g)
     return g
+
+
+def _pipeline_view(gen):
+    """Ce que la card et la vue de progression montrent du PIPELINE de l'élément (ROUTE §10.6
+    5.1) : ses lignes de process et l'état déduit — par l'adaptateur unique
+    (`AppPipeline.shown_state`), jamais `status` en dur. Sous « auto » le modèle du prochain
+    lancement n'est pas connu : on montre ce qui a tourné."""
+    from wama.common.models import PROCESS_STATUS_CHOICES
+    from wama.common.utils.auto_model import is_auto
+    from .function_specs import PIPELINE
+    model_key = None if is_auto(gen.model) else normalize(gen.model)
+    rows = PIPELINE.card_rows(gen, model_key)
+    state = PIPELINE.shown_state(gen)
+    return rows, state, dict(PROCESS_STATUS_CHOICES).get(state, state)
 
 
 def _get_batches_list(user):
@@ -604,10 +620,15 @@ def progress(request, pk):
     cached = cache.get(f'composer_progress_{pk}')
     pct = cached if cached is not None else gen.progress
 
+    processes, shown_state, _label = _pipeline_view(gen)
     data = {
         'status': gen.status,
         'progress': pct,
         'error': gen.error_message,
+        # P5 : les lignes de process et l'état déduit — ce que la card montre pendant le
+        # traitement (`WamaApp.updateProcessRows`), le re-rendu complet n'arrivant qu'à la fin.
+        'processes': processes,
+        'shown_state': shown_state,
     }
 
     # Seed ETA (audit B4-13) : estimation a priori puis APPRISE — record_run tourne déjà en fin

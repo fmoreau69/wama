@@ -3618,6 +3618,33 @@ périmé, et la rangée d'actions commune (décision 6 du `PROJECT_STATUS §PALI
 bouton de cycle lit l'état AGRÉGÉ par un adaptateur unique, jamais `item.status` en dur.
 **5.2 Générée**, jamais écrite par app : de la définition du pipeline + des schémas de réglages.
 Objectif : les gabarits d'app ne portent que l'emballage.
+
+> 🔄 **P5, 1ʳᵉ pièce LIVRÉE le 2026-10-03 — la card AFFICHE ses process, et UN état** (pilote :
+> le composer).
+> - **La bande des process**, commune : `common/_card_processes.html`, GÉNÉRÉE des lignes
+>   d'exécution par `AppPipeline.card_rows(item, model_key)` — une ligne par process (point
+>   d'état commun, libellé court `ProcessSpec.label`, durée ou « périmé » / « échec », modèle et
+>   sortie en infobulle). Elle n'apparaît qu'à partir de DEUX process : une card à un seul
+>   process (le cas normal, et le composer sur un modèle qui ne planifie pas) n'en a pas. Rendue
+>   pleine largeur sous les cinq sections de la grille v3 (comme la barre) : les pistes restent
+>   alignées entre cards. Pendant le traitement, `WamaApp.updateProcessRows(card, rows)`
+>   (commun, `wama-app-base.js`) met les points à jour depuis les `processes` que la vue de
+>   progression renvoie — le re-rendu complet n'arrive qu'à la fin.
+> - **L'adaptateur unique de l'état montré** : `AppPipeline.shown_state(item)`. L'élément reste
+>   la vérité de ce qui est EN VOL (`RUNNING` / `AWAITING_RESOURCES`, posés par le lanceur avant
+>   toute ligne) ; hors de ces deux états, dès qu'un process a tourné, c'est l'état DÉDUIT des
+>   lignes (règle 4.4) — un rendu périmé se voit donc sur la card (`data-status="STALE"`, point
+>   violet, « Périmé », bouton de cycle « Recalculer ce qui est périmé ») alors que l'élément
+>   garde ses cinq états en base : la frontière de P2 tient, c'est l'affichage qui lit plus loin.
+>   Le gabarit du composer lit `elem.shown_state` et `elem.shown_state_label` (repli
+>   `elem.status`), posés par `_decorate_generation` / `_pipeline_view` ; la garde
+>   `tests_status_ui` accepte les deux formes de `data-status`.
+> - **Nom de la partition** (remarque de la session partitions/MIDI) : une sortie d'une AUTRE
+>   nature que celle de l'app se nomme par sa nature — `compose_output_name(nature='score')` →
+>   `score<id>_<modèle>.abc`, plus `audio<id>_…` (brique commune, pas une exception du composer).
+> - ⏳ **Reste de 5.1** : ▶ par process (lancement borné `only=` + argument de tâche), ⚙ par
+>   process (réglages générés de son schéma), case des process `optional`, « ▶ tout / compléter
+>   manquant + périmé » en tête, génération du gabarit (5.2), lot (5.3), studio (5.4).
 **5.3 Lot** : le pipeline se règle sur la mère ; une fille peut le surcharger ; **promouvoir ↑ /
 réaligner ↓** (`MODES_QUEUE_UX §5ter`) — la charge utile promue EST le pipeline (les réglages Médias
 en sont un cas), avec le garde-fou Data « entrées requises ⊆ ∩ des catalogues des filles », refus
@@ -3950,7 +3977,7 @@ possible **sans aucun process**.
 | **P2** | vocabulaire d'états commun + `STALE` + brique d'agrégation ; studio et cam_analyzer alignés | — |
 | **P3** | moteur commun + ligne d'exécution, **extraits de cam_analyzer** (1er utilisateur : sémantique complète et testée) et de l'exécuteur du studio ; type de nœud `pipeline` ; pipeline sans process accepté | P2 |
 | **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») ; génération réelle JOUÉE le soir même sur le moteur (plan → render, puis render seul) — reste à la rejouer par le worker en service. Le **transcriber** en 4 process (étapes déjà numérotées, résultats déjà rangés à part) vient ensuite — A/B objectif (qualité, VRAM, durée) | P3 |
-| **P5** | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) | P3 (le renommage et le glisser-déposer : à tout moment) |
+| **P5** | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) — 🔄 **1ʳᵉ pièce livrée le 03/10** (point 5.2 : bande des process + état montré par l'adaptateur, composer) | P3 (le renommage et le glisser-déposer : à tout moment) |
 | **P6** | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les 7 apps qui ne l'ont pas | P4 |
 | **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script | P3, P5, décisions 5-7 |
 | **P8** | rôle assistant → manifeste `pipeline` / `dataset` | P3 |

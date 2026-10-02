@@ -20,7 +20,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
 {% endcomment %}
 <div class="generation-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      data-id="{{ elem.id }}"
-     data-status="{{ elem.status }}"
+     data-status="{{ elem.shown_state|default:elem.status }}"
      data-estimated-seconds="{{ elem.estimated_seconds }}"
      data-preview-url="{% url 'common:unified_preview' 'composer' elem.id %}">
 <div class="card-body py-2">
@@ -73,13 +73,14 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
       {% endif %}
     </div>
 
-    {# ── ÉTAT : point + libellé + ETA/durée ────────────────────────────────────────── #}
+    {% comment %}── ÉTAT : point + libellé + ETA/durée. État MONTRÉ = l'adaptateur du pipeline
+    (P5) : un rendu périmé se voit ici, l'élément gardant ses cinq états en base.{% endcomment %}
     <div class="wcv3-sec wcv3-sec--state">
       <span class="wcv3-lbl">État</span>
       <div class="wcv3-state">
         <span class="wcv3-state-line">
-          <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
-          <span>{{ elem.get_status_display }}</span>
+          <span class="wama-status-dot" data-s="{{ elem.shown_state|default:elem.status }}"></span>
+          <span>{{ elem.shown_state_label|default:elem.get_status_display }}</span>
         </span>
         {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
         {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}{% endif %}
@@ -99,7 +100,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
                 title="Modifier les paramètres">
           <i class="fas fa-cog"></i>
         </button>
-        {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
+        {% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}
         {% url 'composer:download' elem.id as url_dl %}
         {% download_button 'composer' url_dl elem.audio_output %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
@@ -118,6 +119,9 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
         </button>
       </div>
     </div>
+
+    {# ── PROCESS : une ligne par process, générée des lignes d'exécution (commun, P5) ──── #}
+    {% include 'common/_card_processes.html' with processes=elem.processes %}
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.{% endcomment %}
     {% if elem.status != 'PENDING' %}

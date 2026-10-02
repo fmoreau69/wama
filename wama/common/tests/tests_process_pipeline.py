@@ -23,7 +23,7 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase, override_settings
 
-from wama.common.models import JOB_FAILURE, JOB_PENDING, JOB_STALE, JOB_SUCCESS
+from wama.common.models import JOB_FAILURE, JOB_PENDING, JOB_RUNNING, JOB_STALE, JOB_SUCCESS
 from wama.common.services import process_runs
 from wama.common.services.process_pipeline import (APP_PIPELINES, UPSTREAM_KEY, AppPipeline,
                                                    ProcessSpec, register_app_pipeline)
@@ -246,6 +246,82 @@ class WhatALaunchReplaysTest(TestCase):
         self.assertEqual(set(), pipeline.refresh(item))
         item.given_score = _File('users/1/other.abc')
         self.assertEqual({'render'}, pipeline.refresh(item))
+
+
+class WhatTheCardShowsTest(TestCase):
+    """P5 — the card shows its processes and ONE state, read through the adapter
+    (`shown_state`), never `item.status` alone: a stale render under a « successful » element
+    is what the lines know and the element does not."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        media = override_settings(MEDIA_ROOT=self.tmp)
+        media.enable()
+        self.addCleanup(media.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('plan', label='Partition', watched=('prompt',),
+                        applies=lambda item, model_key: model_key == 'writes-scores'),
+            ProcessSpec('render', label='Rendu', depends_on=('plan',), watched=('duration',)),
+        ), label='Demo')
+
+    def _played(self, item, key, output=''):
+        spec = self.pipeline.spec(key)
+        process_runs.start(item, key, settings_snapshot=self.pipeline.snapshot(spec, item),
+                           model_key='family:m')
+        process_runs.succeed(item, key, output_ref=output, output_summary={'label': key + '.out'})
+
+    def test_an_element_in_flight_is_shown_as_the_element_says(self):
+        item = _Element(status=JOB_RUNNING)
+        self.assertEqual(JOB_RUNNING, self.pipeline.shown_state(item))
+        item.status = 'AWAITING_RESOURCES'
+        self.assertEqual('AWAITING_RESOURCES', self.pipeline.shown_state(item))
+
+    def test_without_any_line_the_element_alone_is_shown(self):
+        item = _Element(status=JOB_PENDING)
+        self.assertEqual(JOB_PENDING, self.pipeline.shown_state(item))
+        self.assertEqual([], self.pipeline.card_rows(item))
+
+    def test_a_stale_render_is_shown_under_a_successful_element(self):
+        item = _Element(status=JOB_SUCCESS)
+        (Path(self.tmp) / 'score.abc').write_text('X:1', encoding='utf-8')
+        self._played(item, 'plan', 'score.abc')
+        self._played(item, 'render')
+        self.assertEqual(JOB_SUCCESS, self.pipeline.shown_state(item))
+        item.duration = 60
+        self.assertEqual(JOB_STALE, self.pipeline.shown_state(item))
+        rows = self.pipeline.card_rows(item)
+        self.assertEqual([('plan', 'Partition', JOB_SUCCESS), ('render', 'Rendu', JOB_STALE)],
+                         [(r['key'], r['label'], r['status']) for r in rows])
+        self.assertEqual('plan.out', rows[0]['output_label'])
+        self.assertEqual('family:m', rows[0]['model_key'])
+
+    def test_the_rows_show_what_ran_and_what_the_named_model_will_run(self):
+        item = _Element(status=JOB_PENDING)
+        self.assertEqual(['render'], [r['key'] for r in self.pipeline.card_rows(item, 'plays-only')])
+        self.assertEqual(['plan', 'render'],
+                         [r['key'] for r in self.pipeline.card_rows(item, 'writes-scores')])
+        self.assertTrue(all(r['status'] == JOB_PENDING for r in
+                            self.pipeline.card_rows(item, 'writes-scores')))
+
+    def test_the_common_strip_renders_one_line_per_process_and_nothing_without_any(self):
+        from django.template.loader import render_to_string
+        html = render_to_string('common/_card_processes.html', {'processes': [
+            {'key': 'plan', 'label': 'Partition', 'degree': 'required', 'status': JOB_SUCCESS,
+             'duration_s': 159.1, 'model_key': 'family:m', 'output_label': 'a.abc', 'error': ''},
+            {'key': 'render', 'label': 'Rendu', 'degree': 'required', 'status': JOB_STALE,
+             'duration_s': 54.0, 'model_key': '', 'output_label': '', 'error': ''}]})
+        self.assertIn('data-processes', html)
+        self.assertIn('data-process="plan"', html)
+        self.assertIn('data-s="STALE"', html)
+        self.assertIn('159 s', html)
+        self.assertIn('périmé', html)
+        self.assertEqual('', render_to_string('common/_card_processes.html',
+                                              {'processes': []}).strip())
+        single = render_to_string('common/_card_processes.html', {'processes': [
+            {'key': 'render', 'label': 'Rendu', 'degree': 'required', 'status': JOB_SUCCESS,
+             'duration_s': 54.0, 'model_key': '', 'output_label': '', 'error': ''}]})
+        self.assertEqual('', single.strip(), 'one process is not a pipeline to show')
 
 
 class SkeletonRunsThePipelineTest(TestCase):

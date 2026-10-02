@@ -141,6 +141,8 @@ class PlanThenRenderTest(TestCase):
         home = app_media_dir('composer', self.user.id, 'output')
         self.assertTrue(gen.planned_score.name.startswith(home + '/'), gen.planned_score.name)
         self.assertTrue(gen.planned_score.name.endswith('.abc'))
+        self.assertIn(f'/score{gen.pk}_', gen.planned_score.name,
+                      'a score is named by its NATURE, not by the verb of the app (audio…)')
         written = Path(self.tmp) / gen.planned_score.name
         self.assertEqual(SCORE, written.read_text(encoding='utf-8'))
         self.assertEqual(str(written), str(Path(_ScoreEngine.renders[0]['score_path'])))
@@ -328,6 +330,61 @@ class TheCardAndTheGraphicsCardTest(TestCase):
                          'the engine was loaded although the card had no room')
         self.assertFalse(process_runs.lines(gen).exists(),
                          'the wait of a pipeline card is carried by the element, not by a line')
+
+
+class TheCardShowsItsProcessesTest(TestCase):
+    """P5 on the pilot: the composer card carries the common strip and the shown state."""
+
+    setUp = PlanThenRenderTest.setUp
+    _generation = PlanThenRenderTest._generation
+    _run = PlanThenRenderTest._run
+
+    def _card(self, gen):
+        from django.template.loader import render_to_string
+        from wama.composer.views import _decorate_generation
+        return render_to_string('composer/_generation_card.html',
+                                {'elem': _decorate_generation(gen), 'card_label': ''})
+
+    def test_the_card_of_a_score_model_shows_its_two_processes(self):
+        gen = self._run(self._generation())
+        html = self._card(gen)
+        self.assertIn('data-process="plan"', html)
+        self.assertIn('data-process="render"', html)
+        self.assertIn('Partition', html)
+        self.assertIn('data-status="SUCCESS"', html)
+
+    def test_a_stale_render_is_shown_on_the_card_while_the_element_stays_successful(self):
+        gen = self._run(self._generation())
+        ComposerGeneration.objects.filter(pk=gen.pk).update(duration=45)
+        gen.refresh_from_db()
+        html = self._card(gen)
+        self.assertEqual('SUCCESS', gen.status, 'the element keeps its five states (P2 frontier)')
+        self.assertIn('data-status="STALE"', html)
+        self.assertIn('Périmé', html)
+        self.assertIn('Recalculer ce qui est périmé', html, 'the cycle button reads the shown state')
+
+    def test_a_single_step_model_has_no_strip_before_it_runs(self):
+        gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
+                                                model=PLAIN_MODEL, status='PENDING')
+        html = self._card(gen)
+        self.assertNotIn('data-processes', html)
+        self.assertIn('data-status="PENDING"', html)
+
+    def test_the_progress_view_carries_the_processes(self):
+        from django.test import Client
+        from django.urls import reverse
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import GROUP_PREFIX
+        gen = self._run(self._generation())
+        # La vue est derrière le portier d'accès aux apps : le compte doit porter un rôle.
+        self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}communication')[0])
+        client = Client(HTTP_HOST='localhost')
+        client.force_login(self.user)
+        with mock.patch('wama.common.backends.manager.backend_for_key',
+                        side_effect=lambda key: ENGINES.get(key)):
+            payload = client.get(reverse('composer:progress', args=[gen.pk])).json()
+        self.assertEqual(['plan', 'render'], [p['key'] for p in payload['processes']])
+        self.assertEqual('SUCCESS', payload['shown_state'])
 
 
 class ThePipelineIsInTheCatalogueTest(SimpleTestCase):

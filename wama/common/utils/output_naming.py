@@ -116,7 +116,7 @@ def output_tag(app: str) -> str:
 
 def compose_output_name(*, app: str, model: str = '', ext: str = '',
                         source_name: str = '', item_id=None,
-                        index: int = None, total: int = 1) -> str:
+                        index: int = None, total: int = 1, nature: str = '') -> str:
     """Compose le nom du fichier de sortie. Rend un NOM, jamais un chemin.
 
     `source_name` fourni  → famille FICHIER (`<stem>_<tag>_<modèle>…`)
@@ -124,8 +124,11 @@ def compose_output_name(*, app: str, model: str = '', ext: str = '',
 
     `index`/`total` : suffixe `_<i>` uniquement si la card produit plusieurs fichiers.
     `ext` : avec ou sans point ; déduite de `source_name` si absente.
+    `nature` : la NATURE de la sortie quand elle n'est pas celle de l'app — la sortie d'un
+    process intermédiaire (la partition que le composer écrit avant de la jouer, 2026-10-03) :
+    le mot du nom est alors cette nature (`score282_…abc`), pas le verbe de l'app (`audio…`).
     """
-    tag = output_tag(app)
+    tag = _nettoyer(nature) if nature else output_tag(app)
     modele = _nettoyer(model, defaut='') if model else ''
 
     if source_name:
