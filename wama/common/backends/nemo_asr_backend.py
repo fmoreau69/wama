@@ -55,12 +55,15 @@ class NemoASRBackend(SpeechToTextBackend):
         # Sans `settings_key` : ses poids se trouvent par sa CLÉ de catalogue (cf.
         # `model_components.installed_snapshot` — déclarer son dossier dans `MODEL_PATHS` le
         # sortirait du balayage générique). Clé = dernier segment de la clé de catalogue, la règle
-        # de `backend_for_model`. Français seul ; passe de 600 s comme Parakeet (même famille
-        # FastConformer), NON mesurée sur ce modèle.
+        # de `backend_for_model`. Français seul. Passe de 30 s (MESURÉ le 2026-10-02, 300 s de
+        # SUMM-RE) : entraîné sur des énoncés de 30 s au plus (ses manifestes `…_max30`), il rend la
+        # MOITIÉ des mots en une passe de 300 s (712 sur 1 335, WER 54 %) ; en fenêtres de 30 s
+        # coupées dans une pause, 948 mots, WER 39 %. Les 600 s de Parakeet, recopiées le 01/10,
+        # n'avaient pas été mesurées sur lui.
         'linagora/linto_stt_fr_fastconformer_pc': {
             'hf_id': 'linagora/linto_stt_fr_fastconformer_pc',
             'model_key': 'huggingface:linagora/linto_stt_fr_fastconformer_pc',
-            'multitask': False, 'max_audio_seconds': 600},
+            'multitask': False, 'max_audio_seconds': 30},
     }
     name = "nemo"
     display_name = "NVIDIA NeMo (Canary / Parakeet / LinTO)"

@@ -387,6 +387,28 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         self.assertEqual(['de', 'en'], seen, "le 2ᵉ passage reprend la langue du 1ᵉʳ")
         self.assertEqual(['en', 'fr'], [s.language for s in result.segments])
 
+    def test_long_audio_is_cut_in_a_pause_not_at_a_fixed_interval(self):
+        """2026-10-02: fixed 30 s cuts sliced a word at every limit; LinTO, trained on utterances
+        of 30 s at most, needs 30 s passes. A loud signal with ONE pause at 27–27.4 s → the first
+        piece ends in that pause; nothing is lost between pieces."""
+        import tempfile
+
+        import numpy as np
+        import soundfile as sf
+        from wama.transcriber import workers
+        rate = 16000
+        wave = np.random.default_rng(3).normal(0, 0.3, 70 * rate).astype('float32')
+        wave[int(27.0 * rate):int(27.4 * rate)] = 0.0
+        with tempfile.TemporaryDirectory() as folder:
+            path = f'{folder}/long.wav'
+            sf.write(path, wave, rate)
+            chunks = workers._split_audio_chunks(path, 30.0, folder)
+            lengths = [len(sf.read(p)[0]) for p, _ in chunks]
+        offsets = [offset for _, offset in chunks]
+        self.assertTrue(27.0 <= offsets[1] <= 27.4, offsets)
+        self.assertEqual(len(wave), sum(lengths), 'every sample lands in exactly one piece')
+        self.assertTrue(all(n <= 30 * rate for n in lengths), lengths)
+
     def test_each_segment_keeps_its_language_and_the_card_the_most_spoken(self):
         from wama.common.backends.speech_to_text_base import TranscriptionSegment
         asr = self._asr()

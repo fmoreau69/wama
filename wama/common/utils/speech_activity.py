@@ -61,25 +61,35 @@ def pause_windows(wave, sr: int, max_seconds: float,
     Pour un moteur qui ne transcrit qu'une fenêtre bornée sans repères de temps (FrWhisper,
     2026-10-02). Sans VAD, délibérément : rien de l'audio n'est écarté (le VAD rejette parfois la
     parole, cf. l'en-tête du module)."""
-    import numpy as np
     total = len(wave) / float(sr)
-    frame = int(sr * FRAME_SECONDS)
     windows, start = [], 0.0
     while total - start > max_seconds:
         limit = start + max_seconds
         low = max(limit - search_seconds, start + FRAME_SECONDS)
         a, b = int(low * sr), int(limit * sr)
-        span = np.asarray(wave[a:b], dtype='float32')
-        count = len(span) // frame if frame > 0 else 0
-        if count:
-            rms = np.sqrt((span[: count * frame].reshape(count, frame) ** 2).mean(axis=1))
-            cut = (a + (int(rms.argmin()) + 0.5) * frame) / sr
-        else:
-            cut = limit
+        at = quietest_point(wave[a:b], sr)
+        cut = a / float(sr) + at if at is not None else limit
         windows.append((round(start, 3), round(cut, 3)))
         start = cut
     windows.append((round(start, 3), round(total, 3)))
     return windows
+
+
+def quietest_point(span, sr: int):
+    """Secondes, depuis le début de `span`, du MILIEU de sa trame de 100 ms la plus calme — là où
+    couper un audio sans trancher un mot ; None si `span` est plus court qu'une trame. Lit un
+    extrait seulement : le découpage des audios longs (`transcriber.workers._split_audio_chunks`)
+    ne charge que les secondes qui précèdent chaque limite."""
+    import numpy as np
+    frame = int(sr * FRAME_SECONDS)
+    span = np.asarray(span, dtype='float32')
+    if span.ndim > 1:
+        span = span.mean(axis=1)
+    count = len(span) // frame if frame > 0 else 0
+    if not count:
+        return None
+    rms = np.sqrt((span[: count * frame].reshape(count, frame) ** 2).mean(axis=1))
+    return (int(rms.argmin()) + 0.5) * frame / float(sr)
 
 
 def vad_speech_ratio(wave, sr: int) -> float:

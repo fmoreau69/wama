@@ -296,8 +296,16 @@ def _save_segments(transcript: Transcript, result: 'TranscriptionResult') -> int
 # ── Découpage des audios longs (chunking + recollage des timestamps) ─────────
 def _split_audio_chunks(audio_path: str, chunk_seconds: float, out_dir: str):
     """Découpe l'audio en morceaux ≤ chunk_seconds. Retourne [(chunk_path, start_offset_s), …].
-    Lecture par tranches via soundfile (un morceau en mémoire à la fois)."""
+    Lecture par tranches via soundfile (un morceau en mémoire à la fois).
+
+    Chaque coupe tombe au point le plus CALME des `PAUSE_SEARCH_SECONDS` qui précèdent la limite
+    (`speech_activity.quietest_point`, 2026-10-02) — plus à intervalle fixe, qui tranchait un mot
+    à chaque limite (limite v1 laissée ouverte, `TRANSCRIBER_CORRECTION §10.5`). Mesuré le jour
+    même : LinTO, entraîné sur des énoncés de 30 s au plus, rendait la MOITIÉ des mots en une passe
+    de 300 s (WER 54 %), 39 % en fenêtres de 30 s coupées dans une pause."""
     import soundfile as sf
+
+    from wama.common.utils.speech_activity import PAUSE_SEARCH_SECONDS, quietest_point
     src = audio_path
     try:
         info = sf.info(src)
@@ -310,8 +318,15 @@ def _split_audio_chunks(audio_path: str, chunk_seconds: float, out_dir: str):
     total = info.frames
     step = max(int(chunk_seconds * sr), 1)
     chunks, idx, start = [], 0, 0
+    search = int(min(PAUSE_SEARCH_SECONDS, chunk_seconds / 2) * sr)
     while start < total:
         stop = min(start + step, total)
+        if stop < total and search > 0:
+            low = max(stop - search, start + 1)
+            tail, _ = sf.read(src, start=low, stop=stop, dtype='float32')
+            at = quietest_point(tail, sr)
+            if at is not None:
+                stop = low + int(at * sr)
         data, _ = sf.read(src, start=start, stop=stop, dtype='float32')
         cpath = os.path.join(out_dir, f"_chunk_{idx:03d}.wav")
         sf.write(cpath, data, sr)
