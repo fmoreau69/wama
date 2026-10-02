@@ -20506,3 +20506,23 @@ revérification (bloc précédent).
   à la main (duplication, le générateur a la bonne forme — à centraliser un jour).
 - Contrôles : 290 tests verts ; `check_redundancy` 77, aucune trouvaille dans ce code (le nom
   `queue_light` créait un faux positif avec `cam_analyzer._queue` → renommé).
+
+## §PALIER — 2026-10-03, « CARD REÇUE EN LECTURE SEULE + DEMANDES D'ACCÈS + NOTIFICATIONS EN DIRECT » — ✅ `b19909c9` — 🔚 relancer WAMA
+
+Décisions de Fabien (03/10) : boutons du propriétaire MONTRÉS en lecture seule (encart : dupliquer ·
+s'approprier), ⚙ en consultation, pastille du niveau de partage, « Mon accès » avec les modes à
+venir GRISÉS et la demande de PROPRIÉTÉ ; le propriétaire prévenu par la cloche ET en bas à droite.
+- `common.ObjectGrant` (1ʳᵉ version du §4.3 ; migration common/0024 appliquée WSL) +
+  `access_requests` (accepter la propriété = « Transférer à… »). `sharing.SHARE_MODES` : une
+  déclaration pour la pastille, le menu et la modale « Partager… ». Notifications EN DIRECT pour
+  tous les types (`wama-app-base.js`, route `api/notifications/recent/`) — la cloche ne comptait
+  qu'au chargement, rien ne surgissait. Domicile : `WAMA_COLLABORATION §2.3, §3bis.2, §4.3, §9 M2`.
+- Gardes : `tests_access_requests` (12) ; geste `common.received_card_readonly_request` 12/12 (8011)
+  — son 1ᵉʳ run a trouvé un 404 (la page de la demande refusée à celui qui venait d'accepter),
+  corrigé ; les cinq gestes du partage inchangés ; 280 tests voisins OK. Captures relues.
+- ⚠ `wama-app-base.js` (+ copie servie) : SEUL mon hunk commité (numéros anciens, blob parsé en V8) —
+  les deux autres hunks sont le travail EN COURS d'une autre instance (`updateProcessRows`, pipeline),
+  laissés dans l'arbre.
+- 🔴 relancer WAMA (vues, routes, modèle). Non poussé. Ouverts : modes modification / collaboration
+  (variantes, écriture partagée) ; ranger une card reçue dans SES lots ; la cloche reste un lien,
+  pas un panneau.
