@@ -813,6 +813,23 @@
     },
     "inspector": {
       "detail_registered": true,
+      "detail_spec": {
+        "engine": {
+          "const": "musetalk"
+        },
+        "extra_from_params": true,
+        "result_file": "output_video",
+        "result_role": {
+          "const": "video"
+        },
+        "source_file": [
+          "avatar_upload",
+          "audio_input"
+        ],
+        "source_type": {
+          "const": "video"
+        }
+      },
       "preview": {
         "file_field": "avatar_upload",
         "user_field": "user"

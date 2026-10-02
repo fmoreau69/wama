@@ -89,6 +89,17 @@ def register_app_detail_spec(app_name, model_class, spec):
        'result_role': {'field': 'media_type', 'map': MEDIA_CATEGORY_ROLE},
        'extra': [{'label': 'Langue', 'field': 'language'},
                  {'label': 'Mode', 'field': 'mode', 'display': True}],   # get_<f>_display()
+       # FORMES GÉNÉRIQUES ajoutées le 2026-10-03 (décision Fabien : « aligner, porter au
+       # commun ») — cinq adapters code ne faisaient RIEN d'autre que ceci, chacun à sa main :
+       #   • PREMIER CHAMP NON VIDE — une LISTE de noms : `['avatar_upload', 'audio_input']`
+       #     (ce que l'adapter écrivait `a or b`) ;
+       #   • VALEUR SELON LA PRÉSENCE — `{'when_any': ['text_file', 'text_content'],
+       #     'then': 'text', 'else': 'audio'}` : `then` si l'un des champs est renseigné ;
+       #   • TEXTE TRONQUÉ dans `extra` — `{'field': 'prompt', 'max_chars': 60}` ;
+       #   • LIBELLÉ D'UN RÉGLAGE = celui du SCHÉMA — une entrée d'`extra` SANS `label` prend
+       #     le `label` de `params.py` (source unique, `INSPECTOR_DETAIL_FIELDS` principe 2 :
+       #     aucun libellé réécrit à la main). Un booléen vrai reste `True` dans la donnée ;
+       #     c'est l'inspecteur qui l'affiche « Oui » (`wama-inspector.js`, toutes apps).
        'extra_from_params': 'options' | True,   # labels du SCHÉMA (schema_for_app) ; str =
                                                 # champ JSON porteur, True = champs individuels
        'aliases': {'quality_preset': 'output_quality'},
@@ -123,30 +134,56 @@ def register_app_detail_spec(app_name, model_class, spec):
                             spec=spec)
 
 
+def spec_value(instance, form):
+    """UNE valeur de spec résolue contre l'instance — le vocabulaire entier tient ici :
+    nom de champ · `{'const': x}` · `{'field': f, 'map': table}` · LISTE de champs (le premier
+    non vide) · `{'when_any': [champs], 'then': x, 'else': y}` (selon la présence)."""
+    if not form:
+        return None
+    if isinstance(form, (list, tuple)):
+        for name in form:
+            value = getattr(instance, name, None)
+            if value:
+                return value
+        return None
+    if isinstance(form, dict):
+        if 'when_any' in form:
+            present = any(getattr(instance, name, None) for name in (form.get('when_any') or ()))
+            return form.get('then') if present else form.get('else')
+        # `{'field': 'media_type', 'map': {...}}` (2026-09-18) : la valeur d'un champ TRADUITE
+        # par une table — né pour `result_role` (la catégorie d'un média n'est pas un rôle
+        # d'asset). Sinon `{'const': …}`.
+        if 'map' in form:
+            return (form['map'] or {}).get(getattr(instance, form.get('field', ''), None))
+        return form.get('const')
+    return getattr(instance, form, None)
+
+
 def detail_from_spec(instance, spec, app_name):
     """Adapter GÉNÉRIQUE : résout la spec déclarative contre l'instance puis délègue à
     `build_detail` (l'épine dorsale reste la source unique du schéma canonique)."""
-    def _val(cle):
-        f = spec.get(cle)
-        if not f:
-            return None
-        if isinstance(f, dict):
-            # `{'field': 'media_type', 'map': {...}}` (2026-09-18) : la valeur d'un champ
-            # TRADUITE par une table — né pour `result_role` (la catégorie d'un média n'est
-            # pas un rôle d'asset). Sinon `{'const': …}`.
-            if 'map' in f:
-                return (f['map'] or {}).get(getattr(instance, f.get('field', ''), None))
-            return f.get('const')
-        return getattr(instance, f, None)
+    def _val(key):
+        return spec_value(instance, spec.get(key))
 
+    schema_labels = None        # libellés de `params.py`, lus au premier besoin seulement
     extra = {}
-    for e in (spec.get('extra') or []):
-        champ, label = e.get('field'), e.get('label') or e.get('field')
-        if e.get('display'):
-            fn = getattr(instance, f'get_{champ}_display', None)
-            v = fn() if callable(fn) and getattr(instance, champ, None) else None
+    for entry in (spec.get('extra') or []):
+        name = entry.get('field')
+        label = entry.get('label')
+        if not label:
+            if schema_labels is None:
+                from .param_schema import schema_for_app
+                schema_labels = {p.get('name'): p.get('label')
+                                 for p in (schema_for_app(app_name) or [])}
+            label = schema_labels.get(name) or name
+        if entry.get('display'):
+            fn = getattr(instance, f'get_{name}_display', None)
+            v = fn() if callable(fn) and getattr(instance, name, None) else None
         else:
-            v = getattr(instance, champ, None)
+            v = getattr(instance, name, None)
+        limit = entry.get('max_chars')
+        if limit and isinstance(v, str) and len(v) > limit:
+            v = v[:limit] + '…'
         extra[label] = v or None
     src_params = spec.get('extra_from_params')
     if src_params:

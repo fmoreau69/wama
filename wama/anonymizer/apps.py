@@ -31,25 +31,17 @@ class AnonymizerConfig(AppConfig):
 
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — audit 2026-07-11.
         # Réglages spécifiques → labels de params.py (source unique), jamais relabellisés.
-        from wama.common.utils.detail_registry import (MEDIA_CATEGORY_ROLE, build_detail,
-                                                       register_app_detail)
-
-        def _anonymizer_detail(m):
-            from .params import PARAMS
-            extra = {p.label: getattr(m, p.name, None) for p in PARAMS
-                     if p.label and getattr(m, p.name, None) not in (None, '', False)}
-            d = build_detail(
-                m,
-                source_file=m.file,
-                source_type=m.media_type,
-                engine=getattr(m, 'model_to_use', None),
-                result_file=(m.output_file.url if m.output_file else None),
-                # Même catégorie que l'entrée (image → image, vidéo → vidéo) — table COMMUNE.
-                result_role=MEDIA_CATEGORY_ROLE.get(m.media_type),
-                extra=extra,
-            )
-            if getattr(m, 'output_quality', None):
-                d['output_quality'] = m.output_quality
-            return d
-
-        register_app_detail('anonymizer', Media, _anonymizer_detail)
+        # SPEC déclarative (A3a, portage 2026-10-03) — projetable au manifeste. L'adapter code
+        # qu'elle remplace ne faisait rien d'autre : nommer des champs, traduire la catégorie
+        # du média en rôle d'asset (table COMMUNE), lister les réglages posés du schéma.
+        from wama.common.utils.detail_registry import (MEDIA_CATEGORY_ROLE,
+                                                       register_app_detail_spec)
+        register_app_detail_spec('anonymizer', Media, {
+            'source_file': 'file',
+            'source_type': 'media_type',
+            'engine': 'model_to_use',
+            'result_file': 'output_file',
+            # Même catégorie que l'entrée (image → image, vidéo → vidéo) — table COMMUNE.
+            'result_role': {'field': 'media_type', 'map': MEDIA_CATEGORY_ROLE},
+            'extra_from_params': True,
+        })

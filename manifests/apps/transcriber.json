@@ -1261,6 +1261,22 @@
     "inspector": {
       "detail_registered": true,
       "detail_spec": {
+        "engine": "backend",
+        "engine_effective": "used_backend",
+        "extra": [
+          {
+            "field": "enable_diarization"
+          },
+          {
+            "field": "generate_summary"
+          },
+          {
+            "field": "hotwords"
+          },
+          {
+            "field": "verify_coherence"
+          }
+        ],
         "result_tabs": [
           {
             "badge": true,
@@ -1304,7 +1320,12 @@
             "icone": "fa-scale-balanced",
             "label": "Évaluation"
           }
-        ]
+        ],
+        "result_text": "text",
+        "source_file": "audio",
+        "source_type": {
+          "const": "audio"
+        }
       },
       "preview": {
         "file_field": "audio",

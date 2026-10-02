@@ -1018,6 +1018,21 @@
     },
     "inspector": {
       "detail_registered": true,
+      "detail_spec": {
+        "engine": "model_to_use",
+        "extra_from_params": true,
+        "result_file": "output_file",
+        "result_role": {
+          "field": "media_type",
+          "map": {
+            "document": "document",
+            "image": "image",
+            "video": "video"
+          }
+        },
+        "source_file": "file",
+        "source_type": "media_type"
+      },
       "preview": {
         "file_field": "file",
         "user_field": "user"
