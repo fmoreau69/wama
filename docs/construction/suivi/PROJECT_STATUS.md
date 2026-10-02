@@ -20458,3 +20458,32 @@ présentation ; on verra à l'usage »), médiathèque SANS durée, plafond admi
   (`tests_retention`, `tests_released_files`, `wama.accounts`).
 - 🔚 Ouverts (§3bis.2) : boutons ⚙ ▶ 🗑 d'une card reçue (question posée à Fabien) ; ranger une card
   reçue dans SES lots (changement de modèle).
+
+## §PALIER — 2026-10-03 (nuit), « PIPELINE PORTÉ PAR LA CARD — le pilote composer joué de bout en bout par la CHAÎNE RÉELLE ; l'attente de VRAM « illimitée » ne l'était pas » — ✅ commits `3ce1f4d7` (correctif) et ci-dessous (consignation), non poussés — 🔴 RELANCER les workers pour `3ce1f4d7` (sinon toute attente de VRAM meurt à la 3ᵉ re-livraison) — 🔚 P5 (la card affiche ses process) · cam_analyzer et exécuteur du studio à aligner · transcriber en 4 process
+
+Demande de Fabien : rejouer la génération YuE2 par la vraie file (workers relancés), avec une
+revérification (bloc précédent).
+
+- ✅ **Par le worker en service** — élément #282 du compte de test, créé par `compose_music` :
+  `plan` 159 s puis `render` 54 s (partition ABC, audio 157 s) ; puis « Enregistrer et relancer »
+  par la vraie vue (`update_settings`, durée 30 → 45 s) → **`render` seul**, 131 s dont le
+  rechargement, ligne `plan` intacte. Mêmes sorties que le process à part de la veille.
+- ❌→✅ **Défaut trouvé par l'attente réelle, corrigé (`3ce1f4d7`)** : à 23:09, son tour venu sur
+  une carte pleine, #282 est passé « en attente de ressources » (le correctif de l'après-midi
+  joue) — mais Celery a refusé la 3ᵉ re-livraison : `task.retry(max_retries=None)` = le défaut
+  de la tâche (3), pas « illimité » (`celery/app/task.py:720`). La règle du 20/09 n'était pas
+  tenue et son test (`tests_gpu_safe_mode`) exigeait précisément `None`. L'élément est resté « en
+  attente » sans tâche jusqu'à une relance à la main. Désormais : `WAIT_RETRIES_UNLIMITED` et un
+  filet (re-livraison refusée → FAILURE dit, ligne refermée, utilisateur prévenu). ⚠ Toute app
+  qui passe `vram_needed` (enhancer, composer) était concernée.
+- **Mesuré (WSL, base isolée)** : 109 tests verts (différement, re-livraison, pipeline,
+  squelette, composer, enhancer). `check_docs` : mes références résolvent (les 3 cassées sont
+  d'autres sessions).
+- ⚠ **Observé, non traité** : le worker GPU a été silencieux de 23:12 à 00:12 (file vide après
+  l'échec de re-livraison), puis WAMA a été relancé entièrement à 00:12 (« surveillance
+  démarrée », `worker-watchdog.log`) — ces workers portent le code d'avant `3ce1f4d7` ; le
+  gardien avait aussi relancé le worker GPU à 21:08 (« gpu MORT »), après mon premier essai ; `/common/api/reception/hidden/` (`34dcf8ac`, autre session) rend 404 tant que
+  gunicorn n'est pas rechargé ; les lignes de #281 gardent l'ancienne forme d'empreinte (lues
+  « périmées » une fois).
+- Fichiers de l'essai, laissés pour écoute : `media/users/22/composer/output/audio282_YuE2-3B.abc`
+  et `.wav`. Base de test isolée de la session supprimée.

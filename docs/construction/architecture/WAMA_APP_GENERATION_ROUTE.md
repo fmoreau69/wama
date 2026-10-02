@@ -3472,8 +3472,20 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 >     le moteur étant rendu à la fin ; la pipeline de prompts a « traduit fr→en » une consigne
 >     déjà anglaise et l'a ENRICHIE (215 → 253 caractères) alors qu'elle porte des paroles — à
 >     arbitrer côté `WAMA_LLM`, pas ici.
->   - ⏳ Reste : la même génération PAR le worker en service (il faut le relancer pour qu'il
->     prenne `3547f51f`).
+>   - **Par le WORKER EN SERVICE, workers relancés par Fabien (élément #282, lancé par
+>     `compose_music` à 21:47, joué à 00:37 le 2026-10-03)** : `plan` 159 s puis `render` 54 s,
+>     mêmes sorties qu'en process à part ; puis durée changée par la VRAIE vue (`update_settings`,
+>     « Enregistrer et relancer ») → `render` SEUL (131 s dont le rechargement), ligne `plan`
+>     intacte. **Le pilote est joué de bout en bout par la chaîne réelle.**
+>   - ⚠ **Ce que l'attente réelle a montré, et corrigé (`3ce1f4d7`)** : à 23:09, son tour venu
+>     sur une carte pleine (résidents de la campagne de transcription), #282 est bien passé « en
+>     attente de ressources » (le correctif de l'après-midi) — mais Celery a REFUSÉ la 3ᵉ
+>     re-livraison : `task.retry(max_retries=None)` veut dire « le défaut de la tâche » (3,
+>     `celery/app/task.py:720`), pas « illimité ». La règle du 20/09 n'était pas tenue, et son
+>     test exigeait précisément `None`. L'élément est resté « en attente » SANS tâche jusqu'à une
+>     relance à la main. Désormais : plafond explicite hors de portée (`WAIT_RETRIES_UNLIMITED`),
+>     et filet — une re-livraison refusée devient un ÉCHEC dit, jamais un élément abandonné.
+>     *Une « attente illimitée » qui n'a jamais attendu n'a jamais été mesurée.*
 > - **Revérification du 2026-10-02 (demande de Fabien : « rien réinventé, tous les tests, tout
 >   consigné »)** — passée contre la carte des mécanismes, `§10.5`, le registre des registres et
 >   le code des briques voisines. Trois écarts trouvés DANS ces paliers, corrigés :
@@ -3977,9 +3989,8 @@ possible **sans aucun process**.
 >   un seul process l'adopte sans attendre P3). Un pilote YuE2 n'a donc plus ce préalable.
 > - **État au soir du 2026-10-02** : P1 fait ; P3 paliers A, B et C livrés (point 4 : ligne
 >   d'exécution, moteur à plusieurs process, pilote composer `plan` → `render`) ; décisions n°1,
->   2, 3, 8, 9 et 11 tranchées. **La prochaine session reprend par** : ① la génération YuE2
->   en deux process rejouée PAR le worker en service (elle a réussi sur le moteur, hors worker,
->   le 02/10 au soir — point 4) ; ② P5 — la card qui AFFICHE ses process
+>   2, 3, 8, 9 et 11 tranchées. **La prochaine session reprend par** : ~~① la génération YuE2
+>   en deux process rejouée PAR le worker en service~~ (✅ jouée le 03/10 à 00:37, point 4) ; ② P5 — la card qui AFFICHE ses process
 >   (`AppPipeline.card_state`, lignes `ProcessRun`) ; ③ l'alignement du cam_analyzer et de
 >   l'exécuteur du studio sur `ProcessSpec` / `ProcessRun`, à coordonner avec les instances qui y
 >   travaillent ; ④ le transcriber en 4 process.
