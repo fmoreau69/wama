@@ -789,8 +789,9 @@ DEUX réunions valides (`007a_ECRH` 20 min, `012c_EBPZ` 19 min) :
   rejouer Albert (refus voulu de `cloud_access`) — profil et clé à décider par Fabien.
   En regard : **0 Go de VRAM locale** et 5 à 8 s pour
   19-26 min d'audio (mesuré à l'appel direct). ⚠ Trois réunions : un ordre de grandeur, pas un
-  verdict ; et, pour de vrais entretiens, l'audio QUITTE la machine (verrou « sensibilité » de
-  `ROADMAP §8d` ③, non tranché).
+  verdict ; et, pour de vrais entretiens, l'audio QUITTE la machine — sans objection
+  (`ROADMAP §8d` ③, TRANCHÉ par Fabien le 2026-10-02 : le cloud est un choix de l'utilisateur, et
+  Albert est l'hébergement souverain de la DINUM).
   **FLEURS-CS, même soir** (8 enregistrements fr/en, cards #1075-1082, comparées aux cards Whisper
   « langues = auto » des mêmes lots, mesures en base) : erreur par mot **44,5 %** (Albert) contre
   **45,1 %** (Whisper local) — un match nul EN MOYENNE, mais très dispersé d'un enregistrement à
