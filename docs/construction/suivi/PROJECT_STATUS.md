@@ -20356,3 +20356,24 @@ des mécanismes, `ROUTE §10.5`, le registre des registres et le code des brique
   #281 et #282 seulement) porteront une empreinte d'amont à l'ancienne forme — leur rendu sera
   lu « périmé » une fois, après la prochaine relance des workers. Aucun élément réel n'est
   concerné.
+
+## §PALIER — 2026-10-02 (soir), « RANGEMENT CHEZ LE DESTINATAIRE (§3bis.2) » — ✅ `34dcf8ac` — 🔚 relancer WAMA · D9 à trancher
+
+Demande de Fabien : « fais le rangement chez le destinataire (§3bis.2) ».
+- `common.ReceivedEntry` + `common/services/reception.py` : une ligne par destinataire et par
+  ENTRÉE de file, sans droit (visibilité revérifiée à chaque geste). « Retirer de ma file » (rien
+  n'est supprimé, sans rechargement), « Réafficher » sous la barre, SON ordre manuel. Une règle,
+  trois constructeurs de file (`entry_arrangement`). « Reçue de … » à l'écran ; le menu retire les
+  gestes du propriétaire. Domicile : `WAMA_COLLABORATION §3bis.2`.
+- Gardes (parc, contre-épreuve 11 apps rouges sur HEAD) ; geste `common.received_entry_arrangement`
+  8/8, voisins inchangés (7/7, 6/6, 5/5, 6/6).
+- ⚠ Migration `common/0023_receivedentry` (gitignorée) appliquée sur la base WSL — la relance la
+  rejoue sans effet. 🔴 relancer WAMA (vues, gabarit, JS). Non poussé.
+- ⏳ Pas construit, et dit pourquoi (§3bis.2) : ranger une card reçue dans SES lots (une card dans
+  deux lots = changement de modèle) ; boutons ⚙ ▶ 🗑 d'une card reçue, à trancher.
+- D9 (`MEDIA_STORAGE_TIERING`) : proposition consignée, EN ATTENTE de Fabien — deux réglages
+  (cards+fichiers = l'existant, étendu aux 5 apps hors rétention ; dossier temporaire, défaut
+  court, désignés épargnés), médiathèque SANS durée.
+- Rouges PRÉEXISTANTS rencontrés : `tests_codegen_lot.ItemEditRouteAliasTest` (imager) ; budgets
+  `tests_identifier_language` décalés (code 2677/2678, classes 133/132, méthodes 1316/1310) par
+  des commits d'autres instances ce soir — aucun identifiant de ce palier n'y figure.
