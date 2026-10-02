@@ -208,12 +208,11 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
-- **API publique** (15) :
+- **API publique** (14) :
   - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
   - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
   - `line(item, node_id: str=MAIN_NODE, instance_key: str='')` — La ligne d'un nœud, ou None s'il n'a jamais été lancé.
   - `snapshot(settings, watched) -> dict` — Photo des réglages SURVEILLÉS : `{clé: valeur}` pour chaque clé de `watched`, lue d'un
-  - `plain(value)` — Une valeur de réglage sous sa forme ÉCRITE en JSON — la photo est relue de la base avant
   - `start(item, node_id: str=MAIN_NODE, *, process_key: str='', kind: str='app', version: str='', instance_key: str='', settings_snapshot: dict | None=None, model_…` — Le process PART : la ligne passe `RUNNING`, sa photo de réglages est prise, l'erreur et
   - `await_resources(item, node_id: str=MAIN_NODE, *, process_key: str='', instance_key: str='', task_id: str='')` — Le tour du process est venu, la VRAM libre ne suffit pas : la ligne le dit, sans effacer
   - `succeed(item, node_id: str=MAIN_NODE, *, instance_key: str='', output_ref: str='', output_summary: dict | None=None, model_key: str | None=None, process_key: s…` — Le process a RENDU son résultat : `SUCCESS`, durée mesurée depuis `start`.
@@ -259,12 +258,11 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
-- **API publique** (5) :
+- **API publique** (4) :
   - `class ProcessSpec` — Un process d'un pipeline d'app — les champs de `pass_tracking.Pass` qui ne sont pas
-  - `output_fingerprint(ref: str) -> str` — Empreinte de la sortie d'un process (chemin relatif à MEDIA_ROOT) : taille + condensé du
+  - `output_fingerprint(ref: str) -> str` — Empreinte de la sortie d'un process (chemin relatif à MEDIA_ROOT) : celle de la brique
   - `class AppPipeline` — Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive.
   - `register_app_pipeline(app: str, specs, *, label: str, description: str='', source_ref: str='') -> AppPipeline` — Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
-  - `app_pipeline(app: str)` — Le pipeline déclaré d'une app, ou None (une app à un seul process n'en déclare pas).
 
 ### Progression de tâche longue
 
@@ -327,7 +325,7 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
 
 - **Domicile** : `wama/common/utils/auto_model.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Auto-sélection de modèle — brique COMMUNE (valeur « auto » d'un select de modèle).
-- **API publique** (14) :
+- **API publique** (15) :
   - `read_quality_intent(value) -> int` — Valeur 0-100 SÛRE depuis un POST/JSON : bornée, défaut équilibré, ne lève jamais.
   - `posted_quality_intent(source)` — Curseur POSTÉ (POST ou dict JSON) → entier borné, ou **None** s'il n'est pas posté ou
   - `preset_key_for_intent(intent) -> str` — La POSITION NOMMÉE la plus proche d'une valeur de curseur (`QUALITY_PRESETS` du sélecteur :
@@ -342,6 +340,7 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
   - `quality_intent_of(item=None, app_id=None, user=None) -> int` — La valeur du curseur qui vaut pour CE lancement, en UN endroit (chantier C, 2026-09-20).
   - `resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, item=None, user=None, **overrides)` — Valeur finale du modèle pour un lancement : `requested` explicite, sinon tirage.
   - `predict_model_choice(spec)` — PRÉVISION : le modèle qui serait retenu MAINTENANT pour ce domaine, ou None.
+  - `vram_needed_gb(model_key: str, *, offload: bool=False)` — Besoin VRAM du modèle RÉSOLU, pour la garde du squelette de tâche
 
 ### Banc de comparaison
 
@@ -1037,7 +1036,8 @@ Chaque résultat produit donne à l'élément une révision numérotée — rég
 
 - **Domicile** : `wama/common/services/revisions.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md §7.1](../construction/exploitation/WAMA_COLLABORATION.md)
 - **Module** : Révisions d'un élément — la brique de la marche 8a (`WAMA_COLLABORATION.md §7.1`).
-- **API publique** (10) :
+- **API publique** (11) :
+  - `json_safe(value)` — Une valeur de réglage telle qu'un JSONField la gardera (Decimal, date… → chaîne ; un
   - `settings_snapshot(app_id: str, item) -> dict` — Réglages de `item` à cet instant, dérivés du schéma de son app. `{}` sans schéma.
   - `output_references(item, fields=None) -> list` — `[{field, path, sha256}]` des SORTIES de `item`.
   - `record_revision(app_id: str, item, *, origin: str='process', user=None, outcome=None, model_keys=None, instruction: str='', output_fields=None)` — Donne à `item` sa révision suivante. Rend la ligne créée, ou None si rien n'a pu
@@ -1998,8 +1998,9 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
 
 - **Domicile** : `wama/common/utils/model_capabilities.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Vocabulaire CANONIQUE des capacités modèle (`AIModel.capabilities`) — SOURCE UNIQUE.
-- **API publique** (15) :
+- **API publique** (16) :
   - `sampling_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]` — `recommended_steps` / `recommended_guidance` depuis `default_steps` /
+  - `duration_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]` — `max_duration_s` depuis le `max_duration` (secondes) d'une déclaration d'app — les modèles
   - `video_caps_from_declaration(config: Dict[str, Any], tokens=()) -> Dict[str, Any]` — Les capacités VIDÉO tirées d'une déclaration d'app (`fps`, `max_frames`, `resolution`
   - `resolution_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]` — `native_resolution` / `min_resolution` / `max_resolution` tirés d'une déclaration (image
   - `resolution_bounds(caps: Dict[str, Any]) -> Dict[str, Any]` — Les bornes de taille d'un modèle, lues UNE fois : `{native: (L, H) | None, min, max,
@@ -2088,10 +2089,11 @@ Confronte, sur quelques fenêtres du média, ce que le filtre de parole Silero r
 
 - **Domicile** : `wama/common/utils/speech_activity.py` · **doc** : [wama/transcriber/TRANSCRIBER_CORRECTION.md §8](../../wama/transcriber/TRANSCRIBER_CORRECTION.md)
 - **Module** : Activité vocale d'un enregistrement — le filtre de parole (VAD) garde-t-il ce que le signal porte ?
-- **API publique** (5) :
+- **API publique** (6) :
   - `windows_for(duration_s: float) -> int` — Nombre de fenêtres sondées pour un média de `duration_s` secondes.
   - `energy_active_ratio(wave, sr: int, margin_db: float=ACTIVE_MARGIN_DB) -> float` — Part des trames de 100 ms dont le niveau dépasse le plancher de bruit de `margin_db`.
   - `pause_windows(wave, sr: int, max_seconds: float, search_seconds: float=PAUSE_SEARCH_SECONDS) -> list` — `[(début, fin)]` en secondes, fenêtres CONTIGUËS couvrant TOUT l'audio, chacune ≤
+  - `quietest_point(span, sr: int)` — Secondes, depuis le début de `span`, du MILIEU de sa trame de 100 ms la plus calme — là où
   - `vad_speech_ratio(wave, sr: int) -> float` — Part de l'audio que le VAD de faster-whisper retient, avec ses réglages par défaut.
   - `vad_rejects_speech(path, duration_s: float=0.0, windows: int=None, window_s: float=120.0, decode=None) -> dict` — Sonde `windows` fenêtres de `window_s` réparties dans le média (par défaut
 
