@@ -531,11 +531,9 @@ dans l'ordre du schéma, UN descriptif de moteur ; MusicGen/AudioGen → curseur
 - le curseur Durée du composer n'avait pas de `default` au schéma : rendu sans valeur (profil
   neuf), il se posait au milieu de l'échelle (305 s) avec un libellé vide. `default=10` (celui du
   modèle et du bouton « Réinitialiser »).
-⚠ Vu au passage, PRÉEXISTANT, non traité : le volet répète certains réglages — le moteur sous
-« Moteur / Modèle » ET sous son libellé de schéma (synthesizer « Modèle TTS », anonymizer
-« Modèle »), format et qualité de sortie sous Réglages ET sous Sortie. C'est `extra_from_params`
-qui relit ce que `build_detail` a déjà rendu ; le converter a une raison DATÉE de montrer le
-format en réglage (repli du 2026-08-13). Décision à prendre avant d'uniformiser.
+Vu au passage, PRÉEXISTANT, corrigé le 2026-10-03 (demande de Fabien) : le volet répétait le
+moteur et le format/qualité de sortie sous Réglages — règle commune « un fait rendu une fois »,
+`INSPECTOR_DETAIL_FIELDS §Le langage de la spec`.
 
 **2026-09-23 (nuit) — deux natures d'au-delà.** `duration_extension` vaut `continuation` quand
 l'app déclare `continuation_frames` (LTX : 25 images, conditionnement VIDÉO du passage suivant —

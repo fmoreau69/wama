@@ -188,22 +188,14 @@ def detail_from_spec(instance, spec, app_name):
     src_params = spec.get('extra_from_params')
     if src_params:
         from .param_schema import schema_for_app
-        valeurs = (getattr(instance, src_params, None) or {}) if isinstance(src_params, str) \
+        carrier = (getattr(instance, src_params, None) or {}) if isinstance(src_params, str) \
             else None
-        alias_sources = set(spec.get('aliases') or {})   # déjà rendus sous leur clé canonique
-        for p in (schema_for_app(app_name) or []):
-            label, nom = p.get('label'), p.get('name')
-            if not label or not nom or nom in alias_sources:
-                continue
-            v = valeurs.get(nom) if valeurs is not None else None
-            if v in (None, '', False, 0):
-                # Repli sur le champ DÉDIÉ du modèle : les paramètres de tête
-                # (`output_format`…) vivent hors du JSON porteur — sans ce repli le volet
-                # les taisait alors que la modale les montrait (bug converter, 2026-08-13).
-                v = getattr(instance, nom, None)
-            # 0 compris : dans ces schémas une valeur nulle est un réglage non posé.
-            if v not in (None, '', False, 0):
-                extra[label] = v
+        # Déjà rendus sous leur clé canonique : les alias, et le champ que `engine` /
+        # `engine_effective` nomment (sinon « Moteur / Modèle » puis « Modèle TTS », deux fois).
+        skip = set(spec.get('aliases') or {})
+        skip |= {spec[k] for k in ('engine', 'engine_effective') if isinstance(spec.get(k), str)}
+        extra.update(settings_from_schema(instance, schema_for_app(app_name) or [],
+                                          skip=skip, carrier=carrier))
 
     d = build_detail(
         instance,
@@ -222,6 +214,36 @@ def detail_from_spec(instance, spec, app_name):
         if v:
             d[cle] = v
     return d
+
+
+#: Clés que `build_detail` rend LUI-MÊME, sous la section Sortie, depuis l'instance (depuis
+#: l'origine, 2026-07-07). Les relister parmi les réglages les montrait deux fois — vu au volet
+#: le 2026-10-03 (« Format de sortie original » sous Réglages ET « Format original » sous Sortie),
+#: là depuis l'audit du 2026-07-11 qui tirait les réglages de TOUS les params du schéma.
+RENDERED_BY_BACKBONE = ('output_format', 'output_quality')
+
+
+def settings_from_schema(instance, schema, *, skip=(), carrier=None):
+    """{libellé: valeur} des réglages POSÉS du schéma — la liste « Réglages » du volet, pour les
+    DEUX voies (spec `extra_from_params`, adapters code). Un fait rendu une fois : ni les clés que
+    l'épine dorsale rend déjà (`RENDERED_BY_BACKBONE`), ni les noms de `skip` (le champ moteur,
+    les alias). `carrier` : dict porteur des valeurs (JSON d'options) ; une valeur absente du
+    porteur se lit sur le champ DÉDIÉ du modèle (les paramètres de tête vivent hors du JSON —
+    repli du 2026-08-13, converter). `0` compris : une valeur nulle est un réglage non posé.
+    Accepte un schéma en dicts (`schema_to_dicts`) comme en `Param`."""
+    out = {}
+    excluded = set(skip) | set(RENDERED_BY_BACKBONE)
+    for p in schema:
+        read = p.get if isinstance(p, dict) else (lambda key, _p=p: getattr(_p, key, None))
+        name, label = read('name'), read('label')
+        if not name or not label or name in excluded:
+            continue
+        value = carrier.get(name) if carrier is not None else None
+        if value in (None, '', False, 0):
+            value = getattr(instance, name, None)
+        if value not in (None, '', False, 0):
+            out[label] = value
+    return out
 
 
 def _short_error(err: str, limit: int = 280) -> str:
