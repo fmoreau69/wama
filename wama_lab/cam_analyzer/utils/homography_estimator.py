@@ -151,7 +151,10 @@ def estimate_camera(session, position='front', with_k1=False, seed=None):
     obs, size = _collect_static_obs(session, position)
     if not obs:
         return None
-    fov_v = CAMERA_FOV_V.get(position, 61.0)
+    # Champ VERTICAL effectif de `camera_geometry` (source unique : surcharge de session, FOV mesuré)
+    # — pas la table du rig. Jusqu'au 2026-10-02 la table (31° aux latérales) était combinée au champ
+    # HORIZONTAL effectif (97° surchargé) : focales incohérentes, distances latérales ×1,8.
+    fov_v = geo.get('fov_v') or CAMERA_FOV_V.get(position, 61.0)
 
     base = _eval_params(0.0, 2.4, obs, size, geo, sh_traj, fov_v)
     # ── Mode « graine externe » (⚑ depth_estimation) : au lieu de la recherche par grille, on SCORE

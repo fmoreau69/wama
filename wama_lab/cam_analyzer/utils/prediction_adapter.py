@@ -265,8 +265,9 @@ def ground_projector_for(session, position, geo):
     try:
         from .ground_projection import GroundProjector
         from .calibration import intrinsics_from_fov
+        # champ VERTICAL effectif (`camera_geometry`, source unique) — cf. `estimate_camera`
         intr = intrinsics_from_fov(cam.width, cam.height, geo['fov_h'],
-                                   CAMERA_FOV_V.get(position, 61.0))
+                                   geo.get('fov_v') or CAMERA_FOV_V.get(position, 61.0))
         gp = GroundProjector(dict(intr, height_m=cal['height_m'],
                                   pitch_deg=cal['pitch_deg'], hfov_deg=geo['fov_h'],
                                   lens_type='rectilinear'), (cam.width, cam.height))

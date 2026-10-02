@@ -83,3 +83,33 @@ class WindowSamplingTest(SimpleTestCase):
         self.assertEqual(depth_estimator.depth_window_fps(SimpleNamespace(config={})), 2.0)
         self.assertEqual(depth_estimator.depth_window_fps(SimpleNamespace(config={'depth_window_fps': 0})), 0.0)
         self.assertEqual(depth_estimator.depth_window_fps(SimpleNamespace(config={'depth_window_fps': 'x'})), 2.0)
+
+
+class ProjectionUsesEffectiveVerticalFovTest(SimpleTestCase):
+    """Le projecteur sol et la calibration lisent le champ VERTICAL de `camera_geometry` (2026-10-02).
+
+    Ils relisaient la table du rig (31° aux latérales) en la combinant au champ HORIZONTAL effectif
+    (97°, surchargé par la session) : focales incohérentes, objets latéraux placés ×1,8 trop loin
+    (G4813 : 6,6 m projetés, 3,7 m vrais)."""
+
+    def _session(self, fov):
+        cam = SimpleNamespace(width=384, height=248)
+        return SimpleNamespace(
+            config={'camera_fov': {'right': fov},
+                    'ground_calib': {'right': {'pitch_deg': 11.5, 'height_m': 2.3}}},
+            cameras=SimpleNamespace(filter=lambda **k: SimpleNamespace(first=lambda: cam)))
+
+    def test_the_ground_projector_follows_the_session_vertical_fov(self):
+        from wama_lab.cam_analyzer.utils.prediction_adapter import ground_projector_for
+        near = []
+        for v in (31.0, 53.0):
+            s = self._session({'h': 97.0, 'v': v})
+            gp = ground_projector_for(s, 'right', camera_geometry(s)['right'])
+            near.append(gp.project(192, 181)[1])
+        # même ligne d'image : un champ vertical plus large = une focale plus courte = plus près
+        self.assertLess(near[1], near[0] * 0.75)
+
+    def test_the_calibration_search_reads_the_same_field(self):
+        from wama_lab.cam_analyzer.utils import homography_estimator
+        src = inspect.getsource(homography_estimator.estimate_camera)
+        self.assertIn("fov_v = geo.get('fov_v')", src)
