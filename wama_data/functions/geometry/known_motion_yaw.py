@@ -205,6 +205,98 @@ def fit_mount_yaw(pairs, trajectory, *, image_size, focal_px, mount=(0.0, 0.0), 
     }
 
 
+#: Lacet PAR PÉRIODE (une caméra tombée puis remise en cours de session — fait connu de la campagne
+#: ENA) : durée d'une période (s de trace), paires roulantes minimales pour la juger, demi-plage et
+#: pas du lacet autour du lacet de session.
+PERIOD_S, PERIOD_MIN_PAIRS = 600.0, 120
+PERIOD_YAW_SPAN_DEG, PERIOD_YAW_STEP_DEG = 15.0, 1.0
+#: Un changement d'orientation n'est déclaré qu'au-delà de cet écart (°) ET s'il dépasse
+#: `CHANGE_NOISE_FACTOR` fois la dispersion (écart absolu médian) des périodes de part et d'autre.
+CHANGE_MIN_DEG, CHANGE_NOISE_FACTOR = 3.0, 3.0
+
+
+def fit_yaw_by_period(pairs, trajectory, *, image_size, focal_px, mount=(0.0, 0.0), yaw0_deg=0.0,
+                      pitch_deg=15.0, k1=0.0, lag_s=0.0, period_s=PERIOD_S,
+                      min_pairs=PERIOD_MIN_PAIRS, yaw_span_deg=PERIOD_YAW_SPAN_DEG,
+                      yaw_step_deg=PERIOD_YAW_STEP_DEG, max_points_per_pair=MAX_POINTS_PER_PAIR,
+                      min_step_m=MIN_STEP_M):
+    """Lacet de montage PAR PÉRIODE de la trace, tangage / distorsion / retard FIXÉS (ceux de
+    l'ajustement de session, `fit_mount_yaw`) : seul le lacet bouge, donc la recherche est légère.
+
+    Rend `[{'t0', 't1', 'n_pairs', 'yaw_deg', 'rise_5deg', 'measured'}]` dans l'ordre du temps ;
+    une période trop pauvre porte `yaw_deg=None`."""
+    pairs = [p for p in pairs]
+    if not pairs:
+        return []
+    times = np.array([float(p[0]) for p in pairs])
+    out = []
+    start = float(times.min())
+    while start <= times.max():
+        end = start + period_s
+        sub = [p for p, t in zip(pairs, times) if start <= t < end]
+        row = {'t0': round(start, 1), 't1': round(end, 1), 'n_pairs': len(sub), 'yaw_deg': None,
+               'rise_5deg': None, 'measured': False}
+        if len(sub) >= min_pairs:
+            pb = _Problem(sub, trajectory, image_size, focal_px, mount, max_points_per_pair, min_step_m)
+            if len(pb.t0) >= min_pairs:
+                states = pb._vehicle_states(lag_s)
+                yaws = np.arange(yaw0_deg - yaw_span_deg, yaw0_deg + yaw_span_deg + 1e-9, yaw_step_deg)
+                costs = [pb.cost(float(y), pitch_deg, k1, lag_s, states=states) for y in yaws]
+                i = int(np.argmin(costs))
+                y = float(yaws[i])
+                if 0 < i < len(yaws) - 1:
+                    y = _parabola_min([float(yaws[i - 1]), y, float(yaws[i + 1])], costs[i - 1:i + 2])
+                k = int(round(5 * 1.0 / yaw_step_deg))
+                near = [costs[j] for j in (i - k, i + k) if 0 <= j < len(costs)]
+                rise = (sum(near) / len(near) - costs[i]) if near else 0.0
+                row.update({'n_pairs': int(len(pb.t0)), 'yaw_deg': round(y, 2), 'rise_5deg': round(rise, 4),
+                            'measured': bool(0 < i < len(yaws) - 1 and rise >= MIN_RISE_5DEG)})
+        out.append(row)
+        start = end
+    return out
+
+
+def detect_yaw_changes(periods, *, min_deg=CHANGE_MIN_DEG, noise_factor=CHANGE_NOISE_FACTOR,
+                       min_side=2):
+    """Ruptures d'orientation dans une série `fit_yaw_by_period` (périodes MESURÉES seules), par
+    segmentation binaire : à chaque niveau, la coupure qui sépare le plus les MÉDIANES de part et
+    d'autre (au moins `min_side` périodes de chaque côté) ; déclarée si l'écart dépasse `min_deg`
+    ET `noise_factor` × la dispersion (écart absolu médian) des deux côtés, puis cherchée à
+    nouveau dans chaque moitié. Rend `[{'t', 'yaw_before', 'yaw_after', 'delta_deg'}]` trié — `t`
+    est le milieu entre les deux périodes qui encadrent la coupure."""
+    pts = [(p['t0'], p['t1'], p['yaw_deg']) for p in periods if p.get('measured')]
+
+    def mad(v):
+        m = float(np.median(v))
+        return float(np.median(np.abs(np.asarray(v) - m)))
+
+    def split(seg):
+        if len(seg) < 2 * min_side:
+            return []
+        # Coupure = celle qui minimise l'écart absolu total à la médiane de CHAQUE côté (rupture L1).
+        # PAS le plus grand écart entre médianes : une médiane ignore une minorité, donc couper trop
+        # tôt donne le MÊME écart — mesuré sur le test, la coupure tombait deux périodes trop tôt.
+        best = None
+        for k in range(min_side, len(seg) - min_side + 1):
+            a, b = [p[2] for p in seg[:k]], [p[2] for p in seg[k:]]
+            sse = float(np.abs(np.asarray(a) - np.median(a)).sum() + np.abs(np.asarray(b) - np.median(b)).sum())
+            if best is None or sse < best[0]:
+                best = (sse, k, a, b)
+        _, k, a, b = best
+        d = float(np.median(b) - np.median(a))
+        noise = max(mad(a), mad(b), 0.5)
+        if abs(d) < min_deg or abs(d) < noise_factor * noise:
+            return []
+        # `between` : la rupture peut tomber DANS l'une des deux périodes qui l'encadrent (une période
+        # à cheval mesure un lacet mêlé) — d'où l'encadrement par leurs bornes extérieures.
+        change = {'t': round((seg[k - 1][1] + seg[k][0]) / 2.0, 1),
+                  'between': [seg[k - 1][0], seg[k][1]],
+                  'yaw_before': round(float(np.median(a)), 2), 'yaw_after': round(float(np.median(b)), 2),
+                  'delta_deg': round(d, 2)}
+        return split(seg[:k]) + [change] + split(seg[k:])
+    return split(pts)
+
+
 def known_motion_yaw(matches: 'TypedFrame', trajectory: 'TypedFrame', *, width=None, height=None,
                      focal_px=None, mount_right_m=0.0, mount_forward_m=0.0, yaw0_deg=0.0,
                      pitch0_deg=15.0) -> 'TypedFrame':
