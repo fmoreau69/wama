@@ -31,14 +31,12 @@ le format batch coloré est affiché DANS la card (batch_format). Section vide, 
 le type (music/sfx) est DÉRIVÉ du modèle (endpoint), la lisibilité vient des optgroups du select.
 Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. melody).{% endcomment %}
 
-<!-- Modèle : champ GÉNÉRÉ (P2) depuis params.py — même source que la modale, id legacy préservé. -->
+<!-- Volet GÉNÉRÉ depuis params.py (contexte `panel`) en UN hôte : Modèle → curseur de qualité
+     → Durée → Format → Qualité, ids legacy préservés (`dom_id`). Un seul hôte parce que la Durée
+     est BORNÉE par la capacité du Modèle (`cap_from`) : la brique lie deux champs du même
+     conteneur. Le descriptif du moteur est celui du renderer commun (`help_source`). -->
 {# L'ancien select portait des data-gen-factor/overhead MORTS (l'ETA lit window.COMPOSER_MODELS). #}
-<div class="wama-params" id="composerPanelModelHost"></div>
-<!-- Descriptif du moteur sélectionné (brique commune WamaModelHelp ; additif) -->
-<div id="modelHelp" class="small text-white-50 mt-1 mb-3"></div>
-
-<!-- Durée : champ GÉNÉRÉ (P2-bis) — unit/min_label/max_label déclarés au schéma (10s/10min). -->
-<div class="wama-params" id="composerPanelDurationHost"></div>
+<div class="wama-params" id="composerPanelHost"></div>
 {# Holder caché : durationDisplay reste écrit par le JS (non-gardé) ; estimateDisplay est #}
 {# RELOCALISÉ par script à côté de la valeur du slider généré (pattern modale). #}
 <div class="d-none">
@@ -53,9 +51,6 @@ modale garde l'édition du prompt d'un item existant. Id promptInput conservé (
 {% comment %}Mélodie de référence : le champ hardcodé (show/hide par modèle) est REMPLACÉ par le
 slot déclaré de la card d'entrée (_new_item_card show_reference) + l'appariement WamaInputMatch —
 id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.md.{% endcomment %}
-
-<!-- Format + Qualité : champs GÉNÉRÉS (P2) depuis la brique commune output_format_params_for_app. -->
-<div class="wama-params" id="composerPanelOutputHost"></div>
 
 <!-- Reset Button -->
 </div>{# /composerPanelParams (inspecteur contextuel) #}
@@ -300,17 +295,11 @@ window.COMPOSER_PARAMS_SCHEMA = {{ params_json|safe }};
     // Modale BATCH dédiée : mêmes params, contexte 'batch' (ids legacy batchSettings* via dom_id).
     var hostBatch = document.getElementById('composerBatchParams');
     if (hostBatch) WamaParams.render(hostBatch, schema, { context: 'batch' });
-    // P2 — VOLET : mêmes champs, même source (modèle + format/qualité ; durée/prompt/mélodie
-    // restent bespoke ce tour : widgets formatés/conditionnels, cf. REMOVAL_LEDGER P2-bis).
-    // + le curseur rapide/qualité (chantier C) dans le MÊME hôte : son show_if lit le select
-    // de modèle du même conteneur (visible sur auto-*), sans une ligne de JS d'app.
-    var hostModel = document.getElementById('composerPanelModelHost');
-    if (hostModel) WamaParams.render(hostModel,
-        schema.filter(function (p) { return p.name === 'model' || p.name === 'quality_intent'; }),
-        { context: 'panel' });
-    var hostDur = document.getElementById('composerPanelDurationHost');
-    if (hostDur) WamaParams.render(hostDur,
-        schema.filter(function (p) { return p.name === 'duration'; }), { context: 'panel' });
+    // VOLET : les champs du contexte `panel`, dans l'ordre du schéma, en UN rendu — le show_if
+    // du curseur de qualité et la borne de la Durée (`cap_from`) lisent le select de modèle du
+    // même conteneur, sans une ligne de JS d'app.
+    var hostPanel = document.getElementById('composerPanelHost');
+    if (hostPanel) WamaParams.render(hostPanel, schema, { context: 'panel' });
     // Estimation (~20s) du volet : à côté de la valeur du slider généré (pattern modale).
     var pDur = document.getElementById('durationSlider');
     var pEst = document.getElementById('estimateDisplay');
@@ -318,10 +307,6 @@ window.COMPOSER_PARAMS_SCHEMA = {{ params_json|safe }};
         var pVal = pDur.closest('.wama-range') && pDur.closest('.wama-range').querySelector('.wama-range-val');
         if (pVal) pVal.insertAdjacentElement('afterend', pEst);
     }
-    var hostOut = document.getElementById('composerPanelOutputHost');
-    if (hostOut) WamaParams.render(hostOut,
-        schema.filter(function (p) { return p.name === 'output_format' || p.name === 'output_quality'; }),
-        { context: 'panel' });
     // Appariement entrées⇄modèles (brique commune) : meta du CATALOGUE ; le mapping input_id →
     // ids DOM reflète la déclaration de l'include _new_item_card ci-dessus (slot mélodie).
     if (window.WamaInputMatch) {
@@ -361,15 +346,4 @@ le script d'app. NE PAS remonter cette balise au-dessus du bloc de rendu.
 {% endcomment %}
 <script src="{% static_v 'composer/js/index.js' %}"></script>
 
-<script>
-// Descriptif du moteur sous le select (brique commune ; meta = catalogue model_manager).
-(function () {
-    if (!window.WamaModelHelp) return;
-    {% comment %}Route F4b (2026-10-01) : la meta se lit sur le DOMAINE du select (les deux tâches),
-    clée par la clé de catalogue — un modèle venu d'ailleurs (YuE2) a aussi son aide.{% endcomment %}
-    WamaModelHelp.fetchCatalogMeta('composer', { query: '?task=text-to-music,text-to-audio' }).then(function (meta) {
-        WamaModelHelp.init({ selectId: 'modelSelect', helpId: 'modelHelp', meta: meta });
-    }).catch(function () {});
-})();
-</script>
 {% endblock %}

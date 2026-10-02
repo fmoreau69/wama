@@ -950,22 +950,34 @@
   }
 
   function _bindCapFrom(container, schema, ctx) {
+    // Les bornes de CE rendu, rejouables : `apply()` pose des valeurs par programme, sans
+    // `change` — le modèle d'une modale de lot changeait sans que la borne suive (2026-10-02).
+    container._wpCapApply = [];
     (schema || []).forEach(function (p) {
       var cf = p.cap_from;
       if (!cf || !cf.field || !cf.capability) return;
       if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
+      var el = container.querySelector('#' + CSS.escape(perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name)));
+      if (!el) return;                       // ce réglage n'est pas rendu dans ce conteneur
       var modelP = (schema || []).filter(function (q) { return q.name === cf.field; })[0];
       var source = cf.source || (modelP && modelP.help_source);
-      if (!modelP || !source) return;
-      var el = container.querySelector('#' + CSS.escape(perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name)));
-      var sel = container.querySelector('#' + CSS.escape(perCtx(modelP.dom_id, ctx) || ('wp-' + ctx + '-' + modelP.name)));
-      if (!el || !sel) return;
+      var sel = modelP && container.querySelector(
+        '#' + CSS.escape(perCtx(modelP.dom_id, ctx) || ('wp-' + ctx + '-' + modelP.name)));
+      if (!modelP || !source || !sel) {
+        // La borne lie DEUX champs du même rendu. Le réglage est là, son champ modèle non
+        // (volet découpé en plusieurs hôtes, schéma filtré) : la borne serait inactive EN
+        // SILENCE — exactement le défaut qu'elle existe pour retirer. On le dit (2026-10-02).
+        if (global.console) console.warn('[WamaParams] cap_from de « ' + p.name + ' » : le champ « ' +
+          cf.field + ' » n\'est pas dans ce rendu (' + ctx + ') — borne inactive');
+        return;
+      }
       var row = el.closest('.wama-param');
       var note = document.createElement('div');
       note.className = 'wama-cap-note small mt-1';
       (row || el.parentNode).appendChild(note);
       _catalogCaps(source, cf.source ? '' : _catalogDomain(modelP)).then(function (capsByKey) {
         function apply() { _applyCap(el, note, row, p, cf, capsByKey[sel.value] || null); }
+        container._wpCapApply.push(apply);
         sel.addEventListener('change', apply);
         el.addEventListener('input', apply);
         // Les options du select modèle arrivent souvent APRÈS le rendu (catalogue, décorateur
@@ -1077,6 +1089,8 @@
     });
     _syncIntentSliders(container);   // curseur d'intention : hidden → position + tricolore
     _bindConditional(container);
+    // Bornes par capacité du modèle (`cap_from`) : rejouées sur les valeurs qu'on vient de poser.
+    (container._wpCapApply || []).forEach(function (replay) { replay(); });
   }
 
   // ── Coquille de modale « Paramètres » GÉNÉRÉE (brique commune) ────────────────────────────
@@ -1271,6 +1285,9 @@
                         // La règle `cap_from` elle-même (bornes, zones, champ imposé) — exposée
                         // pour que sa garde (`tests_cap_from_js`, V8) l'exerce sans navigateur.
                         applyCapFrom: _applyCap,
+                        // …et son CÂBLAGE (champ modèle absent du rendu → dit ; valeurs posées
+                        // par `apply` → borne rejouée), pour la même garde.
+                        bindCapFrom: _bindCapFrom,
                         renderSettingsModal: renderSettingsModal,
                         settingsModal: settingsModal,
                         // Extension du vocabulaire de composants SANS toucher au moteur :

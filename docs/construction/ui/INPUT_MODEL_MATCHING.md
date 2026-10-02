@@ -493,6 +493,36 @@ catalogue. Un modèle FIXE ne propose que sa taille ; le volet grise les autres,
 ⏳ Le widget de résolution image reste un widget d'app (préréglages) et non un `cap_from` : le
 porter au schéma est un chantier de l'imager, pas un manque de la capacité.
 
+**2026-10-02 — la DURÉE du composer suit la même route.** Mesuré dans le code : le curseur du
+composer proposait jusqu'à 10 min (`params.py`, `max=600`) alors que MusicGen et AudioGen
+produisent 30 s et Music 3 300 s ; la tâche réduisait la durée EN SILENCE au lancement
+(`clamp_duration`, lue de la déclaration) — le défaut exact que ce §7 décrit pour la vidéo, côté
+audio. Rien de neuf à construire : `duration` déclare `cap_from = {field: model, capability:
+max_duration_s}` ; la capacité vient de la déclaration d'app (`max_duration`, secondes) par
+`duration_caps_from_declaration` — la même traduction pour la découverte (donc l'écran) et pour
+`clamp_duration` (la tâche), qui reçoit désormais la clé de catalogue. `max_duration_s` vaut
+pour toute sortie bornée dans le temps (vidéo : `max_frames / fps` ; audio : le maximum déclaré).
+« auto » ou modèle sans maximum déclaré (YuE2, qui ne maîtrise pas la durée) → curseur du schéma.
+
+⚠ **La borne lie DEUX champs du MÊME rendu** — le réglage et le select de modèle doivent être
+dans le même conteneur et le même schéma passé à `WamaParams.render`. Le volet du composer était
+découpé en trois hôtes (modèle / durée / sortie), chacun rendu d'un schéma FILTRÉ : la borne y
+aurait été inactive sans rien dire. Il est rendu en UN hôte, dans l'ordre du schéma ; et la brique
+le DIT désormais dans la console quand un réglage à `cap_from` est rendu sans son champ modèle
+(« borne inactive ») — une borne muette est le défaut qu'elle existe pour retirer.
+Au passage : le descriptif du moteur du volet était câblé DEUX fois (un `WamaModelHelp.init` à la
+main sur `#modelHelp`, plus celui que le renderer commun pose pour tout select à `help_source`) ;
+le câblage à la main est retiré (`REMOVAL_LEDGER` R93).
+Gardes : `tests_cap_from_declared` (générique : toute déclaration `cap_from` de toute app nomme un
+champ modèle de SON schéma et une capacité canonique ; composer : même plafond à l'écran, au
+catalogue et dans la tâche), `tests_cap_from_js` (la règle, V8). Critère `model_caps_ui` : il ne
+reconnaissait que la brique `WamaModelCaps` appelée à la main — l'imager, borné par `cap_from`
+depuis le 23/09, était ROUGE ; il reconnaît les deux formes.
+⏳ **Pas vérifié au navigateur** (GPU occupé le 02/10 au soir : 22,2 / 24,5 Go — aucun geste
+d'interface pendant un traitement) : à jouer sur le volet, la modale ⚙ et la modale de lot du
+composer, après relance de WAMA et la synchro périodique du catalogue (c'est elle qui écrit
+`max_duration_s` sur les lignes du composer).
+
 **2026-09-23 (nuit) — deux natures d'au-delà.** `duration_extension` vaut `continuation` quand
 l'app déclare `continuation_frames` (LTX : 25 images, conditionnement VIDÉO du passage suivant —
 `LTXVideoBackend._build_continuation_conditions`) et `segments` pour un modèle qui ne sait

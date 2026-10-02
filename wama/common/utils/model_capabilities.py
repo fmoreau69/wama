@@ -133,7 +133,8 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     # l'écran ne les connaissait pas : 15 s proposées, 5 produites.
     "fps":                 "int — cadence NATIVE (images/s) d'un modèle vidéo ; imposée à la sortie",
     "max_frames":          "int — images produites au plus en UN passage",
-    "max_duration_s":      "float — durée native maximale (max_frames / fps) : borne la zone NATIVE",
+    "max_duration_s":      "float — durée native maximale d'UNE sortie (vidéo : max_frames / fps ; "
+                           "audio : le `max_duration` déclaré) : borne la zone NATIVE",
     "native_resolution":   "str 'LxH' — résolution d'entraînement ; en dessous la qualité baisse",
     #: Bornes de TAILLE de sortie d'un modèle image (2026-09-30), toutes sources confondues :
     #: déclaration d'app (`model_config`), manifeste d'un modèle installé, fait mécanique lu
@@ -166,6 +167,18 @@ def sampling_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]:
     if config.get("default_guidance_scale") is not None:
         out["recommended_guidance"] = float(config["default_guidance_scale"])
     return out
+
+
+def duration_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]:
+    """`max_duration_s` depuis le `max_duration` (secondes) d'une déclaration d'app — les modèles
+    AUDIO (composer : MusicGen 30 s, Music 3 300 s). La même traduction sert la découverte (donc
+    l'écran, par `cap_from`) ET la tâche qui plafonne la durée au lancement : un seul fait pour
+    les deux. Avant (2026-10-02) la tâche lisait la déclaration et l'écran ne la connaissait pas :
+    10 min proposées au curseur, 30 s produites."""
+    value = config.get("max_duration")
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+        return {"max_duration_s": float(value)}
+    return {}
 
 
 def video_caps_from_declaration(config: Dict[str, Any], tokens=()) -> Dict[str, Any]:

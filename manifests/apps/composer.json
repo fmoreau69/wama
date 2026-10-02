@@ -935,7 +935,10 @@
           },
           {
             "advanced": false,
-            "cap_from": null,
+            "cap_from": {
+              "capability": "max_duration_s",
+              "field": "model"
+            },
             "chip": true,
             "chip_label": "",
             "choices": null,
