@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WAMA — Évaluation des moteurs de transcription WAMA</title>
+{% comment %}
+  Rapport d'évaluation des moteurs de transcription — INSTANTANÉ du rapport Claude Docs (rev 31,
+  2 octobre 2026), rendu par `docs_catalog.render_markdown`, graphiques redessinés en HTML/CSS.
+  Généré, pas écrit à la main : pour le mettre à jour, réexporter le rapport et régénérer la page
+  (WAMA_QUALITE §9bis porte les mesures et leur lecture). Même enveloppe que `wama_fiches.html`.
+{% endcomment %}
+<style>
+  :root{
+    --paper:#eaeef4; --card:#ffffff; --card-2:#f4f7fb;
+    --ink:#141922; --ink-soft:#525c6b; --ink-faint:#8a94a3;
+    --line:#d5dce6; --line-soft:#e4e9f1;
+    --accent:#2f56d9; --accent-ink:#213fa3; --accent-soft:#e7edfd;
+    --muted-bar:#aab4c3;
+    --shadow:0 1px 2px rgba(20,25,34,.04), 0 8px 24px rgba(20,25,34,.06);
+    --shadow-lg:0 2px 4px rgba(20,25,34,.05), 0 20px 50px rgba(20,25,34,.12);
+    --r:14px; --r-sm:9px;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#0c0f16; --card:#161c27; --card-2:#1c2431;
+      --ink:#eef2f8; --ink-soft:#a6b0c0; --ink-faint:#6f7b8d;
+      --line:#28313f; --line-soft:#212936;
+      --accent:#7d97ff; --accent-ink:#a9bcff; --accent-soft:#1a2237;
+      --muted-bar:#4a5567;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+      --shadow-lg:0 2px 4px rgba(0,0,0,.35), 0 24px 60px rgba(0,0,0,.5);
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans);
+       line-height:1.6; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px; margin:0 auto; padding:0 24px 80px}
+
+  .home-btn{position:fixed; top:18px; left:18px; z-index:50; display:inline-flex; align-items:center;
+    gap:8px; text-decoration:none; font-family:var(--mono); font-size:.8rem; font-weight:600;
+    color:var(--ink); background:var(--card); border:1px solid var(--line); padding:9px 14px;
+    border-radius:999px; box-shadow:var(--shadow); transition:transform .16s ease, box-shadow .16s ease}
+  .home-btn:hover{transform:translateY(-1px); box-shadow:var(--shadow-lg)}
+
+  .hero{padding:96px 0 28px}
+  .kicker{font-family:var(--mono); font-size:.78rem; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--ink-faint); font-weight:600; margin-bottom:18px}
+  .hero h1{font-size:clamp(2rem,5vw,3.2rem); font-weight:780; letter-spacing:-.03em; line-height:1.1;
+    margin:0; text-wrap:balance}
+  .hero .sub{color:var(--ink-soft); margin-top:14px; font-size:1rem}
+
+  article{background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+    box-shadow:var(--shadow); padding:36px 40px}
+  article h2{font-size:1.45rem; font-weight:720; letter-spacing:-.015em; margin:44px 0 12px;
+    padding-top:20px; border-top:1px solid var(--line-soft); text-wrap:balance}
+  article h2:first-of-type{margin-top:28px}
+  article p{margin:0 0 12px; color:var(--ink)}
+  article > p:first-child{font-size:1.1rem; line-height:1.65}
+  article ul, article ol{margin:0 0 14px; padding-left:22px}
+  article li{margin:4px 0}
+  article a{color:var(--accent-ink)}
+  article strong{font-weight:680}
+  .tbl{overflow-x:auto}
+  article table{border-collapse:collapse; width:100%; margin:8px 0 18px; font-size:.92rem}
+  article th, article td{border-bottom:1px solid var(--line-soft); padding:8px 10px; text-align:left;
+    vertical-align:top}
+  article th{background:var(--card-2); font-weight:650; border-bottom:1px solid var(--line)}
+
+  .chart{margin:16px 0 22px; padding:20px 22px; background:var(--card-2); border:1px solid var(--line-soft);
+    border-radius:var(--r-sm)}
+  .chart figcaption strong{display:block; font-size:1rem}
+  .chart figcaption span{display:block; color:var(--ink-soft); font-size:.86rem; margin:2px 0 14px}
+  .chart .note{color:var(--ink-faint); font-size:.8rem; margin:12px 0 0}
+  .lab{color:var(--ink); font-size:.86rem}
+  .best .lab, .best b{font-weight:680}
+
+  /* 1 — étendue + moyenne */
+  .rr{display:grid; grid-template-columns:minmax(150px,240px) 1fr; gap:12px; align-items:center;
+    min-height:28px}
+  .rr .lab{text-align:right}
+  .track{position:relative; height:24px; margin-right:64px}
+  .ticks{border-bottom:1px solid var(--line)}
+  .ticks span{position:absolute; bottom:4px; transform:translateX(-50%); font-size:.74rem; white-space:nowrap;
+    color:var(--ink-faint); font-family:var(--mono)}
+  .rng{position:absolute; top:11px; height:2px; background:var(--muted-bar)}
+  .dot{position:absolute; top:6px; width:12px; height:12px; margin-left:-6px; border-radius:50%;
+    background:var(--muted-bar)}
+  .val{position:absolute; top:2px; padding-left:10px; font-size:.82rem; color:var(--ink-soft);
+    white-space:nowrap}
+  .best .rng, .best .dot{background:var(--accent)}
+  .best .val{color:var(--ink); font-weight:680}
+
+  /* 2 et 3 — barres */
+  .br{display:grid; grid-template-columns:150px 1fr 1fr; gap:14px; align-items:center; min-height:24px}
+  .br.head span{font-size:.8rem; font-weight:650; color:var(--ink-soft)}
+  .br3{display:grid; grid-template-columns:190px repeat(3,1fr); gap:14px; align-items:center;
+    min-height:26px}
+  .br3.head span{font-size:.8rem; font-weight:650; color:var(--ink-soft)}
+  .grp{margin-top:10px}
+  .eng{font-weight:680; font-size:.9rem; margin-bottom:2px}
+  .bar{position:relative; display:flex; align-items:center; gap:6px; height:16px}
+  .bar i{display:block; height:12px; border-radius:2px; background:var(--muted-bar)}
+  .bar b{font-weight:500; font-size:.8rem; color:var(--ink-soft); white-space:nowrap}
+  .best .bar i{background:var(--accent)}
+  .best .bar b{color:var(--ink); font-weight:680}
+  .bar em{position:absolute; top:-3px; bottom:-3px; width:0; border-left:1px dashed var(--ink-faint)}
+  .cell{display:block}
+  .cnd{display:none; font-size:.74rem; color:var(--ink-faint); margin-top:4px}
+
+  .foot{color:var(--ink-faint); font-size:.82rem; margin-top:22px; text-align:center}
+
+  @media (max-width:720px){
+    article{padding:24px 18px}
+    .rr{grid-template-columns:1fr} .rr .lab{text-align:left}
+    .br{grid-template-columns:1fr} .br3{grid-template-columns:1fr} .br.head, .br3.head{display:none}
+    .cnd{display:block} .br, .br3{gap:2px; margin-bottom:10px}
+  }
+</style>
+</head>
+<body>
+<a href="/" class="home-btn">← WAMA</a>
+<div class="wrap">
+  <header class="hero">
+    <div class="kicker">Évaluation · transcription</div>
+    <h1>Évaluation des moteurs de transcription WAMA</h1>
+    <p class="sub">Mesuré dans WAMA, contre des transcriptions de référence faites à la main · version du 2 octobre 2026</p>
+  </header>
+  <article>
+{% verbatim %}
+<p>Pour des réunions en français, <strong>Whisper large-v3 reste le meilleur moteur local : 28,8 % d'erreur par mot</strong>, surtout des mots de l'oral omis plutôt que mal entendus. Pour un audio qui change de langue, <strong>Qwen3-ASR en réglage « Auto » avec nivellement fait le moins d'erreurs (32,8 %)</strong> et garde la bonne langue sur 65 % du temps de parole. Le même Whisper servi à distance par Albert (DINUM) ne fait pas mieux : 31,6 % sur les réunions. Avant la transcription, niveler la parole fait gagner 4 points sur des entretiens réels ; débruiter ou améliorer l'audio en fait perdre. Les trois moteurs ajoutés le 1er octobre (LinTO, Kyutai, FrWhisper) ne font pas mieux que Whisper sur les réunions.</p>
+<p>Mesuré dans WAMA sur 3 réunions et 15 enregistrements multilingues, soit 296 transcriptions comparées à une référence écrite à la main.</p>
+<h2 id="quel-réglage-choisir">Quel réglage choisir</h2>
+<p>Ce que les mesures ci-dessous recommandent, situation par situation.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Moteur et réglage</th>
+<th>Erreur par mot mesurée</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Réunion en français, bien enregistrée</td>
+<td>Whisper large-v3, langue « Auto », sans prétraitement</td>
+<td>28,8 %</td>
+</tr>
+<tr>
+<td>Audio qui change de langue</td>
+<td>Qwen3-ASR, « Auto » + nivellement</td>
+<td>32,8 % (21,1 % en français + anglais)</td>
+</tr>
+<tr>
+<td>Entretien réel de qualité moyenne, capté bas</td>
+<td>Whisper + nivellement</td>
+<td>30,4 % au lieu de 34,4 %</td>
+</tr>
+<tr>
+<td>Fond très bruyant</td>
+<td>Nivellement, puis débruitage</td>
+<td>Jamais le débruitage seul : 88,7 % sur une parole captée bas</td>
+</tr>
+<tr>
+<td>Enregistrement sensible</td>
+<td>Un moteur local</td>
+<td>Albert est presque aussi bon (31,6 %), mais l'audio quitte la machine</td>
+</tr>
+</tbody>
+</table></div>
+<p>À éviter avant la transcription : l'amélioration de l'enhancer (Resemble Enhance), qui fait dériver la langue.</p>
+<h2 id="protocole">Protocole</h2>
+<p>Deux corpus ouverts, avec une transcription de référence faite à la main, joués dans WAMA comme un utilisateur le ferait : un lot par enregistrement, une card par configuration, la référence posée sur le lot.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Corpus</th>
+<th>Ce que c'est</th>
+<th>Enregistrements</th>
+<th>Licence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SUMM-RE (Linagora)</td>
+<td>Réunions de travail spontanées en français, 3 à 4 locuteurs ; les micros-cravates sont mixés en un seul enregistrement de salle</td>
+<td>3 réunions de 19 à 20 min</td>
+<td>CC-BY-SA 4.0</td>
+</tr>
+<tr>
+<td>FLEURS-CS</td>
+<td>Phrases lues (Google FLEURS) mises bout à bout en 2 à 8 langues, bascule toutes les 8 à 15 s</td>
+<td>15 enregistrements de 5 min : 8 français + anglais, 5 français + une autre langue, 2 à six langues</td>
+<td>CC-BY 4.0 (héritée de FLEURS)</td>
+</tr>
+<tr>
+<td>SUMM-RE dégradé</td>
+<td>Les mêmes réunions sous une dégradation contrôlée et reproductible : bruit de fond à 15 dB, ou champ lointain (réverbération, −20 dB)</td>
+<td>3 réunions × 2 dégradations</td>
+<td>CC-BY-SA 4.0</td>
+</tr>
+<tr>
+<td>CFPP2000</td>
+<td>Entretiens réels enregistrés chez les personnes, transcrits mot à mot ; qualité moyenne, deux captés très bas</td>
+<td>3 entretiens de 47 à 70 min</td>
+<td>CC-BY-NC-SA 3.0</td>
+</tr>
+</tbody>
+</table></div>
+<p>Moteurs comparés : Whisper large-v3 (OpenAI, via faster-whisper), Qwen3-ASR 1.7B (Alibaba), Canary 1B v2 et Parakeet TDT 0.6B v3 (NVIDIA NeMo). Tous tournent en local sur la RTX 4090 de WAMA. S'y ajoute le 30/09 un moteur distant, Albert (DINUM), qui sert le même Whisper large-v3 : il est traité à part, plus bas. LinTO FR, Kyutai STT 1B et FrWhisper, ajoutés le 1er octobre, ont aussi leur propre section.</p>
+<p>Mesures :</p>
+<ul>
+<li><strong>Erreur par mot</strong> (WER) : mots substitués, omis ou ajoutés, rapportés au nombre de mots de la référence. Casse, ponctuation et marques d'annotation du corpus ne comptent pas ; les nombres sont comparés en chiffres des deux côtés ; les hésitations comptent (transcription mot à mot).</li>
+<li><strong>Accord de langue</strong> (FLEURS-CS) : part du temps de parole où le segment transcrit porte la bonne langue.</li>
+</ul>
+<p>Une réunion SUMM-RE a été écartée (008a) : la référence d'un locuteur y est remplacée par des codes, alors que sa voix est dans l'audio, ce qui pénalisait tous les moteurs à tort.</p>
+<h2 id="réunions-françaises-summ-re">Réunions françaises (SUMM-RE)</h2>
+<figure class="chart"><figcaption><strong>Whisper reste le meilleur sur les réunions françaises : 28,8 % d'erreur par mot</strong><span>3 réunions spontanées de 20 min (SUMM-RE) · point : moyenne · trait : de la meilleure à la moins bonne réunion</span></figcaption><div class="ranges"><div class="rr axis"><span class="lab"></span><span class="track ticks"><span style="left:0.0%">20 %</span><span style="left:20.0%">25 %</span><span style="left:40.0%">30 %</span><span style="left:60.0%">35 %</span><span style="left:80.0%">40 %</span><span style="left:100.0%">45 %</span></span></div><div class="rr best" title="Whisper : moyenne 28,8 % (007a 28,5 %, 012c 27,4 %, 013c 30,5 %)"><span class="lab">Whisper</span><span class="track"><span class="rng" style="left:29.6%;width:12.4%"></span><span class="dot" style="left:35.2%"></span><span class="val" style="left:42.0%">28,8 %</span></span></div><div class="rr" title="Whisper + nivellement : moyenne 29,5 % (007a 28,4 %, 012c 29,4 %, 013c 30,8 %)"><span class="lab">Whisper + nivellement</span><span class="track"><span class="rng" style="left:33.6%;width:9.6%"></span><span class="dot" style="left:38.1%"></span><span class="val" style="left:43.2%">29,5 %</span></span></div><div class="rr" title="Qwen3-ASR + nivellement : moyenne 29,6 % (007a 30,8 %, 012c 27,2 %, 013c 30,8 %)"><span class="lab">Qwen3-ASR + nivellement</span><span class="track"><span class="rng" style="left:28.8%;width:14.4%"></span><span class="dot" style="left:38.4%"></span><span class="val" style="left:43.2%">29,6 %</span></span></div><div class="rr" title="Whisper + débruitage, filtre coupé : moyenne 30,3 % (007a 28,1 %, 012c 28,5 %, 013c 34,4 %)"><span class="lab">Whisper + débruitage, filtre coupé</span><span class="track"><span class="rng" style="left:32.4%;width:25.2%"></span><span class="dot" style="left:41.3%"></span><span class="val" style="left:57.6%">30,3 %</span></span></div><div class="rr" title="Qwen3-ASR : moyenne 30,8 % (007a 30,2 %, 012c 27,1 %, 013c 35,2 %)"><span class="lab">Qwen3-ASR</span><span class="track"><span class="rng" style="left:28.4%;width:32.4%"></span><span class="dot" style="left:43.3%"></span><span class="val" style="left:60.8%">30,8 %</span></span></div><div class="rr" title="Qwen3-ASR + débruitage : moyenne 30,9 % (007a 31,6 %, 012c 28,3 %, 013c 32,8 %)"><span class="lab">Qwen3-ASR + débruitage</span><span class="track"><span class="rng" style="left:33.2%;width:18.0%"></span><span class="dot" style="left:43.6%"></span><span class="val" style="left:51.2%">30,9 %</span></span></div><div class="rr" title="Whisper + débruitage : moyenne 32,3 % (007a 27,9 %, 012c 29,7 %, 013c 39,2 %)"><span class="lab">Whisper + débruitage</span><span class="track"><span class="rng" style="left:31.6%;width:45.2%"></span><span class="dot" style="left:49.1%"></span><span class="val" style="left:76.8%">32,3 %</span></span></div><div class="rr" title="Canary + nivellement : moyenne 33,0 % (007a 33,8 %, 012c 31,8 %, 013c 33,5 %)"><span class="lab">Canary + nivellement</span><span class="track"><span class="rng" style="left:47.2%;width:8.0%"></span><span class="dot" style="left:52.1%"></span><span class="val" style="left:55.2%">33,0 %</span></span></div><div class="rr" title="Canary + débruitage : moyenne 35,8 % (007a 38,4 %, 012c 32,3 %, 013c 36,6 %)"><span class="lab">Canary + débruitage</span><span class="track"><span class="rng" style="left:49.2%;width:24.4%"></span><span class="dot" style="left:63.1%"></span><span class="val" style="left:73.6%">35,8 %</span></span></div><div class="rr" title="Canary : moyenne 37,0 % (007a 34,8 %, 012c 42,5 %, 013c 33,8 %)"><span class="lab">Canary</span><span class="track"><span class="rng" style="left:55.2%;width:34.8%"></span><span class="dot" style="left:68.1%"></span><span class="val" style="left:90.0%">37,0 %</span></span></div></div><p class="note">Erreur par mot, axe à partir de 20 % — plus bas = mieux.</p></figure>
+<p>Qwen3-ASR suit de près Whisper ; Canary est derrière, avec le plus d'écart d'une réunion à l'autre. Le débruitage IA n'apporte rien. Le nivellement de la parole aide Canary (4 points de moins) et un peu Qwen3-ASR, pas Whisper.</p>
+<p>Hors graphique : Parakeet (83 à 91 %) bascule en anglais sur cette parole spontanée, et Whisper sans son filtre de parole s'effondre sur une réunion (95,5 %).</p>
+<h2 id="pourquoi-environ-28--derreur">Pourquoi environ 28 % d'erreur</h2>
+<p>Les moteurs entendent bien : seuls 6 à 9 % des mots sont mal reconnus. L'essentiel de l'erreur, ce sont des mots <strong>absents</strong> de la transcription (17 à 24 % des mots de la référence).</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Réunion · moteur</th>
+<th>Erreur par mot</th>
+<th>Mal reconnus</th>
+<th>Omis</th>
+<th>Ajoutés</th>
+<th>Sans hésitations ni acquiescements</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>007a · Whisper</td>
+<td>28,5 %</td>
+<td>5,7 %</td>
+<td>20,5 %</td>
+<td>2,3 %</td>
+<td>24,7 %</td>
+</tr>
+<tr>
+<td>007a · Qwen3-ASR</td>
+<td>30,2 %</td>
+<td>7,7 %</td>
+<td>20,6 %</td>
+<td>1,9 %</td>
+<td>27,0 %</td>
+</tr>
+<tr>
+<td>007a · Canary</td>
+<td>34,8 %</td>
+<td>8,9 %</td>
+<td>23,1 %</td>
+<td>2,8 %</td>
+<td>31,3 %</td>
+</tr>
+<tr>
+<td>012c · Whisper</td>
+<td>27,4 %</td>
+<td>7,7 %</td>
+<td>17,5 %</td>
+<td>2,2 %</td>
+<td>21,4 %</td>
+</tr>
+<tr>
+<td>012c · Qwen3-ASR</td>
+<td>27,1 %</td>
+<td>7,9 %</td>
+<td>17,9 %</td>
+<td>1,3 %</td>
+<td>21,4 %</td>
+</tr>
+<tr>
+<td>012c · Canary</td>
+<td>42,5 %</td>
+<td>7,8 %</td>
+<td>23,7 %</td>
+<td>10,9 %</td>
+<td>37,6 %</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Hésitations et acquiescements</strong> (« euh », « ben », « ouais », « mh ») : les retirer des deux côtés ne rend que 4 à 6 points. La référence en compte 262 sur 007a, Whisper n'en écrit que 50.</li>
+<li><strong>Passages non transcrits</strong> : 7 à 15 % du temps de parole de chaque locuteur n'est couvert par aucun segment — interventions brèves, parole superposée (17 % du temps sur 007a).</li>
+<li><strong>Style normalisé</strong> : les moteurs écrivent un français écrit, par exemple en ajoutant le « ne » des négations que personne n'a prononcé.</li>
+<li><strong>Ce n'est pas le niveau sonore</strong> : sur 007a, le locuteur le plus fort du mixage a l'erreur la plus haute (60 %), un locuteur 6 dB plus faible la plus basse (31 %).</li>
+</ul>
+<p>L'écart mesure donc la distance entre une transcription mot à mot de parole spontanée et le texte propre que rendent les moteurs. Les taux d'environ 5 % annoncés pour ces modèles sont mesurés sur de la parole lue.</p>
+<h2 id="audio-qui-change-de-langue-fleurs-cs">Audio qui change de langue (FLEURS-CS)</h2>
+<figure class="chart"><figcaption><strong>Audio multilingue : Qwen3-ASR en Auto avec nivellement fait le moins d'erreurs, 32,8 %</strong><span>15 enregistrements de 5 min en 2 à 6 langues (FLEURS-CS) · moyennes après correctifs</span></figcaption><div class="bars2"><div class="br head"><span class="lab"></span><span>Erreur par mot (plus bas = mieux)</span><span>Accord de langue (plus haut = mieux)</span></div><div class="grp"><div class="eng">Whisper</div><div class="br"><span class="lab">Une seule langue</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:92.3%"></i><b>55,4 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:35.9%"></i><b>35,9 %</b></span></span></div><div class="br"><span class="lab">Plusieurs langues</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:71.3%"></i><b>42,8 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:47.6%"></i><b>47,6 %</b></span></span></div><div class="br"><span class="lab">Auto</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:69.8%"></i><b>41,9 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:48.4%"></i><b>48,4 %</b></span></span></div><div class="br"><span class="lab">Auto + nivellement</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:62.0%"></i><b>37,2 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:51.1%"></i><b>51,1 %</b></span></span></div></div><div class="grp"><div class="eng">Qwen3-ASR</div><div class="br"><span class="lab">Une seule langue</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:80.0%"></i><b>48,0 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:53.0%"></i><b>53,0 %</b></span></span></div><div class="br"><span class="lab">Plusieurs langues</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:66.3%"></i><b>39,8 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:65.4%"></i><b>65,4 %</b></span></span></div><div class="br"><span class="lab">Auto</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:66.3%"></i><b>39,8 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:65.4%"></i><b>65,4 %</b></span></span></div><div class="br best"><span class="lab">Auto + nivellement</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:54.7%"></i><b>32,8 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:65.0%"></i><b>65,0 %</b></span></span></div></div><div class="grp"><div class="eng">Canary</div><div class="br"><span class="lab">Une seule langue</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:91.2%"></i><b>54,7 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:35.7%"></i><b>35,7 %</b></span></span></div><div class="br"><span class="lab">Plusieurs langues</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:74.5%"></i><b>44,7 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:44.1%"></i><b>44,1 %</b></span></span></div><div class="br"><span class="lab">Auto</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:74.5%"></i><b>44,7 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:44.1%"></i><b>44,1 %</b></span></span></div><div class="br"><span class="lab">Auto + nivellement</span><span class="cell"><small class="cnd">Erreur par mot</small><span class="bar"><i style="width:72.2%"></i><b>43,3 %</b></span></span><span class="cell"><small class="cnd">Accord de langue</small><span class="bar"><i style="width:46.3%"></i><b>46,3 %</b></span></span></div></div></div><p class="note">Accord de langue : part du temps de parole où le segment transcrit porte la bonne langue.</p></figure>
+<p>Imposer une seule langue à un audio multilingue coûte 8 à 14 points d'erreur à chaque moteur. En « Auto », WAMA détecte désormais les bascules et se comporte comme « Plusieurs langues ».</p>
+<p>Le nivellement de la parole, neutre sur les réunions, aide nettement ici : chaque phrase vient d'un locuteur différent, avec des sauts de niveau. Qwen3-ASR transcrit tout le temps de parole ; Whisper et Canary en laissent tomber un tiers à la moitié sur ces bascules.</p>
+<p>L'accord de langue plafonne à 65 % : la langue se décide par fenêtre de 30 s, qui mêle ici deux à trois phrases de langues différentes.</p>
+<h2 id="deux-correctifs-mesurés-avant--après">Deux correctifs, mesurés avant / après</h2>
+<p>La première mesure a révélé deux défauts du réglage des langues ; corrigés, puis rejoués sur les mêmes 135 cards.</p>
+<ol>
+<li><strong>La sonde « Auto » écoutait par fenêtres de 30 s</strong>, que les bascules mélangeaient : elle manquait la moitié des audios multilingues. Elle écoute désormais par fenêtres de 10 s (24 au plus), et une langue ne compte que si elle gagne au moins deux fenêtres, pour qu'une fenêtre isolée ne suffise pas à déclarer une réunion française multilingue.</li>
+<li><strong>Canary faisait échouer toute la card</strong> quand un passage de 30 s était détecté dans une langue incertaine ou qu'il ne gère pas (ici du latin, probabilité 0,40). Ce passage prend désormais la langue du précédent.</li>
+</ol>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Mesure</th>
+<th>Avant</th>
+<th>Après</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cards « Auto » qui détectent au moins 2 langues</td>
+<td>50 / 90</td>
+<td>88 / 90</td>
+</tr>
+<tr>
+<td>Erreur par mot en Auto — Qwen3-ASR</td>
+<td>42,1 %</td>
+<td>39,8 %</td>
+</tr>
+<tr>
+<td>Erreur par mot en Auto — Whisper</td>
+<td>45,1 %</td>
+<td>41,9 %</td>
+</tr>
+<tr>
+<td>Erreur par mot en Auto — Canary</td>
+<td>46,3 %</td>
+<td>44,7 %</td>
+</tr>
+<tr>
+<td>Erreur par mot en Auto + nivellement — Qwen3-ASR</td>
+<td>39,5 %</td>
+<td>32,8 %</td>
+</tr>
+<tr>
+<td>Cards Canary « Plusieurs langues » en échec</td>
+<td>1 / 15</td>
+<td>0 / 15</td>
+</tr>
+</tbody>
+</table></div>
+<p>Vérifié aussi : sur les trois réunions françaises, la nouvelle sonde n'entend que le français ; les résultats SUMM-RE restent donc valables. Le prix : la sonde prend environ 45 s par fichier, quelle que soit sa durée.</p>
+<h2 id="un-moteur-distant--albert-dinum">Un moteur distant : Albert (DINUM)</h2>
+<p>Albert, l'API d'IA de la DINUM, sert le même Whisper large-v3 : dans WAMA, il fait 2,8 points d'erreur de plus sur les réunions (31,6 % contre 28,8 %) et fait jeu égal sur l'audio multilingue (44,5 % contre 45,1 %). Avec le filtre de parole de WAMA, qu'il reçoit depuis le 1er octobre, il descend à 39,8 % sur l'audio multilingue.</p>
+<p>Mesuré le 30/09 sur 11 cards ajoutées aux mêmes lots, avec la même référence. Albert est comparé à Whisper local dans le même réglage : langue « Auto », sans débruitage ni nivellement.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Enregistrement</th>
+<th>Whisper local</th>
+<th>Albert</th>
+<th>Écart</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SUMM-RE 007a</td>
+<td>28,5 %</td>
+<td>32,6 %</td>
+<td>+4,1 pts</td>
+</tr>
+<tr>
+<td>SUMM-RE 012c</td>
+<td>27,4 %</td>
+<td>31,3 %</td>
+<td>+3,9 pts</td>
+</tr>
+<tr>
+<td>SUMM-RE 013c</td>
+<td>30,5 %</td>
+<td>30,9 %</td>
+<td>+0,4 pt</td>
+</tr>
+<tr>
+<td>FLEURS-CS, 8 enregistrements français + anglais (moyenne)</td>
+<td>45,1 %</td>
+<td>44,5 %</td>
+<td>−0,6 pt</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Même modèle, chaîne différente</strong> : Albert omet 70 à 250 mots de plus par réunion, pour à peu près autant de mots mal reconnus. Ses segments durent 22 à 25 s et couvrent 92 à 97 % de l'audio. Le découpage en amont n'y est pour rien (testé ci-dessous) : l'écart vient du décodage d'Albert, que son API ne permet pas de régler.</li>
+<li><strong>Entre les deux réglages locaux</strong> : Whisper local sans son filtre de parole fait pire (34,0 %, 95,5 % et 36,1 %).</li>
+<li><strong>Très dispersé en multilingue</strong> : de 25,7 points mieux à 25,7 points moins bien que Whisper local selon l'enregistrement. Sur ces 8 enregistrements, Qwen3-ASR en « Auto » avec nivellement reste loin devant (21,1 %).</li>
+<li><strong>Une langue par fichier</strong> : le paramètre de langue d'Albert traduit la sortie au lieu de guider la reconnaissance, donc WAMA ne l'impose jamais.</li>
+<li><strong>Coût local nul</strong> : 0 Go de mémoire graphique, 5 à 8 s pour 19 à 26 min d'audio. En contrepartie, l'audio quitte la machine ; la règle d'usage pour des entretiens sensibles n'est pas encore décidée.</li>
+</ul>
+<p>Testé le 1er octobre : envoyer à Albert la seule parole, repérée par le même filtre que le Whisper local, ne réduit pas les mots omis en réunion. L'envoyer par morceaux de 30 s au plus non plus.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Configuration d'Albert</th>
+<th>Réunions SUMM-RE (3)</th>
+<th>Audio multilingue FLEURS-CS (8)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fichier entier, sans filtre</td>
+<td>31,6 %</td>
+<td>44,5 %</td>
+</tr>
+<tr>
+<td>Parole seule, en un envoi</td>
+<td>31,7 %</td>
+<td>39,8 %</td>
+</tr>
+<tr>
+<td>Parole seule, morceaux de 30 s au plus</td>
+<td>32,2 %</td>
+<td>40,3 %</td>
+</tr>
+<tr>
+<td>Rappel : Whisper local</td>
+<td>28,8 %</td>
+<td>45,1 %</td>
+</tr>
+</tbody>
+</table></div>
+<p>Le filtre reste donc actif pour Albert : il aide l'audio multilingue et ne coûte rien en réunion. Sur 8 enregistrements multilingues, l'écart d'un réglage à l'autre varie de plus de 10 points : ces moyennes donnent une tendance, pas un classement.</p>
+<h2 id="prétraitements--niveler-ne-pas-débruiter">Prétraitements : niveler, ne pas débruiter</h2>
+<figure class="chart"><figcaption><strong>Niveler la parole fait le moins d'erreurs (30,4 % contre 34,4 % sur les entretiens réels)</strong><span>Taux d'erreur par mot, Whisper large-v3, 3 enregistrements par colonne — plus court = mieux</span></figcaption><div class="bars3"><div class="br3 head"><span class="lab"></span><span>Entretiens réels (CFPP)</span><span>Réunions, champ lointain</span><span>Réunions propres</span></div><div class="br3"><span class="lab">Aucun prétraitement</span><span class="cell"><small class="cnd">Entretiens réels (CFPP)</small><span class="bar"><em style="left:34.4%"></em><i style="width:34.4%"></i><b>34,4 %</b></span></span><span class="cell"><small class="cnd">Réunions, champ lointain</small><span class="bar"><em style="left:40.3%"></em><i style="width:40.3%"></i><b>40,3 %</b></span></span><span class="cell"><small class="cnd">Réunions propres</small><span class="bar"><em style="left:28.9%"></em><i style="width:28.9%"></i><b>28,9 %</b></span></span></div><div class="br3 best"><span class="lab">Nivellement</span><span class="cell"><small class="cnd">Entretiens réels (CFPP)</small><span class="bar"><em style="left:34.4%"></em><i style="width:30.4%"></i><b>30,4 %</b></span></span><span class="cell"><small class="cnd">Réunions, champ lointain</small><span class="bar"><em style="left:40.3%"></em><i style="width:36.5%"></i><b>36,5 %</b></span></span><span class="cell"><small class="cnd">Réunions propres</small><span class="bar"><em style="left:28.9%"></em><i style="width:29.4%"></i><b>29,4 %</b></span></span></div><div class="br3 best"><span class="lab">Nivellement + VAD coupé</span><span class="cell"><small class="cnd">Entretiens réels (CFPP)</small><span class="bar"><em style="left:34.4%"></em><i style="width:29.8%"></i><b>29,8 %</b></span></span><span class="cell"><small class="cnd">Réunions, champ lointain</small><span class="bar"><em style="left:40.3%"></em><i style="width:38.0%"></i><b>38,0 %</b></span></span><span class="cell"><small class="cnd">Réunions propres</small><span class="bar"><em style="left:28.9%"></em><i style="width:29.4%"></i><b>29,4 %</b></span></span></div><div class="br3"><span class="lab">Débruitage</span><span class="cell"><small class="cnd">Entretiens réels (CFPP)</small><span class="bar"><em style="left:34.4%"></em><i style="width:88.7%"></i><b>88,7 %</b></span></span><span class="cell"><small class="cnd">Réunions, champ lointain</small><span class="bar"><em style="left:40.3%"></em><i style="width:56.0%"></i><b>56,0 %</b></span></span><span class="cell"><small class="cnd">Réunions propres</small><span class="bar"><em style="left:28.9%"></em><i style="width:31.8%"></i><b>31,8 %</b></span></span></div><div class="br3"><span class="lab">Nivellement → débruitage</span><span class="cell"><small class="cnd">Entretiens réels (CFPP)</small><span class="bar"><em style="left:34.4%"></em><i style="width:34.8%"></i><b>34,8 %</b></span></span><span class="cell"><small class="cnd">Réunions, champ lointain</small><span class="bar"><em style="left:40.3%"></em><i style="width:43.4%"></i><b>43,4 %</b></span></span><span class="cell"><small class="cnd">Réunions propres</small><span class="bar"><em style="left:28.9%"></em><i style="width:31.3%"></i><b>31,3 %</b></span></span></div><div class="br3"><span class="lab">Amélioration (Resemble)</span><span class="cell"><small class="cnd">Entretiens réels (CFPP)</small><span class="bar"><em style="left:34.4%"></em><i style="width:51.7%"></i><b>51,7 %</b></span></span><span class="cell"><small class="cnd">Réunions, champ lointain</small><span class="bar"><em style="left:40.3%"></em><i style="width:87.2%"></i><b>87,2 %</b></span></span><span class="cell"><small class="cnd">Réunions propres</small><span class="bar"><em style="left:28.9%"></em><i style="width:30.8%"></i><b>30,8 %</b></span></span></div></div><p class="note">Trait vertical : sans prétraitement. Débruitage = DeepFilterNet, le prétraitement du transcriber. Amélioration = Resemble Enhance, la branche audio de l'enhancer. VAD automatique sauf mention.</p></figure>
+<p>Sur des entretiens réels de qualité moyenne, enregistrés chez les personnes, niveler la parole fait gagner 4 points. Sur des réunions propres, il ne change rien.</p>
+<p>Le débruitage (DeepFilterNet) efface une parole enregistrée bas : deux entretiens captés vers −54 dBFS tombent à 100 % d'erreur. Nivelée d'abord, la parole survit (34,8 %), sans jamais battre le nivellement seul.</p>
+<p>L'amélioration de l'enhancer (Resemble Enhance) fait dériver la langue. Sur une réunion lointaine améliorée, Whisper transcrit en anglais ou en gallois un échange en français.</p>
+<p>Appliqué dans WAMA le 1er octobre 2026 : le nivellement passe toujours avant le débruitage, réservé aux fonds très bruyants.</p>
+<p>Une dégradation contrôlée et reproductible (champ lointain synthétique) mène aux mêmes conclusions que l'audio réel pour le niveau et le débruitage. Elle peut donc servir de test d'évaluation. Elle ne prédit pas l'effet du filtre de parole (VAD), qui se juge sur du réel.</p>
+<h2 id="qui-parle-quand--la-diarisation">Qui parle quand : la diarisation</h2>
+<p>Les deux versions de pyannote se valent sur les 3 réunions SUMM-RE transcrites par Whisper : la 3.1 reste le défaut.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Pipeline</th>
+<th>cpWER</th>
+<th>Part due aux locuteurs</th>
+<th>DER</th>
+<th>Dont confusion de locuteur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>pyannote 3.1</td>
+<td>36,8 %</td>
+<td>7,8 points</td>
+<td>39,7 %</td>
+<td>5,1 %</td>
+</tr>
+<tr>
+<td>pyannote community-1</td>
+<td>37,1 %</td>
+<td>8,5 points</td>
+<td>40,0 %</td>
+<td>5,6 %</td>
+</tr>
+</tbody>
+</table></div>
+<p>Le cpWER compte comme erreur un mot prêté au mauvais locuteur ; le DER mesure sur le temps de parole. La confusion entre locuteurs ne pèse que 5 % du temps : l'essentiel du DER est de la parole que la transcription n'a pas restituée.</p>
+<h2 id="trois-moteurs-ajoutés--linto-kyutai-frwhisper">Trois moteurs ajoutés : LinTO, Kyutai, FrWhisper</h2>
+<p>Aucun des trois ne fait mieux que Whisper sur les réunions. Une fois l'audio nivelé, Kyutai devient le deuxième moteur sur l'audio multilingue (27,5 %), derrière Qwen3-ASR (21,1 %).</p>
+<p>Mesuré le 2 octobre sur 66 cards, dans les mêmes lots et contre les mêmes références que les autres moteurs (compte d'évaluation). Les deux lignes de rappel reprennent les mesures déjà présentées plus haut.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Moteur</th>
+<th>Réunions SUMM-RE (3)</th>
+<th>Réunions, nivelées</th>
+<th>FLEURS-CS français + anglais (8)</th>
+<th>FLEURS-CS, nivelé</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Rappel : Whisper large-v3</td>
+<td>28,8 %</td>
+<td>29,6 %</td>
+<td>45,1 %</td>
+<td>37,4 %</td>
+</tr>
+<tr>
+<td>Rappel : Qwen3-ASR 1.7B</td>
+<td>30,8 %</td>
+<td>29,6 %</td>
+<td>35,7 %</td>
+<td>21,1 %</td>
+</tr>
+<tr>
+<td>Kyutai STT 1B fr/en</td>
+<td>45,4 %</td>
+<td>49,8 %</td>
+<td>40,2 %</td>
+<td>27,5 %</td>
+</tr>
+<tr>
+<td>LinTO FR (Linagora)</td>
+<td>43,7 %</td>
+<td>43,4 %</td>
+<td>48,3 %</td>
+<td>47,5 %</td>
+</tr>
+<tr>
+<td>FrWhisper</td>
+<td>58,0 %</td>
+<td>60,7 %</td>
+<td>63,1 %</td>
+<td>59,0 %</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>L'écart vient des mots omis.</strong> Sur les réunions, Kyutai et LinTO omettent un tiers des mots de la référence (33 à 34 %, contre 21 % pour Whisper). Ils en reconnaissent mal à peu près autant (9 % contre 6 %).</li>
+<li><strong>LinTO</strong> est entraîné sur des énoncés de 30 s au plus : WAMA le fait désormais transcrire par passes de 30 s, coupées dans une pause. Par passes de 10 min, il omettait la moitié des mots (61 % d'erreur sur les réunions). SUMM-RE est le seul corpus qu'il n'a jamais vu ; son entraînement inclut CFPP2000 et FLEURS.</li>
+<li><strong>Kyutai</strong> reste lent : 11 min de calcul pour une réunion de 20 min. Il est entendu ici en 24 kHz, sa fréquence native.</li>
+<li><strong>FrWhisper</strong> ne sait pas produire de repères de temps : WAMA le fait transcrire par fenêtres de 30 s, et il omet 40 % des mots. Il garde pourtant les hésitations, comme les références.</li>
+</ul>
+<h2 id="limites-et-suites">Limites et suites</h2>
+<p><strong>Limites</strong></p>
+<ul>
+<li><strong>Trois réunions seulement</strong> : l'écart entre deux réunions dépasse souvent l'écart entre deux configurations. Des différences de moins de 2 points ne sont pas établies.</li>
+<li><strong>Bascules de langue synthétiques</strong> : FLEURS-CS enchaîne des phrases lues par des locuteurs différents, sans transition naturelle. Un corpus de bascules réelles reste à trouver sous une licence utilisable.</li>
+<li><strong>L'accord de langue plafonne à 65 %</strong> tant que la langue se décide par fenêtre de 30 s.</li>
+<li><strong>Une seule transcription par configuration</strong> : la variation d'une relance à l'autre n'est pas mesurée.</li>
+<li><strong>LinTO, Kyutai et FrWhisper n'ont pas été mesurés sur les entretiens CFPP2000</strong> : LinTO a été entraîné dessus, et un entretien d'une heure coûte environ une heure de calcul à Kyutai.</li>
+</ul>
+<p><strong>Suites proposées</strong></p>
+<ul>
+<li><strong>Nouveaux moteurs à évaluer</strong>, tous ouverts et vérifiés :
+<ul>
+<li>LinTO FR, Kyutai STT 1B et FrWhisper : intégrés et mesurés (section précédente) ;</li>
+<li>Voxtral Mini 3B, pour les bascules de langue ;</li>
+<li>Hojo-ASR et Granite Speech 4.1, installables dans l'environnement actuel.</li>
+</ul>
+</li>
+<li><strong>Reconnaissance des locuteurs</strong> : community-1 fait jeu égal avec la 3.1 (section précédente) ; reste à intégrer et mesurer Nemotron-3-Diarization.</li>
+<li><strong>Mesure complémentaire</strong> : un score qui ne compte que les mots mal reconnus, pour séparer « mal entendu » de « pas transcrit mot à mot ».</li>
+</ul>
+<h2 id="sources">Sources</h2>
+<p>Corpus :</p>
+<ul>
+<li><a href="https://huggingface.co/datasets/linagora/SUMM-RE" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">SUMM-RE</a> (Linagora, CC-BY-SA 4.0)</li>
+<li><a href="https://huggingface.co/datasets/BrunoHays/fleurs_code_switching_test" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">FLEURS code-switching</a>, construit sur <a href="https://huggingface.co/datasets/google/fleurs" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">Google FLEURS</a> (CC-BY 4.0)</li>
+<li><a href="https://huggingface.co/datasets/datasets-CNRS/CFPP" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">CFPP2000</a> (CNRS, CC-BY-NC-SA 3.0)</li>
+</ul>
+<p>Modèles :</p>
+<ul>
+<li><a href="https://huggingface.co/openai/whisper-large-v3" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">Whisper large-v3</a>, servi par <a href="https://github.com/SYSTRAN/faster-whisper" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">faster-whisper</a></li>
+<li><a href="https://huggingface.co/Qwen/Qwen3-ASR-1.7B" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">Qwen3-ASR 1.7B</a></li>
+<li><a href="https://huggingface.co/nvidia/canary-1b-v2" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">Canary 1B v2</a> et <a href="https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">Parakeet TDT 0.6B v3</a></li>
+<li><a href="https://huggingface.co/linagora/linto_stt_fr_fastconformer_pc" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">LinTO STT FR FastConformer</a></li>
+<li><a href="https://huggingface.co/kyutai/stt-1b-en_fr-trfs" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">Kyutai STT 1B en/fr</a></li>
+<li><a href="https://huggingface.co/aihpi/FrWhisper" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">FrWhisper</a></li>
+<li><a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">pyannote speaker-diarization-3.1</a> et <a href="https://huggingface.co/pyannote/speaker-diarization-community-1" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">community-1</a></li>
+<li><a href="https://github.com/Rikorose/DeepFilterNet" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">DeepFilterNet</a> et <a href="https://github.com/resemble-ai/resemble-enhance" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">Resemble Enhance</a></li>
+<li><a href="https://albert.api.etalab.gouv.fr/" target="_blank" rel="noopener" target="_blank" rel="noopener noreferrer">Albert API</a> (DINUM)</li>
+</ul>
+
+{% endverbatim %}
+  </article>
+  <p class="foot">Mesures du compte d'évaluation de WAMA, rangées par lot et par modèle. Le détail et sa lecture vivent dans la doc de construction (qualité des modèles).</p>
+</div>
+</body>
+</html>

@@ -170,6 +170,12 @@ def fiches(request):
     return render(request, 'includes/wama_fiches.html')
 
 
+def transcription_report(request):
+    """Rapport d'évaluation des moteurs de transcription — instantané du 2 octobre 2026, mesuré
+    dans WAMA (page générée depuis le rapport, cf. l'en-tête du gabarit)."""
+    return render(request, 'includes/wama_rapport_transcription.html')
+
+
 #: Ce que l'assistant répond pendant qu'une libération de la carte est en cours — un message
 #: d'attente automatique, jamais un silence ni une erreur nue (l'utilisateur doit savoir).
 _RELEASE_WAIT_MESSAGE = ("Un traitement lourd libère la carte graphique en ce moment : je reste "
