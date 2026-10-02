@@ -1108,6 +1108,17 @@ les cards reçues~~ — faux pour l'imager, corrigé pour le converter le 2026-1
 ⚠ Le premier montage du témoin (card sans lot, puis lot non partagé) donnait un faux rouge : la
 file du describer se construit à partir des LOTS.
 
+### RANGER une card reçue dans SA file (2026-10-02)
+
+Scénario **`common.received_entry_arrangement`** (`ui_smoke_menus.py`), **8/8** au premier run
+(8011, code neuf), sur le describer (file commune) : la card reçue est marquée « Reçue de … »
+(pseudo-élément lu par `getComputedStyle`) ; clic droit → le menu offre « Retirer de ma file » et
+ni « Partager » ni « Transférer » ; retirée, elle quitte la file SANS rechargement ; au retour sur
+la page elle n'y est plus et la ligne « Réafficher » est là ; un clic la remet ; l'élément du
+propriétaire et son fichier sont intacts. Joués dans la même passe et inchangés :
+`received_card_visible` 7/7, `received_card_duplicate` 6/6, `card_transfer` 5/5,
+`batch_transfer` 6/6 (le menu « … » a changé). Domicile : `WAMA_COLLABORATION §3bis.2`.
+
 ### Une card REÇUE dans la file du converter (2026-10-02)
 
 Scénario **`common.received_card_visible`** (`ui_smoke_menus.py`), **7/7** (8011, code neuf) :

@@ -120,6 +120,18 @@ body.wama-simple .wama-settings-hint--simple { display: inline; }
    GAUCHE et discret ; le tricolore d'état garde bordure/badge/barre. ─────────────────────── */
 .wama-card { border-left: 3px solid var(--wama-app-color, rgba(255,255,255,.10)); }
 
+/* ── Entrée REÇUE (2026-10-02, WAMA_COLLABORATION §3bis.2) : « Reçue de … », écrit d'après
+   `--wama-received`, posée par `_queue_entry.html` sur l'ENVELOPPE — une card rafraîchie la garde.
+   Le liseré passe en pointillés : on voit d'un coup d'œil ce qui n'est pas à soi. ──────────── */
+.wama-queue-entry[data-received-from] > .wama-card,
+.batch-group[data-received-from] > .wama-card.is-batch { position: relative; border-left-style: dashed; }
+.wama-queue-entry[data-received-from] > .wama-card::before,
+.batch-group[data-received-from] > .wama-card.is-batch::before {
+    content: var(--wama-received, 'Reçue');
+    position: absolute; top: 2px; right: 10px; z-index: 1; pointer-events: none;
+    font-size: .64rem; line-height: 1; color: #c4b5fd; letter-spacing: .02em;
+}
+
 /* ── Désempilage batch (solitaire) : les cartes « fan out » en cascade à l'ouverture. ───── */
 @keyframes wama-fan-in { from { opacity: 0; transform: translateY(-14px) scale(.97); } to { opacity: 1; transform: none; } }
 /* Durée + stagger augmentés (2026-06-29) : .26s était trop rapide, on ne voyait pas le désempilage. */

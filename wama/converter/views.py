@@ -158,17 +158,26 @@ class IndexView(View):
         from wama.common.utils.detail_registry import normalize_status
         from wama.common.utils.card_chips import common_chips_for_items
         from wama.converter.params import PARAMS_JSON as _PARAMS_JSON
+        # RANGEMENT chez le destinataire (2026-10-02, `WAMA_COLLABORATION §3bis.2`) — même règle que
+        # `build_batches_list` : l'entrée est le LOT, ou le job quand il n'a pas de lot.
+        from wama.common.services.reception import entry_arrangement, lines_for
+        from wama.converter.models import ConversionBatch
+        received_lines = lines_for(user, ConversionBatch, ConversionJob)
         batches_list = []
         for items in grouped.values():
             items_sorted = sorted(items, key=lambda j: j.batch_row_index)
+            batch = items[0].batch
+            arrangement = entry_arrangement(user, batch or items[0], received_lines)
+            if arrangement is None:
+                continue
             for j in items_sorted:
                 _decorate_job(j)  # chips du SCHÉMA (card_chips) — même décoration que card_html
-            batch = items[0].batch
             total = batch.total if batch else len(items_sorted)
             # Contrat de _batch_card.html (même forme que build_batches_list — converter groupe
             # en mémoire car FK directe job→batch, pas de modèle de liaison).
             statuses = [normalize_status(j.status) for j in items_sorted]
             batches_list.append({
+                **arrangement,
                 'obj': batch,
                 'items': items_sorted,
                 'is_group': bool(batch) and total > 1,

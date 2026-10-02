@@ -596,6 +596,37 @@ class ShareConsent(models.Model):
         return f'{self.username or self.user_id} · {self.object_type}#{self.object_id} · {what}'
 
 
+class ReceivedEntry(models.Model):
+    """Le RANGEMENT, chez le destinataire, d'une entrée de file qu'on lui a partagée (2026-10-02).
+
+    `WAMA_COLLABORATION §3bis.2` — *une card reçue est indépendante dans SA file* : il la retire
+    (« retirer de ma file » ≠ supprimer : l'originale n'est jamais touchée) et il l'ordonne, sans
+    que rien ne change chez le propriétaire. La ligne ne porte AUCUN droit : c'est la visibilité de
+    l'élément (`ScopedVisibility`) qui dit s'il peut le voir. Elle n'existe qu'à partir du premier
+    geste de rangement — une card reçue sans ligne est simplement affichée.
+
+    La cible est l'ENTRÉE de file : le LOT (une file se construit à partir des lots, et partager
+    une card partage son lot), ou la card elle-même quand elle n'a pas de lot (converter, avant le
+    rangement paresseux de son propriétaire). Cible par chaîne + pk, comme `ShareConsent`.
+    """
+    recipient = models.ForeignKey('auth.User', on_delete=models.CASCADE,
+                                  related_name='received_entries')
+    object_type = models.CharField(max_length=64)            # `app_label.ModelName`
+    object_id = models.PositiveBigIntegerField()
+    hidden_at = models.DateTimeField(null=True, blank=True)  # retirée de SA file
+    queue_index = models.PositiveIntegerField(default=0)     # SON ordre manuel (0 = jamais ordonné)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['recipient', 'object_type', 'object_id'],
+                                               name='unique_received_entry')]
+        verbose_name = 'Entrée reçue (rangement)'
+        verbose_name_plural = 'Entrées reçues (rangement)'
+
+    def __str__(self):
+        return f'{self.recipient} · {self.object_type}#{self.object_id}'
+
+
 class ReleasedFile(models.Model):
     """Un fichier que plus aucune card n'appelle — GARDÉ, l'utilisateur prévenu (2026-09-30).
 

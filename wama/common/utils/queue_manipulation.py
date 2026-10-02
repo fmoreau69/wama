@@ -163,6 +163,11 @@ def _make_reorder_queue(*, batch_model, get_user):
             if bid in connus:
                 batch_model.objects.filter(pk=bid, user=user).update(queue_index=idx)
                 n += 1
+        # Les entrées REÇUES de la même liste (2026-10-02, `WAMA_COLLABORATION §3bis.2`) : leur
+        # place va dans la ligne de rangement du destinataire, à la position qu'elles occupent dans
+        # CETTE liste — l'ordre du lot, lui, reste celui de son propriétaire.
+        from wama.common.services.reception import set_order
+        n += set_order(user, batch_model, order)
         return JsonResponse({'reordered': True, 'count': n})
 
     return reorder_queue

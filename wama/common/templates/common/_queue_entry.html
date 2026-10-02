@@ -67,14 +67,20 @@ route absente n'émet pas l'attribut (`{% templatetag openblock %} url … as {%
 brique retombe alors sur le rechargement.
 ⚠ JUMEAU côté JS : `queue-actions.js::unwrapBatch` recrée l'enrobage unitaire ci-dessous
 (classe, `display:contents`, `data-entry-batch-id`, `data-card-url`) — les deux vont ensemble.{% endcomment %}
+{% comment %}`data-received-from` (2026-10-02, `WAMA_COLLABORATION §3bis.2`) — l'entrée est REÇUE :
+posé par le constructeur de file (`received_from`), lu par le menu « … » (« Retirer de ma file »)
+et par la CSS commune (« reçue de … », `wama-inspector.css`), qui l'écrit d'après `--wama-received`.
+Posé sur l'ENVELOPPE, comme `data-entry-batch-id` : une card rafraîchie (`card_html`) le garde.
+Une entrée SANS lot (`obj` vide — card reçue du converter que son propriétaire n'a pas encore
+rangée) se rend en card SEULE : la branche « lot » lui dessinait un en-tête « Batch # » vide.{% endcomment %}
 {% load wama_actions %}
 {% domain_route_prefix app domain as card_route_prefix %}
 {% url app|add:':'|add:card_route_prefix|add:'card_html' 0 as card_url %}
-{% if batch_info.obj.is_unitary %}
+{% if not batch_info.obj or batch_info.obj.is_unitary %}
   {% for item in batch_info.items %}{% if item.elem %}
     {% with elem=item.elem card_label=item.output_filename in_batch=False %}
-      <div class="wama-queue-entry" style="display:contents"
-           data-entry-batch-id="{{ batch_info.obj.id }}"{% if card_url %} data-card-url="{{ card_url }}"{% endif %}>{% include card_template %}</div>
+      <div class="wama-queue-entry" style="display:contents{% if batch_info.received_from %}; --wama-received:'Reçue de {{ batch_info.received_from }}'{% endif %}"
+           data-entry-batch-id="{{ batch_info.obj.id }}"{% if card_url %} data-card-url="{{ card_url }}"{% endif %}{% if batch_info.received_from %} data-received-from="{{ batch_info.received_from }}"{% endif %}>{% include card_template %}</div>
     {% endwith %}
   {% endif %}{% endfor %}
 {% else %}
@@ -89,7 +95,7 @@ brique retombe alors sur le rechargement.
   modèle de lot du dépôt qui groupe par nature (`ConversionBatch`, + sa jumelle de bac à
   sable) — les 9 autres n'ont pas le champ et ne rendent donc aucun attribut. La brique
   surface ce que le modèle DÉCLARE ; elle ne connaît aucune app.{% endcomment %}
-  <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}"{% if batch_info.obj.media_type %} data-media-type="{{ batch_info.obj.media_type }}"{% endif %}{% if card_url %} data-card-url="{{ card_url }}"{% endif %}>
+  <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}"{% if batch_info.obj.media_type %} data-media-type="{{ batch_info.obj.media_type }}"{% endif %}{% if card_url %} data-card-url="{{ card_url }}"{% endif %}{% if batch_info.received_from %} data-received-from="{{ batch_info.received_from }}" style="--wama-received:'Reçue de {{ batch_info.received_from }}'"{% endif %}>
     {% include 'common/_batch_card.html' %}
     <div class="collapse" id="{{ collapse_prefix|default:'batchItems' }}{{ batch_info.obj.id }}"
          data-wama-batch-key="{{ batch_key|default:app }}_{{ batch_info.obj.id }}"

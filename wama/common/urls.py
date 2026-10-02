@@ -94,6 +94,10 @@ urlpatterns = [
          name='api_released_files_renew'),
     # « Transférer à… » (2026-10-01) : une card change de propriétaire, ses fichiers la suivent.
     path('api/transfer/', views.api_transfer, name='api_transfer'),
+    # RANGEMENT d'une entrée reçue dans SA file (2026-10-02, `WAMA_COLLABORATION §3bis.2`).
+    path('api/reception/', views.api_reception, name='api_reception'),
+    path('api/reception/show-all/', views.api_reception_show_all, name='api_reception_show_all'),
+    path('api/reception/hidden/', views.api_reception_hidden, name='api_reception_hidden'),
     # ENVOYER VERS — résolveur en LECTURE SEULE : sorties de l'élément + apps éligibles +
     # l'endpoint qui reçoit. L'envoi lui-même passe par `filemanager:api_import`, celui qui
     # sert déjà « Envoyer vers… » — on ne duplique pas ses gardes.

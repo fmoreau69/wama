@@ -944,6 +944,94 @@ def check_received_card_visible():
     return _bilan(verdicts)
 
 
+def check_received_entry_arrangement():
+    """Le RANGEMENT chez le destinataire par le VRAI chemin (2026-10-02, `WAMA_COLLABORATION
+    §3bis.2`) : la card reçue est marquée « Reçue de … » ; son menu offre « Retirer de ma file » et
+    pas les gestes du propriétaire ; retirée, elle quitte la file SANS rechargement ; au retour sur
+    la page, « Réafficher » sous la barre la remet. L'élément du propriétaire n'est jamais touché.
+    (ok, detail)
+
+    Joué sur le DESCRIBER (file commune `build_batches_list`). Propriétaire : le compte de test
+    DÉVELOPPEUR ; destinataire : le compte de test. ⚠ Pas de `accept_dialogs` à craindre : le geste
+    n'ouvre aucune boîte.
+    """
+    from django.contrib.auth import get_user_model
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.models import ReceivedEntry
+    from wama.common.services.nightly_tests import SkipScenario, get_test_dev_user
+    from wama.common.services.sharing import partager
+    from wama.common.utils.media_paths import app_media_dir
+    from wama.describer.models import BatchDescription, Description
+    from wama.describer.views import _wrap_description_in_batch
+
+    page_path = '/describer/'
+    session_token, uid = _test_session_key('describer'), _test_account_id('describer')
+    owner = get_test_dev_user()
+    if not (session_token and uid and owner) or owner.pk == uid:
+        raise SkipScenario('deux comptes de test distincts sont nécessaires')
+    requester = get_user_model().objects.get(pk=uid)
+    home = app_media_dir('describer', owner.pk, 'input')
+    folder = Path(settings.MEDIA_ROOT) / home
+    folder.mkdir(parents=True, exist_ok=True)
+    name = 'wama_temoin_rangement.txt'
+    source = _temoin(folder, name, '.txt')
+    item = Description.objects.create(user=owner, filename=name)
+    item.input_file.name = f'{home}/{name}'
+    item.save(update_fields=['input_file'])
+    owner_batch = _wrap_description_in_batch(item)
+    partager(owner, item, 'public')
+    card = f".wama-card[data-id='{item.pk}']"
+    menu = '.wama-card-menu .wama-cm-item'
+    before, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, session_token)
+            try:
+                resp = page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(page, resp, page_path)
+                if refused_page:
+                    return refused_page
+                label = page.evaluate(
+                    f"() => getComputedStyle(document.querySelector(\"{card}\"), '::before').content")
+                verdicts.append(('Reçue de' in (label or ''), f'la card est marquée « reçue » ({label})'))
+                page.evaluate("() => { window.__wamaNoReload = 'meme-page'; }")
+                page.locator(card).first.click(button='right')
+                page.wait_for_selector('.wama-card-menu', timeout=10000)
+                remove = page.locator(f'{menu}:has-text("de ma file")')
+                verdicts.append((remove.count() == 1, 'le menu propose « Retirer … de ma file »'))
+                owner_only = page.locator(f'{menu}:has-text("Partager"), {menu}:has-text("Transférer")')
+                verdicts.append((owner_only.count() == 0,
+                                 f'ni « Partager » ni « Transférer » ({owner_only.count()})'))
+                if remove.count() == 1:
+                    remove.first.click()
+                    page.wait_for_selector(card, state='detached', timeout=15000)
+                verdicts.append((page.evaluate("() => window.__wamaNoReload") == 'meme-page',
+                                 'elle quitte la file sans rechargement'))
+                page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                page.wait_for_selector('[data-reception-hidden]', timeout=15000)
+                verdicts.append((page.locator(card).count() == 0,
+                                 'au retour sur la page, elle n’y est plus'))
+                page.click('[data-reception-hidden] [data-reception-show-all]')
+                page.wait_for_selector(card, timeout=20000)
+                verdicts.append((True, '« Réafficher » la remet dans la file'))
+                verdicts.append(_console(errors))
+            finally:
+                nav.close()
+    finally:
+        _drop_new_sessions(before)
+        partager(owner, item, 'private')
+    verdicts.append((Description.objects.filter(pk=item.pk, user=owner).exists() and source.exists(),
+                     'l’élément du propriétaire et son fichier sont intacts'))
+    # Ménage : la ligne de rangement, le témoin, son lot, son fichier.
+    ReceivedEntry.objects.filter(recipient=requester).filter(
+        object_type=BatchDescription._meta.label, object_id=owner_batch.pk).delete()
+    Description.objects.filter(pk=item.pk).delete()
+    BatchDescription.objects.filter(pk=owner_batch.pk).delete()
+    source.unlink(missing_ok=True)
+    return _bilan(verdicts)
+
+
 def check_card_transfer():
     """« Transférer à… » par le VRAI chemin : clic droit sur une card → entrée du menu → saisie du
     destinataire → la card QUITTE la file sans rechargement ; en base, elle est au destinataire,
@@ -1146,6 +1234,11 @@ def register_menu_scenarios():
              description="Card REÇUE dans la file du converter : listée, rafraîchie, téléchargée, "
                          "pas supprimable par le destinataire ; repassée privée, elle disparaît",
              run=lambda ctx: check_received_card_visible(), timeout_s=240)
+    register(id='common.received_entry_arrangement', app='common', stage='ui',
+             description="Card REÇUE rangée par son destinataire : marquée « reçue », « Retirer de "
+                         "ma file » sans rechargement, « Réafficher » la remet ; rien ne bouge chez "
+                         "le propriétaire",
+             run=lambda ctx: check_received_entry_arrangement(), timeout_s=240)
     register(id='common.card_transfer', app='common', stage='ui',
              description="« Transférer à… » depuis le menu de la card : elle quitte la file sans "
                          "rechargement, appartient au destinataire, son fichier déplacé chez lui",

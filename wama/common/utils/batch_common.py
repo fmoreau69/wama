@@ -374,8 +374,16 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
     batches = (base
                .prefetch_related(_works_prefetch(batch_model, items_related, work_attr))
                .order_by(order_by))
+    # RANGEMENT chez le destinataire (2026-10-02, `WAMA_COLLABORATION §3bis.2`) : une entrée REÇUE
+    # qu'il a retirée de sa file n'y figure plus ; les autres portent « reçue de … » et SON ordre
+    # manuel. Une requête par page (`reception.lines_for`), aucune pour qui n'a rien reçu.
+    from wama.common.services.reception import entry_arrangement, lines_for
+    received_lines = lines_for(user, batch_model)
     result = []
     for batch in batches:
+        arrangement = entry_arrangement(user, batch, received_lines)
+        if arrangement is None:
+            continue
         # sorted() sur le cache prefetch (pas de .order_by() ici : re-requêterait par batch)
         items = sorted(getattr(batch, items_related).all(),
                        key=lambda it: getattr(it, 'row_index', 0) or 0)
@@ -408,6 +416,7 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
                                      for s, w in zip(statuses, works))
         if extra is not None:
             row.update(extra(batch, items, works) or {})
+        row.update(arrangement)
         result.append(row)
     return result
 
