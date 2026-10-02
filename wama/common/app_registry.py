@@ -856,7 +856,7 @@ def world_label(world: str) -> str:
 # Une app du catalogue déclare son monde dans son entrée (`world`). Une app qui n'y entre pas le
 # déclare depuis son `AppConfig.ready()` : le monde POUSSE, le substrat ne connaît pas ses
 # producteurs (AGENTS.md, « un monde n'est pas un sous-dossier du substrat »).
-#   • `declare_app_world()` — le monde seul (une app sans page : `wama_data`) ;
+#   • `register_app_world()` — le monde seul (une app sans page : `wama_data`) ;
 #   • `register_surface()`  — le monde ET l'identité d'une page (Lab, Studio, Médiathèque…).
 # ⚠ LUS À L'APPEL, jamais capturés à l'import : ces deux tables se remplissent au `ready()`.
 #
@@ -871,7 +871,7 @@ _DECLARED_WORLDS: dict = {}
 _SURFACES: dict = {}
 
 
-def declare_app_world(app_id: str, world: str) -> None:
+def register_app_world(app_id: str, world: str) -> None:
     """Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
     de contredire le catalogue : une app n'a qu'UNE déclaration."""
     from .manifests.envelope import WORLDS
@@ -899,7 +899,7 @@ def register_surface(app_id: str, *, world: str, label: str, url_name: str, icon
     studio ou la médiathèque n'ont pas de dossier d'app). Idempotent : un `ready()` rejoué
     remplace la même entrée.
     """
-    declare_app_world(app_id, world)
+    register_app_world(app_id, world)
     surface = {'app': app_id, 'gate': app_id, 'world': world, 'label': label,
                'url_name': url_name, 'icon': icon, 'description': description, 'order': order}
     if color:
@@ -976,10 +976,11 @@ def get_app_groups() -> list:
         by_world.setdefault(world, {}).setdefault(cid, []).append((name, entry))
     groups = []
     for world, section in sorted(WORLD_SECTIONS.items(), key=lambda kv: kv[1]['order']):
-        categories = by_world.get(world) or {}
-        for cid in sorted(categories, key=lambda c: (APP_CATEGORIES.get(c) or {}).get('order', 99)):
+        by_category = by_world.get(world) or {}
+        for cid in sorted(by_category,
+                          key=lambda c: (APP_CATEGORIES.get(c) or {}).get('order', 99)):
             groups.append({'id': cid, 'world': world, 'meta': APP_CATEGORIES.get(cid) or section,
-                           'apps': categories[cid], 'links': []})
+                           'apps': by_category[cid], 'links': []})
         links = surfaces(world)
         if links:
             groups.append({'id': world, 'world': world, 'meta': section,
@@ -993,7 +994,7 @@ def app_world(app_id: str) -> str | None:
 
     Chaque app déclare son monde (décision du 2026-09-15, `WAMA_APP_GENERATION_ROUTE.md §10.6`
     point 6.1, marche P1) : dans son entrée d'`APP_CATALOG`, ou — hors catalogue — depuis son
-    `ready()` (`declare_app_world`, `register_surface`). Il était DÉDUIT du groupe de la matrice
+    `ready()` (`register_app_world`, `register_surface`). Il était DÉDUIT du groupe de la matrice
     d'accès : un libellé de navigation renommé déplaçait une app de monde en silence, et
     transcriber, reader et describer sortaient `data`, le converter `transverse`.
 

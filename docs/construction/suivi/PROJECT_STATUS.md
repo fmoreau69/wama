@@ -20027,3 +20027,27 @@ Suite de `7d56da95` (3ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 
 - **P1 est TERMINÉ** en quatre commits : `4bca60bc`, `a721c4ca`, `7d56da95`, et celui-ci.
   À régénérer par qui touchera le registre : `WAMA_MECANISMES.md` et `docs/dev/briques.md`
   (mécanisme `app_worlds`, fonctions d'`app_registry` renommées).
+
+## §PALIER — 2026-10-02, « PIPELINE PORTÉ PAR LA CARD — CLÔTURE DE P1 : suite complète rejouée, langue des identifiants recalée » — ✅ commit ci-dessous, non poussé — 🔚 P3 : décisions n°1-3 et pilote à arbitrer
+
+- **Suite complète rejouée après les quatre pièces** (WSL, base isolée) : 4766 tests,
+  `FAILED (failures=14)` — onze tests, **les mêmes NOMS qu'à l'ouverture de session**, moins
+  `transcriber.tests_model_select` (soldé entre-temps par une autre instance) : budgets de langue
+  (classes et méthodes de test), `tests_notifications` ×3, `tests_settings_surfaces`, mime
+  `audio/x-wav`, `ItemEditRouteAliasTest`, `test_ne_DEVINE_pas_le_role…`, docs générées ×2.
+  `check_docs` : 3 cassées / 2495, les trois d'avant. `manifest_roundtrip --all` : fidélité OK sur
+  les dix apps. `manifest_export --check` : aucun manifeste d'app, de fonction ou de pipeline
+  périmé (18 manifestes `model`, d'autres chantiers).
+- ⚠ **Un rouge était de moi, corrigé ici** : le budget de langue du CODE dépassait d'un (2680 >
+  2679). Deux identifiants écrits dans la session sont comptés français par le contrôle —
+  `declare_app_world` (radical `declar`) et `categories` — : renommés **`register_app_world`** et
+  `by_category`. Trois noms de tests neufs en `…declares…` renommés en `…states…`. Budget du code
+  recalé à la mesure : **2678** (−1, `LIBELLES_MONDES` retiré). Les deux budgets des noms de
+  tests restent dépassés comme à l'ouverture (133 > 132, 1316 > 1310) — pas de cette session.
+  ⚠ Les blocs de palier ci-dessus et le message du commit `a721c4ca` citent encore
+  `declare_app_world` : c'est `register_app_world`.
+- **À faire par qui touchera le registre des mécanismes** : régénérer `WAMA_MECANISMES.md` et
+  `docs/dev/briques.md` (`doc_facts`) — `test_chaque_mecanisme_a_sa_section` reste rouge (171
+  sections écrites pour 177 mécanismes, dont `app_worlds` de cette session).
+- **Pendings système** : 🔴 relancer WAMA pour voir l'accueil et l'explorateur dérivés ; la base
+  de test `test_wama_db_reprise_pipeline` est à supprimer en fin de session.

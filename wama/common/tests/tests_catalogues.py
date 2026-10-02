@@ -464,7 +464,7 @@ class AppCatalogConformiteTest(TestCase):
                     self.assertEqual(categorie, derive_category(spec),
                                      "la catégorie déclarée contredit les types déclarés")
 
-    def test_every_app_declares_a_known_world(self):
+    def test_every_app_states_a_known_world(self):
         """Chaque app DÉCLARE son monde (`WAMA_APP_GENERATION_ROUTE §10.6` point 6.1, marche P1).
 
         Les jumelles de bac à sable sont écartées : une jumelle hérite du monde de sa source par
@@ -641,7 +641,7 @@ class DeclaredWorldsTest(TestCase):
     EXPECTED = {'cam_analyzer': 'lab', 'face_analyzer': 'lab', 'studio': 'transverse',
                 'media_library': 'transverse', 'model_manager': 'transverse'}
 
-    def test_each_surface_declares_its_world_and_sits_in_its_section(self):
+    def test_each_surface_states_its_world_and_sits_in_its_section(self):
         from wama.common.app_registry import app_world, surface_for, surfaces
         for app, world in self.EXPECTED.items():
             with self.subTest(app=app):
@@ -714,11 +714,11 @@ class DeclaredWorldsTest(TestCase):
         self.assertNotIn("'studio:index'", template, "le Studio écrit en dur dans l'accueil")
 
     def test_an_unknown_world_or_a_contradiction_is_refused(self):
-        from wama.common.app_registry import declare_app_world
+        from wama.common.app_registry import register_app_world
         with self.assertRaises(ValueError):
-            declare_app_world('demo_app', 'studio')       # pas un monde du vocabulaire
+            register_app_world('demo_app', 'studio')       # pas un monde du vocabulaire
         with self.assertRaises(ValueError):
-            declare_app_world('transcriber', 'data')      # le catalogue dit `media`
+            register_app_world('transcriber', 'data')      # le catalogue dit `media`
 
     def test_the_substrate_no_longer_names_the_lab_apps(self):
         source = (Path(__file__).resolve().parents[2] / 'common' / 'app_registry.py').read_text(
@@ -727,7 +727,7 @@ class DeclaredWorldsTest(TestCase):
                          "une route du Lab écrite dans le substrat : la surface se déclare "
                          "depuis le `ready()` de l'app")
 
-    def test_a_journal_source_takes_the_world_its_app_declares(self):
+    def test_a_journal_source_takes_the_world_stated_by_its_app(self):
         from wama.common.services.journal import enregistrer_source, sources
         found = {s.app: s for s in sources()}
         self.assertEqual(found['studio'].monde, 'transverse')

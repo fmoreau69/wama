@@ -133,7 +133,7 @@ def enregistrer_source(app, model, *, champ_date=None, champ_user='user'):
     monde = app_world(app)
     if monde is None:
         raise ValueError(f"[journal] {app!r} n'a pas déclaré son monde — appeler "
-                         f"`register_surface` ou `declare_app_world` avant `enregistrer_source`")
+                         f"`register_surface` ou `register_app_world` avant `enregistrer_source`")
     champ_date = champ_date or _detecter_champ_date(model)
     if champ_date is None:
         logger.warning("[journal] %s sans champ de date connu — source ignorée", model.__name__)
