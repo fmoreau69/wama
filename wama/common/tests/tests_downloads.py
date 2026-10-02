@@ -132,3 +132,55 @@ class PasDeDropdownReconstruitEnJSTests(SimpleTestCase):
             "dropdown de téléchargement reconstruit en JS — passer `split=False` au tag "
             "`download_button` (les formats viennent alors du catalogue) :\n  "
             + "\n  ".join(coupables))
+
+
+class BatchCardZipButtonTests(SimpleTestCase):
+    """The ZIP button of a batch's parent card takes its FORM from the app's declaration, through
+    the common ⬇ button — as the card and the queue bar already did (2026-10-02). Before, the
+    three multi-format apps each passed a `_batch_download_menu.html` partial where their formats
+    were copied by hand, with a query spelling of their own (`?fmt=`)."""
+
+    def _card(self, app, has_success=True):
+        from types import SimpleNamespace
+        from django.template.loader import render_to_string
+        batch_info = {'obj': SimpleNamespace(id=7, total=2, pk=7), 'items': [],
+                      'has_success': has_success, 'success_count': int(has_success),
+                      'running_count': 0, 'failure_count': 0}
+        html = render_to_string('common/_batch_card.html',
+                                {'batch_info': batch_info, 'app': app, 'download_url': '/lot/7/dl/'})
+        return re.sub(r'\s+', ' ', html)
+
+    def test_a_multi_format_app_gets_the_declared_formats_as_a_menu(self):
+        from wama.common.utils.export_formats import entries_for_app
+        html = self._card('reader')
+        declared = [e['value'] for e in entries_for_app('reader')]
+        self.assertGreaterEqual(len(declared), 2)
+        for fmt in declared:
+            self.assertIn(f'/lot/7/dl/?format={fmt}', html)
+        self.assertNotIn('?fmt=', html, 'the batch menu speaks the common query, `format`')
+        self.assertNotIn('dropdown-toggle-split', html)
+
+    def test_a_single_format_app_gets_a_plain_link(self):
+        html = self._card('anonymizer')
+        self.assertIn('href="/lot/7/dl/"', html)
+        self.assertNotIn('dropdown-menu', html)
+
+    def test_without_a_result_the_button_is_hidden_never_disabled(self):
+        """The script that reveals it only lifts `hidden`: a disabled button would stay dead."""
+        for app in ('reader', 'anonymizer'):
+            with self.subTest(app=app):
+                html = self._card(app, has_success=False)
+                zip_part = html[html.index('data-batch-zip'):html.index('batch-duplicate-btn')]
+                self.assertIn('data-batch-zip hidden', html)
+                self.assertNotIn('disabled', zip_part)
+
+    def test_no_app_template_lists_batch_formats_by_hand(self):
+        """Absence guard: a hand-written batch menu would bring the copied formats back."""
+        racine = Path(settings.BASE_DIR)
+        pattern = re.compile(r"batch_download[^%]*%\}\?(?:fmt|format)=")
+        coupables = [f'{chemin.relative_to(racine)}:{num}'
+                     for chemin in racine.glob('wama/*/templates/**/*.html')
+                     if not chemin.relative_to(racine).parts[1].endswith('_01')
+                     for num, ligne in enumerate(chemin.read_text(encoding='utf-8').splitlines(), 1)
+                     if pattern.search(ligne)]
+        self.assertEqual([], coupables)

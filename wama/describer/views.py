@@ -5,12 +5,9 @@ AI-powered content description and summarization
 
 import os
 from wama.accounts.permissions import app_access
-import io
 import json
 import logging
 import mimetypes
-import zipfile
-import datetime
 from pathlib import Path
 from zipfile import ZipFile
 from io import BytesIO
@@ -470,12 +467,23 @@ def _reset_for_relaunch(description):
 # DÉCLARÉES en kwargs : remise à zéro sous verrou (`_reset_for_relaunch` + cache à 0), cache de
 # progression `describer_progress_<id>` lu par `batch_status` et purgé à la suppression,
 # `result_text` vidé à la duplication, gating `@app_access` sur le démarrage. `batch_download`
-# reste LOCAL : multi-format `?fmt=txt|pdf|docx` (WAMA_APP_CONVENTIONS §9.10), hors de la
-# convention `output_file` — écart assumé, la grille le dit (`batch_views_common` = partiel).
+# vient AUSSI de la fabrique depuis le 2026-10-02 : le format se choisit au téléchargement
+# (`export_binding='late'`), donc la fabrique lit les formats DÉCLARÉS au catalogue et le rendu
+# ENREGISTRÉ (`build_description_bytes`, `apps.py`) — la vue locale recopiait les deux en dur.
+# Seule la souche du nom de chaque entrée reste dite ici (`_output_stem`).
 from wama.common.utils.batch_views import (DEFAULT_RESET, apply_item_settings, make_batch_views,
                                            read_settings_payload)
 from wama.describer.params import PARAMS_JSON as _SCHEMA
 from .workers import describe_content as _describe_content
+
+
+def _output_stem(d):
+    """Souche du nom d'une description RENDUE dans un ZIP de lot — règle commune de nommage
+    (`compose_output_name`) sur le nom d'origine du fichier ; l'extension vient du rendu."""
+    from wama.common.utils.output_naming import compose_output_name
+    return os.path.splitext(compose_output_name(
+        app='describer', source_name=d.filename or f'desc_{d.id}', item_id=d.id))[0]
+
 
 #: Réglages d'un élément — les colonnes que la modale et le volet écrivent (schéma `params.py`).
 SETTINGS_FIELDS = ('output_style', 'output_language', 'max_length', 'generate_summary',
@@ -499,11 +507,13 @@ _bv = make_batch_views(
     reset_on_duplicate={**DEFAULT_RESET, 'result_text': ''},
     progress_of=lambda d: cache.get(f"describer_progress_{d.id}", d.progress or 0),
     on_delete=lambda d: cache.delete(f"describer_progress_{d.id}"),
+    output_name=_output_stem,
 )
 batch_start = app_access('describer')(_bv['batch_start'])
 batch_update = _bv['batch_update']
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
+batch_download = _bv['batch_download']
 batch_status = _bv['batch_status']
 
 
@@ -1034,37 +1044,6 @@ def build_description_bytes(d, fmt):
     if d.result_text:
         return ('txt', d.result_text.encode('utf-8'))
     return None
-
-
-def batch_download(request, pk):
-    """Download a ZIP of all completed description results in a batch.
-
-    Format chosen via ?fmt=txt|pdf|docx (default txt) — dropdown variant of the
-    multi-format batch ZIP convention (WAMA_APP_CONVENTIONS §9.10).
-    """
-    user = get_user(request)
-    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
-    fmt = (request.GET.get('fmt') or 'txt').lower()
-    if fmt not in ('txt', 'pdf', 'docx'):
-        fmt = 'txt'
-
-    from wama.common.utils.batch_common import batch_elements
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for d in batch_elements(batch, Description):     # brique : ordre des lignes garanti
-            if d.status == 'SUCCESS':
-                from wama.common.utils.output_naming import compose_output_name
-                stem = os.path.splitext(compose_output_name(
-                    app='describer', source_name=d.filename or f'desc_{d.id}',
-                    item_id=d.id))[0]
-                built = build_description_bytes(d, fmt)
-                if built:
-                    ext, data = built
-                    archive.writestr(f'{stem}.{ext}', data)
-
-    buffer.seek(0)
-    zip_name = f"batch_describer_{pk}_{fmt}_{datetime.date.today()}.zip"
-    return FileResponse(buffer, as_attachment=True, filename=zip_name)
 
 
 

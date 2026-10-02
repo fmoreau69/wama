@@ -1500,21 +1500,28 @@ groupes par nature = mode pipeline/standalone ; ⧉ par item + duplication in-ba
   canonique de l'app (ex. anonymizer `get_blurred_media_path`, converter `job.output_file.path`).
 - **URL** : `batch/<int:pk>/download/` → `name='batch_download'`.
 
-**Variante déroulante (apps multi-formats)** : si un même item peut produire **plusieurs
-formats de sortie** (transcriber `txt/srt/vtt/json`, describer, reader), le bouton devient
-un **dropdown** « Télécharger tout en … » listant les formats disponibles, chaque entrée
-appelant `batch_download?fmt=<ext>`. Pour les apps **mono-format par item**
-(anonymizer, converter, enhancer, composer), c'est un **bouton simple** (le ZIP contient
-les sorties telles quelles).
+**Variante déroulante (apps multi-formats)** : si le format se choisit AU TÉLÉCHARGEMENT
+(`export_binding='late'` — transcriber, describer, reader), le bouton devient un **menu** des
+formats, chaque entrée appelant `batch_download?format=<ext>`. Pour les apps **mono-format
+par item** (anonymizer, converter, enhancer, composer), c'est un **bouton simple** (le ZIP
+contient les sorties telles quelles).
+
+> ✅ **Rien à écrire par app (2026-10-02).** La forme du bouton et le contenu du ZIP se LISENT
+> des deux déclarations du §6.3 : les formats (`export_formats` au catalogue) et le rendu de
+> l'app (`export_formats.register_export_builder`, dans `apps.py`). L'app passe `download_url`
+> à la card mère, qui rend le bouton par la brique du ⬇ commun ; sa vue `batch_download` est
+> celle de la fabrique (`make_batch_views`), qui borne le format aux déclarés
+> (`export_formats.requested_format`). Avant : un partial `_batch_download_menu.html` et une
+> vue par app, formats recopiés en dur, query `?fmt=` (encore lue, pour un lien gardé).
 
 **Apps conformes (ZIP batch) — toutes :**
 - **Bouton simple** (mono-format par item) : Anonymizer ✅ | Converter ✅ |
   Enhancer ✅ (image/vidéo + audio) | Composer ✅ (WAV) | Synthesizer ✅ |
   Avatarizer ✅ (MP4)
-- **Dropdown multi-formats** : Reader ✅ (`txt/md/pdf/docx/json`) | Transcriber ✅
+- **Menu multi-formats** : Reader ✅ (`txt/md/pdf/docx/json`) | Transcriber ✅
   (`txt/srt/pdf/docx`) | Describer ✅ (`txt/pdf/docx`)
-  — chaque app expose un helper `_build_<obj>_bytes(obj, fmt)` réutilisé par le
-  téléchargement unitaire et le ZIP, et `batch_download?fmt=<ext>` (GET).
+  — chaque app ENREGISTRE son rendu `build_<obj>_bytes(obj, fmt)` (`register_export_builder`) ;
+  le ZIP de lot l'appelle par la fabrique, `batch_download?format=<ext>` (GET).
 
 ---
 

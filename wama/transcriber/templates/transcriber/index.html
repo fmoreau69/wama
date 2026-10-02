@@ -252,7 +252,8 @@ ne sont PAS des onglets : ils portent sur une card existante, leur geste est son
             Le bloc qui vivait ici était recopié à l'identique dans les 10 gabarits ; le markup du
             partial EST celui du transcriber, app de référence. `_batch_card.html` reçoit ses
             paramètres par le CONTEXTE — d'où le `with` ci-dessous, qui les fournit une fois.{% endcomment %}
-            {% include 'common/_queue_entry.html' with card_template='transcriber/_transcript_card.html' card_class='synthesis-card' meta_template='transcriber/_batch_meta.html' download_menu_template='transcriber/_batch_download_menu.html' eta_ids=batch_info.eta_ids app='transcriber' actions_communes=True %}
+            {% url 'transcriber:batch_download' batch_info.obj.id as batch_dl_url %}
+            {% include 'common/_queue_entry.html' with card_template='transcriber/_transcript_card.html' card_class='synthesis-card' meta_template='transcriber/_batch_meta.html' download_url=batch_dl_url eta_ids=batch_info.eta_ids app='transcriber' actions_communes=True %}
 
             {% empty %}
             <div class="text-center py-5 empty-queue">

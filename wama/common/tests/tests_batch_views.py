@@ -386,3 +386,105 @@ class SettingsPayloadTest(TestCase):
                                       extra_names=('gif_fps',))
         self.assertEqual(touched, ['steps', 'options'])
         self.assertEqual((item.steps, item.options), (7, {'keep': 1, 'gif_fps': 12}))
+
+
+class LateBindingBatchDownloadTest(TestCase):
+    """The batch ZIP of an app whose format is chosen AT DOWNLOAD (`export_binding='late'`) comes
+    from the factory, read off the two DECLARATIONS the ⬇ button already uses on the card and on
+    the queue bar: the formats declared in the catalogue, the renderer the app registered
+    (2026-10-02).
+
+    Before: three `batch_download` views copied in describer, reader and transcriber, each with
+    its formats written by hand and its own query spelling (`?fmt=`). Generic: every late-binding
+    queue app of the catalogue is exercised through its REAL route, none is named — a fourth one
+    is covered without touching this test. The registered renderer is replaced by a stand-in
+    (what a renderer produces is each app's own test)."""
+
+    from wama.common.tests import tests_queue_delete_contract as _contract
+    _account_for = _contract.SuppressionDansChaqueAppTest._compte_pour
+
+    def _fleet(self):
+        """(surface, account, element model, declared formats) of each late-binding queue app.
+
+        A GENERATOR, on purpose: `_account_for` logs the client in as the account that passes the
+        surface's gate (a sandbox twin needs the developer account), so it must run right before
+        the surface is exercised — built as a list, the last surface's login served them all."""
+        from wama.common.utils.export_formats import entries_for_app, is_late_binding
+        from wama.common.utils.preview_registry import PreviewRegistry
+        for surface, _delete_route, _card_route in self._contract._surfaces():
+            if not is_late_binding(surface):
+                continue
+            declared = [e['value'] for e in entries_for_app(surface)]
+            yield (surface, self._account_for(surface),
+                   PreviewRegistry.get_model(surface), declared)
+
+    def _zip(self, surface, lot, query):
+        import io
+        import zipfile
+        from django.urls import reverse
+        response = self.client.get(reverse(f'{surface}:batch_download', args=[lot.pk]), query)
+        self.assertEqual(200, response.status_code, f'{surface} {query}')
+        archive = zipfile.ZipFile(io.BytesIO(b''.join(response.streaming_content)))
+        return archive.namelist(), response['Content-Disposition']
+
+    def _lot_with_one_success(self, model, account):
+        lot, (done, _pending) = self._contract._lot_de(model, account, 2)
+        model.objects.filter(pk=done.pk).update(status='SUCCESS')
+        return lot
+
+    @staticmethod
+    def _stand_in(surface):
+        return {surface: lambda item, fmt: (fmt, fmt.encode())}
+
+    def test_the_fleet_is_measured_and_every_app_registered_its_renderer(self):
+        """Non-vacuity — and the pairing the factory relies on: declared late ⇒ a renderer."""
+        from wama.common.utils.export_formats import export_builder_for
+        fleet = list(self._fleet())
+        self.assertGreaterEqual(len(fleet), 3, [s for s, *_ in fleet])
+        for surface, _account, _model, declared in fleet:
+            with self.subTest(surface=surface):
+                self.assertTrue(declared, 'late-binding without declared formats')
+                self.assertTrue(callable(export_builder_for(surface)), 'no renderer registered')
+
+    def test_each_declared_format_gives_a_zip_of_that_format(self):
+        from unittest import mock
+        from wama.common.utils import export_formats
+        for surface, account, model, declared in self._fleet():
+            lot = self._lot_with_one_success(model, account)
+            with mock.patch.dict(export_formats._BUILDERS, self._stand_in(surface)):
+                for fmt in declared:
+                    with self.subTest(surface=surface, fmt=fmt):
+                        names, disposition = self._zip(surface, lot, {'format': fmt})
+                        self.assertEqual(1, len(names), 'only the successful element is rendered')
+                        self.assertTrue(names[0].endswith('.' + fmt), names)
+                        self.assertNotIn('/', names[0], 'an entry name must not open a folder')
+                        self.assertIn(f'_{fmt}_', disposition)
+
+    def test_an_unknown_or_missing_format_falls_back_to_the_first_declared(self):
+        from unittest import mock
+        from wama.common.utils import export_formats
+        for surface, account, model, declared in self._fleet():
+            lot = self._lot_with_one_success(model, account)
+            with mock.patch.dict(export_formats._BUILDERS, self._stand_in(surface)), \
+                    self.subTest(surface=surface):
+                for query in ({}, {'format': 'exe'}):
+                    names, _disposition = self._zip(surface, lot, query)
+                    self.assertTrue(names[0].endswith('.' + declared[0]), (query, names))
+
+    def test_the_old_query_spelling_of_the_batch_menus_is_still_read(self):
+        from unittest import mock
+        from wama.common.utils import export_formats
+        for surface, account, model, declared in self._fleet():
+            lot = self._lot_with_one_success(model, account)
+            with mock.patch.dict(export_formats._BUILDERS, self._stand_in(surface)), \
+                    self.subTest(surface=surface):
+                names, _disposition = self._zip(surface, lot, {'fmt': declared[-1]})
+                self.assertTrue(names[0].endswith('.' + declared[-1]), names)
+
+    def test_no_app_keeps_a_batch_download_view_of_its_own(self):
+        """The copy must not come back: a late-binding app's `batch_download` IS the factory's."""
+        from importlib import import_module
+        for surface, _account, model, _declared in self._fleet():
+            with self.subTest(surface=surface):
+                views = import_module(f'{model.__module__.rsplit(".", 1)[0]}.views')
+                self.assertEqual('wama.common.utils.batch_views', views.batch_download.__module__)

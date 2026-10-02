@@ -64,7 +64,8 @@ Ids dropZone/fileInput/describerFolderInput/media_url/mediaUrlSubmit conservés.
          {% queue_dnd_attrs 'describer' %}>
             {% for batch_info in batches_list %}
 
-            {% include 'common/_queue_entry.html' with card_template='describer/_description_card.html' card_class='synthesis-card' download_menu_template='describer/_batch_download_menu.html' eta_ids=batch_info.eta_ids app='describer' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
+            {% url 'describer:batch_download' batch_info.obj.id as batch_dl_url %}
+            {% include 'common/_queue_entry.html' with card_template='describer/_description_card.html' card_class='synthesis-card' download_url=batch_dl_url eta_ids=batch_info.eta_ids app='describer' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
 
             {% empty %}
             <div class="text-center py-5 empty-queue">

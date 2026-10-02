@@ -14,7 +14,9 @@ Slots/options (tous optionnels) :
                            'generation-card') — garde le style existant de l'app.
   meta_template          : partial d'app pour la colonne « méta communes aux filles »
                            (reçoit batch_info ; ex. transcriber : modèle/langue/diarisation).
-  download_menu_template : partial d'app pour les items du menu « ⬇ ZIP » (rendu si has_success).
+  download_url           : URL du ZIP du lot (`<app>:batch_download`). Sa FORME — lien simple ou
+                           menu des formats — se lit de la déclaration de l'app (`export_formats`),
+                           par la brique du bouton ⬇ commun ; rien d'autre à passer.
   eta_ids                : ids des éléments (CSV) pour l'ETA agrégée (sinon pas d'ETA).
   show_start             : défaut True — bouton ▶ Lancer/relancer le batch (pos. 2, conventions §6).
   app                    : NAMESPACE d'URL de l'app (ex. 'transcriber').
@@ -128,26 +130,17 @@ connaître aucun sélecteur d'app (2026-08-23). Absent = app mono-domaine, rien 
                 fille réussit pendant que la page est ouverte. Rendu seulement « si réussite », il
                 n'apparaissait qu'au rechargement. L'enveloppe `span` porte le `hidden` : le
                 `d-inline-block` de Bootstrap (!important) l'emporterait sur l'attribut.{% endcomment %}
-                {% if download_menu_template %}
+                {% comment %}La FORME du bouton — lien simple ou menu des formats — n'est pas un
+                paramètre : elle vient de la DÉCLARATION de l'app (`export_formats` au catalogue),
+                par la brique du bouton ⬇ commun, comme sur la card et sur la barre de file
+                (2026-10-02). Avant, les trois apps à formats multiples passaient chacune un
+                partial `_batch_download_menu.html` où leurs formats étaient recopiés en dur, avec
+                une query à elles (`?fmt=`). `ready` vaut toujours vrai ici : c'est l'enveloppe
+                `hidden` qui tient le bouton invisible tant qu'aucune sortie n'existe — désactivé,
+                il le resterait quand la brique JS le montre.{% endcomment %}
+                {% if download_url %}
                 <span data-batch-zip{% if not batch_info.has_success %} hidden{% endif %}>
-                <div class="dropdown d-inline-block">
-                    <button class="btn btn-sm btn-outline-info py-0 px-2 dropdown-toggle"
-                            type="button" data-bs-toggle="dropdown" aria-expanded="false"
-                            title="Télécharger toutes les sorties (ZIP)">
-                        <i class="fas fa-download"></i> ZIP
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        {% include download_menu_template %}
-                    </ul>
-                </div>
-                </span>
-                {% elif download_url %}
-                {# Variante mono-format (ex. composer : ZIP de WAV) — lien direct, pas de menu #}
-                <span data-batch-zip{% if not batch_info.has_success %} hidden{% endif %}>
-                <a class="btn btn-sm btn-outline-info py-0 px-2" href="{{ download_url }}"
-                   title="Télécharger toutes les sorties (ZIP)">
-                    <i class="fas fa-download"></i> ZIP
-                </a>
+                {% download_button app download_url True css_class='btn-outline-info py-0 px-2' label='ZIP' split=False title='Télécharger toutes les sorties (ZIP)' %}
                 </span>
                 {% endif %}
                 <button class="btn btn-sm btn-outline-warning batch-duplicate-btn py-0 px-2"

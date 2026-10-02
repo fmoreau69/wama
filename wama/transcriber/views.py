@@ -75,9 +75,11 @@ def _reset_for_relaunch(t):
 # (`_reset_for_relaunch` + cache de progression à 0), cache `transcriber_progress_<id>` lu par
 # `batch_status` et purgé à la suppression avec les sorties TXT/SRT (`_cleanup_output_files`),
 # libellé d'une ligne = nom du fichier ou queue de l'URL, remise à zéro COMPLÈTE à la
-# duplication (texte, langue, segments, enrichissements). `batch_download` reste LOCAL :
-# multi-format `?fmt=txt|srt|pdf|docx` (§9.10), hors de la convention `output_file` — écart
-# assumé (`batch_views_common` = partiel).
+# duplication (texte, langue, segments, enrichissements). `batch_download` vient AUSSI de la
+# fabrique depuis le 2026-10-02 : le format se choisit au téléchargement (`export_binding=
+# 'late'`), la fabrique lit les formats DÉCLARÉS au catalogue et le rendu ENREGISTRÉ
+# (`build_transcript_bytes`, `apps.py`) — la vue locale recopiait les deux en dur. Seule la
+# souche de chaque entrée reste dite ici (`_zip_entry_stem`).
 from wama.common.utils.batch_views import (DEFAULT_RESET, apply_item_settings, make_batch_views,
                                            read_settings_payload)
 from wama.transcriber.params import PARAMS_JSON as _SCHEMA
@@ -115,6 +117,14 @@ def _label_of(t):
     return t.filename if t.audio else ((t.source_url or '').split('/')[-1] or t.source_url)
 
 
+def _zip_entry_stem(t):
+    """Souche d'une transcription RENDUE dans un ZIP de lot : la souche commune de la sortie
+    (`_output_stem`) pour un fichier, sinon la queue de l'URL ; l'extension vient du rendu."""
+    if t.audio:
+        return _output_stem(t)
+    return os.path.splitext((t.source_url or '').split('/')[-1])[0] or f'transcript_{t.id}'
+
+
 def _forget_transcript(t):
     _cleanup_output_files(t, t.user_id)
     cache.delete(f"transcriber_progress_{t.id}")
@@ -133,11 +143,13 @@ _bv = make_batch_views(
     progress_of=lambda t: cache.get(f"transcriber_progress_{t.id}", t.progress or 0),
     item_label=_label_of,
     on_delete=_forget_transcript,
+    output_name=_zip_entry_stem,
 )
 batch_start = _bv['batch_start']
 batch_update_settings = _bv['batch_update']      # nom de vue de l'URLconf (`batch/<pk>/update/`)
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
+batch_download = _bv['batch_download']
 batch_status = _bv['batch_status']
 
 
@@ -1500,36 +1512,6 @@ def batch_list(request):
         })
 
     return JsonResponse({'batches': data})
-
-
-def batch_download(request, pk):
-    """Download a ZIP of all completed transcription results in a batch.
-
-    Format chosen via ?fmt=txt|srt|pdf|docx (default txt) — dropdown variant
-    for the multi-format batch ZIP convention (WAMA_APP_CONVENTIONS §9.10).
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
-    fmt = (request.GET.get('fmt') or 'txt').lower()
-    if fmt not in ('txt', 'srt', 'pdf', 'docx'):
-        fmt = 'txt'
-
-    from wama.common.utils.batch_common import batch_elements
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for t in batch_elements(batch, Transcript):     # brique : ordre des lignes garanti
-            if t.status == 'SUCCESS' and t.text:
-                stem = _output_stem(t) if t.audio else (
-                    os.path.splitext(t.source_url.split('/')[-1])[0] or f'transcript_{t.id}'
-                )
-                built = build_transcript_bytes(t, fmt)
-                if built:
-                    ext, data = built
-                    archive.writestr(f'{stem}.{ext}', data)
-
-    buffer.seek(0)
-    zip_name = f"batch_transcriber_{pk}_{fmt}_{datetime.date.today()}.zip"
-    return FileResponse(buffer, as_attachment=True, filename=zip_name)
 
 
 @require_POST

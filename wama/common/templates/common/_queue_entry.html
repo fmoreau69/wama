@@ -17,7 +17,7 @@ PARAMÈTRES
                   sinon les deux files partageraient leur mémoire de repli.
 
 TOUT LE RESTE PASSE PAR LE CONTEXTE. `{% templatetag openblock %} include {% templatetag closeblock %}` le propage, donc les paramètres
-de `_batch_card.html` (`card_class`, `download_url`, `download_menu_template`, `meta_template`,
+de `_batch_card.html` (`card_class`, `download_url`, `meta_template`,
 `eta_ids`, `app`, `actions_communes`, `show_settings`, `confirm_duplicate`…) sont fournis par
 l'appelant et traversent ce partial sans qu'il ait à les connaître ni à les répéter. C'est ce
 qui garde sa signature à trois paramètres au lieu d'une quinzaine — et ce qui fait qu'ajouter
