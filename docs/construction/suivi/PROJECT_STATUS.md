@@ -19876,3 +19876,33 @@ Session dédiée ouverte sur le chantier `WAMA_APP_GENERATION_ROUTE.md §10.6` (
    elle reste lourde pour une seule clé (piste : ne synchroniser que la source de la clé).
 4. Pas à moi, constatés : budgets de langue des noms de test, `writer_01` sans curseur,
    `check_docs` 3 cassées.
+
+## §PALIER — 2026-10-02 (suite), « PORTAGE : LE COMPOSER SUR LE SQUELETTE COMMUN » — ✅ `1fc8ab73` (non poussé) — 🔴 RELANCER les workers — 🔚 jouer une génération GPU réelle ; `backend_routes` du composer ; les quatre autres apps attendent P3
+
+**Décision de Fabien (2026-10-02)** : la nuance du 15/09 de `ROUTE §10.6` est CONFIRMÉE — une app à
+un seul process adopte `run_item_task` sans attendre le moteur commun (P3). Le composer est le 6ᵉ
+adoptant ; les apps à plusieurs étapes (anonymizer, avatarizer, imager, synthesizer pour
+`task_skeleton`) restent en attente de P3.
+
+- ✅ `compose_task` ne porte plus que sa glu ; le squelette lui apporte la tâche déclarée au
+  gouverneur, le garde-temps, le signal `produit` / `echec` et la révision.
+- ✅ **Un « auto » reste « auto »** : le modèle tiré n'est plus écrit dans le réglage `model`
+  (relance figée) ; même règle pour le plafond de durée, écrit seulement si le modèle est désigné.
+- ✅ **Sortie au domicile de l'app** (`app_media_dir`) : le dossier était composé à la main
+  (`composer/<uid>/output`, l'arbre d'avant la bascule du 12/09) — aucune génération depuis, la
+  prochaine aurait recréé l'ancien arbre.
+- ✅ `tool_api.compose_music` lance par `begin_processing` (« en cours » est posé par le lanceur) ;
+  une mélodie donnée par URL compte comme une mélodie pour le tirage (le squelette demande le
+  modèle AVANT de télécharger).
+
+**Mesuré** : `composer/tests_task` 9 OK (contre-épreuve : les deux anciens défauts réintroduits =
+2 rouges) ; 160 tests du périmètre, 1 rouge antérieur et hors sujet (`tests_tool_api_lectures`,
+« candidates ») ; grille : `task_skeleton` vert pour le composer (92/97).
+
+**Restes nommés** :
+1. Aucune génération GPU RÉELLE n'a été jouée sur ce code (tests à moteur simulé).
+2. `vram_needed` non déclaré pour le composer (aucune garde VRAM avant, aucune après).
+3. ETA d'un élément « auto » pendant son traitement : la vue `progress` estime avec le réglage
+   (`auto:…`), donc sur l'a-priori — le modèle en cours n'est lisible nulle part avant la ligne
+   d'exécution de P3 (même trou que l'enhancer). Relevé transmis à la session pipeline.
+4. `backend_routes` du composer : toujours rouge (aucune `ROUTES` déclarée).
