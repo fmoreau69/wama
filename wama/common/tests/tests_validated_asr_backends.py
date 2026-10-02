@@ -43,6 +43,37 @@ class DecodedAtTheModelRateTest(SimpleTestCase):
         self.assertEqual((16000, 16000), (rate, len(audio)))
 
 
+class ALoadedModelIsReusedTest(SimpleTestCase):
+    """2026-10-02 campaign: the GPU worker keeps a backend between cards; both backends reloaded
+    their model on EVERY card, stacking copies until CUDA ran out of memory (19:53, 20:18)."""
+
+    def _reloads(self, backend):
+        """`load()` on a backend whose model is already there: it must not go back to the disk
+        (`component_paths` is where every load starts)."""
+        resident = object()
+        backend._model, backend._loaded = resident, True
+        with mock.patch(f'{type(backend).__module__}.component_paths',
+                        side_effect=AssertionError('reloaded')) as paths:
+            self.assertTrue(backend.load(), 'the next card reuses the model')
+        self.assertFalse(paths.called)
+        self.assertIs(resident, backend._model)
+
+    def test_frwhisper_reuses_its_loaded_model(self):
+        self._reloads(FrWhisperBackend())
+
+    def test_kyutai_reuses_its_loaded_model(self):
+        self._reloads(KyutaiSttBackend())
+
+    def test_counter_check_a_half_loaded_backend_is_freed_before_loading_again(self):
+        backend = KyutaiSttBackend()
+        backend._model, backend._loaded = object(), False
+        with mock.patch.object(backend, 'unload', wraps=backend.unload) as unload, \
+                mock.patch(f'{type(backend).__module__}.component_paths',
+                           side_effect=RuntimeError('no weights')):
+            self.assertFalse(backend.load())
+        unload.assert_called_once()
+
+
 class TheCatalogueResolvesThemTest(SimpleTestCase):
     """Three transcription backends now drive `transformers`: the model id decides."""
 
