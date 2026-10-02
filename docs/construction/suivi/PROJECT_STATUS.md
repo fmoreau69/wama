@@ -20223,3 +20223,48 @@ surface). Vérifié SUR HEAD en worktree (154 tests ; seule erreur = l'artefact 
   modèles ; seuls `apps/imager.json` et `apps/synthesizer.json` sont partis avec `60d047b4`.
 - aucun geste navigateur joué sur les modales de lot : le code servi est l'ancien tant que WAMA
   n'est pas relancé.
+
+## §PALIER — 2026-10-02 (nuit), « PORTAGE : LA DURÉE DU COMPOSER EST BORNÉE PAR LA CAPACITÉ DU MODÈLE (`cap_from`) — critère `model_caps_ui` remis à l'heure » — ✅ `53a1d657`, non poussé — 🔴 RELANCER WAMA — 🔚 vérification navigateur du volet et des modales du composer (GPU occupé ce soir) ; C (`detail_spec`) attend une décision
+
+**Le quick win annoncé n'en était pas un par motif.** Le critère `model_caps_ui` (rouge : composer,
+imager) ne cherchait que le mot `WamaModelCaps` dans les gabarits. Confronté au code :
+
+| app | ce que le code faisait | verdict |
+|---|---|---|
+| imager | borne durée, cadence, pas et guidage par `cap_from` (déclaration au schéma) depuis le 23/09 | l'app était juste, le CRITÈRE en retard d'un mécanisme |
+| composer | curseur de durée jusqu'à 10 min ; MusicGen/AudioGen produisent 30 s, Music 3 300 s ; `clamp_duration` réduisait en silence au lancement | le défaut exact que `cap_from` existe pour retirer |
+| transcriber | charge la brique sans plus l'appeler (grisage retiré, R88) | vert par le motif, pas par l'usage — noté, pas traité |
+
+**Fait, sans rien construire de neuf.** `duration` du composer déclare `cap_from` ; la capacité
+`max_duration_s` vient de la déclaration d'app par `duration_caps_from_declaration` — la même
+traduction pour la découverte (donc l'écran) et pour `clamp_duration` (la tâche). Le volet du
+composer passe de trois hôtes à UN (la borne lie deux champs du même rendu) ; le descriptif du
+moteur, câblé deux fois, ne l'est plus qu'une (`REMOVAL_LEDGER` R93).
+
+**Deux cas MUETS fermés dans `wama-params.js`** (brique commune, donc aussi pour l'imager) :
+un réglage à `cap_from` rendu sans son champ modèle le dit dans la console ; `apply()` — les
+valeurs posées par programme d'une modale de lot — rejoue les bornes (sans cela la borne gardait
+le modèle du rendu initial ; contre-épreuve V8 : 300 au lieu de 30).
+
+**Mesures.** Grille 910 → **912/939**, `model_caps_ui` VRAI pour les 8 apps à sélecteur de moteur.
+Suite complète : 4896 tests, 14 rouges, tous de causes antérieures et hors périmètre (docs
+générées de l'arbre ×2, notifications ×3, budgets de langue ×5 — +3/+1/+7 venus d'ailleurs —,
+`tool_api` candidats, `audio/x-wav`, stub imager du générateur, `quality_intent` du transcriber).
+Gardes : `tests_cap_from_declared` (générique + composer + critère), `tests_cap_from_js` (règle et
+câblage, V8).
+
+**Restes, nommés.**
+- 🔴 **Rien n'a été vu au navigateur** : worker GPU occupé (≈ 20-22 Go / 24,5), aucun geste
+  d'interface pendant un traitement. À jouer sur le composer — volet (un seul descriptif du moteur,
+  ordre Modèle → qualité → Durée → Format → Qualité), modale ⚙, modale de lot : MusicGen → curseur
+  arrêté à 30 s avec « Limite du modèle » ; Music 3 → 300 s ; « auto » et YuE2 → 600 s.
+- La borne ne s'affiche qu'après la relance de WAMA ET la synchro périodique du catalogue
+  (`model_manager.sync_models` écrit `max_duration_s` sur les lignes du composer) ; d'ici là le
+  plafond serveur s'applique comme avant.
+- ⚠ Incident de session, sans dégât : un `python -m unittest` SANS réglages Django s'est glissé
+  dans une commande (découverte sur tout le dépôt, ~5 min, tué). Base réelle relue après coup :
+  intacte (16 comptes, 250 modèles, 478 transcriptions) ; aucun fichier inattendu dans l'arbre.
+- Les manifestes de MODÈLES régénérés dans l'arbre par `manifest_export --kind app` (qui écrit tout
+  le corpus périmé) restent non commités — cf. le palier précédent ; seul `apps/composer.json` est
+  parti.
+- C (`detail_spec` ×6, extension du langage de spec) : décision de Fabien attendue.
