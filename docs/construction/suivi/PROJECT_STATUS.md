@@ -19662,6 +19662,23 @@ lignes de ce journal). Rouges CONNUS hors périmètre, relevés dans la passe la
   transfert ni la duplication d'une card reçue — à brancher sur `file_references.listed_paths`,
   en cours chez l'instance des fichiers libérés (signalé à elle). Point 1 de la clôture : SOLDÉ.
 
+## §PALIER — 2026-10-01 (nuit), « QUATRE APPS SUR `WamaApp.addToQueue` + GESTE N°7 `<app>.add` » — ✅ commit ci-dessous
+
+- imager, avatarizer, composer, synthesizer : le formulaire « Ajouter à la file » écrit à la main
+  est RETIRÉ au profit de la brique commune (mécanisme `add_to_queue`) ; ne restent chez chacune
+  que ses spécificités (mode dérivé et taille de l'imager, avatar de l'avatarizer, modèle/durée du
+  composer, réglages et titre du synthesizer). La brique a gagné `urlInputId`, `onSettled`,
+  `successMessage`, la consigne ORIGINALE si ✨ l'a enrichie, le motif JSON de tout refus.
+- **Mesuré** : V8 (parse des 5 fichiers + comportement de la brique, vraies promesses) ;
+  navigateur sur serveur jetable :8011, compte `wama_nightly_test` : 4/4 — entrée vide refusée
+  sans requête, consigne → élément EN ATTENTE (rien lancé), 0 erreur JS ; éléments de la sonde
+  supprimés, son avatar témoin (`wama_temoin_*`) laissé au balayeur.
+- ✅ **Geste n°7 écrit** (`ui_smoke.check_app_add`, `<app>.add`, `WAMA_VERIFICATION §3`) : 6 OK
+  (avatarizer, composer, imager, imager_01, synthesizer, writer_01) ; contre-épreuve bouton tué →
+  ÉCHEC, jamais SKIP. Au passage : `_test_session_key` donne le compte DEV aux apps nées d'un
+  manifeste (`sandbox` sans `generated_from`), pas seulement aux jumelles. `staticfiles/`
+  synchronisé ; recharger la page suffit si le serveur ne met pas les statiques en cache.
+
 ## §CLÔTURE — 2026-10-01 (nuit), « ALBERT FILTRÉ, PRÉVISION = TIRAGE, COMPTES `wama_*` » — ✅ tout vérifié EN SERVICE après les deux rechargements — 🔚 décision : ouvrir ou non le compte `wama_evaluation` aux modèles distants
 
 - ✅ Vérifié en service (gunicorn rechargé par Fabien) : page des utilisateurs — 6 + 10 comptes,

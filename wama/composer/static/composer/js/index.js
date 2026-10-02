@@ -206,65 +206,44 @@
     // Generate single item
     // ---------------------------------------------------------------------------
 
-    if (generateBtn) {
-        generateBtn.addEventListener('click', function () {
-            // Prompt VIDE autorisé = génération ALÉATOIRE (le placeholder de la card l'annonce ;
-            // backend generate_unconditional / chroma-seule). Cf. INPUT_MODEL_MATCHING.md.
-            const prompt = promptInput?.value.trim() || '';
-
-            const modelId = modelSelect?.value || 'auto:text-to-music';
-            const duration = getSelectedDuration();
-
-            const formData = new FormData();
-            formData.append('csrfmiddlewaretoken', CSRF);
-            formData.append('prompt', prompt);
-            formData.append('model', modelId);
-            formData.append('duration', duration);
-            // Curseur rapide/qualité du volet (chantier C) — lu au lancement si le modèle est auto-*.
-            formData.append('quality_intent', document.getElementById('qualityIntent')?.value || '');
-            formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
-            formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
-
+    // Brique commune `WamaApp.addToQueue` (portage 2026-10-01) : bouton « Envoi… », consigne,
+    // fichiers JOINTS ou DÉSIGNÉS par port, URL de mélodie en repli (un fichier joint prime :
+    // `ensure_local_input` la télécharge au lancement), refus dit, toast. AJOUTE à la file, ne
+    // lance rien (règle des deux temps) : la card arrive en attente, son ▶ la lance.
+    // Prompt VIDE autorisé = génération ALÉATOIRE (le placeholder de la card l'annonce ;
+    // backend generate_unconditional / chroma-seule). Cf. INPUT_MODEL_MATCHING.md.
+    if (generateBtn && window.WamaApp && WamaApp.addToQueue) {
+        // Partition (port `reference_score`, 2026-10-01) — onglet DÉRIVÉ des capacités (YuE2) :
+        // son <input> est celui que la card déclare pour le port, posté sous le nom du port.
+        const scorePane = document.querySelector('#composerNewCard [data-port-pane="reference_score"]');
+        const ports = [{ inputId: 'melodyInput', field: 'melody_reference',
+                         urlField: 'source_url', urlInputId: 'melodyUrlInput' }];
+        if (scorePane && scorePane.dataset.portInput) {
+            ports.push({ inputId: scorePane.dataset.portInput, field: 'reference_score' });
+        }
+        WamaApp.addToQueue({
+            url:       APP.generateUrl,
+            csrfToken: CSRF,
+            button:    generateBtn,
+            prompt:    { inputId: promptInput ? promptInput.id : '', field: 'prompt' },
             // Référence fournie → jointe. Plus de test hardcodé par modèle : l'appariement
             // WamaInputMatch garantit qu'un modèle incompatible n'est pas sélectionnable.
-            // Fichier joint OU désigné (médiathèque, arbre — pointé, jamais re-téléversé).
-            const hasMelody = WamaApp.appendInput(formData, melodyInput, 'melody_reference');
-            // Partition (port `reference_score`, 2026-10-01) — onglet DÉRIVÉ des capacités (YuE2) :
-            // son <input> est celui que la card déclare pour le port, posté sous le nom du port.
-            const scorePane = document.querySelector('#composerNewCard [data-port-pane="reference_score"]');
-            const scoreInput = scorePane && document.getElementById(scorePane.dataset.portInput);
-            if (scoreInput) WamaApp.appendInput(formData, scoreInput, 'reference_score');
-
-            // Mélodie par URL (slot url de la card, champ SANS bouton d'import) : partie du
-            // payload — téléchargée AU LANCEMENT par ensure_local_input (WAMA_INGEST).
-            // Un fichier local joint prime sur l'URL.
-            const melodyUrl = document.getElementById('melodyUrlInput');
-            if (melodyUrl?.value.trim() && !hasMelody) {
-                formData.append('source_url', melodyUrl.value.trim());
-            }
-
-            const idleHtml = generateBtn.innerHTML;   // libellé du gabarit, jamais recopié ici
-            generateBtn.disabled = true;
-            generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Envoi…';
-
-            // AJOUTE à la file, ne lance rien (2026-09-29, règle des deux temps) : la card
-            // arrive en attente, son ▶ (bouton de cycle commun) la lance.
-            fetch(APP.generateUrl, { method: 'POST', body: formData })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.error) {
-                        WamaApp.toast('Erreur : ' + data.error, 'error');
-                    } else {
-                        promptInput.value = '';
-                        insertRenderedCard(data.id);
-                        WamaApp.toast('Ajouté à la file — réglez-le si besoin, puis ▶ pour lancer.', 'success');
-                    }
-                })
-                .catch(err => WamaApp.toast('Erreur réseau : ' + err, 'error'))
-                .finally(() => {
-                    generateBtn.disabled = false;
-                    generateBtn.innerHTML = idleHtml;
-                });
+            ports:     ports,
+            extraFields: function (fd) {
+                fd.append('model', modelSelect?.value || 'auto:text-to-music');
+                fd.append('duration', getSelectedDuration());
+                // Curseur rapide/qualité du volet (chantier C) — lu au lancement si le modèle est auto-*.
+                fd.append('quality_intent', document.getElementById('qualityIntent')?.value || '');
+                fd.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
+                fd.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
+            },
+            // La mélodie et la partition RESTENT : plusieurs variations sur une même référence
+            // s'enchaînent ; seule la consigne se vide.
+            reset:   false,
+            onAdded: function (data) {
+                if (promptInput) promptInput.value = '';
+                insertRenderedCard(data.id);
+            },
         });
     }
 

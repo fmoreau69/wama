@@ -417,6 +417,7 @@ try:
                                                register_duplicate_delete_scenarios,
                                                register_folder_import_scenarios,
                                                register_import_scenarios,
+                                               register_add_scenarios,
                                                register_inspector_actions_scenarios,
                                                register_history_scenarios,
                                                register_batch_processing_scenarios,
@@ -452,6 +453,11 @@ try:
     # son COMPORTEMENT. Les deux sont nécessaires : converter_01 satisfaisait le premier tout
     # en étant inerte — aucun script chargé, donc rien à planter (mesuré 2026-08-22).
     register_import_scenarios()
+    # 2026-10-01 — geste 7, CRÉER PAR LE BOUTON PRIMAIRE (la moitié que `.import` laisse aux
+    # cards en mode attache). Écrit le jour où quatre apps sont passées sur la brique commune
+    # `WamaApp.addToQueue` : un portage qu'aucun geste n'exerçait. Il vérifie aussi que rien
+    # n'est LANCÉ à la création — c'est ce qui le laisse tourner chaque nuit.
+    register_add_scenarios()
     # Phase 1 de la grille FONCTIONNELLE (WAMA_VERIFICATION.md §6) : les gestes 3 et 4 de la
     # convention. Premier scénario à mesurer une convention que ​RIEN ne garantissait — les
     # boutons `.duplicate-btn`/`.delete-btn` sont réécrits par chaque app, pas hérités d'un
@@ -539,7 +545,8 @@ try:
     # `startJob()` (`avatarizer/js/index.js:253-254`). Une session ne lance jamais de traitement.
     # ⚠ SOLDÉ le 2026-09-29 (règle des deux temps, CARD_DESIGN §11.11 Étape 3) : le bouton
     # primaire de composer ET d'avatarizer AJOUTE sans lancer — le geste 7 n'est plus un geste
-    # GPU sur ces deux apps. Il reste à ÉCRIRE ; ce commentaire garde l'historique.
+    # GPU sur ces deux apps. ✅ ÉCRIT le 2026-10-01 (`register_add_scenarios`, plus haut) ; ce
+    # commentaire garde l'historique.
     # Le fichier de lot atteint le même but par la seule voie dont le CONTRAT sépare « Ajouter »
     # de « Démarrer » — et le scénario vérifie que ce contrat est tenu, car c'est lui qui
     # l'autorise à tourner de jour sur un GPU partagé.

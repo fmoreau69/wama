@@ -416,58 +416,34 @@ document.addEventListener('DOMContentLoaded', function() {
     updateGlobalProgress();
     setInterval(updateGlobalProgress, 2000);
 
-    // Text input form submission
-    // Soumission via le bouton primaire de la card d'entrée COMMUNE (plus de <form>).
+    // Soumission via le bouton primaire de la card d'entrée COMMUNE : brique commune
+    // `WamaApp.addToQueue` (portage 2026-10-01) — bouton « Envoi… », refus dit, toast. Le texte
+    // à synthétiser est la consigne de la card ; les réglages du volet (`appendPanelSettings`,
+    // Higgs compris) partent avec lui, le titre aussi. La card est rendue côté serveur :
+    // rechargement.
     const submitTextBtn = document.getElementById('submitTextBtn');
-    if (submitTextBtn) {
-        submitTextBtn.addEventListener('click', async () => {
-
-            const textContent = document.getElementById('textContent').value.trim();
-            const title = document.getElementById('textTitle').value.trim();
-
-            if (!textContent) {
-                WamaApp.toast('Veuillez entrer du texte à synthétiser.', 'warning');
-                return;
-            }
-
-            const submitBtn = document.getElementById('submitTextBtn');
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ajout en cours...';
-
-            try {
-                const formData = new FormData();
-                formData.append('text_content', textContent);
-                formData.append('title', title);
-                appendPanelSettings(formData);
-
-
-                const response = await fetch(URLS.uploadText, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': csrfToken },
-                    body: formData
-                });
-
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    WamaApp.toast(`Texte ajouté avec succès à la file d'attente !\nMots: ${data.word_count}`, 'success');
-                    // Clear form
-                    const _tc = document.getElementById('textContent');
-                    const _tt = document.getElementById('textTitle');
-                    if (_tc) _tc.value = '';
-                    if (_tt) _tt.value = '';
-                    // Reload page to show new synthesis
-                    location.reload();
-                } else {
-                    WamaApp.toast('Erreur: ' + (data.error || 'Échec de l\'ajout'), 'error');
-                }
-            } catch (error) {
-                console.error('Text upload error:', error);
-                WamaApp.toast('Erreur de communication: ' + error.message, 'error');
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Ajouter à la file d\'attente';
-            }
+    if (submitTextBtn && window.WamaApp && WamaApp.addToQueue) {
+        WamaApp.addToQueue({
+            url:       URLS.uploadText,
+            csrfToken: csrfToken,
+            button:    submitTextBtn,
+            prompt:    { inputId: 'textContent', field: 'text_content' },
+            extraFields: function (fd) {
+                const titleEl = document.getElementById('textTitle');
+                fd.append('title', titleEl ? titleEl.value.trim() : '');
+                appendPanelSettings(fd);
+            },
+            validate: function (fd) {
+                return fd.get('text_content') ? '' : 'Veuillez entrer du texte à synthétiser.';
+            },
+            successMessage: function (data) {
+                return "Texte ajouté à la file d'attente — " + (data.word_count || 0) + ' mots.';
+            },
+            onAdded: function () {
+                const titleEl = document.getElementById('textTitle');
+                if (titleEl) titleEl.value = '';
+                location.reload();
+            },
         });
     }
 

@@ -163,7 +163,7 @@
     }
 
     // (`handleAudioFile` puis `retenirAudio` — l'état de la card — sont RETIRÉS : l'audio
-    // attaché est dans `audio_input`, que la card v4 affiche et que `createJob` relit.)
+    // attaché est dans `audio_input`, que la card v4 affiche et que `WamaApp.addToQueue` poste.)
 
     // -----------------------------------------------------------------------
     // Update "Generate" button state
@@ -203,34 +203,46 @@
     // Règle des deux temps (CARD_DESIGN §11.11 Étape 3, point 3 — « on ajoute, on règle, puis
     // on lance ») appliquée au portage v4, 2026-09-29 : ce bouton enchaînait `createJob()` puis
     // `startJob()`. L'élément naît en attente ; le ▶ de sa card (bouton de cycle commun) le lance.
+    // Brique commune `WamaApp.addToQueue` (portage 2026-10-01) : bouton « Envoi… », texte à
+    // dire, audio JOINT ou DÉSIGNÉ (médiathèque, arbre — pointé, jamais re-téléversé), URL de la
+    // voix en repli, refus dit, toast. Pas de `mode` posté : le serveur le dérive (audio/URL
+    // priment, sinon texte).
     const btnGenerate = $('#btn-generate');
-    const btnGenerateHtml = btnGenerate ? btnGenerate.innerHTML : '';
-    if (btnGenerate) {
-        btnGenerate.addEventListener('click', async () => {
-            btnGenerate.disabled = true;
-            btnGenerate.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Envoi…';
-
-            try {
-                const jobId = await createJob();
+    if (btnGenerate && window.WamaApp && WamaApp.addToQueue) {
+        WamaApp.addToQueue({
+            url:       cfg.urls.create,
+            csrfToken: csrf,
+            button:    btnGenerate,
+            prompt:    { inputId: 'text_content', field: 'text_content' },
+            ports:     [{ inputId: 'audio_input', field: 'audio_input',
+                          urlField: 'source_url', urlInputId: 'avatarizerUrlInput' }],
+            extraFields: function (fd) {
+                // L'avatar est TOUJOURS un fichier (joint, ou désigné : le sien, un partagé, un
+                // avatar système de la médiathèque — pointé). `avatar_source='gallery'` (un NOM)
+                // ne reste que pour les lots, le Studio et l'API de l'assistant.
+                fd.append('avatar_source', 'upload');
+                // Photo OU objet 3D : le serveur dérive le moteur de la nature du fichier.
+                WamaApp.appendInput(fd, chosenAvatar(), 'avatar_upload');
+                fd.append('bbox_shift', bboxSlider ? bboxSlider.value : '0');
+                fd.append('use_enhancer', $('#use_enhancer') && $('#use_enhancer').checked ? 'true' : 'false');
+            },
+            // L'AVATAR reste choisi : plusieurs vidéos d'un même visage s'enchaînent. Seuls le
+            // texte, l'audio et son URL se vident (geste de l'app : `clearPort` met le port à jour).
+            reset:   false,
+            onAdded: function (data) {
+                // `id` = contrat COMMUN (trou #24) ; les anciennes graphies restent lues en repli.
+                const jobId = data.id || data.job_id || data.pk || null;
                 const empty = $('#no-jobs-msg');
                 if (empty) empty.remove();
                 addJobCard(jobId);
                 updateJobsCount(1);
-                WamaApp.toast('Ajouté à la file — réglez-le si besoin, puis ▶ pour lancer.', 'success');
-
-                // Reset form
                 if (textArea) textArea.value = '';
                 if (wordCountEl) wordCountEl.textContent = '0';
-                // L'AVATAR reste choisi : plusieurs vidéos d'un même visage s'enchaînent.
                 clearPort(audioInput);
                 if (avatarizerUrlInput) avatarizerUrlInput.value = '';
-
-            } catch (err) {
-                WamaApp.toast('Erreur : ' + err.message, 'error');
-            } finally {
-                btnGenerate.innerHTML = btnGenerateHtml;   // libellé du gabarit, jamais recopié ici
-                updateGenerateButton();
-            }
+            },
+            // Le bouton rendu, l'app redit s'il doit rester grisé (entrées requises).
+            onSettled: function () { updateGenerateButton(); },
         });
     }
 
@@ -280,40 +292,7 @@
         });
     }
 
-    async function createJob() {
-        const fd = new FormData();
-        // Pas de `mode` posté : le serveur le dérive (audio/URL priment, sinon texte).
-        const promptText = textArea ? textArea.value.trim() : '';
-        if (promptText) fd.append('text_content', promptText);
-        if (hasEntry(audioInput)) {
-            // Fichier joint OU désigné (médiathèque, arbre — pointé, jamais re-téléversé).
-            WamaApp.appendInput(fd, audioInput, 'audio_input');
-        } else if (avatarizerUrlInput && avatarizerUrlInput.value.trim()) {
-            fd.append('source_url', avatarizerUrlInput.value.trim());
-        }
-
-        // L'avatar est TOUJOURS un fichier (joint, ou désigné : le sien, un partagé, un avatar
-        // système de la médiathèque — pointé). `avatar_source='gallery'` (un NOM) ne reste que
-        // pour les lots, le Studio et l'API de l'assistant.
-        fd.append('avatar_source', 'upload');
-        // Photo OU objet 3D : le serveur dérive le moteur de la nature du fichier.
-        WamaApp.appendInput(fd, chosenAvatar(), 'avatar_upload');
-        fd.append('bbox_shift', bboxSlider ? bboxSlider.value : '0');
-        fd.append('use_enhancer', $('#use_enhancer') && $('#use_enhancer').checked ? 'true' : 'false');
-
-        const resp = await fetch(cfg.urls.create, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrf },
-            body: fd,
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || 'Erreur création job');
-        if (window.WamaFM) WamaFM.uploaded();  // fichiers d'entrée ajoutés → refresh filemanager
-        // `id` = contrat COMMUN (trou #24) ; les anciennes graphies restent lues en repli le
-        // temps que le parc converge. Sans ce repli, un identifiant `undefined` ne lèverait
-        // RIEN — pas de card, pas d'erreur console : le mode de panne le plus coûteux à trouver.
-        return data.id || data.job_id || data.pk || null;
-    }
+    // `createJob` (POST /avatarizer/create/) est porté par la brique commune ci-dessus.
 
     // -----------------------------------------------------------------------
     // Start job (POST /avatarizer/start/<pk>/)
