@@ -1435,7 +1435,11 @@ MECHANISMS = (
               "late-binding d'output_formats ; 6ᵉ action de card. Depuis le 2026-09-18, porte "
               "aussi le REGISTRE des builders de rendu (`register_export_builder`, un par app "
               "late-binding, chemin pointé résolu à l'usage) : c'est ce qui permet au geste "
-              "médiathèque de rendre le format choisi par LE MÊME code que le ⬇",
+              "médiathèque de rendre le format choisi par LE MÊME code que le ⬇. Depuis le "
+              "2026-10-02 le ZIP de LOT lit les deux mêmes déclarations (fabrique "
+              "`make_batch_views`, format borné par `requested_format`, bouton de la card mère "
+              "rendu par ce même ⬇) : les trois niveaux — card, lot, barre de file — parlent "
+              "`?format=`",
               'wama/common/utils/export_formats.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3',
               annexes=('wama/common/templates/common/_download_button.html',
                        'wama/common/templatetags/wama_actions.py')),

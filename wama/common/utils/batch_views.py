@@ -33,6 +33,7 @@ Les deux formes de rattachement du dépôt sont servies par les briques de `batc
 forme que par ses kwargs (`item_model`/`fk_name` pour la liaison ; `batch_attr`/`row_field` pour
 la FK directe).
 """
+import datetime
 import io
 import json
 import zipfile
@@ -188,7 +189,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                           `batch_status`) — avatarizer : `visible_or_404` (un lot PARTAGÉ se lit,
                           ne s'édite pas) ; défaut = le lot de l'utilisateur.
         output_name     : callable(élément)->str — nom de chaque entrée du ZIP de lot (enhancer :
-                          `get_output_filename()`) ; défaut = le nom du fichier de sortie.
+                          `get_output_filename()`) ; défaut = le nom du fichier de sortie. Pour
+                          une app LATE-BINDING (ci-dessous) : la SOUCHE de l'entrée, l'extension
+                          venant du rendu (transcriber : `_output_stem`).
         start_reset_for : callable(request)->callable(élément) — quand ▶ de lot PORTE DES RÉGLAGES
                           (enhancer audio : moteur, mode, force… postés avec le démarrage), la
                           remise à zéro se fabrique depuis la requête ; prime sur `reset_on_start`.
@@ -199,6 +202,14 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                           texte (`RESULT = {'kind': 'text', 'field': …}`, describer généré) —
                           une entrée `.txt` par élément, nommée par `compose_output_name` ;
                           prime sur `output_field`.
+    ZIP D'UNE APP LATE-BINDING (2026-10-02) — rien à passer : la forme se lit des DÉCLARATIONS.
+    Une app dont le format se choisit AU TÉLÉCHARGEMENT (`export_binding='late'` au catalogue —
+    describer, reader, transcriber) reçoit un ZIP au format demandé (`?format=`, borné aux
+    `export_formats` déclarés, `export_formats.requested_format`), chaque entrée rendue par le
+    rendu que l'app a ENREGISTRÉ (`export_formats.export_builder_for`) — les mêmes deux
+    déclarations que le bouton ⬇ de la card et celui de la barre de file. Avant : trois vues
+    `batch_download` recopiées, chacune avec sa liste de formats en dur et sa graphie `?fmt=`.
+
     Chaque élément lu porte `batch_link` (posé par `batch_elements`) : la ligne de liaison en
     forme à liaison, l'élément lui-même en FK directe — `output_name`, `item_label`, `item_extra`
     peuvent donc nommer d'après la ligne (synthesizer : `s.batch_link.output_filename`).
@@ -311,16 +322,41 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         new_b.save(update_fields=['total'])
         return JsonResponse({'success': True, 'id': new_b.id, 'batch_id': new_b.id})
 
+    def _export_stem(item):
+        """Souche d'une entrée RENDUE : celle que l'app déclare (`output_name`), sinon la règle
+        commune de nommage sur le nom lisible de l'élément."""
+        if output_name is not None:
+            stem = output_name(item)
+            if stem:
+                return stem
+        import os
+        from wama.common.utils.output_naming import compose_output_name
+        return os.path.splitext(compose_output_name(
+            app=work_model._meta.app_label, item_id=item.pk,
+            source_name=_label(item) or f'item_{item.pk}'))[0]
+
     @require_GET
     def batch_download(request, pk):
         b = _batch_read(request, pk)
+        from wama.common.utils.export_formats import (export_builder_for, is_late_binding,
+                                                      requested_format)
+        app = work_model._meta.app_label
+        render = export_builder_for(app) if is_late_binding(app) else None
+        fmt = requested_format(app, request.GET) if render is not None else ''
         served = output_text or output_field
-        if not any(f.name == served for f in work_model._meta.get_fields()):
+        if render is None and not any(f.name == served for f in work_model._meta.get_fields()):
             return JsonResponse({'error': 'aucune sortie fichier pour ce lot'}, status=404)
         buf = io.BytesIO()
         # ZIP_DEFLATED : l'idiome des `batch_download` d'app (anonymizer, synthesizer, converter).
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
             for item in batch_elements(b, work_model):
+                if render is not None:
+                    # Late-binding : le master est RENDU au format demandé, par le rendu déclaré.
+                    built = render(item, fmt) if getattr(item, 'status', '') == 'SUCCESS' else None
+                    if built:
+                        ext, data = built
+                        z.writestr(f'{_export_stem(item)}.{ext}', data)
+                    continue
                 if output_text:
                     text = getattr(item, output_text, '') or ''
                     if getattr(item, 'status', '') == 'SUCCESS' and text:
@@ -337,8 +373,10 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                     name = (output_name(item) if output_name is not None else '') or Path(out.name).name
                     z.writestr(name, out.read())
         buf.seek(0)
-        name = (zip_name(b) if callable(zip_name) else zip_name) or \
-            f"{batch_model._meta.app_label}_batch_{b.id}.zip"
+        name = (zip_name(b) if callable(zip_name) else zip_name) or (
+            # L'idiome MESURÉ des trois apps late-binding : le format et le jour dans le nom.
+            f"batch_{app}_{b.id}_{fmt}_{datetime.date.today()}.zip" if render is not None
+            else f"{batch_model._meta.app_label}_batch_{b.id}.zip")
         return FileResponse(buf, as_attachment=True, filename=name)
 
     @require_GET

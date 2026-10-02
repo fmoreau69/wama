@@ -7,7 +7,6 @@ import os
 import json
 import logging
 import zipfile
-import datetime
 import tempfile
 
 from django.shortcuts import render, get_object_or_404
@@ -398,10 +397,21 @@ def _reset_for_relaunch(item):
 # sous verrou (`_reset_for_relaunch`), cache de progression `reader_progress_<id>` (un dict
 # `{'pct': …}`, lu par `batch_status`, purgé à la suppression), `result_text`/`used_backend`
 # vidés à la duplication, `language` vide = auto-détection (VALEUR, pas absence), gating
-# `@app_access` sur le démarrage. `batch_download` reste LOCAL : multi-format `?fmt=` (§9.10)
-# hors de la convention `output_file` — écart assumé (`batch_views_common` = partiel).
+# `@app_access` sur le démarrage. `batch_download` vient AUSSI de la fabrique depuis le
+# 2026-10-02 : le format se choisit au téléchargement (`export_binding='late'`), la fabrique lit
+# les formats DÉCLARÉS au catalogue et le rendu ENREGISTRÉ (`build_reading_bytes`, `apps.py`) —
+# la vue locale recopiait les deux en dur. Seule la souche de chaque entrée reste dite ici.
 from wama.common.utils.batch_views import DEFAULT_RESET, make_batch_views
 from wama.reader.params import PARAMS_JSON as _SCHEMA
+
+
+def _output_stem(r):
+    """Souche du nom d'une lecture RENDUE dans un ZIP de lot — règle commune de nommage
+    (`compose_output_name`) sur le nom d'origine du fichier ; l'extension vient du rendu."""
+    from wama.common.utils.output_naming import compose_output_name
+    return os.path.splitext(compose_output_name(
+        app='reader', source_name=r.filename or f'item_{r.id}', item_id=r.id))[0]
+
 
 _bv = make_batch_views(
     work_model=ReadingItem, batch_model=BatchReadingItem, get_user=_get_user,
@@ -414,11 +424,13 @@ _bv = make_batch_views(
     reset_on_duplicate={**DEFAULT_RESET, 'result_text': '', 'used_backend': ''},
     progress_of=lambda r: (cache.get(f'reader_progress_{r.id}') or {}).get('pct', r.progress),
     on_delete=lambda r: cache.delete(f'reader_progress_{r.id}'),
+    output_name=_output_stem,
 )
 batch_start = app_access('reader')(_bv['batch_start'])
 batch_update = _bv['batch_update']
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
+batch_download = _bv['batch_download']
 batch_status = _bv['batch_status']
 
 
@@ -855,37 +867,6 @@ def build_reading_bytes(item, fmt):
             return None
     ext = 'md' if fmt == 'md' else 'txt'
     return (ext, _extract_natural_text(item.result_text).encode('utf-8'))
-
-
-def batch_download(request, pk):
-    """Download a ZIP of all completed OCR results in a batch.
-
-    Format chosen via ?fmt=txt|md|pdf|docx|json (default txt) — dropdown variant
-    of the multi-format batch ZIP convention (WAMA_APP_CONVENTIONS §9.10).
-    """
-    user = _get_user(request)
-    batch = get_object_or_404(BatchReadingItem, pk=pk, user=user)
-    fmt = (request.GET.get('fmt') or 'txt').lower()
-    if fmt not in ('txt', 'md', 'pdf', 'docx', 'json'):
-        fmt = 'txt'
-
-    from wama.common.utils.batch_common import batch_elements
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for r in batch_elements(batch, ReadingItem):     # brique : ordre des lignes garanti
-            if r.status == 'SUCCESS':
-                from wama.common.utils.output_naming import compose_output_name
-                stem = os.path.splitext(compose_output_name(
-                    app='reader', source_name=r.filename or f'item_{r.id}',
-                    item_id=r.id))[0]
-                built = build_reading_bytes(r, fmt)
-                if built:
-                    ext, data = built
-                    archive.writestr(f'{stem}.{ext}', data)
-
-    buffer.seek(0)
-    zip_name = f"batch_reader_{pk}_{fmt}_{datetime.date.today()}.zip"
-    return FileResponse(buffer, as_attachment=True, filename=zip_name)
 
 
 

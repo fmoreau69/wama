@@ -100,6 +100,22 @@ def entries_for_app(app_name: str, available=None) -> list[dict]:
     return entries(conv.get('export_formats') or (), available)
 
 
+def requested_format(app_name: str, query) -> str:
+    """Le format DEMANDÉ à un téléchargement d'une app late-binding, lu dans la query du bouton ⬇
+    commun (`?format=`) et borné aux formats que l'app DÉCLARE ; absent ou inconnu → le premier
+    déclaré (celui du bouton principal). `''` pour une app qui ne déclare aucun format.
+
+    `?fmt=` reste lu : c'était la graphie des menus de LOT, écrits à la main par app jusqu'au
+    2026-10-02 (les deux autres niveaux, card et barre de file, disaient déjà `format`) — un lien
+    gardé en favori ou une page ouverte avant le rechargement ne doit pas retomber sur le défaut.
+    """
+    declared = [e['value'] for e in entries_for_app(app_name)]
+    if not declared:
+        return ''
+    asked = str(query.get('format') or query.get('fmt') or '').lower().lstrip('.')
+    return asked if asked in declared else declared[0]
+
+
 def is_late_binding(app_name: str) -> bool:
     """L'app choisit-elle son format AU TÉLÉCHARGEMENT (`export_binding='late'`, §6.4) ?
     Le master est alors un texte structuré ; le fichier n'existe qu'une fois RENDU."""
