@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**176 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**179 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -202,6 +202,29 @@ Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « En
   - `api_mount_delete(request, pk)` — Remove a mounted folder.
   - `api_mount_serve(request, pk, path)` — Serve a file from a mounted folder inline (for preview).
 
+### Lignes d'exécution des process
+
+UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process sur les six états communs, photo des réglages surveillés, modèle EMPLOYÉ (lisible pendant un « auto »), sortie, durée. Dit ce qui est périmé (`stale_nodes` : réglage surveillé changé, puis cascade) et déduit l'état d'une card de ses process (`aggregate`). L'élément reste la vérité lue par l'interface tant qu'il porte `status` ; l'arrêt et la réconciliation referment les lignes ouvertes
+
+- **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
+- **API publique** (15) :
+  - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
+  - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
+  - `line(item, node_id: str=MAIN_NODE, instance_key: str='')` — La ligne d'un nœud, ou None s'il n'a jamais été lancé.
+  - `snapshot(settings, watched) -> dict` — Photo des réglages SURVEILLÉS : `{clé: valeur}` pour chaque clé de `watched`, lue d'un
+  - `plain(value)` — Une valeur de réglage sous sa forme ÉCRITE en JSON — la photo est relue de la base avant
+  - `start(item, node_id: str=MAIN_NODE, *, process_key: str='', kind: str='app', version: str='', instance_key: str='', settings_snapshot: dict | None=None, model_…` — Le process PART : la ligne passe `RUNNING`, sa photo de réglages est prise, l'erreur et
+  - `await_resources(item, node_id: str=MAIN_NODE, *, process_key: str='', instance_key: str='', task_id: str='')` — Le tour du process est venu, la VRAM libre ne suffit pas : la ligne le dit, sans effacer
+  - `succeed(item, node_id: str=MAIN_NODE, *, instance_key: str='', output_ref: str='', output_summary: dict | None=None, model_key: str | None=None, process_key: s…` — Le process a RENDU son résultat : `SUCCESS`, durée mesurée depuis `start`.
+  - `fail(item, node_id: str=MAIN_NODE, message: str='', *, instance_key: str='', process_key: str='')` — Le process a ÉCHOUÉ — le message est gardé sur la ligne ; la sortie précédente, elle,
+  - `close_open(item, to_status: str=JOB_FAILURE, message: str='') -> int` — Referme les lignes OUVERTES d'un élément qu'on arrête ou qu'on réconcilie : une tâche
+  - `forget(item) -> int` — Retire les lignes d'un élément qu'on SUPPRIME (une ligne sans élément ne se lit plus
+  - `safely(writer, *args, **kwargs)` — Appelle un écrivain de ce module SANS jamais lever : le cycle de vie d'un traitement ne
+  - `stale_nodes(states: dict, depends_on: dict, snapshots: dict | None=None, current: dict | None=None) -> set` — Nœuds à passer `STALE`, parmi ceux qui sont en `SUCCESS`.
+  - `mark_stale(item, node_ids) -> int` — Passe `STALE` les lignes `SUCCESS` des nœuds donnés. Rend le nombre de lignes changées.
+  - `aggregate(processes) -> str` — État d'une CARD déduit de ses process — la règle du point 4.4, validée telle quelle le
+
 ### Moniteur système
 
 Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources, model manager
@@ -230,6 +253,19 @@ Garantit la VRAM avant un chargement, la reprend sur les autres modèles, et ré
   - `unregister_vram_unloader(name: str) -> None`
   - `class MemoryManager` — Manages GPU and system memory for AI models.
 
+### Pipeline déclaré d'une app (plusieurs process)
+
+Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surveillés, degré, condition d'application) comme le cam_analyzer déclare ses passes ; le registre devient un manifeste `pipeline` à nœuds `function` (`register_app_pipeline`). Dit ce qu'un lancement JOUE (`steps_to_run` : ce qui n'est plus à jour et son aval ; une card à jour relancée rejoue tout), ce qui est PÉRIMÉ (`refresh` : réglage changé, sortie d'amont remplacée, cascade) et l'état déduit de la card (`card_state`). L'exécution reste au squelette de tâche (`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process
+
+- **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
+- **API publique** (5) :
+  - `class ProcessSpec` — Un process d'un pipeline d'app — les champs de `pass_tracking.Pass` qui ne sont pas
+  - `output_fingerprint(ref: str) -> str` — Empreinte de la sortie d'un process (chemin relatif à MEDIA_ROOT) : taille + condensé du
+  - `class AppPipeline` — Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive.
+  - `register_app_pipeline(app: str, specs, *, label: str, description: str='', source_ref: str='') -> AppPipeline` — Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
+  - `app_pipeline(app: str)` — Le pipeline déclaré d'une app, ou None (une app à un seul process n'en déclare pas).
+
 ### Progression de tâche longue
 
 Avancement d'une tâche Celery HORS file d'items publié dans le cache (F5-proof) + garde « déjà en cours » vérifiée auprès de Celery ; pendant navigateur = WamaApp.Poller
@@ -249,7 +285,7 @@ Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA
 - **API publique** (3) :
   - `class TaskContext` — Poignées offertes à la glu : progress + console. `progress_fn` permet à une app de
   - `class TaskTimeLimitExceeded(Exception)` — Le traitement a dépassé sa durée max (`resource_governor.task_time_limit_s`).
-  - `run_item_task(task, *, app_id: str, model, item_id: int, process, vram_needed=None, model_key=None, error_field: str='error_message', ingest_derive=None, notif…` — Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
+  - `run_item_task(task, *, app_id: str, model, item_id: int, process=None, vram_needed=None, model_key=None, error_field: str='error_message', ingest_derive=None,…` — Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
 
 ### Tests nocturnes
 
@@ -770,7 +806,7 @@ Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune lign
 - **API publique** (7) :
   - `class SourceJournal` — Un modèle dont les items entrent au journal.
   - `app_queue_url(app)` — Page de file d'une app, `''` si elle n'en déclare pas.
-  - `enregistrer_source(app, model, *, monde, champ_date=None, champ_user='user')` — Ajoute une source hors `detail_registry` — point d'extension des mondes studio/lab/data.
+  - `enregistrer_source(app, model, *, champ_date=None, champ_user='user')` — Ajoute une source hors `detail_registry` — point d'extension des mondes lab/data/transverse.
   - `sources()` — Toutes les sources du journal. Dérivées de `detail_registry` + les inscriptions explicites.
   - `class Entree` — Un item au journal. Volontairement MINCE — le détail vient des endpoints transversaux.
   - `entrees(user, *, mondes=None, apps=None, depuis=None, jusqu_a=None, limite=50, offset=0, avec_gestes=True, tri='recent', statut='all', q='')` — Rend `(liste d'Entree triée, total)`.
@@ -847,7 +883,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 
 - **Domicile** : `wama/model_manager/services/cloud_models.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
-- **API publique** (14) :
+- **API publique** (15) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
@@ -857,7 +893,8 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
   - `cloud_model_infos() -> dict` — `{model_key: ModelInfo}` de TOUS les modèles distants qu'une clé d'utilisateur ouvre —
   - `keys_for(source: str, listing: list) -> list` — Clés de catalogue des modèles rangeables d'une liste — ce que `UserApiKey.open_models` garde.
   - `retire_unlisted(source: str) -> int` — Marque indisponibles les lignes distantes de `source` qu'AUCUNE clé n'ouvre plus, et remet
-  - `refresh_key(row) -> tuple` — Relit chez le fournisseur les modèles ouverts à la clé `row` (`accounts.UserApiKey`), puis
+  - `refresh_key(row, background: bool=False) -> tuple` — Relit chez le fournisseur les modèles ouverts à la clé `row` (`accounts.UserApiKey`), puis
+  - `register_open_models(row) -> None` — Le CATALOGUE suit la liste gardée sur la clé `row` : la partie LONGUE de `refresh_key`
   - `cloud_refusal(user) -> str` — Motif de refus si `user` est en « 100 % local », sinon ''. Sans utilisateur : ''.
   - `allowed_cloud_keys(user, automatic: bool=True) -> set` — `model_key` des modèles distants que `user` autorise — à passer à `select_model(cloud_keys=…)`.
   - `class CloudAccessRefused(RuntimeError)` — Appel distant refusé — message lisible par l'utilisateur ; `status` = code HTTP à rendre.
@@ -976,13 +1013,17 @@ D'OÙ vient le fichier qu'une card consomme. La frontière était déjà tracée
 
 ### Qui désigne ce fichier ? (déplacer, supprimer sans casser)
 
-L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent à jour — `repoint` quand le fichier bouge, `detach` quand il disparaît. Décision de Fabien du 2026-09-22 (`MEDIA_STORAGE_TIERING §8.6` D20) : déplacer ou renommer met à jour le lien des cards SANS rien demander ; supprimer un fichier qu'une card utilise demande d'abord une confirmation qui dit COMBIEN de cards il touche, puis laisse les cards en place, détachées. Avant, le gestionnaire renommait, déplaçait et supprimait sans jamais regarder les cards : c'est ce geste qui fabrique les « référencés mais absents » comptés par `check_media_integrity`. ⚠ DEUX façons de désigner, une seule met la card en péril : par un `FileField` (elle perd son fichier) ou par sa PROVENANCE (elle a sa copie — information, jamais un blocage). ⚠ `filemanager.UserFile` est exclu : c'est l'index du gestionnaire lui-même
+L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent à jour — `repoint` quand le fichier bouge, `detach` quand il disparaît. Décision de Fabien du 2026-09-22 (`MEDIA_STORAGE_TIERING §8.6` D20) : déplacer ou renommer met à jour le lien des cards SANS rien demander ; supprimer un fichier qu'une card utilise demande d'abord une confirmation qui dit COMBIEN de cards il touche, puis laisse les cards en place, détachées. Avant, le gestionnaire renommait, déplaçait et supprimait sans jamais regarder les cards : c'est ce geste qui fabrique les « référencés mais absents » comptés par `check_media_integrity`. ⚠ DEUX façons de désigner, une seule met la card en péril : par un `FileField` (elle perd son fichier) ou par sa PROVENANCE (elle a sa copie — information, jamais un blocage). Une entrée d'une LISTE DE CHEMINS déclarée (`path_list_fields`, les images d'une génération de l'imager) désigne au même titre qu'un `FileField` : chaque question et chaque geste lit les deux formes (D35, 2026-10-02). ⚠ `filemanager.UserFile` est exclu : c'est l'index du gestionnaire lui-même
 
 - **Domicile** : `wama/common/utils/file_references.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : QUI DÉSIGNE CE FICHIER ? — l'index des cards qui utilisent un chemin, et les deux gestes qui le tiennent à jour quand le fichier bouge ou disparaît.
-- **API publique** (8) :
+- **API publique** (12) :
   - `file_field_models()` — `[(modèle, [FileField…])]` pour tout le dépôt — UNE énumération, plusieurs lecteurs
-  - `direct_references(path, *, folder=False) -> list` — Les cards dont un `FileField` porte ce chemin (ou, `folder=True`, un chemin SOUS ce dossier).
+  - `path_list_fields()` — (modèle, champ) portant une LISTE de chemins (JSON) hors `FileField` — lus dans la
+  - `relative_to_media(path) -> str` — Chemin relatif à MEDIA_ROOT (la forme que `owns_file` compare) ; '' s'il est HORS de
+  - `listed_paths(instance) -> list` — `[(champ, chemin relatif à MEDIA_ROOT)]` pour chaque entrée des listes de chemins DÉCLARÉES
+  - `relocated_list(value, mapping) -> list` — La liste `value` dont chaque entrée désignant un chemin de `mapping` (relatif → nouveau
+  - `direct_references(path, *, folder=False) -> list` — Les cards dont un `FileField` — ou une entrée d'une liste de chemins déclarée — porte ce
   - `is_referenced_elsewhere(path, *, label='', pk=None, field='') -> bool` — Une AUTRE ligne, DE N'IMPORTE QUEL MODÈLE, désigne-t-elle ce fichier ?
   - `referenced_outside(paths, inside) -> set` — Parmi `paths`, ceux qu'une ligne HORS de `inside` (ensemble de `(label, pk)`) désigne.
   - `source_references(path, *, folder=False) -> list` — Les provenances dont la SOURCE est ce chemin (ou un chemin sous ce dossier).
@@ -1338,7 +1379,7 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 - **Domicile** : `wama/common/services/backend_proposals.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : BACKENDS PROPOSÉS par le rôle `backend` (marche B2) — contrôles, résolution simulée, smoke, puis le geste « Valider » qui ÉCRIT le module dans `wama/common/backends/`.
-- **API publique** (11) :
+- **API publique** (12) :
   - `backends_dir() -> Path`
   - `outputs_dir() -> Path`
   - `contract_for_task(task: str) -> tuple` — (module, classe) du contrat qu'un backend écrit pour `task` doit implémenter.
@@ -1346,7 +1387,8 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
   - `model_id_of(model_key: str) -> str` — Identifiant que `SUPPORTED_MODELS` doit déclarer — la règle de `backend_for_model`.
   - `check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> dict` — Contrôles de FORME d'un module de backend proposé. `ok` = aucune erreur.
   - `simulate_resolution(code: str, *, module: str, engine: str, model_id: str, task: str='') -> dict` — La résolution que l'inventaire fera APRÈS écriture : le vivier réel + cette entrée.
-  - `smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: Path) -> dict` — Exécute le backend proposé SUR CPU, sans l'écrire dans le paquet : chargement puis une
+  - `smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: Path) -> dict` — Exécute le backend proposé SUR CPU, sans l'écrire dans le paquet — un essai par CONTRAT
+  - `smoke_speech_clip()` — `(SystemAsset de parole, chemin de sa référence | None)` de l'extrait du smoke, ou
   - `pending() -> list` — Propositions de backend en attente : `outputs/backend_*.json` au statut PENDING.
   - `apply(name: str, user=None) -> dict` — ÉCRIT le backend validé dans `wama/common/backends/<module>.py` — contrôles REFAITS,
   - `reject(name: str, user=None) -> bool`
@@ -1547,18 +1589,20 @@ Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesur�
 
 ### Duplication et suppression sûres
 
-duplicate_instance(), release_card_file() (retirer une card libère et prévient) et safe_delete_file() (relance) — fichiers partagés entre items ; la confirmation commune d'un retrait (`WamaApp.ask`) demande d'avance « supprimer aussi le fichier ? », case décochée (`released_files.freed_by`)
+duplicate_instance(), release_card_files() (retirer une card libère TOUT ce qu'elle porte et prévient : ses champs fichier et ses listes de chemins déclarées, lus par `file_references.listed_paths` ; release_card_file() = le même geste pour un champ) et safe_delete_file() (relance) — fichiers partagés entre items ; la confirmation commune d'un retrait (`WamaApp.ask`) demande d'avance « supprimer aussi le fichier ? », case décochée (`released_files.freed_by`)
 
 - **Domicile** : `wama/common/utils/queue_duplication.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : WAMA — Common utilities for queue item duplication and safe file deletion.
-- **API publique** (7) :
+- **API publique** (9) :
   - `owns_file(instance, file_name: str) -> bool` — Le fichier vit-il dans le DOMICILE de l'app de cette card (`users/<uid>/<app>/…`) ?
   - `safe_delete_file(instance, field_name: str) -> bool` — ⚠ Depuis le 2026-09-30, RÉSERVÉ au REMPLACEMENT d'un fichier par SA card (l'ancien rendu
   - `release_card_file(instance, field_name: str) -> bool` — Une card que l'utilisateur RETIRE (supprimer, tout effacer, lot) LIBÈRE son fichier : il
+  - `release_card_files(instance) -> int` — Le retrait à l'échelle de la CARD : elle libère TOUT ce qu'elle porte, lu de ses
   - `is_shared_elsewhere(instance, field_name: str, file_name: str) -> bool` — Une AUTRE ligne désigne-t-elle ce fichier — DANS N'IMPORTE QUEL MODÈLE ?
   - `delete_file_unless_shared(instance, field_name: str) -> bool` — Suppression VOULUE du fichier d'un objet — mais jamais s'il en reste un porteur.
   - `is_received(instance, user) -> bool` — La card appartient-elle à QUELQU'UN D'AUTRE que `user` (une card qu'on lui a partagée) ?
   - `duplicate_instance(instance, reset_fields=None, clear_fields=None, *, for_user=None)` — Create a new DB row that shares the same input file(s) as the original.
+  - `copy_subfolder(rel: str, app: str) -> str` — Le sous-dossier d'app où COPIER `rel` chez un autre propriétaire : sa place relative dans le
 
 ### Entrée de file (card seule OU lot)
 
@@ -1663,7 +1707,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (34) :
+- **API publique** (35) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -1689,6 +1733,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
   - `class ItemRevision(models.Model)` — Une RÉVISION d'un élément : l'état que lui a donné un résultat produit — marche 8a de
+  - `class ProcessRun(models.Model)` — La LIGNE D'EXÉCUTION d'un process : « tel process, pour telle card, dans tel état » —
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
   - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
@@ -1723,7 +1768,7 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
 
 ### Ajout à la file (mode attache)
 
-Bouton « Ajouter à la file » de la card d'entrée : consigne + réglages du volet + fichier joint ou désigné par port (`appendInput`), URL postée seulement si l'élément la garde (sinon refusée, motif dit), rien n'est lancé (règle des deux temps). Côté serveur : `received_inputs`. Mode DÉRIVÉ des ports par le générateur (`views_gen.prompt_entry` : consigne sans port de travail)
+Bouton « Ajouter à la file » de la card d'entrée : consigne + réglages du volet + fichier joint ou désigné par port (`appendInput`), URL postée seulement si l'élément la garde (sinon refusée, motif dit), rien n'est lancé (règle des deux temps). Côté serveur : `received_inputs`. Mode DÉRIVÉ des ports par le générateur (`views_gen.prompt_entry` : consigne sans port de travail). Adoptée le jour même par imager, avatarizer, composer et synthesizer (leur formulaire maison retiré)
 
 - **Domicile** : `wama/common/static/common/js/wama-app-base.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
@@ -1807,14 +1852,15 @@ Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais ajo
 
 ### Formats de téléchargement (⬇ late-binding)
 
-Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, groupe) + split-button dérivé de la déclaration export_binding — pendant late-binding d'output_formats ; 6ᵉ action de card. Depuis le 2026-09-18, porte aussi le REGISTRE des builders de rendu (`register_export_builder`, un par app late-binding, chemin pointé résolu à l'usage) : c'est ce qui permet au geste médiathèque de rendre le format choisi par LE MÊME code que le ⬇
+Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, groupe) + split-button dérivé de la déclaration export_binding — pendant late-binding d'output_formats ; 6ᵉ action de card. Depuis le 2026-09-18, porte aussi le REGISTRE des builders de rendu (`register_export_builder`, un par app late-binding, chemin pointé résolu à l'usage) : c'est ce qui permet au geste médiathèque de rendre le format choisi par LE MÊME code que le ⬇. Depuis le 2026-10-02 le ZIP de LOT lit les deux mêmes déclarations (fabrique `make_batch_views`, format borné par `requested_format`, bouton de la card mère rendu par ce même ⬇) : les trois niveaux — card, lot, barre de file — parlent `?format=`
 
 - **Domicile** : `wama/common/utils/export_formats.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : Vocabulaire COMMUN des formats de TÉLÉCHARGEMENT — libellé, icône et regroupement.
-- **API publique** (6) :
+- **API publique** (7) :
   - `entry(value: str) -> dict` — Décrit UN format. Un format inconnu du vocabulaire reste affichable (repli neutre) —
   - `entries(formats, available=None) -> list[dict]` — Liste ordonnée d'entrées prêtes pour `common/_download_button.html`.
   - `entries_for_app(app_name: str, available=None) -> list[dict]` — Idem, en lisant la déclaration de l'app — l'appelant n'a que son nom à donner.
+  - `requested_format(app_name: str, query) -> str` — Le format DEMANDÉ à un téléchargement d'une app late-binding, lu dans la query du bouton ⬇
   - `is_late_binding(app_name: str) -> bool` — L'app choisit-elle son format AU TÉLÉCHARGEMENT (`export_binding='late'`, §6.4) ?
   - `register_export_builder(app_name: str, builder) -> None` — `builder` : callable `(instance, fmt) -> (ext, bytes) | None`, ou son chemin pointé
   - `export_builder_for(app_name: str)` — Le rendu déclaré par l'app, ou `None`. Une app early-binding n'en déclare pas : son
@@ -1979,7 +2025,7 @@ Envoi d'un fichier vers l'endpoint upload de l'app (dépôt, clic), délégation
 
 ### Abonnement aux éléments de catalogue
 
-PRÉFÉRENCE d'affichage, appliquée APRÈS le droit et seulement à l'affichage : elle ne peut que RESTREINDRE ce à quoi l'utilisateur a déjà accès. Seules les EXCEPTIONS sont stockées (se réabonner efface la ligne) ; une nature d'élément s'ajoute par une entrée dans KINDS, et la page de catalogue hérite du mécanisme par deux attributs (`data-abo`, `data-abo-toggle`). Son PÉRIMÈTRE est celui du DROIT, pas d'APP_CATALOG : les surfaces transversales et Lab (extra_links) se masquent par la même clé `gate` que celle dont accessible() décide (§8.8.1)
+PRÉFÉRENCE d'affichage, appliquée APRÈS le droit et seulement à l'affichage : elle ne peut que RESTREINDRE ce à quoi l'utilisateur a déjà accès. Seules les EXCEPTIONS sont stockées (se réabonner efface la ligne) ; une nature d'élément s'ajoute par une entrée dans KINDS, et la page de catalogue hérite du mécanisme par deux attributs (`data-abo`, `data-abo-toggle`). Son PÉRIMÈTRE est celui du DROIT, pas d'APP_CATALOG : les surfaces transversales et Lab (`register_surface`) se masquent par la même clé `gate` que celle dont accessible() décide (§8.8.1)
 
 - **Domicile** : `wama/common/services/subscriptions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : ABONNEMENT aux éléments de catalogue — la couche PRÉFÉRENCE (PROFILES_PERMISSIONS §8).
@@ -2038,13 +2084,14 @@ Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / 
 
 ### Activité vocale (le VAD garde-t-il la parole ?)
 
-Confronte, sur quelques fenêtres du média, ce que le filtre de parole Silero retient à ce que l'énergie du signal dit actif : un VAD qui garde bien moins que l'actif rejette une parole lointaine. L'appelant décide (le transcriber transcrit alors sans filtre, réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25
+Confronte, sur quelques fenêtres du média, ce que le filtre de parole Silero retient à ce que l'énergie du signal dit actif : un VAD qui garde bien moins que l'actif rejette une parole lointaine. L'appelant décide (le transcriber transcrit alors sans filtre, réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25. `pause_windows` (2026-10-02) : fenêtres bornées couvrant TOUT l'audio, coupées au creux d'énergie — pour un moteur à fenêtre fixe sans repères de temps (FrWhisper)
 
 - **Domicile** : `wama/common/utils/speech_activity.py` · **doc** : [wama/transcriber/TRANSCRIBER_CORRECTION.md §8](../../wama/transcriber/TRANSCRIBER_CORRECTION.md)
 - **Module** : Activité vocale d'un enregistrement — le filtre de parole (VAD) garde-t-il ce que le signal porte ?
-- **API publique** (4) :
+- **API publique** (5) :
   - `windows_for(duration_s: float) -> int` — Nombre de fenêtres sondées pour un média de `duration_s` secondes.
   - `energy_active_ratio(wave, sr: int, margin_db: float=ACTIVE_MARGIN_DB) -> float` — Part des trames de 100 ms dont le niveau dépasse le plancher de bruit de `margin_db`.
+  - `pause_windows(wave, sr: int, max_seconds: float, search_seconds: float=PAUSE_SEARCH_SECONDS) -> list` — `[(début, fin)]` en secondes, fenêtres CONTIGUËS couvrant TOUT l'audio, chacune ≤
   - `vad_speech_ratio(wave, sr: int) -> float` — Part de l'audio que le VAD de faster-whisper retient, avec ses réglages par défaut.
   - `vad_rejects_speech(path, duration_s: float=0.0, windows: int=None, window_s: float=120.0, decode=None) -> dict` — Sonde `windows` fenêtres de `window_s` réparties dans le média (par défaut
 
@@ -2127,12 +2174,14 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
 
 ### Décodage audio robuste
 
-Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + repli ffmpeg. Annexe torchaudio_compat = l'autre forme du même problème : shims soundfile posés DANS torchaudio pour les libs tierces qui l'appellent en interne (Coqui, DeepFilterNet)
+Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + repli ffmpeg. `decode_audio` laisse un WAV à sa fréquence NATIVE ; un modèle de parole passe par `decode_audio_at` (fréquence GARANTIE, `resample`) — 2026-10-01, cinq consommateurs. Annexe torchaudio_compat = l'autre forme du même problème : shims soundfile posés DANS torchaudio pour les libs tierces qui l'appellent en interne (Coqui, DeepFilterNet)
 
 - **Domicile** : `wama/common/utils/audio_decode.py`
 - **Module** : Décodage audio robuste pour WAMA (WSL où torchcodec/torchaudio est cassé).
-- **API publique** (5) :
+- **API publique** (7) :
   - `decode_audio(path, target_sr: int=16000, mono: bool=True)` — Décode un fichier audio en (ndarray float32, sample_rate), robuste aux formats
+  - `resample(samples, rate: int, target_sr: int)` — Échantillons mono → float32 à `target_sr` (polyphase, scipy) ; inchangés s'ils y sont.
+  - `decode_audio_at(path, target_sr: int=16000)` — (mono float32 à `target_sr` GARANTI, `target_sr`) — ce qu'attend un modèle de parole.
   - `transcode_to_wav(path, out_path, target_sr: int=16000)` — Réécrit un média en WAV PCM 16 bits mono à `target_sr`, via ffmpeg — rend `out_path`.
   - `probe_duration_seconds(path)` — Durée d'un média en secondes via ffprobe — SANS décoder (coût négligeable).
   - `decode_window(path, target_sr: int=16000, start_s: float=0.0, duration_s=None, mono: bool=True)` — Décode UNE FENÊTRE [start_s, start_s+duration_s] d'un média en (ndarray float32, sr),
@@ -2181,6 +2230,46 @@ REGISTRE de capacités de lecture — aucun format privilégié : ajouter un for
 - **API publique** (2) :
   - `make_audible(text: str) -> str` — Traduit la MISE EN FORME VISUELLE en respirations audibles.
   - `text_for_speech(text: str) -> str` — Prépare un texte pour la synthèse vocale : la TTS doit LIRE, pas décrire.
+
+### Monde déclaré d'une app
+
+Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entrée d'APP_CATALOG, ou — hors catalogue — depuis son `ready()` (`register_app_world` ; `register_surface`, qui porte aussi l'identité de sa page). UNE lecture, `app_world()` : le manifeste d'app, le monde d'une fonction, le menu, `/apps/`, le journal et le calendrier la lisent, rien ne le déduit d'un libellé de navigation
+
+- **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : WAMA Common — Application Registry
+- **API publique** (32) :
+  - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
+  - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
+  - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
+  - `normalize_types(types)` — ['wav','image','srt'] → ['audio','image','document'] (catégories média + jetons de rôle,
+  - `known_port_types()` — Vocabulaire ADMIS pour le type d'un port — natures média + jetons de rôle + types de DONNÉE.
+  - `app_capabilities(app_id)` — Capacités déclarées d'une app = les drapeaux `conventions` d'APP_CATALOG, retournés à plat.
+  - `app_supports_during_preview(app_id)` — True si l'app déclare la capacité de preview « pendant » (progressive/temporaire pendant le
+  - `studio_node_ports(app_id)` — Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
+  - `app_model_capabilities(app_id) -> list` — Les capacités des modèles DE l'app — l'inventaire UNIQUE dont dérivent ses ports
+  - `app_input_ports(app_id, domain=None)` — Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
+  - `app_has_live_input(app_id) -> bool` — L'app capte-t-elle EN DIRECT (Speak) ? — le port `live` de la card d'entrée.
+  - `app_own_input_ports(app_id)` — Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
+  - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
+  - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
+  - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
+  - `world_label(world: str) -> str` — Libellé d'un monde ; le nom brut si le monde est inconnu (jamais une chaîne vide).
+  - `register_app_world(app_id: str, world: str) -> None` — Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
+  - `register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str, description: str='', color: str | None=None, nav_hide: bool=False, order: in…` — Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
+  - `surfaces(world: str | None=None) -> list` — Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section.
+  - `surface_for(app: str) -> dict | None` — Surface d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —, ou None. Le
+  - `app_media_folders(app_id: str) -> tuple` — Dossiers qu'une app montre dans l'explorateur de fichiers : `((sous-dossier, libellé), …)`.
+  - `derive_category(entry) -> str` — Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation
+  - `get_app_groups() -> list` — Sections de TOUT ce qui se montre groupé — menu Applications, accueil, `/apps/` : UNE
+  - `app_world(app_id: str) -> str | None` — Monde DÉCLARÉ d'une app — `media | data | lab | transverse`, le vocabulaire de
+  - `accepts_file(app_name: str, filename: str) -> bool` — Le serveur prend-il ce fichier pour cette app ? — les extensions DÉCLARÉES
+  - `port_accept(app_name: str, types) -> str` — L'attribut `accept` d'un PORT d'entrée — ce que la tuile Importer propose.
+  - `accept_for_types(declared, types) -> str` — Le cœur de `port_accept`, sur une liste d'extensions DONNÉE — pour le générateur, qui
+  - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
+  - `world_color(world: str) -> str` — Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
+  - `sandbox_conformity(report: dict) -> dict` — Mesure des jumelles bac à sable, chacune avec l'écart à SA source (`report['apps']`).
+  - `measure_and_write_conformity() -> dict` — Mesure les 10 apps (conformity_checker.run_checks) et ÉCRIT le rapport JSON.
+  - `get_conformity_summary() -> dict` — Returns per-app conformity score:
 
 ### Moteurs de recherche web
 
@@ -2365,7 +2454,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (26) :
+- **API publique** (32) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -2381,14 +2470,20 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
   - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
   - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
-  - `extra_link_for(app: str) -> tuple[str, dict] | None` — `(catégorie, lien)` d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —
+  - `world_label(world: str) -> str` — Libellé d'un monde ; le nom brut si le monde est inconnu (jamais une chaîne vide).
+  - `register_app_world(app_id: str, world: str) -> None` — Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
+  - `register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str, description: str='', color: str | None=None, nav_hide: bool=False, order: in…` — Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
+  - `surfaces(world: str | None=None) -> list` — Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section.
+  - `surface_for(app: str) -> dict | None` — Surface d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —, ou None. Le
+  - `app_media_folders(app_id: str) -> tuple` — Dossiers qu'une app montre dans l'explorateur de fichiers : `((sous-dossier, libellé), …)`.
   - `derive_category(entry) -> str` — Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation
-  - `get_apps_by_category()` — Catalogue groupé, ordonné par APP_CATEGORIES[order] — source des surfaces groupées
+  - `get_app_groups() -> list` — Sections de TOUT ce qui se montre groupé — menu Applications, accueil, `/apps/` : UNE
+  - `app_world(app_id: str) -> str | None` — Monde DÉCLARÉ d'une app — `media | data | lab | transverse`, le vocabulaire de
   - `accepts_file(app_name: str, filename: str) -> bool` — Le serveur prend-il ce fichier pour cette app ? — les extensions DÉCLARÉES
   - `port_accept(app_name: str, types) -> str` — L'attribut `accept` d'un PORT d'entrée — ce que la tuile Importer propose.
   - `accept_for_types(declared, types) -> str` — Le cœur de `port_accept`, sur une liste d'extensions DONNÉE — pour le générateur, qui
   - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
-  - `category_color(cid: str) -> str` — Couleur de RÉFÉRENCE d'une catégorie (en-têtes de section, dossiers…).
+  - `world_color(world: str) -> str` — Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
   - `sandbox_conformity(report: dict) -> dict` — Mesure des jumelles bac à sable, chacune avec l'écart à SA source (`report['apps']`).
   - `measure_and_write_conformity() -> dict` — Mesure les 10 apps (conformity_checker.run_checks) et ÉCRIT le rapport JSON.
   - `get_conformity_summary() -> dict` — Returns per-app conformity score:
@@ -2461,7 +2556,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (34) :
+- **API publique** (35) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2487,6 +2582,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
   - `class ItemRevision(models.Model)` — Une RÉVISION d'un élément : l'état que lui a donné un résultat produit — marche 8a de
+  - `class ProcessRun(models.Model)` — La LIGNE D'EXÉCUTION d'un process : « tel process, pour telle card, dans tel état » —
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
   - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
