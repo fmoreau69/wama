@@ -222,7 +222,7 @@ def _input_match_meta():
 
 class IndexView(View):
     def get(self, request):
-        from wama.common.utils.batch_common import queue_light
+        from wama.common.utils.batch_common import without_heavy_fields
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
         # Lazily wrap any orphan transcripts into a batch-of-1
@@ -237,8 +237,8 @@ class IndexView(View):
         # tâche) ne conclut rien : ne touche JAMAIS une tâche vivante (cf. process_control).
         try:
             from wama.common.utils.process_control import reconcile_orphaned_running
-            # Sans les segments (`queue_light`) : la réconciliation ne lit que statut et tâche.
-            running = list(queue_light(Transcript.objects.filter(user=user, status='RUNNING')))
+            # Sans les segments (`without_heavy_fields`) : la réconciliation ne lit que statut et tâche.
+            running = list(without_heavy_fields(Transcript.objects.filter(user=user, status='RUNNING')))
             n = reconcile_orphaned_running(running, error_field='error_message')
             if n:
                 logger.info(f"[transcriber] {n} tâche(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
@@ -292,7 +292,7 @@ class IndexView(View):
         # Backfill duration for existing transcripts that were stored without it
         # Sans les champs LOURDS (segments) : ni ce rattrapage ni la barre de progression globale
         # ne les lisent — chargés ici, ils coûtaient une seconde fois 0,4 s par page (2026-10-02).
-        all_transcripts = queue_light(Transcript.objects.filter(user=user))
+        all_transcripts = without_heavy_fields(Transcript.objects.filter(user=user))
         for t in all_transcripts:
             if not t.duration_display and t.audio:
                 _describe_audio(t)
