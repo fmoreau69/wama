@@ -182,6 +182,40 @@ class ModelSyncService:
 
         return result
 
+    def sync_cloud_models(self) -> SyncResult:
+        """Synchronise les SEULS modèles distants (`ModelRegistry.discover_cloud_models`) — la
+        même écriture que `full_sync`, ligne par ligne (`_sync_model`), mais SANS aucune
+        réconciliation : une découverte partielle ne prouve aucune disparition. Le retrait de
+        ce que plus aucune clé n'ouvre reste à `cloud_models.retire_unlisted`. (2026-10-02 :
+        l'enregistrement d'une clé déclenchait la synchronisation complète, ~5 min.)"""
+        from ..models import ModelSyncLog
+
+        log = ModelSyncLog.objects.create(sync_type='incremental')
+        result = SyncResult(success=True)
+        try:
+            discovered = self._get_registry().discover_cloud_models()
+            with transaction.atomic():
+                for model_key, model_info in discovered.items():
+                    try:
+                        created, updated = self._sync_model(model_key, model_info)
+                        if created:
+                            result.added += 1
+                            result.added_keys.append(model_key)
+                        elif updated:
+                            result.updated += 1
+                    except Exception as e:
+                        result.errors.append(f"Error syncing {model_key}: {e}")
+            log.status = 'completed'
+            log.models_added, log.models_updated = result.added, result.updated
+        except Exception as e:
+            logger.error(f"Cloud sync failed: {e}")
+            result.success = False
+            result.errors.append(str(e))
+            log.status, log.error_message = 'failed', str(e)
+        log.completed_at = timezone.now()
+        log.save()
+        return result
+
     @staticmethod
     def _drop_superseded_snapshots(discovered_models, seen_keys) -> int:
         """Supprime les lignes du balayage générique (`extra_info.hf_snapshot`) absentes de

@@ -276,8 +276,8 @@ def refresh_key(row, background: bool = False) -> tuple:
     liste précédente conservée : un fournisseur injoignable ne ferme rien à l'utilisateur.
 
     `background` (2026-10-02) : la lecture chez le fournisseur reste immédiate — elle dit combien
-    de modèles la clé ouvre —, la mise à jour du CATALOGUE (`register_open_models`, synchronisation
-    complète) part en tâche de fond. Faite dans la requête du profil, elle a pris plus de deux
+    de modèles la clé ouvre —, la mise à jour du CATALOGUE (`register_open_models`, réduite aux
+    modèles distants le même jour) part en tâche de fond. Faite dans la requête du profil, elle a pris plus de deux
     minutes : bouton « Enregistrer » sans effet visible, serveur web bloqué, double envoi.
     """
     from django.utils import timezone
@@ -312,15 +312,16 @@ def register_open_models(row) -> None:
     """Le CATALOGUE suit la liste gardée sur la clé `row` : la partie LONGUE de `refresh_key`
     (synchronisation complète, retraits, provenance), lancée en tâche de fond depuis le profil."""
     listing = row.remote_listing or []
-    # Synchronisation COMMUNE (celle d'une installation), puis retrait de ce que plus aucune clé
-    # n'ouvre, puis provenance : l'identité d'éditeur (dépôt HuggingFace servi) entre par le
-    # manifeste et le corpus reçoit la ligne — exactement `record_after_install`, sans spec.
-    from .model_installer import register_after_install
+    # Synchronisation des seuls modèles DISTANTS (même écriture que la synchronisation commune,
+    # sans les disques ni les apps : ~5 min de découverte complète pour une clé, 2026-10-02),
+    # puis retrait de ce que plus aucune clé n'ouvre, puis provenance : l'identité d'éditeur
+    # (dépôt HuggingFace servi) entre par le manifeste et le corpus reçoit la ligne.
+    from .model_sync import ModelSyncService
     from .provenance import cloud_identity, set_identity
     try:
-        register_after_install()
+        ModelSyncService().sync_cloud_models()
     except Exception:
-        logger.warning("register_after_install a échoué après la découverte %s (le sync "
+        logger.warning("synchronisation cloud échouée après la découverte %s (le sync "
                        "périodique rattrapera)", row.source, exc_info=True)
     retire_unlisted(row.source)
     for item in listing:

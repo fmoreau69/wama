@@ -281,6 +281,16 @@ class ModelRegistry:
 
         return self._models
 
+    def discover_cloud_models(self) -> Dict[str, ModelInfo]:
+        """La SEULE découverte des modèles distants (clés d'API des utilisateurs) — ni disque, ni
+        Ollama, ni apps. Pour la synchronisation qui suit l'enregistrement d'une clé : la
+        découverte complète prenait près de cinq minutes (mesuré le 2026-10-02), pour un
+        changement qui ne touche QUE des modèles distants."""
+        self._models.clear()
+        self.discovery_errors = []
+        self._discover_cloud_models()
+        return self._models
+
     @staticmethod
     def refresh_ollama_residency() -> int:
         """
