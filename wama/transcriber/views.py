@@ -222,6 +222,7 @@ def _input_match_meta():
 
 class IndexView(View):
     def get(self, request):
+        from wama.common.utils.batch_common import queue_light
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
         # Lazily wrap any orphan transcripts into a batch-of-1
@@ -236,7 +237,8 @@ class IndexView(View):
         # tâche) ne conclut rien : ne touche JAMAIS une tâche vivante (cf. process_control).
         try:
             from wama.common.utils.process_control import reconcile_orphaned_running
-            running = list(Transcript.objects.filter(user=user, status='RUNNING'))
+            # Sans les segments (`queue_light`) : la réconciliation ne lit que statut et tâche.
+            running = list(queue_light(Transcript.objects.filter(user=user, status='RUNNING')))
             n = reconcile_orphaned_running(running, error_field='error_message')
             if n:
                 logger.info(f"[transcriber] {n} tâche(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
@@ -290,7 +292,7 @@ class IndexView(View):
         # Backfill duration for existing transcripts that were stored without it
         # Sans les champs LOURDS (segments) : ni ce rattrapage ni la barre de progression globale
         # ne les lisent — chargés ici, ils coûtaient une seconde fois 0,4 s par page (2026-10-02).
-        all_transcripts = Transcript.objects.filter(user=user).defer(*Transcript.QUEUE_DEFERRED_FIELDS)
+        all_transcripts = queue_light(Transcript.objects.filter(user=user))
         for t in all_transcripts:
             if not t.duration_display and t.audio:
                 _describe_audio(t)
@@ -1543,9 +1545,13 @@ def global_progress(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        transcripts = Transcript.objects.filter(user=user)
+        # UNE requête sur les deux colonnes utiles — la forme qu'émet le générateur
+        # (`codegen/views_gen.py`). Jusqu'au 2026-10-03 la somme des progressions chargeait
+        # chaque transcription ENTIÈRE, segments compris : 0,48-0,70 s par appel, et la page
+        # interroge cette vue toutes les 2 à 3 s. Même calcul qu'avant.
+        rows = list(Transcript.objects.filter(user=user).values_list('status', 'progress'))
 
-        if not transcripts.exists():
+        if not rows:
             return JsonResponse({
                 'total': 0,
                 'pending': 0,
@@ -1555,14 +1561,15 @@ def global_progress(request):
                 'overall_progress': 0
             })
 
-        total = transcripts.count()
-        pending = transcripts.filter(status='PENDING').count()
-        running = transcripts.filter(status='RUNNING').count()
-        success = transcripts.filter(status='SUCCESS').count()
-        failure = transcripts.filter(status='FAILURE').count()
+        def _count(status):
+            return sum(1 for s, _ in rows if s == status)
+
+        total = len(rows)
+        pending, running = _count('PENDING'), _count('RUNNING')
+        success, failure = _count('SUCCESS'), _count('FAILURE')
 
         # Calculate overall progress
-        total_progress = sum(t.progress for t in transcripts)
+        total_progress = sum(p or 0 for _, p in rows)
         overall_progress = int(total_progress / total) if total > 0 else 0
 
         return JsonResponse({
