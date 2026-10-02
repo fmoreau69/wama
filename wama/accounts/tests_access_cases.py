@@ -56,6 +56,23 @@ class PresentationRoutesTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn('matrix', r.json())
 
+    def test_the_transcription_report_is_served_with_its_three_charts(self):
+        """Added to « Présentations & annexes » on 2026-10-02: a generated snapshot of the report,
+        whose three charts the export had dropped — they are redrawn, none may be missing."""
+        r = self.client.get(reverse('transcription_report'))
+        self.assertEqual(200, r.status_code)
+        page = r.content.decode()
+        self.assertEqual(3, page.count('<figure class="chart">'))
+        self.assertNotIn('embedded content', page)
+        self.assertNotIn('{%', page, 'no template syntax may leak into the page')
+
+    def test_the_home_menu_links_the_report(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        home = (Path(settings.BASE_DIR) / 'wama' / 'templates' / 'home.html').read_text(encoding='utf-8')
+        self.assertIn("{% url 'transcription_report' %}", home)
+
     def test_archived_presentations_stay_reachable(self):
         from wama.views import ARCHIVED_PRESENTATIONS
         self.assertTrue(ARCHIVED_PRESENTATIONS)

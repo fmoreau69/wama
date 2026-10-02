@@ -16,6 +16,7 @@ urlpatterns = [
     path('presentation/archive/<slug:slug>/', views.presentation_archive, name='presentation_archive'),
     path('architecture/', views.architecture, name='architecture'),
     path('fiches/', views.fiches, name='fiches'),
+    path('reports/transcription/', views.transcription_report, name='transcription_report'),
     path('api/ai-chat/', views.ai_chat, name='ai_chat'),
     path('api/ai-chat/clear/', views.ai_chat_clear, name='ai_chat_clear'),
     path('api/ai-chat/settings/', views.ai_chat_settings, name='ai_chat_settings'),
