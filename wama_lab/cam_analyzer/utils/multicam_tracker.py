@@ -992,9 +992,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         for pos, tt, bb in (_head_obs.get(gid) or [])[:400]:
             iw_o, ih_o = _cam_dims.get(pos, (384, 248))
             _, _, shh = _shuttle_pose_at(sh_traj, tt)
-            from .prediction_adapter import CAMERA_FOV_V as _FOVV_REAL
+            # champ VERTICAL effectif (`camera_geometry`), cohérent avec le champ horizontal utilisé
             cands.extend(_ratio_heading_candidates(
-                bb, iw_o, ih_o, _cls, _geo[pos], _FOVV_REAL.get(pos, 61.0), shh))
+                bb, iw_o, ih_o, _cls, _geo[pos], _geo[pos]['fov_v'], shh))
         _anchor_tmp[gid] = (me, mn, _axial_consensus(cands))
 
     if _feat.get('heading_cluster', True):
