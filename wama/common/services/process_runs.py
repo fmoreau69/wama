@@ -67,27 +67,15 @@ def line(item, node_id: str = MAIN_NODE, instance_key: str = ''):
 def snapshot(settings, watched) -> dict:
     """Photo des réglages SURVEILLÉS : `{clé: valeur}` pour chaque clé de `watched`, lue d'un
     dict ou des attributs d'un objet (élément, profil). Un réglage non surveillé n'y entre pas."""
+    # Les valeurs sont écrites sous la forme qu'un JSONField gardera (la photo est relue de la
+    # base avant d'être comparée : un champ fichier devient son chemin, un tuple une liste) —
+    # par la règle que la RÉVISION applique déjà à ses réglages, pas par une seconde.
+    from wama.common.services.revisions import json_safe
     if settings is None:
         return {}
     if isinstance(settings, dict):
-        return {key: plain(settings.get(key)) for key in watched}
-    return {key: plain(getattr(settings, key, None)) for key in watched}
-
-
-def plain(value):
-    """Une valeur de réglage sous sa forme ÉCRITE en JSON — la photo est relue de la base avant
-    d'être comparée, les deux côtés doivent donc avoir la même forme : un champ fichier devient
-    son chemin, un tuple une liste, tout ce que JSON ne porte pas sa représentation texte."""
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-    if isinstance(value, (list, tuple)):
-        return [plain(entry) for entry in value]
-    if isinstance(value, dict):
-        return {str(key): plain(entry) for key, entry in value.items()}
-    name = getattr(value, 'name', None)          # FieldFile : son chemin relatif, '' si vide
-    if hasattr(value, 'storage'):
-        return name or ''
-    return str(value)
+        return {key: json_safe(settings.get(key)) for key in watched}
+    return {key: json_safe(getattr(settings, key, None)) for key in watched}
 
 
 def _write(item, node_id, instance_key, defaults):

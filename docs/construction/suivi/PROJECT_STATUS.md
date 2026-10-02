@@ -20324,3 +20324,35 @@ Accord de Fabien (« ok pour la génération YuE2 en deux process »). Élément
   0,09 s cache chaud. GPU inchangée (`nvidia-smi` 0,06 s). Garde `tests_system_monitor`.
 - ⚠ Budgets de langue toujours dépassés par d'autres chantiers (code 2681 > 2678, classes 133,
   méthodes 1317) — rien dans les fichiers de ce palier.
+
+## §PALIER — 2026-10-02 (nuit), « PIPELINE PORTÉ PAR LA CARD — REVÉRIFICATION des paliers B et C : trois doublons retirés, gardes génériques ajoutées » — ✅ commit ci-dessous, non poussé — 🔚 la génération YuE2 par la vraie file attend derrière une campagne d'évaluation (élément #282)
+
+Demande de Fabien : « une revérification que tout est bien aligné, qu'on a rien réinventé, qu'on a
+bien ajouté tous les tests nécessaires et consigner ce qui doit l'être ». Passée contre la carte
+des mécanismes, `ROUTE §10.5`, le registre des registres et le code des briques voisines.
+
+- ❌→✅ **Trois écarts dans MES paliers, corrigés** (table à `ROUTE §10.6` point 4) :
+  une empreinte de fichier à moi → `provenance.sha256_of` (celle des révisions) ;
+  `process_runs.plain()` → `revisions.json_safe` (rendue publique) ; `app_pipeline()` sans
+  lecteur → retirée.
+- ✅ **Vérifié sans écart** : adressage de `ProcessRun` (convention de `RunOutcome`), drapeau de
+  moteur lu sur la classe (comme `supports_vad_filter`), relâche du moteur par `unload()` du
+  contrat commun, `file_cache` / `task_progress` / `pipeline_stage` ne couvrent pas ces besoins.
+- ✅ **Gardes ajoutées** (`common/tests/tests_process_pipeline.py`) : `EveryAppPipelineTest`,
+  générique sur `APP_PIPELINES` (fonctions au catalogue et liées à l'app, manifeste valide et
+  monde de l'app, corpus égal au registre, ouverture au studio avec chaque lien sur un port) ;
+  ETA apprise par process ; durée maximale qui referme la ligne du process interrompu.
+- ✅ **Consigné** : `WAMA_APP_CONVENTIONS §0` — « La tâche d'item, trois obligations » (dire son
+  besoin de VRAM, rendre son moteur, déclarer ses process) ; registre des mécanismes
+  (dépendances de `process_runs` et `process_pipeline`).
+- **Mesuré (WSL, base isolée)** : 208 tests verts (pipeline, lignes, révisions, squelette,
+  composer, studio, registre des passes du Lab, jumelle du Writer, enhancer). Aucun identifiant
+  français dans les fichiers touchés.
+- ⚠ **Trous nommés, non comblés** : le générateur de tâches ne produit qu'une tâche à un
+  process (la jumelle du composer n'a pas son pipeline) ; aucun critère de grille ne mesure la
+  déclaration du besoin de VRAM (deux tâches seulement la font) ; le chargement paresseux de
+  YuE2 échappe à la mesure de VRAM du contrat commun.
+- ⚠ **Effet du changement d'empreinte** : les lignes écrites avant ce commit (éléments de test
+  #281 et #282 seulement) porteront une empreinte d'amont à l'ancienne forme — leur rendu sera
+  lu « périmé » une fois, après la prochaine relance des workers. Aucun élément réel n'est
+  concerné.

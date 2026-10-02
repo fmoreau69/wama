@@ -34,7 +34,6 @@ déduit à qui veut l'afficher, ce module ne l'écrit pas dans `status`.
 """
 from __future__ import annotations
 
-import hashlib
 import os
 from dataclasses import dataclass
 from typing import Callable
@@ -46,10 +45,6 @@ from wama.common.services.process_runs import OPTIONAL, REQUIRED
 #: Clé de la photo qui porte l'empreinte des sorties d'amont (« entrée remplacée », point 4.3).
 #: Le `@` l'écarte de tout nom de réglage.
 UPSTREAM_KEY = '@upstream'
-
-#: Octets lus pour l'empreinte d'une sortie : assez pour une partition entière, borné pour un
-#: média lourd (dont la taille entre aussi dans l'empreinte).
-FINGERPRINT_BYTES = 4 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -79,17 +74,20 @@ class ProcessSpec:
 
 
 def output_fingerprint(ref: str) -> str:
-    """Empreinte de la sortie d'un process (chemin relatif à MEDIA_ROOT) : taille + condensé du
-    début du fichier. Une sortie disparue a une empreinte à elle — son aval devient périmé."""
+    """Empreinte de la sortie d'un process (chemin relatif à MEDIA_ROOT) : celle de la brique
+    commune `provenance.sha256_of` — la même que la RÉVISION garde de chaque sortie
+    (`revisions.output_references`). Un fichier trop gros pour être lu est suivi par sa taille ;
+    une sortie disparue a une empreinte à elle — son aval devient périmé."""
     if not ref:
         return ''
     from django.conf import settings
+    from wama.common.utils.provenance import sha256_of
     path = os.path.join(settings.MEDIA_ROOT, ref)
+    digest = sha256_of(path)
+    if digest:
+        return digest
     try:
-        size = os.path.getsize(path)
-        with open(path, 'rb') as handle:
-            digest = hashlib.sha256(handle.read(FINGERPRINT_BYTES)).hexdigest()
-        return f'{size}:{digest[:16]}'
+        return f'size:{os.path.getsize(path)}'
     except OSError:
         return f'missing:{ref}'
 
@@ -261,7 +259,9 @@ class AppPipeline:
             (rows[spec.key].status, spec.degree) for spec in self.specs if spec.key in rows)
 
 
-#: Pipelines déclarés, par app — inscrits depuis le `function_specs.py` de chaque app.
+#: Pipelines déclarés, par app — inscrits depuis le `function_specs.py` de chaque app. Lu par
+#: la garde générique (`tests_process_pipeline.EveryAppPipelineTest`) : ce qu'une app déclare
+#: ici est tenu pour toutes, sans un test par app.
 APP_PIPELINES: dict = {}
 
 
@@ -276,13 +276,3 @@ def register_app_pipeline(app: str, specs, *, label: str, description: str = '',
     register_pipeline_source(app, pipeline.manifest)
     return pipeline
 
-
-def app_pipeline(app: str):
-    """Le pipeline déclaré d'une app, ou None (une app à un seul process n'en déclare pas)."""
-    from wama.common.catalog.function_catalog import load_all
-    if app not in APP_PIPELINES:
-        try:
-            load_all()
-        except Exception:
-            pass
-    return APP_PIPELINES.get(app)

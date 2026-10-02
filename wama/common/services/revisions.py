@@ -31,8 +31,10 @@ logger = logging.getLogger(__name__)
 OPTIONS_CONTAINER = 'options'
 
 
-def _json_safe(value):
-    """Une valeur de réglage telle qu'un JSONField la gardera (Decimal, date… → chaîne)."""
+def json_safe(value):
+    """Une valeur de réglage telle qu'un JSONField la gardera (Decimal, date… → chaîne ; un
+    champ fichier → son chemin). Publique depuis le 2026-10-02 : la photo des réglages d'un
+    process (`process_runs.snapshot`) écrit ses valeurs par la même règle que la révision."""
     from django.core.serializers.json import DjangoJSONEncoder
     try:
         return json.loads(json.dumps(value, cls=DjangoJSONEncoder))
@@ -62,9 +64,9 @@ def settings_snapshot(app_id: str, item) -> dict:
         if not name:
             continue
         if name in columns:
-            snapshot[name] = _json_safe(getattr(item, name, None))
+            snapshot[name] = json_safe(getattr(item, name, None))
         elif name in container:
-            snapshot[name] = _json_safe(container[name])
+            snapshot[name] = json_safe(container[name])
     return snapshot
 
 

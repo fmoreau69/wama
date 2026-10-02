@@ -3400,7 +3400,8 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 >   dernier process.
 > - **Les trois causes de péremption de 4.3 sont écrites** (`refresh`) : réglage surveillé
 >   changé ; amont périmé ou en échec (cascade) ; **entrée remplacée** — la photo d'un process
->   garde l'EMPREINTE de la sortie de chaque amont (`@upstream` : taille + condensé), donc une
+>   garde l'EMPREINTE de la sortie de chaque amont (`@upstream` : `provenance.sha256_of`, la
+>   même que la révision garde de chaque sortie), donc une
 >   partition corrigée à la main périme le rendu sans qu'aucun réglage n'ait bougé. Un amont
 >   qui n'a jamais tourné (process sans objet pour ce modèle) ne périme personne.
 > - **Le squelette joue N process dans UNE tâche** : `run_item_task(pipeline=…,
@@ -3462,6 +3463,39 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 >     arbitrer côté `WAMA_LLM`, pas ici.
 >   - ⏳ Reste : la même génération PAR le worker en service (il faut le relancer pour qu'il
 >     prenne `3547f51f`).
+> - **Revérification du 2026-10-02 (demande de Fabien : « rien réinventé, tous les tests, tout
+>   consigné »)** — passée contre la carte des mécanismes, `§10.5`, le registre des registres et
+>   le code des briques voisines. Trois écarts trouvés DANS ces paliers, corrigés :
+>
+>   | ce que j'avais écrit | ce qui existait | correction |
+>   |---|---|---|
+>   | une empreinte de fichier à moi (taille + condensé du début) pour « entrée remplacée » | `provenance.sha256_of` — la brique commune, celle que la révision garde déjà de chaque sortie (`revisions.output_references`) | `output_fingerprint` l'appelle ; un fichier trop gros est suivi par sa taille |
+>   | `process_runs.plain()` pour écrire un réglage sous sa forme JSON | `revisions._json_safe` — même besoin, même règle (« telle qu'un JSONField la gardera ») | rendue publique (`json_safe`), `process_runs.snapshot` l'emploie ; `plain` retirée |
+>   | `process_pipeline.app_pipeline()` | — aucun lecteur | retirée ; `APP_PIPELINES` a un lecteur : la garde générique ci-dessous |
+>
+>   Vérifié SANS écart : l'adressage de `ProcessRun` suit la convention de `RunOutcome` et
+>   d'`InputProvenance` (`app` + `object_type` + `object_id`) ; le drapeau de moteur se lit sur
+>   la CLASSE comme `supports_vad_filter` (`transcriber/backends/manager.py:506`) ; relâcher le
+>   moteur passe par `unload()`, que l'enveloppe du contrat commun relie au gouverneur
+>   (`backends/base.py`, registre `_LIVE_BACKENDS`) — le dictionnaire `_OPEN_BACKENDS` du
+>   composer ne le double pas, il garde l'instance le temps de la tâche pour pouvoir la rendre ;
+>   `file_cache` (date + taille, en mémoire) et `task_progress` (tâches hors file) ne couvrent
+>   pas ces besoins ; la capacité de modèle `pipeline_stage` (29/09) désigne le MODÈLE d'une
+>   étape interne et reste compatible — quand l'avatarizer déclarera son pipeline, ce sont ces
+>   modèles que ses process emploieront.
+>   **Gardes ajoutées** : `EveryAppPipelineTest` (générique sur `APP_PIPELINES` : chaque process
+>   est une fonction du catalogue liée à son app, manifeste valide et monde de l'app, fichier du
+>   corpus égal au registre, ouverture au studio avec chaque lien posé sur un port) ; ETA apprise
+>   par process ; durée maximale qui referme la ligne du process interrompu.
+>   **Trous que la revérification nomme sans les combler** : le générateur de tâches
+>   (`manifests/codegen/tasks_gen.py`) ne sait produire qu'une tâche à UN process — la jumelle
+>   du composer n'a pas son pipeline ; aucun critère de grille ne mesure « déclare son besoin de
+>   VRAM », alors que deux tâches seulement passent `vram_needed` au squelette (enhancer,
+>   composer — relevé par `grep vram_needed=` sur le dépôt) — à décider avec le portage ;
+>   `YuE2Backend.load()` construit le pipeline sans charger les poids (chargement paresseux,
+>   `vendor/yue/src/yue2/pipeline.py:156`), donc la mesure que le contrat commun fait autour de
+>   `load()` retombe sur la VRAM recommandée (`backends/base.py:59-61`) : besoin déclaré 7,3 Go,
+>   pic réel 8,0 Go.
 > - **Limites déclarées** : ① la card n'AFFICHE pas ses process (P5) : la partition écrite
 >   n'est visible que dans l'explorateur de fichiers ; ② « rapatrier les entrées avant de
 >   résoudre modèle et VRAM » reste à faire dans le moteur. Et une conséquence assumée :
@@ -3859,7 +3893,7 @@ possible **sans aucun process**.
     `pass_tracking.Pass`), chaque process un `FunctionSpec binding: app` du catalogue, le registre
     inscrit comme source de manifeste `pipeline` (`register_pipeline_source`) sous la clé de l'app.
     **Aucune facette neuve au manifeste `app`** : le pipeline d'une app se retrouve par SA clé
-    (`process_pipeline.app_pipeline(app)`, `manifests/pipelines/<app>.json`).
+    (`process_pipeline.APP_PIPELINES[app]`, `manifests/pipelines/<app>.json`).
     Ce que cela corrige : la phrase « les FONCTIONS du catalogue sont des process du monde Data,
     pas les étapes internes d'une app Médias » (ici et `WAMA_MANIFEST_SPEC §3.1`) était un constat
     du 01/10, pas une règle — le cam_analyzer déclarait déjà ses étapes internes en fonctions liées
