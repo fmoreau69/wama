@@ -20111,3 +20111,22 @@ défaut ; **pilote = le composer** (YuE2 : `plan` → `render`). Plan soumis à 
   le rechargement (sonde de temps de page dans le scratchpad de session).
 - ⚠ Rouge PRÉEXISTANT, pas à moi : `tests_codegen_lot.ItemEditRouteAliasTest` (imager
   `generation_settings` rendu en trou de glu) — rejoué sans mes fichiers : même échec.
+
+## §PALIER — 2026-10-02, « VÉRIFICATION RÉELLE : CARDS REÇUES DANS LE CONVERTER » — ✅ `bc7094d3` — 🔚 relancer WAMA
+
+Demande de Fabien : « fais la vérification réelle sur le converter » (après `316ec5f8`, tests verts).
+- Geste neuf `common.received_card_visible` (converter : listée, rafraîchie, téléchargée, pas
+  supprimable, disparaît une fois privée). **Joué sur le LIVE, il a trouvé deux défauts** que le
+  contrat de parc ne voyait pas (témoin toujours rangé dans un lot, sans vrai fichier) :
+  1. **500 sur toute la file du destinataire** pour une card reçue SANS lot — le tri commun
+     supposait un lot (`queue_view`, corrigé : l'entrée se trie sur sa card) ;
+  2. **403 sur l'aperçu** du résultat — `PreviewRegistry.check_permission` = propriétaire/staff
+     seulement (corrigé par `scoping.listable_by` ; l'assistant en hérite).
+- Gardes + contre-épreuve (rouges sur HEAD) ; geste 7/7 sur 8011 ; duplication 6/6 et transfert
+  5/5 inchangés. Domicile : `WAMA_VERIFICATION` (geste), `WAMA_COLLABORATION §3bis.1`.
+- ⚠ 12 rouges PRÉEXISTANTS (identiques avec les briques de HEAD), pas de ce palier :
+  `writer_01_writerdocument.quality_intent` absente de la base de test (jumelle non versionnée
+  modifiée à 18:03 par une autre instance — 10 rouges : `tests_calendar`, `tests_export_service`)
+  et `tests_picker_list.PreviewMimeForThePickerTest` (`audio/wav` ≠ `audio/x-wav`).
+- 🔴 relancer WAMA (le live sert encore l'ancien tri : une card reçue sans lot y rend 500).
+  Non poussé.
