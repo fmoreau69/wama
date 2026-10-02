@@ -227,8 +227,13 @@ class KyutaiSttBackend(SpeechToTextBackend):
             inputs = self._processor(audio=audio, return_tensors="pt")
             inputs = {k: v.to(self._device) for k, v in inputs.items()}
 
-            # 3️⃣ Génération
-            output_tokens = self._model.generate(**inputs)
+            # 3️⃣ Génération, en `inference_mode` : dans le worker GPU (2026-10-02, campagne
+            #    d'évaluation), la 1ʳᵉ carte Kyutai après LinTO et FrWhisper a échoué sur « Inplace
+            #    update to inference tensor outside InferenceMode » — non reproduit seul ni après
+            #    l'un ou l'autre. Une mise à jour en place d'un tel tenseur est permise DANS ce mode.
+            import torch
+            with torch.inference_mode():
+                output_tokens = self._model.generate(**inputs)
 
             # 4️⃣ Décodage
             decoded = self._processor.batch_decode(output_tokens, skip_special_tokens=True)
