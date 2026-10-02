@@ -52,6 +52,31 @@ class SystemMonitor:
             cls._instance = super().__new__(cls)
         return cls._instance
 
+    #: Durée de vie d'un relevé de l'hôte Windows (CPU, RAM, disque), PARTAGÉ entre les processus
+    #: par le cache Django (Redis). Mesuré le 2026-10-02 : chaque relevé lance un programme
+    #: Windows depuis WSL — `wmic cpu` ~1,3 s (Windows échantillonne la charge), RAM ~0,24 s,
+    #: disque par PowerShell — et le pied de page de CHAQUE onglet les redemandait toutes les
+    #: quelques secondes, un processus gunicorn occupé à chaque fois ; la page du model manager
+    #: les attendait (1,6 s sur 1,7). La GPU n'est pas concernée : `nvidia-smi` coûte ~0,06 s et
+    #: la VRAM bouge vite.
+    HOST_READING_TTL_S = 5
+
+    @classmethod
+    def _shared_reading(cls, name: str, read):
+        """Le relevé `name` de l'hôte, lu au plus une fois par `HOST_READING_TTL_S` pour tous les
+        processus ; sans cache joignable, la lecture directe (le comportement d'avant)."""
+        try:
+            from django.core.cache import cache
+            key = f'wama:system_monitor:{name}'
+            value = cache.get(key)
+            if value is None:
+                value = read()
+                if value is not None:
+                    cache.set(key, value, cls.HOST_READING_TTL_S)
+            return value
+        except Exception:
+            return read()
+
     # Absolute fallback paths for Windows executables (in case PATH is stripped)
     _WMIC_PATHS = [
         'wmic.exe',
@@ -265,7 +290,7 @@ class SystemMonitor:
         """
         # Try Windows host stats first if in WSL
         if IS_WSL:
-            windows_cpu = cls._get_windows_cpu_from_wsl()
+            windows_cpu = cls._shared_reading('host_cpu', cls._get_windows_cpu_from_wsl)
             if windows_cpu:
                 return windows_cpu
 
@@ -305,7 +330,7 @@ class SystemMonitor:
         """
         # Try Windows host stats first if in WSL
         if IS_WSL:
-            windows_ram = cls._get_windows_ram_from_wsl()
+            windows_ram = cls._shared_reading('host_ram', cls._get_windows_ram_from_wsl)
             if windows_ram:
                 return windows_ram
 
@@ -434,7 +459,8 @@ class SystemMonitor:
         """
         # Try Windows host stats first if in WSL
         if IS_WSL:
-            windows_disk = cls._get_windows_disk_from_wsl(drive)
+            windows_disk = cls._shared_reading(f'host_disk_{drive}',
+                                               lambda: cls._get_windows_disk_from_wsl(drive))
             if windows_disk:
                 return windows_disk
 
