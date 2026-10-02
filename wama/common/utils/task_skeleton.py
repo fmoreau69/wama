@@ -183,6 +183,12 @@ def _item_label(item, item_id: int) -> str:
 #: plafond « 40 × 45 s ≈ 30 min puis échec » d'avant est retiré : il rendait un échec pour une
 #: charge durable légitime, alors que la durée max porte sur UN traitement, pas sur l'attente.
 DIFFEREMENT_DELAI_S = 45
+#: ⚠ « Sans plafond » ne s'écrit PAS `max_retries=None` dans `task.retry()` : pour Celery, `None`
+#: en argument veut dire « le défaut de la tâche » — 3 (`celery/app/task.py:720`, `max_retries = 3`
+#: à la classe). Mesuré le 2026-10-02 sur la 1ʳᵉ vraie attente (composer #282) : à la 3ᵉ
+#: re-livraison, `MaxRetriesExceededError`, et l'élément est resté « en attente de ressources »
+#: sans tâche, pour toujours. L'attente illimitée se dit par un plafond que personne n'atteint.
+WAIT_RETRIES_UNLIMITED = 10 ** 9
 
 
 class TaskTimeLimitExceeded(Exception):
@@ -226,6 +232,7 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
     partira le premier, et une ligne « main » n'est pas un de ses process — l'attente est alors
     portée par l'ÉLÉMENT seul (`AWAITING_RESOURCES`), qui reste ce que l'interface lit.
     """
+    from celery.exceptions import MaxRetriesExceededError
     from wama.common.models import JOB_AWAITING_RESOURCES
     from wama.common.services import process_runs
     from wama.common.services import resource_governor as gov
@@ -275,7 +282,26 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
                             task_id=getattr(getattr(task, 'request', None), 'id', '') or '')
     ctx.console(msg, level='info')
     logger.info("[%s] item #%s différé — %s", app_id, item_id, msg)
-    raise task.retry(countdown=DIFFEREMENT_DELAI_S, max_retries=None)
+    try:
+        raise task.retry(countdown=DIFFEREMENT_DELAI_S, max_retries=WAIT_RETRIES_UNLIMITED)
+    except MaxRetriesExceededError:
+        # Filet : une attente qui ne peut plus être re-livrée est un ÉCHEC DIT, jamais un élément
+        # abandonné « en attente de ressources » sans tâche derrière lui.
+        msg = (f"Attente de ressources interrompue après {_deliveries_so_far(task)} re-livraisons : "
+               f"relancer quand la carte sera libre.")
+        champs = {'status': 'FAILURE'}
+        if _has_field(model, error_field):
+            champs[error_field] = msg
+        model.objects.filter(pk=item_id).update(**champs)
+        if write_line:
+            process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
+        ctx.console(f"✗ {msg}", level='error')
+        _notify(item, app_id.title(), _item_label(item, item_id), False, detail=msg)
+        return True
+
+
+def _deliveries_so_far(task) -> int:
+    return int(getattr(getattr(task, 'request', None), 'retries', 0) or 0)
 
 
 class _time_guard:
