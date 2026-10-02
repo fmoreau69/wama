@@ -112,7 +112,8 @@ class PreviewRegistry:
         """
         Check if user has permission to view the instance.
 
-        Default implementation checks if instance.user == user or user is staff.
+        Le propriétaire, le staff — et, pour un modèle partageable (`ScopedVisibility`), quiconque
+        peut le LISTER (`scoping.listable_by` : partagé avec lui, sauf le compte anonyme).
         """
         reg = cls._registry.get(app_name)
         if not reg:
@@ -128,7 +129,16 @@ class PreviewRegistry:
         if hasattr(user, 'is_staff') and user.is_staff:
             return True
 
-        return instance_user == user
+        if instance_user == user:
+            return True
+        # Une card REÇUE (2026-10-02) : la file du destinataire la montre, son aperçu doit suivre —
+        # sinon la vignette du résultat sort en 403 (mesuré sur le converter par le geste
+        # `common.received_card_visible`). Lecture seule : l'aperçu ne modifie rien.
+        manager = type(instance)._default_manager
+        if hasattr(manager, 'visible_to'):
+            from wama.common.utils.scoping import listable_by
+            return listable_by(manager.all(), user).filter(pk=instance.pk).exists()
+        return False
 
 
 # Utility functions for creating adapters

@@ -1103,9 +1103,36 @@ Scénario **`common.received_card_duplicate`** (`ui_smoke_menus.py`), **6/6** au
 (8011) : une card du compte de test DÉVELOPPEUR, rangée dans son lot et partagée en public par le
 service commun (`partager`), apparaît dans la file du describer du compte de test ; ⧉ y crée une
 card À LUI, privée, dont le fichier est une copie dans son dossier ; le fichier du propriétaire est
-intact. Joué sur le describer : la file du converter et celle de l'imager ne montrent pas encore
-les cards reçues (`WAMA_COLLABORATION §3bis.1`). ⚠ Le premier montage du témoin (card sans lot,
-puis lot non partagé) donnait un faux rouge : la file se construit à partir des LOTS.
+intact. Joué sur le describer. ~~La file du converter et celle de l'imager ne montrent pas encore
+les cards reçues~~ — faux pour l'imager, corrigé pour le converter le 2026-10-02 (geste suivant).
+⚠ Le premier montage du témoin (card sans lot, puis lot non partagé) donnait un faux rouge : la
+file du describer se construit à partir des LOTS.
+
+### Une card REÇUE dans la file du converter (2026-10-02)
+
+Scénario **`common.received_card_visible`** (`ui_smoke_menus.py`), **7/7** (8011, code neuf) :
+une card TERMINÉE du compte de test DÉVELOPPEUR, partagée en public, est dans la file du converter
+du compte de test ; son fragment se rafraîchit (200), son résultat se télécharge (200), sa
+suppression lui est refusée (403) ; repassée privée, elle sort de sa file ; la card du propriétaire
+est intacte. Demande de Fabien (« fais la vérification réelle sur le converter »), après
+`316ec5f8` — dont les tests Django étaient verts.
+⭐ **Joué d'abord sur le serveur LIVE, il a trouvé deux défauts que ces tests ne pouvaient pas
+voir**, parce que leur témoin était toujours rangé DANS un lot et sans vrai fichier :
+1. **500 sur toute la file du destinataire** : le témoin est une card SANS LOT (le converter ne
+   range dans un lot qu'à la visite de son PROPRIÉTAIRE, `_auto_wrap_orphans(user)`) et le tri
+   commun (`queue_view.apply_queue_sort_filter`) supposait un lot. Une seule card reçue faisait
+   tomber la page. Corrigé dans la brique : sans lot, l'entrée se trie sur sa card.
+2. **403 sur l'aperçu du résultat** : `PreviewRegistry.check_permission` n'admettait que le
+   propriétaire ou le staff — la vignette d'une card reçue ne s'affichait pas (relevé comme erreur
+   de console, puis l'URL identifiée par une sonde des réponses). Corrigé : un modèle partageable
+   est lisible par qui peut le LISTER (`scoping.listable_by`, compte anonyme exclu) ; l'assistant
+   (`tool_api` lit le même contrôle) en hérite.
+Gardes Django posées dans le même geste, contre-épreuve faite (rouges sur HEAD) :
+`tests_queue_sort` (entrée sans lot, tous tris × filtres), `ReceivedCardsAppearInTheQueueTest`
+(card reçue SANS lot : file à 200 sur tout le parc ; aperçu non refusé, et refusé une fois la card
+repassée privée).
+⚠ Le refus de suppression attendu (403) est lui-même journalisé comme erreur de console : le geste
+relève la console AVANT cette sonde.
 
 ### « Transférer à… » (2026-10-01)
 

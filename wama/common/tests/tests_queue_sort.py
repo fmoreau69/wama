@@ -139,6 +139,21 @@ class TriEtFiltreTests(SimpleTestCase):
                     self.assertEqual(len(_appliquer(tri, entrees=list(entrees))[0]),
                                      len(entrees))
 
+    def test_an_entry_without_a_batch_is_sorted_on_its_card(self):
+        # 2026-10-02 : une card REÇUE du converter, pas encore rangée dans un lot par son
+        # propriétaire, arrivait avec `obj=None` et faisait tomber la file du destinataire en 500.
+        # Elle se trie sur sa card : la plus récente de toutes, elle passe en tête de `recent`.
+        card = SimpleNamespace(created_at=timezone.now())
+        loose = {'obj': None, 'items': [card], 'nom': 'zulu',
+                 'success_count': 0, 'running_count': 0, 'failure_count': 0}
+        for tri in TRIS + ['manual']:
+            for filtre in FILTRES:
+                with self.subTest(tri=tri, filtre=filtre):
+                    _appliquer(tri, filtre, entrees=_jeu() + [loose])
+        self.assertIs(_appliquer('recent', entrees=_jeu() + [loose])[0][0], loose)
+        self.assertIn(loose, _appliquer('recent', 'draft', entrees=_jeu() + [loose])[0],
+                      'une card seule, non traitée, est un brouillon (total = 1)')
+
 
 class PersistanceEnSessionTests(SimpleTestCase):
     """Le choix survit à la requête suivante — et les clefs sont PARTAGÉES entre apps."""

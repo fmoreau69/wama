@@ -798,9 +798,8 @@ def check_received_card_duplicate():
     intact (2026-10-01, `WAMA_COLLABORATION §3bis`, mode lecture). (ok, detail)
 
     Joué sur le DESCRIBER : sa file passe par la brique commune (`batch_common`), qui montre les
-    lots partagés. ⚠ Le converter et l'imager construisent encore une file « propriétaire seul »
-    (`converter/views.py` IndexView, `imager/views.py` — choix daté et écrit) : une card qu'on y
-    partage n'apparaît pas chez le destinataire.
+    lots partagés. (La file du converter, construite à part, montre aussi les cards reçues depuis
+    le 2026-10-02 : geste `common.received_card_visible` ci-dessous.)
     Le propriétaire est le compte de test DÉVELOPPEUR ; sa card témoin n'est publique que le temps
     du geste (repassée privée puis supprimée au nettoyage). Le destinataire est le compte de test.
     """
@@ -873,6 +872,75 @@ def check_received_card_duplicate():
     Description.objects.filter(pk=item.pk).delete()
     BatchDescription.objects.filter(pk=owner_batch.pk).delete()
     source.unlink(missing_ok=True)
+    return _bilan(verdicts)
+
+
+def check_received_card_visible():
+    """Une card REÇUE est dans la file du CONVERTER du destinataire, s'y rafraîchit et se
+    télécharge ; il ne peut pas la supprimer ; repassée privée, elle disparaît. (ok, detail)
+
+    Le converter construit sa file à part (FK directe job→lot, pas `batch_common`) : c'est la file
+    qui ne montrait que les cards du propriétaire jusqu'au 2026-10-02 (`WAMA_COLLABORATION
+    §3bis.1`). Le rafraîchissement (`card_html`) est mesuré parce que c'est lui qui répondait 404
+    au destinataire dans quatre autres apps — la file listait, la card refusait.
+    Propriétaire : le compte de test DÉVELOPPEUR ; destinataire : le compte de test.
+    """
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario, get_test_dev_user
+    from wama.common.services.sharing import partager
+    from wama.converter.models import ConversionJob
+
+    page_path = '/converter/'
+    session_token, uid = _test_session_key('converter'), _test_account_id('converter')
+    owner = get_test_dev_user()
+    if not (session_token and uid and owner) or owner.pk == uid:
+        raise SkipScenario('deux comptes de test distincts sont nécessaires')
+    job, output = _sortie_converter(owner.pk, 'wama_temoin_card_recue_converter.png')
+    partager(owner, job, 'public')
+    card = f".wama-card[data-id='{job.pk}']"
+    fetch_status = """([url, method]) => {
+        const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+        return fetch(url, {method, headers: {'X-CSRFToken': csrf}}).then(r => r.status);
+    }"""
+    before, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, session_token)
+            try:
+                resp = page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(page, resp, page_path)
+                if refused_page:
+                    return refused_page
+                verdicts.append((page.locator(card).count() == 1,
+                                 'la card reçue est dans la file du destinataire'))
+                refreshed = page.evaluate(fetch_status, [f'{page_path}card/{job.pk}/html/', 'GET'])
+                verdicts.append((refreshed == 200, f'son fragment se rafraîchit ({refreshed})'))
+                fetched = page.evaluate(fetch_status, [f'{page_path}{job.pk}/download/', 'GET'])
+                verdicts.append((fetched == 200, f'son résultat se télécharge ({fetched})'))
+                # Console relevée AVANT la sonde de refus : le navigateur journalise le 403 attendu
+                # comme une erreur de ressource.
+                verdicts.append(_console(errors))
+                refused = page.evaluate(fetch_status, [f'{page_path}{job.pk}/delete/', 'POST'])
+                verdicts.append((refused in (403, 404), f'il ne peut pas la supprimer ({refused})'))
+            finally:
+                nav.close()
+        # Contre-épreuve : repassée PRIVÉE, elle sort de sa file.
+        partager(owner, job, 'private')
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, session_token)
+            try:
+                page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                verdicts.append((page.locator(card).count() == 0,
+                                 'repassée privée, elle n’est plus dans sa file'))
+            finally:
+                nav.close()
+    finally:
+        _drop_new_sessions(before)
+        still_there = ConversionJob.objects.filter(pk=job.pk).exists()
+        ConversionJob.objects.filter(pk=job.pk).delete()
+        output.unlink(missing_ok=True)
+    verdicts.append((still_there, 'la card du propriétaire est intacte'))
     return _bilan(verdicts)
 
 
@@ -1074,6 +1142,10 @@ def register_menu_scenarios():
              description="⧉ sur une card REÇUE crée une card à soi : privée, fichiers copiés chez "
                          "soi, original intact",
              run=lambda ctx: check_received_card_duplicate(), timeout_s=240)
+    register(id='common.received_card_visible', app='common', stage='ui',
+             description="Card REÇUE dans la file du converter : listée, rafraîchie, téléchargée, "
+                         "pas supprimable par le destinataire ; repassée privée, elle disparaît",
+             run=lambda ctx: check_received_card_visible(), timeout_s=240)
     register(id='common.card_transfer', app='common', stage='ui',
              description="« Transférer à… » depuis le menu de la card : elle quitte la file sans "
                          "rechargement, appartient au destinataire, son fichier déplacé chez lui",
