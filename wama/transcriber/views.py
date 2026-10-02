@@ -276,7 +276,9 @@ class IndexView(View):
         # comme cards BROUILLON — plus de zone « à valider » séparée.
 
         # Backfill duration for existing transcripts that were stored without it
-        all_transcripts = Transcript.objects.filter(user=user)
+        # Sans les champs LOURDS (segments) : ni ce rattrapage ni la barre de progression globale
+        # ne les lisent — chargés ici, ils coûtaient une seconde fois 0,4 s par page (2026-10-02).
+        all_transcripts = Transcript.objects.filter(user=user).defer(*Transcript.QUEUE_DEFERRED_FIELDS)
         for t in all_transcripts:
             if not t.duration_display and t.audio:
                 _describe_audio(t)

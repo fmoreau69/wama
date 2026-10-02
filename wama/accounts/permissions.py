@@ -282,13 +282,28 @@ def user_roles(user):
     return out
 
 
-def _policy_for(app_id):
-    """Politique effective d'une app : DB (AppAccessPolicy) sinon DEFAULT_APP_ACCESS sinon commune."""
+def _all_policies():
+    """Toutes les politiques en base, {app_id: AppAccessPolicy} — DEUX requêtes pour une liste
+    d'apps, au lieu de deux PAR app (le menu en évaluait 26 par page, 2026-10-02). None si la
+    base ne répond pas : chaque app retombe alors sur sa lecture unitaire."""
     try:
         from wama.accounts.models import AppAccessPolicy
-        p = AppAccessPolicy.objects.filter(app_id=app_id).prefetch_related('roles').first()
+        return {p.app_id: p for p in AppAccessPolicy.objects.prefetch_related('roles')}
     except Exception:
-        p = None
+        return None
+
+
+def _policy_for(app_id, policies=None):
+    """Politique effective d'une app : DB (AppAccessPolicy) sinon DEFAULT_APP_ACCESS sinon commune.
+    `policies` : lecture groupée (`_all_policies`) déjà faite par l'appelant."""
+    if policies is not None:
+        p = policies.get(app_id)
+    else:
+        try:
+            from wama.accounts.models import AppAccessPolicy
+            p = AppAccessPolicy.objects.filter(app_id=app_id).prefetch_related('roles').first()
+        except Exception:
+            p = None
     if p is not None:
         return {
             'roles': {g.name[len(GROUP_PREFIX):] for g in p.roles.all() if g.name.startswith(GROUP_PREFIX)},
@@ -319,24 +334,28 @@ def accessible(user, kind, element_id):
     return _app_accessible(user, element_id)
 
 
-def _app_accessible(user, app_id):
+def _app_accessible(user, app_id, policies=None, owners=None):
     """
     Décision pour la famille `app` :
       créateur de jumelle → min_tier → bypass dev/admin → anonymous(public) → app commune
       → intersection rôles.
+    `policies` / `owners` : lectures GROUPÉES faites par `accessible_apps` (même décision).
     """
     # Jumelle de bac à sable : son CRÉATEUR y accède quel que soit son tier (décision Fabien
     # 2026-09-03 — chacun voit SES jumelles, pas celles des autres ; dev/admin voient tout
     # par la voie tier normale). Dérogation AVANT min_tier : c'est lui qui bloquerait un
     # créateur non-dev. Une jumelle sans `created_by` (CLI) reste dev/admin-only.
     try:
-        from wama.common.sandbox import twin_owner
-        _owner = twin_owner(app_id)
+        if owners is not None:
+            _owner = owners.get(app_id, '')
+        else:
+            from wama.common.sandbox import twin_owner
+            _owner = twin_owner(app_id)
         if _owner and getattr(user, 'username', '') == _owner:
             return True
     except Exception:
         pass
-    pol = _policy_for(app_id)
+    pol = _policy_for(app_id, policies)
     tier = user_tier(user)
     if pol['min_tier'] and tier_rank(tier) < tier_rank(pol['min_tier']):
         return False
@@ -350,8 +369,21 @@ def _app_accessible(user, app_id):
 
 
 def accessible_apps(user, app_ids):
-    """Sous-ensemble d'app_ids accessibles à user (préserve l'ordre)."""
-    return [a for a in app_ids if accessible(user, 'app', a)]
+    """Sous-ensemble d'app_ids accessibles à user (préserve l'ordre).
+
+    MÊME décision que `accessible(user, 'app', …)` app par app, mais les politiques et les
+    propriétaires de jumelles se lisent UNE fois pour la liste (2026-10-02 : le menu de chaque
+    page faisait 52 requêtes et 26 lectures du registre des bacs à sable)."""
+    app_ids = list(app_ids)
+    if KIND_DECISION.get('app') != 'ici':
+        return [a for a in app_ids if accessible(user, 'app', a)]
+    policies = _all_policies()
+    try:
+        from wama.common.sandbox import load_registry
+        owners = {e.get('label'): e.get('created_by') or '' for e in load_registry()}
+    except Exception:
+        owners = None
+    return [a for a in app_ids if _app_accessible(user, a, policies, owners)]
 
 
 class _CaseUser:

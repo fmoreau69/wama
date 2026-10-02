@@ -20,6 +20,12 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
         'title_field': 'title',
     }
 
+    #: Champs LOURDS que la FILE n'affiche pas — différés par la brique commune
+    #: (`batch_common.build_batches_list`). Mesuré le 2026-10-02 sur 23 cards : 0,405 s pour les
+    #: lire avec les segments (3,8 Mo + 1,4 Mo compressés en base), 0,005 s sans. L'éditeur, le
+    #: détail et les téléchargements chargent la card seule, entière ; un accès ici les relit.
+    QUEUE_DEFERRED_FIELDS = ('segments_json', 'corrected_segments_json')
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transcripts')
     audio = models.FileField(upload_to=upload_to_user_input('transcriber'))
     created_at = models.DateTimeField(auto_now_add=True)
