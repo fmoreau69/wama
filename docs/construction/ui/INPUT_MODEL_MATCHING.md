@@ -518,10 +518,24 @@ champ modèle de SON schéma et une capacité canonique ; composer : même plafo
 catalogue et dans la tâche), `tests_cap_from_js` (la règle, V8). Critère `model_caps_ui` : il ne
 reconnaissait que la brique `WamaModelCaps` appelée à la main — l'imager, borné par `cap_from`
 depuis le 23/09, était ROUGE ; il reconnaît les deux formes.
-⏳ **Pas vérifié au navigateur** (GPU occupé le 02/10 au soir : 22,2 / 24,5 Go — aucun geste
-d'interface pendant un traitement) : à jouer sur le volet, la modale ⚙ et la modale de lot du
-composer, après relance de WAMA et la synchro périodique du catalogue (c'est elle qui écrit
-`max_duration_s` sur les lignes du composer).
+✅ **Vérifié au navigateur le 2026-10-03** (serveur de dev jetable côté WSL — le live, relancé
+la veille, ne servait déjà plus HEAD ; compte de test, aucun enregistrement) : volet en un hôte
+dans l'ordre du schéma, UN descriptif de moteur ; MusicGen/AudioGen → curseur arrêté à 30 s
+« Limite du modèle : 30s », Music 3 → 300 s, « auto » et ACE-Step → 600 s ; la modale ⚙ pareil.
+**Deux défauts trouvés par cette passe, et corrigés** :
+- `_applyCap` comparait la valeur APRÈS avoir baissé `max` — or un navigateur ramène de lui-même
+  la valeur d'un `<input range>` dans ses bornes, sans événement : 305 s demandées puis MusicGen
+  donnaient un curseur à 30 avec « s » affiché et une estimation restée sur 305 s. La valeur se
+  lit avant ; le double de test clampe désormais comme un navigateur (`tests_cap_from_js`) — le
+  faux `<input>` qui ne clampait pas cachait le défaut (l'imager vidéo l'avait aussi).
+- le curseur Durée du composer n'avait pas de `default` au schéma : rendu sans valeur (profil
+  neuf), il se posait au milieu de l'échelle (305 s) avec un libellé vide. `default=10` (celui du
+  modèle et du bouton « Réinitialiser »).
+⚠ Vu au passage, PRÉEXISTANT, non traité : le volet répète certains réglages — le moteur sous
+« Moteur / Modèle » ET sous son libellé de schéma (synthesizer « Modèle TTS », anonymizer
+« Modèle »), format et qualité de sortie sous Réglages ET sous Sortie. C'est `extra_from_params`
+qui relit ce que `build_detail` a déjà rendu ; le converter a une raison DATÉE de montrer le
+format en réglage (repli du 2026-08-13). Décision à prendre avant d'uniformiser.
 
 **2026-09-23 (nuit) — deux natures d'au-delà.** `duration_extension` vaut `continuation` quand
 l'app déclare `continuation_frames` (LTX : 25 images, conditionnement VIDÉO du passage suivant —

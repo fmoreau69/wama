@@ -915,8 +915,13 @@
       // Pas d'au-delà : le curseur S'ARRÊTE à la capacité (jamais une valeur qui serait réduite
       // en silence à l'exécution).
       var bound = Math.max(min, Math.min(max, Math.floor(Number(cap))));
+      // Valeur lue AVANT de baisser `max` : un navigateur ramène de lui-même la valeur d'un
+      // <input range> dans ses bornes, SANS événement — la comparaison faite après ne voyait
+      // donc jamais de dépassement, et ni le nombre affiché ni les écouteurs de l'app
+      // (estimation) n'étaient mis à jour (vu au navigateur le 2026-10-03, composer).
+      var asked = Number(el.value);
       el.max = bound;
-      if (Number(el.value) > bound) {
+      if (asked > bound) {
         el.value = bound;
         el.dispatchEvent(new Event('input', { bubbles: true }));
       }

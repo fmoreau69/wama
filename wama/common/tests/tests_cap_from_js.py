@@ -32,11 +32,17 @@ function classList() {
           contains: function (c) { return !!s[c]; }};
 }
 function fakeRange(value, max) {
-  var props = {};
-  return {value: String(value), max: max, min: '1', dataset: {}, disabled: false,
-          classList: classList(), style: {setProperty: function (k, v) { props[k] = v; },
-          removeProperty: function (k) { delete props[k]; }, props: props},
-          dispatchEvent: function () {}};
+  var props = {}, upper = max;
+  var el = {value: String(value), min: '1', dataset: {}, disabled: false, dispatched: [],
+            classList: classList(), style: {setProperty: function (k, v) { props[k] = v; },
+            removeProperty: function (k) { delete props[k]; }, props: props},
+            dispatchEvent: function (e) { el.dispatched.push(e.type); }};
+  // Like a real <input type="range">: lowering `max` brings the value back inside the bounds,
+  // silently (no event). A fake that did not clamp hid a real defect (2026-10-03).
+  Object.defineProperty(el, 'max', {
+    get: function () { return upper; },
+    set: function (v) { upper = v; if (Number(el.value) > Number(v)) el.value = String(v); }});
+  return el;
 }
 function fakeNote() { return {textContent: '', innerHTML: '', classList: classList()}; }
 function Event(type) { this.type = type; }
@@ -61,6 +67,7 @@ class CapFromTest(SimpleTestCase):
             var el = fakeRange({json.dumps(value)}, '15'), note = fakeNote(), row = {{classList: classList()}};
             window.WamaParams.applyCapFrom(el, note, row, {json.dumps(p)}, {json.dumps(cf)}, {json.dumps(caps)});
             return {{value: String(el.value), max: String(el.max), disabled: el.disabled,
+                     dispatched: el.dispatched,
                      capped: el.classList.contains('wama-range-capped'),
                      continuation: el.classList.contains('wama-range-capped--continuation'),
                      extrapolated: row.classList.contains('is-extrapolated'),
@@ -89,6 +96,14 @@ class CapFromTest(SimpleTestCase):
         out = self._apply(12, {'max_duration_s': 2.8})
         self.assertEqual(('2', '2'), (out['max'], out['value']))
         self.assertIn('Limite du modèle', out['note'])
+
+    def test_a_value_brought_back_under_the_bound_is_announced(self):
+        """The browser clamps the value by itself when `max` drops, without any event: the
+        displayed number and the app's listeners (estimate) stayed on the old value."""
+        out = self._apply(12, {'max_duration_s': 2.8})
+        self.assertEqual(['input'], list(out['dispatched']))
+        # Counter-test: a value already under the bound announces nothing.
+        self.assertEqual([], list(self._apply(2, {'max_duration_s': 2.8})['dispatched']))
 
     def test_auto_leaves_the_schema_slider_untouched(self):
         out = self._apply(12, None)

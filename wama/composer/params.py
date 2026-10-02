@@ -51,8 +51,11 @@ PARAMS = [
                                           "batch": "batchSettingsQualityIntent"},
           contexts=PANEL_ITEM_BATCH,
           **intent_param(show_if={"field": "model", "in": [AUTO_MUSIC, AUTO_SFX]})),
+    # `default=10` : celui du modèle (`ComposerGeneration.duration`) et du bouton « Réinitialiser ».
+    # Sans lui, un curseur rendu sans valeur (profil neuf) se posait au MILIEU de l'échelle (305 s)
+    # avec un libellé vide — vu au navigateur le 2026-10-03.
     Param(name="duration", type="range", label="Durée", icon="fa-clock", min=10, max=600, step=5,
-          unit="s", min_label="10s", max_label="10min", chip=True,
+          default=10, unit="s", min_label="10s", max_label="10min", chip=True,
           dom_id={"panel": "durationSlider", "item": "settingsDuration",
                   "batch": "batchSettingsDuration"},
           contexts=PANEL_ITEM_BATCH,
