@@ -184,16 +184,22 @@ SFX_MODELS = {k: v for k, v in COMPOSER_MODELS.items() if v['type'] == 'sfx'}
 
 def clamp_duration(value, model_id=None):
     """Durée bornée par la SOURCE UNIQUE = le schéma `params.py` (via `coerce_params`), plafonnée
-    par le `max_duration` du modèle si `model_id` est connu. Remplace les clamps hardcodés
-    `max(10, min(600, …))` (cf. PROJECT_STATUS §21bis). Le cap modèle ne s'applique qu'au moment où
-    le vrai modèle est résolu (pas pour les pseudo-modèles `auto-*` ni au dépôt batch)."""
+    par la capacité `max_duration_s` du modèle si `model_id` est connu — la MÊME capacité que le
+    curseur de l'écran lit (`cap_from`, `duration_caps_from_declaration`). Remplace les clamps
+    hardcodés `max(10, min(600, …))` (cf. PROJECT_STATUS §21bis). Le cap modèle ne s'applique qu'au
+    moment où le vrai modèle est résolu (pas pour les pseudo-modèles `auto-*` ni au dépôt batch).
+
+    `model_id` : clé de catalogue (`composer:musicgen-small`) ou identifiant nu du composer. Un
+    modèle d'une autre source (`huggingface:…`) n'a pas de déclaration ici : aucun plafond."""
+    from wama.common.utils.model_capabilities import duration_caps_from_declaration
+    from wama.common.utils.model_declarations import declaration_for
     from wama.common.utils.param_schema import coerce_params
     from wama.composer.params import PARAMS
     caps = {}
-    if model_id and model_id in COMPOSER_MODELS:
-        md = COMPOSER_MODELS[model_id].get('max_duration')
-        if md:
-            caps['duration'] = md
+    limit = duration_caps_from_declaration(
+        declaration_for(model_id, 'composer') or {} if model_id else {}).get('max_duration_s')
+    if limit:
+        caps['duration'] = limit
     return coerce_params(PARAMS, {'duration': value}, caps=caps).get('duration', value)
 
 

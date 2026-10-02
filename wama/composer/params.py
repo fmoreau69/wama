@@ -13,8 +13,8 @@ from wama.composer.utils.model_choice import AUTO_MUSIC, AUTO_SFX, TASKS
 
 PANEL = ("panel",)
 PANEL_ITEM = ("panel", "item")
-# Batch = les champs que `views.batch_update` ACCEPTE (model/duration/format/qualité) —
-# le prompt reste per-item. Modale batch DÉDIÉE (contrat reader, 17/08) rendue de ce schéma.
+# Batch = ce que la modale de lot POSTE (model/duration/format/qualité) — le prompt reste
+# per-item. Modale batch DÉDIÉE (contrat reader, 17/08) rendue de ce schéma.
 PANEL_ITEM_BATCH = ("panel", "item", "batch")
 
 PARAMS = [
@@ -55,7 +55,12 @@ PARAMS = [
           unit="s", min_label="10s", max_label="10min", chip=True,
           dom_id={"panel": "durationSlider", "item": "settingsDuration",
                   "batch": "batchSettingsDuration"},
-          contexts=PANEL_ITEM_BATCH),
+          contexts=PANEL_ITEM_BATCH,
+          # Le curseur S'ARRÊTE à ce que le modèle choisi sait produire (MusicGen 30 s, Music 3
+          # 300 s) : avant, 10 min étaient proposées et la tâche réduisait en silence au
+          # lancement. Capacité du catalogue, la même que `clamp_duration` lit ; « auto » ou
+          # modèle sans plafond déclaré → curseur du schéma, intact.
+          cap_from={"field": "model", "capability": "max_duration_s"}),
 ]
 
 # Format + qualité de sortie depuis la brique commune (audio, early-binding auto via le catalogue).

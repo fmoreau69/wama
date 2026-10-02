@@ -110,6 +110,79 @@ class CapFromTest(SimpleTestCase):
         self.assertEqual(['16', False], list(restored))
 
 
+#: A container holding a duration slider and (optionally) its model select, a catalogue stub that
+#: answers at once, and what the brick needs around them. The binding is the REAL one.
+FAKE_BINDING = """
+var warned = [];
+var console = {warn: function (m) { warned.push(String(m)); }};
+window.console = console;
+var CSS = {escape: function (s) { return s; }};
+window.MutationObserver = null;
+document.createElement = function () { return fakeNote(); };
+function fetch() {
+  var payload = {models: [{model_key: 'app:short', capabilities: {max_duration_s: 30}},
+                          {model_key: 'app:long',  capabilities: {max_duration_s: 300}}]};
+  return {then: function (f) { return Promise.resolve(f({json: function () { return payload; }})); }};
+}
+function fakeField(value, max) {
+  var el = fakeRange(value, max), listeners = {};
+  el.addEventListener = function (type, f) { (listeners[type] = listeners[type] || []).push(f); };
+  el.closest = function () { return null; };
+  el.parentNode = {appendChild: function () {}};
+  return el;
+}
+function fakeContainer(fields) {
+  return {querySelector: function (sel) { return fields[sel.slice(1)] || null; },
+          querySelectorAll: function () { return []; }, addEventListener: function () {}};
+}
+var SCHEMA = [{name: 'model', type: 'select', help_source: 'app', dom_id: {panel: 'm'}},
+              {name: 'duration', type: 'range', min: 10, max: 600, dom_id: {panel: 'd'},
+               cap_from: {field: 'model', capability: 'max_duration_s'}}];
+"""
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class CapFromBindingTest(SimpleTestCase):
+    """The WIRING of a bound setting — two silent failures closed on 2026-10-02 (composer)."""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval(FAKE_BINDING)
+        self.v8.eval((JS / 'wama-params.js').read_text(encoding='utf-8'))
+
+    def test_a_setting_rendered_without_its_model_field_says_so(self):
+        """A panel split into several hosts, each rendered from a FILTERED schema: the bound was
+        inactive and nothing said it."""
+        self.v8.eval("""var lone = fakeContainer({d: fakeField(600, '600')});
+            window.WamaParams.bindCapFrom(lone, SCHEMA.slice(1), 'panel');""")
+        warned = list(self.v8.eval('warned'))
+        self.assertEqual(1, len(warned), warned)
+        self.assertIn('duration', warned[0])
+        self.assertIn('borne inactive', warned[0])
+
+    def test_rendered_together_the_slider_stops_at_the_model_capability(self):
+        self.v8.eval("""var d = fakeField(600, '600'), m = fakeField('app:short', '');
+            var both = fakeContainer({d: d, m: m});
+            window.WamaParams.bindCapFrom(both, SCHEMA, 'panel');""")
+        self.assertEqual(['30', '30', 0], list(self.v8.eval('[String(d.max), String(d.value), warned.length]')))
+
+    def test_values_set_by_program_replay_the_bound(self):
+        """A batch modal sets the model of its first daughter through `apply` — no `change`."""
+        self.v8.eval("""var d = fakeField(20, '600'), m = fakeField('app:long', '');
+            var modal = fakeContainer({d: d, m: m});
+            window.WamaParams.bindCapFrom(modal, SCHEMA, 'panel');""")
+        self.assertEqual('300', self.v8.eval('String(d.max)'))
+        self.v8.eval("m.value = 'app:short'; window.WamaParams.apply(modal, {});")
+        self.assertEqual('30', self.v8.eval('String(d.max)'), 'the bound kept the previous model')
+
+    def test_a_setting_absent_from_the_container_is_left_alone(self):
+        """Counter-test: a schema passed whole to a container that holds none of it warns nobody."""
+        self.v8.eval("window.WamaParams.bindCapFrom(fakeContainer({}), SCHEMA, 'panel');")
+        self.assertEqual(0, self.v8.eval('warned.length'))
+
+
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class SortAndFactsTest(SimpleTestCase):
 

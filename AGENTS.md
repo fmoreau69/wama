@@ -849,6 +849,11 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > *un critère par motif laisse passer les graphies qu'il ne connaît pas*. `release_card_file`
 > (ex-`safe_delete`) VRAI 10/10 ; `task_skeleton` VRAI pour 6 apps (composer rallié) ; converter
 > et describer à 100 %.
+> Puis **912/939** le soir : `model_caps_ui` VRAI pour les 8 apps à sélecteur de moteur — le
+> critère ne reconnaissait que `WamaModelCaps` appelé à la main et tenait pour ROUGE l'imager,
+> borné par `cap_from` (la forme déclarative, la cible) depuis le 23/09 ; le composer y déclare
+> sa durée (`INPUT_MODEL_MATCHING §7`). *Un critère en retard d'un mécanisme fait porter une
+> app vers l'ancienne forme pour le verdir.*
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
   (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
   le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,

@@ -587,6 +587,27 @@ def _model_help(f: _AppFiles):
     return False, None
 
 
+def _model_caps_ui(f: _AppFiles):
+    """L'écran DÉRIVE des capacités du modèle choisi — deux formes valent adoption :
+
+    • DÉCLARATIVE (la cible, philosophie point 3) : un réglage du schéma déclare `cap_from` —
+      borné, imposé ou rappelé par une capacité du catalogue ; `WamaParams` le câble seul, dans
+      le volet, la modale d'élément et la modale de lot ;
+    • câblée : la brique `WamaModelCaps` appelée par le gabarit ou le JS de l'app (options
+      filtrées, contrôle grisé, section montrée).
+
+    Jusqu'au 2026-10-02 seule la seconde était reconnue : l'imager, qui borne durée, cadence,
+    pas et guidage par `cap_from` depuis le 23/09, était ROUGE — le critère avait un mécanisme
+    de retard. N/A sans moteur IA (verdict du 13/08) ni sélecteur de moteur (verdict du 17/08,
+    gate commun `_has_engine_select`)."""
+    if not (_uses_models(f) and _has_engine_select(f)):
+        return None, None
+    declared = f.find_code(PARAMS, r'\bcap_from\s*=\s*\{')
+    if declared:
+        return True, f"{declared} — réglage borné par une capacité du modèle (`cap_from`)"
+    return _present(f, TEMPLATES + JS, r'wama-model-caps|WamaModelCaps')
+
+
 def _modes_declared(f: _AppFiles):
     """Modes déclarés — ou ABSENCE DÉCLARÉE (`{'domains': []}` = « j'ai considéré, le
     comportement ne diverge pas ») → non applicable. Un mode n'existe que si le comportement
@@ -1956,10 +1977,9 @@ CRITERIA: list[Criterion] = [
     # show_if des capacités-MODÈLE : sans moteur IA il n'y a pas de capacités à dériver
     # (verdict Fabien 13/08 — même garde _uses_models que F4) ; sans SÉLECTEUR, pas d'hôte
     # (verdict Fabien 17/08 — gate commun _has_engine_select, comme model_help).
-    Criterion('model_caps_ui', 'F3', 'show_if dérivé des capacités-modèle (WamaModelCaps)',
-              lambda f: _present(f, TEMPLATES + JS, r'wama-model-caps|WamaModelCaps')
-              if _uses_models(f) and _has_engine_select(f) else (None, None),
-              mechanism='model_capabilities'),
+    Criterion('model_caps_ui', 'F3',
+              'UI dérivée des capacités du modèle (cap_from au schéma, ou WamaModelCaps)',
+              _model_caps_ui, mechanism='model_capabilities'),
     Criterion('modes', 'F3', 'Modes déclarés (APP_MODES) rendus par WamaModes', _modes_declared,
               mechanism='app_modes'),
     Criterion('layout', 'F3', 'Bascule Ligne / Mosaïque (card_layout)',

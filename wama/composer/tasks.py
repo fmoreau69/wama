@@ -194,7 +194,7 @@ def _render(gen, ctx):
     # dans le réglage que si le modèle a été DÉSIGNÉ : sous « auto », c'est le plafond du modèle
     # tiré cette fois-ci, pas un choix de l'utilisateur — l'écrire figerait la durée du prochain
     # tirage, comme écrire le modèle figeait le tirage lui-même.
-    duration = clamp_duration(gen.duration, model_id(catalog_key))
+    duration = clamp_duration(gen.duration, catalog_key)
     if duration != gen.duration:
         ctx.console(f"[Composer] Durée {gen.duration:g}s → {duration:g}s "
                     f"(max du modèle {catalog_key})")

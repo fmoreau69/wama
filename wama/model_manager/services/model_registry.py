@@ -1818,6 +1818,7 @@ class ModelRegistry:
         """Discover Composer app models (MusicGen + AudioGen)."""
         try:
             from wama.composer.utils.model_config import COMPOSER_MODELS, MUSICGEN_DIR, AUDIOGEN_DIR
+            from wama.common.utils.model_capabilities import duration_caps_from_declaration
 
             for model_id, config in COMPOSER_MODELS.items():
                 cache_dir = config['cache_dir']
@@ -1864,6 +1865,9 @@ class ModelRegistry:
                         'inputs_required': ['prompt'],
                         **({'inputs_optional': ['reference_melody']}
                            if model_id == 'musicgen-melody' else {}),
+                        # Durée maximale d'une sortie — lue par l'écran (`cap_from` du réglage
+                        # Durée) et par la tâche, depuis la même déclaration.
+                        **duration_caps_from_declaration(config),
                     },
                     # Anatomie DÉCLARÉE par l'app (`COMPOSER_MODELS[*]['composition']`) : la forme
                     # AUDIOCRAFT (`state_dict.bin` + `compression_state_dict.bin`), seule chargée,
