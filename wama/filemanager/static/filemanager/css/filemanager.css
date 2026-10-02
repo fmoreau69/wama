@@ -426,6 +426,13 @@ body.wama-sans-volet > .container-fluid {
     color: #718096;
 }
 
+/* Nœud d'APP : son icône prend la couleur d'IDENTITÉ de l'app (CARD_DESIGN §9), la même que
+   dans le menu Applications. Le serveur la pose en variable sur l'ancre (`a_attr`) ; la règle ne
+   vise QUE les ancres qui la portent — les autres nœuds gardent leur couleur. */
+.jstree-default-dark .jstree-anchor[style*="--wama-app-color"] > .jstree-themeicon {
+    color: var(--wama-app-color);
+}
+
 /* Open/close arrows */
 .jstree-default-dark .jstree-closed > .jstree-ocl::before,
 .jstree-default-dark .jstree-open > .jstree-ocl::before {

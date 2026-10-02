@@ -35,22 +35,23 @@ Créer dans l'ordre. Ne pas sauter d'étape.
         (base.html DOIT override {% block footer_text %} — format `AppName - Description | WAMA`, §4.2)
 [ ] 8.  Créer static/<app>/js/<app>.js (JS côté client)
 [ ] 9.  Copier dans staticfiles/<app>/ après chaque modif JS/CSS
-[ ] 10. Ajouter le lien dans wama/templates/includes/header.html (ordre ALPHABÉTIQUE, §16)
-[ ] 11. Ajouter la card dans wama/templates/home.html (ordre ALPHABÉTIQUE, §16)
+[ ] 10. ~~Ajouter le lien dans header.html~~ — rien à faire : le menu Applications est GÉNÉRÉ
+        (`app_registry.get_app_groups`) dès que l'app est au catalogue (étape 17).
+[ ] 11. ~~Ajouter la card dans home.html~~ — rien à faire : l'accueil lit la même liste
+        (2026-10-02). Une surface HORS catalogue (Lab, transversale) se déclare depuis son
+        `AppConfig.ready()` : `app_registry.register_surface(...)`.
 [ ] 12. Enregistrer les modèles AI dans model_registry.py (si AI)
 [ ] 13. Ajouter les outils API dans wama/tool_api.py + wama/urls.py (§17)
 [ ] 14. Ajouter les icônes TOOL_ICONS dans home.html
 [ ] 15. Vérifier l'app dans `/apps/` (conformité live via `app_registry.py::get_conformity_summary()`)
         — les tables figées du §15 ont été supprimées (2026-07-11), plus rien à éditer ici
-[ ] 16. Filemanager — ajouts manuels (ordre alphabétique) :
-        a) `get_tree_data()` (filemanager/views.py) : entrée `app_folders_config`
-           avec les sous-dossiers réels (input/output/…) — c'est ce qui FAIT
-           apparaître l'app dans l'arbre
-        b) `appFolderMap` (filemanager.js + staticfiles) : auto-dépliement sidebar (§8.5)
-        c) ~~Drop zone du volet droit~~ SUPPRIMÉE du cahier des charges (décision 2026-07-25) —
-           remplacée par la preview à cycle avant/pendant/après (§19)
-        NB : l'autorisation d'accès (preview/download/delete) via `is_path_allowed`
-        est désormais AUTOMATIQUE (dérivée de APP_CATALOG) — plus rien à faire là.
+[ ] 16. Filemanager — plus AUCUN ajout manuel (2026-10-02) : l'arbre, son détecteur de
+        changements, l'auto-dépliement (§8.5) et l'autorisation d'accès (`is_path_allowed`)
+        sont DÉRIVÉS des déclarations. Une app du catalogue y apparaît avec `Input` / `Output` ;
+        si ses dossiers sont autres, les déclarer : clé `media_folders` de son entrée
+        `APP_CATALOG` (cf. enhancer, imager — `app_registry.app_media_folders`).
+        ~~Drop zone du volet droit~~ SUPPRIMÉE du cahier des charges (décision 2026-07-25) —
+        remplacée par la preview à cycle avant/pendant/après (§19).
 [ ] 17. Ajouter l'app dans app_registry.py (APP_CATALOG) en ordre ALPHABÉTIQUE (§16)
 ```
 
@@ -1005,17 +1006,16 @@ FileManager — pas d'ajouter un polling.
 Le FileManager se déplie automatiquement sur le dossier de l'app courante à l'ouverture de la sidebar.
 La logique est dans `autoExpandCurrentAppFolder()` de `filemanager.js`.
 
-**Règle obligatoire pour chaque nouvelle app :**
-Ajouter une entrée dans `appFolderMap` de `filemanager.js` **et** `staticfiles/filemanager/js/filemanager.js` :
+**Rien à écrire pour une nouvelle app (2026-10-02).** Le serveur marque les nœuds d'app et de
+monde (`app_node`, `world_node`, lus côté client dans `node.original`) et le nœud d'une app a pour
+identifiant l'identifiant de l'app : la fonction ouvre le nœud de l'app courante, ses dossiers et
+ses ancêtres, et referme les autres. Elle tenait auparavant une table `appFolderMap` à compléter
+à la main pour chaque app — table qui avait divergé de l'arbre (dossiers de l'enhancer, galerie
+de l'avatarizer). L'arbre lui-même est dérivé des déclarations
+(`filemanager/views.py::_app_folders_config`, `app_registry.app_media_folders`).
 
-```javascript
-// Dans autoExpandCurrentAppFolder() → appFolderMap
-'monapp': ['monapp', 'monapp_input', 'monapp_output'],
-```
-
-Les IDs de nœuds correspondent aux `id` déclarés dans `views.py` (`get_tree_data()`).
-
-> **État actuel :** ✅ Implémenté pour toutes les apps sauf Avatarizer (pas de sidebar standard).
+> **État actuel :** ✅ dérivé pour toutes les apps du catalogue et les apps Lab ; mesuré au
+> navigateur le 2026-10-02 (transcriber, enhancer, cam_analyzer).
 
 ### 8.6 Drag & drop FileManager / explorateur → zone d'import
 

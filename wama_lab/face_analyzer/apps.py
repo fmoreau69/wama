@@ -10,10 +10,10 @@ class FaceAnalyzerConfig(AppConfig):
         """Initialize the face analyzer when Django starts."""
         # L'app se DÉCLARE au substrat : son monde et sa page (menu, `/apps/`, journal, calendrier
         # la lisent — route §10.6 point 6.1).
-        from wama.common.app_registry import register_surface
+        from wama.common.app_registry import DEFAULT_MEDIA_FOLDERS, register_surface
         register_surface('face_analyzer', world='lab', label='Face Analyzer',
                          url_name='wama_lab:face_analyzer:index', icon='fa-face-smile',
-                         color='#0dcaf0', order=10,
+                         color='#0dcaf0', order=10, media_folders=DEFAULT_MEDIA_FOLDERS,
                          description="Analyse non invasive de signaux physiologiques à partir "
                                      "d'une vidéo du visage : fréquence cardiaque et sa "
                                      "variabilité, suivi du regard, émotions, respiration.")

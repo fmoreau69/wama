@@ -17,10 +17,10 @@ class CamAnalyzerConfig(AppConfig):
                 'cam_analyzer function_specs non enregistrées', exc_info=True)
         # L'app se DÉCLARE au substrat : son monde et sa page (menu, `/apps/`, journal, calendrier
         # la lisent — route §10.6 point 6.1). Le substrat ne cite plus le Lab par son nom.
-        from wama.common.app_registry import register_surface
+        from wama.common.app_registry import DEFAULT_MEDIA_FOLDERS, register_surface
         register_surface('cam_analyzer', world='lab', label='Cam Analyzer',
                          url_name='wama_lab:cam_analyzer:index', icon='fa-video',
-                         color='#ffc107', order=20,
+                         color='#ffc107', order=20, media_folders=DEFAULT_MEDIA_FOLDERS,
                          description="Analyse multi-caméras synchronisées pour navette autonome : "
                                      "détection d'objets, timeline de proximité, segmentation "
                                      "temporelle.")

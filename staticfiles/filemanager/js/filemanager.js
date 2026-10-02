@@ -224,8 +224,10 @@
                             var app = (parts[0] === 'lab' && parts[1])
                                 ? parts[1].replace(/-/g, '_') : (parts[0] || '');
                             state.core.open = open.filter(function (id) {
+                                // `world_<monde>` : le dossier d'un monde (WAMA Lab…), nommé par
+                                // le serveur d'après les mondes déclarés.
                                 if (id.indexOf('section') === 0 || id === 'temp'
-                                    || id.indexOf('mount') === 0 || id === 'wama_lab') return true;
+                                    || id.indexOf('mount') === 0 || id.indexOf('world_') === 0) return true;
                                 return app && (id === app || id.indexOf(app + '_') === 0);
                             });
                         }
@@ -1033,60 +1035,35 @@
             currentApp = pathParts[1].replace(/-/g, '_');
         }
 
-        // Map of app names to their tree node IDs
-        const appFolderMap = {
-            'anonymizer': ['anonymizer', 'anonymizer_input', 'anonymizer_output'],
-            'avatarizer': ['avatarizer', 'avatarizer_input', 'avatarizer_output', 'avatarizer_gallery'],
-            'composer': ['composer', 'composer_input', 'composer_output'],
-            'converter': ['converter', 'converter_input', 'converter_output'],
-            'describer': ['describer', 'describer_input', 'describer_output'],
-            'enhancer': ['enhancer', 'enhancer_input', 'enhancer_output'],
-            'imager': ['imager', 'imager_prompts', 'imager_references', 'imager_output_image', 'imager_output_video'],
-            'synthesizer': ['synthesizer', 'synthesizer_input', 'synthesizer_output'],
-            'transcriber': ['transcriber', 'transcriber_input', 'transcriber_output'],
-            'reader':      ['reader', 'reader_input', 'reader_output'],
-            // WAMA Lab apps (nested under wama_lab)
-            'face_analyzer': ['wama_lab', 'face_analyzer', 'face_analyzer_input', 'face_analyzer_output'],
-            'cam_analyzer': ['wama_lab', 'cam_analyzer', 'cam_analyzer_input', 'cam_analyzer_output'],
-        };
+        // Les nœuds d'app et de monde sont MARQUÉS par le serveur (`app_node`, `world_node`,
+        // portés par `node.original`) et le nœud d'une app a pour identifiant l'identifiant de
+        // l'app. Cette fonction tenait jusqu'au 2026-10-02 sa propre table app → nœuds, qui
+        // avait déjà divergé de l'arbre (dossiers de l'enhancer, galerie de l'avatarizer).
+        const sectionApps = tree.get_node('section_apps');
+        if (!sectionApps) return;
+        const currentNode = tree.get_node(currentApp);
+        const isCurrent = !!(currentNode && currentNode.original && currentNode.original.app_node);
+        // Ancêtres du nœud courant : la section, et le dossier de son monde s'il en a un.
+        const keepOpen = isCurrent ? [currentNode.id].concat(currentNode.parents || []) : [];
 
-        // Close all app folders first (except current app)
-        Object.keys(appFolderMap).forEach(appName => {
-            if (appName !== currentApp) {
-                // Close main app node
-                const mainNode = tree.get_node(appName);
-                if (mainNode && tree.is_open(mainNode)) {
-                    tree.close_node(mainNode);
-                }
-            }
+        // Refermer les autres apps et les mondes qui ne contiennent pas l'app courante.
+        (sectionApps.children_d || []).forEach(nodeId => {
+            if (keepOpen.indexOf(nodeId) !== -1) return;
+            const node = tree.get_node(nodeId);
+            const marked = node && node.original && (node.original.app_node || node.original.world_node);
+            if (marked && tree.is_open(node)) tree.close_node(node);
         });
 
-        // Also close wama_lab if current app is not a WAMA Lab app
-        const wamaLabApps = ['face_analyzer', 'cam_analyzer'];
-        if (!wamaLabApps.includes(currentApp)) {
-            const wamaLabNode = tree.get_node('wama_lab');
-            if (wamaLabNode && tree.is_open(wamaLabNode)) {
-                tree.close_node(wamaLabNode);
-            }
-        }
+        if (!isCurrent) return;
+        console.log(`FileManager: Auto-expanding ${currentApp} folders`);
 
-        const nodesToOpen = appFolderMap[currentApp];
-
-        if (nodesToOpen && nodesToOpen.length > 0) {
-            console.log(`FileManager: Auto-expanding ${currentApp} folders`);
-
-            // Open the Applications section first (it's collapsed by default)
-            const sectionApps = tree.get_node('section_apps');
-            if (sectionApps) tree.open_node(sectionApps);
-
-            // Open nodes sequentially (parent first, then children)
-            nodesToOpen.forEach(nodeId => {
-                const node = tree.get_node(nodeId);
-                if (node) {
-                    tree.open_node(node);
-                }
-            });
-        }
+        // Ouvrir du plus haut au plus bas : la section (repliée par défaut), le monde, l'app,
+        // puis ses dossiers.
+        (currentNode.parents || []).slice().reverse().forEach(parentId => {
+            if (parentId !== '#') tree.open_node(parentId);
+        });
+        tree.open_node(currentNode);
+        (currentNode.children || []).forEach(childId => tree.open_node(childId));
     }
 
     let _refreshTimer = null;

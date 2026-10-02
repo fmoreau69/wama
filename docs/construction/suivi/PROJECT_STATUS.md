@@ -19996,3 +19996,34 @@ Suite de `a721c4ca` (2ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 
   À dériver d'une déclaration des dossiers d'app. Le catalogue du studio relève de P5.
 - **Laissé dans l'arbre, pas à moi** : `wama/common/mecanismes.py` porte un hunk d'une autre
   instance (ligne 1710) — non commité ici.
+
+## §PALIER — 2026-10-02, « PIPELINE PORTÉ PAR LA CARD — P1, 4ᵉ pièce : l'explorateur de fichiers est DÉRIVÉ — P1 TERMINÉ » — ✅ commit ci-dessous, non poussé — 🔴 RELANCER WAMA (vue de l'arbre, JS et CSS de l'explorateur) — 🔚 P3 : décisions n°1-3 et pilote à arbitrer
+
+Suite de `7d56da95` (3ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 4ᵉ pièce ».
+
+- ✅ **Déclaration des dossiers d'app** : `app_registry.app_media_folders(app)` — `Input` /
+  `Output` par défaut pour une app du catalogue, ou ce qu'elle déclare (`media_folders` :
+  enhancer, imager) ; une surface hors catalogue n'en a que si elle les déclare (les deux apps Lab).
+- ✅ **`filemanager/views.py::_app_folders_config` ne nomme plus aucune app** (143 lignes
+  remplacées par 62) : il lit `get_app_groups()`, l'identité de l'app et ses dossiers.
+  `_allowed_app_prefixes` lit la même déclaration au lieu de citer les deux apps Lab.
+- ✅ **Table jumelle du client retirée** (`filemanager.js::appFolderMap`) :
+  `autoExpandCurrentAppFolder` lit les drapeaux `app_node` / `world_node` posés par le serveur.
+  Elle avait divergé — les dossiers de l'enhancer n'étaient plus ouverts.
+- ✅ `WAMA_APP_CONVENTIONS` : la checklist de création d'app (étapes 10, 11, 16) et le §8.5 ne
+  demandent plus aucun ajout manuel au menu, à l'accueil ni à l'explorateur.
+- **Ce qui change à l'écran** : l'icône d'une app dans l'arbre prend sa couleur d'identité ;
+  « Reader » devient « Reader (OCR) » ; les dossiers de l'imager ont l'icône de dossier commune ;
+  trois identifiants de nœuds changent, leur état plié/déplié mémorisé repart de zéro une fois.
+- **Mesuré** : 225 tests (WSL, base isolée : `wama.filemanager`, `tests_catalogues`,
+  `tests_media_paths`, `tests_codegen_lot`) — un seul rouge, antérieur et hors palier :
+  `tests_codegen_lot.ItemEditRouteAliasTest` (imager). Six gardes neuves
+  (`filemanager.tests.DerivedAppTreeTests`). Script servi analysé par V8. **Navigateur** (serveur
+  de dev jetable, arrêté ensuite) : transcriber, enhancer, cam_analyzer, accueil — arbre rendu,
+  dossier de l'app courante ouvert, « WAMA Lab » ouvert sur le Cam Analyzer, zéro erreur console.
+- ⚠ **Relevé, non changé** : l'arbre ne filtre pas par droit d'accès (un utilisateur sans accès
+  au Lab voit ses dossiers Lab, vides) — antérieur ; `media_folders` n'est pas une facette du
+  manifeste d'app (une app générée a les dossiers par défaut).
+- **P1 est TERMINÉ** en quatre commits : `4bca60bc`, `a721c4ca`, `7d56da95`, et celui-ci.
+  À régénérer par qui touchera le registre : `WAMA_MECANISMES.md` et `docs/dev/briques.md`
+  (mécanisme `app_worlds`, fonctions d'`app_registry` renommées).

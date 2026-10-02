@@ -316,3 +316,100 @@ class GestesDElementDansLArbreTests(SimpleTestCase):
         code = self._code()
         self.assertIn("typeof it.charger === 'function' && it.differe", code)
         self.assertIn('entry.chargement = true', code)
+
+
+class DerivedAppTreeTests(TestCase):
+    """L'arborescence d'apps de l'explorateur est DÉRIVÉE des déclarations (2026-10-02).
+
+    Elle était écrite app par app dans `_app_folders_config` — un bloc à ajouter à la main pour
+    chaque app —, les deux apps Lab y étaient citées par leur nom (ainsi que dans
+    l'autorisation d'accès aux dossiers), et le client tenait une table jumelle des identifiants
+    de nœuds, qui avait déjà divergé (dossiers de l'enhancer, galerie de l'avatarizer).
+    Route §10.6 point 6.1 : monde → app → ses dossiers déclarés.
+    """
+
+    USER_ID = 7
+
+    def _config(self):
+        from wama.filemanager.views import _app_folders_config
+        return _app_folders_config(self.USER_ID)
+
+    def test_every_real_catalog_app_has_its_node_and_no_sandbox_app_does(self):
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.sandbox import non_sandbox_apps
+        top = {node['id']: node for node in self._config()}
+        real = set(non_sandbox_apps(APP_CATALOG))
+        self.assertTrue(real, "catalogue vide : rien n'est mesuré")
+        self.assertEqual(real, {i for i, n in top.items() if n.get('app_node')})
+        for app in real:
+            with self.subTest(app=app):
+                self.assertEqual(top[app]['text'], APP_CATALOG[app]['label'])
+                self.assertEqual(top[app]['color'], APP_CATALOG[app]['color'],
+                                 "l'icône prend la couleur d'identité de l'app")
+
+    def test_the_folders_are_the_declared_ones(self):
+        from wama.common.app_registry import DEFAULT_MEDIA_FOLDERS, app_media_folders
+        from wama.common.utils.media_paths import app_media_dir
+        top = {node['id']: node for node in self._config()}
+        self.assertEqual(app_media_folders('transcriber'), DEFAULT_MEDIA_FOLDERS)
+        self.assertEqual([c['id'] for c in top['transcriber']['children']],
+                         ['transcriber_input', 'transcriber_output'])
+        # Deux apps déclarent des dossiers propres : c'étaient les deux blocs spéciaux de la liste.
+        self.assertEqual([c['id'] for c in top['enhancer']['children']],
+                         ['enhancer_input_media', 'enhancer_input_audio',
+                          'enhancer_output_media', 'enhancer_output_audio'])
+        self.assertEqual([c['text'] for c in top['imager']['children']],
+                         ['Prompts', 'References', 'Images', 'Vidéos'])
+        leaf = top['imager']['children'][2]
+        self.assertEqual(leaf['path'], app_media_dir('imager', self.USER_ID, 'output/image'))
+        self.assertIn('text-success', leaf['icon'], "une sortie garde sa couleur de sortie")
+
+    def test_another_world_is_a_folder_named_after_it(self):
+        from wama.common.app_registry import WORLD_SECTIONS
+        top = {node['id']: node for node in self._config()}
+        lab = top['world_lab']
+        self.assertTrue(lab.get('world_node'))
+        self.assertEqual(lab['text'], WORLD_SECTIONS['lab']['label'])
+        self.assertEqual({c['id'] for c in lab['children']}, {'cam_analyzer', 'face_analyzer'})
+        # Le studio et la médiathèque sont des surfaces sans dossier d'app : pas de nœud.
+        self.assertNotIn('world_transverse', top)
+
+    def test_the_change_detector_and_the_access_rule_read_the_same_declaration(self):
+        from wama.filemanager.views import _allowed_app_prefixes
+        from wama.common.utils.media_paths import app_media_dir
+        prefixes = _allowed_app_prefixes(self.USER_ID)
+        for app in ('transcriber', 'cam_analyzer', 'face_analyzer'):
+            with self.subTest(app=app):
+                self.assertIn(app_media_dir(app, self.USER_ID, '').rstrip('/') + '/', prefixes)
+
+    def test_neither_the_server_nor_the_client_names_an_app(self):
+        """La liste et sa table jumelle ne reviennent pas : ni bloc par app côté serveur, ni
+        table app → nœuds côté client."""
+        import inspect
+        from wama.filemanager import views
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.sandbox import non_sandbox_apps
+        sources = {
+            '_app_folders_config': inspect.getsource(views._app_folders_config),
+            '_allowed_app_prefixes': inspect.getsource(views._allowed_app_prefixes),
+            'autoExpandCurrentAppFolder': _sans_commentaires(
+                (REPO / 'wama/filemanager/static' / FM_STATIC[0]).read_text(encoding='utf-8')
+            ).split('function autoExpandCurrentAppFolder', 1)[1].split('\n    function ', 1)[0],
+        }
+        named = non_sandbox_apps(APP_CATALOG) + ['cam_analyzer', 'face_analyzer', 'wama_lab']
+        for where, code in sources.items():
+            for app in named:
+                with self.subTest(where=where, app=app):
+                    self.assertNotIn(f"'{app}'", code)
+
+    def test_the_tree_endpoint_carries_the_flags_the_client_reads(self):
+        user = get_user_model().objects.create_superuser('tree_admin', 't@test.local', 'x')
+        self.client.force_login(user)
+        from django.urls import reverse
+        tree = self.client.get(reverse('filemanager:api_tree')).json()
+        apps_section = next(n for n in tree if n['id'] == 'section_apps')
+        nodes = {n['id']: n for n in apps_section['children']}
+        self.assertTrue(nodes['transcriber']['app_node'])
+        self.assertIn('--wama-app-color', nodes['transcriber']['a_attr']['style'])
+        self.assertTrue(nodes['world_lab']['world_node'])
+        self.assertTrue(nodes['world_lab']['children'][0]['app_node'])
