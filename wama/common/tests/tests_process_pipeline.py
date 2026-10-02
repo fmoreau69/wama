@@ -230,10 +230,13 @@ class WhatALaunchReplaysTest(TestCase):
         """The snapshot is read back from JSON: a file field must be written as its path, or a
         card would be stale the moment it is read."""
         class _File:
-            storage = object()
+            """Like a `FieldFile`: its text form is its path."""
 
             def __init__(self, name):
                 self.name = name
+
+            def __str__(self):
+                return self.name
         pipeline = AppPipeline('demo_pipeline', (ProcessSpec('render', watched=('given_score',)),),
                                label='x')
         item = _Element(given_score=_File('users/1/in.abc'))
@@ -331,6 +334,29 @@ class SkeletonRunsThePipelineTest(TestCase):
         self._run(self._element('pipeline_bar'), plan=half('plan'), render=half('render'))
         self.assertEqual({'plan': 12, 'render': 62}, seen)
 
+    def test_each_process_learns_its_own_duration(self):
+        """Point 4.5: the ETA is per PROCESS — the one of `plan` is recorded when `plan` returns,
+        under its own key, not when the card ends."""
+        def with_eta(key):
+            def glue(element, ctx):
+                return {'eta': (f'family:{key}', 2.0, 'audio_sec')}
+            return glue
+        with mock.patch('wama.model_manager.services.eta_estimator.record_run') as record:
+            self._run(self._element('pipeline_eta'), plan=with_eta('plan'),
+                      render=with_eta('render'))
+        self.assertEqual(['family:plan', 'family:render'],
+                         [call.args[0] for call in record.call_args_list])
+
+    def test_the_time_limit_closes_the_line_of_the_process_it_interrupted(self):
+        from wama.common.utils.task_skeleton import TaskTimeLimitExceeded
+
+        def too_long(element, ctx):
+            raise TaskTimeLimitExceeded(60)
+        item = self._run(self._element('pipeline_limit'), render=too_long)
+        self.assertEqual('FAILURE', item.status)
+        self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_FAILURE}, self._states(item))
+        self.assertIn('Durée maximale', process_runs.line(item, 'render').error_message)
+
     def test_a_wait_for_the_graphics_card_writes_no_main_line(self):
         """Before the draw nobody knows which process starts first, and « main » is not one of
         the processes of a pipeline: the wait is carried by the element alone."""
@@ -367,3 +393,70 @@ class SkeletonRunsThePipelineTest(TestCase):
         item = self.model.objects.get(pk=item.pk)
         self.assertEqual('FAILURE', item.status)
         self.assertFalse(process_runs.lines(item).exists(), 'no process started, no line')
+
+
+class EveryAppPipelineTest(SimpleTestCase):
+    """Generic guard over EVERY pipeline an app registers (`APP_PIPELINES`) — written once, it
+    holds for the next app without a test per app. What the cam_analyzer guards for its own
+    registry (`tests_pass_registry.PipelineManifesteTest`), held here for the common one."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from wama.common.catalog.function_catalog import FUNCTION_CATALOG, load_all
+        load_all()
+        cls.catalogue = FUNCTION_CATALOG
+        cls.pipelines = dict(APP_PIPELINES)
+
+    def test_the_fleet_is_measured(self):
+        self.assertIn('composer', self.pipelines)
+
+    def test_each_process_is_a_function_of_the_catalogue_bound_to_its_app(self):
+        from wama.common.catalog.function_catalog import Binding
+        for app, pipeline in self.pipelines.items():
+            for spec in pipeline.specs:
+                with self.subTest(app=app, process=spec.key):
+                    function = self.catalogue.get(pipeline.function_key(spec))
+                    self.assertIsNotNone(function, 'a process without a FunctionSpec is no node')
+                    self.assertEqual((Binding.APP, app), (function.binding, function.app))
+
+    def test_the_manifest_is_valid_and_carries_the_world_the_app_states(self):
+        from wama.common.app_registry import app_world
+        from wama.common.manifests.ingest import extract, validate
+        for app, pipeline in self.pipelines.items():
+            with self.subTest(app=app):
+                manifest = extract('pipeline', app)
+                self.assertIsNotNone(manifest, 'the registry is not a pipeline source')
+                self.assertEqual([], list(validate(manifest) or []))
+                self.assertEqual(app_world(app), manifest['world'])
+                self.assertEqual([spec.key for spec in pipeline.specs],
+                                 [node['id'] for node in manifest['body']['nodes']])
+
+    def test_the_exported_manifest_is_the_one_of_the_corpus(self):
+        """The versioned file must be what the registry gives TODAY, and the export command must
+        see the pipeline — or the corpus loses it silently (`--check` would say « up to date »)."""
+        import json
+        from django.conf import settings
+        from wama.common.management.commands.manifest_export import _pipeline_keys
+        from wama.common.manifests.ingest import extract
+        for app in self.pipelines:
+            with self.subTest(app=app):
+                self.assertIn(app, _pipeline_keys())
+                written = Path(settings.BASE_DIR) / 'manifests' / 'pipelines' / f'{app}.json'
+                self.assertTrue(written.exists(), 'the pipeline is not in the corpus')
+                corpus = json.loads(written.read_text(encoding='utf-8'))
+                live = extract('pipeline', app)
+                self.assertEqual(corpus['body'], live['body'])
+
+    def test_it_opens_in_the_studio_and_each_link_lands_on_a_port(self):
+        """« One representation, two editors »: the canvas form, with each dependency resolved
+        to the input port whose type matches what the upstream process gives."""
+        from wama.common.manifests.builtin.pipeline import body_to_graph
+        from wama.common.manifests.ingest import extract
+        for app, pipeline in self.pipelines.items():
+            with self.subTest(app=app):
+                graph = body_to_graph(extract('pipeline', app)['body'])
+                self.assertEqual([spec.key for spec in pipeline.specs],
+                                 [node['id'] for node in graph['nodes']])
+                for link in graph['links']:
+                    self.assertTrue(link['to_port'], f"{link['from']} -> {link['to']} has no port")

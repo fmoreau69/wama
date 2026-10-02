@@ -84,6 +84,24 @@ automatiquement. **Ne plus** maintenir de liste explicite dans `celery.py`.
 > dans `celery-default.log` → vérifier le nom du module (doit être `tasks` ou
 > `workers`) et **redémarrer le worker**.
 
+### La tâche d'item — trois obligations (2026-10-02 ; règles : `WAMA_APP_GENERATION_ROUTE §10.6`)
+
+La tâche d'un élément passe par le squelette commun (`common/utils/task_skeleton.run_item_task`) ;
+l'app n'écrit que sa glu. Trois points que le squelette ne peut pas deviner à sa place :
+
+1. **Dire son besoin de carte graphique** : `vram_needed=` (le besoin du modèle de CE lancement,
+   lu par `common/utils/auto_model.vram_needed_gb` — jamais un chiffre recopié). Sans lui, une
+   tâche part sur une carte pleine et échoue faute de mémoire au lieu d'attendre sa place.
+2. **Rendre son moteur** : un backend ouvert par la tâche est déchargé à la fin (`unload()` du
+   contrat commun), succès comme échec — sauf s'il est tenu résident par un mécanisme qui le
+   déclare au gouverneur. Vécu le 2026-10-02 sur le composer : parti sans rien déclarer, il a
+   échoué, laissé son modèle dans le worker, et fait échouer la tâche SUIVANTE d'une autre app.
+3. **Plusieurs process ?** Une card qui enchaîne des traitements distincts (écrire une partition
+   puis la jouer) les DÉCLARE dans `wama/<app>/function_specs.py` (`register_app_pipeline`,
+   chaque process un `FunctionSpec binding: app`) et passe `pipeline=` / `processes={clé: glu}`
+   au squelette — jamais une chaîne de tâches posée à côté. Modèle : le composer. Une app à un
+   seul traitement ne déclare rien : c'est le cas normal.
+
 ---
 
 ## 1. Structure des Fichiers
