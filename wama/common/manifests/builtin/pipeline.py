@@ -137,6 +137,33 @@ def graph_to_body(graph: dict) -> dict:
     }
 
 
+def topo_order(graph):
+    """Ordre topologique des nœuds d'un graphe CANVAS (`{nodes, links}`) — rend les NŒUDS
+    (dicts), pas leurs identifiants ; lève ValueError si le graphe contient un cycle.
+
+    Écrit dans l'exécuteur du studio (`studio/tasks.py`), remonté ici le 2026-10-02 : le moteur
+    à plusieurs process d'une app (`common/services/process_pipeline.py`) ordonne ses process
+    par le MÊME graphe — un seul tri pour le canvas et pour les registres de code."""
+    nodes = {n['id']: n for n in graph.get('nodes', [])}
+    incoming = {nid: set() for nid in nodes}
+    for l in graph.get('links', []):
+        if l['from'] in nodes and l['to'] in nodes:
+            incoming[l['to']].add(l['from'])
+    order, ready = [], [nid for nid, deps in incoming.items() if not deps]
+    pending = {nid: set(deps) for nid, deps in incoming.items() if deps}
+    while ready:
+        nid = ready.pop(0)
+        order.append(nid)
+        for other, deps in list(pending.items()):
+            deps.discard(nid)
+            if not deps:
+                del pending[other]
+                ready.append(other)
+    if pending:
+        raise ValueError('Le graphe contient un cycle — exécution impossible.')
+    return [nodes[nid] for nid in order]
+
+
 #: Pas de la disposition automatique (px) : une colonne par profondeur, une rangée par nœud.
 AUTO_LAYOUT_DX, AUTO_LAYOUT_DY, AUTO_LAYOUT_X0, AUTO_LAYOUT_Y0 = 280, 120, 40, 40
 

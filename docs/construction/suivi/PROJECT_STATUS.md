@@ -20130,3 +20130,48 @@ Demande de Fabien : « fais la vérification réelle sur le converter » (après
   et `tests_picker_list.PreviewMimeForThePickerTest` (`audio/wav` ≠ `audio/x-wav`).
 - 🔴 relancer WAMA (le live sert encore l'ancien tri : une card reçue sans lot y rend 500).
   Non poussé.
+
+## §PALIER — 2026-10-02 (soir), « PIPELINE PORTÉ PAR LA CARD — P3, paliers B et C : une card d'app Médias porte PLUSIEURS process ; pilote composer `plan` → `render` » — ✅ commit ci-dessous, non poussé — 🔴 RELANCER WAMA (workers : le composer passe par ses deux process ; migration `composer 0014` additive, colonne nullable, DÉJÀ appliquée) — 🔚 1ʳᵉ génération YuE2 réelle en deux process (GPU, accord de Fabien) · P5 : la card n'affiche pas encore ses process
+
+Décision de Fabien du jour, consignée à `ROUTE §10.6` point 9 : **n°11** — les process internes
+d'une app Médias se déclarent comme les passes du cam_analyzer (registre en code, chaque process
+un `FunctionSpec binding: app`, export par le kind `pipeline` existant) ; aucune facette neuve au
+manifeste `app`. `WAMA_MANIFEST_SPEC §3.1` corrigé (il disait l'inverse, par constat du 01/10).
+
+- ✅ **Brique `wama/common/services/process_pipeline.py`** (mécanisme `process_pipeline` au
+  registre) : `ProcessSpec` (les champs de `pass_tracking.Pass`, plus degré, part de barre,
+  condition d'application), `register_app_pipeline`, `steps_to_run` (ce qui n'est plus à jour et
+  son aval ; une card à jour relancée rejoue tout), `refresh` (les trois causes de péremption de
+  4.3, dont l'entrée remplacée — empreinte de la sortie d'amont dans la photo), `card_state`
+  (état déduit, règle 4.4 — lu, jamais écrit dans l'élément : la frontière de P2 est tenue).
+- ✅ **Un seul tri** : `topo_order` remonté de `studio/tasks.py` dans
+  `manifests/builtin/pipeline.py` ; le studio l'importe de là.
+- ✅ **Le squelette joue N process dans UNE tâche** (`run_item_task(pipeline=…, processes=…)`) :
+  une ligne `ProcessRun` par process, champs d'un process écrits dès qu'il a rendu, ETA par
+  process, barre partagée. Lanceurs, arrêt et réconciliation inchangés ; le chemin à un seul
+  process (`process=`) aussi.
+- ✅ **Pilote composer** : `composer.plan` / `composer.render` au catalogue de fonctions,
+  pipeline `composer` au corpus (`manifests/pipelines/composer.json`). `plan` n'a lieu que si le
+  moteur déclare `supports_score_planning` (capacité neuve, contrat commun + vocabulaire ; YuE2
+  la déclare et expose `plan_score()`) et si aucune partition n'est fournie. La partition écrite
+  est un fichier de la card (`planned_score`). Sous « auto », un rendu relancé seul emploie le
+  modèle de la partition qu'il reprend ; une relance complète retire au sort.
+- **Mesuré (WSL, base isolée)** : 3300 tests sur le périmètre large (composer, studio, commun,
+  apps du squelette, model manager, registre des passes du Lab) — 50 tests neufs
+  (`common/tests/tests_process_pipeline.py` 26, `composer/tests_pipeline.py` 24), tous verts ;
+  les 9 tests de `composer/tests_task.py` de l'instance « portage » passent SANS modification.
+  Rouges, tous antérieurs et hors périmètre, par leur nom : budgets de langue des noms de tests
+  (classes 133 > 132, méthodes 1316 > 1310 — 4 assertions), `tests_notifications` ×3,
+  `tests_settings_surfaces`, `tests_codegen_lot.ItemEditRouteAliasTest`,
+  `test_ne_DEVINE_pas_le_role_et_rend_les_candidats`, et les deux tests de docs générées
+  (`test_chaque_mecanisme_a_sa_section`, `test_chaque_fichier_derive_est_ce_que_son_plan_produit`
+  — le mécanisme `process_pipeline` s'y ajoute). Langue des identifiants : budget du code tenu
+  (2678 / 2678), contrôle lancé AVANT le commit. `manifest_export` : 4 fichiers à moi
+  (pipeline, 2 fonctions, `apps/composer.json` pour le champ neuf) ; 18 manifestes `model`
+  périmés ne sont pas de ce palier.
+- ⚠ **Non fait, déclaré** : aucune génération GPU (moteurs de substitution dans les tests, vraie
+  classe `YuE2Backend` sur un pipeline vendorisé de substitution) ; la card n'affiche pas ses
+  process (P5) ; `output_ref` n'est pas suivi par `repoint` (un fichier déplacé fait rejouer le
+  process) ; ETA du process `plan` non apprise ; cam_analyzer (`Pass` → `ProcessSpec`,
+  `AnalysisPass` → `ProcessRun`) et exécuteur du studio (`node_states`) non portés ; le Writer
+  reste à un process.

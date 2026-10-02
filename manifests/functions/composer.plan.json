@@ -1,0 +1,57 @@
+{
+  "body": {
+    "app": "composer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "composer.tasks:compose_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "prompt",
+        "description": "La consigne : style, puis paroles.",
+        "group": "travail",
+        "key": "prompt",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "composer.plan",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "score",
+        "description": "La partition ABC que le rendu suivra.",
+        "key": "score",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "music",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Écrit la partition (ABC) d'une chanson depuis sa consigne : style en tête, paroles en sections. N'existe que pour un modèle qui planifie avant de jouer (YuE2). La partition est un résultat de la card : lisible, corrigeable, rejouable.",
+  "key": "composer.plan",
+  "manifest_kind": "function",
+  "name": "Composer — écrire la partition",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:composer.plan",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

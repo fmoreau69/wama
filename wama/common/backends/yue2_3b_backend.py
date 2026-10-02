@@ -47,6 +47,11 @@ class YuE2Backend(MusicGenerationBackend):
     recommended_vram_gb = 8.8
     description = "YuE2‑3B – génération musicale à partir de texte, via le moteur yue."
     VENDORED = True
+    #: La chaîne du moteur est déjà en deux temps (`YuE2Pipeline.plan()` → partition, puis le
+    #: rendu qui la suit) : la card du composer les montre comme deux process (`plan_score`).
+    supports_score_planning = True
+    #: Graine fixe tant que le composer n'en fournit pas — la MÊME pour la partition et le rendu.
+    SEED = 0
 
     # ------------------------------------------------------------------
     # Gestion du cycle de vie
@@ -209,6 +214,31 @@ class YuE2Backend(MusicGenerationBackend):
         }
 
     # ------------------------------------------------------------------
+    # Partition (process `plan`)
+    # ------------------------------------------------------------------
+    def plan_score(self, model_id: str, prompt: str,
+                   progress_callback: Optional[Callable[[int], None]] = None) -> str:
+        """La partition ABC que le moteur écrit pour *prompt* — l'étape `plan()` de son pipeline,
+        appelée seule. `generate(score_path=…)` la reprend telle quelle (« Using provided
+        score ») : même découpe style/paroles, même graine, donc le même morceau qu'en un appel."""
+        if not self.is_loaded:
+            self.load()
+        style, lyrics = split_caption_lyrics(prompt)
+        if progress_callback:
+            progress_callback(0)
+        try:
+            planned = self._pipeline.plan(style=style, lyrics=lyrics, cot="full", seed=self.SEED)
+        except Exception as exc:
+            logger.exception("Échec de la planification YuE2‑3B")
+            raise RuntimeError(f"YuE2 score planning failed: {exc}") from exc
+        text = (planned.abc or "").strip()
+        if not text:
+            raise RuntimeError("YuE2 n'a rendu aucune partition pour cette consigne.")
+        if progress_callback:
+            progress_callback(100)
+        return text
+
+    # ------------------------------------------------------------------
     # Génération
     # ------------------------------------------------------------------
     def generate(
@@ -261,8 +291,8 @@ class YuE2Backend(MusicGenerationBackend):
         # Génération via le pipeline vendorisé
         # Le pipeline expose un appel direct (voir README du moteur) :
         #   pipe(style=..., lyrics=..., cot="full", seed=...)
-        # On utilise un seed fixe (0) si le compositeur n’en fournit pas.
-        seed = 0
+        # On utilise un seed fixe (`SEED`) si le compositeur n’en fournit pas.
+        seed = self.SEED
         try:
             # Le pipeline accepte les arguments *style* et *lyrics*.
             song_result = self._pipeline(

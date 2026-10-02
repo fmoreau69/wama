@@ -72,6 +72,17 @@ class MusicGenerationBackend(BaseModelBackend):
                               pas la REFUSE en le disant (`refuse_score`), jamais en l'ignorant.
         """
 
+    def plan_score(self, model_id: str, prompt: str,
+                   progress_callback: Optional[Callable[[int], None]] = None) -> str:
+        """Écrit la PARTITION (texte ABC) du morceau que `prompt` demande, sans le jouer — le
+        process `plan` de la card (ROUTE §10.6, 2026-10-02). `generate(score_path=…)` la suit
+        ensuite : les deux appels réunis donnent ce qu'un `generate` seul aurait donné.
+
+        Réservé aux moteurs qui DÉCLARENT `supports_score_planning` ; les autres n'ont qu'un
+        process (le rendu) et le disent ici plutôt que de rendre une partition vide."""
+        raise NotImplementedError(
+            f"{type(self).__name__} n'écrit pas de partition (`supports_score_planning` non déclaré).")
+
     @staticmethod
     def refuse_score(score_path: Optional[str], engine: str) -> None:
         """Le refus COMMUN d'une partition par un moteur qui ne la suit pas."""
