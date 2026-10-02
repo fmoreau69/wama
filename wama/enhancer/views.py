@@ -764,6 +764,11 @@ def download_all(request):
     return FileResponse(buffer, as_attachment=True, filename="enhanced_files.zip")
 
 
+#: Réglages pour lesquels une valeur postée VIDE est une valeur (curseur effacé) — lus par la
+#: route d'un élément ET par la fabrique de lots : une seule déclaration pour les deux.
+SETTINGS_EMPTY_IS_VALUE = ('quality_intent',)
+
+
 def _read_enhancement_settings(request):
     """Les réglages postés — JSON (inspecteur) OU FormData (modale ⚙), par le lecteur COMMUN.
     La vue lisait `request.POST` seul : le JSON de l'inspecteur n'était jamais écrit (relevé
@@ -773,7 +778,7 @@ def _read_enhancement_settings(request):
     from wama.enhancer.params import MEDIA_PARAMS_JSON
     return read_settings_payload(request, MEDIA_PARAMS_JSON,
                                  [p['name'] for p in MEDIA_PARAMS_JSON],
-                                 empty_is_value=('quality_intent',))
+                                 empty_is_value=SETTINGS_EMPTY_IS_VALUE)
 
 
 def _apply_enhancement_settings(e, data):
@@ -789,23 +794,6 @@ def _apply_enhancement_settings(e, data):
     e.upscale_factor = _factor_posted(data, e.upscale_factor)
     if 'quality_intent' in data:
         e.quality_intent = _intent_posted(data)
-
-
-@require_POST
-def batch_update(request, pk):
-    """Applique les réglages à TOUS les items non-RUNNING du batch (mode batch de la modale)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchEnhancement, id=pk, user=user)
-    from wama.common.utils.batch_common import batch_elements
-    updated = 0
-    payload = _read_enhancement_settings(request)
-    for e in batch_elements(batch, Enhancement):     # brique : ordre des lignes garanti
-        if e.status == 'RUNNING':
-            continue
-        _apply_enhancement_settings(e, payload)
-        e.save()
-        updated += 1
-    return JsonResponse({'success': True, 'updated': updated})
 
 
 @require_POST
@@ -975,9 +963,11 @@ def batch_list(request):
 # DÉCLARÉES en kwargs : remise à zéro + cache de progression `enhancer_progress_<id>` à 0 sous le
 # verrou, libellé = nom d'entrée ou URL, nom de chaque entrée du ZIP = `get_output_filename()`,
 # dimensions/poids/durée de sortie remis à 0 à la duplication, cache purgé à la suppression.
-# `batch_update` reste LOCAL (assumé) : `_apply_enhancement_settings` valide le facteur (×2/×4)
-# et efface le curseur quand il est posté vide — une sémantique à part, lue par `batch_elements`.
+# `batch_update` vient AUSSI de la fabrique depuis le 2026-10-02 : elle lit les réglages postés
+# selon le schéma et les pose par `_apply_enhancement_settings` — LA fonction que la route d'un
+# élément appelle aussi (`apply_settings`). La vue locale ne faisait que refaire sa boucle.
 from wama.common.utils.batch_views import DEFAULT_RESET, make_batch_views
+from wama.enhancer.params import MEDIA_PARAMS_JSON as _MEDIA_SCHEMA
 
 
 def _get_user(request):
@@ -1008,8 +998,11 @@ _bv = make_batch_views(
     progress_of=lambda e: cache.get(f"enhancer_progress_{e.id}", e.progress or 0),
     item_label=lambda e: e.get_input_filename() or e.source_url,
     on_delete=lambda e: cache.delete(f"enhancer_progress_{e.id}"),
+    schema=_MEDIA_SCHEMA, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
+    apply_settings=_apply_enhancement_settings,
 )
 batch_start = _bv['batch_start']
+batch_update = _bv['batch_update']
 batch_status = _bv['batch_status']
 batch_download = _bv['batch_download']
 batch_delete = _bv['batch_delete']

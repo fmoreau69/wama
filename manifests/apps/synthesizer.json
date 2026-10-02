@@ -1518,7 +1518,7 @@
         "batch_start",
         "batch_status",
         "batch_template",
-        "batch_update_settings",
+        "batch_update",
         "card_html",
         "clear_all",
         "console",
@@ -1622,11 +1622,6 @@
           "name": "batch_status",
           "pattern": "batch/<int:pk>/status/",
           "view": "views.batch_status"
-        },
-        {
-          "name": "batch_update_settings",
-          "pattern": "batch/<int:pk>/settings/",
-          "view": "views.batch_update_settings"
         }
       ],
       "ingest": {

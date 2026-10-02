@@ -840,6 +840,15 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > s'est aligné, `f38685b3`, et a retiré son exemption du test — la garde « exemption devenue
 > inutile » a joué), reste l'anonymizer (FAUX) et l'imager (PARTIEL) ; `settings_modal_cycle`
 > **10/10**.
+> ⚠ **Remesuré le 2026-10-02 : 910/939** (100 critères) — `batch_views_common` **VRAI 10/10** :
+> les vues de lot « restées locales et ASSUMÉES » de la note du 23/09 n'étaient pas des
+> spécificités (décision de Fabien). Le ZIP multi-format lit les formats déclarés et le rendu
+> enregistré ; les réglages de lot appellent la fonction de réglage de l'app, celle de sa route
+> d'élément (`make_batch_views(apply_settings=…)`, `ROUTE §11 #36`). ⚠ Le synthesizer était
+> compté VRAI avec une vue locale nommée `batch_update_settings`, que le motif ne voyait pas —
+> *un critère par motif laisse passer les graphies qu'il ne connaît pas*. `release_card_file`
+> (ex-`safe_delete`) VRAI 10/10 ; `task_skeleton` VRAI pour 6 apps (composer rallié) ; converter
+> et describer à 100 %.
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
   (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
   le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,

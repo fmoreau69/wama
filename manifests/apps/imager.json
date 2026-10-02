@@ -2566,11 +2566,6 @@
           "view": "views.card_html"
         },
         {
-          "name": "batch_update",
-          "pattern": "batch/<int:batch_id>/update/",
-          "view": "views.batch_update"
-        },
-        {
           "name": "global_progress",
           "pattern": "global-progress/",
           "view": "views.global_progress"

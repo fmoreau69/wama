@@ -279,8 +279,9 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
         secs = int(seconds % 60)
         return f"{minutes}:{secs:02d}"
 
-    def update_metadata(self):
-        """Met à jour les métadonnées (word count, durée estimée)."""
+    def update_metadata(self, save=True):
+        """Met à jour les métadonnées (word count, durée estimée). `save=False` : les pose sans
+        écrire (l'appelant sauve l'élément entier — réglages de lot posés puis sauvés)."""
         if self.text_content:
             # Compter les mots
             self.word_count = len(self.text_content.split())
@@ -290,7 +291,8 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
             self.duration_seconds = estimated_duration
             self.duration_display = self.format_duration(estimated_duration)
 
-            self.save(update_fields=['word_count', 'duration_seconds', 'duration_display'])
+            if save:
+                self.save(update_fields=['word_count', 'duration_seconds', 'duration_display'])
 
 
 # ⚠ `CustomVoice` (voix personnalisée, valeur `cv_<id>`) est RETIRÉ le 2026-09-30 : les voix

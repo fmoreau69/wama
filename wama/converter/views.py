@@ -445,53 +445,75 @@ def update_settings(request, pk):
     # jamais écrit (contrat générique `tests_item_settings_contract`, 2026-09-26).
     from wama.common.utils.batch_views import read_settings_payload
     from wama.converter.params import PARAMS_JSON as _SCH
-    names = [p['name'] for p in _SCH]
-    data = read_settings_payload(request, _SCH, names)
+    data = read_settings_payload(request, _SCH, [p['name'] for p in _SCH])
+    try:
+        touched = _apply_job_settings(job, data)
+    except ValueError as refusal:
+        return JsonResponse({'error': str(refusal)}, status=400)
+    if touched:
+        job.save(update_fields=touched)
+    return JsonResponse({'success': True, 'output_format': job.output_format, 'options': job.options})
 
+
+def _apply_job_settings(job, data) -> list:
+    """LES réglages d'une conversion, posés sans sauver — rend les champs touchés.
+
+    La route d'un élément (`update_settings`) ET la fabrique des vues de lot (`apply_settings`)
+    passent ici : jusqu'au 2026-10-02 la vue de lot réécrivait ces règles à côté (lecture brute
+    de `request.POST`, sa propre validation du format, son propre étalement du geste de
+    qualité) — deux codes pour une seule règle. Un réglage refusé lève `ValueError` : la route
+    d'élément répond 400, la fabrique répond 400 sans écrire AUCUNE fille du lot.
+
+    `data` : `output_format`, puis les options — le blob `options_json` (le JS du converter,
+    où une valeur VIDE remet la colonne à « non réglé ») OU les réglages postés à plat (modale
+    de lot, inspecteur : seul le POSÉ arrive, `read_settings_payload` a retiré les vides —
+    « ne pas toucher », jamais « effacer »).
+    """
+    import json as _json
+    touched = []
     output_fmt = str(data.get('output_format') or '').strip().lower()
     if output_fmt:
         if output_fmt not in get_output_formats(job.media_type):
-            return JsonResponse({'error': f"Format de sortie non supporté : {output_fmt}"}, status=400)
+            raise ValueError(f"Format de sortie non supporté : {output_fmt}")
         job.output_format = output_fmt
+        touched.append('output_format')
 
-    # Options : le blob `options_json` (le JS du converter) OU les réglages du schéma postés à plat.
-    champs_touches = []
-    options_json = data.get('options_json')
-    if not options_json:
-        flat = {k: data[k] for k in names if k in data and k not in ('output_format', 'media_type')}
-        options_json = _json.dumps(flat) if flat else None
-    if options_json:
+    new_opts = data.get('options_json')
+    if not new_opts:
+        # À plat : tout ce qui n'est pas le format — `poser_reglages` ne retient que les
+        # colonnes de réglage du modèle, le geste de qualité est lu juste dessous.
+        new_opts = {k: v for k, v in data.items()
+                    if k not in ('output_format', 'media_type', 'options_json')}
+    elif not isinstance(new_opts, dict):
         try:
-            new_opts = (options_json if isinstance(options_json, dict)
-                        else _json.loads(options_json))
-            if not isinstance(new_opts, dict):
-                raise ValueError("options_json must be an object")
-            # ── MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09) : le preset est un GESTE D'ÉCRITURE ──
-            # Un preset = un profil GÉNÉRAL commun à tous (un profil = propre à
-            # l'utilisateur) : choisir « web » ÉCRIT ses valeurs dans les colonnes, séance
-            # tenante — l'utilisateur VOIT l'effet réel, peut le retoucher, puis l'enregistrer
-            # en profil. La colonne `quality_preset` devient une TRACE (dernier preset
-            # appliqué), plus un facteur au lancement. Ordre du POST : les valeurs du preset
-            # d'abord, les réglages individuels du même envoi par-dessus (le geste fin prime).
-            # Le CURSEUR commun (chantier C, 20/09) est le même geste d'écriture : sa valeur
-            # s'ÉTALE en réglages d'encodage interpolés (`values_for_intent`), sa trace est
-            # `quality_intent` + le preset le plus proche. Un preset par clé (filemanager,
-            # tool_api) reste accepté et pose la trace du curseur à sa position.
-            champs_touches += _apply_quality_gesture(job, new_opts)
-            etale = _quality_spread(job, new_opts)
-            if etale:
-                etale.update({k: v for k, v in new_opts.items() if k in etale})
-                new_opts = {**etale, **{k: v for k, v in new_opts.items()
-                                        if k not in ('quality_preset', 'quality_intent')}}
-            # Un réglage = une COLONNE depuis le 2026-09-01 : plus de split à faire ici (le
-            # modèle sait à quelle famille appartient chaque nom), et plus de JSON à écrire.
-            # `poser_reglages` coerce selon le type du champ et rend les champs touchés.
-            champs_touches += job.poser_reglages(new_opts)
-        except (ValueError, _json.JSONDecodeError) as exc:
-            return JsonResponse({'error': f"options_json invalide : {exc}"}, status=400)
+            new_opts = _json.loads(new_opts)
+        except ValueError as exc:
+            raise ValueError(f"options_json invalide : {exc}")
+        if not isinstance(new_opts, dict):
+            raise ValueError("options_json invalide : options_json must be an object")
+    if not new_opts:
+        return touched
 
-    job.save(update_fields=['output_format'] + champs_touches)
-    return JsonResponse({'success': True, 'output_format': job.output_format, 'options': job.options})
+    # ── MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09) : le preset est un GESTE D'ÉCRITURE ──
+    # Un preset = un profil GÉNÉRAL commun à tous (un profil = propre à l'utilisateur) :
+    # choisir « web » ÉCRIT ses valeurs dans les colonnes, séance tenante — l'utilisateur VOIT
+    # l'effet réel, peut le retoucher, puis l'enregistrer en profil. La colonne `quality_preset`
+    # devient une TRACE (dernier preset appliqué), plus un facteur au lancement. Ordre du POST :
+    # les valeurs du preset d'abord, les réglages individuels du même envoi par-dessus (le
+    # geste fin prime).
+    # Le CURSEUR commun (chantier C, 20/09) est le même geste d'écriture : sa valeur s'ÉTALE en
+    # réglages d'encodage interpolés (`values_for_intent`), sa trace est `quality_intent` + le
+    # preset le plus proche. Un preset par clé (filemanager, tool_api) reste accepté et pose la
+    # trace du curseur à sa position.
+    touched += _apply_quality_gesture(job, new_opts)
+    spread = _quality_spread(job, new_opts)
+    if spread:
+        new_opts = {**spread, **{k: v for k, v in new_opts.items()
+                                 if k not in ('quality_preset', 'quality_intent')}}
+    # Un réglage = une COLONNE depuis le 2026-09-01 : plus de split à faire ici (le modèle sait
+    # à quelle famille appartient chaque nom), et plus de JSON à écrire. `poser_reglages`
+    # coerce selon le type du champ et rend les champs touchés.
+    return touched + [f for f in job.poser_reglages(new_opts) if f not in touched]
 
 
 def _apply_quality_gesture(job, values: dict) -> list:
@@ -807,9 +829,11 @@ def batch_create(request):
 # ni lancé ni compté) ; la tâche s'importe paresseusement ; la copie de lot garde `media_type`
 # (le lot est HOMOGÈNE par nature) ; les fichiers d'un job sont libérés par la fabrique
 # (`release_card_files`, propriété et partage jugés) ; `@login_required` gardé, comme sur toutes les vues
-# de l'app. `batch_update` reste local (réglages par `poser_reglages` + geste de qualité du lot,
-# assumé), lu par `batch_elements`.
+# de l'app. `batch_update` vient de la fabrique depuis le 2026-10-02 : elle lit le POSTÉ selon le
+# schéma et appelle `_apply_job_settings`, la fonction de la route d'élément — un format refusé
+# = 400 et aucune fille écrite.
 from wama.common.utils.batch_views import make_batch_views
+from wama.converter.params import PARAMS_JSON as _BATCH_SCHEMA
 
 
 def _task_for(_job):
@@ -824,56 +848,13 @@ _bv = make_batch_views(
     batch_attr='batch', row_field='batch_row_index',
     batch_extra=lambda lot: {'media_type': lot.media_type},
     zip_name=lambda lot: f'converter_batch_{lot.id}.zip',
+    schema=_BATCH_SCHEMA, apply_settings=_apply_job_settings,
 )
 batch_start = login_required(_bv['batch_start'])
 batch_delete = login_required(_bv['batch_delete'])
 batch_duplicate = login_required(_bv['batch_duplicate'])
 batch_download = login_required(_bv['batch_download'])
-
-
-@login_required
-@require_POST
-def batch_update(request, pk):
-    """Applique les réglages POSTÉS à tous les jobs non-RUNNING d'un batch.
-
-    Le lot est HOMOGÈNE par nature (group_into_batches_by_nature) : ses réglages auxiliaires
-    (resize, rotation, miroirs, débit…) s'appliquent donc en masse, plus seulement la paire
-    format/préréglage (02/09, demande Fabien). Seul le POSTÉ est appliqué — un champ absent
-    veut dire « ne pas toucher les filles », jamais « effacer » ; l'écriture passe par le
-    point d'entrée UNIQUE du modèle (`poser_reglages`, coercition par type de colonne).
-    """
-    from .models import ConversionBatch
-    batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
-    out_fmt = (request.POST.get('output_format') or '').strip().lower()
-    preset  = (request.POST.get('output_quality') or request.POST.get('quality_preset') or '').strip().lower()
-    # Geste de qualité du lot : le CURSEUR commun (chantier C) ou une clé de preset — les deux
-    # écrivent les mêmes colonnes sur les filles, et laissent leurs traces.
-    gesture = {'quality_intent': request.POST.get('quality_intent'), 'quality_preset': preset}
-    # CHAMPS_CROSS_APP inclus depuis le 02/09 (décision Fabien : garde « pas de GPU en
-    # masse » levée — l'intention de lot est « un seul chargement de modèle »).
-    _connus = set(ConversionJob.CHAMPS_OPTIONS) | set(ConversionJob.CHAMPS_CROSS_APP)
-    reglages = {k: v for k, v in request.POST.items()
-                if k in _connus and v not in (None, '')}
-    # MODÈLE ÉVÉNEMENTIEL (02/09) : un geste de qualité au LOT s'écrit sur les filles —
-    # ses valeurs d'abord, les réglages individuels du même envoi par-dessus.
-    reglages = {**_quality_spread(batch, gesture), **reglages}
-
-    if out_fmt and out_fmt not in get_output_formats(batch.media_type):
-        return JsonResponse({'error': f"Format invalide pour {batch.media_type} : {out_fmt}"}, status=400)
-
-    from wama.common.utils.batch_common import batch_elements
-    updated = 0
-    for job in batch_elements(batch, ConversionJob):       # brique : ordre des lignes garanti
-        if job.status == 'RUNNING':
-            continue
-        fields = job.poser_reglages(reglages)
-        if out_fmt:
-            job.output_format = out_fmt; fields.append('output_format')
-        fields += _apply_quality_gesture(job, gesture)
-        if fields:
-            job.save(update_fields=fields); updated += 1
-    return JsonResponse({'success': True, 'updated': updated,
-                         'output_format': out_fmt, 'media_type': batch.media_type})
+batch_update = login_required(_bv['batch_update'])
 
 
 # ────────────────────────────────────────────────────────────────────────────

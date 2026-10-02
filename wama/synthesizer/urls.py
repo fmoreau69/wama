@@ -59,6 +59,6 @@ urlpatterns = [
     path('batch/<int:pk>/status/', views.batch_status, name='batch_status'),
     path('batch/<int:pk>/download/', views.batch_download, name='batch_download'),
     path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),
-    path('batch/<int:pk>/settings/', views.batch_update_settings, name='batch_update_settings'),
+    path('batch/<int:pk>/update/', views.batch_update, name='batch_update'),
     path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
 ]

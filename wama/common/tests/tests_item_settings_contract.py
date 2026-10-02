@@ -138,3 +138,151 @@ class ItemSettingsRouteContractTest(TestCase):
                 self.assertEqual(200, r.status_code, r.content[:300])
                 item.refresh_from_db()
                 self.assertEqual(getattr(item, name), before, f'`{name}` took a value outside its choices')
+
+
+# ── The batch ⚙ — the SAME rules as the element route (2026-10-02) ───────────────────────────
+
+#: Apps whose batch settings view still applies the settings with code of its own, next to the
+#: element route — declared with the reason, removed when the app is ported. An exemption that
+#: is no longer needed fails the test.
+BATCH_SETTINGS_STILL_LOCAL = {}
+
+
+def _batch_surfaces():
+    """(app, element model, schema, batch route) for every measured app that has batches."""
+    from wama.common.utils.batch_common import batch_model_for
+    out = []
+    for app, model, schema in _surfaces():
+        if batch_model_for(model) is None:
+            continue
+        try:
+            reverse(f'{app}:batch_update', args=[1])
+        except NoReverseMatch:
+            out.append((app, model, schema, None))
+            continue
+        out.append((app, model, schema, f'{app}:batch_update'))
+    return out
+
+
+def _numeric_fields(model, schema):
+    """The schema's bounded numeric settings that are model columns — (name, [min, max])."""
+    fields = {f.name: f for f in model._meta.concrete_fields}
+    out = []
+    for p in schema:
+        f = fields.get(p.get('name'))
+        if f is None or 'item' not in (p.get('contexts') or ()):
+            continue
+        if p.get('type') == 'intent':
+            out.append((f.name, [20, 80]))
+        elif (p.get('type') in ('range', 'number') and p.get('min') is not None
+              and p.get('max') is not None and p['min'] != p['max']
+              and isinstance(f, (models.IntegerField, models.FloatField))):
+            out.append((f.name, [p['min'], p['max']]))
+    return out
+
+
+def _batch_postable(schema):
+    """Names of the settings the batch ⚙ can POST: those the schema declares for the `batch`
+    context — or, when it declares none, the element ones (the batch then reuses the element
+    modal: enhancer). A prompt is the text of ONE element: no batch modal carries it."""
+    declared = {p['name'] for p in schema if 'batch' in (p.get('contexts') or ())}
+    return declared or {p['name'] for p in schema if 'item' in (p.get('contexts') or ())}
+
+
+def _settings_of(item, model, schema):
+    """What the settings routes may write on `item`: its schema settings that are model fields."""
+    fields = {f.name for f in model._meta.concrete_fields}
+    item.refresh_from_db()
+    return {p['name']: getattr(item, p['name']) for p in schema if p.get('name') in fields}
+
+
+class BatchSettingsFollowTheItemRouteTest(TestCase):
+    """The ⚙ of a BATCH writes on every daughter what the element route writes on ONE element.
+
+    Measured on 2026-10-02: in six apps the batch view re-wrote the rules of the element route
+    next to it (its own reading of the POST, its own validation, its own derived fields) — two
+    codes for one rule, and the batch one had lost validations along the way. The factory now
+    calls the app's ONE function (`make_batch_views(apply_settings=…)`), or the common
+    declarative path. No app is named here: the same payload goes to both routes and the
+    outcomes are compared.
+    """
+
+    _login_for = ItemSettingsRouteContractTest._login_for
+
+    def test_the_fleet_is_measured(self):
+        surfaces = _batch_surfaces()
+        self.assertGreaterEqual(len(surfaces), 8, [a for a, *_ in surfaces])
+        routeless = sorted(a for a, _m, _s, route in surfaces if route is None)
+        self.assertEqual([], routeless, 'apps with batches but no `<app>:batch_update` route')
+        stale = sorted(set(BATCH_SETTINGS_STILL_LOCAL) - {a for a, *_ in surfaces})
+        self.assertEqual([], stale, 'exemptions naming no measured app')
+
+    def _both_routes(self, app, model, schema, route, payload):
+        """Post `payload` to the element route (one lone element) and to the batch route (two
+        daughters). Returns the lone element's settings BEFORE, then (status, settings) of the
+        lone element and of each daughter AFTER."""
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        user = self._login_for(app)
+        lone = _instance(model, user)
+        before = _settings_of(lone, model, schema)
+        lot, daughters = _lot_de(model, user, 2)
+        r_item = self.client.post(reverse(f'{app}:update_settings', args=[lone.pk]), payload)
+        r_lot = self.client.post(reverse(route, args=[lot.pk]), payload)
+        return (before, (r_item.status_code, _settings_of(lone, model, schema)),
+                [(r_lot.status_code, _settings_of(d, model, schema)) for d in daughters])
+
+    def _compare(self, pick_fields, payload_for, must_write):
+        """Every setting the batch ⚙ can post, one at a time, on both routes. Returns the
+        measured (app, setting) pairs and the exemptions that are no longer needed.
+        `must_write`: a setting the element route does not write is not a measure (skipped)."""
+        measured, diverging = [], {}
+        for app, model, schema, route in _batch_surfaces():
+            if route is None:
+                continue
+            postable = _batch_postable(schema)
+            for name, values in pick_fields(model, schema):
+                if name not in postable:
+                    continue
+                before, item_outcome, daughter_outcomes = self._both_routes(
+                    app, model, schema, route, payload_for(model, name, values))
+                if must_write and item_outcome[1] == before:
+                    continue
+                measured.append((app, name))
+                if any(outcome != item_outcome for outcome in daughter_outcomes):
+                    diverging.setdefault(app, []).append(
+                        f'{name}: element {item_outcome} / batch {daughter_outcomes[0]}')
+        for app in sorted(set(diverging) - set(BATCH_SETTINGS_STILL_LOCAL)):
+            with self.subTest(app=app):
+                self.fail('the batch does not write what the element route writes — '
+                          + ' ; '.join(diverging[app]))
+        needless = sorted(a for a in BATCH_SETTINGS_STILL_LOCAL
+                          if a not in diverging and any(m[0] == a for m in measured))
+        return measured, needless
+
+    def test_a_batch_writes_on_each_daughter_what_the_item_route_writes(self):
+        def payload(model, name, values):
+            default = model._meta.get_field(name).get_default()
+            return {name: _posted(next(v for v in values if v != default))}
+        measured, needless = self._compare(
+            lambda model, schema: _writable_fields(model, schema) + _numeric_fields(model, schema),
+            payload, must_write=True)
+        with_batches = {a for a, _m, _s, route in _batch_surfaces() if route}
+        self.assertEqual(sorted(with_batches), sorted({app for app, _name in measured}),
+                         'apps with batches where NO setting could be compared')
+        self.assertEqual([], needless, 'exemptions no longer needed — remove them')
+
+    def test_a_value_the_item_route_ignores_is_ignored_by_the_batch(self):
+        measured, _needless = self._compare(
+            _choice_fields, lambda model, name, values: {name: 'not-a-choice'}, must_write=False)
+        self.assertGreaterEqual(len({app for app, _name in measured}), 3, measured)
+
+    def test_no_app_keeps_a_batch_settings_view_of_its_own(self):
+        """The copy must not come back: every `<app>:batch_update` IS the factory's view."""
+        from django.urls import resolve
+        for app, _model, _schema, route in _batch_surfaces():
+            if route is None or app in BATCH_SETTINGS_STILL_LOCAL:
+                continue
+            with self.subTest(app=app):
+                view = resolve(reverse(route, args=[1])).func
+                self.assertEqual('wama.common.utils.batch_views', view.__module__,
+                                 f'{app}: `{view.__name__}` is written in the app')

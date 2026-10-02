@@ -808,6 +808,28 @@ def download_all(request):
     )
 
 
+def _apply_synthesis_settings(synthesis, data):
+    """LES réglages d'une synthèse, posés sans sauver — la route d'un élément (`update_settings`)
+    ET la fabrique des vues de lot passent ici. Jusqu'au 2026-10-02 le lot avait sa propre vue
+    (`batch_update_settings`) : JSON seul, cinq champs relus à la main, et `speed`/`pitch`
+    remis à 1.0 dès qu'ils n'étaient pas postés. Rend `None` : tout l'élément est sauvé (les
+    métadonnées dérivées — durée estimée — sont recalculées ici, sans sauver)."""
+    from wama.common.utils.batch_views import apply_item_settings
+    if data.get('tts_model'):
+        # Nom court saisi (fichier batch, outil) → clé de catalogue, comme à la création.
+        data = {**data, 'tts_model': tts_catalog_key(str(data['tts_model']))}
+    apply_item_settings(synthesis, data, params_fields=[p['name'] for p in _SYNTH_PARAMS_JSON])
+    # Hors schéma, lus dans le MÊME payload.
+    if 'emotion_intensity' in data:
+        synthesis.emotion_intensity = float(data['emotion_intensity'])
+    if 'multi_speaker' in data:
+        synthesis.multi_speaker = str(data['multi_speaker']).lower() in ('1', 'true', 'on')
+    if 'scene_description' in data:
+        synthesis.scene_description = data['scene_description']
+    synthesis.update_metadata(save=False)
+    return None
+
+
 @require_POST
 def update_settings(request, pk: int):
     """
@@ -825,24 +847,19 @@ def update_settings(request, pk: int):
     # l'écrivain COMMUNS (coercition au schéma, valeur hors choix ignorée). La vue lisait
     # `request.POST` champ par champ : le JSON de l'inspecteur n'était jamais écrit (relevé par
     # le contrat générique `tests_item_settings_contract`, 2026-09-26).
-    from wama.common.utils.batch_views import apply_item_settings, read_settings_payload
-    names = [p['name'] for p in _SYNTH_PARAMS_JSON]
-    data = read_settings_payload(request, _SYNTH_PARAMS_JSON, names)
-    apply_item_settings(synthesis, data, params_fields=names)
-    # Hors schéma, lus dans le MÊME payload.
-    if 'emotion_intensity' in data:
-        synthesis.emotion_intensity = float(data['emotion_intensity'])
-    if 'multi_speaker' in data:
-        synthesis.multi_speaker = str(data['multi_speaker']).lower() in ('1', 'true', 'on')
-    if 'scene_description' in data:
-        synthesis.scene_description = data['scene_description']
+    from wama.common.utils.batch_views import read_settings_payload
+    data = read_settings_payload(request, _SYNTH_PARAMS_JSON,
+                                 [p['name'] for p in _SYNTH_PARAMS_JSON])
+    try:
+        _apply_synthesis_settings(synthesis, data)
+    except ValueError as refusal:
+        return JsonResponse({'error': str(refusal)}, status=400)
 
     # Voice reference — téléversée ou DÉSIGNÉE (médiathèque, arbre) : pointée.
     voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
     if voice_received:
         synthesis.voice_reference = voice_received[0].value
 
-    synthesis.update_metadata()
     synthesis.save()
     if voice_received:
         voice_received[0].record(synthesis, 'voice_reference')
@@ -1073,7 +1090,7 @@ def batch_create(request):
     })
 
 
-# ── Cinq vues de lot par la fabrique COMMUNE (`batch_views.make_batch_views`, portage
+# ── Six vues de lot par la fabrique COMMUNE (`batch_views.make_batch_views`, portage
 # 2026-09-23, 8ᵉ app réelle — ROUTE §11 #36). Spécificités DÉCLARÉES : la tâche s'importe
 # paresseusement (`_ensure_workers_imported`, comme `start`) ; la remise à zéro du ▶ est celle de
 # `start` (`_reset_synthesis_for_relaunch`) plus le cache de progression posé à 0 ; la progression
@@ -1083,8 +1100,10 @@ def batch_create(request):
 # `safe_delete_file` juge les références) ; `properties` vidé à la duplication.
 # ⚠ Retiré, mesuré : la clé `audio_url` des lignes de `batch_status` — 0 lecteur (aucun gabarit
 # ni JS du synthesizer n'appelle `batch_status`), la forme COMMUNE des lignes fait foi.
-# `batch_update_settings` reste local (champs et coercitions propres au TTS, assumé) et `batch_list`
-# n'est pas une vue de lot : tous deux lisent par `batch_elements`.
+# Les réglages de lot viennent de la fabrique depuis le 2026-10-02 : elle appelle
+# `_apply_synthesis_settings`, la fonction de la route d'élément (la vue locale
+# `batch_update_settings` réécrivait cinq champs à côté). `batch_list` n'est pas une vue de
+# lot : elle lit par `batch_elements`.
 from wama.common.utils.batch_views import make_batch_views
 
 
@@ -1127,12 +1146,15 @@ _bv = make_batch_views(
     output_name=lambda s: s.batch_link.output_filename,
     zip_name=_zip_name,
     on_delete=lambda s: cache.delete(f"synthesizer_progress_{s.id}"),
+    schema=_SYNTH_PARAMS_JSON,
+    apply_settings=lambda synthesis, data: _apply_synthesis_settings(synthesis, data),
 )
 batch_start = app_access('synthesizer')(_bv['batch_start'])
 batch_status = _bv['batch_status']
 batch_download = _bv['batch_download']
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
+batch_update = _bv['batch_update']
 
 
 def batch_list(request):
@@ -1167,53 +1189,6 @@ def batch_list(request):
         })
 
     return JsonResponse({'batches': data})
-
-
-@require_POST
-def batch_update_settings(request, pk: int):
-    """Update TTS settings for all non-running items in a batch."""
-    import json as _json
-    from wama.common.utils.batch_common import batch_elements
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
-
-    data = _json.loads(request.body)
-    tts_model = tts_catalog_key(data.get('tts_model', ''))
-    quality_intent = str(data.get('quality_intent', '') or '').strip()
-    language = data.get('language', '').strip()
-    voice_preset = data.get('voice_preset', '').strip()
-    try:
-        speed = float(data.get('speed', 1.0))
-        pitch = float(data.get('pitch', 1.0))
-    except (ValueError, TypeError):
-        speed = 1.0
-        pitch = 1.0
-
-    updated = 0
-    for s in batch_elements(batch, VoiceSynthesis):     # brique : ordre des lignes garanti
-        if s.status == 'RUNNING':
-            continue
-        update_fields = []
-        if tts_model:
-            s.tts_model = tts_model
-            update_fields.append('tts_model')
-        if quality_intent:
-            s.quality_intent = read_quality_intent(quality_intent)
-            update_fields.append('quality_intent')
-        if language:
-            s.language = language
-            update_fields.append('language')
-        if voice_preset:
-            s.voice_preset = voice_preset
-            update_fields.append('voice_preset')
-        s.speed = speed
-        s.pitch = pitch
-        update_fields.extend(['speed', 'pitch'])
-        if update_fields:
-            s.save(update_fields=update_fields)
-            updated += 1
-
-    return JsonResponse({'success': True, 'updated': updated})
 
 
 # ============= VOICE PREVIEW =============

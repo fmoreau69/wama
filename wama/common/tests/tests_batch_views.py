@@ -239,6 +239,79 @@ class DirectFormBatchViewsTest(TestCase):
         self.a.refresh_from_db()
         self.assertEqual((self.a.status, self.a.error_message), ('RUNNING', 'reset-callable'))
 
+    # ── `apply_settings` : la fonction de réglage de l'APP, celle de sa route d'élément ──────
+
+    def _views_applying(self, apply_settings, **kw):
+        from wama.converter.models import ConversionBatch, ConversionJob
+        return make_batch_views(
+            work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda r: self.u,
+            batch_attr='batch', row_field='batch_row_index', apply_settings=apply_settings, **kw)
+
+    def _update(self, views, data):
+        req = self.rf.post('/x/', data)
+        req.user = self.u
+        return views['batch_update'](req, self.lot.pk)
+
+    def test_the_app_function_is_called_for_each_element_that_is_not_running(self):
+        self.a.status = 'RUNNING'
+        self.a.save(update_fields=['status'])
+        seen = []
+
+        def apply(job, data):
+            seen.append((job.pk, data.get('output_format')))
+            job.output_format = data['output_format']
+            return ['output_format']
+
+        r = self._update(self._views_applying(apply), {'output_format': 'ogg'})
+        self.assertEqual(json.loads(r.content)['updated'], 1)
+        self.assertEqual(seen, [(self.b.pk, 'ogg')], 'un élément EN COURS ne passe pas par la fonction')
+        self.b.refresh_from_db()
+        self.assertEqual(self.b.output_format, 'ogg')
+
+    def test_a_refused_setting_answers_400_and_writes_no_element_at_all(self):
+        """DEUX TEMPS : la 1re fille est acceptée, la 2e refusée — aucune des deux n'est écrite."""
+        def apply(job, data):
+            if job.pk == self.a.pk:              # `a` porte la ligne 1 : elle passe en SECOND
+                raise ValueError('format refusé')
+            job.output_format = 'ogg'
+            return ['output_format']
+
+        r = self._update(self._views_applying(apply), {'output_format': 'ogg'})
+        self.assertEqual((r.status_code, json.loads(r.content)['error']), (400, 'format refusé'))
+        self.b.refresh_from_db()
+        self.assertNotEqual(self.b.output_format, 'ogg', 'la fille acceptée AVANT le refus a été écrite')
+
+    def test_none_means_the_whole_element_is_saved(self):
+        def apply(job, _data):
+            job.output_format = 'ogg'
+            job.error_message = 'derived'
+            return None
+
+        self._update(self._views_applying(apply), {'output_format': 'ogg'})
+        self.a.refresh_from_db()
+        self.assertEqual((self.a.output_format, self.a.error_message), ('ogg', 'derived'))
+
+    def test_an_element_the_function_did_not_touch_is_not_counted(self):
+        r = self._update(self._views_applying(lambda job, data: []), {'output_format': 'ogg'})
+        self.assertEqual(json.loads(r.content)['updated'], 0)
+
+    def test_a_schema_that_depends_on_the_element_is_read_per_element(self):
+        """imager : image ou vidéo — le posté est coercé au schéma de CHAQUE élément."""
+        asked, got = [], {}
+
+        def schema(job):
+            asked.append(job.pk)
+            kind = 'toggle' if job.pk == self.a.pk else 'text'
+            return [{'name': 'flag', 'type': kind}]
+
+        def apply(job, data):
+            got[job.pk] = data.get('flag')
+            return []
+
+        self._update(self._views_applying(apply, schema=schema), {'flag': 'true'})
+        self.assertEqual(sorted(asked), sorted([self.a.pk, self.b.pk]))
+        self.assertEqual((got[self.a.pk], got[self.b.pk]), (True, 'true'))
+
 
 class LinkFormBatchViewsTest(TestCase):
     """Forme à LIAISON — imager (`GenerationBatchItem`)."""
@@ -488,3 +561,37 @@ class LateBindingBatchDownloadTest(TestCase):
             with self.subTest(surface=surface):
                 views = import_module(f'{model.__module__.rsplit(".", 1)[0]}.views')
                 self.assertEqual('wama.common.utils.batch_views', views.batch_download.__module__)
+
+
+class BatchViewsCriterionTest(TestCase):
+    """The grid criterion `batch_views_common` sees a local batch view under EVERY spelling.
+
+    Measured on 2026-10-02: the synthesizer kept its batch settings view under the name
+    `batch_update_settings` — the pattern only knew `batch_update`, so the app was green with a
+    hand-written view. Measured on FICTIVE apps; the real fleet is read by `check_app_conformity`.
+    """
+
+    def _verdict(self, views):
+        from wama.common.tests.tests_queue_delete_contract import CriteresDeLaGrilleTest
+        f, cc = CriteresDeLaGrilleTest._app(self, {'views.py': views})
+        return next(c for c in cc.CRITERIA if c.key == 'batch_views_common').fn(f)
+
+    def test_the_factory_alone_is_green(self):
+        state, _evidence = self._verdict("_bv = make_batch_views(work_model=X)\n"
+                                         "batch_update_settings = _bv['batch_update']\n")
+        self.assertIs(state, True)
+
+    def test_a_local_settings_view_is_partial_under_both_spellings(self):
+        for name in ('batch_update', 'batch_update_settings'):
+            with self.subTest(name=name):
+                state, evidence = self._verdict(
+                    f"_bv = make_batch_views(work_model=X)\ndef {name}(request, pk):\n    pass\n")
+                self.assertEqual(state, 'partial')
+                self.assertIn('views.py:2', evidence)
+
+    def test_other_batch_routes_are_not_batch_views(self):
+        """`batch_template`, `batch_preview`, `batch_list` belong to the import, not to the six."""
+        state, _evidence = self._verdict(
+            "_bv = make_batch_views(work_model=X)\ndef batch_template(request):\n    pass\n"
+            "def batch_list(request):\n    pass\n")
+        self.assertIs(state, True)

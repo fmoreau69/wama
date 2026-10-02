@@ -90,9 +90,11 @@ PARAMS = derive_from_model(
 
 # Format + qualité de FICHIER de sortie : BRIQUE COMMUNE auto depuis APP_CATALOG (domaine audio +
 # early-binding déduits du catalogue). L'app ne fournit que les dom_id de ses surfaces.
-# ⚠ Pas de contexte "batch" ici : `batch_update_settings` n'accepte que tts_model/language/
-# voice_preset/speed/pitch — déclarer batch rendrait des champs MORTS dans la modale générée
-# (mesuré 17/08). Réactiver quand l'endpoint portera le format/qualité de sortie.
+# ⚠ Pas de contexte "batch" ici — HISTORIQUE : la vue de lot n'acceptait que tts_model/language/
+# voice_preset/speed/pitch, déclarer batch aurait rendu des champs MORTS (mesuré 17/08). Depuis
+# le 2026-10-02 le lot passe par la fonction de la route d'élément, qui ÉCRIT format et qualité :
+# la condition est levée. Reste à ouvrir le contexte (une ligne ici + les dom_id de lot) avec une
+# vérification navigateur de la modale générée — pas fait à l'aveugle.
 PARAMS += output_format_params_for_app(
     "synthesizer",
     contexts=("item", "panel"),
