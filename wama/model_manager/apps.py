@@ -36,6 +36,15 @@ class ModelManagerConfig(AppConfig):
         # Enregistre le garde-fou anti-dérive des enums (registre ⊆ DB), cf. checks.py / F5.
         from . import checks  # noqa: F401  (l'import déclenche @register)
 
+        # La gestion des modèles se DÉCLARE : son monde et sa page (route §10.6 point 6.1).
+        # `nav_hide` : présente au catalogue `/apps/`, pas au menu Applications — elle a son
+        # entrée dans la section Administration. Elle EST sous contrôle d'accès
+        # (DEFAULT_APP_ACCESS, min_tier développeur) : la clé du droit est son identifiant.
+        from wama.common.app_registry import register_surface
+        register_surface('model_manager', world='transverse', label='Gestion des modèles',
+                         url_name='model_manager:index', icon='fa-microchip',
+                         nav_hide=True, order=30)
+
         # Journal DÉDIÉ pour la synchro du catalogue (brique COMMUNE) : `[ModelSync]`
         # émet une ligne par modèle à chaque réconciliation et représentait 71 % de
         # celery-default.log (138 328 lignes sur 194 328), noyant les traces de tâches

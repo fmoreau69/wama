@@ -26,9 +26,10 @@ CE QUE CES CONTRÔLES COUVRENT, ET CE QU'ILS NE COUVRENT PAS
 
 ⚠ ON NE REDIT PAS CE QUI EST DÉJÀ TESTÉ. `tests.py::PagesSmokeTests` résout et REND l'index de
     chaque app du catalogue : la résolvabilité d'`url_name` y est donc déjà prouvée, plus fort
-    qu'ici. On ne la reprend pas — en revanche les `extra_links` des CATÉGORIES n'étaient testés
-    nulle part, alors que le registre porte la trace d'un lien silencieusement omis par le garde
-    `NoReverseMatch` (commentaire d'`APP_CATEGORIES`). C'est là qu'il manquait un test.
+    qu'ici. On ne la reprend pas — en revanche les surfaces hors catalogue (alors des `extra_links`
+    de catégories, depuis le 2026-10-02 des `register_surface`) n'étaient testées nulle part, alors
+    qu'un lien y avait été silencieusement omis par le garde `NoReverseMatch`. C'est là qu'il
+    manquait un test.
 
 ⚠ LE PIÈGE DU VERT SUR DU VIDE. Une boucle sur un registre vide passe : zéro sous-test, zéro
     échec. Deux harnais du dépôt ont déjà annoncé « 0 FAIL » sur du vide. Chaque classe vérifie
@@ -610,22 +611,111 @@ class AppCatalogConformiteTest(TestCase):
                     f"export_formats={formats!r} — la liaison tardive exige des formats, "
                     f"la liaison précoce n'en propose aucun")
 
-    def test_extra_links_des_categories_resolvent(self):
+    def test_declared_surfaces_resolve(self):
         """Le trou que `PagesSmokeTests` ne bouche pas : il boucle sur les APPS, pas sur les liens.
 
-        Le registre porte lui-même la trace du défaut — « le premier jet `face_analyzer:index`
-        était silencieusement omis par le garde NoReverseMatch ». Un lien mort n'y lève pas : il
-        s'efface du menu, et la surface qu'il désignait devient inatteignable sans un mot.
+        Le défaut d'origine — « le premier jet `face_analyzer:index` était silencieusement omis
+        par le garde NoReverseMatch ». Un lien mort n'y lève pas : il s'efface du menu, et la
+        surface qu'il désignait devient inatteignable sans un mot.
         """
-        from wama.common.app_registry import APP_CATEGORIES
-        for cid, meta in sorted(APP_CATEGORIES.items()):
-            for lien in (meta.get('extra_links') or ()):
-                with self.subTest(categorie=cid, lien=lien.get('label')):
-                    self.assertTrue(lien.get('label'), "lien sans libellé")
-                    try:
-                        reverse(lien['url_name'])
-                    except (NoReverseMatch, KeyError):
-                        self.fail(f"url_name={lien.get('url_name')!r} ne se résout pas")
+        from wama.common.app_registry import surfaces
+        declared = surfaces()
+        self.assertTrue(declared, "aucune surface déclarée : la boucle passerait sur du vide")
+        for lien in declared:
+            with self.subTest(surface=lien['app']):
+                self.assertTrue(lien.get('label'), "surface sans libellé")
+                try:
+                    reverse(lien['url_name'])
+                except (NoReverseMatch, KeyError):
+                    self.fail(f"url_name={lien.get('url_name')!r} ne se résout pas")
+
+
+class DeclaredWorldsTest(TestCase):
+    """Le monde des apps HORS catalogue — poussé depuis leur `ready()` (route §10.6 point 6.1).
+
+    Ces surfaces étaient écrites dans le substrat (`extra_links` d'`APP_CATEGORIES`), qui citait
+    donc les apps Lab par leur nom ; le journal, lui, recevait le monde par un second chemin.
+    """
+
+    EXPECTED = {'cam_analyzer': 'lab', 'face_analyzer': 'lab', 'studio': 'transverse',
+                'media_library': 'transverse', 'model_manager': 'transverse'}
+
+    def test_each_surface_declares_its_world_and_sits_in_its_section(self):
+        from wama.common.app_registry import app_world, category_surfaces, surface_for
+        for app, world in self.EXPECTED.items():
+            with self.subTest(app=app):
+                self.assertEqual(app_world(app), world)
+                section, surface = surface_for(app)
+                self.assertEqual(surface['gate'], app, "la clé du droit est l'identifiant d'app")
+                self.assertIn(app, [s['app'] for s in category_surfaces(section)])
+        self.assertEqual(app_world('wama_data'), 'data')
+
+    def test_the_menu_sections_keep_their_declared_order(self):
+        # L'ordre est DÉCLARÉ (`order`) : celui des `ready()` suit INSTALLED_APPS et bougerait
+        # avec lui.
+        from wama.common.app_registry import category_surfaces
+        self.assertEqual([s['app'] for s in category_surfaces('lab')],
+                         ['face_analyzer', 'cam_analyzer'])
+        self.assertEqual([s['app'] for s in category_surfaces('platform')],
+                         ['studio', 'media_library', 'model_manager'])
+        self.assertEqual(category_surfaces('transform'), [],
+                         "une catégorie du monde Médias ne porte aucune surface hors catalogue")
+
+    def test_the_menu_and_the_catalog_page_render_the_declared_surfaces(self):
+        """La page `/apps/` ET le menu (processeur de contexte) lisent la déclaration : les cinq
+        surfaces y sont, avec leur route — le menu sans la gestion des modèles (`nav_hide`)."""
+        from django.contrib.auth import get_user_model
+        from wama.common.app_registry import surfaces
+        user = get_user_model().objects.create_superuser('worlds_admin', 'w@test.local', 'x')
+        self.client.force_login(user)
+        response = self.client.get(reverse('common:apps_catalog'))
+        self.assertEqual(response.status_code, 200)
+        for surface in surfaces():
+            with self.subTest(surface=surface['app']):
+                self.assertContains(response, surface['label'])
+                self.assertContains(response, reverse(surface['url_name']))
+        menu = {link['gate'] for group in response.context['nav_apps_grouped']
+                for link in group.get('links', ())}
+        self.assertEqual(menu, {'face_analyzer', 'cam_analyzer', 'studio', 'media_library'})
+
+    def test_an_unknown_world_or_a_contradiction_is_refused(self):
+        from wama.common.app_registry import declare_app_world
+        with self.assertRaises(ValueError):
+            declare_app_world('demo_app', 'studio')       # pas un monde du vocabulaire
+        with self.assertRaises(ValueError):
+            declare_app_world('transcriber', 'data')      # le catalogue dit `media`
+
+    def test_the_substrate_no_longer_names_the_lab_apps(self):
+        source = (Path(__file__).resolve().parents[2] / 'common' / 'app_registry.py').read_text(
+            encoding='utf-8')
+        self.assertNotIn("'wama_lab:", source,
+                         "une route du Lab écrite dans le substrat : la surface se déclare "
+                         "depuis le `ready()` de l'app")
+
+    def test_a_journal_source_takes_the_world_its_app_declares(self):
+        from wama.common.services.journal import enregistrer_source, sources
+        found = {s.app: s for s in sources()}
+        self.assertEqual(found['studio'].monde, 'transverse')
+        self.assertEqual(found['studio'].libelle_monde, 'Transversal')
+        self.assertEqual(found['transcriber'].monde, 'media')
+        from wama.studio.models import StudioRun
+        with self.assertRaises(ValueError):
+            enregistrer_source('undeclared_app', StudioRun)
+
+    def test_a_function_takes_the_world_of_the_app_that_carries_it(self):
+        from wama.common.catalog import function_catalog as fc
+        from wama.common.manifests.envelope import WORLDS
+        from wama.common.manifests.ingest import extract
+        fc.load_all()
+        worlds = {key: extract('function', key)['world'] for key in fc.FUNCTION_CATALOG}
+        self.assertTrue(worlds, "catalogue de fonctions vide : rien n'est mesuré")
+        for key, world in worlds.items():
+            with self.subTest(function=key):
+                self.assertIn(world, WORLDS)
+        lab = {k for k, s in fc.FUNCTION_CATALOG.items() if s.app == 'cam_analyzer'}
+        self.assertTrue(lab, "aucune fonction liée au cam_analyzer : rien n'est mesuré")
+        self.assertEqual({worlds[k] for k in lab}, {'lab'})
+        self.assertIn('data', set(worlds.values()))
 
 
 class CardEntreeConformiteTest(TestCase):

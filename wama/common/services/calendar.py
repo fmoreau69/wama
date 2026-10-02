@@ -104,12 +104,12 @@ def app_identity(app) -> tuple[str, str]:
     mesuré le 2026-09-28) : elle reçoit la couleur de la catégorie PLATEFORME plutôt que le bleu
     par défaut de FullCalendar, qui la ferait passer pour une autre app.
     """
-    from ..app_registry import APP_CATALOG, category_color, extra_link_for
+    from ..app_registry import APP_CATALOG, category_color, surface_for
 
     spec = APP_CATALOG.get(app) or {}
     if not spec:
-        # Lab, Studio : identité déclarée hors catalogue (`extra_links` de leur catégorie).
-        declared = extra_link_for(app)
+        # Lab, Studio : identité déclarée hors catalogue, par l'app elle-même (`register_surface`).
+        declared = surface_for(app)
         if declared:
             category, link = declared
             return link.get('label') or app, link.get('color') or category_color(category)

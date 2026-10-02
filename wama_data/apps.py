@@ -21,6 +21,10 @@ class WamaDataConfig(AppConfig):
         """
         import logging
         log = logging.getLogger(__name__)
+        # Le monde Data se DÉCLARE (route §10.6 point 6.1) : c'est de cette ligne que se déduit
+        # le monde de ses fonctions au manifeste — plus d'un `'data'` écrit en dur dans le substrat.
+        from wama.common.app_registry import declare_app_world
+        declare_app_world(self.label, 'data')
         try:
             from . import functions  # noqa: F401  (l'import enregistre les FunctionSpec)
         except Exception:

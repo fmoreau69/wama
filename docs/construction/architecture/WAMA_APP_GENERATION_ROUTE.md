@@ -3488,18 +3488,38 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 > reader, describer et converter passent à `media`. Gardes :
 > `tests_catalogues.AppCatalogConformiteTest`, quatre tests — dont la contre-épreuve « changer une
 > app de groupe d'accès ne change pas son monde » et « sans monde déclaré, le manifeste est refusé ».
-> ⏳ **Restent de P1, dans cet ordre** :
-> ① les surfaces hors catalogue (Lab, Studio, Médiathèque, gestion des modèles) déclarent leur
-> monde dans leur `ready()`, et le journal et le calendrier le LISENT au lieu de le recevoir
-> (`journal.MONDE_*`, `enregistrer_source(monde=)`, et la ligne de `journal.sources()` qui force
-> `media`) — suspendu aux décisions n°8 et n°9 ;
-> ② le monde d'une fonction (`builtin/function.py:55`, `'data'` en dur) : une fonction `pure` ne
-> porte pas son déclarant — `FunctionSpec.app` n'est renseigné que pour `binding: app`
-> (`function_catalog.py:209`) —, il faut le lui faire porter avant de déduire ;
-> ③ `category` réduit à ses trois sous-groupes, et les surfaces dérivées (menu, accueil, `/apps/`,
-> catalogue du studio, explorateur de fichiers).
 > ⚠ L'app `writer_01` du bac à sable, créée avant cette pièce, n'a pas la clé à son registre :
 > elle la reçoit à sa prochaine création.
+>
+> 🔄 **P1, 2ᵉ pièce LIVRÉE le 2026-10-02 — les apps HORS catalogue se déclarent, et tout le
+> monde LIT la même déclaration** (GO de Fabien sur trois points : le studio est `transverse`,
+> n°9 ; les apps Lab restent hors catalogue jusqu'à leur alignement après P3, n°8 ; une seule
+> déclaration poussée remplace les `extra_links`).
+> - **La brique** (`app_registry.py`) : `declare_app_world(app, monde)` pour une app sans page
+>   (`wama_data`), `register_surface(app, world=, label=, url_name=, icon=, …)` pour une page —
+>   appelées depuis le `ready()` de l'app. Lecteurs : `app_world()`, `surfaces()`,
+>   `category_surfaces(section)`, `surface_for(app)`. Un monde hors vocabulaire ou qui contredit
+>   le catalogue LÈVE. `WORLD_LABELS` porte les libellés des mondes.
+> - **Les `extra_links` d'`APP_CATEGORIES` sont RETIRÉS** : le substrat ne cite plus les apps Lab
+>   par leur nom. Les sections `data` / `lab` / `platform` gardent une clé `world` et lisent
+>   leurs surfaces. Cinq surfaces se déclarent : cam_analyzer et face_analyzer (`lab`), studio,
+>   médiathèque et gestion des modèles (`transverse`). L'ordre dans une section est déclaré
+>   (`order`), il ne suit pas `INSTALLED_APPS`. **Le menu et `/apps/` sont inchangés à l'écran.**
+> - **Le journal et le calendrier lisent le monde** : `enregistrer_source()` n'a plus d'argument
+>   `monde` (il LÈVE si l'app n'a rien déclaré), les constantes `MONDE_STUDIO/LAB/DATA` et
+>   `LIBELLES_MONDES` sont retirées. Une exécution du studio se range sous « Transversal ».
+>   Seule reste `MONDE_MEDIA`, pour une clé de `detail_registry` qui n'est pas un identifiant
+>   d'app (`audio_enhancer`).
+> - **Le monde d'une fonction se déduit de l'app qui la porte** (`builtin/function._spec_world`) :
+>   l'app nommée pour une fonction liée, l'app Django qui contient l'implémentation pour une
+>   fonction pure. Les fonctions du cam_analyzer passent de `data` à `lab`. Une fonction
+>   UTILISATEUR reste `data` (elle naît dans le Calculator).
+> - Gardes : `tests_catalogues.DeclaredWorldsTest` (six tests) ; mécanisme `app_worlds` au
+>   registre des mécanismes.
+> ⏳ **Reste de P1** : `category` réduit à ses trois sous-groupes À L'INTÉRIEUR du monde Médias,
+> et les surfaces regroupées par MONDE (menu, accueil — blocs Studio et Lab encore écrits en dur
+> dans `home.html` —, `/apps/`, catalogue du studio, explorateur de fichiers). Ce palier change
+> l'interface : validation au navigateur requise.
 
 **6.2 Le pipeline dans chaque monde**
 
@@ -3632,8 +3652,13 @@ possible **sans aucun process**.
    décision : `Binding.USER` au catalogue, fusion des `UserFunction` visibles dans le
    `FUNCTION_CATALOG`, branche d'exécution dans le moteur. L'éditeur de code vit dans le Calculator
    (monde Data) — cf. `WAMA_DATA_FUNCTION_CARDS.md §8`.
-8. Les apps Lab entrent-elles dans `APP_CATALOG` (6.1) ?
-9. Monde du studio (`transverse` dans `WORLDS` ; le journal invente un monde `studio`).
+8. ~~Les apps Lab entrent-elles dans `APP_CATALOG` (6.1) ?~~ ✅ **TRANCHÉE le 2026-10-02
+   (Fabien)** : pas maintenant. Elles restent hors catalogue et déclarent monde et page depuis
+   leur `ready()` (`register_surface`) ; elles entreront au catalogue quand le Lab s'alignera sur
+   le fonctionnement commun, après P3.
+9. ~~Monde du studio (`transverse` dans `WORLDS` ; le journal invente un monde `studio`).~~
+   ✅ **TRANCHÉE le 2026-10-02 (Fabien)** : le studio est `transverse`. « Studio » est le libellé
+   d'une app, pas un cinquième monde ; le journal et le calendrier le rangent sous « Transversal ».
 10. Rôle assistant produisant `pipeline` / `dataset` (où, avec quel RAG).
 11. Facette « pipelines proposés » du manifeste `app` (`WAMA_MANIFEST_SPEC`). ⚠ **TOUJOURS OUVERTE.**
     Une facette `pipelines` à nœuds `process` a été écrite le 2026-10-01 pour le Writer, puis
@@ -3662,7 +3687,7 @@ possible **sans aucun process**.
 | marche | contenu | dépend de |
 |---|---|---|
 | **P0** ✅ 15/09 | consigner le modèle (cette section) + corriger les consignations (point 12) | — |
-| **P1** 🔄 02/10 | déclarer le monde (`world`) et dériver menus/accueil/pages/catalogues — déclaration des apps du catalogue livrée, restes listés au point 6.1 | — (indépendant, petit) |
+| **P1** 🔄 02/10 | déclarer le monde (`world`) et dériver menus/accueil/pages/catalogues — déclaration livrée (catalogue ET hors catalogue), journal, calendrier et fonctions la lisent ; reste le regroupement PAR MONDE des surfaces (point 6.1) | — (indépendant, petit) |
 | **P2** | vocabulaire d'états commun + `STALE` + brique d'agrégation ; studio et cam_analyzer alignés | — |
 | **P3** | moteur commun + ligne d'exécution, **extraits de cam_analyzer** (1er utilisateur : sémantique complète et testée) et de l'exécuteur du studio ; type de nœud `pipeline` ; pipeline sans process accepté | P2 |
 | **P4** | pilote Médias : **transcriber** en 4 process (étapes déjà numérotées, résultats déjà rangés à part) — A/B objectif (qualité, VRAM, durée) | P3 |
@@ -3698,10 +3723,28 @@ possible **sans aucun process**.
 > - **Ordre recommandé** : P1 (petit, indépendant) ; P3 en extrayant cam_analyzer + exécuteur
 >   studio (« on RÉUNIT les pièces ») ; puis le pilote (transcriber P4 ou YuE2) ; P5 ensuite.
 > - **Mise à jour du 2026-10-02 (session dédiée ouverte)** : P1 est COMMENCÉ — la déclaration des
->   apps du catalogue est livrée, ses restes sont listés au point 6.1. Relevé pour l'arbitrage du
->   pilote : le composer n'est pas sur le squelette commun (`compose_task` écrite à la main,
->   `composer/tasks.py:30`, aucun appel à `run_item_task`), le transcriber l'est
->   (`transcriber/workers.py`) — un pilote YuE2 commencerait donc par porter le composer.
+>   apps du catalogue est livrée, ses restes sont listés au point 6.1. Pour l'arbitrage du pilote :
+>   le transcriber ET le composer sont sur le squelette commun — le composer depuis `1fc8ab73`
+>   (le jour même, instance « portage » : `compose_task` passe par `run_item_task`,
+>   `composer/tasks.py:31` ; la nuance du 15/09 ci-dessous est confirmée par Fabien — une app à
+>   un seul process l'adopte sans attendre P3). Un pilote YuE2 n'a donc plus ce préalable.
+> - **Trois entrées de conception pour P3, relevées le 2026-10-02 par l'instance « portage »** en
+>   portant le composer :
+>   1. *(vérifié dans le code)* le squelette résout `vram_needed` (`task_skeleton.py:358-365`)
+>      puis `model_key` (`:384-391`) AVANT de rapatrier l'entrée (`ensure_local_input`,
+>      `:393-397`). Pour un process dont le modèle tiré dépend d'une entrée téléchargée (mélodie
+>      par URL du composer), l'ordre compte : le moteur commun devra rapatrier les entrées d'un
+>      process avant de résoudre son modèle et son besoin en VRAM. Le composer le contourne en
+>      comptant une mélodie DÉCLARÉE par URL dans son tirage, sans toucher au squelette.
+>   2. *(rapporté, non revérifié ici)* le modèle EN COURS d'un élément resté « auto » n'est
+>      lisible nulle part pendant le traitement : la vue de progression estime l'ETA sur le
+>      réglage (`auto:…`), donc sur l'a-priori ; l'enhancer a le même trou. C'est ce que porterait
+>      la ligne d'exécution (4.1 : process référencé = type + clé + version).
+>   3. *(vérifié pour le squelette)* « en cours » est posé par les LANCEURS (`begin_processing`),
+>      pas par le squelette, qui ne bascule qu'un élément revenu d'une attente de ressources
+>      (`task_skeleton.py:370-375`). Un créateur de `tool_api` qui envoie la tâche seule laisse
+>      l'élément `PENDING` pendant son traitement (`compose_music` corrigé ; les autres créateurs
+>      ne sont pas relevés). Dans le moteur commun, l'état d'un process est posé par le moteur.
 
 **Le portage des apps Médias continue EN PARALLÈLE** sur tout ce qui ne dépend pas de la façon dont
 une tâche s'exécute (classement des critères rouges de la grille au 15/09,
@@ -3940,7 +3983,7 @@ de répétition n'est ajouté pour les cards.
 | 30 | ~~**Jumelles incomplètement générées** (mesuré par la marque `[manifest-gen]`, 2026-09-15) : `converter_01` 8 fichiers conventionnels, `describer_01` 4, `composer_01` 1, `imager_01` 0. Bloquant commun : `views_gen` v1 = forme FK-DIRECTE seule~~ → ✅ **Le bloquant est LEVÉ le 2026-09-22** (forme à liaison LUE au manifeste, §10.3 marche S). État MESURÉ au registre `sandbox_apps.json` le soir même, par régénération seule (jamais une jumelle retouchée à la main) : **`describer_01`** views + templates GÉNÉRÉS (reste `models:revert`, champs de résultat hors spine — marche B) ; **`composer_01`** views + templates GÉNÉRÉS (reste `apps` refusé : détail en adapter CODE → `register_app_detail_spec`, portage) ; **`converter_01`** 7/7 régénérés ; **`imager_01`** urls + tasks générés, **views/templates REVENUS en couple** — ses routes portent `<int:generation_id>` et des vues `*_generation` là où la convention dit `<int:pk>` (`card_html() got an unexpected keyword argument 'generation_id'`), et son `params.py` porte de la glu (`USER_SETTINGS_DEFAULTS`, `panel_values_by_name`, `*_GROUPS_JSON`) que les vues copiées importent : deux chantiers de PORTAGE de l'imager, pas du gabarit. Ce que la régénération a révélé et corrigé dans le COMMUN et l'OUTIL ce jour-là : `workers.py` copié à côté du `tasks.py` généré (Celery autodécouvre les deux), `gear_data` @property sans setter, champs FICHIER lus à la facette `data`, `b.delete()` sur un lot déjà purgé, aliases de routes `import_batch`/`generate`/`create`, `index` en fonction, `default:reference_hint` d'un partial commun, registre non concurrent, cause d'un smoke illisible, couple views↔templates mesuré par `card_html`. Gate suivante : la batterie `run_nightly_tests --id <label>.` sur les trois jumelles générées (non lancée ce jour). | codegen | ✅ levé ; imager = portage |
 | 31 | **Registre des mécanismes : 18 fichiers portés par plusieurs mécanismes** (mesuré 2026-09-15) — relation cachée dans des annexes croisées, consommateurs comptés deux fois. Décision Fabien : champ `depends_on` (posé), un fichier = un mécanisme. Rangement NON appliqué ; `wama_actions.py` (4 balises de 4 briques) et mémoire/RAG à trancher d'abord. | — | registre |
 | 32 | **Trois exécutions de « suite de traitements », trois vocabulaires d'états** (mesuré 2026-09-15) : squelette de tâche (`task_skeleton.py:185`, un process), exécuteur du studio (`studio/tasks.py:323`, littéraux, sans `AWAITING_RESOURCES`), suivi de passes cam_analyzer (`AnalysisPass`, `pending/…/stale`). Aucune ne connaît les deux autres ; le moteur commun et la ligne d'exécution par process ne sont pas enregistrés au registre des mécanismes (`mecanismes.py` n'a d'entrée ni pour l'exécuteur du studio ni pour `pass_tracking`). Chantier : **§10.6 marches P2-P6** | F5/F8 | moteur commun |
-| 33 | **Le monde d'une app n'est pas déclaré, il est DÉDUIT** du groupe de la matrice d'accès (`GROUP_TO_WORLD`, `manifests/builtin/app.py:36-44`) → corpus faux : transcriber, reader, describer en `data`, converter en `transverse` ; menus/accueil/`/apps/` regroupent par `category` (qui mêle nature d'opération et pseudo-mondes), blocs Studio et Lab écrits en dur (`home.html:503-588`), journal qui force `media`. Décision du 15/09 : chaque app déclare son monde, tout en dérive — **§10.6 point 6.1, marche P1**. 🔄 2026-10-02 : la déclaration des dix apps du catalogue est livrée (`app_registry.app_world()`, `GROUP_TO_WORLD` retiré, corpus corrigé) ; restent les surfaces hors catalogue, le journal, les fonctions et les surfaces dérivées | F1 | déclaration |
+| 33 | **Le monde d'une app n'est pas déclaré, il est DÉDUIT** du groupe de la matrice d'accès (`GROUP_TO_WORLD`, `manifests/builtin/app.py:36-44`) → corpus faux : transcriber, reader, describer en `data`, converter en `transverse` ; menus/accueil/`/apps/` regroupent par `category` (qui mêle nature d'opération et pseudo-mondes), blocs Studio et Lab écrits en dur (`home.html:503-588`), journal qui force `media`. Décision du 15/09 : chaque app déclare son monde, tout en dérive — **§10.6 point 6.1, marche P1**. 🔄 2026-10-02 : la déclaration est livrée — dix apps du catalogue (`app_registry.app_world()`, `GROUP_TO_WORLD` retiré, corpus corrigé) et surfaces hors catalogue (`register_surface` depuis leur `ready()`, `extra_links` retirés) ; le journal ne force plus `media` et n'invente plus de monde `studio`, le monde d'une fonction se déduit de son app ; reste le regroupement par monde des menus, de l'accueil (blocs en dur) et de l'explorateur | F1 | déclaration |
 | 34 | **Catalogue du studio** : titre « Apps » (`studio/templates/studio/index.html:47`), pipelines sauvegardés absents (`studio/views.py:18-70` ne lit que apps + fonctions), ajout au clic avec empilement (`wama-studio.js:93`, `:122-123`), aucune section repliable. Décisions du 15/09 : « Catalogue », sections repliables, pipelines sauvegardés, glisser-déposer — **§10.6 point 5.4** (le renommage et le glisser-déposer ne dépendent de rien) | F8 | UX studio |
 | 35 | **Un pipeline sans process est refusé** : `studio/services/launch.py:172-174` exige au moins un nœud app ou fonction → l'export seul (entrée → sortie, ex. extraire les tables de situations d'une base connectée) est impossible, alors qu'il est valide dans le modèle du 15/09 — **§10.6 point 3.6** | F8 | moteur |
 | 36 | **Les six VUES DE LOT n'ont pas de fabrique commune** (mesuré 2026-09-22, question de Fabien « le fonctionnement batch est commun et porté ? ») : le MODÈLE de lot (`BatchMixin`, `register_batch_sync`), la FILE (`build_batches_list`, `_queue_entry.html`) et la MANIPULATION (`make_queue_manipulation_views` : réordonner/déplacer/sortir/fusionner) sont communs et à 10/10 ; mais `batch_start`, `batch_delete`, `batch_duplicate`, `batch_download`, `batch_update`, `batch_status` sont écrites À LA MAIN dans les 10 apps, même forme à chaque fois — 60 lectures de lot recopiées sous cinq graphies (`.items.select_related(fk).order_by('row_index')`, `.all()`, sans ordre là où l'ordre compte), **0/10** sur la brique `batch_elements`. ~~La fabrique manquante est DÉJÀ ÉCRITE : ce sont les corps conventionnels de `views_gen`~~ → ✅ **BRIQUE LIVRÉE le soir même** : `common/utils/batch_views.make_batch_views` (les six vues, paramétrée comme la fabrique de file — `task`, champs FICHIER, sorties vidées à la duplication, réglages + schéma, forme par `item_model`/`fk_name` ou `batch_attr`/`row_field`, `batch_extra`) + `read_settings_payload`/`apply_item_settings` partagés avec la vue `update` d'un élément. Le générateur la CONSOMME (plus aucun corps de lot émis : le fichier généré du describer perd 80 lignes) ; `tests_batch_views` (12, les deux formes) ; mécanisme `batch_views` au registre. **Portage des apps réelles — pilote describer FAIT le soir même** (1ʳᵉ app après le générateur) : cinq vues remplacées par `_bv = make_batch_views(...)`, spécificités en kwargs (`reset_on_start` = `_reset_for_relaunch` + cache à 0, `progress_of`/`on_delete` sur le cache `describer_progress_<id>`, `result_text` vidé à la duplication, `@app_access` gardé sur le démarrage) ; `update_options` passe par `read_settings_payload`/`apply_item_settings` (l'ancien typage à la main `int`/`bool` = ce que le schéma déclare) ; `batch_list` et `batch_download` lisent le lot par `batch_elements` (qui lit désormais le CACHE d'un lot préchargé : 0 requête). `batch_download` reste LOCAL (multi-format `?fmt=`, §9.10) → `batch_views_common` = partiel ASSUMÉ, `batch_read_common` VRAI ; describer 87/89. **Puis reader et transcriber (23/09)** — même recette, deux hooks de plus nés du réel : `empty_is_value` (reader : `language` vide = auto-détection, une VALEUR) et `task_for` (transcriber : la tâche se choisit par élément, avec ou sans pré-traitement) ; les réponses portent `success: True` (le front du reader le lit). Trois apps à `batch_read_common` VRAI et `batch_views_common` partiel ASSUMÉ (`batch_download` multi-format local, §9.10). **Puis avatarizer et composer (23/09)** — quatre hooks de plus, tous nés d'une spécificité MESURÉE : `start_only_pending` (composer : « créer ≠ démarrer » ; le défaut de la fabrique = l'idiome majoritaire, ▶ de lot RELANCE tout ce qui ne tourne pas, échecs et succès compris — mon premier jet ne lançait que les PENDING, corrigé), `after_update` (avatarizer : `quality_mode` dérivé de `use_enhancer`), `item_extra(copie, original)` (composer : `output_filename` de la ligne de liaison), `read_lookup` (avatarizer : un lot PARTAGÉ se télécharge par `visible_or_404`). Avatarizer : les cinq vues par la fabrique, plus aucune lecture locale (86/93). Composer : `batch_update` (validation du modèle contre le catalogue, `generation_type` dérivé, curseur) et `batch_download` (nom d'archive = ligne de liaison) restent LOCAUX, écarts assumés, lus par `batch_elements` (89/97). **Puis enhancer et imager (23/09)** — deux hooks de plus : `start_reset_for(request)` (enhancer : la remise à zéro du ▶ audio se fabrique depuis la requête) et `output_name` (nom de fichier dans l'archive). Enhancer = DEUX files, donc deux fabriques sur la même page (`_bv` média, `_abv` audio), `batch_update` local (91/94). Imager : ses routes passent de `<int:batch_id>` à `<int:pk>` (dernière graphie déviante des 10 apps) ; start/delete/duplicate par la fabrique (`start_only_pending`, `task_for` image/vidéo, cache de progression oublié au démarrage et à la suppression, `generated_images` purgées par `_forget_outputs` — extrait de `_purger_generation`, qui supprimait aussi la LIGNE ; `domain` du lot conservé à la duplication) ; `batch_update` (un schéma PAR élément) et `get_batch_children` (lecture PARTAGÉE) restent locaux, lus par `batch_elements` (88/98). **Puis synthesizer, anonymizer et converter (23/09) — 10/10.** Deux ajouts au commun, nés du réel : `startable(élément)` (converter : un job sans format de sortie n'est ni lancé ni compté) et **`batch_link`**, posé par `batch_elements` sur chaque élément — la LIGNE qui le porte (ligne de liaison, ou l'élément lui-même en FK directe) — ce qui permet aux hooks de nommer d'après la ligne (`output_name`/`item_label`/`item_extra` = `s.batch_link.output_filename`) : c'était la seule raison pour laquelle composer et synthesizer gardaient un `batch_download` local. Synthesizer : les CINQ vues par la fabrique, `batch_utils.duplicate_synthesizer_batch` (une « brique commune » à un seul appelant, qui importait l'app) RETIRÉ (`REMOVAL_LEDGER` R68), fichier de lot partagé à la duplication par `batch_extra` ; `batch_update_settings` et `batch_list` locaux, lus par la brique (88/94, `batch_views_common` VRAI). Anonymizer : quatre vues, réglages = `PARAMS_JSON` coercé + `MSValues_customised` par `after_update`, purge des verrous/cache/sortie floutée par `on_delete` ; `batch_download` local (la sortie n'est pas un FileField, 89/98). Converter (FK directe) : quatre vues, `@login_required` gardé ; `batch_update` local (`poser_reglages` + geste de qualité, 81/83). Le ZIP commun est DEFLATED (idiome des trois). **Restent locaux, assumés** : `batch_download` multi-format (describer, reader, transcriber, §9.10), `batch_update` à logique propre (composer, enhancer, imager, converter) et `batch_download` de l'anonymizer (sortie hors FileField). Celui du composer est passé sur la fabrique dans la foulée (`output_name=_link_name` par `batch_link`) | F5 | brique ✅ ; portage **10/10** |

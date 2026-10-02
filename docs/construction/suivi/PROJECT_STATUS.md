@@ -19921,3 +19921,44 @@ Demande de Fabien : « Fais apparaître les cards reçues dans le converter et l
   WSL2) : un seul rouge, PRÉEXISTANT et déjà déclaré — `tests_codegen_lot.ItemEditRouteAliasTest`
   (imager), rouge aussi avec le générateur de HEAD.
 - 🔴 relancer WAMA (vues de 5 apps). Non poussé.
+
+## §PALIER — 2026-10-02, « PIPELINE PORTÉ PAR LA CARD — P1, 2ᵉ pièce : les apps HORS catalogue se déclarent, journal, calendrier et fonctions lisent la même déclaration » — ✅ commit ci-dessous, non poussé — 🔴 RELANCER WAMA (les `ready()` de sept apps et le menu ont changé) — 🔚 dernier reste de P1 : surfaces regroupées PAR MONDE (change l'interface)
+
+Suite de `§PALIER 2026-10-02 … 1ʳᵉ pièce` (`4bca60bc`). GO de Fabien sur trois points : le studio est
+du monde `transverse` (décision n°9), les apps Lab restent hors catalogue jusqu'à leur alignement
+après P3 (n°8), une seule déclaration poussée remplace les `extra_links`.
+
+- ✅ **La brique** (`wama/common/app_registry.py`) : `declare_app_world` (app sans page :
+  `wama_data`) et `register_surface` (monde + identité d'une page), appelées depuis le `ready()` de
+  l'app ; lecteurs `app_world`, `surfaces`, `category_surfaces`, `surface_for` ; `WORLD_LABELS`.
+  Les `extra_links` d'`APP_CATEGORIES` sont retirés — le substrat ne cite plus les apps Lab par
+  leur nom. Cinq surfaces se déclarent (cam_analyzer, face_analyzer, studio, médiathèque, gestion
+  des modèles). **Menu et `/apps/` inchangés à l'écran** (mesuré : mêmes sections, même ordre).
+- ✅ **Journal et calendrier** : `enregistrer_source` n'a plus d'argument `monde` (il lève si
+  l'app n'a rien déclaré) ; `MONDE_STUDIO/LAB/DATA` et `LIBELLES_MONDES` retirés. Une exécution du
+  studio se range sous « Transversal » (c'était un monde « Studio » hors vocabulaire).
+- ✅ **Fonctions** : le monde d'une fonction se déduit de l'app qui la porte
+  (`builtin/function._spec_world`). Mesuré sur les 70 du catalogue : 43 `data`, 26 `lab` (celles du
+  cam_analyzer, qui sortaient `data`), 1 `transverse` (`studio.image_to_3d`) ; aucune sans monde.
+  Corpus `manifests/functions/` régénéré : 27 fichiers, seule la ligne `world` change.
+- ✅ Mécanisme `app_worlds` au registre ; domiciles : `ROUTE §10.6` points 6.1 et 9 (n°8 et n°9
+  tranchées), `PROFILES_PERMISSIONS §8.8.1`, `WAMA_MEMORY §9bis`.
+- **Mesuré (WSL, base de test isolée)** : modules touchés 337 tests `OK` ; sept gardes neuves
+  (`tests_catalogues.DeclaredWorldsTest`, dont le rendu réel de `/apps/` et du menu). Suite
+  complète : 4748 tests, `FAILED (failures=16)` — **aucun rouge de ce palier**. Dix causes déjà
+  rouges avant (budgets de langue, `tests_notifications` ×3, `tests_settings_surfaces`, mime
+  `audio/x-wav`, `ItemEditRouteAliasTest`, `test_ne_DEVINE_pas_le_role…`, docs générées ×2) ; trois
+  rouges apparus pendant l'exécution (`composer.tests_task` ×2, `tests_queue_dnd`) venaient de
+  commits d'autres instances tombés en cours de route — relancés sur l'arbre courant : verts.
+- ⚠ **Ce palier AGGRAVE un rouge existant, à dessein** : `test_chaque_mecanisme_a_sa_section`
+  passe de 171 ≠ 176 à 171 ≠ 177 (mon entrée `app_worlds`). `WAMA_MECANISMES.md` et
+  `docs/dev/briques.md` sont à régénérer (`doc_facts`) — non fait ici : ces deux fichiers portent
+  le travail en cours d'autres instances dans l'arbre.
+- ⏳ **Reste de P1** : `category` réduit à ses trois sous-groupes du monde Médias, surfaces
+  regroupées par monde — menu, accueil (blocs Studio et Lab écrits en dur, `home.html:502-585`),
+  `/apps/`, catalogue du studio, explorateur de fichiers. Validation au navigateur requise.
+- **Entrées de conception pour P3** consignées au brief de `ROUTE §10.6` (relevées par l'instance
+  « portage » en portant le composer sur le squelette, `1fc8ab73`) : ordre modèle / entrée,
+  modèle en cours illisible pendant un « auto », « en cours » posé par les lanceurs.
+- **Pendings système** : 🔴 relancer WAMA ; base de test `test_wama_db_reprise_pipeline` gardée
+  le temps de la session.

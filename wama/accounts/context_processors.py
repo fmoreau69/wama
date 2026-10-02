@@ -106,10 +106,11 @@ def user_role(request):
         apps_masquees = set()
 
     # Menu « Applications » GROUPÉ par catégorie (APP_CATEGORIES) — GÉNÉRÉ du catalogue,
-    # filtré par accessible_apps ; les extra_links portent gate/nav_hide (décision 2026-07-05).
+    # filtré par accessible_apps ; les surfaces hors catalogue (Lab, Studio, Médiathèque) se
+    # déclarent elles-mêmes (`register_surface`) et portent gate/nav_hide (décision 2026-07-05).
     try:
         from django.urls import reverse as _reverse
-        from wama.common.app_registry import get_apps_by_category
+        from wama.common.app_registry import category_surfaces, get_apps_by_category
         nav_apps_grouped = []
         _sandbox_entries = []
         for _cid, _meta, _apps in get_apps_by_category():
@@ -134,7 +135,7 @@ def user_role(request):
                     continue
                 _entries.append(_entry)
             _links = []
-            for _link in _meta.get('extra_links', []):
+            for _link in category_surfaces(_cid):
                 if _link.get('nav_hide'):
                     continue
                 _gate = _link.get('gate')
