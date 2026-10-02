@@ -824,22 +824,27 @@ _DOCUMENT_OUTPUTS = {'txt', 'markdown', 'md', 'srt', 'vtt', 'json', 'docx', 'pdf
 # `_CATEGORY_HUES` ; une surface hors catalogue sans couleur déclarée prend celle de son monde).
 WORLD_SECTIONS = {
     'media': {
-        'label': 'Médias', 'icon': '🎬', 'order': 1, 'hue': 200,
+        'label': 'Médias', 'icon': '🎬', 'tree_icon': 'fa-photo-film', 'order': 1, 'hue': 200,
         'tagline': 'Comprendre, créer et transformer des médias',
     },
     'data': {
-        'label': 'Données', 'icon': '📊', 'order': 2, 'hue': 40,
+        'label': 'Données', 'icon': '📊', 'tree_icon': 'fa-database', 'order': 2, 'hue': 40,
         'tagline': 'Acquisition (LSL), segmentation, visualisation, traitement — à venir',
     },
     'lab': {
-        'label': 'WAMA Lab', 'icon': '🔬', 'order': 3, 'hue': 25,
+        'label': 'WAMA Lab', 'icon': '🔬', 'tree_icon': 'fa-flask', 'order': 3, 'hue': 25,
         'tagline': 'Applications métier recherche',
     },
     'transverse': {
-        'label': 'Transversal', 'icon': '🧩', 'order': 4, 'hue': 215,
-        'tagline': 'Briques de la plateforme, au service de toutes les apps',
+        'label': 'Transversal', 'icon': '🧩', 'tree_icon': 'fa-puzzle-piece', 'order': 4,
+        'hue': 215, 'tagline': 'Briques de la plateforme, au service de toutes les apps',
     },
 }
+
+#: Dossiers qu'une app montre dans l'explorateur de fichiers, quand elle ne déclare rien :
+#: `(sous-dossier de son domicile, libellé)`. Une app aux dossiers propres les DÉCLARE
+#: (`media_folders` de son entrée de catalogue, ou argument de `register_surface`).
+DEFAULT_MEDIA_FOLDERS = (('input', 'Input'), ('output', 'Output'))
 
 
 def world_label(world: str) -> str:
@@ -880,7 +885,7 @@ def declare_app_world(app_id: str, world: str) -> None:
 
 def register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str,
                      description: str = '', color: str | None = None,
-                     nav_hide: bool = False, order: int = 50) -> None:
+                     nav_hide: bool = False, order: int = 50, media_folders: tuple = ()) -> None:
     """Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
     icône, description, couleur). Le menu Applications, l'accueil, `/apps/`, le journal et le
     calendrier la lisent.
@@ -889,7 +894,10 @@ def register_surface(app_id: str, *, world: str, label: str, url_name: str, icon
     droit ET par laquelle l'abonnement (PROFILES_PERMISSIONS §8) décide de l'affichage — une seule
     clé pour une seule chose. `nav_hide` : présente au catalogue `/apps/`, absente du menu et de
     l'accueil (le model_manager a son entrée dans la section Administration). `order` : rang
-    dans sa section. Idempotent : un `ready()` rejoué remplace la même entrée.
+    dans sa section. `media_folders` : les dossiers que l'app montre dans l'explorateur de
+    fichiers (`DEFAULT_MEDIA_FOLDERS` pour une app à entrées et sorties ; rien par défaut — le
+    studio ou la médiathèque n'ont pas de dossier d'app). Idempotent : un `ready()` rejoué
+    remplace la même entrée.
     """
     declare_app_world(app_id, world)
     surface = {'app': app_id, 'gate': app_id, 'world': world, 'label': label,
@@ -898,6 +906,8 @@ def register_surface(app_id: str, *, world: str, label: str, url_name: str, icon
         surface['color'] = color
     if nav_hide:
         surface['nav_hide'] = True
+    if media_folders:
+        surface['media_folders'] = tuple(media_folders)
     _SURFACES[app_id] = surface
 
 
@@ -914,6 +924,20 @@ def surface_for(app: str) -> dict | None:
     """
     surface = _SURFACES.get(app)
     return dict(surface) if surface else None
+
+
+def app_media_folders(app_id: str) -> tuple:
+    """Dossiers qu'une app montre dans l'explorateur de fichiers : `((sous-dossier, libellé), …)`.
+
+    Une app du CATALOGUE en a par contrat — ceux qu'elle déclare (`media_folders`), sinon
+    `DEFAULT_MEDIA_FOLDERS`. Une surface hors catalogue n'en a que si elle les déclare. Vide
+    pour une app inconnue. Lue par l'arbre de l'explorateur, par son détecteur de changements
+    et par l'autorisation d'accès aux dossiers d'app : une seule déclaration pour les trois.
+    """
+    entry = APP_CATALOG.get(app_id)
+    if entry is not None:
+        return tuple(entry.get('media_folders') or DEFAULT_MEDIA_FOLDERS)
+    return tuple((_SURFACES.get(app_id) or {}).get('media_folders') or ())
 
 
 def derive_category(entry) -> str:
@@ -1257,6 +1281,10 @@ APP_CATALOG = {
         'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-magic',
         'url_name':    'enhancer:index',
+        # Deux files (image/vidéo et audio), donc quatre dossiers — cf. app_media_folders().
+        'media_folders': (('input/media', 'Input (Image/Vidéo)'), ('input/audio', 'Input (Audio)'),
+                          ('output/media', 'Output (Image/Vidéo)'),
+                          ('output/audio', 'Output (Audio)')),
         'description': 'Upscaling IA d\'images/vidéos et amélioration audio (Resemble, DeepFilterNet).',
         'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS,
         'input_types': ('image', 'video', 'audio'),
@@ -1303,6 +1331,9 @@ APP_CATALOG = {
         'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-image',
         'url_name':    'imager:index',
+        # Entrées et sorties rangées par nature — cf. app_media_folders().
+        'media_folders': (('input/prompts', 'Prompts'), ('input/references', 'References'),
+                          ('output/image', 'Images'), ('output/video', 'Vidéos')),
         'description': 'Génération d\'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…).',
         'input_extensions': TEXT_EXTENSIONS + IMAGE_EXTENSIONS,  # fichier de prompts (lot) + image reference
         'input_types': ('prompt', 'image'),  # ⚠ l'ordre EST la priorité de résolution (generic_runner)

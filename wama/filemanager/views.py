@@ -37,143 +37,62 @@ def _app_folders_config(user_id):
     """La DÉCLARATION des dossiers d'app de l'arbre — lue par l'arbre ET par le détecteur de
     changements (`api_tree_mtime`), pour qu'ils ne puissent plus diverger.
 
+    ⚠ DÉRIVÉE depuis le 2026-10-02 (route §10.6 point 6.1) : cette fonction écrivait un bloc par
+    app — libellé, icône, sous-dossiers —, à tenir à la main à chaque app ajoutée, et citait les
+    apps Lab par leur nom. Elle lit maintenant ce que chaque app déclare : son monde
+    (`get_app_groups`), son identité (catalogue ou `register_surface`) et ses dossiers
+    (`app_media_folders`). Les apps du monde Médias sont listées à plat ; un autre monde est un
+    dossier à son nom. Une app de bac à sable n'y figure pas.
+
     ⚠ Sortie de `build_file_tree` le 2026-09-22 : le détecteur tenait sa PROPRE liste, restée à
     l'ancien domicile après la bascule du 12/09 pendant que l'arbre passait par `app_media_dir`.
     Rien ne cassait : il hachait l'heure de dossiers qui ne recevaient plus rien, et le
     gestionnaire ne se rafraîchissait plus quand une app produisait une sortie. *Deux listes du
     même ensemble finissent par en décrire deux.*
 
-    ⚠ Le nœud « Galerie » (`avatarizer/gallery`) en est sorti le même jour : la galerie est une
-    ressource SYSTÈME de la médiathèque (`SystemAsset` de type avatar) depuis le 2026-09-12, et
-    ce nœud montrait un dossier vide que plus rien ne lit.
-
     Pure déclaration : aucune lecture disque (le détecteur est appelé toutes les 5 s).
     """
-    return [
-        {
-            'id': 'anonymizer',
-            'text': 'Anonymizer',
-            'icon': 'fa fa-user-secret text-danger',
+    from wama.common.app_registry import WORLD_SECTIONS, app_media_folders, get_app_groups
+
+    def _app_node(app, label, icon, color):
+        folders = app_media_folders(app)
+        if not folders:
+            return None
+        return {
+            'id': app, 'text': label, 'icon': icon, 'color': color, 'app_node': True,
             'children': [
-                {'id': 'anonymizer_input', 'text': 'Input', 'path': app_media_dir('anonymizer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'anonymizer_output', 'text': 'Output', 'path': app_media_dir('anonymizer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-            ]
-        },
-        {
-            'id': 'avatarizer',
-            'text': 'Avatarizer',
-            'icon': 'fa fa-user-circle text-info',
-            'children': [
-                {'id': 'avatarizer_input', 'text': 'Input', 'path': app_media_dir('avatarizer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'avatarizer_output', 'text': 'Output', 'path': app_media_dir('avatarizer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-            ]
-        },
-        {
-            'id': 'composer',
-            'text': 'Composer',
-            'icon': 'fa fa-music text-success',
-            'children': [
-                {'id': 'composer_input', 'text': 'Input', 'path': app_media_dir('composer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'composer_output', 'text': 'Output', 'path': app_media_dir('composer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-            ]
-        },
-        {
-            'id': 'converter',
-            'text': 'Converter',
-            'icon': 'fa fa-exchange-alt text-teal',
-            'children': [
-                {'id': 'converter_input', 'text': 'Input', 'path': app_media_dir('converter', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'converter_output', 'text': 'Output', 'path': app_media_dir('converter', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-            ]
-        },
-        {
-            'id': 'describer',
-            'text': 'Describer',
-            'icon': 'fa fa-search-plus text-info',
-            'children': [
-                {'id': 'describer_input', 'text': 'Input', 'path': app_media_dir('describer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'describer_output', 'text': 'Output', 'path': app_media_dir('describer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-            ]
-        },
-        {
-            'id': 'enhancer',
-            'text': 'Enhancer',
-            'icon': 'fa fa-magic text-info',
-            'children': [
-                {'id': 'enhancer_input_media', 'text': 'Input (Image/Vidéo)', 'path': app_media_dir('enhancer', user_id, 'input/media'), 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'enhancer_input_audio', 'text': 'Input (Audio)', 'path': app_media_dir('enhancer', user_id, 'input/audio'), 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'enhancer_output_media', 'text': 'Output (Image/Vidéo)', 'path': app_media_dir('enhancer', user_id, 'output/media'), 'icon': 'fa fa-folder text-success'},
-                {'id': 'enhancer_output_audio', 'text': 'Output (Audio)', 'path': app_media_dir('enhancer', user_id, 'output/audio'), 'icon': 'fa fa-folder text-success'},
-            ]
-        },
-        {
-            'id': 'imager',
-            'text': 'Imager',
-            'icon': 'fa fa-image text-success',
-            'children': [
-                {'id': 'imager_prompts', 'text': 'Prompts', 'path': app_media_dir('imager', user_id, 'input/prompts'), 'icon': 'fa fa-file-alt text-secondary'},
-                {'id': 'imager_references', 'text': 'References', 'path': app_media_dir('imager', user_id, 'input/references'), 'icon': 'fa fa-image text-secondary'},
-                {'id': 'imager_output_image', 'text': 'Images', 'path': app_media_dir('imager', user_id, 'output/image'), 'icon': 'fa fa-image text-success'},
-                {'id': 'imager_output_video', 'text': 'Vidéos', 'path': app_media_dir('imager', user_id, 'output/video'), 'icon': 'fa fa-film text-success'},
-            ]
-        },
-        {
-            'id': 'synthesizer',
-            'text': 'Synthesizer',
-            'icon': 'fa fa-microphone text-primary',
-            'children': [
-                {'id': 'synthesizer_input', 'text': 'Input', 'path': app_media_dir('synthesizer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'synthesizer_output', 'text': 'Output', 'path': app_media_dir('synthesizer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-                # « Custom_voices » RETIRÉ le 2026-09-30 avec `CustomVoice` : les voix d'un
-                # utilisateur vivent dans sa MÉDIATHÈQUE (nature `voice`), où on les ajoute,
-                # les écoute, les partage.
-            ]
-        },
-        {
-            'id': 'reader',
-            'text': 'Reader',
-            'icon': 'fa fa-file-invoice text-cyan',
-            'children': [
-                {'id': 'reader_input', 'text': 'Input', 'path': app_media_dir('reader', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'reader_output', 'text': 'Output', 'path': app_media_dir('reader', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-            ]
-        },
-        {
-            'id': 'transcriber',
-            'text': 'Transcriber',
-            'icon': 'fa fa-file-alt text-warning',
-            'children': [
-                {'id': 'transcriber_input', 'text': 'Input', 'path': app_media_dir('transcriber', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'transcriber_output', 'text': 'Output', 'path': app_media_dir('transcriber', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-            ]
-        },
-        {
-            'id': 'wama_lab',
-            'text': 'WAMA Lab',
-            'icon': 'fa fa-flask text-info',
-            'is_category': True,
-            'children': [
-                {
-                    'id': 'face_analyzer',
-                    'text': 'Face Analyzer',
-                    'icon': 'fa fa-smile text-info',
-                    'children': [
-                        {'id': 'face_analyzer_input', 'text': 'Input', 'path': app_media_dir('face_analyzer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
-                        {'id': 'face_analyzer_output', 'text': 'Output', 'path': app_media_dir('face_analyzer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-                    ]
-                },
-                {
-                    'id': 'cam_analyzer',
-                    'text': 'Cam Analyzer',
-                    'icon': 'fa fa-video text-warning',
-                    'children': [
-                        {'id': 'cam_analyzer_input', 'text': 'Input', 'path': app_media_dir('cam_analyzer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
-                        {'id': 'cam_analyzer_output', 'text': 'Output', 'path': app_media_dir('cam_analyzer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-                    ]
-                },
-            ]
-        },
-    ]
+                {'id': f"{app}_{sub.replace('/', '_')}", 'text': text,
+                 'path': app_media_dir(app, user_id, sub),
+                 # Une sortie se distingue d'une entrée par sa couleur, comme avant.
+                 'icon': 'fa fa-folder ' + ('text-success' if sub.split('/')[0] == 'output'
+                                            else 'text-secondary')}
+                for sub, text in folders],
+        }
+
+    by_world = {}
+    for group in get_app_groups():
+        nodes = by_world.setdefault(group['world'], [])
+        for name, entry in group['apps']:
+            if entry.get('sandbox'):
+                continue
+            nodes.append(_app_node(name, entry['label'], entry['icon'], entry.get('color')))
+        for surface in group['links']:
+            nodes.append(_app_node(surface['app'], surface['label'], f"fas {surface['icon']}",
+                                   surface.get('color')))
+
+    config = []
+    for world, nodes in by_world.items():        # déjà dans l'ordre des mondes
+        nodes = sorted((n for n in nodes if n), key=lambda n: n['text'].lower())
+        if not nodes:
+            continue
+        if world == 'media':
+            config.extend(nodes)
+        else:
+            section = WORLD_SECTIONS[world]
+            config.append({'id': f'world_{world}', 'text': section['label'],
+                           'icon': f"fa {section['tree_icon']} text-info",
+                           'is_category': True, 'world_node': True, 'children': nodes})
+    return config
 
 
 def build_file_tree(user):
@@ -248,6 +167,15 @@ def build_folder_node(config, media_root, user_id):
         'state': {'opened': config['id'] == 'temp'},  # Open temp folder by default
         'children': []
     }
+    # Nœud d'APP ou de MONDE : le client les reconnaît à ces drapeaux (`node.original`) au lieu de
+    # tenir sa propre table d'identifiants — c'est par là qu'il ouvre le dossier de l'app courante.
+    for flag in ('app_node', 'world_node'):
+        if config.get(flag):
+            node[flag] = True
+    # Couleur d'IDENTITÉ de l'app (CARD_DESIGN §9), la même que dans le menu : portée par une
+    # variable CSS sur l'ancre, lue par `filemanager.css`.
+    if config.get('color'):
+        node['a_attr'] = {'style': f"--wama-app-color: {config['color']};"}
 
     if 'path' in config:
         # Leaf folder: return lazy placeholder — jstree will call api_children on expand
@@ -1228,7 +1156,7 @@ def api_preview(request):
 
 def _allowed_app_prefixes(user_id):
     """Préfixes de dossiers d'app autorisés POUR CET UTILISATEUR — dérivés
-    automatiquement de APP_CATALOG (+ apps WAMA Lab).
+    automatiquement de APP_CATALOG et des apps hors catalogue qui déclarent des dossiers.
 
     Chaque préfixe inclut l'id utilisateur, ce qui garantit qu'un utilisateur ne peut accéder
     qu'à SES propres fichiers d'app, même en fabriquant un chemin à la main (pas seulement via
@@ -1265,12 +1193,13 @@ def _allowed_app_prefixes(user_id):
     prefixes = set()
     labels = set()
     try:
-        from wama.common.app_registry import APP_CATALOG
+        from wama.common.app_registry import APP_CATALOG, surfaces
         labels.update(APP_CATALOG)
+        # Apps HORS catalogue qui ont des dossiers (le Lab) : celles qui en DÉCLARENT
+        # (`register_surface(media_folders=…)`) — elles étaient citées ici par leur nom.
+        labels.update(s['app'] for s in surfaces() if s.get('media_folders'))
     except Exception:
         pass
-    # Apps WAMA Lab (hors APP_CATALOG)
-    labels.update(['face_analyzer', 'cam_analyzer'])
     for app in labels:
         prefixes.add(_paire(app))            # domicile unique — la forme d'aujourd'hui
         prefixes.add(f'{app}/{user_id}/')    # arbre historique — orphelins non migrés
