@@ -87,6 +87,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Champs MESURÉS (passe « Champ des caméras », results_summary.camera_intrinsics) — appliqués
     // seulement sous ⚑ measured_camera_fov (voir rebuildCamGeo).
     const measuredFov = {};
+    // Orientations de montage MESURÉES et applicables (même passe, `mount_yaw.applicable` posé
+    // côté serveur) — appliquées seulement sous ⚑ measured_camera_yaw (voir rebuildCamGeo).
+    const measuredYaw = {};
     const LEGACY_FOV_V = { front: 60, right: 90, rear: 60, left: 90 };
     const CAMERA_MOUNT = { front: [0, 4.5], right: [1.0, 3.4], rear: [0, 0], left: [-1.0, 3.4] };
     const camGeo = {};        // géométrie effective par caméra — reconstruite par rebuildCamGeo()
@@ -121,6 +124,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const fovH = _m ? _m.h : camFovH[p];
             const fovV = _m ? _m.v : camFovV[p];
             camGeo[p] = {
+                // ⚑ measured_camera_yaw — miroir de `camera_yaw_map` : l'orientation MESURÉE
+                // l'emporte sur la saisie quand la mesure a été jugée applicable.
+                yaw: (camFeat.measured_camera_yaw && measuredYaw[p] != null) ? measuredYaw[p] : camYaw[p],
                 fovH: fovH,
                 fovV: fovV,
                 distScale: camFeat.fov_dist_correction !== false
@@ -492,6 +498,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 Object.keys(CAMERA_YAW).forEach(p => {
                     const m = _ci[p];
                     if (m && isFinite(m.fov_h) && isFinite(m.fov_v)) measuredFov[p] = { h: +m.fov_h, v: +m.fov_v };
+                    const y = m && m.mount_yaw;
+                    if (y && y.applicable && isFinite(y.yaw_deg)) measuredYaw[p] = +y.yaw_deg;
+                    else delete measuredYaw[p];
                 });
                 // Levier d'antenne GPS surchargé par session (défaut : coin arrière droit ENA).
                 camAntennaCfg = (data.config && data.config.gps_antenna) || null;
@@ -3741,8 +3750,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 _camCounts[camPos] = (_camCounts[camPos] || 0) + 1;
             });
         };
-        if (topDown360) Object.keys(camYaw).forEach(cp => _drawCam(cp, camYaw[cp]));
-        else _drawCam('front', camYaw.front);
+        // yaw EFFECTIF (camGeo : ⚑ measured_camera_yaw compris), pas la saisie brute
+        if (topDown360) Object.keys(camYaw).forEach(cp => _drawCam(cp, camGeo[cp].yaw));
+        else _drawCam('front', camGeo.front.yaw);
         // Badge d'état : rend VÉRIFIABLE l'effet réel des boutons (360°/Préd/garés) —
         // l'utilisateur doutait de boutons morts faute de retour visuel. Audit 2026-07-16.
         _setTopDownStatus(
@@ -5489,7 +5499,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     inp.value = camYaw[inp.dataset.pos];
                 });
                 const _fl = document.getElementById('camFovLatInput');
-                if (_fl) _fl.value = camFovH.left;
+                if (_fl) _fl.value = camFovV.left;
                 const _al = document.getElementById('antLatInput');
                 const _ao = document.getElementById('antLonInput');
                 const _antEff = camAntennaCfg || [1.0, 0.0];
@@ -5505,16 +5515,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 const v = parseFloat(inp.value);
                 if (isFinite(v)) { camYaw[inp.dataset.pos] = v; payload[inp.dataset.pos] = v; }
             });
-            // FOV latéral réel (H saisi ; V dérivé de la table constructeur F1015 :
-            // 52°H↔30°V, 97°H↔53°V, interpolation linéaire). Appliqué aux 2 latérales.
+            // FOV latéral : le champ VERTICAL est saisi (c'est lui que les distances valident) ;
+            // le serveur en dérive le champ HORIZONTAL de chaque latérale par les proportions de
+            // SON image (sténopé à pixels carrés : une seule focale). Jusqu'au 2026-10-02 le H
+            // était saisi et le V lu dans la table F1015 (97°H↔53°V) : deux focales différentes.
             let fovPayload = null;
             const _fl = document.getElementById('camFovLatInput');
-            const _fh = _fl ? parseFloat(_fl.value) : NaN;
-            if (isFinite(_fh) && _fh >= 40 && _fh <= 110) {
-                const _fv = 30 + (_fh - 52) * (53 - 30) / (97 - 52);
-                camFovH.left = camFovH.right = _fh;
-                camFovV.left = camFovV.right = Math.round(_fv * 10) / 10;
-                fovPayload = { left: { h: _fh, v: camFovV.left }, right: { h: _fh, v: camFovV.right } };
+            const _fv = _fl ? parseFloat(_fl.value) : NaN;
+            if (isFinite(_fv) && _fv >= 20 && _fv <= 80) {
+                fovPayload = { left: { v: _fv }, right: { v: _fv } };
             }
             // Levier d'antenne GPS (latéral, longitudinal) — appliqué immédiatement au
             // rendu (pose navette + parcours) et persisté pour le tracking.
@@ -5546,7 +5555,22 @@ document.addEventListener('DOMContentLoaded', function () {
                         antPayload ? { gps_antenna: antPayload } : {})),
                 });
                 const d = await r.json();
-                if (d.success) { _cys.textContent = '✓'; setTimeout(() => { _cys.textContent = '💾'; }, 1200); }
+                if (d.success) {
+                    // champs EFFECTIFS rendus par le serveur (H dérivé des proportions de chaque image)
+                    if (fovPayload && d.camera_fov) {
+                        ['left', 'right'].forEach(p => {
+                            const f = d.camera_fov[p];
+                            if (f && isFinite(f.h)) camFovH[p] = +f.h;
+                            if (f && isFinite(f.v)) camFovV[p] = +f.v;
+                        });
+                        rebuildCamGeo();
+                        topDownLastRender = -999;
+                        const _t = playheadT();
+                        updateMiniMapShuttle(_t);
+                        updateDetectionOverlay(_t);
+                    }
+                    _cys.textContent = '✓'; setTimeout(() => { _cys.textContent = '💾'; }, 1200);
+                }
                 else alert('Échec sauvegarde yaw : ' + (d.error || '?'));
             } catch (e) {
                 console.error('[camYaw] sauvegarde échouée', e);

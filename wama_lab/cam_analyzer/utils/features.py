@@ -137,6 +137,14 @@ FEATURES = [
             "objets, les largeurs de voie vues, le cap par ratio et la projection sol : "
             "calibration sol, recalage voie + carte et calculs sont à rejouer après bascule.",
             default=False, scope='compute'),
+    Feature('measured_camera_yaw', 'Orientation des latérales MESURÉE',
+            "Utilise l'orientation de montage des caméras latérales MESURÉE sur la session (passe "
+            "« Champ des caméras » : le mouvement de la navette, tiré de la trace, contraint les "
+            "points suivis dans l'image) au lieu de l'angle saisi (±75° par défaut ; mesuré ~67,5° à "
+            "droite et ~−77,5° à gauche le 2026-10-02). Refusée si la caméra avant, contrôle de la "
+            "méthode, ne retrouve pas ~0°. Change le placement de tout ce que voient les latérales "
+            "et les jonctions avec l'avant : calibration sol et calculs sont à rejouer après bascule.",
+            default=False, scope='compute'),
     Feature('parked_off_road', 'Garés = hors des voies',
             "Un véhicule est GARÉ si sa position médiane est HORS de l'emprise de chaussée IGN "
             "(à plus de 0,5 m du bord) : un immobile SUR la chaussée — à un feu, dans une file, à un "

@@ -1,0 +1,121 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Correspondances de points du DÉCOR entre deux images, avec les instants (temps de la trace) des deux images.",
+        "group": "travail",
+        "key": "matches",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "t0",
+          "t1",
+          "x0",
+          "y0",
+          "x1",
+          "y1"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Trace du point de référence du véhicule dans un repère local métrique (est, nord) et son cap (° horaire depuis le nord).",
+        "group": "travail",
+        "key": "trajectory",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time",
+          "e",
+          "n",
+          "heading"
+        ]
+      }
+    ],
+    "key": "known_motion_yaw",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "Lacet de montage (°, horaire depuis l'avant du véhicule) ; tangage, distorsion, retard de la trace, profil et verdict `measured` dans meta. ⚠ PAS de facette estimateur : `yaw` y désigne une rotation ENTRE deux instants (`ego_rotation`) ; une orientation de montage est une constante d'étalonnage, qu'aucune fusion de cap ne doit prendre pour une source.",
+        "key": "mount_yaw",
+        "optional": false,
+        "produced_fields": [
+          "metric",
+          "value"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": null,
+        "description": "Focale en pixels (pixels carrés).",
+        "key": "focal_px",
+        "max": 10000.0,
+        "min": 1.0,
+        "type": "float",
+        "unit": "px"
+      },
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Lacet a priori : centre de la recherche (±15°).",
+        "key": "yaw0_deg",
+        "max": 180.0,
+        "min": -180.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": 15.0,
+        "description": "Tangage a priori (positif vers le bas) : centre de la recherche (±6°).",
+        "key": "pitch0_deg",
+        "max": 45.0,
+        "min": -10.0,
+        "type": "float",
+        "unit": "°"
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "geometry",
+      "calibration",
+      "ego-motion",
+      "gnss"
+    ],
+    "visibility": "public"
+  },
+  "description": "Mesure le lacet de montage d'une caméra embarquée (et son tangage, sa distorsion radiale) : le mouvement du véhicule tiré de la trace impose à chaque point du décor suivi entre deux images une contrainte épipolaire, sans profondeur. Focale CONNUE requise — la méthode ne la mesure pas. Contrôle conseillé : une caméra d'orientation connue doit retrouver son lacet.",
+  "key": "known_motion_yaw",
+  "manifest_kind": "function",
+  "name": "Orientation de montage par mouvement connu",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:known_motion_yaw",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}
