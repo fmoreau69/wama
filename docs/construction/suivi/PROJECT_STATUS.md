@@ -20268,3 +20268,47 @@ câblage, V8).
   le corpus périmé) restent non commités — cf. le palier précédent ; seul `apps/composer.json` est
   parti.
 - C (`detail_spec` ×6, extension du langage de spec) : décision de Fabien attendue.
+
+## §PALIER — 2026-10-02 (nuit), « PIPELINE PORTÉ PAR LA CARD — 1ʳᵉ génération YuE2 RÉELLE en deux process : un échec par le worker, deux manques du composer corrigés, puis réussite sur le moteur » — ✅ commits `3547f51f` (correctif) et ci-dessous (consignation), non poussés — 🔴 RELANCER les workers pour qu'ils prennent `3547f51f` — 🔚 rejouer la génération PAR le worker en service · transcript 1277 de la campagne d'évaluation à relancer par sa session
+
+Accord de Fabien (« ok pour la génération YuE2 en deux process »). Élément #281 du compte de test
+`wama_nightly_test`, créé et lancé par l'outil de l'assistant `tool_api.compose_music`.
+
+- ❌ **Par le worker en service (21:04)** : la tâche a attendu derrière une campagne d'évaluation
+  de transcription (file `gpu:3`, le composer est en `gpu:9`), puis est partie sur une carte
+  pleine — modèles de transcription résidents dans le même worker. `CUDA out of memory` au process
+  `plan`. La mécanique du pipeline a tenu : ligne `plan` `RUNNING` puis `FAILURE` avec son
+  message, card en échec relançable, état déduit `FAILURE`.
+- ⚠ **Effet de bord sur une autre session, à dire** : le moteur n'étant pas relâché, YuE2 est
+  resté dans le worker avec le plafond mémoire de son pipeline ; la tâche suivante — la 2ᵉ
+  tentative du transcript **1277** de la campagne (compte `wama_evaluation`) — a échoué faute de
+  mémoire à 21:07, puis le worker a redémarré. Ce transcript avait déjà échoué seul à 19:53, et
+  le 1283 à 20:18 puis à 21:10 (accès réseau) : la campagne a ses propres échecs, mais celui de
+  21:07 est très probablement le mien. **1277 est à relancer par la session qui tient la campagne.**
+- ✅ **Deux manques du composer corrigés (`3547f51f`)** : il ne déclarait aucun besoin de VRAM
+  au squelette (il n'attendait donc pas sa place) et ne rendait jamais son moteur. Désormais :
+  `vram_needed` (brique commune `auto_model.vram_needed_gb`, remontée de l'enhancer), moteur
+  rendu en `finally`, `YuE2Backend.unload` ferme le pipeline vendorisé et rend au process le
+  plafond du gouverneur (il posait 1.0). L'attente de VRAM d'une app à pipeline n'écrit plus de
+  ligne `main` — la limite ③ du palier B est soldée.
+- ✅ **Sur le moteur réel, code corrigé, dans un process à part** (`compose_task.apply`, lanceur
+  `begin_processing` ; file GPU vide, aucune tâche en cours — vérifié par le script avant de
+  partir) :
+  1. relance de #281 : `plan` 191 s (dont ~140 s de chargement) puis `render` 52 s — partition
+     ABC de 86 lignes (voix, accords, sections), audio 157 s en 48 kHz stéréo ; **pic VRAM
+     8,0 Go**, 0,03 Go restant après la tâche ;
+  2. durée changée (réglage du seul rendu) : ligne `render` `STALE`, état déduit `STALE`,
+     élément `SUCCESS` ; relance → **`render` seul** (232 s dont le rechargement), ligne `plan`
+     intacte, même partition suivie.
+  Fichiers : `media/users/22/composer/output/audio281_YuE2-3B.abc` et `.wav` (laissés en place
+  pour écoute).
+- **Mesuré** : 123 tests verts (composer, enhancer, squelette, lignes, pipeline — WSL, base
+  isolée), dont 7 neufs. Langue des identifiants : aucun identifiant français dans les fichiers
+  de ce palier ; le budget du code est à 2681 / 2678 par des ajouts d'autres sessions.
+- ⚠ **Observations, non traitées** : YuE2 ne suit pas la durée demandée (30 s → 157 s) ; le
+  chargement du modèle (~140 s) domine chaque lancement ; la pipeline de prompts a « traduit
+  fr→en » une consigne déjà anglaise et l'a enrichie alors qu'elle porte des paroles (à
+  arbitrer côté `WAMA_LLM`) ; le besoin déclaré au catalogue pour YuE2 est 7,3 Go (cascade),
+  le pic mesuré 8,0 Go.
+- **Non fait** : la génération par le worker en service avec le code corrigé (il faut le
+  relancer) ; la base de test isolée de la session est encore en place.

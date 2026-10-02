@@ -3432,13 +3432,39 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 >   `RUNNING` sur l'ÉLÉMENT sous verrou ; c'est le moteur qui pose `RUNNING` sur la ligne de
 >   CHAQUE process, à son départ — sous « auto », le premier process à jouer n'est pas connu
 >   avant le tirage.
-> - **Trois limites déclarées** : ① aucune génération GPU réelle n'a été jouée (les tests
->   emploient un moteur de substitution, et la vraie classe `YuE2Backend` sur un pipeline de
->   substitution) — la 1ʳᵉ génération YuE2 en deux process reste à faire avec l'accord de Fabien ;
->   ② la card n'AFFICHE pas ses process (P5) : la partition écrite n'est visible que dans
->   l'explorateur de fichiers ; ③ une app à pipeline qui déclarerait `vram_needed` écrirait son
->   attente de VRAM sur le nœud `main` (le composer ne le déclare pas) — à reprendre avec
->   « rapatrier les entrées avant de résoudre modèle et VRAM ». Et une conséquence assumée :
+> - **1ʳᵉ génération YuE2 RÉELLE, le soir du 2026-10-02 (accord de Fabien ; élément #281 du
+>   compte de test, lancé par l'outil de l'assistant `compose_music`)** — en deux temps :
+>   - **Par le worker en service : ÉCHEC, et deux manques du composer mis au jour.** La tâche est
+>     partie sur une carte pleine (modèles de transcription résidents dans le même worker, après
+>     une campagne d'évaluation) : `CUDA out of memory` au process `plan`. La mécanique du
+>     pipeline, elle, a tenu (ligne `plan` en cours puis en échec avec son message, card en échec
+>     relançable). Mais ① le composer ne déclarait AUCUN besoin de VRAM au squelette — il
+>     n'attendait donc pas ; ② son moteur n'était jamais RELÂCHÉ : YuE2 est resté chargé dans le
+>     worker avec le plafond mémoire que son pipeline pose au process, et la tâche suivante (une
+>     transcription d'une autre session) a manqué de mémoire à son tour. Corrigé (`3547f51f`) :
+>     `vram_needed` déclaré (cascade commune `auto_model.vram_needed_gb`, remontée de
+>     l'enhancer), moteur rendu en `finally` (`unload()`), `YuE2Backend.unload` ferme le pipeline
+>     vendorisé et rend au process le plafond du GOUVERNEUR (il posait 1.0), et l'attente de VRAM
+>     d'une app à pipeline n'écrit plus de ligne `main` (l'élément la porte).
+>   - **Sur le moteur réel avec le code corrigé : RÉUSSITE** — jouée dans un process à part
+>     (`compose_task.apply`, lanceur `begin_processing` des vues), le worker en service tournant
+>     encore l'ancien code. Relance de #281 : `plan` 191 s (dont ~140 s de chargement du modèle)
+>     puis `render` 52 s ; partition ABC de 86 lignes (voix + accords, sections intro / verse /
+>     chorus), audio de 157 s en 48 kHz stéréo ; **pic de 8,0 Go de VRAM**, 0,03 Go restant
+>     après la tâche. Puis le cas d'usage du pipeline : durée changée (réglage du seul rendu) →
+>     ligne `render` `STALE`, état déduit `STALE`, élément toujours `SUCCESS` (frontière de P2) ;
+>     relance → **`render` SEUL** (232 s dont le rechargement), ligne `plan` intacte, même
+>     partition suivie.
+>   - **Ce que la mesure dit de plus** : YuE2 ne suit pas la durée demandée (30 s demandées,
+>     157 s rendues — le backend le disait) ; le chargement (~140 s) domine chaque lancement,
+>     le moteur étant rendu à la fin ; la pipeline de prompts a « traduit fr→en » une consigne
+>     déjà anglaise et l'a ENRICHIE (215 → 253 caractères) alors qu'elle porte des paroles — à
+>     arbitrer côté `WAMA_LLM`, pas ici.
+>   - ⏳ Reste : la même génération PAR le worker en service (il faut le relancer pour qu'il
+>     prenne `3547f51f`).
+> - **Limites déclarées** : ① la card n'AFFICHE pas ses process (P5) : la partition écrite
+>   n'est visible que dans l'explorateur de fichiers ; ② « rapatrier les entrées avant de
+>   résoudre modèle et VRAM » reste à faire dans le moteur. Et une conséquence assumée :
 >   `ProcessRun.output_ref` n'est pas suivi par le gestionnaire de fichiers (`repoint`) — une
 >   partition DÉPLACÉE ou une card transférée fait rejouer le process (sortie lue comme
 >   disparue), jamais reprendre un fichier qui n'est plus là. L'ETA du process `plan` n'est pas
@@ -3866,7 +3892,7 @@ possible **sans aucun process**.
 | **P1** ✅ 02/10 | déclarer le monde (`world`) et dériver menus/accueil/pages/catalogues — quatre pièces livrées (point 6.1) : déclaration (catalogue ET hors catalogue), journal / calendrier / fonctions, groupage par monde du menu, de l'accueil et de `/apps/`, explorateur de fichiers | — (indépendant, petit) |
 | **P2** | vocabulaire d'états commun + `STALE` + brique d'agrégation ; studio et cam_analyzer alignés | — |
 | **P3** | moteur commun + ligne d'exécution, **extraits de cam_analyzer** (1er utilisateur : sémantique complète et testée) et de l'exécuteur du studio ; type de nœud `pipeline` ; pipeline sans process accepté | P2 |
-| **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») — reste la 1ʳᵉ génération GPU réelle. Le **transcriber** en 4 process (étapes déjà numérotées, résultats déjà rangés à part) vient ensuite — A/B objectif (qualité, VRAM, durée) | P3 |
+| **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») ; génération réelle JOUÉE le soir même sur le moteur (plan → render, puis render seul) — reste à la rejouer par le worker en service. Le **transcriber** en 4 process (étapes déjà numérotées, résultats déjà rangés à part) vient ensuite — A/B objectif (qualité, VRAM, durée) | P3 |
 | **P5** | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) | P3 (le renommage et le glisser-déposer : à tout moment) |
 | **P6** | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les 7 apps qui ne l'ont pas | P4 |
 | **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script | P3, P5, décisions 5-7 |
@@ -3906,8 +3932,9 @@ possible **sans aucun process**.
 >   un seul process l'adopte sans attendre P3). Un pilote YuE2 n'a donc plus ce préalable.
 > - **État au soir du 2026-10-02** : P1 fait ; P3 paliers A, B et C livrés (point 4 : ligne
 >   d'exécution, moteur à plusieurs process, pilote composer `plan` → `render`) ; décisions n°1,
->   2, 3, 8, 9 et 11 tranchées. **La prochaine session reprend par** : ① la 1ʳᵉ génération YuE2
->   réelle en deux process (GPU, accord de Fabien) ; ② P5 — la card qui AFFICHE ses process
+>   2, 3, 8, 9 et 11 tranchées. **La prochaine session reprend par** : ① la génération YuE2
+>   en deux process rejouée PAR le worker en service (elle a réussi sur le moteur, hors worker,
+>   le 02/10 au soir — point 4) ; ② P5 — la card qui AFFICHE ses process
 >   (`AppPipeline.card_state`, lignes `ProcessRun`) ; ③ l'alignement du cam_analyzer et de
 >   l'exécuteur du studio sur `ProcessSpec` / `ProcessRun`, à coordonner avec les instances qui y
 >   travaillent ; ④ le transcriber en 4 process.
