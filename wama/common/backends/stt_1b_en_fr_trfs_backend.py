@@ -245,5 +245,5 @@ class KyutaiSttBackend(SpeechToTextBackend):
                                              sentence_ends=SENTENCE_ENDS),
             )
         except Exception as exc:  # pragma: no cover – log et renvoie l’erreur
-            logger.error(f"[Kyutai STT] Erreur de transcription : {exc}")
+            logger.exception(f"[Kyutai STT] Erreur de transcription : {exc}")
             return TranscriptionResult(success=False, text="", error=str(exc))

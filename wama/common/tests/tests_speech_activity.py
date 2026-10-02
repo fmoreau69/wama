@@ -67,6 +67,21 @@ class SpeechActivityTest(SimpleTestCase):
         self.assertEqual(6, speech_activity.windows_for(3600))
         self.assertEqual(3, speech_activity.windows_for(1200), 'short media keep the old sampling')
 
+    def test_windows_cover_all_the_audio_and_cut_in_the_pause(self):
+        """`pause_windows` (2026-10-02, FrWhisper): a loud signal with ONE pause at 27–27.4 s,
+        30 s windows → the cut falls in that pause, not at 30 s."""
+        wave = np.random.default_rng(2).normal(0, 0.3, 70 * SR).astype('float32')
+        wave[int(27.0 * SR):int(27.4 * SR)] = 0.0
+        windows = speech_activity.pause_windows(wave, SR, 30.0)
+        self.assertEqual(0.0, windows[0][0])
+        self.assertEqual(70.0, windows[-1][1])
+        self.assertTrue(all(a[1] == b[0] for a, b in zip(windows, windows[1:])), windows)
+        self.assertTrue(all(end - start <= 30.0 for start, end in windows), windows)
+        self.assertTrue(27.0 <= windows[0][1] <= 27.4, windows[0])
+
+    def test_counter_check_a_short_recording_is_one_window(self):
+        self.assertEqual([(0.0, 12.0)], speech_activity.pause_windows(np.zeros(12 * SR), SR, 30.0))
+
     def test_the_real_silero_vad_does_not_take_noise_bursts_for_speech(self):
         """Contre-épreuve sur le vrai VAD : du bruit actif n'est pas de la parole — c'est le cas
         où le VAD rejette, et la sonde le dit."""

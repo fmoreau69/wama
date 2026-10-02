@@ -48,6 +48,40 @@ def energy_active_ratio(wave, sr: int, margin_db: float = ACTIVE_MARGIN_DB) -> f
     return float((db > np.percentile(db, 10) + margin_db).mean())
 
 
+#: Où chercher la coupure d'une fenêtre : dans les dernières secondes avant sa longueur maximale.
+PAUSE_SEARCH_SECONDS = 5.0
+
+
+def pause_windows(wave, sr: int, max_seconds: float,
+                  search_seconds: float = PAUSE_SEARCH_SECONDS) -> list:
+    """`[(début, fin)]` en secondes, fenêtres CONTIGUËS couvrant TOUT l'audio, chacune ≤
+    `max_seconds`, coupées au creux d'énergie (trame de 100 ms la plus calme) des
+    `search_seconds` qui précèdent la limite — dans une pause plutôt qu'au milieu d'un mot.
+
+    Pour un moteur qui ne transcrit qu'une fenêtre bornée sans repères de temps (FrWhisper,
+    2026-10-02). Sans VAD, délibérément : rien de l'audio n'est écarté (le VAD rejette parfois la
+    parole, cf. l'en-tête du module)."""
+    import numpy as np
+    total = len(wave) / float(sr)
+    frame = int(sr * FRAME_SECONDS)
+    windows, start = [], 0.0
+    while total - start > max_seconds:
+        limit = start + max_seconds
+        low = max(limit - search_seconds, start + FRAME_SECONDS)
+        a, b = int(low * sr), int(limit * sr)
+        span = np.asarray(wave[a:b], dtype='float32')
+        count = len(span) // frame if frame > 0 else 0
+        if count:
+            rms = np.sqrt((span[: count * frame].reshape(count, frame) ** 2).mean(axis=1))
+            cut = (a + (int(rms.argmin()) + 0.5) * frame) / sr
+        else:
+            cut = limit
+        windows.append((round(start, 3), round(cut, 3)))
+        start = cut
+    windows.append((round(start, 3), round(total, 3)))
+    return windows
+
+
 def vad_speech_ratio(wave, sr: int) -> float:
     """Part de l'audio que le VAD de faster-whisper retient, avec ses réglages par défaut."""
     from faster_whisper.vad import VadOptions, get_speech_timestamps
