@@ -88,6 +88,80 @@ class SmokeContractTest(SimpleTestCase):
         self.assertIn('IDENTIQUES', res['error'])
 
 
+SPEECH = ('speech_to_text_base', 'SpeechToTextBackend')
+TRANSCRIBING = '''
+"""Backend de test."""
+from .speech_to_text_base import SpeechToTextBackend, TranscriptionResult, TranscriptionSegment
+
+SUPPORTED_MODELS = {"Org/Asr": {}}
+
+
+class AsrBackend(SpeechToTextBackend):
+    ENGINE = "transformers"
+    REQUIRED_PACKAGES = []
+    name = "asr_smoke"
+
+    def load(self, model_name=None):
+        self._loaded = True
+        return True
+
+    def unload(self):
+        self._loaded = False
+
+    def transcribe(self, audio_path, language=None, hotwords=None, **kwargs):
+        return TranscriptionResult(success=True, text=TEXT, language=language or "",
+                                   segments=[TranscriptionSegment("", s, e, t) for s, e, t in SEGMENTS])
+'''
+
+
+class SpeechSmokeContractTest(SimpleTestCase):
+    """The transcription contract had NO smoke until 2026-10-02: the two backends proposed for
+    FrWhisper and Kyutai passed the checks and the simulated resolution, and failed on EVERY
+    transcription. The smoke transcribes a real speech extract (here a fake one, 2 s, reference
+    « bonjour à tous ») and judges behaviour, plus a guard against the absurd."""
+
+    def _smoke(self, text, segments):
+        import numpy as np
+        code = TRANSCRIBING.replace('TEXT', repr(text)).replace('SEGMENTS', repr(segments))
+        clip = mock.Mock(attributes={'language': 'fr'}, file=mock.Mock(path='clip.wav'))
+        clip.name = 'clip'
+        with tempfile.TemporaryDirectory() as out, \
+                mock.patch.object(bp, 'smoke_speech_clip', return_value=(clip, 'ref.srt')), \
+                mock.patch.object(bp, '_reference_window', return_value=(60.0, 62.0, 'bonjour à tous')), \
+                mock.patch('wama.common.utils.audio_decode.decode_window',
+                           return_value=(np.zeros(32000, dtype='float32'), 16000)):
+            return bp.smoke(code, module='asr_smoke', model_key='huggingface:Org/Asr',
+                            contract=SPEECH, out_dir=Path(out))
+
+    def test_a_faithful_transcription_passes_and_reports_its_error_rate(self):
+        res = self._smoke('Bonjour à tous.', [(0.0, 1.5, 'Bonjour à tous.')])
+        self.assertTrue(res['ok'], res)
+        self.assertEqual((0.0, [60.0, 62.0], 1), (res['wer'], res['window'], res['segments']))
+
+    def test_no_text_fails(self):
+        res = self._smoke('', [])
+        self.assertFalse(res['ok'])
+        self.assertIn('aucun texte', res['error'])
+
+    def test_segments_out_of_order_or_outside_the_extract_fail(self):
+        for segments in ([(1.0, 1.5, 'tous'), (0.0, 0.5, 'bonjour')], [(0.0, 9.0, 'bonjour')]):
+            with self.subTest(segments=segments):
+                res = self._smoke('bonjour tous', segments)
+                self.assertFalse(res['ok'])
+                self.assertIn('segments', res['error'])
+
+    def test_an_output_unrelated_to_the_speech_fails(self):
+        res = self._smoke('the weather is fine today', [(0.0, 1.5, 'the weather is fine today')])
+        self.assertFalse(res['ok'])
+        self.assertIn("taux d'erreur", res['error'])
+
+    def test_a_contract_without_smoke_says_so(self):
+        res = bp.smoke('', module='m', model_key='k:m', contract=('x', 'DetectionBackend'),
+                       out_dir=Path('.'))
+        self.assertEqual({'ran': False, 'reason': 'pas de smoke pour le contrat DetectionBackend'},
+                         res)
+
+
 class CheckSourceTest(SimpleTestCase):
 
     def _check(self, code, engine='onnxruntime'):

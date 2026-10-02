@@ -5,8 +5,8 @@ Ce backend charge les poids déjà présents dans le snapshot
 ``huggingface:aihpi/FrWhisper`` via la fonction utilitaire
 ``component_paths``.  Le moteur déclaré est **transformers** et le
 modèle est un Whisper‑large‑v3 fine‑tuned pour le français.  La
-transcription s’effectue par ``generate`` (transcription longue séquentielle
-de Whisper) ; les timestamps sont renvoyés sous forme de segments.  Le modèle nécessite environ **7.4 Go VRAM**.
+transcription s’effectue par ``generate``, fenêtre par fenêtre (≤ 30 s, coupées dans une
+pause) ; un segment par fenêtre.  Le modèle nécessite environ **7.4 Go VRAM**.
 
 Limites :
 - Pas de diarisation ni de hot‑words.
@@ -16,11 +16,13 @@ Corrigé le 2026-10-01, après le Valider (essai réel) :
 - PLUS de `pipeline` : il importe torchcodec quelle que soit l'entrée, et torchcodec est cassé
   dans le venv. Le modèle et son processeur sont appelés directement, l'audio décodé par la
   brique commune (`audio_decode`) ;
-- transcription longue SÉQUENTIELLE de Whisper (pas de `chunk_length_s`, que transformers
-  déclare expérimental pour un seq2seq) ;
 - la langue demandée est passée au décodage ; float16 sur GPU.
-- ⚠ Horodatage GROSSIER : ce fine-tune émet rarement ses jetons de temps, un segment couvre
-  souvent une fenêtre de 30 s — la diarisation en pâtit, pas le texte.
+Corrigé le 2026-10-02 (smoke de parole du rôle `backend`, premier à tourner) : la transcription
+longue séquentielle de Whisper EXIGE les jetons de temps, que ce fine-tune n'a pas appris — il
+s'arrêtait en cours de fenêtre. Fenêtres ≤ 30 s coupées dans une pause
+(`speech_activity.pause_windows`), transcrites sans jetons de temps.
+- ⚠ Horodatage GROSSIER : un segment = une fenêtre (≤ 30 s) — la diarisation en pâtit, pas le
+  texte.
 """
 
 from pathlib import Path
@@ -44,6 +46,8 @@ SUPPORTED_MODELS = {
 
 #: Taux d'entrée de Whisper.
 SAMPLING_RATE = 16000
+#: Fenêtre d'entrée de Whisper : une passe n'en voit pas davantage.
+WINDOW_SECONDS = 30.0
 
 
 class FrWhisperBackend(SpeechToTextBackend):
@@ -171,33 +175,35 @@ class FrWhisperBackend(SpeechToTextBackend):
 
         try:
             from wama.common.utils.audio_decode import decode_audio_at
+            from wama.common.utils.speech_activity import pause_windows
 
             audio, sr = decode_audio_at(audio_path, target_sr=SAMPLING_RATE)
-            # Plus de 30 s : transcription longue SÉQUENTIELLE de Whisper (caractéristiques non
-            # tronquées) ; sinon la forme courte, complétée à 30 s.
-            inputs = self._processor(audio, sampling_rate=sr, return_tensors="pt", truncation=False,
-                                     padding="longest", return_attention_mask=True)
-            if inputs.input_features.shape[-1] < 3000:
-                inputs = self._processor(audio, sampling_rate=sr, return_tensors="pt",
-                                         return_attention_mask=True)
-            inputs = inputs.to(self._device, self._dtype)
-            options = {"return_timestamps": True, "return_segments": True, "task": "transcribe"}
+            options = {"return_timestamps": False, "task": "transcribe"}
             if language:
                 options["language"] = language.split("-")[0].lower()
-            output = self._model.generate(**inputs, **options)
-
-            # ⚠ Ce fine-tune émet rarement ses jetons d'horodatage : un segment couvre souvent
-            # toute une fenêtre de 30 s (mesuré le 2026-10-01). Le texte, lui, est complet.
+            # Fenêtres ≤ 30 s coupées dans une PAUSE, chacune transcrite SANS jetons de temps : ce
+            # fine-tune n'en a pas appris (`generation_config` : `return_timestamps: false`), et
+            # les lui imposer — ce qu'exige la transcription longue séquentielle — le faisait
+            # s'ARRÊTER en cours de fenêtre (mesuré le 2026-10-02 sur 26 s : WER 82 % avec,
+            # 56 % sans). Un segment = une fenêtre : horodatage grossier, texte complet.
+            windows = pause_windows(audio, sr, WINDOW_SECONDS)
+            progress = kwargs.get("progress_callback")
             segments = []
-            for part in output["segments"][0]:
-                text = self._processor.decode(part["tokens"], skip_special_tokens=True).strip()
+            for index, (start, end) in enumerate(windows):
+                chunk = audio[int(start * sr):int(end * sr)]
+                inputs = self._processor(chunk, sampling_rate=sr, return_tensors="pt",
+                                         return_attention_mask=True).to(self._device, self._dtype)
+                output = self._model.generate(**inputs, **options)
+                text = self._processor.batch_decode(output, skip_special_tokens=True)[0].strip()
                 if text:
                     segments.append(TranscriptionSegment(
                         speaker_id="",               # pas de diarisation
-                        start_time=round(float(part["start"]), 2),
-                        end_time=round(float(part["end"]), 2),
+                        start_time=round(start, 2),
+                        end_time=round(end, 2),
                         text=text,
                     ))
+                if progress:
+                    progress((index + 1) / len(windows))
 
             return TranscriptionResult(
                 success=True,
@@ -209,7 +215,7 @@ class FrWhisperBackend(SpeechToTextBackend):
                 error=None,
             )
         except Exception as exc:
-            logger.error(f"[FrWhisper] Erreur pendant la transcription : {exc}")
+            logger.exception(f"[FrWhisper] Erreur pendant la transcription : {exc}")
             return TranscriptionResult(
                 success=False,
                 text="",

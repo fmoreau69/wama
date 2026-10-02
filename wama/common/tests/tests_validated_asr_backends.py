@@ -108,28 +108,34 @@ class _Inputs(dict):
 
 class FrWhisperWindowsTest(SimpleTestCase):
 
-    def _run(self, language=None):
+    TEXTS = [' un peu', 'je crois ', '   ']
+
+    def _run(self, language=None, seconds=65):
+        """65 s of audio → three windows; the model says one text per window, the last empty."""
+        import numpy as np
         backend = FrWhisperBackend()
         backend._loaded, backend._device, backend._dtype = True, 'cpu', None
-        backend._processor = mock.Mock(side_effect=lambda *a, **k: _Inputs(7500),
-                                       decode=lambda tokens, **k: tokens)
-        segments = [{'start': 0.0, 'end': 30.0, 'tokens': ' un peu'},
-                    {'start': 30.0, 'end': 60.0, 'tokens': 'je crois '},
-                    {'start': 60.0, 'end': 61.0, 'tokens': '   '}]
-        backend._model = mock.Mock(generate=mock.Mock(return_value={'segments': [segments]}))
+        texts = iter(self.TEXTS)
+        backend._processor = mock.Mock(side_effect=lambda *a, **k: _Inputs(3000),
+                                       batch_decode=lambda out, **k: [next(texts)])
+        backend._model = mock.Mock(generate=mock.Mock(return_value='tokens'))
         with mock.patch('wama.common.utils.audio_decode.decode_audio',
-                        return_value=([0.0] * 16000, 16000)):
+                        return_value=(np.zeros(16000 * seconds, dtype='float32'), 16000)):
             return backend, backend.transcribe('x.wav', language=language)
 
-    def test_windows_become_segments_and_rejoin_with_a_space(self):
+    def test_each_window_of_at_most_30_s_becomes_a_segment_and_they_rejoin_with_a_space(self):
         _, result = self._run()
         self.assertTrue(result.success, result.error)
         self.assertEqual('un peu je crois', result.text, 'decoded as one block they fused: « peuje »')
-        self.assertEqual([(0.0, 30.0), (30.0, 60.0)],
-                         [(s.start_time, s.end_time) for s in result.segments], 'empty window dropped')
+        spans = [(s.start_time, s.end_time) for s in result.segments]
+        self.assertEqual(2, len(spans), 'the empty third window is dropped')
+        self.assertEqual(spans[0][1], spans[1][0], 'contiguous windows')
+        self.assertTrue(all(end - start <= 30.0 for start, end in spans), spans)
 
-    def test_the_requested_language_reaches_the_decoding(self):
+    def test_no_time_tokens_are_forced_and_the_language_reaches_the_decoding(self):
+        """Forcing time tokens on this fine-tune made it STOP mid-window (2026-10-02: WER 82 %
+        with, 56 % without, same 26 s extract)."""
         backend, _ = self._run(language='fr-FR')
         options = backend._model.generate.call_args.kwargs
-        self.assertEqual('fr', options['language'])
-        self.assertTrue(options['return_segments'])
+        self.assertEqual(('fr', False), (options['language'], options['return_timestamps']))
+        self.assertNotIn('return_segments', options)

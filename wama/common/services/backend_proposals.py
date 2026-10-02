@@ -17,9 +17,10 @@ modèles — hors des apps média. Garde-fous qui restent :
   • rien n'est commité : le dépôt reste l'affaire d'un humain.
 
 CE QUE LES CONTRÔLES DISENT, ET CE QU'ILS NE DISENT PAS. Ils attestent la FORME (contrat, moteur,
-déclaration, interdits) et la RÉSOLUTION (l'inventaire choisira bien ce backend). Le smoke atteste
-qu'une génération CPU aboutit. AUCUN ne juge la QUALITÉ de l'image : c'est à l'humain de la
-regarder avant de valider.
+déclaration, interdits) et la RÉSOLUTION (l'inventaire choisira bien ce backend). Le smoke, un par
+contrat (`SMOKES`), atteste qu'une exécution CPU aboutit : génération d'images, ou transcription
+d'un extrait de parole réelle (depuis le 2026-10-02) avec un garde-fou contre l'absurde. AUCUN ne
+juge la QUALITÉ : c'est à l'humain de regarder, et à la campagne d'évaluation de mesurer.
 """
 from __future__ import annotations
 
@@ -262,28 +263,39 @@ SMOKE_IMAGES = 2
 
 
 def smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: Path) -> dict:
-    """Exécute le backend proposé SUR CPU, sans l'écrire dans le paquet : chargement puis une
-    génération de `SMOKE_IMAGES` images, qui doivent être autant et DISTINCTES. Seul le contrat
-    image a un smoke aujourd'hui (les autres le DISENT)."""
-    if contract[1] != 'ImageGenerationBackend':
+    """Exécute le backend proposé SUR CPU, sans l'écrire dans le paquet — un essai par CONTRAT
+    (`SMOKES`) ; un contrat sans essai le DIT, et l'humain sait qu'il valide sans exécution."""
+    runner = SMOKES.get(contract[1])
+    if runner is None:
         return {'ran': False, 'reason': f'pas de smoke pour le contrat {contract[1]}'}
+    return runner(code, module=module, model_key=model_key, out_dir=out_dir)
+
+
+def _proposed_backend(code: str, module: str, tmp: str, method: str):
+    """Instance du backend proposé, chargé depuis `tmp` sous un nom DANS le paquet : les imports
+    relatifs (`from .image_generation_base …`) résolvent, alors que le fichier n'y est pas —
+    l'inventaire ne le voit donc pas pendant le smoke. La classe est celle qui porte `method`."""
+    path = Path(tmp) / f'{module}.py'
+    path.write_text(code, encoding='utf-8')
+    spec = importlib.util.spec_from_file_location(f'wama.common.backends.{module}', path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    classes = [c for c in vars(mod).values() if isinstance(c, type)
+               and c.__module__ == mod.__name__ and hasattr(c, method)]
+    return classes[0]()
+
+
+def _smoke_image(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
+    """Chargement puis une génération de `SMOKE_IMAGES` images, qui doivent être autant et
+    DISTINCTES."""
     import tempfile
     from unittest import mock
 
     from wama.common.backends.image_generation_base import GenerationParams
     started = time.time()
     with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / f'{module}.py'
-        path.write_text(code, encoding='utf-8')
-        # Nom DANS le paquet : les imports relatifs (`from .image_generation_base …`) résolvent,
-        # alors que le fichier n'y est pas — l'inventaire ne le voit donc pas pendant le smoke.
-        spec = importlib.util.spec_from_file_location(f'wama.common.backends.{module}', path)
         try:
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            classes = [c for c in vars(mod).values() if isinstance(c, type)
-                       and c.__module__ == mod.__name__ and hasattr(c, 'generate')]
-            backend = classes[0]()
+            backend = _proposed_backend(code, module, tmp, 'generate')
             if not type(backend).is_available():
                 return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
             with mock.patch('wama.common.utils.onnx_utils.onnx_providers',
@@ -318,6 +330,126 @@ def smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: P
     return {'ran': True, 'ok': True, 'seconds': round(time.time() - started, 1),
             'image': str(image_path.relative_to(settings.BASE_DIR)),
             'size': list(result.images[0].size)}
+
+
+#: L'extrait que transcrit le smoke de PAROLE (2026-10-02) : `SMOKE_SPEECH_SECONDS` à partir de
+#: `SMOKE_SPEECH_START` d'un enregistrement des corpus d'évaluation versés en médiathèque système
+#: (`asr_eval_corpus`), celui du corpus `SMOKE_SPEECH_CORPUS` de préférence : de la parole réelle
+#: AVEC sa référence, donc un taux d'erreur, pas seulement « du texte est sorti ».
+#: Pourquoi il existe : le 01/10, deux backends de transcription proposés passaient les contrôles
+#: et la résolution sans aucun essai — et échouaient à CHAQUE transcription (audio passé en
+#: position au processeur ; `pipeline` qui importe torchcodec, cassé dans le venv).
+SMOKE_SPEECH_CORPUS = 'summ-re'
+SMOKE_SPEECH_START = 60.0
+SMOKE_SPEECH_SECONDS = 30.0
+#: Au-delà, la sortie n'a plus de rapport avec la parole (langue, audio mal lu, boucle) : c'est un
+#: garde-fou contre l'absurde, pas un critère de qualité — le juger reste la campagne d'évaluation.
+SMOKE_SPEECH_MAX_WER = 0.75
+
+
+def smoke_speech_clip():
+    """`(SystemAsset de parole, chemin de sa référence | None)` de l'extrait du smoke, ou
+    `(None, None)` si aucun corpus n'est versé. Les VARIANTES (dégradées, nivelées, améliorées)
+    sont écartées : le smoke juge le backend, pas un prétraitement."""
+    from wama.media_library.models import SystemAsset
+    variants = ('base', 'degradation', 'leveled', 'enhancement')
+    clips = [a for a in SystemAsset.objects.filter(asset_type='speech').order_by('name')
+             if (a.attributes or {}).get('corpus') and a.file
+             and not any((a.attributes or {}).get(k) for k in variants)]
+    if not clips:
+        return None, None
+    clips.sort(key=lambda a: ((a.attributes or {}).get('corpus') != SMOKE_SPEECH_CORPUS, a.name))
+    clip = clips[0]
+    # Même convention que le banc : `attributes['reference']`, sinon `<nom>_reference`.
+    ref_name = (clip.attributes or {}).get('reference') or f'{clip.name}_reference'
+    reference = SystemAsset.objects.filter(asset_type='document', name=ref_name).first()
+    return clip, (reference.file.path if reference and reference.file else None)
+
+
+def _reference_window(path, start: float, seconds: float):
+    """`(début, fin, texte)` de l'extrait CALÉ sur des segments ENTIERS de la référence : ceux qui
+    tiennent dans [start, start + seconds], l'extrait allant du premier au dernier. Une phrase
+    coupée par le bord de l'extrait comptait comme erreur (calibration du 2026-10-02 : FrWhisper,
+    juste, à 75 %). Lus par le lecteur que la surface `transcriber` déclare à l'évaluation — le
+    registre, pas un import d'app. Sans référence lisible : l'extrait brut, sans texte."""
+    raw = (start, start + seconds, '')
+    from .result_evaluation import evaluation_spec
+    spec = evaluation_spec('transcriber')
+    if not path or spec is None or spec.read_reference_segments is None:
+        return raw
+    inside = [s for s in (spec.read_reference_segments(path) or [])
+              if float(s.get('start_time') or 0) >= start
+              and float(s.get('end_time') or 0) <= start + seconds]
+    if not inside:
+        return raw
+    return (min(float(s['start_time']) for s in inside), max(float(s['end_time']) for s in inside),
+            ' '.join(str(s.get('text') or '') for s in inside).strip())
+
+
+def _smoke_speech(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
+    """Chargement, puis transcription d'un extrait de parole réelle : un texte, des segments
+    ordonnés et DANS l'extrait, et un taux d'erreur qui ne soit pas absurde face à la référence."""
+    import tempfile
+    from unittest import mock
+
+    import soundfile as sf
+
+    from wama.common.utils.audio_decode import decode_window
+    clip, reference = smoke_speech_clip()
+    if clip is None:
+        return {'ran': False, 'reason': 'aucun corpus de parole versé en médiathèque système '
+                                        '(manage.py asr_eval_corpus)'}
+    started = time.time()
+    begin, end, expected = _reference_window(reference, SMOKE_SPEECH_START, SMOKE_SPEECH_SECONDS)
+    # La langue que le corpus DÉCLARE pour l'enregistrement (une seule) ; sinon le moteur détecte.
+    language = (clip.attributes or {}).get('language')
+    language = language if isinstance(language, str) else None
+    with tempfile.TemporaryDirectory() as tmp:
+        audio, rate = decode_window(clip.file.path, 16000, begin, end - begin)
+        extract = Path(tmp) / 'smoke_speech.wav'
+        sf.write(str(extract), audio, rate)
+        duration = len(audio) / float(rate)
+        try:
+            backend = _proposed_backend(code, module, tmp, 'transcribe')
+            if not type(backend).is_available():
+                return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
+            # CPU, comme le smoke image : le rôle ne dispute jamais le GPU au worker.
+            with mock.patch('torch.cuda.is_available', return_value=False):
+                if not backend.load(model_id_of(model_key)):
+                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                result = backend.transcribe(audio_path=str(extract), language=language)
+            backend.unload()
+        except Exception as e:
+            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
+                    'seconds': round(time.time() - started, 1)}
+    seconds = round(time.time() - started, 1)
+    text = (getattr(result, 'text', '') or '').strip()
+    if not getattr(result, 'success', False) or not text:
+        return {'ran': True, 'ok': False, 'seconds': seconds,
+                'error': getattr(result, 'error', None) or 'aucun texte'}
+    segments = list(result.segments or [])
+    starts = [s.start_time for s in segments]
+    if not segments or starts != sorted(starts) or any(
+            s.end_time < s.start_time or s.end_time > duration + 1.0 for s in segments):
+        return {'ran': True, 'ok': False, 'seconds': seconds,
+                'error': f'segments hors de l\'extrait ou désordonnés ({len(segments)} segment(s), '
+                         f'extrait de {duration:.1f} s)'}
+    out = {'ran': True, 'ok': True, 'seconds': seconds, 'clip': clip.name,
+           'window': [round(begin, 2), round(end, 2)], 'segments': len(segments),
+           'text': text[:200]}
+    if expected:
+        from .text_metrics import word_error_rate
+        wer = word_error_rate(expected, text, language).rate
+        out['wer'] = round(wer, 3) if wer is not None else None
+        if wer is not None and wer > SMOKE_SPEECH_MAX_WER:
+            out.update(ok=False, error=f'taux d\'erreur {wer:.0%} sur l\'extrait (> '
+                                       f'{SMOKE_SPEECH_MAX_WER:.0%}) : la sortie n\'a pas de rapport '
+                                       f'avec la parole')
+    return out
+
+
+#: Un essai par CONTRAT — un contrat sans entrée le dit (`smoke`).
+SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_speech}
 
 
 # ── Le geste : lister, valider (ÉCRIRE), rejeter ─────────────────────────────────────────────

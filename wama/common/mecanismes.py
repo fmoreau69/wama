@@ -1707,7 +1707,9 @@ MECHANISMS = (
               "Confronte, sur quelques fenêtres du média, ce que le filtre de parole Silero retient à "
               "ce que l'énergie du signal dit actif : un VAD qui garde bien moins que l'actif rejette "
               "une parole lointaine. L'appelant décide (le transcriber transcrit alors sans filtre, "
-              "réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25",
+              "réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25. "
+              "`pause_windows` (2026-10-02) : fenêtres bornées couvrant TOUT l'audio, coupées au "
+              "creux d'énergie — pour un moteur à fenêtre fixe sans repères de temps (FrWhisper)",
               'wama/common/utils/speech_activity.py',
               'wama/transcriber/TRANSCRIBER_CORRECTION.md §8',
               annexes=('wama/common/tests/tests_speech_activity.py',)),

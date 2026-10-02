@@ -15,7 +15,8 @@ Pilote BORNÉ (même discipline que les cinq autres rôles) :
      contrat, même moteur), inventaire du snapshot et code d'inférence PUBLIÉ avec le modèle ;
   2. UN appel LLM (bridé au niveau développement, `role_utils.resolve_model`) ;
   3. contrôles MÉCANIQUES (`backend_proposals.check_source`), résolution SIMULÉE par
-     l'inventaire, smoke CPU (chargement + une génération) ;
+     l'inventaire, smoke CPU PAR CONTRAT (`backend_proposals.SMOKES` : génération d'images, ou
+     transcription d'un extrait de parole réelle face à sa référence — 2026-10-02) ;
   4. écrit la proposition dans `outputs/` (PENDING_HUMAN_VALIDATION). L'ÉCRITURE dans
      `wama/common/backends/` est le geste « Valider » du model manager, jamais ce script.
 
