@@ -1032,6 +1032,131 @@ def check_received_entry_arrangement():
     return _bilan(verdicts)
 
 
+def check_received_card_readonly_and_request():
+    """Card REÇUE en LECTURE SEULE, puis demande de PROPRIÉTÉ jusqu'à son acceptation (2026-10-03,
+    décisions de Fabien). (ok, detail)
+
+    Destinataire (compte de test, sur le describer) : la pastille dit « Lecture seule » ; ▶ et 🗑
+    ouvrent l'encart au lieu d'agir ; ⚙ s'ouvre en CONSULTATION (bandeau, rien à enregistrer) ;
+    « Mon accès » coche la lecture, grise les modes à venir, et la demande de propriété part.
+    Propriétaire (compte de test DÉVELOPPEUR, pages communes) : la notification surgit en bas à
+    droite ; « Ouvrir » mène à la demande ; « Accepter » lui cède la card.
+    """
+    from django.contrib.auth import get_user_model
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.models import Notification, ObjectGrant, ReceivedEntry
+    from wama.common.services.nightly_tests import SkipScenario, get_test_dev_user
+    from wama.common.services.sharing import partager
+    from wama.common.utils.media_paths import app_media_dir
+    from wama.describer.models import BatchDescription, Description
+    from wama.describer.views import _wrap_description_in_batch
+
+    page_path = '/describer/'
+    recipient_token, uid = _test_session_key('describer'), _test_account_id('describer')
+    owner_token = _test_session_key('describer_01')          # le compte DÉVELOPPEUR
+    owner = get_test_dev_user()
+    if not (recipient_token and owner_token and uid and owner) or owner.pk == uid:
+        raise SkipScenario('deux comptes de test distincts sont nécessaires')
+    requester = get_user_model().objects.get(pk=uid)
+    home = app_media_dir('describer', owner.pk, 'input')
+    folder = Path(settings.MEDIA_ROOT) / home
+    folder.mkdir(parents=True, exist_ok=True)
+    name = 'wama_temoin_lecture_seule.txt'
+    source = _temoin(folder, name, '.txt')
+    item = Description.objects.create(user=owner, filename=name)
+    item.input_file.name = f'{home}/{name}'
+    item.save(update_fields=['input_file'])
+    owner_batch = _wrap_description_in_batch(item)
+    partager(owner, item, 'public')
+    status_before = item.status
+    card = f".wama-card[data-id='{item.pk}']"
+    notice = '.wama-readonly-notice'
+    before, verdicts, grant = _session_keys(), [], None
+    try:
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, recipient_token)
+            try:
+                resp = page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(page, resp, page_path)
+                if refused_page:
+                    return refused_page
+                label = page.evaluate(
+                    f"() => getComputedStyle(document.querySelector(\"{card}\"), '::before').content")
+                verdicts.append(('Lecture seule' in (label or ''), f'pastille : {label}'))
+                for selector, what in (('.wama-cycle-btn', '▶'), ('.delete-btn', '🗑')):
+                    page.locator(f'{card} {selector}').first.click()
+                    shown = page.locator(notice).count() == 1 and 'Lecture seule' in page.inner_text(notice)
+                    verdicts.append((shown, f'{what} ouvre l’encart « lecture seule »'))
+                    page.keyboard.press('Escape')
+                page.locator(f'{card} .settings-btn').first.click()
+                page.wait_for_selector('.modal.show [data-wama-ro-banner]', timeout=15000)
+                verdicts.append((page.locator('.modal.show .save-settings-btn:visible').count() == 0,
+                                 '⚙ en consultation : rien à enregistrer'))
+                page.locator('.modal.show [data-bs-dismiss="modal"]').first.click()
+                page.wait_for_selector('.modal.show', state='detached', timeout=10000)
+                page.locator(card).first.click(button='right')
+                page.locator('.wama-card-menu .wama-cm-item:has-text("Mon accès")').first.click()
+                page.wait_for_selector('.wama-cm-sous .wama-cm-item:has-text("propriétaire")',
+                                       timeout=15000)
+                texts = page.locator('.wama-cm-sous .wama-cm-item').all_inner_texts()
+                verdicts.append((any('Lecture seule' in t and 'votre accès' in t for t in texts)
+                                 and any('bientôt' in t for t in texts),
+                                 f'« Mon accès » : lecture cochée, modes à venir grisés ({texts})'))
+                page.locator('.wama-cm-sous .wama-cm-item:has-text("Demander à en devenir")').first.click()
+                page.wait_for_timeout(1500)
+                verdicts.append(_console(errors))
+            finally:
+                nav.close()
+        grant = ObjectGrant.objects.filter(beneficiary=requester, object_id=item.pk,
+                                           level=ObjectGrant.LEVEL_OWN).first()
+        verdicts.append((grant is not None and grant.state == ObjectGrant.STATE_REQUESTED,
+                         'la demande de propriété est enregistrée'))
+        note = Notification.objects.filter(recipient=owner, kind='access_request').order_by('-pk').first()
+        if grant is not None and note is not None:
+            with sync_playwright() as p:
+                nav, page, errors = _ouvrir(p, owner_token)
+                try:
+                    # La fenêtre en bas à droite montre ce qui est plus récent que le dernier vu.
+                    page.add_init_script(
+                        f"localStorage.setItem('wama.notifications.lastSeen', '{note.pk - 1}')")
+                    page.goto(BASE_URL + '/common/notifications/', wait_until='networkidle', timeout=60000)
+                    popup = page.locator(f'.wama-notif-popup[data-notification-id="{note.pk}"]')
+                    popup.wait_for(timeout=15000)
+                    verdicts.append(('demande' in popup.inner_text(),
+                                     'la notification surgit en bas à droite'))
+                    popup.locator('a:has-text("Ouvrir")').click()
+                    page.wait_for_selector('[data-request-answer="1"]', timeout=15000)
+                    page.click('[data-request-answer="1"]')
+                    page.wait_for_selector('[data-request-answer]', state='detached', timeout=20000)
+                    verdicts.append(('Accordé' in page.inner_text('[data-request-state]'),
+                                     'la demande est accordée'))
+                    verdicts.append(_console(errors))
+                finally:
+                    nav.close()
+        item.refresh_from_db()
+        verdicts.append((item.status == status_before, '▶ n’a rien lancé'))
+        verdicts.append((item.user_id == requester.pk, 'acceptée, la card est au demandeur'))
+    finally:
+        _drop_new_sessions(before)
+        # Ménage, MÊME sur un échec (un témoin resté en base fausse la mesure suivante) : la card
+        # (chez l'un ou l'autre), son lot, la demande, les notifications, le fichier.
+        item.refresh_from_db()
+        moved = Path(settings.MEDIA_ROOT) / item.input_file.name if item.input_file else None
+        ObjectGrant.objects.filter(object_id=item.pk, beneficiary=requester).delete()
+        Notification.objects.filter(recipient__in=[owner, requester],
+                                    kind__in=['access_request', 'card_transferred']).filter(
+            body__contains=name).delete()
+        ReceivedEntry.objects.filter(recipient=requester, object_id=owner_batch.pk).delete()
+        BatchDescription.objects.filter(items__description=item).delete()
+        Description.objects.filter(pk=item.pk).delete()
+        BatchDescription.objects.filter(pk=owner_batch.pk).delete()
+        for path in (source, moved):
+            if path:
+                path.unlink(missing_ok=True)
+    return _bilan(verdicts)
+
+
 def check_card_transfer():
     """« Transférer à… » par le VRAI chemin : clic droit sur une card → entrée du menu → saisie du
     destinataire → la card QUITTE la file sans rechargement ; en base, elle est au destinataire,
@@ -1239,6 +1364,11 @@ def register_menu_scenarios():
                          "ma file » sans rechargement, « Réafficher » la remet ; rien ne bouge chez "
                          "le propriétaire",
              run=lambda ctx: check_received_entry_arrangement(), timeout_s=240)
+    register(id='common.received_card_readonly_request', app='common', stage='ui',
+             description="Card REÇUE en lecture seule (▶ 🗑 → encart, ⚙ en consultation, « Mon "
+                         "accès ») puis demande de propriété : notification en bas à droite chez "
+                         "le propriétaire, « Accepter » lui cède la card",
+             run=lambda ctx: check_received_card_readonly_and_request(), timeout_s=300)
     register(id='common.card_transfer', app='common', stage='ui',
              description="« Transférer à… » depuis le menu de la card : elle quitte la file sans "
                          "rechargement, appartient au destinataire, son fichier déplacé chez lui",

@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% comment %}
+UNE DEMANDE d'accès sur une card partagée (2026-10-03, `ObjectGrant` — WAMA_COLLABORATION §3bis,
+§4.3) : là où la notification du propriétaire renvoie. Le propriétaire accepte ou refuse ; le
+demandeur voit l'état. Accepter la PROPRIÉTÉ cède l'élément (« Transférer à… », ses fichiers le
+suivent) — un élément qui porte une personne demande d'abord le consentement de celui qui cède.
+{% endcomment %}
+
+{% block title %}WAMA — Demande d'accès{% endblock %}
+
+{% block extra_css %}
+<style>
+    .access-page { padding: 2rem 0; max-width: 46rem; }
+    .access-page h1 { font-size: 1.5rem; font-weight: 600; color: #e9ecef; margin-bottom: 1rem; }
+    .access-card { background: #1a1a2e; border: 1px solid rgba(167, 139, 250, .45);
+                   border-radius: .5rem; padding: 1rem 1.15rem; color: #dee2e6; }
+    .access-card dt { color: #c4b5fd; font-weight: 500; }
+    .access-card dd { color: #f1f3f5; margin-bottom: .5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container access-page">
+  <h1><i class="fas fa-hand me-2" style="color:#c4b5fd;"></i>Demande d'accès</h1>
+  <div class="access-card">
+    <dl class="mb-3">
+      <dt>Demandé par</dt><dd>{{ grant.beneficiary.get_full_name|default:grant.beneficiary.username }}</dd>
+      <dt>Ce qui est demandé</dt>
+      <dd>{% if grant.level == 'own' %}En devenir propriétaire — la card et ses fichiers passeraient à cette personne{% else %}{{ grant.get_level_display }}{% endif %}</dd>
+      <dt>Élément</dt><dd>« {{ element_label }} »{% if element_app %} ({{ element_app }}){% endif %}</dd>
+      <dt>Le</dt><dd>{{ grant.created_at|date:"d/m/Y H:i" }}</dd>
+      <dt>État</dt><dd data-request-state>{{ grant.get_state_display }}{% if grant.answered_at %} le {{ grant.answered_at|date:"d/m/Y H:i" }}{% endif %}</dd>
+    </dl>
+    {% if is_owner and grant.state == 'requested' %}
+    <div data-request-consent hidden class="mb-3">
+      <div class="alert alert-warning small mb-2 py-2" data-request-statement></div>
+      <label class="form-check small"><input type="checkbox" class="form-check-input" data-request-consent-check> Je valide ce consentement</label>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-success" data-request-answer="1">
+        <i class="fas fa-check me-1"></i>Accepter
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-danger" data-request-answer="0">
+        <i class="fas fa-xmark me-1"></i>Refuser
+      </button>
+    </div>
+    <div class="small mt-2" data-request-message></div>
+    {% elif not is_owner and grant.state == 'requested' %}
+    <p class="small text-white-50 mb-0">Votre demande attend la réponse du propriétaire.</p>
+    {% endif %}
+  </div>
+</div>
+{% if is_owner and grant.state == 'requested' %}
+<script>
+(function () {
+  const url = "{% url 'common:access_request_answer' grant.pk %}";
+  const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+  const msg = document.querySelector('[data-request-message]');
+  const consentBox = document.querySelector('[data-request-consent]');
+  document.querySelectorAll('[data-request-answer]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const fd = new FormData();
+      fd.append('accept', btn.dataset.requestAnswer);
+      if (!consentBox.hidden && document.querySelector('[data-request-consent-check]').checked)
+        fd.append('consent', '1');
+      fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.done) { location.reload(); return; }
+          if (res.consent_required) {
+            consentBox.hidden = false;
+            document.querySelector('[data-request-statement]').textContent = res.statement;
+            msg.textContent = 'Validez le consentement, puis acceptez de nouveau.';
+            return;
+          }
+          msg.textContent = 'Impossible — ' + (res.reason || 'refusé');
+        });
+    });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

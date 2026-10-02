@@ -95,14 +95,29 @@ def entry_arrangement(user, entry, lines):
 
     Rend None si l'entrée est REÇUE et retirée de sa file (à ne pas montrer) ; `{}` si elle est à
     lui ; sinon ce que sa ligne de file reçoit en plus : `received_from` (« reçue de … ») et SON
-    ordre manuel `queue_index` (0 = jamais ordonné). `lines` vient de `lines_for`."""
+    ordre manuel `queue_index` (0 = jamais ordonné). `lines` vient de `lines_for`.
+
+    `share_label` (2026-10-03) — la PASTILLE du niveau de partage, des DEUX côtés : « Reçue de X ·
+    👁 Lecture seule » chez le destinataire, « Partagée · LESCOT · 👁 Lecture seule » chez le
+    propriétaire d'une entrée partagée ; absente d'une entrée privée."""
+    from wama.common.services.sharing import CURRENT_SHARE_MODE, scope_label
+    mode = f"{CURRENT_SHARE_MODE['icon']} {CURRENT_SHARE_MODE['label']}"
     if getattr(entry, 'user_id', None) == getattr(user, 'pk', None):
-        return {}
+        scope = scope_label(entry)
+        return {'share_label': css_safe(f'Partagée · {scope} · {mode}')} if scope else {}
     line = lines.get((object_type_of(entry), entry.pk))
     if line is not None and line.hidden_at is not None:
         return None
-    return {'received_from': owner_label(entry),
+    sender = owner_label(entry)
+    return {'received_from': sender,
+            'share_label': css_safe(f'Reçue de {sender} · {mode}'),
             'queue_index': line.queue_index if line is not None else 0}
+
+
+def css_safe(text: str) -> str:
+    """Un texte écrit dans une chaîne CSS (`--wama-share-label`, `_queue_entry.html`) : ni guillemet
+    ni barre oblique inverse n'y entrent — l'apostrophe devient sa forme typographique."""
+    return (text or '').replace("'", '’').replace('"', '').replace('\\', '')
 
 
 def set_order(user, model, ordered_ids) -> int:
@@ -126,12 +141,8 @@ def set_order(user, model, ordered_ids) -> int:
 
 
 def owner_label(entry) -> str:
-    """Le nom à afficher pour « reçue de … » : celui du propriétaire de l'entrée.
-
-    Il est écrit dans une chaîne CSS (`--wama-received`, `_queue_entry.html`) : ni guillemet ni
-    barre oblique inverse n'y entrent — l'apostrophe devient sa forme typographique."""
+    """Le nom à afficher pour « reçue de … » : celui du propriétaire de l'entrée (CSS-sûr)."""
     owner = getattr(entry, 'user', None)
     if owner is None:
         return ''
-    name = owner.get_full_name() or owner.username
-    return name.replace("'", '’').replace('"', '').replace('\\', '')
+    return css_safe(owner.get_full_name() or owner.username)

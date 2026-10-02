@@ -489,6 +489,70 @@
         };
     }
 
+    /** Coordonnées de partage d'une card reçue (sa mère → le lot). */
+    function coordonneesRecues(card, estMere) {
+        if (!global.WamaShare) return null;
+        return estMere ? WamaShare.coordonneesDuLot(card) : WamaShare.coordonnees(card);
+    }
+
+    /** DEMANDER un niveau (2026-10-03, `common/services/access_requests.py`) : le propriétaire est
+     *  prévenu dans WAMA ; la réponse arrive en notification. */
+    function demanderAcces(c, level) {
+        return poster('/common/api/access/request/', {
+            surface: c.surface, pk: c.pk, nature: c.nature || 'element', level: level,
+        }).then(function (res) {
+            if (res && res.requested) dire('Demande envoyée — le propriétaire est prévenu.', 'ok');
+            else dire('Demande impossible — ' + ((res && res.reason) || 'refusée'), 'error');
+        });
+    }
+
+    /**
+     * « Mon accès » — sur une card REÇUE (décision de Fabien, 2026-10-03) : le niveau courant,
+     * COCHÉ ; les demandes par niveau (modification, collaboration : grisées « bientôt » tant que
+     * leur mode n'existe pas) ; la demande de PROPRIÉTÉ, honorable dès aujourd'hui. Résolu au
+     * serveur à l'ouverture du sous-menu (une demande déjà en attente le dit).
+     */
+    function entreeMonAcces(card, estMere) {
+        return {
+            icone: 'fas fa-user-lock', libelle: 'Mon accès',
+            sous: [{ chargement: true }],
+            charger: function () {
+                var c = coordonneesRecues(card, estMere);
+                if (!c) return Promise.resolve([{ vide: true, libelle: 'Coordonnées introuvables' }]);
+                var q = '?surface=' + encodeURIComponent(c.surface) + '&pk=' + encodeURIComponent(c.pk)
+                    + '&nature=' + encodeURIComponent(c.nature || 'element');
+                return fetch('/common/api/access/' + q, { headers: { 'Accept': 'application/json' } })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (d) {
+                        if (!d) return [{ vide: true, libelle: 'Accès indisponible' }];
+                        var pending = d.pending || {};
+                        var lignes = (d.modes || []).map(function (m) {
+                            if (m.key === d.mode) {
+                                return { icone: 'fas fa-check wama-cm-coche', desactive: true,
+                                         libelle: m.icon + ' ' + m.label + ' — votre accès' };
+                            }
+                            if (!m.available) {
+                                return { icone: 'fas fa-hourglass-half', desactive: true,
+                                         libelle: 'Demander : ' + m.label + ' (bientôt)' };
+                            }
+                            return pending[m.key]
+                                ? { icone: 'fas fa-paper-plane', desactive: true,
+                                    libelle: m.label + ' — demande envoyée' }
+                                : { icone: 'fas fa-paper-plane', libelle: 'Demander : ' + m.label,
+                                    agir: function () { demanderAcces(c, m.key); } };
+                        });
+                        lignes.push({ separateur: true });
+                        lignes.push(pending.own
+                            ? { icone: 'fas fa-crown', desactive: true,
+                                libelle: 'Propriété — demande envoyée à ' + (d.owner || 'son propriétaire') }
+                            : { icone: 'fas fa-crown', libelle: 'Demander à en devenir propriétaire',
+                                agir: function () { demanderAcces(c, 'own'); } });
+                        return lignes;
+                    });
+            },
+        };
+    }
+
     function actionsTransverses(card, cibles) {
         var q = file(card);
         if (!q) return [];
@@ -507,6 +571,7 @@
         var dansUnLot = (estLot || recue) ? [] : cibles.filter(lotDe);
 
         if (recue && cibles.length === 1 && global.WamaShare) {
+            entrees.push(entreeMonAcces(card, estLot));
             entrees.push(entreeRetirerDeMaFile(card, recue, estLot));
         }
 
@@ -1207,6 +1272,125 @@
     } else {
         annoncerRetirees();
     }
+
+    // ══ CARD REÇUE : LES BOUTONS DU PROPRIÉTAIRE, MONTRÉS EN LECTURE SEULE (2026-10-03) ═════════
+    // Décision de Fabien : *« plutôt que de masquer les boutons, les afficher en lecture seule dans
+    // un style qui montre explicitement qu'ils ne sont pas utilisables, avec l'encart qui précise
+    // lecture seule, dupliquer ou s'approprier la card »*. ▶ (`.wama-cycle-btn`, commun aux 11
+    // cards) et 🗑 (`.delete-btn`, idem) — plus ▶ 🗑 ⚙ du LOT — sont estompés par la CSS commune ;
+    // un clic est arrêté en CAPTURE (avant `wama-cycle-button.js` et `queue-actions.js`, qui
+    // écoutent à la remontée) et ouvre l'encart. ⚙ d'une CARD reste actif : la modale s'ouvre en
+    // CONSULTATION (option 2). Le serveur refuse de toute façon ces gestes (`owned_or_404`) : ceci
+    // dit POURQUOI au lieu de laisser un refus sec.
+    var OWNER_ONLY = '.wama-cycle-btn, .delete-btn, .batch-start-btn, .batch-delete-btn, .batch-settings-btn';
+    var notice = null;
+
+    function fermerEncart() {
+        if (notice) { notice.remove(); notice = null; }
+    }
+
+    function readOnlyNotice(btn, enveloppe) {
+        fermerEncart();
+        var owner = enveloppe.getAttribute('data-received-from') || 'son propriétaire';
+        var card = btn.closest('.wama-card') || enveloppe.querySelector('.wama-card');
+        var estMere = !!(card && card.classList.contains('is-batch'));
+        notice = document.createElement('div');
+        notice.className = 'wama-readonly-notice';
+        notice.setAttribute('role', 'dialog');
+        notice.innerHTML = '<div class="mb-1"><i class="fas fa-lock me-1"></i><b>Lecture seule</b> — '
+            + (estMere ? 'lot' : 'card') + ' de ' + echapperTexte(owner) + '.</div>'
+            + '<div class="mb-1">Pour la modifier : <button type="button" class="btn btn-link" '
+            + 'data-ro-dup>⧉ la dupliquer</button> (la copie est à vous), ou '
+            + '<button type="button" class="btn btn-link" data-ro-own>demander à en devenir '
+            + 'propriétaire</button>.</div>';
+        document.body.appendChild(notice);
+        var r = btn.getBoundingClientRect();
+        var w = notice.offsetWidth, h = notice.offsetHeight;
+        notice.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + 'px';
+        notice.style.top = (r.bottom + h + 12 < window.innerHeight ? r.bottom + 6 : r.top - h - 6) + 'px';
+        notice.querySelector('[data-ro-dup]').addEventListener('click', function () {
+            fermerEncart();
+            var dup = estMere ? enveloppe.querySelector('.batch-duplicate-btn')
+                              : card && card.querySelector('.duplicate-btn');
+            if (dup) dup.click();
+        });
+        notice.querySelector('[data-ro-own]').addEventListener('click', function () {
+            fermerEncart();
+            var c = card && coordonneesRecues(card, estMere);
+            if (c) demanderAcces(c, 'own');
+        });
+    }
+
+    function echapperTexte(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (ch) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+        });
+    }
+
+    // ⚙ en CONSULTATION : la prochaine modale qui s'ouvre (quelle que soit l'app — l'ouvreur reçoit
+    // le pk, pas l'enveloppe) est marquée `data-wama-readonly` : la CSS commune masque ses boutons
+    // d'enregistrement, ses champs sont désactivés, un bandeau dit à qui sont ces réglages. Le
+    // marquage est défait à la fermeture : un même élément de modale sert aussi aux cards à soi.
+    function armerConsultation(owner) {
+        var expire = setTimeout(desarmer, 6000);
+        function desarmer() {
+            clearTimeout(expire);
+            document.removeEventListener('show.bs.modal', surOuverture, true);
+        }
+        function verrouiller(modal) {
+            modal.querySelectorAll('input, select, textarea, button').forEach(function (el) {
+                if (el.closest('.modal-header') || el.matches('[data-bs-dismiss]')) return;
+                if (!el.disabled) { el.disabled = true; el.setAttribute('data-wama-ro', ''); }
+            });
+        }
+        function surOuverture(ev) {
+            var modal = ev.target;
+            desarmer();
+            modal.setAttribute('data-wama-readonly', '');
+            var body = modal.querySelector('.modal-body');
+            if (body && !body.querySelector('[data-wama-ro-banner]')) {
+                body.insertAdjacentHTML('afterbegin', '<div class="alert small py-2 mb-3" '
+                    + 'data-wama-ro-banner style="background:rgba(139,92,246,.15);color:#ede9fe;'
+                    + 'border:1px solid rgba(167,139,250,.45);"><i class="fas fa-lock me-1"></i>'
+                    + 'Réglages de <b>' + echapperTexte(owner) + '</b>, en lecture seule. Pour les '
+                    + 'changer, dupliquez la card (⧉) : la copie est à vous.</div>');
+            }
+            // Les champs peuvent être rendus APRÈS l'ouverture (valeurs lues au serveur) : on
+            // verrouille à l'ouverture, puis ce qui arrive pendant que la modale est ouverte.
+            var obs = new MutationObserver(function () { verrouiller(modal); });
+            modal.addEventListener('shown.bs.modal', function () { verrouiller(modal); }, { once: true });
+            obs.observe(modal, { childList: true, subtree: true });
+            modal.addEventListener('hidden.bs.modal', function () {
+                obs.disconnect();
+                modal.removeAttribute('data-wama-readonly');
+                modal.querySelectorAll('[data-wama-ro-banner]').forEach(function (b) { b.remove(); });
+                modal.querySelectorAll('[data-wama-ro]').forEach(function (el) {
+                    el.disabled = false; el.removeAttribute('data-wama-ro');
+                });
+            }, { once: true });
+        }
+        document.addEventListener('show.bs.modal', surOuverture, true);
+    }
+
+    window.addEventListener('click', function (ev) {
+        if (!ev.target || !ev.target.closest) return;
+        if (notice && !notice.contains(ev.target)) fermerEncart();
+        var enveloppe = ev.target.closest('[data-received-from]');
+        if (!enveloppe) return;
+        var btn = ev.target.closest(OWNER_ONLY);
+        if (btn) {
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            readOnlyNotice(btn, enveloppe);
+            return;
+        }
+        if (ev.target.closest('.settings-btn[data-id]')) {
+            armerConsultation(enveloppe.getAttribute('data-received-from') || '');
+        }
+    }, true);
+    window.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape') fermerEncart();
+    });
 
     global.WamaCardMenu = {
         autoInit: autoInit, ouvrir: ouvrir, fermer: fermer,

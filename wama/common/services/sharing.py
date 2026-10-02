@@ -26,10 +26,11 @@ rien, et rien ne le lui dirait. C'est le pire des retours, et c'est pour ça que
 dans le SERVICE et non à la charge de l'appelant.
 
 ⚠ AUCUN DROIT D'ÉCRITURE n'est accordé. Le partage est en lecture seule **par construction**, pas
-par vigilance : `visibility` ne dit QUE qui voit. L'escalade « demande → acceptation » est le
-jalon **S3 `AccessGrant`** (`PROFILES_PERMISSIONS §8.7`), encore dû — et §7.5 est explicite sur
-l'ordre : construire l'écriture avant l'adoption reviendrait à empiler du neuf sur du
-non-branché. L'UI doit donc DIRE « lecture seule », sans quoi elle promettrait S3.
+par vigilance : `visibility` ne dit QUE qui voit. L'escalade « demande → acceptation » vit dans
+`ObjectGrant` (`WAMA_COLLABORATION §4.3` — droits sur une INSTANCE ; ~~S3 `AccessGrant`~~, cité ici
+jusqu'au 2026-10-03, porte les droits sur une APP : `PROFILES_PERMISSIONS:392`, « deux tables »).
+Depuis le 2026-10-03 on peut y DEMANDER la propriété (`access_requests`) ; l'écriture partagée
+reste à construire. L'UI doit donc DIRE « lecture seule », sans quoi elle promettrait l'écriture.
 
 ⚠ Seul le PROPRIÉTAIRE partage. Ce n'est pas une politique inventée ici : `scoped_visible_q`
 donne déjà à un destinataire la seule LECTURE, donc lui laisser repartager reviendrait à créer un
@@ -41,6 +42,32 @@ from wama.common.utils.batch_common import batch_of
 #: Les portées, DÉRIVÉES du mixin — jamais recopiées. Une 5ᵉ valeur ajoutée au modèle apparaît
 #: ici sans geste, et l'UI la propose sans qu'on y touche.
 PORTEES = dict(ScopedVisibility.VIS_CHOICES)
+
+#: Les MODES de partage d'une card (`WAMA_COLLABORATION §3bis.1`, décision de Fabien 2026-09-30) —
+#: une seule déclaration, lue par la pastille de la card, le menu « … » (« Mon accès ») et la
+#: modale « Partager… ». `available` : seul la LECTURE existe dans le code ; les deux autres sont
+#: montrés GRISÉS (« bientôt ») — décision de Fabien, 2026-10-03 — jusqu'à leur construction.
+#: L'icône n'est pas décorative : le niveau se lit au mot ET au signe, jamais à la seule couleur.
+SHARE_MODES = (
+    {'key': 'read', 'label': 'Lecture seule', 'icon': '👁', 'available': True},
+    {'key': 'fork', 'label': 'Modification', 'icon': '✎', 'available': False},
+    {'key': 'collaborate', 'label': 'Collaboration', 'icon': '👥', 'available': False},
+)
+#: Le mode d'un partage tant qu'aucun autre n'existe : la lecture (voir `SHARE_MODES`).
+CURRENT_SHARE_MODE = SHARE_MODES[0]
+
+
+def scope_label(element) -> str:
+    """La portée d'un élément partagé, dite par sa CIBLE (« LESCOT », « Projet X », « Public ») —
+    ce que la pastille de la card affiche chez son propriétaire. '' s'il est privé."""
+    vis = getattr(element, 'visibility', ScopedVisibility.VIS_PRIVATE)
+    if vis == ScopedVisibility.VIS_PRIVATE:
+        return ''
+    if vis == ScopedVisibility.VIS_UNIT and getattr(element, 'scope_org_unit', None):
+        return element.scope_org_unit.name
+    if vis == ScopedVisibility.VIS_PROJECT and getattr(element, 'scope_project', None):
+        return str(element.scope_project)
+    return PORTEES.get(vis, vis)
 
 
 class RefusDePartage(Exception):

@@ -627,6 +627,52 @@ class ReceivedEntry(models.Model):
         return f'{self.recipient} · {self.object_type}#{self.object_id}'
 
 
+class ObjectGrant(models.Model):
+    """Un DROIT sur une instance — et la DEMANDE de ce droit : la même ligne (2026-10-03).
+
+    La table dessinée au `WAMA_COLLABORATION §4.3` : *« la demande ET le droit sont la même ligne :
+    demander = une ligne `requested` que le propriétaire passe à `granted` »*. ⚠ Pas `AccessGrant`
+    (`PROFILES_PERMISSIONS §8.7`), qui porte les droits sur une APP ; celle-ci, sur un ÉLÉMENT.
+
+    Premier usage (décision de Fabien, 2026-10-03) : le destinataire d'une card reçue DEMANDE un
+    niveau — la PROPRIÉTÉ, seule honorable aujourd'hui (l'accepter déclenche « Transférer à… ») ;
+    modification et collaboration sont affichées grisées tant que leur mode n'existe pas. Les
+    niveaux suivent la proposition M4 (`read | fork | collaborate`), plus `own`.
+    Cible par chaîne + pk, comme `ShareConsent` et `ReceivedEntry` (le §4.3 dessinait une clé
+    générique : la convention du code a prévalu). Bénéficiaire : une PERSONNE pour l'instance ; le
+    projet et l'unité du §4.3 viendront avec l'écriture partagée.
+    """
+    LEVEL_READ, LEVEL_FORK, LEVEL_COLLABORATE, LEVEL_OWN = 'read', 'fork', 'collaborate', 'own'
+    LEVEL_CHOICES = [(LEVEL_READ, 'Lecture seule'), (LEVEL_FORK, 'Modification'),
+                     (LEVEL_COLLABORATE, 'Collaboration'), (LEVEL_OWN, 'Propriété')]
+    STATE_REQUESTED, STATE_GRANTED, STATE_REFUSED = 'requested', 'granted', 'refused'
+    STATE_CHOICES = [(STATE_REQUESTED, 'Demandé'), (STATE_GRANTED, 'Accordé'),
+                     (STATE_REFUSED, 'Refusé')]
+
+    object_type = models.CharField(max_length=64)            # `app_label.ModelName`
+    object_id = models.PositiveBigIntegerField()
+    surface = models.CharField(max_length=64, blank=True, default='')   # coordonnées du partage
+    beneficiary = models.ForeignKey('auth.User', on_delete=models.CASCADE,
+                                    related_name='object_grants')
+    level = models.CharField(max_length=16, choices=LEVEL_CHOICES)
+    state = models.CharField(max_length=12, choices=STATE_CHOICES, default=STATE_REQUESTED,
+                             db_index=True)
+    granted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['object_type', 'object_id'])]
+        verbose_name = "Droit sur un élément (ou sa demande)"
+        verbose_name_plural = "Droits sur des éléments (et demandes)"
+
+    def __str__(self):
+        return f'{self.beneficiary} · {self.level} · {self.object_type}#{self.object_id} · {self.state}'
+
+
 class ReleasedFile(models.Model):
     """Un fichier que plus aucune card n'appelle — GARDÉ, l'utilisateur prévenu (2026-09-30).
 
