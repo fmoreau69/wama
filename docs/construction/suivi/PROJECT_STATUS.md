@@ -20405,3 +20405,39 @@ Demande de Fabien : « fais le rangement chez le destinataire (§3bis.2) ».
   `speech_activity` et `audio_decode` comprises) ; le rapport
   `asr_eval_corpus --report` exige le réseau (proxy UGE en 503 ce soir) — les chiffres viennent
   directement des mesures en base.
+
+## §PALIER — 2026-10-03 (nuit), « PORTAGE : DÉTAIL DÉCLARATIF 9/10 (C) + vérification navigateur de D » — ✅ `f9bda24c`, `fadad68b`, non poussés — 🔴 RECHARGER gunicorn (le live ne sert plus HEAD depuis `34dcf8ac` : `/common/api/reception/hidden/` en 404 sur chaque page) — 🔚 scénario `composer.settings` à rendre indifférent à une card en cours · réglages répétés au volet (décision)
+
+**C — décision de Fabien** (« aligner les applications, uniformiser, porter au commun ; ok pour
+les formes génériques »). Lus un par un, cinq adapters code de détail (anonymizer, avatarizer,
+composer, synthesizer, transcriber) ne faisaient que nommer des champs : la spec a gagné quatre
+formes génériques (`spec_value` : liste = premier champ non vide, `when_any` ; `extra` :
+`max_chars`, libellé lu au schéma), l'inspecteur affiche « Oui » pour un réglage vrai (une règle,
+toutes apps). **Équivalence mesurée avant bascule** : 16 témoins sur 19 identiques clé pour clé ;
+les 3 autres = le transcriber, dont les libellés passent de quatre mots écrits à la main à ceux de
+son schéma (ceux de la modale ⚙) — visible, voulu. L'imager et `audio_enhancer` restent en
+adapter code, DÉCLARÉS (`tests_detail_spec.CODE_ADAPTERS`). Grille 912 → **917/939**
+(`detail_spec` 9/10) ; manifestes des cinq apps enrichis, aller-retour 10/10. Vocabulaire et
+gardes : `INSPECTOR_DETAIL_FIELDS §Le langage de la spec` ; `REMOVAL_LEDGER` R94.
+
+**D vérifié au navigateur** (serveur de dev jetable côté WSL — le live, relancé la veille, ne
+servait déjà plus HEAD ; compte de test `wama_ui_smoke_v3`, rien d'enregistré) : volet du
+composer en un hôte, un descriptif de moteur, bornes 30 / 300 / 600 s au volet et dans la modale.
+**Deux défauts trouvés et corrigés** (`f9bda24c`) : `_applyCap` comparait la valeur APRÈS avoir
+baissé `max` (le navigateur clampe sans événement : nombre affiché et estimation restaient faux —
+le double de test clampe désormais) ; le curseur Durée du composer n'avait pas de `default` au
+schéma (profil neuf : 305 s, libellé vide → `default=10`).
+
+**Mesures.** Suite complète : 4946 tests, 16 rouges, aucun dans ces fichiers — les 14 connus
+(docs générées de l'arbre ×2, notifications ×3, budgets de langue ×5, `tool_api`, `audio/x-wav`,
+stub imager, `quality_intent` du transcriber) + 2 dans `cam_analyzer`, fichiers en cours de
+modification par une autre session.
+
+**Restes, nommés.**
+- `composer.settings` (nocturne) prend la première card du compte : #282 est une génération
+  YuE2 légitimement en file (`gpu:9`, derrière la campagne), son ⚙ répond 400 à bon droit → le
+  scénario doit préférer une card qui n'est pas en cours (`data-status`, uniforme).
+- Volet : le moteur et le format/qualité de sortie sont rendus deux fois (`extra_from_params`
+  relit ce que `build_detail` a rendu ; le converter a une raison datée, 2026-08-13). Décision.
+- Jumelles du bac à sable : à régénérer (R90) ; 18 manifestes de modèles régénérés dans l'arbre
+  par `manifest_export` restent non commités (pas les miens).
