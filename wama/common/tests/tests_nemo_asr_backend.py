@@ -32,6 +32,33 @@ class WordsToSegmentsTest(SimpleTestCase):
         self.assertEqual(['On est une', 'association ? Donc il faut.'], [s.text for s in segs])
 
 
+class CudaGraphDecodingTest(SimpleTestCase):
+    """2026-10-02: with other models RESIDENT in the GPU worker, LinTO reused after Kyutai hit
+    « illegal memory access » and took the whole queue down; with CUDA_LAUNCH_BLOCKING=1 the same
+    sequence passed — a race between streams. The greedy RNNT/TDT decoder replays CUDA graphs on
+    its own stream: it is switched off at load."""
+
+    def _backend(self, decoding):
+        from unittest import mock
+
+        from omegaconf import OmegaConf
+        backend = NemoASRBackend()
+        backend._model = mock.Mock(cfg=OmegaConf.create({'decoding': decoding}))
+        return backend
+
+    def test_the_greedy_decoder_loses_its_cuda_graphs(self):
+        backend = self._backend({'strategy': 'greedy_batch', 'greedy': {'max_symbols': 10}})
+        backend._disable_cuda_graph_decoding()
+        cfg = backend._model.change_decoding_strategy.call_args.args[0]
+        self.assertFalse(cfg.greedy.use_cuda_graph_decoder)
+        self.assertEqual(10, cfg.greedy.max_symbols, 'the rest of the decoding is kept')
+
+    def test_counter_check_a_decoder_without_greedy_config_is_left_alone(self):
+        backend = self._backend({'strategy': 'beam', 'beam': {'beam_size': 1}})
+        backend._disable_cuda_graph_decoding()
+        backend._model.change_decoding_strategy.assert_not_called()
+
+
 class DeclarationTest(SimpleTestCase):
 
     def test_the_runtime_installs_without_its_pins_and_the_list_is_exhaustive(self):

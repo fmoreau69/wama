@@ -189,6 +189,7 @@ class NemoASRBackend(SpeechToTextBackend):
             logger.info(f"[NeMo] Loading '{model_id}' on {device} from {archive}")
             self._model = nemo_asr.models.ASRModel.restore_from(str(archive), map_location=device)
             self._model.eval()
+            self._disable_cuda_graph_decoding()
 
             self._model_id = model_id
             self._loaded = True
@@ -201,6 +202,28 @@ class NemoASRBackend(SpeechToTextBackend):
             self._model = None
             self._loaded = False
             return False
+
+    def _disable_cuda_graph_decoding(self) -> None:
+        """Décodage glouton RNNT/TDT SANS graphes CUDA. Par défaut, NeMo rejoue des graphes CUDA
+        capturés sur son propre flux : dans le worker GPU, où d'autres modèles restent RÉSIDENTS
+        (le transcriber ne décharge pas entre deux cards), LinTO réutilisé après Kyutai faisait
+        « illegal memory access » et corrompait le contexte CUDA — toute la file tombait ensuite
+        (campagne du 2026-10-02, trois fois). Avec `CUDA_LAUNCH_BLOCKING=1`, la même séquence
+        passait : une course entre flux, pas une mémoire trop petite. Le gain des graphes est
+        mince à notre échelle (un fichier à la fois)."""
+        try:
+            import copy
+
+            from omegaconf import open_dict
+            decoding = copy.deepcopy(self._model.cfg.decoding)
+            if 'greedy' not in decoding:
+                return                                # AED (Canary) : pas de décodeur à graphes
+            with open_dict(decoding):
+                decoding.greedy.use_cuda_graph_decoder = False
+            self._model.change_decoding_strategy(decoding, verbose=False)
+            logger.info("[NeMo] décodage sans graphes CUDA")
+        except Exception as e:                        # jamais bloquant : le défaut de NeMo reste
+            logger.warning(f"[NeMo] graphes CUDA laissés actifs ({e})")
 
     def unload(self) -> None:
         if self._model is not None:
