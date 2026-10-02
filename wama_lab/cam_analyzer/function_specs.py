@@ -293,16 +293,25 @@ _spec('camera_intrinsics', 'Champ des caméras (mesuré)',
       "virages francs de la trace, mesure la rotation vue dans l'image (`geometry.ego_rotation`, "
       "focale supposée) contre le cap GPS, en tire la focale réelle "
       "(`focal_scale_from_rotation`) et le champ de vue horizontal et vertical (pixels carrés). "
-      "Appliqué sous ⚑ measured_camera_fov par `camera_geometry`.",
+      "Puis l'ORIENTATION DE MONTAGE de toutes les caméras, virages et lignes droites, par le "
+      "mouvement connu (`geometry.known_motion_yaw`, focale connue) ; la caméra avant en est le "
+      "contrôle. Appliqués sous ⚑ measured_camera_fov et ⚑ measured_camera_yaw (latérales seules) "
+      "par `camera_geometry`.",
       FC.ENRICHER, 'cam_analyzer.tasks:compute_camera_intrinsics_task', ['vision', 'calibration', 'gnss'],
       inputs=[PortSpec('track', DT.GEO_TRACK, required_fields=['ts', 'lat', 'lon', 'heading'],
-                       description='Trace de la session : le cap GPS EN ROULANT est la référence.'),
+                       description='Trace de la session : le cap GPS EN ROULANT est la référence, '
+                                   'et le mouvement de la navette pour l\'orientation de montage.'),
               PortSpec('video', DT.DETECTIONS, required_fields=['frame_number'],
-                       description='Vidéos des caméras avant et arrière (lues image par image).',
+                       description='Vidéos des quatre caméras (lues image par image) : avant/arrière '
+                                   'pour le champ, toutes pour l\'orientation.',
                        group='reference')],
       outputs=[PortSpec('camera_intrinsics', DT.SCALAR,
-                        produced_fields=['fov_h', 'fov_v', 'fx_px', 'scale', 'n'],
-                        description="Champ de vue mesuré par caméra, stocké dans "
+                        produced_fields=['fov_h', 'fov_v', 'fx_px', 'scale', 'n', 'mount_yaw',
+                                         'yaw_control'],
+                        description="Champ de vue mesuré par caméra (avant/arrière) et orientation "
+                                    "de montage (`mount_yaw` : lacet, tangage, distorsion, retard de "
+                                    "la trace, verdict `applicable`) par caméra, plus le contrôle "
+                                    "avant (`yaw_control`), stockés dans "
                                     "`results_summary['camera_intrinsics']`, avec le recoupement "
                                     "par l'échelle latérale du recalage voie + carte.")],
       cost={'cpu_bound': True})

@@ -2002,9 +2002,10 @@ def compute_lane_map_recalage_task(self, session_id: str):
 @shared_task(bind=True)
 def compute_camera_intrinsics_task(self, session_id: str):
     """Passe « Champ des caméras » (CALCUL, CPU) : champ de vue des caméras avant/arrière MESURÉ
-    par la rotation vue dans l'image contre le cap GPS aux virages, stocké dans
-    `results_summary['camera_intrinsics']` ; appliqué sous ⚑ measured_camera_fov par
-    `camera_geometry`. Détail : `utils.camera_intrinsics`."""
+    par la rotation vue dans l'image contre le cap GPS aux virages, et orientation de montage de
+    toutes les caméras par le mouvement connu (contrôle : la caméra avant), stockés dans
+    `results_summary['camera_intrinsics']` ; appliqués sous ⚑ measured_camera_fov et
+    ⚑ measured_camera_yaw par `camera_geometry`. Détail : `utils.camera_intrinsics`."""
     close_old_connections()
     from .models import AnalysisSession
     from .utils.pass_tracking import mark_started, mark_completed, mark_failed
@@ -2015,7 +2016,9 @@ def compute_camera_intrinsics_task(self, session_id: str):
         _console(session.user_id, "Champ des caméras : rotation vue contre cap GPS aux virages…")
         report = measure_camera_intrinsics(session)
         measured = {p: report[p] for p in ('front', 'rear') if (report.get(p) or {}).get('fov_h')}
-        if not measured:
+        yaws = {p: m['mount_yaw'] for p, m in report.items()
+                if isinstance(m, dict) and 'yaw_deg' in (m.get('mount_yaw') or {})}
+        if not measured and not yaws:
             reason = (report.get('front') or {}).get('skipped') or 'aucune caméra mesurée'
             mark_failed(session, 'camera_intrinsics', reason)
             _console(session.user_id, f"Champ des caméras : {reason} ({report.get('turn_windows')} virages)")
@@ -2025,9 +2028,25 @@ def compute_camera_intrinsics_task(self, session_id: str):
         rs['camera_intrinsics'] = report
         session.results_summary = rs
         session.save(update_fields=['results_summary'])
-        mark_completed(session, 'camera_intrinsics', output_summary={
-            p: {k: m.get(k) for k in ('fov_h_declared', 'fov_h', 'fov_v', 'scale', 'n')}
-            for p, m in measured.items()})
+        summary = {p: {k: m.get(k) for k in ('fov_h_declared', 'fov_h', 'fov_v', 'scale', 'n')}
+                   for p, m in measured.items()}
+        for p, y in yaws.items():
+            summary.setdefault(p, {}).update({'yaw_deg': y['yaw_deg'], 'yaw_prior_deg': y.get('yaw_prior_deg'),
+                                              'yaw_applicable': y.get('applicable')})
+        mark_completed(session, 'camera_intrinsics', output_summary=summary)
+        ctl = report.get('yaw_control') or {}
+        for p, y in yaws.items():
+            _console(session.user_id,
+                     f"Orientation [{p}] : {y['yaw_deg']}° mesurés (saisi {y.get('yaw_prior_deg')}°, "
+                     f"sans distorsion {y.get('yaw_pinhole_deg')}°, tangage {y.get('pitch_deg')}°, "
+                     f"k1 {y.get('k1')}, retard trace {y.get('lag_s')} s ; coût {y.get('cost_prior')} → "
+                     f"{y.get('cost')}, netteté {y.get('rise_5deg')}"
+                     + (", AU BORD de la grille" if y.get('at_bound') else "") + ")"
+                     + (" — appliqué si ⚑ Orientation des latérales MESURÉE est ON"
+                        if y.get('applicable') else " — non appliqué"))
+        _console(session.user_id,
+                 f"Orientation — contrôle caméra avant : {ctl.get('yaw_deg')}° "
+                 + ("(OK)" if ctl.get('ok') else f"(ÉCHEC : écart > {ctl.get('max_deg')}°, latérales refusées)"))
         for p, m in measured.items():
             cross = m.get('lane_scale_cross_check')
             _console(session.user_id,

@@ -11,7 +11,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "Trace de la session : le cap GPS EN ROULANT est la référence.",
+        "description": "Trace de la session : le cap GPS EN ROULANT est la référence, et le mouvement de la navette pour l'orientation de montage.",
         "group": "travail",
         "key": "track",
         "optional": false,
@@ -26,7 +26,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "Vidéos des caméras avant et arrière (lues image par image).",
+        "description": "Vidéos des quatre caméras (lues image par image) : avant/arrière pour le champ, toutes pour l'orientation.",
         "group": "reference",
         "key": "video",
         "optional": false,
@@ -41,7 +41,7 @@
       {
         "cardinality": "one",
         "data_type": "scalar",
-        "description": "Champ de vue mesuré par caméra, stocké dans `results_summary['camera_intrinsics']`, avec le recoupement par l'échelle latérale du recalage voie + carte.",
+        "description": "Champ de vue mesuré par caméra (avant/arrière) et orientation de montage (`mount_yaw` : lacet, tangage, distorsion, retard de la trace, verdict `applicable`) par caméra, plus le contrôle avant (`yaw_control`), stockés dans `results_summary['camera_intrinsics']`, avec le recoupement par l'échelle latérale du recalage voie + carte.",
         "key": "camera_intrinsics",
         "optional": false,
         "produced_fields": [
@@ -49,7 +49,9 @@
           "fov_v",
           "fx_px",
           "scale",
-          "n"
+          "n",
+          "mount_yaw",
+          "yaw_control"
         ],
         "required_fields": []
       }
@@ -66,7 +68,7 @@
     ],
     "visibility": "public"
   },
-  "description": "La PASSE `camera_intrinsics` (session-wide, CPU) : relit les vidéos avant/arrière aux virages francs de la trace, mesure la rotation vue dans l'image (`geometry.ego_rotation`, focale supposée) contre le cap GPS, en tire la focale réelle (`focal_scale_from_rotation`) et le champ de vue horizontal et vertical (pixels carrés). Appliqué sous ⚑ measured_camera_fov par `camera_geometry`.",
+  "description": "La PASSE `camera_intrinsics` (session-wide, CPU) : relit les vidéos avant/arrière aux virages francs de la trace, mesure la rotation vue dans l'image (`geometry.ego_rotation`, focale supposée) contre le cap GPS, en tire la focale réelle (`focal_scale_from_rotation`) et le champ de vue horizontal et vertical (pixels carrés). Puis l'ORIENTATION DE MONTAGE de toutes les caméras, virages et lignes droites, par le mouvement connu (`geometry.known_motion_yaw`, focale connue) ; la caméra avant en est le contrôle. Appliqués sous ⚑ measured_camera_fov et ⚑ measured_camera_yaw (latérales seules) par `camera_geometry`.",
   "key": "cam_analyzer.camera_intrinsics",
   "manifest_kind": "function",
   "name": "Champ des caméras (mesuré)",

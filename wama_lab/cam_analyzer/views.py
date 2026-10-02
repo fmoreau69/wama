@@ -348,11 +348,33 @@ def set_camera_yaw(request, session_id):
     try:
         body = json.loads(request.body or '{}')
         yaw = {k: float(v) for k, v in (body.get('camera_yaw') or {}).items() if k in _POS}
-        # FOV réels par caméra (vari-focales latérales : réglage terrain incertain 52-97°H).
+        # FOV réels par caméra (vari-focales latérales : réglage terrain incertain) — `h` et/ou
+        # `v`, complétés ci-dessous par les proportions de l'image.
         fov = {k: {a: float(x) for a, x in (v or {}).items() if a in ('h', 'v')}
                for k, v in (body.get('camera_fov') or {}).items() if k in _POS}
     except (ValueError, TypeError, AttributeError):
         return JsonResponse({'error': 'camera_yaw/camera_fov invalide'}, status=400)
+    # Un sténopé à pixels carrés n'a QU'UNE focale : le champ donné (V de préférence — c'est lui
+    # que les distances valident) fixe l'autre par les proportions de l'image de CETTE caméra. Le
+    # couple de la fiche F1015 (97° H ↔ 53° V, angles de bord à bord d'un objectif à distorsion)
+    # donnait deux focales sur la vidéo 384×244 — objets latéraux mal orientés aux jonctions
+    # (mesuré le 2026-10-02). Un couple fourni en entier n'est gardé que s'il est cohérent.
+    from .utils.prediction_adapter import square_pixel_fov
+    dims = {c.position: (c.width, c.height) for c in session.cameras.all()}
+    for pos, f in list(fov.items()):
+        if not f:
+            fov.pop(pos)
+            continue
+        w, h = dims.get(pos, (None, None))
+        pair = square_pixel_fov(w, h, fov_v=f.get('v')) if 'v' in f else \
+            square_pixel_fov(w, h, fov_h=f.get('h'))
+        if pair is None:
+            return JsonResponse({'error': f'taille d’image inconnue pour la caméra {pos}'}, status=400)
+        if 'h' in f and 'v' in f and abs(pair[0] - f['h']) > 1.0:
+            return JsonResponse({'error': (
+                f"champ {f['h']}° H × {f['v']}° V incohérent pour l'image {w}×{h} de la caméra {pos} "
+                f"(pixels carrés : {f['v']}° V ↔ {pair[0]}° H)")}, status=400)
+        fov[pos] = {'h': pair[0], 'v': pair[1]}
     cfg = session.config or {}
     if yaw or 'camera_yaw' in (body or {}):
         cfg['camera_yaw'] = yaw

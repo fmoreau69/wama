@@ -49,12 +49,13 @@ SHUTTLE_DIMS = (5.5, 2.1)   # navette
 CAMERA_YAW = {'front': 0.0, 'right': 75.0, 'rear': 180.0, 'left': -75.0}
 
 
-def camera_yaw_map(session):
-    """Yaw de montage par caméra : défauts CAMERA_YAW surchargés par la calibration de
+def configured_yaw_map(session):
+    """Yaw de montage SAISI par caméra : défauts CAMERA_YAW surchargés par la calibration de
     session (`session.config['camera_yaw'] = {position: deg}`) — sur le terrain les
     caméras ne sont pas toutes montées exactement à 0/±90/180°, et une erreur de yaw
     décale latéralement tous les objets de la vue (sin(Δyaw)·distance) → hand-off
-    inter-caméras impossible. Éditable depuis la vue de dessus (bouton Yaw)."""
+    inter-caméras impossible. Éditable depuis la vue de dessus (bouton Yaw). C'est aussi
+    l'a priori de la mesure (`camera_intrinsics.measure_mount_yaw`)."""
     yaw = dict(CAMERA_YAW)
     try:
         for k, v in ((getattr(session, 'config', None) or {}).get('camera_yaw') or {}).items():
@@ -63,6 +64,44 @@ def camera_yaw_map(session):
     except (TypeError, ValueError):
         pass
     return yaw
+
+
+def camera_yaw_map(session):
+    """Yaw de montage EFFECTIF : le saisi (`configured_yaw_map`), remplacé sous
+    ⚑ measured_camera_yaw par le yaw MESURÉ des latérales (passe « Champ des caméras »,
+    mouvement connu) quand la mesure est jugée applicable — c'est une mesure sur les images
+    de CETTE session, elle l'emporte sur la saisie (même règle que ⚑ measured_camera_fov)."""
+    yaw = configured_yaw_map(session)
+    from .features import effective as _features_effective
+    if _features_effective(session).get('measured_camera_yaw', False):
+        from .camera_intrinsics import measured_yaw
+        for pos in yaw:
+            m = measured_yaw(session, pos)
+            if m is not None:
+                yaw[pos] = m
+    return yaw
+
+
+def square_pixel_fov(width, height, fov_h=None, fov_v=None):
+    """Couple (champ H, champ V) d'un sténopé à pixels CARRÉS : une seule focale, donc l'un des
+    champs fixe l'autre par les proportions de l'image. Rend None si aucun champ ni taille.
+
+    Pourquoi : la fiche de la vari-focale latérale (F1015) donne 97° H ↔ 53° V au réglage large —
+    des angles de bord à bord d'un objectif à DISTORSION, sur le capteur entier. Sur la vidéo
+    384×244, ce couple donnait deux focales différentes (fx pour 97°, fy pour 53°) : mesuré le
+    2026-10-02, 53° V tient (distances), et le sténopé qui va avec fait ~76° H, pas 97°."""
+    if not width or not height:
+        return None
+    ratio = float(height) / float(width)
+    if fov_v is not None:
+        v = float(fov_v)
+        h = math.degrees(2 * math.atan(math.tan(math.radians(v) / 2) / ratio))
+    elif fov_h is not None:
+        h = float(fov_h)
+        v = math.degrees(2 * math.atan(math.tan(math.radians(h) / 2) * ratio))
+    else:
+        return None
+    return round(h, 2), round(v, 2)
 
 
 # ── Géométrie RÉELLE du rig ENA (schéma claude/ENA_Installation + specs AXIS) ────────

@@ -133,7 +133,8 @@ Voir § **Calibration sol — plan complet** (angle par le mouvement / échelle 
 
 | Paramètre | Défauts rig | Surcharge session | Rôle |
 |---|---|---|---|
-| `yaw` | front 0°, right **75°**, rear 180°, left **−75°** | `config['camera_yaw']` (bouton 🧭 Yaw) | orientation de montage |
+| `yaw` | front 0°, right **75°**, rear 180°, left **−75°** | `config['camera_yaw']` (bouton 🧭 Yaw) ; sous ⚑ `measured_camera_yaw`, le lacet MESURÉ des latérales (passe « Champ des caméras », mouvement connu, contrôle avant) | orientation de montage — ENA_CASA mesuré 2026-10-02 : droite **67,5°**, gauche **−77,5°** |
+| `fov_h`/`fov_v` latérales | table F1015 | `config['camera_fov']` — depuis le 2026-10-02 le V est saisi, le H en est DÉRIVÉ par les proportions de l'image (sténopé à pixels carrés, `square_pixel_fov`) | 97° × 53° (fiche, angles de bord à bord d'un objectif à distorsion) = deux focales sur 384×244 ; le sténopé à 53° V fait 76,2° H (droite), 79,6° H (gauche, 408 px) |
 | `fov_h` | 110/55/110/55° | — | focale latérale `f_x = iw/(2·tan(FOV_H/2))` |
 | `dist_scale` | `tan(fov_v_used/2)/tan(fov_v_réel/2)` | `config['fov_v_used']` (écrit par l'analyse) | correction des distances annotées avec un ancien FOV |
 | `mount` | front (0, +4.5), sides (±1.0, +3.4), rear (0,0) | `config['camera_mount']` | bras de levier (origine = **CENTRE arrière** du véhicule ; le point GPS = antenne coin arrière droit y est ramené via `gps_antenna`) |
@@ -762,7 +763,7 @@ de « monde » est repris par le tracking ; tout ce qui touche la **pose navette
 | 5 | rejet bbox coupée (`x1 ≤ 8 ∨ x2 ≥ iw−8`) | latéral/cap | bbox | `pinhole_ego`, JS 3227 | — | CÂBLÉ | aucune |
 | 6 | point de contact **masque** `seg_ground_px` | latéral | polygone de segmentation | `segmentation_bridge.mask_ground_point` → JS 3178 | — | CÂBLÉ si source segmentation | aucune |
 | **Géométrie caméra → véhicule** ||||||||
-| 7 | yaw de montage par caméra | latéral (sin Δyaw·d) | défauts rig + `config.camera_yaw` (bouton 🧭) | `camera_yaw_map` | manuel | CÂBLÉ | hand-off inter-caméras (qualitatif) |
+| 7 | yaw de montage par caméra | latéral (sin Δyaw·d) | défauts rig + `config.camera_yaw` (bouton 🧭) ; MESURÉ par le mouvement connu (`known_motion_yaw`, contrôle caméra avant) | `camera_yaw_map` (+ miroir JS `camGeo.yaw`) | ⚑ `measured_camera_yaw` OFF (latérales seules) | CÂBLÉ | doublons de jonction 35 → 24, relais ratés 33 → 22 (A/B 2026-10-02, avec le champ cohérent) |
 | 8 | bras de levier de montage `CAMERA_MOUNT` | position (4,5 m avant) | rig | `camera_geometry` | ⚑ `mount_lever_arm` ON | CÂBLÉ | aucune |
 | 9 | levier d'antenne GPS (coin arrière droit, 1 m) | tout le repère | `config.gps_antenna` | `antenna_offset`, `shuttle_trajectory`, JS `antennaCorrect` | ⚑ `antenna_lever` ON | CÂBLÉ | 1,00 m mesuré |
 | **Pose navette (étage EXTRACTION + consommation)** ||||||||

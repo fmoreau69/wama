@@ -24,6 +24,15 @@ confond avec un lacet.
 Consommé par `prediction_adapter.camera_geometry` (et son miroir JS) quand ⚑ measured_camera_fov
 est ON. ⚠ Basculer change la géométrie de TOUTE la chaîne : la calibration sol (tangage estimé
 avec l'ancienne focale), le recalage voie + carte, le tracking et les marquages sont à rejouer.
+
+ORIENTATION DE MONTAGE (2026-10-02, `measure_mount_yaw`, ⚑ measured_camera_yaw) — l'autre moitié
+de la géométrie des latérales, que la rotation ci-dessus ne voit pas. Le mouvement de la navette
+(trace) impose une contrainte épipolaire aux points suivis, sans profondeur
+(`wama_data.functions.geometry.known_motion_yaw`) ; elle mesure le LACET à focale connue, jamais la
+focale (essayé sur la caméra avant : pas de minimum). Mesuré sur toutes les caméras, appliqué aux
+latérales seules, et refusé si la caméra avant — le contrôle — ne retrouve pas ~0°. Session
+ENA_CASA : droite 67,5°, gauche −77,5° (saisis ±75°), avant −0,5° ; confronté aux doublons de
+jonction (35 → 24) et aux relais ratés (33 → 22) dans `CAM_ANALYZER_CHANGELOG.md`.
 """
 import logging
 import math
@@ -48,6 +57,21 @@ MAX_WINDOWS = 30
 #: pas ; au-delà de cette part de paires perdues, la fenêtre entière est écartée (sa rotation
 #: cumulée serait tronquée, donc biaisée vers zéro).
 MAX_LOST_SHARE = 0.1
+#: Lignes droites pour l'orientation de montage : 8 s, cap tourné de moins de 4°, jamais sous 2 m/s.
+STRAIGHT_WINDOW_S, STRAIGHT_MAX_TURN_DEG, STRAIGHT_MIN_SPEED = 8.0, 4.0, 2.0
+#: Orientation de montage (`measure_mount_yaw`) : écart entre les deux images d'une paire, et une
+#: paire toutes les N images. Mesurée sur toutes les caméras ; APPLIQUÉE aux seules latérales — la
+#: caméra avant en est le CONTRÔLE (sa référence est l'ortho, biais +0,19 m), l'arrière n'a pas été
+#: confronté aux métriques de doublons.
+YAW_PAIR_STEP, YAW_PAIR_EVERY = 2, 3
+YAW_MEASURABLE = ('front', 'right', 'left', 'rear')
+YAW_APPLIED = ('right', 'left')
+#: Le contrôle : la caméra avant doit retrouver son lacet saisi à mieux que ce seuil (°), sinon
+#: aucune latérale n'est appliquée (mesuré le 2026-10-02 : −0,5° pour 0°).
+YAW_CONTROL_MAX_DEG = 3.0
+#: Tangage a priori à défaut de calibration sol, et décalages explorés autour (°).
+YAW_PITCH_PRIOR_DEG = 15.0
+YAW_PITCH_OFFSETS_DEG = (-9.0, -6.0, -3.0, 0.0, 3.0, 6.0, 9.0)
 
 
 def turn_windows(sh_traj, *, window_s=WINDOW_S, turn_min_deg=TURN_MIN_DEG,
@@ -81,6 +105,33 @@ def turn_windows(sh_traj, *, window_s=WINDOW_S, turn_min_deg=TURN_MIN_DEG,
         if len(out) >= max_windows:
             break
     return sorted(out)
+
+
+def straight_windows(sh_traj, *, window_s=STRAIGHT_WINDOW_S, max_turn_deg=STRAIGHT_MAX_TURN_DEG,
+                     min_speed=STRAIGHT_MIN_SPEED, max_windows=MAX_WINDOWS):
+    """Fenêtres [t0, t1] (temps GPS) de LIGNE DROITE roulante : rotation du cap < `max_turn_deg`,
+    vitesse jamais sous `min_speed`. Réparties sur toute la trace (lieux variés), sans
+    recouvrement. C'est là que la translation pure fixe le point de fuite du déplacement."""
+    T = np.asarray(sh_traj, dtype=float)
+    if len(T) < 10:
+        return []
+    t, e, n = T[:, 0], T[:, 1], T[:, 2]
+    h = np.degrees(np.unwrap(np.radians(T[:, 3])))
+    found, i = [], 0
+    while i < len(t):
+        j = int(np.searchsorted(t, t[i] + window_s))
+        if j >= len(t):
+            break
+        dt = np.diff(t[i:j + 1])
+        ds = np.hypot(np.diff(e[i:j + 1]), np.diff(n[i:j + 1]))
+        if dt.sum() > 0 and abs(h[j] - h[i]) < max_turn_deg \
+                and (ds / np.maximum(dt, 1e-3)).min() >= min_speed:
+            found.append((t[i], t[j], h[j] - h[i]))
+            i = j
+        else:
+            i += 1
+    step = max(1, len(found) // max_windows)
+    return found[::step][:max_windows]
 
 
 def _pair_matches(ga, gb):
@@ -157,12 +208,88 @@ def measure_camera(session, position, windows, fov_h_declared, fps, to_frame):
     return out
 
 
+def _yaw_pairs(cam, windows, to_frame, to_tg):
+    """Paires d'images `(t0, t1, correspondances)` d'une caméra sur les fenêtres données (temps de
+    la trace), une paire toutes les `YAW_PAIR_EVERY` images, écart `YAW_PAIR_STEP`."""
+    import cv2
+    cap = cv2.VideoCapture(cam.video_file.path)
+    if not cap.isOpened():
+        return None, None
+    size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    pairs = []
+    for t0, t1, _ in windows:
+        f0, f1 = to_frame(t0), to_frame(t1)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, f0)
+        frames = []
+        for _f in range(f0, f1 + 1):
+            ok, im = cap.read()
+            if not ok:
+                break
+            frames.append(cv2.cvtColor(im, cv2.COLOR_BGR2GRAY))
+        for k in range(0, len(frames) - YAW_PAIR_STEP, YAW_PAIR_EVERY):
+            m = _pair_matches(frames[k], frames[k + YAW_PAIR_STEP])
+            if len(m) >= 30:
+                pairs.append((to_tg(f0 + k), to_tg(f0 + k + YAW_PAIR_STEP), np.asarray(m, dtype=float)))
+    cap.release()
+    return pairs, size
+
+
+def measure_mount_yaw(session, sh, windows, to_frame_for, to_tg_for, fov_h_for):
+    """Orientation de montage MESURÉE par caméra (`wama_data…known_motion_yaw`), focale connue.
+
+    `fov_h_for(pos)` : champ H du sténopé de la caméra (mesuré pour l'avant/l'arrière s'il l'est,
+    saisi pour les latérales). La caméra avant est le CONTRÔLE : si elle ne retrouve pas son lacet
+    saisi à `YAW_CONTROL_MAX_DEG` près, aucune latérale n'est déclarée applicable."""
+    from wama_data.functions.geometry.known_motion_yaw import fit_mount_yaw
+    from .prediction_adapter import camera_geometry, configured_yaw_map
+    geo = camera_geometry(session)
+    prior = configured_yaw_map(session)
+    calib = (session.config or {}).get('ground_calib') or {}
+    out = {}
+    for pos in YAW_MEASURABLE:
+        cam = session.cameras.filter(position=pos).first()
+        if cam is None or not getattr(cam, 'video_file', None):
+            continue
+        pairs, size = _yaw_pairs(cam, windows, to_frame_for(cam), to_tg_for(cam))
+        if not pairs:
+            out[pos] = {'skipped': 'vidéo illisible ou aucune paire'}
+            continue
+        fov_h = float(fov_h_for(pos))
+        fx = (size[0] / 2.0) / math.tan(math.radians(fov_h) / 2.0)
+        pitch0 = (calib.get(pos) or {}).get('pitch_deg')
+        res = fit_mount_yaw(pairs, sh, image_size=size, focal_px=fx, mount=geo[pos]['mount'],
+                            yaw0_deg=prior[pos],
+                            pitch0_deg=float(pitch0) if pitch0 is not None else YAW_PITCH_PRIOR_DEG,
+                            pitch_offsets_deg=YAW_PITCH_OFFSETS_DEG)
+        if res is None:
+            out[pos] = {'skipped': 'moins de 20 paires roulantes'}
+            continue
+        res.update({'yaw_prior_deg': prior[pos], 'fov_h_used': round(fov_h, 2)})
+        out[pos] = res
+    out['control'] = apply_yaw_control(out, prior['front'])
+    return out
+
+
+def apply_yaw_control(measures, front_prior_deg):
+    """Pose le verdict `applicable` de chaque mesure (en place) et rend le contrôle : une latérale
+    n'est applicable que si son minimum est net et hors bord de grille (`measured`) ET si la caméra
+    avant, mesurée par la même méthode, retrouve son lacet saisi à `YAW_CONTROL_MAX_DEG` près."""
+    front = measures.get('front') or {}
+    ok = bool(front.get('measured')) and \
+        abs(((front['yaw_deg'] - front_prior_deg + 180) % 360) - 180) <= YAW_CONTROL_MAX_DEG
+    for pos, res in measures.items():
+        if isinstance(res, dict) and 'yaw_deg' in res:
+            res['applicable'] = bool(pos in YAW_APPLIED and res.get('measured') and ok)
+    return {'position': 'front', 'ok': ok, 'yaw_deg': front.get('yaw_deg'), 'max_deg': YAW_CONTROL_MAX_DEG}
+
+
 def measure_camera_intrinsics(session):
-    """Mesure et rend `{position: {...}}` pour les caméras avant/arrière, plus le recoupement par
-    l'échelle latérale du recalage voie + carte (caméra avant) quand il existe."""
+    """Mesure et rend `{position: {...}}` : champ de vue des caméras avant/arrière (+ recoupement
+    par l'échelle latérale du recalage voie + carte), puis orientation de montage de toutes les
+    caméras (`mount_yaw` par position, `yaw_control`)."""
     from .ego_pose import effective_gps_track
     from .prediction_adapter import (make_local_frame, shuttle_trajectory, antenna_offset,
-                                     CAMERA_FOV_H)
+                                     camera_geometry, CAMERA_FOV_H)
     gt = effective_gps_track(session)
     to_local = make_local_frame(gt)
     sh = shuttle_trajectory(gt, to_local, antenna=antenna_offset(session))
@@ -186,6 +313,28 @@ def measure_camera_intrinsics(session):
         out['front']['lane_scale_cross_check'] = {
             'lateral_scale': ls,
             'fov_h': round(math.degrees(2 * math.atan(math.tan(math.radians(d) / 2) / ls)), 1)}
+    # Orientation de montage : virages ET lignes droites (la translation pure fixe le point de
+    # fuite du déplacement). Focale : la MESURÉE à l'instant pour l'avant/l'arrière, sinon celle
+    # de `camera_geometry` (saisie de session pour les latérales).
+    geo = camera_geometry(session)
+
+    def fov_h_for(pos):
+        return (out.get(pos) or {}).get('fov_h') or geo[pos]['fov_h']
+
+    def to_frame_for(cam):
+        fps = cam.fps or 12.0
+        return lambda tg: int(round((tg - off) / scale * fps))
+
+    def to_tg_for(cam):
+        fps = cam.fps or 12.0
+        return lambda f: f / fps * scale + off
+
+    yaw_windows = windows + [(a, b, c) for a, b, c in straight_windows(sh)]
+    yaws = measure_mount_yaw(session, sh, yaw_windows, to_frame_for, to_tg_for, fov_h_for)
+    out['yaw_control'] = yaws.pop('control')
+    out['straight_windows'] = len(yaw_windows) - len(windows)
+    for pos, res in yaws.items():
+        out.setdefault(pos, {})['mount_yaw'] = res
     return out
 
 
@@ -194,4 +343,15 @@ def measured_fov(session, position):
     m = (((session.results_summary or {}).get('camera_intrinsics') or {}).get(position) or {})
     if m.get('fov_h') and m.get('fov_v'):
         return float(m['fov_h']), float(m['fov_v'])
+    return None
+
+
+def measured_yaw(session, position):
+    """Orientation de montage MESURÉE et APPLICABLE d'une caméra (°), ou None — lue par
+    `camera_yaw_map` sous ⚑ measured_camera_yaw. Le verdict `applicable` est posé à la mesure
+    (latérale, minimum net hors bord de grille, contrôle avant réussi) : le miroir JS lit le même."""
+    m = ((((session.results_summary or {}).get('camera_intrinsics') or {}).get(position) or {})
+         .get('mount_yaw') or {})
+    if m.get('applicable') and m.get('yaw_deg') is not None:
+        return float(m['yaw_deg'])
     return None

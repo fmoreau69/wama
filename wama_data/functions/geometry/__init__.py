@@ -8,3 +8,5 @@ from .depth_geometry import (deproject_depth, fit_plane_ransac, plane_pitch_heig
 from . import ego_rotation  # noqa: F401  (auto-enregistre la FunctionSpec)
 from .ego_rotation import (estimate_ego_rotation, ego_rotation as ego_rotation_frame,  # noqa: F401
                            yaw_disagreement)
+from . import known_motion_yaw  # noqa: F401  (auto-enregistre la FunctionSpec)
+from .known_motion_yaw import fit_mount_yaw  # noqa: F401
