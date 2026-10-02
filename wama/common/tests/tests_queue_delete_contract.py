@@ -707,6 +707,42 @@ class TransferringACardTest(TestCase):
         self.assertIn('transfer_voice_recipient', ctx.exception.statement)
 
 
+class ReceivedCardsAppearInTheQueueTest(TestCase):
+    """Une card PARTAGÉE apparaît dans la file du destinataire — sur CHAQUE app (2026-10-02).
+
+    Le mode lecture (`WAMA_COLLABORATION §3bis`) n'existe pour le destinataire que s'il VOIT la card :
+    sans elle, ni la dupliquer ni la recevoir n'ont de sens. Mesuré le 2026-10-01 en construisant la
+    duplication : la file du converter ne montrait que les cards du propriétaire. Le témoin est un
+    VRAI partage : la card dans son lot, partagée par le service commun (`partager`), qui pose la
+    visibilité sur la card ET sur son lot — la file se construit à partir des lots."""
+
+    _account_for = SuppressionDansChaqueAppTest._compte_pour
+
+    def test_a_shared_card_is_listed_in_the_recipients_queue(self):
+        from wama.common.services.sharing import partager
+        owner = User.objects.create_user('received_queue_owner', password='x')
+        seen = set()
+        for surface, _delete, card_route in _surfaces():
+            from wama.common.utils.preview_registry import PreviewRegistry
+            model = PreviewRegistry.get_model(surface)
+            app = model._meta.app_label
+            with self.subTest(surface=surface):
+                account = self._account_for(surface)
+                self.assertNotEqual(account.pk, owner.pk)
+                _lot, (card,) = _lot_de(model, owner, 1)
+                partager(owner, card, 'public')
+                # Son FRAGMENT répond au destinataire : sinon la file la montre puis 404 au premier
+                # rafraîchissement — « une porte à moitié ouverte, pire qu'une porte fermée ».
+                self.assertEqual(200, self.client.get(reverse(card_route, args=[card.pk])).status_code,
+                                 'le fragment de la card reçue refuse le destinataire')
+                if app in seen:                   # une page par app (l'enhancer porte deux files)
+                    continue
+                seen.add(app)
+                html = self.client.get(f'/{app}/').content.decode()
+                self.assertIn(f'data-id="{card.pk}"', html,
+                              'la card partagée n’apparaît pas dans la file du destinataire')
+
+
 class ListedFilesFollowTheCardTest(TestCase):
     """Les LISTES de chemins déclarées (`file_references.listed_paths` — aujourd'hui les images
     d'une génération de l'imager) suivent le transfert et la duplication d'une card reçue

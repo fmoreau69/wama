@@ -996,7 +996,7 @@ def card_html(request, pk: int):
     from django.http import HttpResponse
     from django.template.loader import render_to_string
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    t = visible_or_404(Transcript, user, pk=pk)   # LECTURE : le sien OU reçu (2026-10-02)
     from wama.common.utils.batch_common import is_batch_child
     _decorate_card(t)
     html = render_to_string('transcriber/_transcript_card.html',

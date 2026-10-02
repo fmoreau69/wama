@@ -137,7 +137,11 @@ class IndexView(View):
             logger.debug(f"[converter] reconcile_orphaned_running ignoré: {exc}")
 
         # Ephemeral jobs (quick-convert) are never shown in the queue.
-        jobs     = (ConversionJob.objects.filter(user=user, ephemeral=False)
+        # Les cards REÇUES aussi (2026-10-02, `WAMA_COLLABORATION §3bis` — mode lecture) : la file
+        # ne montrait que les siennes, une card partagée n'existait donc pas pour le destinataire.
+        # `listable_by` = `visible_to`, sauf le compte anonyme (qui ne liste que les siennes).
+        from wama.common.utils.scoping import listable_by
+        jobs     = (listable_by(ConversionJob.objects.filter(ephemeral=False), user)
                     .select_related('batch').order_by('-created_at'))
         # (requête ConversionProfile RETIRÉE le 31/08 — 'profiles' n'était lu par aucun
         # gabarit, la liste vient de profile_list en AJAX ; audit B6, REMOVAL_LEDGER.)
@@ -1120,7 +1124,7 @@ def card_html(request, pk):
     """Card = partial serveur UNIQUE : le JS remplace la card par ce rendu
     (source unique du markup — pas de reconstruction côté client)."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    job = get_object_or_404(ConversionJob, pk=pk, user=user)
+    job = visible_or_404(ConversionJob, user, pk=pk)   # LECTURE : une card reçue se rafraîchit aussi
     _decorate_job(job)
     # Clé `elem` (2026-09-09) : le gabarit lit désormais l'élément sous le nom commun, comme
     # les 9 autres cards d'app. Jumeau PAR CHAÎNE du renommage du gabarit — invisible d'un
