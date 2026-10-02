@@ -2896,6 +2896,16 @@ def check_app_settings(app: str, url_path: str):
                     return False, (f"{len(ids0)} élément(s) en file : le ⚙ existe au contrat "
                                    "commun mais AUCUN n'est visible (card dans un lot replié, "
                                    "ou masquée) — le geste est hors de portée de l'utilisateur")
+                # Une card EN COURS refuse ses réglages à bon droit (400 « en cours ») — et c'est
+                # un état LÉGITIME du compte de test pendant une campagne (2026-10-03 : #282 du
+                # composer, génération YuE2 en file derrière 25 transcriptions, a fait rougir ce
+                # geste deux fois). On vise donc d'abord une card qui n'est pas en cours
+                # (`data-status`, attribut uniforme des dix cards) ; s'il n'y en a aucune, la
+                # première reste la cible et le refus sera dit tel quel.
+                SEL_IDLE = ('.wama-card[data-id]:not([data-status="RUNNING" i]) '
+                            '.settings-btn[data-id]')
+                if page.query_selector(f'{SEL_IDLE}:visible'):
+                    SEL_GEAR = SEL_IDLE
 
                 avant = page.evaluate("document.querySelectorAll('.modal.show').length")
                 # Locator VISIBLE et non ElementHandle — deux corrections du 2026-08-23, chacune
