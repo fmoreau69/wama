@@ -572,11 +572,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const batchId = document.getElementById('batchSettingsBatchId').value;
         // Lecture GÉNÉRIQUE des champs générés (WamaParams.read — route unique, cf. composer) :
         // un param ajouté au schéma en contexte batch est posté sans toucher ce code
-        // (batch_update_settings coerce float(speed/pitch) côté serveur).
+        // (la fabrique de lots coerce selon le schéma et appelle la fonction de la route d'élément).
         const host = document.getElementById('synthBatchParams');
         const payload = (window.WamaParams && host) ? WamaParams.read(host) : {};
         try {
-            const r = await fetch(URLS.batchSettings + batchId + '/settings/', {
+            const r = await fetch(URLS.batchSettings + batchId + '/update/', {
                 method: 'POST',
                 headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),

@@ -141,7 +141,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                      zip_name=None, progress_of=None, item_label=None, on_delete=None,
                      empty_is_value=(), task_for=None, start_only_pending=False,
                      after_update=None, item_extra=None, read_lookup=None,
-                     output_name=None, start_reset_for=None, startable=None, output_text=None):
+                     output_name=None, start_reset_for=None, startable=None, output_text=None,
+                     apply_settings=None):
     """Retourne les six vues de lot : {'batch_start', 'batch_update', 'batch_delete',
     'batch_duplicate', 'batch_download', 'batch_status'} (vues Django, `pk` = id du lot).
 
@@ -155,6 +156,19 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         output_fields   : champs fichier de SORTIE — vidés à la duplication.
         output_field    : champ servi par `batch_download` (absent du modèle → 404 JSON).
         params_fields / schema / options_field / extra_names : cf. `apply_item_settings`.
+                          `schema` peut être un callable(élément)->schéma quand il dépend de
+                          l'élément (imager : image ou vidéo) ; les réglages postés sont alors
+                          lus par élément.
+        apply_settings  : callable(élément, réglages)->champs touchés | None — LA fonction de
+                          l'app qui pose des réglages sur UN élément, celle que sa route
+                          d'élément (`update_settings`) appelle aussi : le lot et l'élément ne
+                          peuvent donc plus diverger (2026-10-02 — dans cinq apps le lot
+                          réécrivait ces règles à côté, sans la validation de la route
+                          d'élément ; une sixième tenait deux listes de champs, divergentes).
+                          Elle ne sauve pas ; `None` = tout l'élément est sauvé.
+                          Une `ValueError` = réglage REFUSÉ : la vue répond 400 avec son
+                          message et n'écrit AUCUN élément du lot. Absente : le chemin
+                          déclaratif (`apply_item_settings` sur `params_fields`).
         item_model, fk_name          : forme à LIAISON (`BatchXItem`, FK vers l'élément).
         batch_attr, row_field        : forme à FK DIRECTE (l'élément porte le lot et sa ligne).
         items_related   : related_name des membres sur le lot (défaut `items`).
@@ -216,7 +230,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     Les réponses portent `success: True` en plus de leurs compteurs : c'est ce que lisent les
     fronts des apps réelles (reader : `if (!r.ok || !data.success)`).
     """
-    schema_names = tuple(p.get('name') for p in (schema or []) if isinstance(p, dict) and p.get('name'))
+    schema_names = (() if callable(schema) else
+                    tuple(p.get('name') for p in (schema or [])
+                          if isinstance(p, dict) and p.get('name')))
     if reset_on_start is None:
         start_reset = {k: v for k, v in DEFAULT_RESET.items() if k not in ('status', 'task_id')}
     else:
@@ -272,22 +288,50 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             started.append(locked.id)
         return JsonResponse({'success': True, 'started': started, 'count': len(started)})
 
+    def _posted_settings(request, item):
+        """Les réglages postés, lus selon le schéma de CET élément quand il en dépend."""
+        item_schema = schema(item)
+        names = tuple(p.get('name') for p in (item_schema or [])
+                      if isinstance(p, dict) and p.get('name'))
+        return read_settings_payload(request, item_schema, names, empty_is_value)
+
     @require_POST
     def batch_update(request, pk):
         b = _batch(request, pk)
-        data = read_settings_payload(request, schema, schema_names, empty_is_value)
-        updated = 0
+        shared = (None if callable(schema)
+                  else read_settings_payload(request, schema, schema_names, empty_is_value))
+        # DEUX TEMPS — poser sur tous, PUIS sauver : un réglage refusé pour un élément n'en
+        # laisse aucun à moitié réglé.
+        pending = []                              # (élément, champs touchés ; None = tous)
         for item in batch_elements(b, work_model):
             if getattr(item, 'status', '') == 'RUNNING':
                 continue
-            touched = apply_item_settings(item, data, params_fields=params_fields,
-                                          options_field=options_field, extra_names=extra_names)
+            data = shared if shared is not None else _posted_settings(request, item)
+            if apply_settings is not None:
+                try:
+                    touched = apply_settings(item, dict(data))
+                except ValueError as refusal:
+                    return JsonResponse({'error': str(refusal)}, status=400)
+                if touched is None:
+                    if after_update is not None:
+                        after_update(item)
+                    pending.append((item, None))
+                    continue
+                touched = list(touched)
+            else:
+                touched = apply_item_settings(item, data, params_fields=params_fields,
+                                              options_field=options_field,
+                                              extra_names=extra_names)
             if touched and after_update is not None:
                 touched = list(touched) + [f for f in (after_update(item) or ()) if f not in touched]
             if touched:
+                pending.append((item, touched))
+        for item, touched in pending:
+            if touched is None:
+                item.save()
+            else:
                 item.save(update_fields=touched)
-                updated += 1
-        return JsonResponse({'success': True, 'updated': updated, 'batch_id': pk})
+        return JsonResponse({'success': True, 'updated': len(pending), 'batch_id': pk})
 
     @require_POST
     def batch_delete(request, pk):

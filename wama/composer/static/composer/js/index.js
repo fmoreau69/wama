@@ -315,8 +315,11 @@
         fd.append('csrfmiddlewaretoken', CSRF);
         Object.keys(vals).forEach((k) => fd.append(k, vals[k]));
         fetch(WamaApp.getUrl(APP.batchUpdateUrlTemplate, bid), { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(() => {
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                // Un réglage REFUSÉ (400) ne ferme plus la modale en silence : aucune fille
+                // n'a été écrite, on le dit.
+                if (!ok || data.error) { WamaApp.toast(data.error || 'Erreur', 'error'); return; }
                 bootstrap.Modal.getInstance(document.getElementById('batchSettingsModal'))?.hide();
                 location.reload();
             })

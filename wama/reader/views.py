@@ -413,12 +413,30 @@ def _output_stem(r):
         app='reader', source_name=r.filename or f'item_{r.id}', item_id=r.id))[0]
 
 
+#: Réglages d'une lecture écrits par la modale ⚙, le volet et la modale de LOT (schéma `params.py`).
+SETTINGS_FIELDS = ('backend', 'mode', 'output_format', 'language')
+#: `language` vide EST une valeur (auto-détection) — lu par la route d'élément et par la fabrique.
+SETTINGS_EMPTY_IS_VALUE = ('language',)
+
+
+def _apply_reading_settings(item, data):
+    """LES réglages d'une lecture, posés sans sauver — rend les champs touchés. La route d'un
+    élément (`update_settings`) ET la fabrique des vues de lot passent ici : les deux listes de
+    champs écrites à deux endroits avaient divergé (le lot ignorait `output_format`, pourtant
+    affiché dans sa modale — trouvé par `tests_item_settings_contract`, 2026-10-02).
+    L'écrivain COMMUN ignore une valeur hors des choix du modèle."""
+    from wama.common.utils.batch_views import apply_item_settings
+    if 'language' in data:
+        data = {**data, 'language': str(data['language'] or '').strip()[:16]}
+    return apply_item_settings(item, data, params_fields=SETTINGS_FIELDS)
+
+
 _bv = make_batch_views(
     work_model=ReadingItem, batch_model=BatchReadingItem, get_user=_get_user,
     task=read_document_task,
     output_fields=(),
-    params_fields=('backend', 'mode', 'language'), schema=_SCHEMA,
-    empty_is_value=('language',),
+    schema=_SCHEMA, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
+    apply_settings=_apply_reading_settings,
     item_model=BatchReadingItemLink, fk_name='reading',
     reset_on_start=_reset_for_relaunch,
     reset_on_duplicate={**DEFAULT_RESET, 'result_text': '', 'used_backend': ''},
@@ -684,16 +702,11 @@ def update_settings(request, pk: int):
     item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
     # JSON (inspecteur) OU FormData (modale ⚙ par le cycle commun `WamaParams.settingsModal`,
     # portage 2026-09-24) : le lecteur COMMUN des réglages postés, coercé au schéma — `language`
-    # vide EST une valeur (auto-détection), comme pour la vue de lot.
-    # L'écrivain COMMUN ignore une valeur hors des choix du modèle : les trois listes
-    # `allowed_*` écrites ici à la main en sont retirées (2026-09-26).
-    from wama.common.utils.batch_views import apply_item_settings, read_settings_payload
+    # vide EST une valeur (auto-détection), comme pour la vue de lot, qui appelle la même fonction.
+    from wama.common.utils.batch_views import read_settings_payload
     data = read_settings_payload(request, _SCHEMA, [p['name'] for p in _SCHEMA],
-                                 empty_is_value=('language',))
-    if 'language' in data:
-        data['language'] = str(data['language'] or '').strip()[:16]
-    touched = apply_item_settings(item, data,
-                                  params_fields=('backend', 'mode', 'output_format', 'language'))
+                                 empty_is_value=SETTINGS_EMPTY_IS_VALUE)
+    touched = _apply_reading_settings(item, data)
     if touched:
         item.save(update_fields=touched)
     return JsonResponse(_item_to_dict(item))

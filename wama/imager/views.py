@@ -926,8 +926,10 @@ def get_batch_children(request, batch_id):
 # démarrage et à la suppression (`_forget_progress`) ; les fichiers de la génération — ses
 # trois champs fichier ET ses images (`generated_images`, liste de chemins déclarée à la
 # rétention) — sont LIBÉRÉS par la fabrique (`release_card_files`), rien n'est effacé ; le lot
-# copié garde son `domain` (l'onglet). `batch_update` (un schéma PAR élément, image ou vidéo) et
-# `get_batch_children` (lecture PARTAGÉE) restent locaux, assumés, lus par `batch_elements`.
+# copié garde son `domain` (l'onglet). `batch_update` vient AUSSI de la fabrique depuis le
+# 2026-10-02 : le schéma se choisit PAR élément (`schema=` callable, image ou vidéo) et les
+# réglages sont posés par `_apply_generation_settings`, LA fonction de la route d'un élément.
+# Seule `get_batch_children` (lecture PARTAGÉE) reste locale, lue par `batch_elements`.
 from wama.common.utils.batch_views import make_batch_views
 
 
@@ -959,8 +961,12 @@ _bv = make_batch_views(
     reset_on_duplicate=_RESET_DUPLICATION,
     batch_extra=lambda lot: {'domain': lot.domain},
     on_delete=_forget_progress,
+    # Résolus à l'APPEL : les deux fonctions sont définies plus bas dans ce module.
+    schema=lambda gen: _schema_for(gen),
+    apply_settings=lambda gen, data: _apply_generation_settings(gen, data),
 )
 batch_start = _bv['batch_start']
+batch_update = _bv['batch_update']
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
 
@@ -1328,6 +1334,49 @@ def _schema_for(gen):
     return VIDEO_PARAMS_JSON if gen.is_video_generation else IMAGE_PARAMS_JSON
 
 
+def _apply_generation_settings(generation, data):
+    """LES réglages d'une génération, posés sans sauver — appelée par la route d'un élément
+    (`update_settings`) ET par la fabrique de lots (`apply_settings`), pour que les deux ne
+    puissent plus diverger. Jusqu'au 2026-10-02 le lot réécrivait ces règles à côté : il posait
+    les valeurs coercées par un `setattr` brut, sans le refus d'une valeur hors des choix, sans
+    l'arbitrage des deux états du prompt, sans la graine vidée.
+
+    `data` = les réglages lus par le lecteur commun selon le schéma du domaine. Rend les champs
+    touchés, ou `None` quand tout l'élément doit être sauvé (prompt à deux états). Lève
+    `ValueError` pour un réglage refusé."""
+    from wama.common.utils.batch_views import apply_item_settings
+    names = [p['name'] for p in _schema_for(generation)]
+    whole = False
+    if 'prompt' in data:
+        prompt = str(data.get('prompt') or '').strip()
+        if not prompt:
+            raise ValueError('Prompt is required')
+        # Champ à DEUX ÉTATS : l'arbitrage « dans quel champ écrire » est une brique COMMUNE
+        # (`apply_prompt_state`) — il était réimplémenté ici le 30/07, ce qui aurait obligé
+        # chaque app à le recopier.
+        from wama.common.utils.app_metadata import apply_prompt_state
+        apply_prompt_state(generation, 'prompt', prompt, data.get('prompt_state'))
+        whole = True
+
+    # Seed VIDE = aléatoire : remis à None explicitement (sinon l'ancienne graine survivrait).
+    # Une valeur vide n'arrive ici que si le lecteur l'a gardée (route d'un élément) ; pour un
+    # lot, un champ laissé vide veut dire « ne pas toucher » et n'est pas transmis.
+    seed_cleared = data.get('seed', None) == ''
+    touched = apply_item_settings(
+        generation, {k: v for k, v in data.items() if k != 'prompt'},
+        params_fields=[n for n in names if n != 'prompt' and (n != 'seed' or not seed_cleared)])
+    if seed_cleared:
+        generation.seed = None
+        touched.append('seed')
+
+    # HORS schéma : résolution image (widget à présets par modèle).
+    for name in ('width', 'height'):
+        if data.get(name):
+            setattr(generation, name, int(data[name]))
+            touched.append(name)
+    return None if whole else touched
+
+
 def _decorate_card(gen):
     """Chips schéma-driven du partial _generation_card (miroir anonymizer _decorate_card) :
     le schéma (params.py, chip=True) est la SOURCE, la card n'invente rien."""
@@ -1357,35 +1406,6 @@ def card_html(request, generation_id):
                             {'elem': generation, 'domain': domain,
                              'in_batch': is_batch_child(generation)}, request=request)
     return HttpResponse(html)
-
-
-@require_http_methods(["POST"])
-def batch_update(request, batch_id):
-    """Applique des réglages à tous les items NON-RUNNING d'un batch (modale contexte 'batch').
-
-    Comme la modale item : la coercition vient du SCHÉMA (params.py) — pas de liste de
-    champs réécrite ici, qui serait une Nᵉ copie (le reader la maintient encore à la main).
-    """
-    from wama.common.utils.param_schema import coerce_schema_values
-    from wama.imager.models import GenerationBatch
-
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = owned_or_404(GenerationBatch, user, pk=batch_id)   # MUTATION
-
-    from wama.common.utils.batch_common import batch_elements
-    updated = 0
-    for gen in batch_elements(batch, ImageGeneration):     # brique : ordre des lignes garanti
-        if gen.status == 'RUNNING':
-            continue
-        values = coerce_schema_values(_schema_for(gen), request.POST)
-        if not values:
-            continue
-        for field, value in values.items():
-            setattr(gen, field, value)
-        gen.save()
-        updated += 1
-
-    return JsonResponse({'success': True, 'updated': updated})
 
 
 @require_http_methods(["POST"])
@@ -1577,33 +1597,15 @@ def update_settings(request, pk):
         # `request.POST` seul (contrat générique `tests_item_settings_contract`, 2026-09-26).
         # Il coerce aussi PAR LE SCHÉMA (types + bornes de params.py) : les 13 blocs
         # `if ... int()/float()` qui vivaient ici en étaient une 3ᵉ copie.
-        from wama.common.utils.batch_views import apply_item_settings, read_settings_payload
+        from wama.common.utils.batch_views import read_settings_payload
         schema = _schema_for(generation)
         names = [p['name'] for p in schema]
+        # Sur UN élément, une graine postée VIDE est une valeur (aléatoire).
         data = read_settings_payload(request, schema, names, empty_is_value=('seed',))
-
-        if 'prompt' in data:
-            prompt = str(data.get('prompt') or '').strip()
-            if not prompt:
-                return JsonResponse({'error': 'Prompt is required'}, status=400)
-            # Champ à DEUX ÉTATS : l'arbitrage « dans quel champ écrire » est une brique
-            # COMMUNE (`apply_prompt_state`) — il était réimplémenté ici le 30/07, ce qui
-            # aurait obligé chaque app à le recopier.
-            from wama.common.utils.app_metadata import apply_prompt_state
-            apply_prompt_state(generation, 'prompt', prompt, data.get('prompt_state'))
-
-        # Seed VIDE = aléatoire : remis à None explicitement (sinon l'ancienne graine survivrait).
-        seed_cleared = data.get('seed', None) == ''
-        apply_item_settings(generation, {k: v for k, v in data.items() if k != 'prompt'},
-                            params_fields=[n for n in names if n != 'seed' or not seed_cleared])
-        if seed_cleared:
-            generation.seed = None
-
-        # HORS schéma : résolution image (widget à présets par modèle).
-        for _f in ('width', 'height'):
-            if data.get(_f):
-                setattr(generation, _f, int(data[_f]))
-
+        try:
+            _apply_generation_settings(generation, data)   # la même fonction que le lot
+        except ValueError as refusal:
+            return JsonResponse({'error': str(refusal)}, status=400)
         generation.save()
 
         logger.info(f"Updated settings for generation #{generation.id}")

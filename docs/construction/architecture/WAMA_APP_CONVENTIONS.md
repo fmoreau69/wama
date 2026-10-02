@@ -1411,7 +1411,23 @@ délégation) ; scoper le toggle collapse sur la zone info, actions HORS toggle.
 ```
 
 **Vue backend** : `batch_update(request, pk)` — met à jour les paramètres sur tous les items
-non-RUNNING du batch. URL : `batch/<int:pk>/update/`.
+non-RUNNING du batch. URL : `batch/<int:pk>/update/`, nom `batch_update` (10/10 depuis le
+2026-10-02).
+
+> 🔴 **La vue de lot ne s'écrit PAS : elle vient de la fabrique** (`make_batch_views`), et elle
+> pose sur chaque fille **ce que la route d'élément poserait** — par construction, pas par
+> recopie. Deux formes, et seulement deux :
+> - réglages = colonnes du schéma, sans règle propre → `params_fields=` (la MÊME constante que
+>   la route d'élément, jamais deux listes) ;
+> - une règle propre (validation, champ dérivé, geste de qualité, valeur normalisée) → UNE
+>   fonction `_apply_<x>_settings(élément, réglages)` dans l'app, appelée par `update_settings`
+>   ET passée à la fabrique (`apply_settings=`). Elle ne sauve pas ; `ValueError` = refus
+>   (400 ; au lot, aucune fille écrite) ; `None` = sauver l'élément entier.
+>
+> Mesuré le 2026-10-02 : six apps avaient une vue de lot qui réécrivait ces règles à côté, et
+> une septième (reader) deux listes de champs divergentes. Tenu par
+> `tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest` (même posté aux deux
+> routes, mêmes écritures) — une app neuve y entre sans y toucher.
 
 **Contexte IndexView** : ajouter `first_<param>` dans chaque entrée de `batches_list` pour
 pré-remplir la modale avec les valeurs du premier item du batch.

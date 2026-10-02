@@ -862,9 +862,13 @@ def _batch_views_common(f: _AppFiles):
     PARTIEL : fabrique appelée, mais une vue de lot reste locale — soit un reste de portage, soit
     un écart ASSUMÉ et déclaré (describer : `batch_download` multi-format `?fmt=`, hors de la
     convention `output_file`) ; FAUX : tout à la main ; N/A : aucune vue de lot.
-    `start_batch` (imager) est une graphie déviante de `batch_start`.
+    `start_batch` (imager) et `batch_update_settings` (synthesizer) sont des graphies déviantes
+    de `batch_start` / `batch_update`.
     """
-    local_re = r'(?m)^def (batch_(start|delete|duplicate|update|download|status)|start_batch)\('
+    # `batch_update_settings` : la graphie sous laquelle le synthesizer gardait SA vue de réglages
+    # de lot — le motif ne la voyait pas, l'app était verte avec une vue locale (2026-10-02).
+    local_re = (r'(?m)^def (batch_(start|delete|duplicate|update(_settings)?|download|status)'
+                r'|start_batch)\(')
     brique = f.find_code(VIEWS, r'\bmake_batch_views\(')
     local = f.find_code(VIEWS, local_re)
     if brique and local:

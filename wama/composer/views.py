@@ -75,8 +75,9 @@ def _reset_for_relaunch(gen):
 # lot (`batch_extra`) ; cache de progression purgé à la suppression ; le nom de chaque fichier
 # de l'archive est celui de la ligne de liaison (`batch_link.output_filename`, posé par
 # `batch_elements` depuis le 23/09 — `batch_download` restait local pour cette seule raison).
-# Reste LOCAL, écart assumé (`batch_views_common` = partiel) : `batch_update` (validation du
-# modèle contre le catalogue + `generation_type` dérivé + curseur), qui lit le lot par la brique.
+# `batch_update` vient AUSSI de la fabrique depuis le 2026-10-02 : elle lit le posté selon le
+# schéma et appelle `_apply_generation_settings`, la fonction de la route d'élément (validation
+# du modèle contre le catalogue, curseur — `generation_type` se dérive au `save()`).
 from wama.common.utils.batch_views import make_batch_views
 
 
@@ -97,6 +98,8 @@ def _copy_link_extra(new_gen, old_gen):
     return {'output_filename': _link_name(old_gen) or _batch_item_extra(new_gen)['output_filename']}
 
 
+from wama.composer.params import PARAMS_JSON as _SETTINGS_SCHEMA  # noqa: E402
+
 _bv = make_batch_views(
     work_model=ComposerGeneration, batch_model=ComposerBatch, get_user=_get_user,
     task_for=_task_for, start_only_pending=True,
@@ -110,11 +113,14 @@ _bv = make_batch_views(
     on_delete=lambda gen: cache.delete(f'composer_progress_{gen.id}'),
     output_field='audio_output', output_name=_link_name,
     zip_name=lambda lot: f"batch_composer_{lot.pk}.zip",
+    schema=_SETTINGS_SCHEMA,
+    apply_settings=lambda gen, data: _apply_generation_settings(gen, data),
 )
 batch_start = app_access('composer')(_bv['batch_start'])
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
 batch_download = _bv['batch_download']
+batch_update = _bv['batch_update']
 
 
 def _decorate_generation(g):
@@ -513,6 +519,35 @@ def _input_labels():
 from wama.common.utils.auto_model import posted_quality_intent as _intent_posted  # noqa: E402
 
 
+def _apply_generation_settings(gen, data):
+    """LES réglages d'une génération, posés sans sauver — la route d'un élément
+    (`update_settings`) ET la fabrique des vues de lot passent ici. Jusqu'au 2026-10-02 la vue de
+    lot relisait `request.POST` à côté : un modèle invalide y était ignoré en silence, là où la
+    route d'élément le refuse. Un réglage refusé lève `ValueError` (400 ; au lot, aucune fille
+    écrite). Rend `None` : tout l'élément est sauvé — le type musique/bruitage se DÉRIVE du
+    modèle au `save()` (utils/model_choice)."""
+    model_id = normalize(data.get('model', gen.model))
+    if not is_valid(model_id):
+        raise ValueError('Modèle invalide')
+    gen.model = model_id
+    try:
+        gen.duration = clamp_duration(float(data.get('duration', gen.duration)))
+    except (ValueError, TypeError):
+        pass                    # durée illisible : celle de l'élément reste
+    if str(data.get('quality_intent', '')) != '':
+        gen.quality_intent = _intent_posted(data)
+    # Prompt éditable (modale complète P1) — on ne l'écrase pas s'il est vide.
+    prompt = data.get('prompt')
+    if prompt is not None and str(prompt).strip():
+        gen.prompt = str(prompt).strip()
+    # Format/qualité de sortie (early-binding, per-item) si fournis
+    if data.get('output_format'):
+        gen.output_format = data['output_format']
+    if data.get('output_quality'):
+        gen.output_quality = data['output_quality']
+    return None
+
+
 @require_POST
 def update_settings(request, pk):
     """Update model and/or duration on an existing generation, then re-run."""
@@ -525,33 +560,13 @@ def update_settings(request, pk):
     # JSON (inspecteur) OU FormData (modale ⚙) par le lecteur COMMUN — la vue lisait
     # `request.POST` seul (contrat générique `tests_item_settings_contract`, 2026-09-26).
     from wama.common.utils.batch_views import read_settings_payload
-    from wama.composer.params import PARAMS_JSON as _schema
-    data = read_settings_payload(request, _schema, [p['name'] for p in _schema])
-
-    model_id = normalize(data.get('model', gen.model))
-    if not is_valid(model_id):
-        return JsonResponse({'error': 'Modèle invalide'}, status=400)
+    data = read_settings_payload(request, _SETTINGS_SCHEMA,
+                                 [p['name'] for p in _SETTINGS_SCHEMA])
 
     try:
-        duration = float(data.get('duration', gen.duration))
-        duration = clamp_duration(duration)
-    except (ValueError, TypeError):
-        duration = gen.duration
-
-    # Le type musique/bruitage se DÉRIVE du modèle au `save()` (utils/model_choice).
-    gen.model = model_id
-    gen.duration = duration
-    if str(data.get('quality_intent', '')) != '':
-        gen.quality_intent = _intent_posted(data)
-    # Prompt éditable (modale complète P1) — on ne l'écrase pas s'il est vide.
-    prompt = data.get('prompt')
-    if prompt is not None and str(prompt).strip():
-        gen.prompt = str(prompt).strip()
-    # Format/qualité de sortie (early-binding, per-item) si fournis
-    if data.get('output_format'):
-        gen.output_format = data['output_format']
-    if data.get('output_quality'):
-        gen.output_quality = data['output_quality']
+        _apply_generation_settings(gen, data)
+    except ValueError as refusal:
+        return JsonResponse({'error': str(refusal)}, status=400)
 
     # Pied de modale CONFORME : « Enregistrer » (restart=0) sauve SANS purger la sortie ni
     # relancer ; « Enregistrer et relancer » (restart=1) purge + re-run. ⚠ Le défaut était
@@ -720,41 +735,6 @@ def duplicate(request, pk):
     # `duplicated` = contrat de la brique queue-actions.js : elle focalise la copie
     # après rechargement (sessionStorage wama_focus_card).
     return JsonResponse({'success': True, 'id': new_gen.id, 'duplicated': new_gen.id})
-
-
-@require_POST
-def batch_update(request, pk):
-    """Applique les paramètres (modèle, durée) à TOUS les items non-RUNNING du batch.
-
-    Réutilise la même modale que les réglages individuels (mode batch côté JS).
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(ComposerBatch, id=pk, user=user)
-    model = request.POST.get('model')
-    duration = request.POST.get('duration')
-    output_format = request.POST.get('output_format')
-    output_quality = request.POST.get('output_quality')
-    from wama.common.utils.batch_common import batch_elements
-    updated = 0
-    for g in batch_elements(batch, ComposerGeneration):     # brique : ordre des lignes garanti
-        if g.status == 'RUNNING':
-            continue
-        if model and is_valid(model):
-            g.model = normalize(model)      # le type se dérive au save()
-        if request.POST.get('quality_intent', '') != '':
-            g.quality_intent = _intent_posted(request.POST)
-        if duration:
-            try:
-                g.duration = clamp_duration(duration)
-            except (ValueError, TypeError):
-                pass
-        if output_format:
-            g.output_format = output_format
-        if output_quality:
-            g.output_quality = output_quality
-        g.save()
-        updated += 1
-    return JsonResponse({'success': True, 'updated': updated})
 
 
 def download_all(request):

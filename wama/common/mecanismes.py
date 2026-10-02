@@ -1206,9 +1206,13 @@ MECHANISMS = (
               "conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps "
               "réelles les écrivaient chacune à la main (60 lectures de lot recopiées, "
               "`ROUTE §11 #36`) — ADOPTÉE 10/10 le 2026-09-23, spécificités en kwargs (jamais un "
-              "`if app`), chaque élément lu portant `batch_link` (la ligne qui le porte) ; restent "
-              "locaux, assumés, les `batch_download` multi-format et les `batch_update` à logique "
-              "propre (critère `batch_views_common` : vrai ou partiel, plus jamais rouge)",
+              "`if app`), chaque élément lu portant `batch_link` (la ligne qui le porte). Plus aucune "
+              "vue de lot locale depuis le 2026-10-02 : le ZIP multi-format lit les formats "
+              "DÉCLARÉS et le rendu ENREGISTRÉ (`export_formats`), et `batch_update` appelle la "
+              "fonction de réglage de l'APP, celle de sa route d'élément (`apply_settings` — le "
+              "lot et l'élément ne peuvent plus diverger ; refus = 400, aucune fille écrite). "
+              "Critère `batch_views_common` VRAI 10/10 ; garde générique "
+              "`tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest`",
               'wama/common/utils/batch_views.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11'),
     Mechanism('queue_dnd', 'Glisser-déposer et sélection multiple de la file',
               "Les QUATRE gestes de manipulation directe, hérités par les 12 apps sans qu'aucune "
