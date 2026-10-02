@@ -2083,7 +2083,17 @@ GARANTIE, cinq consommateurs (70b08f61).
 **Mesuré sur GPU** (5 min de SUMM-RE 007a) : FrWhisper 24 segments en 77 s, horodatage grossier
 (ce fine-tune émet rarement ses jetons de temps : souvent un segment par fenêtre de 30 s) ;
 Kyutai 79 segments en 345 s, plus lent que le temps réel ; LinTO 60 s en 3,8 s.
-⏳ **Restent** : un essai du contrat `SpeechToTextBackend` dans le rôle `backend` (un extrait
-court, transcrit, « texte non vide et segments ordonnés ») — c'est le trou qui a laissé passer
-deux backends morts ; la campagne d'évaluation des trois (LinTO : seul SUMM-RE, qu'il n'a jamais
-vu, le mesure sans biais — sa fiche cite CFPP2000 et FLEURS parmi ses données d'entraînement).
+✅ **Trou comblé le 2026-10-02 (`a9d549a`)** — le rôle `backend` ESSAIE désormais un backend de
+transcription : `backend_proposals.SMOKES` (un essai par contrat), sur CPU, un extrait de parole
+réelle des corpus versés en médiathèque système, calé sur des segments ENTIERS de la référence ;
+texte non vide, segments ordonnés et dans l'extrait, taux d'erreur ≤ 75 % (garde-fou contre
+l'absurde). **Calibré sur les cas réels** : les deux backends tels que le rôle les a écrits
+ÉCHOUENT ; Kyutai corrigé passe (34 %) ; FrWhisper corrigé (56 %). ⭐ **Et son premier essai a
+trouvé deux défauts de plus dans FrWhisper déjà « corrigé »** : un segment au-delà de la fin de
+l'audio, et surtout la transcription longue séquentielle de Whisper, qui EXIGE les jetons de temps
+que ce fine-tune n'a pas appris — il s'arrêtait en cours de fenêtre (82 % → 56 % sans eux) →
+fenêtres ≤ 30 s coupées dans une pause (`speech_activity.pause_windows`, brique neuve).
+*Une forme vérifiée n'est pas une exécution, et une exécution sans référence n'est pas une mesure :
+le smoke de parole fait les deux pour le prix d'un extrait.*
+⏳ **Reste** : la campagne d'évaluation des trois (LinTO : seul SUMM-RE, qu'il n'a jamais vu, le
+mesure sans biais — sa fiche et son journal d'entraînement citent CFPP2000 et FLEURS).
