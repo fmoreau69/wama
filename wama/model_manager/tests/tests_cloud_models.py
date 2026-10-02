@@ -466,6 +466,17 @@ class CatalogueUpdateInTheBackgroundTest(TestCase):
                          register_cloud_key_task(self.row.pk))
         self.assertTrue(AIModel.objects.filter(model_key='albert:gemma-4-31b-it').exists())
 
+    def test_the_catalogue_update_never_runs_the_full_discovery(self):
+        """A key only changes REMOTE models: the full discovery (disks, Ollama, apps) took ~5 min
+        for that (measured 2026-10-02). The cloud-only sync writes the same rows."""
+        from wama.model_manager.services.model_registry import ModelRegistry
+        from wama.model_manager.tasks import register_cloud_key_task
+        self._refresh_in_background()
+        with mock.patch.object(ModelRegistry, 'discover_all_models',
+                               side_effect=AssertionError('full discovery')):
+            self.assertTrue(register_cloud_key_task(self.row.pk)['registered'])
+        self.assertTrue(AIModel.objects.filter(model_key='albert:gemma-4-31b-it').exists())
+
     def test_a_key_removed_before_the_task_runs_is_not_an_error(self):
         from wama.model_manager.tasks import register_cloud_key_task
         pk = self.row.pk
