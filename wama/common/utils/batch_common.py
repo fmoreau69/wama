@@ -326,6 +326,22 @@ def _batch_agreement(works):
         return None
 
 
+def _works_prefetch(batch_model, items_related, work_attr):
+    """Le prefetch des éléments d'une file, SANS les champs lourds que leur modèle déclare
+    (`QUEUE_DEFERRED_FIELDS`, 2026-10-02 : les segments du transcriber pesaient 0,4 s par page)."""
+    from django.db.models import Prefetch
+    path = f'{items_related}__{work_attr}'
+    try:
+        link_model = batch_model._meta.get_field(items_related).related_model
+        work_model = link_model._meta.get_field(work_attr).related_model
+    except Exception:
+        return path
+    heavy = tuple(getattr(work_model, 'QUEUE_DEFERRED_FIELDS', ()) or ())
+    if not heavy:
+        return path
+    return Prefetch(path, queryset=work_model._default_manager.defer(*heavy))
+
+
 def build_batches_list(user, *, batch_model, work_attr, items_related='items',
                        order_by='-id', has_output=None, extra=None):
     """Agrégats de file pour le template — contrat de la toolbar commune (``queue_view.py``).
@@ -356,7 +372,7 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
     _mgr = batch_model.objects
     base = _mgr.visible_to(user) if hasattr(_mgr, 'visible_to') else _mgr.filter(user=user)
     batches = (base
-               .prefetch_related(f'{items_related}__{work_attr}')
+               .prefetch_related(_works_prefetch(batch_model, items_related, work_attr))
                .order_by(order_by))
     result = []
     for batch in batches:

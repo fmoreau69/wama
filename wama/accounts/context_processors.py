@@ -88,10 +88,12 @@ def user_role(request):
     # Accès par profil/rôles (axe A tier + axe B rôles métier) — exposé pour filtrer la nav.
     # Non bloquant ici : c'est la nav/les vues qui décideront d'utiliser `accessible_apps`.
     try:
-        from wama.accounts.permissions import user_tier, user_roles as _roles, accessible, all_gated_apps
+        from wama.accounts.permissions import (user_tier, user_roles as _roles, all_gated_apps,
+                                               accessible_apps as _accessible_apps)
         account_tier = user_tier(user)
         roles_set = sorted(_roles(user))
-        accessible_apps = {a for a in all_gated_apps() if accessible(user, 'app', a)}
+        # Lecture GROUPÉE (2026-10-02) : même décision, deux requêtes au lieu de deux par app.
+        accessible_apps = set(_accessible_apps(user, all_gated_apps()))
     except Exception:
         account_tier, roles_set, accessible_apps = 'utilisateur', [], set()
 

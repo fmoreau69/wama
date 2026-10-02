@@ -28,14 +28,27 @@ REGISTRY_PATH = Path(__file__).resolve().parent.parent / 'sandbox_apps.json'
 LABEL_RE = re.compile(r'^(?P<base>[a-z_]+)_(?P<num>\d{2})$')
 
 
+#: Dernière lecture du registre, rejouée tant que le fichier n'a pas changé (même mtime et taille).
+_REGISTRY_CACHE = {'stamp': None, 'data': []}
+
+
 def load_registry() -> list:
     """Liste des jumelles [{label, generated_from, created, created_by?}] — [] si registre
     absent/illisible. `created_by` (2026-09-03, demande Fabien) = username du CRÉATEUR :
     porte la visibilité « créateur + dev + admin » ; absent/vide = jumelle d'opérateur CLI
-    (visible des seuls dev/admin, comportement historique)."""
+    (visible des seuls dev/admin, comportement historique).
+
+    Relu seulement s'il a CHANGÉ (2026-10-02) : le menu le lisait 26 fois par page, une lecture
+    et une analyse JSON sur /mnt/d à chaque fois. Un `stat` suffit à savoir s'il a bougé ; la
+    copie rendue est neuve, un appelant ne peut pas altérer le cache."""
     try:
-        data = json.loads(REGISTRY_PATH.read_text(encoding='utf-8'))
-        return data if isinstance(data, list) else []
+        st = REGISTRY_PATH.stat()
+        stamp = (st.st_mtime_ns, st.st_size)
+        if stamp != _REGISTRY_CACHE['stamp']:
+            data = json.loads(REGISTRY_PATH.read_text(encoding='utf-8'))
+            _REGISTRY_CACHE['data'] = data if isinstance(data, list) else []
+            _REGISTRY_CACHE['stamp'] = stamp
+        return [dict(e) if isinstance(e, dict) else e for e in _REGISTRY_CACHE['data']]
     except Exception:
         return []
 
