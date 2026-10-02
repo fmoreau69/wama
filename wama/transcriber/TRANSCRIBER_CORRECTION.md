@@ -704,6 +704,11 @@ morceau d'audio quels mots du texte lui reviennent.
     décident dans `refine_turns`, où les mots sont connus. Couper l'audio d'un ASR entre deux mots
     demanderait ces mots AVANT l'ASR (une détection de voix, par exemple) : c'est un autre chantier,
     et ce chemin sert la production. La limite v1 du découpage de l'ASR reste donc ouverte.
+    ✅ **Levée le 2026-10-02, sans connaître les mots** : chaque coupe tombe au point le plus
+    CALME (trame de 100 ms) des 5 s qui précèdent la limite (`speech_activity.quietest_point`,
+    lu sur ces seules secondes). Déclencheur mesuré : LinTO, entraîné sur des énoncés ≤ 30 s,
+    rendait la moitié des mots en passes de 300 s (WER 54 %) ; en fenêtres de 30 s coupées dans
+    une pause, 39 %. Vaut pour tout moteur découpé (Kyutai, VibeVoice, NeMo).
   - ⏳ **Pas de réglage utilisateur** pour l'instant : les modales du Transcriber sont encore
     câblées à la main (`index.js`, et non `WamaParams.settingsModal`). Ajouter un interrupteur
     obligerait à toucher 8 endroits du code de production. Il viendra par le schéma
