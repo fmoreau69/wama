@@ -641,7 +641,10 @@ def _transcribe_item(t, ctx):
         t.text = result.text
         t.language = result.language
         t.used_backend = backend.name
-        # La clé catalogue EXACTE, lue maintenant : `unload()` (plus bas) efface le modèle chargé.
+        # La clé catalogue EXACTE, lue maintenant : un `unload()` ultérieur (le gouverneur VRAM, une
+        # autre tâche) efface le modèle chargé. ⚠ Cette tâche-ci ne DÉCHARGE PAS en fin de card : le
+        # modèle reste résident pour la suivante — d'où des modèles de moteurs différents qui
+        # cohabitent sur le GPU (cause du « illegal memory access » NeMo du 2026-10-02).
         from .backends.manager import TranscriberBackendManager
         # Un backend résolu POUR un modèle du catalogue (distant) connaît déjà sa clé exacte.
         resolved_for = getattr(backend, 'catalogue_key', '')
