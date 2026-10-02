@@ -21,3 +21,8 @@ class Command(BaseCommand):
         ))
         for model, n in res['by_model'].items():
             self.stdout.write(f"  - {model}: {n}")
+        # Le DOSSIER TEMPORAIRE (2026-10-02, D9) : le second réglage du profil, même plafond.
+        from wama.common.services.retention import purge_expired_temp
+        temp = purge_expired_temp(dry_run=opts['dry_run'])
+        self.stdout.write(f"{tag}{temp['deleted']} fichier(s) du dossier temporaire purgé(s) "
+                          f"pour {temp['users']} utilisateur(s).")

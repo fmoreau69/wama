@@ -20441,3 +20441,20 @@ modification par une autre session.
   relit ce que `build_detail` a rendu ; le converter a une raison datée, 2026-08-13). Décision.
 - Jumelles du bac à sable : à régénérer (R90) ; 18 manifestes de modèles régénérés dans l'arbre
   par `manifest_export` restent non commités (pas les miens).
+
+## §PALIER — 2026-10-03, « D9 TRANCHÉ : DEUX DURÉES, MÉDIATHÈQUE SANS DURÉE » — ✅ `1c29ad69` + ce commit — 🔚 ⚙▶🗑 d'une card reçue · ses lots
+
+Décision de Fabien (03/10) : deux réglages au profil — les cards et leurs fichiers, le dossier
+temporaire — défauts ILLIMITÉS (« le temp est plutôt un stockage personnel : médias de test et de
+présentation ; on verra à l'usage »), médiathèque SANS durée, plafond admin 0 (déjà sa valeur).
+- Livré `1c29ad69` : rétention sur les DIX apps de file ; `temp_retention_days` + purge du temp
+  (un fichier désigné n'est jamais supprimé) et son pré-avis dans la tâche quotidienne ; profil à
+  deux champs. Ce commit : mise en page du profil, `purge_media` couvre aussi le temp, docs
+  (`MEDIA_STORAGE_TIERING` D9 ✅, `PROFILES_PERMISSIONS §3` corrigé à la mesure).
+- Vérifié sur le LIVE relancé (03/10) : `received_entry_arrangement` 8/8, `received_card_visible`
+  7/7, `received_card_duplicate` 6/6, `card_transfer` 5/5, `batch_transfer` 6/6 ; profil : deux
+  champs, enregistrement (compte de test, remis à 0), aucune erreur de console ; purge À BLANC sur
+  la base réelle : aucun utilisateur à durée finie, rien ne serait supprimé. Tests : 107 OK
+  (`tests_retention`, `tests_released_files`, `wama.accounts`).
+- 🔚 Ouverts (§3bis.2) : boutons ⚙ ▶ 🗑 d'une card reçue (question posée à Fabien) ; ranger une card
+  reçue dans SES lots (changement de modèle).
