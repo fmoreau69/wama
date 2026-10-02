@@ -19906,3 +19906,18 @@ adoptant ; les apps à plusieurs étapes (anonymizer, avatarizer, imager, synthe
    (`auto:…`), donc sur l'a-priori — le modèle en cours n'est lisible nulle part avant la ligne
    d'exécution de P3 (même trou que l'enhancer). Relevé transmis à la session pipeline.
 4. `backend_routes` du composer : toujours rouge (aucune `ROUTES` déclarée).
+
+## §PALIER — 2026-10-02, « CARDS REÇUES VISIBLES PARTOUT » — ✅ `316ec5f8` — 🔚 D9
+
+Demande de Fabien : « Fais apparaître les cards reçues dans le converter et l'imager ».
+- ⚠ **Le constat consigné au `§CLÔTURE 2026-10-01 nuit` était à moitié faux** : l'imager montrait
+  DÉJÀ les lots partagés (`build_batches_list` lit `visible_to`) ; seul le commentaire de son index
+  le niait (réécrit). Le vrai trou, mesuré par un contrat de parc neuf, était une **porte à moitié
+  ouverte** : la file listait la card reçue, son fragment `card_html` la refusait au destinataire
+  (404) dans enhancer ×2, synthesizer, transcriber ; la file du converter ne la listait pas.
+- Corrigé : converter par `listable_by`, fragments en lecture (`visible_or_404`), générateur et
+  jumelles alignés ; mutations au propriétaire. Domicile : `WAMA_COLLABORATION §3bis.1`.
+- Garde : `tests_queue_delete_contract.ReceivedCardsAppearInTheQueueTest`. Suites voisines (380,
+  WSL2) : un seul rouge, PRÉEXISTANT et déjà déclaré — `tests_codegen_lot.ItemEditRouteAliasTest`
+  (imager), rouge aussi avec le générateur de HEAD.
+- 🔴 relancer WAMA (vues de 5 apps). Non poussé.
