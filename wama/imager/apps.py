@@ -33,8 +33,11 @@ class ImagerConfig(AppConfig):
         def _imager_detail(g):
             from .params import IMAGE_PARAMS, VIDEO_PARAMS
             params = VIDEO_PARAMS if g.is_video_generation else IMAGE_PARAMS
-            extra = {p.label: getattr(g, p.name, None) for p in params
-                     if p.label and getattr(g, p.name, None) not in (None, '', False)}
+            # Réglages posés du schéma de l'élément (image ou vidéo) — la règle commune : le
+            # modèle (rendu « Moteur / Modèle ») et le format/qualité de sortie (section Sortie)
+            # ne sont pas relistés.
+            from wama.common.utils.detail_registry import settings_from_schema
+            extra = settings_from_schema(g, params, skip=('model',))
             # Prompt en chip (même forme que composer/apps.py:41) : sans lui le volet d'une
             # app PROMPT-PRIMAIRE n'affiche NULLE PART l'entrée que la card met en avant.
             p_txt = (g.prompt or '').strip()

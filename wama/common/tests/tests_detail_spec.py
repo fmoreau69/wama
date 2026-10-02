@@ -237,3 +237,63 @@ class TrueSettingIsShownAsYesTest(SimpleTestCase):
         v8.eval(rule)
         self.assertEqual(['Oui', 'true', 3, 'fr'], list(v8.eval(
             "[_settingValue(true), _settingValue('true'), _settingValue(3), _settingValue('fr')]")))
+
+
+class AFactIsShownOnceTest(SimpleTestCase):
+    """The settings list never repeats what the backbone already renders (2026-10-03): the engine
+    (« Moteur / Modèle ») and the output format and quality (section Sortie). Seen in the panel
+    of four apps — there since the 2026-07-11 audit, which listed EVERY schema setting."""
+
+    def test_the_backbone_keys_and_the_skipped_names_are_left_out(self):
+        from wama.common.utils.detail_registry import settings_from_schema
+        schema = [{'name': 'tts_model', 'label': 'Modèle TTS'}, {'name': 'output_format', 'label': 'Format'},
+                  {'name': 'output_quality', 'label': 'Qualité'}, {'name': 'speed', 'label': 'Vitesse'},
+                  {'name': 'pitch', 'label': 'Hauteur'}, {'name': 'hidden_one', 'label': ''}]
+        element = _element(tts_model='kokoro', output_format='wav', output_quality='max', speed=1.5,
+                           pitch=0, hidden_one='x')
+        self.assertEqual({'Vitesse': 1.5}, settings_from_schema(element, schema, skip=('tts_model',)))
+
+    def test_a_carrier_is_read_first_and_the_dedicated_field_is_the_fallback(self):
+        from wama.common.utils.detail_registry import settings_from_schema
+        schema = [{'name': 'quality', 'label': 'Qualité'}, {'name': 'fps', 'label': 'Images/s'}]
+        element = _element(quality=50, fps=24)
+        self.assertEqual({'Qualité': 80, 'Images/s': 24},
+                         settings_from_schema(element, schema, carrier={'quality': 80}))
+
+    def test_param_objects_are_read_like_dicts(self):
+        from wama.common.utils.detail_registry import settings_from_schema
+        from wama.common.utils.param_schema import Param
+        schema = [Param(name='denoise', type='toggle', label='Débruitage'),
+                  Param(name='output_format', type='select', label='Format')]
+        self.assertEqual({'Débruitage': True},
+                         settings_from_schema(_element(denoise=True, output_format='png'), schema))
+
+    def test_no_registered_detail_repeats_a_canonical_value_as_a_setting(self):
+        """Both ways — spec and code adapter — on every registered app, with a witness element."""
+        from wama.common.app_registry import APP_CATALOG
+        engine_fields = ('model', 'ai_model', 'engine', 'backend', 'tts_model', 'model_to_use')
+        measured = []
+        for app in DetailRegistry.registered_apps():
+            if (APP_CATALOG.get(app) or {}).get('sandbox'):
+                continue
+            entry = DetailRegistry.get(app)
+            instance = entry['model']()
+            spec = entry.get('spec') or {}
+            # The engine field: the one the spec names (a constant engine, avatarizer, names no
+            # field — its « Modèle TTS » is a genuine setting) ; for a code adapter, the usual names.
+            if spec:
+                fields = [spec['engine']] if isinstance(spec.get('engine'), str) else []
+            else:
+                fields = [f for f in engine_fields if hasattr(instance, f)]
+            for f in fields:
+                setattr(instance, f, 'engine-witness')
+            for f in ('output_format', 'output_quality'):
+                if hasattr(instance, f):
+                    setattr(instance, f, f'{f}-witness')
+            with self.subTest(app=app):
+                detail = entry['adapter'](instance)
+                repeated = {label: value for label, value in (detail.get('extra') or {}).items()
+                            if isinstance(value, str) and value.endswith('-witness')}
+                self.assertEqual({}, repeated, 'a canonical value listed again as a setting')
+                measured.append(app)
+        self.assertGreaterEqual(len(measured), 10, measured)

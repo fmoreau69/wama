@@ -107,6 +107,16 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
   `_settingValue`), pour toutes les apps : la donnée reste `true`. Avant, le transcriber écrivait
   « Oui » dans son adapter et les apps au détail tiré du schéma affichaient « true ».
 
+  **Un fait rendu UNE fois** (2026-10-03, question de Fabien : « c'est un problème nouveau ? » —
+  non : là depuis l'audit du 2026-07-11). Les réglages tirés du schéma (`extra_from_params`,
+  et les adapters code par `settings_from_schema`) ne relistent ni le champ que `engine` nomme
+  (sinon « Moteur / Modèle kokoro » puis « Modèle TTS kokoro »), ni `output_format` /
+  `output_quality`, que `build_detail` rend lui-même en section Sortie depuis l'origine (sinon
+  « Format de sortie original » sous Réglages ET « Format original » sous Sortie). Le repli du
+  2026-08-13 (converter : un paramètre absent du JSON porteur se lit sur le champ dédié) est
+  gardé pour les OPTIONS ; il avait ajouté le format en réglage par effet de bord. Garde :
+  `tests_detail_spec.AFactIsShownOnceTest` (les dix apps, les deux voies).
+
   ⚠ **Ce que la spec ne dit PAS, à dessein** : une collection de résultats, un schéma choisi par
   élément, un calcul. Y ajouter une forme pour UNE app en ferait un langage de programmation ; ces
   cas gardent l'adapter code, déclarés avec leur raison.
