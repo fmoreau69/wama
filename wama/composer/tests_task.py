@@ -46,6 +46,10 @@ class _Engine:
             raise type(self).error
         Path(kwargs['output_path']).write_bytes(b'RIFF')
 
+    def unload(self):
+        """The common contract: the task gives its engine back after every launch (guarded in
+        `tests_pipeline`) — a stand-in without it made each launch log a release warning."""
+
 
 class ComposerTaskTest(TestCase):
 
