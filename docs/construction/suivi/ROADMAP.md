@@ -1685,8 +1685,14 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    ✅ **Filtre de parole par CAPACITÉ** (2026-10-01) : `supports_vad_filter` au contrat commun
    (Whisper, Albert) — le worker ne le passait qu'au moteur nommé `whisper`. Mesuré : il aide Albert
    sur l'audio multilingue (44,5 → 39,8 %) mais ne comble pas l'écart en réunion, qui est dans son
-   décodage (`WAMA_QUALITE §9bis`). Reprise sur la limite de débit (429). ⏳ Le compte
-   `evaluation` est « 100 % local » : il ne peut pas évaluer un modèle distant (décision de Fabien).
+   décodage (`WAMA_QUALITE §9bis`). Reprise sur la limite de débit (429). ✅ Le compte
+   d'évaluation (`wama_evaluation`) a été ouvert au cloud par Fabien le 2026-10-02 (clé Albert).
+   ⏳ **DIRE quand une donnée part dans le cloud** (idée de Fabien, 2026-10-02 — intention, rien
+   construit) : le cloud reste un choix de l'utilisateur, WAMA le rend VISIBLE. (a) La prévision
+   « Automatique → … » sous le select signale un modèle distant (« ☁ Albert (DINUM) — l'audio
+   sera envoyé ») ; (b) au lancement, la console de la card dit « exécuté chez Albert », et la
+   RAISON quand le tirage a basculé (« GPU saturé → Albert »). Le cas « cloud si saturé »
+   attend le signal de saturation, qui n'existe pas encore.
 4. ⏳ **Lever le verrou du catalogue** (§8d ①②, ordre fixé par Fabien le 15/09) — modèles cloud
    au catalogue par découverte, moteurs cloud à l'inventaire, `select_model` (VRAM/`is_downloaded`
    pour les locaux seulement, cloud seulement autorisé), réglage de profil, clés chiffrées par
