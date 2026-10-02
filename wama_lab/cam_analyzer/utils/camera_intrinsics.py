@@ -69,9 +69,13 @@ YAW_APPLIED = ('right', 'left')
 #: Le contrôle : la caméra avant doit retrouver son lacet saisi à mieux que ce seuil (°), sinon
 #: aucune latérale n'est appliquée (mesuré le 2026-10-02 : −0,5° pour 0°).
 YAW_CONTROL_MAX_DEG = 3.0
-#: Tangage a priori à défaut de calibration sol, et décalages explorés autour (°).
+#: Tangage a priori à défaut de calibration sol, et décalages explorés autour (°). ±12° et non ±9° :
+#: mesuré le 2026-10-02, la calibration sol des latérales — estimée avec l'ANCIENNE focale — mettait
+#: l'a priori à 11,5° (droite) et 14,5° (gauche), et les deux optimums tombaient au BORD (20,5° / 5,5°).
 YAW_PITCH_PRIOR_DEG = 15.0
-YAW_PITCH_OFFSETS_DEG = (-9.0, -6.0, -3.0, 0.0, 3.0, 6.0, 9.0)
+YAW_PITCH_OFFSETS_DEG = (-12.0, -9.0, -6.0, -3.0, 0.0, 3.0, 6.0, 9.0, 12.0)
+#: Distorsion radiale explorée : les latérales prenaient le maximum (0,3) — grille étendue.
+YAW_K1_VALUES = (0.0, 0.15, 0.3, 0.45)
 
 
 def turn_windows(sh_traj, *, window_s=WINDOW_S, turn_min_deg=TURN_MIN_DEG,
@@ -246,6 +250,11 @@ def measure_mount_yaw(session, sh, windows, to_frame_for, to_tg_for, fov_h_for):
     prior = configured_yaw_map(session)
     calib = (session.config or {}).get('ground_calib') or {}
     out = {}
+    # Le retard de la trace est une propriété de la TRACE, commune aux quatre caméras : estimé une
+    # fois sur la caméra avant (le contrôle, la mieux conditionnée), puis IMPOSÉ aux autres. Mesuré
+    # le 2026-10-02 : estimé par caméra, il valait 0,5 s à l'avant et à l'arrière, mais 1,0 s (bord
+    # de grille) à gauche, où tangage et lacet le compensaient.
+    lags = None
     for pos in YAW_MEASURABLE:
         cam = session.cameras.filter(position=pos).first()
         if cam is None or not getattr(cam, 'video_file', None):
@@ -260,10 +269,13 @@ def measure_mount_yaw(session, sh, windows, to_frame_for, to_tg_for, fov_h_for):
         res = fit_mount_yaw(pairs, sh, image_size=size, focal_px=fx, mount=geo[pos]['mount'],
                             yaw0_deg=prior[pos],
                             pitch0_deg=float(pitch0) if pitch0 is not None else YAW_PITCH_PRIOR_DEG,
-                            pitch_offsets_deg=YAW_PITCH_OFFSETS_DEG)
+                            pitch_offsets_deg=YAW_PITCH_OFFSETS_DEG, k1_values=YAW_K1_VALUES,
+                            **({'lags_s': lags} if lags else {}))
         if res is None:
             out[pos] = {'skipped': 'moins de 20 paires roulantes'}
             continue
+        if pos == 'front':
+            lags = (res['lag_s'],)
         res.update({'yaw_prior_deg': prior[pos], 'fov_h_used': round(fov_h, 2)})
         out[pos] = res
     out['control'] = apply_yaw_control(out, prior['front'])
