@@ -32,8 +32,13 @@ def resolve_auto_model(gen):
     # modèles qui la CONSOMMENT (cohérent avec le grisage WamaInputMatch côté UI) ;
     # sinon, filtrage sur la tâche. `consumes` est un affinage de RÉSOLUTION — permis
     # ici, interdit dans une `options_query` d'UI (sélectionner n'est pas lister).
+    # Une mélodie est fournie dès qu'elle est DÉCLARÉE — fichier joint, ou URL à télécharger
+    # (`WAMA_INGEST` : `source_url` → `melody_reference`). Depuis le passage au squelette commun
+    # (2026-10-02) le tirage se fait AVANT le téléchargement (`run_item_task` demande la clé du
+    # modèle, puis ingère) : ne regarder que le fichier aurait tiré, pour une mélodie donnée par
+    # URL, un modèle qui ne la prend pas.
     spec = {}
-    if gen.melody_reference:
+    if gen.melody_reference or getattr(gen, 'source_url', ''):
         spec['consumes'] = ['reference_melody']
     else:
         spec['task'] = task_of(gen.model)

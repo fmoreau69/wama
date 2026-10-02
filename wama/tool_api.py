@@ -1039,7 +1039,12 @@ def compose_music(
     from wama.composer.views import _wrap_generation_in_batch
     _wrap_generation_in_batch(gen)
 
-    # Launch task
+    # Launch task — par le lanceur commun (`begin_processing`, comme `start_composer`) : depuis
+    # le passage de la tâche au squelette commun (2026-10-02), « en cours » est posé par le
+    # LANCEUR, plus par la tâche ; envoyée seule, la génération resterait affichée « en attente »
+    # pendant tout son traitement.
+    from wama.common.utils.process_control import begin_processing
+    gen, _err = begin_processing(ComposerGeneration, gen.id, user=user)
     from wama.composer.tasks import compose_task
     task = compose_task.apply_async(args=(gen.id,))
     gen.task_id = task.id
