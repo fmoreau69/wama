@@ -231,9 +231,9 @@ def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
     existing_ids = set(
         item_model.objects.filter(batch__user=user).values_list(f'{fk_name}_id', flat=True)
     )
-    orphans = list(
+    orphans = list(queue_light(
         work_model.objects.filter(user=user).exclude(id__in=existing_ids).order_by(order_by)
-    )
+    ))
     if not orphans:
         return []
     if wrap_group is not None:
@@ -326,9 +326,17 @@ def _batch_agreement(works):
         return None
 
 
+def queue_light(queryset):
+    """`queryset` SANS les champs lourds que son modèle déclare (`QUEUE_DEFERRED_FIELDS`) — pour
+    toute lecture de FILE (page, orphelines, réconciliation) qui n'affiche pas ces champs.
+    2026-10-02 : les segments du transcriber pesaient 0,4 s par lecture, et la page en faisait
+    quatre. Un accès ultérieur au champ le relit (comportement Django des champs différés)."""
+    heavy = tuple(getattr(queryset.model, 'QUEUE_DEFERRED_FIELDS', ()) or ())
+    return queryset.defer(*heavy) if heavy else queryset
+
+
 def _works_prefetch(batch_model, items_related, work_attr):
-    """Le prefetch des éléments d'une file, SANS les champs lourds que leur modèle déclare
-    (`QUEUE_DEFERRED_FIELDS`, 2026-10-02 : les segments du transcriber pesaient 0,4 s par page)."""
+    """Le prefetch des éléments d'une file, SANS les champs lourds de leur modèle (`queue_light`)."""
     from django.db.models import Prefetch
     path = f'{items_related}__{work_attr}'
     try:
@@ -336,10 +344,9 @@ def _works_prefetch(batch_model, items_related, work_attr):
         work_model = link_model._meta.get_field(work_attr).related_model
     except Exception:
         return path
-    heavy = tuple(getattr(work_model, 'QUEUE_DEFERRED_FIELDS', ()) or ())
-    if not heavy:
+    if not getattr(work_model, 'QUEUE_DEFERRED_FIELDS', None):
         return path
-    return Prefetch(path, queryset=work_model._default_manager.defer(*heavy))
+    return Prefetch(path, queryset=queue_light(work_model._default_manager.all()))
 
 
 def build_batches_list(user, *, batch_model, work_attr, items_related='items',

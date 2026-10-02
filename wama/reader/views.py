@@ -893,19 +893,23 @@ def console_content(request):
 def global_progress(request):
     """Overall reading progress for all items of the current user."""
     user = _get_user(request)
-    items = ReadingItem.objects.filter(user=user)
-    total = items.count()
+    # UNE requête sur les deux colonnes utiles (forme du générateur, `codegen/views_gen.py`) :
+    # la somme des progressions chargeait chaque élément entier (2026-10-03). Même calcul.
+    rows = list(ReadingItem.objects.filter(user=user).values_list('status', 'progress'))
+    total = len(rows)
     if total == 0:
         return JsonResponse({'total': 0, 'done': 0, 'running': 0, 'pending': 0,
                              'error': 0, 'overall_progress': 0})
-    done    = items.filter(status='SUCCESS').count()
-    running = items.filter(status='RUNNING').count()
-    pending = items.filter(status='PENDING').count()
-    error   = items.filter(status='FAILURE').count()
+
+    def _count(status):
+        return sum(1 for s, _ in rows if s == status)
+
+    done, running = _count('SUCCESS'), _count('RUNNING')
+    pending, error = _count('PENDING'), _count('FAILURE')
     if done == total:
         overall_progress = 100
     else:
-        total_progress = sum(i.progress for i in items)
+        total_progress = sum(p or 0 for _, p in rows)
         overall_progress = int(total_progress / total)
     return JsonResponse({
         'total': total,
