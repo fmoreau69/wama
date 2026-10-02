@@ -101,14 +101,30 @@ class YuE2Backend(MusicGenerationBackend):
         return True
 
     def unload(self) -> None:
-        """Libère le pipeline et réinitialise la limite de VRAM du processus."""
-        self._pipeline = None
+        """Libère le pipeline et réinitialise la limite de VRAM du processus.
+
+        Le pipeline vendorisé se FERME (`close()` : il lâche ses modèles et son décodeur) avant
+        d'être oublié — l'oublier seul laissait ses poids au ramasse-miettes (2026-10-02)."""
+        pipeline, self._pipeline = self._pipeline, None
         self._warm = False
+        if pipeline is not None:
+            try:
+                pipeline.close()
+            except Exception:
+                logger.warning("[YuE2Backend] fermeture du pipeline incomplète", exc_info=True)
+            del pipeline
+        import gc
+        gc.collect()
         try:
             import torch
 
             if torch.cuda.is_available():
-                torch.cuda.set_per_process_memory_fraction(1.0)
+                # Le pipeline vendorisé pose SON plafond au process à sa construction (budget
+                # mémoire − 2 Gio). On rend au process le plafond du GOUVERNEUR, pas 1.0 : sans
+                # lui, une allocation qui dépasse la carte déborde en RAM hôte sous WSL2 au lieu
+                # d'échouer (`resource_governor.configure_cuda_process`).
+                from wama.common.services.resource_governor import ALLOCATOR_CAP_FRACTION
+                torch.cuda.set_per_process_memory_fraction(ALLOCATOR_CAP_FRACTION)
                 torch.cuda.empty_cache()
         except Exception:
             pass

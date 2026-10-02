@@ -304,3 +304,27 @@ def predict_model_choice(spec):
         'name': (m.name if m else str(key)),
         'vram_gb': (m.vram_gb if m else None),
     }
+
+
+def vram_needed_gb(model_key: str, *, offload: bool = False):
+    """Besoin VRAM du modèle RÉSOLU, pour la garde du squelette de tâche
+    (`run_item_task(vram_needed=…)`) : LA cascade commune `memory_manager.model_footprint_gb`
+    (mesurée → source → déclarée → preset), lue sur la ligne de catalogue. None si la ligne
+    manque ou si personne ne sait — pas de garde, jamais un chiffre recopié dans une app.
+
+    `offload=False` (défaut) : le pic SANS déchargement, la borne prudente pour décider
+    d'attendre. Écrite dans l'enhancer le 2026-09-21, remontée ici le 2026-10-02 avec son 2ᵉ
+    consommateur : le composer, dont la 1ʳᵉ génération YuE2 réelle est partie sans rien
+    déclarer sur une carte pleine — elle a échoué faute de mémoire au lieu d'attendre.
+    """
+    try:
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.memory_manager import model_footprint_gb
+        row = AIModel.objects.filter(model_key=model_key).first()
+        if row is None:
+            return None
+        gb, _provenance = model_footprint_gb(row, offload=offload)
+        return float(gb) if gb else None
+    except Exception as exc:
+        logger.debug('besoin VRAM de %s illisible : %s', model_key, exc)
+        return None

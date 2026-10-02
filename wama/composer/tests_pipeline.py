@@ -40,11 +40,14 @@ SCORE = 'X:1\nK:C\nCDEF|GABc|'
 class _ScoreEngine:
     """Stand-in of an engine that writes its score before playing it."""
     supports_score_planning = True
-    built, plans, renders = 0, [], []
+    built, unloaded, plans, renders = 0, 0, [], []
     error = None
 
     def __init__(self):
         type(self).built += 1
+
+    def unload(self):
+        _ScoreEngine.unloaded += 1
 
     def plan_score(self, **kwargs):
         _ScoreEngine.plans.append(kwargs)
@@ -61,9 +64,22 @@ class _PlainEngine:
     """Stand-in of an engine with a single step — every model but YuE2 today."""
     renders = []
 
+    def unload(self):
+        pass
+
     def generate(self, **kwargs):
         _PlainEngine.renders.append(kwargs)
         Path(kwargs['output_path']).write_bytes(b'RIFF')
+
+
+class _Deferred(Exception):
+    """What the stand-in task raises in place of Celery's `Retry`."""
+
+
+def _deferring_task():
+    task = _celery_task()
+    task.retry = staticmethod(lambda **kwargs: _Deferred(kwargs))
+    return task
 
 
 ENGINES = {SCORE_MODEL: _ScoreEngine, PLAIN_MODEL: _PlainEngine}
@@ -79,7 +95,7 @@ class PlanThenRenderTest(TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.user = get_user_model().objects.create_user('composer_pipeline', password='x')
         _ScoreEngine.built, _ScoreEngine.plans, _ScoreEngine.renders = 0, [], []
-        _ScoreEngine.error = None
+        _ScoreEngine.unloaded, _ScoreEngine.error = 0, None
         _PlainEngine.renders = []
 
     def _generation(self, **fields):
@@ -254,6 +270,66 @@ class PlanThenRenderTest(TestCase):
         self.assertIn(gen.planned_score.name, [str(name) for name in freed_by([gen])])
 
 
+class TheCardAndTheGraphicsCardTest(TestCase):
+    """What the first REAL YuE2 generation showed on 2026-10-02 (element #281): the composer
+    told the skeleton nothing about its need, so it started on a full card and ran out of memory ;
+    and nobody released its engine, so the NEXT task of the worker ran out of memory too."""
+
+    setUp = PlanThenRenderTest.setUp
+    _generation = PlanThenRenderTest._generation
+    _run = PlanThenRenderTest._run
+
+    def test_the_engine_is_released_after_a_success(self):
+        self._run(self._generation())
+        self.assertEqual((1, 1), (_ScoreEngine.built, _ScoreEngine.unloaded))
+        self.assertEqual({}, tasks._OPEN_BACKENDS)
+
+    def test_the_engine_is_released_after_a_failure(self):
+        _ScoreEngine.error = RuntimeError('CUDA out of memory')
+        gen = self._run(self._generation())
+        self.assertEqual('FAILURE', gen.status)
+        self.assertEqual(1, _ScoreEngine.unloaded, 'a failed launch left its engine in the worker')
+        self.assertEqual({}, tasks._OPEN_BACKENDS)
+
+    def test_an_engine_that_cannot_unload_is_told_and_does_not_break_the_task(self):
+        with mock.patch.object(_ScoreEngine, 'unload', side_effect=RuntimeError('stuck')), \
+                self.assertLogs('wama.composer.tasks', level='WARNING'):
+            gen = self._run(self._generation())
+        self.assertEqual('SUCCESS', gen.status, gen.error_message)
+
+    def test_the_need_is_the_one_of_the_model_of_this_launch(self):
+        gen = self._generation(model=AUTO)
+        with mock.patch('wama.composer.utils.auto_model.resolve_auto_model',
+                        return_value=SCORE_MODEL), \
+                mock.patch('wama.common.utils.auto_model.vram_needed_gb',
+                           return_value=7.3) as need:
+            self.assertEqual(7.3, tasks._vram_needed(gen))
+        need.assert_called_once_with(SCORE_MODEL)
+
+    def test_a_card_that_does_not_fit_now_waits_instead_of_starting(self):
+        gen = self._generation()
+        with mock.patch('wama.common.utils.task_skeleton.close_old_connections'), \
+                mock.patch('wama.common.backends.manager.backend_for_key',
+                           side_effect=lambda key: ENGINES.get(key)), \
+                mock.patch('wama.common.utils.auto_model.vram_needed_gb', return_value=7.3), \
+                mock.patch('wama.common.services.resource_governor.effective_free_gb',
+                           return_value=2.0), \
+                mock.patch('wama.common.services.resource_governor.fits_alone',
+                           return_value=True), \
+                mock.patch('wama.common.services.resource_governor.release_granted',
+                           return_value=None), \
+                mock.patch('wama.common.services.resource_governor.holders_summary',
+                           return_value='un modele de transcription'):
+            with self.assertRaises(_Deferred):
+                tasks.compose_task.run.__func__(_deferring_task(), gen.pk)
+        gen.refresh_from_db()
+        self.assertEqual('AWAITING_RESOURCES', gen.status)
+        self.assertEqual((0, []), (_ScoreEngine.built, _ScoreEngine.plans),
+                         'the engine was loaded although the card had no room')
+        self.assertFalse(process_runs.lines(gen).exists(),
+                         'the wait of a pipeline card is carried by the element, not by a line')
+
+
 class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
     """Decision n°11: written like the cam_analyzer's — and exported like it."""
 
@@ -355,6 +431,29 @@ class TheEngineSaysItPlansTest(SimpleTestCase):
             given = backend._pipeline.called[0]
             self.assertEqual((SCORE, backend.SEED), (given['abc'], given['seed']))
             self.assertEqual([], backend._pipeline.planned)
+
+    def test_unloading_closes_the_pipeline_and_gives_the_process_its_cap_back(self):
+        """The vendored pipeline lowers the cap of the PROCESS when it is built ; unloading must
+        hand back the governor's cap, not 1.0 — without it an allocation beyond the card spills
+        into host RAM under WSL2 instead of failing."""
+        import torch
+        from wama.common.services.resource_governor import ALLOCATOR_CAP_FRACTION
+        backend = self._backend()
+        pipeline = backend._pipeline
+        pipeline.closed = 0
+
+        def close():
+            pipeline.closed += 1
+        pipeline.close = close
+        with mock.patch.object(torch.cuda, 'is_available', return_value=True), \
+                mock.patch.object(torch.cuda, 'set_per_process_memory_fraction') as cap, \
+                mock.patch.object(torch.cuda, 'empty_cache') as emptied:
+            backend.unload()
+        self.assertEqual(1, pipeline.closed)
+        self.assertFalse(backend.is_loaded)
+        self.assertIsNone(backend._pipeline)
+        cap.assert_called_once_with(ALLOCATOR_CAP_FRACTION)
+        emptied.assert_called_once()
 
     def test_an_engine_that_does_not_plan_says_so(self):
         from wama.common.backends.music_generation_base import MusicGenerationBackend
