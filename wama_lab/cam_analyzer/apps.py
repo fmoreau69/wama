@@ -20,7 +20,10 @@ class CamAnalyzerConfig(AppConfig):
         from wama.common.app_registry import register_surface
         register_surface('cam_analyzer', world='lab', label='Cam Analyzer',
                          url_name='wama_lab:cam_analyzer:index', icon='fa-video',
-                         color='#ffc107', order=20)
+                         color='#ffc107', order=20,
+                         description="Analyse multi-caméras synchronisées pour navette autonome : "
+                                     "détection d'objets, timeline de proximité, segmentation "
+                                     "temporelle.")
         # Le monde Lab entre au journal et au calendrier (WAMA_MEMORY §9bis.1) : une card du
         # cam_analyzer est une SESSION d'analyse, datée de bout en bout (started/completed_at).
         from wama.common.services.journal import enregistrer_source

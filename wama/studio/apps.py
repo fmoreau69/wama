@@ -18,7 +18,9 @@ class StudioConfig(AppConfig):
         # page — c'est cette déclaration que lisent le menu, `/apps/`, le journal et le calendrier.
         from wama.common.app_registry import register_surface
         register_surface('studio', world='transverse', label='Studio', url_name='studio:index',
-                         icon='fa-diagram-project', color='#fb923c', order=10)
+                         icon='fa-diagram-project', color='#fb923c', order=10,
+                         description='Orchestration de pipelines : reliez les apps sur un canvas '
+                                     '(sorties → entrées) pour composer des chaînes de traitement.')
         # Les exécutions de pipelines entrent au journal et au calendrier (WAMA_MEMORY §9bis.1).
         from wama.common.services.journal import enregistrer_source
         from .models import StudioRun

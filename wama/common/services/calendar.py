@@ -101,20 +101,20 @@ def app_identity(app) -> tuple[str, str]:
     """`(libellé, couleur d'identité)` d'une app, pour les événements ET la légende.
 
     Une source du journal peut ne pas avoir d'entrée propre au catalogue (`audio_enhancer`,
-    mesuré le 2026-09-28) : elle reçoit la couleur de la catégorie PLATEFORME plutôt que le bleu
-    par défaut de FullCalendar, qui la ferait passer pour une autre app.
+    mesuré le 2026-09-28) : elle reçoit la couleur du monde TRANSVERSAL plutôt que le bleu par
+    défaut de FullCalendar, qui la ferait passer pour une autre app.
     """
-    from ..app_registry import APP_CATALOG, category_color, surface_for
+    from ..app_registry import APP_CATALOG, surface_for, world_color
 
     spec = APP_CATALOG.get(app) or {}
     if not spec:
         # Lab, Studio : identité déclarée hors catalogue, par l'app elle-même (`register_surface`).
         declared = surface_for(app)
         if declared:
-            category, link = declared
-            return link.get('label') or app, link.get('color') or category_color(category)
+            return (declared.get('label') or app,
+                    declared.get('color') or world_color(declared['world']))
     label = spec.get('label') or app.replace('_', ' ').capitalize()
-    return label, spec.get('color') or category_color('platform')
+    return label, spec.get('color') or world_color('transverse')
 
 
 @dataclass

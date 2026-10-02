@@ -105,15 +105,17 @@ def user_role(request):
     except Exception:
         apps_masquees = set()
 
-    # Menu « Applications » GROUPÉ par catégorie (APP_CATEGORIES) — GÉNÉRÉ du catalogue,
-    # filtré par accessible_apps ; les surfaces hors catalogue (Lab, Studio, Médiathèque) se
-    # déclarent elles-mêmes (`register_surface`) et portent gate/nav_hide (décision 2026-07-05).
+    # Menu « Applications » GROUPÉ par MONDE, puis par catégorie dans un monde (`get_app_groups`)
+    # — GÉNÉRÉ des déclarations, filtré par accessible_apps ; les surfaces hors catalogue (Lab,
+    # Studio, Médiathèque) se déclarent elles-mêmes (`register_surface`) et portent gate/nav_hide.
+    # L'accueil lit la MÊME liste : il n'a plus de bloc Studio ni Lab écrit en dur.
     try:
         from django.urls import reverse as _reverse
-        from wama.common.app_registry import category_surfaces, get_apps_by_category
+        from wama.common.app_registry import get_app_groups
         nav_apps_grouped = []
         _sandbox_entries = []
-        for _cid, _meta, _apps in get_apps_by_category():
+        for _group in get_app_groups():
+            _cid, _meta, _apps = _group['id'], _group['meta'], _group['apps']
             _entries = []
             for _name, _spec in _apps:
                 if _name not in accessible_apps or _name in apps_masquees:
@@ -135,7 +137,7 @@ def user_role(request):
                     continue
                 _entries.append(_entry)
             _links = []
-            for _link in category_surfaces(_cid):
+            for _link in _group['links']:
                 if _link.get('nav_hide'):
                     continue
                 _gate = _link.get('gate')
@@ -157,7 +159,8 @@ def user_role(request):
                         _link.get('label'), _link.get('url_name'))
                     continue
             if _entries or _links:
-                nav_apps_grouped.append({'id': _cid, 'meta': _meta, 'apps': _entries, 'links': _links})
+                nav_apps_grouped.append({'id': _cid, 'world': _group['world'], 'meta': _meta,
+                                         'apps': _entries, 'links': _links})
         if _sandbox_entries:
             # `submenu` : rendu en SOUS-MENU EN CASCADE par le gabarit (demande Fabien 03/09,
             # accordéon remplacé le 14/09) — à une jumelle par app portée, un groupe à plat

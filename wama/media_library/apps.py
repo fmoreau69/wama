@@ -19,7 +19,9 @@ class MediaLibraryConfig(AppConfig):
         from wama.common.app_registry import register_surface
         register_surface('media_library', world='transverse', label='Médiathèque',
                          url_name='media_library:index', icon='fa-photo-film',
-                         color='#a78bfa', order=20)
+                         color='#a78bfa', order=20,
+                         description='Vos fichiers réutilisables, rangés par nature et '
+                                     'accessibles depuis toutes les applications.')
 
         from wama.common.utils.preview_utils import register_app_preview
         from .models import UserAsset

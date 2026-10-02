@@ -9,8 +9,8 @@
                     <span>Applications</span>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-dark wama-apps-menu" aria-labelledby="appsDropdown">
-                    {# Menu GÉNÉRÉ du catalogue (APP_CATEGORIES + APP_CATALOG, cf. app_registry) — #}
-                    {# groupé par catégorie, filtré par accessible_apps. Plus d'app codée à la main #}
+                    {# Menu GÉNÉRÉ des déclarations (get_app_groups, cf. app_registry) — groupé par #}
+                    {# monde puis catégorie, filtré par accessible_apps. Plus d'app codée à la main #}
                     {# ici : ajouter une app = l'ajouter au catalogue (décision 2026-07-05). #}
                     {% for group in nav_apps_grouped %}
                     {% if group.submenu %}

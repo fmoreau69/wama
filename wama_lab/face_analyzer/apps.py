@@ -13,7 +13,10 @@ class FaceAnalyzerConfig(AppConfig):
         from wama.common.app_registry import register_surface
         register_surface('face_analyzer', world='lab', label='Face Analyzer',
                          url_name='wama_lab:face_analyzer:index', icon='fa-face-smile',
-                         color='#0dcaf0', order=10)
+                         color='#0dcaf0', order=10,
+                         description="Analyse non invasive de signaux physiologiques à partir "
+                                     "d'une vidéo du visage : fréquence cardiaque et sa "
+                                     "variabilité, suivi du regard, émotions, respiration.")
         # Le monde Lab entre au journal et au calendrier (WAMA_MEMORY §9bis.1).
         from wama.common.services.journal import enregistrer_source
         from .models import AnalysisSession
