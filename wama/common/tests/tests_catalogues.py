@@ -457,8 +457,9 @@ class AppCatalogConformiteTest(TestCase):
                 categorie = spec.get('category')
                 self.assertTrue(categorie, "catégorie non déclarée")
                 self.assertIn(categorie, APP_CATEGORIES, "catégorie inconnue d'APP_CATEGORIES")
-                # La garde ne vaut que pour les 3 catégories DÉRIVABLES des types ; `data`, `lab`
-                # et `platform` ne se dérivent pas et sortiraient en faux positif.
+                # Les trois catégories sont DÉRIVABLES des types. (`data`, `lab` et `platform`,
+                # qui ne l'étaient pas, ont quitté `APP_CATEGORIES` le 2026-10-02 : c'étaient
+                # des mondes — `WORLD_SECTIONS`.)
                 if categorie in self.CATEGORIES_DERIVABLES:
                     self.assertEqual(categorie, derive_category(spec),
                                      "la catégorie déclarée contredit les types déclarés")
@@ -641,42 +642,76 @@ class DeclaredWorldsTest(TestCase):
                 'media_library': 'transverse', 'model_manager': 'transverse'}
 
     def test_each_surface_declares_its_world_and_sits_in_its_section(self):
-        from wama.common.app_registry import app_world, category_surfaces, surface_for
+        from wama.common.app_registry import app_world, surface_for, surfaces
         for app, world in self.EXPECTED.items():
             with self.subTest(app=app):
                 self.assertEqual(app_world(app), world)
-                section, surface = surface_for(app)
+                surface = surface_for(app)
                 self.assertEqual(surface['gate'], app, "la clé du droit est l'identifiant d'app")
-                self.assertIn(app, [s['app'] for s in category_surfaces(section)])
+                self.assertIn(app, [s['app'] for s in surfaces(world)])
         self.assertEqual(app_world('wama_data'), 'data')
 
-    def test_the_menu_sections_keep_their_declared_order(self):
+    def test_the_sections_keep_their_declared_order(self):
         # L'ordre est DÉCLARÉ (`order`) : celui des `ready()` suit INSTALLED_APPS et bougerait
         # avec lui.
-        from wama.common.app_registry import category_surfaces
-        self.assertEqual([s['app'] for s in category_surfaces('lab')],
-                         ['face_analyzer', 'cam_analyzer'])
-        self.assertEqual([s['app'] for s in category_surfaces('platform')],
+        from wama.common.app_registry import surfaces
+        self.assertEqual([s['app'] for s in surfaces('lab')], ['face_analyzer', 'cam_analyzer'])
+        self.assertEqual([s['app'] for s in surfaces('transverse')],
                          ['studio', 'media_library', 'model_manager'])
-        self.assertEqual(category_surfaces('transform'), [],
-                         "une catégorie du monde Médias ne porte aucune surface hors catalogue")
+        self.assertEqual(surfaces('media'), [],
+                         "le monde Médias ne porte aucune surface hors catalogue")
 
-    def test_the_menu_and_the_catalog_page_render_the_declared_surfaces(self):
-        """La page `/apps/` ET le menu (processeur de contexte) lisent la déclaration : les cinq
-        surfaces y sont, avec leur route — le menu sans la gestion des modèles (`nav_hide`)."""
+    def test_groups_go_by_world_then_by_category_inside_a_world(self):
+        """UNE lecture pour le menu, l'accueil et `/apps/` (`get_app_groups`) : les mondes dans
+        leur ordre, et dans le monde Médias les trois catégories. Une catégorie n'est plus un
+        monde : `data`, `lab` et `platform` ont quitté `APP_CATEGORIES`."""
+        from wama.common.app_registry import (APP_CATEGORIES, WORLD_SECTIONS, get_app_groups)
+        from wama.common.manifests.envelope import WORLDS
+        self.assertEqual(set(APP_CATEGORIES), {'understand', 'create', 'transform'})
+        self.assertEqual(set(WORLD_SECTIONS), set(WORLDS),
+                         "une section par monde du vocabulaire, ni plus ni moins")
+        groups = get_app_groups()
+        self.assertEqual([(g['id'], g['world']) for g in groups],
+                         [('understand', 'media'), ('create', 'media'), ('transform', 'media'),
+                          ('lab', 'lab'), ('transverse', 'transverse')])
+        by_id = {g['id']: g for g in groups}
+        self.assertIn('transcriber', [name for name, _spec in by_id['understand']['apps']])
+        self.assertEqual(by_id['understand']['links'], [])
+        self.assertEqual(by_id['lab']['meta']['label'], 'WAMA Lab')
+        self.assertEqual([s['app'] for s in by_id['lab']['links']],
+                         ['face_analyzer', 'cam_analyzer'])
+
+    def test_the_menu_the_catalog_page_and_the_home_page_render_the_declared_surfaces(self):
+        """`/apps/`, le menu (processeur de contexte) ET l'accueil lisent la déclaration : les
+        surfaces y sont, avec leur route — le menu et l'accueil sans la gestion des modèles
+        (`nav_hide`). L'accueil n'a plus de bloc Studio ni Lab écrit en dur."""
         from django.contrib.auth import get_user_model
+        from django.utils.html import escape
         from wama.common.app_registry import surfaces
         user = get_user_model().objects.create_superuser('worlds_admin', 'w@test.local', 'x')
         self.client.force_login(user)
         response = self.client.get(reverse('common:apps_catalog'))
         self.assertEqual(response.status_code, 200)
         for surface in surfaces():
-            with self.subTest(surface=surface['app']):
+            with self.subTest(page='apps', surface=surface['app']):
                 self.assertContains(response, surface['label'])
                 self.assertContains(response, reverse(surface['url_name']))
         menu = {link['gate'] for group in response.context['nav_apps_grouped']
                 for link in group.get('links', ())}
         self.assertEqual(menu, {'face_analyzer', 'cam_analyzer', 'studio', 'media_library'})
+
+        home = self.client.get('/')
+        self.assertEqual(home.status_code, 200)
+        for surface in surfaces():
+            if surface.get('nav_hide'):
+                continue
+            with self.subTest(page='home', surface=surface['app']):
+                self.assertTrue(surface['description'], "surface sans description : card vide")
+                self.assertContains(home, escape(surface['description']))
+        template = (Path(settings.BASE_DIR) / 'wama' / 'templates' / 'home.html').read_text(
+            encoding='utf-8')
+        self.assertNotIn('wama_lab:', template, "une app Lab écrite en dur dans l'accueil")
+        self.assertNotIn("'studio:index'", template, "le Studio écrit en dur dans l'accueil")
 
     def test_an_unknown_world_or_a_contradiction_is_refused(self):
         from wama.common.app_registry import declare_app_world

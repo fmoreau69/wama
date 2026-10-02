@@ -78,9 +78,9 @@ class ObservedEventsTest(TestCase):
         self.assertFalse(event.extra['executed'])
 
     def test_an_app_without_catalog_entry_keeps_an_identity_color(self):
-        from wama.common.app_registry import category_color
+        from wama.common.app_registry import world_color
         label, color = cal.app_identity('app_without_entry')
-        self.assertEqual(color, category_color('platform'))
+        self.assertEqual(color, world_color('transverse'))
         self.assertEqual(label, 'App without entry')
 
     def test_another_users_items_never_appear(self):

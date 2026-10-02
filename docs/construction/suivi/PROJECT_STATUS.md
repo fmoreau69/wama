@@ -19962,3 +19962,37 @@ après P3 (n°8), une seule déclaration poussée remplace les `extra_links`.
   modèle en cours illisible pendant un « auto », « en cours » posé par les lanceurs.
 - **Pendings système** : 🔴 relancer WAMA ; base de test `test_wama_db_reprise_pipeline` gardée
   le temps de la session.
+
+## §PALIER — 2026-10-02, « PIPELINE PORTÉ PAR LA CARD — P1, 3ᵉ pièce : une catégorie n'est plus un monde ; menu, accueil et `/apps/` lisent UN groupage » — ✅ commit ci-dessous, non poussé — 🔴 RELANCER WAMA (gabarit d'accueil et processeur de contexte neufs) — 🔚 dernier reste de P1 : l'arborescence d'apps de l'explorateur de fichiers
+
+Suite de `a721c4ca` (2ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 3ᵉ pièce ».
+
+- ✅ **`APP_CATEGORIES` ne garde que Comprendre / Créer / Transformer** ; `data`, `lab` et `platform`
+  en sortent — c'étaient des mondes. Les mondes ont leur table, `WORLD_SECTIONS` (libellé, icône,
+  ordre, teinte, accroche), tenue égale au vocabulaire `WORLDS` par un test.
+- ✅ **`get_app_groups()`** (`app_registry.py`) : par monde, puis par catégorie dans un monde, plus
+  une section par monde pour ses surfaces hors catalogue. Le menu (processeur de contexte) et
+  `/apps/` la lisent tous deux — `apps_catalog_view` refaisait le groupage à la main. Retirés :
+  `get_apps_by_category`, `category_surfaces`, `category_color`, `WORLD_LABELS`.
+- ✅ **L'accueil est dérivé** : les blocs Studio et Lab écrits en dur dans `home.html` sont
+  retirés ; leurs cards sont générées des surfaces déclarées (`description` ajoutée à
+  `register_surface`).
+- **Ce qui change à l'écran** (à l'œil de Fabien après relance) : à l'accueil, la Médiathèque gagne
+  une card, la card du Face Analyzer passe en français, les badges « Bêta » (Studio) et
+  « Research » (Lab) disparaissent — ils n'étaient déclarés nulle part. Le menu Applications et
+  `/apps/` gardent les mêmes sections dans le même ordre. Aucun en-tête « Médias » n'est ajouté
+  au-dessus des trois catégories : la donnée le permet (`group.world`), l'afficher est un choix
+  de présentation laissé à Fabien.
+- **Mesuré** : 339 tests `OK` (WSL, base isolée : `tests_catalogues`, `tests_calendar`,
+  `tests_subscriptions`, `wama.accounts`, `wama.filemanager`, `wama.studio`) ; huit gardes dans
+  `DeclaredWorldsTest`, dont le rendu réel des trois pages. **Navigateur** (serveur de dev jetable
+  sur 8011, compte de test développeur, arrêté ensuite) : accueil, menu et `/apps/` rendus avec les
+  sections et cards attendues, zéro erreur console. La suite complète n'a PAS été rejouée après
+  cette pièce — elle le sera en fin de P1.
+- ⏳ **Reste de P1 — l'explorateur de fichiers** : `filemanager/views.py::_app_folders_config`
+  écrit une entrée par app (libellé, icône, sous-dossiers ; enhancer et imager en ont de
+  spécifiques), `_allowed_app_prefixes` cite les deux apps Lab par leur nom, et
+  `filemanager.js::autoExpandCurrentAppFolder` tient une table jumelle des identifiants de nœuds.
+  À dériver d'une déclaration des dossiers d'app. Le catalogue du studio relève de P5.
+- **Laissé dans l'arbre, pas à moi** : `wama/common/mecanismes.py` porte un hunk d'une autre
+  instance (ligne 1710) — non commité ici.

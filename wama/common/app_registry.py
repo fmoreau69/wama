@@ -792,17 +792,12 @@ def _conv(
 
 # ─── CATÉGORIES d'applications (déclaratif, ÉVOLUTIF — décision Fabien 2026-07-05) ────────────
 # Axe de classement = NATURE de l'opération (le domaine média est un ATTRIBUT de l'app, pas un
-# groupe — piège de l'Enhancer coupé en deux). Les 3 premières catégories sont DÉRIVABLES des
-# types déclarés (derive_category) ; les trois suivantes sont les sections des MONDES hors Médias
-# (clé `world`) : elles ne listent plus leurs surfaces, elles les LISENT (`category_surfaces`).
+# groupe — piège de l'Enhancer coupé en deux). Les trois catégories sont DÉRIVABLES des types
+# déclarés (derive_category).
 #
-# Une surface transversale (studio, médiathèque, model_manager) ou Lab n'entre pas dans APP_CATALOG
-# parce qu'APP_CATALOG n'est pas « la liste des apps » mais le CONTRAT d'une app générique de
-# traitement de fichiers (input_types, batch_type, grille `conventions` mesurée par
-# check_app_conformity). Y faire entrer une brique transversale la ferait entrer dans le
-# dénominateur de conformité avec un contrat presque entièrement N/A. Elle se DÉCLARE elle-même,
-# depuis son `AppConfig.ready()` : `register_surface()` plus bas (2026-10-02 — ces surfaces
-# étaient écrites ici, dans des `extra_links`, et le substrat citait donc les apps Lab par leur nom).
+# ⚠ Une catégorie est un SOUS-GROUPE À L'INTÉRIEUR D'UN MONDE (route §10.6 point 6.1). Cette table
+# en a porté six jusqu'au 2026-10-02 : `data`, `lab` et `platform` étaient en réalité des MONDES,
+# rangés ici faute de mieux — ils vivent maintenant dans `WORLD_SECTIONS`, plus bas.
 APP_CATEGORIES = {
     'understand': {
         'label': 'Comprendre', 'icon': '🧠', 'order': 1,
@@ -816,22 +811,40 @@ APP_CATEGORIES = {
         'label': 'Transformer', 'icon': '🔧', 'order': 3,
         'tagline': 'Média → média : anonymiser, améliorer, convertir',
     },
-    'data': {
-        'label': 'Données', 'icon': '📊', 'order': 4, 'world': 'data',
-        'tagline': 'Acquisition (LSL), segmentation, visualisation, traitement — à venir',
-    },
-    'lab': {
-        'label': 'WAMA Lab', 'icon': '🔬', 'order': 5, 'world': 'lab',
-        'tagline': 'Applications métier recherche',
-    },
-    'platform': {
-        'label': 'Transversal', 'icon': '🧩', 'order': 6, 'world': 'transverse',
-        'tagline': 'Briques de la plateforme, au service de toutes les apps',
-    },
 }
 
 #: Sorties « texte » (pour la dérivation de catégorie).
 _DOCUMENT_OUTPUTS = {'txt', 'markdown', 'md', 'srt', 'vtt', 'json', 'docx', 'pdf'}
+
+
+# ─── MONDES : leurs sections (libellé, ordre, teinte) ──────────────────────────────────────────
+# Le vocabulaire est celui de `manifests/envelope.WORLDS`, et lui seul. Chaque monde a UNE
+# présentation, lue par le menu, l'accueil, `/apps/`, le journal et le calendrier. `hue` : teinte
+# de référence du monde (une app du catalogue tient sa couleur de sa CATÉGORIE, cf.
+# `_CATEGORY_HUES` ; une surface hors catalogue sans couleur déclarée prend celle de son monde).
+WORLD_SECTIONS = {
+    'media': {
+        'label': 'Médias', 'icon': '🎬', 'order': 1, 'hue': 200,
+        'tagline': 'Comprendre, créer et transformer des médias',
+    },
+    'data': {
+        'label': 'Données', 'icon': '📊', 'order': 2, 'hue': 40,
+        'tagline': 'Acquisition (LSL), segmentation, visualisation, traitement — à venir',
+    },
+    'lab': {
+        'label': 'WAMA Lab', 'icon': '🔬', 'order': 3, 'hue': 25,
+        'tagline': 'Applications métier recherche',
+    },
+    'transverse': {
+        'label': 'Transversal', 'icon': '🧩', 'order': 4, 'hue': 215,
+        'tagline': 'Briques de la plateforme, au service de toutes les apps',
+    },
+}
+
+
+def world_label(world: str) -> str:
+    """Libellé d'un monde ; le nom brut si le monde est inconnu (jamais une chaîne vide)."""
+    return (WORLD_SECTIONS.get(world) or {}).get('label') or str(world)
 
 
 # ─── MONDES : la déclaration des apps HORS catalogue (route §10.6 point 6.1, marche P1) ───────
@@ -841,9 +854,13 @@ _DOCUMENT_OUTPUTS = {'txt', 'markdown', 'md', 'srt', 'vtt', 'json', 'docx', 'pdf
 #   • `declare_app_world()` — le monde seul (une app sans page : `wama_data`) ;
 #   • `register_surface()`  — le monde ET l'identité d'une page (Lab, Studio, Médiathèque…).
 # ⚠ LUS À L'APPEL, jamais capturés à l'import : ces deux tables se remplissent au `ready()`.
-
-#: Libellés des mondes (vocabulaire : `manifests/envelope.WORLDS`).
-WORLD_LABELS = {'media': 'Médias', 'data': 'Data', 'lab': 'Lab', 'transverse': 'Transversal'}
+#
+# Une surface transversale (studio, médiathèque, model_manager) ou Lab n'entre pas dans APP_CATALOG
+# parce qu'APP_CATALOG n'est pas « la liste des apps » mais le CONTRAT d'une app générique de
+# traitement de fichiers (input_types, batch_type, grille `conventions` mesurée par
+# check_app_conformity). Y faire entrer une brique transversale la ferait entrer dans le
+# dénominateur de conformité avec un contrat presque entièrement N/A. Ces surfaces étaient écrites
+# dans le substrat (des `extra_links`), qui citait donc les apps Lab par leur nom.
 
 _DECLARED_WORLDS: dict = {}
 _SURFACES: dict = {}
@@ -862,19 +879,21 @@ def declare_app_world(app_id: str, world: str) -> None:
 
 
 def register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str,
-                     color: str | None = None, nav_hide: bool = False, order: int = 50) -> None:
+                     description: str = '', color: str | None = None,
+                     nav_hide: bool = False, order: int = 50) -> None:
     """Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
-    icône, couleur). Le menu Applications, `/apps/`, le journal et le calendrier la lisent.
+    icône, description, couleur). Le menu Applications, l'accueil, `/apps/`, le journal et le
+    calendrier la lisent.
 
     `app_id` est aussi la clé `gate` de la surface : celle par laquelle `accessible()` décide du
     droit ET par laquelle l'abonnement (PROFILES_PERMISSIONS §8) décide de l'affichage — une seule
-    clé pour une seule chose. `nav_hide` : présente au catalogue `/apps/`, absente du menu (le
-    model_manager a son entrée dans la section Administration). `order` : rang dans sa section.
-    Idempotent : un `ready()` rejoué remplace la même entrée.
+    clé pour une seule chose. `nav_hide` : présente au catalogue `/apps/`, absente du menu et de
+    l'accueil (le model_manager a son entrée dans la section Administration). `order` : rang
+    dans sa section. Idempotent : un `ready()` rejoué remplace la même entrée.
     """
     declare_app_world(app_id, world)
     surface = {'app': app_id, 'gate': app_id, 'world': world, 'label': label,
-               'url_name': url_name, 'icon': icon, 'order': order}
+               'url_name': url_name, 'icon': icon, 'description': description, 'order': order}
     if color:
         surface['color'] = color
     if nav_hide:
@@ -888,24 +907,13 @@ def surfaces(world: str | None = None) -> list:
     return sorted(found, key=lambda s: (s['order'], s['label']))
 
 
-def category_surfaces(cid: str) -> list:
-    """Surfaces hors catalogue rangées sous une section d'`APP_CATEGORIES` — celles du monde que
-    la section déclare ; aucune pour les trois catégories du monde Médias."""
-    world = (APP_CATEGORIES.get(cid) or {}).get('world')
-    return surfaces(world) if world else []
-
-
-def surface_for(app: str) -> tuple[str, dict] | None:
-    """`(section, surface)` d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —,
-    ou None. Le journal et le calendrier y lisent libellé, route et couleur au lieu d'en
-    redéclarer (2026-09-28 : sans elle, une passe du Lab apparaissait sans couleur ni route).
+def surface_for(app: str) -> dict | None:
+    """Surface d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —, ou None. Le
+    journal et le calendrier y lisent libellé, route et couleur au lieu d'en redéclarer
+    (2026-09-28 : sans elle, une passe du Lab apparaissait sans couleur ni route).
     """
     surface = _SURFACES.get(app)
-    if surface is None:
-        return None
-    cid = next((c for c, meta in APP_CATEGORIES.items() if meta.get('world') == surface['world']),
-               'platform')
-    return cid, dict(surface)
+    return dict(surface) if surface else None
 
 
 def derive_category(entry) -> str:
@@ -921,21 +929,38 @@ def derive_category(entry) -> str:
     return 'transform'
 
 
-def get_apps_by_category():
-    """Catalogue groupé, ordonné par APP_CATEGORIES[order] — source des surfaces groupées
-    (/apps/, nav, assistant). Renvoie [(cat_id, cat_meta, [(app_name, entry), …]), …] ;
-    les sections sans app mais avec des surfaces déclarées sont incluses (Lab/Transversal) —
-    leurs surfaces se lisent par `category_surfaces(cat_id)`."""
-    groups = {cid: [] for cid in APP_CATEGORIES}
+def get_app_groups() -> list:
+    """Sections de TOUT ce qui se montre groupé — menu Applications, accueil, `/apps/` : UNE
+    lecture, par MONDE, puis par catégorie à l'intérieur d'un monde.
+
+    Rend `[{'id', 'world', 'meta', 'apps': [(nom, entrée), …], 'links': [surface, …]}, …]`,
+    dans l'ordre des mondes (`WORLD_SECTIONS`) :
+      • les apps du CATALOGUE d'un monde, une section par catégorie (`meta` = la catégorie) ;
+      • ses surfaces HORS catalogue, une section au nom du monde (`meta` = le monde).
+    Une section vide n'est pas rendue. Le droit et la préférence d'affichage ne sont PAS
+    appliqués ici : ils dépendent de l'utilisateur, donc de l'appelant.
+
+    ⚠ Une entrée du catalogue sans monde est rangée en `media` : `APP_CATALOG` est le contrat
+    d'une app Médias, et la seule entrée sans monde possible est une app de bac à sable née
+    d'un manifeste avant le 2026-10-02 — la laisser tomber du menu serait pire. `app_world()`,
+    lui, ne replie pas.
+    """
+    by_world: dict = {}
     for name, entry in APP_CATALOG.items():
+        world = entry.get('world') or 'media'
         cid = entry.get('category') or derive_category(entry)
-        groups.setdefault(cid, []).append((name, entry))
-    out = []
-    for cid, meta in sorted(APP_CATEGORIES.items(), key=lambda kv: kv[1].get('order', 99)):
-        apps = groups.get(cid, [])
-        if apps or category_surfaces(cid):
-            out.append((cid, meta, apps))
-    return out
+        by_world.setdefault(world, {}).setdefault(cid, []).append((name, entry))
+    groups = []
+    for world, section in sorted(WORLD_SECTIONS.items(), key=lambda kv: kv[1]['order']):
+        categories = by_world.get(world) or {}
+        for cid in sorted(categories, key=lambda c: (APP_CATEGORIES.get(c) or {}).get('order', 99)):
+            groups.append({'id': cid, 'world': world, 'meta': APP_CATEGORIES.get(cid) or section,
+                           'apps': categories[cid], 'links': []})
+        links = surfaces(world)
+        if links:
+            groups.append({'id': world, 'world': world, 'meta': section,
+                           'apps': [], 'links': links})
+    return groups
 
 
 def app_world(app_id: str) -> str | None:
@@ -1590,10 +1615,9 @@ _CATEGORY_HUES = {
     'understand': 200,  # cyan-bleu (analyse)
     'create': 282,      # violet (génération)
     'transform': 160,   # vert-teal (traitement)
-    'data': 40,         # ambre
-    'lab': 25,          # orange
-    'platform': 215,    # gris-bleu
 }
+#: Teinte de repli : celle du monde `transverse` (gris-bleu).
+_FALLBACK_HUE = WORLD_SECTIONS['transverse']['hue']
 
 
 def _hsl_hex(h, s, l):
@@ -1602,9 +1626,10 @@ def _hsl_hex(h, s, l):
     return '#%02x%02x%02x' % (round(r * 255), round(g * 255), round(b * 255))
 
 
-def category_color(cid: str) -> str:
-    """Couleur de RÉFÉRENCE d'une catégorie (en-têtes de section, dossiers…)."""
-    return _hsl_hex(_CATEGORY_HUES.get(cid, 215), 70, 55)
+def world_color(world: str) -> str:
+    """Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
+    déclarée, et d'une source que rien n'identifie (gris-bleu du monde `transverse`)."""
+    return _hsl_hex((WORLD_SECTIONS.get(world) or {}).get('hue', _FALLBACK_HUE), 70, 55)
 
 
 def _assign_derived_colors():
@@ -1613,7 +1638,7 @@ def _assign_derived_colors():
         _cid = _spec.get('category') or derive_category(_spec)
         groups.setdefault(_cid, []).append(_name)
     for _cid, _names in groups.items():
-        hue = _CATEGORY_HUES.get(_cid, 215)
+        hue = _CATEGORY_HUES.get(_cid, _FALLBACK_HUE)
         n = len(_names)
         for i, _name in enumerate(sorted(_names)):
             if 'color' in APP_CATALOG[_name]:

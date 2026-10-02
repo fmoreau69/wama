@@ -90,8 +90,8 @@ class SourceJournal:
 
     @property
     def libelle_monde(self):
-        from ..app_registry import WORLD_LABELS
-        return WORLD_LABELS.get(self.monde, self.monde)
+        from ..app_registry import world_label
+        return world_label(self.monde)
 
 
 def app_queue_url(app):
@@ -108,7 +108,7 @@ def app_queue_url(app):
     url_name = (APP_CATALOG.get(app) or {}).get('url_name')
     if not url_name:
         declared = surface_for(app)
-        url_name = declared[1].get('url_name') if declared else None
+        url_name = declared.get('url_name') if declared else None
     if not url_name:
         return ''
     try:

@@ -307,14 +307,16 @@ def apps_catalog_view(request):
 
     # ── Groupage par CATÉGORIE (APP_CATEGORIES, déclaratif + dérivable — décision 2026-07-05).
     # apps_list reste passé tel quel pour la table de conformité (ordre alphabétique).
-    from .app_registry import APP_CATEGORIES, category_surfaces, derive_category
+    # Depuis le 2026-10-02 le groupage est celui de `get_app_groups` — par MONDE, puis par catégorie
+    # dans un monde —, le même que le menu et l'accueil : cette vue le refaisait à la main.
+    from .app_registry import get_app_groups
     by_name = {a['name']: a for a in apps_list}
     apps_grouped = []
-    for cid, meta in sorted(APP_CATEGORIES.items(), key=lambda kv: kv[1].get('order', 99)):
-        items = [by_name[n] for n, s in APP_CATALOG.items()
-                 if (s.get('category') or derive_category(s)) == cid]
+    for group in get_app_groups():
+        cid, meta = group['id'], group['meta']
+        items = [by_name[n] for n, _spec in group['apps']]
         links = []
-        for link in category_surfaces(cid):
+        for link in group['links']:
             try:
                 url = reverse(link['url_name'])
             except NoReverseMatch:
