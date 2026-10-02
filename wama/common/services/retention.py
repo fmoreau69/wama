@@ -30,6 +30,11 @@ logger = logging.getLogger(__name__)
 # contenant une liste de chemins de fichiers hors FileField (ex. imager.generated_images).
 # `pin` (optionnel) = champ booléen d'épinglage/favori : les enregistrements épinglés sont EXEMPTÉS
 # de la purge. (Aucun modèle n'a de champ pin pour l'instant ; ajouter ex. 'pin': 'is_pinned'.)
+#
+# ⚠ Les DIX apps de file y sont depuis le 2026-10-02 (D9, décision de Fabien) : cinq en étaient
+# absentes (anonymizer, avatarizer, converter, describer, reader) — pour elles, la durée choisie
+# au profil ne valait rien, sans que rien ne le dise. `anonymizer.Media` date sa ligne par
+# `uploaded_at` (il n'a pas de `created_at`).
 RETENTION_MODELS = [
     {'model': 'imager.ImageGeneration', 'path_lists': ['generated_images']},
     {'model': 'enhancer.Enhancement'},
@@ -37,6 +42,11 @@ RETENTION_MODELS = [
     {'model': 'composer.ComposerGeneration'},
     {'model': 'synthesizer.VoiceSynthesis'},
     {'model': 'transcriber.Transcript'},
+    {'model': 'anonymizer.Media', 'date': 'uploaded_at'},
+    {'model': 'avatarizer.AvatarJob'},
+    {'model': 'converter.ConversionJob'},
+    {'model': 'describer.Description'},
+    {'model': 'reader.ReadingItem'},
 ]
 
 
@@ -170,6 +180,83 @@ def expirations_for(user, start, end):
         for pk, created in qs.values_list('pk', date_field)[:1000]:
             out.append({'app': Model._meta.app_label, 'model': entry['model'], 'id': pk,
                         'expires_at': created + delta})
+    return out
+
+
+# ── Le DOSSIER TEMPORAIRE (`users/<id>/temp`) — le second réglage (2026-10-02, D9) ───────────────
+#
+# Décision de Fabien : deux réglages au profil, pas trois — les cards et leurs fichiers (ci-dessus),
+# et le dossier temporaire (ici) ; la médiathèque n'a PAS de durée. Défaut 0 = illimité : le temp
+# sert aussi de rangement personnel (médias de test, de présentation). Ce que la purge respecte :
+#   - un fichier qu'une card ou un asset DÉSIGNE (`file_references.is_referenced_elsewhere`, listes de
+#     chemins comprises) n'est jamais supprimé — le pointage (D23) rend ce cas courant ;
+#   - l'âge est celui de la DERNIÈRE MODIFICATION du fichier (un fichier remplacé repart à zéro) ;
+#   - le pré-avis (J-N) prévient avant, comme pour les cards.
+
+def _temp_retentions():
+    """{user_id: jours} des utilisateurs dont le dossier temporaire a une durée (plafond inclus)."""
+    from django.conf import settings
+    from wama.accounts.models import UserProfile
+    cap = int(getattr(settings, 'WAMA_MAX_RETENTION_DAYS', 0) or 0)
+    qs = UserProfile.objects.all() if cap else UserProfile.objects.filter(temp_retention_days__gt=0)
+    out = {}
+    for p in qs:
+        days = p.effective_temp_retention_days()
+        if days and days > 0:
+            out[p.user_id] = days
+    return out
+
+
+def _temp_files(user_id):
+    """[(chemin absolu, chemin relatif à MEDIA_ROOT, date de modification)] du temp d'un utilisateur."""
+    from pathlib import Path
+    from django.conf import settings
+    root = Path(settings.MEDIA_ROOT) / f'users/{user_id}/temp'
+    if not root.is_dir():
+        return []
+    from datetime import datetime
+    from datetime import timezone as dt_timezone
+    out = []
+    for path in root.rglob('*'):
+        if path.is_file():
+            rel = path.relative_to(settings.MEDIA_ROOT).as_posix()
+            out.append((path, rel, datetime.fromtimestamp(path.stat().st_mtime, tz=dt_timezone.utc)))
+    return out
+
+
+def _expiring_temp(user_id, cutoff):
+    """Les fichiers du temp modifiés avant `cutoff` et que RIEN ne désigne."""
+    from wama.common.utils.file_references import is_referenced_elsewhere
+    return [(path, rel) for path, rel, mtime in _temp_files(user_id)
+            if mtime < cutoff and not is_referenced_elsewhere(rel)]
+
+
+def purge_expired_temp(dry_run=False):
+    """Supprime, pour chaque utilisateur à durée finie, les fichiers de son dossier temporaire plus
+    vieux que cette durée et que rien ne désigne. Rend {'deleted', 'users', 'dry_run'}."""
+    retentions = _temp_retentions()
+    summary = {'deleted': 0, 'users': len(retentions), 'dry_run': dry_run}
+    now = timezone.now()
+    for user_id, days in retentions.items():
+        for _path, rel in _expiring_temp(user_id, now - timezone.timedelta(days=days)):
+            if not dry_run:
+                _delete_path(rel)
+            summary['deleted'] += 1
+    return summary
+
+
+def upcoming_temp_expirations(days_ahead):
+    """{user_id: n} des fichiers du temp qui seront supprimés dans <= days_ahead jours (pré-avis)."""
+    from wama.common.utils.file_references import is_referenced_elsewhere
+    out = {}
+    now = timezone.now()
+    for user_id, days in _temp_retentions().items():
+        soon = now - timezone.timedelta(days=days) + timezone.timedelta(days=days_ahead)
+        still = now - timezone.timedelta(days=days)
+        n = sum(1 for _path, rel, mtime in _temp_files(user_id)
+                if still <= mtime < soon and not is_referenced_elsewhere(rel))
+        if n:
+            out[user_id] = n
     return out
 
 

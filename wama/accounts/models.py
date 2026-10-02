@@ -200,14 +200,36 @@ class UserProfile(models.Model):
         help_text="0 = illimité. Au-delà, les sorties sont purgées automatiquement.",
     )
 
-    def effective_retention_days(self):
-        """Rétention effective = min(choix user, plafond admin) ; 0 = illimité des deux côtés."""
+    # Rétention du DOSSIER TEMPORAIRE (`users/<id>/temp`, 2026-10-02 — MEDIA_STORAGE_TIERING D9).
+    # Le second des DEUX réglages décidés par Fabien (le premier : les cards et leurs fichiers,
+    # ci-dessus) ; la médiathèque n'en a PAS — y ranger un fichier, c'est le garder. Défaut 0 :
+    # « dans mon utilisation, c'est plutôt un dossier de stockage personnel (médias de test, de
+    # présentation) » — on verra à l'usage. Un fichier qu'une card ou un asset désigne n'est
+    # jamais purgé (`retention.purge_expired_temp`).
+    temp_retention_days = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Conservation du dossier temporaire (jours)',
+        help_text="0 = illimité. Au-delà, les fichiers du dossier temporaire que rien n'utilise "
+                  "sont supprimés automatiquement.",
+    )
+
+    @staticmethod
+    def _capped(days):
+        """min(choix user, plafond admin `WAMA_MAX_RETENTION_DAYS`) ; 0 = illimité des deux côtés."""
         from django.conf import settings
         cap = int(getattr(settings, 'WAMA_MAX_RETENTION_DAYS', 0) or 0)
-        user = int(self.media_retention_days or 0)
+        user = int(days or 0)
         if user and cap:
             return min(user, cap)
         return user or cap
+
+    def effective_retention_days(self):
+        """Rétention effective des cards et de leurs fichiers (plafond admin compris)."""
+        return self._capped(self.media_retention_days)
+
+    def effective_temp_retention_days(self):
+        """Rétention effective du dossier temporaire (même plafond admin)."""
+        return self._capped(self.temp_retention_days)
 
     def wants_notification(self, success):
         """L'utilisateur veut-il être notifié pour cet événement (succès/échec) ?"""

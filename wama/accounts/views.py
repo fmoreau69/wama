@@ -578,21 +578,30 @@ def inspector_autoplay_update(request):
 @login_required
 @require_POST
 def retention_update(request):
-    """AJAX: enregistre la durée de conservation des médias (0 = illimité)."""
+    """AJAX: enregistre les DEUX durées de conservation (0 = illimité) — les cards et leurs fichiers
+    (`media_retention_days`), le dossier temporaire (`temp_retention_days`, 2026-10-02, D9). Une
+    clé absente garde sa valeur : un appelant qui ne connaît que la première ne remet pas l'autre
+    à zéro."""
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON invalide'}, status=400)
-    try:
-        days = max(0, int(data.get('media_retention_days', 0)))
-    except (TypeError, ValueError):
-        return JsonResponse({'error': 'Valeur invalide'}, status=400)
-
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    profile.media_retention_days = days
-    profile.save(update_fields=['media_retention_days'])
-    return JsonResponse({'success': True, 'media_retention_days': days,
-                         'effective': profile.effective_retention_days()})
+    fields = []
+    for key in ('media_retention_days', 'temp_retention_days'):
+        if key not in data:
+            continue
+        try:
+            setattr(profile, key, max(0, int(data.get(key) or 0)))
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'Valeur invalide'}, status=400)
+        fields.append(key)
+    if fields:
+        profile.save(update_fields=fields)
+    return JsonResponse({'success': True, 'media_retention_days': profile.media_retention_days,
+                         'temp_retention_days': profile.temp_retention_days,
+                         'effective': profile.effective_retention_days(),
+                         'effective_temp': profile.effective_temp_retention_days()})
 
 
 @login_required
