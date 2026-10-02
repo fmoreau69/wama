@@ -34,9 +34,45 @@ def compose_task(self, generation_id: int):
     """Generate music or SFX for a ComposerGeneration instance."""
     from wama.common.utils.task_skeleton import run_item_task
     from .function_specs import PIPELINE
-    run_item_task(self, app_id='composer', model=ComposerGeneration, item_id=generation_id,
-                  pipeline=PIPELINE, processes={'plan': _plan, 'render': _render},
-                  model_key=_model_key, notify_label='Composer')
+    try:
+        run_item_task(self, app_id='composer', model=ComposerGeneration, item_id=generation_id,
+                      pipeline=PIPELINE, processes={'plan': _plan, 'render': _render},
+                      vram_needed=_vram_needed, model_key=_model_key, notify_label='Composer')
+    finally:
+        _release_backend(generation_id)
+
+
+# ── La carte graphique : ATTENDRE sa place, puis la RENDRE ───────────────────────────────────
+# Les deux manques que la 1ʳᵉ génération YuE2 réelle a montrés (2026-10-02, élément #281) :
+#   • le composer ne déclarait AUCUN besoin au squelette : parti sur une carte pleine (modèles de
+#     transcription résidents dans le même worker), il a échoué faute de mémoire au lieu
+#     d'attendre (`AWAITING_RESOURCES`, ou la libération accordée par l'utilisateur) ;
+#   • le moteur n'était jamais RELÂCHÉ : après l'échec, ses poids sont restés dans le worker —
+#     avec le plafond mémoire que YuE2 pose au process — et la tâche SUIVANTE (une transcription
+#     d'une autre file) a manqué de mémoire à son tour.
+
+def _vram_needed(gen):
+    """Besoin VRAM du modèle de CE lancement (cascade commune du catalogue), None si inconnu."""
+    from wama.common.utils.auto_model import vram_needed_gb
+    return vram_needed_gb(_model_key(gen))
+
+
+#: Moteurs ouverts par les lancements EN COURS dans ce process : {id de génération: instance}.
+#: Tenu ici, et non sur le seul élément, pour que la tâche puisse le rendre quoi qu'il arrive.
+_OPEN_BACKENDS: dict = {}
+
+
+def _release_backend(generation_id) -> None:
+    """Rend le moteur du lancement (succès, échec, arrêt à la durée max) : `unload()` du contrat
+    commun. Ne lève jamais — mais un moteur qui ne se décharge pas se DIT au journal."""
+    backend = _OPEN_BACKENDS.pop(generation_id, None)
+    if backend is None:
+        return
+    try:
+        backend.unload()
+    except Exception:
+        logger.warning("[composer] moteur de la génération #%s non déchargé", generation_id,
+                       exc_info=True)
 
 
 # ── Tirage « auto » AU LANCEMENT ─────────────────────────────────────────────────────────────
@@ -117,7 +153,7 @@ def _backend(gen, catalog_key):
             raise RuntimeError(
                 f"Modèle « {gen.model} » : aucun backend résolu depuis le catalogue "
                 f"({catalog_key} absent, ou sans moteur déclaré)")
-        gen._backend = backend_class()
+        gen._backend = _OPEN_BACKENDS[gen.pk] = backend_class()
     return gen._backend
 
 

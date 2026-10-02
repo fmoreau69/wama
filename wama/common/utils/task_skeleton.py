@@ -205,7 +205,7 @@ def _grant_honoured(grant, item) -> bool:
 
 
 def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
-                            error_field):
+                            error_field, write_line: bool = True):
     """Trois cas (Fabien, 20/09), jamais un échec muet. Rend True si l'item ne part pas.
 
     (a) `besoin_gb` ne tient pas sur la carte VIDE → REFUS immédiat et dit : aucune attente ne
@@ -222,6 +222,9 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
     devient VISIBLE sur la card et annulable.
     ⚠ Un `retry` Celery publie un NOUVEAU message : il ne porte pas le drapeau `redelivered`,
     la garde anti-boucle-de-crash (`refuse_crash_redelivery`) ne s'en émeut pas (vérifié).
+    `write_line=False` pour une app à PIPELINE : avant le tirage on ne sait pas quel process
+    partira le premier, et une ligne « main » n'est pas un de ses process — l'attente est alors
+    portée par l'ÉLÉMENT seul (`AWAITING_RESOURCES`), qui reste ce que l'interface lit.
     """
     from wama.common.models import JOB_AWAITING_RESOURCES
     from wama.common.services import process_runs
@@ -243,7 +246,8 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
         if _has_field(model, error_field):
             champs[error_field] = msg
         model.objects.filter(pk=item_id).update(**champs)
-        process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
+        if write_line:
+            process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
         ctx.console(f"✗ {msg}", level='error')
         _notify(item, app_id.title(), _item_label(item, item_id), False, detail=msg)
         return True
@@ -266,8 +270,9 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
     if _has_field(model, error_field):
         champs[error_field] = ''          # ce n'est pas une erreur : on n'en laisse pas la trace
     model.objects.filter(pk=item_id).update(**champs)
-    process_runs.safely(process_runs.await_resources, item, process_key=app_id,
-                        task_id=getattr(getattr(task, 'request', None), 'id', '') or '')
+    if write_line:
+        process_runs.safely(process_runs.await_resources, item, process_key=app_id,
+                            task_id=getattr(getattr(task, 'request', None), 'id', '') or '')
     ctx.console(msg, level='info')
     logger.info("[%s] item #%s différé — %s", app_id, item_id, msg)
     raise task.retry(countdown=DIFFEREMENT_DELAI_S, max_retries=None)
@@ -431,7 +436,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                            app_id, exc)
             besoin = None
         if besoin and _differer_faute_de_vram(task, ctx, item, model, item_id, app_id,
-                                              float(besoin), error_field):
+                                              float(besoin), error_field,
+                                              write_line=pipeline is None):
             return
 
     # Un item RE-LIVRÉ après un report ne repasse par aucune vue de lancement : sans ce geste,

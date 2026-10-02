@@ -331,6 +331,33 @@ class SkeletonRunsThePipelineTest(TestCase):
         self._run(self._element('pipeline_bar'), plan=half('plan'), render=half('render'))
         self.assertEqual({'plan': 12, 'render': 62}, seen)
 
+    def test_a_wait_for_the_graphics_card_writes_no_main_line(self):
+        """Before the draw nobody knows which process starts first, and « main » is not one of
+        the processes of a pipeline: the wait is carried by the element alone."""
+        from wama.common.utils.task_skeleton import run_item_task
+
+        class Deferred(Exception):
+            pass
+        task = _task()
+        task.retry = staticmethod(lambda **kwargs: Deferred(kwargs))
+        item = self._element('pipeline_waits')
+        with mock.patch('wama.common.utils.task_skeleton.close_old_connections'), \
+                mock.patch('wama.common.services.resource_governor.effective_free_gb',
+                           return_value=1.0), \
+                mock.patch('wama.common.services.resource_governor.fits_alone',
+                           return_value=True), \
+                mock.patch('wama.common.services.resource_governor.release_granted',
+                           return_value=None), \
+                mock.patch('wama.common.services.resource_governor.holders_summary',
+                           return_value=''):
+            with self.assertRaises(Deferred):
+                run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
+                              pipeline=self.pipeline, vram_needed=8.0,
+                              processes={'plan': lambda e, c: {}, 'render': lambda e, c: {}})
+        item = self.model.objects.get(pk=item.pk)
+        self.assertEqual('AWAITING_RESOURCES', item.status)
+        self.assertFalse(process_runs.lines(item).exists())
+
     def test_a_process_without_its_glue_fails_the_card_and_says_so(self):
         from wama.common.utils.task_skeleton import run_item_task
         item = self._element('pipeline_no_glue')
