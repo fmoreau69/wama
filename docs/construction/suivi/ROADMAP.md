@@ -1397,7 +1397,12 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
   `benchmark_index`/`quality_index` fonctionne déjà tel quel, le banc tiers note du cloud) ;
   ③ **politique de routage déclarative, par tâche** — *confidentialité d'abord* (un flag de
   sensibilité force le local, non négociable : c'est ce qui rend le cloud acceptable pour un
-  labo SHS), puis *gratuit d'abord* (`local → cloud free → cloud payant`, arbitrage Fabien),
+  labo SHS) — ✅ **TRANCHÉ par Fabien le 2026-10-02 : pas de verrou supplémentaire.** Le cloud est
+  un CHOIX DE L'UTILISATEUR, déjà porté par son profil (`cloud_policy` : « 100 % local » / « cloud
+  si saturé » / « cloud autorisé », garde `cloud_models.cloud_access`), et Albert est l'API de la
+  DINUM, hébergement souverain français (SecNumCloud) : l'audio qui part chez Albert ne quitte pas
+  la sphère publique française. Le « flag de sensibilité » par tâche n'est donc PAS à construire —,
+  puis *gratuit d'abord* (`local → cloud free → cloud payant`, arbitrage Fabien),
   puis *capacité* (contexte/VRAM saturés → escalade cloud, dont `_route_model_by_context` est
   déjà l'embryon local) ; ④ override utilisateur `auto` par défaut (patron `resolve_auto_model`
   de l'imager). ⚠ Le choix manuel est un **override**, jamais le mécanisme principal.
