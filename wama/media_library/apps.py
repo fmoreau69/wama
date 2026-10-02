@@ -15,6 +15,12 @@ class MediaLibraryConfig(AppConfig):
         L'aperçu commun `/common/preview/media_library/<pk>/` s'ouvre du même geste ; sa garde
         est celle du registre (propriétaire ou staff, `preview_registry.check_permission`).
         """
+        # La médiathèque se DÉCLARE : son monde et sa page (menu, `/apps/` — route §10.6 point 6.1).
+        from wama.common.app_registry import register_surface
+        register_surface('media_library', world='transverse', label='Médiathèque',
+                         url_name='media_library:index', icon='fa-photo-film',
+                         color='#a78bfa', order=20)
+
         from wama.common.utils.preview_utils import register_app_preview
         from .models import UserAsset
         register_app_preview('media_library', UserAsset,

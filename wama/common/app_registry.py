@@ -793,18 +793,16 @@ def _conv(
 # ─── CATÉGORIES d'applications (déclaratif, ÉVOLUTIF — décision Fabien 2026-07-05) ────────────
 # Axe de classement = NATURE de l'opération (le domaine média est un ATTRIBUT de l'app, pas un
 # groupe — piège de l'Enhancer coupé en deux). Les 3 premières catégories sont DÉRIVABLES des
-# types déclarés (derive_category) ; les suivantes accueillent les surfaces hors-catalogue via
-# extra_links en attendant leur entrée au catalogue (Data = apps à venir : LSL, segmentation…).
+# types déclarés (derive_category) ; les trois suivantes sont les sections des MONDES hors Médias
+# (clé `world`) : elles ne listent plus leurs surfaces, elles les LISENT (`category_surfaces`).
 #
-# ⚠ `gate` N'EST PAS un détail de menu : c'est l'app_id de la surface, donc LA clé unique par
-# laquelle `accessible()` décide du droit ET par laquelle l'abonnement (PROFILES_PERMISSIONS §8)
-# décide de l'affichage. Une surface transversale (studio, médiathèque, model_manager) ou Lab est
-# déclarée ICI et pas dans APP_CATALOG parce qu'APP_CATALOG n'est pas « la liste des apps » mais le
-# CONTRAT d'une app générique de traitement de fichiers (input_types, batch_type, grille
-# `conventions` mesurée par check_app_conformity). Y faire entrer une brique transversale la ferait
-# entrer dans le dénominateur de conformité avec un contrat presque entièrement N/A.
-# Corollaire : tout ce qui est gardé porte un `gate` — un extra_link sans `gate` n'est ni gardable
-# ni masquable, et se lit comme « surface publique ».
+# Une surface transversale (studio, médiathèque, model_manager) ou Lab n'entre pas dans APP_CATALOG
+# parce qu'APP_CATALOG n'est pas « la liste des apps » mais le CONTRAT d'une app générique de
+# traitement de fichiers (input_types, batch_type, grille `conventions` mesurée par
+# check_app_conformity). Y faire entrer une brique transversale la ferait entrer dans le
+# dénominateur de conformité avec un contrat presque entièrement N/A. Elle se DÉCLARE elle-même,
+# depuis son `AppConfig.ready()` : `register_surface()` plus bas (2026-10-02 — ces surfaces
+# étaient écrites ici, dans des `extra_links`, et le substrat citait donc les apps Lab par leur nom).
 APP_CATEGORIES = {
     'understand': {
         'label': 'Comprendre', 'icon': '🧠', 'order': 1,
@@ -819,34 +817,16 @@ APP_CATEGORIES = {
         'tagline': 'Média → média : anonymiser, améliorer, convertir',
     },
     'data': {
-        'label': 'Données', 'icon': '📊', 'order': 4,
+        'label': 'Données', 'icon': '📊', 'order': 4, 'world': 'data',
         'tagline': 'Acquisition (LSL), segmentation, visualisation, traitement — à venir',
-        'extra_links': [],
     },
     'lab': {
-        'label': 'WAMA Lab', 'icon': '🔬', 'order': 5,
+        'label': 'WAMA Lab', 'icon': '🔬', 'order': 5, 'world': 'lab',
         'tagline': 'Applications métier recherche',
-        'extra_links': [
-            # Routes namespacées wama_lab (le premier jet 'face_analyzer:index' était silencieusement
-            # omis par le garde NoReverseMatch). gate = clé accessible_apps pour le menu nav.
-            {'label': 'Face Analyzer', 'url_name': 'wama_lab:face_analyzer:index', 'icon': 'fa-face-smile', 'color': '#0dcaf0', 'gate': 'face_analyzer'},
-            {'label': 'Cam Analyzer', 'url_name': 'wama_lab:cam_analyzer:index', 'icon': 'fa-video', 'color': '#ffc107', 'gate': 'cam_analyzer'},
-        ],
     },
     'platform': {
-        'label': 'Transversal', 'icon': '🧩', 'order': 6,
+        'label': 'Transversal', 'icon': '🧩', 'order': 6, 'world': 'transverse',
         'tagline': 'Briques de la plateforme, au service de toutes les apps',
-        'extra_links': [
-            # nav_hide = présent au catalogue (/apps/) mais pas au menu Applications
-            # (le model_manager a déjà son entrée dans la section Administration du header).
-            {'label': 'Studio', 'url_name': 'studio:index', 'icon': 'fa-diagram-project', 'color': '#fb923c', 'gate': 'studio'},
-            {'label': 'Médiathèque', 'url_name': 'media_library:index', 'icon': 'fa-photo-film', 'color': '#a78bfa', 'gate': 'media_library'},
-            # `gate` ajouté le 27/08 : le model_manager EST sous contrôle d'accès
-            # (DEFAULT_APP_ACCESS, min_tier développeur) mais son lien s'affichait au catalogue
-            # pour tout le monde — le middleware refusait ensuite la page. Un lien gardé ailleurs
-            # et pas ici, c'est la promesse d'un 403.
-            {'label': 'Gestion des modèles', 'url_name': 'model_manager:index', 'icon': 'fa-microchip', 'nav_hide': True, 'gate': 'model_manager'},
-        ],
     },
 }
 
@@ -854,19 +834,78 @@ APP_CATEGORIES = {
 _DOCUMENT_OUTPUTS = {'txt', 'markdown', 'md', 'srt', 'vtt', 'json', 'docx', 'pdf'}
 
 
-def extra_link_for(app: str) -> tuple[str, dict] | None:
-    """`(catégorie, lien)` d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —
-    par son `gate`, ou None.
+# ─── MONDES : la déclaration des apps HORS catalogue (route §10.6 point 6.1, marche P1) ───────
+# Une app du catalogue déclare son monde dans son entrée (`world`). Une app qui n'y entre pas le
+# déclare depuis son `AppConfig.ready()` : le monde POUSSE, le substrat ne connaît pas ses
+# producteurs (AGENTS.md, « un monde n'est pas un sous-dossier du substrat »).
+#   • `declare_app_world()` — le monde seul (une app sans page : `wama_data`) ;
+#   • `register_surface()`  — le monde ET l'identité d'une page (Lab, Studio, Médiathèque…).
+# ⚠ LUS À L'APPEL, jamais capturés à l'import : ces deux tables se remplissent au `ready()`.
 
-    Ces apps ont DÉJÀ leur identité déclarée ici (libellé, route, icône, couleur) dans les
-    `extra_links` des catégories. Le journal et le calendrier la lisent au lieu d'en redéclarer
-    une (2026-09-28 : sans elle, une passe du Lab apparaissait sans couleur ni route).
+#: Libellés des mondes (vocabulaire : `manifests/envelope.WORLDS`).
+WORLD_LABELS = {'media': 'Médias', 'data': 'Data', 'lab': 'Lab', 'transverse': 'Transversal'}
+
+_DECLARED_WORLDS: dict = {}
+_SURFACES: dict = {}
+
+
+def declare_app_world(app_id: str, world: str) -> None:
+    """Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
+    de contredire le catalogue : une app n'a qu'UNE déclaration."""
+    from .manifests.envelope import WORLDS
+    if world not in WORLDS:
+        raise ValueError(f"monde {world!r} inconnu pour {app_id!r} (attendu : {', '.join(WORLDS)})")
+    declared = (APP_CATALOG.get(app_id) or {}).get('world')
+    if declared and declared != world:
+        raise ValueError(f"{app_id!r} déclare déjà le monde {declared!r} au catalogue")
+    _DECLARED_WORLDS[app_id] = world
+
+
+def register_surface(app_id: str, *, world: str, label: str, url_name: str, icon: str,
+                     color: str | None = None, nav_hide: bool = False, order: int = 50) -> None:
+    """Déclare la PAGE d'une app hors catalogue : son monde et son identité (libellé, route,
+    icône, couleur). Le menu Applications, `/apps/`, le journal et le calendrier la lisent.
+
+    `app_id` est aussi la clé `gate` de la surface : celle par laquelle `accessible()` décide du
+    droit ET par laquelle l'abonnement (PROFILES_PERMISSIONS §8) décide de l'affichage — une seule
+    clé pour une seule chose. `nav_hide` : présente au catalogue `/apps/`, absente du menu (le
+    model_manager a son entrée dans la section Administration). `order` : rang dans sa section.
+    Idempotent : un `ready()` rejoué remplace la même entrée.
     """
-    for cid, meta in APP_CATEGORIES.items():
-        for link in meta.get('extra_links') or ():
-            if link.get('gate') == app:
-                return cid, link
-    return None
+    declare_app_world(app_id, world)
+    surface = {'app': app_id, 'gate': app_id, 'world': world, 'label': label,
+               'url_name': url_name, 'icon': icon, 'order': order}
+    if color:
+        surface['color'] = color
+    if nav_hide:
+        surface['nav_hide'] = True
+    _SURFACES[app_id] = surface
+
+
+def surfaces(world: str | None = None) -> list:
+    """Surfaces déclarées (copies), d'un monde ou de tous, dans l'ordre de leur section."""
+    found = [dict(s) for s in _SURFACES.values() if world is None or s['world'] == world]
+    return sorted(found, key=lambda s: (s['order'], s['label']))
+
+
+def category_surfaces(cid: str) -> list:
+    """Surfaces hors catalogue rangées sous une section d'`APP_CATEGORIES` — celles du monde que
+    la section déclare ; aucune pour les trois catégories du monde Médias."""
+    world = (APP_CATEGORIES.get(cid) or {}).get('world')
+    return surfaces(world) if world else []
+
+
+def surface_for(app: str) -> tuple[str, dict] | None:
+    """`(section, surface)` d'une app déclarée hors `APP_CATALOG` — Lab, Studio, Médiathèque —,
+    ou None. Le journal et le calendrier y lisent libellé, route et couleur au lieu d'en
+    redéclarer (2026-09-28 : sans elle, une passe du Lab apparaissait sans couleur ni route).
+    """
+    surface = _SURFACES.get(app)
+    if surface is None:
+        return None
+    cid = next((c for c, meta in APP_CATEGORIES.items() if meta.get('world') == surface['world']),
+               'platform')
+    return cid, dict(surface)
 
 
 def derive_category(entry) -> str:
@@ -885,7 +924,8 @@ def derive_category(entry) -> str:
 def get_apps_by_category():
     """Catalogue groupé, ordonné par APP_CATEGORIES[order] — source des surfaces groupées
     (/apps/, nav, assistant). Renvoie [(cat_id, cat_meta, [(app_name, entry), …]), …] ;
-    les catégories sans app mais avec extra_links sont incluses (Data/Lab/Transversal)."""
+    les sections sans app mais avec des surfaces déclarées sont incluses (Lab/Transversal) —
+    leurs surfaces se lisent par `category_surfaces(cat_id)`."""
     groups = {cid: [] for cid in APP_CATEGORIES}
     for name, entry in APP_CATALOG.items():
         cid = entry.get('category') or derive_category(entry)
@@ -893,26 +933,25 @@ def get_apps_by_category():
     out = []
     for cid, meta in sorted(APP_CATEGORIES.items(), key=lambda kv: kv[1].get('order', 99)):
         apps = groups.get(cid, [])
-        if apps or meta.get('extra_links'):
+        if apps or category_surfaces(cid):
             out.append((cid, meta, apps))
     return out
 
 
 def app_world(app_id: str) -> str | None:
-    """Monde DÉCLARÉ d'une app du catalogue — `media | data | lab | transverse`, le vocabulaire
-    de `manifests/envelope.WORLDS` — ou None si elle n'en déclare pas.
+    """Monde DÉCLARÉ d'une app — `media | data | lab | transverse`, le vocabulaire de
+    `manifests/envelope.WORLDS` — ou None si elle n'en déclare pas.
 
     Chaque app déclare son monde (décision du 2026-09-15, `WAMA_APP_GENERATION_ROUTE.md §10.6`
-    point 6.1, marche P1). Il était DÉDUIT du groupe de la matrice d'accès : un libellé de
-    navigation renommé déplaçait une app de monde en silence, et transcriber, reader et
-    describer sortaient `data`, le converter `transverse`.
+    point 6.1, marche P1) : dans son entrée d'`APP_CATALOG`, ou — hors catalogue — depuis son
+    `ready()` (`declare_app_world`, `register_surface`). Il était DÉDUIT du groupe de la matrice
+    d'accès : un libellé de navigation renommé déplaçait une app de monde en silence, et
+    transcriber, reader et describer sortaient `data`, le converter `transverse`.
 
     Aucun repli, à dessein : une app sans monde rend None et c'est l'appelant qui le dit — un
     manifeste sans monde est refusé à la validation de l'enveloppe.
-    ⏳ Les surfaces hors catalogue (Lab, Studio, Médiathèque) ne déclarent pas encore le leur ici ;
-    le journal porte toujours ses propres constantes (`journal.MONDE_*`).
     """
-    return (APP_CATALOG.get(app_id) or {}).get('world')
+    return (APP_CATALOG.get(app_id) or {}).get('world') or _DECLARED_WORLDS.get(app_id)
 
 
 APP_CATALOG = {

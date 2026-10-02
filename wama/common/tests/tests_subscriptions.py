@@ -14,7 +14,7 @@ moment du test (`accessible`), sinon ajouter une app au catalogue rendrait ces t
 
 ⚠ Le PÉRIMÈTRE du mécanisme est celui du DROIT, pas celui d'`APP_CATALOG` (27/08) : les surfaces
 transversales (studio, médiathèque, model_manager) et Lab sont gardées par le même `accessible()`
-tout en étant déclarées en `extra_links`. `test_toute_app_gardee_a_une_surface_au_catalogue` fixe
+tout en étant déclarées hors catalogue (`register_surface`). `test_toute_app_gardee_a_une_surface_au_catalogue` fixe
 la propriété qui empêche l'écart de se rouvrir.
 """
 from django.contrib.auth import get_user_model
@@ -34,31 +34,21 @@ def _apps_autorisees(user):
 
 def _surfaces_catalogue():
     """Tout ce que la page `/apps/` MONTRE et qui porte un app_id : les cards d'`APP_CATALOG`
-    **et** les `extra_links` gardés (surfaces transversales — studio, médiathèque, model_manager —
-    et Lab).
+    **et** les surfaces déclarées hors catalogue (transversales — studio, médiathèque,
+    model_manager — et Lab).
 
     ⚠ `APP_CATALOG` n'est PAS « la liste des apps » : c'est le contrat d'une app générique de
     traitement de fichiers (types d'entrée, batch, grille `conventions`). Les briques
-    transversales sont déclarées en `extra_links`, avec la MÊME clé `gate` = app_id. Dériver le
-    périmètre de l'abonnement du seul `APP_CATALOG` laissait 5 surfaces masquables par rien."""
-    from wama.common.app_registry import APP_CATALOG, APP_CATEGORIES
-    ids = set(APP_CATALOG)
-    for meta in APP_CATEGORIES.values():
-        for lien in meta.get('extra_links', []):
-            if lien.get('gate'):
-                ids.add(lien['gate'])
-    return ids
+    transversales se déclarent par `register_surface`, avec la MÊME clé `gate` = app_id. Dériver
+    le périmètre de l'abonnement du seul `APP_CATALOG` laissait 5 surfaces masquables par rien."""
+    from wama.common.app_registry import APP_CATALOG, surfaces
+    return set(APP_CATALOG) | {lien['gate'] for lien in surfaces()}
 
 
 def _surfaces_abonnables():
     """…moins celles qu'aucun menu n'affiche (`nav_hide`) : les masquer ne changerait rien."""
-    from wama.common.app_registry import APP_CATALOG, APP_CATEGORIES
-    ids = set(APP_CATALOG)
-    for meta in APP_CATEGORIES.values():
-        for lien in meta.get('extra_links', []):
-            if lien.get('gate') and not lien.get('nav_hide'):
-                ids.add(lien['gate'])
-    return ids
+    from wama.common.app_registry import APP_CATALOG, surfaces
+    return set(APP_CATALOG) | {lien['gate'] for lien in surfaces() if not lien.get('nav_hide')}
 
 
 def _abonnables_autorisees(user):

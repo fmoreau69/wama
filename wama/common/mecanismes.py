@@ -1877,11 +1877,23 @@ MECHANISMS = (
               "sont stockées (se réabonner efface la ligne) ; une nature d'élément s'ajoute par "
               "une entrée dans KINDS, et la page de catalogue hérite du mécanisme par deux "
               "attributs (`data-abo`, `data-abo-toggle`). Son PÉRIMÈTRE est celui du DROIT, pas "
-              "d'APP_CATALOG : les surfaces transversales et Lab (extra_links) se masquent par la "
-              "même clé `gate` que celle dont accessible() décide (§8.8.1)",
+              "d'APP_CATALOG : les surfaces transversales et Lab (`register_surface`) se masquent par "
+              "la même clé `gate` que celle dont accessible() décide (§8.8.1)",
               'wama/common/services/subscriptions.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/common/static/common/js/wama-subscription.js',
                        'wama/common/tests/tests_subscriptions.py')),
+    # Ajouté le 2026-10-02 (pipeline porté par la card, marche P1 — route §10.6 point 6.1). Le
+    # monde était DÉDUIT du groupe de la matrice d'accès, les surfaces hors catalogue écrites
+    # dans le substrat (`extra_links`) et le journal recevait le monde par un second chemin.
+    Mechanism('app_worlds', "Monde déclaré d'une app",
+              "Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entrée "
+              "d'APP_CATALOG, ou — hors catalogue — depuis son `ready()` (`declare_app_world` ; "
+              "`register_surface`, qui porte aussi l'identité de sa page). UNE lecture, "
+              "`app_world()` : le manifeste d'app, le monde d'une fonction, le menu, `/apps/`, le "
+              "journal et le calendrier la lisent, rien ne le déduit d'un libellé de navigation",
+              'wama/common/app_registry.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
+              # Domicile très partagé (APP_CATALOG) : compté par son symbole, cf. `media_taxonomy`.
+              symbol='app_world'),
     Mechanism('scoping', 'Accès scopé aux objets',
               "Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / visible)",
               'wama/common/utils/scoping.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md'),

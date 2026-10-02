@@ -21,6 +21,11 @@ d'un monde reste une INSCRIPTION, pas une modification de ce module ni de la pag
 `enregistrer_source()`, appelée par le `ready()` du monde. Depuis le 2026-09-28 le Lab
 (cam_analyzer, face_analyzer : sessions d'analyse) et le Studio (exécutions de pipelines) sont
 inscrits ; reste le monde Data. Ces sources n'ont pas d'inspecteur : leurs entrées mènent à l'app.
+
+LE MONDE D'UNE SOURCE SE LIT, IL NE SE REÇOIT PLUS (2026-10-02, route §10.6 point 6.1). Chaque app
+déclare son monde (`app_registry.app_world`) ; ce module en portait une seconde écriture — quatre
+constantes, dont un monde `studio` qui n'existe pas au vocabulaire (`manifests/envelope.WORLDS`).
+Le studio est `transverse` (décision n°9) : « Studio » est le libellé d'une APP, pas un monde.
 """
 from __future__ import annotations
 
@@ -31,17 +36,10 @@ from wama.common.models import PROCESS_STATUS_CHOICES
 
 logger = logging.getLogger(__name__)
 
+#: Monde du CONTRAT de l'inspecteur : `detail_registry` est celui des apps Médias. Il ne sert qu'à
+#: une clé de ce registre qui n'est pas un identifiant d'app (`audio_enhancer`, second modèle de
+#: l'enhancer) — une app, elle, déclare son monde.
 MONDE_MEDIA = 'media'
-MONDE_STUDIO = 'studio'
-MONDE_LAB = 'lab'
-MONDE_DATA = 'data'
-
-LIBELLES_MONDES = {
-    MONDE_MEDIA: 'Médias',
-    MONDE_STUDIO: 'Studio',
-    MONDE_LAB: 'Lab',
-    MONDE_DATA: 'Data',
-}
 
 #: Champs de date candidats, par ordre de préférence. `created_at` est la convention (11 apps
 #: sur 12) ; `uploaded_at` est l'exception d'anonymizer. Détecter plutôt que déclarer évite une
@@ -92,7 +90,8 @@ class SourceJournal:
 
     @property
     def libelle_monde(self):
-        return LIBELLES_MONDES.get(self.monde, self.monde)
+        from ..app_registry import WORLD_LABELS
+        return WORLD_LABELS.get(self.monde, self.monde)
 
 
 def app_queue_url(app):
@@ -100,15 +99,15 @@ def app_queue_url(app):
 
     Cible du clic du journal ET du calendrier (2026-09-28) — un seul endroit, sinon les deux
     surfaces n'amèneraient pas au même endroit le jour où une app change de route. La route vient
-    d'`APP_CATALOG`, ou de l'identité déclarée hors catalogue (`extra_link_for` : Lab, Studio).
+    d'`APP_CATALOG`, ou de l'identité déclarée hors catalogue (`surface_for` : Lab, Studio).
     """
     from django.urls import NoReverseMatch, reverse
 
-    from ..app_registry import APP_CATALOG, extra_link_for
+    from ..app_registry import APP_CATALOG, surface_for
 
     url_name = (APP_CATALOG.get(app) or {}).get('url_name')
     if not url_name:
-        declared = extra_link_for(app)
+        declared = surface_for(app)
         url_name = declared[1].get('url_name') if declared else None
     if not url_name:
         return ''
@@ -118,14 +117,23 @@ def app_queue_url(app):
         return ''
 
 
-def enregistrer_source(app, model, *, monde, champ_date=None, champ_user='user'):
+def enregistrer_source(app, model, *, champ_date=None, champ_user='user'):
     """
-    Ajoute une source hors `detail_registry` — point d'extension des mondes studio/lab/data.
+    Ajoute une source hors `detail_registry` — point d'extension des mondes lab/data/transverse.
 
     À n'utiliser QUE pour un modèle qui n'a pas d'inspecteur : si l'app est dans
     `detail_registry`, elle est déjà au journal et l'inscrire ici la dupliquerait.
     Idempotent : un `ready()` rejoué n'inscrit pas deux fois la même source.
+
+    Le monde est celui que l'app DÉCLARE (`app_registry.app_world`) : l'inscrire avant de
+    déclarer son monde LÈVE — une source rangée par défaut dans un monde serait une réponse
+    fausse que rien ne signale.
     """
+    from ..app_registry import app_world
+    monde = app_world(app)
+    if monde is None:
+        raise ValueError(f"[journal] {app!r} n'a pas déclaré son monde — appeler "
+                         f"`register_surface` ou `declare_app_world` avant `enregistrer_source`")
     champ_date = champ_date or _detecter_champ_date(model)
     if champ_date is None:
         logger.warning("[journal] %s sans champ de date connu — source ignorée", model.__name__)
@@ -153,6 +161,7 @@ def sources():
     Une app sans champ `user` est ÉCARTÉE : le journal est personnel, et un modèle sans
     propriétaire ne peut être rattaché à personne.
     """
+    from ..app_registry import app_world
     from ..utils.detail_registry import DetailRegistry
 
     trouvees = []
@@ -170,7 +179,7 @@ def sources():
                            "Ajouter le champ au modèle ou l'inscrire via enregistrer_source().",
                            app, model.__name__, ', '.join(CHAMPS_DATE))
             continue
-        trouvees.append(SourceJournal(app=app, monde=MONDE_MEDIA, model=model,
+        trouvees.append(SourceJournal(app=app, monde=app_world(app) or MONDE_MEDIA, model=model,
                                       champ_date=champ_date,
                                       start_field=_detect_field(model, START_FIELDS),
                                       end_field=_detect_field(model, END_FIELDS)))

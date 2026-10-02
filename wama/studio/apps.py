@@ -14,7 +14,12 @@ class StudioConfig(AppConfig):
             register_scenarios()
         except Exception:
             pass
+        # Le studio se DÉCLARE : son monde (`transverse`, décision n°9 de la route §10.6) et sa
+        # page — c'est cette déclaration que lisent le menu, `/apps/`, le journal et le calendrier.
+        from wama.common.app_registry import register_surface
+        register_surface('studio', world='transverse', label='Studio', url_name='studio:index',
+                         icon='fa-diagram-project', color='#fb923c', order=10)
         # Les exécutions de pipelines entrent au journal et au calendrier (WAMA_MEMORY §9bis.1).
-        from wama.common.services.journal import MONDE_STUDIO, enregistrer_source
+        from wama.common.services.journal import enregistrer_source
         from .models import StudioRun
-        enregistrer_source('studio', StudioRun, monde=MONDE_STUDIO)
+        enregistrer_source('studio', StudioRun)

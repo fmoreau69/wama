@@ -284,8 +284,11 @@ est un défaut de `__str__` à corriger dans le modèle, où il profitera aussi 
 **Mondes.** L'ajout d'un monde est une **inscription** (`journal.enregistrer_source()`, appelée par
 le `ready()` du monde), jamais une modification de la page. ✅ **2026-09-28** : le **Lab**
 (cam_analyzer, face_analyzer — `AnalysisSession`) et le **Studio** (`StudioRun`) sont inscrits ;
-reste le monde **Data**. Leur identité (libellé, route, couleur) vient des `extra_links` déjà
-déclarés à `APP_CATEGORIES` (`app_registry.extra_link_for`), rien n'est redéclaré. ⚠ Ces sources
+reste le monde **Data**. Leur identité (libellé, route, couleur) ET leur monde viennent de ce que
+l'app déclare elle-même depuis son `ready()` (`app_registry.register_surface`, lu par
+`surface_for` et `app_world` — depuis le 2026-10-02 ; c'étaient des `extra_links` écrits dans
+`APP_CATEGORIES`, et le monde était passé en argument). Le Studio est du monde `transverse` : le
+journal n'a plus de monde « Studio ». Rien n'est redéclaré. ⚠ Ces sources
 n'ont PAS d'inspecteur : `unified_preview`/`unified_detail` ne servent que `detail_registry`, par
 clé entière — et le Lab a des clés UUID. Mesuré le jour même : `reverse` levait et **toute la page
 du journal tombait**. `Entree.url_preview` rend donc `''` hors `detail_registry` (le bouton mène à

@@ -43,7 +43,24 @@ def validate_function_body(body: dict) -> list[str]:
     return errs
 
 
-def _envelope_from_spec(key: str, d: dict, *, owner=None, visibility='public',
+def _spec_world(spec) -> Optional[str]:
+    """Monde d'une fonction du catalogue = celui de l'APP qui la porte (route §10.6 point 6.1).
+
+    Liée à une app (`binding: app`) : l'app qu'elle nomme. Pure : l'app Django qui contient son
+    implémentation. Le monde se lit ensuite dans la déclaration de cette app (`app_world`) —
+    il était écrit `'data'` en dur ici, donc faux pour les fonctions du Lab. None si l'app ne se
+    trouve pas ou n'a rien déclaré : le manifeste est alors refusé, pas rangé par défaut.
+    """
+    from django.apps import apps as django_apps
+    from wama.common.app_registry import app_world
+    app = spec.app
+    if not app and spec.fn is not None:
+        config = django_apps.get_containing_app_config(getattr(spec.fn, '__module__', '') or '')
+        app = config.label if config else ''
+    return app_world(app) if app else None
+
+
+def _envelope_from_spec(key: str, d: dict, *, world, owner=None, visibility='public',
                         scope_org_unit=None, scope_project=None) -> dict:
     body = {k: v for k, v in d.items() if k not in ('name', 'description')}
     return {
@@ -52,7 +69,7 @@ def _envelope_from_spec(key: str, d: dict, *, owner=None, visibility='public',
         'schema_version': '1.0',
         'name': d.get('name', key),
         'description': d.get('description', ''),
-        'world': 'data',                 # les fonctions-cartes vivent dans WAMA Data
+        'world': world,
         'owner': owner,
         'visibility': visibility,
         'scope_org_unit': scope_org_unit,
@@ -72,7 +89,7 @@ def extract_function(key: str) -> Optional[dict]:
         pass
     spec = fc.FUNCTION_CATALOG.get(key)
     if spec is not None:
-        return _envelope_from_spec(key, spec.to_dict())
+        return _envelope_from_spec(key, spec.to_dict(), world=_spec_world(spec))
 
     # 2) repli : UserFunction (DB, autorée, scoped)
     try:
@@ -84,6 +101,9 @@ def extract_function(key: str) -> Optional[dict]:
         d = uf.to_dict()
         env = _envelope_from_spec(
             key, d,
+            # Une fonction UTILISATEUR naît dans le Calculator, module du monde Data (route
+            # §10.6 point 6.3 B) : elle n'a pas d'app porteuse d'où déduire son monde.
+            world='data',
             owner=uf.owner.get_username() if getattr(uf, 'owner_id', None) else None,
             visibility=uf.visibility,
             # `qualified_code`, pas `code` : un manifeste VOYAGE (§8.6). Le code nu n'est unique

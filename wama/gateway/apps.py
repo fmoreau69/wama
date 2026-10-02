@@ -9,9 +9,9 @@ class GatewayConfig(AppConfig):
     média (entrées/sorties typées, file d'attente, batch), et la grille de conformité ne
     note QUE ses entrées (`check_app_conformity` → `non_sandbox_apps(APP_CATALOG)`). Y
     inscrire la passerelle la ferait apparaître à 0/72 sur 72 critères dont aucun ne la
-    concerne. Sa place, si une entrée de menu devient utile, est
-    `APP_CATEGORIES['platform']['extra_links']` — là où vivent déjà Studio, la Médiathèque
-    et la Gestion des modèles.
+    concerne. Sa place, si une entrée de menu devient utile, est une surface déclarée du monde
+    `transverse` (`app_registry.register_surface`, depuis son `ready()`) — comme le Studio, la
+    Médiathèque et la Gestion des modèles.
 
     ⚠ NOM DE L'APP. Le nom naturel était « channels » ; il est ÉCARTÉ parce qu'il est aussi
     celui de Django Channels — le label par défaut aurait rendu ce paquet impossible à

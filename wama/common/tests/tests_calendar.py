@@ -308,10 +308,12 @@ class OtherWorldsTest(TestCase):
     """Le Lab et le Studio entrent au journal ET au calendrier par leur propre `ready()`."""
 
     def test_lab_and_studio_are_sources_with_their_world_and_dates(self):
-        from wama.common.services.journal import MONDE_LAB, MONDE_STUDIO, sources
+        from wama.common.services.journal import sources
         found = {s.app: s for s in sources()}
-        for app, world in (('cam_analyzer', MONDE_LAB), ('face_analyzer', MONDE_LAB),
-                           ('studio', MONDE_STUDIO)):
+        # Le studio est du monde `transverse` (décision n°9, route §10.6) : « Studio » est le
+        # libellé d'une app, pas un cinquième monde.
+        for app, world in (('cam_analyzer', 'lab'), ('face_analyzer', 'lab'),
+                           ('studio', 'transverse')):
             with self.subTest(app=app):
                 self.assertIn(app, found)
                 self.assertEqual(found[app].monde, world)
@@ -340,10 +342,10 @@ class OtherWorldsTest(TestCase):
         self.assertIn(f'cam_analyzer:AnalysisSession:{session.pk}', {e['id'] for e in events})
 
     def test_a_registration_replayed_by_ready_is_not_duplicated(self):
-        from wama.common.services.journal import MONDE_STUDIO, enregistrer_source, sources
+        from wama.common.services.journal import enregistrer_source, sources
         from wama.studio.models import StudioRun
         before = len(sources())
-        enregistrer_source('studio', StudioRun, monde=MONDE_STUDIO)
+        enregistrer_source('studio', StudioRun)
         self.assertEqual(len(sources()), before)
 
 

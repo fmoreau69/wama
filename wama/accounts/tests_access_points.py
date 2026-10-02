@@ -30,17 +30,16 @@ def _urls_des_surfaces_gardees():
     """`{app_id: url_name}` pour TOUT ce qui est soumis au contrôle d'accès.
 
     Deux gisements, parce que WAMA a deux natures de surface (cf. §8.8.1) : les cards
-    d'`APP_CATALOG` (apps génériques de traitement de fichiers) et les `extra_links` porteurs d'un
-    `gate` (surfaces transversales — studio, médiathèque, model_manager — et Lab)."""
-    from wama.common.app_registry import APP_CATALOG, APP_CATEGORIES
+    d'`APP_CATALOG` (apps génériques de traitement de fichiers) et les surfaces déclarées hors
+    catalogue (`register_surface` : studio, médiathèque, model_manager, Lab), dont la clé `gate`
+    est l'identifiant d'app."""
+    from wama.common.app_registry import APP_CATALOG, surfaces
     urls = {}
     for app_id, spec in APP_CATALOG.items():
         if spec.get('url_name'):
             urls[app_id] = spec['url_name']
-    for meta in APP_CATEGORIES.values():
-        for lien in meta.get('extra_links', []):
-            if lien.get('gate') and lien.get('url_name'):
-                urls.setdefault(lien['gate'], lien['url_name'])
+    for lien in surfaces():
+        urls.setdefault(lien['gate'], lien['url_name'])
     return urls
 
 
