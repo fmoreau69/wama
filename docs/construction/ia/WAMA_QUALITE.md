@@ -1011,6 +1011,38 @@ campagne :
   (`decode_audio` garde la fréquence native d'un WAV) — texte lisible mais faux ; corrigé par
   `decode_audio_at`, avant toute campagne.
 
+**Campagne (2026-10-02) — MESURÉE : aucun des trois ne bat Whisper sur les réunions.** 66 cards
+du compte `wama_evaluation`, dans les lots existants (même référence que les autres moteurs),
+langue « Auto », VAD auto, sans débruitage ; WER moyen par enregistrement :
+
+| moteur | SUMM-RE (3) | SUMM-RE nivelé | FLEURS-CS fr+en (8) | FLEURS-CS nivelé |
+|---|---|---|---|---|
+| *rappel* Whisper large-v3 | 28,8 | 29,6 | 45,1 | 37,4 |
+| *rappel* Qwen3-ASR 1.7B | 30,8 | 29,6 | 35,7 | **21,1** |
+| Kyutai STT 1B fr/en | 45,4 | 49,8 | 40,2 | **27,5** |
+| LinTO FR | 43,7 | 43,4 | 48,3 | 47,5 |
+| FrWhisper | 58,0 | 60,7 | 63,1 | 59,0 |
+
+- **L'écart est d'OMISSION** (réunions, sans prétraitement, rapporté aux mots de la référence) :
+  omis 33,8 % LinTO / 32,8 % Kyutai / 39,8 % FrWhisper, contre 20,6 % Whisper ; mal reconnus
+  9,5 / 9,2 / 16,8 %, contre 6,1 %. ⚠ Agréger en filtrant le NOM de la référence emporte aussi
+  les variantes dégradées (même référence) et la réunion écartée 008a — filtrer sur l'AUDIO de
+  la card (`'__' not in audio`).
+- **Kyutai, nivelé, est le 2ᵉ sur l'audio multilingue** (27,5 %, derrière Qwen3-ASR 21,1 %) —
+  le nivellement l'aide là comme il aide Qwen3-ASR ; sur les réunions il le dessert (45 → 50 %).
+- **LinTO** : mesuré d'abord à 61 % (passes de 600 s recopiées de Parakeet le 01/10) ; il est
+  entraîné sur des énoncés ≤ 30 s et OMETTAIT la moitié des mots en passe longue. Passes de 30 s
+  coupées dans une pause (`8f2243e`) → 43,7 %. Score SUMM-RE seul valable (CFPP/FLEURS vus).
+- **Trois défauts d'INTÉGRATION trouvés par la campagne, pas par les essais** — une card isolée
+  passait, la FILE tombait : (1) Kyutai après LinTO dans le même worker, « Inplace update to
+  inference tensor » → génération en `inference_mode` (`341af61`) ; (2) LinTO réutilisé après
+  Kyutai, « illegal memory access » qui corrompt le contexte CUDA et fait tomber TOUTE la file —
+  passait avec `CUDA_LAUNCH_BLOCKING=1` (course entre flux) → décodage NeMo sans graphes CUDA
+  (`8ef3557`) ; (3) le worker ne décharge pas en fin de card : les modèles de moteurs différents
+  COHABITENT, ce que ni un smoke ni une card seule ne montrent. ⭐ *Un essai par modèle ne dit
+  rien d'une file de modèles différents : seule une campagne mélangée l'éprouve.*
+- Non mesuré : CFPP (LinTO biaisé, et les entretiens longs coûtent ~1 h de GPU par card Kyutai).
+
 ---
 
 ## Voir aussi
