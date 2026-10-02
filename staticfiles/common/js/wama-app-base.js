@@ -742,24 +742,39 @@
    *    prompt:       {inputId, field} — la consigne de la card, postée sous `field` ;
    *    paramsHostId: hôte `WamaParams` dont les valeurs sont postées (les réglages du volet) ;
    *                  la consigne de la card PRIME sur un champ homonyme du volet ;
-   *    ports:        [{inputId, field, urlField}] — fichier joint OU désigné (`appendInput`) ;
-   *                  sans fichier, l'URL du port (`[data-port-url]` de son onglet) est postée sous
-   *                  `urlField`. Un port SANS `urlField` dont l'URL est remplie est REFUSÉ, avec
-   *                  le motif : une URL ignorée en silence est le pire des cas ;
+   *    ports:        [{inputId, field, urlField, urlInputId}] — fichier joint OU désigné
+   *                  (`appendInput`) ; sans fichier, l'URL du port est postée sous `urlField`.
+   *                  Le champ URL est `urlInputId`, sinon le `[data-port-url]` de l'onglet du
+   *                  port. Un port SANS `urlField` dont l'URL est remplie est REFUSÉ, avec le
+   *                  motif : une URL ignorée en silence est le pire des cas ;
    *    extraFields:  function (fd) — les champs propres à l'app ;
-   *    validate:     function (fd) → message d'erreur, ou '' ;
+   *    validate:     function (fd) → message d'erreur, ou '' (rien n'est posté) ;
+   *    successMessage: texte, ou function (data) → texte, du toast de succès ;
    *    onAdded:      function (data) — défaut : recharger la page ;
+   *    onSettled:    function () — après l'envoi, réussi ou non, bouton rendu (l'app y
+   *                  recalcule l'état de son bouton : appariement, entrées requises) ;
    *    reset:        vider la consigne et les ports après l'ajout (défaut true).
    *  }
+   *  La consigne postée est l'ORIGINALE quand `WamaPromptEnrich` l'a enrichie à l'écran
+   *  (invariant `WAMA_LLM` : l'enrichi se recalcule à l'ingestion, jamais figé à la création).
    *  Rend la fonction de soumission (appel programmatique, tests). */
   function addToQueue(opts) {
     opts = opts || {};
     const button = typeof opts.button === 'string' ? document.getElementById(opts.button)
                                                    : opts.button;
-    const urlOf = function (inputId) {
-      const pane = inputId && document.querySelector('[data-port-input="' + inputId + '"]');
+    const urlOf = function (port) {
+      if (port.urlInputId) return document.getElementById(port.urlInputId);
+      const pane = port.inputId && document.querySelector('[data-port-input="' + port.inputId + '"]');
       const el = pane && pane.querySelector('[data-port-url]');
       return el ? el : null;
+    };
+    const promptValue = function (el) {
+      const enrich = global.WamaPromptEnrich && global.WamaPromptEnrich.get
+        && global.WamaPromptEnrich.get(el);
+      if (enrich && enrich.snapshot && enrich.snapshot().state === 'processed') {
+        return (enrich.original || '').trim();
+      }
+      return (el.value || '').trim();
     };
 
     function build() {
@@ -773,12 +788,12 @@
       }
       const p = opts.prompt;
       const promptEl = p && document.getElementById(p.inputId);
-      if (promptEl) fd.set(p.field || 'prompt', promptEl.value.trim());
+      if (promptEl) fd.set(p.field || 'prompt', promptValue(promptEl));
       let refusal = '';
       (opts.ports || []).forEach(function (port) {
         const input = document.getElementById(port.inputId);
         if (appendInput(fd, input, port.field || 'file')) return;
-        const url = urlOf(port.inputId);
+        const url = urlOf(port);
         const value = url && url.value.trim();
         if (!value) return;
         if (port.urlField) fd.append(port.urlField, value);
@@ -795,7 +810,7 @@
       (opts.ports || []).forEach(function (port) {
         const input = document.getElementById(port.inputId);
         if (input) { try { input.value = ''; } catch (e) { /* lecture seule */ } clearDesignation(input); }
-        const url = urlOf(port.inputId);
+        const url = urlOf(port);
         if (url) url.value = '';
       });
     }
@@ -809,14 +824,23 @@
         button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Envoi…';
       }
       return csrfFetch(opts.url, opts.csrfToken || csrfToken(), { method: 'POST', body: built.fd })
-        // Un 400 porte le motif du refus en JSON : le lire, pas le remplacer.
-        .then(function (r) { return r.status === 400 ? r.json() : jsonOrExplain(r); })
+        // Un refus porte son motif en JSON (`{error}`, quel que soit le statut — 400, 403, 409…) :
+        // le lire, pas le remplacer. Sans motif lisible (page HTML d'un 502/504), l'explication
+        // commune de `jsonOrExplain`.
+        .then(function (r) {
+          if (r.ok) return r.json();
+          return r.json()
+            .then(function (j) { if (j && j.error) return j; throw new Error('sans motif'); })
+            .catch(function () { return jsonOrExplain(r); });
+        })
         .then(function (data) {
           if (!data || data.error) {
             toast((data && data.error) || 'Ajout refusé.', 'error');
             return null;
           }
-          toast('Ajouté à la file — réglez-le si besoin, puis ▶ pour lancer.', 'success');
+          const msg = typeof opts.successMessage === 'function' ? opts.successMessage(data)
+                                                                : opts.successMessage;
+          toast(msg || 'Ajouté à la file — réglez-le si besoin, puis ▶ pour lancer.', 'success');
           if (global.WamaFM && global.WamaFM.uploaded) global.WamaFM.uploaded();
           if (opts.reset !== false) clear();
           if (typeof opts.onAdded === 'function') opts.onAdded(data);
@@ -826,6 +850,7 @@
         .catch(function (err) { toast(String(err && err.message || err), 'error'); return null; })
         .then(function (data) {
           if (button) { button.disabled = false; button.innerHTML = idle; }
+          if (typeof opts.onSettled === 'function') opts.onSettled(data);
           return data;
         });
     }

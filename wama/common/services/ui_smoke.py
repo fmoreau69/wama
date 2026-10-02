@@ -735,7 +735,10 @@ def _test_session_key(app: str | None = None):
     if app:
         try:
             from wama.common.app_registry import APP_CATALOG
-            if (APP_CATALOG.get(app) or {}).get('generated_from'):
+            # Jumelle (`generated_from`) OU app née d'un manifeste (`sandbox` sans source,
+            # 2026-10-01 — writer_01) : toutes deux vivent au bac à sable, dev-gated.
+            entry = APP_CATALOG.get(app) or {}
+            if entry.get('generated_from') or entry.get('sandbox'):
                 from wama.common.services.nightly_tests import get_test_dev_user
                 u = get_test_dev_user()
         except Exception:
@@ -982,6 +985,177 @@ def register_import_scenarios():
             id=f"{label}.import", app=label, stage="ui",
             description=f"Card d'entrée {label} : un dépôt crée un élément",
             run=(lambda p=path, a=label: (lambda ctx: check_app_import(a, p)))(),
+            timeout_s=180, vram_gb=0.0,
+        )
+
+
+# ── Geste 7 : CRÉER PAR LE BOUTON PRIMAIRE de la card d'entrée ─────────────────────────────
+#
+# Le geste que `<app>.import` laisse explicitement de côté (« la card DÉCLARE attache… un autre
+# scénario »). Écrit le 2026-10-01, le jour où imager, avatarizer, composer et synthesizer sont
+# passés sur la brique commune `WamaApp.addToQueue` — un portage qu'AUCUN geste nocturne
+# n'exerçait : il avait été mesuré une fois, à la main, et rien n'aurait vu sa régression.
+# Il n'était plus un geste GPU depuis le 2026-09-29 (règle des deux temps : le bouton AJOUTE,
+# ▶ lance) — et c'est précisément ce que le scénario VÉRIFIE, car c'est ce qui l'autorise à
+# tourner chaque nuit sur un GPU partagé.
+_ADD_PROBE = """(() => {
+    // La card d'entrée qui porte un BOUTON PRIMAIRE (`primary_btn_id` de la card commune,
+    // rendu dans `.d-grid`) — en mode attache (imager, avatarizer, composer, apps générées) ou
+    // non (synthesizer : le dépôt crée ET le bouton ajoute le texte saisi).
+    for (const card of document.querySelectorAll('[data-wama-depot]')) {
+        const btn = card.querySelector('.d-grid > button.btn-success');
+        if (!btn || !btn.id) continue;
+        const prompt = card.querySelector('textarea');
+        return {btn_id: btn.id, prompt_id: prompt ? prompt.id : '',
+                depot: card.getAttribute('data-wama-depot'),
+                cards: document.querySelectorAll('.wama-card').length};
+    }
+    return null;
+})()"""
+_ADD_TEXT = 'wama témoin — un essai court'
+_LAUNCHED = {'RUNNING', 'STARTED', 'PROCESSING', 'SUCCESS'}
+
+
+def check_app_add(app: str, url_path: str):
+    """La card d'entrée CRÉE-t-elle un élément par son bouton primaire, SANS le lancer ? (ok, detail).
+
+    Consigne saisie (et les autres ports REQUIS remplis de témoins — l'avatar de l'avatarizer),
+    clic sur le bouton : une requête acceptée, UN élément en base, EN ATTENTE (jamais lancé à la
+    création), aucune erreur JS. Les éléments créés sont supprimés en sortie, et rien d'autre.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    model = None
+    try:
+        from wama.common.utils.preview_registry import PreviewRegistry
+        model = PreviewRegistry.get_model(app)
+        ids_before = set(model.objects.values_list('id', flat=True)) if model is not None else set()
+    except Exception:
+        model, ids_before = None, set()
+    if model is None:
+        raise SkipScenario("modèle d'élément inconnu du PreviewRegistry — ni l'élément créé ni "
+                           "son état ne sont lisibles, et rien ne pourrait être nettoyé")
+    token = _test_session_key(app)
+    if not token:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3) "
+                           "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
+
+    sessions_before = _session_keys()
+    witnesses, js_errors, created = [], [], []
+    post = probe = None
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                context.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': token,
+                                      'domain': '127.0.0.1', 'path': '/'}])
+                page = context.new_page()
+                page.on('pageerror', lambda exc: js_errors.append(str(exc)[:160]))
+                resp = page.goto(url, wait_until='networkidle', timeout=45000)
+                wrong_page = _exiger_la_page(page, resp, url)
+                if wrong_page:
+                    return wrong_page
+                page.wait_for_timeout(800)
+                probe = page.evaluate(_ADD_PROBE)
+                if not probe:
+                    raise SkipScenario("aucune card d'entrée à bouton primaire sur cette surface — "
+                                       "la création y passe par le dépôt (`<app>.import`)")
+                witnesses = _fill_required_ports(page)
+                if probe['prompt_id']:
+                    page.fill(f"#{probe['prompt_id']}", _ADD_TEXT)
+                    page.dispatch_event(f"#{probe['prompt_id']}", 'input')
+                page.wait_for_timeout(500)
+                button = page.locator(f"#{probe['btn_id']}")
+                if button.is_disabled():
+                    return False, (f"bouton primaire #{probe['btn_id']} GRISÉ avec une consigne et "
+                                   f"les ports requis remplis ({button.get_attribute('title') or 'sans motif'})")
+                # Le motif d'un refus CÔTÉ CLIENT (validation, URL non prise en charge) passe par
+                # un toast : on le capte, pour qu'un clic sans requête dise POURQUOI.
+                page.evaluate("""() => new MutationObserver(ms => ms.forEach(m => m.addedNodes
+                    .forEach(n => { if (n.className === 'wama-toast')
+                        (window.__wamaToasts = window.__wamaToasts || []).push(n.textContent); })))
+                    .observe(document.body, {childList: true})""")
+                from playwright.sync_api import TimeoutError as PlaywrightTimeout
+                try:
+                    with page.expect_response(lambda r: r.request.method == 'POST',
+                                              timeout=20000) as info:
+                        button.click()
+                except PlaywrightTimeout:
+                    # Un bouton MORT n'est pas un serveur indisponible : c'est le défaut même
+                    # que ce geste existe pour voir (contre-épreuve du 2026-10-01 : sans ce
+                    # cas, un bouton sans écouteur sortait en SKIP « navigateur indisponible »).
+                    said = page.evaluate('() => window.__wamaToasts || []')
+                    return False, (f"clic sur #{probe['btn_id']} : AUCUNE requête émise"
+                                   + (f" — l'écran dit « {said[-1][:140]} »" if said else
+                                      " et rien n'est dit à l'écran (bouton sans effet)"))
+                answer = info.value
+                body = ''
+                if answer.status >= 400:
+                    try:
+                        body = (answer.text() or '')[:200].replace('\n', ' ')
+                    except Exception:
+                        body = '(corps illisible)'
+                post = (answer.status, answer.url.split('?')[0].split('://', 1)[-1].split('/', 1)[-1], body)
+                page.wait_for_timeout(2500)   # toast, insertion de la card ou rechargement
+                try:
+                    page.wait_for_load_state('networkidle', timeout=15000)
+                except Exception:
+                    pass
+            finally:
+                browser.close()
+    except SkipScenario:
+        raise
+    except Exception as exc:
+        raise SkipScenario(_motif_skip(exc))
+    finally:
+        _drop_new_sessions(sessions_before)
+        # APRÈS le navigateur : l'ORM est refusé à l'intérieur de `sync_playwright()`.
+        try:
+            new = model.objects.filter(pk__in=set(model.objects.values_list('id', flat=True)) - ids_before)
+            created = [(o.pk, str(getattr(o, 'status', '') or '').upper()) for o in new]
+            new.delete()
+        except Exception:
+            pass
+        # Les témoins se suppriment APRÈS l'envoi : le navigateur relit le fichier à l'envoi.
+        for w in witnesses:
+            try:
+                w.unlink()
+            except OSError:
+                pass
+
+    if js_errors:
+        return False, f"erreur(s) JS : {' | '.join(js_errors[:2])}"
+    status, path, body = post
+    if status >= 400:
+        return False, f"ajout REFUSÉ : {status} /{path}" + (f" → {body}" if body else '')
+    if not created:
+        return False, f"requête acceptée ({status} /{path}) mais AUCUN élément en base"
+    launched = [f"#{pk} {st}" for pk, st in created if st in _LAUNCHED]
+    if launched:
+        return False, (f"élément LANCÉ à la création ({', '.join(launched)}) — la règle des deux "
+                       f"temps veut qu'on ajoute, puis que ▶ lance (CARD_DESIGN §11.11)")
+    if len(created) != 1:
+        return False, f"{len(created)} éléments créés pour UN clic : {created}"
+    pk, st = created[0]
+    return True, (f"élément #{pk} créé {st or 'sans statut'} par #{probe['btn_id']} "
+                  f"({status} /{path} ; card `{probe['depot']}`"
+                  + (f" ; {len(witnesses)} port(s) requis rempli(s)" if witnesses else '')
+                  + ") ; supprimé en sortie")
+
+
+def register_add_scenarios():
+    """`<app>.add` (geste 7) pour chaque app à page d'index — déduit des URL, comme `.import` :
+    une app NOUVELLE (générée comprise) est couverte le jour où elle expose son index."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.add", app=label, stage="ui",
+            description=f"Card d'entrée {label} : le bouton primaire ajoute un élément sans le lancer",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_add(a, p)))(),
             timeout_s=180, vram_gb=0.0,
         )
 

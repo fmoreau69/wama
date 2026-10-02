@@ -1521,7 +1521,8 @@ MECHANISMS = (
               "fichier joint ou désigné par port (`appendInput`), URL postée seulement si l'élément "
               "la garde (sinon refusée, motif dit), rien n'est lancé (règle des deux temps). Côté "
               "serveur : `received_inputs`. Mode DÉRIVÉ des ports par le générateur "
-              "(`views_gen.prompt_entry` : consigne sans port de travail)",
+              "(`views_gen.prompt_entry` : consigne sans port de travail). Adoptée le jour même "
+              "par imager, avatarizer, composer et synthesizer (leur formulaire maison retiré)",
               'wama/common/static/common/js/wama-app-base.js', 'docs/construction/ui/CARD_DESIGN.md',
               annexes=('wama/common/manifests/codegen/templates_gen.py',
                        'wama/common/manifests/codegen/views_gen.py'),

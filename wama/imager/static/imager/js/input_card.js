@@ -168,76 +168,45 @@
             return 'txt2img';
         }
 
-        // ── Soumission ──
-        btn.addEventListener('click', function () {
-            const mode = deriveMode();
-            const hasRefFile = refProvided();
-            const hasRef = hasRefFile || !!refUrl();
-            // Garde de dernier recours (le bouton est déjà gaté par onState).
-            if (matcher && !matcher.isLaunchable()) {
-                toast('Ce modèle attend une entrée qui manque encore.', 'warning');
-                return;
-            }
-            if (!hasRef && !(promptEl.value || '').trim()) {
-                toast('Décrivez ce que vous voulez générer, ou fournissez une image / un fichier de prompts.', 'warning');
-                return;
-            }
-            // INVARIANT prompt (WAMA_LLM) : on poste toujours l'ORIGINAL — l'enrichi
-            // vit en prompt_processed et est recalculé à l'ingestion, jamais figé à la création.
-            let promptValue = (promptEl.value || '').trim();
-            if (window.WamaPromptEnrich) {
-                const ctrl = WamaPromptEnrich.get(promptEl);
-                if (ctrl && ctrl.snapshot().state === 'processed') promptValue = (ctrl.original || '').trim();
-            }
-            const fd = new FormData();
-            fd.append('generation_mode', mode);
-            fd.append('prompt', promptValue);
-
-            // ── Réglages du VOLET DROIT ────────────────────────────────────────────────
-            // Sans ça, le serveur retombe sur get_model_defaults() et régler « 4 images » ou
-            // « steps 50 » dans le volet n'a AUCUN effet. La régression datait du remplacement
-            // du formulaire bespoke par la card commune : l'ancien `handleFormSubmit` lisait
-            // bien le volet, mais son <form> hôte a disparu avec lui (code mort depuis).
-            // `WamaParams.read` rend un objet clé = NOM de param, c.-à-d. exactement les noms
-            // de champs attendus par la vue de création — aucune table de correspondance.
-            const panelHost = document.getElementById(
-                d.domain === 'video' ? 'videoPanelParams' : 'imagePanelParams');
-            if (panelHost && window.WamaParams) {
-                const panel = WamaParams.read(panelHost) || {};
-                // Modèle et prompt négatif COMPRIS : ce sont des réglages du volet (étape 3 (c)).
-                Object.keys(panel).forEach(function (k) {
-                    const v = panel[k];
-                    if (v !== null && v !== undefined && v !== '') fd.append(k, v);
-                });
-            }
-            if (!fd.has('model')) fd.append('model', select.value || 'auto');
-            // Résolution image : hors schéma (widget à présets) → width/height calculés.
-            const wEl = document.getElementById('width');
-            const hEl = document.getElementById('height');
-            if (d.domain !== 'video' && wEl && hEl) {
-                fd.append('width', wEl.value);
-                fd.append('height', hEl.value);
-            }
-            if (hasRefFile) WamaApp.appendInput(fd, refInput, 'reference_image');
-            // Un fichier joint PRIME sur l'URL (ensure_local_input ne télécharge que si vide).
-            if (!hasRefFile && refUrl()) fd.append('source_url', refUrl());
-
-            btn.disabled = true;
-            WamaApp.csrfFetch(CFG.urls.create, CFG.csrf, { method: 'POST', body: fd })
-                .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
-                .then(function (res) {
-                    if (!res.ok || res.j.error) throw new Error(res.j.error || 'Création impossible');
-                    // La card PENDING est rendue côté serveur → rechargement.
-                    // ⚠ Le commentaire précédent annonçait un remplacement par
-                    // card_html/refreshCard « au palier fondation file » : ce palier est livré
-                    // (`2e330cf`) et le rechargement est TOUJOURS là, parce que `refreshCard`
-                    // (queue.js:26) fait `el.outerHTML = …` — il REMPLACE une card existante et
-                    // ne sait pas en INSÉRER une nouvelle. Insérer proprement suppose de savoir
-                    // dans quel batch la ranger (build_batches_list / auto_wrap_orphans) :
-                    // c'est un geste à part entière, pas un nettoyage.
-                    window.location.reload();
-                })
-                .catch(function (e) { toast(e.message || 'Erreur de création', 'error'); btn.disabled = false; });
+        // ── Soumission : brique commune `WamaApp.addToQueue` (portage 2026-10-01) ──
+        // Ce bloc écrivait à la main ce que la brique porte : la consigne ORIGINALE quand ✨ l'a
+        // enrichie (invariant WAMA_LLM : l'enrichi se recalcule à l'ingestion), les réglages du
+        // VOLET (modèle et prompt négatif compris — étape 3 (c)), le fichier JOINT ou DÉSIGNÉ
+        // sous `reference_image` (frontière des DONNÉES, l'image source de l'i2v), l'URL en
+        // repli (un fichier joint prime ; `ensure_local_input` la télécharge au lancement), le
+        // bouton « Envoi… » et le rechargement — la card PENDING est rendue côté serveur, et
+        // l'insérer sans recharger suppose de savoir dans quel lot la ranger.
+        // Ce qui reste ICI est propre à l'imager : la dérivation du `generation_mode`, la
+        // résolution image (largeur/hauteur hors schéma) et la garde d'appariement.
+        WamaApp.addToQueue({
+            url:          CFG.urls.create,
+            csrfToken:    CFG.csrf,
+            button:       btn,
+            prompt:       { inputId: d.promptId, field: 'prompt' },
+            paramsHostId: d.domain === 'video' ? 'videoPanelParams' : 'imagePanelParams',
+            ports: [{ inputId: refInputId, field: 'reference_image',
+                      urlField: 'source_url', urlInputId: d.urlInputId }],
+            extraFields: function (fd) {
+                fd.append('generation_mode', deriveMode());
+                if (!fd.has('model')) fd.append('model', select.value || 'auto');
+                // Résolution image : hors schéma (widget à présets) → width/height calculés.
+                const wEl = document.getElementById('width');
+                const hEl = document.getElementById('height');
+                if (d.domain !== 'video' && wEl && hEl) {
+                    fd.append('width', wEl.value);
+                    fd.append('height', hEl.value);
+                }
+            },
+            // Garde de dernier recours (le bouton est déjà gaté par l'appariement).
+            validate: function () {
+                if (matcher && !matcher.isLaunchable()) return 'Ce modèle attend une entrée qui manque encore.';
+                if (!refProvided() && !refUrl() && !(promptEl.value || '').trim()) {
+                    return 'Décrivez ce que vous voulez générer, ou fournissez une image / un fichier de prompts.';
+                }
+                return '';
+            },
+            // Un refus rend le bouton : l'appariement redit s'il doit rester grisé.
+            onSettled: function () { if (matcher) matcher.refresh(); },
         });
     }
 

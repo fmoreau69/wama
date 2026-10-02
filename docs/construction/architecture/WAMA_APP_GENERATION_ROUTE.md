@@ -3017,8 +3017,15 @@ l'exécuteur du studio ne figurent pas non plus au registre des mécanismes.
    consigne + réglages du volet + fichier joint ou désigné par port ; l'URL d'un port n'est postée
    que si l'élément la garde (`source_url`), sinon elle est REFUSÉE avec son motif — une URL
    ignorée en silence était le cas du Writer. Attestée en V8 (parse + comportement).
-   ⏳ **Adoption** : imager, avatarizer, composer et synthesizer gardent leur formulaire écrit à
-   la main — portage à faire, app par app, avec leurs gestes nocturnes.
+   ✅ **Adoption (2026-10-01, soir)** : imager, avatarizer, composer et synthesizer portés — leur
+   formulaire écrit à la main est retiré, ne restent chez eux que leurs SPÉCIFICITÉS déclarées
+   (`generation_mode` dérivé et largeur/hauteur de l'imager, avatar et réglages MuseTalk de
+   l'avatarizer, modèle/durée du composer, réglages du volet et titre du synthesizer). La brique a
+   gagné ce que les quatre faisaient : `urlInputId`, `onSettled`, `successMessage`, la consigne
+   ORIGINALE quand ✨ l'a enrichie (invariant `WAMA_LLM`), le motif JSON d'un refus quel que soit
+   son statut. Mesuré au navigateur (serveur jetable, compte de test) : 4/4 — entrée vide refusée
+   sans requête, consigne → élément EN ATTENTE, 0 erreur JS. Rejouable chaque nuit : geste n°7
+   `<app>.add` (`WAMA_VERIFICATION §3`), 6 OK dont les jumelles `imager_01` et `writer_01`.
    **Ordre des tuiles** : constant sur tous les ports, Importer · Médiathèque · URL (Fabien,
    2026-10-01 — `CARD_DESIGN §11.11 B`).
 2. **Le choix « auto » avait deux chemins.** La prévision « Prévu : … » passe par
