@@ -452,7 +452,7 @@ class AnalysisPass(models.Model):
         DEPTH = 'depth', 'Profondeur (monoculaire)'
         DEPTH_CALC = 'depth_calc', 'Calculs profondeur (plan de sol / distances)'
         LANE_MAP_RECALAGE = 'lane_map_recalage', 'Recalage voie + carte (latéral + cap navette)'
-        CAMERA_INTRINSICS = 'camera_intrinsics', 'Champ des caméras (mesuré, rotation vue vs cap GPS)'
+        CAMERA_INTRINSICS = 'camera_intrinsics', 'Champ et orientation des caméras (mesurés)'
         VISUAL_YAW = 'visual_yaw', 'Cap visuel (rotation vue par la caméra avant)'
         ORTHO_RECALAGE = 'ortho_recalage', 'Recalage ortho (passages piétons IGN, mesure)'
         ORTHO_CORRECTION = 'ortho_correction', 'Correction de trajectoire ortho (ancres)'
