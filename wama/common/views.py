@@ -1655,6 +1655,59 @@ def api_transfer(request):
 
 @login_required
 @require_POST
+def api_reception(request):
+    """POST `surface`, `pk`, `nature` (element | lot), `action` (hide | show) — RANGER une entrée
+    REÇUE dans sa file (`common/services/reception.py`, 2026-10-02, `WAMA_COLLABORATION §3bis.2`).
+
+    Mêmes coordonnées que le partage et le transfert. L'unité est l'ENTRÉE de file : désigner une
+    card retire son lot entier (la file se construit à partir des lots), ou la card seule quand
+    elle n'a pas de lot. L'élément n'est cherché qu'au pk : c'est le service qui revérifie qu'il est
+    VISIBLE par l'utilisateur et qu'il n'est PAS à lui. Un refus prévu répond 200 avec son motif."""
+    from wama.common.services.reception import NotReceived, hide, show
+    from wama.common.utils.batch_common import batch_model_for_app, batch_of
+    from wama.common.utils.preview_registry import PreviewRegistry
+
+    surface = request.POST.get('surface') or ''
+    model = PreviewRegistry.get_model(surface)
+    if model is None:
+        return JsonResponse({'error': 'surface inconnue'}, status=404)
+    pk = request.POST.get('pk')
+    if not str(pk or '').isdigit():
+        return JsonResponse({'error': 'pk manquant'}, status=400)
+    if request.POST.get('nature') == 'lot':
+        batch_model = batch_model_for_app(surface)
+        entry = batch_model.objects.filter(pk=pk).first() if batch_model else None
+    else:
+        card = model.objects.filter(pk=pk).first()
+        entry = (batch_of(card) or card) if card is not None else None
+    if entry is None:
+        return JsonResponse({'done': False, 'reason': 'élément introuvable'})
+    gesture = show if request.POST.get('action') == 'show' else hide
+    try:
+        gesture(request.user, entry)
+    except NotReceived as exc:
+        return JsonResponse({'done': False, 'reason': str(exc)})
+    return JsonResponse({'done': True, 'entry': f'{entry._meta.label}#{entry.pk}'})
+
+
+@login_required
+def api_reception_hidden(request):
+    """GET `app` — combien d'entrées reçues l'utilisateur a retirées de sa file dans cette app
+    (la ligne « Réafficher » sous la barre de la file)."""
+    from wama.common.services.reception import hidden_count
+    return JsonResponse({'count': hidden_count(request.user, request.GET.get('app') or '')})
+
+
+@login_required
+@require_POST
+def api_reception_show_all(request):
+    """POST `app` — remet dans la file tout ce que l'utilisateur en avait retiré dans cette app."""
+    from wama.common.services.reception import show_all
+    return JsonResponse({'shown': show_all(request.user, request.POST.get('app') or '')})
+
+
+@login_required
+@require_POST
 def api_released_files_renew(request):
     """POST `ids` — « Garder » un fichier inutilisé quand la rétention est FINIE : il repart pour
     une durée complète, et sera de nouveau annoncé avant son prochain terme."""

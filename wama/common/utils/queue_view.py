@@ -87,7 +87,10 @@ def apply_queue_sort_filter(request, batches_list, *, name_of):
         # construite hors du contrat commun (monde Data, page de démo), sinon choisir « Manuel »
         # une fois ferait tomber la file en 500 dans TOUTE app dont le batch n'a pas le mixin —
         # et le tri est persisté en SESSION, donc l'erreur suivrait l'utilisateur d'app en app.
-        'manual': (lambda b: (getattr(b['obj'], 'queue_index', 0) or 0,
+        # Une entrée REÇUE porte l'ordre de SON destinataire (`b['queue_index']`, 2026-10-02) :
+        # celui du lot est l'ordre de son propriétaire, qu'un autre ne doit ni lire ni écrire.
+        'manual': (lambda b: (b['queue_index'] if 'queue_index' in b
+                              else getattr(b['obj'], 'queue_index', 0) or 0,
                               -_anchor(b).created_at.timestamp()), False),
     }
     _key, _rev = _sorters.get(q_sort, _sorters['recent'])

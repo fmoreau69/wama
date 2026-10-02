@@ -486,11 +486,19 @@ def _reglages_du_depot(user, nature, poste=None):
         grouped = {{}}
         for j in jobs:
             grouped.setdefault(j.{fk}_id or f'loose-{{j.id}}', []).append(_decorer(j))
+        # RANGEMENT du destinataire (2026-10-02) : une entrée reçue qu'il a retirée de sa file
+        # n'y figure plus ; les autres portent « reçue de … » et SON ordre (`reception`).
+        from wama.common.services.reception import entry_arrangement, lines_for
+        _lines = lines_for(user, {batch}, {item})
         batches_list = []
         for items in grouped.values():
             b = items[0].{fk}
+            _arr = entry_arrangement(user, b or items[0], _lines)
+            if _arr is None:
+                continue
             statuses = [normalize_status(j.status) for j in items]{ligne_commun}
             batches_list.append({{
+                **_arr,
                 {cle_commun}
                 'obj': b, 'items': items,
                 'is_group': bool(b) and (b.total if b else len(items)) > 1,

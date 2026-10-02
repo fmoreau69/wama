@@ -776,6 +776,99 @@ class ReceivedCardsAppearInTheQueueTest(TestCase):
                                  'une card reçue sans lot fait tomber la file du destinataire')
 
 
+class ReceivedEntriesArrangedByTheRecipientTest(TestCase):
+    """Le RANGEMENT chez le destinataire — `WAMA_COLLABORATION §3bis.2` (2026-10-02), sur CHAQUE app.
+
+    *Une card reçue est indépendante dans SA file* : il la retire (« retirer de ma file » ≠
+    supprimer), la remet, l'ordonne — sans que rien ne bouge chez le propriétaire. Témoin : un VRAI
+    partage (la card dans son lot, `partager`)."""
+
+    _account_for = SuppressionDansChaqueAppTest._compte_pour
+
+    def _post(self, **fields):
+        return self.client.post('/common/api/reception/', fields).json()
+
+    def test_a_received_entry_leaves_the_recipients_queue_and_comes_back(self):
+        from wama.common.services.sharing import partager
+        from wama.common.utils.preview_registry import PreviewRegistry
+        owner = User.objects.create_user('arranged_owner', password='x')
+        seen = set()
+        for surface, _delete, _card_route in _surfaces():
+            model = PreviewRegistry.get_model(surface)
+            app = model._meta.app_label
+            if app in seen:                      # une page par app (l'enhancer porte deux files)
+                continue
+            seen.add(app)
+            with self.subTest(surface=surface):
+                self._account_for(surface)
+                lot, (card,) = _lot_de(model, owner, 1)
+                partager(owner, card, 'public')
+                html = self.client.get(f'/{app}/').content.decode()
+                self.assertIn(f'data-id="{card.pk}"', html)
+                self.assertIn('data-received-from="', html, 'l’entrée reçue n’est pas marquée')
+
+                answer = self._post(surface=surface, pk=card.pk, nature='element', action='hide')
+                self.assertTrue(answer.get('done'), answer)
+                self.assertNotIn(f'data-id="{card.pk}"', self.client.get(f'/{app}/').content.decode(),
+                                 'retirée, elle est encore dans la file du destinataire')
+                self.assertEqual(1, self.client.get('/common/api/reception/hidden/',
+                                                    {'app': app}).json()['count'])
+                # Retirer n'est PAS supprimer : l'élément, son lot et son partage sont intacts.
+                card.refresh_from_db()
+                self.assertTrue(type(lot).objects.filter(pk=lot.pk).exists())
+                self.assertEqual('public', card.visibility)
+
+                self.client.post('/common/api/reception/show-all/', {'app': app})
+                self.assertIn(f'data-id="{card.pk}"', self.client.get(f'/{app}/').content.decode(),
+                              '« Réafficher » ne la remet pas dans la file')
+
+    def test_only_a_visible_entry_of_someone_else_can_be_arranged(self):
+        """Contre-épreuves : la ligne de rangement ne porte aucun droit."""
+        from wama.common.services.sharing import partager
+        from wama.common.utils.preview_registry import PreviewRegistry
+        surface = _surfaces()[0][0]
+        model = PreviewRegistry.get_model(surface)
+        owner = User.objects.create_user('arranged_owner_2', password='x')
+        _lot, (private_card,) = _lot_de(model, owner, 1)
+        self._account_for(surface)
+        answer = self._post(surface=surface, pk=private_card.pk, nature='element', action='hide')
+        self.assertFalse(answer.get('done'), 'une card PRIVÉE d’autrui a été rangée')
+        self.client.force_login(owner)
+        partager(owner, private_card, 'public')
+        answer = self._post(surface=surface, pk=private_card.pk, nature='element', action='hide')
+        self.assertFalse(answer.get('done'), 'le propriétaire range sa propre card par ce chemin')
+        from wama.common.models import ReceivedEntry
+        self.assertFalse(ReceivedEntry.objects.exists())
+
+    def test_the_recipients_order_is_his_own(self):
+        """`reorder_queue` : l'entrée reçue prend SA place dans la ligne de rangement ; l'ordre du
+        lot, celui de son propriétaire, ne bouge pas."""
+        from wama.common.models import ReceivedEntry
+        from wama.common.services.sharing import partager
+        from wama.common.utils.preview_registry import PreviewRegistry
+        owner = User.objects.create_user('arranged_owner_3', password='x')
+        checked = 0
+        for surface, _delete, card_route in _surfaces():
+            model = PreviewRegistry.get_model(surface)
+            try:                                 # même préfixe que la card (file audio de l'enhancer)
+                url = reverse(card_route.replace('card_html', 'reorder_queue'))
+            except NoReverseMatch:
+                continue
+            with self.subTest(surface=surface):
+                self._account_for(surface)
+                lot, (card,) = _lot_de(model, owner, 1)
+                partager(owner, card, 'public')
+                before = getattr(lot, 'queue_index', 0)
+                self.client.post(url, {'order': f'{lot.pk}'})
+                line = ReceivedEntry.objects.get(object_type=lot._meta.label, object_id=lot.pk)
+                self.assertEqual(1, line.queue_index)
+                lot.refresh_from_db()
+                self.assertEqual(before, getattr(lot, 'queue_index', 0),
+                                 'l’ordre du lot de son propriétaire a bougé')
+                checked += 1
+        self.assertGreater(checked, 0, 'aucune app n’expose reorder_queue : test vide')
+
+
 class ListedFilesFollowTheCardTest(TestCase):
     """Les LISTES de chemins déclarées (`file_references.listed_paths` — aujourd'hui les images
     d'une génération de l'imager) suivent le transfert et la duplication d'une card reçue

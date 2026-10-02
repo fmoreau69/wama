@@ -459,6 +459,36 @@
         };
     }
 
+    /**
+     * « Retirer de ma file » — une entrée REÇUE quitte la file de son destinataire, sans rien
+     * supprimer : ni l'élément, ni la file de son propriétaire (`common/services/reception.py`).
+     * L'unité est l'ENTRÉE : depuis une card d'un lot reçu, c'est le lot qui part (le libellé le
+     * dit). Elle revient par « Réafficher » dans la barre de la file. Coordonnées = celles du
+     * partage (`WamaShare`).
+     */
+    function entreeRetirerDeMaFile(card, enveloppe, estMere) {
+        var groupe = enveloppe.classList.contains('batch-group');
+        return {
+            icone: 'fas fa-eye-slash',
+            libelle: groupe ? 'Retirer le lot de ma file' : 'Retirer de ma file',
+            agir: function () {
+                var c = estMere ? WamaShare.coordonneesDuLot(card) : WamaShare.coordonnees(card);
+                if (!c) { dire('Coordonnées de la card introuvables', 'error'); return; }
+                poster('/common/api/reception/', {
+                    surface: c.surface, pk: c.pk, nature: c.nature || 'element', action: 'hide',
+                }).then(function (res) {
+                    if (!res || !res.done) {
+                        dire('Impossible de la retirer — ' + ((res && res.reason) || 'refusé'), 'error');
+                        return;
+                    }
+                    enveloppe.remove();
+                    dire('Retirée de votre file — rien n’est supprimé ; « Réafficher » dans la barre '
+                         + 'de la file la remet.', 'ok');
+                });
+            },
+        };
+    }
+
     function actionsTransverses(card, cibles) {
         var q = file(card);
         if (!q) return [];
@@ -467,7 +497,18 @@
         // Les gestes d'ÉLÉMENT (sortir du lot, ajouter à un lot) ne valent pas pour la MÈRE : elle
         // n'a pas de `data-id`, ils posteraient `undefined`. Elle a ses gestes de lot, plus bas.
         var estLot = card.classList.contains('is-batch');
-        var dansUnLot = estLot ? [] : cibles.filter(lotDe);
+        // Entrée REÇUE (2026-10-02, `WAMA_COLLABORATION §3bis.2`) : ses gestes sont ceux du
+        // destinataire — la retirer de SA file, la dupliquer, l'envoyer vers… Les gestes qui
+        // modifient l'élément ou son lot (sortir du lot, former un lot, partager, transférer)
+        // appartiennent au propriétaire : le serveur les refuserait, on ne les offre pas.
+        function recueDe(el) { return el.closest ? el.closest('[data-received-from]') : null; }
+        var recue = recueDe(card);
+        var selectionRecue = cibles.some(recueDe);
+        var dansUnLot = (estLot || recue) ? [] : cibles.filter(lotDe);
+
+        if (recue && cibles.length === 1 && global.WamaShare) {
+            entrees.push(entreeRetirerDeMaFile(card, recue, estLot));
+        }
 
         if (d.dndRemoveUrl && dansUnLot.length) {
             entrees.push({
@@ -492,7 +533,7 @@
             });
         }
 
-        if (d.dndMergeUrl && cibles.length > 1) {
+        if (d.dndMergeUrl && cibles.length > 1 && !selectionRecue) {
             entrees.push({
                 icone: 'fas fa-layer-group', libelle: 'Former un lot (' + cibles.length + ')',
                 agir: function () {
@@ -527,7 +568,7 @@
         //   • card unitaire ou FILLE → on partage cet élément (le serveur remonte à son lot).
         // La mère ne porte pas `data-preview-url` (`_batch_card.html`, mesuré) : sa surface est
         // lue sur une card fille, son pk sur l'enveloppe `.batch-group`.
-        if (cibles.length === 1 && global.WamaShare) {
+        if (cibles.length === 1 && global.WamaShare && !recue) {
             var estMere = card.classList.contains('is-batch');
             var dispo = estMere ? WamaShare.coordonneesDuLot(card) : WamaShare.coordonnees(card);
             var nom = (card.textContent || '').trim().slice(0, 70);
@@ -1121,6 +1162,51 @@
     // CAPTURE sur `window` : passe avant les écouteurs du document (inspecteur, file empilée).
     window.addEventListener('keydown', clavier, true);
     window.addEventListener('resize', fermer);
+
+    /**
+     * « N élément(s) reçu(s) retiré(s) de votre file · Réafficher » — sous la barre de la file
+     * (2026-10-02, `WAMA_COLLABORATION §3bis.2`). C'est le chemin du RETOUR de « Retirer de ma
+     * file » : sans lui, retirer serait définitif en pratique.
+     * Posé par le JS et non par une balise de gabarit À DESSEIN : un gabarit est relu à chaud en
+     * production, une balise neuve y rendrait toutes les files en 500 jusqu'à la relance ; ici, une
+     * route absente répond 404 et rien ne s'affiche. L'app est le 1ᵉʳ segment de l'adresse — c'est
+     * le libellé d'app des modèles de file (`/converter/`, `/enhancer/` pour ses deux files).
+     */
+    function annoncerRetirees() {
+        // Rien à faire hors d'une vraie page de file (et hors navigateur : le V8 des tests n'a ni
+        // `location` ni `fetch`).
+        var barre = document.querySelector && document.querySelector('.wama-queue-toolbar');
+        if (!barre || !global.location || !global.fetch) return;
+        var app = (global.location.pathname.split('/')[1] || '');
+        if (!app || document.querySelector('[data-reception-hidden]')) return;
+        fetch('/common/api/reception/hidden/?app=' + encodeURIComponent(app),
+              { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (res) {
+                if (!res || !res.count) return;
+                var ligne = document.createElement('div');
+                ligne.className = 'small mb-2';
+                ligne.style.color = '#c4b5fd';
+                ligne.setAttribute('data-reception-hidden', res.count);
+                ligne.innerHTML = '<i class="fas fa-eye-slash me-1"></i>' + res.count
+                    + (res.count > 1 ? ' éléments reçus retirés' : ' élément reçu retiré')
+                    + ' de votre file · <button type="button" class="btn btn-link btn-sm p-0 '
+                    + 'align-baseline" data-reception-show-all>Réafficher</button>';
+                ligne.querySelector('[data-reception-show-all]').addEventListener('click', function () {
+                    poster('/common/api/reception/show-all/', { app: app }).then(function (r2) {
+                        if (r2 && r2.shown !== undefined) location.reload();
+                        else dire('Impossible de les réafficher', 'error');
+                    });
+                });
+                barre.insertAdjacentElement('afterend', ligne);
+            })
+            .catch(function () { /* route absente : rien à annoncer */ });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', annoncerRetirees);
+    } else {
+        annoncerRetirees();
+    }
 
     global.WamaCardMenu = {
         autoInit: autoInit, ouvrir: ouvrir, fermer: fermer,

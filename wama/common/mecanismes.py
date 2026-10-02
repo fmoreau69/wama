@@ -488,10 +488,14 @@ MECHANISMS = (
               "il est membre) : une portée sans cible réelle n'est pas proposée. Lecture seule "
               "par construction — l'écriture est le jalon S3 `AccessGrant`, et la modale le DIT. "
               "Depuis le 2026-10-01 : « Dupliquer » une card reçue (`scoping.duplicable_or_404`) et "
-              "« Transférer à… » (`card_transfer` : possédés déplacés, désignés copiés)",
+              "« Transférer à… » (`card_transfer` : possédés déplacés, désignés copiés). "
+              "Depuis le 2026-10-02 : le RANGEMENT chez le destinataire (`reception`, §3bis.2) — "
+              "« Retirer de ma file » ≠ supprimer, « Réafficher », SON ordre manuel ; une ligne par "
+              "destinataire et par ENTRÉE de file (`ReceivedEntry`), qui ne porte aucun droit",
               'wama/common/services/sharing.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/common/static/common/js/wama-share.js',
-                       'wama/common/services/card_transfer.py')),
+                       'wama/common/services/card_transfer.py',
+                       'wama/common/services/reception.py')),
     Mechanism('send_to', "Envoyer vers (chaînage progressif, hors studio)",
               "La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studio. "
               "RÉSOLVEUR en lecture seule : il rend les chemins de sortie (clé canonique "

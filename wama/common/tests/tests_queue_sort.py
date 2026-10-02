@@ -139,6 +139,17 @@ class TriEtFiltreTests(SimpleTestCase):
                     self.assertEqual(len(_appliquer(tri, entrees=list(entrees))[0]),
                                      len(entrees))
 
+    def test_a_received_entry_is_sorted_manually_on_its_recipients_order(self):
+        # 2026-10-02 (`WAMA_COLLABORATION §3bis.2`) : l'ordre du LOT est celui de son propriétaire ;
+        # une entrée reçue porte celui du destinataire (`queue_index` de la ligne de file).
+        mine = _entree(1, 'mine', 1, 5)
+        mine['obj'].queue_index = 2
+        received = _entree(2, 'received', 1, 5)
+        received['obj'].queue_index = 9          # l'ordre de SON propriétaire : ignoré ici
+        received['queue_index'] = 1
+        ordered = _appliquer('manual', entrees=[mine, received])[0]
+        self.assertEqual(['received', 'mine'], [e['nom'] for e in ordered])
+
     def test_an_entry_without_a_batch_is_sorted_on_its_card(self):
         # 2026-10-02 : une card REÇUE du converter, pas encore rangée dans un lot par son
         # propriétaire, arrivait avec `obj=None` et faisait tomber la file du destinataire en 500.
