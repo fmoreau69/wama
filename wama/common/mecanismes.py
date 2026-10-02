@@ -1887,7 +1887,7 @@ MECHANISMS = (
     # dans le substrat (`extra_links`) et le journal recevait le monde par un second chemin.
     Mechanism('app_worlds', "Monde déclaré d'une app",
               "Chaque app DÉCLARE son monde (media | data | lab | transverse) : dans son entrée "
-              "d'APP_CATALOG, ou — hors catalogue — depuis son `ready()` (`declare_app_world` ; "
+              "d'APP_CATALOG, ou — hors catalogue — depuis son `ready()` (`register_app_world` ; "
               "`register_surface`, qui porte aussi l'identité de sa page). UNE lecture, "
               "`app_world()` : le manifeste d'app, le monde d'une fonction, le menu, `/apps/`, le "
               "journal et le calendrier la lisent, rien ne le déduit d'un libellé de navigation",

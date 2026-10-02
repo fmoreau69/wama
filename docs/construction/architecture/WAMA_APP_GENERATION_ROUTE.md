@@ -3495,7 +3495,7 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 > monde LIT la même déclaration** (GO de Fabien sur trois points : le studio est `transverse`,
 > n°9 ; les apps Lab restent hors catalogue jusqu'à leur alignement après P3, n°8 ; une seule
 > déclaration poussée remplace les `extra_links`).
-> - **La brique** (`app_registry.py`) : `declare_app_world(app, monde)` pour une app sans page
+> - **La brique** (`app_registry.py`) : `register_app_world(app, monde)` pour une app sans page
 >   (`wama_data`), `register_surface(app, world=, label=, url_name=, icon=, …)` pour une page —
 >   appelées depuis le `ready()` de l'app. Lecteurs : `app_world()`, `surfaces()`,
 >   `surface_for(app)`. Un monde hors vocabulaire ou qui contredit le catalogue LÈVE.
