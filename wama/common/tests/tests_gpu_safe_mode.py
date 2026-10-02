@@ -143,7 +143,13 @@ class DiffermentFauteDeVramTest(TestCase):
             with self.assertRaises(Retry) as cm:
                 _differer_faute_de_vram(T, self._ctx(), self.item, self.model,
                                         self.item.pk, 'synthesizer', 20.0, 'error_message')
-            self.assertIn("'max_retries': None", str(cm.exception))
+            # ⚠ Jusqu'au 2026-10-02 ce test exigeait `'max_retries': None` — la croyance que
+            # None = illimité. Pour `task.retry()`, None = le défaut de la tâche (3) : la 1ʳᵉ
+            # vraie attente (composer #282) est morte à la 3ᵉ re-livraison, élément abandonné
+            # « en attente ». Le plafond doit être EXPLICITE et hors de portée.
+            from wama.common.utils.task_skeleton import WAIT_RETRIES_UNLIMITED
+            self.assertIn(f"'max_retries': {WAIT_RETRIES_UNLIMITED}", str(cm.exception))
+            self.assertGreater(WAIT_RETRIES_UNLIMITED, 400)
             differe = _differer_faute_de_vram(T, self._ctx(), self.item, self.model,
                                               self.item.pk, 'synthesizer', 32.5,
                                               'error_message')
@@ -153,3 +159,21 @@ class DiffermentFauteDeVramTest(TestCase):
         self.assertIn('32.5 Go', self.item.error_message)
         self.assertIn('même seul', self.item.error_message)
         self.assertIn('qualité', self.item.error_message)
+
+    def test_a_wait_that_can_no_longer_be_redelivered_is_a_stated_failure(self):
+        """Filet (2026-10-02) : si Celery refuse la re-livraison, l'élément ne reste pas « en
+        attente de ressources » sans tâche — c'est ce qui est arrivé au composer #282."""
+        from celery.exceptions import MaxRetriesExceededError
+        from wama.common.utils.task_skeleton import _differer_faute_de_vram
+        T, _ = self._task(essais=3)
+        T.retry = staticmethod(lambda **kw: MaxRetriesExceededError("Can't retry"))
+        with mock.patch('wama.common.services.resource_governor.effective_free_gb',
+                        return_value=1.0),                 mock.patch('wama.common.services.resource_governor.fits_alone',
+                           return_value=True),                 mock.patch('wama.common.services.resource_governor.holders_summary',
+                           return_value=''):
+            deferred = _differer_faute_de_vram(T, self._ctx(), self.item, self.model,
+                                               self.item.pk, 'synthesizer', 20.0, 'error_message')
+        self.assertTrue(deferred)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, 'FAILURE')
+        self.assertIn('3 re-livraisons', self.item.error_message)
