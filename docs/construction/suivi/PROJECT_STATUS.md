@@ -20051,3 +20051,44 @@ Suite de `7d56da95` (3ᵉ pièce). Domicile : `ROUTE §10.6` point 6.1, bloc « 
   sections écrites pour 177 mécanismes, dont `app_worlds` de cette session).
 - **Pendings système** : 🔴 relancer WAMA pour voir l'accueil et l'explorateur dérivés ; la base
   de test `test_wama_db_reprise_pipeline` est à supprimer en fin de session.
+
+## §PALIER — 2026-10-02, « PIPELINE PORTÉ PAR LA CARD — P3, palier A : la LIGNE D'EXÉCUTION (`ProcessRun`) et l'agrégation » — ✅ commit ci-dessous, non poussé — 🔴 RELANCER WAMA pour que les workers écrivent les lignes (migration `common 0022` additive, DÉJÀ appliquée : une table neuve) — 🔚 décision n°11 (comment une app Médias déclare ses process internes) avant le moteur à plusieurs process et le pilote composer
+
+Décisions de Fabien du jour, consignées à `ROUTE §10.6` point 9 : **n°1** la ligne s'appelle
+`ProcessRun`, pas de table neuve pour l'instance de pipeline ; **n°2** sortie persistée pour un
+process d'app, recalculée pour une fonction pure ; **n°3** clé d'instance = colonne texte, vide par
+défaut ; **pilote = le composer** (YuE2 : `plan` → `render`). Plan soumis à l'instance « portage »
+à la demande de Fabien : d'accord, avec trois réserves intégrées (ci-dessous).
+
+- ✅ **`ProcessRun`** (`wama/common/models.py`) : une ligne par (élément, nœud, clé d'instance),
+  réécrite à chaque lancement — un état, pas un journal (`RunOutcome` et `ItemRevision` gardent
+  leurs rôles). État sur les six états communs, photo des réglages surveillés, modèle EMPLOYÉ,
+  sortie, dates, durée, erreur, tâche.
+- ✅ **`wama/common/services/process_runs.py`** : `start`, `await_resources`, `succeed`, `fail`,
+  `close_open`, `forget`, `stale_nodes` (sémantique de `pass_tracking.recompute_stale`),
+  `aggregate` (règle 4.4 — le 1ᵉʳ reste de P2). Écritures du cycle de vie par `safely()` : jamais
+  bloquantes, sous point de sauvegarde, et dites au journal si elles échouent.
+- ✅ **Le squelette écrit la ligne de son unique process** (`task_skeleton.run_item_task`) :
+  départ avec le modèle résolu (lisible pendant un « auto »), attente de VRAM, succès avec le
+  modèle déclaré par la glu, échecs. Six apps gagnent leur ligne sans rien changer.
+- ✅ **Réserves de l'instance « portage »** : ① `stop_instance` et `_mark_reconciled` (par où
+  passent les trois réconciliations) referment les lignes ouvertes ; l'ÉLÉMENT reste la vérité lue
+  par l'interface tant qu'il porte `status` ; ② le lanceur garde sa marque atomique
+  (`begin_processing`), à reprendre par le moteur ; ③ modèle tiré écrit sur la ligne. Retirer une
+  card retire ses lignes (`release_card_files`).
+- **Mesuré (WSL, base isolée)** : 389 tests — `tests_process_runs` (20 tests neufs, dont pour
+  CHAQUE app du squelette : ligne au succès, à l'échec, pendant le traitement, refermée par un
+  arrêt et par une réconciliation ; contre-épreuve : fermeture neutralisée → divergence vue),
+  contrats du squelette, composer, converter, reader, describer, enhancer, transcriber. Un seul
+  rouge, antérieur : `test_chaque_mecanisme_a_sa_section` (171 sections écrites pour 178
+  mécanismes — `process_runs` s'y ajoute ; docs générées à régénérer). Langue des identifiants :
+  budget du code tenu (2678 / 2678), contrôle lancé AVANT le commit.
+- ⚠ **Cas que la règle d'agrégation ne nommait pas** : un process OPTIONNEL en échec laisse la
+  card `PENDING` (« reste à compléter ») — ni `FAILURE` ni `SUCCESS`. À confirmer par Fabien à P4.
+- ⏳ **Bloqué sur une décision** : le moteur à plusieurs process et le pilote composer ont besoin
+  de savoir COMMENT une app Médias déclare ses process internes — la décision ouverte n°11. Le
+  cam_analyzer le fait déjà (registre `PASSES` → `register_pipeline_source` → manifeste `pipeline`
+  à nœuds `function`, chaque passe étant un `FunctionSpec` lié à l'app) ; `WAMA_MANIFEST_SPEC §3.1`
+  dit que les process internes d'une app Médias ne sont PAS des fonctions.
+- **Non fait** : `AnalysisPass` du cam_analyzer et `node_states` du studio ne sont pas portés
+  sur `ProcessRun` (hors plan de ce palier).

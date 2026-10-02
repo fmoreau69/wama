@@ -138,7 +138,20 @@ MECHANISMS = (
               symbol='BaseModelBackend'),
     Mechanism('task_skeleton', 'Squelette de tâche',
               "Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA",
-              'wama/common/utils/task_skeleton.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md'),
+              'wama/common/utils/task_skeleton.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
+              depends_on=('process_runs',)),
+    # Ajouté le 2026-10-02 (pipeline porté par la card, marche P3 — route §10.6 points 4.1 à 4.4).
+    # Généralise le suivi de passes du cam_analyzer (`AnalysisPass`, `pass_tracking`) : c'est la
+    # 1ʳᵉ pièce du moteur commun, écrite par le squelette pour son unique process.
+    Mechanism('process_runs', "Lignes d'exécution des process",
+              "UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process sur les "
+              "six états communs, photo des réglages surveillés, modèle EMPLOYÉ (lisible pendant "
+              "un « auto »), sortie, durée. Dit ce qui est périmé (`stale_nodes` : réglage "
+              "surveillé changé, puis cascade) et déduit l'état d'une card de ses process "
+              "(`aggregate`). L'élément reste la vérité lue par l'interface tant qu'il porte "
+              "`status` ; l'arrêt et la réconciliation referment les lignes ouvertes",
+              'wama/common/services/process_runs.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
+              annexes=('wama/common/tests/tests_process_runs.py',)),
     Mechanism('model_readiness', 'Annonce de téléchargement des poids',
               "Un modèle jamais utilisé télécharge ses poids À LA PREMIÈRE EXÉCUTION (37 appels "
               "`from_pretrained`/`snapshot_download` dans les backends) — et RIEN ne le disait : "

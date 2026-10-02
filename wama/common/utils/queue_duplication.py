@@ -174,6 +174,11 @@ def release_card_files(instance) -> int:
                 released += 1
     except Exception:
         pass
+    # La card emporte aussi ses LIGNES D'EXÉCUTION (ROUTE §10.6 4.1) : une ligne dont l'élément
+    # n'existe plus ne serait plus jamais lue. C'est le seul geste de ce verbe qui ne touche pas
+    # un fichier — il est ici parce que ce verbe EST le retrait de la card, dans les dix apps.
+    from wama.common.services import process_runs
+    process_runs.safely(process_runs.forget, instance)
     return released
 
 

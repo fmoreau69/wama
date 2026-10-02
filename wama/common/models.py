@@ -1040,6 +1040,95 @@ class ItemRevision(models.Model):
         return f"{self.app}:{self.object_type}#{self.object_id} v{self.number}"
 
 
+class ProcessRun(models.Model):
+    """
+    La LIGNE D'EXÉCUTION d'un process : « tel process, pour telle card, dans tel état » —
+    `WAMA_APP_GENERATION_ROUTE.md §10.6` point 4.1, marche P3 (nom tranché par Fabien le
+    2026-10-02, décision n°1).
+
+    Généralise `AnalysisPass` du cam_analyzer (`wama_lab/cam_analyzer/models.py`), d'où viennent
+    la photo des réglages surveillés et l'état `STALE`. Une card porte un pipeline de 0..N
+    process ; chaque process exécuté a ICI sa ligne.
+
+    ⚠ UN ÉTAT, PAS UN JOURNAL. `RunOutcome` (plus haut) est le journal des FAITS, append-only ;
+    `ItemRevision` garde l'état que chaque résultat a donné à l'élément. Cette table n'ajoute ni
+    l'un ni l'autre : elle a UNE ligne par (élément, nœud, clé d'instance), RÉÉCRITE à chaque
+    lancement — ce qu'il faut pour dire « ce process est à jour, périmé, en échec » et pour ne
+    relancer que lui.
+
+    ⚠ L'ÉLÉMENT RESTE LA VÉRITÉ LUE PAR L'INTERFACE tant que ses colonnes `status` / `progress`
+    existent (jusqu'à la marche P6) : cette ligne dit l'état d'UN process — sa dernière
+    exécution —, l'état de la CARD se lit sur l'élément. Pour une card à plusieurs process, le
+    moteur y écrit l'état AGRÉGÉ (`process_runs.aggregate`).
+
+    Adressage : la convention de `RunOutcome` et d'`ItemRevision` — sans clé étrangère générique
+    —, avec deux précisions : `app` est le LABEL Django du modèle de l'élément (`_meta.app_label`,
+    que tout écrivain sait dériver de l'élément seul), et `object_id` est un TEXTE (une session
+    du Lab a une clé UUID).
+    """
+
+    KIND_APP = 'app'
+    KIND_FUNCTION = 'function'
+    KIND_PIPELINE = 'pipeline'
+    #: Nature du process référencé — les types de nœud exécutables du manifeste `pipeline`.
+    KIND_CHOICES = [
+        (KIND_APP, "Process d'app"),
+        (KIND_FUNCTION, 'Fonction du catalogue'),
+        (KIND_PIPELINE, 'Pipeline (sous-pipeline)'),
+    ]
+
+    app = models.CharField(max_length=32, db_index=True)
+    object_type = models.CharField(max_length=64)
+    object_id = models.CharField(max_length=64)
+
+    #: Le nœud du pipeline de la card. Une app à UN process n'en a qu'un (`process_runs.MAIN_NODE`).
+    node_id = models.CharField(max_length=64)
+    process_kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_APP)
+    process_key = models.CharField(max_length=128)
+    process_version = models.CharField(max_length=32, blank=True, default='')
+    #: Clé d'INSTANCE (décision n°3) : distingue les exécutions d'un MÊME process pour une même
+    #: card — le cam_analyzer lance la détection une fois par caméra. Vide quand le process ne
+    #: tourne qu'une fois par card (toutes les apps Médias).
+    instance_key = models.CharField(max_length=64, blank=True, default='')
+
+    status = models.CharField(max_length=20, choices=PROCESS_STATUS_CHOICES, default=JOB_PENDING)
+    #: PHOTO des réglages que le process SURVEILLE, prise au lancement : c'est sa comparaison aux
+    #: réglages courants qui dit « périmé ». Un réglage non surveillé n'y figure pas, à dessein.
+    settings_snapshot = models.JSONField(default=dict, blank=True)
+    #: Clé de catalogue du modèle EMPLOYÉ par cette exécution — le modèle TIRÉ quand le réglage
+    #: de l'élément est resté « auto ». Lisible pendant le traitement (l'ETA s'y réfère), et repris
+    #: par un process aval relancé seul.
+    model_key = models.CharField(max_length=255, blank=True, default='')
+
+    #: Sortie du process (décision n°2 : persistée pour un process d'app) — un chemin relatif à
+    #: MEDIA_ROOT, ou vide ; `output_summary` porte ce qui se lit sans ouvrir la sortie.
+    output_ref = models.CharField(max_length=512, blank=True, default='')
+    output_summary = models.JSONField(default=dict, blank=True)
+
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    duration_s = models.FloatField(null=True, blank=True)
+    error_message = models.TextField(blank=True, default='')
+    task_id = models.CharField(max_length=255, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Exécution de process"
+        verbose_name_plural = "Exécutions de process"
+        ordering = ['app', 'object_type', 'object_id', 'node_id', 'instance_key']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['app', 'object_type', 'object_id', 'node_id', 'instance_key'],
+                name='process_run_unique_line'),
+        ]
+        indexes = [models.Index(fields=['app', 'object_type', 'object_id'])]
+
+    def __str__(self):
+        suffix = f"[{self.instance_key}]" if self.instance_key else ''
+        return (f"{self.app}:{self.object_type}#{self.object_id} · {self.node_id}{suffix} "
+                f"→ {self.status}")
+
+
 class ResultEvaluation(models.Model):
     """
     La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
