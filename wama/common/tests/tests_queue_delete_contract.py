@@ -735,12 +735,45 @@ class ReceivedCardsAppearInTheQueueTest(TestCase):
                 # rafraîchissement — « une porte à moitié ouverte, pire qu'une porte fermée ».
                 self.assertEqual(200, self.client.get(reverse(card_route, args=[card.pk])).status_code,
                                  'le fragment de la card reçue refuse le destinataire')
+                # Son APERÇU aussi (2026-10-02, trouvé par le geste joué sur le converter : la
+                # vignette du résultat sortait en 403). Le témoin n'a pas de vrai fichier : on ne
+                # demande pas un 200, on exige que le DROIT ne refuse pas.
+                preview = f'/common/preview/{surface}/{card.pk}/'
+                self.assertNotEqual(403, self.client.get(preview).status_code,
+                                    'l’aperçu de la card reçue refuse le destinataire')
+                partager(owner, card, 'private')
+                self.assertEqual(403, self.client.get(preview).status_code,
+                                 'contre-épreuve : l’aperçu d’une card PRIVÉE d’autrui reste refusé')
+                partager(owner, card, 'public')
                 if app in seen:                   # une page par app (l'enhancer porte deux files)
                     continue
                 seen.add(app)
                 html = self.client.get(f'/{app}/').content.decode()
                 self.assertIn(f'data-id="{card.pk}"', html,
                               'la card partagée n’apparaît pas dans la file du destinataire')
+
+    def test_a_shared_card_without_a_batch_does_not_break_the_recipients_queue(self):
+        # Mesuré le 2026-10-02 par le geste `common.received_card_visible`, joué SUR LE SERVEUR LIVE :
+        # une card partagée que son propriétaire n'a pas encore rangée dans un lot (le rangement du
+        # converter est paresseux, à SA visite) faisait tomber la file du destinataire en 500 — le
+        # tri commun supposait un lot. Ce test-ci, écrit avant, partageait toujours une card DANS
+        # son lot : il ne pouvait pas le voir.
+        from wama.common.services.sharing import partager
+        from wama.common.utils.preview_registry import PreviewRegistry
+        owner = User.objects.create_user('received_loose_owner', password='x')
+        seen = set()
+        for surface, _delete, _card_route in _surfaces():
+            model = PreviewRegistry.get_model(surface)
+            app = model._meta.app_label
+            if app in seen:
+                continue
+            seen.add(app)
+            with self.subTest(surface=surface):
+                self._account_for(surface)
+                card = _instance(model, owner)
+                partager(owner, card, 'public')
+                self.assertEqual(200, self.client.get(f'/{app}/').status_code,
+                                 'une card reçue sans lot fait tomber la file du destinataire')
 
 
 class ListedFilesFollowTheCardTest(TestCase):

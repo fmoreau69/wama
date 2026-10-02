@@ -33,6 +33,16 @@ def apply_queue_sort_filter(request, batches_list, *, name_of):
     request.session['q_sort'] = q_sort
     request.session['q_filter'] = q_filter
 
+    # Une entrée SANS LOT (`obj` à None) se trie sur sa card (2026-10-02). Cas mesuré : une card
+    # REÇUE du converter que son propriétaire n'a pas encore rangée dans un lot (le rangement est
+    # paresseux, à SA visite) — chez le destinataire, cette seule card faisait tomber toute la
+    # file en 500. Même principe que les `.get()` et `getattr` plus bas.
+    def _anchor(b):
+        return b['obj'] if b['obj'] is not None else b['items'][0]
+
+    def _total(b):
+        return b['obj'].total if b['obj'] is not None else len(b['items'])
+
     def _matches(b, f):
         if f == 'running':
             return b['running_count'] > 0
@@ -52,19 +62,19 @@ def apply_queue_sort_filter(request, batches_list, *, name_of):
         if f == 'stale':
             return b.get('stale_count', 0) > 0
         if f == 'draft':
-            return (b['success_count'] + b['running_count'] + b['failure_count']) < b['obj'].total
+            return (b['success_count'] + b['running_count'] + b['failure_count']) < _total(b)
         return True  # 'all'
 
     if q_filter != 'all':
         batches_list = [b for b in batches_list if _matches(b, q_filter)]
 
     _sorters = {
-        'recent': (lambda b: b['obj'].created_at, True),
-        'oldest': (lambda b: b['obj'].created_at, False),
+        'recent': (lambda b: _anchor(b).created_at, True),
+        'oldest': (lambda b: _anchor(b).created_at, False),
         'name':   (name_of, False),
         # Groupé : type d'abord (batch vs card unique), chronologie récente en 2nd ordre.
-        'batches_first': (lambda b: (0 if b['obj'].total > 1 else 1, -b['obj'].created_at.timestamp()), False),
-        'singles_first': (lambda b: (0 if b['obj'].total == 1 else 1, -b['obj'].created_at.timestamp()), False),
+        'batches_first': (lambda b: (0 if _total(b) > 1 else 1, -_anchor(b).created_at.timestamp()), False),
+        'singles_first': (lambda b: (0 if _total(b) == 1 else 1, -_anchor(b).created_at.timestamp()), False),
         # MANUEL — l'ordre que l'utilisateur a posé au drag (CARD_DESIGN §3bis). C'est le seul
         # tri qui LIT une colonne au lieu de la calculer : `QueueOrderMixin.queue_index`.
         #
@@ -78,7 +88,7 @@ def apply_queue_sort_filter(request, batches_list, *, name_of):
         # une fois ferait tomber la file en 500 dans TOUTE app dont le batch n'a pas le mixin —
         # et le tri est persisté en SESSION, donc l'erreur suivrait l'utilisateur d'app en app.
         'manual': (lambda b: (getattr(b['obj'], 'queue_index', 0) or 0,
-                              -b['obj'].created_at.timestamp()), False),
+                              -_anchor(b).created_at.timestamp()), False),
     }
     _key, _rev = _sorters.get(q_sort, _sorters['recent'])
     batches_list.sort(key=_key, reverse=_rev)
