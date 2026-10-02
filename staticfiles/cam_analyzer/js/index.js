@@ -3623,6 +3623,17 @@ document.addEventListener('DOMContentLoaded', function () {
                         topDownHeadings.set(tkey, sm);
                     }
                 }
+                // Cap SERVEUR (⚑ server_heading, 2026-10-01) : vitesse LISSÉE Kalman+RTS de TOUTE la
+                // trajectoire (`world_vel`, m/s est/nord), indépendante de l'historique de lecture.
+                // La trace locale ci-dessus n'a que les dernières images AFFICHÉES : vidée à chaque
+                // saut (le cap retombait sur celui de la navette — un véhicule qui traverse était
+                // dessiné dans l'axe de la route) et bruitée sur 5 points (51° au lieu de ~100°
+                // mesurés pour la camionnette de 2983 s).
+                let _srvSpeed = null;
+                if (!_isStationary && camFeat.server_heading !== false && Array.isArray(det.world_vel)) {
+                    _srvSpeed = Math.hypot(det.world_vel[0], det.world_vel[1]);
+                    if (_srvSpeed >= 0.5) sm = [det.world_vel[1] / _srvSpeed, det.world_vel[0] / _srvSpeed];
+                }
                 if (sm) objHeading = Math.atan2(sm[1], sm[0]) * 180 / Math.PI;   // maintenu si à l'arrêt
                 // Classe STABLE du track : `stable_class` (vote majoritaire pondéré confiance,
                 // écrit par le calcul des indicateurs) sinon vote LIVE local en fallback
@@ -3652,8 +3663,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 // l'arrêt, trajectoire seule ≥ 2 m/s (~7 km/h), fondu AXIAL entre les deux
                 // dans l'intervalle — le ratio h/l ne dit rien du SENS, seulement de l'axe,
                 // donc le mélange se fait sur l'angle doublé (statistique axiale).
-                let _vEst = null;   // vitesse apparente (m/s) sur la fenêtre de trace
-                if (tr && tr.length >= 2) {
+                let _vEst = _srvSpeed;   // vitesse (m/s) : lissée serveur si connue, sinon apparente
+                if (_vEst == null && tr && tr.length >= 2) {
                     const _ta = tr[Math.max(0, tr.length - 5)], _tb = tr[tr.length - 1];
                     const _dtw = Math.abs((_tb[2] ?? 0) - (_ta[2] ?? 0));
                     if (_dtw > 0.15) {
