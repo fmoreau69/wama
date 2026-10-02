@@ -76,7 +76,8 @@ class MusicGenerationBackend(BaseModelBackend):
                    progress_callback: Optional[Callable[[int], None]] = None) -> str:
         """Écrit la PARTITION (texte ABC) du morceau que `prompt` demande, sans le jouer — le
         process `plan` de la card (ROUTE §10.6, 2026-10-02). `generate(score_path=…)` la suit
-        ensuite : les deux appels réunis donnent ce qu'un `generate` seul aurait donné.
+        ensuite. ⚠ Les deux appels réunis ne sont PAS garantis identiques à un `generate` seul :
+        la partition repasse par son texte entre les deux.
 
         Réservé aux moteurs qui DÉCLARENT `supports_score_planning` ; les autres n'ont qu'un
         process (le rendu) et le disent ici plutôt que de rendre une partition vide."""
