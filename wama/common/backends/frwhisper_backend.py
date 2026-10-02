@@ -102,7 +102,16 @@ class FrWhisperBackend(SpeechToTextBackend):
 
         ``model_name`` n’est pas utilisé : le backend ne gère qu’un seul
         modèle (identifié par le catalogue ``huggingface:aihpi/FrWhisper``).
+
+        Déjà chargé → réutilisé. Le worker GPU ne décharge pas entre deux cards : recharger à
+        chaque card EMPILAIT une copie du modèle sur la précédente, jusqu'au manque de mémoire
+        (campagne du 2026-10-02, 19:53 et 20:18). Même règle que NeMo.
         """
+        if self._loaded and self._model is not None:
+            logger.info("[FrWhisper] déjà chargé — réutilisé")
+            return True
+        if self._model is not None:
+            self.unload()
         try:
             # 1️⃣ Le répertoire du composant « model » porte aussi config et tokenizer.
             paths = component_paths("huggingface:aihpi/FrWhisper")

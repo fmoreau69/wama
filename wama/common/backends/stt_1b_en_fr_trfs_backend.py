@@ -103,7 +103,16 @@ class KyutaiSttBackend(SpeechToTextBackend):
         Charge le modèle et le processeur depuis le répertoire du catalogue.
         Le paramètre `model_name` est ignoré ; le backend ne supporte qu’un seul
         modèle (celui indiqué dans `self.catalogue_key`).
+
+        Déjà chargé → réutilisé. Le worker GPU ne décharge pas entre deux cards : recharger à
+        chaque card EMPILAIT une copie du modèle sur la précédente, jusqu'au manque de mémoire
+        (campagne du 2026-10-02, 19:53 et 20:18). Même règle que NeMo.
         """
+        if self._loaded and self._model is not None:
+            logger.info("[Kyutai STT] déjà chargé — réutilisé")
+            return True
+        if self._model is not None:
+            self.unload()
         try:
             # 1️⃣ Récupérer le chemin du fichier poids
             paths = component_paths(self.catalogue_key)  # {role: Path}

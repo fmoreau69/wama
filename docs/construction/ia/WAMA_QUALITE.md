@@ -1039,7 +1039,10 @@ langue « Auto », VAD auto, sans débruitage ; WER moyen par enregistrement :
   Kyutai, « illegal memory access » qui corrompt le contexte CUDA et fait tomber TOUTE la file —
   passait avec `CUDA_LAUNCH_BLOCKING=1` (course entre flux) → décodage NeMo sans graphes CUDA
   (`8ef3557`) ; (3) le worker ne décharge pas en fin de card : les modèles de moteurs différents
-  COHABITENT, ce que ni un smoke ni une card seule ne montrent. ⭐ *Un essai par modèle ne dit
+  COHABITENT, ce que ni un smoke ni une card seule ne montrent — et FrWhisper comme Kyutai
+  RECHARGEAIENT leur modèle à chaque card sans libérer le précédent : la mémoire s'empilait
+  jusqu'au manque (19:53 et 20:18, ~19 Go alloués par PyTorch ; relevé par une autre instance,
+  vérifié au journal) → `load()` réutilise un modèle déjà chargé, comme NeMo. ⭐ *Un essai par modèle ne dit
   rien d'une file de modèles différents : seule une campagne mélangée l'éprouve.*
 - Non mesuré : CFPP (LinTO biaisé, et les entretiens longs coûtent ~1 h de GPU par card Kyutai).
 
