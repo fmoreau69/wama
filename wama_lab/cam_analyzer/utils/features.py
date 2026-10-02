@@ -25,6 +25,13 @@ FEATURES = [
             "avec la trajectoire selon la vitesse. OFF = trajectoire seule (cap figé à "
             "l'arrêt).",
             default=True, scope='live'),
+    Feature('server_heading', 'Cap = trajectoire lissée (serveur)',
+            "Le cap d'un véhicule qui roule (≥ 0,5 m/s) vient de la vitesse LISSÉE de TOUTE sa "
+            "trajectoire (Kalman + RTS du tracking 360°), et non des quelques images que la page "
+            "vient d'afficher : un saut dans la vidéo ne le fait plus retomber sur le cap de la "
+            "navette, et il n'est plus bruité. OFF = cap tiré de la trace affichée (historique). "
+            "Exige un « Tracking 360° » postérieur au 2026-10-02.",
+            default=True, scope='live'),
     Feature('antenna_lever', "Levier d'antenne GPS",
             "Le point GPS est l'ANTENNE (coin arrière droit sur le rig ENA), pas le centre "
             "du véhicule : tout le repère est ramené au centre arrière via le levier déclaré "

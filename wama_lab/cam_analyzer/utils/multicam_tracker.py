@@ -344,7 +344,7 @@ def reanchor_ghosts(ghost_links, smoothed, shuttle_at, *, use_smoothed=True, ego
 
 #: Champs qu'ÉCRIT le tracking 360° sur une détection RÉELLE. Un calcul les réécrit tous : ce
 #: qu'il ne réécrit pas ne doit pas lui survivre (`reset_tracker_fields`).
-TRACKER_FIELDS = ('global_track_id', 'world_en', 'stable_class', 'stable_class_margin',
+TRACKER_FIELDS = ('global_track_id', 'world_en', 'world_vel', 'stable_class', 'stable_class_margin',
                   'artifact', 'placement_source')
 
 
@@ -1093,6 +1093,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # Stationnés exclus (les ancres font mieux).
     from .trajectory_smoother import smooth_track
     smoothed = {}   # (gid, fn) -> (e, n)
+    # (gid, fn) -> (vx, vy) m/s : vitesse LISSÉE du même filtre (2026-10-01) — le cap d'affichage
+    # en dérive (`world_vel`) au lieu de la recalculer sur les quelques images vues par la page
+    smoothed_vel = {}
     for gid, hist in track_hist.items():
         if gid in _stat_set or len(hist) < 5:
             continue
@@ -1101,11 +1104,12 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         except Exception:
             logger.debug('smooth_track failed gid=%s', gid, exc_info=True)
             continue
-        by_t = {round(t, 4): (e, n) for t, e, n, _vx, _vy in out}
+        by_t = {round(t, 4): (e, n, vx, vy) for t, e, n, vx, vy in out}
         for fn, t, _e, _n, _c in hist:
             v = by_t.get(round(t, 4))
             if v:
-                smoothed[(gid, fn)] = v
+                smoothed[(gid, fn)] = (v[0], v[1])
+                smoothed_vel[(gid, fn)] = (v[2], v[3])
 
     # ── Fantômes REPOSÉS sur la trajectoire LISSÉE (⚑ ghost_on_smoothed, 2026-09-29) ─────
     # Un fantôme interpolait entre les positions BRUTES encadrant le trou, alors que les
@@ -1163,6 +1167,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             w = smoothed.get((g, f.frame_number)) if g is not None else None
             if w:
                 d['world_en'] = [round(w[0], 2), round(w[1], 2)]
+                wv = smoothed_vel.get((g, f.frame_number))
+                if wv:
+                    d['world_vel'] = [round(wv[0], 2), round(wv[1], 2)]
 
     # Métrique #3 (2026-10-01) : ce que le suivi DUPLIQUE ou PERD, après recollement (gids racines).
     continuity = None

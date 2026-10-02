@@ -36,3 +36,23 @@ class TrackingLeversTest(SimpleTestCase):
     def test_the_continuity_metric_is_reported(self):
         self.assertIn('tracking_continuity(_continuity_obs, root=_root)', self.src)
         self.assertIn("'continuity': continuity", self.src)
+
+
+class ServerHeadingTest(SimpleTestCase):
+    """Le cap d'un véhicule qui roule vient de la vitesse LISSÉE du serveur (2026-10-02) : la trace
+    de la page, vidée à chaque saut, faisait dessiner un véhicule qui traverse dans l'axe de la route."""
+
+    def test_the_smoothed_velocity_travels_with_the_smoothed_position(self):
+        src = inspect.getsource(mt.annotate_global_tracks)
+        block = src[src.index("d['world_en'] = [round(w[0], 2), round(w[1], 2)]"):]
+        self.assertIn("d['world_vel'] = [round(wv[0], 2), round(wv[1], 2)]", block[:400])
+
+    def test_the_velocity_is_purged_like_every_tracker_field(self):
+        self.assertIn('world_vel', mt.TRACKER_FIELDS)
+
+    def test_the_page_uses_it_under_its_switch(self):
+        from pathlib import Path
+        js = (Path(mt.__file__).resolve().parents[1] / 'static/cam_analyzer/js/index.js').read_text(encoding='utf-8')
+        self.assertIn("camFeat.server_heading !== false && Array.isArray(det.world_vel)", js)
+        self.assertIn("let _vEst = _srvSpeed;", js)
+        self.assertTrue({f.key: f for f in FEATURES}['server_heading'].default)
