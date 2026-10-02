@@ -911,6 +911,24 @@
     },
     "inspector": {
       "detail_registered": true,
+      "detail_spec": {
+        "engine": "tts_model",
+        "extra_from_params": true,
+        "result_file": "audio_output",
+        "source_file": [
+          "text_file",
+          "voice_reference"
+        ],
+        "source_text": "text_content",
+        "source_type": {
+          "else": "audio",
+          "then": "text",
+          "when_any": [
+            "text_file",
+            "text_content"
+          ]
+        }
+      },
       "preview": {
         "file_field": "audio_output",
         "user_field": "user"

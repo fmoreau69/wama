@@ -175,28 +175,22 @@ class TranscriberConfig(AppConfig):
         ))
 
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md).
-        from wama.common.utils.detail_registry import register_app_detail, build_detail
-
-        def _transcriber_detail(item):
-            extra = {
-                'Diarisation': 'Oui' if item.enable_diarization else None,
-                'Résumé': 'Oui' if item.generate_summary else None,
-                'Mots-clés': item.hotwords or None,
-                'Cohérence': 'Oui' if item.verify_coherence else None,
-            }
-            return build_detail(item, source_file=item.audio, source_type='audio',
-                                engine=item.backend, engine_effective=item.used_backend,
-                                result_file=None, result_text=item.text or None, extra=extra)
-
-        # ⚠ Le transcriber garde un adapter CODE (logique irréductible, chemin A3
-        # assumé) — mais ses FACETTES de résultat, elles, sont une DONNÉE. On passe donc la
-        # spec en plus de l'adapter : `DetailRegistry.register` accepte les deux depuis
-        # l'origine, et c'est ce qui rend les onglets extractibles au manifeste sans exiger
-        # d'abord la conversion complète de l'adapter.
-        # Clés/ids INCHANGÉS : `resultText`, `diarisationContent`, `resumeContent`,
-        # `coherenceContent` sont le contrat que son JS consomme déjà (R18, 2026-09-07).
-        from wama.common.utils.detail_registry import DetailRegistry
-        DetailRegistry.register('transcriber', Transcript, _transcriber_detail, spec={
+        # SPEC déclarative ENTIÈRE (A3a, portage 2026-10-03) : l'adapter code ne faisait que
+        # nommer des champs et relibeller quatre réglages à la main (« Diarisation », « Résumé »,
+        # « Mots-clés », « Cohérence »). Les libellés viennent désormais du SCHÉMA (`params.py`,
+        # ceux de la modale ⚙) et un réglage vrai est affiché « Oui » par l'inspecteur, pour
+        # toutes les apps. Les FACETTES de résultat étaient déjà une donnée (R18, 2026-09-07) :
+        # clés/ids INCHANGÉS — `resultText`, `diarisationContent`, `resumeContent`,
+        # `coherenceContent` sont le contrat que son JS consomme.
+        from wama.common.utils.detail_registry import register_app_detail_spec
+        register_app_detail_spec('transcriber', Transcript, {
+            'source_file': 'audio',
+            'source_type': {'const': 'audio'},
+            'engine': 'backend',
+            'engine_effective': 'used_backend',
+            'result_text': 'text',
+            'extra': [{'field': 'enable_diarization'}, {'field': 'generate_summary'},
+                      {'field': 'hotwords'}, {'field': 'verify_coherence'}],
             'result_tabs': [
                 {'cle': 'transcription', 'label': 'Transcription', 'icone': 'fa-file-alt',
                  'cible': 'resultText', 'forme': 'pre', 'badge': True},

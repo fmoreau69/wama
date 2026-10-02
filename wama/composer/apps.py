@@ -41,24 +41,20 @@ class ComposerConfig(AppConfig):
             )
 
             # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md).
-            from wama.common.utils.detail_registry import register_app_detail, build_detail
-
-            def _composer_detail(item):
-                p = item.prompt or ''
-                extra = {
-                    'Type': item.get_generation_type_display() if item.generation_type else None,
-                    'Prompt': (p[:60] + '…') if len(p) > 60 else (p or None),
-                }
-                return build_detail(item, source_file=None, source_type=None,
-                                    engine=item.model, result_file=item.audio_output,
-                                    # Le composer SAIT ce qu'il produit : une génération `music`
-                                    # est une musique, le reste un bruitage. DÉCLARÉ ici (schéma
-                                    # canonique, 2026-09-18) et non plus dans une route à lui —
-                                    # c'est le geste commun « ranger en médiathèque » qui le lit.
-                                    result_role='audio_music' if item.generation_type == 'music'
-                                    else 'audio_sfx',
-                                    source_text=item.prompt, extra=extra)
-
-            register_app_detail('composer', ComposerGeneration, _composer_detail)
+            # SPEC déclarative (A3a, portage 2026-10-03). Le composer SAIT ce qu'il produit :
+            # une génération `music` est une musique, `sfx` un bruitage — le rôle d'asset est
+            # la traduction du type (schéma canonique, 2026-09-18 ; lu par le geste commun
+            # « ranger en médiathèque »). Le prompt est l'ENTRÉE (`source_text`) et s'affiche
+            # aussi en réglage, tronqué ; son libellé vient du schéma.
+            from wama.common.utils.detail_registry import register_app_detail_spec
+            register_app_detail_spec('composer', ComposerGeneration, {
+                'engine': 'model',
+                'result_file': 'audio_output',
+                'result_role': {'field': 'generation_type',
+                                'map': {'music': 'audio_music', 'sfx': 'audio_sfx'}},
+                'source_text': 'prompt',
+                'extra': [{'label': 'Type', 'field': 'generation_type', 'display': True},
+                          {'field': 'prompt', 'max_chars': 60}],
+            })
         except Exception:
             pass

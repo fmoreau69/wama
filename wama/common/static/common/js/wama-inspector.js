@@ -304,6 +304,13 @@
     var n = String(p).split('/').pop();
     try { return decodeURIComponent(n); } catch (e) { return n; }
   }
+  // Valeur AFFICHÉE d'un réglage : un booléen vrai se lit « Oui » (un réglage faux n'arrive pas
+  // jusqu'ici — `build_detail` l'omet). UNE règle pour toutes les apps (2026-10-03) : la donnée
+  // reste `true`, l'affichage ne dit plus « true » ; le transcriber l'écrivait à la main dans son
+  // adapter, les apps au détail tiré du schéma affichaient le mot anglais.
+  function _settingValue(value) {
+    return value === true ? 'Oui' : value;
+  }
   function _detailChip(icon, value, label) {
     // Inspecteur = vue détaillée : le LABEL est VISIBLE (contrairement aux chips de card, denses).
     var lbl = label ? '<span class="opacity-75">' + escapeHtml(label) + '</span> ' : '';
@@ -355,7 +362,7 @@
     ['engine', 'engine_effective'].forEach(function (k) {
       if (d[k]) regChips.push(_detailChip(DETAIL_META[k].icon, d[k], DETAIL_META[k].label));
     });
-    if (d.extra) Object.keys(d.extra).forEach(function (lbl) { regChips.push(_detailChip('fa-sliders', d.extra[lbl], lbl)); });
+    if (d.extra) Object.keys(d.extra).forEach(function (lbl) { regChips.push(_detailChip('fa-sliders', _settingValue(d.extra[lbl]), lbl)); });
     var secReg = _section('Réglages', _chipRow(regChips));
 
     // ── SORTIE : format/qualité + fichier résultat ; l'ERREUR remplace (§11) ──

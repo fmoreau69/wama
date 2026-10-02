@@ -100,6 +100,11 @@ def declared_result_fields(body: dict, input_field: str = '') -> list:
     found = []
 
     def add(name, kind):
+        # Un champ de résultat se GÉNÈRE quand la spec le NOMME (chaîne). Les formes calculées
+        # (liste « premier non vide », constante, valeur selon la présence — `spec_value`) ne
+        # désignent pas UN champ à créer : elles sont ignorées ici.
+        if not isinstance(name, str):
+            return
         if name and name != input_field and name not in (n for n, _ in found):
             found.append((name, kind))
 

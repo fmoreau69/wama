@@ -2343,6 +2343,17 @@ de 2 booléens. Harnais converter + reader CONFORMES ; fidélité 10/10. **Reste
 `apps_gen.py` (ready() rendu depuis inspector.detail_spec/preview + batch_sync) — la facette
 passera alors en projetable.
 
+> ✅ **2026-10-03 — la spec devient LA voie : 9 apps sur 10** (décision de Fabien : « aligner les
+> applications, uniformiser, porter au commun »). Le transcriber, cité ci-dessus comme « logique
+> irréductible », ne l'était pas : lus un par un, cinq adapters code (anonymizer, avatarizer,
+> composer, synthesizer, transcriber) ne faisaient que nommer des champs — à quatre formes
+> génériques près, ajoutées au langage (premier champ non vide, valeur selon la présence, texte
+> tronqué, libellé d'un réglage lu au schéma ; un réglage vrai affiché « Oui » par l'inspecteur).
+> Équivalence MESURÉE avant bascule, vocabulaire et gardes : `INSPECTOR_DETAIL_FIELDS.md
+> §Le langage de la spec`. Restent en adapter code, DÉCLARÉS : `imager` et `audio_enhancer`.
+> Critère `detail_spec` : 9/10 ; grille 912 → 917/939 ; facette `inspector` de cinq manifestes
+> d'app enrichie de leur `detail_spec` (fidélité de l'aller-retour inchangée, 10/10).
+
 - **A2b ✅ (même session) — gabarit `tasks_gen.py`** : la facette `processing` porte désormais
   `tasks` (AST de tasks.py/workers.py — {function, task_name, lifecycle} ; heuristique
   lifecycle = `run_item_task` ou SUCCESS+FAILURE dans le segment ; limite connue :

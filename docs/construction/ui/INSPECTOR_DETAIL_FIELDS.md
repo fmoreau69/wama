@@ -74,15 +74,51 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
 - `common/utils/detail_registry.py` (miroir de `preview_registry`) — **DEUX voies
   d'enregistrement**, pas une :
 
-  | Voie | Signature | Adoption (mesurée 2026-08-22) |
+  | Voie | Signature | Adoption (mesurée 2026-10-03 ; c'était 9 / 3 le 22/08) |
   |---|---|---|
-  | **Adapter** (fonction) | `register_app_detail(app, model, adapter)` | **9** — anonymizer, avatarizer, composer, describer, enhancer (×2 : `enhancer` + `audio_enhancer`), imager, synthesizer, transcriber |
-  | **Spec** (déclarative) | `register_app_detail_spec(app, model, spec)` → `detail_from_spec` | **3** — converter, converter_01, reader |
+  | **Spec** (déclarative) — LA voie | `register_app_detail_spec(app, model, spec)` → `detail_from_spec` | **9 apps** — anonymizer, avatarizer, composer, converter, describer, enhancer, reader, synthesizer, transcriber (+ les jumelles générées) |
+  | **Adapter** (fonction) — l'exception DÉCLARÉE | `register_app_detail(app, model, adapter)` | **2** — `imager` (schéma choisi par élément, COLLECTION de résultats, rôle selon ce qui est sorti) et `audio_enhancer` (second domaine de l'enhancer : la spec lit UN schéma par nom d'app). Liste tenue par `tests_detail_spec.CODE_ADAPTERS` : un adapter code non déclaré fait échouer la suite |
 
   > ⚠ La voie **spec** ne figurait pas dans ce document, alors que c'est la plus alignée sur la
   > philosophie (§3 : métadonnée-driven — l'app déclare `aliases` + champs au lieu d'écrire une
   > fonction). Elle est aussi celle que le **codegen** peut produire. À considérer comme la
   > cible ; l'adapter reste nécessaire quand la résolution demande du calcul.
+
+  ### Le langage de la spec (complété le 2026-10-03, décision de Fabien)
+
+  Lus un par un, cinq des six adapters code ne faisaient rien qu'une déclaration ne sache dire —
+  à quatre formes près, que chacun écrivait à sa main. Elles sont au commun (`spec_value`,
+  `detail_from_spec`) ; le vocabulaire ENTIER de la spec tient dans cette table :
+
+  | Où | Forme | Sens | 1ᵉʳ usage |
+  |---|---|---|---|
+  | valeur | `'champ'` | le champ du modèle | — |
+  | valeur | `{'const': x}` | une constante | reader (`document`) |
+  | valeur | `{'field': f, 'map': table}` | le champ TRADUIT par une table | rôle d'asset (`MEDIA_CATEGORY_ROLE`) |
+  | valeur | `['a', 'b']` *(2026-10-03)* | le PREMIER champ non vide | avatarizer (avatar, sinon audio) |
+  | valeur | `{'when_any': [champs], 'then': x, 'else': y}` *(2026-10-03)* | une valeur selon la PRÉSENCE d'un champ | synthesizer (type « texte » dès qu'un texte existe) |
+  | `extra` | `{'field', 'label'?, 'display'?}` | un réglage ; `display` = `get_<f>_display()` | reader |
+  | `extra` | `'max_chars': n` *(2026-10-03)* | texte TRONQUÉ (`…`) | composer (prompt) |
+  | `extra` | entrée SANS `label` *(2026-10-03)* | le libellé est celui du SCHÉMA (`params.py`) — principe 2 ci-dessus, enfin tenu par le code | transcriber |
+  | — | `extra_from_params: True \| 'champ JSON'` | tous les réglages posés du schéma principal | converter, enhancer |
+  | — | `aliases`, `result_tabs` | alias canoniques ; onglets de résultat texte (R18) | converter ; describer, transcriber |
+
+  **Un réglage vrai s'affiche « Oui »** — règle d'AFFICHAGE unique (`wama-inspector.js`,
+  `_settingValue`), pour toutes les apps : la donnée reste `true`. Avant, le transcriber écrivait
+  « Oui » dans son adapter et les apps au détail tiré du schéma affichaient « true ».
+
+  ⚠ **Ce que la spec ne dit PAS, à dessein** : une collection de résultats, un schéma choisi par
+  élément, un calcul. Y ajouter une forme pour UNE app en ferait un langage de programmation ; ces
+  cas gardent l'adapter code, déclarés avec leur raison.
+
+  Mesure avant bascule (éléments témoins non enregistrés, ancien adapter contre spec candidate) :
+  **16 témoins sur 19 identiques clé pour clé** (anonymizer, avatarizer, synthesizer, composer) ;
+  les 3 autres sont ceux du transcriber, dont les libellés passent de quatre mots écrits à la main
+  (« Diarisation », « Résumé », « Mots-clés », « Cohérence ») à ceux de son schéma, ceux de la
+  modale ⚙ (« Identifier les locuteurs », « Générer un résumé », « Mots-clés contextuels »,
+  « Vérifier la cohérence ») — changement VISIBLE, voulu.
+  Gardes : `tests_detail_spec` (les formes ; toute spec enregistrée contre son modèle — champs
+  existants, vocabulaire connu, donnée JSON ; les adapters code restants déclarés).
 
 - `unified_detail(app, pk)` (vue commune) → JSON plat `{clé: valeur}` (+ `extra:{label: valeur}`),
   et **non** `{fields:[{key,label,icon,…}]}` : les labels/icônes vivent côté CLIENT (voir ci-dessous).

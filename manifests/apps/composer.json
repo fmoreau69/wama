@@ -742,6 +742,29 @@
     },
     "inspector": {
       "detail_registered": true,
+      "detail_spec": {
+        "engine": "model",
+        "extra": [
+          {
+            "display": true,
+            "field": "generation_type",
+            "label": "Type"
+          },
+          {
+            "field": "prompt",
+            "max_chars": 60
+          }
+        ],
+        "result_file": "audio_output",
+        "result_role": {
+          "field": "generation_type",
+          "map": {
+            "music": "audio_music",
+            "sfx": "audio_sfx"
+          }
+        },
+        "source_text": "prompt"
+      },
       "preview": {
         "file_field": "audio_output",
         "user_field": "user"

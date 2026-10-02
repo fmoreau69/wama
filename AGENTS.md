@@ -854,6 +854,11 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > borné par `cap_from` (la forme déclarative, la cible) depuis le 23/09 ; le composer y déclare
 > sa durée (`INPUT_MODEL_MATCHING §7`). *Un critère en retard d'un mécanisme fait porter une
 > app vers l'ancienne forme pour le verdir.*
+> ⚠ **Remesuré le 2026-10-03 : 917/939** — `detail_spec` VRAI pour 9 apps : cinq adapters code
+> (anonymizer, avatarizer, composer, synthesizer, transcriber) ne faisaient que nommer des
+> champs ; la spec a gagné quatre formes génériques et les remplace (`INSPECTOR_DETAIL_FIELDS
+> §Le langage de la spec`). Reste l'imager, en adapter code DÉCLARÉ (collection de résultats,
+> schéma par élément).
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
   (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
   le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,
