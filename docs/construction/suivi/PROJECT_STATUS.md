@@ -20378,7 +20378,7 @@ Demande de Fabien : « fais le rangement chez le destinataire (§3bis.2) ».
   `tests_identifier_language` décalés (code 2677/2678, classes 133/132, méthodes 1316/1310) par
   des commits d'autres instances ce soir — aucun identifiant de ce palier n'y figure.
 
-## §PALIER — 2026-10-02, « CAMPAGNE DES TROIS MOTEURS + ESSAI DE TRANSCRIPTION DU RÔLE `backend` » — ✅ commits ci-dessous — 🔴 RELANCER WAMA (gunicorn ; le worker GPU tourne déjà le code) — 🔚 CFPP non mesuré · régénérer WAMA_MECANISMES
+## §PALIER — 2026-10-02, « CAMPAGNE DES TROIS MOTEURS + ESSAI DE TRANSCRIPTION DU RÔLE `backend` » — ✅ commits ci-dessous — 🔴 RELANCER WAMA (gunicorn ; le worker GPU tourne déjà le code) — 🔚 CFPP non mesuré
 
 > Fabien : *« Lance la campagne d'évaluation des trois moteurs et corriges le trou que tu signales. »*
 
@@ -20401,6 +20401,7 @@ Demande de Fabien : « fais le rangement chez le destinataire (§3bis.2) ».
   `TRANSCRIBER_CORRECTION §10.5` est levée pour tous les moteurs découpés ; LinTO en passes de
   30 s (en 600 s il omettait la moitié des mots : 61 % → 43,7 %).
 - **Laissé** : CFPP non mesuré (LinTO l'a vu à l'entraînement ; ~1 h de GPU par card Kyutai) ;
-  `WAMA_MECANISMES.md` à régénérer (descriptions `speech_activity`, `audio_decode`) ; le rapport
+  `WAMA_MECANISMES.md` déjà régénérée par une autre instance (`a238d830`, descriptions
+  `speech_activity` et `audio_decode` comprises) ; le rapport
   `asr_eval_corpus --report` exige le réseau (proxy UGE en 503 ce soir) — les chiffres viennent
   directement des mesures en base.
