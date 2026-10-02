@@ -491,11 +491,16 @@ MECHANISMS = (
               "« Transférer à… » (`card_transfer` : possédés déplacés, désignés copiés). "
               "Depuis le 2026-10-02 : le RANGEMENT chez le destinataire (`reception`, §3bis.2) — "
               "« Retirer de ma file » ≠ supprimer, « Réafficher », SON ordre manuel ; une ligne par "
-              "destinataire et par ENTRÉE de file (`ReceivedEntry`), qui ne porte aucun droit",
+              "destinataire et par ENTRÉE de file (`ReceivedEntry`), qui ne porte aucun droit. "
+              "Depuis le 2026-10-03 : la card reçue en LECTURE SEULE (pastille des deux côtés, "
+              "▶ 🗑 → encart, ⚙ en consultation), les MODES déclarés (`SHARE_MODES`, deux "
+              "grisés) et les DEMANDES d'accès (`ObjectGrant` : la demande et le droit sont la "
+              "même ligne ; la propriété s'accorde, elle cède la card)",
               'wama/common/services/sharing.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/common/static/common/js/wama-share.js',
                        'wama/common/services/card_transfer.py',
-                       'wama/common/services/reception.py')),
+                       'wama/common/services/reception.py',
+                       'wama/common/services/access_requests.py')),
     Mechanism('send_to', "Envoyer vers (chaînage progressif, hors studio)",
               "La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studio. "
               "RÉSOLVEUR en lecture seule : il rend les chemins de sortie (clé canonique "

@@ -98,6 +98,14 @@ urlpatterns = [
     path('api/reception/', views.api_reception, name='api_reception'),
     path('api/reception/show-all/', views.api_reception_show_all, name='api_reception_show_all'),
     path('api/reception/hidden/', views.api_reception_hidden, name='api_reception_hidden'),
+    # DEMANDES d'accès sur une card reçue (2026-10-03, `ObjectGrant`) — et la page où l'on répond.
+    path('api/access/', views.api_access, name='api_access'),
+    path('api/access/request/', views.api_access_request, name='api_access_request'),
+    path('requests/<int:pk>/', views.access_request_page, name='access_request'),
+    path('requests/<int:pk>/answer/', views.api_access_request_answer, name='access_request_answer'),
+    # Les NOUVELLES notifications, pour la cloche et la fenêtre en bas à droite (2026-10-03).
+    path('api/notifications/recent/', views.api_notifications_recent,
+         name='api_notifications_recent'),
     # ENVOYER VERS — résolveur en LECTURE SEULE : sorties de l'élément + apps éligibles +
     # l'endpoint qui reçoit. L'envoi lui-même passe par `filemanager:api_import`, celui qui
     # sert déjà « Envoyer vers… » — on ne duplique pas ses gardes.

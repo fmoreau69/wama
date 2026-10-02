@@ -1108,6 +1108,22 @@ les cards reçues~~ — faux pour l'imager, corrigé pour le converter le 2026-1
 ⚠ Le premier montage du témoin (card sans lot, puis lot non partagé) donnait un faux rouge : la
 file du describer se construit à partir des LOTS.
 
+### Card reçue en LECTURE SEULE, puis demande de PROPRIÉTÉ (2026-10-03)
+
+Scénario **`common.received_card_readonly_request`** (`ui_smoke_menus.py`), **12/12** (8011, code
+neuf). Destinataire (compte de test, describer) : pastille « … Lecture seule » ; ▶ puis 🗑 ouvrent
+l'encart au lieu d'agir (▶ n'a rien lancé, vérifié en base) ; ⚙ s'ouvre avec le bandeau de
+consultation et sans bouton d'enregistrement ; « Mon accès » coche la lecture et grise les modes à
+venir ; « Demander à en devenir propriétaire » enregistre la demande. Propriétaire (compte
+développeur, pages communes) : la notification surgit en bas à droite, « Ouvrir » mène à la
+demande, « Accepter » cède la card au demandeur. Les cinq gestes du partage, rejoués dans la même
+passe, restent verts (8/8, 7/7, 6/6, 5/5, 6/6).
+⭐ **Le premier run a trouvé un défaut** que les tests ne voyaient pas : après « Accepter », la page
+de la demande répondait 404 à celui qui venait d'accepter (la card ne lui appartenait plus) — corrigé
+(celui qui a répondu la voit encore), garde `test_the_former_owner_still_sees_the_request_he_accepted`.
+⚠ Un second piège, dans le geste lui-même : Échap ne fermait pas la modale ⚙ et le geste levait avant
+son ménage, laissant un témoin en base — fermeture par le bouton, ménage dans un `finally`.
+
 ### RANGER une card reçue dans SA file (2026-10-02)
 
 Scénario **`common.received_entry_arrangement`** (`ui_smoke_menus.py`), **8/8** au premier run

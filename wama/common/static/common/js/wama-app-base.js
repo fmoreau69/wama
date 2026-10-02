@@ -936,4 +936,109 @@
     statusLabel: statusLabel,
     statusBadge: statusBadge,
   };
+
+  // ══ NOTIFICATIONS EN DIRECT (2026-10-03, question de Fabien) ═══════════════════════════════
+  // La cloche de l'en-tête ne comptait les non lues qu'AU CHARGEMENT de la page, et rien ne
+  // prévenait d'une notification arrivée pendant qu'on travaille. Ici, pour TOUTES les
+  // notifications (demande d'accès, card transférée, worker arrêté…) : la cloche se met à jour,
+  // et chaque NOUVELLE notification s'affiche en bas à droite avec son lien. Le dernier id vu est
+  // gardé (localStorage) : une notification arrivée entre deux pages s'affiche à la suivante, une
+  // déjà montrée ne revient pas. Route absente (avant relance) ou session perdue : silence.
+  const NOTIF_EVERY_MS = 60000;
+  const NOTIF_KEY = 'wama.notifications.lastSeen';
+
+  function notifBell() {
+    return (typeof document !== 'undefined' && document.getElementById)
+      ? document.getElementById('wamaNotificationsLink') : null;
+  }
+
+  function setBellCount(n) {
+    const bell = notifBell();
+    if (!bell) return;
+    let badge = bell.querySelector('.badge');
+    if (!n) { if (badge) badge.remove(); return; }
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger';
+      badge.style.fontSize = '.6rem';
+      bell.appendChild(badge);
+    }
+    badge.textContent = n;
+    bell.title = 'Notifications — ' + n + ' non lue' + (n > 1 ? 's' : '');
+  }
+
+  function notifPopup(item) {
+    let stack = document.getElementById('wama-notif-stack');
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.id = 'wama-notif-stack';
+      // Au-dessus des toasts (bottom:20px) : les deux coexistent sans se recouvrir.
+      stack.style.cssText = 'position:fixed;right:20px;bottom:76px;z-index:9998;display:flex;' +
+        'flex-direction:column;gap:8px;max-width:380px;';
+      document.body.appendChild(stack);
+    }
+    const el = document.createElement('div');
+    el.className = 'wama-notif-popup';
+    el.setAttribute('data-notification-id', item.id);
+    el.style.cssText = 'background:#1e1b2e;color:#ede9fe;border:1px solid rgba(167,139,250,.55);' +
+      'border-radius:8px;padding:10px 14px;box-shadow:0 6px 20px rgba(0,0,0,.45);font-size:.85rem;';
+    el.innerHTML = '<div class="d-flex justify-content-between gap-2">' +
+      '<b><i class="fas fa-bell me-1" style="color:#c4b5fd;"></i>' + escapeHtml(item.title) + '</b>' +
+      '<button type="button" class="btn-close btn-close-white" style="font-size:.6rem;" ' +
+      'aria-label="Fermer"></button></div>' +
+      (item.body ? '<div class="mt-1" style="color:#ddd6fe;white-space:pre-line;">' +
+        escapeHtml(item.body) + '</div>' : '') +
+      '<div class="mt-2"><a href="' + escapeHtml(item.url || '/common/notifications/') +
+      '" class="btn btn-sm btn-outline-light py-0">Ouvrir</a></div>';
+    const close = function () { el.remove(); };
+    el.querySelector('.btn-close').addEventListener('click', close);
+    let timer = setTimeout(close, 20000);
+    el.addEventListener('mouseenter', function () { clearTimeout(timer); });
+    el.addEventListener('mouseleave', function () { timer = setTimeout(close, 8000); });
+    stack.appendChild(el);
+  }
+
+  function readLastSeen() {
+    try { return parseInt(localStorage.getItem(NOTIF_KEY) || '', 10); } catch (e) { return NaN; }
+  }
+  function writeLastSeen(id) {
+    try { localStorage.setItem(NOTIF_KEY, String(id)); } catch (e) { /* stockage indisponible */ }
+  }
+
+  function checkNotifications() {
+    if (!notifBell() || !global.fetch) return;
+    const seen = readLastSeen();
+    const q = isFinite(seen) ? ('?after=' + seen) : '';
+    fetch('/common/api/notifications/recent/' + q, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) {
+        const type = r.headers.get('content-type') || '';
+        return (r.ok && type.indexOf('json') !== -1) ? r.json() : null;
+      })
+      .then(function (d) {
+        if (!d) return;
+        setBellCount(d.unread);
+        // Première visite (rien de mémorisé) : on prend le point de départ sans rien montrer —
+        // l'historique est sur la page Notifications, pas en rafale à l'écran.
+        if (isFinite(seen)) (d.items || []).forEach(notifPopup);
+        writeLastSeen(Math.max(d.last_id || 0, isFinite(seen) ? seen : 0));
+      })
+      .catch(function () { /* hors ligne, route absente : rien à dire */ });
+  }
+
+  function startNotifications() {
+    if (!notifBell()) return;
+    checkNotifications();
+    setInterval(checkNotifications, NOTIF_EVERY_MS);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') checkNotifications();
+    });
+  }
+  global.WamaApp.checkNotifications = checkNotifications;
+  if (typeof document === 'undefined' || !document.addEventListener) {
+    /* hors navigateur (V8 des tests) : rien à surveiller */
+  } else if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startNotifications);
+  } else {
+    startNotifications();
+  }
 })(window);

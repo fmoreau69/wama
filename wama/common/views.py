@@ -1557,9 +1557,12 @@ def api_partage(request, surface: str, nature: str, pk: int):
     cible = get_object_or_404(modele, pk=pk, user=request.user)
 
     if request.method == 'GET':
+        # `modes` (2026-10-03) : les modes DÉCLARÉS, la modale grise ceux qui n'existent pas encore.
+        from wama.common.services.sharing import SHARE_MODES
         return JsonResponse({'ok': True, 'surface': surface, 'nature': nature, 'pk': pk,
                              'etat': etat(cible),
-                             'portees': portees_offrables(request.user)})
+                             'portees': portees_offrables(request.user),
+                             'modes': list(SHARE_MODES)})
 
     if request.method != 'POST':
         return JsonResponse({'error': 'méthode non autorisée'}, status=405)
@@ -1688,6 +1691,112 @@ def api_reception(request):
     except NotReceived as exc:
         return JsonResponse({'done': False, 'reason': str(exc)})
     return JsonResponse({'done': True, 'entry': f'{entry._meta.label}#{entry.pk}'})
+
+
+def _shared_target(surface, pk, nature):
+    """La card (ou le lot, `nature=lot`) désignée par les coordonnées du partage — cherchée au seul
+    pk : c'est le service appelé qui revérifie la visibilité et la propriété. None si introuvable."""
+    from wama.common.utils.batch_common import batch_model_for_app
+    from wama.common.utils.preview_registry import PreviewRegistry
+    if not str(pk or '').isdigit():
+        return None
+    model = batch_model_for_app(surface) if nature == 'lot' else PreviewRegistry.get_model(surface)
+    return model.objects.filter(pk=pk).first() if model is not None else None
+
+
+@login_required
+def api_access(request):
+    """GET `surface`, `pk`, `nature` — « Mon accès » d'une card REÇUE : le mode courant, les modes
+    déclarés (grisés s'ils n'existent pas), les demandes en attente (2026-10-03)."""
+    from wama.common.services.access_requests import access_state
+    from wama.common.services.reception import NotReceived, _check_received
+    obj = _shared_target(request.GET.get('surface'), request.GET.get('pk'), request.GET.get('nature'))
+    if obj is None:
+        return JsonResponse({'error': 'élément introuvable'}, status=404)
+    try:
+        _check_received(request.user, obj)
+    except NotReceived as exc:
+        return JsonResponse({'error': str(exc)}, status=404)
+    return JsonResponse(access_state(request.user, obj))
+
+
+@login_required
+@require_POST
+def api_access_request(request):
+    """POST `surface`, `pk`, `nature`, `level` — DEMANDER un niveau sur une card reçue ; le
+    propriétaire est prévenu dans WAMA. Un refus prévu répond 200 avec son motif."""
+    from wama.common.services.access_requests import AccessRequestRefused, request_access
+    surface, nature = request.POST.get('surface') or '', request.POST.get('nature') or 'element'
+    obj = _shared_target(surface, request.POST.get('pk'), nature)
+    if obj is None:
+        return JsonResponse({'requested': False, 'reason': 'élément introuvable'})
+    try:
+        grant = request_access(request.user, obj, request.POST.get('level') or '', surface=surface)
+    except AccessRequestRefused as exc:
+        return JsonResponse({'requested': False, 'reason': str(exc)})
+    return JsonResponse({'requested': True, 'id': grant.pk})
+
+
+@login_required
+def access_request_page(request, pk: int):
+    """La DEMANDE, là où la notification renvoie : ce qui est demandé, par qui ; Accepter / Refuser
+    pour le propriétaire, l'état pour le demandeur. Personne d'autre ne la voit."""
+    from django.http import Http404
+    from django.shortcuts import render
+    from wama.common.models import ObjectGrant
+    from wama.common.services.access_requests import _label, target
+    grant = ObjectGrant.objects.select_related('beneficiary', 'granted_by').filter(pk=pk).first()
+    obj = target(grant) if grant is not None else None
+    is_owner = obj is not None and getattr(obj, 'user_id', None) == request.user.pk
+    # Celui qui a RÉPONDU la voit encore : accepter la propriété lui a justement retiré la card
+    # (mesuré par le geste du 2026-10-03 — la page lui répondait 404 juste après son « Accepter »).
+    answered_by_me = grant is not None and grant.granted_by_id == request.user.pk
+    if grant is None or not (is_owner or answered_by_me or grant.beneficiary_id == request.user.pk):
+        raise Http404
+    return render(request, 'common/access_request.html', {
+        'grant': grant, 'is_owner': is_owner,
+        'element_label': _label(obj) if obj is not None else '(élément supprimé)',
+        'element_app': obj._meta.app_label if obj is not None else '',
+    })
+
+
+@login_required
+@require_POST
+def api_access_request_answer(request, pk: int):
+    """POST `accept` (1|0), `consent` — le PROPRIÉTAIRE répond. Accepter la propriété cède l'élément
+    (« Transférer à… ») ; un consentement manquant revient avec son texte à valider."""
+    from wama.common.models import ObjectGrant
+    from wama.common.services.access_requests import AccessRequestRefused, answer
+    from wama.common.services.card_transfer import TransferConsentRequired
+    from wama.common.services.sharing import RefusDePartage
+    grant = ObjectGrant.objects.filter(pk=pk).first()
+    if grant is None:
+        return JsonResponse({'done': False, 'reason': 'demande introuvable'}, status=404)
+    try:
+        report = answer(request.user, grant, request.POST.get('accept') in ('1', 'true'),
+                        consent=request.POST.get('consent') in ('1', 'true', 'on'))
+    except TransferConsentRequired as exc:
+        return JsonResponse({'done': False, 'consent_required': True, 'statement': exc.statement})
+    except (AccessRequestRefused, RefusDePartage) as exc:
+        return JsonResponse({'done': False, 'reason': str(exc)})
+    return JsonResponse({'done': True, **report})
+
+
+@login_required
+def api_notifications_recent(request):
+    """GET `after` (id) — le nombre de non lues et les NOUVELLES non lues (id > `after`, 5 au plus) :
+    ce que lit le JS commun pour tenir la cloche à jour et montrer chaque nouvelle notification en
+    bas à droite (2026-10-03). Sans `after`, rend seulement le compte et le dernier id."""
+    from wama.common.models import Notification
+    unread = Notification.objects.filter(recipient=request.user, read_at__isnull=True)
+    last = Notification.objects.filter(recipient=request.user).order_by('-pk').values_list(
+        'pk', flat=True).first() or 0
+    after = request.GET.get('after')
+    items = []
+    if str(after or '').isdigit():
+        items = [{'id': n.pk, 'title': n.title, 'body': n.body, 'url': n.url}
+                 for n in unread.filter(pk__gt=int(after)).order_by('pk')[:5]]
+    return JsonResponse({'unread': unread.count(), 'last_id': last, 'items': items})
 
 
 @login_required

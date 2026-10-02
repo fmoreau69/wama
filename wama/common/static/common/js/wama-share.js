@@ -76,6 +76,26 @@
             + 'data-consent-check> Je valide ce consentement</label></div>';
     }
 
+    /**
+     * Les MODES de partage (2026-10-03, décision de Fabien — `WAMA_COLLABORATION §3bis.1`) : la
+     * lecture, cochée ; modification et collaboration GRISÉES « bientôt » tant qu'elles n'existent
+     * pas. La liste vient du serveur (`sharing.SHARE_MODES`), jamais recopiée ici.
+     */
+    function modesBlock(modes) {
+        if (!modes || !modes.length) return '';
+        return '<div class="wama-share-modes mt-3"><div class="small text-white-50 mb-1">Mode</div>'
+            + modes.map(function (m) {
+                return '<label class="d-flex align-items-center gap-2 mb-1'
+                    + (m.available ? '' : ' text-white-50') + '">'
+                    + '<input type="radio" name="wama-share-mode" class="form-check-input mt-0" value="'
+                    + echapper(m.key) + '"' + (m.key === 'read' ? ' checked' : '')
+                    + (m.available ? '' : ' disabled') + '>'
+                    + '<span>' + echapper(m.icon) + ' ' + echapper(m.label) + '</span>'
+                    + (m.available ? '' : '<span class="badge bg-secondary ms-1">bientôt</span>')
+                    + '</label>';
+            }).join('') + '</div>';
+    }
+
     function corps(donnees, nom) {
         var e = donnees.etat || {};
         var lignes = (donnees.portees || []).map(function (p) {
@@ -120,10 +140,12 @@
             + orpheline
             + lignes
             + (e.consent ? consentBlock(e.consent.statement) : '')
-            // Dire la portée du geste, à l'endroit où on le fait. L'écriture est S3.
+            + modesBlock(donnees.modes)
+            // Dire la portée du geste, à l'endroit où on le fait.
             + '<div class="wama-share-note mt-3"><i class="fas fa-eye me-1"></i>'
             + 'Partage en <b>lecture seule</b>. Les destinataires voient l\'élément et son '
-            + 'résultat ; ils ne peuvent ni le relancer ni le modifier.</div>'
+            + 'résultat ; ils ne peuvent ni le relancer ni le modifier — ils peuvent le dupliquer, '
+            + 'ou vous demander d\'en devenir propriétaires.</div>'
             + '</div><div class="modal-footer border-secondary">'
             + '<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>'
             + '<button type="button" class="btn btn-sm btn-info wama-share-ok">Appliquer</button>'
