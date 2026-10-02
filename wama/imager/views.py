@@ -78,13 +78,13 @@ def index(request):
     except Exception as exc:
         logger.debug(f"[imager] reconcile_orphaned_running ignoré: {exc}")
 
-    # NOTE PARTAGE (PROFILES_PERMISSIONS §7) : le mixin `ScopedVisibility` est en place sur le
-    # modèle, mais imager n'est PAS porté — c'est l'app la moins avancée de la grille mesurée
-    # (56 %, dernière sur 10 au 31/07) et elle n'a pas besoin du partage : elle crée ses cards
-    # par prompt. Passer cette seule vue en `visible_to()` rendait une card partagée VISIBLE
-    # dans la file puis 404 au moindre clic (10 autres sites filtrent encore `user=user`) —
-    # une porte à moitié ouverte, pire qu'une porte fermée. On reste donc propriétaire-seul
-    # jusqu'au portage complet des chemins de LECTURE.
+    # NOTE PARTAGE — ⚠ PÉRIMÉE jusqu'au 2026-10-02, corrigée ce jour-là À LA MESURE : elle disait
+    # l'imager « propriétaire-seul » parce que « 10 autres sites filtrent encore `user=user` ». Ces
+    # chemins de LECTURE sont portés depuis (`progress`, `download`, `card_html`, réglages, enfants
+    # de lot passent par `visible_or_404`), et la FILE est bâtie plus bas sur `build_batches_list`,
+    # qui lit `visible_to` sur `GenerationBatch` : une card partagée y apparaît déjà chez le
+    # destinataire (mesuré par `ReceivedCardsAppearInTheQueueTest`, vert sur l'imager). La liste
+    # ci-dessous ne sert qu'au contexte ; elle reste celle du PROPRIÉTAIRE.
     # Le filtre `parent_generation__isnull=True` (« top-level ») est RETIRÉ avec le self-FK :
     # il n'y a plus de hiérarchie parent/enfant, tout item appartient à un GenerationBatch.
     generations = ImageGeneration.objects.filter(user=user).order_by('-created_at')

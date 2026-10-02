@@ -438,7 +438,8 @@ def card_html(request, pk: int):
     from django.http import HttpResponse
     from wama.common.utils.batch_common import is_batch_child
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    from wama.common.utils.scoping import visible_or_404
+    synthesis = visible_or_404(VoiceSynthesis, user, pk=pk)   # LECTURE : le sien OU reçu (2026-10-02)
     html = render_to_string('synthesizer/_synthesis_card.html',
                             {'elem': _decorate_synthesis(synthesis),
                              'in_batch': is_batch_child(synthesis)}, request=request)

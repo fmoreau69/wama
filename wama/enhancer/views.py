@@ -1644,7 +1644,8 @@ def _req_user(request):
 
 def card_html(request, pk):
     """Card média = partial serveur UNIQUE (source du markup, remplace appendRow JS)."""
-    e = get_object_or_404(Enhancement, pk=pk, user=_req_user(request))
+    from wama.common.utils.scoping import visible_or_404
+    e = visible_or_404(Enhancement, _req_user(request), pk=pk)   # LECTURE : le sien OU reçu (2026-10-02)
     _decorate_media_card(e)  # chips du schéma — même décoration que l'IndexView
     # `in_batch` : position dans la file, brique commune. L'ancien `.exists()` valait True pour
     # un lot UNITAIRE (toute card est enveloppée dans son lot) → card seule rendue en fille.
@@ -1655,7 +1656,8 @@ def card_html(request, pk):
 
 def audio_card_html(request, pk):
     """Card audio = partial serveur UNIQUE (remplace appendAudioRow JS)."""
-    ae = get_object_or_404(AudioEnhancement, pk=pk, user=_req_user(request))
+    from wama.common.utils.scoping import visible_or_404
+    ae = visible_or_404(AudioEnhancement, _req_user(request), pk=pk)   # LECTURE : le sien OU reçu (2026-10-02)
     _decorate_audio_card(ae)  # chips du schéma — même décoration que l'IndexView
     from wama.common.utils.batch_common import is_batch_child
     return render(request, 'enhancer/_audio_card.html',

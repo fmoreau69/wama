@@ -480,7 +480,9 @@ def _reglages_du_depot(user, nature, poste=None):
     def get(self, request):
         user = _user(request)
         _auto_wrap_orphans(user)
-        jobs = {item}.objects.filter(user=user).order_by('{fk}_id', '{row}')
+        # Cards REÇUES aussi (2026-10-02) : `listable_by` = `visible_to`, sauf le compte anonyme.
+        from wama.common.utils.scoping import listable_by
+        jobs = listable_by({item}.objects.all(), user).order_by('{fk}_id', '{row}')
         grouped = {{}}
         for j in jobs:
             grouped.setdefault(j.{fk}_id or f'loose-{{j.id}}', []).append(_decorer(j))
@@ -867,7 +869,8 @@ def _decorer(item):
     vues['card_html'] = f'''def card_html(request, pk):
     """Card = partial serveur UNIQUE : le JS remplace la card par ce rendu."""
     user = _user(request)
-    item = get_object_or_404({item}, pk=pk, user=user)
+    from wama.common.utils.scoping import visible_or_404
+    item = visible_or_404({item}, user, pk=pk)   # LECTURE : le sien OU reçu
     # Clé `elem` (2026-09-09) — jumeau PAR CHAÎNE du renommage de `_generic_card.html` :
     # rendre ce partial avec l'ancienne clé sortirait une card complète et TOTALEMENT VIDE,
     # sans lever quoi que ce soit.
@@ -880,10 +883,12 @@ def _decorer(item):
             'error_message': item.error_message}}
     {"if item.output_file: data['output_url'] = item.output_file.url" if d['a_output'] else ''}
     return JsonResponse(data)'''
-    vues['status'] = (f"def status(request, pk):\n    user = _user(request)\n"
-                      f"    item = get_object_or_404({item}, pk=pk, user=user)\n{corps_status}")
-    vues['progress'] = (f"def progress(request, pk):\n    user = _user(request)\n"
-                        f"    item = get_object_or_404({item}, pk=pk, user=user)\n{corps_status}")
+    # LECTURES : le sien OU reçu (`visible_or_404`, 2026-10-02) — une card partagée qui se montre
+    # dans la file doit pouvoir se rafraîchir, sinon c'est une porte à moitié ouverte.
+    _read = ("    from wama.common.utils.scoping import visible_or_404\n"
+             f"    item = visible_or_404({item}, user, pk=pk)\n")
+    vues['status'] = (f"def status(request, pk):\n    user = _user(request)\n{_read}{corps_status}")
+    vues['progress'] = (f"def progress(request, pk):\n    user = _user(request)\n{_read}{corps_status}")
 
     out_file, out_text = d['out_file'], d['out_text']
     # Nom d'une sortie TEXTE : brique commune `compose_output_name` (souche de l'entrée + tag
@@ -895,7 +900,8 @@ def _decorer(item):
     if out_file:
         vues['download'] = f'''def download(request, pk):
     user = _user(request)
-    item = get_object_or_404({item}, pk=pk, user=user)
+    from wama.common.utils.scoping import visible_or_404
+    item = visible_or_404({item}, user, pk=pk)   # LECTURE
     if not item.{out_file}:
         return JsonResponse({{'error': 'Aucun résultat'}}, status=404)
     return FileResponse(item.{out_file}.open('rb'), as_attachment=True,
@@ -906,7 +912,8 @@ def _decorer(item):
     from django.utils.http import content_disposition_header
     from wama.common.utils.output_naming import compose_output_name
     user = _user(request)
-    item = get_object_or_404({item}, pk=pk, user=user)
+    from wama.common.utils.scoping import visible_or_404
+    item = visible_or_404({item}, user, pk=pk)   # LECTURE
     text = getattr(item, '{out_text}', '') or ''
     if item.status != 'SUCCESS' or not text:
         return JsonResponse({{'error': 'Aucun résultat'}}, status=404)
