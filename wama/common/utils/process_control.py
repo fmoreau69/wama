@@ -109,7 +109,17 @@ def stop_instance(instance, *, status_field: str = "status", task_field: str = "
         instance.save(update_fields=fields)
     except Exception:
         instance.save()  # repli si update_fields incompatible
+    _close_process_lines(instance, to_status, error_message)
     return to_status
+
+
+def _close_process_lines(instance, to_status, message):
+    """Referme les LIGNES D'EXÉCUTION ouvertes de l'élément (ROUTE §10.6 4.1, marche P3) : tout
+    écrivain qui sort un élément de « en cours » sans passer par sa tâche — arrêt, réconciliation
+    — passe ici, sinon la ligne du process resterait `RUNNING` pour une tâche qui ne rendra plus
+    rien. Sans effet pour un élément qui n'a pas de ligne ouverte ; ne lève jamais."""
+    from wama.common.services import process_runs
+    process_runs.safely(process_runs.close_open, instance, to_status, message)
 
 
 def is_task_dead(task_id: str) -> bool:
@@ -139,6 +149,7 @@ def _mark_reconciled(instance, status_field, task_field, to_status, error_field,
         instance.save(update_fields=fields)
     except Exception:
         instance.save()
+    _close_process_lines(instance, to_status, error_message)
 
 
 def reconcile_if_stuck(instance, *, status_field: str = "status", task_field: str = "task_id",

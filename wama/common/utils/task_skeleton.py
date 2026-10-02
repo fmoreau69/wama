@@ -200,6 +200,7 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
     la garde anti-boucle-de-crash (`refuse_crash_redelivery`) ne s'en émeut pas (vérifié).
     """
     from wama.common.models import JOB_AWAITING_RESOURCES
+    from wama.common.services import process_runs
     from wama.common.services import resource_governor as gov
 
     try:
@@ -218,6 +219,7 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
         if _has_field(model, error_field):
             champs[error_field] = msg
         model.objects.filter(pk=item_id).update(**champs)
+        process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
         ctx.console(f"✗ {msg}", level='error')
         _notify(item, app_id.title(), _item_label(item, item_id), False, detail=msg)
         return True
@@ -240,6 +242,8 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
     if _has_field(model, error_field):
         champs[error_field] = ''          # ce n'est pas une erreur : on n'en laisse pas la trace
     model.objects.filter(pk=item_id).update(**champs)
+    process_runs.safely(process_runs.await_resources, item, process_key=app_id,
+                        task_id=getattr(getattr(task, 'request', None), 'id', '') or '')
     ctx.console(msg, level='info')
     logger.info("[%s] item #%s différé — %s", app_id, item_id, msg)
     raise task.retry(countdown=DIFFEREMENT_DELAI_S, max_retries=None)
@@ -406,6 +410,14 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
     # dépasse légitimement le défaut de 30 min.
     limit_s = gov.task_time_limit_s(app_id, getattr(item, 'user', None), model_key=resolved_key)
     token = gov.task_started(app_id, item_id, besoin or 0.0, max_s=limit_s)
+    # LIGNE D'EXÉCUTION du process (ROUTE §10.6 4.1, marche P3 — 2026-10-02) : une app du
+    # squelette a UN process, donc une ligne. Elle porte ce que l'élément ne disait pas pendant
+    # le traitement : le modèle EMPLOYÉ quand le réglage est resté « auto ». L'élément reste la
+    # vérité lue par l'interface ; la ligne est écrite aux mêmes instants que lui.
+    from wama.common.services import process_runs
+    process_runs.safely(process_runs.start, item, process_key=app_id,
+                        model_key=resolved_key or '',
+                        task_id=getattr(getattr(task, 'request', None), 'id', '') or '')
     try:
         with _time_guard(limit_s):
             res = process(item, ctx) or {}
@@ -416,6 +428,10 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         if _has_field(model, 'processing_seconds'):
             fields['processing_seconds'] = round(time.time() - t0, 1)
         model.objects.filter(pk=item_id).update(**fields)
+        used = [k for k in (res.get('models') or []) if k]
+        process_runs.safely(process_runs.succeed, item, process_key=app_id,
+                            model_key=used[0] if used else None,
+                            output_summary={'label': res['label']} if res.get('label') else None)
         ctx.progress(100)
         _measure_against_reference(app_id, model, item_id, ctx)
         nom = res.get('label') or _item_label(item, item_id)
@@ -454,6 +470,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         if _has_field(model, error_field):
             fields[error_field] = msg
         model.objects.filter(pk=item_id).update(**fields)
+        process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
         nom = _item_label(item, item_id)
         ctx.console(f"✗ {msg}", level='error')
         _signal(item, app_id, 'echec', None, {'erreur': 'duree_max'})
@@ -465,6 +482,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         if _has_field(model, error_field):
             fields[error_field] = msg
         model.objects.filter(pk=item_id).update(**fields)
+        process_runs.safely(process_runs.fail, item, message=msg, process_key=app_id)
         nom = _item_label(item, item_id)
         ctx.console(f"✗ Erreur ({nom}) : {msg}", level='error')
         # Un échec est un fait aussi informatif qu'un succès : un modèle qui échoue souvent sur

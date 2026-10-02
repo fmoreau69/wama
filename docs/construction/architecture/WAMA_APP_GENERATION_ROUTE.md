@@ -3346,6 +3346,43 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 > (français) → `JOB_STATUS_NOT_STARTED`/`JOB_STATUS_TERMINAL`. Et **pas** `WAITING` : un ensemble
 > nommé ainsi CONTIENDRAIT `AWAITING_RESOURCES` — deux noms de la même racine pour deux choses
 > différentes.
+>
+> 🔄 **P3, palier A LIVRÉ le 2026-10-02 — la LIGNE D'EXÉCUTION existe, et la brique
+> d'agrégation avec elle** (le 1ᵉʳ des deux restes de P2 ci-dessus est donc écrit).
+> - **`ProcessRun`** (`common/models.py`, migration additive `common/0022`) : une ligne par
+>   (élément, nœud, clé d'instance), RÉÉCRITE à chaque lancement — un état, pas un journal
+>   (`RunOutcome` reste le journal des faits, `ItemRevision` l'état que chaque résultat a donné).
+>   Elle porte l'état du process sur les six états, la photo des réglages surveillés, le modèle
+>   EMPLOYÉ, la sortie, les dates, la durée, l'erreur, la tâche. Adressage : `app` = label Django
+>   du modèle de l'élément, `object_id` en texte (une session Lab a une clé UUID).
+> - **`common/services/process_runs.py`** : `start`, `await_resources`, `succeed`, `fail`,
+>   `close_open`, `forget` ; `stale_nodes` (réglage surveillé changé, puis cascade — la
+>   sémantique de `pass_tracking.recompute_stale`, sans dépendre du cam_analyzer) ; `aggregate`
+>   (la règle de 4.4). ⚠ Cas que la règle ne nommait pas : un process OPTIONNEL en échec ne rend
+>   pas la card `FAILURE` mais l'empêche d'être `SUCCESS` — elle reste `PENDING`, « reste à
+>   compléter ». C'est le cas que le transcriber avalait ; à confirmer par Fabien à P4.
+> - **Le squelette écrit la ligne de son unique process** (`task_skeleton.run_item_task`) aux
+>   mêmes instants que l'élément : départ (avec le modèle résolu — lisible PENDANT le traitement
+>   d'un élément resté « auto », le trou d'ETA relevé par l'instance « portage »), attente de
+>   VRAM, succès (avec le modèle que la glu déclare), échecs. Les apps du squelette gagnent leur
+>   ligne sans rien changer.
+> - **Trois réserves de l'instance « portage », intégrées** (elle a porté le composer le jour
+>   même) : ① tout écrivain qui sort un élément de « en cours » sans sa tâche — `stop_instance`
+>   et les réconciliations de `process_control`, toutes par `_mark_reconciled` — REFERME les
+>   lignes ouvertes ; **l'élément reste la vérité lue par l'interface** tant qu'il porte `status`
+>   (jusqu'à P6), la ligne dit l'état d'UN process ; ② le lanceur garde sa marque atomique
+>   (`begin_processing` : `RUNNING` sous verrou), le moteur ne posera `RUNNING` que pour les
+>   process suivants ; ③ sous « auto », le modèle tiré est ÉCRIT sur la ligne, et un process aval
+>   relancé seul reprend celui de son amont.
+> - Retirer une card retire ses lignes (`release_card_files`, le verbe commun du retrait).
+> - Gardes : `common/tests/tests_process_runs.py` — service, péremption, agrégation, et pour
+>   CHAQUE app du squelette : ligne écrite au succès et à l'échec, modèle lisible pendant le
+>   traitement, ligne refermée par un arrêt et par une réconciliation ; contre-épreuve : fermeture
+>   neutralisée → la divergence apparaît.
+> ⏳ **Restent de P3** : le moteur pour PLUSIEURS process (ordre, lancement ciblé, entrées
+> rapatriées avant de résoudre modèle et VRAM), l'adoption par le cam_analyzer (`AnalysisPass` →
+> `ProcessRun`, coordonnée avec l'instance qui y travaille) et par l'exécuteur du studio
+> (`node_states`), le type de nœud `pipeline`, le pipeline sans process (§11 #35).
 
 **4.3 `STALE` — ce que c'est exactement** (repris de cam_analyzer, décision du 07/05,
 `ROADMAP §9.2.bis` ; code `pass_tracking.py:250-302`).
@@ -3681,9 +3718,24 @@ possible **sans aucun process**.
 
 #### 9. Décisions OUVERTES (à trancher avant le code qui en dépend)
 
-1. Nom anglais de la ligne d'exécution et de l'instance de pipeline.
-2. Sorties intermédiaires : persistées ou recalculées, par type de process (4.6).
-3. Forme de la clé d'instance (caméra, fichier…) dans la ligne d'exécution.
+1. ~~Nom anglais de la ligne d'exécution et de l'instance de pipeline.~~ ✅ **TRANCHÉE le
+   2026-10-02 (Fabien)** : la ligne d'exécution s'appelle **`ProcessRun`**. Pas de table neuve
+   pour l'instance de pipeline : c'est l'ÉLÉMENT que la card porte déjà (une transcription, une
+   génération du composer, une session Lab, une exécution du studio), référencé de façon
+   générique (type + identifiant — les sessions Lab ont une clé UUID).
+2. ~~Sorties intermédiaires : persistées ou recalculées, par type de process (4.6).~~ ✅
+   **TRANCHÉE le 2026-10-02 (Fabien)** : PERSISTÉE pour un process d'app (il écrit déjà son
+   résultat : fichier ou champ) ; RECALCULÉE pour une fonction pure (son `TypedFrame` ne vit qu'en
+   mémoire), sauf déclaration contraire du process.
+3. ~~Forme de la clé d'instance (caméra, fichier…) dans la ligne d'exécution.~~ ✅ **TRANCHÉE le
+   2026-10-02 (Fabien)** : une colonne TEXTE libre, `instance_key`, vide par défaut ; une ligne
+   est unique par (élément, nœud, clé d'instance). Ce qu'elle règle : un MÊME process peut
+   tourner plusieurs fois pour une même card — le cam_analyzer lance la détection une fois PAR
+   CAMÉRA (avant, arrière, gauche, droite) : quatre lignes pour un seul process, distinguées par
+   la position de caméra. Sans elle il faudrait soit une seule ligne pour les quatre (impossible
+   de dire laquelle a échoué, ni d'en relancer une seule), soit un process par caméra dans la
+   DÉFINITION du pipeline (qui dépendrait alors du nombre de caméras d'une session). Pour une
+   app Médias, un process ne tourne qu'une fois par card : la clé reste vide.
 4. ~~Règle d'agrégation exacte (4.4), et affichage de `STALE` sur la card et le bouton de cycle.~~
    ✅ **TRANCHÉE le 2026-09-17 (Fabien).** `STALE` s'affiche en **violet `#9b59b6`** ; le bouton de
    cycle garde l'action ↻ d'un terminé avec un **libellé distinct** (« Recalculer ce qui est
@@ -3739,7 +3791,7 @@ possible **sans aucun process**.
 | **P1** ✅ 02/10 | déclarer le monde (`world`) et dériver menus/accueil/pages/catalogues — quatre pièces livrées (point 6.1) : déclaration (catalogue ET hors catalogue), journal / calendrier / fonctions, groupage par monde du menu, de l'accueil et de `/apps/`, explorateur de fichiers | — (indépendant, petit) |
 | **P2** | vocabulaire d'états commun + `STALE` + brique d'agrégation ; studio et cam_analyzer alignés | — |
 | **P3** | moteur commun + ligne d'exécution, **extraits de cam_analyzer** (1er utilisateur : sémantique complète et testée) et de l'exécuteur du studio ; type de nœud `pipeline` ; pipeline sans process accepté | P2 |
-| **P4** | pilote Médias : **transcriber** en 4 process (étapes déjà numérotées, résultats déjà rangés à part) — A/B objectif (qualité, VRAM, durée) | P3 |
+| **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). Le **transcriber** en 4 process (étapes déjà numérotées, résultats déjà rangés à part) vient ensuite — A/B objectif (qualité, VRAM, durée) | P3 |
 | **P5** | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) | P3 (le renommage et le glisser-déposer : à tout moment) |
 | **P6** | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les 7 apps qui ne l'ont pas | P4 |
 | **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script | P3, P5, décisions 5-7 |
