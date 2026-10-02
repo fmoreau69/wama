@@ -20487,3 +20487,22 @@ revérification (bloc précédent).
   « périmées » une fois).
 - Fichiers de l'essai, laissés pour écoute : `media/users/22/composer/output/audio282_YuE2-3B.abc`
   et `.wav`. Base de test isolée de la session supprimée.
+
+## §CLÔTURE — 2026-10-03, « LENTEURS : REMESURE EN SERVICE ET DERNIERS CORRECTIFS » — ✅ `8e90ada8`, `28bf294e` — 🔴 recharger gunicorn (vues de progression)
+
+- ✅ **Remesuré EN SERVICE** (14 pages + 9 API appelées au chargement ou en continu, meilleur de 3) :
+  presque tout sous 0,15 s ; restaient au-dessus de 0,3 s le transcriber (0,41 s), l'anonymizer
+  (0,32 s) et surtout `/transcriber/global_progress/` (0,48-0,70 s, interrogée toutes les 2-3 s).
+- ✅ **Progression globale** : une requête `values_list(status, progress)` (forme du générateur) au
+  lieu de charger chaque transcription entière — 0,48 → 0,005 s en processus ; même correctif au
+  reader. Brique `batch_common.without_heavy_fields` (champs lourds déclarés par le modèle,
+  `QUEUE_DEFERRED_FIELDS`), appliquée au prefetch de la file, aux orphelines et aux lectures de la
+  vue du transcriber. Garde `transcriber/tests_queue_load` — elle a trouvé deux chargements
+  complets restants (orphelines, réconciliation des RUNNING).
+- Anonymizer profilé : aucun point chaud (plus grosse fonction WAMA 0,028 s) ; le reste est le
+  rendu d'une page de 350 Ko — laissé.
+- ⏳ Restes connus : transcriber 0,37 s (accord entre moteurs 0,18 s, comptes de locuteurs
+  0,09 s) ; 1ᵉʳ appel après relance lent (caches froids par worker) ; dix `global_progress` écrits
+  à la main (duplication, le générateur a la bonne forme — à centraliser un jour).
+- Contrôles : 290 tests verts ; `check_redundancy` 77, aucune trouvaille dans ce code (le nom
+  `queue_light` créait un faux positif avec `cam_analyzer._queue` → renommé).
