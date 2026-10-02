@@ -377,19 +377,36 @@
                 </div>
                 <div class="card-body">
                     <p class="text-muted small mb-3">
-                        Vos médias sont conservés ce nombre de jours, puis supprimés automatiquement.
-                        <strong>0 = illimité.</strong>
+                        Au-delà de ces durées, ce qui est concerné est supprimé automatiquement
+                        (vous êtes prévenu quelques jours avant). <strong>0 = illimité.</strong>
                     </p>
-                    <div class="d-flex gap-2 align-items-center">
+                    <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
+                        <label for="retentionDays" class="small text-light" style="min-width: 15rem;">
+                            Cards des applications et leurs fichiers
+                        </label>
                         <input type="number" id="retentionDays" min="0" step="1"
                                value="{{ profile.media_retention_days }}"
                                class="form-control form-control-sm bg-dark text-white border-secondary"
                                style="max-width: 120px;">
                         <span class="text-muted small">jours</span>
-                        <button id="saveRetentionBtn" class="btn btn-outline-primary btn-sm">
-                            <i class="fas fa-save me-1"></i> Enregistrer
-                        </button>
                     </div>
+                    <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
+                        <label for="tempRetentionDays" class="small text-light" style="min-width: 15rem;">
+                            Dossier temporaire
+                        </label>
+                        <input type="number" id="tempRetentionDays" min="0" step="1"
+                               value="{{ profile.temp_retention_days }}"
+                               class="form-control form-control-sm bg-dark text-white border-secondary"
+                               style="max-width: 120px;">
+                        <span class="text-muted small">jours — sauf les fichiers qu'une card utilise</span>
+                    </div>
+                    <p class="small mb-3" style="color:#c4b5fd;">
+                        <i class="fas fa-photo-film me-1"></i>
+                        La médiathèque n'est jamais purgée : y ranger un fichier, c'est le garder.
+                    </p>
+                    <button id="saveRetentionBtn" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-save me-1"></i> Enregistrer
+                    </button>
                     <div id="retentionMsg" class="mt-2" style="display:none;"></div>
                 </div>
             </div>
@@ -708,13 +725,16 @@ document.getElementById('saveNotifyBtn').addEventListener('click', async () => {
 // ── Conservation des médias ───────────────────────────────────────────────────
 document.getElementById('saveRetentionBtn').addEventListener('click', async () => {
     const media_retention_days = parseInt(document.getElementById('retentionDays').value || '0', 10);
+    const temp_retention_days = parseInt(document.getElementById('tempRetentionDays').value || '0', 10);
     const msg = document.getElementById('retentionMsg');
     try {
-        const data = await postJson(RETENTION_URL, { media_retention_days });
+        const data = await postJson(RETENTION_URL, { media_retention_days, temp_retention_days });
         if (data.success) {
             let txt = '✓ Enregistré';
             if (data.effective && data.effective !== media_retention_days)
-                txt += ` (appliqué : ${data.effective} j — plafond admin)`;
+                txt += ` (cards : ${data.effective} j appliqués — plafond admin)`;
+            if (data.effective_temp && data.effective_temp !== temp_retention_days)
+                txt += ` (temporaire : ${data.effective_temp} j appliqués — plafond admin)`;
             showMsg(msg, txt);
         } else showMsg(msg, data.error || 'Erreur', true);
     } catch(e) { showMsg(msg, 'Erreur réseau', true); }

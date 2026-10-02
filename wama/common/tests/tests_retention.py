@@ -49,6 +49,7 @@ class RetentionFollowsTheDeletionRuleTest(TestCase):
 
     def _witness(self, model, folder, expired=True):
         """Un élément dont chaque champ fichier désigne un vrai fichier sous `folder`."""
+        from wama.common.services.retention import RETENTION_MODELS
         from wama.common.tests.tests_queue_delete_contract import _instance
         item = _instance(model, self.user)
         files = []
@@ -59,7 +60,11 @@ class RetentionFollowsTheDeletionRuleTest(TestCase):
                 setattr(item, f.name, rel)
         item.save()
         if expired:
-            model.objects.filter(pk=item.pk).update(created_at=timezone.now() - timedelta(days=30))
+            # Le champ de date DÉCLARÉ (`anonymizer.Media` : `uploaded_at`, 2026-10-02).
+            date_field = next((e.get('date', 'created_at') for e in RETENTION_MODELS
+                               if e['model'] == model._meta.label), 'created_at')
+            model.objects.filter(pk=item.pk).update(
+                **{date_field: timezone.now() - timedelta(days=30)})
         return item, files
 
     def _models(self):
@@ -68,6 +73,21 @@ class RetentionFollowsTheDeletionRuleTest(TestCase):
         declared = [(apps.get_model(e['model']), e.get('path_lists', [])) for e in RETENTION_MODELS]
         self.assertGreaterEqual(len(declared), 5, 'la rétention ne déclare presque rien : garde affaiblie')
         return declared
+
+    def test_every_queue_app_is_under_retention(self):
+        # D9 (2026-10-02) : cinq des dix apps de file étaient hors rétention — la durée choisie au
+        # profil ne valait rien pour elles, sans que rien ne le dise. Toute app de file en relève.
+        from wama.common.services.retention import RETENTION_MODELS
+        from wama.common.tests.tests_queue_delete_contract import _surfaces
+        from wama.common.utils.preview_registry import PreviewRegistry
+        declared = {e['model'] for e in RETENTION_MODELS}
+        missing = []
+        for surface, _delete, _card in _surfaces():
+            model = PreviewRegistry.get_model(surface)
+            if model is not None and not model._meta.app_label.endswith('_01') \
+                    and model._meta.label not in declared:
+                missing.append(model._meta.label)
+        self.assertEqual([], missing, 'apps de file hors rétention')
 
     def _home(self, model):
         from wama.common.utils.media_paths import app_media_dir
@@ -126,3 +146,67 @@ class RetentionFollowsTheDeletionRuleTest(TestCase):
             with self.subTest(model=model._meta.label, field=field):
                 self.assertFalse(own.exists(), 'un chemin de la liste, chez l’app, est resté')
                 self.assertTrue(ref.exists(), 'un chemin de la liste, HORS de l’app, a été détruit')
+
+
+class TempFolderRetentionTest(TestCase):
+    """Le DOSSIER TEMPORAIRE a sa propre durée (2026-10-02, D9 — décision de Fabien : deux réglages,
+    la médiathèque sans durée, défaut illimité). Un fichier qu'une card désigne n'est JAMAIS purgé."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        setting = override_settings(MEDIA_ROOT=self.tmp, WAMA_MAX_RETENTION_DAYS=0)
+        setting.enable()
+        self.addCleanup(setting.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        from wama.accounts.models import UserProfile
+        self.user = get_user_model().objects.create_user('temp_retention', password='x')
+        self.profile, _created = UserProfile.objects.get_or_create(user=self.user)
+
+    def _file(self, rel, age_days):
+        import os
+        path = Path(self.tmp) / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'x')
+        stamp = (timezone.now() - timedelta(days=age_days)).timestamp()
+        os.utime(path, (stamp, stamp))
+        return path
+
+    def test_the_default_is_unlimited(self):
+        from wama.accounts.models import UserProfile
+        self.assertEqual(0, UserProfile._meta.get_field('temp_retention_days').default)
+        old = self._file(f'users/{self.user.id}/temp/vieux.png', 400)
+        from wama.common.services.retention import purge_expired_temp
+        purge_expired_temp()
+        self.assertTrue(old.exists(), 'durée illimitée : rien ne doit partir')
+
+    def test_old_unused_temp_files_go_and_designated_or_recent_ones_stay(self):
+        from wama.common.services.retention import purge_expired_temp, upcoming_temp_expirations
+        from wama.common.tests.tests_queue_delete_contract import _instance
+        from wama.describer.models import Description
+        self.profile.temp_retention_days = 10
+        self.profile.save()
+        old = self._file(f'users/{self.user.id}/temp/sous/vieux.png', 30)
+        designated = self._file(f'users/{self.user.id}/temp/designe.png', 30)
+        recent = self._file(f'users/{self.user.id}/temp/recent.png', 2)
+        soon = self._file(f'users/{self.user.id}/temp/bientot.png', 9)
+        elsewhere = self._file(f'users/{self.user.id}/describer/input/hors_temp.png', 30)
+        card = _instance(Description, self.user)
+        card.input_file = f'users/{self.user.id}/temp/designe.png'
+        card.save()
+        self.assertEqual({self.user.id: 1}, upcoming_temp_expirations(3), 'pré-avis : le fichier de J-1')
+        self.assertEqual(1, purge_expired_temp()['deleted'])
+        self.assertFalse(old.exists(), 'un vieux fichier inutilisé du temp est resté')
+        self.assertTrue(designated.exists(), 'un fichier qu’une card DÉSIGNE a été supprimé')
+        self.assertTrue(recent.exists() and soon.exists(), 'un fichier récent a été supprimé')
+        self.assertTrue(elsewhere.exists(), 'la purge du temp a touché HORS du temp')
+
+    def test_saving_one_duration_keeps_the_other(self):
+        import json
+        self.profile.temp_retention_days = 15
+        self.profile.save()
+        self.client.force_login(self.user)
+        from django.urls import reverse
+        answer = self.client.post(reverse('accounts:profile-retention'),
+                                  json.dumps({'media_retention_days': 7}),
+                                  content_type='application/json').json()
+        self.assertEqual((7, 15), (answer['media_retention_days'], answer['temp_retention_days']))

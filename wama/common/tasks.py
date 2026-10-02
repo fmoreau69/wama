@@ -170,6 +170,16 @@ def purge_expired_media_task(dry_run=False):
 
     res = purge_expired_media(dry_run=dry_run)
     logger.info("[retention] %s", res)
+    # DOSSIER TEMPORAIRE (2026-10-02, D9) : le second réglage du profil, même plafond admin. Défaut
+    # illimité ; un fichier qu'une card ou un asset désigne n'est jamais supprimé. Pré-avis d'abord.
+    try:
+        from wama.common.services.retention import purge_expired_temp, upcoming_temp_expirations
+        notice_days = int(getattr(settings, 'WAMA_RETENTION_NOTICE_DAYS', 3) or 0)
+        if notice_days > 0 and not dry_run:
+            _send_temp_notices(upcoming_temp_expirations(notice_days), notice_days)
+        res['temp'] = purge_expired_temp(dry_run=dry_run)
+    except Exception as e:  # pragma: no cover
+        logger.warning("purge du dossier temporaire a échoué : %s", e)
     # Fichiers INUTILISÉS (2026-10-01, décisions de Fabien) : rétention FINIE → ceux qui ont passé
     # leur terme ET ont été annoncés sont supprimés (puis l'utilisateur reçoit la liste) ; ensuite
     # UNE notification par utilisateur pour les nouveaux (« bientôt supprimés » si rétention finie,
@@ -205,6 +215,29 @@ def _send_retention_notices(upcoming, days):
                 "conservation dans votre profil.\n\n— WAMA"
             )
             notify_user(user, "[WAMA] Médias bientôt supprimés", body)
+        except Exception:  # pragma: no cover
+            continue
+
+
+def _send_temp_notices(upcoming, days):
+    """Pré-avis du DOSSIER TEMPORAIRE — même canal que celui des cards (`notify_user`)."""
+    from django.contrib.auth.models import User
+    from wama.common.utils.notifications import notify_user
+    for user_id, count in (upcoming or {}).items():
+        try:
+            user = User.objects.get(pk=user_id)
+            prof = getattr(user, 'profile', None)
+            if prof is None or not prof.notify_email or not count:
+                continue
+            body = (
+                f"Bonjour {user.username},\n\n"
+                f"{count} fichier(s) de votre dossier temporaire seront supprimés dans {days} "
+                f"jour(s) (conservation de {prof.effective_temp_retention_days()} j). Ceux qu'une "
+                "card ou la médiathèque utilise sont épargnés.\n\n"
+                "Rangez dans la médiathèque ce que vous souhaitez garder (elle n'est jamais purgée), "
+                "ou augmentez la durée de conservation dans votre profil.\n\n— WAMA"
+            )
+            notify_user(user, "[WAMA] Fichiers temporaires bientôt supprimés", body)
         except Exception:  # pragma: no cover
             continue
 
