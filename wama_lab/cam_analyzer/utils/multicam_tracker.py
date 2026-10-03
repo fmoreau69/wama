@@ -41,7 +41,8 @@ from .artifact_filter import is_giant_reflection as _giant_reflection
 
 from .prediction_adapter import (make_local_frame, shuttle_trajectory, pinhole_ego,
                                ego_to_world, _shuttle_pose_at, CLASS_DIMS,
-                               camera_geometry, ground_projector_for, ground_ego)
+                               camera_geometry, ground_projector_for, ground_ego,
+                               undistorted_x)
 
 
 def world_to_vehicle(world_e, world_n, shuttle_e, shuttle_n, heading_deg):
@@ -556,7 +557,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                         _psrc = 'ground:' + _gc_src.get(pos, 'homographie')
                 if ego is None:
                     ego = pinhole_ego(d, iw, ih, fov_v_deg,
-                                      fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'])
+                                      fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'], k1=_g['k1'])
                     if ego is not None:
                         _psrc = 'pinhole'
                 relaxed = False
@@ -577,7 +578,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                         continue
                     dm = dm * _g['dist_scale']
                     fx = iw / (2.0 * math.tan(math.radians(_g['fov_h']) / 2.0))
-                    ego = (dm * ((bb[0] + bb[2]) / 2.0 - iw / 2.0) / fx, dm)
+                    _ux = undistorted_x((bb[0] + bb[2]) / 2.0, bb[3], iw, ih, fx, _g['k1'])
+                    ego = (dm * (_ux - iw / 2.0) / fx, dm)
                     relaxed = True
                     _psrc = 'pinhole_relaxed'
                 d['placement_source'] = _psrc

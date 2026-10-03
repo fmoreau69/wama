@@ -137,6 +137,13 @@ FEATURES = [
             "objets, les largeurs de voie vues, le cap par ratio et la projection sol : "
             "calibration sol, recalage voie + carte et calculs sont à rejouer après bascule.",
             default=False, scope='compute'),
+    Feature('lens_distortion', 'Distorsion des objectifs',
+            "Applique la distorsion radiale de chaque caméra (session : `camera_distortion`) à la "
+            "projection sol, à la calibration et au placement pinhole. Mesuré le 2026-10-03 : sans elle, "
+            "une voiture GARÉE qui traverse l'image d'une latérale « avance » de 17 % (gauche) à 22 % "
+            "(droite) du trajet de la navette — elle semble la suivre ; les bords de l'image, là où se font "
+            "les passages avant ↔ latérales, sont les plus faux. Calculs à rejouer après bascule.",
+            default=False, scope='compute'),
     Feature('vehicle_center_placement', 'Véhicules placés par leur CENTRE',
             "Une caméra place un véhicule par le bas de sa boîte : le contact au sol de la face qu'elle "
             "VOIT. Vu de profil il était placé une demi-largeur trop près (≈ 0,9 m), vu de dos une "

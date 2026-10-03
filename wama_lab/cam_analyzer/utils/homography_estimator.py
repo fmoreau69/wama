@@ -82,7 +82,7 @@ def _collect_static_obs(session, position, max_gids=40, max_per_gid=120):
     return {g: v for g, v in obs.items() if len(v) >= 8}, size
 
 
-def _eval_params(pitch_deg, height_m, obs, size, geo, sh_traj, fov_v_deg, k1=0.0):
+def _eval_params(pitch_deg, height_m, obs, size, geo, sh_traj, fov_v_deg, k1=0.0, radial_k=0.0):
     """Coût = étalement monde des statiques + ancrage d'échelle sur le pinhole.
     `k1` : distorsion radiale (Brown-Conrady) — les dômes AXIS 110° ne sont pas
     rectilinéaires, le résiduel d'étalement à k1=0 en est la signature."""
@@ -94,6 +94,8 @@ def _eval_params(pitch_deg, height_m, obs, size, geo, sh_traj, fov_v_deg, k1=0.0
                hfov_deg=geo['fov_h'], lens_type='rectilinear')
     if k1:
         cal['distortion'] = [k1, 0.0, 0.0, 0.0, 0.0]
+    if radial_k:
+        cal['radial_inverse'] = radial_k          # distorsion de la caméra (⚑ lens_distortion)
     try:
         gp = GroundProjector(cal, size)
         if not gp.available:
@@ -125,7 +127,11 @@ def _eval_params(pitch_deg, height_m, obs, size, geo, sh_traj, fov_v_deg, k1=0.0
         d2 = sorted(math.hypot(p[0] - me, p[1] - mn) for p in pts)
         spreads.append(d2[int(len(d2) * 0.7)])       # p70 robuste aux outliers
         scale_errs.append(sorted(dys)[len(dys) // 2])
-    if len(spreads) < 3:
+    # Une calibration doit expliquer la MAJORITÉ de sa référence. Sans ce plancher, le coût (moyenne
+    # sur les seuls immobiles restés dans la portée) RÉCOMPENSAIT les paramètres qui en écartent le plus :
+    # mesuré le 2026-10-03 sur la latérale gauche, un tangage de −0,5° renvoyait l'essentiel des points
+    # à 100 m et gardait 4 voitures sur 24 (étalement 0,09 m) — optimum dégénéré, calibration refusée.
+    if len(spreads) < max(3, (len(obs) + 1) // 2):
         return None
     spread = sum(spreads) / len(spreads)
     scale = sum(scale_errs) / len(scale_errs)
@@ -155,21 +161,25 @@ def estimate_camera(session, position='front', with_k1=False, seed=None):
     # — pas la table du rig. Jusqu'au 2026-10-02 la table (31° aux latérales) était combinée au champ
     # HORIZONTAL effectif (97° surchargé) : focales incohérentes, distances latérales ×1,8.
     fov_v = geo.get('fov_v') or CAMERA_FOV_V.get(position, 61.0)
+    # Distorsion de la caméra (`camera_geometry`, ⚑ lens_distortion) : le MÊME modèle que la
+    # projection du suivi — sinon la calibration ajusterait un faux tangage pour la compenser.
+    _rk = float(geo.get('k1') or 0.0)
 
-    base = _eval_params(0.0, 2.4, obs, size, geo, sh_traj, fov_v)
+    base = _eval_params(0.0, 2.4, obs, size, geo, sh_traj, fov_v, radial_k=_rk)
     # ── Mode « graine externe » (⚑ depth_estimation) : au lieu de la recherche par grille, on SCORE
     # un couple (pitch, hauteur) fourni par une autre source (profondeur monoculaire Depth Pro →
     # plan de sol, cf. depth_estimator.estimate_ground_plane_ph). Le scoring reste ICI, source
     # UNIQUE de la métrique `placement_spread` → A/B loyal profondeur vs homographie.
     if seed is not None:
         sp_deg, sh_m = float(seed[0]), float(seed[1])
-        r = _eval_params(sp_deg, sh_m, obs, size, geo, sh_traj, fov_v)
+        r = _eval_params(sp_deg, sh_m, obs, size, geo, sh_traj, fov_v, radial_k=_rk)
         if r is None:
             return None
         return {
             'position': position,
             'pitch_deg': sp_deg,
             'k1': 0.0,
+            'radial_k': _rk,
             'height_m': sh_m,
             'n_objects': r[3],
             'spread_m': round(r[1], 2),
@@ -182,20 +192,21 @@ def estimate_camera(session, position='front', with_k1=False, seed=None):
     # pitch⟷hauteur (l'optimum libre fuit vers des hauteurs absurdes). On résout donc
     # pitch × k1 à hauteur connue — les deux vrais inconnus optiques.
     best, best_p, best_k, best_h = None, 0.0, 0.0, 2.4
-    _k_range = range(-45, 46, 3) if with_k1 else range(0, 1)   # k1 écarté par défaut
+    _ks = [k100 / 100.0 for k100 in range(-45, 46, 3)] if with_k1 else [0.0]
     for h10 in (23, 24, 25):               # hauteur 2.3 … 2.5 m (plage physique)
         for p10 in range(-50, 305, 5):     # pitch −5.0° … +30.0° par 0.5°
-            for k100 in _k_range:           # k1 −0.45 … +0.45 par 0.03 (si with_k1)
-                r = _eval_params(p10 / 10.0, h10 / 10.0, obs, size, geo, sh_traj,
-                                 fov_v, k1=k100 / 100.0)
+            for k1 in _ks:                  # k1 −0.45 … +0.45 par 0.03 (si with_k1, diagnostic Brown)
+                r = _eval_params(p10 / 10.0, h10 / 10.0, obs, size, geo, sh_traj, fov_v, k1=k1,
+                                 radial_k=_rk)
                 if r and (best is None or r[0] < best[0]):
-                    best, best_p, best_k, best_h = r, p10 / 10.0, k100 / 100.0, h10 / 10.0
+                    best, best_p, best_k, best_h = r, p10 / 10.0, k1, h10 / 10.0
     if best is None:
         return None
     return {
         'position': position,
         'pitch_deg': best_p,
         'k1': best_k,
+        'radial_k': _rk,
         'height_m': best_h,
         'n_objects': best[3],
         'spread_m': round(best[1], 2),

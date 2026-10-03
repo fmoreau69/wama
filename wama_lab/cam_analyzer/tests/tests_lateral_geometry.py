@@ -150,3 +150,43 @@ class StraightWindowsTest(SimpleTestCase):
         for t0, t1, turn in w:
             self.assertLess(abs(turn), 4.0)
             self.assertFalse(100.0 < t1 and t0 < 110.0, (t0, t1))
+
+
+class LensDistortionTest(SimpleTestCase):
+    """Distorsion des latérales (2026-10-03) : modèle radial INVERSE, et plancher de la calibration."""
+
+    def test_the_inverse_model_is_monotonic_up_to_the_image_corner(self):
+        """Brown-Conrady à k1 = −0,42 ne représentait aucun point au-delà de r = 0,59 : les bords
+        (r ≈ 0,8) devenaient du bruit. Le modèle inverse est explicite et croissant."""
+        from wama_lab.cam_analyzer.utils.ground_projection import undistort_radial_inverse
+        fx, cx, cy = 244.6, 192.0, 122.0
+        xs = [undistort_radial_inverse(u, 122.0, 0.7, fx, fx, cx, cy)[0] for u in range(192, 385, 8)]
+        self.assertTrue(all(b > a for a, b in zip(xs, xs[1:])))
+        self.assertEqual(undistort_radial_inverse(300.0, 50.0, 0.0, fx, fx, cx, cy), (300.0, 50.0))
+
+    def test_the_measured_left_value_matches_the_datasheet_edge_angle(self):
+        """k = 0,5 sur la gauche (408 px, 79,6° au centre) redonne ~97° de bord à bord : la fiche F1015."""
+        import math
+        from wama_lab.cam_analyzer.utils.ground_projection import undistort_radial_inverse
+        fx = 204.0 / math.tan(math.radians(79.64) / 2)
+        u = undistort_radial_inverse(408.0, 122.0, 0.5, fx, fx, 204.0, 122.0)[0]
+        self.assertAlmostEqual(2 * math.degrees(math.atan((u - 204.0) / fx)), 97.0, delta=2.0)
+
+    def test_the_ground_calibration_refuses_to_explain_a_minority(self):
+        """Le coût moyennait sur les seuls immobiles restés à portée : écarter les autres le faisait baisser
+        (4 voitures sur 24 retenues, étalement 0,09 m)."""
+        from pathlib import Path
+        from django.conf import settings
+        src = (Path(settings.BASE_DIR) / 'wama_lab' / 'cam_analyzer' / 'utils'
+               / 'homography_estimator.py').read_text(encoding='utf-8')
+        self.assertIn('if len(spreads) < max(3, (len(obs) + 1) // 2):', src)
+
+    def test_the_switch_is_declared_off_and_feeds_the_geometry(self):
+        from wama_lab.cam_analyzer.utils.features import FEATURES
+        f = {x.key: x for x in FEATURES}['lens_distortion']
+        self.assertFalse(f.default)
+        cfg = {'camera_distortion': {'left': 0.5}, 'features': {'lens_distortion': True}}
+        from wama_lab.cam_analyzer.utils.prediction_adapter import camera_geometry
+        self.assertEqual(camera_geometry(SimpleNamespace(config=cfg))['left']['k1'], 0.5)
+        cfg['features']['lens_distortion'] = False
+        self.assertEqual(camera_geometry(SimpleNamespace(config=cfg))['left']['k1'], 0.0)
