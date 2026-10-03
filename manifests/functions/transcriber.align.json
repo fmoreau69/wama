@@ -1,0 +1,67 @@
+{
+  "body": {
+    "app": "transcriber",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {},
+    "impl": "transcriber.workers:transcribe",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La transcription à recaler.",
+        "group": "travail",
+        "key": "transcript",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "L'audio sur lequel recaler.",
+        "group": "travail",
+        "key": "work_audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "transcriber.align",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La transcription, mots recalés.",
+        "key": "transcript",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "alignment",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Recale sur l'audio les mots d'une transcription reprise sans heures : l'aligneur acoustique du catalogue reprend ceux que l'ancrage n'a pu qu'estimer.",
+  "key": "transcriber.align",
+  "manifest_kind": "function",
+  "name": "Transcriber — aligner les mots sur l'audio",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:transcriber.align",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

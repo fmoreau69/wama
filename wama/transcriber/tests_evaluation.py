@@ -449,17 +449,17 @@ class TranscriberEvaluationTest(TestCase):
 
     def test_relaunching_keeps_the_anchors_and_reimports_with_times(self):
         from unittest.mock import patch
+        from wama.transcriber import workers
         from wama.transcriber.views import _reset_for_relaunch
-        from wama.transcriber.workers import align_existing_result
         card = self._whisper_card()
         self._import(card, self.SONAL.encode(), 'export_sonal.txt')
         card.refresh_from_db()
         _reset_for_relaunch(card)
         card.save()
-        with patch.object(align_existing_result, 'delay') as aligned:
+        with patch.object(workers, '_align_document', return_value={'skipped': 'test'}) as aligned:
             self._relaunch(card)
         self.assertEqual('SUCCESS', card.status, card.error_message)
-        aligned.assert_called_once_with(card.pk)      # stage B, after the last process
+        aligned.assert_called_once()                  # stage B : the process that follows the import
         self.assertEqual((2.0, 3.0), (card.segments_json[1]['start_time'],
                                       card.segments_json[1]['end_time']))
 
@@ -491,7 +491,7 @@ class TranscriberEvaluationTest(TestCase):
         """Runs the stage-B task with a fake acoustic model that hears `heard` ({word: (s, e)})."""
         from unittest.mock import patch
         from wama.common.backends.forced_alignment_base import AlignedWord
-        from wama.transcriber.workers import align_existing_result
+        from wama.transcriber.workers import _align_document
 
         class FakeAligner:
             sample_rate, max_audio_seconds = 16000, 60.0
@@ -509,21 +509,20 @@ class TranscriberEvaluationTest(TestCase):
                 return [AlignedWord(heard[w][0] - start, heard[w][1] - start, 0.7)
                         if w in heard else None for w in words]
 
-        with patch('wama.transcriber.workers.close_old_connections'), \
-                patch('wama.common.backends.manager.backend_for_model', return_value=FakeAligner), \
+        with patch('wama.common.backends.manager.backend_for_model', return_value=FakeAligner), \
                 patch('wama.common.utils.audio_decode.decode_window',
                       side_effect=lambda path, sr, start, duration: (start, sr)), \
                 patch('wama.model_manager.services.select_model',
                       side_effect=lambda **kw: __import__('wama.model_manager.models', fromlist=['x'])
                       .AIModel.objects.filter(model_key__in=kw['candidates']).first()):
-            outcome = align_existing_result.run(item.pk)
+            outcome = _align_document(item)
         item.refresh_from_db()
         return outcome, FakeAligner.loaded
 
-    def test_an_anchored_import_schedules_the_acoustic_alignment_after_commit(self):
+    def test_an_anchored_import_queues_nothing_the_alignment_waits_for_the_launch(self):
         imported, scheduled = self._anchored_import()
         self.assertEqual('fr', imported.language, 'the language heard by the sibling ASR')
-        self.assertEqual(1, len(scheduled), 'stage B is queued once the import is committed')
+        self.assertEqual([], scheduled, 'stage B is the « align » process of the card, at launch')
 
     def test_a_timed_import_schedules_nothing(self):
         item = self._transcript(text='', status='PENDING')
@@ -535,7 +534,7 @@ class TranscriberEvaluationTest(TestCase):
         self._aligner_in_catalogue()
         imported, _ = self._anchored_import()
         outcome, repo = self._run_alignment(imported, {'chat': (0.25, 0.55), 'euh': (2.3, 2.4)})
-        self.assertTrue(outcome['ok'], outcome)
+        self.assertEqual('transcriber:wav2vec2-fr-aligner', outcome['model_key'], outcome)
         self.assertEqual('org/aligneur', repo, 'the repository comes from the catalogue')
         chat = imported.segments_json[0]['words'][1]
         self.assertEqual((0.25, 0.55, 'aligned'), (chat['start'], chat['end'], chat['timing']))

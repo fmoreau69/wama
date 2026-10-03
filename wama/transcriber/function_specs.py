@@ -4,7 +4,7 @@
 un registre de process en code, chaque process un `FunctionSpec binding: app`, le registre
 exporté en manifeste `pipeline`. `load_all()` importe ce module ; `workers.py` en lit `PIPELINE`.
 
-CINQ process (point 3.2 de la route : « une app Médias = `required` + `optional` ») :
+SIX process (point 3.2 de la route : « une app Médias = `required` + `optional` ») :
   • `transcribe` — l'audio → le texte et ses segments horodatés (prétraitements compris :
     nivellement, débruitage, filtre de parole, langue). REQUIS pour une card sans document.
   • `import`     — le document posé sur la card (port `work_result` : SRT, VTT, Sonal, texte)
@@ -28,9 +28,12 @@ Ce que la séparation apporte, et que la tâche unique ne savait pas faire :
   - le résumé « à la demande » (`enrich_transcript`, hors contrat du squelette jusqu'ici, point
     4.7) est le ▶ du process `summarize`.
 
-⏳ L'étage B de l'alignement d'un document repris (`workers.align_existing_result`) reste une
-tâche à part, lancée après le dernier process : en faire un process `align` est une décision
-ouverte.
+  • `align`      — l'aligneur acoustique du catalogue recale les mots d'un document SANS heures,
+    que l'import n'a pu qu'estimer (étage B). OPTIONNEL (son échec garde les heures estimées),
+    sans interrupteur ; sans objet pour un document horodaté (SRT, VTT). Placé avant les
+    locuteurs et la cohérence, qui travaillent sur les heures et les segments qu'il réécrit. Il
+    ne part qu'au lancement de la card, jamais au dépôt du document (décision de Fabien,
+    2026-10-03).
 """
 from wama.common.catalog.function_catalog import (Binding, FunctionCategory as FC, FunctionSpec,
                                                   PortSpec, register)
@@ -65,6 +68,15 @@ def _transcribes(transcript, model_key=None) -> bool:
     return not _has_existing_result(transcript)
 
 
+def _align_applies(transcript, model_key=None) -> bool:
+    """Un document repris SANS heures : c'est une propriété du DOCUMENT (son format), stable — pas
+    de l'état des segments, qui change quand l'alignement a tourné."""
+    import os
+    from .utils.transcript_documents import TIMED_EXTENSIONS
+    document = getattr(transcript, 'work_result', None)
+    return bool(document) and os.path.splitext(document.name)[1].lower() not in TIMED_EXTENSIONS
+
+
 def _diarize_applies(transcript, model_key) -> bool:
     # Un document repris n'a pas de moteur : l'interrupteur de la card décide seul.
     return _has_existing_result(transcript) or not diarizes_natively(model_key)
@@ -89,6 +101,16 @@ register(FunctionSpec(
     tags=['text', 'import'],
     inputs=[PortSpec('work_result', 'document', description="La transcription à reprendre.")],
     outputs=[PortSpec('transcript', 'document', description="Le texte et ses segments.")]))
+
+register(FunctionSpec(
+    key='transcriber.align', name="Transcriber — aligner les mots sur l'audio",
+    description="Recale sur l'audio les mots d'une transcription reprise sans heures : l'aligneur "
+                "acoustique du catalogue reprend ceux que l'ancrage n'a pu qu'estimer.",
+    category=FC.ENRICHER, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['audio', 'alignment', 'gpu'],
+    inputs=[PortSpec('transcript', 'document', description="La transcription à recaler."),
+            PortSpec('work_audio', 'audio', description="L'audio sur lequel recaler.")],
+    outputs=[PortSpec('transcript', 'document', description="La transcription, mots recalés.")]))
 
 register(FunctionSpec(
     key='transcriber.diarize', name='Transcriber — attribuer les locuteurs',
@@ -128,14 +150,17 @@ PIPELINE = register_app_pipeline(_APP, (
                 applies=_transcribes, gpu=True, share=17),
     ProcessSpec('import', label='Import', watched=('work_result',),
                 applies=_has_existing_result, share=1),
-    ProcessSpec('diarize', label='Locuteurs', depends_on=('transcribe', 'import'),
+    ProcessSpec('align', label='Alignement', depends_on=('import',), degree=OPTIONAL,
+                applies=_align_applies, gpu=True, share=2),
+    ProcessSpec('diarize', label='Locuteurs', depends_on=('transcribe', 'import', 'align'),
                 watched=('diarization_model',), degree=OPTIONAL, toggle='enable_diarization',
                 applies=_diarize_applies, gpu=True, share=1),
     # Résumé et cohérence lisent le texte ET ses locuteurs (le compte-rendu de réunion les cite,
     # la cohérence par segment s'écrit sur les segments que la diarisation réécrit).
     ProcessSpec('summarize', label='Résumé', depends_on=('transcribe', 'import', 'diarize'),
                 watched=('summary_type',), degree=OPTIONAL, toggle='generate_summary', share=1),
-    ProcessSpec('coherence', label='Cohérence', depends_on=('transcribe', 'import', 'diarize'),
+    ProcessSpec('coherence', label='Cohérence',
+                depends_on=('transcribe', 'import', 'align', 'diarize'),
                 degree=OPTIONAL, toggle='verify_coherence', share=1),
-), label='Transcriber — transcription ou import, locuteurs, résumé, cohérence',
+), label='Transcriber — transcription ou import, alignement, locuteurs, résumé, cohérence',
    source_ref='transcriber.function_specs:PIPELINE')

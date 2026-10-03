@@ -3,12 +3,22 @@
     "layout": {},
     "links": [
       {
+        "from": "import",
+        "to": "align",
+        "to_port": null
+      },
+      {
         "from": "transcribe",
         "to": "diarize",
         "to_port": null
       },
       {
         "from": "import",
+        "to": "diarize",
+        "to_port": null
+      },
+      {
+        "from": "align",
         "to": "diarize",
         "to_port": null
       },
@@ -34,6 +44,11 @@
       },
       {
         "from": "import",
+        "to": "coherence",
+        "to_port": null
+      },
+      {
+        "from": "align",
         "to": "coherence",
         "to_port": null
       },
@@ -73,6 +88,17 @@
           "watched": [
             "work_result"
           ]
+        }
+      },
+      {
+        "app": null,
+        "function": "transcriber.align",
+        "id": "align",
+        "kind": "function",
+        "params": {
+          "degree": "optional",
+          "gpu": true,
+          "watched": []
         }
       },
       {
@@ -120,7 +146,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "transcriber",
   "manifest_kind": "pipeline",
-  "name": "Transcriber — transcription ou import, locuteurs, résumé, cohérence (5 process)",
+  "name": "Transcriber — transcription ou import, alignement, locuteurs, résumé, cohérence (6 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",
