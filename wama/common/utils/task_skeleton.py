@@ -202,6 +202,25 @@ class TaskTimeLimitExceeded(Exception):
     """Le traitement a dépassé sa durée max (`resource_governor.task_time_limit_s`)."""
 
 
+class ServiceNotReady(Exception):
+    """Ce dont le traitement DÉPEND n'est pas encore prêt — un service qui charge (le service TTS
+    à son démarrage) : ce n'est pas un échec. La glue la lève, le squelette rend le worker et
+    RE-LIVRE la tâche après `countdown` secondes, `max_attempts` fois au plus ; la card reste
+    « en cours » et dit qu'elle attend. Au-delà : échec DIT (`gave_up`).
+
+    Extrait le 2026-10-03 (P6) : synthesizer et avatarizer tenaient chacun cette politique
+    (60 × 10 s) à la main autour de `self.retry()` — et avec `exc=` passé à `retry`, Celery
+    relève l'exception d'ORIGINE à l'épuisement, pas `MaxRetriesExceededError` : la branche
+    « abandon » n'était jamais prise, l'élément restait « en cours » pour toujours."""
+
+    def __init__(self, message: str, *, countdown: int = 10, max_attempts: int = 60,
+                 gave_up: str = ''):
+        super().__init__(message)
+        self.countdown = int(countdown)
+        self.max_attempts = int(max_attempts)
+        self.gave_up = gave_up
+
+
 def _grant_honoured(grant, item) -> bool:
     """Un accord de libération vaut s'il vient du PROPRIÉTAIRE de l'item ou d'un admin — le
     gouverneur enregistre qui a accordé, le squelette (qui connaît l'item) tranche."""
@@ -649,6 +668,33 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         ctx.console(f"✗ {msg}", level='error')
         _signal(item, app_id, 'echec', None, {'erreur': 'duree_max'})
         _notify(item, label_app, nom, False, detail=msg)
+    except ServiceNotReady as wait:
+        # Pas un échec : on rend le worker et on reviendra. La card reste « en cours » (le
+        # lanceur l'y a mise) et son message dit l'attente ; la ligne du process, elle, attend.
+        from celery.exceptions import MaxRetriesExceededError
+        attempt = _deliveries_so_far(task) + 1
+        msg = (f"{wait} — nouvelle tentative dans {wait.countdown} s "
+               f"({attempt}/{wait.max_attempts})")
+        if _has_field(model, error_field):
+            model.objects.filter(pk=item_id).update(**{error_field: msg})
+        if node is not None:
+            process_runs.safely(process_runs.await_resources, item, node,
+                                process_key=process_key, task_id=task_ref)
+        ctx.console(msg, level='warning')
+        logger.info("[%s] item #%s : %s", app_id, item_id, msg)
+        try:
+            raise task.retry(countdown=wait.countdown, max_retries=wait.max_attempts)
+        except MaxRetriesExceededError:
+            msg = wait.gave_up or f"{wait} : abandon après {wait.max_attempts} tentatives."
+            fields = {'status': 'FAILURE'}
+            if _has_field(model, error_field):
+                fields[error_field] = msg
+            model.objects.filter(pk=item_id).update(**fields)
+            if node is not None:
+                process_runs.safely(process_runs.fail, item, node, msg, process_key=process_key)
+            ctx.console(f"✗ {msg}", level='error')
+            _signal(item, app_id, 'echec', None, {'erreur': 'service_indisponible'})
+            _notify(item, label_app, _item_label(item, item_id), False, detail=msg)
     except Exception as exc:
         msg = str(exc)[:500]
         logger.exception(f"{app_id} task ERROR | item={item_id}: {exc}")

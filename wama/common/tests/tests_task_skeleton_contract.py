@@ -162,3 +162,59 @@ class TaskSkeletonOutcomeContractTest(TestCase):
                 message = getattr(item, 'error_message', None)
                 if message is not None:
                     self.assertIn('panne du contrat', message)
+
+
+class _Redelivered(Exception):
+    """What the stand-in task raises in place of Celery's `Retry`."""
+
+
+class ServiceNotReadyContractTest(TestCase):
+    """A glue whose SERVICE is not ready yet (the TTS service still loading) is not a failure:
+    the skeleton gives the worker back and has the task delivered again — extracted on 2026-10-03
+    from the synthesizer and the avatarizer, which each held this policy around `self.retry()`."""
+
+    def _run(self, app, model, retry):
+        from django.contrib.auth import get_user_model
+        from wama.common.utils.task_skeleton import ServiceNotReady, run_item_task
+        user = get_user_model().objects.create_user(f'not_ready_{app}_{id(retry)}', password='x')
+        item = _instance(model, user)
+        model.objects.filter(pk=item.pk).update(status='RUNNING')
+        task = _task()
+        task.retry = staticmethod(retry)
+
+        def glue(element, ctx):
+            raise ServiceNotReady('Service TTS en chargement', countdown=10, max_attempts=60,
+                                  gave_up='Service TTS non disponible après 10 minutes')
+        with mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
+            try:
+                run_item_task(task, app_id=app, model=model, item_id=item.pk, process=glue)
+            except _Redelivered as again:
+                return model.objects.get(pk=item.pk), again
+        return model.objects.get(pk=item.pk), None
+
+    def test_the_task_is_delivered_again_and_the_card_stays_running_saying_it_waits(self):
+        asked = {}
+
+        def retry(**kw):
+            asked.update(kw)
+            return _Redelivered()
+        for app, model in _adopters()[:2]:
+            with self.subTest(app=app):
+                item, again = self._run(app, model, retry)
+                self.assertIsNotNone(again, 'the worker was not given back')
+                self.assertEqual({'countdown': 10, 'max_retries': 60}, asked)
+                self.assertEqual('RUNNING', item.status, 'waiting for a service is not a failure')
+                message = getattr(item, 'error_message', None)
+                if message is not None:
+                    self.assertIn('Service TTS en chargement', message)
+                    self.assertIn('1/60', message)
+
+    def test_past_the_last_attempt_the_failure_is_stated(self):
+        from celery.exceptions import MaxRetriesExceededError
+        app, model = _adopters()[0]
+        item, again = self._run(app, model, lambda **kw: MaxRetriesExceededError("Can't retry"))
+        self.assertIsNone(again)
+        self.assertEqual('FAILURE', item.status)
+        message = getattr(item, 'error_message', None)
+        if message is not None:
+            self.assertIn('non disponible après 10 minutes', message)
