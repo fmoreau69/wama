@@ -3337,10 +3337,10 @@ def analyze_sam3_only_task(self, session_id: str):
                 session.status = _previous_status
                 session.save(update_fields=['status'])
             cache.delete(f"stop_cam_analyzer_{session.user_id}")
-            # Ne pas laisser la passe SAM3 bloquée en 'running' après annulation.
-            from .models import AnalysisPass
-            AnalysisPass.objects.filter(session=session, pass_type='sam3_markings',
-                                        status='running').update(status='failed')
+            # Ne pas laisser la passe SAM3 bloquée en 'running' après annulation (lignes du Lab ET
+            # lignes communes, `pass_tracking.fail_running`).
+            from .utils.pass_tracking import fail_running
+            fail_running(session, 'sam3_markings', 'Annulée par l’utilisateur')
             _console(session.user_id, "SAM3 annulé")
         except Exception:
             pass
@@ -3356,9 +3356,8 @@ def analyze_sam3_only_task(self, session_id: str):
                 session.status = _previous_status
                 session.save(update_fields=['status'])
             # Ne pas laisser la passe SAM3 bloquée en 'running' après un crash.
-            from .models import AnalysisPass
-            AnalysisPass.objects.filter(session=session, pass_type='sam3_markings',
-                                        status='running').update(status='failed')
+            from .utils.pass_tracking import fail_running
+            fail_running(session, 'sam3_markings', str(e))
             _console(session.user_id, f"ERREUR SAM3: {e}")
         except Exception:
             pass
