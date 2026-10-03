@@ -79,9 +79,11 @@ class ReaderGlobalProgressTest(TestCase):
         self.client.force_login(user)
         with CaptureQueriesContext(connection) as queries:
             data = self.client.get(reverse('wama.reader:global_progress')).json()
+        # `failed` : le vocabulaire COMPLET de la fabrique commune (ROUTE §11 #37, 2026-10-03) —
+        # le reader nommait ses échecs `error`, une des quatre graphies que le JS commun absorbait.
         self.assertEqual((3, 1, 1, 1, 0, 46),
                          (data['total'], data['done'], data['running'], data['pending'],
-                          data['error'], data['overall_progress']))
+                          data['failed'], data['overall_progress']))
         on_items = [q['sql'] for q in queries.captured_queries if 'FROM "reader_readingitem"' in q['sql']]
         self.assertEqual(1, len(on_items), on_items)
 

@@ -385,76 +385,39 @@ def start(request, pk):
     return JsonResponse({'success': True, 'task_id': task.id})
 
 
-@login_required
-def status(request, pk):
-    """Return job status JSON."""
-    # LECTURE → accès nommé : suit aussi une card PARTAGÉE (PROFILES_PERMISSIONS §7).
-    job = visible_or_404(ConversionJob, request.user, pk=pk)
-    pct = cache.get(f"converter_progress_{job.id}", job.progress)
-    payload = {
-        'status':          job.status,
-        'progress':        pct,
-        'error_message':   job.error_message,
-        'output_ready':    bool(job.status == 'SUCCESS' and job.output_file),
+def _eta_triplet(job):
+    """Le triplet d'ETA du converter (ffmpeg, aucun modèle) : temps ∝ taille d'entrée (Mo)."""
+    mb = max((job.input_file.size or 0) / 1e6, 0.01)
+    return f'converter:{job.media_type}:{job.output_format}', mb, 'mb', True
+
+
+def _progress_extra(job):
+    """Les clés PROPRES que le JS du converter lit."""
+    return {
+        'output_ready': bool(job.status == 'SUCCESS' and job.output_file),
         'output_filename': job.output_filename,
-        'input_filename':  job.input_filename,
-        'media_type':      job.media_type,
-        'output_format':   job.output_format,
+        'input_filename': job.input_filename,
+        'media_type': job.media_type,
+        'output_format': job.output_format,
         # Options moteur + cross-app FUSIONNÉES pour le préremplissage de la modale (le JS
         # est générique, ids disjoints par construction) ; update_settings re-scinde au save.
-        'options':         {**(job.cross_app_options or {}), **(job.options or {})},
+        'options': {**(job.cross_app_options or {}), **(job.options or {})},
         # Temps réel persisté (ProcessingTimeMixin) — affiché sur la card terminée sans reload.
         'processing_display': job.processing_display,
     }
-    # Seed ETA (ffmpeg sans modèle → service-based) : temps ∝ taille d'entrée (Mo)
-    if job.status in ('PENDING', 'RUNNING'):
-        try:
-            from wama.model_manager.services.eta_estimator import estimate
-            _mb = max((job.input_file.size or 0) / 1e6, 0.01)
-            payload['estimated_seconds'] = estimate(
-                f'converter:{job.media_type}:{job.output_format}', size=_mb,
-                unit='mb', model_loaded=True)
-        except Exception:
-            pass
-    return JsonResponse(payload)
 
 
-@login_required
-def global_progress(request):
-    """Progression globale de la file (toujours affichée côté UI).
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
+# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et sa file (les jobs éphémères n'y sont pas).
+from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-    Renvoie {total, done, running, overall_progress} pour le composant commun
-    common/_global_progress.html + wama-global-progress.js.
-    Les jobs éphémères (quick-convert in-place) sont exclus de la file.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    jobs = list(ConversionJob.objects.filter(user=user, ephemeral=False)
-                .values('id', 'status', 'progress'))
+_pv = make_progress_views(
+    work_model=ConversionJob, get_user=lambda request: request.user, app_id='converter',
+    eta_for=_eta_triplet, extra=_progress_extra,
+    queryset=lambda user: ConversionJob.objects.filter(user=user, ephemeral=False))
+status = login_required(_pv['progress'])
+global_progress = login_required(_pv['global_progress'])
 
-    total = len(jobs)
-    done = sum(1 for j in jobs if j['status'] == 'SUCCESS')
-    running = sum(1 for j in jobs if j['status'] == 'RUNNING')
-
-    if total:
-        acc = 0
-        for j in jobs:
-            if j['status'] == 'SUCCESS':
-                acc += 100
-            elif j['status'] == 'RUNNING':
-                acc += cache.get(f"converter_progress_{j['id']}", j['progress'] or 0)
-            else:
-                acc += j['progress'] or 0
-        overall = int(acc / total)
-    else:
-        overall = 0
-
-    return JsonResponse({
-        'total': total,
-        'done': done,
-        'running': running,
-        'failed': sum(1 for j in jobs if j['status'] == 'FAILURE'),
-        'overall_progress': overall,
-    })
 
 
 @login_required

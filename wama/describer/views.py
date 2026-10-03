@@ -573,53 +573,38 @@ def card_html(request, pk):
     return HttpResponse(html)
 
 
-def progress(request, pk):
-    """Get processing progress."""
-    user = get_user(request)
-    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
-    from wama.common.utils.scoping import visible_or_404
-    description = visible_or_404(Description, user, pk=pk)
+def _eta_triplet(description):
+    """Le triplet d'ETA du describer (`eta.eta_size_unit`, la règle que `record_run` apprend) :
+    service chargé à la demande → modèle réputé chargé."""
+    from .eta import eta_size_unit
+    _ct = description.detected_type or description.content_type
+    _size, _unit = eta_size_unit(_ct, description)
+    return f'describer:{_ct}', _size, _unit, True
 
-    # Get progress from cache or model
-    cache_key = f"describer_progress_{description.id}"
-    progress = cache.get(cache_key, description.progress)
 
-    # Get partial result if available — brique commune (clé unique, sert aussi ?side=during)
+def _progress_extra(description):
+    """Les clés PROPRES que le JS du describer lit : texte partiel, puis le résultat."""
     from wama.common.utils.preview_utils import get_partial_text
-    partial_text = get_partial_text('describer', description.id)
-
-    response = {
-        'id': description.id,
-        'progress': progress,
-        'status': description.status,
-        'partial_text': partial_text,
-    }
-
+    data = {'partial_text': get_partial_text('describer', description.id)}
     if description.status == 'SUCCESS':
-        response['result_text'] = description.result_text
+        data['result_text'] = description.result_text
         if description.result_file:
-            response['result_url'] = description.result_file.url
-        response['summary'] = description.summary or ''
-        response['coherence_score'] = description.coherence_score
-        response['coherence_notes'] = description.coherence_notes or ''
-        response['coherence_suggestion'] = description.coherence_suggestion or ''
+            data['result_url'] = description.result_file.url
+        data['summary'] = description.summary or ''
+        data['coherence_score'] = description.coherence_score
+        data['coherence_notes'] = description.coherence_notes or ''
+        data['coherence_suggestion'] = description.coherence_suggestion or ''
+    return data
 
-    if description.status == 'FAILURE':
-        response['error'] = description.error_message
 
-    # Seed ETA (service-based : modèle chargé à la demande → model_loaded=True)
-    if description.status in ('PENDING', 'RUNNING'):
-        try:
-            from wama.model_manager.services.eta_estimator import estimate
-            from .eta import eta_size_unit
-            _ct = description.detected_type or description.content_type
-            _size, _unit = eta_size_unit(_ct, description)
-            response['estimated_seconds'] = estimate(
-                f'describer:{_ct}', size=_size, unit=_unit, model_loaded=True)
-        except Exception:
-            pass
+# Les DEUX vues de progression : fabrique COMMUNE (`progress_views.make_progress_views`,
+# ROUTE §11 #37, 2026-10-03) — le describer n'y déclare que son triplet d'ETA et ses clés propres.
+from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-    return JsonResponse(response)
+_pv = make_progress_views(work_model=Description, get_user=get_user, app_id='describer',
+                          eta_for=_eta_triplet, extra=_progress_extra)
+progress = _pv['progress']
+global_progress = require_GET(_pv['global_progress'])
 
 
 @require_GET
@@ -1060,40 +1045,6 @@ def console_content(request):
     cache_key = f"describer_console_{user.id}"
     lines = cache.get(cache_key, [])
     return JsonResponse({'lines': lines})
-
-
-@require_GET
-def global_progress(request):
-    """Get global progress stats."""
-    user = get_user(request)
-    descriptions = Description.objects.filter(user=user)
-
-    total = descriptions.count()
-    pending = descriptions.filter(status='PENDING').count()
-    running = descriptions.filter(status='RUNNING').count()
-    success = descriptions.filter(status='SUCCESS').count()
-    failure = descriptions.filter(status='FAILURE').count()
-
-    # Calculate overall progress
-    if total == 0:
-        overall = 0
-    else:
-        # Each completed = 100%, running = current progress
-        running_progress = 0
-        for desc in descriptions.filter(status='RUNNING'):
-            cache_key = f"describer_progress_{desc.id}"
-            running_progress += cache.get(cache_key, desc.progress)
-
-        overall = int(((success * 100) + running_progress) / total)
-
-    return JsonResponse({
-        'total': total,
-        'pending': pending,
-        'running': running,
-        'success': success,
-        'failure': failure,
-        'overall_progress': overall,
-    })
 
 
 @require_POST

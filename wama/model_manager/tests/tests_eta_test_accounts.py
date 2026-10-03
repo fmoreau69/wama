@@ -68,7 +68,11 @@ class EveryCallerPassesTheUserTest(SimpleTestCase):
                 continue
             if not any(k.arg == 'user' for k in node.keywords):
                 missing.append(f'{rel}:{node.lineno}')
-        self.assertGreaterEqual(seen, 8, 'trop peu d’appels trouvés : le parcours est aveugle')
+        # Plancher = la mesure (2026-10-03 : 6). Il baissait de 8 quand synthesizer, avatarizer
+        # et anonymizer ont rendu leur appel à celui du squelette commun (`task_skeleton.
+        # _record_eta`, qui nomme le propriétaire) : moins d'appels, c'est la centralisation —
+        # pas un parcours aveugle. Il ne protège que contre un parcours qui ne trouverait RIEN.
+        self.assertGreaterEqual(seen, 6, 'trop peu d’appels trouvés : le parcours est aveugle')
         self.assertEqual(missing, [], 'record_run sans `user=` : un compte de test y apprendrait')
 
     def test_exemptions_are_still_callers(self):

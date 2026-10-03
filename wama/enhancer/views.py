@@ -543,30 +543,26 @@ def start(request, pk: int):
         }, status=500)
 
 
-def progress(request, pk: int):
-    """Get enhancement progress."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # LECTURE → `visible_or_404` : une card partagée doit pouvoir être suivie par son
-    # destinataire (PROFILES_PERMISSIONS §7). Les vues mutantes gardent `user=user`.
-    enhancement = visible_or_404(Enhancement, user, pk=pk)
+def _eta_triplet(enhancement):
+    from .tasks import enhancer_eta_key_size
+    return enhancer_eta_key_size(enhancement)
 
-    # Get progress from cache
-    progress = int(cache.get(f"enhancer_progress_{pk}", enhancement.progress or 0))
 
-    payload = {
-        'progress': progress,
-        'status': enhancement.status,
-        'error_message': enhancement.error_message,
-    }
-    if enhancement.status in ('PENDING', 'RUNNING'):
-        try:
-            from wama.model_manager.services.eta_estimator import estimate
-            from .tasks import enhancer_eta_key_size
-            _k, _s, _u = enhancer_eta_key_size(enhancement)
-            payload['estimated_seconds'] = estimate(_k, size=_s, unit=_u, model_loaded=True)
-        except Exception:
-            pass
-    return JsonResponse(payload)
+def _audio_eta_triplet(ae):
+    from .tasks import audio_enhancer_eta_key_size
+    return audio_enhancer_eta_key_size(ae)
+
+
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
+# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que ses triplets d'ETA, pour ses DEUX files (média, audio).
+from wama.common.utils.progress_views import make_progress_views  # noqa: E402
+
+_pv = make_progress_views(work_model=Enhancement, get_user=lambda request: request.user if request.user.is_authenticated else get_or_create_anonymous_user(),
+                          app_id='enhancer', eta_for=_eta_triplet)
+progress, global_progress = _pv['progress'], _pv['global_progress']
+_apv = make_progress_views(work_model=AudioEnhancement, get_user=lambda request: request.user if request.user.is_authenticated else get_or_create_anonymous_user(),
+                           app_id='audio_enhancer', eta_for=_audio_eta_triplet)
+audio_progress, audio_global_progress = _apv['progress'], _apv['global_progress']
 
 
 def download(request, pk: int):
@@ -1222,26 +1218,6 @@ def audio_start(request, pk: int):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def audio_progress(request, pk: int):
-    """Get audio enhancement progress."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    ae = visible_or_404(AudioEnhancement, user, pk=pk)        # LECTURE
-    progress = int(cache.get(f"audio_enhancer_progress_{pk}", ae.progress or 0))
-    payload = {
-        'progress': progress,
-        'status': ae.status,
-        'error_message': ae.error_message,
-    }
-    if ae.status in ('PENDING', 'RUNNING'):
-        try:
-            from wama.model_manager.services.eta_estimator import estimate
-            from .tasks import audio_enhancer_eta_key_size
-            _k, _s, _u = audio_enhancer_eta_key_size(ae)
-            payload['estimated_seconds'] = estimate(_k, size=_s, unit=_u, model_loaded=True)
-        except Exception:
-            pass
-    return JsonResponse(payload)
-
 
 def audio_download(request, pk: int):
     """Download enhanced audio file."""
@@ -1400,26 +1376,6 @@ def audio_download_all(request):
     buffer.seek(0)
     return FileResponse(buffer, as_attachment=True, filename="enhanced_audio_files.zip")
 
-
-def audio_global_progress(request):
-    """Get overall audio enhancement progress."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    aes = AudioEnhancement.objects.filter(user=user)
-
-    if not aes.exists():
-        return JsonResponse({'total': 0, 'pending': 0, 'running': 0, 'success': 0, 'failure': 0, 'overall_progress': 0})
-
-    total = aes.count()
-    total_progress = sum(int(cache.get(f"audio_enhancer_progress_{ae.id}", ae.progress or 0)) for ae in aes)
-
-    return JsonResponse({
-        'total': total,
-        'pending': aes.filter(status='PENDING').count(),
-        'running': aes.filter(status='RUNNING').count(),
-        'success': aes.filter(status='SUCCESS').count(),
-        'failure': aes.filter(status='FAILURE').count(),
-        'overall_progress': int(total_progress / total) if total > 0 else 0,
-    })
 
 
 # ===========================================================================
@@ -1588,49 +1544,6 @@ def console_content(request):
     all_lines = get_console_lines(user.id, limit=200)
     return JsonResponse({'output': all_lines})
 
-
-def global_progress(request):
-    """Get overall progress for all user enhancements"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        enhancements = Enhancement.objects.visible_to(user)   # LECTURE (barre globale)
-
-        if not enhancements.exists():
-            return JsonResponse({
-                'total': 0,
-                'pending': 0,
-                'running': 0,
-                'success': 0,
-                'failure': 0,
-                'overall_progress': 0
-            })
-
-        total = enhancements.count()
-        pending = enhancements.filter(status='PENDING').count()
-        running = enhancements.filter(status='RUNNING').count()
-        success = enhancements.filter(status='SUCCESS').count()
-        failure = enhancements.filter(status='FAILURE').count()
-
-        # Calculate overall progress using cache
-        total_progress = 0
-        for e in enhancements:
-            progress = int(cache.get(f"enhancer_progress_{e.id}", e.progress or 0))
-            total_progress += progress
-
-        overall_progress = int(total_progress / total) if total > 0 else 0
-
-        return JsonResponse({
-            'total': total,
-            'pending': pending,
-            'running': running,
-            'success': success,
-            'failure': failure,
-            'overall_progress': overall_progress
-        })
-    except Exception as e:
-        logger.error(f"Error in global_progress: {e}")
-        return JsonResponse({'error': str(e)}, status=500)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

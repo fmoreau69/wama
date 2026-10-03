@@ -895,16 +895,12 @@ def _decorer(item):
     return render(request, '{app}/_generic_card.html',
                   {{'elem': _decorer(item), 'in_batch': is_batch_child(item)}})'''
 
-    corps_status = f'''    data = {{'id': item.id, 'status': item.status, 'progress': item.progress,
-            'error_message': item.error_message}}
-    {"if item.output_file: data['output_url'] = item.output_file.url" if d['a_output'] else ''}
-    return JsonResponse(data)'''
-    # LECTURES : le sien OU reçu (`visible_or_404`, 2026-10-02) — une card partagée qui se montre
-    # dans la file doit pouvoir se rafraîchir, sinon c'est une porte à moitié ouverte.
-    _read = ("    from wama.common.utils.scoping import visible_or_404\n"
-             f"    item = visible_or_404({item}, user, pk=pk)\n")
-    vues['status'] = (f"def status(request, pk):\n    user = _user(request)\n{_read}{corps_status}")
-    vues['progress'] = (f"def progress(request, pk):\n    user = _user(request)\n{_read}{corps_status}")
+    # PROGRESSION d'une card et de la file : la fabrique COMMUNE (`progress_views`, ROUTE §11 #37,
+    # 2026-10-03), construite en tête du module (`_pv`, après `_user`) — ces vues n'en sont que
+    # des noms. Lecture par `visible_or_404` (le sien OU reçu), progression vivante du cache que
+    # publie le squelette de tâche, formule et vocabulaire du contrat de la barre commune.
+    vues['status'] = "status = _pv['progress']"
+    vues['progress'] = "progress = _pv['progress']"
 
     out_file, out_text = d['out_file'], d['out_text']
     # Nom d'une sortie TEXTE : brique commune `compose_output_name` (souche de l'entrée + tag
@@ -1018,23 +1014,8 @@ def clear_all(request):
     else:
         vues['download_all'] = stub('download_all')
 
-    # Contrat du COMPOSANT COMMUN (`wama-global-progress.js` lit total/done/overall_progress) —
-    # l'émission précédente renvoyait {running, pending, percent} : la barre globale restait
-    # MUETTE avec « 0 terminé » permanent, zéro erreur console (audit 31/08, trou A3 de la
-    # cartographie). Même assiette que l'app réelle (converter/views.py::global_progress),
-    # sans la lecture de cache par item (le squelette de tâche généré écrit item.progress).
-    vues['global_progress'] = f'''def global_progress(request):
-    user = _user(request)
-    jobs = list({item}.objects.filter(user=user).values('status', 'progress'))
-    total = len(jobs)
-    done = sum(1 for j in jobs if j['status'] == 'SUCCESS')
-    acc = sum(100 if j['status'] == 'SUCCESS' else (j['progress'] or 0) for j in jobs)
-    return JsonResponse({{
-        'total': total, 'done': done,
-        'running': sum(1 for j in jobs if j['status'] == 'RUNNING'),
-        'failed': sum(1 for j in jobs if j['status'] == 'FAILURE'),
-        'overall_progress': int(acc / total) if total else 0,
-    }})'''
+    # Contrat du COMPOSANT COMMUN (`wama-global-progress.js`) : rendu par la fabrique (`_pv`).
+    vues['global_progress'] = "global_progress = _pv['global_progress']"
 
     vues['console'] = f'''def console_content(request):
     user = _user(request)
@@ -1278,6 +1259,10 @@ from wama.common.utils.queue_manipulation import make_queue_manipulation_views_d
         import_models = f'from .models import {batch}, {item}'
         forme_doc = f"FK directe '{fk}'"
 
+    # La sortie FICHIER d'une card, ajoutée au suivi de la card (`output_url`, ce que lit le
+    # rafraîchissement généré) — la seule clé propre d'une app conventionnelle.
+    pv_extra = (",\n                          extra=lambda item: ({'output_url': item.output_file.url}"
+                " if item.output_file else {})" if d['a_output'] else '')
     tete = f'''"""
 {mark} — views.py GÉNÉRÉ par le gabarit A (views_gen, marche S2).
 
@@ -1300,6 +1285,7 @@ from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.detail_registry import normalize_status
 from wama.common.utils.process_control import begin_processing, stop_instance
 from wama.common.utils.batch_views import apply_item_settings, make_batch_views, read_settings_payload
+from wama.common.utils.progress_views import make_progress_views
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 {imports_forme}
 from wama.common.utils.queue_view import apply_queue_sort_filter
@@ -1316,6 +1302,10 @@ except Exception:
 
 def _user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+
+# Les vues de PROGRESSION (une card, la file) : fabrique COMMUNE (`progress_views`, ROUTE §11 #37).
+_pv = make_progress_views(work_model={item}, get_user=_user, app_id='{app}'{pv_extra})
 {helpers_forme}{bloc_nature}{bloc_reglages}
 '''
     return tete + '\n\n\n'.join(blocs) + '\n', None

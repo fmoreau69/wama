@@ -1129,6 +1129,8 @@
         "batch_duplicate",
         "batch_list",
         "batch_preview",
+        "batch_promote",
+        "batch_realign",
         "batch_start",
         "batch_status",
         "batch_template",

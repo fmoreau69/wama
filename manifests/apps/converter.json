@@ -2,7 +2,7 @@
   "body": {
     "access": {
       "min_tier": null,
-      "public": false,
+      "public": true,
       "roles": []
     },
     "capabilities": {
@@ -2296,6 +2296,8 @@
         "batch_download",
         "batch_duplicate",
         "batch_preview",
+        "batch_promote",
+        "batch_realign",
         "batch_start",
         "batch_template",
         "batch_update",

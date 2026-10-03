@@ -498,65 +498,26 @@ def get_model_recommendations(request):
         }, status=500)
 
 
-def get_process_progress(request):
-    """
-    Retourne la progression globale (tous médias de l'utilisateur) ou individuelle (par media_id).
-    - Si ?media_id=... est fourni: lit Media.blur_progress ou cache("media_progress_{id}")
-    - Sinon: moyenne des progrès des médias en cours pour l'utilisateur
-    """
-    import logging
-    logger = logging.getLogger('anonymizer.progress')
+def _live_progress(media):
+    """La progression vivante d'un média : clé `media_progress_<id>`, sinon `blur_progress`."""
+    cached = cache.get(f"media_progress_{media.id}")
+    return cached if cached is not None else (media.blur_progress or 0)
 
-    media_id = request.GET.get('media_id')
-    if media_id:
-        viewer = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-        try:
-            # Lecture → partage F7 (visible_to : le sien, ou partagé)
-            media = Media.objects.visible_to(viewer).get(pk=int(media_id))
-            cache_progress = cache.get(f"media_progress_{media.id}")
-            db_progress = media.blur_progress or 0
 
-            # Prefer cache, fallback to DB
-            progress = int(cache_progress if cache_progress is not None else db_progress)
+def _eta_triplet(media):
+    """Le triplet d'ETA de l'anonymizer (a-priori → moyenne apprise par `record_run`)."""
+    from .tasks import anonymizer_eta_key_size
+    return anonymizer_eta_key_size(media)
 
-            payload = {
-                "progress": max(0, min(100, progress)),
-                "status": media.status,
-                "error": media.error_message or '',
-            }
-            # ETA seedée (a-priori → EMA apprise par record_run en fin de tâche)
-            if media.status in ('PENDING', 'RUNNING'):
-                try:
-                    from wama.model_manager.services.eta_estimator import estimate
-                    from .tasks import anonymizer_eta_key_size
-                    _k, _s, _u = anonymizer_eta_key_size(media)
-                    payload['estimated_seconds'] = estimate(_k, size=_s, unit=_u, model_loaded=True)
-                except Exception:
-                    pass
-            return JsonResponse(payload)
-        except Media.DoesNotExist:
-            logger.warning(f"[get_process_progress] Media {media_id} not found")
-            return JsonResponse({"progress": 0})
 
-    # Global progress for current user
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch_ids = cache.get(f"batch_media_ids_{user.id}")
-    if batch_ids:
-        medias = list(Media.objects.filter(id__in=batch_ids).order_by('id'))
-    else:
-        medias = list(Media.objects.filter(user=user).order_by('id'))
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
+# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que sa progression vivante (`media_progress_<id>`, `blur_progress`) et son triplet d'ETA.
+from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-    if not medias:
-        return JsonResponse({"progress": 0})
-
-    values = []
-    for m in medias:
-        if m.processed:
-            values.append(100)
-        else:
-            values.append(int(cache.get(f"media_progress_{m.id}", m.blur_progress or 0)))
-    avg = sum(values) // len(values) if values else 0
-    return JsonResponse({"progress": max(0, min(100, avg))})
+_pv = make_progress_views(work_model=Media, get_user=lambda request: request.user if request.user.is_authenticated else get_or_create_anonymous_user(),
+                          app_id='anonymizer', progress_field='blur_progress',
+                          progress_of=_live_progress, eta_for=_eta_triplet)
+progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
 def task_status(request, task_id):
@@ -1337,50 +1298,6 @@ def save_media_settings(request):
             'error': str(e)
         }, status=500)
 
-
-def global_progress(request):
-    """Get overall progress for all user medias"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        medias = Media.objects.filter(user=user)
-
-        if not medias.exists():
-            return JsonResponse({
-                'total': 0,
-                'pending': 0,
-                'running': 0,
-                'success': 0,
-                'failure': 0,
-                'overall_progress': 0
-            })
-
-        total = medias.count()
-        # Statut canonique depuis 2026-07-11 (audit §31) — l'ancien booléen `processed` = property dérivée
-        success = medias.filter(status='SUCCESS').count()
-        failure = medias.filter(status='FAILURE').count()
-        running = medias.filter(status='RUNNING').count()
-        pending = total - success - failure - running
-
-        # Calculate overall progress using cache
-        total_progress = 0
-        for m in medias:
-            progress = int(cache.get(f"media_progress_{m.id}", m.blur_progress or 0))
-            total_progress += progress
-
-        overall_progress = int(total_progress / total) if total > 0 else 0
-
-        return JsonResponse({
-            'total': total,
-            'pending': pending,
-            'running': running,
-            'success': success,
-            'failure': failure,
-            'done': success,  # contrat wama-global-progress.js ({total, done, running, overall_progress})
-            'overall_progress': overall_progress
-        })
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
 
 
 # ----------------------------------------------------------------------

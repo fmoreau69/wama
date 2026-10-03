@@ -273,15 +273,18 @@ class CheminDeLotTest(SimpleTestCase):
             self.assertNotIn('safe_delete_file', corps,
                              f'{view} efface les fichiers de la card au lieu de les libérer')
 
-    def test_global_progress_parle_le_contrat_du_composant_commun(self):
+    def test_the_progress_views_come_from_the_common_factory(self):
         """Trou A3 (audit 31/08) : l'émission renvoyait {running, pending, percent} — la
-        brique `wama-global-progress.js` lit total/done/overall_progress → barre MUETTE,
-        « 0 terminé » permanent, zéro erreur console."""
-        corps = _fonction(self.src, 'global_progress')
-        self.assertIsNotNone(corps)
-        for cle in ("'total'", "'done'", "'running'", "'failed'", "'overall_progress'"):
-            self.assertIn(cle, corps, f'{cle} manque au contrat de la barre globale')
-        self.assertNotIn("'percent'", corps, "l'ancien contrat hors-brique est revenu")
+        brique `wama-global-progress.js` lit total/done/overall_progress → barre MUETTE. Depuis
+        le 2026-10-03 (ROUTE §11 #37) le module généré ne porte plus aucun corps de progression :
+        la fabrique commune les rend, au contrat de la barre (tenu par `tests_progress_views`)."""
+        self.assertIn('_pv = make_progress_views(', self.src)
+        # Le suivi d'une card sous le nom que le manifeste déclare (`progress`, ou `status`).
+        self.assertRegex(self.src, r"(?m)^(progress|status) = _pv\['progress'\]$")
+        self.assertIn("global_progress = _pv['global_progress']", self.src)
+        for name in ('progress', 'status', 'global_progress'):
+            self.assertIsNone(_fonction(self.src, name), f'un corps `{name}` est encore émis')
+        self.assertNotIn("'percent'", self.src, "l'ancien contrat hors-brique est revenu")
 
     def test_l_index_calcule_les_reglages_communs_des_filles_pour_la_mere(self):
         # Pendant vue du slot meta_template : même règle que le pilote transcriber

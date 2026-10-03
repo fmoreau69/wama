@@ -2117,6 +2117,8 @@
         "batch_download",
         "batch_duplicate",
         "batch_preview",
+        "batch_promote",
+        "batch_realign",
         "batch_start",
         "batch_template",
         "batch_update",
@@ -2142,7 +2144,7 @@
         "move_to_batch",
         "preview_media",
         "process",
-        "process_progress",
+        "progress",
         "queue_count",
         "remove_from_batch",
         "reorder",
@@ -2216,9 +2218,9 @@
           "view": "views.reset_user_settings"
         },
         {
-          "name": "process_progress",
-          "pattern": "process_progress/",
-          "view": "views.get_process_progress"
+          "name": "progress",
+          "pattern": "progress/<int:pk>/",
+          "view": "views.progress"
         },
         {
           "name": "download",
