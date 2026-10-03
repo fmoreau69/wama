@@ -21006,3 +21006,31 @@ MuseTalk + CodeFormer ».
 - 🔚 Restes : `--animation` dans le fichier de lot et paramètre de l'outil `add_to_avatarizer` ;
   masquer `bbox_shift`/CodeFormer quand le modèle retenu est 3D (demande un `show_if` sur une
   capacité de modèle) ; la clé d'ETA reste par mode de qualité.
+
+## §CLÔTURE — 2026-10-03, « PARTAGE : RANGEMENT, LECTURE SEULE, DEMANDES, COLLABORATION, MES PARTAGES ; RÉTENTION D9 » — ✅ vérifié sur le LIVE — 🔚 voir les ouverts
+
+Session ouverte le 01/10 (fichiers libérés), close le 03/10. Commits de la fin : `cc5e4240`
+(collaboration, Mes partages), `c8027fa7` (lecture d'un lot reçu + gardes), `ea234dae` (docs
+générées depuis un worktree de HEAD). NON POUSSÉS.
+- **Vérifié sur le live relancé** : `collaboration_cycle` 9/9, `received_card_readonly_request`
+  12/12, `received_entry_arrangement` 8/8, `received_card_visible` 7/7, `received_card_duplicate`
+  6/6, `card_transfer` 5/5, `batch_transfer` 6/6. Tests du périmètre : 72 OK après la dernière
+  écriture. `check_redundancy` / `check_identifier_language` : rien dans mes fichiers.
+- **Trouvé au bilan, corrigé** : le statut et le ZIP d'un lot REÇU répondaient 404 dans 8 apps
+  (`batch_views._batch_read`) ; le journal des gestes ne captait rien pour reader / composer /
+  transcriber (`middleware.app_of`, garde `GestureJournalAppNameTest`).
+- **Rouges rencontrés, pas à moi** : `writer_01.quality_intent` absente de la base de test
+  (calendrier, journal, file globale, `tests_endpoints`) ; `ItemEditRouteAliasTest` (imager) ;
+  `check_docs` 5 cassées (ROUTE:327, ROUTE:3486, PROJECT_STATUS:17217/17277/20474 — blocs d'autrui) ;
+  budgets de `tests_identifier_language` décalés par d'autres ; blocs générés `conformite`,
+  `modeles`, `outils` périmés par le travail EN COURS d'autres instances.
+- 🔚 **Ouverts, nommés** :
+  1. mode **MODIFICATION** (variantes, marche 8b) — décisions V2 / V3 / M3 à prendre ;
+  2. **N1** (notifier un partage reçu) — proposition non validée ;
+  3. **conflit MONTRÉ** (E4 complet) — attend les révisions sur tout le parc ;
+  4. ranger une card reçue dans **SES** lots — proposition « dupliquer / variante » non tranchée ;
+  5. la cloche est un **lien**, pas un panneau ; la page Partages n'a pas de « depuis quand » ;
+  6. l'**anonymizer** enregistre ses réglages hors de la route de convention : les réglages d'un
+     collaborateur n'y sont pas tracés (`save_media_settings`, `settings_route` FAUX connu) ;
+  7. jumelles alignées sur disque seulement (non versionnées ; régénération R90) ;
+  8. push (décision de Fabien).
