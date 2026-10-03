@@ -238,3 +238,71 @@ class LeContexteNeMasquePasLeBaremeTests(TestCase):
         cible = reverse('accounts:user-management')
         self.assertEqual(cible in accueil, cible in ailleurs,
                          "le menu admin diverge entre l'accueil et le reste du site")
+
+
+class VisitorActionGuardTests(TestCase):
+    """Le VISITEUR sans session voit les pages et ne peut rien FAIRE (garde du 2026-10-03).
+
+    Mesuré avant sur le serveur en service : une requête sans session créait et LANÇAIT un job
+    d'avatar sous le compte `anonymous`, et 9 vues d'ajout étaient atteintes
+    (`common.rights_anonymous`). La décision (30/08) est une PROPRIÉTÉ de toutes les apps
+    gardées, donc le test porte sur toutes — y compris celle qu'on ajoutera demain.
+    """
+
+    def _index_urls(self):
+        urls = _urls_des_surfaces_gardees()
+        return {app_id: reverse(urls[app_id]) for app_id in sorted(all_gated_apps()) if urls.get(app_id)}
+
+    def test_a_visitor_cannot_act_on_any_gated_app(self):
+        targets = self._index_urls()
+        self.assertTrue(targets, 'aucune surface relevée : le test ne mesurerait rien')
+        reached = {}
+        for app_id, url in targets.items():
+            for method in ('post', 'put', 'patch', 'delete'):
+                response = getattr(self.client, method)(url)
+                if response.status_code != 403:
+                    reached[f'{app_id} {method.upper()}'] = response.status_code
+        self.assertEqual({}, reached, 'un visiteur sans session atteint ces vues')
+
+    def test_the_refusal_tells_the_visitor_to_log_in(self):
+        response = self.client.post(reverse('avatarizer:create'), {'text_content': 'bonjour'})
+        self.assertEqual(403, response.status_code)
+        body = response.json()
+        self.assertTrue(body['login_required'])
+        self.assertIn('Connectez-vous', body['error'])
+
+    def test_a_visitor_post_creates_nothing(self):
+        from wama.avatarizer.models import AvatarJob
+        before = AvatarJob.objects.count()
+        self.client.post(reverse('avatarizer:create'), {'text_content': 'bonjour'})
+        self.client.post(reverse('avatarizer:start', args=[1]))
+        self.assertEqual(before, AvatarJob.objects.count())
+
+    def test_pages_stay_visible_to_a_visitor(self):
+        """Contre-épreuve : la garde ne ferme pas les PAGES (visiteur guidé) — un GET n'est
+        jamais refusé par elle (200, ou la redirection de connexion propre à une vue)."""
+        # Une page qui tombe pour une AUTRE raison (base de test en retard d'une migration de
+        # jumelle…) n'est pas l'objet de ce test : seul un 403 de la garde le ferait échouer.
+        from django.test import Client
+        visitor = Client(raise_request_exception=False)
+        refused = {app_id: visitor.get(url).status_code
+                   for app_id, url in self._index_urls().items()}
+        self.assertEqual({}, {a: c for a, c in refused.items() if c == 403})
+
+    def test_an_app_declared_public_lets_the_visitor_through_the_guard(self):
+        """L'exception se DÉCLARE (`AppAccessPolicy.public`) : la garde lit la même décision
+        que le reste. Ce que la vue fait ensuite du visiteur est son affaire."""
+        from wama.accounts.models import AppAccessPolicy
+        AppAccessPolicy.objects.update_or_create(app_id='converter', defaults={'public': True})
+        response = self.client.post(reverse('converter:upload'))
+        self.assertNotEqual(403, response.status_code)
+        # Et une app voisine reste fermée : l'exception ne déborde pas.
+        self.assertEqual(403, self.client.post(reverse('avatarizer:create')).status_code)
+
+    def test_a_logged_in_account_is_not_caught_by_the_visitor_guard(self):
+        user = User.objects.create_user('guard_member', password='x')
+        for role in (DEFAULT_APP_ACCESS.get('avatarizer') or {}).get('roles', []):
+            user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(user)
+        response = self.client.post(reverse('avatarizer:create'), {})
+        self.assertNotEqual(403, response.status_code)       # la vue répond (400 : rien fourni)
