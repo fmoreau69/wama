@@ -512,6 +512,10 @@ def delete_session(request, session_id):
             except Exception as e:
                 logger.warning(f"Failed to delete camera file: {e}")
 
+    # Les LIGNES D'EXÉCUTION communes partent avec la session (même geste que le retrait d'une card
+    # Médias, `queue_duplication.release_card_files`) : elles n'ont pas de clé étrangère.
+    from wama.common.services import process_runs
+    process_runs.safely(process_runs.forget, session)
     session.delete()
     _console(user_id, f"Session supprimée : {session.name}")
 
@@ -595,6 +599,19 @@ def duplicate_session(request, session_id):
                     ev.camera = cam_map.get(cid)
                 buf.append(ev)
             _flush(Model, buf)
+
+        # 6) Lignes d'exécution communes (`ProcessRun`) : la copie est « à l'identique », passes
+        # comprises — leurs lignes communes suivent, réadressées sur la nouvelle session.
+        from wama.common.models import ProcessRun
+        from wama.common.services import process_runs
+        dst = process_runs.address(new)
+        rows = []
+        for run in process_runs.lines(src):
+            run.pk = None
+            run._state.adding = True
+            run.object_id = dst['object_id']
+            rows.append(run)
+        _flush(ProcessRun, rows)
 
     _console(request.user.id, f"Session dupliquée : {new.name}")
     return JsonResponse({'success': True, 'id': str(new.id), 'name': new.name})

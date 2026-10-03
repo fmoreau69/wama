@@ -256,6 +256,42 @@ def _profile_snapshot(profile, watched_keys: list[str]) -> dict:
     return {k: getattr(profile, k, None) for k in watched_keys}
 
 
+# ── LIGNES D'EXÉCUTION COMMUNES (`ProcessRun`) — étape 1 : ÉCRITURE EN DOUBLE (2026-10-03) ─────
+# `AnalysisPass` a été le MODÈLE de la ligne d'exécution commune (`common.ProcessRun`,
+# `common/services/process_runs.py`, ROUTE §10.6 4.1) ; les passes du Lab y passent PAR ÉTAPES
+# (décision de Fabien) : (1) chaque écriture d'une passe écrit AUSSI sa ligne commune — c'est ici ;
+# (2) les lecteurs basculent sur la ligne commune ; (3) l'historique est repris et `AnalysisPass`
+# retiré. Correspondance : élément = la SESSION, nœud = la passe, clé d'instance = la caméra
+# (vide pour une passe de niveau session), process = sa fonction du catalogue
+# (`Pass.function_key`), photo des réglages = `parameters`. Les statuts minuscules du Lab se
+# TRADUISENT à l'écriture (`COMMON_STATUS`) — la table commune ne porte que le vocabulaire `JOB_*`.
+# Toutes les écritures communes passent par `process_runs.safely` : une ligne commune qui ne
+# s'écrit pas ne fait JAMAIS échouer une passe (elle se dit au journal).
+
+def common_status(status: str) -> str:
+    """Statut du Lab → vocabulaire commun (`pending/running/completed/failed/stale` →
+    `PENDING/RUNNING/SUCCESS/FAILURE/STALE`)."""
+    from wama.common.models import JOB_FAILURE, JOB_PENDING, JOB_RUNNING, JOB_STALE, JOB_SUCCESS
+    return {'pending': JOB_PENDING, 'running': JOB_RUNNING, 'completed': JOB_SUCCESS,
+            'failed': JOB_FAILURE, 'stale': JOB_STALE}.get(status, status)
+
+
+def instance_key(camera) -> str:
+    """Clé d'instance d'une passe : la position de sa caméra, vide pour une passe de session."""
+    return (getattr(camera, 'position', '') or '') if camera is not None else ''
+
+
+def process_key(pass_type: str) -> str:
+    """Process de la ligne commune : la fonction du catalogue de la passe."""
+    spec = _BY_KEY.get(pass_type)
+    return spec.function_key if spec is not None else f'cam_analyzer.{pass_type}'
+
+
+def _common_runs():
+    from wama.common.services import process_runs
+    return process_runs
+
+
 def mark_started(session, pass_type: str, profile=None, camera=None) -> None:
     """Insert/update the pass row at status RUNNING and reset any prior error.
 
@@ -287,6 +323,9 @@ def mark_started(session, pass_type: str, profile=None, camera=None) -> None:
             'output_summary': summary,
         },
     )
+    pr = _common_runs()
+    pr.safely(pr.start, session, pass_type, process_key=process_key(pass_type), kind='function',
+              instance_key=instance_key(camera), settings_snapshot=snapshot)
     return obj
 
 
@@ -315,6 +354,9 @@ def mark_completed(session, pass_type: str, *, output_summary: dict | None = Non
     if size:
         obj.output_summary = {**(obj.output_summary or {}), 'eta_size_s': round(size, 1)}
     obj.save()
+    pr = _common_runs()
+    pr.safely(pr.succeed, session, pass_type, instance_key=instance_key(camera),
+              output_summary=obj.output_summary, process_key=process_key(pass_type))
     _record_pass_eta(session, pass_type, size, obj.duration_s)
 
 
@@ -465,6 +507,28 @@ def mark_failed(session, pass_type: str, error_message: str, camera=None) -> Non
             'completed_at': timezone.now(),
         },
     )
+    pr = _common_runs()
+    pr.safely(pr.fail, session, pass_type, str(error_message), instance_key=instance_key(camera),
+              process_key=process_key(pass_type))
+
+
+def fail_running(session, pass_type: str, error_message: str = '') -> int:
+    """Passe(s) d'un type restées EN COURS → en échec (annulation, plantage de la tâche qui les
+    portait) — lignes du Lab ET lignes communes. Rend le nombre de lignes du Lab changées.
+
+    Remplace deux `update(status='failed')` écrits à la main dans `tasks.py` (SAM3 annulé /
+    planté) : ils ne passaient pas par ce module, donc la ligne commune serait restée « en cours »."""
+    from wama_lab.cam_analyzer.models import AnalysisPass
+    rows = AnalysisPass.objects.filter(session=session, pass_type=pass_type,
+                                       status=AnalysisPass.Status.RUNNING)
+    cams = list(rows.values_list('camera__position', flat=True))
+    n = rows.update(status=AnalysisPass.Status.FAILED, error_message=str(error_message)[:2000],
+                    completed_at=timezone.now())
+    pr = _common_runs()
+    for pos in cams:
+        pr.safely(pr.fail, session, pass_type, str(error_message), instance_key=pos or '',
+                  process_key=process_key(pass_type))
+    return n
 
 
 #: Passes jouées par `process_session_task` (la DÉTECTION : YOLO + YOLOPv2, toutes vues)…
@@ -654,10 +718,16 @@ def reconcile_interrupted_calc_passes(session) -> int:
     if cache.get(calc_chain_key(session.id)):
         return 0
     calc = [p.key for p in PASSES if p.stage == 'calcul']
-    return AnalysisPass.objects.filter(
-        session=session, status=AnalysisPass.Status.RUNNING, pass_type__in=calc,
-    ).update(status=AnalysisPass.Status.FAILED, error_message=INTERRUPTED_MESSAGE,
-             completed_at=timezone.now())
+    rows = AnalysisPass.objects.filter(session=session, status=AnalysisPass.Status.RUNNING,
+                                       pass_type__in=calc)
+    lines = list(rows.values_list('pass_type', 'camera__position'))
+    n = rows.update(status=AnalysisPass.Status.FAILED, error_message=INTERRUPTED_MESSAGE,
+                    completed_at=timezone.now())
+    pr = _common_runs()
+    for pass_type, pos in lines:
+        pr.safely(pr.fail, session, pass_type, INTERRUPTED_MESSAGE, instance_key=pos or '',
+                  process_key=process_key(pass_type))
+    return n
 
 
 #: Passes qui changent ce que LIT le tracking 360° (pose navette, géométrie des caméras, plan de
@@ -744,11 +814,18 @@ def recompute_stale(session) -> int:
         current={node_of[id(p)]: _profile_snapshot(profile, _WATCHED[p.pass_type])
                  for p in passes if _WATCHED.get(p.pass_type)})
     flipped = 0
+    stale_types = set()
     for p in passes:
         if node_of[id(p)] in stale:
             p.status = AnalysisPass.Status.STALE
             p.save(update_fields=['status'])
             flipped += 1
+            stale_types.add(p.pass_type)
+    if stale_types:
+        # Toutes les lignes TERMINÉES d'un type périment ensemble : la péremption d'une ligne ne
+        # dépend que de son type (réglages surveillés du profil, amont « au moins une caméra »).
+        pr = _common_runs()
+        pr.safely(pr.mark_stale, session, sorted(stale_types))
     return flipped
 
 
