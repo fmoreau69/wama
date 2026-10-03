@@ -2105,14 +2105,14 @@ l'audio du morceau à reprendre devient une partition que YuE2 suit (`cot="melod
 prescrit la doc du moteur, `wama/common/backends/vendor/yue/skills/yue2-music/references/models-and-setup.md`). Le
 modèle n'entrait dans aucune case : il a fallu une TÂCHE (`audio-to-score`, `ModelTask`, propre à
 WAMA — `check_model_taxonomy` la range parmi les tâches sans équivalent HF), un CONTRAT
-(`ScoreTranscriptionBackend`, `TASK_CONTRACTS`) et un ESSAI (smoke), avant d'écrire le backend.
+(`ScoreExtractionBackend`, `TASK_CONTRACTS`) et un ESSAI (smoke), avant d'écrire le backend.
 
 | étape | geste | trou rencontré → comblé |
 |---|---|---|
 | librairies | route `library` | `pretty_midi` 0.2.10, `mir_eval` 0.8.2 (dépendances du code embarqué) |
 | poids | scout → `request_install` | le scout reprenait l'étiquette HF (`feature-extraction`) et rangeait le snapshot sous `embedding/` → reclassé à la source (`music/`, tâche `audio-to-score`) |
 | rôle `model` | Albert → Valider | (1) `enforce_vendor_engine` posait `yue` sur une simple CITATION (la fiche cite le dépôt YuE, même labo) → le moteur vendorisé n'est posé que si son code CHARGE le dépôt ; (2) le code est DISTANT (`auto_map`) → `transformers` retiré à juste titre, mais aucun moteur ne restait : le dépôt prouve `transformers-remote-code` (moteur d'Audio8) ; (3) le dépôt n'est qu'un ADAPTATEUR → `enforce_adapter_parent` : le `base_model_name_or_path` du `config.json` devient le composant `base` (`m-a-p/MERT-v2-FullSong`, 2,5 Go). Le moteur `transformers` du catalogue, posé par le scout et réfuté, a été VIDÉ à la source (Valider ne comble que les vides) |
-| contrat | — | `score_transcription_base.ScoreTranscriptionBackend.transcribe_score()` → texte ABC, lève avec sa raison (jamais une partition vide) ; état de chargement fourni comme les contrats parole/image |
+| contrat | — | `score_extraction_base.ScoreExtractionBackend.extract_score()` → texte ABC, lève avec sa raison (jamais une partition vide) ; état de chargement fourni comme les contrats parole/image. Nommé `extract_score` et non « transcribe » (Fabien, le jour même) : ce verbe désigne déjà le transcriber, la méthode des backends de parole et la tâche Whisper ; le process du composer portera le même nom |
 | essai | — | `backend_proposals._smoke_score` : une gamme SYNTHÉTISÉE (notes connues, aucun fichier versé — la médiathèque système n'a pas de musique), ABC à en-tête `K:`, ≥ 75 % des notes retrouvées. ⚠ Une note collée à la toute fin de l'audio fait lever le moteur (grille de sous-temps) : 2 s de silence final |
 | rôle `backend` | Albert → revue → Valider | le rôle a recopié le voisin Audio8 : chargement par le CHEMIN du snapshot. transformers 4.57.6 n'y recopie que les imports relatifs DIRECTS du code distant → `FileNotFoundError` (`chord_spelling_sheetsage2.py`), **attrapé par l'essai**. Revue (`…_10-06_revue.json`, 6 corrections) : id du dépôt + `cache_dir` + révision (`installed_snapshot`), `_loaded`, float32 mesuré au lieu d'un bf16 jamais essayé, `AutoProcessor` inutile, VRAM 0,3 → 2,7 Go, `abc_error` rendu. Clé de `SUPPORTED_MODELS` LITTÉRALE : c'est elle qui départage d'Audio8 |
 | aval | inventaire | `transformers-remote-code` devenu PARTAGÉ → Audio8 déclare à son tour son `SUPPORTED_MODELS` (invariant `tests_backend_inventory`) |
@@ -2125,7 +2125,7 @@ pour une sortie du composer d'une minute (voix + instrument, tempo, tonalité, s
 sur la gamme, les 32 notes exactes + une parasite (98,5 %). Licence cc-by-nc-4.0 (même régime que
 MusicGen, `LICENSING.md`).
 
-⏳ **Pas encore** : le process `transcrire` du pipeline du composer et `work_audio` → partition →
+⏳ **Pas encore** : le process `extract_score` du pipeline du composer et `work_audio` → partition →
 YuE2 `cot="melody"` (chantier pipeline, à coordonner) ; rechargement des workers pour importer le
 backend. ⚠ Relevé au passage, hors de ce périmètre : `$HOME/.cache/huggingface/hub` porte 13 Go de
 dépôts déposés hors `AI-models` (Supra2-IMG, LinTO, MuseTalk, Higgs, Kokoro…).

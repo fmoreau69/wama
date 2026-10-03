@@ -448,7 +448,7 @@ def _smoke_speech(code: str, *, module: str, model_key: str, out_dir: Path) -> d
     return out
 
 
-#: La mélodie que transcrit le smoke de PARTITION (2026-10-03) : gamme de do majeur montante puis
+#: La mélodie dont le smoke de PARTITION extrait les notes (2026-10-03) : gamme de do majeur montante puis
 #: descendante, deux fois, en noires à `SMOKE_SCORE_BPM` — SYNTHÉTISÉE ici, donc ses notes sont
 #: connues sans aucun fichier versé (la médiathèque système n'a aucune musique). Mesuré sur
 #: SheetSage2 : tempo 120 et tonalité C retrouvés, les 32 notes exactes plus une parasite en fin.
@@ -468,7 +468,7 @@ _ABC_NOTE = re.compile(r'[_^=]*([A-Ga-g])[,\']*')
 def smoke_score_clip(path, rate: int = 22050) -> str:
     """Écrit la mélodie du smoke dans `path` (WAV) et rend ses NOMS de notes attendus (`CDEF…`).
 
-    Timbre à harmoniques et grosse caisse sur chaque temps : un transcripteur de partition suit
+    Timbre à harmoniques et grosse caisse sur chaque temps : un extracteur de partition suit
     la pulsation, une sinusoïde nue n'en donne aucune."""
     import numpy as np
     import soundfile as sf
@@ -500,7 +500,7 @@ def abc_note_names(abc: str) -> str:
 
 
 def _smoke_score(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
-    """Chargement, puis transcription de la mélodie connue : un ABC à tonalité (`K:`), dont la
+    """Chargement, puis extraction de la partition de la mélodie connue : un ABC à tonalité (`K:`), dont la
     suite de notes ressemble à celle jouée."""
     import difflib
     import tempfile
@@ -510,14 +510,14 @@ def _smoke_score(code: str, *, module: str, model_key: str, out_dir: Path) -> di
         clip = Path(tmp) / 'smoke_score.wav'
         expected = smoke_score_clip(clip)
         try:
-            backend = _proposed_backend(code, module, tmp, 'transcribe_score')
+            backend = _proposed_backend(code, module, tmp, 'extract_score')
             if not type(backend).is_available():
                 return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
             # CPU, comme les autres smokes : le rôle ne dispute jamais le GPU au worker.
             with mock.patch('torch.cuda.is_available', return_value=False):
                 if not backend.load(model_id_of(model_key)):
                     return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
-                abc = backend.transcribe_score(model_id=model_id_of(model_key),
+                abc = backend.extract_score(model_id=model_id_of(model_key),
                                                audio_path=str(clip),
                                                output_dir=str(Path(tmp) / 'out'),
                                                melody_only=True)
@@ -542,7 +542,7 @@ def _smoke_score(code: str, *, module: str, model_key: str, out_dir: Path) -> di
 
 #: Un essai par CONTRAT — un contrat sans entrée le dit (`smoke`).
 SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_speech,
-          'ScoreTranscriptionBackend': _smoke_score}
+          'ScoreExtractionBackend': _smoke_score}
 
 
 # ── Le geste : lister, valider (ÉCRIRE), rejeter ─────────────────────────────────────────────

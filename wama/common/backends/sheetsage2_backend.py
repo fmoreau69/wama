@@ -1,5 +1,7 @@
 """
-Backend SheetSage2 — transcription audio → partition ABC (tâche `audio-to-score`).
+Backend SheetSage2 — extraction de la partition ABC d'un audio (tâche `audio-to-score`).
+(`transcribe` ci-dessous est l'API du modèle amont ; le vocabulaire WAMA est `extract_score`,
+« transcribe » désignant déjà le transcriber et la parole.)
 
 Écrit par le rôle `backend` de wama-dev-ai (Albert, 2026-10-03), revu avant validation.
 
@@ -23,7 +25,7 @@ from typing import Callable, Optional
 
 from wama.common.utils.model_components import installed_snapshot
 
-from .score_transcription_base import ScoreTranscriptionBackend
+from .score_extraction_base import ScoreExtractionBackend
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,7 @@ SUPPORTED_MODELS = {
 }
 
 
-class SheetSage2Backend(ScoreTranscriptionBackend):
+class SheetSage2Backend(ScoreExtractionBackend):
     """SheetSage2 : un audio de morceau → sa partition ABC."""
 
     ENGINE = "transformers-remote-code"
@@ -89,7 +91,7 @@ class SheetSage2Backend(ScoreTranscriptionBackend):
             pass
         logger.info("[SheetSage2] déchargé")
 
-    def transcribe_score(
+    def extract_score(
         self,
         model_id: str,
         audio_path: str,

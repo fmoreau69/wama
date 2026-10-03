@@ -498,10 +498,10 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
   avec « auto » était ignoré à la création, alors que le tirage savait retenir MusicGen Melody. Il
   suit désormais la règle de la partition (`consumes_input` : oui si un modèle de la tâche le déclare).
 - 🔄 **Cover depuis un audio par YuE2** : SheetSage2 (audio → partition) est ✅ **intégré le
-  2026-10-03** — tâche `audio-to-score`, contrat `ScoreTranscriptionBackend`, backend validé et
+  2026-10-03** — tâche `audio-to-score`, contrat `ScoreExtractionBackend`, backend validé et
   essayé (`PROSPECTION_PIPELINE.md §Session du 2026-10-03`). L'« environnement séparé » annoncé ici
   était faux : il tourne dans le venv de référence (transformers 4.57.6, deux librairies ajoutées).
-  ⏳ Reste : process `transcrire` au pipeline du composer, `cot="melody"` au backend YuE2.
+  ⏳ Reste : process `extract_score` au pipeline du composer, `cot="melody"` au backend YuE2.
 
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 

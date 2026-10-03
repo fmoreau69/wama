@@ -162,15 +162,15 @@ class SpeechSmokeContractTest(SimpleTestCase):
                          res)
 
 
-SCORE = ('score_transcription_base', 'ScoreTranscriptionBackend')
+SCORE = ('score_extraction_base', 'ScoreExtractionBackend')
 SCORING = '''
 """Backend de test."""
-from .score_transcription_base import ScoreTranscriptionBackend
+from .score_extraction_base import ScoreExtractionBackend
 
 SUPPORTED_MODELS = {"Org/Score": {}}
 
 
-class ScoreBackend(ScoreTranscriptionBackend):
+class ScoreBackend(ScoreExtractionBackend):
     ENGINE = "transformers-remote-code"
     REQUIRED_PACKAGES = []
     name = "score_smoke"
@@ -181,7 +181,7 @@ class ScoreBackend(ScoreTranscriptionBackend):
     def unload(self):
         pass
 
-    def transcribe_score(self, model_id, audio_path, output_dir=None, melody_only=True,
+    def extract_score(self, model_id, audio_path, output_dir=None, melody_only=True,
                          progress_callback=None):
         return ABC
 '''
