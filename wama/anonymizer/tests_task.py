@@ -70,14 +70,28 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         line = process_runs.line(self.media)
         self.assertEqual(('SUCCESS', self.media.output_file.name), (line.status, line.output_ref))
 
-    def test_a_pending_media_sent_by_the_whole_queue_launcher_goes_running_first(self):
-        seen = {}
+    def test_the_whole_queue_launcher_sets_running_and_the_task_id_before_sending(self):
+        sent = mock.Mock(id='queue-task-1')
+        with mock.patch.object(tasks.process_single_media, 'delay', return_value=sent) as delay, \
+                mock.patch.object(tasks, 'close_old_connections'):
+            tasks.process_user_media_batch.run(self.user.id)
+        self.media.refresh_from_db()
+        delay.assert_called_once_with(self.media.pk)
+        self.assertEqual(('RUNNING', 'queue-task-1'), (self.media.status, self.media.task_id))
 
-        def engine(**kwargs):
-            seen['status'] = Media.objects.get(pk=self.media.pk).status
-            return self._blurred(**kwargs)
-        self._run(engine)
-        self.assertEqual('RUNNING', seen['status'])
+    def test_a_stale_redelivered_message_leaves_a_finished_media_untouched(self):
+        """Card #741 (2026-09-29) : the media was relaunched under ANOTHER task and succeeded ; the
+        old message, redelivered later, must not put it back « running » for ever."""
+        Media.objects.filter(pk=self.media.pk).update(status='SUCCESS', task_id='the-relaunch')
+        task = tasks.process_single_media
+        task.push_request(id='the-old-message', retries=0, delivery_info={'redelivered': True})
+        self.addCleanup(task.pop_request)
+        with mock.patch.object(tasks, 'start_process') as started, \
+                mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
+            task.run(self.media.pk)
+        self.media.refresh_from_db()
+        started.assert_not_called()
+        self.assertEqual(('SUCCESS', 'the-relaunch'), (self.media.status, self.media.task_id))
 
     def test_a_failure_is_stated_on_the_media_and_the_locks_are_released(self):
         def broken(**kwargs):

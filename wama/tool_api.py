@@ -998,7 +998,7 @@ def compose_music(
     """
     # Route F4b (2026-10-01) : le domaine du composer est celui du CATALOGUE (ses deux tâches),
     # plus la liste de l'app — un modèle installé ailleurs (YuE2) est accepté ici aussi.
-    from wama.composer.utils.model_choice import (TASKS, consumes_input, generation_type as _type_of,
+    from wama.composer.utils.model_choice import (TASKS, accepts_input, generation_type as _type_of,
                                                    is_valid, normalize)
 
     prompt = prompt.strip()
@@ -1019,7 +1019,9 @@ def compose_music(
                                     ('work_audio', work_audio, 'melody_reference', "d'audio à reprendre")):
         if not path:
             continue
-        if not consumes_input(model, port):
+        # Au sein du pipeline : l'audio d'un cover est pris par un modèle qui en suivra la
+        # partition extraite (`accepts_input`, process `extract_score`, 2026-10-03).
+        if not accepts_input(model, port):
             return {'error': f"Le modèle « {model} » ne prend pas {what} — choisir un modèle qui "
                              f"le déclare, ou un « auto » de groupe ('auto:text-to-music')."}
         try:
@@ -1292,51 +1294,39 @@ def start_transcriber(user, transcript_id: int = None) -> dict:
     Returns:
         {"task_id": str, "status": "started", ...}
     """
-    from wama.transcriber.models import Transcript, TranscriptSegment
-    from wama.transcriber.workers import transcribe, transcribe_without_preprocessing
+    # Le MÊME lanceur que le bouton ▶ de la card (`transcriber/views.py::start`) : verrou et
+    # remise à zéro par `begin_processing` + `_reset_for_relaunch`, tâche par `_task_for`.
+    # Jusqu'au 2026-10-03 l'outil gardait sa propre remise à zéro, qui VIDAIT le texte et les
+    # segments au clic : depuis que la card porte un pipeline (seul le périmé est rejoué), un
+    # lancement qui ne rejouait que le résumé le faisait tourner sur un texte vide.
+    from wama.common.utils.process_control import begin_processing
+    from wama.transcriber.models import Transcript
+    from wama.transcriber.views import _reset_for_relaunch, _task_for
     from django.core.cache import cache
 
-    if transcript_id is not None:
-        try:
-            t = Transcript.objects.get(pk=transcript_id, user=user)
-        except Transcript.DoesNotExist:
-            return {'error': f'Transcript #{transcript_id} introuvable ou non autorisé.'}
-
-        if t.status == 'RUNNING':
-            return {'error': f'Transcript #{transcript_id} est déjà en cours.'}
-
-        t.status = 'PENDING'
-        t.progress = 0
-        t.text = ''
-        t.language = ''
-        t.used_backend = ''
-        t.save()
-        TranscriptSegment.objects.filter(transcript=t).delete()
+    def _launch(pk):
+        t, err = begin_processing(Transcript, pk, user=user, reset=_reset_for_relaunch)
+        if err:
+            return None, err
         cache.set(f'transcriber_progress_{t.id}', 0, timeout=3600)
-
-        task = transcribe.delay(t.id) if t.preprocess_audio else transcribe_without_preprocessing.delay(t.id)
+        task = _task_for(t).delay(t.id)
         t.task_id = task.id
-        t.status = 'RUNNING'
-        t.save()
+        t.save(update_fields=['task_id'])
+        return task, None
 
+    if transcript_id is not None:
+        task, err = _launch(transcript_id)
+        if err == 'not_found':
+            return {'error': f'Transcript #{transcript_id} introuvable ou non autorisé.'}
+        if err:
+            return {'error': f'Transcript #{transcript_id} est déjà en cours.'}
         return {'task_id': task.id, 'status': 'started', 'transcript_id': transcript_id}
 
-    else:
-        pending = Transcript.objects.filter(user=user, status='PENDING')
-        if not pending.exists():
-            return {'error': 'Aucune transcription en attente.'}
-
-        started = []
-        for t in pending:
-            TranscriptSegment.objects.filter(transcript=t).delete()
-            cache.set(f'transcriber_progress_{t.id}', 0, timeout=3600)
-            task = transcribe.delay(t.id) if t.preprocess_audio else transcribe_without_preprocessing.delay(t.id)
-            t.task_id = task.id
-            t.status = 'RUNNING'
-            t.save()
-            started.append(t.id)
-
-        return {'status': 'started', 'transcript_id': None, 'count': len(started), 'ids': started}
+    pending = list(Transcript.objects.filter(user=user, status='PENDING').values_list('pk', flat=True))
+    if not pending:
+        return {'error': 'Aucune transcription en attente.'}
+    started = [pk for pk in pending if _launch(pk)[1] is None]
+    return {'status': 'started', 'transcript_id': None, 'count': len(started), 'ids': started}
 
 
 def get_transcriber_status(user) -> dict:

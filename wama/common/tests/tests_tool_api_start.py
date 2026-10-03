@@ -90,6 +90,44 @@ class StartAnonymizerTest(TestCase):
         self.assertEqual(2, result['count'])
 
 
+class StartTranscriberTest(TestCase):
+    """The assistant starts a transcript through the SAME launcher as the ▶ of its card.
+
+    Since 2026-10-03 the card carries a PIPELINE : a launch replays only what is stale, and the
+    result of a process is cleared by ITS glue when it is replayed — never on the click. The tool
+    kept its own reset, which emptied the text and the segments : a launch replaying the summary
+    alone summarised an empty text and ended « done » without text."""
+
+    def setUp(self):
+        from wama.transcriber.models import Transcript, TranscriptSegment
+        self.user = get_user_model().objects.create_user('transcript-starter', password='x')
+        self.t = Transcript.objects.create(user=self.user, status='SUCCESS', text='bonjour à tous',
+                                           language='fr', audio=SimpleUploadedFile('a.wav', b'x'))
+        TranscriptSegment.objects.create(transcript=self.t, start_time=0, end_time=1,
+                                         text='bonjour à tous')
+
+    def test_a_relaunch_keeps_the_text_and_the_segments_for_the_pipeline_to_decide(self):
+        from wama.transcriber import views
+        task = mock.Mock(**{'delay.return_value': _FakeTask()})
+        with mock.patch.object(views, '_task_for', return_value=task):
+            result = T.start_transcriber(self.user, transcript_id=self.t.pk)
+        self.assertEqual('started', result['status'])
+        task.delay.assert_called_once_with(self.t.pk)
+        self.t.refresh_from_db()
+        self.assertEqual(('RUNNING', 'fake-task-id'), (self.t.status, self.t.task_id))
+        self.assertEqual(('bonjour à tous', 'fr'), (self.t.text, self.t.language))
+        self.assertEqual(1, self.t.segments.count())
+
+    def test_a_running_transcript_is_refused(self):
+        from wama.transcriber import views
+        type(self.t).objects.filter(pk=self.t.pk).update(status='RUNNING')
+        task = mock.Mock()
+        with mock.patch.object(views, '_task_for', return_value=task):
+            result = T.start_transcriber(self.user, transcript_id=self.t.pk)
+        self.assertIn('déjà en cours', result['error'])
+        task.delay.assert_not_called()
+
+
 class EveryStartToolAnswersTest(TestCase):
     """Générique : un `start_*` sans élément à lancer REND une erreur, il ne LÈVE pas.
 

@@ -143,14 +143,10 @@ def process_single_media(self, media_id, force_individual=False):
             cache.delete(f"stop_process_{user_id}")
             return {"stopped": media_id}
 
-        if not (getattr(self.request, 'retries', 0) or 0):
-            # « En cours » est posé par les lanceurs d'UN média (`begin_processing`). Le lanceur
-            # de TOUTE la file (`process_user_media_batch`) remet les médias « en attente » et
-            # envoie les tâches : c'est ici qu'ils passent en cours — à la première livraison
-            # seulement (une re-livraison ne remet pas en cours ce que l'utilisateur a arrêté).
-            Media.objects.filter(pk=media_id).exclude(status='RUNNING').update(
-                status='RUNNING', error_message='')
-
+        # « En cours » est posé par TOUS les lanceurs (`begin_processing`), y compris celui de
+        # la file entière (`process_user_media_batch`) : la tâche ne bascule rien avant la garde
+        # anti-re-livraison du squelette — sans quoi un message re-livré PÉRIMÉ remettait en
+        # cours, pour toujours, un média terminé (2026-10-03).
         run_item_task(self, app_id='anonymizer', model=Media, item_id=media_id,
                       process=_anonymize, notify_label='Anonymizer',
                       ingest_derive=_ingested_metadata,
@@ -626,15 +622,24 @@ def process_user_media_batch(self, user_id):
         cache.delete(f"anon_lock:batch:{user_id}")
         return {"processed": 0}
 
+    # « En cours » est posé par le LANCEUR, sous verrou, avant l'envoi — la règle de tous les
+    # lanceurs (`begin_processing`, `PROJECT_STATUS §PALIER 2026-09-14`) ; la tâche ne bascule
+    # jamais un élément elle-même. Le `task_id` enregistré est ce qui permet à la garde
+    # anti-re-livraison de reconnaître un message PÉRIMÉ (cas de la card #741, 2026-09-29).
+    from wama.common.utils.process_control import begin_processing
+    from .views import _reset_for_relaunch
     task_ids = []
     for media in medias_list:
-        # Set individual media lock before dispatching
-        cache.set(f"anon_lock:media:{media.id}", True, timeout=7200)
-        # Chaque média est traité dans sa propre tâche Celery
-        logger.info(f"[process_user_media_batch] Launching task for media {media.id} ({media.title})")
-        task = process_single_media.delay(media.id)
+        locked, err = begin_processing(Media, media.pk, user=user, reset=_reset_for_relaunch)
+        if err:                     # déjà en cours : sa tâche le porte
+            continue
+        cache.set(f"anon_lock:media:{locked.id}", True, timeout=7200)
+        logger.info(f"[process_user_media_batch] Launching task for media {locked.id} ({locked.title})")
+        task = process_single_media.delay(locked.id)
+        locked.task_id = task.id
+        locked.save(update_fields=['task_id'])
         task_ids.append(task.id)
-        logger.info(f"[process_user_media_batch] Task {task.id} launched for media {media.id}")
+        logger.info(f"[process_user_media_batch] Task {task.id} launched for media {locked.id}")
 
     # Clear batch lock (individual media locks remain until tasks complete)
     cache.delete(f"anon_lock:batch:{user_id}")
