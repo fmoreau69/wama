@@ -142,41 +142,28 @@ def _apply_output_format(synthesis):
 
 @shared_task(bind=True, max_retries=60, default_retry_delay=10)
 def synthesize_voice(self, synthesis_id: int):
-    """
-    Tâche principale de synthèse vocale.
-    Delegates audio generation to the TTS microservice.
+    """Tâche principale de synthèse vocale — par le squelette COMMUN (`run_item_task`, marche P6
+    du 2026-10-03) : gardes (redélivrance après crash), ingestion d'une voix de référence
+    distante, statuts canoniques, durée max, chrono, ETA, console, notifications, ligne
+    d'exécution, révision. L'app ne fournit que sa GLU (`_synthesize`)."""
+    from wama.common.utils.task_skeleton import run_item_task
+    run_item_task(self, app_id='synthesizer', model=VoiceSynthesis, item_id=synthesis_id,
+                  process=_synthesize, notify_label='Synthesizer')
 
-    Args:
-        synthesis_id: ID de l'objet VoiceSynthesis
 
-    Returns:
-        dict: Résultat de la synthèse
-    """
-    close_old_connections()
-    import time as _time
-    _t0 = _time.time()   # pour l'apprentissage ETA (durée de traitement réelle)
-
-    try:
-        synthesis = VoiceSynthesis.objects.get(pk=synthesis_id)
-    except VoiceSynthesis.DoesNotExist:
-        logger.error(f"VoiceSynthesis {synthesis_id} not found")
-        return {'ok': False, 'error': 'Synthesis not found'}
-
-    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort
-    # sans acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué.
-    # Un `self.retry()` émet un message NEUF (non redelivered) : les retries restent OK.
-    from wama.common.utils.process_control import refuse_crash_redelivery
-    if refuse_crash_redelivery(self, synthesis, error_field='error_message'):
-        logger.warning(f"[synthesizer] Synthesis #{synthesis_id}: reprise après crash refusée — relancer manuellement.")
-        return {'ok': False, 'error': 'crash_redelivery'}
-
-    _set_progress(synthesis, 5)
+def _synthesize(synthesis, ctx):
+    """La GLU : extraction du texte → choix du moteur → rendu par le service TTS → sauvegarde,
+    format de sortie, mention « généré par IA », propriétés audio. Le statut SUCCESS, la
+    progression 100, la durée et la notification sont posés par le squelette APRÈS ce retour ;
+    une exception le fait passer en FAILURE ; un service TTS qui charge encore fait RE-LIVRER la
+    tâche (`ServiceNotReady`), sans échec."""
+    ctx.progress(5)
     _console(synthesis.user_id, f"Synthèse vocale #{synthesis.id} démarrée")
 
     try:
         # Étape 1: Extraction du texte
         _console(synthesis.user_id, "Extraction du texte du fichier...")
-        _set_progress(synthesis, 10)
+        ctx.progress(10)
 
         text_content = extract_text_from_file(synthesis.text_file.path)
 
@@ -187,7 +174,7 @@ def synthesize_voice(self, synthesis_id: int):
         synthesis.update_metadata()
 
         _console(synthesis.user_id, f"Texte extrait: {synthesis.word_count} mots")
-        _set_progress(synthesis, 20)
+        ctx.progress(20)
 
         # Choix AUTOMATIQUE du moteur (brique commune `auto_model`, 2026-09-02) : résolu
         # AU LANCEMENT — la VRAM libre du moment fait foi, jamais l'état à la création
@@ -195,6 +182,10 @@ def synthesize_voice(self, synthesis_id: int):
         # tirage est CELUI que le schéma déclare pour les options (`params.py`) ; la
         # prévision affichée sous le select était une photo, on dit ici le choix réel.
         # Le tirage vit dans `speech_render.resolve_tts_model`, que l'APERÇU appelle aussi.
+        # ⚠ ÉCART DÉCLARÉ au contrat du squelette (« un réglage ne s'écrit pas ») : le modèle
+        # tiré est encore ÉCRIT dans le réglage `tts_model` — la card n'a pas d'autre endroit où
+        # le montrer. Comportement d'avant le portage, gardé tel quel ; à solder en lisant le
+        # modèle employé sur la ligne d'exécution (`ProcessRun.model_key`).
         from wama.common.utils.auto_model import is_auto, read_quality_intent
         if is_auto(synthesis.tts_model):
             quality_intent = getattr(synthesis, 'quality_intent', None)
@@ -209,20 +200,14 @@ def synthesize_voice(self, synthesis_id: int):
 
         # Étape 2: Génération audio via le service TTS
         _console(synthesis.user_id, f"Envoi au service TTS (modèle: {synthesis.tts_model})...")
-        _set_progress(synthesis, 30)
+        ctx.progress(30)
 
         # Créer le fichier de sortie temporaire
         output_dir = os.path.dirname(synthesis.text_file.path)
         temp_output = os.path.join(output_dir, f"synthesis_{synthesis.id}_temp.wav")
 
-        # ── Ingest URL déclaratif (brique commune, VoiceSynthesis.WAMA_INGEST) : si
-        # une source_url de voix de référence est posée sans fichier local, on la
-        # matérialise ici.
-        try:
-            from wama.common.utils.source_ingest import ensure_local_input
-            ensure_local_input(synthesis, console=lambda m: _console(synthesis.user_id, m))
-        except Exception as exc:
-            logger.warning(f"[synthesizer] ensure_local_input({synthesis.id}) : {exc}")
+        # (L'ingestion d'une voix de référence donnée par URL — `VoiceSynthesis.WAMA_INGEST` —
+        # est faite par le squelette, avant cette glue.)
 
         # La voix de référence — UNE porte commune, décidée par la CAPACITÉ du moteur
         # (`speaker_wav_for`, common/tts/voice_refs). Le bloc qui vivait ici recopiait la
@@ -238,7 +223,7 @@ def synthesize_voice(self, synthesis_id: int):
 
         # Segments par moteur → service TTS → assemblage → vitesse/hauteur : LA chaîne de
         # rendu (`utils/speech_render`), la même que celle de l'aperçu de voix.
-        _set_progress(synthesis, 40)
+        ctx.progress(40)
         final_output = render_speech(
             text_content, temp_output,
             model=synthesis.tts_model, language=synthesis.language,
@@ -246,16 +231,16 @@ def synthesize_voice(self, synthesis_id: int):
             multi_speaker=getattr(synthesis, 'multi_speaker', False),
             scene_description=getattr(synthesis, 'scene_description', ''),
             speed=synthesis.speed, pitch=synthesis.pitch,
-            on_segment=lambda i, n: _set_progress(synthesis, 40 + int(i / n * 35)),
+            on_segment=lambda i, n: ctx.progress(40 + int(i / n * 35)),
             on_partial=_during_preview(synthesis),
             console=lambda m: _console(synthesis.user_id, m),
         )
         _clear_during(synthesis)
-        _set_progress(synthesis, 85)
+        ctx.progress(85)
 
         # Étape 5: Sauvegarde du résultat
         _console(synthesis.user_id, "Sauvegarde du fichier audio...")
-        _set_progress(synthesis, 90)
+        ctx.progress(90)
 
         with open(final_output, 'rb') as f:
             # Brique COMMUNE de nommage (2026-08-25). Le synthesizer est de la famille
@@ -296,83 +281,34 @@ def synthesize_voice(self, synthesis_id: int):
                 except OSError:
                     pass
 
-        # Finalisation
-        synthesis.status = 'SUCCESS'
-        synthesis.processing_seconds = _time.time() - _t0
-        synthesis.save(update_fields=['status', 'audio_output', 'processing_seconds'])
-
         # Apprentissage ETA : durée réelle ∝ longueur du texte (unit='char'), par modèle TTS.
-        # Service-based (chargement non séparable) → total dans per_unit, load_seconds=None.
-        try:
-            from wama.model_manager.services.eta_estimator import record_run, make_key
-            _txt = synthesis.text_content or ''
-            if _txt:
-                record_run(make_key('synthesizer', synthesis.tts_model),
-                           size=len(_txt), unit='char',
-                           process_seconds=_time.time() - _t0, load_seconds=None,
-                           user=synthesis.user)
-        except Exception:
-            pass
-        _set_progress(synthesis, 100)
-
-        _console(synthesis.user_id, f"Synthèse #{synthesis.id} terminée ✓")
-        try:
-            from wama.common.utils.notifications import notify_job, notify_job_collaborators
-            notify_job(getattr(synthesis, 'user', None), 'Synthesizer',
-                       getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}", True)
-            notify_job_collaborators(synthesis, 'Synthesizer',
-                                     getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}", True)   # E3
-        except Exception:
-            pass
-
+        # Service-based (chargement non séparable) → total dans per_unit, sans temps de
+        # chargement : c'est le squelette qui l'enregistre (`eta` du retour).
+        from wama.model_manager.services.eta_estimator import make_key
+        text = synthesis.text_content or ''
         return {
-            'ok': True,
-            'synthesis_id': synthesis.id,
-            'audio_url': synthesis.audio_output.url,
-            'duration': synthesis.duration_display,
-            'word_count': synthesis.word_count,
+            # La sortie de la card, pour sa RÉVISION (le fichier est déjà écrit et rattaché).
+            'fields': {'audio_output': synthesis.audio_output.name},
+            'eta': (make_key('synthesizer', synthesis.tts_model), len(text), 'char') if text else None,
+            'label': getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}",
+            'models': [synthesis.tts_model] if synthesis.tts_model else None,
+            'console_success': f"Synthèse #{synthesis.id} terminée ✓",
+            'output_ref': synthesis.audio_output.name,
         }
 
     except TTSServiceLoadingError as e:
-        # TTS service is still starting — release the GPU worker and retry later.
-        retry_num = self.request.retries + 1
-        wait_msg = f"Service TTS en chargement, nouvelle tentative dans 10s ({retry_num}/60)..."
-        logger.info(f"synthesize_voice #{synthesis_id}: {wait_msg}")
-        synthesis.error_message = wait_msg
-        synthesis.save(update_fields=['error_message'])
+        # Le service TTS démarre encore : on rend le worker GPU et on reviendra — politique du
+        # squelette commun (60 × 10 s, puis échec dit).
         _clear_during(synthesis)
-        _console(synthesis.user_id, wait_msg, level='warning')
-        try:
-            raise self.retry(exc=e, countdown=10)
-        except self.MaxRetriesExceededError:
-            # 60 retries × 10s = 10 minutes without TTS service → give up
-            synthesis.status = 'FAILURE'
-            synthesis.error_message = "Service TTS non disponible après 10 minutes d'attente (60 tentatives)"
-            synthesis.save(update_fields=['status', 'error_message'])
-            _set_progress(synthesis, 0)
-            _console(synthesis.user_id, "Erreur: service TTS non disponible après 10 minutes", level='error')
-            return {'ok': False, 'error': str(e)}
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        raise ServiceNotReady(
+            "Service TTS en chargement", countdown=10, max_attempts=60,
+            gave_up="Service TTS non disponible après 10 minutes d'attente (60 tentatives)") from e
 
-    except Exception as e:
-        logger.error(f"Error in synthesize_voice task: {str(e)}", exc_info=True)
+    except Exception:
         _clear_during(synthesis)
-        synthesis.status = 'FAILURE'
-        synthesis.error_message = str(e)
-        synthesis.save(update_fields=['status', 'error_message'])
-        _set_progress(synthesis, 0)
-        _console(synthesis.user_id, f"Erreur synthèse #{synthesis.id}: {e}")
-        try:
-            from wama.common.utils.notifications import notify_job, notify_job_collaborators
-            notify_job(getattr(synthesis, 'user', None), 'Synthesizer',
-                       getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}", False, detail=str(e))
-            notify_job_collaborators(synthesis, 'Synthesizer',
-                                     getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}",
-                                     False, detail=str(e))
-        except Exception:
-            pass
-
-        return {'ok': False, 'error': str(e)}
-
+        ctx.reset_progress()
+        raise
 
 
 def _update_audio_properties(synthesis):
