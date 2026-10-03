@@ -1108,6 +1108,17 @@ les cards reçues~~ — faux pour l'imager, corrigé pour le converter le 2026-1
 ⚠ Le premier montage du témoin (card sans lot, puis lot non partagé) donnait un faux rouge : la
 file du describer se construit à partir des LOTS.
 
+### La COLLABORATION de bout en bout (2026-10-03)
+
+Scénario **`common.collaboration_cycle`** (`ui_smoke_menus.py`), **9/9 sur le LIVE** après la
+relance (le 8011 tombait en 500 sur un champ d'une autre instance non migré). Destinataire :
+« Mon accès » → « Demander : Collaboration » (la demande vise le LOT) ; propriétaire (compte
+développeur) : la notification surgit en bas à droite, « Ouvrir » → « Accepter » ; destinataire :
+pastille « Collaboration », ⚙ s'ouvre EN ÉDITION, 🗑 garde l'encart « Suppression réservée » ;
+propriétaire : « Mes partages » → « retirer » ; destinataire : de nouveau « Lecture seule ». Les six
+gestes du partage, rejoués dans la même passe sur le live, restent verts. Domicile :
+`WAMA_COLLABORATION §3bis.2`.
+
 ### Card reçue en LECTURE SEULE, puis demande de PROPRIÉTÉ (2026-10-03)
 
 Scénario **`common.received_card_readonly_request`** (`ui_smoke_menus.py`), **12/12** (8011, code

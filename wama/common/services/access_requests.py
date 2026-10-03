@@ -69,7 +69,7 @@ def collaboration_grant(user, obj):
     return _granted(user, objects, ObjectGrant.LEVEL_COLLABORATE)
 
 
-def trace_collaborator(user, obj, signal: str, detail=None) -> None:
+def record_collaborator_gesture(user, obj, signal: str, detail=None) -> None:
     """Le geste d'un COLLABORATEUR sur la card d'un autre, au journal des faits (`RunOutcome`) —
     E3 (« le journal garde qui a relancé ») et E4 (« le dernier enregistrement gagne, TRACÉ »).
     Rien n'est noté pour le propriétaire : c'est le partage qui rend la question « qui ? » utile.
