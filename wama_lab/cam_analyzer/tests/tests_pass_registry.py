@@ -91,6 +91,78 @@ class OrdreTopologiqueTest(unittest.TestCase):
     def test_a_egalite_l_ordre_de_declaration_est_conserve(self):
         self.assertEqual(pt.topological_order(pt.stage_keys('analyse')), pt.stage_keys('analyse'))
 
+    def test_the_computation_stage_keeps_its_declared_order_through_the_common_sort(self):
+        """The recalages are placed BEFORE the tracking by their position alone (no declared
+        dependency — it would stale the tracking of every session that never played them). The
+        common sort the registry delegates to since 2026-10-03 must keep that promise."""
+        order = pt.topological_order(pt.stage_keys('calcul'))
+        self.assertEqual(order, pt.stage_keys('calcul'))
+        for before in ('lane_map_recalage', 'camera_intrinsics', 'ortho_correction'):
+            self.assertLess(order.index(before), order.index('global_tracking'))
+
+
+class AlignedOnTheCommonEngineTest(unittest.TestCase):
+    """2026-10-03 (ROUTE §10.6 step ③) — the registry that was the MODEL of the common pipeline
+    engine now USES it: a pass is a `ProcessSpec`, the sort and the stale rule are the common ones."""
+
+    def test_a_pass_is_a_common_process_spec_and_the_registry_a_valid_common_pipeline(self):
+        from wama.common.services.process_pipeline import AppPipeline, ProcessSpec
+        self.assertTrue(all(isinstance(p, ProcessSpec) for p in pt.PASSES))
+        pipeline = AppPipeline('cam_analyzer', pt.PASSES, label='Cam Analyzer')
+        self.assertEqual([spec.key for spec in pipeline.ordered()], list(pt.ORDER))
+
+    def _stale(self, profile, rows):
+        from types import SimpleNamespace
+        from unittest import mock
+        saved = []
+        for r in rows:
+            r.save = (lambda row: lambda **kw: saved.append(row.pass_type))(r)
+        with mock.patch('wama_lab.cam_analyzer.models.AnalysisPass.objects.filter',
+                        return_value=rows):
+            flipped = pt.recompute_stale(SimpleNamespace(profile=profile))
+        return flipped, {(r.pass_type, r.camera): r.status for r in rows}
+
+    def test_the_stale_rule_is_the_common_one_with_one_node_per_camera_row(self):
+        from types import SimpleNamespace as Row
+        profile = Row(model_path='new.pt', iou_threshold=0.5, tracker='bytetrack')
+        kept = {'model_path': 'new.pt', 'iou_threshold': 0.5, 'tracker': 'bytetrack'}
+        rows = [
+            Row(pass_type='extraction', camera=None, status='completed', parameters={}),
+            Row(pass_type='yolo_detect', camera='front', status='completed',
+                parameters={**kept, 'model_path': 'old.pt'}),
+            Row(pass_type='yolo_detect', camera='rear', status='completed', parameters=dict(kept)),
+            Row(pass_type='yolopv2_lanes', camera='front', status='completed',
+                parameters={'road_model_path': None}),
+            Row(pass_type='lane_events', camera=None, status='completed', parameters={}),
+            Row(pass_type='intersection_windows', camera=None, status='failed',
+                parameters={'intersections': None}),
+            Row(pass_type='temporal_segments', camera=None, status='completed',
+                parameters={'target_classes': None, 'confidence': None}),
+            Row(pass_type='conflicts', camera=None, status='completed', parameters={}),
+            Row(pass_type='depth', camera=None, status='running', parameters={}),
+        ]
+        flipped, states = self._stale(profile, rows)
+        self.assertEqual(3, flipped)
+        # 1. a watched setting changed — for THAT camera only ;
+        self.assertEqual(('stale', 'completed'),
+                         (states[('yolo_detect', 'front')], states[('yolo_detect', 'rear')]))
+        # 2. an upstream by camera counts as available while ONE of its rows is completed ;
+        self.assertEqual('completed', states[('lane_events', None)])
+        # 3. cascade: an upstream in failure, or never played (`distance`), stales its downstream ;
+        self.assertEqual('stale', states[('temporal_segments', None)])
+        self.assertEqual('stale', states[('conflicts', None)])
+        # 4. what did not return a result is never « stale ».
+        self.assertEqual(('failed', 'running'),
+                         (states[('intersection_windows', None)], states[('depth', None)]))
+
+    def test_nothing_is_stale_when_nothing_changed(self):
+        from types import SimpleNamespace as Row
+        profile = Row(model_path='m.pt', iou_threshold=0.5, tracker='t')
+        rows = [Row(pass_type='extraction', camera=None, status='completed', parameters={}),
+                Row(pass_type='yolo_detect', camera='front', status='completed',
+                    parameters={'model_path': 'm.pt', 'iou_threshold': 0.5, 'tracker': 't'})]
+        self.assertEqual(0, self._stale(profile, rows)[0])
+
 
 class PipelineManifesteTest(unittest.TestCase):
     """D13 ③ (2026-09-09) : le registre `PASSES` EST un manifeste `pipeline` à nœuds `function`."""
