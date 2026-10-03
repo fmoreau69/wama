@@ -1206,6 +1206,38 @@ class ProcessRun(models.Model):
                 f"→ {self.status}")
 
 
+class BatchSettings(models.Model):
+    """Les réglages de RÉFÉRENCE d'un lot — ce que la card mère tient (`MODES_QUEUE_UX §5ter`,
+    `ROUTE §10.6` 5.3 ; 2026-10-03). UNE ligne par lot, réécrite par chaque geste de la mère (sa
+    ⚙, une promotion ↑) ; c'est elle que « ↓ réaligner » réapplique aux filles.
+
+    Adressage : comme `ProcessRun` — `app` = label Django du modèle de LOT, `batch_id` en texte —
+    une table commune plutôt qu'une colonne sur les dix modèles de lot. Service :
+    `common/services/batch_settings.py`.
+    """
+
+    app = models.CharField(max_length=32, db_index=True)
+    batch_type = models.CharField(max_length=64)
+    batch_id = models.CharField(max_length=64)
+    #: La charge utile promue — pour une app Médias ses réglages (noms du schéma → valeurs),
+    #: pour le monde Data son protocole : deux cas du même objet, le PIPELINE de la card.
+    settings = models.JSONField(default=dict, blank=True)
+    #: La fille promue, s'il y en a une ('' pour la ⚙ de la mère) — qui a servi de référence.
+    source_object_id = models.CharField(max_length=64, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Réglages de lot'
+        verbose_name_plural = 'Réglages de lot'
+        constraints = [
+            models.UniqueConstraint(fields=['app', 'batch_type', 'batch_id'],
+                                    name='batch_settings_unique_lot'),
+        ]
+
+    def __str__(self):
+        return f"{self.app}:{self.batch_type}#{self.batch_id} · {len(self.settings or {})} réglage(s)"
+
+
 class ResultEvaluation(models.Model):
     """
     La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière

@@ -85,6 +85,8 @@ urlpatterns = [
     path('batch/<int:pk>/download/', views.batch_download, name='batch_download'),
     path('batch/<int:pk>/start/', views.batch_start, name='batch_start'),
     path('batch/<int:pk>/update/', views.batch_update, name='batch_update'),
+    path('batch/<int:pk>/promote/', views.batch_promote, name='batch_promote'),
+    path('batch/<int:pk>/realign/', views.batch_realign, name='batch_realign'),
 
     # Unused
     # path('display_console/', views.ProcessView.display_console, name='display_console'),

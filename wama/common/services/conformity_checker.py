@@ -888,8 +888,8 @@ def _batch_views_common(f: _AppFiles):
     """
     # `batch_update_settings` : la graphie sous laquelle le synthesizer gardait SA vue de réglages
     # de lot — le motif ne la voyait pas, l'app était verte avec une vue locale (2026-10-02).
-    local_re = (r'(?m)^def (batch_(start|delete|duplicate|update(_settings)?|download|status)'
-                r'|start_batch)\(')
+    local_re = (r'(?m)^def (batch_(start|delete|duplicate|update(_settings)?|download|status'
+                r'|promote|realign)|start_batch)\(')
     brique = f.find_code(VIEWS, r'\bmake_batch_views\(')
     local = f.find_code(VIEWS, local_re)
     if brique and local:

@@ -969,6 +969,8 @@ batch_start = _bv['batch_start']
 batch_update = _bv['batch_update']
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
+batch_promote = _bv['batch_promote']
+batch_realign = _bv['batch_realign']
 
 
 @require_http_methods(["POST"])

@@ -864,6 +864,8 @@ batch_delete = login_required(_bv['batch_delete'])
 batch_duplicate = login_required(_bv['batch_duplicate'])
 batch_download = login_required(_bv['batch_download'])
 batch_update = login_required(_bv['batch_update'])
+batch_promote = login_required(_bv['batch_promote'])
+batch_realign = login_required(_bv['batch_realign'])
 
 
 # ────────────────────────────────────────────────────────────────────────────

@@ -801,6 +801,8 @@ batch_update = _bv['batch_update']
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
 batch_download = _bv['batch_download']
+batch_promote = _bv['batch_promote']
+batch_realign = _bv['batch_realign']
 
 
 def queue_count(request):

@@ -1105,7 +1105,9 @@ batch_update    = _bv['batch_update']
 batch_delete    = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
 batch_download  = _bv['batch_download']
-batch_status    = _bv['batch_status']'''
+batch_status    = _bv['batch_status']
+batch_promote   = _bv['batch_promote']
+batch_realign   = _bv['batch_realign']'''
     fabrique_link = f'''# Fabrique COMMUNE de manipulation de file (forme à LIAISON — lue au manifeste,
 # `processing.model_spec.batch`) : la meme brique que les 9 apps reelles.
 _qm = make_queue_manipulation_views(
@@ -1164,7 +1166,7 @@ consolidate       = _qm['consolidate']'''
     couverts_fabrique = {'reorder', 'reorder_queue', 'merge', 'move_to_batch',
                          'remove_from_batch', 'consolidate',
                          'batch_start', 'batch_update', 'batch_delete', 'batch_duplicate',
-                         'batch_download', 'batch_status'}
+                         'batch_download', 'batch_status', 'batch_promote', 'batch_realign'}
     ignores = {'about', 'help'}     # servis par common.views dans le urls généré
     blocs, deja = [], set()
     for ep in d['endpoints']:

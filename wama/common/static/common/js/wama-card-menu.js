@@ -598,6 +598,35 @@
             });
         }
 
+        // ↑ PROMOUVOIR SES RÉGLAGES AU LOT (2026-10-03, MODES_QUEUE_UX §5ter / ROUTE §10.6 5.3) :
+        // une FILLE fait de ses réglages la référence de la mère, posée sur ses sœurs — n'importe
+        // quelle card peut servir de référence (régler plusieurs filles, comparer, promouvoir la
+        // gagnante). L'URL est lue sur l'en-tête du lot (`data-batch-promote-url`, émise par
+        // `_batch_card.html` quand la route existe) : une app non câblée ne se voit rien
+        // proposer. Le pendant « ↓ réaligner » est un bouton de la mère (`queue-actions.js`).
+        var childLot = (!estLot && !recue && cibles.length === 1) ? lotDe(card) : null;
+        var promoteHeader = childLot ? childLot.querySelector('[data-batch-promote-url]') : null;
+        if (promoteHeader && card.dataset.id) {
+            entrees.push({
+                icone: 'fas fa-arrows-up-to-line', libelle: 'Promouvoir ses réglages au lot',
+                agir: function () {
+                    poster(promoteHeader.getAttribute('data-batch-promote-url'),
+                           { source: card.dataset.id })
+                        .then(function (res) {
+                            if (!res || res.success === false || res.error) {
+                                dire('Promotion impossible — '
+                                     + ((res && (res.error || res.reason)) || 'refusée'), 'error');
+                                return;
+                            }
+                            var n = res.updated || 0;
+                            dire('Réglages promus au lot · ' + n + ' card' + (n > 1 ? 's' : '')
+                                 + ' réalignée' + (n > 1 ? 's' : ''), 'success');
+                            setTimeout(function () { location.reload(); }, 600);
+                        });
+                },
+            });
+        }
+
         if (d.dndMergeUrl && cibles.length > 1 && !selectionRecue) {
             entrees.push({
                 icone: 'fas fa-layer-group', libelle: 'Former un lot (' + cibles.length + ')',
@@ -1282,7 +1311,7 @@
     // écoutent à la remontée) et ouvre l'encart. ⚙ d'une CARD reste actif : la modale s'ouvre en
     // CONSULTATION (option 2). Le serveur refuse de toute façon ces gestes (`owned_or_404`) : ceci
     // dit POURQUOI au lieu de laisser un refus sec.
-    var OWNER_ONLY = '.wama-cycle-btn, .delete-btn, .batch-start-btn, .batch-delete-btn, .batch-settings-btn';
+    var OWNER_ONLY = '.wama-cycle-btn, .delete-btn, .batch-start-btn, .batch-delete-btn, .batch-settings-btn, .batch-realign-btn';
     var notice = null;
 
     function fermerEncart() {

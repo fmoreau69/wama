@@ -58,6 +58,9 @@ ROUTE_TABLE = {
     'batch_delete':      ('batch/<int:pk>/delete/',        'views.batch_delete'),
     'batch_duplicate':   ('batch/<int:pk>/duplicate/',     'views.batch_duplicate'),
     'batch_download':    ('batch/<int:pk>/download/',      'views.batch_download'),
+    # Promotion fille ↔ mère (P5, 2026-10-03) : deux vues de plus de la fabrique commune.
+    'batch_promote':     ('batch/<int:pk>/promote/',       'views.batch_promote'),
+    'batch_realign':     ('batch/<int:pk>/realign/',       'views.batch_realign'),
 }
 
 # Variantes de NOM d'une route conventionnelle — MESURÉES sur les 9 manifestes le 2026-08-29 :

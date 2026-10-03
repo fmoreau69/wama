@@ -313,6 +313,144 @@ class DirectFormBatchViewsTest(TestCase):
         self.assertEqual((got[self.a.pk], got[self.b.pk]), (True, 'true'))
 
 
+class PromotionBetweenChildAndMotherTest(TestCase):
+    """↑ promouvoir / ↓ réaligner (`MODES_QUEUE_UX §5ter`, `ROUTE §10.6` 5.3 — 2026-10-03), sur la
+    forme à FK directe. La mère RETIENT une référence (`common/services/batch_settings.py`) ;
+    les trois gestes (⚙, ↑, ↓) écrivent par le même chemin que la ⚙ de lot."""
+
+    def setUp(self):
+        from wama.converter.models import ConversionBatch, ConversionJob
+        self.u = _user()
+        self.rf = RequestFactory()
+        self.lot = ConversionBatch.objects.create(user=self.u, total=2)
+        self.a = ConversionJob.objects.create(user=self.u, input_filename='a.mp4', batch=self.lot,
+                                              batch_row_index=1, output_format='mp4')
+        self.b = ConversionJob.objects.create(user=self.u, input_filename='b.mp4', batch=self.lot,
+                                              batch_row_index=0, output_format='webm')
+        self.views = self._views(promote_payload=lambda j: {'output_format': j.output_format})
+
+    def _views(self, **kw):
+        from wama.converter.models import ConversionBatch, ConversionJob
+        return make_batch_views(
+            work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda r: self.u,
+            params_fields=('output_format',), batch_attr='batch', row_field='batch_row_index',
+            batch_extra=lambda lot: {'media_type': lot.media_type}, **kw)
+
+    def _post(self, name, data=None, views=None):
+        req = self.rf.post('/x/', data or {})
+        req.user = self.u
+        return (views or self.views)[name](req, self.lot.pk)
+
+    def test_promoting_a_child_writes_its_settings_on_its_sisters_and_the_mother_remembers_them(self):
+        from wama.common.models import BatchSettings
+        from wama.common.services import batch_settings
+        r = self._post('batch_promote', {'source': self.b.pk})
+        payload = json.loads(r.content)
+        self.assertEqual((r.status_code, payload['updated'], payload['source']), (200, 1, self.b.pk))
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.output_format, 'webm', 'la sœur a reçu les réglages de la fille promue')
+        self.assertEqual(batch_settings.stored(self.lot), {'output_format': 'webm'})
+        row = BatchSettings.objects.get(**batch_settings.address(self.lot))
+        self.assertEqual(row.source_object_id, str(self.b.pk), 'la mère sait QUI a servi de référence')
+        self.assertEqual(batch_settings.references_for(type(self.lot), [self.lot.pk]),
+                         {self.lot.pk: str(self.b.pk)}, 'ce que la page de file lit, en une requête')
+
+    def test_by_default_a_child_promotes_the_settings_of_its_app_schema(self):
+        """Sans `promote_payload`, la charge utile vient du SCHÉMA de l'app (règle de la
+        révision) — jamais d'une liste de champs écrite dans la fabrique."""
+        r = self._post('batch_promote', {'source': self.b.pk}, views=self._views())
+        payload = json.loads(r.content)
+        self.assertEqual(r.status_code, 200, payload)
+        self.assertEqual(payload['settings'].get('output_format'), 'webm')
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.output_format, 'webm')
+
+    def test_a_card_outside_the_batch_cannot_be_promoted(self):
+        from wama.common.services import batch_settings
+        from wama.converter.models import ConversionJob
+        other = ConversionJob.objects.create(user=self.u, input_filename='z.mp4', output_format='ogg')
+        r = self._post('batch_promote', {'source': other.pk})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('appartient', json.loads(r.content)['error'])
+        self.assertIsNone(batch_settings.stored(self.lot))
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.output_format, 'mp4')
+
+    def test_realigning_without_a_reference_says_so(self):
+        r = self._post('batch_realign')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('référence', json.loads(r.content)['error'])
+
+    def test_the_mother_settings_become_the_reference_and_realign_erases_individual_changes(self):
+        from wama.common.services import batch_settings
+        self._post('batch_update', {'output_format': 'ogg'})
+        self.assertEqual(batch_settings.stored(self.lot), {'output_format': 'ogg'},
+                         'la ⚙ de la mère EST une pose de référence')
+        self.a.output_format = 'mkv'                       # écart individuel sur une fille
+        self.a.save(update_fields=['output_format'])
+        r = self._post('batch_realign')
+        self.assertEqual(json.loads(r.content)['updated'], 2)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.output_format, 'ogg', "l'écart individuel est effacé")
+
+    def test_a_running_sister_is_left_alone(self):
+        self.a.status = 'RUNNING'
+        self.a.save(update_fields=['status'])
+        r = self._post('batch_promote', {'source': self.b.pk})
+        self.assertEqual(json.loads(r.content)['updated'], 0)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.output_format, 'mp4', 'une card EN COURS ne se modifie pas')
+
+    def test_a_refused_setting_leaves_the_reference_untouched(self):
+        from wama.common.services import batch_settings
+
+        def apply(job, data):
+            raise ValueError('format refusé')
+
+        r = self._post('batch_promote', {'source': self.b.pk},
+                       views=self._views(apply_settings=apply,
+                                         promote_payload=lambda j: {'output_format': j.output_format}))
+        self.assertEqual(r.status_code, 400)
+        self.assertIsNone(batch_settings.stored(self.lot), 'un refus ne pose pas de référence')
+
+    def test_the_reference_follows_duplication_and_leaves_with_deletion(self):
+        from wama.common.services import batch_settings
+        from wama.converter.models import ConversionBatch
+        self._post('batch_update', {'output_format': 'ogg'})
+        new_id = json.loads(self._post('batch_duplicate').content)['batch_id']
+        self.assertEqual(batch_settings.stored(ConversionBatch.objects.get(pk=new_id)),
+                         {'output_format': 'ogg'}, 'la copie du lot hérite de sa référence')
+        self._post('batch_delete')
+        self.assertIsNone(batch_settings.stored(self.lot), 'la référence part avec le lot')
+
+
+class BatchCardReferenceRenderTest(TestCase):
+    """La card mère porte les deux coordonnées des gestes (`_batch_card.html`) : ↓ désactivé tant
+    que le lot n'a pas de référence, `data-batch-promote-url` sur l'en-tête pour ses filles."""
+
+    def _render(self, reference):
+        from django.template.loader import render_to_string
+        from wama.converter.models import ConversionBatch
+        lot = ConversionBatch.objects.create(user=_user(), total=2)
+        info = {'obj': lot, 'items': [], 'success_count': 0, 'running_count': 0,
+                'failure_count': 0, 'has_success': False, 'evaluation': None,
+                'agreement': None, 'reference': reference}
+        return render_to_string('common/_batch_card.html',
+                                {'batch_info': info, 'app': 'converter', 'actions_communes': True})
+
+    def test_without_a_reference_the_realign_button_is_disabled_and_says_what_to_do(self):
+        html = self._render(None)
+        self.assertRegex(html, r'data-batch-promote-url="[^"]*/batch/\d+/promote/"')
+        self.assertRegex(html, r'data-batch-realign-url="[^"]*/batch/\d+/realign/"')
+        self.assertRegex(html, r'batch-realign-btn[^>]*\bdisabled\b')
+        self.assertIn('Aucun réglage de référence', html)
+
+    def test_with_a_reference_the_realign_button_is_live(self):
+        html = self._render({'source': ''})
+        self.assertNotRegex(html, r'batch-realign-btn[^>]*\bdisabled\b')
+        self.assertIn('Réaligner toutes les cards du lot', html)
+
+
 class LinkFormBatchViewsTest(TestCase):
     """Forme à LIAISON — imager (`GenerationBatchItem`)."""
 

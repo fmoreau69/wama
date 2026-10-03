@@ -223,11 +223,19 @@ sur briques communes)* ; tout le reste se génère.
 `optional` du **pipeline porté par la card** (ex. diarisation/résumé/cohérence du transcriber, TTS de
 l'avatarizer) — toujours pas un domaine ni un mode.
 
-## 5ter. Promotion fille ↔ mère des réglages (décidé 2026-08-25 — venu du monde Data, bénéfice COMMUN) ⏳
+## 5ter. Promotion fille ↔ mère des réglages (décidé 2026-08-25 — venu du monde Data, bénéfice COMMUN) ✅ Médias (2026-10-03) · ⏳ Data
 
 > Origine : l'UI du monde Data (`WAMA_DATA_WORLD.md §11.8 ③`) — transposer le « trip de référence »
 > de BIND_GUI **sans créer de card marquée**. Le mécanisme vaut pour TOUTES les files, Médias compris
 > (régler une card, puis appliquer au batch).
+
+> ✅ **CONSTRUIT le 2026-10-03 (chantier pipeline, P5 — 5.3)** : la mère RETIENT une référence
+> (`BatchSettings`, `common/services/batch_settings.py` — sa ⚙ la pose, une promotion la
+> remplace), **↓** sur la card mère (`batch_realign`, désactivé et parlant tant qu'il n'y a pas de
+> référence), **« Promouvoir ses réglages au lot »** dans le menu « … » d'une fille
+> (`batch_promote`). Les trois gestes écrivent par le chemin de la ⚙ de lot. Charge utile
+> déclarée (`make_batch_views(promote_payload=)`, défaut = le schéma de l'app) : le cas Data et
+> son garde-fou restent à déclarer. Détail et restes : `ROUTE §10.6` point 5, bloc 5.3.
 
 - **Existant (rappel)** : les paramètres de la card mère s'appliquent à toutes les filles, SAUF si
   un paramètre a été modifié individuellement sur une fille (l'override la détache).
