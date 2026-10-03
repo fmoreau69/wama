@@ -107,6 +107,40 @@ Channel surface ({SURFACE}):
 - DO NOT paste the /media/… path in your answer: it needs a browser session, so it is dead text here. The gateway adds the real download link itself, next to the file it uploads. Just say the file is attached.
 """
 
+#: Consigne ajoutée SUR LA SURFACE WEB seulement : l'assistant y a une VOIX et un AVATAR, et il
+#: ne le savait pas. Mesuré le 2026-10-03 sur un échange réel (fil #16) : à « je n'entends pas ta
+#: vocalisation » il a répondu « je communique uniquement par écrit » et a proposé le
+#: Synthesizer, puis l'Avatarizer — les seuls objets « voix » et « avatar » que son prompt
+#: nommait (des OUTILS qui fabriquent des fichiers). Ce n'était pas une invention du modèle :
+#: rien, ni le préambule, ni le skill de rôle, ni le bloc d'outils, ne décrivait la surface.
+#: Même nature que `CHANNEL_FILES_PROMPT` : dire à l'assistant ce que SA surface fait pour lui.
+#: L'ÉTAT (voix active ou coupée, avatar affiché ou non) vient des réglages durables de
+#: l'assistant — ceux que lit le navigateur (`context_processors.assistant_avatar`) —, pour
+#: qu'il puisse répondre « ta voix est coupée » plutôt que de deviner.
+WEB_VOICE_PROMPT = """
+Web surface:
+- Your written answers are READ ALOUD to the user by WAMA's built-in voice, and lip-synced by the 3D avatar shown in the right panel. The browser does this by itself: you call nothing for it.
+- Current state for this user: voice {VOICE}, avatar {AVATAR}. The user switches the voice with the speaker button of the chat (🔊 on / 🔇 muted), and the avatar with the avatar button next to it.
+- So NEVER answer that you only communicate in writing or that you have no voice or no avatar. If the user cannot hear you, give them the state above and point to the speaker button.
+- The Synthesizer and the Avatarizer are NOT your voice: they produce FILES (an audio file, a talking-avatar video) from a text the user provides. Offer them only when the user wants such a file.
+"""
+
+#: Surfaces où la réponse est vocalisée par le navigateur (`wama-assistant-voice.js`). Les canaux
+#: publient du texte et des fichiers ; l'API rend du JSON à un client qui en fait ce qu'il veut.
+_SPOKEN_SURFACES = ('web',)
+
+
+def web_voice_prompt(user, surface: str) -> str:
+    """La consigne de voix et d'avatar de la surface web, avec l'état de CET utilisateur —
+    '' hors surface vocalisée ou sans compte (l'anonyme n'a ni voix ni avatar)."""
+    if surface not in _SPOKEN_SURFACES or user is None or not getattr(user, 'is_authenticated', False):
+        return ''
+    prefs = assistant_settings(user)
+    return (WEB_VOICE_PROMPT
+            .replace('{VOICE}', 'ON' if prefs.get('voice', True) else 'MUTED by the user')
+            .replace('{AVATAR}', 'shown' if prefs.get('avatar', True) else 'hidden by the user'))
+
+
 def surface_attaches_files(surface: str) -> bool:
     """La réponse de cette surface est-elle publiée par un ADAPTATEUR qui joint les fichiers ?
 
@@ -999,6 +1033,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # cours de conversation) : elle se place donc avec le bloc fixe, avant le dynamique.
     surface_prompt = (CHANNEL_FILES_PROMPT.replace('{SURFACE}', surface)
                       if user and surface_attaches_files(surface) else '')
+    # Surface VOCALISÉE (web) : l'assistant y a une voix et un avatar, et leur état courant.
+    surface_prompt += web_voice_prompt(user, surface)
 
     system_prompt = (WAMA_SYSTEM_PROMPT.replace('{LANGUE}', langue)
                      + (f"\n\n{role}" if role else '')

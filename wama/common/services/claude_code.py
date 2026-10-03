@@ -194,7 +194,7 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
     oauth_token = None
     if user is not None and getattr(user, 'is_authenticated', False):
         from wama.model_manager.services.cloud_models import cloud_refusal
-        refus = cloud_refusal(user)
+        refus = cloud_refusal(user, SUBSCRIPTION_SOURCE)
         if refus:
             return {'success': False, 'error': refus}
         from wama.accounts.api_keys import key_for

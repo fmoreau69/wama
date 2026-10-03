@@ -96,6 +96,28 @@ class UserProfile(models.Model):
         max_length=24, choices=CLOUD_POLICIES, default='local_only',
         verbose_name="Usage des modèles cloud",
     )
+    # SECOND AXE du cloud (décision de Fabien, 2026-10-03) : `cloud_policy` dit QUAND WAMA peut
+    # sortir du local, ces deux champs disent JUSQU'OÙ et À QUEL PRIX.
+    #   • `cloud_hosting_max` — PLAFOND d'hébergement, sur l'échelle ordonnée
+    #     `external_sources.HOSTING_SCALE` (privé < souverain < commercial). Vaut pour le tirage
+    #     automatique ET pour le choix manuel : au-delà du plafond, rien ne part.
+    #     ⚠ AUCUN `choices=` : l'échelle a UN domicile (`external_sources`), et la figer ici
+    #     ferait une migration à chaque niveau ajouté (même raison que `search_engine`).
+    #   • `cloud_metered_auto` — le tirage AUTOMATIQUE peut-il retenir un modèle FACTURÉ À
+    #     L'USAGE (`cost_tier == 'metered'`) ? Non par défaut : mesuré le 03/10, « cloud
+    #     autorisé » + une clé d'API Anthropic faisaient choisir un modèle facturé au jeton à
+    #     CHAQUE tour d'assistant, quel que soit le curseur. Le choix MANUEL reste ouvert :
+    #     nommer un modèle payant est un consentement, le laisser tirer n'en est pas un.
+    # `db_default` : la base remplit seule ces colonnes, donc le code EN SERVICE (pas encore
+    # rechargé) continue de créer des profils après la migration.
+    cloud_hosting_max = models.CharField(
+        max_length=16, default='sovereign', db_default='sovereign',
+        verbose_name="Hébergement cloud le plus lointain accepté",
+    )
+    cloud_metered_auto = models.BooleanField(
+        default=False, db_default=False,
+        verbose_name="Le choix automatique peut retenir un modèle facturé à l'usage",
+    )
     # ── Moteur de recherche web de l'assistant (décision de Fabien, 2026-09-26) ────────
     # DEUX étages, comme partout : un défaut d'INSTANCE (`settings.WAMA_SEARCH_ENGINE`) et
     # cette préférence, qui le surcharge. Vide = « celui de l'instance » — et non « aucun » :

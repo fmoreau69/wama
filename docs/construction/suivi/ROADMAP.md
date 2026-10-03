@@ -1474,6 +1474,29 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   placeholder de dev. (Précision : la rotation est À LA DEMANDE, aucun planificateur ne la lance
   — `INFRA_WSL_VS_WINDOWS.md:128`.) Réglage de profil à **3 niveaux** : « 100 % local » (défaut),
   « cloud si WAMA est saturé », « cloud autorisé ».
+- ✅ **SECOND AXE du cloud — décision de Fabien, 2026-10-03** : le niveau dit QUAND WAMA peut
+  sortir du local, deux réglages de profil disent JUSQU'OÙ et À QUEL PRIX.
+  **Mesure qui l'a déclenché** : profil « cloud autorisé » + une clé d'API Anthropic → le tirage
+  automatique de l'assistant rendait `anthropic:claude-opus-4-6` (facturé au jeton) aux curseurs
+  0, 50 ET 100 — un distant « coûte » 0 sur la carte, donc le bout « rapide » le choisit aussi.
+  1. **Plafond d'hébergement** (`UserProfile.cloud_hosting_max`) sur une échelle ORDONNÉE, celle
+     des anneaux de la présentation : `private` (infrastructure de l'établissement) <
+     `sovereign` (État : Albert) < `third_party` (commercial) — `external_sources.HOSTING_SCALE`,
+     `hosting_within`. « Local » n'est pas sur l'échelle : c'est l'exécution sur site, réglée par
+     le niveau. Défaut **souverain** (« clouds commerciaux : seulement si on les choisit »).
+     Vaut pour le tirage ET pour le choix manuel (`allowed_cloud_keys`, `cloud_refusal(user,
+     source)`). ⏳ Aucune source ne se déclare `private` aujourd'hui : la valeur est posée pour
+     que le profil et la présentation disent la même chose le jour où un serveur de
+     l'université arrive.
+  2. **Modèles facturés à l'usage au tirage automatique** (`cloud_metered_auto`, défaut NON) : un
+     `cost_tier == 'metered'` n'entre au tirage que sur consentement ; le choix MANUEL reste
+     ouvert (nommer un modèle payant est un consentement). C'est le consommateur que `cost_tier`
+     n'avait pas — à l'ADMISSION, comme le voulait `model_selector` (« le sélecteur n'arbitre
+     pas local/distant »).
+  Migration `accounts 0024` : un profil qui avait quitté le « 100 % local » ET posé la clé d'un
+  hébergeur tiers garde son accès (plafond relevé à commercial) ; le consentement au payant reste
+  à donner. Après : tirage de Fabien = `albert:deepseek-v4-flash` (0, 50), `ollama:qwen3.8`
+  (100). Gardes : `tests_cloud_models.HostingCeilingTest`, `tests_api_keys.NiveauCloudTest`.
 - **Découverte des modèles cloud PAR LES CLÉS DES UTILISATEURS** (Fabien, 15/09) : à
   l'enregistrement d'une clé, puis périodiquement, WAMA lit les modèles ouverts à CE compte
   (`GET /v1/models`) et les garde avec la clé ; le catalogue porte l'union, chaque utilisateur ne

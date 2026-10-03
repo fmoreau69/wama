@@ -71,7 +71,46 @@ import os
 from dataclasses import dataclass
 
 #: Hébergement d'un fournisseur LLM (champ `hosting`) → libellé court affiché aux utilisateurs.
-HOSTING = {'sovereign': 'souverain', 'third_party': 'hébergeur tiers'}
+HOSTING = {'private': 'privé', 'sovereign': 'souverain', 'third_party': 'hébergeur tiers'}
+
+#: L'ÉCHELLE des hébergements distants, du plus proche au plus lointain — les anneaux de la
+#: présentation de WAMA (`includes/wama_presentation.html`, « La souveraineté, à plusieurs
+#: niveaux ») : Local · Cloud privé · Clouds souverains · Clouds commerciaux. « Local » n'y
+#: figure PAS : ce n'est pas l'hébergement d'une source distante, c'est l'exécution sur site
+#: (`AIModel.execution == 'local'`), réglée par `UserProfile.cloud_policy`.
+#:   • `private`     — infrastructure de l'ÉTABLISSEMENT (un serveur de l'université) : la
+#:                     donnée quitte le poste, pas l'institution. ⏳ Aucune source ne le déclare
+#:                     encore (2026-10-03) : la valeur existe pour que le plafond du profil et
+#:                     la présentation disent la même chose le jour où une source arrive ;
+#:   • `sovereign`   — hébergement de l'État (Albert, DINUM, SecNumCloud) ;
+#:   • `third_party` — hébergeur commercial.
+#: C'est l'ORDRE qui fait la règle : un profil plafonné à un niveau admet ce niveau et tous
+#: ceux qui le précèdent (`hosting_within`). Décision de Fabien, 2026-10-03.
+HOSTING_SCALE = ('private', 'sovereign', 'third_party')
+
+#: Plafond par défaut d'un profil : les clouds commerciaux « seulement si on les choisit,
+#: jamais par défaut » (même diapositive).
+HOSTING_CEILING_DEFAULT = 'sovereign'
+
+#: Libellés du PLAFOND au profil (une formulation par niveau, dans l'ordre de l'échelle).
+HOSTING_CEILING_LABELS = {
+    'private': "Cloud privé seulement (serveurs de l'établissement)",
+    'sovereign': "Jusqu'aux clouds souverains (Albert)",
+    'third_party': "Jusqu'aux clouds commerciaux",
+}
+
+
+def hosting_within(hosting: str, ceiling: str) -> bool:
+    """`hosting` est-il admis par un profil plafonné à `ceiling` ?
+
+    Un hébergement INCONNU ou vide n'est admis par aucun plafond : une source qui ne dit pas où
+    partent les données ne passe pas au bénéfice du doute. Un plafond inconnu vaut le défaut.
+    """
+    if hosting not in HOSTING_SCALE:
+        return False
+    if ceiling not in HOSTING_SCALE:
+        ceiling = HOSTING_CEILING_DEFAULT
+    return HOSTING_SCALE.index(hosting) <= HOSTING_SCALE.index(ceiling)
 
 #: Portées. `LOCAL` = service tournant sur la machine (ou l'hôte) : le proxy doit être
 #: NEUTRALISÉ, sans quoi il répond sa page d'erreur HTML à la place du service (incident
@@ -125,8 +164,9 @@ class ExternalSource:
     api_key_env: str = ''
     #: Page où l'on obtient une clé — affichée à côté du champ de saisie du profil.
     api_key_help_url: str = ''
-    #: Fournisseur LLM : où partent les données — 'sovereign' (hébergement de l'État) ou
-    #: 'third_party'. Une clé d'API suffit à faire d'une source un service DISTANT (Fabien, 15/09).
+    #: Fournisseur LLM : où partent les données — une valeur de `HOSTING_SCALE` ('private',
+    #: 'sovereign' — hébergement de l'État —, 'third_party'). Une clé d'API suffit à faire d'une
+    #: source un service DISTANT (Fabien, 15/09).
     hosting: str = ''
     #: Fournisseur LLM : coût de ses modèles (valeurs de `AIModel.cost_tier`).
     cost_tier: str = ''

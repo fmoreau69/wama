@@ -438,6 +438,30 @@ ligne. ⚠ C'est le NOM DUPLIQUÉ qui rendait la chose invisible à un `grep`. L
 synthesizer sont conservés : ce nom DÉLÈGUE. Gardes : `common/tests/tests_tts_text.py` (17), là où il
 n'y en avait **aucune** — le défaut ne se voit qu'à l'oreille, le serveur répondant 200.
 
+**La voix de l'assistant, trois constats du 2026-10-03** (échange réel de Fabien, fil #16) :
+1. ✅ **L'assistant ne savait pas qu'il parle.** À « je n'entends pas ta vocalisation » il
+   répondait « je communique uniquement par écrit » et proposait le Synthesizer, puis
+   l'Avatarizer. Ce n'était pas le curseur « rapide » : RIEN dans son prompt (préambule, skill
+   de rôle, bloc d'outils) ne décrivait la surface. Ajout d'une consigne de SURFACE web
+   (`assistant_engine.WEB_VOICE_PROMPT`, sœur de `CHANNEL_FILES_PROMPT`) : il est lu à voix
+   haute et animé par l'avatar, avec l'ÉTAT courant (voix active/coupée, avatar affiché/masqué)
+   lu des réglages durables. Posée dans la partie FIXE du prompt. Garde :
+   `tests_assistant_surfaces.WebVoicePromptTest`.
+2. ✅ **« WAMA » lu « WAMAfreu ».** espeak-ng BALISE ses bascules de langue (`(en)wˈɑːmə(fr)`),
+   et le tokenizer de `kokoro_onnx` les passe telles quelles au modèle. Le jumeau `.pt` n'avait
+   pas le défaut (misaki : `remove-flags`) : il date du passage à l'ONNX (31/08). Le backend
+   phonémise désormais lui-même (`kokoro_onnx_backend.phonemes_without_language_flags`). La
+   langue et la voix, elles, étaient justes. ⏳ Le mot reste prononcé à l'anglaise : un LEXIQUE
+   de prononciation (`tts_text`) est à décider. Garde : `tests_kokoro_onnx_phonemes` (dont un
+   test qui échouera le jour où la librairie corrige en amont). 🔴 Service TTS à relancer.
+3. ⏳ **Le moteur de la voix n'est pas TIRÉ.** `ASSISTANT_TTS_ENGINE` est une variable
+   d'environnement : ni « auto », ni curseur, ni bascule selon la VRAM — le « XTTS qui prend la
+   relève » n'a jamais existé (`ROADMAP` §microservice TTS). La voie cohérente est le tirage
+   commun (`resolve_model_choice`, tâche `text-to-speech`), Kokoro en plancher rapide. Candidats
+   mesurés le 03/10 : Qwen3-TTS 1.7B est INSTALLÉ et exécutable (le pin `transformers==4.57.3`
+   de `qwen-tts` n'est qu'un avertissement de `pip check`) ; Kyutai TTS 1.6B (EN/FR, entrée
+   texte en flux) et Voxtral TTS (CC BY-NC) sont hors catalogue.
+
 #### 1ter. L'assistant agit sur le CODE — pour les développeurs et administrateurs (22/09)
 
 Demande de Fabien : *« utiliser un modèle local ou cloud souverain, performant en code, pour

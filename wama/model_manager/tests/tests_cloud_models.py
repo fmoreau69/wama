@@ -247,6 +247,8 @@ class AbonnementPersonnelTest(TestCase):
     def setUp(self):
         self.dev = get_user_model().objects.create_user('dev_abo', password='x', is_superuser=True)
         self.dev.profile.cloud_policy = 'cloud_allowed'
+        # L'abonnement est un hébergeur TIERS : il faut l'avoir admis (plafond, 2026-10-03).
+        self.dev.profile.cloud_hosting_max = 'third_party'
         self.dev.profile.save()
 
     def test_en_100_pour_cent_local_l_abonnement_n_est_pas_lance(self):
@@ -380,6 +382,8 @@ class CleDeLAssistantTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user('assistant_cle', password='x')
         self.user.profile.cloud_policy = 'cloud_allowed'
+        # Ces tests appellent aussi l'API Anthropic, hébergeur TIERS (plafond, 2026-10-03).
+        self.user.profile.cloud_hosting_max = 'third_party'
         self.user.profile.save()
 
     def test_en_100_pour_cent_local_le_distant_est_refuse_meme_avec_une_cle(self):
@@ -482,3 +486,74 @@ class CatalogueUpdateInTheBackgroundTest(TestCase):
         pk = self.row.pk
         self.row.delete()
         self.assertEqual({'registered': False}, register_cloud_key_task(pk))
+
+
+@override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
+class HostingCeilingTest(TestCase):
+    """SECOND AXE du cloud (2026-10-03) : le niveau dit QUAND, le plafond dit JUSQU'OÙ, et un
+    modèle facturé à l'usage n'entre au tirage automatique que sur consentement.
+
+    Mesuré avant : « cloud autorisé » + une clé d'API Anthropic faisaient rendre au tirage
+    un modèle facturé au jeton aux curseurs 0, 50 et 100.
+    """
+
+    def setUp(self):
+        from wama.accounts.models import UserApiKey
+        self.user = get_user_model().objects.create_user('hosting_ceiling', password='x')
+        self.profile = self.user.profile
+        self.profile.cloud_policy = 'cloud_allowed'
+        self.profile.save()
+        UserApiKey.objects.create(user=self.user, source='albert', api_key='sk',
+                                  open_models=['albert:chat'])
+        UserApiKey.objects.create(user=self.user, source='anthropic', api_key='sk',
+                                  open_models=['anthropic:claude-x'])
+
+    def _keys(self, automatic=True):
+        return cloud_models.allowed_cloud_keys(get_user_model().objects.get(pk=self.user.pk),
+                                               automatic=automatic)
+
+    def _set(self, **values):
+        for name, value in values.items():
+            setattr(self.profile, name, value)
+        self.profile.save()
+
+    def test_a_new_profile_stops_at_the_sovereign_cloud(self):
+        self.assertEqual({'albert:chat'}, self._keys())
+        self.assertEqual({'albert:chat'}, self._keys(automatic=False))
+
+    def test_a_commercial_ceiling_opens_the_manual_choice_but_not_the_metered_draw(self):
+        self._set(cloud_hosting_max='third_party')
+        self.assertEqual({'albert:chat', 'anthropic:claude-x'}, self._keys(automatic=False))
+        self.assertEqual({'albert:chat'}, self._keys())
+
+    def test_the_metered_consent_opens_the_automatic_draw(self):
+        self._set(cloud_hosting_max='third_party', cloud_metered_auto=True)
+        self.assertEqual({'albert:chat', 'anthropic:claude-x'}, self._keys())
+
+    def test_the_metered_consent_does_not_lift_the_ceiling(self):
+        """Contre-épreuve : consentir au payant ne rouvre pas un hébergement refusé."""
+        self._set(cloud_metered_auto=True)
+        self.assertEqual({'albert:chat'}, self._keys())
+
+    def test_a_private_ceiling_admits_no_source_yet(self):
+        """Aucune source ne se déclare « privée » aujourd'hui : le plafond le plus bas ferme tout."""
+        self._set(cloud_hosting_max='private')
+        self.assertEqual(set(), self._keys(automatic=False))
+
+    def test_the_refusal_names_the_ceiling_and_spares_an_admitted_source(self):
+        user = get_user_model().objects.get(pk=self.user.pk)
+        self.assertIn('souverain', cloud_models.cloud_refusal(user, 'anthropic'))
+        self.assertEqual('', cloud_models.cloud_refusal(user, 'albert'))
+        with self.assertRaises(cloud_models.CloudAccessRefused):
+            cloud_models.cloud_access(user, 'anthropic', 'claude-x')
+
+    def test_the_scale_is_ordered_and_an_undeclared_hosting_is_never_admitted(self):
+        from wama.common import external_sources as es
+        self.assertTrue(es.hosting_within('private', 'sovereign'))
+        self.assertTrue(es.hosting_within('sovereign', 'sovereign'))
+        self.assertFalse(es.hosting_within('third_party', 'sovereign'))
+        self.assertFalse(es.hosting_within('', 'third_party'))
+        # Toute source LLM déclare un hébergement de l'échelle — sinon elle n'ouvrirait rien.
+        for source in es.SOURCES:
+            if source.kind == 'llm':
+                self.assertIn(source.hosting, es.HOSTING_SCALE, source.key)

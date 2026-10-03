@@ -334,8 +334,18 @@ def register_open_models(row) -> None:
                 logger.warning("provenance non enregistrée pour %s", key, exc_info=True)
 
 
-def cloud_refusal(user) -> str:
-    """Motif de refus si `user` est en « 100 % local », sinon ''. Sans utilisateur : ''.
+def hosting_ceiling(user) -> str:
+    """PLAFOND d'hébergement du profil (`UserProfile.cloud_hosting_max`), sur l'échelle
+    `external_sources.HOSTING_SCALE` — le défaut de l'échelle si le profil ne dit rien."""
+    value = getattr(getattr(user, 'profile', None), 'cloud_hosting_max', '')
+    return value if value in external_sources.HOSTING_SCALE else external_sources.HOSTING_CEILING_DEFAULT
+
+
+def cloud_refusal(user, source: str = '') -> str:
+    """Motif de refus d'un appel distant pour `user`, sinon ''. Sans utilisateur : ''.
+
+    Deux refus, dans cet ordre : le profil « 100 % local », puis — quand la `source` est nommée —
+    un fournisseur hébergé AU-DELÀ du plafond du profil (second axe, 2026-10-03).
 
     Domicile UNIQUE de la garde : l'appel LLM de l'assistant et `claude_code.demander` (outil
     `ask_claude_code`, fournisseur abonnement, geste `!code`) la lisent tous deux.
@@ -345,6 +355,16 @@ def cloud_refusal(user) -> str:
     if getattr(getattr(user, 'profile', None), 'cloud_policy', 'local_only') == 'local_only':
         return ("Votre profil est en « 100 % local » : pour utiliser un fournisseur distant, "
                 "choisissez un autre niveau dans la carte « Modèles cloud » de la page Profil.")
+    if source:
+        try:
+            src = external_sources.get(source)
+        except Exception:
+            return ''                       # source inconnue : ce n'est pas à cette garde de le dire
+        ceiling = hosting_ceiling(user)
+        if not external_sources.hosting_within(src.hosting, ceiling):
+            return (f"{src.label} est hébergé par un « {external_sources.HOSTING.get(src.hosting, src.hosting)} » "
+                    f"et votre profil s'arrête à « {external_sources.HOSTING_CEILING_LABELS[ceiling]} » : "
+                    "relevez ce plafond dans la carte « Modèles cloud » de la page Profil.")
     return ''
 
 
@@ -356,19 +376,34 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
     - « cloud si WAMA est saturé » → le choix MANUEL s'ouvre ; le tirage AUTOMATIQUE n'ouvre le
       distant que sur saturation, signal que porte le chantier du curseur (⏳ — d'ici là, rien) ;
     - « cloud autorisé » → les deux.
+
+    SECOND AXE (Fabien, 2026-10-03) — le niveau dit QUAND, ces deux réglages disent JUSQU'OÙ :
+    - le PLAFOND d'hébergement (`cloud_hosting_max` : privé < souverain < commercial) borne les
+      deux chemins — une source au-delà du plafond n'ouvre rien, ni au tirage ni au choix ;
+    - un modèle FACTURÉ À L'USAGE (`cost_tier == 'metered'`) n'entre au tirage AUTOMATIQUE que
+      si le profil le dit (`cloud_metered_auto`). Mesuré le 03/10 : avec « cloud autorisé » et
+      une clé d'API Anthropic, le tirage rendait un modèle facturé au jeton aux curseurs 0, 50
+      et 100 (un distant « coûte » 0 sur la carte, cf. `model_selector._best_by_vram`). Le
+      choix MANUEL n'est pas concerné : nommer un modèle payant est un consentement.
+    C'est ici, à l'ADMISSION, que le coût s'arbitre — pas dans le score du sélecteur.
     """
     if user is None or not getattr(user, 'is_authenticated', False):
         return set()
-    policy = getattr(getattr(user, 'profile', None), 'cloud_policy', 'local_only')
+    profile = getattr(user, 'profile', None)
+    policy = getattr(profile, 'cloud_policy', 'local_only')
     if policy == 'local_only' or (automatic and policy != 'cloud_allowed'):
         return set()
     from wama.accounts.api_keys import llm_sources
     from wama.accounts.models import UserApiKey
+    ceiling = hosting_ceiling(user)
+    metered_auto = bool(getattr(profile, 'cloud_metered_auto', False))
     # ⚠ Les SOURCES que CET utilisateur a le droit d'utiliser, pas seulement celles dont une ligne
     # de clé existe : l'abonnement Claude Code est `developer_only`. Mesuré le 2026-09-16 — sans ce
     # filtre, un compte ordinaire portant une ligne `claude_code` voyait le modèle d'abonnement
     # dans le sélecteur commun, alors que la garde du moteur le lui refuse.
-    ouvertes = {s.key for s in llm_sources(user)}
+    ouvertes = {s.key for s in llm_sources(user)
+                if external_sources.hosting_within(s.hosting, ceiling)
+                and not (automatic and s.cost_tier == 'metered' and not metered_auto)}
     keys = set()
     # `values_list` : les modèles seuls, sans déchiffrer la clé.
     for opened in (UserApiKey.objects.filter(user=user, source__in=ouvertes).exclude(api_key='')
@@ -396,7 +431,7 @@ def cloud_access(user, source: str, model_id: str = '') -> str:
     """
     from wama.accounts.api_keys import key_for
     if user is not None and getattr(user, 'is_authenticated', False):
-        refusal = cloud_refusal(user)
+        refusal = cloud_refusal(user, source)
         if refusal:
             raise CloudAccessRefused(refusal, 403)
         if model_id and f"{source}:{model_id}" not in allowed_cloud_keys(user, automatic=False):
