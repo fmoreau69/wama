@@ -454,6 +454,15 @@ common/app_modern_base.html   ← base de toutes les apps
 | `javascript` | Scripts JS (inclure les fichiers .js ici) |
 | `extra_modals` | Modales Bootstrap supplémentaires |
 
+> **Les scripts COMMUNS d'une page d'app viennent du socle** (2026-10-03, `ROUTE §11 #25`) :
+> `{% include 'common/_app_scripts.html' with with_input_match=True … %}`, posé APRÈS la config
+> `window.*` et AVANT le JS de l'app. Il charge les formulaires du schéma (`wama-params`), l'ETA,
+> le lot, la card d'entrée, la voie d'import et la barre de file ; les options déclarent le
+> reste (`with_input_match`, `with_model_caps`, `with_modes`, `with_prompt_chips`). Ne jamais
+> reposer une de ces balises à la main, ni un script que `base.html` charge déjà (double
+> exécution = deux écouteurs). Tenu par le critère `app_scripts_common` et par
+> `tests_item_lifecycle_contract` (socle présent, aucun script chargé deux fois).
+
 ### 4.3 Onglets obligatoires
 
 La base fournit 4 onglets automatiquement. Chaque app **doit** remplir les 4 :

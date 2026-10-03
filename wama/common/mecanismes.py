@@ -1602,6 +1602,20 @@ MECHANISMS = (
               # Consommé par la balise de gabarit, jamais par import Python : sans symbole,
               # le compteur (imports du module) rendait 0 — brique « morte » à 100+ pages.
               symbol='static_v'),
+    # Ajouté le 2026-10-03 (ROUTE §11 #25) : le socle existait depuis le 2026-08-22, rattaché
+    # en simple annexe d'`import_front` — donc ni compté ni vérifié pour lui-même, à 0/10 dans
+    # le parc réel pendant six semaines.
+    Mechanism('app_scripts', "Socle JS d'application",
+              "La couche JS commune d'une page d'app — `_app_scripts.html` : formulaires du "
+              "schéma (wama-params), ETA, lots, card d'entrée, voie d'import, barre de file ; "
+              "options déclarées (appariement entrée ↔ modèle, capacités, modes, chips de "
+              "prompt). Ce que `base.html` charge déjà n'y est PAS (une double exécution = deux "
+              "écouteurs : le player audio muet du 18/08). Adopté par les 10 apps le 2026-10-03 "
+              "(chaque gabarit recopiait ses balises ; l'anonymizer avait oublié la barre de "
+              "file, sept scripts globaux étaient rechargés). Critère `app_scripts_common` ; "
+              "garde `tests_item_lifecycle_contract` (socle présent, aucun script chargé deux "
+              "fois sauf les idempotents déclarés)",
+              'wama/common/templates/common/_app_scripts.html', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md'),
     Mechanism('new_item_card', 'Card « Nouvel élément »',
               "Card d'entrée dépliable commune — les 6 modalités du partial : dépôt, URL, "
               "médiathèque, lot, dossier, live + slot de référence typé (extra_zone) — "

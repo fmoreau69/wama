@@ -169,16 +169,7 @@ ce que la modale de lot poste : modèle/durée/format/qualité — le prompt res
     window.COMPOSER_QUEUE_COUNT = {{ active_count }};{# items actifs (amorçage barre globale) #}
 </script>
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'composer:global_progress' %}";</script>
-<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>  {# barre globale COMMUNE (l'endpoint dort depuis sa création — branché, audit B1) #}
-<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
-<script src="{% static_v 'common/js/wama-model-help.js' %}"></script>
-<script src="{% static_v 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) — composer n'en avait pas besoin avant (initFromSchema lit sans rendre) #}
-<script src="{% static_v 'common/js/wama-cycle-button.js' %}"></script>  {# bouton cycle ▶/⏹/↻ — le JS composer était déjà câblé (wire/autoSync), le script manquait #}
-<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
-<script src="{% static_v 'common/js/wama-queue.js' %}"></script>  {# file commune : toggle Ligne/Mosaïque + collapse batch + focusCard #}
-<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée DÉPLIABLE (auto-init, mécanisme synthesizer globalisé) #}
-<script src="{% static_v 'common/js/batch-import.js' %}"></script>  {# import batch COMMUN : aperçu serveur + créer/lancer (audit B3-9) #}
-<script src="{% static_v 'common/js/wama-import.js' %}"></script>  {# voie d'import COMMUNE (WamaImport) : lot / attache mélodie / refus — 8ᵉ app en place (2026-09-08) #}
+{% include 'common/_app_scripts.html' with with_input_match=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 <script>
 // Import batch COMMUN (WamaBatchImport, pattern transcriber) : aperçu serveur dans la detect bar,
 // « Créer seulement » ≠ « Créer et lancer » (le lancement passe par composer:batch_start —

@@ -343,14 +343,11 @@ function _mpInjectImage(file, inputId, previewId) {
     csrfToken: "{{ csrf_token }}"
     };
 </script>
-<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
+{% include 'common/_app_scripts.html' with with_input_match=True with_modes=True with_prompt_chips=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 <link rel="stylesheet" href="{% static_v 'common/css/wama-prompt-chips.css' %}">
-<script src="{% static_v 'common/js/wama-prompt-chips.js' %}"></script>
-<script src="{% static_v 'common/js/wama-modes.js' %}"></script>
-{% comment %}Fonction commune de barre globale, chargée AVANT index.js (qui appelle
+{% comment %}Fonction commune de barre globale, chargée par le socle AVANT index.js (qui appelle
 WamaGlobalProgress.init 2 fois : 1 barre par file, images et vidéos). Pas de
 WAMA_GLOBAL_PROGRESS_URL → pas d'auto-init.{% endcomment %}
-<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 <script>
 /* Config de la card d'entrée (input_card.js) — méta d'appariement servie par la vue. */
 window.IMAGER_CARD = {
@@ -364,7 +361,6 @@ window.IMAGER_CARD = {
     inputLabels: {{ input_labels|safe }}
 };
 </script>
-<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>
 <script>
 /* Schémas + groupes des modales ⚙ (params.py = source unique). */
 window.IMAGER_IMAGE_SCHEMA = {{ image_params_json|safe }};
@@ -377,9 +373,8 @@ window.IMAGER_VIDEO_PANEL_VALUES = {{ video_panel_values_json|safe }};
 </script>
 <script src="{% static_v 'imager/js/queue.js' %}"></script>
 {% comment %} wama-params.js n'est PAS une brique globale de base.html (contrairement à
-wama-app-base) : chaque app qui génère ses modales du schéma l'inclut, comme anonymizer.
+wama-app-base) : il vient du socle d'app (_app_scripts.html), ci-dessus.
 Le CSS, lui, est déjà global (base.html). {% endcomment %}
-<script src="{% static_v 'common/js/wama-params.js' %}"></script>
 {% comment %}Inspecteur contextuel : la brique n'est PAS globale (base.html), chaque app qui
 rend un volet schéma-driven la charge — comme reader. Sans elle, `initFromSchema` n'existe pas
 et le clic sur une card ne fait RIEN (constaté au navigateur le 2026-08-07). Le CSS, lui, est
@@ -389,8 +384,6 @@ déjà global.{% endcomment %}
 lancer ». PAS de dropZoneId/fileInputId ici — la card de l'imager route déjà ses fichiers
 (input_card.js:routeFile) et lui accrocher un 2e gestionnaire ferait double détection. On passe
 donc par l'intégration « app existante » : routeFile appelle detectAndHandle(). {% endcomment %}
-<script src="{% static_v 'common/js/batch-import.js' %}"></script>
-<script src="{% static_v 'common/js/wama-import.js' %}"></script>  {# voie d'import COMMUNE (WamaImport, mode attache) : instanciée par input_card.js, une fois par domaine — 9ᵉ app en place (2026-09-08) #}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     if (typeof WamaBatchImport === 'undefined') {

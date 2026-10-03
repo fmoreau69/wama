@@ -117,6 +117,53 @@ class ItemLifecycleContractTest(TestCase):
                 seen.append(app)
         self.assertGreaterEqual(len(seen), 10, seen)
 
+    #: Scripts qu'une page peut recevoir DEUX fois sans dommage — chacun avec sa raison.
+    IDEMPOTENT_SCRIPTS = {
+        'common/js/wama-new-item-card.js': "garde anti-double-init (`wama-new-item-card.js:21`) : "
+                                           "porté par la card d'entrée, qui vit aussi HORS des "
+                                           "apps (médiathèque), ET par le socle d'app",
+        'common/js/wama-input-slots.js': "garde par card (`wama-input-slots.js:253`, "
+                                         "`slotsWired`) : porté par la card v4, qu'une page "
+                                         "pose deux fois quand l'app a deux files (enhancer, "
+                                         "imager)",
+    }
+
+    def test_every_app_page_loads_the_common_app_scripts_once(self):
+        """Le socle JS d'app (`_app_scripts.html`) adopté par les dix apps (ROUTE §11 #25,
+        2026-10-03) — il était à 0/10 : chaque gabarit recopiait ses balises, l'anonymizer avait
+        oublié celle de la barre de file, et sept scripts que `base.html` charge déjà étaient
+        rechargés (deux exécutions = deux écouteurs : le défaut du player audio muet du 18/08).
+        Une page d'app charge le socle, et aucun script commun deux fois."""
+        import re
+        from collections import Counter
+        from pathlib import Path
+        from django.conf import settings
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.sandbox import twins_with_copied_views
+        core = ('wama-params.js', 'wama-eta.js', 'batch-import.js', 'wama-new-item-card.js',
+                'wama-import.js', 'wama-global-progress.js')
+        copied, seen = twins_with_copied_views(), []
+        for app, spec in APP_CATALOG.items():
+            if app in copied or (spec or {}).get('sandbox'):
+                continue
+            source = Path(settings.BASE_DIR) / 'wama' / app / 'templates' / app / 'index.html'
+            if not source.exists():
+                continue
+            with self.subTest(app=app):
+                self.assertIn("include 'common/_app_scripts.html'",
+                              source.read_text(encoding='utf-8'), f'{app} recopie ses balises')
+                self._login_for(app)
+                html = self.client.get(reverse(f'{app}:index')).content.decode(errors='replace')
+                loaded = Counter(re.findall(r'<script src="[^"]*?/static/(common/js/[\w.-]+\.js)',
+                                            html))
+                for name in core:
+                    self.assertIn(f'common/js/{name}', loaded, f'{app} : {name} absent')
+                twice = {s: n for s, n in loaded.items()
+                         if n > 1 and s not in self.IDEMPOTENT_SCRIPTS}
+                self.assertEqual({}, twice, f'{app} charge des scripts communs plusieurs fois')
+                seen.append(app)
+        self.assertGreaterEqual(len(seen), 10, seen)
+
     def test_an_exemption_from_the_factory_is_still_needed(self):
         from pathlib import Path
         from django.conf import settings
