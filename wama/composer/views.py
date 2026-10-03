@@ -149,6 +149,7 @@ def _pipeline_view(gen):
     lancement n'est pas connu : on montre ce qui a tourné."""
     from wama.common.services.process_pipeline import card_view
     from wama.common.utils.auto_model import is_auto
+    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
     return card_view(gen, None if is_auto(gen.model) else normalize(gen.model))
 
 
