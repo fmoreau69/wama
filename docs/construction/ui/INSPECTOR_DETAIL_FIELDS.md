@@ -77,7 +77,7 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
   | Voie | Signature | Adoption (mesurée 2026-10-03 ; c'était 9 / 3 le 22/08) |
   |---|---|---|
   | **Spec** (déclarative) — LA voie | `register_app_detail_spec(app, model, spec)` → `detail_from_spec` | **9 apps** — anonymizer, avatarizer, composer, converter, describer, enhancer, reader, synthesizer, transcriber (+ les jumelles générées) |
-  | **Adapter** (fonction) — l'exception DÉCLARÉE | `register_app_detail(app, model, adapter)` | **2** — `imager` (schéma choisi par élément, COLLECTION de résultats, rôle selon ce qui est sorti) et `audio_enhancer` (second domaine de l'enhancer : la spec lit UN schéma par nom d'app). Liste tenue par `tests_detail_spec.CODE_ADAPTERS` : un adapter code non déclaré fait échouer la suite |
+  | **Adapter** (fonction) — RESTE À PORTER | `register_app_detail(app, model, adapter)` | **2** — `imager` et `audio_enhancer` : trois formes manquent encore à la spec (collection de résultats, schéma choisi ou nommé, premier élément d'une liste — voir ⏳ ci-dessous). Liste tenue par `tests_detail_spec.CODE_ADAPTERS` : elle ne peut que descendre, et un adapter code NOUVEAU fait échouer la suite |
 
   > ⚠ La voie **spec** ne figurait pas dans ce document, alors que c'est la plus alignée sur la
   > philosophie (§3 : métadonnée-driven — l'app déclare `aliases` + champs au lieu d'écrire une
@@ -117,9 +117,18 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
   gardé pour les OPTIONS ; il avait ajouté le format en réglage par effet de bord. Garde :
   `tests_detail_spec.AFactIsShownOnceTest` (les dix apps, les deux voies).
 
-  ⚠ **Ce que la spec ne dit PAS, à dessein** : une collection de résultats, un schéma choisi par
-  élément, un calcul. Y ajouter une forme pour UNE app en ferait un langage de programmation ; ces
-  cas gardent l'adapter code, déclarés avec leur raison.
+  ⏳ **Ce que la spec ne dit PAS ENCORE — à ajouter pour porter les deux derniers adapters**
+  (Fabien, 2026-10-03 : « on uniformise et on porte tout », il n'y a pas de choix de ne pas
+  porter ; cette ligne disait « à dessein », c'était faux) : ① une COLLECTION de résultats
+  (`result_files`, clé canonique que `build_detail` accepte déjà — imager : `output_images`) ;
+  ② un SCHÉMA choisi par élément pour `extra_from_params` (imager : `IMAGE_PARAMS_JSON` ou
+  `VIDEO_PARAMS_JSON` selon `is_video_generation`) ou NOMMÉ (audio de l'enhancer :
+  `AUDIO_PARAMS_JSON`, qui n'est pas le schéma principal de l'app) — `declared_param_schemas`
+  connaît déjà tous les schémas d'une app par leur nom d'attribut ; ③ « premier élément d'une
+  liste » dans la forme « premier champ non vide » (imager : `output_video`, sinon la première
+  des `output_images`). Le rôle selon la sortie et le type selon l'élément sont déjà exprimables
+  (`when_any`). Un calcul, lui, n'a pas sa place dans une donnée. Liste tenue par
+  `tests_detail_spec.CODE_ADAPTERS`, qui ne peut que descendre.
 
   Mesure avant bascule (éléments témoins non enregistrés, ancien adapter contre spec candidate) :
   **16 témoins sur 19 identiques clé pour clé** (anonymizer, avatarizer, synthesizer, composer) ;
