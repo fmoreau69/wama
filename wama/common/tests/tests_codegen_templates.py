@@ -313,7 +313,9 @@ class EmissionsDuGabaritTest(SimpleTestCase):
                          'wcv3-sec--output', 'wcv3-sec--state', 'wcv3-sec--actions',
                          'wcv3-bar', '_cycle_button.html', '_card_chips.html',
                          'duplicate-btn', 'delete-btn', 'settings-btn',
-                         'unified_preview', 'data-output-format'):
+                         'unified_preview', 'data-output-format',
+                         # La bande des PROCESS (P5, 5.2) : rendue vide sous deux process.
+                         '_card_processes.html', 'elem.shown_state|default:elem.status'):
             self.assertIn(marqueur, self.card, f'card générée sans {marqueur}')
 
     def test_l_import_de_dossier_est_offert(self):

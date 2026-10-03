@@ -20730,3 +20730,23 @@ cinq adapters retirés) ; puis « un fait rendu une fois » au volet (`02df9c45`
 **Leçons posées là où elles agissent** : `/smoke` (serveur jetable CÔTÉ WSL dès qu'un moteur est en
 jeu ; `pkill -f` à crochet ; compte de test qui a des cards) ; `/commit-partiel` inchangé ; mémoire :
 heredocs de l'outil Bash qui mangent les antislashs, `python -m unittest` nu interdit.
+
+## §PALIER — 2026-10-03, « PIPELINE P5 — 5ᵉ pièce : ⚙ PAR PROCESS + BANDE DANS LE GABARIT GÉNÉRÉ (5.2) » — ✅ — 🔚 case des process optionnels · studio (5.4)
+
+- **⚙ par process** (commun, zéro ligne par app) : `card_rows` remonte `watched` ; la bande rend
+  par process un `.settings-btn[data-id]` — le MÊME bouton que la card, donc le même ouvreur
+  d'app — porteur de `data-only` ; `queue-actions.js` pose `WamaParams.scopeNextModal(names,
+  label)` ; `settingsModal` consomme la portée : schéma réduit (`scopedSchema`, porteurs
+  `hidden` gardés), groupes vides retirés, titre « — Rendu ». Portée à usage unique, périmée
+  seule après 3 s. Garde V8 : `tests_cap_from_js.ScopedSettingsModalTest` (2).
+- **5.2 — gabarit généré** : `templates_gen` inclut `_card_processes.html` (`card_id`) et lit
+  `elem.shown_state|default:elem.status` ; `views_gen._decorer` → `process_pipeline.decorate`.
+  Brique : `process_pipeline.pipeline_of / card_view / decorate` (point d'attache unique ; le
+  composer `_pipeline_view` délègue). Gardes : `tests_process_pipeline` (+2 : `watched` par
+  ligne, décoration nulle sans pipeline / posée avec), `composer.tests_pipeline` (+1 : le ⚙ du
+  rendu montre `duration`, pas celui de la partition), `tests_codegen_templates` (marqueurs).
+- **Tests** : 189 (pipeline, V8 params, composer, codegen) — un seul rouge, le PRÉEXISTANT
+  `tests_codegen_lot…conventional_body` (imager, consigné au palier précédent). `check_templates`
+  0 défaut ; statics synchronisés, parse V8 OK.
+- 🔚 **Reste de P5** : case à cocher des process `optional` (aucune app n'en déclare — le
+  transcriber à P6 ; la bande sait déjà les distinguer, `wcv3-proc--optional`) ; studio (5.4).

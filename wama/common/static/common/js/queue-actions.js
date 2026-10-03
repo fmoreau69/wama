@@ -504,6 +504,15 @@
         const id = btn.dataset.id;
         if (!id) return;
 
+        // ⚙ d'UN process (bande des process, P5) : le même ouvreur d'app, mais la modale commune
+        // ne rend que les réglages que ce process SURVEILLE (`data-only`, lu de
+        // `ProcessSpec.watched`) — portée posée pour le prochain `WamaParams.settingsModal`,
+        // que l'ouvreur appelle sans rien savoir d'elle. Aucune ligne par app.
+        if (btn.dataset.only && window.WamaParams && WamaParams.scopeNextModal) {
+            WamaParams.scopeNextModal(btn.dataset.only.split(',').map(function (s) { return s.trim(); }),
+                                      btn.dataset.scopeLabel || '');
+        }
+
         const opener = pick(openers, btn);
         if (opener) { opener(id, btn); return; }
 

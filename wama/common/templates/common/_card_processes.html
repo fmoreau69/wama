@@ -17,6 +17,11 @@ Variables :
               (`handlers.start(id, btn)` : `btn.dataset.process`) et poste sur sa route
               `start/<id>/<process>/` — le lancement borné de `AppPipeline.steps_to_run(only=)`.
               Masqué par le CSS tant que la card est en vol.
+              Et son ⚙ « réglages de ce process » : le MÊME bouton `.settings-btn[data-id]` que
+              celui de la card (donc le même ouvreur d'app, `WamaQueueActions.onSettings`), avec
+              `data-only` = les réglages que le process SURVEILLE (`ProcessSpec.watched`) : la
+              brique `queue-actions.js` le passe à `WamaParams.scopeNextModal`, et la modale
+              commune ne rend que ces champs — rien à écrire par app. Absent sans `watched`.
 Contrat JS : `[data-processes]` > `.wcv3-proc[data-process=<clé>]` > `.wama-status-dot[data-s]` +
 `.wcv3-proc-note` — mis à jour en place par `WamaApp.updateProcessRows(card, rows)` pendant le
 traitement (le re-rendu serveur complet n'arrive qu'en fin de tâche).
@@ -33,6 +38,7 @@ Usage : {% include 'common/_card_processes.html' with processes=elem.processes c
       <span class="wama-status-dot" data-s="{{ p.status }}"></span>
       <span class="wcv3-proc-name">{{ p.label }}</span>
       <small class="wcv3-proc-note text-white-50">{% if p.status == 'SUCCESS' and p.duration_s %}{{ p.duration_s|floatformat:0 }} s{% elif p.status == 'STALE' %}périmé{% elif p.status == 'FAILURE' %}échec{% elif p.status == 'RUNNING' %}en cours{% elif p.status == 'AWAITING_RESOURCES' %}attend{% endif %}</small>
+      {% if card_id and p.watched %}<button type="button" class="btn btn-sm btn-outline-secondary settings-btn wcv3-proc-settings" data-id="{{ card_id }}" data-process="{{ p.key }}" data-only="{{ p.watched|join:',' }}" data-scope-label="{{ p.label }}" title="Réglages de « {{ p.label }} »"><i class="fas fa-cog"></i></button>{% endif %}
       {% if card_id %}<button type="button" class="btn btn-sm btn-outline-success wama-cycle-btn wcv3-proc-run" data-cycle-action="start" data-id="{{ card_id }}" data-process="{{ p.key }}" title="Lancer « {{ p.label }} » seul (ses amonts périmés d'abord)"><i class="fas fa-play"></i></button>{% endif %}
     </span>
   {% endfor %}

@@ -737,9 +737,12 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
         <div class="btn-group-actions wcv3-actions">
         <button type="button" class="btn btn-sm btn-outline-secondary settings-btn" title="Paramètres"
                 data-id="{{{{ elem.id }}}}" {{% for k, v in elem.gear_data.items %}}data-{{{{ k }}}}="{{{{ v }}}}" {{% endfor %}}><i class="fas fa-cog"></i></button>
-        {{% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}}{bouton_dl}{bouton_dup}{bouton_del}
+        {{% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}}{bouton_dl}{bouton_dup}{bouton_del}
         </div>
       </div>
+
+      {{# PROCESS : une ligne par process, générée des lignes d'exécution (P5, 5.2) — rien sous deux process #}}
+      {{% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id %}}
 
       {{% if elem.status != 'PENDING' %}}
       <div class="wcv3-bar" style="grid-column:1/-1;">

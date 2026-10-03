@@ -1193,8 +1193,51 @@
   //   onSaved(id, restart, resp),  // suite (rafraîchir la card, relancer…)
   //   errorOf(resp),               // extraction du message d'erreur (défaut : resp.error)
   // }
+  // ── PORTÉE d'une modale : les réglages d'UN process (P5, ROUTE §10.6 5.1 — 2026-10-03) ──
+  // Le ⚙ d'une ligne de process (`_card_processes.html`) est le MÊME bouton que le ⚙ de la
+  // card : l'app déclare un seul ouvreur, qui appelle `settingsModal` sans rien savoir du
+  // process. La portée se pose donc JUSTE AVANT, pour le prochain appel (`queue-actions.js`
+  // la lit sur `data-only`), et s'éteint seule si aucune modale ne la consomme à temps — un
+  // ouvreur qui attend le réseau avant d'ouvrir a trois secondes, une modale ouverte plus tard
+  // par un autre geste ne doit pas en hériter.
+  let pendingScope = null;
+
+  function scopeNextModal(names, label) {
+    const kept = (names || []).filter(Boolean);
+    pendingScope = kept.length ? { names: kept, label: label || '', until: Date.now() + 3000 } : null;
+  }
+
+  function takeScope() {
+    const scope = pendingScope;
+    pendingScope = null;
+    return (scope && scope.until >= Date.now()) ? scope : null;
+  }
+
+  // Le schéma RÉDUIT aux réglages nommés — plus les porteurs `hidden` (ex. `media_type`), qui
+  // conditionnent l'affichage des autres et ne se montrent pas. Les groupes sans champ restant
+  // sortent avec eux. Pure (testée en V8, `tests_cap_from_js`).
+  function scopedSchema(schema, names) {
+    const wanted = {};
+    (names || []).forEach(function (n) { wanted[n] = true; });
+    return (schema || []).filter(function (p) { return p.type === 'hidden' || wanted[p.name]; });
+  }
+
+  function scopedGroups(groups, schema) {
+    const used = {};
+    (schema || []).forEach(function (p) { if (p.group) used[p.group] = true; });
+    return (groups || []).filter(function (g) { return used[g.key || g.id || g.group || g.name]; });
+  }
+
   function settingsModal(cfg) {
     cfg = cfg || {};
+    const scope = takeScope();
+    if (scope) {
+      cfg = Object.assign({}, cfg, {
+        schema: scopedSchema(cfg.schema, scope.names),
+        groups: scopedGroups(cfg.groups, scopedSchema(cfg.schema, scope.names)),
+        title: (cfg.title || 'Paramètres') + (scope.label ? ' — ' + scope.label : ''),
+      });
+    }
     const toast = function (m, t) {
       if (global.WamaApp && WamaApp.toast) WamaApp.toast(m, t || 'info');
     };
@@ -1295,6 +1338,12 @@
                         bindCapFrom: _bindCapFrom,
                         renderSettingsModal: renderSettingsModal,
                         settingsModal: settingsModal,
+                        // Portée d'une modale au ⚙ d'un process (P5) : posée par la brique des
+                        // actions, consommée par le prochain `settingsModal` ; `scopedSchema`
+                        // est la règle pure, exposée pour sa garde V8.
+                        scopeNextModal: scopeNextModal,
+                        scopedSchema: scopedSchema,
+                        takeModalScope: takeScope,
                         // Extension du vocabulaire de composants SANS toucher au moteur :
                         // un type absent du registry retombe sur le champ texte (jamais d'erreur).
                         registerRenderer: registerRenderer,

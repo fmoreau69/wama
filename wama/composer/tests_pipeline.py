@@ -363,6 +363,18 @@ class TheCardShowsItsProcessesTest(TestCase):
         self.assertIn('Périmé', html)
         self.assertIn('Recalculer ce qui est périmé', html, 'the cycle button reads the shown state')
 
+    def test_each_process_has_its_own_gear_scoped_to_what_it_watches(self):
+        """⚙ par process (P5) : the same `.settings-btn` as the card, with `data-only` = the
+        settings the process WATCHES — the render's gear shows the duration, the plan's does not."""
+        import re
+        gen = self._run(self._generation())
+        html = self._card(gen)
+        gears = dict(re.findall(r'settings-btn wcv3-proc-settings"[^>]*data-process="(\w+)"[^>]*data-only="([^"]*)"', html))
+        self.assertEqual({'plan', 'render'}, set(gears))
+        self.assertIn('duration', gears['render'].split(','))
+        self.assertNotIn('duration', gears['plan'].split(','))
+        self.assertIn('prompt', gears['plan'].split(','))
+
     def test_a_single_step_model_has_no_strip_before_it_runs(self):
         gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
                                                 model=PLAIN_MODEL, status='PENDING')
