@@ -1,0 +1,67 @@
+{
+  "body": {
+    "app": "imager",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "imager.tasks:generate_image_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "prompt",
+        "description": "La consigne.",
+        "group": "travail",
+        "key": "prompt",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "L'image de référence (img2img, style, image → vidéo).",
+        "group": "travail",
+        "key": "reference_image",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "imager.generate",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "Les images (ou la vidéo) d'origine.",
+        "key": "native",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "image",
+      "video",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Génère des images ou une vidéo à partir d'une consigne (et d'une image de référence quand le mode en prend une), avec le modèle de la card ou le tirage automatique. Rend ce que le modèle écrit, avant tout réglage de sortie.",
+  "key": "imager.generate",
+  "manifest_kind": "function",
+  "name": "Imager — générer",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:imager.generate",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

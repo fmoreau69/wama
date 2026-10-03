@@ -186,10 +186,13 @@ def index(request):
             'common_chips': common_chips_for_items(
                 gens, VIDEO_PARAMS_JSON if getattr(b, 'domain', '') == 'video'
                 else IMAGE_PARAMS_JSON)})
-    for _b in batches_all:                       # chips schéma-driven sur chaque card
-        for _it in _b['items']:
-            if _it.generation:
-                _decorate_card(_it.generation)
+    # Chips schéma-driven sur chaque card ; les lignes d'exécution de TOUTES les cards de la page
+    # sont lues en une requête (bande des process).
+    from wama.common.services.process_pipeline import preload
+    _shown = [_it.generation for _b in batches_all for _it in _b['items'] if _it.generation]
+    preload(_shown)
+    for _gen in _shown:
+        _decorate_card(_gen, preloaded=True)
 
     image_batches = [b for b in batches_all if b['obj'].domain != 'video']
     video_batches = [b for b in batches_all if b['obj'].domain == 'video']
@@ -1017,6 +1020,29 @@ def start_generation(request, generation_id):
 
 
 @require_http_methods(["POST"])
+def start_process(request, generation_id, process):
+    """▶ d'UN process de la card (`ROUTE §10.6` 5.1) : lancement BORNÉ — ce process, précédé des
+    seuls amonts périmés, jamais son aval. Refaire la sortie seule (format, agrandissement) sans
+    regénérer, ou regénérer sans attendre qu'un réglage ait changé."""
+    from .function_specs import PIPELINE
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    if process not in {s.key for s in PIPELINE.specs}:
+        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
+    from wama.common.utils.process_control import begin_processing
+    generation, err = begin_processing(
+        ImageGeneration, generation_id, user=user, reset={'progress': 0, 'error_message': ''})
+    if err == 'not_found':
+        return JsonResponse({'error': 'Generation not found'}, status=404)
+    if err == 'already_running':
+        return JsonResponse({'error': 'Generation already running'}, status=400)
+    cache.delete(f"imager_progress_{generation_id}")
+    task = _task_for(generation).apply_async(args=(generation.id,), kwargs={'process': process})
+    generation.task_id = task.id
+    generation.save(update_fields=['task_id'])
+    return JsonResponse({'success': True, 'task_id': task.id, 'process': process})
+
+
+@require_http_methods(["POST"])
 def restart_generation(request, generation_id):
     """Restart a completed or failed generation"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -1152,6 +1178,7 @@ from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 _pv = make_progress_views(
     work_model=ImageGeneration,
     app_id='imager', eta_for=_eta_triplet, extra=_progress_extra,
+    pipeline_model=lambda generation: generation.model or 'auto',
     domains={'image': lambda qs: qs.exclude(generation_mode__in=VIDEO_MODES),
              'video': lambda qs: qs.filter(generation_mode__in=VIDEO_MODES)})
 progress, global_progress = _pv['progress'], _pv['global_progress']
@@ -1313,13 +1340,18 @@ def _apply_generation_settings(generation, data):
     return None if whole else touched
 
 
-def _decorate_card(gen):
+def _decorate_card(gen, preloaded=False):
     """Chips schéma-driven du partial _generation_card (miroir anonymizer _decorate_card) :
-    le schéma (params.py, chip=True) est la SOURCE, la card n'invente rien."""
+    le schéma (params.py, chip=True) est la SOURCE, la card n'invente rien. Et les PROCESS de la
+    card (« Génération → Sortie ») avec son état MONTRÉ, par la brique commune
+    (`process_pipeline.decorate`, `ROUTE §10.6` 5.1)."""
+    from wama.common.services.process_pipeline import decorate
     from wama.common.utils.card_chips import chips_by_section
     from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
+    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
     gen.chips = chips_by_section(
         gen, VIDEO_PARAMS_JSON if gen.is_video_generation else IMAGE_PARAMS_JSON)
+    decorate(gen, gen.model or 'auto', preloaded=preloaded)
     return gen
 
 

@@ -96,13 +96,67 @@ def _declared_model_key(generation):
     return catalog_key(generation.model, 'imager')
 
 
-def _run_generation(task, generation_id, glue):
+def _own_file(generation, path) -> bool:
+    """Ce fichier est-il une sortie de CETTE génération (nom `gen<id>_…`, brique de nommage) ?
+    Garde de tout retrait fait ici : une image rangée ailleurs depuis n'est jamais touchée."""
+    return os.path.basename(str(path)).startswith(f'gen{generation.id}_')
+
+
+def _absolute(path) -> str:
+    path = str(path)
+    return path if os.path.isabs(path) else os.path.join(settings.MEDIA_ROOT, path)
+
+
+def _relative(path) -> str:
+    return os.path.relpath(str(path), settings.MEDIA_ROOT).replace(os.sep, '/')
+
+
+def _rendered_files(generation) -> list:
+    """Les rendus que la card porte aujourd'hui, en chemins absolus (images, ou la vidéo)."""
+    if generation.is_video_generation:
+        return [generation.output_video.path] if generation.output_video else []
+    return [_absolute(p) for p in (generation.generated_images or [])]
+
+
+def _output_sources(generation) -> list:
+    """Ce dont le process `output` REPART : les fichiers d'origine gardés par la brique de sortie
+    quand il y en a (le rendu a été transformé), sinon les rendus eux-mêmes (ils SONT l'original)."""
+    kept = [_absolute(p) for p in (getattr(generation, 'native_outputs', None) or [])]
+    return kept or _rendered_files(generation)
+
+
+def _drop_previous_outputs(generation, keep) -> None:
+    """Une génération REJOUÉE remplace tout : les originaux gardés et les rendus de la fois
+    d'avant que celle-ci n'a pas réécrits sont retirés (un `.webp` d'un ancien réglage)."""
+    kept = {os.path.abspath(str(p)) for p in keep}
+    previous = [_absolute(p) for p in (getattr(generation, 'native_outputs', None) or [])]
+    for path in previous + _rendered_files(generation):
+        if os.path.abspath(path) not in kept and _own_file(generation, path) and os.path.isfile(path):
+            os.remove(path)
+
+
+def _files_fingerprint(paths) -> str:
+    """Empreinte de ce que la génération a écrit — DÉCLARÉE à la ligne d'exécution plutôt que lue
+    d'un chemin : le process `output` déplace le fichier d'origine, un chemin se perdrait."""
+    from wama.common.services.revisions import text_fingerprint
+    from wama.common.utils.provenance import sha256_of
+    return text_fingerprint('|'.join(sha256_of(str(p)) or f'size:{os.path.getsize(str(p))}'
+                                     for p in paths))
+
+
+def _run_generation(task, generation_id, glue, process=None):
     """Les deux tâches de l'imager passent par le squelette COMMUN (`run_item_task`, marche P6
     du 2026-10-03) : garde de redélivrance après crash, ingestion d'une URL de référence,
     statuts canoniques, durée max, chrono, console, notifications, ligne d'exécution, révision.
     L'app garde ses deux gardes propres (une génération déjà terminée, une tâche fantôme
-    re-livrée après une remise à zéro) et sa GLU."""
+    re-livrée après une remise à zéro) et ses GLUS.
+
+    La card porte un PIPELINE de deux process (`function_specs.PIPELINE`) : `generate` (la glu
+    `glue`, image ou vidéo) puis `output` (`_render_output`, commune aux deux). Un lancement ne
+    rejoue que ce qui n'est plus à jour : changer le format ne regénère pas. `process` borne le
+    lancement à UN process."""
     from wama.common.utils.task_skeleton import run_item_task
+    from .function_specs import PIPELINE
     from .models import ImageGeneration
 
     logger.info(f"[Imager] === Task received for generation #{generation_id} ===")
@@ -134,9 +188,57 @@ def _run_generation(task, generation_id, glue):
         # attente » passe en cours — à la première livraison seulement.
         ImageGeneration.objects.filter(pk=generation_id, status='PENDING').update(status='RUNNING')
 
+    # La sortie repart des fichiers que la génération a laissés. S'ils ne sont plus là (retirés
+    # par l'utilisateur, rangés ailleurs), une génération « à jour » ne sert plus à rien : sa
+    # ligne est oubliée, et ce lancement la rejoue.
+    sources = _output_sources(generation)
+    if not sources or not all(os.path.isfile(p) for p in sources):
+        from wama.common.services import process_runs
+        process_runs.safely(
+            lambda: process_runs.lines(generation).filter(node_id='generate').delete())
+
     run_item_task(task, app_id='imager', model=ImageGeneration, item_id=generation_id,
-                  process=glue, notify_label='Imager', model_key=_declared_model_key)
+                  pipeline=PIPELINE, processes={'generate': glue, 'output': _render_output},
+                  notify_label='Imager', model_key=_declared_model_key, only=process)
     return {'generation_id': generation_id}
+
+
+def _render_output(generation, ctx):
+    """Process `output` (image ET vidéo) : les réglages de SORTIE de la card — agrandissement
+    (image), format, qualité — appliqués à ce que le modèle a écrit, par la brique commune qui
+    GARDE le fichier d'origine (`output_formats.render_outputs`). Rejoué seul après un changement
+    de format, il repart de l'original : rien n'est regénéré. Un agrandissement DEMANDÉ qui
+    échoue arrête la card en le disant ; une conversion ratée garde le format d'origine."""
+    from wama.common.utils.output_formats import NATIVE_FIELD, render_outputs
+    video = generation.is_video_generation
+    tag = '[Imager Video]' if video else '[Imager]'
+    try:
+        sources = _output_sources(generation)
+        if not sources or not all(os.path.isfile(p) for p in sources):
+            raise RuntimeError("fichier d'origine introuvable — relancer la génération")
+        ctx.progress(10)
+        try:
+            finals, natives = render_outputs(
+                sources, generation, domain='video' if video else 'image', app_id='imager',
+                console=lambda m: _console(generation.user_id, f"{tag} {m}"),
+                previous=[p for p in _rendered_files(generation) if _own_file(generation, p)])
+        except Exception as out_err:
+            raise RuntimeError(f"Réglages de sortie : {out_err}") from out_err
+        fields = {NATIVE_FIELD: [_relative(p) for p in natives], 'completed_at': timezone.now()}
+        if video:
+            fields['output_video'] = _relative(finals[0])
+        else:
+            fields['generated_images'] = finals
+        names = ', '.join(os.path.basename(p) for p in finals)
+        return {
+            'fields': fields,
+            'label': (generation.prompt or '')[:50] or f"génération #{generation.id}",
+            'console_success': f"{tag} \u2713 Sortie de #{generation.id} : {names}",
+            'output_ref': _relative(finals[0]),
+        }
+    except Exception:
+        _fail_stamp(generation, ctx)
+        raise
 
 
 def _fail_stamp(generation, ctx):
@@ -148,12 +250,13 @@ def _fail_stamp(generation, ctx):
 
 
 @shared_task(bind=True)
-def generate_image_task(self, generation_id):
+def generate_image_task(self, generation_id, process=None):
     """
     Celery task to generate images using the available backend — through the common skeleton
-    (`_run_generation`) ; the work itself is the glue `_generate_image`.
+    (`_run_generation`) ; the work itself is the glue `_generate_image`, then `_render_output`.
+    `process` : launch bounded to this process (⚠ new task argument : workers to relaunch).
     """
-    return _run_generation(self, generation_id, _generate_image)
+    return _run_generation(self, generation_id, _generate_image, process)
 
 
 def _generate_image(generation, ctx):
@@ -166,8 +269,10 @@ def _generate_image(generation, ctx):
         # squelette) : la présence d'une référence peut orienter le choix du modèle.
         from wama.imager.utils.auto_model import AUTO, resolve_auto_model
         if (generation.model or AUTO).strip() in ('', AUTO):
+            # Le modèle tiré vaut pour CE lancement (en mémoire) et se lit sur la ligne
+            # d'exécution ; il n'est plus ÉCRIT dans le réglage : « auto » reste « auto », et un
+            # réglage surveillé qui changerait pendant son propre process se périmerait lui-même.
             generation.model = resolve_auto_model(generation)
-            generation.save(update_fields=['model'])
             from wama.common.utils.auto_model import quality_intent_of
             _console(generation.user_id,
                      f"[Imager] 🧠 Auto → {generation.model} (capacités + VRAM libre au lancement, "
@@ -330,18 +435,9 @@ def _generate_image(generation, ctx):
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
-        # Réglages de SORTIE (brique commune, 2026-09-30) : agrandissement PUIS format, après
-        # n'importe quel backend. Un agrandissement DEMANDÉ qui échoue arrête la génération en
-        # le disant ; une conversion ratée garde le PNG natif (comportement historique).
-        from wama.common.utils.output_formats import apply_output_settings
-        try:
-            generated_paths = apply_output_settings(
-                generated_paths, generation, domain='image', app_id='imager',
-                console=lambda m: _console(user_id, f"[Imager] {m}"))
-        except Exception as out_err:
-            error_msg = f"Agrandissement de sortie échoué : {out_err}"
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
+        # Les réglages de SORTIE (agrandissement, format) sont le process suivant, `output`
+        # (`_render_output`) : ici la glu rend ce que le MODÈLE a écrit, rien d'autre.
+        _drop_previous_outputs(generation, keep=generated_paths)
 
         logger.info(f"Successfully generated {len(generated_paths)} image(s) for generation #{generation_id}")
 
@@ -361,13 +457,14 @@ def _generate_image(generation, ctx):
 
         # Le statut, la progression à 100 et la durée de traitement sont posés par le squelette
         # (la durée est désormais celle de la TÂCHE, chargement compris, comme pour la vidéo).
+        from wama.common.utils.output_formats import NATIVE_FIELD
         return {
-            'fields': {'generated_images': generated_paths, 'completed_at': timezone.now()},
+            'fields': {'generated_images': generated_paths, NATIVE_FIELD: []},
             'label': (generation.prompt or '')[:50] or f"génération #{generation_id}",
             'console_success': (f"[Imager] \u2713 Generated {len(generated_paths)} image(s) for "
                                 f"#{generation_id} (seed: {result.seed_used})"),
             'models': [model_key],
-            'output_ref': os.path.relpath(generated_paths[0], settings.MEDIA_ROOT).replace(os.sep, '/'),
+            'output_fingerprint': _files_fingerprint(generated_paths),
         }
     except Exception:
         _fail_stamp(generation, ctx)
@@ -505,12 +602,13 @@ def _report_effective_video_settings(user_id, generation, backend, params, expor
 
 
 @shared_task(bind=True)
-def generate_video_task(self, generation_id):
+def generate_video_task(self, generation_id, process=None):
     """
     Celery task to generate videos (txt2vid, img2vid) — through the common skeleton
-    (`_run_generation`) ; the work itself is the glue `_generate_video`.
+    (`_run_generation`) ; the work itself is the glue `_generate_video`, then `_render_output`.
+    `process` : launch bounded to this process (⚠ new task argument : workers to relaunch).
     """
-    return _run_generation(self, generation_id, _generate_video)
+    return _run_generation(self, generation_id, _generate_video, process)
 
 
 def _generate_video(generation, ctx):
@@ -527,8 +625,10 @@ def _generate_video(generation, ctx):
         # squelette) : la présence d'une référence peut orienter le choix du modèle.
         from wama.imager.utils.auto_model import AUTO, resolve_auto_model
         if (generation.model or AUTO).strip() in ('', AUTO):
+            # Le modèle tiré vaut pour CE lancement (en mémoire) et se lit sur la ligne
+            # d'exécution ; il n'est plus ÉCRIT dans le réglage : « auto » reste « auto », et un
+            # réglage surveillé qui changerait pendant son propre process se périmerait lui-même.
             generation.model = resolve_auto_model(generation)
-            generation.save(update_fields=['model'])
             from wama.common.utils.auto_model import quality_intent_of
             _console(generation.user_id,
                      f"[Imager] 🧠 Auto → {generation.model} (capacités + VRAM libre au lancement, "
@@ -908,21 +1008,8 @@ def _generate_video(generation, ctx):
         file_size_mb = os.path.getsize(video_path) / (1024 * 1024) if os.path.exists(video_path) else 0
         _console(user_id, f"[Imager Video] ✓ Exported in {export_time:.1f}s ({file_size_mb:.1f} MB)")
 
-        # Format + qualité de sortie choisis (brique commune `apply_inline_conversion`). La
-        # branche IMAGE les appliquait depuis la phase 3 ; la branche VIDÉO les enregistrait
-        # sans jamais s'en servir (relevé le 2026-09-23) : « WebM, Web » rendait un MP4 brut.
-        _fmt = (getattr(generation, 'output_format', '') or 'original').lower()
-        if _fmt not in ('', 'original'):
-            try:
-                from wama.converter.utils.inline_convert import apply_inline_conversion
-                _preset = getattr(generation, 'output_quality', 'balanced') or 'balanced'
-                video_path = apply_inline_conversion(video_path, _fmt, _preset)
-                _console(user_id, f"[Imager Video] ✓ Sortie : {os.path.basename(video_path)} "
-                                  f"(qualité {_preset})")
-            except Exception as _conv_err:
-                logger.warning(f"[Imager Video] conversion format sortie échouée: {_conv_err}")
-                _console(user_id, f"[Imager Video] ⚠ Conversion vers {_fmt} échouée — "
-                                  f"MP4 d'origine conservé", level='warning')
+        # Format et qualité de sortie : le process suivant, `output` (`_render_output`).
+        _drop_previous_outputs(generation, keep=[video_path])
 
         # Save video path relative to MEDIA_ROOT for FileField
         relative_video_path = os.path.relpath(video_path, settings.MEDIA_ROOT).replace(os.sep, '/')
@@ -950,12 +1037,13 @@ def _generate_video(generation, ctx):
 
         # Le statut, la progression à 100 et la durée de traitement (celle de la TÂCHE :
         # chargement + génération + export) sont posés par le squelette.
+        from wama.common.utils.output_formats import NATIVE_FIELD
         return {
-            'fields': {'output_video': relative_video_path, 'completed_at': timezone.now()},
+            'fields': {'output_video': relative_video_path, NATIVE_FIELD: []},
             'label': (generation.prompt or '')[:50] or f"vidéo #{generation_id}",
             'console_success': f"[Imager Video] ✓ SUCCESS! Generation #{generation_id}",
             'models': [model_key],
-            'output_ref': relative_video_path,
+            'output_fingerprint': _files_fingerprint([video_path]),
         }
     except Exception:
         _fail_stamp(generation, ctx)

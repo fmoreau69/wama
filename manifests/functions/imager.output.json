@@ -1,0 +1,57 @@
+{
+  "body": {
+    "app": "imager",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "imager.tasks:generate_image_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "Ce que le modèle a écrit.",
+        "group": "travail",
+        "key": "native",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "imager.output",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "Le rendu de la card.",
+        "key": "result",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "image",
+      "video",
+      "format"
+    ],
+    "visibility": "public"
+  },
+  "description": "Applique les réglages de sortie de la card à ce que le modèle a écrit : agrandissement (image), format et qualité. Garde le fichier d'origine tant que ces réglages le transforment, pour se rejouer sans regénérer.",
+  "key": "imager.output",
+  "manifest_kind": "function",
+  "name": "Imager — réglages de sortie",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:imager.output",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

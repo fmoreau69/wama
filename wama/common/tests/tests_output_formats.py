@@ -219,3 +219,33 @@ class KeepTheOriginalTest(SimpleTestCase):
         from wama.common.models import NativeOutputsMixin
         field = NativeOutputsMixin._meta.get_field(of.NATIVE_FIELD)
         self.assertTrue(field.null, 'a new column must not break the inserts of the code in service')
+
+    def test_a_failed_output_leaves_the_file_where_it_came_from(self):
+        """Measured on the first real run (2026-10-03) : a failed upscaling left an orphan original."""
+        with mock.patch.object(of, 'upscale_output_image', side_effect=RuntimeError('no upscaler')), \
+                self.assertRaises(RuntimeError):
+            of.render_outputs([self.engine_file], self._item(output_upscale='x2'), domain='image')
+        self.assertEqual(['gen7_model.png'], self._names())
+        finals, natives = self._render([self.engine_file], self._item(output_format='webp'))
+        with mock.patch.object(of, 'upscale_output_image', side_effect=RuntimeError('no upscaler')), \
+                self.assertRaises(RuntimeError):
+            of.render_outputs(natives, self._item(output_upscale='x2'), domain='image', previous=finals)
+        self.assertEqual(['gen7_model.native.png', 'gen7_model.webp'], self._names(),
+                         'the previous rendering and its original are untouched')
+
+    def test_the_upscaler_writes_its_temporary_file_next_to_the_output(self):
+        """`os.replace` does not cross file systems : the temporary file is born in the output folder."""
+        seen = {}
+
+        def upscale(src, dst, **kw):
+            seen['folder'] = os.path.dirname(dst)
+            with open(dst, 'wb') as out:
+                out.write(b'bigger')
+            return (2, 2)
+        with mock.patch('wama.common.utils.auto_model.candidates_with', return_value=['enhancer:up-x2']), \
+                mock.patch('wama.common.utils.auto_model.resolve_model_choice', return_value='enhancer:up-x2'), \
+                mock.patch('wama.common.backends.manager.backend_for_key', return_value=object), \
+                mock.patch('wama.common.backends.ai_upscaler.upscale_image_file', side_effect=upscale):
+            of.upscale_output_image(self.engine_file, 'x2')
+        self.assertEqual(os.path.abspath(self.folder), os.path.abspath(seen['folder']))
+        self.assertEqual(['gen7_model.png'], self._names())

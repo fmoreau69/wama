@@ -1139,7 +1139,11 @@ MECHANISMS = (
               "(image) puis conversion après n'importe quel backend (2026-09-30). L'agrandissement "
               "(`output_upscale`, opt-in `include_upscale`) tire l'upscaler du catalogue — tâche "
               "`upscale`, capacité `scale` = facteur, curseur qualité de l'item — sans nommer ni "
-              "modèle ni app ; il vivait dans UN backend (diffusers, LANCZOS ×2), ignoré des autres",
+              "modèle ni app ; il vivait dans UN backend (diffusers, LANCZOS ×2), ignoré des autres. "
+              "`render_outputs` (2026-10-03) GARDE le fichier d'origine (`<nom>.native<ext>`, champ "
+              "`native_outputs` du mixin `NativeOutputsMixin`, déclaré à la rétention) tant que ces "
+              "réglages le transforment : le process « sortie » d'une app se rejoue SEUL, sans "
+              "regénérer — adopté par l'imager, à porter aux apps qui recopient leur conversion",
               'wama/common/utils/output_formats.py',
               'docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.4'),
     Mechanism('license_audit', 'Audit des licences',
