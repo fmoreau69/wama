@@ -47,9 +47,9 @@
           "degree": "required",
           "gpu": false,
           "watched": [
-            "output_upscale",
             "output_format",
-            "output_quality"
+            "output_quality",
+            "output_upscale"
           ]
         }
       }

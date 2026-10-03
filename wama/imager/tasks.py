@@ -96,52 +96,9 @@ def _declared_model_key(generation):
     return catalog_key(generation.model, 'imager')
 
 
-def _own_file(generation, path) -> bool:
-    """Ce fichier est-il une sortie de CETTE génération (nom `gen<id>_…`, brique de nommage) ?
-    Garde de tout retrait fait ici : une image rangée ailleurs depuis n'est jamais touchée."""
-    return os.path.basename(str(path)).startswith(f'gen{generation.id}_')
-
-
-def _absolute(path) -> str:
-    path = str(path)
-    return path if os.path.isabs(path) else os.path.join(settings.MEDIA_ROOT, path)
-
-
-def _relative(path) -> str:
-    return os.path.relpath(str(path), settings.MEDIA_ROOT).replace(os.sep, '/')
-
-
-def _rendered_files(generation) -> list:
-    """Les rendus que la card porte aujourd'hui, en chemins absolus (images, ou la vidéo)."""
-    if generation.is_video_generation:
-        return [generation.output_video.path] if generation.output_video else []
-    return [_absolute(p) for p in (generation.generated_images or [])]
-
-
-def _output_sources(generation) -> list:
-    """Ce dont le process `output` REPART : les fichiers d'origine gardés par la brique de sortie
-    quand il y en a (le rendu a été transformé), sinon les rendus eux-mêmes (ils SONT l'original)."""
-    kept = [_absolute(p) for p in (getattr(generation, 'native_outputs', None) or [])]
-    return kept or _rendered_files(generation)
-
-
-def _drop_previous_outputs(generation, keep) -> None:
-    """Une génération REJOUÉE remplace tout : les originaux gardés et les rendus de la fois
-    d'avant que celle-ci n'a pas réécrits sont retirés (un `.webp` d'un ancien réglage)."""
-    kept = {os.path.abspath(str(p)) for p in keep}
-    previous = [_absolute(p) for p in (getattr(generation, 'native_outputs', None) or [])]
-    for path in previous + _rendered_files(generation):
-        if os.path.abspath(path) not in kept and _own_file(generation, path) and os.path.isfile(path):
-            os.remove(path)
-
-
-def _files_fingerprint(paths) -> str:
-    """Empreinte de ce que la génération a écrit — DÉCLARÉE à la ligne d'exécution plutôt que lue
-    d'un chemin : le process `output` déplace le fichier d'origine, un chemin se perdrait."""
-    from wama.common.services.revisions import text_fingerprint
-    from wama.common.utils.provenance import sha256_of
-    return text_fingerprint('|'.join(sha256_of(str(p)) or f'size:{os.path.getsize(str(p))}'
-                                     for p in paths))
+def _rendered_field(generation) -> str:
+    """Le champ qui porte le RENDU de la card : la vidéo, ou la liste des images."""
+    return 'output_video' if generation.is_video_generation else 'generated_images'
 
 
 def _run_generation(task, generation_id, glue, process=None):
@@ -191,11 +148,8 @@ def _run_generation(task, generation_id, glue, process=None):
     # La sortie repart des fichiers que la génération a laissés. S'ils ne sont plus là (retirés
     # par l'utilisateur, rangés ailleurs), une génération « à jour » ne sert plus à rien : sa
     # ligne est oubliée, et ce lancement la rejoue.
-    sources = _output_sources(generation)
-    if not sources or not all(os.path.isfile(p) for p in sources):
-        from wama.common.services import process_runs
-        process_runs.safely(
-            lambda: process_runs.lines(generation).filter(node_id='generate').delete())
+    from wama.common.services.output_process import forget_lost_generation
+    forget_lost_generation(generation, _rendered_field, 'generate')
 
     run_item_task(task, app_id='imager', model=ImageGeneration, item_id=generation_id,
                   pipeline=PIPELINE, processes={'generate': glue, 'output': _render_output},
@@ -205,40 +159,24 @@ def _run_generation(task, generation_id, glue, process=None):
 
 def _render_output(generation, ctx):
     """Process `output` (image ET vidéo) : les réglages de SORTIE de la card — agrandissement
-    (image), format, qualité — appliqués à ce que le modèle a écrit, par la brique commune qui
-    GARDE le fichier d'origine (`output_formats.render_outputs`). Rejoué seul après un changement
-    de format, il repart de l'original : rien n'est regénéré. Un agrandissement DEMANDÉ qui
-    échoue arrête la card en le disant ; une conversion ratée garde le format d'origine."""
-    from wama.common.utils.output_formats import NATIVE_FIELD, render_outputs
+    (image), format, qualité — par la glu COMMUNE (`output_process.output_step`), qui garde le
+    fichier d'origine. Rejoué seul après un changement de format, il repart de l'original : rien
+    n'est regénéré. L'app n'ajoute que l'heure de fin et sa barre remise à zéro en cas d'échec."""
+    from wama.common.services.output_process import output_step
     video = generation.is_video_generation
     tag = '[Imager Video]' if video else '[Imager]'
+    step = output_step(
+        _rendered_field, domain='video' if video else 'image', app_id='imager',
+        console=lambda item, message: _console(item.user_id, f"{tag} {message}"),
+        extra_fields=lambda item, finals: {'completed_at': timezone.now()})
     try:
-        sources = _output_sources(generation)
-        if not sources or not all(os.path.isfile(p) for p in sources):
-            raise RuntimeError("fichier d'origine introuvable — relancer la génération")
-        ctx.progress(10)
-        try:
-            finals, natives = render_outputs(
-                sources, generation, domain='video' if video else 'image', app_id='imager',
-                console=lambda m: _console(generation.user_id, f"{tag} {m}"),
-                previous=[p for p in _rendered_files(generation) if _own_file(generation, p)])
-        except Exception as out_err:
-            raise RuntimeError(f"Réglages de sortie : {out_err}") from out_err
-        fields = {NATIVE_FIELD: [_relative(p) for p in natives], 'completed_at': timezone.now()}
-        if video:
-            fields['output_video'] = _relative(finals[0])
-        else:
-            fields['generated_images'] = finals
-        names = ', '.join(os.path.basename(p) for p in finals)
-        return {
-            'fields': fields,
-            'label': (generation.prompt or '')[:50] or f"génération #{generation.id}",
-            'console_success': f"{tag} \u2713 Sortie de #{generation.id} : {names}",
-            'output_ref': _relative(finals[0]),
-        }
+        result = step(generation, ctx)
     except Exception:
         _fail_stamp(generation, ctx)
         raise
+    return {**result,
+            'label': (generation.prompt or '')[:50] or f"génération #{generation.id}",
+            'console_success': f"{tag} \u2713 Sortie de #{generation.id} : {result['label']}"}
 
 
 def _fail_stamp(generation, ctx):
@@ -437,7 +375,8 @@ def _generate_image(generation, ctx):
 
         # Les réglages de SORTIE (agrandissement, format) sont le process suivant, `output`
         # (`_render_output`) : ici la glu rend ce que le MODÈLE a écrit, rien d'autre.
-        _drop_previous_outputs(generation, keep=generated_paths)
+        from wama.common.services.output_process import drop_previous_outputs, generated
+        drop_previous_outputs(generation, _rendered_field, keep=generated_paths)
 
         logger.info(f"Successfully generated {len(generated_paths)} image(s) for generation #{generation_id}")
 
@@ -457,15 +396,13 @@ def _generate_image(generation, ctx):
 
         # Le statut, la progression à 100 et la durée de traitement sont posés par le squelette
         # (la durée est désormais celle de la TÂCHE, chargement compris, comme pour la vidéo).
-        from wama.common.utils.output_formats import NATIVE_FIELD
-        return {
-            'fields': {'generated_images': generated_paths, NATIVE_FIELD: []},
-            'label': (generation.prompt or '')[:50] or f"génération #{generation_id}",
-            'console_success': (f"[Imager] \u2713 Generated {len(generated_paths)} image(s) for "
-                                f"#{generation_id} (seed: {result.seed_used})"),
-            'models': [model_key],
-            'output_fingerprint': _files_fingerprint(generated_paths),
-        }
+        return generated(
+            generated_paths,
+            fields={'generated_images': generated_paths},
+            label=(generation.prompt or '')[:50] or f"génération #{generation_id}",
+            console_success=(f"[Imager] \u2713 Generated {len(generated_paths)} image(s) for "
+                             f"#{generation_id} (seed: {result.seed_used})"),
+            models=[model_key])
     except Exception:
         _fail_stamp(generation, ctx)
         raise
@@ -1009,7 +946,8 @@ def _generate_video(generation, ctx):
         _console(user_id, f"[Imager Video] ✓ Exported in {export_time:.1f}s ({file_size_mb:.1f} MB)")
 
         # Format et qualité de sortie : le process suivant, `output` (`_render_output`).
-        _drop_previous_outputs(generation, keep=[video_path])
+        from wama.common.services.output_process import drop_previous_outputs, generated
+        drop_previous_outputs(generation, _rendered_field, keep=[video_path])
 
         # Save video path relative to MEDIA_ROOT for FileField
         relative_video_path = os.path.relpath(video_path, settings.MEDIA_ROOT).replace(os.sep, '/')
@@ -1037,14 +975,12 @@ def _generate_video(generation, ctx):
 
         # Le statut, la progression à 100 et la durée de traitement (celle de la TÂCHE :
         # chargement + génération + export) sont posés par le squelette.
-        from wama.common.utils.output_formats import NATIVE_FIELD
-        return {
-            'fields': {'output_video': relative_video_path, NATIVE_FIELD: []},
-            'label': (generation.prompt or '')[:50] or f"vidéo #{generation_id}",
-            'console_success': f"[Imager Video] ✓ SUCCESS! Generation #{generation_id}",
-            'models': [model_key],
-            'output_fingerprint': _files_fingerprint([video_path]),
-        }
+        return generated(
+            [video_path],
+            fields={'output_video': relative_video_path},
+            label=(generation.prompt or '')[:50] or f"vidéo #{generation_id}",
+            console_success=f"[Imager Video] ✓ SUCCESS! Generation #{generation_id}",
+            models=[model_key])
     except Exception:
         _fail_stamp(generation, ctx)
         raise
