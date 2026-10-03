@@ -62,7 +62,9 @@ class SingleHomeTest(SimpleTestCase):
             names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
             calls = {n.func.attr for n in ast.walk(tree)
                      if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
-            if 'ANONYMOUS_USERNAME' in names and 'visible_to' in calls:
+            # Le prédicat a UN nom depuis le 2026-10-04 (`is_guest_account` : compte anonyme
+            # partagé OU identité de visiteur) ; l'ancienne comparaison au nom reste traquée.
+            if ({'ANONYMOUS_USERNAME', 'is_guest_account'} & names) and 'visible_to' in calls:
                 offenders.append(str(path.relative_to(root)))
         self.assertEqual(['common/utils/scoping.py'],
                          sorted(p.replace('\\', '/') for p in offenders))

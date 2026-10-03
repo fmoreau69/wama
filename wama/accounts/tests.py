@@ -34,10 +34,13 @@ class FermetureDuCompteAnonymeTests(TestCase):
         self.assertEqual(user_tier(u), 'anonymous')
         self.assertEqual(user_roles(u), set())
 
-    def test_un_compte_anonyme_neuf_n_ouvre_aucune_app(self):
+    def test_a_fresh_anonymous_account_opens_only_the_trial_app(self):
+        # Jusqu'au 2026-10-04 : AUCUNE app. Le converter est depuis l'app d'essai DÉCLARÉE
+        # (`public`, décision du 30/08) — où le visiteur agit sous une identité de session, pas
+        # sous ce compte partagé (`tests_visitors`). Toute autre app ouverte ici est une fuite.
         u = get_or_create_anonymous_user()
         ouvertes = [a for a in APP_CATALOG if accessible(u, 'app', a)]
-        self.assertEqual(ouvertes, [], f"apps ouvertes à l'anonyme : {ouvertes}")
+        self.assertEqual(ouvertes, ['converter'], f"apps ouvertes à l'anonyme : {ouvertes}")
 
     def test_le_tier_pose_a_la_main_est_repose_au_prochain_appel(self):
         # La dérive qu'on veut rattraper : quelqu'un remonte le tier via l'admin.
@@ -81,10 +84,12 @@ class DeuxAxesDuModeleDAccesTests(TestCase):
         _tous_les_groupes_de_role()
         self.u = get_or_create_anonymous_user()
 
-    def test_le_tier_seul_ferme_deja_tout_meme_avec_tous_les_roles(self):
+    def test_the_tier_alone_closes_everything_but_the_public_app_even_with_every_role(self):
         self.u.groups.add(*_tous_les_groupes_de_role())
         ouvertes = [a for a in APP_CATALOG if accessible(self.u, 'app', a)]
-        self.assertEqual(ouvertes, [], "le tier `anonymous` doit trancher avant les rôles")
+        # `['converter']` depuis le 2026-10-04 : la seule app déclarée `public`. Les rôles
+        # n'ouvrent RIEN de plus — c'est ce que ce test tient.
+        self.assertEqual(ouvertes, ['converter'], "le tier `anonymous` doit trancher avant les rôles")
 
     def test_le_tier_seul_perdu_rouvre_deja_une_app(self):
         # La preuve que le second verrou (les rôles) n'est pas décoratif : sans le tier, la

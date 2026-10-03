@@ -183,8 +183,17 @@ def _convert(job, ctx):
         # Options cross-app (Phase 2, wiring 18/08) : post-traitement IA inline (enhancer)
         # sur le fichier de sortie, AVANT le move in-place final — un échec suit le chemin
         # FAILURE normal (cleanup + clear_during dans le except ci-dessous).
+        # Un VISITEUR sans compte n'a pas de post-traitement IA : le converter lui est ouvert
+        # parce qu'il ne prend aucune ressource GPU (décision du 2026-08-30), et ces options
+        # chargent un modèle. Dit dans la console de l'élément, jamais ignoré en silence.
+        from wama.accounts.permissions import is_guest_account
         from .utils.cross_app import apply_cross_app_options
-        apply_cross_app_options(job, output_path, ctx.console, ctx.progress)
+        if is_guest_account(job.user):
+            if any(getattr(job, name, None) for name in job.CHAMPS_CROSS_APP):
+                ctx.console("Post-traitement IA non appliqué : il demande un compte "
+                            "(l'essai sans compte ne prend aucune ressource GPU).")
+        else:
+            apply_cross_app_options(job, output_path, ctx.console, ctx.progress)
     except Exception:
         # Remove the in-place temp file so no partial output lingers.
         if in_place:

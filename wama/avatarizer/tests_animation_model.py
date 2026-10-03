@@ -107,7 +107,7 @@ class AnimationModelDeclarationTest(TestCase):
         _register_models()
         self.user = User.objects.create_user('animation_schema_user', password='x')
 
-    def test_the_schema_declares_the_select_from_the_catalog(self):
+    def test_the_schema_states_the_select_from_the_catalog(self):
         from wama.avatarizer.params import PARAMS_JSON
         field = next(p for p in PARAMS_JSON if p['name'] == 'animation_model')
         self.assertEqual('catalog', field['options_source'])

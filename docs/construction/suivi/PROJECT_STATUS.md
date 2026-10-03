@@ -21162,3 +21162,38 @@ Restes déclarés :
 - étage B de l'alignement d'un document repris en process `align` (décision) ;
 - `AnalysisPass` → `ProcessRun` et statuts du Lab → `JOB_*` (décision, migration de données) ;
 - sous « auto », la ligne d'exécution ne porte le modèle qu'à la fin du process (vide pendant).
+
+## §PALIER — 2026-10-04, « LE CONVERTER OUVERT AU VISITEUR SANS COMPTE — identité éphémère par session » — ✅ commit ci-dessous, non poussé — 🔴 RECHARGER gunicorn ET relancer les workers + beat (garde de tâche, purge horaire) — 🔚 régénérer `WAMA_MECANISMES.md` (un mécanisme de plus au registre) · accueil guidé du visiteur par l'avatar
+
+Décision de Fabien (« option 1, persistance par session »), seconde moitié du contrat « le
+visiteur ne lance rien, sauf dans le converter ». Détail : `PROFILES_PERMISSIONS §1.4`.
+- **Une identité, pas une étiquette** (`accounts/visitors.py`, mécanisme `visitor_identity`) : au
+  premier geste d'un visiteur sur une app `public`, l'intergiciel d'accès crée un compte technique
+  `wama_visitor_<jeton>` (inactif, tier `anonymous`, aucun rôle) retenu par sa session, et le pose
+  dans `request.user`. Toute la logique de propriété existante vaut pour lui : **aucune vue du
+  converter n'a été retouchée pour la propriété** (une ligne dans `IndexView`, la page gardant un
+  `AnonymousUser` pour ses gabarits communs). L'alternative — une clé de session sur chaque objet,
+  filtrée vue par vue — faisait de chaque vue oubliée une fuite.
+- **Déclaré** : `converter` `public` (`DEFAULT_APP_ACCESS` + migration de données `accounts/0025`,
+  APPLIQUÉE). Aucune autre app ne l'est ; la garde du 03/10 les refuse toujours.
+- **Borné** (`settings`) : 24 h sans geste puis purge horaire des éléments ET des fichiers
+  (`common.purge_visitors`), 200 Mo par envoi, 20 éléments, 30 identités neuves par adresse et par
+  heure. Fermés au visiteur : import par lot / par adresse web / depuis un chemin serveur, et le
+  post-traitement IA (GPU) — refusé dans la tâche, dit dans la console.
+- **Portée** : `permissions.is_guest_account` (compte partagé OU identité de session) devient le
+  prédicat unique de `scoping.listable_by`, et `visible_or_404` y passe — un visiteur ne LIT que
+  ce qu'il possède.
+- **Mesuré** sur un serveur à part (code du disque, worker réel) : envoi → conversion (2 s) →
+  téléchargement par un visiteur ; un second visiteur : card invisible, statut / téléchargement /
+  suppression en 404 ; autre app et import par lot en 403 ; `common.rights_anonymous` **VERT pour
+  la première fois** (« 9 refus, converter seul ouvert ») ; purge : 3 identités, 0 reste.
+- Gardes : `accounts/tests_visitors.py` (17, contre-épreuves comprises) ; `accounts/tests.py` (deux
+  tests de la fermeture attendent désormais `['converter']`) ; `tests_scoping` (domicile unique du
+  prédicat). Suites accounts + converter + portée : 140 OK.
+- ⚠ Le budget de langue des identifiants est rouge sans rapport avec ce palier (classes et
+  méthodes de test d'autres instances) ; les deux noms de méthode à moi qu'il relevait sont renommés.
+- Fichiers : `accounts/{visitors,middleware,permissions,views,tests,tests_visitors,tests_access_points}.py`,
+  `accounts/migrations/0025_*`, `common/{mecanismes,tasks}.py`, `common/utils/scoping.py`,
+  `common/tests/tests_scoping.py`, `common/services/rights_matrix.py`,
+  `converter/{views,tasks}.py`, `converter/templates/converter/index.html`, `settings.py`,
+  `avatarizer/tests_animation_model.py` (un nom de test), `PROFILES_PERMISSIONS.md`.

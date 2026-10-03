@@ -23,7 +23,9 @@ reste (`accessible()` : pour un anonyme, la politique `public` de l'app) — une
 visiteur se DÉCLARE, elle ne s'exempte pas ici.
   - méthodes de LECTURE (GET, HEAD, OPTIONS) : laissées — les pages se voient ;
   - toute autre méthode sur une app non publique : 403 JSON, ou retour à l'accueil avec le
-    rappel « connectez-vous ».
+    rappel « connectez-vous » ;
+  - sur une app PUBLIQUE (le converter depuis le 2026-10-04) : le visiteur AGIT, sous une
+    identité éphémère propre à sa session, bornée et purgée (`accounts/visitors.py`).
 ⚠ Ce que la garde ne couvre PAS : une route en GET qui AGIRAIT (aucune connue — `start` est en
 POST depuis le 2026-09-22), et les chemins hors apps (`/common/…`, `/filemanager/…`), gardés
 chez eux.
@@ -49,9 +51,17 @@ class AppAccessMiddleware:
             app_id = app_id_for_path(request.path)
             if app_id and not accessible(user, 'app', app_id):
                 return self._deny(request, app_id)
-        elif request.method not in READ_METHODS:
+        else:
             app_id = app_id_for_path(request.path)
-            if app_id and not accessible(user, 'app', app_id):
+            if app_id and accessible(user, 'app', app_id):
+                # App PUBLIQUE (le converter, app d'essai) : le visiteur y reçoit une identité
+                # éphémère, propre à sa session — `accounts/visitors.py` (2026-10-04). Les vues
+                # de l'app la lisent dans `request.user`, sans rien savoir du visiteur.
+                from wama.accounts import visitors
+                refusal = visitors.attach(request, app_id)
+                if refusal is not None:
+                    return refusal
+            elif app_id and request.method not in READ_METHODS:
                 return self._deny(request, app_id, visitor=True)
         return self.get_response(request)
 
