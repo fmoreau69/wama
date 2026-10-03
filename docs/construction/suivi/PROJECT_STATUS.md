@@ -20785,3 +20785,25 @@ heredocs de l'outil Bash qui mangent les antislashs, `python -m unittest` nu int
 - 🔚 **Pour Fabien** : relancer gunicorn + workers ; tester (retour attendu sur P5) : la bande
   des process sur une card composer YuE2 (▶ et ⚙ par ligne), ↑/↓ sur un lot, le catalogue du
   studio (sections, glisser un nœud, ouvrir un pipeline déclaré).
+
+## §PALIER — 2026-10-03, « ARCHITECTURE DE WAMA SUR LE MOTEUR CANVAS » — ✅ `19e0df2b` — 🔚 chiffres périmés de la présentation principale (signalés, pas touchés)
+
+> Fabien : *« Peux-tu mettre à jour la présentation de l'architecture de wama en respectant bien le
+> style de la nouvelle présentation de wama et en mettant à jour le contenu ? »*
+
+- **`/architecture/` réécrite** sur le moteur de la présentation v2 (`static/presentation/`) : 20
+  frames, six sections (ce qui tourne · rangement · une app · modèles · IA dans la chaîne · se
+  vérifier), deux zooms par section. Chiffres **relevés le 03/10** dans le code et la base (251
+  modèles dont 24 distants, 58 backends / 29 moteurs / 8 contrats, 180 mécanismes, 16 registres,
+  71 outils, 430 scénarios, grille 917/940) ; chaque frame cite sa source. Vérifiée au navigateur
+  (bureau, téléphone), servie par la prod après HUP de gunicorn.
+- **v1 ARCHIVÉE, pas détruite** : `includes/archive/wama_architecture_2026-v1.html` (blob
+  identique), déclarée `views.ARCHIVED_PRESENTATIONS['architecture-2026-v1']`.
+- **Défaut du moteur corrigé** (`wama-presentation.js`) : une ancre d'URL (`#titre`, `#briques`)
+  faisait défiler `#viewport` malgré `overflow:hidden`, donc tout le plan glissait sous la caméra
+  (69 px sur `/presentation/#titre`, 377 px sur `/architecture/#briques`). Contre-épreuve sur la
+  présentation principale : décalage 0. Son contenu n'est pas modifié.
+- **Test** : `tests_access_cases.PresentationRoutesTests` (6 verts) — moteur, frames posées, archive
+  déclarée et liée.
+- 🔚 **La présentation principale garde des chiffres datés** (tests de nuit à 02:30/03:00 pour
+  04:15/04:30 mesurés, 55 fonctions pour 73…) : signalé, pas modifié sans demande.
