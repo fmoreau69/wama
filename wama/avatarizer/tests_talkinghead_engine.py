@@ -58,9 +58,9 @@ class EngineFromAvatarNatureTest(TestCase):
                                 side_effect=lambda job: _silent_wav(wav_dir / f'tts{job.id}.wav'))
         self.tts.start()
         self.addCleanup(self.tts.stop)
-        # La tâche ferme les connexions périmées en entrée (utile dans un worker Celery) : dans
-        # un TestCase, cela fermerait la connexion de la transaction du test.
-        keep_connection = patch.object(workers, 'close_old_connections')
+        # Le squelette commun ferme les connexions périmées en entrée (utile dans un worker
+        # Celery) : dans un TestCase, cela fermerait la connexion de la transaction du test.
+        keep_connection = patch('wama.common.utils.task_skeleton.close_old_connections')
         keep_connection.start()
         self.addCleanup(keep_connection.stop)
 

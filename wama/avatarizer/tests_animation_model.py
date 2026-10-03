@@ -46,10 +46,10 @@ class NamedAnimationModelTest(TestCase):
         self.user = User.objects.create_user('animation_model_user', password='x')
         wav_dir = Path(settings.MEDIA_ROOT) / 'tmp_tests'
         wav_dir.mkdir(parents=True, exist_ok=True)
-        for target, kwargs in ((('_call_tts_service',), dict(
-                side_effect=lambda job: _silent_wav(wav_dir / f'tts{job.id}.wav'))),
-                (('close_old_connections',), {})):
-            p = patch.object(workers, *target, **kwargs)
+        for p in (patch.object(workers, '_call_tts_service',
+                               side_effect=lambda job: _silent_wav(wav_dir / f'tts{job.id}.wav')),
+                  # La connexion de test ne se ferme pas : le squelette commun la recycle en tête.
+                  patch('wama.common.utils.task_skeleton.close_old_connections')):
             p.start()
             self.addCleanup(p.stop)
 
