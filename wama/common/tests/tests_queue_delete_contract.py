@@ -752,6 +752,31 @@ class ReceivedCardsAppearInTheQueueTest(TestCase):
                 self.assertIn(f'data-id="{card.pk}"', html,
                               'la card partagée n’apparaît pas dans la file du destinataire')
 
+    def test_a_received_lot_status_answers_the_recipient(self):
+        # 2026-10-03 : la fabrique de lot ne lisait le lot QUE chez son propriétaire, sauf
+        # déclaration (2 apps sur 10) — le statut et le ZIP d'un lot reçu répondaient 404.
+        from wama.common.services.sharing import partager
+        from wama.common.utils.preview_registry import PreviewRegistry
+        owner = User.objects.create_user('received_lot_status_owner', password='x')
+        checked = 0
+        for surface, _delete, card_route in _surfaces():
+            try:
+                reverse(card_route.replace('card_html', 'batch_status'), args=[1])
+            except NoReverseMatch:
+                continue
+            with self.subTest(surface=surface):
+                self._account_for(surface)
+                lot, (card,) = _lot_de(PreviewRegistry.get_model(surface), owner, 1)
+                partager(owner, card, 'public')
+                url = reverse(card_route.replace('card_html', 'batch_status'), args=[lot.pk])
+                self.assertNotEqual(404, self.client.get(url).status_code,
+                                    'le statut du lot reçu refuse le destinataire')
+                partager(owner, card, 'private')
+                self.assertEqual(404, self.client.get(url).status_code,
+                                 'contre-épreuve : le statut d’un lot PRIVÉ d’autrui est lisible')
+                checked += 1
+        self.assertGreater(checked, 5, f'trop peu de fabriques de lot mesurées : {checked}')
+
     def test_a_shared_card_without_a_batch_does_not_break_the_recipients_queue(self):
         # Mesuré le 2026-10-02 par le geste `common.received_card_visible`, joué SUR LE SERVEUR LIVE :
         # une card partagée que son propriétaire n'a pas encore rangée dans un lot (le rangement du

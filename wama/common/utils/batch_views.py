@@ -212,7 +212,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                           la duplication (composer : `output_filename` recopié de la ligne d'origine).
         read_lookup     : callable(user, pk)->lot pour les vues de LECTURE (`batch_download`,
                           `batch_status`) — avatarizer : `visible_or_404` (un lot PARTAGÉ se lit,
-                          ne s'édite pas) ; défaut = le lot de l'utilisateur.
+                          ne s'édite pas). Défaut (2026-10-03) : `visible_or_404` aussi quand le
+                          lot est partageable — jusque-là « le lot de l'utilisateur », si bien que
+                          le statut et le ZIP d'un lot REÇU répondaient 404 dans 8 apps sur 10.
         output_name     : callable(élément)->str — nom de chaque entrée du ZIP de lot (enhancer :
                           `get_output_filename()`) ; défaut = le nom du fichier de sortie. Pour
                           une app LATE-BINDING (ci-dessous) : la SOUCHE de l'entrée, l'extension
@@ -286,6 +288,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     def _batch_read(request, pk):
         if read_lookup is not None:
             return read_lookup(get_user(request), pk)
+        # LECTURE : le sien OU reçu (partagé avec lui) — `scoping.visible_or_404`, la règle des
+        # lectures ; un modèle de lot non partageable garde le lot du propriétaire.
+        if hasattr(batch_model.objects, 'visible_to'):
+            from wama.common.utils.scoping import visible_or_404
+            return visible_or_404(batch_model, get_user(request), pk=pk)
         return _batch(request, pk)
 
     @require_POST

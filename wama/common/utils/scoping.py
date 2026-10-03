@@ -74,12 +74,12 @@ def editable_or_404(model, user, *, trace: str = '', **kwargs):
     obj = get_object_or_404(listable_by(model.objects.all(), user), **kwargs)
     if getattr(obj, 'user_id', None) == getattr(user, 'pk', None):
         return obj
-    from wama.common.services.access_requests import collaboration_grant, trace_collaborator
+    from wama.common.services.access_requests import collaboration_grant, record_collaborator_gesture
     if collaboration_grant(user, obj) is None:
         from django.http import Http404
         raise Http404('élément non modifiable')
     if trace:
-        trace_collaborator(user, obj, trace)
+        record_collaborator_gesture(user, obj, trace)
     return obj
 
 

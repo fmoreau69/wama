@@ -187,7 +187,7 @@ class CollaborationTest(TestCase):
         with self.assertRaises(Http404):
             editable_or_404(Description, self.collaborator, pk=self.card.pk)
 
-    def test_start_lock_accepts_the_collaborator_and_refuses_a_reader(self):
+    def test_start_lock_accepts_the_collaborator_and_turns_a_reader_away(self):
         from wama.common.utils.process_control import begin_processing
         from wama.describer.models import Description
         self._grant()
@@ -279,6 +279,30 @@ class CollaborationAcrossTheFleetTest(TestCase):
                                  'le collaborateur supprime la card (E2)')
                 checked += 1
         self.assertGreaterEqual(checked, 6, f'trop peu d’apps mesurées : {checked}')
+
+
+class GestureJournalAppNameTest(TestCase):
+    """Le journal des gestes (`RunOutcome`, middleware) reconnaît une app dont `app_name` est POINTÉ.
+
+    Sonde du 2026-10-03 : reader, composer et transcriber déclarent `app_name = 'wama.reader'` ; le
+    middleware cherchait ce nom tel quel au registre de détail et ne captait RIEN pour elles
+    (téléchargement, suppression, relance) — depuis la création du middleware, sans rien dire."""
+
+    def test_every_queue_app_route_resolves_to_a_name_the_registry_knows(self):
+        from django.urls import resolve, reverse
+        from wama.common.middleware import app_of
+        from wama.common.tests.tests_queue_delete_contract import _surfaces
+        from wama.common.utils.detail_registry import DetailRegistry
+        for surface, delete_route, _card in _surfaces():
+            with self.subTest(surface=surface):
+                match = resolve(reverse(delete_route, args=[1]))
+                self.assertIsNotNone(DetailRegistry.get(app_of(match)),
+                                     f'{match.app_name!r} / {match.namespace!r} : app inconnue du journal')
+
+    def test_a_dotted_app_name_is_read_on_its_namespace(self):
+        from types import SimpleNamespace
+        from wama.common.middleware import app_of
+        self.assertEqual('reader', app_of(SimpleNamespace(app_name='wama.reader', namespace='reader')))
 
 
 class ShareLabelTest(TestCase):
