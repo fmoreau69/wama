@@ -1940,6 +1940,23 @@ MECHANISMS = (
               'wama/accounts/permissions.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/accounts/tests.py', 'wama/accounts/tests_access_points.py'),
               symbol='accessible'),
+    # Ajouté le 2026-10-04 (décision de Fabien : « option 1, persistance par session »). Collé à
+    # `app_access` parce qu'il en est le prolongement : la décision dit QUELLE app est ouverte au
+    # visiteur (`public`), celui-ci dit SOUS QUELLE IDENTITÉ il y agit.
+    Mechanism('visitor_identity', "Identité de session du visiteur sans compte",
+              "Sur une app déclarée `public` (le converter, app d'essai), un visiteur non connecté "
+              "agit sous un COMPTE TECHNIQUE propre à sa session (`wama_visitor_<jeton>`, tier "
+              "`anonymous`, aucun rôle), créé à son premier geste par l'intergiciel d'accès et "
+              "purgé avec ses éléments ET ses fichiers après sa durée de vie. Une identité, pas une "
+              "étiquette : toute la logique de propriété existante (file, `users/<id>/`, portée) "
+              "vaut pour lui sans retoucher une vue d'app. Bornes dans `settings` (taille, nombre "
+              "d'éléments, identités neuves par adresse) ; routes qui font lire au serveur une "
+              "adresse ou un chemin fermées ; aucun post-traitement GPU. Sur toute autre app, le "
+              "visiteur VOIT et ne fait rien (403 de la même garde). `is_guest_account` = le "
+              "prédicat unique « compte de visiteur » (partagé ou de session)",
+              'wama/accounts/visitors.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
+              annexes=('wama/accounts/middleware.py', 'wama/accounts/tests_visitors.py'),
+              symbol='attach'),
     # Ajouté le 2026-08-27 avec le jalon S1 (PROFILES_PERMISSIONS §8). Il est le VOISIN de
     # `app_access` et son exact complément — d'où sa place ici, collé à lui : `app_access` répond
     # « ai-je le DROIT ? », celui-ci « est-ce que je VEUX m'en servir ? ». Les confondre est le

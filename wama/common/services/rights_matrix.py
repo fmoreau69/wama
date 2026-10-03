@@ -492,11 +492,11 @@ def run_rights_anonymous(ctx):
     l'exception est mesurée dans les DEUX sens : un converter gardé serait aussi un écart.
     ✅ La garde serveur EXISTE depuis le 2026-10-03 (`accounts.middleware.AppAccessMiddleware` :
     tout geste sans session sur une app non publique → 403) : mesuré, 10 refus sur 10 routes
-    (1 sur 10 la veille). ⏳ Reste la SECONDE moitié du contrat : le converter doit s'ouvrir au
-    visiteur. Il le refuse encore (`@login_required` sur toutes ses vues, politique `public`
-    non déclarée) — l'ouvrir demande de trancher où vivent les fichiers d'un visiteur : le
-    compte `anonymous` est UNIQUE, ses éléments seraient vus de tous les visiteurs. Le scénario
-    reste donc rouge sur ce seul point, et le dit.
+    (1 sur 10 la veille). ✅ Et le converter est OUVERT depuis le 2026-10-04 (politique `public`
+    + identité éphémère PAR SESSION, `accounts/visitors.py`) : le contrat est tenu dans les deux
+    sens — mesuré, « 9 refus, converter seul ouvert ».
+    ⚠ La sonde à vide sur le converter fait NAÎTRE une identité de visiteur (un compte
+    `wama_visitor_…`, sans élément) : elle part à la purge horaire, rien à nettoyer ici.
     """
     from django.urls import NoReverseMatch, reverse
     from wama.accounts.permissions import all_gated_apps
@@ -572,8 +572,8 @@ def run_rights_anonymous(ctx):
                             "n'est plus une exception")
         return False, f"❌ {base} — " + ' | '.join(morceaux) + (
             " (la garde serveur du visiteur doit refuser partout : `AppAccessMiddleware`)" if ecarts
-            else " (reste à ouvrir le converter au visiteur — décision sur la persistance, "
-                 "`PROFILES_PERMISSIONS §1.4`)")
+            else " (le converter doit rester OUVERT au visiteur : politique `public` + identité "
+                 "de session, `accounts/visitors.py`)")
     return True, base + " — contrat « visiteur guidé » TENU : refus partout, converter seul ouvert"
 
 

@@ -41,6 +41,23 @@ ACCOUNT_KINDS = {
 }
 
 
+#: Préfixe des identités de VISITEUR (2026-10-04, `accounts/visitors.py`) : un compte technique
+#: par session de visiteur, créé à son premier geste sur une app publique et détruit avec ses
+#: fichiers à l'expiration. Il porte le préfixe des comptes de test et système (`wama_`).
+VISITOR_ACCOUNT_PREFIX = 'wama_visitor_'
+
+
+def is_guest_account(user) -> bool:
+    """Ce compte est-il un compte de SERVICE pour visiteur non connecté — le compte `anonymous`
+    partagé, ou l'identité éphémère d'une session ? Ce n'est pas une personne : il ne voit et ne
+    liste que ce qu'il possède (`scoping.listable_by`), et rien ne se partage avec lui.
+
+    Domicile UNIQUE du prédicat : il était écrit `username == 'anonymous'` en plusieurs endroits,
+    ce qui aurait laissé une identité de visiteur hériter des éléments publics de tout le parc."""
+    username = getattr(user, 'username', '') or ''
+    return username == ANONYMOUS_USERNAME or username.startswith(VISITOR_ACCOUNT_PREFIX)
+
+
 def account_kind(user) -> str:
     """'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
     sinon — c'est la section de la page de gestion des utilisateurs."""
@@ -87,7 +104,10 @@ DEFAULT_APP_ACCESS = {
     'describer':    {'roles': ['recherche']},
     'reader':       {'roles': ['recherche']},
     # Utilitaires / communs (aucun rôle = ouvert à tout compte authentifié)
-    'converter':    {'roles': []},
+    # `public` : l'app d'ESSAI du visiteur sans compte (décision de Fabien du 2026-08-30,
+    # ouverte le 2026-10-04 avec une persistance PAR SESSION — `accounts/visitors.py`). C'est la
+    # seule : conversion par ffmpeg/pandoc, aucune ressource GPU.
+    'converter':    {'roles': [], 'public': True},
     'media_library': {'roles': []},
     # Orchestration (méta-app)
     'studio':       {'roles': ['communication', 'ingenierie']},

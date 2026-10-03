@@ -254,8 +254,12 @@ class VisitorActionGuardTests(TestCase):
         return {app_id: reverse(urls[app_id]) for app_id in sorted(all_gated_apps()) if urls.get(app_id)}
 
     def test_a_visitor_cannot_act_on_any_gated_app(self):
-        targets = self._index_urls()
-        self.assertTrue(targets, 'aucune surface relevée : le test ne mesurerait rien')
+        # Hors apps déclarées PUBLIQUES (le converter depuis le 2026-10-04) : le visiteur y agit
+        # sous une identité de session — `tests_visitors`. Tout le reste doit refuser.
+        from django.contrib.auth.models import AnonymousUser
+        targets = {app_id: url for app_id, url in self._index_urls().items()
+                   if not accessible(AnonymousUser(), 'app', app_id)}
+        self.assertGreaterEqual(len(targets), 10, 'trop peu de surfaces : le test ne mesurerait rien')
         reached = {}
         for app_id, url in targets.items():
             for method in ('post', 'put', 'patch', 'delete'):

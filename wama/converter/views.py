@@ -119,7 +119,11 @@ def consolidate_jobs_into_batches(job_ids, user, app_label='converter'):
 class IndexView(View):
     def get(self, request):
         import json
-        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+        # Visiteur sans compte (2026-10-04) : la page garde un `AnonymousUser` (en-tête de
+        # visiteur), et la file est celle de SON identité de session (`accounts/visitors.py`,
+        # posée par l'intergiciel) — le compte `anonymous` partagé, vide, tant qu'il n'a rien fait.
+        user = (request.user if request.user.is_authenticated
+                else getattr(request, 'wama_visitor', None) or get_or_create_anonymous_user())
         # Tout job de file appartient à un batch (batch-of-1 si fichier seul) —
         # wrap paresseux des éventuels orphelins (ex. upload direct).
         _auto_wrap_orphans(user)
@@ -227,7 +231,19 @@ class IndexView(View):
             'engine_help_json':     json.dumps(_ENGINE_HELP_BY_TYPE),   # descriptif moteur par TYPE (modale)
             'q_sort':               q_sort,
             'q_filter':             q_filter,
+            # Visiteur sans compte : ce que la page lui DIT de son essai (durée, limites).
+            'visitor_trial':        _visitor_trial(request),
         })
+
+
+def _visitor_trial(request):
+    """Les bornes de l'essai sans compte, pour l'encart de la page — None pour un membre."""
+    if request.user.is_authenticated:
+        return None
+    from wama.accounts import visitors
+    return {'ttl_hours': int(visitors.ttl().total_seconds() // 3600),
+            'max_mb': visitors.max_upload_bytes() // (1024 * 1024),
+            'max_items': visitors.max_items()}
 
 
 @login_required

@@ -151,6 +151,18 @@ def dispatch_scheduled_actions_task():
     return summary
 
 
+@shared_task(name='common.purge_visitors')
+def purge_visitors_task(dry_run=False):
+    """Purge des identités de VISITEUR sans geste depuis leur durée de vie (`accounts/visitors.py`,
+    2026-10-04) : le compte éphémère part avec ses éléments et ses fichiers. Battue chaque heure —
+    la persistance d'un visiteur est celle de sa session, pas une rétention de membre."""
+    from wama.accounts.visitors import purge_expired
+    summary = purge_expired(dry_run=dry_run)
+    if summary['purged']:
+        logger.info("[visiteur] %s", summary)
+    return summary
+
+
 @shared_task(name='common.purge_expired_media')
 def purge_expired_media_task(dry_run=False):
     """

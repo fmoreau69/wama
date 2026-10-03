@@ -52,7 +52,8 @@ def is_dev(user):
 
 def get_user_role(user):
     """Get the primary role of a user."""
-    if not user.is_authenticated or user.username == 'anonymous':
+    from wama.accounts.permissions import is_guest_account
+    if not user.is_authenticated or is_guest_account(user):
         return 'anonymous'
     if user.is_superuser or user.groups.filter(name='admin').exists():
         return 'admin'

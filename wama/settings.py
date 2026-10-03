@@ -854,6 +854,13 @@ if ENABLE_CELERY:
             'schedule': 60.0,
             'options': {'queue': 'default'},  # appelle un outil, ne charge aucun modèle
         },
+        # Visiteurs sans compte (converter, app d'essai) : leurs identités éphémères et leurs
+        # fichiers partent après `WAMA_VISITOR_TTL_HOURS` sans geste (`accounts/visitors.py`).
+        'purge-visitors': {
+            'task': 'common.purge_visitors',
+            'schedule': crontab(minute=20),
+            'options': {'queue': 'default'},  # I/O disque, pas de GPU
+        },
         # Rétention : purge quotidienne des médias expirés (no-op si aucun user n'a de rétention).
         'purge-expired-media': {
             'task': 'common.purge_expired_media',
@@ -902,6 +909,15 @@ if ENABLE_CELERY:
     # Rétention médias : plafond global (0 = pas de plafond) + pré-avis email (jours avant purge).
     WAMA_MAX_RETENTION_DAYS = int(os.environ.get('WAMA_MAX_RETENTION_DAYS', '0') or 0)
     WAMA_RETENTION_NOTICE_DAYS = int(os.environ.get('WAMA_RETENTION_NOTICE_DAYS', '3') or 0)
+
+    # Visiteur SANS COMPTE sur l'app d'essai (converter) — `accounts/visitors.py`, 2026-10-04.
+    # Son identité est éphémère : durée de vie sans geste, puis purge (éléments ET fichiers).
+    WAMA_VISITOR_TTL_HOURS = int(os.environ.get('WAMA_VISITOR_TTL_HOURS', '24') or 24)
+    WAMA_VISITOR_MAX_UPLOAD_MB = int(os.environ.get('WAMA_VISITOR_MAX_UPLOAD_MB', '200') or 200)
+    WAMA_VISITOR_MAX_ITEMS = int(os.environ.get('WAMA_VISITOR_MAX_ITEMS', '20') or 20)
+    # Identités NEUVES par adresse et par heure (frein à l'abus ; derrière le mandataire,
+    # l'adresse lue est celle de `X-Forwarded-For` quand il la transmet).
+    WAMA_VISITOR_NEW_PER_ADDRESS_HOUR = int(os.environ.get('WAMA_VISITOR_NEW_PER_ADDRESS_HOUR', '30') or 30)
 
     # ── TESTS NOCTURNES : une PLAGE RÉSERVÉE, après toute la maintenance (2026-09-28) ──────
     # Décision de Fabien : la plage des tests nocturnes est réservée — une tâche qui s'y

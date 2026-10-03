@@ -25,11 +25,15 @@ def visible_or_404(model, user, **kwargs):
     À utiliser dans TOUS les chemins de lecture : détail, progression, téléchargement, aperçu.
     Le modèle doit hériter de `ScopedVisibility` et exposer `ScopedManager`.
     """
-    return get_object_or_404(model.objects.visible_to(user), **kwargs)
+    # Par `listable_by` et non `visible_to` nu (2026-10-04) : un compte de visiteur ne LIT, lui
+    # aussi, que ce qu'il possède — sans quoi il suivrait par son identifiant n'importe quel
+    # élément public du parc. Pour une personne, les deux sont la même requête.
+    return get_object_or_404(listable_by(model.objects.all(), user), **kwargs)
 
 
 def listable_by(queryset, user):
-    """Ce que `user` a le droit de LISTER : `visible_to`, sauf pour le compte de service anonyme.
+    """Ce que `user` a le droit de LISTER : `visible_to`, sauf pour un compte de visiteur (le
+    compte `anonymous` partagé, ou l'identité éphémère d'une session — `is_guest_account`).
 
     ⚠ Le compte anonyme est une VRAIE ligne `User` (authentifiée : tous les visiteurs non
     connectés la partagent), et `scoped_visible_q` pose `Q(visibility='public')` pour tout le
@@ -40,8 +44,8 @@ def listable_by(queryset, user):
     Domicile UNIQUE de la règle depuis le 2026-09-22 : elle vivait en deux exemplaires
     (liste de la médiathèque, voix de clonage), écrits le même jour par la même session.
     """
-    from wama.accounts.views import ANONYMOUS_USERNAME
-    if getattr(user, 'username', '') == ANONYMOUS_USERNAME:
+    from wama.accounts.permissions import is_guest_account
+    if is_guest_account(user):
         return queryset.filter(user=user)
     return queryset.visible_to(user)
 

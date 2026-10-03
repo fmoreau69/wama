@@ -364,6 +364,18 @@ document.addEventListener('DOMContentLoaded', function () {
 {% block converter_content %}
 <div class="container-fluid py-2" style="overflow-x:clip;">
 
+    {% comment %}Essai SANS COMPTE (2026-10-04, `accounts/visitors.py`) : le visiteur doit savoir que ses fichiers sont à lui seul et TEMPORAIRES. Les chiffres viennent des réglages, par la vue.{% endcomment %}
+    {% if visitor_trial %}
+    <div class="alert alert-info py-2 small mb-2" role="note" id="converterVisitorNotice">
+        <i class="fas fa-user-clock me-1"></i>
+        <strong>Essai sans compte.</strong>
+        Vos fichiers ne sont visibles que de vous et sont effacés {{ visitor_trial.ttl_hours }} h après votre dernier geste.
+        Limites : {{ visitor_trial.max_mb }} Mo par fichier, {{ visitor_trial.max_items }} éléments, un fichier à la fois
+        (pas d'import par lot ni par adresse web, pas de post-traitement IA).
+        <a href="{% url 'home' %}" class="alert-link">Connectez-vous</a> pour lever ces limites.
+    </div>
+    {% endif %}
+
     {# Barre de progression globale (toujours visible) — composant commun #}
     {% include 'common/_global_progress.html' %}
 
