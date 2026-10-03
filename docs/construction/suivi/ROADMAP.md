@@ -1504,6 +1504,22 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   synchro du disque ne supprime JAMAIS une ligne cloud : seule la découverte cloud réconcilie les
   siennes (sinon `delete_missing` les effacerait, ou un échec réseau suspendrait la réconciliation
   de TOUT le catalogue, `model_sync.py:112-128`).
+  ✅ **Le « puis périodiquement » est câblé depuis le 2026-10-04** — il ne l'était pas : la liste
+  n'était relue qu'au geste « Enregistrer » du profil. Mesuré ce jour : toutes les clés dataient
+  leur découverte du 18/09, et Claude Opus 5.5 / Sonnet 5.5 n'existaient pas pour WAMA. Sonde
+  NOCTURNE `model_manager.refresh_cloud_keys` (beat, 01:10 → `cloud_models.refresh_all_keys`) :
+  un appel par clé, erreur gardée sur la ligne sans rien fermer, fournisseurs sans liste sautés.
+  Première exécution réelle : `anthropic` +2 (`claude-opus-5-5`, `claude-sonnet-5-5`).
+  ✅ **L'origine se DIT sous le sélecteur** (même jour) : `AIModel.origin_label`, dérivé de
+  l'exécution, de la source, de son hébergement et du coût (« Cloud souverain · Albert API
+  (DINUM) · gratuit », « Local · Ollama »), servi par l'API du catalogue et affiché par
+  `WamaModelHelp` — pour un distant toujours, pour un local quand la liste mêle les deux.
+  L'assistant déclare désormais `help_source` : son sélecteur n'avait AUCUNE aide contextuelle.
+  ⏳ **Abonnement Claude Code : un seul modèle, et on ne sait pas lequel** — constat, à décider.
+  Le protocole `claude_cli` n'a pas de liste : une ligne DÉCLARÉE `default` (« le modèle est
+  choisi par le fournisseur »), l'appel ne passe aucun `--model` et ne lit pas, dans la réponse
+  du CLI, le modèle qui a servi. Piste : déclarer les alias du CLI comme lignes
+  (`claude_code:opus`, `:sonnet`, `:haiku`) passées en `--model`, et afficher le modèle réel.
 - **Clé d'instance (`.env`) : PAS de repli pour les utilisateurs** (Fabien, 15/09) — quotas
   répartis. Elle ne sert qu'aux usages SANS utilisateur (rôles wama-dev-ai en ligne de commande,
   tâches planifiées) ; lancé par le serveur MCP dev, un rôle utilise la clé du développeur qui le

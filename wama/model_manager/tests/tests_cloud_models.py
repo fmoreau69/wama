@@ -557,3 +557,77 @@ class HostingCeilingTest(TestCase):
         for source in es.SOURCES:
             if source.kind == 'llm':
                 self.assertIn(source.hosting, es.HOSTING_SCALE, source.key)
+
+
+@override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
+class NightlyRefreshTest(TestCase):
+    """La sonde NOCTURNE relit les modèles de chaque clé (2026-10-04) : la liste n'était relue
+    qu'au geste du profil, donc figée — un modèle publié depuis n'existait pas pour WAMA."""
+
+    def setUp(self):
+        from wama.accounts.models import UserApiKey
+        _sync_cloud_seul(self)
+        self.user = get_user_model().objects.create_user('nightly_cloud', password='x')
+        self.albert = UserApiKey.objects.create(user=self.user, source='albert', api_key='sk',
+                                                open_models=['albert:bge-m3'])
+        self.subscription = UserApiKey.objects.create(user=self.user, source='claude_code',
+                                                      api_key='jeton', open_models=['claude_code:default'])
+
+    def test_a_newly_published_model_enters_and_a_withdrawn_one_leaves(self):
+        with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS) as listing:
+            summary = cloud_models.refresh_all_keys()
+        self.albert.refresh_from_db()
+        self.assertEqual(1, summary['keys'])
+        self.assertIn('albert:whisper-large-v3', summary['added']['albert'])
+        self.assertIn('albert:whisper-large-v3', self.albert.open_models)
+        self.assertIsNotNone(self.albert.discovered_at)
+        # Contre-épreuve : relu sans changement, la sonde ne signale rien.
+        with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS):
+            again = cloud_models.refresh_all_keys()
+        self.assertEqual(({}, {}), (again['added'], again['removed']))
+        # Le fournisseur retire un modèle : il sort de la liste ouverte.
+        with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS[:1]):
+            shrunk = cloud_models.refresh_all_keys()
+        self.assertIn('albert:whisper-large-v3', shrunk['removed']['albert'])
+        self.assertEqual(1, listing.call_count)
+
+    def test_a_provider_without_a_model_list_is_skipped(self):
+        with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS) as listing:
+            cloud_models.refresh_all_keys()
+        self.assertEqual(['albert'], [call.args[0] for call in listing.call_args_list])
+        self.subscription.refresh_from_db()
+        self.assertEqual(['claude_code:default'], self.subscription.open_models)
+
+    def test_a_provider_outage_keeps_the_previous_list_and_is_reported(self):
+        with mock.patch.object(cloud_models, 'list_remote_models',
+                               side_effect=cloud_models.CloudDiscoveryError('injoignable')):
+            summary = cloud_models.refresh_all_keys()
+        self.albert.refresh_from_db()
+        self.assertEqual({'albert': 'injoignable'}, summary['errors'])
+        self.assertEqual(['albert:bge-m3'], self.albert.open_models)
+
+    def test_the_probe_is_scheduled_every_night(self):
+        from django.conf import settings
+        entry = settings.CELERY_BEAT_SCHEDULE['cloud-models-refresh']
+        self.assertEqual('model_manager.refresh_cloud_keys', entry['task'])
+
+
+class OriginLabelTest(TestCase):
+    """L'ORIGINE d'un modèle se DÉRIVE de sa ligne (exécution, source, hébergement, coût) —
+    affichée sous les sélecteurs de modèle (`WamaModelHelp`)."""
+
+    def _row(self, key, **fields):
+        return AIModel(model_key=key, name=key, model_type='llm', source=key.split(':')[0], **fields)
+
+    def test_each_origin_is_said_in_plain_words(self):
+        self.assertEqual('Local · Ollama', self._row('ollama:x').origin_label)
+        self.assertEqual('Local', self._row('imager:x').origin_label)
+        self.assertEqual('Cloud souverain · Albert API (DINUM) · gratuit (quota)',
+                         self._row('albert:x', execution='cloud', cost_tier='free').origin_label)
+        self.assertEqual("Cloud commercial · API Anthropic (Claude) · facturé à l'usage",
+                         self._row('anthropic:x', execution='cloud', cost_tier='metered').origin_label)
+        self.assertEqual('Cloud commercial · Claude Code (abonnement) · abonnement',
+                         self._row('claude_code:x', execution='cloud', cost_tier='subscription').origin_label)
+
+    def test_the_catalogue_api_carries_the_origin(self):
+        self.assertEqual('Local · Ollama', self._row('ollama:x').to_dict()['origin'])

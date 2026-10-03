@@ -840,9 +840,34 @@ class AIModel(models.Model):
         lot.sort(key=lambda m: (m.quality_index is None, -(m.quality_index or 0)))
         return lot[:limit]
 
+    @property
+    def origin_label(self) -> str:
+        """OÙ ce modèle s'exécute, dit simplement — « Local · Ollama », « Cloud souverain ·
+        Albert API (DINUM) · gratuit », « Cloud commercial · API Anthropic (Claude) · facturé à
+        l'usage ».
+
+        Demande de Fabien (2026-10-04) : sous le sélecteur de l'assistant, rien ne disait d'où
+        venait le modèle choisi. Tout est DÉRIVÉ de ce que la ligne déclare déjà — `execution`,
+        la source et son hébergement (`external_sources`), `cost_tier` : aucun libellé recopié
+        dans une description. C'est aussi l'intention du 02/10 : DIRE quand une donnée part.
+        """
+        if self.execution != EXECUTION_CLOUD:
+            return 'Local · Ollama' if self.source == 'ollama' else 'Local'
+        from wama.common import external_sources
+        try:
+            src = external_sources.get(self.source)
+        except Exception:
+            return 'Cloud'
+        parts = [external_sources.CLOUD_ORIGIN_LABELS.get(src.hosting, 'Cloud'), src.label]
+        cost = dict(COST_TIER_CHOICES).get(self.cost_tier or '')
+        if cost:
+            parts.append(cost[0].lower() + cost[1:])
+        return ' · '.join(parts)
+
     def to_dict(self):
         """Convert to dictionary for API responses."""
         return {
+            'origin': self.origin_label,
             'id': self.model_key,
             'model_key': self.model_key,
             'name': self.name,

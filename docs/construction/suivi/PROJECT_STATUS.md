@@ -21252,3 +21252,30 @@ une réinvention, retirée). Équivalence mesurée sur 200 éléments réels ava
   `progress_views_common` VRAI 10/10.** Tests composer + contrat + pipeline : 137 OK.
 - ⏳ Manifestes `avatarizer`/`enhancer`/`transcriber` non régénérés (travail d'autres sessions
   dans le fichier) ; docs générées (`WAMA_MECANISMES`, `docs/dev/briques`) à régénérer depuis HEAD.
+
+## §PALIER — 2026-10-04 (suite), « MODÈLES CLOUD : SONDE NOCTURNE + ORIGINE SOUS LE SÉLECTEUR » — ✅ commit ci-dessous, non poussé — 🔴 RECHARGER gunicorn, relancer workers + beat — 🔚 modèles de l'abonnement Claude (décision) · voix française masculine (autre moteur) · corpus SYSTÈME de l'assistant (décision)
+
+Cinq questions de Fabien sur l'assistant, mesurées. Deux soldées, trois en constat.
+- ✅ **Listes cloud figées** : relues seulement au geste « Enregistrer » du profil — toutes les
+  clés dataient du 18/09. Sonde nocturne `model_manager.refresh_cloud_keys` (01:10). Première
+  exécution réelle : `claude-opus-5-5` et `claude-sonnet-5-5` entrés. Détail : `ROADMAP §8d`.
+- ✅ **Origine du modèle** sous les sélecteurs (`AIModel.origin_label` + `WamaModelHelp`), et aide
+  contextuelle déclarée sur le sélecteur de l'assistant, qui n'en avait aucune.
+- ⏳ **Abonnement : un modèle unique et anonyme** — ligne déclarée `claude_code:default`, aucun
+  `--model` passé, modèle réel non lu dans la réponse du CLI. Piste consignée (`ROADMAP §8d`).
+- ⏳ **Pas de voix française masculine** : Kokoro n'en a pas. Mesuré sur le disque : 55 voix, UNE
+  française (`ff_siwis`). La table la donnait déjà pour les deux genres, d'où une seule entrée
+  au menu. Une voix d'homme en français demande un AUTRE moteur — même chantier que « la voix de
+  l'assistant se TIRE » (`WAMA_LLM §1bis`).
+- ⏳ **L'assistant n'a accès à AUCUNE doc de WAMA.** Mesuré : la mémoire porte 28 éléments, tous
+  privés ; rien n'ingère `docs/` ; le RAG n'est lu que par deux domaines (`science`, `design`) ;
+  le skill de développement dit lui-même « You do not have direct access to the repository
+  files » et renvoie à `ask_claude_code`. Ce qu'il sait de WAMA : la liste des outils, l'état des
+  files, ses skills. Un corpus SYSTÈME est à décider — recommandation dans la réponse à Fabien :
+  d'abord `docs/utilisateur` et `docs/dev` (dérivées, tenues par les registres), pour tous et
+  pour les développeurs ; la doc de construction seulement datée et réservée aux développeurs.
+- Gardes : `tests_cloud_models.NightlyRefreshTest`, `OriginLabelTest`. Suites cloud + assistant +
+  tirage : 116 OK. Script servi vérifié par V8.
+- Fichiers : `model_manager/{models,tasks}.py`, `model_manager/services/cloud_models.py`,
+  `common/external_sources.py`, `common/static/common/js/wama-model-help.js` (+ copie servie),
+  `assistant/params.py`, `settings.py`, `ROADMAP.md`.
