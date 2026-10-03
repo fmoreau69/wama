@@ -208,9 +208,10 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
-- **API publique** (14) :
+- **API publique** (15) :
   - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
   - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
+  - `lines_by_item(items) -> dict` — `{pk (texte): [lignes]}` des éléments d'UN même modèle — UNE requête pour toute une page
   - `line(item, node_id: str=MAIN_NODE, instance_key: str='')` — La ligne d'un nœud, ou None s'il n'a jamais été lancé.
   - `snapshot(settings, watched) -> dict` — Photo des réglages SURVEILLÉS : `{clé: valeur}` pour chaque clé de `watched`, lue d'un
   - `start(item, node_id: str=MAIN_NODE, *, process_key: str='', kind: str='app', version: str='', instance_key: str='', settings_snapshot: dict | None=None, model_…` — Le process PART : la ligne passe `RUNNING`, sa photo de réglages est prise, l'erreur et
@@ -258,11 +259,15 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
-- **API publique** (4) :
+- **API publique** (8) :
+  - `preload(items) -> None` — Lit en UNE requête les lignes d'exécution de tous ces éléments (même modèle) et les pose
   - `class ProcessSpec` — Un process d'un pipeline d'app — les champs de `pass_tracking.Pass` qui ne sont pas
   - `output_fingerprint(ref: str) -> str` — Empreinte de la sortie d'un process (chemin relatif à MEDIA_ROOT) : celle de la brique
   - `class AppPipeline` — Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive.
   - `register_app_pipeline(app: str, specs, *, label: str, description: str='', source_ref: str='') -> AppPipeline` — Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
+  - `pipeline_of(item) -> AppPipeline | None` — Le pipeline déclaré par l'app de cet élément, ou None (app à un seul process). Charge
+  - `card_view(item, model_key=None, preloaded: bool=False)` — Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
+  - `decorate(item, model_key=None, preloaded: bool=False)` — Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
 
 ### Progression de tâche longue
 
@@ -280,9 +285,10 @@ Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA
 
 - **Domicile** : `wama/common/utils/task_skeleton.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Squelette COMMUN des tâches Celery d'item (brique F5 — marche A2 de la route §10.3).
-- **API publique** (3) :
+- **API publique** (4) :
   - `class TaskContext` — Poignées offertes à la glu : progress + console. `progress_fn` permet à une app de
   - `class TaskTimeLimitExceeded(Exception)` — Le traitement a dépassé sa durée max (`resource_governor.task_time_limit_s`).
+  - `class ServiceNotReady(Exception)` — Ce dont le traitement DÉPEND n'est pas encore prêt — un service qui charge (le service TTS
   - `run_item_task(task, *, app_id: str, model, item_id: int, process=None, vram_needed=None, model_key=None, error_field: str='error_message', ingest_derive=None,…` — Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
 
 ### Tests nocturnes
@@ -655,7 +661,8 @@ Middleware : telecharge/supprime/relance lus de resolver_match — zéro ligne p
 
 - **Domicile** : `wama/common/middleware.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7bis](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Captation GÉNÉRIQUE des gestes utilisateur vers `RunOutcome`. Doc : `WAMA_MEMORY.md §7bis`.
-- **API publique** (1) :
+- **API publique** (2) :
+  - `app_of(match) -> str` — L'app d'une route résolue, sous le nom que connaissent les registres (`DetailRegistry`).
   - `class RunOutcomeCaptureMiddleware` — Enregistre telecharge / supprime / relance depuis les routes de file, sans code par app.
 
 ### Catalogue & lecteur de docs
@@ -882,7 +889,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 
 - **Domicile** : `wama/model_manager/services/cloud_models.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
-- **API publique** (15) :
+- **API publique** (16) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
@@ -894,7 +901,8 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
   - `retire_unlisted(source: str) -> int` — Marque indisponibles les lignes distantes de `source` qu'AUCUNE clé n'ouvre plus, et remet
   - `refresh_key(row, background: bool=False) -> tuple` — Relit chez le fournisseur les modèles ouverts à la clé `row` (`accounts.UserApiKey`), puis
   - `register_open_models(row) -> None` — Le CATALOGUE suit la liste gardée sur la clé `row` : la partie LONGUE de `refresh_key`
-  - `cloud_refusal(user) -> str` — Motif de refus si `user` est en « 100 % local », sinon ''. Sans utilisateur : ''.
+  - `hosting_ceiling(user) -> str` — PLAFOND d'hébergement du profil (`UserProfile.cloud_hosting_max`), sur l'échelle
+  - `cloud_refusal(user, source: str='') -> str` — Motif de refus d'un appel distant pour `user`, sinon ''. Sans utilisateur : ''.
   - `allowed_cloud_keys(user, automatic: bool=True) -> set` — `model_key` des modèles distants que `user` autorise — à passer à `select_model(cloud_keys=…)`.
   - `class CloudAccessRefused(RuntimeError)` — Appel distant refusé — message lisible par l'utilisateur ; `status` = code HTTP à rendre.
   - `cloud_access(user, source: str, model_id: str='') -> str` — La CLÉ avec laquelle `user` appelle `source` (et le modèle `model_id` s'il est nommé), ou
@@ -971,11 +979,13 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
 
 ### Partage d'un élément ou d'un lot (1ʳᵉ interface)
 
-LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5` disait « il n'existe AUCUNE interface de partage » (il fallait l'admin Django). Écrit `visibility` + son scope sur l'élément ET son lot — ou sur le lot ET ses éléments : les DEUX sens sont exigés, le filtre de lecture s'appliquant aux deux niveaux (un lot partagé aux éléments privés s'affiche VIDE chez le destinataire). Portées OFFRABLES dérivées de l'utilisateur (unités qui le couvrent, projets dont il est membre) : une portée sans cible réelle n'est pas proposée. Lecture seule par construction — l'écriture est le jalon S3 `AccessGrant`, et la modale le DIT. Depuis le 2026-10-01 : « Dupliquer » une card reçue (`scoping.duplicable_or_404`) et « Transférer à… » (`card_transfer` : possédés déplacés, désignés copiés). Depuis le 2026-10-02 : le RANGEMENT chez le destinataire (`reception`, §3bis.2) — « Retirer de ma file » ≠ supprimer, « Réafficher », SON ordre manuel ; une ligne par destinataire et par ENTRÉE de file (`ReceivedEntry`), qui ne porte aucun droit. Depuis le 2026-10-03 : la card reçue en LECTURE SEULE (pastille des deux côtés, ▶ 🗑 → encart, ⚙ en consultation), les MODES déclarés (`SHARE_MODES`, deux grisés) et les DEMANDES d'accès (`ObjectGrant` : la demande et le droit sont la même ligne ; la propriété s'accorde, elle cède la card)
+LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5` disait « il n'existe AUCUNE interface de partage » (il fallait l'admin Django). Écrit `visibility` + son scope sur l'élément ET son lot — ou sur le lot ET ses éléments : les DEUX sens sont exigés, le filtre de lecture s'appliquant aux deux niveaux (un lot partagé aux éléments privés s'affiche VIDE chez le destinataire). Portées OFFRABLES dérivées de l'utilisateur (unités qui le couvrent, projets dont il est membre) : une portée sans cible réelle n'est pas proposée. Lecture seule par construction — l'écriture est le jalon S3 `AccessGrant`, et la modale le DIT. Depuis le 2026-10-01 : « Dupliquer » une card reçue (`scoping.duplicable_or_404`) et « Transférer à… » (`card_transfer` : possédés déplacés, désignés copiés). Depuis le 2026-10-02 : le RANGEMENT chez le destinataire (`reception`, §3bis.2) — « Retirer de ma file » ≠ supprimer, « Réafficher », SON ordre manuel ; une ligne par destinataire et par ENTRÉE de file (`ReceivedEntry`), qui ne porte aucun droit. Depuis le 2026-10-03 : la card reçue en LECTURE SEULE (pastille des deux côtés, ▶ 🗑 → encart, ⚙ en consultation), les MODES déclarés (`SHARE_MODES`, deux grisés) et les DEMANDES d'accès (`ObjectGrant` : la demande et le droit sont la même ligne ; la propriété s'accorde, elle cède la card). Puis la COLLABORATION (E1-E5) : `scoping.editable_or_404` / `can_edit` (lancement, réglages, arrêt, correction — jamais la suppression), fin notifiée aux deux, verrou doux (`edit_lock`), réglages tracés au journal, retrait depuis « Mes partages »
 
 - **Domicile** : `wama/common/services/sharing.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : PARTAGE d'un élément de file — la première INTERFACE du mécanisme de visibilité.
-- **API publique** (8) :
+- **API publique** (10) :
+  - `share_mode(key: str) -> dict` — La déclaration d'un mode (`SHARE_MODES`), ou celle de la lecture si la clé est inconnue.
+  - `shares_overview(user, limit: int=200) -> dict` — Ce que montre la page « Partages » (`WAMA_COLLABORATION §5.3`, 2026-10-03) : ce que `user` a
   - `scope_label(element) -> str` — La portée d'un élément partagé, dite par sa CIBLE (« LESCOT », « Projet X », « Public ») —
   - `class RefusDePartage(Exception)` — Refus MOTIVÉ : le motif est destiné à l'utilisateur, pas au journal.
   - `class ConsentRequired(RefusDePartage)` — Le partage d'un élément personnel attend le consentement de celui qui partage.
@@ -1037,9 +1047,10 @@ Chaque résultat produit donne à l'élément une révision numérotée — rég
 
 - **Domicile** : `wama/common/services/revisions.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md §7.1](../construction/exploitation/WAMA_COLLABORATION.md)
 - **Module** : Révisions d'un élément — la brique de la marche 8a (`WAMA_COLLABORATION.md §7.1`).
-- **API publique** (11) :
+- **API publique** (12) :
   - `json_safe(value)` — Une valeur de réglage telle qu'un JSONField la gardera (Decimal, date… → chaîne ; un
   - `settings_snapshot(app_id: str, item) -> dict` — Réglages de `item` à cet instant, dérivés du schéma de son app. `{}` sans schéma.
+  - `text_fingerprint(value) -> str` — Empreinte d'une sortie qui est un TEXTE (pas un fichier) — celle des révisions, et celle
   - `output_references(item, fields=None) -> list` — `[{field, path, sha256}]` des SORTIES de `item`.
   - `record_revision(app_id: str, item, *, origin: str='process', user=None, outcome=None, model_keys=None, instruction: str='', output_fields=None)` — Donne à `item` sa révision suivante. Rend la ligne créée, ou None si rien n'a pu
   - `revisions_of(app_id: str, item)` — Toutes les révisions de `item`, la plus récente d'abord.
@@ -1269,7 +1280,8 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
 
 - **Domicile** : `wama/common/services/assistant_engine.py`
 - **Module** : Moteur de l'assistant IA — boucle agentique multi-surface (chantier « passerelle de canaux », étape 0).
-- **API publique** (6) :
+- **API publique** (7) :
+  - `web_voice_prompt(user, surface: str) -> str` — La consigne de voix et d'avatar de la surface web, avec l'état de CET utilisateur —
   - `surface_attaches_files(surface: str) -> bool` — La réponse de cette surface est-elle publiée par un ADAPTATEUR qui joint les fichiers ?
   - `assistant_settings(user) -> dict` — Réglages DURABLES de l'assistant pour `user` (brique commune `user_settings`, app
   - `resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple` — (fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
@@ -1380,7 +1392,7 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 - **Domicile** : `wama/common/services/backend_proposals.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : BACKENDS PROPOSÉS par le rôle `backend` (marche B2) — contrôles, résolution simulée, smoke, puis le geste « Valider » qui ÉCRIT le module dans `wama/common/backends/`.
-- **API publique** (12) :
+- **API publique** (14) :
   - `backends_dir() -> Path`
   - `outputs_dir() -> Path`
   - `contract_for_task(task: str) -> tuple` — (module, classe) du contrat qu'un backend écrit pour `task` doit implémenter.
@@ -1390,6 +1402,8 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
   - `simulate_resolution(code: str, *, module: str, engine: str, model_id: str, task: str='') -> dict` — La résolution que l'inventaire fera APRÈS écriture : le vivier réel + cette entrée.
   - `smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: Path) -> dict` — Exécute le backend proposé SUR CPU, sans l'écrire dans le paquet — un essai par CONTRAT
   - `smoke_speech_clip()` — `(SystemAsset de parole, chemin de sa référence | None)` de l'extrait du smoke, ou
+  - `smoke_score_clip(path, rate: int=22050) -> str` — Écrit la mélodie du smoke dans `path` (WAV) et rend ses NOMS de notes attendus (`CDEF…`).
+  - `abc_note_names(abc: str) -> str` — Noms des notes d'un texte ABC, dans l'ordre et sans octave (`C4D4|c2` → `CDC`) — en-têtes,
   - `pending() -> list` — Propositions de backend en attente : `outputs/backend_*.json` au statut PENDING.
   - `apply(name: str, user=None) -> dict` — ÉCRIT le backend validé dans `wama/common/backends/<module>.py` — contrôles REFAITS,
   - `reject(name: str, user=None) -> bool`
@@ -1693,13 +1707,14 @@ notify_job() — fin de traitement par e-mail, succès comme échec ; notify_in_
 
 - **Domicile** : `wama/common/utils/notifications.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md](../construction/exploitation/WAMA_COLLABORATION.md)
 - **Module** : Notifications utilisateur (email) — brique commune, métadonnée/préférence-driven.
-- **API publique** (7) :
+- **API publique** (8) :
   - `notify_emails(recipients, subject, body, html=None)` — Envoie un email à une liste d'ADRESSES (pas forcément des Users) — ex. modérateurs.
   - `notify_user(user, subject, body, html=None)` — Envoie un email à l'utilisateur si une adresse est disponible. Fail-safe (jamais d'exception).
   - `notify_in_app(users, kind, title, body='', url='')` — Crée une notification DANS WAMA pour chaque utilisateur (`common.Notification`, badge de
   - `infrastructure_admins()` — Les comptes qui administrent l'infrastructure : ceux que la politique d'accès laisse
   - `staff_emails(audiences=('admin', 'dev'))` — Adresses d'envoi pour une ou plusieurs audiences du staff : l'adresse FONCTIONNELLE
   - `notify_admins(kind, subject, body, url='', audiences=('admin', 'dev'))` — Prévient le staff technique DANS WAMA (chaque compte qui administre l'infrastructure) et
+  - `notify_job_collaborators(item, app_label, item_name, success, detail='')` — La fin d'un traitement, aussi pour ceux qui COLLABORENT sur l'élément (E3, décision de
   - `notify_job(user, app_label, item_name, success, detail='', url='')` — Notifie la fin (ou l'échec) d'un traitement, en respectant les préférences du profil.
 
 ### Ordre MANUEL de la file
@@ -1760,7 +1775,7 @@ UNE ligne par lot (`BatchSettings`, adressée comme `ProcessRun`) : ce que la m�
   - `remember(batch, settings: dict, *, source_id='') -> None` — La mère RETIENT ces réglages comme référence — réécrits, jamais empilés. `source_id` : la
   - `forget(batch) -> int` — Le lot disparaît : sa référence aussi. Rend le nombre de lignes retirées.
   - `references_for(batch_model, batch_ids) -> dict` — `{id de lot (int): id de la fille promue ('' pour la ⚙ de la mère)}` des lots de
-  - `settings_of(item, schema=None) -> dict` — Les réglages d'UNE fille, prêts à être promus : ceux de son schéma d'app (contexte
+  - `settings_of(item, schema=None) -> dict` — Les réglages d'UNE fille, prêts à être promus : ceux de son schéma d'app, lus par la
 
 ### Tri/filtrage de la file
 
@@ -2097,10 +2112,12 @@ Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / 
 
 - **Domicile** : `wama/common/utils/scoping.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Accès à un objet partageable depuis une vue — DEUX chemins nommés, et deux seulement.
-- **API publique** (4) :
+- **API publique** (6) :
   - `visible_or_404(model, user, **kwargs)` — Objet que `user` a le droit de VOIR : le sien, ou partagé avec lui (unité/projet/public).
   - `listable_by(queryset, user)` — Ce que `user` a le droit de LISTER : `visible_to`, sauf pour le compte de service anonyme.
   - `owned_or_404(model, user, **kwargs)` — Objet que `user` a le droit de MODIFIER — aujourd'hui : le sien, point.
+  - `editable_or_404(model, user, *, trace: str='', **kwargs)` — Objet que `user` peut ÉDITER : le sien, ou un élément sur lequel il COLLABORE.
+  - `can_edit(user, obj) -> bool` — Même règle qu'`editable_or_404`, pour un objet déjà en main (cards, gabarits, tâches).
   - `duplicable_or_404(model, user, **kwargs)` — Objet que `user` peut DUPLIQUER : tout ce qu'il peut voir (le sien, ou partagé avec lui).
 
 ### Activité vocale (le VAD garde-t-il la parole ?)
@@ -2457,7 +2474,8 @@ Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la s
 
 - **Domicile** : `wama/common/external_sources.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : external_sources — registre DÉCLARATIF des sources externes joignables par WAMA.
-- **API publique** (13) :
+- **API publique** (14) :
+  - `hosting_within(hosting: str, ceiling: str) -> bool` — `hosting` est-il admis par un profil plafonné à `ceiling` ?
   - `class ExternalSource` — Une source externe : ce qu'elle est et comment on l'adresse — jamais comment on la lit.
   - `by_key() -> dict[str, ExternalSource]`
   - `llm_engine_inventory() -> dict` — {moteur: porteur} des fournisseurs LLM distants — un par source `llm` (2026-09-15).
