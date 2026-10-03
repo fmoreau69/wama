@@ -173,6 +173,11 @@ def chips_for(instance, params_json, extra=None, values=None):
                     if not unit and cl and len(cl) <= 5 and cl == cl.lower():
                         unit = cl
                     display = f"{value} {unit}" if unit else f"{libelle} {value}"
+                    # FORMAT DÉCLARÉ (`display_format`, 2026-10-04) : « 3:30 » plutôt que
+                    # « 210 s » — le même formateur que le curseur (jumeau Python).
+                    if field.get('display_format'):
+                        from wama.common.utils.param_schema import format_display
+                        display = format_display(value, field['display_format']) or display
                 # ⚠ Un select/text NON résolu reste NU : le préfixer produisait « Format de
                 # sortie mp4 » sur la SORTIE du converter et « Moteur de transcription
                 # faster-whisper-large-v3 » chez transcriber (régressions R1/R3 de l'audit

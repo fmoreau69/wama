@@ -129,6 +129,8 @@ urlpatterns = [
     # `(surface, pk)` — celles qu'une card porte — pour que l'arbre offre les MÊMES gestes
     # d'élément que le menu « … » (partager, médiathèque, RAG), par les MÊMES endpoints (2026-09-18).
     path('api/element-pour-chemin/', views.api_item_for_path, name='api_item_for_path'),
+    # Propriétés d'un fichier DÉSIGNÉ (durée…) : un réglage de card qui en dérive (`default_from`).
+    path('api/media-probe/', views.api_media_probe, name='api_media_probe'),
 
     # Skills de prompt : la PAGE du registre `skills`, qui existait sans elle (seul registre
     # de la carte sans `url_name`). Elle DÉRIVE des fichiers + PROMPT_TARGETS + DOMAINES, et

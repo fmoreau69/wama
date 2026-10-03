@@ -51,11 +51,15 @@ PARAMS = [
                                           "batch": "batchSettingsQualityIntent"},
           contexts=PANEL_ITEM_BATCH,
           **intent_param(show_if={"field": "model", "in": [AUTO_MUSIC, AUTO_SFX]})),
-    # `default=10` : celui du modèle (`ComposerGeneration.duration`) et du bouton « Réinitialiser ».
-    # Sans lui, un curseur rendu sans valeur (profil neuf) se posait au MILIEU de l'échelle (305 s)
-    # avec un libellé vide — vu au navigateur le 2026-10-03.
+    # `default=210` (3:30, la durée d'une chanson — Fabien, 2026-10-04 ; c'était 10 s) : celui du
+    # bouton « Réinitialiser » et d'un profil neuf. Sans défaut, un curseur rendu sans valeur se
+    # posait au MILIEU de l'échelle (305 s) avec un libellé vide — vu au navigateur le 2026-10-03.
+    # Un modèle qui produit moins (MusicGen : 30 s) le BORNE par `cap_from`.
+    # `display_format` : « 3:30 » partout où la valeur se lit (curseur, bornes, chip).
+    # `default_from` : un audio de travail déposé (cover) PROPOSE sa propre durée.
     Param(name="duration", type="range", label="Durée", icon="fa-clock", min=10, max=600, step=5,
-          default=10, unit="s", min_label="10s", max_label="10min", chip=True,
+          default=210, unit="s", display_format="duration", chip=True,
+          default_from={"port": "work_audio", "property": "duration"},
           dom_id={"panel": "durationSlider", "item": "settingsDuration",
                   "batch": "batchSettingsDuration"},
           contexts=PANEL_ITEM_BATCH,

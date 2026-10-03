@@ -605,6 +605,32 @@ repartir que d'UNE image (FastWan : transitions visibles, constat de Fabien sur 
 les distingue : zone **orange** « continué » contre **rouge** « extrapolé » ; l'aide du sélecteur
 dit « (continuable) » ou « (prolongeable, extrapolé) ».
 
+### 7bis. Un réglage PROPOSÉ par une entrée — `default_from` ; et son FORMAT — `display_format` (2026-10-04)
+
+**Demande de Fabien** : *« si on met un audio de travail, il faudrait afficher par défaut la durée
+de la chanson d'origine, et par défaut une valeur plus logique, comme 3'30 »* — puis *« on a fait
+un mécanisme qui gère les ko, Mo, Go, on pourrait y ajouter la gestion min/sec »*.
+
+- **`Param.default_from = {"port", "property"}`** : au dépôt OU à la désignation d'un fichier sur
+  ce port de la card d'entrée, la propriété est lue et posée dans le réglage — arrondie au pas,
+  BORNÉE par le max du moment, donc par `cap_from` (MusicGen : 30 s). Lecture : le navigateur pour
+  un fichier téléversé (métadonnées, rien n'est envoyé), `common:api_media_probe` pour un fichier
+  désigné (garde de la désignation ; sonde `media_probe.probe_media_cached`, qui existait).
+  Surface de CRÉATION seulement (`panel`) : une modale d'élément existant ne suit pas le fichier de
+  la prochaine card. Aucun input nommé par l'app : le port est retrouvé par la card
+  (`[data-port-pane][data-port-input]`).
+- **`Param.display_format`** (`duration` | `size`) : le format partout où la valeur se LIT —
+  libellé et bornes du curseur, notes de `cap_from`, chip de la card. Formateurs COMMUNS :
+  `WamaApp.formatDuration` (« 3:30 », « 1:02:30 »), ajouté à côté de `formatSize`, et ses jumeaux
+  Python (`media_probe.format_duration`, `param_schema.format_display`). Un réglage qui ne déclare
+  rien garde son affichage. ⚠ La notation est celle qui existait déjà (cards, lecteur audio) :
+  « 3:30 », pas « 3'30 » — une seule écriture de la durée.
+- Pilote : la durée du composer — défaut **3:30** (c'était 10 s), proposée par l'audio du port
+  `work_audio`. Les deux formateurs locaux du composer (« ~3min30s », « 3m30s ») sont retirés.
+  ⏳ Le défaut du CHAMP `ComposerGeneration.duration` (10) et le repli de `views.py` (10) restent à
+  aligner — fichiers tenus ce jour par le chantier `output` du pipeline.
+  Tenu par `common/tests/tests_display_format.py` (V8 + serveur).
+
 ---
 
 ## 8. Les PROPORTIONS d'une image d'entrée face à la sortie — ⏳ chantier ouvert (2026-09-30)

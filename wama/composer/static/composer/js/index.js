@@ -20,20 +20,13 @@
         return Math.max(5, Math.round(duration * cfg.genFactor + cfg.overheadS));
     }
 
+    // Durées : le formateur COMMUN (`WamaApp.formatDuration`, « 3:30 », 2026-10-04) — les deux
+    // copies locales (« ~3min30s », « 3m30s ») sont retirées : une seule écriture de la durée.
     function formatDuration(seconds) {
-        if (seconds < 60) return `~${Math.round(seconds)}s`;
-        const m = Math.floor(seconds / 60);
-        const s = Math.round(seconds % 60);
-        return s ? `~${m}min${String(s).padStart(2, '0')}s` : `~${m}min`;
+        return '~' + WamaApp.formatDuration(seconds);
     }
 
-    function _fmtDur(secs) {
-        const s = parseInt(secs, 10);
-        if (s < 60) return s + 's';
-        const m = Math.floor(s / 60);
-        const r = s % 60;
-        return r ? `${m}m${String(r).padStart(2, '0')}s` : `${m}min`;
-    }
+    const _fmtDur = (secs) => WamaApp.formatDuration(secs);
 
     // ---------------------------------------------------------------------------
     // Right-panel interactivity
@@ -262,9 +255,14 @@
             if (firstMusic) modelSelect.value = firstMusic.value;
             updateEstimate();
         }
-        if (durationSlider) {
-            durationSlider.value = 10;
-            if (durationDisplay) durationDisplay.textContent = '10s';
+        // Le défaut du SCHÉMA (`params.py`, 3:30), jamais une copie ici ; le curseur généré est
+        // relu au clic (il n'existe qu'après `WamaParams.render`).
+        const slider = document.getElementById('durationSlider');
+        const declared = (window.COMPOSER_PARAMS_SCHEMA || []).find((p) => p.name === 'duration');
+        if (slider && declared && declared.default != null) {
+            slider.value = declared.default;
+            slider.dispatchEvent(new Event('input', { bubbles: true }));
+            if (durationDisplay) durationDisplay.textContent = _fmtDur(slider.value);
             updateEstimate();
         }
         localStorage.removeItem('composer_setting_modelSelect');

@@ -2089,6 +2089,32 @@ def api_item_for_path(request):
 
 
 @login_required
+def api_media_probe(request):
+    """Les PROPRIÉTÉS d'un fichier DÉSIGNÉ (durée, codec…) — pour une card qui en dérive un
+    réglage avant de créer quoi que ce soit (2026-10-04 : la durée du composer reprend celle de
+    la chanson à reprendre). Un fichier téléversé se lit chez le client ; un fichier désigné
+    (médiathèque, arbre) n'a que son chemin — d'où cette sonde.
+
+    GET `?path=<relatif à MEDIA_ROOT>` → `{ok, media_type, duration, duration_display,
+    properties}`. Garde = celle de la DÉSIGNATION (`media_paths.designate` : confinement puis
+    `readable_by`) : on ne sonde que ce que l'utilisateur pourrait désigner. Sonde mise en cache
+    par fichier (`probe_media_cached`)."""
+    from wama.common.utils.media_paths import (OutsideMediaRoot, readable_by,
+                                               resolve_under_media_root)
+    from wama.common.utils.media_probe import probe_media_cached
+
+    try:
+        abs_path, rel = resolve_under_media_root(request.GET.get('path') or '')
+    except (OutsideMediaRoot, FileNotFoundError, ValueError):
+        return JsonResponse({'error': 'Fichier introuvable'}, status=404)
+    if not readable_by(rel, request.user):
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    info = probe_media_cached(abs_path)
+    return JsonResponse({'ok': True, **{k: info.get(k) for k in (
+        'media_type', 'duration', 'duration_display', 'properties')}})
+
+
+@login_required
 def api_envoyer_vers_chemins(request):
     """ENVOYER VERS depuis le GESTIONNAIRE DE FICHIERS — le MÊME résolveur, entré par des CHEMINS.
 
