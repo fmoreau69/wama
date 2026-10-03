@@ -40,13 +40,14 @@ def _notify_terminal(sender, instance, created, **kwargs):
     new = instance.status
     if new in _TERMINAL and old not in _TERMINAL:
         try:
-            from wama.common.utils.notifications import notify_job
+            from wama.common.utils.notifications import notify_job, notify_job_collaborators
             success = (new == 'SUCCESS')
             is_video = bool(getattr(instance, 'output_video', None))
             label = 'Imager (vidéo)' if is_video else 'Imager'
             name = getattr(instance, 'name', '') or f"génération #{instance.pk}"
             detail = (getattr(instance, 'error_message', '') or '') if not success else ''
             notify_job(getattr(instance, 'user', None), label, name, success, detail=detail)
+            notify_job_collaborators(instance, label, name, success, detail=detail)   # E3
         except Exception:
             pass
         instance._old_status = new  # éviter une re-notification sur un save suivant

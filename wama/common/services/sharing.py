@@ -45,16 +45,101 @@ PORTEES = dict(ScopedVisibility.VIS_CHOICES)
 
 #: Les MODES de partage d'une card (`WAMA_COLLABORATION §3bis.1`, décision de Fabien 2026-09-30) —
 #: une seule déclaration, lue par la pastille de la card, le menu « … » (« Mon accès ») et la
-#: modale « Partager… ». `available` : seul la LECTURE existe dans le code ; les deux autres sont
-#: montrés GRISÉS (« bientôt ») — décision de Fabien, 2026-10-03 — jusqu'à leur construction.
+#: modale « Partager… ». `available` : ce que le code SAIT faire ; un mode non construit est
+#: montré GRISÉ (« bientôt ») — décision de Fabien, 2026-10-03. La COLLABORATION existe depuis le
+#: même jour (E1-E5 tranchées : accordée à une PERSONNE, sur demande acceptée) ; la MODIFICATION
+#: attend les variantes (marche 8b).
 #: L'icône n'est pas décorative : le niveau se lit au mot ET au signe, jamais à la seule couleur.
 SHARE_MODES = (
     {'key': 'read', 'label': 'Lecture seule', 'icon': '👁', 'available': True},
     {'key': 'fork', 'label': 'Modification', 'icon': '✎', 'available': False},
-    {'key': 'collaborate', 'label': 'Collaboration', 'icon': '👥', 'available': False},
+    {'key': 'collaborate', 'label': 'Collaboration', 'icon': '👥', 'available': True},
 )
+
+
+def share_mode(key: str) -> dict:
+    """La déclaration d'un mode (`SHARE_MODES`), ou celle de la lecture si la clé est inconnue."""
+    return next((m for m in SHARE_MODES if m['key'] == key), SHARE_MODES[0])
 #: Le mode d'un partage tant qu'aucun autre n'existe : la lecture (voir `SHARE_MODES`).
 CURRENT_SHARE_MODE = SHARE_MODES[0]
+
+
+def shares_overview(user, limit: int = 200) -> dict:
+    """Ce que montre la page « Partages » (`WAMA_COLLABORATION §5.3`, 2026-10-03) : ce que `user` a
+    PARTAGÉ (portée, collaborateurs, de quoi retirer) et ce qu'on LUI a partagé (de qui, avec quel
+    accès), plus les demandes en attente dans les deux sens.
+
+    L'unité est l'ENTRÉE de file (le lot, ou la card sans lot) — celle du partage, du rangement et
+    de la collaboration. Les modèles se DÉRIVENT des surfaces enregistrées (`PreviewRegistry`) :
+    aucune app n'est nommée ici."""
+    from wama.common.models import ObjectGrant
+    from wama.common.services.access_requests import (_label, collaboration_grant,
+                                                       collaborators_of, entry_of, target)
+    from wama.common.services.reception import owner_label
+    from wama.common.utils.batch_common import batch_model_for
+    from wama.common.utils.preview_registry import PreviewRegistry
+    from wama.common.utils.scoping import listable_by
+
+    def describe(entry, surface, element_model, mine):
+        is_lot = entry._meta.model is batch_model_for(element_model)
+        row = {'app': entry._meta.app_label, 'surface': surface, 'pk': entry.pk,
+               'nature': 'lot' if is_lot else 'element',
+               'label': (f"Lot #{entry.pk} · {getattr(entry, 'total', '?')} card(s)" if is_lot
+                         else _label(entry)),
+               'scope': scope_label(entry) or PORTEES.get(getattr(entry, 'visibility', ''), ''),
+               'url': f'/{entry._meta.app_label}/'}
+        if mine:
+            grants = ObjectGrant.objects.filter(
+                object_type=entry._meta.label, object_id=entry.pk,
+                level=ObjectGrant.LEVEL_COLLABORATE, state=ObjectGrant.STATE_GRANTED)
+            row['collaborators'] = [{'grant': g.pk, 'name': g.beneficiary.username}
+                                    for g in grants.select_related('beneficiary')]
+            row['has_collaborators'] = bool(collaborators_of(entry))
+        else:
+            row['owner'] = owner_label(entry)
+            row['mode'] = share_mode('collaborate' if collaboration_grant(user, entry) else 'read')
+        return row
+
+    shared, received, seen = [], [], set()
+    import logging
+    from django.db import DatabaseError, transaction
+    for surface in PreviewRegistry.list_registered():
+        model = PreviewRegistry.get_model(surface)
+        manager = getattr(model, '_default_manager', None)
+        if model is None or not hasattr(manager, 'visible_to'):
+            continue
+        # Une surface dont la table ne suit pas son modèle (jumelle de bac à sable non migrée,
+        # mesuré le 2026-10-03 sur `writer_01`) ne doit pas faire tomber toute la page.
+        try:
+            with transaction.atomic():
+                mine = list(manager.filter(user=user)
+                            .exclude(visibility=ScopedVisibility.VIS_PRIVATE)[:limit])
+                theirs = list(listable_by(manager.all(), user).exclude(user=user)[:limit])
+        except DatabaseError as exc:
+            logging.getLogger(__name__).warning('[partages] surface %s illisible : %s', surface, exc)
+            continue
+        for element, bucket, is_mine in [(e, shared, True) for e in mine] + \
+                                         [(e, received, False) for e in theirs]:
+            entry = entry_of(element)
+            key = (entry._meta.label, entry.pk)
+            if key not in seen:
+                seen.add(key)
+                bucket.append(describe(entry, surface, model, is_mine))
+
+    incoming, outgoing = [], []
+    for grant in ObjectGrant.objects.filter(state=ObjectGrant.STATE_REQUESTED).select_related(
+            'beneficiary'):
+        obj = target(grant)
+        if obj is None:
+            continue
+        row = {'id': grant.pk, 'level': grant.get_level_display(), 'label': _label(obj),
+               'app': obj._meta.app_label, 'who': grant.beneficiary.username,
+               'created_at': grant.created_at}
+        if getattr(obj, 'user_id', None) == user.pk:
+            incoming.append(row)
+        elif grant.beneficiary_id == user.pk:
+            outgoing.append(row)
+    return {'shared': shared, 'received': received, 'incoming': incoming, 'outgoing': outgoing}
 
 
 def scope_label(element) -> str:

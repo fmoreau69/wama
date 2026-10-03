@@ -100,17 +100,26 @@ def entry_arrangement(user, entry, lines):
     `share_label` (2026-10-03) — la PASTILLE du niveau de partage, des DEUX côtés : « Reçue de X ·
     👁 Lecture seule » chez le destinataire, « Partagée · LESCOT · 👁 Lecture seule » chez le
     propriétaire d'une entrée partagée ; absente d'une entrée privée."""
-    from wama.common.services.sharing import CURRENT_SHARE_MODE, scope_label
-    mode = f"{CURRENT_SHARE_MODE['icon']} {CURRENT_SHARE_MODE['label']}"
+    from wama.common.services.access_requests import collaboration_grant, collaborators_of
+    from wama.common.services.sharing import CURRENT_SHARE_MODE, scope_label, share_mode
+    read = f"{CURRENT_SHARE_MODE['icon']} {CURRENT_SHARE_MODE['label']}"
     if getattr(entry, 'user_id', None) == getattr(user, 'pk', None):
         scope = scope_label(entry)
-        return {'share_label': css_safe(f'Partagée · {scope} · {mode}')} if scope else {}
+        if not scope:
+            return {}
+        label = f'Partagée · {scope} · {read}'
+        collab = share_mode('collaborate')
+        n = len(collaborators_of(entry))
+        if n:
+            label += f" · {collab['icon']} {n} collaborateur{'s' if n > 1 else ''}"
+        return {'share_label': css_safe(label), 'collaborators': n}
     line = lines.get((object_type_of(entry), entry.pk))
     if line is not None and line.hidden_at is not None:
         return None
     sender = owner_label(entry)
-    return {'received_from': sender,
-            'share_label': css_safe(f'Reçue de {sender} · {mode}'),
+    mode = share_mode('collaborate' if collaboration_grant(user, entry) is not None else 'read')
+    return {'received_from': sender, 'share_mode': mode['key'],
+            'share_label': css_safe(f"Reçue de {sender} · {mode['icon']} {mode['label']}"),
             'queue_index': line.queue_index if line is not None else 0}
 
 

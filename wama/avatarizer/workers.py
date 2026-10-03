@@ -357,9 +357,11 @@ def generate_avatar(self, job_id: int):
         except Exception:
             pass
         try:
-            from wama.common.utils.notifications import notify_job
+            from wama.common.utils.notifications import notify_job, notify_job_collaborators
             notify_job(getattr(job, 'user', None), 'Avatarizer',
                        getattr(job, 'name', '') or f"avatar #{job_id}", True)
+            notify_job_collaborators(job, 'Avatarizer',
+                                     getattr(job, 'name', '') or f"avatar #{job_id}", True)   # E3
         except Exception:
             pass
 
@@ -390,9 +392,11 @@ def generate_avatar(self, job_id: int):
         )
         _set_progress(job, 0)
         try:
-            from wama.common.utils.notifications import notify_job
+            from wama.common.utils.notifications import notify_job, notify_job_collaborators
             notify_job(getattr(job, 'user', None), 'Avatarizer',
                        getattr(job, 'name', '') or f"avatar #{job_id}", False, detail=str(e))
+            notify_job_collaborators(job, 'Avatarizer', getattr(job, 'name', '') or f"avatar #{job_id}",
+                                     False, detail=str(e))
         except Exception:
             pass
     finally:

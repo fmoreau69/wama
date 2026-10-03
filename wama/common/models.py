@@ -646,8 +646,11 @@ class ObjectGrant(models.Model):
     LEVEL_CHOICES = [(LEVEL_READ, 'Lecture seule'), (LEVEL_FORK, 'Modification'),
                      (LEVEL_COLLABORATE, 'Collaboration'), (LEVEL_OWN, 'Propriété')]
     STATE_REQUESTED, STATE_GRANTED, STATE_REFUSED = 'requested', 'granted', 'refused'
+    #: Un droit ACCORDÉ puis retiré par le propriétaire (E5, 2026-10-03) — effet immédiat sur les
+    #: gestes suivants ; distinct d'un refus, qui répond à une demande.
+    STATE_REVOKED = 'revoked'
     STATE_CHOICES = [(STATE_REQUESTED, 'Demandé'), (STATE_GRANTED, 'Accordé'),
-                     (STATE_REFUSED, 'Refusé')]
+                     (STATE_REFUSED, 'Refusé'), (STATE_REVOKED, 'Retiré')]
 
     object_type = models.CharField(max_length=64)            # `app_label.ModelName`
     object_id = models.PositiveBigIntegerField()
@@ -995,6 +998,9 @@ class RunOutcome(models.Model):
         ('corrige',    'Résultat corrigé à la main'),  # il ne convenait pas tel quel
         ('relance',    'Relancé sur le même item'),  # le précédent n'a pas suffi
         ('supprime',   'Résultat supprimé'),
+        # Les réglages enregistrés par un COLLABORATEUR (2026-10-03, E4 de WAMA_COLLABORATION :
+        # « le dernier enregistrement gagne, tracé au journal »).
+        ('regle',      'Réglages modifiés'),
     ]
 
     app = models.CharField(max_length=32, db_index=True)

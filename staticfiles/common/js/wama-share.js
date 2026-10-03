@@ -83,15 +83,20 @@
      */
     function modesBlock(modes) {
         if (!modes || !modes.length) return '';
+        // Le partage d'une PORTÉE donne la lecture. La collaboration ne se coche pas ici : elle
+        // s'accorde à une PERSONNE nommée, sur sa demande (E1, 2026-10-03) — la cocher ne
+        // donnerait rien, ce serait un faux choix. On la montre donc comme l'information juste.
         return '<div class="wama-share-modes mt-3"><div class="small text-white-50 mb-1">Mode</div>'
             + modes.map(function (m) {
+                var lecture = m.key === 'read';
                 return '<label class="d-flex align-items-center gap-2 mb-1'
-                    + (m.available ? '' : ' text-white-50') + '">'
+                    + (lecture ? '' : ' text-white-50') + '">'
                     + '<input type="radio" name="wama-share-mode" class="form-check-input mt-0" value="'
-                    + echapper(m.key) + '"' + (m.key === 'read' ? ' checked' : '')
-                    + (m.available ? '' : ' disabled') + '>'
+                    + echapper(m.key) + '"' + (lecture ? ' checked' : ' disabled') + '>'
                     + '<span>' + echapper(m.icon) + ' ' + echapper(m.label) + '</span>'
-                    + (m.available ? '' : '<span class="badge bg-secondary ms-1">bientôt</span>')
+                    + (!m.available ? '<span class="badge bg-secondary ms-1">bientôt</span>'
+                       : (lecture ? '' : '<span class="small ms-1">— accordée à une personne, sur sa '
+                          + 'demande (« Mes partages »)</span>'))
                     + '</label>';
             }).join('') + '</div>';
     }

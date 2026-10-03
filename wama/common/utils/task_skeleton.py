@@ -161,8 +161,10 @@ def _revision(model, item_id: int, app_id: str, outcome, res: dict) -> None:
 
 def _notify(item, label: str, nom: str, ok: bool, detail: str = None) -> None:
     try:
-        from wama.common.utils.notifications import notify_job
+        from wama.common.utils.notifications import notify_job, notify_job_collaborators
         notify_job(getattr(item, 'user', None), label, nom, ok, detail=detail)
+        # E3 (2026-10-03) : ceux qui collaborent sur la card sont prévenus aussi.
+        notify_job_collaborators(item, label, nom, ok, detail=detail or '')
     except Exception:
         pass
 

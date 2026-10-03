@@ -38,6 +38,7 @@ _LIBELLES = {
     'corrige': 'le résultat a été corrigé à la main',
     'relance': 'le traitement a été relancé',
     'supprime': 'le résultat a été supprimé',
+    'regle': 'les réglages ont été modifiés par un collaborateur',
 }
 
 #: Contribution de chaque signal à la SAILLANCE (bornée à 1.0). C'est ici que se joue le bénéfice
@@ -53,6 +54,7 @@ _POIDS_SAILLANCE = {
     'echec': 0.10,
     'produit': 0.0,
     'supprime': 0.0,
+    'regle': 0.0,          # une trace d'attribution (E4, 2026-10-03), pas un jugement
 }
 
 

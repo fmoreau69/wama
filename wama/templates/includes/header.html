@@ -244,6 +244,14 @@
                                 <i class="fas fa-brain me-2 text-warning"></i> Mes souvenirs
                             </a>
                         </li>
+                        {% comment %}Mes partages (2026-10-03, WAMA_COLLABORATION §5.3) : adresse LITTÉRALE et
+                        non `url` — un gabarit est relu à chaud en production, une route encore inconnue
+                        du processus y lèverait NoReverseMatch sur TOUTES les pages jusqu'à la relance.{% endcomment %}
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="/common/shares/">
+                                <i class="fas fa-share-nodes me-2" style="color:#c4b5fd;"></i> Mes partages
+                            </a>
+                        </li>
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:profile' %}">
                                 <i class="fas fa-user-edit me-2 text-primary"></i> Profil

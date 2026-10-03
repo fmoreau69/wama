@@ -144,8 +144,10 @@ body.wama-simple .wama-settings-hint--simple { display: inline; }
    peut faire (`wama-card-menu.js::readOnlyNotice`). ⚙ reste actif : il s'ouvre en CONSULTATION.
    Les sélecteurs sont ceux des 11 cards (mesurés le 2026-10-03) : ▶ `.wama-cycle-btn` (partial
    commun `_cycle_button.html`), 🗑 `.delete-btn`, et les boutons du LOT (`_batch_card.html`). ── */
-:is(.wama-queue-entry, .batch-group)[data-received-from] :is(.wama-cycle-btn, .delete-btn,
-    .batch-start-btn, .batch-delete-btn, .batch-settings-btn) { opacity: .38; cursor: not-allowed; }
+:is(.wama-queue-entry, .batch-group)[data-received-from]:not([data-share-mode="collaborate"])
+    :is(.wama-cycle-btn, .batch-start-btn, .batch-settings-btn, .batch-realign-btn),
+:is(.wama-queue-entry, .batch-group)[data-received-from] :is(.delete-btn, .batch-delete-btn)
+    { opacity: .38; cursor: not-allowed; }
 /* ⚙ en consultation : la modale marquée par `armerConsultation` n'enregistre rien. */
 .modal[data-wama-readonly] :is(.save-settings-btn, .save-and-restart-btn) { display: none !important; }
 .wama-readonly-notice {

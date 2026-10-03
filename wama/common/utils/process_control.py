@@ -40,7 +40,9 @@ def begin_processing(model, pk, *, user=None, reset=None,
         obj.save(update_fields=[task_field])
 
     Args:
-        user  : si fourni, ``get(pk=pk, user=user)`` (isolation par utilisateur).
+        user  : si fourni, l'élément doit être à lui OU il doit y COLLABORER (`scoping.can_edit`,
+                2026-10-03, E1-E5 de `WAMA_COLLABORATION`) — sinon 'not_found'. Le traitement
+                reste celui de la card (E3) ; le geste d'un collaborateur est noté au journal.
         reset : dict champ→valeur OU callable(instance) — remise à zéro spécifique d'app,
                 appliquée SOUS le verrou.
 
@@ -48,12 +50,18 @@ def begin_processing(model, pk, *, user=None, reset=None,
         (instance, None) si OK ; (None, 'not_found') ; (None, 'already_running').
     """
     from django.db import transaction
+    by_collaborator = False
     with transaction.atomic():
         try:
             qs = model.objects.select_for_update()
-            instance = qs.get(pk=pk, user=user) if user is not None else qs.get(pk=pk)
+            instance = qs.get(pk=pk)
         except model.DoesNotExist:
             return None, 'not_found'
+        if user is not None and getattr(instance, 'user_id', None) != getattr(user, 'pk', None):
+            from wama.common.utils.scoping import can_edit
+            if not can_edit(user, instance):
+                return None, 'not_found'
+            by_collaborator = True
         if getattr(instance, status_field, None) == running_value:
             return None, 'already_running'
         old_task = getattr(instance, task_field, "") or ""
@@ -72,6 +80,10 @@ def begin_processing(model, pk, *, user=None, reset=None,
             for field, value in reset.items():
                 setattr(instance, field, value)
         instance.save()
+    # E3 (« le journal garde qui a relancé ») : déjà tenu — le middleware de capture note la
+    # relance avec `request.user`, donc avec le collaborateur (`common/middleware.py`). L'écrire
+    # ici la compterait deux fois dans la saillance.
+    del by_collaborator
     return instance, None
 
 

@@ -328,7 +328,8 @@ def text_preview(request, pk: int):
     disque (référence morte, cf. `check_media_integrity`) répond 404, pas 500.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    from wama.common.utils.scoping import visible_or_404
+    synthesis = visible_or_404(VoiceSynthesis, user, pk=pk)
     if not synthesis.text_content and not (synthesis.text_file and
                                            os.path.exists(synthesis.text_file.path)):
         return JsonResponse({'success': False,
@@ -373,7 +374,8 @@ def stop(request, pk: int):
     Brique commune : wama.common.utils.process_control.stop_instance.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    synthesis = editable_or_404(VoiceSynthesis, user, pk=pk)
     if synthesis.status not in ('RUNNING', 'PENDING'):
         return JsonResponse({'id': synthesis.id, 'status': synthesis.status})
     from wama.common.utils.process_control import stop_instance
@@ -552,7 +554,8 @@ def preview(request, pk: int):
     Retourne l'URL de l'audio pour la prévisualisation.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    from wama.common.utils.scoping import visible_or_404
+    synthesis = visible_or_404(VoiceSynthesis, user, pk=pk)
 
     if not synthesis.audio_output:
         return JsonResponse({
@@ -836,7 +839,8 @@ def update_settings(request, pk: int):
     Met à jour les options d'une synthèse.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    synthesis = editable_or_404(VoiceSynthesis, user, pk=pk)
 
     if synthesis.status == 'RUNNING':
         return JsonResponse({

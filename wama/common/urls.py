@@ -103,6 +103,11 @@ urlpatterns = [
     path('api/access/request/', views.api_access_request, name='api_access_request'),
     path('requests/<int:pk>/', views.access_request_page, name='access_request'),
     path('requests/<int:pk>/answer/', views.api_access_request_answer, name='access_request_answer'),
+    # VERROU DOUX d'une card en collaboration (E4, 2026-10-03).
+    path('api/edit-lock/', views.api_edit_lock, name='api_edit_lock'),
+    # La page « Partages » (§5.3) et le retrait d'un droit (E5), 2026-10-03.
+    path('shares/', views.shares_page, name='shares'),
+    path('api/grants/<int:pk>/revoke/', views.api_grant_revoke, name='api_grant_revoke'),
     # Les NOUVELLES notifications, pour la cloche et la fenêtre en bas à droite (2026-10-03).
     path('api/notifications/recent/', views.api_notifications_recent,
          name='api_notifications_recent'),

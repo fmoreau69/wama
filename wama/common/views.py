@@ -1783,6 +1783,51 @@ def api_access_request_answer(request, pk: int):
 
 
 @login_required
+def shares_page(request):
+    """La page « Partages » (`WAMA_COLLABORATION §5.3`, 2026-10-03) : ce que j'ai partagé — portée,
+    collaborateurs, et c'est ICI qu'on retire un droit (E5) ou le partage — et ce qu'on m'a
+    partagé, avec mon accès ; les demandes en attente dans les deux sens."""
+    from django.shortcuts import render
+    from wama.common.services.sharing import shares_overview
+    return render(request, 'common/shares.html', shares_overview(request.user))
+
+
+@login_required
+@require_POST
+def api_grant_revoke(request, pk: int):
+    """POST — le PROPRIÉTAIRE retire un droit accordé (E5 : effet immédiat, tâche en cours finie,
+    bénéficiaire prévenu)."""
+    from wama.common.models import ObjectGrant
+    from wama.common.services.access_requests import AccessRequestRefused, revoke
+    grant = ObjectGrant.objects.filter(pk=pk).first()
+    if grant is None:
+        return JsonResponse({'done': False, 'reason': 'droit introuvable'}, status=404)
+    try:
+        revoke(request.user, grant)
+    except AccessRequestRefused as exc:
+        return JsonResponse({'done': False, 'reason': str(exc)})
+    return JsonResponse({'done': True})
+
+
+@login_required
+@require_POST
+def api_edit_lock(request):
+    """POST `surface`, `pk`, `nature`, `action` (acquire | release) — le VERROU DOUX d'une card
+    partagée en collaboration (E4, 2026-10-03) : rend qui d'autre a ses réglages ouverts. Réservé à
+    qui peut éditer (`scoping.can_edit`) ; ne refuse jamais un enregistrement, il le DIT."""
+    from wama.common.services import edit_lock
+    from wama.common.utils.scoping import can_edit
+    obj = _shared_target(request.POST.get('surface'), request.POST.get('pk'),
+                         request.POST.get('nature') or 'element')
+    if obj is None or not can_edit(request.user, obj):
+        return JsonResponse({'error': 'élément introuvable'}, status=404)
+    if request.POST.get('action') == 'release':
+        edit_lock.release(request.user, obj)
+        return JsonResponse({'released': True})
+    return JsonResponse(edit_lock.acquire(request.user, obj))
+
+
+@login_required
 def api_notifications_recent(request):
     """GET `after` (id) — le nombre de non lues et les NOUVELLES non lues (id > `after`, 5 au plus) :
     ce que lit le JS commun pour tenir la cloche à jour et montrer chaque nouvelle notification en

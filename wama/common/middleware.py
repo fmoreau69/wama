@@ -40,11 +40,32 @@ SIGNAL_PAR_ROUTE = {
     'delete_media': 'supprime',
     'start': None,                       # None = à décider (1re exécution ou relance) — cf. _signal_start
     'restart': None,
+    # Réglages d'un élément enregistrés par un COLLABORATEUR (2026-10-03, E4 de
+    # WAMA_COLLABORATION : « le dernier enregistrement gagne, TRACÉ ») — la route de convention
+    # `update_settings` (WAMA_APP_CONVENTIONS §3.1). Noté en POST seulement, et seulement quand
+    # l'auteur n'est pas le propriétaire : ce sont les gestes partagés qu'il faut pouvoir attribuer.
+    'update_settings': 'regle',
 }
 
 #: Méthodes qui portent un geste. Un GET sur `download` en est un ; un GET sur `start` n'existe
 #: pas (POST only, cf. le pattern anti-race de AGENTS.md).
 METHODES = ('GET', 'POST')
+
+
+def app_of(match) -> str:
+    """L'app d'une route résolue, sous le nom que connaissent les registres (`DetailRegistry`).
+
+    ⚠ Mesuré le 2026-10-03 (sonde) : reader, composer et transcriber déclarent `app_name =
+    'wama.reader'` (nom POINTÉ) alors que leur espace de noms est `reader`. Lire `app_name` d'abord
+    rendait une app inconnue du registre : AUCUN signal n'était capté pour ces trois apps —
+    téléchargement, suppression, relance — sans que rien ne le dise. On prend donc le premier nom
+    que le registre connaît : `app_name`, l'espace de noms, puis le dernier segment pointé."""
+    from .utils.detail_registry import DetailRegistry
+    raw = (match.app_name or '', match.namespace or '')
+    for name in (*raw, raw[0].rsplit('.', 1)[-1]):
+        if name and DetailRegistry.get(name):
+            return name
+    return raw[1] or raw[0].rsplit('.', 1)[-1]
 
 
 class RunOutcomeCaptureMiddleware:
@@ -86,7 +107,7 @@ class RunOutcomeCaptureMiddleware:
         import json
         batch_id = (json.loads(response.content or b'{}') or {}).get('batch_id')
         match = getattr(request, 'resolver_match', None)
-        app = match and (match.app_name or match.namespace)
+        app = match and app_of(match)          # même lecture que les gestes (noms pointés)
         if not batch_id or not app:
             return
         from .services.scheduled_actions import schedule_from_batch
@@ -107,7 +128,7 @@ class RunOutcomeCaptureMiddleware:
         if url_name not in SIGNAL_PAR_ROUTE:
             return
 
-        app = match.app_name or (match.namespace or '')
+        app = app_of(match)
         pk = match.kwargs.get('pk') or match.kwargs.get('id')
         if not app or pk is None:
             return
@@ -128,6 +149,13 @@ class RunOutcomeCaptureMiddleware:
 
         instance = model.objects.filter(pk=pk).first()
         if instance is None:
+            return
+        if signal == 'regle':
+            if request.method != 'POST' or getattr(instance, 'user_id', None) == request.user.pk:
+                return
+            from .services.run_outcome import record
+            record(app, instance, 'regle', user=request.user,
+                   detail={'collaborator': True, 'owner_id': instance.user_id})
             return
         if url_name in ('start', 'restart'):
             # Le ▶ lance MAINTENANT : une programmation de cet élément n'a plus d'objet
