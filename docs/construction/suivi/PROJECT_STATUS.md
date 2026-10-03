@@ -20852,3 +20852,32 @@ la card, fin notifiée aux deux ; verrou doux + trace ; retrait à effet immédi
 - Migrations à moi : `common/0024_objectgrant`, `common/0026` (états, signal) — appliquées WSL.
 - 🔚 Ouverts : mode MODIFICATION (variantes, marche 8b ; V2 / V3 / M3 à trancher) ; N1 (notifier un
   partage reçu, proposition non validée) ; conflit MONTRÉ (attend les révisions sur tout le parc).
+
+## §PALIER — 2026-10-03, « PRÉSENTATION PRINCIPALE CONFRONTÉE AU CODE » — ✅ `44d8a440` — 🔚 rien
+
+> Fabien : *« corrige les chiffres de la présentation principale. Il y a des choses fausses comme
+> ça : Jamais exécuté Apple Depth Pro : il fait planter la machine hôte. Tout ce qui concerne les
+> plantages est résolu. […] ⏳ Maillon manquant : produire automatiquement la fiche de l'app. »*
+
+- **20 affirmations corrigées à la mesure**, chacune avec sa source en pied de cadre. Les trois
+  citées par Fabien : Depth Pro **exécuté le 28/09**, sorties inexploitables, ZoeDepth par défaut
+  (`CHAINE_TRAITEMENT §F`) ; tests GPU de nuit planifiés chaque nuit depuis le 28/09
+  (`settings.py:928-937`) ; la fiche d'une nouvelle app s'écrit à la main **par choix**, pas faute
+  d'outil (`ROUTE §10.5`, frontière voulue — Writer née d'une fiche le 30/09).
+- Les autres, trouvées en relisant tout : Mistral n'est pas un fournisseur déclaré
+  (`assistant_engine.py:663`) ; 73 fonctions (55) ; 39 bascules A/B (11) ; pipeline Cam Analyzer
+  18 nœuds / 24 liens (13/18) ; 10 natures (8) ; 180 mécanismes (149) ; `check_docs` 2 552
+  références, **5 cassées** (2 087 / 0) ; 431 scénarios (300) ; 5 014 tests Django joués la nuit
+  du 03/10 (2 769) ; 100 critères (96) ; 04:15 / 04:30 (02:30 / 03:00) ; grille 917/940
+  (863/906) ; « l'assistant supprime sans accord, le plus grave » remplacé par l'état mesuré
+  (`clear_my_queue` exige `confirm=true`, `delete_item` ne repose que sur la consigne —
+  `WAMA_HARNESS §5` l'avait recadré le 20/09) ; divergence branchée dans l'évaluation, pas sur la
+  carte de chaleur ; moteur de pipeline commun passé de ⏳ à 🔄.
+- **Gardé tel quel parce que mesuré juste** : seule la famille `app` est gardée (S3 pour les
+  autres, `permissions.py:111-115`) ; gouverneur VRAM seulement (CPU/RAM ⏳) ; Studio sans
+  traitement par lots ; médiathèque sans recherche sémantique ; filtre de confidentialité ⏳ (la
+  politique cloud par compte existe, l'examen du contenu non) ; 14 axes du harnais ; couverture
+  fonctionnelle 17,5/19, dernière mesure au 07/09.
+- ⚠ **Rectification du palier précédent** : `PresentationRoutesTests` compte **5** tests, pas 6.
+- Hors périmètre, vu en lisant le rapport de nuit du 03/10 : `wama.common` 44 rouges (20 échecs,
+  24 erreurs), `media_library` 3, `model_manager` 2 — non examinés ici.
