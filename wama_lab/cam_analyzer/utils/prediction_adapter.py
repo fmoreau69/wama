@@ -186,6 +186,11 @@ def camera_geometry(session):
             'dist_scale': (math.tan(math.radians(used) / 2) / math.tan(math.radians(real_v) / 2)
                            if feat.get('fov_dist_correction', True) else 1.0),
             'mount': (float(m[0]), float(m[1])) if feat.get('mount_lever_arm', True) else (0.0, 0.0),
+            # ⚑ lens_distortion (2026-10-03) : distorsion radiale (modèle INVERSE, k > 0 = barillet)
+            # de la caméra, saisie par session (`config['camera_distortion']`) — appliquée à la
+            # projection sol, à la calibration et au placement pinhole. Nulle sans la bascule.
+            'k1': (float((cfg.get('camera_distortion') or {}).get(pos) or 0.0)
+                   if feat.get('lens_distortion', False) else 0.0),
         }
     return geo
 
@@ -260,7 +265,17 @@ def shuttle_trajectory(gps_track, to_local, antenna=None):
     return np.array(rows) if rows else np.zeros((0, 4))
 
 
-def pinhole_ego(det, iw, ih, fov_v_deg=60.0, fov_h_deg=None, dist_scale=1.0):
+def undistorted_x(u, v, iw, ih, focal_px, k1):
+    """Abscisse pixel REDRESSÉE (distorsion radiale, modèle INVERSE de
+    `ground_projection.undistort_radial_inverse`, pixels carrés) — identité si `k1` est nul.
+    ⚑ lens_distortion (2026-10-03)."""
+    if not k1:
+        return u
+    from .ground_projection import undistort_radial_inverse
+    return undistort_radial_inverse(u, v, float(k1), focal_px, focal_px, iw / 2.0, ih / 2.0)[0]
+
+
+def pinhole_ego(det, iw, ih, fov_v_deg=60.0, fov_h_deg=None, dist_scale=1.0, k1=0.0):
     """Détection → position ego (latéral droite, longitudinal avant) en m, ou None.
     Reconstruction pinhole (comme l'affichage) : robuste au biais de l'homographie.
     `fov_h_deg` : FOV HORIZONTAL réel de la caméra → focale latérale correcte (l'ancien
@@ -285,7 +300,7 @@ def pinhole_ego(det, iw, ih, fov_v_deg=60.0, fov_h_deg=None, dist_scale=1.0):
         focal = iw / (2.0 * math.tan(math.radians(fov_h_deg) / 2.0))
     else:
         focal = ih / (2.0 * math.tan(math.radians(fov_v_deg) / 2.0))
-    bcx = (bb[0] + bb[2]) / 2.0
+    bcx = undistorted_x((bb[0] + bb[2]) / 2.0, bb[3], iw, ih, focal, k1)
     lateral = dm * (bcx - iw / 2.0) / focal
     return lateral, dm       # [latéral, longitudinal]
 
@@ -307,9 +322,11 @@ def ground_projector_for(session, position, geo):
         # champ VERTICAL effectif (`camera_geometry`, source unique) — cf. `estimate_camera`
         intr = intrinsics_from_fov(cam.width, cam.height, geo['fov_h'],
                                    geo.get('fov_v') or CAMERA_FOV_V.get(position, 61.0))
-        gp = GroundProjector(dict(intr, height_m=cal['height_m'],
-                                  pitch_deg=cal['pitch_deg'], hfov_deg=geo['fov_h'],
-                                  lens_type='rectilinear'), (cam.width, cam.height))
+        _cal = dict(intr, height_m=cal['height_m'], pitch_deg=cal['pitch_deg'],
+                    hfov_deg=geo['fov_h'], lens_type='rectilinear')
+        if geo.get('k1'):
+            _cal['radial_inverse'] = float(geo['k1'])                    # ⚑ lens_distortion
+        gp = GroundProjector(_cal, (cam.width, cam.height))
         return gp if gp.available else None
     except Exception:
         return None

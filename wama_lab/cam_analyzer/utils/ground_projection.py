@@ -164,6 +164,20 @@ def _undistort_pixel(u: float, v: float, calib: dict) -> tuple[float, float]:
     return xu * fx + cx, yu * fy + cy
 
 
+def undistort_radial_inverse(u: float, v: float, k: float, fx: float, fy: float, cx: float,
+                             cy: float) -> tuple[float, float]:
+    """Redresse un pixel par le modèle radial INVERSE : x_redressé = x_observé · (1 + k·r²), r mesuré
+    sur l'image OBSERVÉE (k > 0 = barillet). Explicite, monotone, sans inversion — contrairement à
+    Brown-Conrady (`_undistort_pixel`), dont l'inversion n'a PLUS DE SOLUTION au-delà d'un rayon quand
+    k1 est fortement négatif : mesuré le 2026-10-03, k1 = −0,42 ne représente aucun point au-delà de
+    r = 0,59 alors que les bords des latérales sont à r ≈ 0,8 — les bords devenaient du bruit."""
+    if not k:
+        return u, v
+    x, y = (u - cx) / fx, (v - cy) / fy
+    g = 1.0 + k * (x * x + y * y)
+    return x * g * fx + cx, y * g * fy + cy
+
+
 class GroundProjector:
     """
     Applique une homographie caméra pour convertir des bbox en positions sol.
@@ -186,6 +200,10 @@ class GroundProjector:
             return None
         if self.calib.get('distortion'):
             u, v = _undistort_pixel(u, v, self.calib)
+        if self.calib.get('radial_inverse'):
+            c = self.calib
+            u, v = undistort_radial_inverse(u, v, float(c['radial_inverse']), c['fx_px'], c['fy_px'],
+                                            c['cx_px'], c['cy_px'])
         p = self.H @ np.array([u, v, 1.0])
         w = p[2]
         if abs(w) < 1e-9:
