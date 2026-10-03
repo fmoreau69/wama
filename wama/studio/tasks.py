@@ -27,6 +27,10 @@ l'état rendu par le runner de l'app cible est TRADUIT par la table d'alias uniq
 (`normalize_job_status`) au lieu d'être comparé à une chaîne brute. Les VALEURS sont inchangées —
 `node_states` est un JSON persisté, donc une donnée : on la source, on ne la renomme pas.
 
+✅ 2026-10-03 — LIGNES D'EXÉCUTION : chaque nœud app ou fonction écrit sa ligne `ProcessRun`
+(`process_runs.start/succeed/fail`, adressée par le run), comme un process de card dans une file ;
+le nœud fautif passe `FAILURE` dans `node_states` (il restait « en cours »).
+
 ⏳ Ce qui RESTE, et qui n'est pas un oubli : cet exécuteur ne PRODUIT toujours ni
 `AWAITING_RESOURCES` (il faudrait passer par le gouverneur de ressources — marche P3) ni `STALE`
 (il faudrait la règle de péremption du suivi de passes — 4.3). L'agrégation « état de la card
@@ -337,11 +341,44 @@ def run_pipeline_task(self, run_id):
 
     states = dict(run.node_states or {})
 
+    # LIGNES D'EXÉCUTION (ROUTE §10.6 4.1, alignement du 2026-10-03) : chaque nœud qui EST un
+    # process — app ou fonction — écrit la même ligne `ProcessRun` qu'un process de card dans une
+    # file (adressée par le RUN : `studio/StudioRun/<pk>`, nœud = id du nœud). `node_states` reste
+    # ce que le canvas lit (un JSON persisté, donc une donnée) ; les lignes sont ce que le moteur
+    # commun lit : UNE table d'exécution pour les files ET le studio. Entrées et sorties ne sont
+    # pas des process : elles n'ont pas de ligne. Best-effort (`safely`) : une ligne qui ne
+    # s'écrit pas ne fait jamais échouer un run.
+    from wama.common.services import process_runs
+    process_nodes = {}      # id de nœud -> (kind, clé du process) des nœuds qui sont des process
+    current = {'node': None}
+
+    def _write_line(node_id, kw):
+        ref, status = process_nodes.get(node_id), kw.get('status')
+        if ref is None or status is None:
+            return
+        kind, key = ref
+        if status == JOB_RUNNING:
+            process_runs.safely(process_runs.start, run, node_id, process_key=key, kind=kind,
+                                task_id=getattr(self.request, 'id', None) or '')
+        elif status == JOB_SUCCESS:
+            import os
+            from django.conf import settings
+            out = kw.get('output')
+            is_file = (isinstance(out, str) and out and '\n' not in out
+                       and os.path.isfile(os.path.join(settings.MEDIA_ROOT, out)))
+            process_runs.safely(process_runs.succeed, run, node_id, process_key=key,
+                                output_ref=out if is_file else '',
+                                output_summary={'label': str(out)[:200]} if out else None)
+        elif status == JOB_FAILURE:
+            process_runs.safely(process_runs.fail, run, node_id, kw.get('error') or '',
+                                process_key=key)
+
     def _save_state(node_id, **kw):
         states.setdefault(node_id, {})
         states[node_id].update(kw)
         run.node_states = states
         run.save(update_fields=['node_states'])
+        _write_line(node_id, kw)
 
     try:
         from wama.common.manifests.builtin.pipeline import node_kind, function_key
@@ -351,6 +388,7 @@ def run_pipeline_task(self, run_id):
 
         for node in order:
             nid, app = node['id'], node['app']
+            current['node'] = nid
 
             # Nœud SOURCE (card d'entrée) : produit sa valeur depuis ses params.
             if app in SOURCE_HANDLERS:
@@ -390,6 +428,7 @@ def run_pipeline_task(self, run_id):
                 spec = fc.get(key)
                 if spec is None:
                     raise ValueError(f"Nœud fonction « {key} » : absent du catalogue.")
+                process_nodes[nid] = ('function', key)
                 _save_state(nid, status=JOB_RUNNING, progress=0)
                 _console(user.id, f"Studio run #{run.pk} : fonction {key} ({spec.binding})")
                 if spec.binding == fc.Binding.PURE:
@@ -488,6 +527,7 @@ def run_pipeline_task(self, run_id):
                     inputs[l.get('to_port') or up['type']] = up['value']
                     inputs[up['type']] = up['value']
 
+            process_nodes[nid] = ('app', app)
             _save_state(nid, status=JOB_RUNNING, progress=0)
             _console(user.id, f"Studio run #{run.pk} : nœud {app} — création")
             item_id = runner['create'](user, inputs, node.get('params') or {})
@@ -536,6 +576,14 @@ def run_pipeline_task(self, run_id):
         return {'run': run.pk, 'status': JOB_SUCCESS}
 
     except Exception as exc:
+        # Le nœud FAUTIF le dit (canvas : `run-failure` sur lui, plus seulement sur le run ;
+        # ligne d'exécution : `FAILURE` avec le message) — avant, il restait « en cours ».
+        failed = current['node']
+        if failed is not None:
+            states.setdefault(failed, {}).update(status=JOB_FAILURE, error=str(exc)[:500])
+            run.node_states = states
+            _write_line(failed, {'status': JOB_FAILURE, 'error': str(exc)})
+        process_runs.safely(process_runs.close_open, run, JOB_FAILURE, str(exc))
         run.status = JOB_FAILURE
         run.error_message = str(exc)[:2000]
         run.processing_seconds = time.time() - t0
