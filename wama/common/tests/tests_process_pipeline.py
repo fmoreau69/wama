@@ -318,6 +318,34 @@ class WhatTheCardShowsTest(TestCase):
         self.assertEqual(JOB_PENDING, self.pipeline.shown_state(item))
         self.assertEqual([], self.pipeline.card_rows(item))
 
+    def test_each_row_says_what_its_process_watches_for_its_own_gear(self):
+        """⚙ par process (P5) : the gear of a row shows the settings the process WATCHES — read
+        from the declaration, never a list written in a template."""
+        item = _Element(status=JOB_SUCCESS)
+        self._played(item, 'plan')
+        self._played(item, 'render')
+        rows = {r['key']: r['watched'] for r in self.pipeline.card_rows(item)}
+        self.assertEqual({'plan': ['prompt'], 'render': ['duration']}, rows)
+
+    def test_the_common_decoration_poses_the_view_only_for_an_app_with_a_pipeline(self):
+        """`decorate` is the single attachment point of the GENERATED apps (5.2) : nothing
+        without a declared pipeline (the card reads `status`), the three attributes with one."""
+        from wama.common.services.process_pipeline import card_view, decorate
+        item = _Element(status=JOB_SUCCESS)
+        APP_PIPELINES.pop('demo_pipeline', None)
+        self.assertIsNone(card_view(item))
+        self.assertIsNone(decorate(item))
+        self.assertFalse(hasattr(item, 'shown_state'))
+        APP_PIPELINES['demo_pipeline'] = self.pipeline
+        self.addCleanup(APP_PIPELINES.pop, 'demo_pipeline', None)
+        self._played(item, 'plan')
+        self._played(item, 'render')
+        rows, state, label = decorate(item)
+        self.assertEqual((['plan', 'render'], JOB_SUCCESS), ([r['key'] for r in rows], state))
+        self.assertEqual((item.processes, item.shown_state, item.shown_state_label),
+                         (rows, state, label))
+        self.assertTrue(label)
+
     def test_a_stale_render_is_shown_under_a_successful_element(self):
         item = _Element(status=JOB_SUCCESS)
         (Path(self.tmp) / 'score.abc').write_text('X:1', encoding='utf-8')

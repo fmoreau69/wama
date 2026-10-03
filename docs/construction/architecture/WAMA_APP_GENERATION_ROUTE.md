@@ -3649,9 +3649,21 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >   `start/<pk>/<process>/` (inconnu / sans objet → 400 qui le dit ; « auto » → la tâche
 >   tranche). « ▶ tout / compléter manquant + périmé » EST le ▶ de la card depuis P3
 >   (`steps_to_run` sans `only`) — pas de pièce à part.
-> - ⏳ **Reste de 5.1** : ⚙ par process (réglages générés de son schéma, filtrés sur `watched`),
->   case des process `optional` (aucune app n'en déclare encore — transcriber à P6), génération
->   du gabarit (5.2), studio (5.4) — lot (5.3) : ✅ ci-dessous.
+> - ✅ **⚙ par process (2026-10-03, 5ᵉ pièce)** : chaque ligne de la bande porte le MÊME
+>   `.settings-btn[data-id]` que la card, avec `data-only` = les réglages que le process
+>   SURVEILLE (`ProcessSpec.watched`, remonté par `card_rows`) ; `queue-actions.js` le passe à
+>   `WamaParams.scopeNextModal`, et la modale commune (`settingsModal`) rend le schéma RÉDUIT à
+>   ces noms (+ les porteurs `hidden`), groupes vides retirés, titre suffixé du process — l'app
+>   garde son unique ouvreur, zéro ligne par app. Portée consommée par la modale suivante
+>   seulement, périmée seule après 3 s (garde V8 `tests_cap_from_js.ScopedSettingsModalTest`).
+> - ✅ **5.2 Gabarit GÉNÉRÉ (même jour)** : la card émise par `templates_gen` inclut la bande
+>   (`_card_processes.html`, vide sous deux process) et lit `elem.shown_state|default:
+>   elem.status` ; `views_gen._decorer` appelle `process_pipeline.decorate(item)` — le point
+>   d'attache commun (`card_view` / `decorate` : rien sans pipeline déclaré), que le composer
+>   consomme aussi (`_pipeline_view` n'est plus qu'un appel). Une app générée qui déclare un
+>   pipeline a donc sa bande, son état montré et ses ⚙/▶ par process sans rien écrire.
+> - ⏳ **Reste de 5.1** : case des process `optional` (aucune app n'en déclare encore —
+>   transcriber à P6) ; studio (5.4) — lot (5.3) : ✅ ci-dessous.
 **5.3 Lot** : le pipeline se règle sur la mère ; une fille peut le surcharger ; **promouvoir ↑ /
 réaligner ↓** (`MODES_QUEUE_UX §5ter`) — la charge utile promue EST le pipeline (les réglages Médias
 en sont un cas), avec le garde-fou Data « entrées requises ⊆ ∩ des catalogues des filles », refus

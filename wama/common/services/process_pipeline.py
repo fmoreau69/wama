@@ -340,6 +340,8 @@ class AppPipeline:
                 'model_key': row.model_key if row is not None else '',
                 'output_label': summary.get('label') or '',
                 'error': (row.error_message or '') if row is not None else '',
+                # Les réglages que CE process surveille : ce que son ⚙ montre (P5, 5.1).
+                'watched': list(spec.watched),
             })
         return out
 
@@ -360,4 +362,39 @@ def register_app_pipeline(app: str, specs, *, label: str, description: str = '',
     APP_PIPELINES[app] = pipeline
     register_pipeline_source(app, pipeline.manifest)
     return pipeline
+
+
+def pipeline_of(item) -> AppPipeline | None:
+    """Le pipeline déclaré par l'app de cet élément, ou None (app à un seul process)."""
+    try:
+        return APP_PIPELINES.get(item._meta.app_label)
+    except AttributeError:
+        return None
+
+
+def card_view(item, model_key=None):
+    """Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
+    `(lignes de process, état montré, libellé de cet état)` — par l'adaptateur unique
+    (`AppPipeline.shown_state`), jamais `status` en dur. `model_key` : le réglage quand il est
+    désigné ; sous « auto » None (on montre ce qui a tourné). `None` si l'app n'a pas de
+    pipeline : la card lit alors `status`, la bande ne se rend pas."""
+    pipeline = pipeline_of(item)
+    if pipeline is None:
+        return None
+    from wama.common.models import PROCESS_STATUS_CHOICES
+    rows = pipeline.card_rows(item, model_key)
+    state = pipeline.shown_state(item)
+    return rows, state, dict(PROCESS_STATUS_CHOICES).get(state, state)
+
+
+def decorate(item, model_key=None):
+    """Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
+    gabarits (`_card_processes.html`, `_cycle_button.html` via `elem.shown_state|default:
+    elem.status`). Point d'attache des apps GÉNÉRÉES (`views_gen._decorer`) ; une app réelle
+    l'appelle de sa propre décoration. Sans pipeline : ne pose rien, rend None."""
+    view = card_view(item, model_key)
+    if view is None:
+        return None
+    item.processes, item.shown_state, item.shown_state_label = view
+    return view
 

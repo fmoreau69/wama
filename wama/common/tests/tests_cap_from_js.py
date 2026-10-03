@@ -227,3 +227,42 @@ class SortAndFactsTest(SimpleTestCase):
              duration_extension: 'continuation'})""")
         self.assertEqual('natif ≤ 10,7 s (continuable), 24 i/s, 1216×704', facts)
         self.assertEqual('', self.v8.eval("window.WamaModelHelp.capabilityFacts({task: 'text-to-image'})"))
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class ScopedSettingsModalTest(SimpleTestCase):
+    """⚙ par process (P5, `ROUTE §10.6` 5.1) : the common modal rendered from the schema REDUCED to
+    what one process watches — the rule is pure (`scopedSchema`), the scope is posed for the NEXT
+    modal only and dies by itself."""
+
+    SCHEMA = ("[{name: 'media_type', type: 'hidden'}, {name: 'prompt', type: 'text', group: 'g1'},"
+              " {name: 'duration', type: 'range', group: 'g2'}, {name: 'model', type: 'select', group: 'g1'}]")
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval((JS / 'wama-params.js').read_text(encoding='utf-8'))
+
+    def test_the_scoped_schema_keeps_the_named_settings_and_the_hidden_carriers(self):
+        kept = self.v8.eval(f"window.WamaParams.scopedSchema({self.SCHEMA}, ['duration'])"
+                            ".map(function (p) { return p.name; })")
+        self.assertEqual(['media_type', 'duration'], list(kept))
+        self.assertEqual([], list(self.v8.eval("window.WamaParams.scopedSchema([], ['x'])")))
+
+    def test_a_scope_is_taken_once_by_the_next_modal_and_expires_by_itself(self):
+        # `settingsModal` itself builds a DOM modal (too DOM-bound for V8) : what it does first —
+        # take the pending scope — is exercised through the same function, exposed.
+        out = self.v8.eval("""(function () {
+            var P = window.WamaParams;
+            P.scopeNextModal(['duration', ''], 'Rendu');
+            var first = P.takeModalScope(), second = P.takeModalScope();
+            P.scopeNextModal([], 'rien');                 // no name = no scope
+            var empty = P.takeModalScope();
+            P.scopeNextModal(['prompt'], 'Partition');
+            var realNow = Date.now; Date.now = function () { return realNow() + 5000; };
+            var late = P.takeModalScope();
+            Date.now = realNow;
+            return [first ? first.names.join(',') + '|' + first.label : null, second, empty, late];
+        })()""")
+        self.assertEqual(['duration|Rendu', None, None, None], list(out))

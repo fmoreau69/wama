@@ -147,13 +147,9 @@ def _pipeline_view(gen):
     5.1) : ses lignes de process et l'état déduit — par l'adaptateur unique
     (`AppPipeline.shown_state`), jamais `status` en dur. Sous « auto » le modèle du prochain
     lancement n'est pas connu : on montre ce qui a tourné."""
-    from wama.common.models import PROCESS_STATUS_CHOICES
+    from wama.common.services.process_pipeline import card_view
     from wama.common.utils.auto_model import is_auto
-    from .function_specs import PIPELINE
-    model_key = None if is_auto(gen.model) else normalize(gen.model)
-    rows = PIPELINE.card_rows(gen, model_key)
-    state = PIPELINE.shown_state(gen)
-    return rows, state, dict(PROCESS_STATUS_CHOICES).get(state, state)
+    return card_view(gen, None if is_auto(gen.model) else normalize(gen.model))
 
 
 def _get_batches_list(user):

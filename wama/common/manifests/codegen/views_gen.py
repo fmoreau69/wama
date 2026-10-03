@@ -872,6 +872,13 @@ def _decorer(item):
     # l'alias pointe sur l'item lui-même. Posé dans `_decorer`, point d'attache UNIQUE des
     # deux chemins de rendu (index et card_html).
     _set_unless_property(item, 'elem', item)
+    # PIPELINE de la card (P5, 5.2) : lignes de process + état MONTRÉ, par la brique commune —
+    # rien sans pipeline déclaré (la card lit alors `status`, la bande ne se rend pas).
+    try:
+        from wama.common.services.process_pipeline import decorate as _decorate_pipeline
+        _decorate_pipeline(item)
+    except Exception:
+        pass
     return item'''
 
     vues['card_html'] = f'''def card_html(request, pk):
