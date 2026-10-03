@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**179 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**180 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -971,11 +971,12 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
 
 ### Partage d'un élément ou d'un lot (1ʳᵉ interface)
 
-LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5` disait « il n'existe AUCUNE interface de partage » (il fallait l'admin Django). Écrit `visibility` + son scope sur l'élément ET son lot — ou sur le lot ET ses éléments : les DEUX sens sont exigés, le filtre de lecture s'appliquant aux deux niveaux (un lot partagé aux éléments privés s'affiche VIDE chez le destinataire). Portées OFFRABLES dérivées de l'utilisateur (unités qui le couvrent, projets dont il est membre) : une portée sans cible réelle n'est pas proposée. Lecture seule par construction — l'écriture est le jalon S3 `AccessGrant`, et la modale le DIT. Depuis le 2026-10-01 : « Dupliquer » une card reçue (`scoping.duplicable_or_404`) et « Transférer à… » (`card_transfer` : possédés déplacés, désignés copiés)
+LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5` disait « il n'existe AUCUNE interface de partage » (il fallait l'admin Django). Écrit `visibility` + son scope sur l'élément ET son lot — ou sur le lot ET ses éléments : les DEUX sens sont exigés, le filtre de lecture s'appliquant aux deux niveaux (un lot partagé aux éléments privés s'affiche VIDE chez le destinataire). Portées OFFRABLES dérivées de l'utilisateur (unités qui le couvrent, projets dont il est membre) : une portée sans cible réelle n'est pas proposée. Lecture seule par construction — l'écriture est le jalon S3 `AccessGrant`, et la modale le DIT. Depuis le 2026-10-01 : « Dupliquer » une card reçue (`scoping.duplicable_or_404`) et « Transférer à… » (`card_transfer` : possédés déplacés, désignés copiés). Depuis le 2026-10-02 : le RANGEMENT chez le destinataire (`reception`, §3bis.2) — « Retirer de ma file » ≠ supprimer, « Réafficher », SON ordre manuel ; une ligne par destinataire et par ENTRÉE de file (`ReceivedEntry`), qui ne porte aucun droit. Depuis le 2026-10-03 : la card reçue en LECTURE SEULE (pastille des deux côtés, ▶ 🗑 → encart, ⚙ en consultation), les MODES déclarés (`SHARE_MODES`, deux grisés) et les DEMANDES d'accès (`ObjectGrant` : la demande et le droit sont la même ligne ; la propriété s'accorde, elle cède la card)
 
 - **Domicile** : `wama/common/services/sharing.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : PARTAGE d'un élément de file — la première INTERFACE du mécanisme de visibilité.
-- **API publique** (7) :
+- **API publique** (8) :
+  - `scope_label(element) -> str` — La portée d'un élément partagé, dite par sa CIBLE (« LESCOT », « Projet X », « Public ») —
   - `class RefusDePartage(Exception)` — Refus MOTIVÉ : le motif est destiné à l'utilisateur, pas au journal.
   - `class ConsentRequired(RefusDePartage)` — Le partage d'un élément personnel attend le consentement de celui qui partage.
   - `consent_subject(element) -> str` — Ce que l'élément porte d'une personne (« la voix d'une personne »), ou '' — DÉCLARÉ par
@@ -1375,7 +1376,7 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
 
 ### Backends PROPOSÉS par un rôle LLM (marche B2)
 
-Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle installé ; ce module le JUGE (forme : contrat, ENGINE, SUPPORTED_MODELS au niveau module, interdits cache HF / téléchargement ; résolution SIMULÉE par le vivier ; smoke CPU) puis, sur « Valider » au model manager, l'ÉCRIT dans `wama/common/backends/` — contrôles REFAITS, jamais par-dessus un module, rien de commité. Levée ciblée de la règle « l'agent n'écrit pas dans wama/ » (Fabien, 29/09). Aucun contrôle ne juge la QUALITÉ : le smoke dit qu'une image existe
+Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle installé ; ce module le JUGE (forme : contrat, ENGINE, SUPPORTED_MODELS au niveau module, interdits cache HF / téléchargement ; résolution SIMULÉE par le vivier ; smoke CPU PAR CONTRAT, `SMOKES`) puis, sur « Valider » au model manager, l'ÉCRIT dans `wama/common/backends/` — contrôles REFAITS, jamais par-dessus un module, rien de commité. Levée ciblée de la règle « l'agent n'écrit pas dans wama/ » (Fabien, 29/09). Smoke image : deux images DISTINCTES ; smoke parole (2026-10-02) : un extrait réel des corpus d'évaluation, calé sur la référence, texte + segments ordonnés + WER ≤ 75 % (garde-fou contre l'absurde, pas un critère de qualité)
 
 - **Domicile** : `wama/common/services/backend_proposals.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : BACKENDS PROPOSÉS par le rôle `backend` (marche B2) — contrôles, résolution simulée, smoke, puis le geste « Valider » qui ÉCRIT le module dans `wama/common/backends/`.
@@ -1684,7 +1685,7 @@ Une règle unique pour les 8 apps à liaison PRÉCOCE, en deux familles : entré
 - **Module** : Nom du fichier de SORTIE — une règle unique pour toutes les apps.
 - **API publique** (2) :
   - `output_tag(app: str) -> str` — Mot de process de l'app : déclaré dans `APP_CATALOG`, sinon table de repli, sinon l'app.
-  - `compose_output_name(*, app: str, model: str='', ext: str='', source_name: str='', item_id=None, index: int=None, total: int=1) -> str` — Compose le nom du fichier de sortie. Rend un NOM, jamais un chemin.
+  - `compose_output_name(*, app: str, model: str='', ext: str='', source_name: str='', item_id=None, index: int=None, total: int=1, nature: str='') -> str` — Compose le nom du fichier de sortie. Rend un NOM, jamais un chemin.
 
 ### Notifications
 
@@ -1707,7 +1708,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (35) :
+- **API publique** (38) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -1724,6 +1725,8 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class ScopedVisibility(models.Model)` — Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
   - `scoped_visible_q(user, owner_field='user')` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
   - `class ShareConsent(models.Model)` — Le CONSENTEMENT donné en partageant un élément qui porte une PERSONNE — et son retrait.
+  - `class ReceivedEntry(models.Model)` — Le RANGEMENT, chez le destinataire, d'une entrée de file qu'on lui a partagée (2026-10-02).
+  - `class ObjectGrant(models.Model)` — Un DROIT sur une instance — et la DEMANDE de ce droit : la même ligne (2026-10-03).
   - `class ReleasedFile(models.Model)` — Un fichier que plus aucune card n'appelle — GARDÉ, l'utilisateur prévenu (2026-09-30).
   - `class PromptScoped(models.Model)` — Modèle portant un prompt utilisateur TRAITÉ par la PromptPipeline (enrichissement).
   - `class ScopedQuerySet(models.QuerySet)` — QuerySet des modèles `ScopedVisibility` : expose `visible_to(user)`.
@@ -1734,6 +1737,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
   - `class ItemRevision(models.Model)` — Une RÉVISION d'un élément : l'état que lui a donné un résultat produit — marche 8a de
   - `class ProcessRun(models.Model)` — La LIGNE D'EXÉCUTION d'un process : « tel process, pour telle card, dans tel état » —
+  - `class BatchSettings(models.Model)` — Les réglages de RÉFÉRENCE d'un lot — ce que la card mère tient (`MODES_QUEUE_UX §5ter`,
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
   - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
@@ -1743,6 +1747,20 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class Conversation(models.Model)` — Un fil de dialogue avec l'assistant, quelle que soit la surface qui le porte.
   - `class ConversationTurn(models.Model)` — Un tour de conversation — ce que l'utilisateur a dit, ou ce que l'assistant a répondu.
   - `class InputProvenance(models.Model)` — D'OÙ vient le fichier d'entrée d'un élément — le LIEN qui manquait.
+
+### Réglages de référence d'un lot (promotion fille ↔ mère)
+
+UNE ligne par lot (`BatchSettings`, adressée comme `ProcessRun`) : ce que la mère TIENT pour référence — posé par sa ⚙ (`batch_update` la retient désormais) ou PROMU d'une fille (`batch_promote`, POST `source=`) ; « ↓ réaligner » (`batch_realign`) la repose sur toutes les filles et efface les écarts individuels. La charge utile est DÉCLARÉE (`promote_payload`), par défaut les réglages du SCHÉMA lus par la règle de la révision ; le monde Data y mettra son protocole — même geste, deux charges. Les trois gestes écrivent par le chemin de la ⚙ de lot (deux temps, un refus n'écrit rien) ; la référence suit la duplication et part avec la suppression. Surfaces : bouton ↓ de la card mère (désactivé et DISANT pourquoi sans référence), entrée « Promouvoir ses réglages au lot » du menu « … » d'une fille. 9 apps câblées + le générateur ; le composer suit avec son câblage pipeline
+
+- **Domicile** : `wama/common/services/batch_settings.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md §5ter](../construction/ui/MODES_QUEUE_UX.md)
+- **Module** : Les RÉGLAGES D'UN LOT — ce que la card MÈRE tient pour référence (`MODES_QUEUE_UX §5ter`, `WAMA_APP_GENERATION_ROUTE §10.6` 5.3 ; marche P5, 2026-10-03).
+- **API publique** (6) :
+  - `address(batch) -> dict` — Adresse d'un lot : `{app, batch_type, batch_id}` — dérivée du lot SEUL (convention de
+  - `stored(batch) -> dict | None` — Les réglages de référence du lot, ou None s'il n'en a jamais reçu.
+  - `remember(batch, settings: dict, *, source_id='') -> None` — La mère RETIENT ces réglages comme référence — réécrits, jamais empilés. `source_id` : la
+  - `forget(batch) -> int` — Le lot disparaît : sa référence aussi. Rend le nombre de lignes retirées.
+  - `references_for(batch_model, batch_ids) -> dict` — `{id de lot (int): id de la fille promue ('' pour la ⚙ de la mère)}` des lots de
+  - `settings_of(item, schema=None) -> dict` — Les réglages d'UNE fille, prêts à être promus : ceux de son schéma d'app (contexte
 
 ### Tri/filtrage de la file
 
@@ -1762,7 +1780,7 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
 - **API publique** (3) :
   - `read_settings_payload(request, schema=None, schema_names=(), empty_is_value=())` — Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
   - `apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=())` — Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
-  - `make_batch_views(*, work_model, batch_model, get_user, task=None, file_fields=(), output_fields=(), output_field='output_file', params_fields=(), schema=None,…` — Retourne les six vues de lot : {'batch_start', 'batch_update', 'batch_delete',
+  - `make_batch_views(*, work_model, batch_model, get_user, task=None, file_fields=(), output_fields=(), output_field='output_file', params_fields=(), schema=None,…` — Retourne les huit vues de lot : {'batch_start', 'batch_update', 'batch_delete',
 
 ## UI générée
 
@@ -1883,13 +1901,15 @@ Schéma canonique des infos d'item affichées au volet droit
 
 - **Domicile** : `wama/common/utils/detail_registry.py` · **doc** : [docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md](../construction/ui/INSPECTOR_DETAIL_FIELDS.md)
 - **Module** : WAMA Common — Registre des DÉTAILS d'item pour l'inspecteur (miroir de preview_registry).
-- **API publique** (9) :
+- **API publique** (11) :
   - `props_icon_for(media_type: str) -> str`
   - `normalize_status(status: str) -> str` — Un statut d'app → le vocabulaire commun. Délègue au domicile (`common/models.py`).
   - `class DetailRegistry`
   - `register_app_detail(app_name, model_class, adapter)` — Enregistre l'adapter de détail d'une app. `adapter(instance) -> dict canonique`.
   - `register_app_detail_spec(app_name, model_class, spec)` — Variante DÉCLARATIVE (A3a) : la registration est une SPEC-donnée, pas un callable.
+  - `spec_value(instance, form)` — UNE valeur de spec résolue contre l'instance — le vocabulaire entier tient ici :
   - `detail_from_spec(instance, spec, app_name)` — Adapter GÉNÉRIQUE : résout la spec déclarative contre l'instance puis délègue à
+  - `settings_from_schema(instance, schema, *, skip=(), carrier=None)` — {libellé: valeur} des réglages POSÉS du schéma — la liste « Réglages » du volet, pour les
   - `build_detail(instance, *, source_file=None, source_type=None, engine=None, engine_effective=None, result_file=None, result_files=None, result_role=None, result…` — Assemble le dict canonique d'un item (épine dorsale). Les valeurs vides sont OMISES
   - `unified_detail(request, app_name: str, pk: int)` — Endpoint commun : infos d'un item selon le schéma canonique (miroir de unified_preview).
   - `result_tabs_for(app_name: str) -> list` — Facettes TEXTE déclarées par `app_name` — [] si l'app n'en déclare pas.
@@ -2085,7 +2105,7 @@ Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / 
 
 ### Activité vocale (le VAD garde-t-il la parole ?)
 
-Confronte, sur quelques fenêtres du média, ce que le filtre de parole Silero retient à ce que l'énergie du signal dit actif : un VAD qui garde bien moins que l'actif rejette une parole lointaine. L'appelant décide (le transcriber transcrit alors sans filtre, réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25. `pause_windows` (2026-10-02) : fenêtres bornées couvrant TOUT l'audio, coupées au creux d'énergie — pour un moteur à fenêtre fixe sans repères de temps (FrWhisper)
+Confronte, sur quelques fenêtres du média, ce que le filtre de parole Silero retient à ce que l'énergie du signal dit actif : un VAD qui garde bien moins que l'actif rejette une parole lointaine. L'appelant décide (le transcriber transcrit alors sans filtre, réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25. `pause_windows` (2026-10-02) : fenêtres bornées couvrant TOUT l'audio, coupées au creux d'énergie — pour un moteur à fenêtre fixe sans repères de temps (FrWhisper) ; `quietest_point` : la même coupe sur un extrait seul, qu'emploie le découpage des audios longs du transcriber (`workers._split_audio_chunks`, plus de coupe à intervalle fixe)
 
 - **Domicile** : `wama/common/utils/speech_activity.py` · **doc** : [wama/transcriber/TRANSCRIBER_CORRECTION.md §8](../../wama/transcriber/TRANSCRIBER_CORRECTION.md)
 - **Module** : Activité vocale d'un enregistrement — le filtre de parole (VAD) garde-t-il ce que le signal porte ?
@@ -2388,11 +2408,13 @@ Purge automatique des sorties au-delà de la durée choisie par l'utilisateur (F
 
 - **Domicile** : `wama/common/services/retention.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Rétention des médias — purge automatique des sorties au-delà de la durée choisie par l'utilisateur (`UserProfile.media_retention_days`, bornée par `settings.WAMA_MAX_RETENTION_DAYS`).
-- **API publique** (5) :
+- **API publique** (7) :
   - `purge_expired_media(dry_run=False)` — Purge les médias expirés de tous les modèles enregistrés, par utilisateur (selon sa rétention).
   - `retention_days_by_user()` — {user_id: jours} de tous les utilisateurs à rétention FINIE (plafond global inclus) — lu une
   - `retention_days_for(user)` — Rétention EFFECTIVE d'un utilisateur, en jours (plafond global inclus) ; 0 = aucune.
   - `expirations_for(user, start, end)` — Médias de `user` qui EXPIRENT dans `[start, end)` : `[{app, model, id, expires_at}]`.
+  - `purge_expired_temp(dry_run=False)` — Supprime, pour chaque utilisateur à durée finie, les fichiers de son dossier temporaire plus
+  - `upcoming_temp_expirations(days_ahead)` — {user_id: n} des fichiers du temp qui seront supprimés dans <= days_ahead jours (pré-avis).
   - `upcoming_expirations(days_ahead)` — {user_id: [(model_label, count), ...]} des médias expirant dans <= days_ahead jours.
 
 ### Sauvegarde & tirage
@@ -2558,7 +2580,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (35) :
+- **API publique** (38) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2575,6 +2597,8 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
   - `class ScopedVisibility(models.Model)` — Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
   - `scoped_visible_q(user, owner_field='user')` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
   - `class ShareConsent(models.Model)` — Le CONSENTEMENT donné en partageant un élément qui porte une PERSONNE — et son retrait.
+  - `class ReceivedEntry(models.Model)` — Le RANGEMENT, chez le destinataire, d'une entrée de file qu'on lui a partagée (2026-10-02).
+  - `class ObjectGrant(models.Model)` — Un DROIT sur une instance — et la DEMANDE de ce droit : la même ligne (2026-10-03).
   - `class ReleasedFile(models.Model)` — Un fichier que plus aucune card n'appelle — GARDÉ, l'utilisateur prévenu (2026-09-30).
   - `class PromptScoped(models.Model)` — Modèle portant un prompt utilisateur TRAITÉ par la PromptPipeline (enrichissement).
   - `class ScopedQuerySet(models.QuerySet)` — QuerySet des modèles `ScopedVisibility` : expose `visible_to(user)`.
@@ -2585,6 +2609,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
   - `class ItemRevision(models.Model)` — Une RÉVISION d'un élément : l'état que lui a donné un résultat produit — marche 8a de
   - `class ProcessRun(models.Model)` — La LIGNE D'EXÉCUTION d'un process : « tel process, pour telle card, dans tel état » —
+  - `class BatchSettings(models.Model)` — Les réglages de RÉFÉRENCE d'un lot — ce que la card mère tient (`MODES_QUEUE_UX §5ter`,
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
   - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
@@ -2689,7 +2714,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `synthesize_text(user, text: str='', work_file: str='', reference_voice: str='', language: str='fr', tts_model: str=DEFAULT_TTS_MODEL, voice_preset: str='defaul…` — Create a VoiceSynthesis job — from raw text OR from a work file, with an optional
   - `start_synthesizer(user, synthesis_id: int=None) -> dict` — Launch Celery synthesis task(s).
   - `get_synthesizer_status(user) -> dict` — Return status of the user's recent synthesis jobs (last 10).
-  - `compose_music(user, prompt: str, model: str='musicgen-small', duration: float=10.0, reference_score: str=None, **params) -> dict` — Create a Composer generation job (music or SFX) and start it immediately.
+  - `compose_music(user, prompt: str, model: str='musicgen-small', duration: float=10.0, work_score: str=None, work_audio: str=None, **params) -> dict` — Create a Composer generation job (music or SFX) and start it immediately.
   - `start_composer(user, generation_id: int) -> dict` — Lance (ou relance) la génération d'une composition créée via compose_music().
   - `get_composer_status(user) -> dict` — Return status of the user's recent Composer jobs (last 10).
   - `add_to_describer(user, file_path: str, output_style: str='detailed', output_language: str='fr', max_length: int=500, **params) -> dict` — Copy a file into the describer queue and create a Description DB entry.

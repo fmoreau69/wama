@@ -32,13 +32,11 @@
 > Mesuré depuis le code — **ne pas éditer à la main** (`python manage.py doc_facts`).
 > Registre des modules : `wama_data/modules.py`.
 
-**Bilan** : 3 ⏳ (non commencé) · 7 🔶 (livré mais INERTE)
-
-> 🔶 **AUCUN consommateur hors `wama_data/` — le sous-système entier est INERTE.** Aucune app, tâche ou route ne s'en sert encore : les briques s'appellent entre elles, et c'est tout. Le premier module à donner un usage réel fera basculer ces lignes en ✅.
+**Bilan** : 3 ⏳ (non commencé) · 1 ✅ (livré et consommé) · 6 🔶 (livré mais INERTE)
 
 | Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
 |---|---|---|---|---|---|---|---|
-| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wdat` | 🔶 | 9/9 | 3 | 7/0 | §6.6, §6.6bis, §9bis.1, §9quater.2, §9duodecies, §9terdecies |
+| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wdat` | ✅ | 9/9 | 3 | 7/2 | §6.6, §6.6bis, §9bis.1, §9quater.2, §9duodecies, §9terdecies |
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée, cadres typés | 🔶 | 2/2 | 2 | 2/0 | §2, §3, §9quater.7 |
 | **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wdat` natif) → référentiel | 🔶 | 3/3 | 0 | 3/0 | §6.2, §9quater.2, §9terdecies |
 | **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | 🔶 | 2/2 | 2 | 1/0 | §7, §9quater.6, §9quater.7 |
