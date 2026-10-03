@@ -416,6 +416,9 @@
    card (mesuré au 1er smoke, 2026-10-03 — le piège de contraste récurrent). */
 .wcv3-proc-name { color: #e9ecef; font-weight: 600; }
 .wcv3-proc--optional .wcv3-proc-name { font-style: italic; }
+/* Process optionnel DÉSACTIVÉ : estompé, sa case reste nette (c'est elle qu'on vise). */
+.wcv3-proc--off > :not(.wcv3-proc-toggle) { opacity: .45; }
+.wcv3-proc-toggle { margin: 0; width: .85rem; height: .85rem; cursor: pointer; }
 .wcv3-proc-sep { font-size: .7rem; color: #7a838c; }
 /* ▶ et ⚙ par process : discrets ; le ▶ est absent tant que la card est en vol (un seul lancement
    à la fois), le ⚙ reste (la modale s'ouvre en consultation). */

@@ -66,7 +66,13 @@ class ProcessSpec:
                   un modèle qui ne sait pas faire le premier ;
       outputs     champs FICHIER de l'élément que le process ÉCRIT (`planned_score`,
                   `audio_output`) — ce qu'un lancement borné à ce process remplace, et rien
-                  d'autre (`reset_outputs`). Déclaré : le lanceur ne lit pas la glu.
+                  d'autre (`reset_outputs`). Déclaré : le lanceur ne lit pas la glu ;
+      toggle      champ BOOLÉEN de l'élément qui ACTIVE un process `optional` (`ROUTE §10.6`
+                  3.2 : « l'utilisateur l'active ou non — c'est une option d'aujourd'hui » :
+                  `enable_diarization`, `generate_summary`…). Désactivé, le process n'a pas lieu
+                  et ne pèse plus sur l'état de la card (règle 4.4 : « les optional désactivés
+                  sont ignorés ») ; la bande en fait une case à cocher. Distinct d'`applies`,
+                  qui dit ce que le MODÈLE sait faire, pas ce que l'utilisateur veut.
     """
     key: str
     label: str = ''
@@ -78,6 +84,7 @@ class ProcessSpec:
     share: int = 1
     applies: Callable = None
     outputs: tuple = ()
+    toggle: str = ''
 
 
 def output_fingerprint(ref: str) -> str:
@@ -97,6 +104,14 @@ def output_fingerprint(ref: str) -> str:
         return f'size:{os.path.getsize(path)}'
     except OSError:
         return f'missing:{ref}'
+
+
+def _fingerprint_of(row) -> str:
+    """Empreinte de ce qu'un process a RENDU : celle que sa glu a déclarée (`output_fingerprint`
+    du retour — une sortie qui n'est pas un fichier : le texte d'une transcription, des segments
+    en base), sinon celle du fichier de `output_ref`."""
+    declared = (row.output_summary or {}).get('fingerprint')
+    return str(declared) if declared else output_fingerprint(row.output_ref)
 
 
 def _output_lost(row) -> bool:
@@ -127,6 +142,9 @@ class AppPipeline:
                                  f"{', '.join(unknown)}, qui n'y est pas déclaré")
             if spec.degree not in (REQUIRED, OPTIONAL):
                 raise ValueError(f"pipeline de {app} : degré « {spec.degree} » inconnu")
+            if spec.toggle and spec.degree != OPTIONAL:
+                raise ValueError(f"pipeline de {app} : « {spec.key} » porte un interrupteur "
+                                 f"(`toggle`) mais n'est pas `optional`")
         self.ordered()                      # un cycle se refuse à la DÉCLARATION, pas au lancement
 
     # ── Déclaration ─────────────────────────────────────────────────────────────────────────
@@ -144,7 +162,8 @@ class AppPipeline:
         from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
         nodes = [{'id': spec.key, 'app': f'{FUNCTION_NODE_PREFIX}{self.function_key(spec)}',
                   'params': {'degree': spec.degree, 'gpu': spec.gpu,
-                             'watched': list(spec.watched)}}
+                             'watched': list(spec.watched),
+                             **({'toggle': spec.toggle} if spec.toggle else {})}}
                  for spec in self.specs]
         links = [{'from': upstream, 'to': spec.key, 'to_port': None}
                  for spec in self.specs for upstream in spec.depends_on]
@@ -190,25 +209,34 @@ class AppPipeline:
         sortie de chacun de ses amonts qui a tourné (un amont sans ligne n'y figure pas)."""
         rows = self.rows(item) if rows is None else rows
         taken = process_runs.snapshot(item, spec.watched)
-        upstream = {key: output_fingerprint(rows[key].output_ref)
+        upstream = {key: _fingerprint_of(rows[key])
                     for key in spec.depends_on if key in rows}
         if upstream:
             taken[UPSTREAM_KEY] = upstream
         return taken
 
+    @staticmethod
+    def enabled(spec: ProcessSpec, item) -> bool:
+        """Le process est-il ACTIVÉ pour cet élément ? Toujours, sauf un `optional` dont
+        l'interrupteur (`toggle`) est à faux."""
+        return not spec.toggle or bool(getattr(item, spec.toggle, False))
+
     def applicable(self, item, model_key=None) -> list:
-        """Les process qui ont lieu pour cet élément, dans l'ordre de lancement."""
+        """Les process qui ont lieu pour cet élément, dans l'ordre de lancement : activés (un
+        `optional` désactivé n'a pas lieu) et servis par le modèle (`applies`)."""
         return [spec for spec in self.ordered()
-                if spec.applies is None or spec.applies(item, model_key)]
+                if self.enabled(spec, item)
+                and (spec.applies is None or spec.applies(item, model_key))]
 
     # ── Péremption, sélection, état ─────────────────────────────────────────────────────────
     def refresh(self, item) -> set:
         """Passe `STALE` les lignes en succès qui ne sont plus à jour ; rend leurs clés.
 
         Ne regarde que les process qui ONT une ligne : seul un résultat rendu peut être périmé,
-        et un amont jamais lancé (un process qui n'avait pas lieu) ne périme personne.
+        et un amont jamais lancé (un process qui n'avait pas lieu) ne périme personne. Un
+        `optional` DÉSACTIVÉ est ignoré : ni périmé, ni cause de péremption (règle 4.4).
         """
-        rows = self.rows(item)
+        rows = self._enabled_rows(item)
         if not rows:
             return set()
         known = [spec for spec in self.specs if spec.key in rows]
@@ -219,6 +247,11 @@ class AppPipeline:
             current={spec.key: self.snapshot(spec, item, rows) for spec in known})
         process_runs.mark_stale(item, stale)
         return stale
+
+    def _enabled_rows(self, item) -> dict:
+        """Les lignes des process ACTIVÉS — ce qui compte pour la péremption et l'état."""
+        rows = self.rows(item)
+        return {key: row for key, row in rows.items() if self.enabled(self._by_key[key], item)}
 
     def up_to_date(self, item) -> dict:
         """`{clé: ligne}` des process en succès après `refresh` — ceux que rien n'a périmés."""
@@ -291,9 +324,10 @@ class AppPipeline:
         return cleared
 
     def card_state(self, item) -> str:
-        """État de la card DÉDUIT de ses process (règle 4.4) — lu, jamais écrit dans l'élément."""
+        """État de la card DÉDUIT de ses process ACTIVÉS (règle 4.4) — lu, jamais écrit dans
+        l'élément."""
         self.refresh(item)
-        rows = self.rows(item)
+        rows = self._enabled_rows(item)
         return process_runs.aggregate(
             (rows[spec.key].status, spec.degree) for spec in self.specs if spec.key in rows)
 
@@ -311,7 +345,7 @@ class AppPipeline:
             return status
         if rows is None:
             self.refresh(item)
-            rows = self.rows(item)
+            rows = self._enabled_rows(item)
         if not rows:
             return status or JOB_PENDING
         return process_runs.aggregate(
@@ -342,6 +376,9 @@ class AppPipeline:
                 'error': (row.error_message or '') if row is not None else '',
                 # Les réglages que CE process surveille : ce que son ⚙ montre (P5, 5.1).
                 'watched': list(spec.watched),
+                # L'interrupteur d'un `optional` (case à cocher de la bande) et son état.
+                'toggle': spec.toggle,
+                'enabled': self.enabled(spec, item),
             })
         return out
 
