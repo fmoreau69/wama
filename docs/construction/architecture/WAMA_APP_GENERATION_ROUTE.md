@@ -3717,6 +3717,25 @@ qui DIT quelle fille manque de quoi (`WAMA_DATA_WORLD.md:2913-2916`).
 - l'ajout se fait **au clic** (`wama-studio.js:93`) et empile les nœuds à `40 + (n % 5) × 30`
   (`:122-123`) → **glisser-déposer** à l'endroit voulu.
 
+> ✅ **5.4 CONSTRUIT le 2026-10-03 (P5, 6ᵉ pièce)** — les trois corrections, plus les états :
+> - la palette s'intitule **« Catalogue »** et se rend en **sections repliables** (`<details>`,
+>   repli retenu par navigateur) : Entrées · Sorties · **Pipelines** · Apps · Fonctions par
+>   catégorie (`renderPalette` / `paletteSection`). « Modules Data » attend un nœud de ce type —
+>   aujourd'hui les fonctions Data sont des nœuds `function`, rangées par catégorie ;
+> - les pipelines **sauvegardés ET déclarés par les apps** sont DANS le catalogue, lus des deux
+>   mêmes API que le sélecteur de la barre (`refreshPipelineList` alimente les deux), ouverts par
+>   UN chemin (`openPipeline(<id> | declared:<clé>)`) ;
+> - un nœud se **glisse** à l'endroit voulu (drag natif, type MIME `text/wama-node`, `drop` sur
+>   le canvas → `addNode(id, {x, y})`) ; le clic empile comme avant ;
+> - le canvas montre les **six états communs** du point 4 (`run-pending`, `run-awaiting_resources`,
+>   `run-running`, `run-success`, `run-failure`, `run-stale`, mêmes teintes que le point d'état
+>   des cards) — il n'en connaissait que trois.
+> Gardes : `studio/tests_catalogue.py` (contrat lu par la page, copies servies = sources, parse
+> V8). ⚠ Le geste de glisser et le repli se VOIENT au navigateur — à valider par Fabien.
+> Reste du 5.4 : les nœuds du canvas ne portent pas encore la bande des process d'une card
+> (un nœud-app = une card, `§10.6` 5.1) — c'est le même partial, à inclure quand le studio
+> rendra ses nœuds depuis le serveur.
+
 #### 6. Les mondes
 
 **6.1 Chaque app DÉCLARE son monde** (décision du 15/09 — c'était le « préalable n°1 » de

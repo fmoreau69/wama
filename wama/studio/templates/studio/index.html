@@ -42,16 +42,19 @@
 </div>
 
 <div class="studio">
-    <!-- Palette des apps (source = APP_CATALOG via /common/api/apps/) -->
+    <!-- CATALOGUE (ROUTE §10.6 5.4, 2026-10-03) : sections repliables — Entrées · Sorties ·
+         Pipelines (les miens + ceux déclarés par les apps) · Apps · Fonctions par catégorie —
+         remplies par /studio/api/nodes/, /studio/api/pipelines/ et /studio/api/declared-pipelines/.
+         Un élément s'ajoute au clic ou se GLISSE à l'endroit voulu du canvas. -->
     <div class="studio-palette" id="studioPalette">
-        <div class="studio-palette-title">Apps</div>
+        <div class="studio-palette-title">Catalogue</div>
         <div id="studioPaletteList" class="studio-palette-list text-white-50 small">Chargement…</div>
     </div>
 
-    <!-- Canvas : nœuds-app + connecteurs SVG -->
+    <!-- Canvas : nœuds (entrées, apps, fonctions, sortie) + connecteurs SVG -->
     <div class="studio-canvas" id="studioCanvas">
         <svg class="studio-links" id="studioLinks"></svg>
-        <div class="studio-hint" id="studioHint">Cliquez une app dans la palette pour l'ajouter au canvas.</div>
+        <div class="studio-hint" id="studioHint">Cliquez un élément du catalogue, ou glissez-le ici à l'endroit voulu.</div>
     </div>
 
 </div>

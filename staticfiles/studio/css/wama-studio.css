@@ -48,6 +48,17 @@
 }
 .studio-pal-item:hover { background: rgba(255, 255, 255, .08); }
 .studio-pal-item i { color: var(--app-c, #6ea8fe); width: 1.1rem; text-align: center; }
+.studio-pal-item[draggable="true"] { cursor: grab; }
+/* Sections REPLIABLES du catalogue (ROUTE §10.6 5.4, 2026-10-03) : un <details> par section,
+   le titre garde le style des anciens groupes ; un chevron dit l'état. */
+.studio-pal-section { display: flex; flex-direction: column; gap: .3rem; }
+.studio-pal-section > summary { cursor: pointer; list-style: none; user-select: none; margin: .5rem 0 0; }
+.studio-pal-section > summary::-webkit-details-marker { display: none; }
+.studio-pal-section > summary::before { content: '\25B8'; display: inline-block; width: .9rem; transition: transform .12s ease; }
+.studio-pal-section[open] > summary::before { transform: rotate(90deg); }
+.studio-pal-section:first-child > summary { margin-top: 0; }
+.studio-pal-subgroup { font-size: .6rem; text-transform: uppercase; letter-spacing: .05em; color: #6f7890; margin: .3rem 0 0 .9rem; }
+.studio-pal-empty { font-size: .72rem; color: #8b93a7; margin-left: .9rem; }
 
 /* Inspecteur : déplacé dans le VOLET DROIT global (base.html) — styles hérités de l'inspecteur commun.
    Voir studio/index.html (blocks right_panel_*) + wama-inspector-autofill.css. */
@@ -131,6 +142,11 @@
 .studio-node.run-running { box-shadow: 0 0 0 2px #ffc107, 0 4px 14px rgba(255, 193, 7, .25); }
 .studio-node.run-success { box-shadow: 0 0 0 2px #198754, 0 4px 14px rgba(25, 135, 84, .25); }
 .studio-node.run-failure { box-shadow: 0 0 0 2px #dc3545, 0 4px 14px rgba(220, 53, 69, .3); }
+/* Les trois autres états COMMUNS (ROUTE §10.6 point 4) — mêmes teintes que le point d'état des
+   cards : attente de ressources orange, périmé violet, en attente gris. */
+.studio-node.run-pending { box-shadow: 0 0 0 2px #6c757d; }
+.studio-node.run-awaiting_resources { box-shadow: 0 0 0 2px #fd7e14, 0 4px 14px rgba(253, 126, 20, .25); }
+.studio-node.run-stale { box-shadow: 0 0 0 2px #a78bfa, 0 4px 14px rgba(167, 139, 250, .3); }
 
 /* ── Flux de données sur les câbles pendant l'exécution (2026-07-17) ───────── */
 .studio-link.flowing {
