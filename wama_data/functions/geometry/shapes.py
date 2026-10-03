@@ -126,3 +126,20 @@ def visible_face_to_center(x, y, length_m, width_m, axis_deg):
     hl, hw = length_m / 2.0, width_m / 2.0
     t = min(hl / c if c > 1e-9 else float('inf'), hw / s if s > 1e-9 else float('inf'))
     return x + ux * t, y + uy * t
+
+
+def cut_box_face_center(inner_x, depth, side, length_m, width_m, axis_deg):
+    """Milieu de la face VUE d'un véhicule dont la boîte est COUPÉE par un bord de l'image.
+
+    Le centre d'une boîte coupée est celui de la partie VISIBLE : trop vers l'intérieur de l'image (à
+    519 s, un véhicule coupé au bord gauche de l'avant était placé à 8,7 m de la mesure de la latérale
+    qui le voyait entier). Le bord INTÉRIEUR, lui, n'est pas coupé : la face s'étend au-delà, de son
+    étendue apparente E = L·|sin α| + W·|cos α| (α : angle entre la ligne de visée et l'axe du véhicule).
+    (inner_x, depth) : point du bord intérieur dans le repère caméra (x à droite, y en avant, m) ; `side`
+    = −1 si la boîte est coupée à GAUCHE (le véhicule se prolonge vers les x négatifs), +1 à droite ;
+    `axis_deg` : axe long du véhicule dans ce repère. Rend (x, y) du milieu de la face vue."""
+    import math
+    phi = math.atan2(inner_x, depth)
+    a = phi - math.radians(axis_deg)
+    half = (length_m * abs(math.sin(a)) + width_m * abs(math.cos(a))) / 2.0
+    return inner_x + side * half * math.cos(phi), depth - side * half * math.sin(phi)

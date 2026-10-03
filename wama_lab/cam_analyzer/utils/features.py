@@ -137,6 +137,13 @@ FEATURES = [
             "objets, les largeurs de voie vues, le cap par ratio et la projection sol : "
             "calibration sol, recalage voie + carte et calculs sont à rejouer après bascule.",
             default=False, scope='compute'),
+    Feature('cut_box_inner_edge', 'Boîtes coupées par le bord INTÉRIEUR',
+            "Une boîte coupée par le bord de l'image était placée au centre de sa partie VISIBLE, trop vers "
+            "l'intérieur. On part de son bord intérieur (non coupé) et on prolonge de la demi-étendue "
+            "apparente du véhicule. Constat du 2026-10-03, 519 s : une voiture coupée au bord de l'avant "
+            "était placée à 8,7 m de la mesure de la latérale qui la voyait entière — le passage de relais "
+            "ratait (G449 / G473).",
+            default=False, scope='compute'),
     Feature('lens_distortion', 'Distorsion des objectifs',
             "Applique la distorsion radiale de chaque caméra (session : `camera_distortion`) à la "
             "projection sol, à la calibration et au placement pinhole. Mesuré le 2026-10-03 : sans elle, "

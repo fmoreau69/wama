@@ -454,7 +454,17 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     _family_gate = _feat.get('class_family_gate', True)
     _same_cam_excl = _feat.get('same_camera_exclusion', True)
     _center_place = _feat.get('vehicle_center_placement', False)
-    from wama_data.functions.geometry.shapes import visible_face_to_center
+    _cut_inner = _feat.get('cut_box_inner_edge', False)
+    from wama_data.functions.geometry.shapes import visible_face_to_center, cut_box_face_center
+
+    def _vehicle_axis(det, pos, t, shuttle_heading):
+        """Axe long d'un véhicule dans le repère NAVETTE (°, horaire) : la vitesse de son track s'il
+        roule, sinon parallèle à la navette (garés le long de la voie)."""
+        _lk = chain.get((pos, det.get('track_id'))) if det.get('track_id') is not None else None
+        _tr = by_gid.get(_lk['gid']) if _lk and (t - _lk['t']) <= 4.0 else None
+        if _tr is not None and math.hypot(_tr['ve'], _tr['vn']) > 1.5:
+            return math.degrees(math.atan2(_tr['ve'], _tr['vn'])) - shuttle_heading
+        return 0.0
     # ── Artefacts collés à l'image (reflets de vitrage) — chantier 1, 2026-07-19 ──
     # Détectés par cinématique pure AVANT l'association : bbox quasi immobile pendant
     # que la navette avance = pas un objet du monde. Marqués (jamais supprimés) et
@@ -580,6 +590,17 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     fx = iw / (2.0 * math.tan(math.radians(_g['fov_h']) / 2.0))
                     _ux = undistorted_x((bb[0] + bb[2]) / 2.0, bb[3], iw, ih, fx, _g['k1'])
                     ego = (dm * (_ux - iw / 2.0) / fx, dm)
+                    # ⚑ cut_box_inner_edge (2026-10-03) : le centre d'une boîte coupée est celui de la
+                    # partie VISIBLE. On part du bord INTÉRIEUR (non coupé) et on prolonge de la demi-
+                    # étendue apparente du véhicule — passage de 519 s : la boîte coupée de l'avant
+                    # plaçait la voiture à 8,7 m de la mesure de la latérale, qui la voyait entière.
+                    _cut_l, _cut_r = bb[0] <= 8, bb[2] >= iw - 8
+                    _dims = CLASS_DIMS.get(d.get('class_name'))
+                    if _cut_inner and _dims and _cut_l != _cut_r:
+                        _inner = bb[2] if _cut_l else bb[0]
+                        _xi = undistorted_x(_inner, bb[3], iw, ih, fx, _g['k1'])
+                        ego = cut_box_face_center(dm * (_xi - iw / 2.0) / fx, dm, -1 if _cut_l else 1,
+                                                  _dims[0], _dims[1], _vehicle_axis(d, pos, t, sh) - _g['yaw'])
                     relaxed = True
                     _psrc = 'pinhole_relaxed'
                 d['placement_source'] = _psrc
@@ -593,12 +614,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 if _center_place:
                     _dims = CLASS_DIMS.get(d.get('class_name'))
                     if _dims:
-                        _axis = 0.0                              # repère navette, horaire
-                        _lk = chain.get((pos, d.get('track_id'))) if d.get('track_id') is not None else None
-                        _tr = by_gid.get(_lk['gid']) if _lk and (t - _lk['t']) <= 4.0 else None
-                        if _tr is not None and math.hypot(_tr['ve'], _tr['vn']) > 1.5:
-                            _axis = math.degrees(math.atan2(_tr['ve'], _tr['vn'])) - sh
-                        ego = visible_face_to_center(ego[0], ego[1], _dims[0], _dims[1], _axis - _g['yaw'])
+                        ego = visible_face_to_center(ego[0], ego[1], _dims[0], _dims[1],
+                                                     _vehicle_axis(d, pos, t, sh) - _g['yaw'])
                 xv, yv = _cam_to_vehicle(ego[0], ego[1], _g['yaw'])
                 xv, yv = xv + _g['mount'][0], yv + _g['mount'][1]
                 e, n = ego_to_world(se, sn, sh, xv, yv)

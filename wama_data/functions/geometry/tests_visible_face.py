@@ -42,3 +42,29 @@ class VisibleFaceToCenterTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class CutBoxFaceCenterTest(unittest.TestCase):
+    """Boîte coupée par un bord de l'image (2026-10-03, passage de 519 s)."""
+
+    def test_a_car_cut_on_the_left_extends_beyond_its_inner_edge(self):
+        from .shapes import cut_box_face_center
+        # voiture droit devant (axe 0), bord intérieur à x = −1 m, 10 m devant : vue de dos, la face fait
+        # 1,8 m de large → milieu 0,9 m plus à gauche
+        x, y = cut_box_face_center(-1.0, 10.0, -1, *CAR, axis_deg=0.0)
+        self.assertLess(x, -1.0)
+        self.assertAlmostEqual(math.hypot(x + 1.0, y - 10.0), 0.9 * abs(math.cos(math.atan2(-1.0, 10.0))) +
+                               2.25 * abs(math.sin(math.atan2(-1.0, 10.0))), places=6)
+
+    def test_the_side_flips_the_direction(self):
+        from .shapes import cut_box_face_center
+        xl, _ = cut_box_face_center(2.0, 8.0, -1, *CAR, axis_deg=0.0)
+        xr, _ = cut_box_face_center(2.0, 8.0, +1, *CAR, axis_deg=0.0)
+        self.assertLess(xl, 2.0)
+        self.assertGreater(xr, 2.0)
+
+    def test_a_car_seen_side_on_spreads_by_half_its_length(self):
+        from .shapes import cut_box_face_center
+        x, y = cut_box_face_center(0.0, 6.0, +1, *CAR, axis_deg=90.0)   # vue de profil
+        self.assertAlmostEqual(x, 2.25)
+        self.assertAlmostEqual(y, 6.0)
