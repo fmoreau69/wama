@@ -21364,3 +21364,62 @@ Cinq questions de Fabien sur l'assistant, mesurées. Deux soldées, trois en con
 - `WAMA_APP_CONVENTIONS §4.2` : les scripts communs viennent du socle — jamais reposés à la main.
 - 🔚 La jumelle `imager_01` porte encore ses balises (gabarit recopié, hors total) : à la
   régénération des jumelles (R90).
+
+## §PALIER — 2026-10-04 (nuit du 03 au 04), « PIPELINE : process `align` + process « SORTIE » commun aux cinq apps » — non poussé — 🔚 synthesizer à jouer en réel (service TTS arrêté) · modale ⚙ « Sortie » de l'imager et de l'anonymizer à resserrer
+
+Deux décisions de Fabien du 03/10 au soir, exécutées (`ROUTE §10.6`, bloc « P6 ENGAGÉE »).
+
+**1. L'étage B de l'alignement est un process** (`d465ba4e`) — `align`, après `import`, avant les
+locuteurs et la cohérence ; il ne part qu'au LANCEMENT de la card, jamais au dépôt du document.
+Joué en réel : dépôt sans GPU, puis ▶ → import + alignement (133 s). Suite transcriber 159 verts.
+
+**2. Le process « Sortie », commun** — la brique garde le fichier d'origine tant que la sortie le
+transforme ; changer le format, la qualité ou l'agrandissement ne rejoue plus le moteur.
+
+| commit | contenu |
+|---|---|
+| `e41b39e1` | brique `output_formats.render_outputs` + champ partagé `native_outputs` |
+| `1510d912` | imager « Génération → Sortie » (image et vidéo), bande sur la card |
+| `ffc980c8` | brique `common/services/output_process.py` (le process, sa glu, les trois gestes du moteur) |
+| `6181ce63` | composer, synthesizer, anonymizer ; squelette : photo des réglages à la FIN du process |
+| `86001f4d` | enhancer (ses deux files) |
+
+Migrations additives appliquées : imager 0025, composer 0016 + 0017 (durée par défaut 210 s),
+synthesizer 0029, anonymizer 0032, enhancer 0017.
+
+Joué en réel (compte de test, dans le process, fixtures retirées) :
+
+| app | moteur | autre format (sortie seule) | retour au format d'origine |
+|---|---|---|---|
+| imager (SDXL 512²) | 153 s | WebP + ×2 : 56 s | 0,02 s |
+| composer (MusicGen small, 10 s) | 144 s | MP3 : 1,2 s | 0,6 s |
+| anonymizer (visage) | 3,1 s | WebP : 0,7 s | 0,3 s |
+| enhancer image (BSRGAN ×2) | 14 s | WebP : 0,6 s | 0,3 s |
+| enhancer audio (DeepFilterNet) | 3,3 s | MP3 : 0,6 s | 0,2 s |
+
+⚠ **Le synthesizer n'a PAS été joué en réel** avec ce découpage : le service TTS (port 8001) ne
+répondait plus au moment de l'essai. Ses tests à doublures sont verts.
+
+Smoke navigateur (serveur de dev 8011, six cards semées puis retirées) : sur les cinq apps, bande
+« <moteur> → Sortie », état « Périmé » après un changement de format, bouton de cycle
+« Recalculer ce qui est périmé », ▶ et ⚙ par process, 0 erreur console.
+
+Trois défauts trouvés par les essais réels, corrigés : agrandissement de sortie en échec
+systématique (temporaire sur un autre système de fichiers que la sortie — antérieur au chantier) ;
+original orphelin après un échec de sortie ; dans le squelette, process périmé par son propre
+résultat quand la glu ajuste un réglage qu'elle surveille (durée plafonnée du composer).
+
+Grille de conformité remesurée : **941/960**.
+
+🔴 **À relancer par Fabien : gunicorn ET workers** (argument de tâche `process` pour imager,
+synthesizer, anonymizer, enhancer ; process `align` et `output`).
+
+Restes déclarés :
+- synthesizer : à jouer en réel dès que le service TTS répond ;
+- modale ⚙ « Sortie » : l'imager y montre encore consigne et taille, l'anonymizer ses classes
+  (champs que l'app pose hors schéma) ;
+- ce qui change à l'écran : le modèle tiré par « auto » n'est plus écrit dans le réglage de
+  l'imager ni du synthesizer — la card dit « auto », le modèle employé est sur la ligne du moteur ;
+- la bande s'affiche désormais sur TOUTE card de ces cinq apps (deux process au moins) ;
+- docs GÉNÉRÉES des mécanismes à régénérer (entrée `output_process` ajoutée au registre) ;
+- rouges PRÉEXISTANTS, pas de cette session : budgets de langue des identifiants.
