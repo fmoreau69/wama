@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**180 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**185 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -428,9 +428,10 @@ Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×a
 
 - **Domicile** : `wama/model_manager/services/model_quality.py`
 - **Module** : Indice de qualité A PRIORI d'un modèle — pour choisir autrement que « le plus gros qui tient ».
-- **API publique** (3) :
+- **API publique** (4) :
   - `params_in_billions(label: str) -> float | None` — '36.0B' → 36.0 · '8.0B' → 8.0 · '' → None. Tolère 'M' (millions).
   - `apriori_quality_index(*, params_b: float | None, context_length: int | None=None, quantization: str='', params_active_b: float | None=None) -> float | None` — Indice a priori, croissant avec la capacité. None si le signal principal manque.
+  - `declared_prior(model_key: str) -> float | None` — L'indice a priori DÉCLARÉ pour ce modèle (`DECLARED_PRIORS`), None sinon.
   - `active_params_b(params_b: float | None, total_experts, active_experts) -> float | None` — Paramètres réellement activés par jeton, en milliards — axe de COÛT, pas de qualité.
 
 ### Installation de modèles
@@ -711,6 +712,23 @@ Note une sortie par un validateur LLM INDÉPENDANT ; signal relatif, escalade hu
 - **API publique** (1) :
   - `assess_output_quality(task: str, input_summary: str, output: str, validator_provider: str='ollama', validator_model: str | None=None, review_threshold: float=0…` — Note la qualité d'une `output` (texte) pour une `task`, via un validateur LLM indépendant.
 
+### Corpus système — la doc de WAMA pour l'assistant
+
+Projette la doc DÉCLARÉE (`docs_catalog`) en fragments rappelables, découpés par section ; qui lit quoi = le prédicat du lecteur de docs ; hors du RAG des utilisateurs par construction ; outils `search_docs` / `read_doc`
+
+- **Domicile** : `wama/common/memory/docs_corpus.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7quinquies](../construction/ia/WAMA_MEMORY.md)
+- **Module** : Corpus SYSTÈME — la doc de WAMA rendue rappelable par l'assistant. Doc : `WAMA_MEMORY.md §7quinquies`.
+- **API publique** (9) :
+  - `source_id_of(key: str) -> str`
+  - `indexed_docs()` — Les docs qui ENTRENT au corpus : déclarés, et pas des journaux datés.
+  - `visible_keys(user) -> list` — Clés des docs que `user` peut lire — le prédicat du lecteur, pas une copie.
+  - `visible_chunks(user)` — Fragments de doc rappelables par `user` — la base que `recall(include_docs=True)` classe.
+  - `fragments_of(doc, text: str) -> list` — `[(contenu, source_ref)]` d'un doc, dans l'ordre du texte.
+  - `index_docs(*, dry_run: bool=False) -> dict` — Projette la doc déclarée vers le corpus. Rend `{'docs', 'written', 'unchanged',
+  - `corpus_state() -> dict` — `{'fragments', 'vectorized', 'docs'}` — ce que le corpus contient, pour le dire.
+  - `describe_hit(chunk) -> dict` — Ce qu'un fragment retrouvé dit de sa provenance : doc, section, audience, lien, date.
+  - `read(user, key: str, section: str='') -> dict` — Lit UN doc déclaré : son sommaire, ou une section avec ses sous-sections.
+
 ### Divergence inter-systèmes
 
 Désaccord entre deux sorties du même travail — signal objectif, sans avis de modèle
@@ -889,7 +907,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 
 - **Domicile** : `wama/model_manager/services/cloud_models.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
-- **API publique** (16) :
+- **API publique** (17) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
@@ -900,6 +918,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
   - `keys_for(source: str, listing: list) -> list` — Clés de catalogue des modèles rangeables d'une liste — ce que `UserApiKey.open_models` garde.
   - `retire_unlisted(source: str) -> int` — Marque indisponibles les lignes distantes de `source` qu'AUCUNE clé n'ouvre plus, et remet
   - `refresh_key(row, background: bool=False) -> tuple` — Relit chez le fournisseur les modèles ouverts à la clé `row` (`accounts.UserApiKey`), puis
+  - `refresh_all_keys() -> dict` — Relit chez CHAQUE fournisseur les modèles ouverts à CHAQUE clé posée — la sonde nocturne.
   - `register_open_models(row) -> None` — Le CATALOGUE suit la liste gardée sur la clé `row` : la partie LONGUE de `refresh_key`
   - `hosting_ceiling(user) -> str` — PLAFOND d'hébergement du profil (`UserProfile.cloud_hosting_max`), sur l'échelle
   - `cloud_refusal(user, source: str='') -> str` — Motif de refus d'un appel distant pour `user`, sinon ''. Sans utilisateur : ''.
@@ -917,7 +936,7 @@ Souvenirs + fragments sur pgvector, scope hérité de ScopedVisibility ; 5 opér
   - `class Hit` — Un résultat de rappel. `obj` est un `MemoryItem` ou un `RagChunk`.
   - `content_hash(text: str) -> str` — SHA-256 du contenu NORMALISÉ (espaces repliés, casse pliée).
   - `remember(content, *, kind, provenance, user=None, subject='', source_app='', source_object_type='', source_object_id=None, confidence=None, visibility=None, sc…` — Écrit un souvenir. Rend le `MemoryItem` (créé ou déjà existant), ou `None` en cas d'échec.
-  - `recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True, include_memory=True, semantic=True, resident=True, rag_niveaux=None)` — Retrouve les `k` meilleurs éléments visibles par `user`.
+  - `recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True, include_memory=True, semantic=True, resident=True, rag_niveaux=None, include_docs=False)` — Retrouve les `k` meilleurs éléments visibles par `user`.
   - `reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False)` — Calcule les vecteurs manquants, PAR LOT. Rend un résumé `{...}`.
   - `forget(item, *, reason='', hard=False, at=None)` — Invalide un souvenir — `valid_to = maintenant`. Il cesse d'être rappelé, sans disparaître.
   - `merge(items, *, seuil=0.92)` — PROPOSE de fusionner des souvenirs proches. N'ÉCRIT RIEN.
@@ -1198,11 +1217,12 @@ Délègue une tâche de développement au CLI Claude Code en headless — lectur
 
 - **Domicile** : `wama/common/services/claude_code.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19.3](../construction/suivi/ROADMAP.md)
 - **Module** : Appel de Claude Code en mode headless, SUR L'ABONNEMENT du titulaire.
-- **API publique** (4) :
+- **API publique** (5) :
   - `class ClaudeCodeIndisponible(RuntimeError)` — Le CLI est absent ou inexploitable — message destiné à l'utilisateur.
   - `subscription_allowed(user) -> bool` — Qui a le droit de consommer l'abonnement du titulaire — DOMICILE UNIQUE de la règle.
   - `chemin_cli() -> str` — Chemin du CLI Claude Code, ou lève une erreur explicite.
-  - `demander(prompt: str, *, cwd: str | None=None, delai: int=DELAI_DEFAUT, outils=OUTILS_LECTURE, ecriture: bool=False, user=None) -> dict` — Soumet UNE tâche à Claude Code et rend son résultat.
+  - `declared_model_ids() -> tuple` — Identifiants de modèle que l'abonnement DÉCLARE (`ExternalSource.declared_models` de la
+  - `demander(prompt: str, *, cwd: str | None=None, delai: int=DELAI_DEFAUT, outils=OUTILS_LECTURE, ecriture: bool=False, user=None, model: str='') -> dict` — Soumet UNE tâche à Claude Code et rend son résultat.
 
 ### Export document
 
@@ -1502,6 +1522,23 @@ Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la
   - `declaration(source: str, model_id: str) -> Optional[dict]` — Déclaration de `model_id` telle que l'app `source` la porte, ou None.
   - `declaration_for(value: str, default_source: str='') -> Optional[dict]` — Déclaration du modèle désigné par une CLÉ de catalogue — ou par un identifiant nu, lu dans
 
+### Process « Sortie » d'une card
+
+Le second temps de toute app qui rend un fichier, en process À PART : `output_spec` (le `ProcessSpec`, qui surveille format / qualité / agrandissement) et `output_step` (la glu, au contrat du squelette). La glu du MOTEUR n'a que trois gestes : `drop_previous_outputs`, `generated(...)`, et l'enveloppe de tâche appelle `forget_lost_generation`. Changer de format ne rejoue plus le moteur (2026-10-03) — imager, composer, synthesizer, anonymizer, enhancer ×2. Un fichier qu'une autre card désigne encore n'est jamais retiré
+
+- **Domicile** : `wama/common/services/output_process.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : Le process « SORTIE » d'une card — commun à toutes les apps qui rendent un fichier.
+- **API publique** (9) :
+  - `output_spec(depends_on, *, key: str=OUTPUT_KEY, label: str=OUTPUT_LABEL, share: int=1)` — Le `ProcessSpec` du process de sortie : il surveille les réglages de sortie communs
+  - `relative(path) -> str` — Chemin relatif à MEDIA_ROOT, à barres obliques (la forme d'un `FileField`).
+  - `rendered_files(item, field) -> list` — Les rendus que la card porte aujourd'hui dans `field`, en chemins absolus — un champ
+  - `output_sources(item, field) -> list` — Ce dont le process de sortie REPART : les originaux gardés quand il y en a (le rendu a
+  - `files_fingerprint(paths) -> str` — Empreinte de ce que le moteur a écrit — DÉCLARÉE à la ligne d'exécution (`output_fingerprint`
+  - `drop_previous_outputs(item, field, keep=()) -> None` — Le moteur REJOUE : les originaux gardés et les rendus de la fois d'avant qu'il n'a pas
+  - `generated(paths, **result) -> dict` — Le retour d'une glu de MOTEUR, complété de ce que la brique attend d'elle : plus aucun
+  - `forget_lost_generation(item, field, node: str) -> bool` — La sortie repart des fichiers que le moteur a laissés. S'ils ne sont plus là (retirés,
+  - `output_step(field, *, domain, app_id: str, console=None, extra_fields=None, format_of=None)` — La GLU du process de sortie, au contrat du squelette (`glu(item, ctx) -> dict`).
+
 ### Propositions de manifestes (geste « Valider »)
 
 Le cycle sandbox → vérifié → promu (WAMA_MANIFEST_ARCHITECTURE §4) reçoit son premier appelant (29/09) : un rôle LLM DÉPOSE son manifeste au magasin (bac à sable), le model manager en montre le PLAN (champs comblés, divergences NON appliquées, erreurs), « Valider » SUPERPOSE à l'extraction en ne comblant que des vides (un manifeste brut effaçait la licence), projette, promeut, exporte au corpus ; « Rejeter » ne passe pas par un_ingest, qui déferait une projection jamais faite
@@ -1527,18 +1564,24 @@ QUATRE leviers pour tenir la règle « modèle principal catégorisé, sous-dép
 
 ### Réglages de sortie (formats, agrandissement)
 
-Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter) ET leur APPLICATION : `apply_output_settings` enchaîne agrandissement (image) puis conversion après n'importe quel backend (2026-09-30). L'agrandissement (`output_upscale`, opt-in `include_upscale`) tire l'upscaler du catalogue — tâche `upscale`, capacité `scale` = facteur, curseur qualité de l'item — sans nommer ni modèle ni app ; il vivait dans UN backend (diffusers, LANCZOS ×2), ignoré des autres
+Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter) ET leur APPLICATION : `apply_output_settings` enchaîne agrandissement (image) puis conversion après n'importe quel backend (2026-09-30). L'agrandissement (`output_upscale`, opt-in `include_upscale`) tire l'upscaler du catalogue — tâche `upscale`, capacité `scale` = facteur, curseur qualité de l'item — sans nommer ni modèle ni app ; il vivait dans UN backend (diffusers, LANCZOS ×2), ignoré des autres. `render_outputs` (2026-10-03) GARDE le fichier d'origine (`<nom>.native<ext>`, champ `native_outputs` du mixin `NativeOutputsMixin`, déclaré à la rétention) tant que ces réglages le transforment : le process « sortie » d'une app se rejoue SEUL, sans regénérer
 
 - **Domicile** : `wama/common/utils/output_formats.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.4](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : Source COMMUNE des formats + qualités de FICHIER de sortie — pendant de voice_options pour la sortie.
-- **API publique** (7) :
+- **API publique** (13) :
   - `get_output_formats(domain: str) -> List[Tuple[str, str]]` — [(valeur, libellé)] des formats de fichier de sortie pour un domaine. 'original' = inchangé.
   - `get_output_qualities(domain: str | None=None) -> List[Tuple[str, str]]` — Presets de qualité (web/équilibré/max). `domain` réservé pour d'éventuelles variantes futures.
   - `output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, include_upscale:…` — Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
   - `output_format_params_for_app(app_name: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, domain:…` — AUTO depuis APP_CATALOG : lit `multi_format_download` (early/late) + déduit le domaine des
   - `upscale_factor(value) -> int` — `'x4'` → 4, `'x2'` → 2 ; 0 pour « aucun » ou une valeur illisible.
   - `upscale_output_image(path: str, factor, *, item=None, app_id=None, denoise: bool=False, progress_callback=None) -> tuple` — Agrandit l'image `path` EN PLACE par un upscaler TIRÉ du catalogue ; rend `(largeur,
-  - `apply_output_settings(paths, item, *, domain: str, app_id: str | None=None, console=None) -> list` — Les réglages de SORTIE de l'item appliqués aux fichiers produits, dans l'ordre du
+  - `wanted_format(item, output_format: str | None=None) -> str` — Le format de sortie DEMANDÉ, en minuscules ('original' = inchangé). `output_format` : la
+  - `apply_output_settings(paths, item, *, domain: str, app_id: str | None=None, console=None, output_format: str | None=None) -> list` — Les réglages de SORTIE de l'item appliqués aux fichiers produits, dans l'ordre du
+  - `is_native(path) -> bool` — Ce chemin porte-t-il la marque d'un fichier d'origine gardé ?
+  - `native_name(path) -> str` — Le nom sous lequel le fichier d'origine de `path` est gardé (idempotent).
+  - `final_name(path) -> str` — Le nom du rendu d'un fichier d'origine gardé, avant conversion (idempotent).
+  - `transforms_output(item, domain: str, output_format: str | None=None) -> bool` — Les réglages de sortie de l'item changent-ils le fichier que le moteur a écrit ?
+  - `render_outputs(sources, item, *, domain: str, app_id: str | None=None, console=None, previous=(), output_format: str | None=None) -> tuple` — Les réglages de sortie appliqués en GARDANT le fichier d'origine ; rend
 
 ### Résolution de backend par DÉCLARATION
 
@@ -1723,10 +1766,11 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (38) :
+- **API publique** (39) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
+  - `class NativeOutputsMixin(models.Model)` — Les fichiers D'ORIGINE d'une card dont les réglages de sortie transforment le rendu
   - `class QueueOrderMixin(models.Model)` — Position MANUELLE de l'entrée dans la file (CARD_DESIGN §3bis — manipulation directe).
   - `class BatchMixin` — Sémantique + cycle de fichiers communs aux modèles Batch (tout est batch ; unitaire = card unique).
   - `class OrgUnit(models.Model)` — Unité organisationnelle = nœud de l'arbre institut/université → département →
@@ -1796,6 +1840,17 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
   - `read_settings_payload(request, schema=None, schema_names=(), empty_is_value=())` — Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
   - `apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=())` — Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
   - `make_batch_views(*, work_model, batch_model, get_user, task=None, file_fields=(), output_fields=(), output_field='output_file', params_fields=(), schema=None,…` — Retourne les huit vues de lot : {'batch_start', 'batch_update', 'batch_delete',
+
+### Vues de progression (fabrique commune)
+
+Le suivi d'UNE card (`progress`) et la barre de FILE (`global_progress`) en une fabrique — `make_progress_views` (`ROUTE §11 #37`, 2026-10-03). Les dix apps les écrivaient à la main : trois formules de progression d'ensemble, quatre vocabulaires de clés que le JS commun absorbait. UNE formule, celle du contrat de la barre commune (réussi = 100, en cours = sa progression vivante, échec et attente = 0 : un échec n'est pas terminé), un vocabulaire COMPLET ; les spécificités en crochets (`eta_for` = le triplet d'ETA, déclaré UNE fois dans le module de tâches — `<app>_eta_key_size`, que la glu rend aussi à `record_run` —, `extra`, `progress_of` — même crochet que `batch_views` —, `pipeline_model` pour la bande des process, `domains` pour une barre par domaine ; utilisateur par défaut : connecté, sinon anonyme). Le générateur d'apps la consomme. Critère `progress_views_common` ; contrat générique `tests_item_lifecycle_contract` (clés d'une card et de la file, toutes les apps)
+
+- **Domicile** : `wama/common/utils/progress_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : WAMA Common — Les VUES DE PROGRESSION : fabrique commune (`make_progress_views`).
+- **API publique** (3) :
+  - `queue_progress(rows) -> dict` — Les compteurs d'une file et sa progression d'ensemble, au vocabulaire COMPLET.
+  - `request_user(request)` — L'utilisateur d'une requête de file : le compte connecté, sinon le compte anonyme partagé
+  - `make_progress_views(*, work_model, app_id: str, get_user=request_user, progress_field: str='progress', progress_of=None, error_field: str='error_message', eta_…` — Les deux vues de progression d'une app : `{'progress': vue(request, pk),
 
 ## UI générée
 
@@ -1967,8 +2022,9 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (23) :
+- **API publique** (24) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
+  - `format_display(value, display_format: str) -> Optional[str]` — La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
   - `class ParamGroup` — Groupe d'affichage d'une surface de saisie (modale ⚙ / volet) — l'app le déclare,
   - `groups_to_dicts(groups: List[ParamGroup]) -> List[dict]` — Sérialise les groupes pour le front (JSON) / un template.
@@ -2003,6 +2059,12 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 Noms d'événements centralisés (media:uploaded/processed/deleted) — l'arborescence du filemanager se rafraîchit sans que chaque app invente son event
 
 - **Domicile** : `wama/common/static/common/js/wama-fm-notify.js`
+
+### Socle JS d'application
+
+La couche JS commune d'une page d'app — `_app_scripts.html` : formulaires du schéma (wama-params), ETA, lots, card d'entrée, voie d'import, barre de file ; options déclarées (appariement entrée ↔ modèle, capacités, modes, chips de prompt). Ce que `base.html` charge déjà n'y est PAS (une double exécution = deux écouteurs : le player audio muet du 18/08). Adopté par les 10 apps le 2026-10-03 (chaque gabarit recopiait ses balises ; l'anonymizer avait oublié la barre de file, sept scripts globaux étaient rechargés). Critère `app_scripts_common` ; garde `tests_item_lifecycle_contract` (socle présent, aucun script chargé deux fois sauf les idempotents déclarés)
+
+- **Domicile** : `wama/common/templates/common/_app_scripts.html` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 
 ### Socle JS des apps
 
@@ -2079,7 +2141,8 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
-- **API publique** (13) :
+- **API publique** (14) :
+  - `is_guest_account(user) -> bool` — Ce compte est-il un compte de SERVICE pour visiteur non connecté — le compte `anonymous`
   - `account_kind(user) -> str` — 'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
   - `app_group(app_id)`
   - `app_id_for_path(path)` — app_id gardé correspondant à un chemin de requête, ou None.
@@ -2114,7 +2177,7 @@ Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / 
 - **Module** : Accès à un objet partageable depuis une vue — DEUX chemins nommés, et deux seulement.
 - **API publique** (6) :
   - `visible_or_404(model, user, **kwargs)` — Objet que `user` a le droit de VOIR : le sien, ou partagé avec lui (unité/projet/public).
-  - `listable_by(queryset, user)` — Ce que `user` a le droit de LISTER : `visible_to`, sauf pour le compte de service anonyme.
+  - `listable_by(queryset, user)` — Ce que `user` a le droit de LISTER : `visible_to`, sauf pour un compte de visiteur (le
   - `owned_or_404(model, user, **kwargs)` — Objet que `user` a le droit de MODIFIER — aujourd'hui : le sien, point.
   - `editable_or_404(model, user, *, trace: str='', **kwargs)` — Objet que `user` peut ÉDITER : le sien, ou un élément sur lequel il COLLABORE.
   - `can_edit(user, obj) -> bool` — Même règle qu'`editable_or_404`, pour un objet déjà en main (cards, gabarits, tâches).
@@ -2238,6 +2301,23 @@ Profils DÉCLARÉS (bruit rose à un rapport signal/bruit donné, champ lointain
   - `add_noise(wave, sr: int, snr_db: float, rng) -> np.ndarray` — Ajoute un bruit rose tel que parole active / bruit = `snr_db`.
   - `reverberate(wave, sr: int, rt60_s: float, rng) -> np.ndarray` — Réverbération synthétique : réponse impulsionnelle = trajet direct + queue de bruit à
   - `degrade(wave, sr: int, profile: str) -> np.ndarray` — Applique le profil déclaré `profile` : réverbération, puis bruit, puis atténuation ;
+
+### Identité de session du visiteur sans compte
+
+Sur une app déclarée `public` (le converter, app d'essai), un visiteur non connecté agit sous un COMPTE TECHNIQUE propre à sa session (`wama_visitor_<jeton>`, tier `anonymous`, aucun rôle), créé à son premier geste par l'intergiciel d'accès et purgé avec ses éléments ET ses fichiers après sa durée de vie. Une identité, pas une étiquette : toute la logique de propriété existante (file, `users/<id>/`, portée) vaut pour lui sans retoucher une vue d'app. Bornes dans `settings` (taille, nombre d'éléments, identités neuves par adresse) ; routes qui font lire au serveur une adresse ou un chemin fermées ; aucun post-traitement GPU. Sur toute autre app, le visiteur VOIT et ne fait rien (403 de la même garde). `is_guest_account` = le prédicat unique « compte de visiteur » (partagé ou de session)
+
+- **Domicile** : `wama/accounts/visitors.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
+- **Module** : Le VISITEUR sans compte, sur une app PUBLIQUE : une identité éphémère PAR SESSION.
+- **API publique** (9) :
+  - `max_upload_bytes() -> int`
+  - `max_items() -> int`
+  - `ttl() -> timedelta`
+  - `new_identities_per_hour() -> int`
+  - `is_visitor(user) -> bool` — Ce compte est-il l'identité éphémère d'un visiteur (pas le compte `anonymous` partagé) ?
+  - `current(request)` — L'identité de visiteur que porte la session de cette requête, ou None.
+  - `create(request)` — Crée l'identité du visiteur et l'attache à sa session.
+  - `attach(request, app_id: str)` — Pose l'identité du visiteur sur la requête d'une app PUBLIQUE. Rend un refus, ou None.
+  - `purge_expired(now=None, dry_run: bool=False) -> dict` — Détruit les identités de visiteur sans geste depuis `ttl()` : éléments (cascade) ET
 
 ### Importer universel (WAMA Data)
 
@@ -2461,7 +2541,7 @@ Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffm
 - **Domicile** : `wama/common/utils/media_probe.py` · **doc** : [docs/construction/suivi/ROADMAP.md §17ter](../construction/suivi/ROADMAP.md)
 - **Module** : WAMA Common — Sonde média (durée / codec / dimensions / pages / entrées).
 - **API publique** (6) :
-  - `format_duration(seconds: float) -> str` — ``95.4 -> '1:35'`` — affichage court pour les cards ('' si inconnu/zéro).
+  - `format_duration(seconds: float) -> str` — ``95.4 -> '1:35'``, ``3750 -> '1:02:30'`` — affichage court ('' si inconnu/zéro).
   - `probe_audio(path: str) -> dict` — Sonde le premier flux audio d'un fichier.
   - `probe_video(path: str) -> dict` — Sonde le premier flux vidéo : codec • L×H • fps, + durée (stream puis format).
   - `probe_object3d(path: str) -> dict` — Sonde d'un OBJET 3D (ROADMAP §17ter, trou 2) — ce que le fichier DÉCLARE, sans le décoder.
@@ -2598,10 +2678,11 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (38) :
+- **API publique** (39) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
+  - `class NativeOutputsMixin(models.Model)` — Les fichiers D'ORIGINE d'une card dont les réglages de sortie transforment le rendu
   - `class QueueOrderMixin(models.Model)` — Position MANUELLE de l'entrée dans la file (CARD_DESIGN §3bis — manipulation directe).
   - `class BatchMixin` — Sémantique + cycle de fichiers communs aux modèles Batch (tout est batch ; unitaire = card unique).
   - `class OrgUnit(models.Model)` — Unité organisationnelle = nœud de l'arbre institut/université → département →
@@ -2714,7 +2795,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (87) :
+- **API publique** (89) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `start_anonymizer(user, media_id: int=None) -> dict` — Trigger Celery processing for a specific media item or all pending items.
@@ -2768,6 +2849,8 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `plan_model_integration(user, model: str) -> dict` — PLAN for integrating an AI model — read-only, executes nothing.
   - `plan_app_integration(user, target: str) -> dict` — PLAN for integrating a GitHub project as a WAMA app (UI + models + libraries).
   - `memory_recall(user, query: str, k: int=5, include_rag: bool=True, include_memory: bool=True, niveaux: list=None) -> dict` — Cherche dans la mémoire et les documents de l'utilisateur (`WAMA_MEMORY.md`).
+  - `search_docs(user, query: str, k: int=5) -> dict` — Search WAMA's OWN documentation — how an app is used, what a setting means, and (for
+  - `read_doc(user, doc: str, section: str='') -> dict` — Read one of WAMA's documents: its outline, or one section with its sub-sections.
   - `charger_competence(user, domaine: str, question: str='') -> dict` — Load a specialised competence (role skill) and the matching laboratory context.
   - `ask_claude_code(user, task: str, write: bool=False, timeout: int=300) -> dict` — Delegate a DEVELOPMENT task to Claude Code, running on the owner's subscription.
   - `list_my_items(user, app: str='', limite: int=25, statut: str='all', q: str='') -> dict` — List what the user has produced across ALL apps — one vocabulary instead of ten.
