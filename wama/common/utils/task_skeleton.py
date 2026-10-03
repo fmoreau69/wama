@@ -380,16 +380,17 @@ def _record_eta(eta, seconds: float, item) -> None:
         pass
 
 
-def _selected_steps(app_id, item, process, pipeline, processes, resolved_key) -> list:
+def _selected_steps(app_id, item, process, pipeline, processes, resolved_key, only=None) -> list:
     """Les process que CE lancement joue : `[(nœud, clé de process, glu, spec|None)]`.
 
     Une app à un seul process : sa glu, sur le nœud `main`. Une app qui DÉCLARE un pipeline
     (`process_pipeline.AppPipeline`) : les process qui ne sont pas à jour et leur aval, dans
-    l'ordre du graphe — un résultat encore valable n'est pas rejoué."""
+    l'ordre du graphe — un résultat encore valable n'est pas rejoué ; `only` borne le lancement
+    à UN process et ses amonts périmés (▶ par process, P5)."""
     from wama.common.services import process_runs
     if pipeline is None:
         return [(process_runs.MAIN_NODE, app_id, process, None)]
-    specs = pipeline.steps_to_run(item, resolved_key)
+    specs = pipeline.steps_to_run(item, resolved_key, only=only)
     if not specs:
         raise RuntimeError("aucun process à jouer pour cet élément")
     missing = [spec.key for spec in specs if spec.key not in (processes or {})]
@@ -402,7 +403,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                   vram_needed=None, model_key=None,
                   error_field: str = 'error_message', ingest_derive=None,
                   notify_label: str = None, progress_fn=None,
-                  pipeline=None, processes=None):
+                  pipeline=None, processes=None, only: str = None):
     """Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
     module. `task` = la tâche Celery liée (bind=True) — requis par la garde de redélivrance.
 
@@ -411,7 +412,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
     `process`. Chaque glu garde le MÊME contrat ; le squelette joue celles que le lancement
     retient (`pipeline.steps_to_run`), l'une après l'autre dans cette tâche, et tient une ligne
     d'exécution par process. Les `fields` d'un process sont écrits dès qu'il a rendu — la glu
-    suivante les lit sur `item` — et sa sortie se nomme par la clé `output_ref` du retour."""
+    suivante les lit sur `item` — et sa sortie se nomme par la clé `output_ref` du retour.
+    `only` (▶ par process) borne le lancement à ce process et à ses amonts périmés."""
     close_old_connections()
     logger.info(f"=== {app_id} task START | item={item_id} task={task.request.id} ===")
     try:
@@ -517,7 +519,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
     process_key = app_id
     try:
         with _time_guard(limit_s):
-            steps = _selected_steps(app_id, item, process, pipeline, processes, resolved_key)
+            steps = _selected_steps(app_id, item, process, pipeline, processes, resolved_key,
+                                    only=only)
             total_share = sum(spec.share if spec is not None else 1 for *_x, spec in steps) or 1
             done_share, written, used = 0, {}, []
             for index, (node, process_key, glue, spec) in enumerate(steps):

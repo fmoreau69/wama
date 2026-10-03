@@ -63,7 +63,10 @@ class ProcessSpec:
       share       part de la barre de progression de la card (poids relatif) ;
       applies     `(item, model_key) -> bool` : le process a-t-il lieu pour CET élément ? Absent =
                   toujours. C'est ce qui laisse un pipeline à deux process n'en jouer qu'un pour
-                  un modèle qui ne sait pas faire le premier.
+                  un modèle qui ne sait pas faire le premier ;
+      outputs     champs FICHIER de l'élément que le process ÉCRIT (`planned_score`,
+                  `audio_output`) — ce qu'un lancement borné à ce process remplace, et rien
+                  d'autre (`reset_outputs`). Déclaré : le lanceur ne lit pas la glu.
     """
     key: str
     label: str = ''
@@ -74,6 +77,7 @@ class ProcessSpec:
     gpu: bool = False
     share: int = 1
     applies: Callable = None
+    outputs: tuple = ()
 
 
 def output_fingerprint(ref: str) -> str:
@@ -230,9 +234,14 @@ class AppPipeline:
             return False
         return key not in {spec.key for spec in self.steps_to_run(item, model_key)}
 
-    def steps_to_run(self, item, model_key=None) -> list:
+    def steps_to_run(self, item, model_key=None, only: str | None = None) -> list:
         """Les process qu'un lancement joue, dans l'ordre : ceux qui ne sont pas à jour, et tout
         leur aval. Tous à jour → tous (l'utilisateur redemande un résultat).
+
+        `only` (P5, ▶ par process) : CE process, qu'il soit à jour ou non, précédé des seuls
+        amonts qui ne le sont plus (de proche en proche) — jamais son aval, qui se périmera de
+        lui-même à la relecture (sa sortie d'amont aura changé). Un process inconnu ou sans objet
+        pour cet élément est refusé en le disant.
 
         ⚠ « Tous à jour » se lit sur les ÉTATS, avant de regarder les fichiers : le lanceur a
         déjà retiré l'ancienne sortie de la card quand la tâche pose cette question (`reset` de
@@ -241,6 +250,20 @@ class AppPipeline:
         """
         steps = self.applicable(item, model_key)
         fresh = self.up_to_date(item)
+        if only is not None:
+            by_key = {spec.key: spec for spec in steps}
+            if only not in by_key:
+                raise ValueError(f"process « {only} » : inconnu, ou sans objet pour cet élément")
+            needed, pending = {only}, list(by_key[only].depends_on)
+            while pending:
+                key = pending.pop()
+                if key in needed or key not in by_key:
+                    continue
+                if key in fresh and not _output_lost(fresh[key]):
+                    continue                      # un amont encore valable est REPRIS
+                needed.add(key)
+                pending.extend(by_key[key].depends_on)
+            return [spec for spec in steps if spec.key in needed]
         if all(spec.key in fresh for spec in steps):
             return steps
         todo = {spec.key for spec in steps
@@ -253,6 +276,19 @@ class AppPipeline:
                     todo.add(spec.key)
                     grown = True
         return [spec for spec in steps if spec.key in todo]
+
+    def reset_outputs(self, item, keys) -> list:
+        """Remise à zéro AVANT un lancement borné : les sorties des seuls process `keys` sont
+        remplacées (`safe_delete_file`, la règle d'une relance), les autres restent — relancer la
+        partition seule ne doit pas emporter l'audio. Rend les champs vidés ; l'appelant SAUVE."""
+        from wama.common.utils.queue_duplication import safe_delete_file
+        cleared = []
+        for key in keys:
+            for field in self.spec(key).outputs:
+                safe_delete_file(item, field)
+                setattr(item, field, None)
+                cleared.append(field)
+        return cleared
 
     def card_state(self, item) -> str:
         """État de la card DÉDUIT de ses process (règle 4.4) — lu, jamais écrit dans l'élément."""
