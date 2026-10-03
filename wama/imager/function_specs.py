@@ -22,6 +22,7 @@ pour la remettre à jour.
 """
 from wama.common.catalog.function_catalog import (Binding, FunctionCategory as FC, FunctionSpec,
                                                   PortSpec, register)
+from wama.common.services.output_process import output_spec
 from wama.common.services.process_pipeline import ProcessSpec, register_app_pipeline
 
 _APP = 'imager'
@@ -57,12 +58,8 @@ GENERATE_WATCHED = ('prompt', 'negative_prompt', 'prompt_keywords', 'model', 'qu
                     'width', 'height', 'steps', 'guidance_scale', 'seed', 'num_images',
                     'video_duration', 'video_fps', 'video_resolution')
 
-#: Réglages de SORTIE (les noms de la brique commune, `output_formats.OUTPUT_PARAM_NAMES`).
-OUTPUT_WATCHED = ('output_upscale', 'output_format', 'output_quality')
-
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('generate', label='Génération', watched=GENERATE_WATCHED, gpu=True, share=9),
-    ProcessSpec('output', label='Sortie', depends_on=('generate',), watched=OUTPUT_WATCHED,
-                share=1),
+    output_spec(depends_on=('generate',)),
 ), label='Imager — génération puis réglages de sortie',
    source_ref='imager.function_specs:PIPELINE')
