@@ -54,27 +54,12 @@ def _reset_for_relaunch(t):
 
     ⚠ Depuis le 2026-10-03 la card porte un PIPELINE (`function_specs.PIPELINE`) : un lancement
     ne rejoue que ce qui n'est plus à jour. Le résultat d'un process s'efface donc QUAND CE
-    PROCESS EST REJOUÉ (dans sa glu, `workers._transcribe_step`), plus ici — sinon changer le
-    type de résumé effacerait la transcription qu'on voulait justement garder. Seule une card à
-    RÉSULTAT EXISTANT (ré-import, hors pipeline) garde l'effacement au clic."""
+    PROCESS EST REJOUÉ (dans sa glu, `workers._transcribe_step` ou `_import_step`), plus ici —
+    sinon changer le type de résumé effacerait la transcription qu'on voulait justement garder.
+    Une card à RÉSULTAT EXISTANT joue le même pipeline (process `import`) ; ses segments ne sont
+    jamais effacés avant le ré-import : ce sont les ANCRES horodatées sur lesquelles son texte se
+    ré-ancre (`workers._anchor_words_for`)."""
     t.progress = 0
-    if not t.work_result:
-        return
-    from .models import TranscriptSegment
-    TranscriptSegment.objects.filter(transcript=t).delete()
-    t.text = ''
-    # Une card à RÉSULTAT EXISTANT garde ses segments : ce ne sont pas un résultat à recalculer
-    # mais les ANCRES horodatées sur lesquelles son texte se ré-ancre (`workers._anchor_words_for`)
-    # — les effacer rendrait sans temps un texte qui en avait.
-    if not t.work_result:
-        t.segments_json = None
-    t.language = ''
-    t.used_backend = ''
-    t.model_key = ''
-    # La mesure décrivait le résultat qu'on efface : elle partirait sinon avec la référence
-    # d'un autre texte. La référence, elle, RESTE — elle sera remesurée à la fin du traitement.
-    from wama.common.services.result_evaluation import clear
-    clear('transcriber', t)
 
 
 # ── Les SIX vues de lot : fabrique COMMUNE (`batch_views.make_batch_views`, portage 2026-09-23,
@@ -108,12 +93,11 @@ def _get_user(request):
 def _task_for(t):
     """LA tâche d'un transcript — unique source pour la fabrique de lots, `start` et `start_all`
     (qui recopiaient chacun le choix pré-traitement, jusqu'au 2026-09-23). Une card qui porte un
-    RÉSULTAT EXISTANT (port `work_result`) le ré-importe : il tient lieu de transcription."""
-    from .workers import (import_existing_result_task, transcribe,
-                          transcribe_without_preprocessing)
-    if t.work_result:
-        return import_existing_result_task
-    return transcribe if t.preprocess_audio else transcribe_without_preprocessing
+    RÉSULTAT EXISTANT (port `work_result`) joue la MÊME tâche : c'est le pipeline qui retient le
+    process `import` à la place de `transcribe` — et son réglage de pré-traitement n'est pas
+    touché (aucun audio n'est écouté pour transcrire)."""
+    from .workers import transcribe, transcribe_without_preprocessing
+    return transcribe if (t.preprocess_audio or t.work_result) else transcribe_without_preprocessing
 
 
 def _reset_and_clear_progress(t):
@@ -540,21 +524,19 @@ def start(request, pk: int):
 def start_process(request, pk: int, process: str):
     """▶ d'UN process de la card (`ROUTE §10.6` 5.1) : lancement BORNÉ — ce process, précédé des
     seuls amonts périmés, jamais son aval. C'est aussi le résumé ou la cohérence « à la demande »
-    sur une transcription déjà faite (point 4.7). Un process inconnu, désactivé ou sans objet pour
-    cette card est refusé en le disant ; une card à résultat existant ne joue pas le pipeline."""
+    sur une transcription déjà faite (point 4.7) ou REPRISE d'un document. Un process inconnu,
+    désactivé ou sans objet pour cette card est refusé en le disant."""
     from .function_specs import PIPELINE
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     if process not in {s.key for s in PIPELINE.specs}:
         return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
     from wama.common.utils.scoping import editable_or_404
     t = editable_or_404(Transcript, user, pk=pk)
-    if t.work_result:
-        return JsonResponse({'error': "cette card reprend un résultat existant : elle ne joue "
-                                      "pas le pipeline de transcription"}, status=400)
     from wama.transcriber.backends.manager import catalogue_value
     if process not in {s.key for s in PIPELINE.applicable(t, catalogue_value(t.backend) or 'auto')}:
         return JsonResponse({'error': f"« {PIPELINE.spec(process).label} » n'a pas lieu pour "
-                                      "cette card (désactivé, ou fait par le moteur)"}, status=400)
+                                      "cette card (désactivé, fait par le moteur, ou remplacé "
+                                      "par le document repris)"}, status=400)
 
     from wama.common.utils.process_control import begin_processing
     t, err = begin_processing(Transcript, pk, user=user, reset=_reset_for_relaunch)
@@ -1063,12 +1045,9 @@ def _decorate_card(t, preloaded=False):
 
 def _pipeline_view(t, preloaded=False):
     """Les PROCESS de la card et son état MONTRÉ (`ROUTE §10.6` 5.1) — par la brique commune
-    (`process_pipeline.decorate`). Une card à RÉSULTAT EXISTANT ne joue pas le pipeline (elle
-    ré-importe son document) : rien n'est posé, la card lit `status`. Le modèle est passé tel
-    que la card le demande, « auto » compris : les quatre process se montrent AVANT le premier
-    lancement — c'est là que leurs cases à cocher servent."""
-    if t.work_result:
-        return None
+    (`process_pipeline.decorate`). Une card à RÉSULTAT EXISTANT montre « Import » à la place de
+    « Transcription ». Le modèle est passé tel que la card le demande, « auto » compris : les
+    process se montrent AVANT le premier lancement — c'est là que leurs cases à cocher servent."""
     from wama.common.services.process_pipeline import decorate
     from wama.transcriber.backends.manager import catalogue_value
     from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app

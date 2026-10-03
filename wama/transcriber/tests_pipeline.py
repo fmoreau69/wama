@@ -276,3 +276,105 @@ class TheCardShowsItsFourProcessesTest(_Pipeline):
         self.assertEqual(['transcribe', 'diarize', 'summarize', 'coherence'],
                          [p['key'] for p in payload['processes']])
         self.assertEqual(('SUCCESS', 'SUCCESS'), (payload['status'], payload['shown_state']))
+
+
+SRT_DOCUMENT = ('1\n00:00:00,000 --> 00:00:01,000\nBonjour à tous.\n\n'
+                '2\n00:00:01,000 --> 00:00:02,000\nMerci.\n')
+
+
+class ExistingResultPlaysTheImportProcessTest(_Pipeline):
+    """A card that carries a document (port `work_result`) plays the pipeline with « import » in
+    place of « transcribe » : speakers, summary and coherence run on the imported text, and no
+    transcription engine is ever loaded (2026-10-03)."""
+
+    options = {'enable_diarization': False, 'generate_summary': True, 'verify_coherence': False}
+
+    def _deposit(self, content=SRT_DOCUMENT, name='other_tool.srt'):
+        self.item.work_result.save(name, ContentFile(content.encode()), save=True)
+        self.addCleanup(lambda: self.item.work_result.delete(save=False))
+        workers.import_existing_result(self.item)
+        self.item.refresh_from_db()
+        return self.item
+
+    def _run(self, process=None):
+        with mock.patch.object(workers.align_existing_result, 'delay') as self.aligned, \
+                mock.patch.object(workers, 'transcribe_without_preprocessing', workers.transcribe):
+            return super()._run(process)
+
+    def test_the_deposit_writes_the_import_line_and_forgets_the_engine_line(self):
+        super()._run()                               # the card was first transcribed by an engine
+        self.assertIn('transcribe', self._states())
+        item = self._deposit()
+        self.assertEqual(('SUCCESS', 'external:' + item.work_result.name.rsplit('/', 1)[-1][:-4]),
+                         (item.status, item.model_key))
+        states = self._states()
+        self.assertEqual(JOB_SUCCESS, states['import'])
+        self.assertNotIn('transcribe', states)
+
+    def test_a_refused_document_leaves_no_line(self):
+        self.item.work_result.save('empty.srt', ContentFile(b'WEBVTT\n'), save=True)
+        self.addCleanup(lambda: self.item.work_result.delete(save=False))
+        with self.assertRaises(ValueError):
+            workers.import_existing_result(self.item)
+        self.assertEqual({}, self._states())
+
+    def test_the_summary_runs_on_the_imported_text_without_any_transcription_engine(self):
+        self._deposit()
+        item = self._run()
+        self.assertEqual('SUCCESS', item.status, item.error_message)
+        self.assertEqual((0, 0, 1, 0), self._counts())
+        self.asr.load.assert_not_called()
+        self.assertEqual(['Bonjour à tous. Merci.'], self.summaries)
+        self.assertEqual('ils se saluent', item.summary)
+        self.assertEqual({'import': JOB_SUCCESS, 'summarize': JOB_SUCCESS}, self._states())
+        self.assertTrue(item.model_key.startswith('external:'))
+        self.aligned.assert_not_called()
+
+    def test_an_unchanged_document_is_not_imported_again_for_a_summary(self):
+        self._deposit()
+        with mock.patch.object(workers, '_import_document',
+                               side_effect=workers._import_document) as imported:
+            self._run()
+            self.assertEqual(0, imported.call_count, 'the deposit already imported it')
+            self._run()                              # everything up to date : the user asks again
+            self.assertEqual(1, imported.call_count)
+
+    def test_the_speakers_are_decided_by_the_switch_alone(self):
+        Transcript.objects.filter(pk=self.item.pk).update(enable_diarization=True, backend='vibevoice')
+        self.item.refresh_from_db()
+        self._deposit()
+        item = self._run()
+        self.assertEqual((0, 1, 1, 0), self._counts())
+        self.assertEqual(['SPEAKER_00', 'SPEAKER_01'], [s['speaker_id'] for s in item.segments_json])
+
+    def test_an_untimed_document_has_no_speakers_to_tell_and_does_not_fail(self):
+        Transcript.objects.filter(pk=self.item.pk).update(enable_diarization=True)
+        self.item.refresh_from_db()
+        self._deposit('Titre\nSpeaker 0:\nBonjour à tous.\n', 'tool.txt')
+        item = self._run()
+        self.assertEqual('SUCCESS', item.status, item.error_message)
+        self.assertEqual(0, len(self.diarized))
+        self.assertEqual(JOB_SUCCESS, self._states()['diarize'])
+        # The document was not imported again (unchanged) : stage B belongs to the DEPOSIT,
+        # which queued it once committed — this launch queues nothing more.
+        self.aligned.assert_not_called()
+
+    def test_an_unreadable_document_fails_the_card_and_says_why(self):
+        self._deposit()
+        self.item.work_result.save('broken.srt', ContentFile(b'WEBVTT\n'), save=True)
+        item = self._run()
+        self.assertEqual('FAILURE', item.status)
+        self.assertIn('Résultat existant illisible', item.error_message)
+        self.assertEqual(JOB_FAILURE, self._states()['import'])
+
+    def test_the_strip_shows_import_in_place_of_transcription(self):
+        from django.template.loader import render_to_string
+        from wama.transcriber.views import _decorate_card, _task_for
+        self._deposit()
+        html = render_to_string('transcriber/_transcript_card.html',
+                                {'elem': _decorate_card(self.item), 'in_batch': False})
+        self.assertIn('data-process="import"', html)
+        self.assertNotIn('data-process="transcribe"', html)
+        self.assertIn('data-process="summarize"', html)
+        self.assertIs(workers.transcribe, _task_for(self.item))
+        self.assertFalse(Transcript.objects.get(pk=self.item.pk).preprocess_audio)
