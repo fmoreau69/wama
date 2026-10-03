@@ -1305,7 +1305,7 @@ def _user(request):
 
 
 # Les vues de PROGRESSION (une card, la file) : fabrique COMMUNE (`progress_views`, ROUTE §11 #37).
-_pv = make_progress_views(work_model={item}, get_user=_user, app_id='{app}'{pv_extra})
+_pv = make_progress_views(work_model={item}, app_id='{app}'{pv_extra})
 {helpers_forme}{bloc_nature}{bloc_reglages}
 '''
     return tete + '\n\n\n'.join(blocs) + '\n', None

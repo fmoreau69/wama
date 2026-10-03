@@ -423,6 +423,20 @@ def _run_transcription(task, transcript_id: int, process: str = None):
         _release_run(transcript_id)
 
 
+def transcriber_eta_key_size(t, engine: str = None):
+    """(clé, taille, unité) de l'ETA d'une transcription — temps ∝ durée audio, appris sous le NOM
+    DU MOTEUR ; None sans moteur ni durée connus. UN lieu, partagé par la glu (moteur RÉSOLU) et
+    la vue de progression (le moteur employé, sinon celui que la card demande, traduit par
+    `engine_name_for` sans résolution) — ROUTE §11 #37."""
+    from wama.model_manager.services.eta_estimator import make_key
+    from wama.transcriber.backends.manager import engine_name_for
+    engine = engine or t.used_backend or engine_name_for(t.backend)
+    duration = float(t.duration_seconds or 0)
+    if not engine or duration <= 0:
+        return None
+    return make_key('transcriber', engine), duration, 'audio_sec'
+
+
 @shared_task(bind=True)
 def transcribe(self, transcript_id: int, process: str = None):
     """Transcription d'une card, prétraitement selon son réglage. `process` : lancement borné à ce
@@ -766,12 +780,11 @@ def _transcribe_step(t, ctx):
         # Apprentissage ETA (eta_estimator) : durées RÉELLES (chargement à froid + traitement)
         # rapportées à la durée audio → affine le seed des prochains runs (par modèle × hardware).
         try:
-            from wama.model_manager.services.eta_estimator import record_run, make_key
-            _dur = float(t.duration_seconds or 0)
-            if _dur > 0:
+            from wama.model_manager.services.eta_estimator import record_run
+            eta = transcriber_eta_key_size(t, engine=backend.name)
+            if eta:
                 record_run(
-                    make_key('transcriber', backend.name),
-                    size=_dur, unit='audio_sec',
+                    eta[0], size=eta[1], unit=eta[2],
                     process_seconds=time.time() - _t_proc0,
                     load_seconds=(_load_seconds if _load_seconds >= 2.0 else None),  # cold load uniquement
                     user=t.user,

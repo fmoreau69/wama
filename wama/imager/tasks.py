@@ -69,6 +69,22 @@ def _image_backend_for(model_key: str):
     return backend_class(), None
 
 
+def imager_eta_key_size(generation, model: str = None) -> tuple[str, float, str]:
+    """(clé, taille, unité) de l'ETA d'une génération — image : pas × nombre d'images ; vidéo :
+    durée produite. Clé par IDENTIFIANT de modèle (pas par clé de catalogue) : l'historique appris
+    avant la route F4b reste le même, et un modèle d'une autre source a la sienne. UN lieu,
+    partagé par la glu (modèle TIRÉ) et la vue de progression (le réglage : « auto » y est sa
+    propre famille d'estimation) — ROUTE §11 #37."""
+    from wama.common.utils.model_keys import model_id
+    model = model or model_id(generation.model)
+    if generation.is_video_generation:
+        return (f'imager:vid:{model}', float(getattr(generation, 'video_duration', 0) or 0),
+                'video_sec')
+    steps = (int(getattr(generation, 'steps', 0) or 0)
+             * int(getattr(generation, 'num_images', 1) or 1))
+    return f'imager:img:{model}', max(steps, 1), 'step'
+
+
 def _declared_model_key(generation):
     """La clé de catalogue du modèle que la card DÉSIGNE, ou None sous « auto » (le tirage se
     fait dans la glu, après l'ingestion) — ce que le squelette lit pour prévenir d'un
@@ -335,10 +351,8 @@ def _generate_image(generation, ctx):
         # le chargement à part — le squelette ne connaît que la durée du process entier.
         try:
             from wama.model_manager.services.eta_estimator import record_run
-            _steps = int(getattr(generation, 'steps', 0) or 0) * int(getattr(generation, 'num_images', 1) or 1)
-            # Clé par IDENTIFIANT (pas par clé de catalogue) : l'historique appris avant la
-            # route F4b reste le même, et un modèle d'une autre source a la sienne.
-            record_run(f'imager:img:{backend_model}', size=max(_steps, 1), unit='step',
+            _key, _size, _unit = imager_eta_key_size(generation, model=backend_model)
+            record_run(_key, size=_size, unit=_unit,
                        process_seconds=gen_duration,
                        load_seconds=(_load_seconds if _load_seconds and _load_seconds >= 2 else None),
                        user=generation.user)
@@ -918,10 +932,8 @@ def _generate_video(generation, ctx):
         # ICI : calcul et chargement sont mesurés à part, le squelette ne connaît que le total.
         try:
             from wama.model_manager.services.eta_estimator import record_run
-            # Clé par IDENTIFIANT : l'historique d'avant la route F4b reste le même.
-            record_run(f'imager:vid:{model_name}',
-                       size=float(getattr(generation, 'video_duration', 0) or 0),
-                       unit='video_sec',
+            _key, _size, _unit = imager_eta_key_size(generation, model=model_name)
+            record_run(_key, size=_size, unit=_unit,
                        process_seconds=generation_time + export_time,
                        load_seconds=(model_load_time if model_load_time and model_load_time >= 2 else None),
                        user=generation.user)

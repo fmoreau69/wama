@@ -57,6 +57,17 @@ def compose_task(self, generation_id: int, process: str | None = None):
 #     avec le plafond mémoire que YuE2 pose au process — et la tâche SUIVANTE (une transcription
 #     d'une autre file) a manqué de mémoire à son tour.
 
+def composer_eta_key_size(gen, model: str = None, duration=None) -> tuple[str, float, str]:
+    """(clé, taille, unité) de l'ETA d'une génération audio — temps ∝ durée produite, clé par
+    modèle (clé de catalogue). UN lieu, partagé par la glu (modèle TIRÉ, durée réelle) et la vue
+    de progression (le réglage : « auto » y est sa propre famille, l'a-priori du catalogue prend
+    le relais tant qu'elle n'a rien appris) — ROUTE §11 #37."""
+    if model is None:
+        from .utils.model_choice import normalize
+        model = normalize(gen.model)
+    return model, float((gen.duration if duration is None else duration) or 0), 'audio_sec'
+
+
 def _vram_needed(gen):
     """Besoin VRAM du modèle de CE lancement (cascade commune du catalogue), None si inconnu."""
     from wama.common.utils.auto_model import vram_needed_gb
@@ -349,8 +360,7 @@ def _render(gen, ctx):
     return {
         'fields': {'audio_output': output_rel},
         'output_ref': output_rel,
-        # Génération audio → temps ∝ durée produite (clé par modèle).
-        'eta': (catalog_key, float(duration or 0), 'audio_sec'),
+        'eta': composer_eta_key_size(gen, model=catalog_key, duration=duration),
         'label': output_filename,
         'models': [catalog_key],
     }

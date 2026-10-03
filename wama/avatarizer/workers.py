@@ -93,6 +93,26 @@ def _call_tts_service(job: AvatarJob) -> str:
 # Celery task
 # ---------------------------------------------------------------------------
 
+def avatarizer_eta_key_size(job, duration: float = None, avatar_3d: bool = None):
+    """(clé, taille, unité) de l'ETA d'une animation — temps ∝ durée vidéo. Clé par qualité
+    (CodeFormer ≫ rapide) ; un rendu TalkingHead n'a pas le coût d'un lip-sync : clé à part, sinon
+    il fausse l'ETA apprise de MuseTalk. UN lieu, partagé par la glu (durée mesurée, moteur TIRÉ)
+    et la vue de progression (durée connue, sinon ~ texte / 15 ; avatar 3D lu sur la NATURE du
+    fichier, `input_match.work_token_for`, la brique du tirage) — ROUTE §11 #37. Jusque-là la vue
+    estimait toujours sous la clé de qualité : un avatar 3D n'y lisait jamais ce qu'il apprenait."""
+    if avatar_3d is None:
+        from wama.common.utils.input_match import work_token_for
+        name = (job.avatar_gallery_name if job.avatar_source == 'gallery'
+                else (job.avatar_upload.name if job.avatar_upload else '')) or ''
+        avatar_3d = work_token_for(name) == 'work_object3d'
+    if duration is None:
+        duration = float(job.duration_seconds or 0)
+        if not duration and job.mode == 'pipeline' and job.text_content:
+            duration = len(job.text_content) / 15.0
+    key = 'avatarizer:talkinghead' if avatar_3d else f'avatarizer:{job.quality_mode}'
+    return key, duration, 'video_sec'
+
+
 @shared_task(bind=True, max_retries=60, default_retry_delay=10)
 def generate_avatar(self, job_id: int, process: str = None):
     """Tâche Celery (queue gpu) : génère une vidéo avatar animée — par le squelette COMMUN
@@ -368,13 +388,12 @@ def _animate(job, ctx):
         if _dur > 0:
             fields['duration_seconds'] = _dur
 
-        # Seeding ETA : lip-sync → temps ∝ durée vidéo ; clé par qualité (CodeFormer ≫ rapide).
-        # Un rendu TalkingHead n'a pas le coût d'un lip-sync : clé à part, sinon il fausse
-        # l'ETA apprise de MuseTalk. La durée est celle de CE process (plus celle du TTS).
-        eta_key = 'avatarizer:talkinghead' if avatar_3d else f'avatarizer:{job.quality_mode}'
+        # Seeding ETA : la durée est celle de CE process (plus celle du TTS) — clé et taille par
+        # `avatarizer_eta_key_size`, le lieu que lit aussi la vue de progression.
         return {
             'fields': fields,
-            'eta': (eta_key, _dur, 'video_sec') if _dur > 0 else None,
+            'eta': (avatarizer_eta_key_size(job, duration=_dur, avatar_3d=avatar_3d)
+                    if _dur > 0 else None),
             'label': getattr(job, 'name', '') or f"avatar #{job_id}",
             'console_success': f"Vidéo générée : {os.path.basename(str(cible))}",
             'models': [model_key],

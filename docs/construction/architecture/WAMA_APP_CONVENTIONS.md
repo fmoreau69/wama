@@ -378,26 +378,48 @@ def start(request, pk):
     return JsonResponse({'ok': True, 'task_id': task.id})
 ```
 
-### 3.3 Sérialisation standard (`_item_to_dict`)
+### 3.3 Vues de PROGRESSION — fabrique commune (`progress` + `global_progress`)
+
+> ⚠ **Ne plus écrire ces deux vues à la main** (2026-10-03, `ROUTE §11 #37`). Elles l'étaient
+> dans les dix apps — trois formules de barre de file, quatre vocabulaires de clés. Elles viennent
+> de `wama/common/utils/progress_views.make_progress_views` ; l'app ne DÉCLARE que ce qui lui est
+> propre. Tenu par le critère `progress_views_common` et par `tests_item_lifecycle_contract`.
 
 ```python
-def _item_to_dict(item) -> dict:
-    cached = cache.get(f'<app>_progress_{item.id}')
-    return {
-        'id':           item.id,
-        'filename':     item.filename,         # @property
-        # … paramètres spécifiques …
-        'status':       item.status,
-        'progress':     cached.get('pct', item.progress) if cached else item.progress,
-        'progress_msg': cached.get('msg', '') if cached else '',
-        'eta_seconds':  cached.get('eta', None) if cached else None,  # §7
-        'has_result':   bool(item.result_text or item.output_file),
-        'result_preview': …,
-        'used_backend': item.used_backend,
-        'error_message': item.error_message,
-        'created_at':   item.created_at.isoformat(),
-    }
+# wama/<app>/views.py
+from wama.common.utils.progress_views import make_progress_views
+
+def _eta_triplet(item):
+    """Le triplet que la TÂCHE apprend — lu, jamais recalculé ici."""
+    from .tasks import <app>_eta_key_size
+    return (*<app>_eta_key_size(item), True)      # 4ᵉ valeur : modèle réputé chargé ?
+
+def _progress_extra(item):
+    return {'partial_text': …, 'result_url': …}  # les clés PROPRES que lit le JS de l'app
+
+_pv = make_progress_views(work_model=MyItem, app_id='<app>',
+                          eta_for=_eta_triplet, extra=_progress_extra)
+progress, global_progress = _pv['progress'], _pv['global_progress']
 ```
+
+- **Suivi d'une card** : `id`, `status`, `progress` (vivante : le cache `<app>_progress_<id>` que
+  publie le squelette de tâche, sinon la base), `error` ET `error_message` (vides hors échec),
+  `estimated_seconds` tant que la card est en attente ou en cours, `processes`/`shown_state` si
+  l'app déclare un pipeline (crochet `pipeline_model`), puis les clés de `extra`.
+- **Barre de file** : `total, pending, running, success, failure, done, failed,
+  overall_progress` — réussi = 100, en cours = sa progression vivante, **échec et attente = 0 :
+  un échec est échoué, pas terminé** (le contrat de `wama-global-progress.js`, §7).
+- **Le triplet d'ETA est déclaré UNE fois**, dans le module de tâches :
+  `<app>_eta_key_size(item, model=None)` → `(clé, taille, unité)`. La glu le rend à `record_run`
+  avec le modèle TIRÉ ; la vue de progression le lit sans (« auto » y est sa propre famille).
+  Écrit deux fois, il diverge (l'avatarizer estimait un avatar 3D sous une clé jamais apprise).
+  Tenu par `tests_progress_views.OneEtaPlacePerAppTest`.
+- Autres crochets : `eta_fallback` (a-priori du catalogue), `progress_of` (progression vivante
+  ailleurs qu'au cache commun : reader, anonymizer), `queryset` (file restreinte : converter),
+  `domains` (une barre par domaine : imager), `get_user` (défaut : connecté, sinon anonyme).
+
+Une vue qui CRÉE ou MODIFIE une card peut rendre la card à jour (`_item_to_dict`, reader) : mêmes
+clés que le suivi, construites des mêmes crochets — jamais une seconde liste.
 
 ---
 
@@ -806,10 +828,10 @@ Chaque item RUNNING affiche **obligatoirement** :
 | Élément | Source |
 |---------|--------|
 | Barre Bootstrap | `progress-bar bg-warning progress-bar-striped progress-bar-animated` |
-| Pourcentage | `item.progress` (0-100) depuis le cache `<app>_progress_<id>` |
+| Pourcentage | `progress` (0-100) de la vue de progression — le cache `<app>_progress_<id>` publié par `ctx.progress` (§3.3) |
 | Badge statut | `statusBadge(item.status)` |
-| ETA individuel | `item.eta_seconds` depuis le cache (calculé dans la tâche Celery) |
-| Message d'étape | `item.progress_msg` depuis le cache |
+| ETA individuel | `estimated_seconds` de la vue de progression (seed) — puis le débit observé par `WamaEta` (§7.2) |
+| Message d'étape | une clé propre de l'app, par le crochet `extra` (`status_message`, `progress_msg`…) |
 
 ### 7.2 ETA — Moteur commun `WamaEta` (OBLIGATOIRE, ne pas réimplémenter)
 

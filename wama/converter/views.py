@@ -386,9 +386,9 @@ def start(request, pk):
 
 
 def _eta_triplet(job):
-    """Le triplet d'ETA du converter (ffmpeg, aucun modèle) : temps ∝ taille d'entrée (Mo)."""
-    mb = max((job.input_file.size or 0) / 1e6, 0.01)
-    return f'converter:{job.media_type}:{job.output_format}', mb, 'mb', True
+    """Le triplet d'ETA, celui que la glu apprend (`tasks.converter_eta_key_size`)."""
+    from .tasks import converter_eta_key_size
+    return (*converter_eta_key_size(job), True)
 
 
 def _progress_extra(job):
@@ -407,8 +407,9 @@ def _progress_extra(job):
     }
 
 
-# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
-# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et sa file (les jobs éphémères n'y sont pas).
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
+# 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et sa file (les jobs
+# éphémères n'y sont pas).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(

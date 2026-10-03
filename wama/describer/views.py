@@ -597,11 +597,11 @@ def _progress_extra(description):
     return data
 
 
-# Les DEUX vues de progression : fabrique COMMUNE (`progress_views.make_progress_views`,
-# ROUTE §11 #37, 2026-10-03) — le describer n'y déclare que son triplet d'ETA et ses clés propres.
+# Les DEUX vues de progression : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11
+# #37, 2026-10-03) — le describer n'y déclare que son triplet d'ETA et ses clés propres.
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=Description, get_user=get_user, app_id='describer',
+_pv = make_progress_views(work_model=Description, app_id='describer',
                           eta_for=_eta_triplet, extra=_progress_extra)
 progress = _pv['progress']
 global_progress = require_GET(_pv['global_progress'])

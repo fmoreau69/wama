@@ -21279,3 +21279,52 @@ Cinq questions de Fabien sur l'assistant, mesurées. Deux soldées, trois en con
 - Fichiers : `model_manager/{models,tasks}.py`, `model_manager/services/cloud_models.py`,
   `common/external_sources.py`, `common/static/common/js/wama-model-help.js` (+ copie servie),
   `assistant/params.py`, `settings.py`, `ROADMAP.md`.
+
+## §PALIER — 2026-10-03 (nuit), « PORTAGE — REVÉRIFICATION COMPLÈTE de la session (demande de Fabien) : triplet d'ETA en UN lieu, utilisateur par défaut de la fabrique, conventions à jour, barre de l'anonymizer réparée, smoke navigateur » — ✅ commit ci-dessous, non poussé — 🔴 RECHARGER gunicorn ET les workers — 🔚 voir « Restes »
+
+> Question de Fabien : *« Est-on bien parfaitement aligné au fonctionnement de WAMA, n'a-t-on rien
+> réinventé ? A-t-on bien tout consigné, créé tous les tests nécessaires ? A-t-on laissé quelque
+> chose de côté ? »* La revérification a trouvé QUATRE écarts de la session, tous soldés ici.
+
+- **① Le plan du #37 n'était exécuté qu'à moitié** : il demandait le triplet d'ETA « DÉCLARÉ une
+  fois par app » (la glu le rend à `record_run`, la vue le lit). Mesuré : 4 apps le déclaraient une
+  fois (describer `eta.py`, enhancer ×2, anonymizer), **6 l'écrivaient deux fois** — et mon portage
+  avait recopié la seconde copie dans la vue. Divergence RÉELLE trouvée : l'avatarizer estimait un
+  avatar 3D sous `avatarizer:<qualité>`, sa tâche apprenait sous `avatarizer:talkinghead` — la
+  prévision ne lisait jamais l'appris. ✅ `<app>_eta_key_size(item, model=None)` dans le module de
+  tâches (idiome existant de l'enhancer et de l'anonymizer) pour synthesizer, converter, reader,
+  avatarizer (nature de l'avatar lue par `input_match.work_token_for`, la brique du tirage),
+  transcriber, imager, composer ; chaque vue le LIT. Gardes :
+  `tests_progress_views.OneEtaPlacePerAppTest` (générique, AST — contre-épreuve : un crochet qui
+  réécrit sa clé → rouge), `avatarizer/tests_pipeline.OneEtaKeyForTheTaskAndTheViewTest`.
+- **② Réinvention locale** : la règle « connecté, sinon anonyme » recopiée en lambda dans six apps
+  alors que chacune a déjà son `_get_user`. ✅ Défaut de la fabrique (`progress_views.request_user`),
+  retirée des apps et du générateur ; seul le converter passe `request.user` (vues `@login_required`).
+- **③ Consignation incomplète** : `WAMA_APP_CONVENTIONS §3.3` décrivait encore le suivi d'une card
+  écrit à la main (`eta_seconds` au cache, dict `pct`/`msg`), §7.1 aussi. ✅ §3.3 réécrit (« Vues de
+  PROGRESSION — fabrique commune » : forme, clés, formule, triplet en un lieu, crochets), §7.1
+  aligné. `ROUTE §11 #37` et l'entrée `progress_views` de `mecanismes.py` complétées.
+- **④ Validation navigateur jamais faite** (seul un parse V8 du JS de l'anonymizer) ✅ smoke sur
+  serveur de dev 8011 (code de l'arbre, compte de test 22) : les 10 pages s'ouvrent, chaque barre
+  de file interroge sa vue et rend le contrat COMPLET, 0 erreur console, 0 réponse en erreur ;
+  l'URL de suivi d'une card de l'anonymizer (construite par son JS) répond 200 + contrat (témoin
+  créé puis retiré par son pk, vérifié absent). ⚠ **Le smoke a trouvé un défaut ANCIEN** : la page
+  de l'anonymizer ne chargeait pas `wama-global-progress.js` — sa barre restait figée à
+  « 0/0 terminé » quoi que rende la vue (aucune erreur nulle part). ✅ chargé ; garde générique
+  `tests_item_lifecycle_contract.test_a_page_that_shows_the_queue_bar_loads_the_component_that_feeds_it`
+  (contre-épreuve : script retiré → rouge).
+- **Vérifié sans écart** : formule de la barre = contrat du composant commun ; `check_docs` 5
+  cassées, aucune de cette session (5 anciennes ; une 6ᵉ soldée ailleurs) ; aucun identifiant
+  français ajouté (une méthode française du générateur renommée) ; les lecteurs JS locaux de la
+  barre sont tous neutralisés.
+- Tests : 654 (10 apps + contrats communs) → 1 rouge PRÉEXISTANT (`ItemEditRouteAliasTest`) ; deux
+  rouges du transcriber attribués à la COURSE avec `d465ba4e` (process `align`, commité pendant la
+  suite) — rejoués après : 60 OK. Coordination : la session Pipeline attend ces fichiers de tâches
+  (sortie qui garde le natif) — prévenue.
+- **Restes, signalés pas faits** : ① le converter ouvert au visiteur (`1f1e53b5`) garde `start`,
+  `status` et `global_progress` derrière `@login_required` — un visiteur ne peut ni lancer ni suivre
+  sa file (domaine de la session visiteur) ; ② `_app_scripts.html` (le socle JS d'app) n'est adopté
+  par AUCUNE app réelle — chacune recopie ses balises, d'où l'oubli de l'anonymizer ; ③ docs
+  générées (`WAMA_MECANISMES`, `docs/dev/briques`) à régénérer depuis HEAD ; ④ manifestes
+  avatarizer / enhancer / transcriber (travail d'autres sessions dans le fichier) ; ⑤ suite
+  complète non rejouée depuis la fabrique (périmètre : 654 + contrats).

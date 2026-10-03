@@ -212,13 +212,20 @@ def _convert(job, ctx):
 
     _clear_during(job)
 
-    # Seeding ETA : temps ∝ taille d'entrée (Mo) ; clé par type de conversion (ffmpeg, pas de modèle)
-    _mb = max(os.path.getsize(input_path) / 1e6, 0.01)
     return {
         'fields': {'output_file': f"{output_rel_dir}{output_name}"},
-        'eta': (f'converter:{job.media_type}:{job.output_format}', _mb, 'mb'),
+        'eta': converter_eta_key_size(job, size_bytes=os.path.getsize(input_path)),
         'label': output_name,
     }
+
+
+def converter_eta_key_size(job, size_bytes=None) -> tuple[str, float, str]:
+    """(clé, taille, unité) de l'ETA d'une conversion — temps ∝ taille d'entrée (Mo), clé par type
+    de conversion (ffmpeg, aucun modèle). UN lieu, partagé par la glu (taille lue sur le fichier
+    local) et la vue de progression (taille du champ) — ROUTE §11 #37."""
+    if size_bytes is None:
+        size_bytes = job.input_file.size or 0
+    return f'converter:{job.media_type}:{job.output_format}', max(size_bytes / 1e6, 0.01), 'mb'
 
 
 def _clear_during(job):

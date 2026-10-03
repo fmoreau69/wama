@@ -34,7 +34,8 @@ urlpatterns = [
     path('clear_media/', views.clear_media, name='clear_media'),
     path('reset_user_settings/', views.reset_user_settings, name='reset_user_settings'),
     # Suivi d'UNE card au FORMAT COMMUN (2026-10-03, fabrique `make_progress_views`) — remplace
-    # `process_progress/?media_id=` (REMOVAL_LEDGER), dont la branche « globale » n'avait aucun appelant.
+    # `process_progress/?media_id=` (REMOVAL_LEDGER R95), dont la branche « globale » n'avait
+    # aucun appelant.
     path('progress/<int:pk>/', views.progress, name='progress'),
     # Route au FORMAT COMMUN (2026-08-23) — un téléchargement est un GET, et c'est ce que la
     # brique `_download_button.html` rend. `download_media/` (POST + media_id) délègue au même

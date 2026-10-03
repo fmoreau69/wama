@@ -1125,16 +1125,10 @@ VIDEO_MODES = ('txt2vid', 'img2vid')
 
 
 def _eta_triplet(generation):
-    """Le triplet d'ETA de l'imager (chargement séparé → modèle réputé NON chargé, le coût à froid
-    compris) : image = pas × nombre d'images, vidéo = durée produite. Même clé que l'apprentissage
-    (`tasks.py`, `record_run`) : par IDENTIFIANT de modèle."""
-    from wama.common.utils.model_keys import model_id as _model_id
-    mid = _model_id(generation.model)
-    if generation.is_video_generation:
-        return (f'imager:vid:{mid}', float(getattr(generation, 'video_duration', 0) or 0),
-                'video_sec', False)
-    steps = int(getattr(generation, 'steps', 0) or 0) * int(getattr(generation, 'num_images', 1) or 1)
-    return f'imager:img:{mid}', max(steps, 1), 'step', False
+    """Le triplet d'ETA, celui que la tâche apprend (`tasks.imager_eta_key_size`) — chargement
+    mesuré à part, modèle réputé NON chargé (le coût à froid compris)."""
+    from .tasks import imager_eta_key_size
+    return (*imager_eta_key_size(generation), False)
 
 
 def _progress_extra(generation):
@@ -1150,12 +1144,13 @@ def _progress_extra(generation):
     return data
 
 
-# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
-# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et ses deux domaines de file (image, vidéo).
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
+# 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et ses deux domaines de
+# file (image, vidéo).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(
-    work_model=ImageGeneration, get_user=lambda request: request.user if request.user.is_authenticated else get_or_create_anonymous_user(),
+    work_model=ImageGeneration,
     app_id='imager', eta_for=_eta_triplet, extra=_progress_extra,
     domains={'image': lambda qs: qs.exclude(generation_mode__in=VIDEO_MODES),
              'video': lambda qs: qs.filter(generation_mode__in=VIDEO_MODES)})

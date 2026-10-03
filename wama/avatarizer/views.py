@@ -375,12 +375,9 @@ def _decorate_card(job, preloaded=False):
 
 
 def _eta_triplet(job):
-    """Le triplet d'ETA de l'avatarizer : durée connue (run précédent), sinon ~ texte / 15
-    (≈ débit de parole) en mode pipeline."""
-    size = float(job.duration_seconds or 0)
-    if not size and job.mode == 'pipeline' and job.text_content:
-        size = len(job.text_content) / 15.0
-    return f'avatarizer:{job.quality_mode}', size, 'video_sec', True
+    """Le triplet d'ETA, celui que la glu apprend (`workers.avatarizer_eta_key_size`)."""
+    from .workers import avatarizer_eta_key_size
+    return (*avatarizer_eta_key_size(job), True)
 
 
 def _progress_extra(job):
@@ -401,11 +398,12 @@ def _progress_extra(job):
     }
 
 
-# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
-# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et le modèle de sa bande de process.
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
+# 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et le modèle de sa bande
+# de process.
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=AvatarJob, get_user=_get_user, app_id='avatarizer',
+_pv = make_progress_views(work_model=AvatarJob, app_id='avatarizer',
                           eta_for=_eta_triplet, extra=_progress_extra,
                           pipeline_model=lambda job: job.animation_model or 'auto')
 progress, global_progress = _pv['progress'], _pv['global_progress']

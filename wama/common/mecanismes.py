@@ -1238,9 +1238,11 @@ MECHANISMS = (
               "vocabulaires de clés que le JS commun absorbait. UNE formule, celle du contrat de "
               "la barre commune (réussi = 100, en cours = sa progression vivante, échec et attente "
               "= 0 : un échec n'est pas terminé), un vocabulaire COMPLET ; les spécificités en "
-              "crochets (`eta_for` = le triplet d'ETA déclaré une fois, `extra`, `progress_of` — "
-              "même crochet que `batch_views` —, `pipeline_model` pour la bande des process, "
-              "`domains` pour une barre par domaine). Le générateur d'apps la consomme. Critère "
+              "crochets (`eta_for` = le triplet d'ETA, déclaré UNE fois dans le module de tâches "
+              "— `<app>_eta_key_size`, que la glu rend aussi à `record_run` —, `extra`, "
+              "`progress_of` — même crochet que `batch_views` —, `pipeline_model` pour la bande "
+              "des process, `domains` pour une barre par domaine ; utilisateur par défaut : "
+              "connecté, sinon anonyme). Le générateur d'apps la consomme. Critère "
               "`progress_views_common` ; contrat générique "
               "`tests_item_lifecycle_contract` (clés d'une card et de la file, toutes les apps)",
               'wama/common/utils/progress_views.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11',
