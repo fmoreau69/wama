@@ -39,7 +39,9 @@
           "tracks",
           "cross_camera_close_pairs",
           "same_camera_close_pairs",
-          "relay_breaks"
+          "relay_breaks",
+          "switchbacks",
+          "tracks_mixing_objects"
         ],
         "required_fields": []
       }

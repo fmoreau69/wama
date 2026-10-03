@@ -137,6 +137,14 @@ FEATURES = [
             "objets, les largeurs de voie vues, le cap par ratio et la projection sol : "
             "calibration sol, recalage voie + carte et calculs sont à rejouer après bascule.",
             default=False, scope='compute'),
+    Feature('stitch_one_to_one', 'Recollement un pour un',
+            "Le recollement des morceaux de trajectoire (un objet coupé en deux, par exemple en "
+            "zone aveugle) ne prolonge une fin de trajectoire qu'UNE fois, et jamais vers un groupe "
+            "dont un membre est présent au même moment. Sans cela, des recollements en chaîne "
+            "fusionnaient des dizaines de véhicules en un seul (mesuré le 2026-10-03 : 93 000 "
+            "allers-retours entre objets distincts sous un même numéro, 581 avec la bascule ; doublons "
+            "et relais ratés inchangés). ON par défaut : c'est la correction d'un défaut, pas une option.",
+            default=True, scope='compute'),
     Feature('measured_camera_yaw', 'Orientation des latérales MESURÉE',
             "Utilise l'orientation de montage des caméras latérales MESURÉE sur la session (passe "
             "« Champ des caméras » : le mouvement de la navette, tiré de la trace, contraint les "

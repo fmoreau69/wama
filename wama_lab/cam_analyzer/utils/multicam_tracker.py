@@ -386,6 +386,39 @@ def stale_fields_report(removed) -> dict:
     return out
 
 
+def one_to_one_stitches(pairs, spans, overlap_tolerance_s=0.25):
+    """Recollement UN POUR UN (⚑ stitch_one_to_one, 2026-10-03) : `pairs` = [(écart, début, fin)]
+    candidats (début = tracklet qui commence, fin = tracklet qui finit avant lui, écart = distance
+    normalisée à la position prédite), `spans` = {tracklet: (t_début, t_fin)}.
+
+    Attribution au MEILLEUR AJUSTEMENT (couples triés par écart) : une fin ne se prolonge qu'une fois,
+    un début ne prolonge qu'une fin, et jamais deux groupes dont des membres sont présents en même
+    temps (au-delà de `overlap_tolerance_s`). Rend (liens [(début, fin)] acceptés dans l'ordre,
+    nombre de refus pour présence simultanée)."""
+    parent = {}
+
+    def root(g):
+        while g in parent:
+            g = parent[g]
+        return g
+    members = {g: [s] for g, s in spans.items()}
+    continued, stitched, links, refused = set(), set(), [], 0
+    tol = overlap_tolerance_s
+    for _ratio, start, end in sorted(pairs, key=lambda p: p[0]):
+        if start in stitched or end in continued or root(start) == root(end):
+            continue
+        if any(a < d - tol and c + tol < b
+               for a, b in members.get(root(end), ()) for c, d in members.get(root(start), ())):
+            refused += 1
+            continue
+        members.setdefault(root(end), []).extend(members.pop(root(start), []))
+        parent[root(start)] = root(end)
+        continued.add(end)
+        stitched.add(start)
+        links.append((start, end))
+    return links, refused
+
+
 def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                            frame_range=None, spread_max_m=6.0, path_ratio_max=None):
     """
@@ -742,10 +775,24 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # Diagnostic (2026-10-01) : pour chaque début de tracklet, POURQUOI il n'a pas été recollé — un
     # recollement qui écarte l'essentiel de ses candidats doit dire par quelle porte.
     _stitch_diag = defaultdict(int)
+    # ⚑ stitch_one_to_one (2026-10-03) : le recollement n'avait AUCUNE contrainte d'appariement —
+    # plusieurs débuts pouvaient prolonger la MÊME fin, et un début pouvait rejoindre un groupe dont un
+    # autre membre était présent au même moment. De recollement en recollement, des groupes de
+    # dizaines de véhicules se formaient (G2788 : 1584 observations sur 48 m, voitures, vélos et
+    # motos, 20 chaînes à l'avant) — invisibles des doublons, qu'elles faisaient même baisser.
+    # Mesuré par `tracking_continuity.switchbacks`. Une fin ne se prolonge qu'UNE fois, et jamais
+    # vers un groupe déjà présent (tolérance 0,25 s).
+    # L'attribution se fait au MEILLEUR AJUSTEMENT (couples triés par écart à la position prédite),
+    # pas dans l'ordre d'apparition : sinon un mauvais candidat apparu le premier prenait la fin, et
+    # le bon successeur était refusé (1342 refus mesurés en ordre d'apparition).
+    _one_to_one = _feat.get('stitch_one_to_one', False)
+    _span = {g: (min(h[1] for h in hist), max(h[1] for h in hist)) for g, hist in track_hist.items()}
+    _pairs = []                                       # (écart, début, fin) candidats, ⚑ stitch_one_to_one
     for gid, t0, e0, n0 in _starts:
         best_g, best_ratio = None, 1.0
         _slow_in_gate = False
         _near = None
+        _has_pair = False
         for og, fit in _endfit.items():
             if _root(og) == _root(gid):
                 continue
@@ -768,7 +815,13 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 if _family_gate and families_conflict(_fam_of.get(gid), _fam_of.get(og)):
                     _stitch_refused += 1
                     continue
+                if _one_to_one:
+                    _pairs.append((ratio, gid, og))      # attribué plus bas, au meilleur ajustement
+                    _has_pair = True
+                    continue
                 best_g, best_ratio = og, ratio
+        if _has_pair:
+            continue
         if best_g is not None:
             alias[_root(gid)] = _root(best_g)
             _stitch_diag['recolle'] += 1
@@ -780,6 +833,14 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             _stitch_diag['juste_hors_gate'] += 1
         else:
             _stitch_diag['aucun_candidat'] += 1
+
+    if _one_to_one:
+        _links, _overlap_refused = one_to_one_stitches(_pairs, _span)
+        for gid, og in _links:
+            alias[_root(gid)] = _root(og)
+        _stitch_diag['recolle'] += len(_links)
+        _stitch_diag['refuse_groupe_deja_present'] += _overlap_refused
+        _stitch_diag['refuse_un_pour_un'] += len({g for _, g, _ in _pairs} - {g for g, _ in _links})
 
     if alias:
         # Remap gid → racine PARTOUT : historiques, votes de classe, détections annotées
