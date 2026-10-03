@@ -410,7 +410,11 @@ def _inspector_detail_wired(f: _AppFiles):
 def _eta_seeded(f: _AppFiles):
     # `run_item_task` (brique task_skeleton, A2) fait le record_run pour la glu qui déclare `eta`.
     rec = f.find(TASKS, r'record_run|run_item_task')
-    est = f.find(VIEWS, r'\bestimate\(')
+    # L'estimation a deux formes : l'appel direct, ou le triplet DÉCLARÉ à la fabrique des vues de
+    # progression (`make_progress_views(eta_for=…)`, 2026-10-03), qui fait l'appel elle-même. Sans
+    # la seconde, le critère rougissait les huit apps portées — un critère en retard d'un
+    # mécanisme pousse vers l'ancienne forme.
+    est = f.find(VIEWS, r'\bestimate\(|\beta_for=')
     if rec and est:
         return True, f"{rec} + {est}"
     if rec or est:
@@ -900,6 +904,30 @@ def _batch_views_common(f: _AppFiles):
         return False, (f"vues de lot écrites à la main ({local}) — fabrique "
                        "`batch_views.make_batch_views`")
     return None, 'aucune vue de lot'
+
+
+def _progress_views_common(f: _AppFiles):
+    """Les vues de PROGRESSION (`progress` d'une card, `global_progress` de la file) viennent de
+    la fabrique commune `progress_views.make_progress_views` (2026-10-03, `ROUTE §11 #37`).
+
+    Mesuré ce jour-là : dix `global_progress` à trois formules et quatre vocabulaires de clés,
+    huit `progress` au même squelette recopié. VRAI : fabrique appelée et plus aucune vue de
+    progression écrite à la main ; PARTIEL : fabrique appelée, une vue reste locale ; FAUX : tout
+    à la main ; N/A : aucune vue de progression. `status` (converter) et `get_process_progress`
+    (ancien anonymizer) sont des graphies de la vue d'une card.
+    """
+    local_re = (r'(?m)^def ((audio_)?(global_)?progress|status|get_process_progress'
+                r'|process_progress)\(')
+    brique = f.find_code(VIEWS, r'\bmake_progress_views\(')
+    local = f.find_code(VIEWS, local_re)
+    if brique and local:
+        return 'partial', f"{brique} + vue de progression encore locale ({local})"
+    if brique:
+        return True, brique
+    if local:
+        return False, (f"vues de progression écrites à la main ({local}) — fabrique "
+                       "`progress_views.make_progress_views`")
+    return None, 'aucune vue de progression'
 
 
 def _settings_route(f: _AppFiles):
@@ -2137,6 +2165,11 @@ CRITERIA: list[Criterion] = [
     # fabrique est appelée ; rouge tant que l'app définit ses vues de lot à la main.
     Criterion('batch_views_common', 'F5', 'Vues de lot par la fabrique commune (make_batch_views)',
               _batch_views_common, mechanism='batch_views'),
+    # 2026-10-03 : la fabrique des vues de PROGRESSION (`make_progress_views`, ROUTE §11 #37) —
+    # même forme que `batch_views_common`, écrit avec la brique (la grille suit le mécanisme).
+    Criterion('progress_views_common', 'F5',
+              'Vues de progression par la fabrique commune (make_progress_views)',
+              _progress_views_common, mechanism='progress_views'),
     # Les deux contrats COMMUNS du modèle de lot. `batch_semantics` porte `is_unitary`, que lisent
     # `_queue_entry.html` ET `is_batch_child` — son absence (jumelle `converter_01`, 15/09) rendait
     # tout lot en lot de plusieurs cards, sans erreur. `queue_order` : le mécanisme de même nom

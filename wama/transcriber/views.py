@@ -1069,61 +1069,60 @@ def card_html(request, pk: int):
     return HttpResponse(html)
 
 
-def progress(request, pk: int):
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = visible_or_404(Transcript, user, pk=pk)              # LECTURE
-    p = int(cache.get(f"transcriber_progress_{t.id}", t.progress or 0))
+def _eta_triplet(t):
+    """Le triplet d'ETA du transcriber : l'estimation apprend sous le NOM DU MOTEUR (`workers`) ;
+    la demande est une clé de modèle depuis la route F4b ⑦ — traduite, sans résolution à chaque
+    rafraîchissement. Sans moteur ni durée connus, aucune estimation."""
+    from wama.model_manager.services.eta_estimator import make_key
+    from wama.transcriber.backends.manager import engine_name_for
+    mdl = t.used_backend or engine_name_for(t.backend)
+    dur = float(t.duration_seconds or 0)
+    if not mdl or dur <= 0:
+        return None
+    return make_key('transcriber', mdl), dur, 'audio_sec', False
 
-    # Get partial text for live display
+
+def _pipeline_model(t):
+    """Le modèle passé à la bande des process — celui que la card demande, « auto » compris
+    (`_pipeline_view`)."""
+    from wama.transcriber.backends.manager import catalogue_value
+    return catalogue_value(t.backend) or 'auto'
+
+
+def _progress_extra(t):
+    """Les clés PROPRES que le JS du transcriber lit : texte partiel et action en cours pendant le
+    traitement, propriétés du fichier, puis le résultat et ses enrichissements."""
     from wama.common.utils.preview_utils import get_partial_text
-    partial_text = get_partial_text('transcriber', t.id)
-
-    response_data = {
-        'progress': p,
-        'status': t.status,
-        'partial_text': partial_text,
-        'status_message': cache.get(f"transcriber_status_msg_{t.id}", ''),  # action en cours
-        'properties': t.properties,          # propriétés fichier (codec • kHz • canaux) → MAJ ligne card
+    data = {
+        'partial_text': get_partial_text('transcriber', t.id),
+        'status_message': cache.get(f"transcriber_status_msg_{t.id}", ''),
+        'properties': t.properties,          # codec • kHz • canaux → MAJ de la ligne de card
         'duration_display': t.duration_display,
     }
-
-    # Seed ETA : estimation a priori (puis apprise) du temps total, affichée DÈS le départ
-    # par WamaEta — utile surtout pendant le chargement du modèle (progression encore à 0).
-    if t.status in ('PENDING', 'RUNNING'):
-        try:
-            from wama.model_manager.services.eta_estimator import estimate, make_key
-            # L'estimation apprend sous le NOM DU MOTEUR (`workers`) ; la demande est une clé
-            # de modèle depuis la route F4b ⑦ — traduite, sans résolution à chaque rafraîchissement.
-            from wama.transcriber.backends.manager import engine_name_for
-            mdl = t.used_backend or engine_name_for(t.backend)
-            dur = float(t.duration_seconds or 0)
-            if mdl and dur > 0:
-                est = estimate(make_key('transcriber', mdl), size=dur,
-                               unit='audio_sec', model_loaded=False)
-                if est > 0:
-                    response_data['estimated_seconds'] = round(est, 1)
-        except Exception:
-            pass
-
     if t.status == 'SUCCESS':
-        response_data['processing_seconds'] = t.processing_seconds or 0
-        response_data['processing_display'] = t.processing_display
-        response_data['text'] = t.text or ''
-        response_data['summary'] = t.summary or ''
-        response_data['summary_type'] = t.summary_type or 'structured'
-        response_data['key_points'] = t.key_points or []
-        response_data['action_items'] = t.action_items or []
-        response_data['coherence_score'] = t.coherence_score
-        response_data['coherence_notes'] = t.coherence_notes or ''
-        response_data['coherence_suggestion'] = t.coherence_suggestion or ''
+        data.update({
+            'processing_seconds': t.processing_seconds or 0,
+            'processing_display': t.processing_display,
+            'text': t.text or '',
+            'summary': t.summary or '',
+            'summary_type': t.summary_type or 'structured',
+            'key_points': t.key_points or [],
+            'action_items': t.action_items or [],
+            'coherence_score': t.coherence_score,
+            'coherence_notes': t.coherence_notes or '',
+            'coherence_suggestion': t.coherence_suggestion or '',
+        })
+    return data
 
-    # Les PROCESS de la card, mis à jour en place pendant le traitement (`WamaApp.updateProcessRows`),
-    # et l'état MONTRÉ. `status` reste celui de l'ÉLÉMENT : c'est lui qui dit « en vol » au front.
-    view = _pipeline_view(t)
-    if view is not None:
-        response_data['processes'], response_data['shown_state'] = view[0], view[1]
 
-    return JsonResponse(response_data)
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
+# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et le modèle de sa bande de process.
+from wama.common.utils.progress_views import make_progress_views  # noqa: E402
+
+_pv = make_progress_views(work_model=Transcript, get_user=lambda request: request.user if request.user.is_authenticated else get_or_create_anonymous_user(),
+                          app_id='transcriber', eta_for=_eta_triplet, extra=_progress_extra,
+                          pipeline_model=_pipeline_model)
+progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
 def _output_stem(t: Transcript) -> str:
@@ -1595,52 +1594,6 @@ def set_preprocessing_preference(request):
 # (seul set_preprocessing est câblé, index.html:81) aux défauts DIVERGENTS (timeout=None,
 # défaut True vs décision projet OFF). Réglage servi par get_user_transcriber_settings.
 
-
-def global_progress(request):
-    """Get overall progress for all user transcripts"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        # UNE requête sur les deux colonnes utiles — la forme qu'émet le générateur
-        # (`codegen/views_gen.py`). Jusqu'au 2026-10-03 la somme des progressions chargeait
-        # chaque transcription ENTIÈRE, segments compris : 0,48-0,70 s par appel, et la page
-        # interroge cette vue toutes les 2 à 3 s. Même calcul qu'avant.
-        rows = list(Transcript.objects.filter(user=user).values_list('status', 'progress'))
-
-        if not rows:
-            return JsonResponse({
-                'total': 0,
-                'pending': 0,
-                'running': 0,
-                'success': 0,
-                'failure': 0,
-                'overall_progress': 0
-            })
-
-        def _count(status):
-            return sum(1 for s, _ in rows if s == status)
-
-        total = len(rows)
-        pending, running = _count('PENDING'), _count('RUNNING')
-        success, failure = _count('SUCCESS'), _count('FAILURE')
-
-        # Calculate overall progress
-        total_progress = sum(p or 0 for _, p in rows)
-        overall_progress = int(total_progress / total) if total > 0 else 0
-
-        return JsonResponse({
-            'total': total,
-            'pending': pending,
-            'running': running,
-            'success': success,
-            'failure': failure,
-            # Alias attendus par la brique commune wama-global-progress.js (contrat done/failed).
-            'done': success,
-            'failed': failure,
-            'overall_progress': overall_progress
-        })
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
 
 
 # =============================================================================

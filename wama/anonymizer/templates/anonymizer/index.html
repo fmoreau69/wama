@@ -278,7 +278,7 @@ window.WAMA_ANON = {
     startUrlTemplate:    '{% url "anonymizer:start" 0 %}',
     stopUrlTemplate:     '{% url "anonymizer:stop" 0 %}',
     startAllUrl:         '{% url "anonymizer:start_all" %}',
-    progressUrl:         '{% url "anonymizer:process_progress" %}',
+    progressUrlTemplate: '{% url "anonymizer:progress" 0 %}',
     settingsGetUrlTemplate: '{% url "anonymizer:get_media_settings" 0 %}',
     settingsSaveUrl:     '{% url "anonymizer:save_media_settings" %}',
     {% comment %}`clearMediaUrl` RETIRÉ le 2026-08-23 : la suppression passe par la brique

@@ -1231,6 +1231,21 @@ MECHANISMS = (
               "Critère `batch_views_common` VRAI 10/10 ; garde générique "
               "`tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest`",
               'wama/common/utils/batch_views.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11'),
+    Mechanism('progress_views', 'Vues de progression (fabrique commune)',
+              "Le suivi d'UNE card (`progress`) et la barre de FILE (`global_progress`) en une "
+              "fabrique — `make_progress_views` (`ROUTE §11 #37`, 2026-10-03). Les dix apps les "
+              "écrivaient à la main : trois formules de progression d'ensemble, quatre "
+              "vocabulaires de clés que le JS commun absorbait. UNE formule, celle du contrat de "
+              "la barre commune (réussi = 100, en cours = sa progression vivante, échec et attente "
+              "= 0 : un échec n'est pas terminé), un vocabulaire COMPLET ; les spécificités en "
+              "crochets (`eta_for` = le triplet d'ETA déclaré une fois, `extra`, `progress_of` — "
+              "même crochet que `batch_views` —, `pipeline_model` pour la bande des process, "
+              "`domains` pour une barre par domaine). Le générateur d'apps la consomme. Critère "
+              "`progress_views_common` ; contrat générique "
+              "`tests_item_lifecycle_contract` (clés d'une card et de la file, toutes les apps)",
+              'wama/common/utils/progress_views.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11',
+              annexes=('wama/common/tests/tests_progress_views.py',),
+              depends_on=('task_skeleton',)),
     # Ajouté le 2026-10-03 (P5, 5.3) : la décision du 2026-08-25 (`MODES_QUEUE_UX §5ter`) enfin
     # construite — elle attendait une MÉMOIRE que les modèles de lot n'avaient pas.
     Mechanism('batch_settings', "Réglages de référence d'un lot (promotion fille ↔ mère)",

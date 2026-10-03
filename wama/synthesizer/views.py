@@ -448,86 +448,28 @@ def card_html(request, pk: int):
     return HttpResponse(html)
 
 
-def progress(request, pk: int):
-    """
-    Récupère la progression d'une synthèse.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
-    from wama.common.utils.scoping import visible_or_404
-    synthesis = visible_or_404(VoiceSynthesis, user, pk=pk)
-    p = int(cache.get(f"synthesizer_progress_{synthesis.id}", synthesis.progress or 0))
-
-    resp = {
-        'progress': p,
-        'status': synthesis.status,
-        'audio_url': iri_to_uri(synthesis.audio_output.url) if synthesis.audio_output else None,
-        'duration_display': synthesis.duration_display,
-        'error': synthesis.error_message if synthesis.status == 'FAILURE' else None,
-    }
-    # Seed ETA : estimation a priori/apprise (∝ longueur du texte), affichée dès le départ.
-    if synthesis.status in ('PENDING', 'RUNNING') and synthesis.text_content:
-        try:
-            from wama.model_manager.services.eta_estimator import estimate, make_key
-            est = estimate(make_key('synthesizer', synthesis.tts_model),
-                           size=len(synthesis.text_content), unit='char', model_loaded=True)
-            if est > 0:
-                resp['estimated_seconds'] = round(est, 1)
-        except Exception:
-            pass
-    return JsonResponse(resp)
+def _eta_triplet(synthesis):
+    """Le triplet d'ETA du synthesizer (∝ longueur du texte) — sans texte, aucune estimation."""
+    if not synthesis.text_content:
+        return None
+    from wama.model_manager.services.eta_estimator import make_key
+    return make_key('synthesizer', synthesis.tts_model), len(synthesis.text_content), 'char', True
 
 
-def global_progress(request):
-    """
-    Récupère la progression globale de toutes les synthèses de l'utilisateur.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    syntheses = VoiceSynthesis.objects.filter(user=user)
+def _progress_extra(synthesis):
+    """Les clés PROPRES que le JS du synthesizer lit."""
+    return {'audio_url': iri_to_uri(synthesis.audio_output.url) if synthesis.audio_output else None,
+            'duration_display': synthesis.duration_display}
 
-    if not syntheses.exists():
-        return JsonResponse({
-            # Contrat du composant COMMUN (wama-global-progress.js : total/done/
-            # overall_progress) — le synthesizer était la SEULE app sur 10 hors contrat
-            # (audit 31/08) ; clés legacy RETIRÉES au nettoyage du même jour (son JS
-            # basculé, aucun autre consommateur mesuré — REMOVAL_LEDGER).
-            'overall_progress': 0, 'done': 0,
-            'total': 0,
-            'running': 0,
-            'failed': 0
-        })
 
-    total = syntheses.count()
-    completed = syntheses.filter(status='SUCCESS').count()
-    running = syntheses.filter(status='RUNNING').count()
-    pending = syntheses.filter(status='PENDING').count()
-    failed = syntheses.filter(status='FAILURE').count()
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
+# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA et ses clés propres.
+from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-    # Calculer la progression globale
-    # Les synthèses SUCCESS comptent pour 100%
-    # Les synthèses RUNNING comptent selon leur progression
-    # Les synthèses PENDING comptent pour 0%
-    # Les synthèses FAILURE comptent pour 0%
-    total_progress = 0
+_pv = make_progress_views(work_model=VoiceSynthesis, get_user=lambda request: request.user if request.user.is_authenticated else get_or_create_anonymous_user(),
+                          app_id='synthesizer', eta_for=_eta_triplet, extra=_progress_extra)
+progress, global_progress = _pv['progress'], _pv['global_progress']
 
-    for synthesis in syntheses:
-        if synthesis.status == 'SUCCESS':
-            total_progress += 100
-        elif synthesis.status == 'RUNNING':
-            p = int(cache.get(f"synthesizer_progress_{synthesis.id}", synthesis.progress or 0))
-            total_progress += p
-        # PENDING et FAILURE comptent pour 0
-
-    global_progress = int(total_progress / total) if total > 0 else 0
-
-    return JsonResponse({
-        # Contrat commun (audit 31/08) ; clés legacy retirées au nettoyage du même jour.
-        'overall_progress': global_progress,
-        'done': completed,
-        'total': total,
-        'running': running,
-        'failed': failed
-    })
 
 
 def download(request, pk: int):

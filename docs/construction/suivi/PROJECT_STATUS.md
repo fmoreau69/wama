@@ -21197,3 +21197,56 @@ visiteur ne lance rien, sauf dans le converter ». Détail : `PROFILES_PERMISSIO
   `common/tests/tests_scoping.py`, `common/services/rights_matrix.py`,
   `converter/{views,tasks}.py`, `converter/templates/converter/index.html`, `settings.py`,
   `avatarizer/tests_animation_model.py` (un nom de test), `PROFILES_PERMISSIONS.md`.
+
+## §PALIER — 2026-10-03 (soir), « PORTAGE : revue de la session Pipeline, deux lanceurs réalignés, FABRIQUE DES VUES DE PROGRESSION 9/10 (ROUTE §11 #37) » — ✅ `89e7a18` + commit ci-dessous, non poussés — 🔴 RECHARGER gunicorn ET les workers (tâche anonymizer, vues) — 🔚 composer sur la fabrique · relecture de Fabien sur les points ouverts de la revue
+
+**Revue de la session Pipeline (demande de Fabien)** — trois relectures d'agents, chaque défaut
+grave revérifié dans le code avant d'être retenu, puis confronté à la doc :
+- ✅ **corrigé** (`89e7a18`) : l'anonymizer posait RUNNING dans la TÂCHE, avant la garde
+  anti-re-livraison du squelette — un message re-livré PÉRIMÉ remettait « en cours » pour
+  toujours un média terminé (cas #741). Règle : RUNNING est posé par les LANCEURS
+  (`§PALIER 2026-09-14`) ; le lanceur de file (`process_user_media_batch`) passe désormais par
+  `begin_processing` et enregistre le `task_id`. Contre-épreuve rouge sur l'ancien code ;
+- ✅ **corrigé** (`89e7a18`) : `tool_api.start_transcriber` gardait sa remise à zéro (texte et
+  segments vidés au clic) — avec le pipeline, un lancement du résumé seul résumait un texte vide.
+  Il emprunte le lanceur du ▶ (`begin_processing` + `_reset_for_relaunch` + `_task_for`) ;
+- ⛔ **pas un défaut, d'après la doc** : la durée max de 30 min des apps nouvellement sur le
+  squelette (garde-temps voulu, `ROUTE` l. 992 ; une valeur par app « quand une mesure le
+  justifie », `resource_governor.py:1122` — mesures en base : anonymizer 20,7 min, synthesizer
+  3,4 min) ; « Locuteurs » relancé seul qui ramène SRT/segments à l'ASR : la correction elle-même
+  (`corrected_segments_json`) n'est pas touchée — c'est le « 4ᵉ cas » de `ROUTE §10.6 4.3`,
+  DÉCISION À PART non engagée (`TRANSCRIBER_CORRECTION §4`) ;
+- ⏳ **signalés, non vérifiés ligne à ligne** (pour la session Pipeline ou Fabien) : avatarizer,
+  la vue de progression recalcule l'empreinte sha256 de l'audio à chaque interrogation et peut
+  écrire (`mark_stale`) depuis un GET ; décocher « Locuteurs » rend résumé et cohérence périmés ;
+  l'ETA du transcriber et de l'avatarizer n'apprend plus que la première étape ; message d'erreur
+  tronqué à 500 caractères sans type ; `start_process` recopié dans 3 apps, bloc d'attente du
+  service TTS recopié mot pour mot (synthesizer, avatarizer).
+- Avis rendu sur les trois questions de la session : découpage génération / sortie de l'imager
+  = déjà tranché sur le principe (décision n°2 de `§10.6`, sortie persistée), à faire dans la
+  BRIQUE de sortie (cinq apps détruisent le natif à la conversion), le natif pouvant être la sortie
+  déclarée du process (`ProcessRun.output_ref`) ; 120 min de l'imager = d'accord ; étage B en
+  process `align` = oui (aujourd'hui une chaîne posée à côté, `§10.6 4.8`, qui réécrit les
+  segments après locuteurs et cohérence) ; `AnalysisPass` → lignes communes = oui, avec la
+  session cam_analyzer. ⏳ Décisions de Fabien.
+
+**ROUTE §11 #37 — la fabrique des vues de progression** (`common/utils/progress_views.py`) :
+`make_progress_views` → `{'progress', 'global_progress'}`, adoptée par **9 apps** (describer,
+synthesizer, avatarizer, enhancer ×2 files, transcriber, reader, converter, imager, anonymizer)
+et par le **générateur** (`views_gen` : `_pv` en tête du module). ⚠ Formule = celle du CONTRAT
+de la barre commune et du describer — **un échec est échoué, pas terminé** (Fabien : la barre
+est terminée depuis longtemps, rien à y décider ; ma proposition de compter un échec à 100 était
+une réinvention, retirée). Équivalence mesurée sur 200 éléments réels avant bascule (détail :
+`ROUTE §11 #37`, `REMOVAL_LEDGER` R95). Imager : route `<int:pk>` ; anonymizer : route
+`progress/<int:pk>/` au format commun, `process_progress/` retirée, JS + `staticfiles/` (parse V8).
+- Grille : **930/950**, 101 critères (`progress_views_common` VRAI 9/10, FAUX composer) ;
+  `eta_seeded` reconnaît la forme déclarée (`eta_for=`) — sans quoi il rougissait les 8 apps.
+- Tests : 517 (9 apps + contrats communs) → 1 rouge, PRÉEXISTANT (`ItemEditRouteAliasTest`,
+  bouchon imager) ; `tests_page_cost` (clé `failed`), `tests_codegen_lot`, `tests_progress_views`
+  (13, contre-épreuve : un échec compté 100 → 3 rouges), `tests_item_lifecycle_contract`
+  (clés d'une card ET de la file, toutes les apps), `tests_eta_test_accounts` (plancher 8 → 6 :
+  trois appels `record_run` rendus au squelette, qui nomme le propriétaire).
+- ⏳ **Composer** : `views.py` tenu par une autre session (cover YuE, 20:40) — exemption déclarée
+  `NOT_YET_ON_THE_FACTORY` (échoue dès qu'elle devient inutile). À porter quand le fichier est libre.
+- ⏳ Manifestes `avatarizer`/`enhancer`/`transcriber` non régénérés (travail d'autres sessions
+  dans le fichier) ; docs générées (`WAMA_MECANISMES`, `docs/dev/briques`) à régénérer depuis HEAD.

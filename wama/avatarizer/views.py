@@ -374,45 +374,22 @@ def _decorate_card(job, preloaded=False):
     return job
 
 
-def progress(request, pk):
-    """GET : Retourne l'état de progression d'un AvatarJob (lecture → objets partagés inclus)."""
-    user = _get_user(request)
-    job = visible_or_404(AvatarJob, user, pk=pk)
+def _eta_triplet(job):
+    """Le triplet d'ETA de l'avatarizer : durée connue (run précédent), sinon ~ texte / 15
+    (≈ débit de parole) en mode pipeline."""
+    size = float(job.duration_seconds or 0)
+    if not size and job.mode == 'pipeline' and job.text_content:
+        size = len(job.text_content) / 15.0
+    return f'avatarizer:{job.quality_mode}', size, 'video_sec', True
 
-    cached_progress = cache.get(f"avatarizer_progress_{job.id}")
-    prog = cached_progress if cached_progress is not None else job.progress
 
-    video_url = None
-    if job.status == 'SUCCESS' and job.output_video:
-        video_url = settings.MEDIA_URL + job.output_video.name
-
-    avatar_name = job.avatar_label
-
-    estimated_seconds = 0.0
-    if job.status in ('PENDING', 'RUNNING'):
-        try:
-            from wama.model_manager.services.eta_estimator import estimate
-            # durée connue (run précédent) sinon ~ texte/15 (≈ débit parole) en mode pipeline
-            _size = float(job.duration_seconds or 0)
-            if not _size and job.mode == 'pipeline' and job.text_content:
-                _size = len(job.text_content) / 15.0
-            estimated_seconds = estimate(f'avatarizer:{job.quality_mode}',
-                                         size=_size, unit='video_sec', model_loaded=True)
-        except Exception:
-            pass
-
-    _decorate_card(job)
-    return JsonResponse({
-        'progress': prog,
-        'status': job.status,
-        # Les PROCESS de la card bougent pendant le traitement (`WamaApp.updateProcessRows`).
-        'processes': getattr(job, 'processes', None),
-        'shown_state': getattr(job, 'shown_state', job.status),
-        'estimated_seconds': estimated_seconds,
-        'video_url': video_url,
-        'error': job.error_message,
+def _progress_extra(job):
+    """Les clés PROPRES que le JS de l'avatarizer lit : la vidéo, puis les réglages montrés."""
+    return {
+        'video_url': (settings.MEDIA_URL + job.output_video.name
+                      if job.status == 'SUCCESS' and job.output_video else None),
         'mode': job.mode,
-        'avatar_name': avatar_name,
+        'avatar_name': job.avatar_label,
         'tts_model': job.get_tts_model_display(),
         'language': job.language,
         'voice_preset': job.voice_preset,
@@ -421,43 +398,18 @@ def progress(request, pk):
         'bbox_shift': job.bbox_shift,
         'use_enhancer': job.use_enhancer,
         'text_preview': (job.text_content or '')[:80],
-    })
+    }
 
 
-def global_progress(request):
-    """Progression globale de la file (toujours affichée côté UI).
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
+# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et le modèle de sa bande de process.
+from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-    Renvoie {total, done, running, overall_progress} pour le composant commun
-    common/_global_progress.html + wama-global-progress.js.
-    """
-    user = _get_user(request)
-    jobs = list(AvatarJob.objects.filter(user=user).values('id', 'status', 'progress'))
+_pv = make_progress_views(work_model=AvatarJob, get_user=_get_user, app_id='avatarizer',
+                          eta_for=_eta_triplet, extra=_progress_extra,
+                          pipeline_model=lambda job: job.animation_model or 'auto')
+progress, global_progress = _pv['progress'], _pv['global_progress']
 
-    total = len(jobs)
-    done = sum(1 for j in jobs if j['status'] == 'SUCCESS')
-    running = sum(1 for j in jobs if j['status'] == 'RUNNING')
-
-    if total:
-        acc = 0
-        for j in jobs:
-            if j['status'] == 'SUCCESS':
-                acc += 100
-            elif j['status'] == 'RUNNING':
-                cached = cache.get(f"avatarizer_progress_{j['id']}")
-                acc += cached if cached is not None else (j['progress'] or 0)
-            else:
-                acc += j['progress'] or 0
-        overall = int(acc / total)
-    else:
-        overall = 0
-
-    return JsonResponse({
-        'total': total,
-        'done': done,
-        'running': running,
-        'failed': sum(1 for j in jobs if j['status'] == 'FAILURE'),
-        'overall_progress': overall,
-    })
 
 
 @require_POST

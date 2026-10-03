@@ -24,7 +24,7 @@ urlpatterns = [
     path('start/<int:generation_id>/', views.start_generation, name='start'),
     path('restart/<int:generation_id>/', views.restart_generation, name='restart'),
     path('start-all/', views.start_all_generations, name='start_all'),
-    path('progress/<int:generation_id>/', views.progress, name='progress'),
+    path('progress/<int:pk>/', views.progress, name='progress'),
     # Partial de card (contrat card_html/refreshCard — F5)
     path('card/<int:generation_id>/html/', views.card_html, name='card_html'),
     # Réglages appliqués à tout un batch (modale contexte 'batch')

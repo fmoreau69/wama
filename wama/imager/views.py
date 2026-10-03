@@ -1120,108 +1120,47 @@ def start_all_generations(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def progress(request, generation_id):
-    """Get progress for a specific generation"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        # LECTURE → accès nommé `visible_or_404` : le propriétaire OU un destinataire du
-        # partage (unité/projet/public). Cf. common/utils/scoping.py — lecture/mutation.
-        generation = visible_or_404(ImageGeneration, user, id=generation_id)
-
-        # Get progress from cache (more real-time) or fallback to DB
-        cached_progress = cache.get(f"imager_progress_{generation_id}")
-        progress_value = cached_progress if cached_progress is not None else generation.progress
-
-        data = {
-            'id': generation.id,
-            'status': generation.status,
-            'progress': progress_value,
-            'error_message': generation.error_message,
-            'generated_images': generation.generated_images,
-            'duration': generation.duration_display,
-            'output_type': generation.output_type,
-            'is_video': generation.is_video_generation,
-        }
-
-        # Include video URL if available
-        if generation.output_video:
-            data['output_video_url'] = generation.output_video.url
-
-        # Seed ETA (chargement séparé → model_loaded=False inclut le coût à froid) :
-        # image = steps × nb images, vidéo = durée produite. Clé par domaine+modèle.
-        if generation.status in ('PENDING', 'RUNNING'):
-            try:
-                from wama.model_manager.services.eta_estimator import estimate
-                from wama.common.utils.model_keys import model_id as _model_id
-                # Même clé que l'apprentissage (`tasks.py`, record_run) : par IDENTIFIANT.
-                _mid = _model_id(generation.model)
-                if generation.is_video_generation:
-                    data['estimated_seconds'] = estimate(
-                        f'imager:vid:{_mid}',
-                        size=float(getattr(generation, 'video_duration', 0) or 0),
-                        unit='video_sec', model_loaded=False)
-                else:
-                    _steps = int(getattr(generation, 'steps', 0) or 0) * int(getattr(generation, 'num_images', 1) or 1)
-                    data['estimated_seconds'] = estimate(
-                        f'imager:img:{_mid}', size=max(_steps, 1),
-                        unit='step', model_loaded=False)
-            except Exception:
-                pass
-
-        return JsonResponse(data)
-
-    # Un refus d'accès doit rester un 404 : sans ça l'`except Exception` ci-dessous le
-    # transformait en 500 AVEC le message de la base dans le corps de la réponse.
-    except Http404:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting progress: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+#: Les modes de génération VIDÉO — la barre de file a un domaine image et un domaine vidéo.
+VIDEO_MODES = ('txt2vid', 'img2vid')
 
 
-def global_progress(request):
-    """Get overall progress split by image and video generations."""
-    from django.db.models import Count, Case, When, IntegerField, Avg
+def _eta_triplet(generation):
+    """Le triplet d'ETA de l'imager (chargement séparé → modèle réputé NON chargé, le coût à froid
+    compris) : image = pas × nombre d'images, vidéo = durée produite. Même clé que l'apprentissage
+    (`tasks.py`, `record_run`) : par IDENTIFIANT de modèle."""
+    from wama.common.utils.model_keys import model_id as _model_id
+    mid = _model_id(generation.model)
+    if generation.is_video_generation:
+        return (f'imager:vid:{mid}', float(getattr(generation, 'video_duration', 0) or 0),
+                'video_sec', False)
+    steps = int(getattr(generation, 'steps', 0) or 0) * int(getattr(generation, 'num_images', 1) or 1)
+    return f'imager:img:{mid}', max(steps, 1), 'step', False
 
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-    VIDEO_MODES = ['txt2vid', 'img2vid']
+def _progress_extra(generation):
+    """Les clés PROPRES que le JS de l'imager lit : les sorties et leur nature."""
+    data = {
+        'generated_images': generation.generated_images,
+        'duration': generation.duration_display,
+        'output_type': generation.output_type,
+        'is_video': generation.is_video_generation,
+    }
+    if generation.output_video:
+        data['output_video_url'] = generation.output_video.url
+    return data
 
-    def _aggregate(qs):
-        stats = qs.aggregate(
-            total=Count('id'),
-            pending=Count(Case(When(status='PENDING', then=1), output_field=IntegerField())),
-            running=Count(Case(When(status='RUNNING', then=1), output_field=IntegerField())),
-            success=Count(Case(When(status='SUCCESS', then=1), output_field=IntegerField())),
-            failure=Count(Case(When(status='FAILURE', then=1), output_field=IntegerField())),
-            avg_progress=Avg('progress'),
-        )
-        return {
-            'total': stats['total'] or 0,
-            'pending': stats['pending'] or 0,
-            'running': stats['running'] or 0,
-            'success': stats['success'] or 0,
-            'failure': stats['failure'] or 0,
-            'overall_progress': int(stats['avg_progress'] or 0),
-        }
 
-    try:
-        base_qs = ImageGeneration.objects.filter(user=user)
-        image_stats = _aggregate(base_qs.exclude(generation_mode__in=VIDEO_MODES))
-        video_stats = _aggregate(base_qs.filter(generation_mode__in=VIDEO_MODES))
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
+# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et ses deux domaines de file (image, vidéo).
+from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-        return JsonResponse({
-            # Legacy top-level keys (image stats, backward compat)
-            **image_stats,
-            # Split stats
-            'image': image_stats,
-            'video': video_stats,
-        })
+_pv = make_progress_views(
+    work_model=ImageGeneration, get_user=lambda request: request.user if request.user.is_authenticated else get_or_create_anonymous_user(),
+    app_id='imager', eta_for=_eta_triplet, extra=_progress_extra,
+    domains={'image': lambda qs: qs.exclude(generation_mode__in=VIDEO_MODES),
+             'video': lambda qs: qs.filter(generation_mode__in=VIDEO_MODES)})
+progress, global_progress = _pv['progress'], _pv['global_progress']
 
-    except Exception as e:
-        logger.error(f"Error getting global progress: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
 
 
 def download(request, generation_id):

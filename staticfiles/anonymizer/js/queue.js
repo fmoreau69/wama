@@ -52,7 +52,7 @@
     timers[id] = setInterval(async () => {
       let d;
       try {
-        d = await (await fetch(cfg.progressUrl + '?media_id=' + id)).json();
+        d = await (await fetch(getUrl(cfg.progressUrlTemplate, id))).json();
       } catch (e) {
         return;
       }

@@ -2500,6 +2500,8 @@
         "batch_delete",
         "batch_duplicate",
         "batch_preview",
+        "batch_promote",
+        "batch_realign",
         "batch_start",
         "batch_template",
         "batch_update",
@@ -2557,7 +2559,7 @@
         },
         {
           "name": "progress",
-          "pattern": "progress/<int:generation_id>/",
+          "pattern": "progress/<int:pk>/",
           "view": "views.progress"
         },
         {
@@ -2708,13 +2710,13 @@
         {
           "file": "tasks.py",
           "function": "generate_image_task",
-          "lifecycle": true,
+          "lifecycle": false,
           "task_name": null
         },
         {
           "file": "tasks.py",
           "function": "generate_video_task",
-          "lifecycle": true,
+          "lifecycle": false,
           "task_name": null
         }
       ]

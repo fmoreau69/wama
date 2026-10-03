@@ -69,13 +69,62 @@ class ItemLifecycleContractTest(TestCase):
         # Non-vacuity: a witness refused everywhere would make the contract a list of refusals.
         self.assertGreaterEqual(len(started), 5, f'started {started}, refused {refused}')
 
+    #: Ce que rend le suivi d'UNE card, dans toutes les apps (fabrique `progress_views`, 2026-10-03).
+    ITEM_KEYS = {'id', 'status', 'progress', 'error', 'error_message'}
+    #: Apps pas encore passées sur la fabrique — une liste qui ne peut que DESCENDRE.
+    NOT_YET_ON_THE_FACTORY = {
+        'composer': "views.py tenu par une autre session le 2026-10-03 (cover YuE, extract_score)",
+    }
+    #: Le contrat de la barre de file (`wama-global-progress.js`), au vocabulaire COMPLET.
+    QUEUE_KEYS = {'total', 'pending', 'running', 'success', 'failure', 'done', 'failed',
+                  'overall_progress'}
+
     def test_progress_answers_json_the_queue_can_read(self):
-        surfaces = _surfaces('progress')
-        self.assertGreaterEqual(len(surfaces), 5, [a for a, _ in surfaces])
-        for app, model in surfaces:
-            with self.subTest(app=app):
+        # `status` : la graphie du converter pour le suivi d'une card (`urls_gen.ROUTE_ALIASES`).
+        surfaces = [(app, model, route) for route in ('progress', 'status')
+                    for app, model in _surfaces(route)]
+        self.assertGreaterEqual(len({a for a, _, _ in surfaces}), 9, surfaces)
+        for app, model, route in surfaces:
+            with self.subTest(app=app, route=route):
                 item = _instance(model, self._login_for(app))
-                r = self.client.get(reverse(f'{app}:progress', args=[item.pk]))
+                r = self.client.get(reverse(f'{app}:{route}', args=[item.pk]))
                 self.assertEqual(200, r.status_code, r.content[:200])
                 data = json.loads(r.content)
-                self.assertTrue({'progress', 'status'} & set(data), data)
+                keys = (self.ITEM_KEYS if app not in self.NOT_YET_ON_THE_FACTORY
+                        else {'progress', 'status'})
+                self.assertLessEqual(keys, set(data), data)
+
+    def test_an_exemption_from_the_factory_is_still_needed(self):
+        from pathlib import Path
+        from django.conf import settings
+        for app in self.NOT_YET_ON_THE_FACTORY:
+            with self.subTest(app=app):
+                views = (Path(settings.BASE_DIR) / 'wama' / app / 'views.py').read_text(
+                    encoding='utf-8')
+                self.assertNotIn('make_progress_views(', views,
+                                 f'{app} est sur la fabrique : retirer son exemption')
+
+    def test_the_queue_bar_speaks_the_full_contract_in_every_app(self):
+        """Dix barres de file, trois formules et quatre vocabulaires jusqu'au 2026-10-03 (le JS
+        commun acceptait toutes les graphies) — une seule fabrique depuis (ROUTE §11 #37)."""
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.sandbox import twins_with_copied_views
+        copied, seen = twins_with_copied_views(), []
+        for app, spec in APP_CATALOG.items():
+            if app in copied or (spec or {}).get('sandbox'):
+                continue
+            for route in ('global_progress', 'audio_global_progress'):
+                try:
+                    url = reverse(f'{app}:{route}')
+                except NoReverseMatch:
+                    continue
+                with self.subTest(app=app, route=route):
+                    self._login_for(app)
+                    data = json.loads(self.client.get(url).content)
+                    keys = (self.QUEUE_KEYS if app not in self.NOT_YET_ON_THE_FACTORY
+                            else {'total', 'done', 'overall_progress'})
+                    # Une barre PAR DOMAINE (imager : image, vidéo) porte le contrat dans chacun.
+                    for part in [data] + [v for v in data.values() if isinstance(v, dict)]:
+                        self.assertLessEqual(keys, set(part), part)
+                    seen.append(f'{app}:{route}')
+        self.assertGreaterEqual(len(seen), 10, seen)

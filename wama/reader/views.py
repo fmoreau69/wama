@@ -53,43 +53,53 @@ def _get_user(request):
     return get_or_create_anonymous_user()
 
 
-def _item_to_dict(item: ReadingItem) -> dict:
+def _live_progress(item) -> int:
+    """La progression vivante : le cache du reader est un dict `{'pct', 'msg'}`."""
     cached = cache.get(f'reader_progress_{item.id}')
-    progress = cached.get('pct', item.progress) if cached else item.progress
-    progress_msg = cached.get('msg', '') if cached else ''
+    return cached.get('pct', item.progress) if cached else item.progress
+
+
+def _progress_extra(item: ReadingItem) -> dict:
+    """Les clés PROPRES d'une lecture que le JS du reader lit (card à jour, `upsertCard`)."""
+    cached = cache.get(f'reader_progress_{item.id}')
     return {
-        'id': item.id,
         'filename': item.filename,
         'backend': item.backend,
         'mode': item.mode,
         'output_format': item.output_format,
         'language': item.language,
-        'status': item.status,
-        'progress': progress,
-        'progress_msg': progress_msg,
+        'progress_msg': cached.get('msg', '') if cached else '',
         'page_count': item.page_count,
         'result_preview': _compact_preview(item.result_text) if item.result_text else '',
         'has_result': bool(item.result_text),
         'has_raw_result': bool(item.raw_result),
         'used_backend': item.used_backend,
-        'error_message': item.error_message,
         'analysis': item.analysis,
         'created_at': item.created_at.isoformat(),
-        'estimated_seconds': _reader_eta_seed(item),
     }
 
 
-def _reader_eta_seed(item: ReadingItem) -> float:
-    """Seed ETA (s) tant que l'item n'est pas terminé ; 0 sinon. Défensif."""
-    if item.status not in ('PENDING', 'RUNNING'):
-        return 0.0
-    try:
-        from wama.model_manager.services.eta_estimator import estimate
-        bk = item.used_backend or item.backend  # 'auto' avant résolution → EMA propre à 'auto'
-        return estimate(f'reader:{bk}', size=max(int(item.page_count or 0), 1),
-                        unit='page', model_loaded=True)
-    except Exception:
-        return 0.0
+def _eta_triplet(item: ReadingItem):
+    """Le triplet d'ETA du reader : par moteur (« auto » avant résolution a sa propre moyenne),
+    proportionnel au nombre de pages."""
+    bk = item.used_backend or item.backend
+    return f'reader:{bk}', max(int(item.page_count or 0), 1), 'page', True
+
+
+def _item_to_dict(item: ReadingItem) -> dict:
+    """La card à jour, rendue par les vues qui la créent ou la modifient (dépôt, duplication,
+    réglages) — les mêmes clés que la vue de progression (`_pv`)."""
+    eta = 0.0
+    if item.status in ('PENDING', 'RUNNING'):
+        try:
+            from wama.model_manager.services.eta_estimator import estimate
+            key, size, unit, loaded = _eta_triplet(item)
+            eta = estimate(key, size=size, unit=unit, model_loaded=loaded)
+        except Exception:
+            eta = 0.0
+    return {'id': item.id, 'status': item.status, 'progress': _live_progress(item),
+            'error_message': item.error_message, 'estimated_seconds': eta,
+            **_progress_extra(item)}
 
 
 def _wrap_reading_in_batch(reading):
@@ -484,11 +494,14 @@ def card_html(request, pk: int):
                   {'elem': item, 'in_batch': is_batch_child(item)})
 
 
-def progress(request, pk: int):
-    """Poll the current processing status of an item."""
-    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
-    item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
-    return JsonResponse(_item_to_dict(item))
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
+# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que sa progression vivante (un dict au cache), son triplet d'ETA et ses clés propres.
+from wama.common.utils.progress_views import make_progress_views  # noqa: E402
+
+_pv = make_progress_views(work_model=ReadingItem, get_user=_get_user, app_id='reader',
+                          progress_of=_live_progress, eta_for=_eta_triplet,
+                          extra=_progress_extra)
+progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
 def text_view(request, pk: int):
@@ -895,32 +908,3 @@ def console_content(request):
     return JsonResponse({'lines': lines})
 
 
-def global_progress(request):
-    """Overall reading progress for all items of the current user."""
-    user = _get_user(request)
-    # UNE requête sur les deux colonnes utiles (forme du générateur, `codegen/views_gen.py`) :
-    # la somme des progressions chargeait chaque élément entier (2026-10-03). Même calcul.
-    rows = list(ReadingItem.objects.filter(user=user).values_list('status', 'progress'))
-    total = len(rows)
-    if total == 0:
-        return JsonResponse({'total': 0, 'done': 0, 'running': 0, 'pending': 0,
-                             'error': 0, 'overall_progress': 0})
-
-    def _count(status):
-        return sum(1 for s, _ in rows if s == status)
-
-    done, running = _count('SUCCESS'), _count('RUNNING')
-    pending, error = _count('PENDING'), _count('FAILURE')
-    if done == total:
-        overall_progress = 100
-    else:
-        total_progress = sum(p or 0 for _, p in rows)
-        overall_progress = int(total_progress / total)
-    return JsonResponse({
-        'total': total,
-        'done': done,
-        'running': running,
-        'pending': pending,
-        'error': error,
-        'overall_progress': overall_progress,
-    })
