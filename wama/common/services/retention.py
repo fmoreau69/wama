@@ -39,8 +39,8 @@ RETENTION_MODELS = [
     # `native_outputs` : les fichiers d'origine gardés par la brique de sortie
     # (`common.models.NativeOutputsMixin`) — une app qui hérite le champ le déclare ICI.
     {'model': 'imager.ImageGeneration', 'path_lists': ['generated_images', 'native_outputs']},
-    {'model': 'enhancer.Enhancement'},
-    {'model': 'enhancer.AudioEnhancement'},
+    {'model': 'enhancer.Enhancement', 'path_lists': ['native_outputs']},
+    {'model': 'enhancer.AudioEnhancement', 'path_lists': ['native_outputs']},
     {'model': 'composer.ComposerGeneration', 'path_lists': ['native_outputs']},
     {'model': 'synthesizer.VoiceSynthesis', 'path_lists': ['native_outputs']},
     {'model': 'transcriber.Transcript'},

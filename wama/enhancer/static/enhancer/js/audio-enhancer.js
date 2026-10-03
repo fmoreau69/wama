@@ -228,7 +228,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!window.WamaCycleButton) return;
     const q = document.getElementById('audio-enhancer-queue');
     if (!q) return;
-    WamaCycleButton.wire(q, { start: (id) => startAudio(id), stop: (id) => handleStopAudio(id) });
+    // ▶ d'UN process (bande des process, `data-process`) : route `audio/start/<id>/<process>/`,
+    // réglages STOCKÉS (le volet ne s'applique qu'au lancement complet).
+    WamaCycleButton.wire(q, {
+      start: (id, btn) => {
+        const process = btn && btn.dataset ? btn.dataset.process : '';
+        return startAudio(id, process ? { useStored: true, process: process } : undefined);
+      },
+      stop: (id) => handleStopAudio(id),
+    });
     WamaCycleButton.autoSync({ container: q, cardSelector: '.synthesis-card' });
   })();
 
@@ -242,7 +250,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // relire sur le gear. La card se re-rend du serveur au passage RUNNING (updateRow).
     try {
       const body = (opts && opts.useStored) ? {} : panelAudioBody();
-      const resp = await fetch(getUrl(cfg.audioStartUrlTemplate, id), {
+      const bounded = opts && opts.process ? opts.process + '/' : '';
+      const resp = await fetch(getUrl(cfg.audioStartUrlTemplate, id) + bounded, {
         method: 'POST',
         headers: csrfHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),

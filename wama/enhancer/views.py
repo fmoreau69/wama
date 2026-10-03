@@ -169,12 +169,21 @@ def _auto_wrap_audio_orphans(user):
     )
 
 
+def _decorate_processes(item, model_key):
+    """Les PROCESS de la card (« Amélioration → Sortie ») et son état MONTRÉ, par la brique
+    commune (`process_pipeline.decorate`, `ROUTE §10.6` 5.1) — pour les deux files."""
+    from wama.common.services.process_pipeline import decorate
+    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
+    decorate(item, model_key or 'auto')
+
+
 def _decorate_media_card(e):
     """Chips de card générés du SCHÉMA (card_chips) — remplace les badges hand-built.
     Point d'attache UNIQUE : IndexView ET card_html."""
     from wama.common.utils.card_chips import chips_by_section
     from wama.enhancer.params import MEDIA_PARAMS_JSON
     e.chips = chips_by_section(e, MEDIA_PARAMS_JSON)
+    _decorate_processes(e, e.ai_model)
     return e
 
 
@@ -182,7 +191,19 @@ def _decorate_audio_card(ae):
     from wama.common.utils.card_chips import chips_by_section
     from wama.enhancer.params import AUDIO_PARAMS_JSON
     ae.chips = chips_by_section(ae, AUDIO_PARAMS_JSON)
+    _decorate_processes(ae, ae.engine)
     return ae
+
+
+def _bounded(process):
+    """`process` d'une route `start/<pk>/<process>/` : None (lancement complet), la clé d'un
+    process du pipeline, ou une `JsonResponse` de refus."""
+    if not process:
+        return None
+    from .function_specs import PIPELINE
+    if process not in {s.key for s in PIPELINE.specs}:
+        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
+    return process
 
 
 def _input_match_meta_enhancer():
@@ -496,9 +517,13 @@ def stop(request, pk: int):
 
 
 @require_POST
-def start(request, pk: int):
-    """Start enhancement processing."""
+def start(request, pk: int, process: str = None):
+    """Start enhancement processing. `process` (route `start/<pk>/<process>/`) : lancement BORNÉ
+    à ce process — refaire la sortie seule (format, qualité) sans relancer l'amélioration."""
     logger.info(f"=== START ENHANCEMENT {pk} ===")
+    process = _bounded(process)
+    if isinstance(process, JsonResponse):
+        return process
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
@@ -529,7 +554,8 @@ def start(request, pk: int):
 
     from .tasks import enhance_media
     try:
-        task = enhance_media.delay(pk)
+        task = (enhance_media.apply_async(args=(pk,), kwargs={'process': process})
+                if process else enhance_media.delay(pk))
         enhancement.task_id = task.id
         enhancement.save(update_fields=['task_id'])
         return JsonResponse({'task_id': task.id, 'status': 'RUNNING'})
@@ -557,10 +583,12 @@ def _audio_eta_triplet(ae):
 # 2026-10-03) — l'app n'y déclare que ses triplets d'ETA, pour ses DEUX files (média, audio).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=Enhancement, app_id='enhancer', eta_for=_eta_triplet)
+_pv = make_progress_views(work_model=Enhancement, app_id='enhancer', eta_for=_eta_triplet,
+                          pipeline_model=lambda e: e.ai_model or 'auto')
 progress, global_progress = _pv['progress'], _pv['global_progress']
 _apv = make_progress_views(work_model=AudioEnhancement, app_id='audio_enhancer',
-                           eta_for=_audio_eta_triplet)
+                           eta_for=_audio_eta_triplet,
+                           pipeline_model=lambda a: a.engine or 'auto')
 audio_progress, audio_global_progress = _apv['progress'], _apv['global_progress']
 
 
@@ -1175,9 +1203,12 @@ def audio_update(request, pk: int):
 
 
 @require_POST
-def audio_start(request, pk: int):
-    """Start audio enhancement processing."""
+def audio_start(request, pk: int, process: str = None):
+    """Start audio enhancement processing. `process` : lancement BORNÉ à ce process."""
     import json as _json
+    process = _bounded(process)
+    if isinstance(process, JsonResponse):
+        return process
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
@@ -1207,7 +1238,8 @@ def audio_start(request, pk: int):
 
     from .tasks import enhance_audio
     try:
-        task = enhance_audio.delay(pk)
+        task = (enhance_audio.apply_async(args=(pk,), kwargs={'process': process})
+                if process else enhance_audio.delay(pk))
         ae.task_id = task.id
         ae.save(update_fields=['task_id'])
         return JsonResponse({'task_id': task.id, 'status': 'RUNNING'})

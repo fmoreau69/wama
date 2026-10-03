@@ -1,10 +1,11 @@
 from django.db import models
 from django.contrib.auth.models import User
-from wama.common.models import ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
+from wama.common.models import (JOB_STATUS_CHOICES, NativeOutputsMixin, ProcessingTimeMixin,
+                                ScopedManager, ScopedVisibility)
 from wama.common.utils.media_paths import UploadToUserPath, upload_to_user_input
 
 
-class Enhancement(ProcessingTimeMixin, ScopedVisibility):
+class Enhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     """
     Represents an image or video enhancement task.
 
@@ -136,7 +137,7 @@ class Enhancement(ProcessingTimeMixin, ScopedVisibility):
         return os.path.basename(self.output_file.name) if self.output_file else ''
 
 
-class AudioEnhancement(ProcessingTimeMixin, ScopedVisibility):
+class AudioEnhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     """
     Represents an audio speech enhancement task.
     Engines: Resemble Enhance (quality) | DeepFilterNet 3 (speed).

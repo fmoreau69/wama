@@ -232,7 +232,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Bouton de cycle commun ▶/⏹/↻ (image/vidéo) : wire délégué + auto-sync sur data-status.
   if (window.WamaCycleButton && queueTable) {
-    WamaCycleButton.wire(queueTable, { start: (id) => handleRestartEnhancement(id), stop: (id) => handleStopEnhancement(id) });
+    // ▶ d'UN process (bande des process, `data-process`) : route `start/<id>/<process>/`.
+    WamaCycleButton.wire(queueTable, {
+      start: (id, btn) => handleRestartEnhancement(id, { process: btn && btn.dataset ? btn.dataset.process : '' }),
+      stop: (id) => handleStopEnhancement(id),
+    });
     WamaCycleButton.autoSync({ container: queueTable, cardSelector: '.synthesis-card' });
   }
 
@@ -251,7 +255,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Corps VIDE : le lancement lit les réglages STOCKÉS de l'item (modale/volet écrivent
     // AVANT — modèle événementiel ; l'ancien corps relisait le formulaire d'une modale maison).
-    fetch(getUrl(config.startUrlTemplate, id), {
+    const bounded = opts && opts.process ? opts.process + '/' : '';
+    fetch(getUrl(config.startUrlTemplate, id) + bounded, {
       method: 'POST',
       headers: csrfHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({}),
