@@ -1,0 +1,58 @@
+{
+  "body": {
+    "app": "enhancer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "enhancer.tasks:enhance_media",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "L'image, la vidéo ou l'audio à améliorer.",
+        "group": "travail",
+        "key": "work_media",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "enhancer.generate",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "Le média amélioré, tel que le moteur l'écrit.",
+        "key": "native",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "image",
+      "video",
+      "audio",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Agrandit une image ou une vidéo avec le modèle désigné ou tiré (débruitage, mélange avec l'original, tuiles), ou restaure la parole d'un audio (débruitage, amélioration).",
+  "key": "enhancer.generate",
+  "manifest_kind": "function",
+  "name": "Enhancer — améliorer",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:enhancer.generate",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

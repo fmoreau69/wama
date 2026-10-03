@@ -31,26 +31,60 @@ logger = logging.getLogger(__name__)
 
 # ── Tâches : squelette commun ───────────────────────────────────────────────────────────
 
+# La card porte un PIPELINE de deux process (`function_specs.PIPELINE`) : `generate` (la glu de sa
+# file) puis `output` (`_output`, format et qualité — brique commune). Un lancement ne rejoue que
+# ce qui n'est plus à jour : changer le format ne relance pas l'amélioration. `process` borne le
+# lancement à UN process (⚠ argument de tâche nouveau : workers à relancer).
+
+def _forget_lost(model, pk) -> None:
+    """La sortie repart du fichier que l'amélioration a laissé : s'il n'est plus là, elle rejoue."""
+    from wama.common.services.output_process import forget_lost_generation
+    known = model.objects.filter(pk=pk).first()
+    if known is not None:
+        forget_lost_generation(known, 'output_file', 'generate')
+
+
 @shared_task(bind=True)
-def enhance_media(self, enhancement_id: int):
+def enhance_media(self, enhancement_id: int, process: str = None):
     """Amélioration image / vidéo (file `gpu`)."""
     from wama.common.utils.task_skeleton import run_item_task
+    from .function_specs import PIPELINE
+    _forget_lost(Enhancement, enhancement_id)
     run_item_task(self, app_id='enhancer', model=Enhancement, item_id=enhancement_id,
-                  process=_enhance_media, ingest_derive=_derive_media_type,
+                  pipeline=PIPELINE, processes={'generate': _enhance_media, 'output': _output},
+                  ingest_derive=_derive_media_type,
                   vram_needed=lambda e: _vram_needed(f'enhancer:{_media_model(e)}'),
                   model_key=lambda e: f'enhancer:{_media_model(e)}',
-                  notify_label='Enhancer')
+                  notify_label='Enhancer', only=process)
 
 
 @shared_task(bind=True)
-def enhance_audio(self, audio_enhancement_id: int):
+def enhance_audio(self, audio_enhancement_id: int, process: str = None):
     """Restauration de parole (Resemble Enhance / DeepFilterNet 3)."""
     from wama.common.utils.task_skeleton import run_item_task
+    from .function_specs import PIPELINE
+    _forget_lost(AudioEnhancement, audio_enhancement_id)
     run_item_task(self, app_id='audio_enhancer', model=AudioEnhancement,
-                  item_id=audio_enhancement_id, process=_enhance_audio,
+                  item_id=audio_enhancement_id,
+                  pipeline=PIPELINE, processes={'generate': _enhance_audio, 'output': _output},
                   vram_needed=lambda a: _vram_needed(f'enhancer:{_audio_engine(a)}'),
                   model_key=lambda a: f'enhancer:{_audio_engine(a)}',
-                  notify_label='Enhancer (audio)')
+                  notify_label='Enhancer (audio)', only=process)
+
+
+def _output(item, ctx):
+    """GLU du process `output` (les DEUX files) : format et qualité de sortie, par la glu COMMUNE
+    (`output_process.output_step`) — le fichier amélioré d'origine est gardé tant que la sortie
+    le transforme. La taille relevée est celle du fichier FINAL (file image/vidéo)."""
+    from wama.common.services.output_process import output_step
+    media = isinstance(item, Enhancement)
+    domain = ((item.media_type or 'image') if media else 'audio')
+
+    def sizes(_item, finals):
+        return {'output_file_size': os.path.getsize(finals[0])} if media else {}
+
+    return output_step('output_file', domain=domain, app_id='enhancer',
+                       extra_fields=sizes)(item, ctx)
 
 
 # ── Tirage « auto » AU LANCEMENT (curseur C, 2026-09-21) ──────────────────────────────────
@@ -111,8 +145,9 @@ def _store_output(item, local_path: str, storage_name: str) -> str:
     from django.core.files.storage import default_storage
     # L'ancien résultat : par la brique (propriété + partage) — une copie faite par « Dupliquer »
     # peut encore le désigner. La référence est remplacée plus bas dans tous les cas.
-    from wama.common.utils.queue_duplication import safe_delete_file
-    safe_delete_file(item, 'output_file')
+    # (`drop_previous_outputs` retire aussi l'original que la brique de sortie en gardait.)
+    from wama.common.services.output_process import drop_previous_outputs
+    drop_previous_outputs(item, 'output_file')
     if default_storage.exists(storage_name):
         try:
             default_storage.delete(storage_name)
@@ -172,19 +207,20 @@ def _enhance_media(enhancement, ctx):
             clear_partial('enhancer', enhancement.id)   # la face SORTIE prend le relais
 
     enhancement.output_file.name = saved
-    _apply_enhancer_output_format(enhancement)          # conversion inline (converter)
     ctx.progress(95)
-    return {
-        'fields': {
+    # Le format et la qualité de sortie sont le process suivant, `output` (`_output`).
+    from wama.common.services.output_process import generated
+    return generated(
+        [enhancement.output_file.path],
+        fields={
             'output_file': enhancement.output_file.name,
             'output_width': int(produced.get('width') or 0),
             'output_height': int(produced.get('height') or 0),
             'output_file_size': file_size,
         },
-        'eta': enhancer_eta_key_size(enhancement, model=model),
-        'label': output_filename,
-        'models': [f'enhancer:{model}'],
-    }
+        eta=enhancer_eta_key_size(enhancement, model=model),
+        label=output_filename,
+        models=[f'enhancer:{model}'])
 
 
 def _during_preview(enhancement):
@@ -248,16 +284,16 @@ def _enhance_audio(ae, ctx):
             ae, local, f"{app_media_dir('enhancer', ae.user_id, 'output/audio')}/{output_filename}")
 
     ae.output_file.name = saved
-    _apply_enhancer_output_format(ae)                   # conversion inline (converter)
-    return {
-        'fields': {'output_file': ae.output_file.name},
-        'eta': audio_enhancer_eta_key_size(ae, engine=engine),
-        'label': output_filename,
-        'models': [f'enhancer:{engine}'],
-    }
+    from wama.common.services.output_process import generated
+    return generated(
+        [ae.output_file.path],
+        fields={'output_file': ae.output_file.name},
+        eta=audio_enhancer_eta_key_size(ae, engine=engine),
+        label=output_filename,
+        models=[f'enhancer:{engine}'])
 
 
-# ── Partagé avec les vues (ETA) et la conversion de sortie ─────────────────────────────
+# ── Partagé avec les vues (ETA) ─────────────────────────────────────────────────────────
 
 def enhancer_eta_key_size(enhancement, model: str = None) -> tuple[str, float, str]:
     """(model_key, size, unit) pour le seeding ETA d'une Enhancement image/vidéo.
@@ -279,23 +315,3 @@ def audio_enhancer_eta_key_size(ae, engine: str = None) -> tuple[str, float, str
     return f'enhancer:audio:{engine}', float(getattr(ae, 'duration', 0) or 0), 'audio_sec'
 
 
-def _apply_enhancer_output_format(obj) -> None:
-    """Convert the enhanced output to the user-chosen format (Phase 3).
-
-    Works for both Enhancement (image/video) and AudioEnhancement (audio).
-    Updates obj.output_file in place; no-op when output_format is 'original'.
-    """
-    fmt = (getattr(obj, 'output_format', '') or 'original').lower()
-    if fmt in ('', 'original') or not obj.output_file:
-        return
-    try:
-        from django.conf import settings
-        from wama.converter.utils.inline_convert import apply_inline_conversion
-        new_path = apply_inline_conversion(
-            obj.output_file.path, fmt,
-            getattr(obj, 'output_quality', 'balanced') or 'balanced',
-        )
-        rel = os.path.relpath(new_path, settings.MEDIA_ROOT).replace('\\', '/')
-        obj.output_file.name = rel
-    except Exception as exc:
-        logger.warning(f"[enhancer] conversion format sortie échouée: {exc}")

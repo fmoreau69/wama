@@ -1,0 +1,58 @@
+{
+  "body": {
+    "app": "enhancer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "enhancer.tasks:enhance_media",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "Le média amélioré d'origine.",
+        "group": "travail",
+        "key": "native",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "enhancer.output",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "Le média amélioré au format demandé.",
+        "key": "result",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "image",
+      "video",
+      "audio",
+      "format"
+    ],
+    "visibility": "public"
+  },
+  "description": "Applique le format et la qualité de sortie de la card au média amélioré. Garde le fichier d'origine tant que la sortie le transforme, pour se rejouer sans relancer l'amélioration.",
+  "key": "enhancer.output",
+  "manifest_kind": "function",
+  "name": "Enhancer — réglages de sortie",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:enhancer.output",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}
