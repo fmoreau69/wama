@@ -160,3 +160,16 @@ le RENDU RÉEL, pas la structure du code.
 - ⚠ Arrêter le serveur 8011 en fin de mesure ; ne JAMAIS déclencher de tâche Celery depuis
   venv_win (deux Redis). Les scénarios sèment sous le compte de test nocturne et nettoient.
 - Mesuré : C 6/6, E 7/7, F 6/6 sur le chantier médiathèque du 18/09, contre un live en 404.
+- 🔴 **Dès que la mesure touche à un MOTEUR, le serveur jetable se lance CÔTÉ WSL** (vécu le
+  2026-10-03) : sous venv_win, l'exécutabilité est jugée sur l'hôte Windows — MusicGen, AudioGen
+  et YuE2 sortaient « moteur sans backend installé », donc **grisés** dans le select, et la borne
+  de durée par capacité était inobservable. ✅ `wsl.exe -e bash -lc 'cd /mnt/d/WAMA/… && exec
+  venv_linux/bin/python manage.py runserver 127.0.0.1:8011 --noreload'` en tâche de fond, et le
+  script d'observation lancé AUSSI sous WSL (Playwright et Chromium y sont ; `127.0.0.1:8011` y
+  désigne bien ce serveur). La recette venv_win ci-dessus reste valable pour une page sans moteur.
+  ⚠ Pour l'arrêter, `pkill -f "[r]unserver 127.0.0.1:8011"` — le crochet évite que `pkill -f` ne
+  tue le `bash -lc` qui le porte (son motif figure dans sa propre ligne de commande ; vécu deux
+  fois le même soir, exit 15 avant la commande suivante).
+- ⚠ **Le compte de test nocturne n'a pas forcément de card dans l'app visée** : mesuré, seul
+  `wama_ui_smoke_v3` portait une card dans CHACUNE des apps ; une observation du volet se fait sous
+  ce compte (session forgée comme `_test_session_key`, retirée ensuite).
