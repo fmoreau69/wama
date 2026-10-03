@@ -2125,7 +2125,7 @@ pour une sortie du composer d'une minute (voix + instrument, tempo, tonalité, s
 sur la gamme, les 32 notes exactes + une parasite (98,5 %). Licence cc-by-nc-4.0 (même régime que
 MusicGen, `LICENSING.md`).
 
-⏳ **Pas encore** : le process `extract_score` du pipeline du composer et `work_audio` → partition →
-YuE2 `cot="melody"` (chantier pipeline, à coordonner) ; rechargement des workers pour importer le
-backend. ⚠ Relevé au passage, hors de ce périmètre : `$HOME/.cache/huggingface/hub` porte 13 Go de
+✅ **Le jour même** : process `composer.extract_score` et YuE2 `cot="melody"` câblés, coordonnés avec
+l'instance du pipeline (`ROUTE §10.6`). ⏳ **Pas encore** : la 1ʳᵉ reprise réelle sur GPU ;
+rechargement des workers pour importer le backend et le process. ⚠ Relevé au passage, hors de ce périmètre : `$HOME/.cache/huggingface/hub` porte 13 Go de
 dépôts déposés hors `AI-models` (Supra2-IMG, LinTO, MuseTalk, Higgs, Kokoro…).

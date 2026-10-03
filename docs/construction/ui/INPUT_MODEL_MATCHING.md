@@ -501,7 +501,11 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
   2026-10-03** — tâche `audio-to-score`, contrat `ScoreExtractionBackend`, backend validé et
   essayé (`PROSPECTION_PIPELINE.md §Session du 2026-10-03`). L'« environnement séparé » annoncé ici
   était faux : il tourne dans le venv de référence (transformers 4.57.6, deux librairies ajoutées).
-  ⏳ Reste : process `extract_score` au pipeline du composer, `cot="melody"` au backend YuE2.
+  ✅ **Câblé le jour même** : process `composer.extract_score` (audio → partition, mélodie
+  seule), puis YuE2 en `cot="melody"` ; la card accepte l'audio d'un cover pour YuE2 dès qu'un
+  modèle d'extraction est installé (`model_choice.accepts_input`, `ROUTE §10.6`). ⏳ Reste : la
+  1ʳᵉ reprise réelle sur GPU ; et sous « auto », un audio de cover tire toujours MusicGen
+  Melody (qui le prend directement) — YuE2 n'est employé que choisi.
 
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 

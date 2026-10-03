@@ -16,12 +16,27 @@ log. La VRAM du processus est libérée à `unload()` via
 
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Callable, Optional
 
 from .music_generation_base import MusicGenerationBackend, split_caption_lyrics
 
 logger = logging.getLogger(__name__)
+
+#: Un symbole d'ACCORD dans le corps d'un ABC : `"C"`, `"Am7"`, `"F#m/C#"` — la forme que rendent
+#: SheetSage2 et la planification de YuE2 (mesuré le 2026-10-03). Les lignes d'en-tête sont
+#: écartées avant : `V: … name="Vocal Melody"` porte aussi des guillemets.
+_ABC_CHORD = re.compile(r'"[A-G][#b]?[^"]*"')
+_ABC_HEADER = re.compile(r'^\s*(?:[A-Za-z]:|%)')
+
+
+def cot_for_score(abc: str) -> str:
+    """Le mode de YuE2 que la partition DIT : `melody` pour une mélodie sans accords — la chaîne
+    du COVER que prescrit la doc du moteur (SheetSage2 `melody_only` → `cot="melody"`) —, `full`
+    dès qu'un accord est écrit (partition éditée, partition planifiée)."""
+    body = (line for line in (abc or '').splitlines() if not _ABC_HEADER.match(line))
+    return 'full' if any(_ABC_CHORD.search(line) for line in body) else 'melody'
 
 # ----------------------------------------------------------------------
 # Inventaire des modèles supportés (module‑level)
@@ -313,12 +328,18 @@ class YuE2Backend(MusicGenerationBackend):
         #   pipe(style=..., lyrics=..., cot="full", seed=...)
         # On utilise un seed fixe (`SEED`) si le compositeur n’en fournit pas.
         seed = self.SEED
+        # `cot` DÉDUIT de la partition fournie (2026-10-03) : une mélodie sans accords — celle
+        # qu'extrait le process `extract_score` d'un cover — se joue en `melody` ; sans partition,
+        # ou avec des accords, `full` comme avant.
+        cot = cot_for_score(abc) if abc else "full"
+        if abc:
+            logger.info("[YuE2Backend] partition fournie → cot=%s", cot)
         try:
             # Le pipeline accepte les arguments *style* et *lyrics*.
             song_result = self._pipeline(
                 style=style,
                 lyrics=lyrics,
-                cot="full",
+                cot=cot,
                 seed=seed,
                 **({"abc": abc} if abc else {}),
             )

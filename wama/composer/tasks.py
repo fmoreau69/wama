@@ -40,7 +40,8 @@ def compose_task(self, generation_id: int, process: str | None = None):
     from .function_specs import PIPELINE
     try:
         run_item_task(self, app_id='composer', model=ComposerGeneration, item_id=generation_id,
-                      pipeline=PIPELINE, processes={'plan': _plan, 'render': _render},
+                      pipeline=PIPELINE,
+                      processes={'extract_score': _extract_score, 'plan': _plan, 'render': _render},
                       vram_needed=_vram_needed, model_key=_model_key, notify_label='Composer',
                       only=process)
     finally:
@@ -189,6 +190,62 @@ def _output_place(gen, ctx, catalog_key, ext, nature=''):
 
 # ── Glu ──────────────────────────────────────────────────────────────────────────────────────
 
+def _extract_score(gen, ctx):
+    """GLU du process `extract_score` (2026-10-03) : l'audio du morceau à reprendre → sa partition
+    (mélodie seule, la forme qu'un cover reprend), rangée comme une sortie de la card
+    (`extracted_score`).
+
+    Le modèle n'est PAS celui de la card : c'est celui de la tâche `audio-to-score`, tiré par le
+    sélecteur commun. Son backend est propre à ce process et DÉCHARGÉ aussitôt — la carte
+    graphique revient entière au rendu (YuE2), qui suit. La ligne d'exécution porte ce modèle
+    (`models`)."""
+    import tempfile
+
+    from django.conf import settings
+    from wama.common.backends.manager import backend_for_key
+    from wama.common.utils.model_keys import model_id
+    from .utils.model_choice import score_extractor
+
+    extractor_key = score_extractor()
+    if not extractor_key:
+        raise RuntimeError("Aucun modèle d'extraction de partition n'est installé "
+                           "(tâche « audio-to-score ») — l'audio du cover ne peut pas être repris.")
+    if not gen.melody_reference:
+        raise RuntimeError("Aucun audio à reprendre : le fichier du cover est absent.")
+    backend_class = backend_for_key(extractor_key)
+    if backend_class is None:
+        raise RuntimeError(f"« {extractor_key} » : aucun backend résolu depuis le catalogue.")
+    audio_abs = os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
+    ctx.console(f"[Composer] Partition extraite de l'audio : {extractor_key} — "
+                f"{os.path.basename(gen.melody_reference.name)}")
+    backend = backend_class()
+    try:
+        with tempfile.TemporaryDirectory() as annexes:   # MIDI, temps, accords : non gardés
+            text = backend.extract_score(model_id=model_id(extractor_key), audio_path=audio_abs,
+                                         output_dir=annexes, melody_only=True,
+                                         progress_callback=ctx.progress)
+    except Exception:
+        ctx.reset_progress()
+        raise
+    finally:
+        try:
+            backend.unload()
+        except Exception:
+            logger.warning("[composer] modèle d'extraction de #%s non déchargé", gen.pk,
+                           exc_info=True)
+    rel_dir, name, abs_path = _output_place(gen, ctx, extractor_key, '.abc', nature='score')
+    with open(abs_path, 'w', encoding='utf-8') as handle:
+        handle.write(text)
+    score_rel = f'{rel_dir}/{name}'
+    return {
+        'fields': {'extracted_score': score_rel},
+        'output_ref': score_rel,
+        'label': name,
+        'console_success': f"✓ Partition extraite : {name}",
+        'models': [extractor_key],
+    }
+
+
 def _plan(gen, ctx):
     """GLU du process `plan` (contrat `task_skeleton`) : la consigne → une partition ABC, rangée
     comme une sortie de la card (`planned_score`). N'est jouée que pour un modèle dont le moteur
@@ -246,8 +303,11 @@ def _render(gen, ctx):
 
     output_rel_dir, output_filename, output_abs_path = _output_place(gen, ctx, catalog_key, '.wav')
 
+    # L'audio du cover n'est donné qu'au modèle qui le prend LUI-MÊME (MusicGen Melody) : un modèle
+    # qui le reprend par sa partition (YuE2) le refuserait — il reçoit la partition extraite.
+    from .utils.model_choice import consumes_melody
     melody_abs = (os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
-                  if gen.melody_reference else None)
+                  if gen.melody_reference and consumes_melody(catalog_key) else None)
     # Partition à suivre : celle que l'utilisateur FOURNIT (port `reference_score`, 2026-10-01)
     # prime ; sinon celle que le process `plan` a écrite (`planned_score` — à ce lancement, ou à
     # un précédent dont le résultat vaut encore). Passée au contrat de la tâche (`score_path`) —
@@ -299,11 +359,16 @@ def _render(gen, ctx):
 def _score_to_follow(gen, catalog_key) -> str:
     """Chemin (relatif à MEDIA_ROOT) de la partition que le rendu suit, '' s'il n'y en a pas.
 
-    La partition FOURNIE prime. Celle du process `plan` n'est suivie que par un modèle qui
-    planifie : une card passée d'un modèle à partition à un modèle qui n'en prend pas garde son
-    ancien `planned_score` en base — le lui donner le ferait refuser le rendu."""
-    from .function_specs import plans_a_score
+    La partition FOURNIE prime ; puis celle EXTRAITE de l'audio du cover, tant que le process
+    `extract_score` vaut pour la card (audio retiré, modèle changé : l'ancienne n'est plus suivie) ;
+    puis celle du process `plan`, suivie seulement par un modèle qui planifie : une card passée
+    d'un modèle à partition à un modèle qui n'en prend pas garde son ancien `planned_score` en
+    base — le lui donner le ferait refuser le rendu."""
+    from .function_specs import _extract_applies, plans_a_score
     if gen.reference_score:
         return gen.reference_score.name
+    extracted = getattr(gen.extracted_score, 'name', gen.extracted_score) or ''
+    if extracted and _extract_applies(gen, catalog_key):
+        return extracted
     planned = getattr(gen.planned_score, 'name', gen.planned_score) or ''
     return planned if planned and plans_a_score(catalog_key) else ''

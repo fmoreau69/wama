@@ -491,9 +491,13 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertIsNotNone(manifest, 'the registry is not a pipeline source')
         self.assertEqual([], validate(manifest))
         self.assertEqual('media', manifest['world'])
-        self.assertEqual([('plan', 'composer.plan'), ('render', 'composer.render')],
+        self.assertEqual([('extract_score', 'composer.extract_score'), ('plan', 'composer.plan'),
+                          ('render', 'composer.render')],
                          [(node['id'], node['function']) for node in manifest['body']['nodes']])
-        self.assertEqual([{'from': 'plan', 'to': 'render', 'to_port': None}],
+        # Two ALTERNATIVE upstreams of the render (2026-10-03): the score comes from the cover
+        # audio, or from the prompt.
+        self.assertEqual([{'from': 'extract_score', 'to': 'render', 'to_port': None},
+                          {'from': 'plan', 'to': 'render', 'to_port': None}],
                          manifest['body']['links'])
 
     def test_the_export_command_lists_it(self):
@@ -501,7 +505,7 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertIn('composer', _pipeline_keys())
 
     def test_the_task_has_a_glue_for_every_process(self):
-        self.assertEqual({'plan', 'render'}, {spec.key for spec in PIPELINE.specs})
+        self.assertEqual({'extract_score', 'plan', 'render'}, {spec.key for spec in PIPELINE.specs})
         for spec in PIPELINE.specs:
             self.assertTrue(callable(getattr(tasks, f'_{spec.key}')), spec.key)
 
