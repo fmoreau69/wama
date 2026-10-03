@@ -452,6 +452,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     _feat = _features_effective(session)
     _family_gate = _feat.get('class_family_gate', True)
     _same_cam_excl = _feat.get('same_camera_exclusion', True)
+    _center_place = _feat.get('vehicle_center_placement', False)
+    from wama_data.functions.geometry.shapes import visible_face_to_center
     # ── Artefacts collés à l'image (reflets de vitrage) — chantier 1, 2026-07-19 ──
     # Détectés par cinématique pure AVANT l'association : bbox quasi immobile pendant
     # que la navette avance = pas un objet du monde. Marqués (jamais supprimés) et
@@ -580,6 +582,21 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     _psrc = 'pinhole_relaxed'
                 d['placement_source'] = _psrc
                 _src_counts[_psrc] += 1
+                # ⚑ vehicle_center_placement (2026-10-03) : le point mesuré est le bas-centre de la
+                # boîte — le contact au sol de la FACE VUE, pas le centre du véhicule. Repoussé le
+                # long de la ligne de visée jusqu'au centre (`visible_face_to_center`). Axe du
+                # véhicule : la vitesse de son track s'il roule, sinon parallèle à la navette (garés
+                # le long de la voie). Constat de Fabien, 511,8 s : garés étiquetés 4-5 m, dessinés à
+                # moitié sur la voie, donc jamais reconnus garés (rejet « sur_voie »).
+                if _center_place:
+                    _dims = CLASS_DIMS.get(d.get('class_name'))
+                    if _dims:
+                        _axis = 0.0                              # repère navette, horaire
+                        _lk = chain.get((pos, d.get('track_id'))) if d.get('track_id') is not None else None
+                        _tr = by_gid.get(_lk['gid']) if _lk and (t - _lk['t']) <= 4.0 else None
+                        if _tr is not None and math.hypot(_tr['ve'], _tr['vn']) > 1.5:
+                            _axis = math.degrees(math.atan2(_tr['ve'], _tr['vn'])) - sh
+                        ego = visible_face_to_center(ego[0], ego[1], _dims[0], _dims[1], _axis - _g['yaw'])
                 xv, yv = _cam_to_vehicle(ego[0], ego[1], _g['yaw'])
                 xv, yv = xv + _g['mount'][0], yv + _g['mount'][1]
                 e, n = ego_to_world(se, sn, sh, xv, yv)
@@ -961,17 +978,22 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             return 'pres_intersection'
         return 'retenu'
 
+    # Porte de sortie PAR TRACK (2026-10-03) : « pourquoi ce véhicule n'est-il pas garé ? » se
+    # répondait par un compteur global — la question de Fabien à 511,8 s portait sur SIX voitures.
+    _gate_by_gid = {}
     for gid, hist in track_hist.items():
         hs = sorted(hist)
         d = track_descriptors(hs)
         dur = d['duree']
         if d['n_obs'] < 5:
             _rejets['moins_de_5_obs'] += 1
+            _gate_by_gid[gid] = 'moins_de_5_obs'
             continue
         _candidats.append(d)
         if dur < 4.0:
             _rejets['vu_moins_de_4s'] += 1
             d['porte'] = 'vu_moins_de_4s'
+            _gate_by_gid[gid] = 'vu_moins_de_4s'
             continue
         compact = _compactness_gate(d, hs)
         if compact == 'retenu':
@@ -991,11 +1013,13 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     porte = 'en_mouvement'
             _rejets[porte] += 1
             d['porte'] = porte
+            _gate_by_gid[gid] = porte
             if porte == 'retenu':
                 stationary_gids.append(gid)
             continue
         _rejets[compact] += 1
         d['porte'] = compact
+        _gate_by_gid[gid] = compact
         if compact == 'retenu':
             stationary_gids.append(gid)
     _stat_set = set(stationary_gids)
@@ -1300,6 +1324,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'placement_spread': placement_spread,
             'placement_sources': dict(_src_counts),
             'stationary_rejects': _rejets,
+            'stationary_gate_by_gid': _gate_by_gid,
             'stationary_rule': _stationary_rule,
             'stationary_candidates': _stat_candidats,
             'stable_class_fragiles': _cls_fragiles,

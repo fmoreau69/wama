@@ -137,6 +137,14 @@ FEATURES = [
             "objets, les largeurs de voie vues, le cap par ratio et la projection sol : "
             "calibration sol, recalage voie + carte et calculs sont à rejouer après bascule.",
             default=False, scope='compute'),
+    Feature('vehicle_center_placement', 'Véhicules placés par leur CENTRE',
+            "Une caméra place un véhicule par le bas de sa boîte : le contact au sol de la face qu'elle "
+            "VOIT. Vu de profil il était placé une demi-largeur trop près (≈ 0,9 m), vu de dos une "
+            "demi-longueur (≈ 2,25 m) — et dessiné centré sur ce point, donc à moitié sur la voie pour "
+            "un garé vu par une latérale, qui n'était alors jamais reconnu garé. Le point est repoussé "
+            "le long de la ligne de visée jusqu'au centre (axe : vitesse du véhicule s'il roule, sinon "
+            "parallèle à la navette). Change tous les placements : calculs à rejouer après bascule.",
+            default=False, scope='compute'),
     Feature('stitch_one_to_one', 'Recollement un pour un',
             "Le recollement des morceaux de trajectoire (un objet coupé en deux, par exemple en "
             "zone aveugle) ne prolonge une fin de trajectoire qu'UNE fois, et jamais vers un groupe "
