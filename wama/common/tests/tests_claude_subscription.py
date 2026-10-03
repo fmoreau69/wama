@@ -219,3 +219,91 @@ class AFailureMustBeReadableTests(TestCase):
                                                             'Claude AI usage limit reached'}):
             result = ask_claude_code(user, 'audite le dépôt')
         self.assertIn('usage limit reached', result.get('error', ''))
+
+
+@override_settings(SECRET_KEY='k' * 50, SECRET_KEY_FALLBACKS=[])
+class SubscriptionModelsTests(TestCase):
+    """L'abonnement a PLUSIEURS modèles, et dit lequel a répondu (2026-10-04).
+
+    Question de Fabien : « en abonnement je n'ai accès qu'à un seul modèle et je ne sais même pas
+    lequel ». La source déclarait une ligne unique, et l'identifiant choisi au sélecteur était
+    abandonné avant l'appel. Les modèles sont les ALIAS du CLI (`claude --model`), DÉCLARÉS sur
+    la source ; le modèle réellement servi se lit dans la réponse du CLI.
+    Aucun réseau, aucun CLI : `subprocess.run` est remplacé par un double.
+    """
+
+    ANSWER = ('{"result": "ok", "total_cost_usd": 0.03, "duration_ms": 1200, "modelUsage": {'
+              '"claude-haiku-4-5": {"outputTokens": 12}, "claude-opus-5-5": {"outputTokens": 480}}}')
+
+    def _run_cli(self, **kwargs):
+        from unittest.mock import Mock
+        from wama.common.services import claude_code
+        done = Mock(returncode=0, stdout=self.ANSWER, stderr='')
+        with patch.object(claude_code, 'chemin_cli', return_value='claude'), \
+                patch.object(claude_code.subprocess, 'run', return_value=done) as run:
+            result = claude_code.demander('question', **kwargs)
+        return result, run
+
+    def test_the_source_lists_the_aliases_of_the_cli(self):
+        from wama.common.services.claude_code import declared_model_ids
+        self.assertEqual(('default', 'fable', 'opus', 'sonnet'), declared_model_ids())
+
+    def test_a_chosen_alias_reaches_the_cli(self):
+        result, run = self._run_cli(model='opus')
+        command = run.call_args.args[0]
+        self.assertEqual(['--model', 'opus'], command[command.index('--model'):][:2])
+        self.assertTrue(result['success'])
+
+    def test_the_default_model_lets_the_cli_choose(self):
+        """Contre-épreuve : « défaut » (ou rien) ne passe aucun `--model` — le comportement d'avant."""
+        for model in ('default', ''):
+            _result, run = self._run_cli(model=model)
+            self.assertNotIn('--model', run.call_args.args[0], repr(model))
+
+    def test_an_undeclared_model_never_reaches_the_cli(self):
+        result, run = self._run_cli(model='claude-opus-5-5; rm -rf /')
+        self.assertFalse(result['success'])
+        self.assertIn('non déclaré', result['error'])
+        run.assert_not_called()
+
+    def test_the_served_model_is_read_from_the_answer(self):
+        from wama.common.services.claude_code import _lire_sortie
+        result, _run = self._run_cli(model='opus')
+        self.assertEqual('claude-opus-5-5', result['modele'], 'celui qui a produit le plus de texte')
+        # Une réponse qui ne le dit pas ne fait rien inventer.
+        self.assertEqual('', _lire_sortie('{"result": "ok"}')['modele'])
+
+    def test_the_turn_label_names_the_model_that_really_answered(self):
+        fabien = User.objects.create(username='fabien_models', is_superuser=True)
+        with patch('wama.common.services.claude_code.demander',
+                   return_value={'success': True, 'texte': 'réponse', 'cout_usd': 0.03,
+                                 'modele': 'claude-opus-5-5'}) as cli:
+            result = run_assistant_turn(fabien, 'bonjour', provider='claude-abo', model='opus')
+        self.assertEqual('opus', cli.call_args.kwargs['model'])
+        self.assertEqual('claude-abo (opus → claude-opus-5-5)', result['model'])
+
+    def test_a_silent_answer_keeps_the_plain_label(self):
+        fabien = User.objects.create(username='fabien_silent', is_superuser=True)
+        with patch('wama.common.services.claude_code.demander',
+                   return_value={'success': True, 'texte': 'réponse', 'cout_usd': None}):
+            result = run_assistant_turn(fabien, 'bonjour', provider='claude-abo', model='opus')
+        self.assertEqual('claude-abo (opus)', result['model'])
+
+    def test_every_declared_model_enters_the_catalogue_with_its_origin(self):
+        from wama.accounts.models import UserApiKey
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.cloud_models import refresh_key
+        from wama.model_manager.tests.tests_cloud_models import _sync_cloud_seul
+        user = User.objects.create(username='abo_catalogue', is_superuser=True)
+        _sync_cloud_seul(self)
+        row = UserApiKey.objects.create(user=user, source='claude_code', api_key='jeton')
+        with patch('requests.get') as network:
+            self.assertEqual((4, ''), refresh_key(row))
+        network.assert_not_called()
+        row.refresh_from_db()
+        self.assertEqual(['claude_code:default', 'claude_code:fable', 'claude_code:opus',
+                          'claude_code:sonnet'], sorted(row.open_models))
+        opus = AIModel.objects.get(model_key='claude_code:opus')
+        self.assertEqual('Claude Code — Opus', opus.name)
+        self.assertIn('alias « opus »', opus.description)
+        self.assertEqual('Cloud commercial · Claude Code (abonnement) · abonnement', opus.origin_label)

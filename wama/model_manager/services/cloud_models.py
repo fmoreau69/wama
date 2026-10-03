@@ -152,8 +152,13 @@ def declared_listing(source: str) -> list:
     en base (`extra_info['declared']`) : la ligne est déclarée, jamais découverte chez le fournisseur.
     """
     src = external_sources.get(source)
-    return [{'id': 'default', 'name': src.label, 'type': src.default_remote_type or '',
-             'aliases': [], 'declared': True}]
+    remote_type = src.default_remote_type or ''
+    # Les modèles que la SOURCE déclare (`ExternalSource.declared_models`, 2026-10-04 : les
+    # alias de Claude Code) ; une source qui n'en déclare aucun garde la ligne unique d'origine.
+    declared = src.declared_models or (('default', src.label, ''),)
+    return [{'id': model_id, 'name': name, 'type': remote_type, 'aliases': [], 'declared': True,
+             **({'description': description} if description else {})}
+            for model_id, name, description in declared]
 
 
 def model_info_for(source: str, item: dict):
@@ -192,8 +197,9 @@ def model_info_for(source: str, item: dict):
     return ModelInfo(
         id=item['id'], name=item.get('name') or item['id'],
         model_type=ModelType(model_type), source=ModelSource(source),
-        description=(f"{src.label} — le modèle est choisi par le fournisseur" if declared
-                     else f"{src.label} — modèle distant ({remote_type})"),
+        description=(item.get('description')
+                     or (f"{src.label} — le modèle est choisi par le fournisseur" if declared
+                         else f"{src.label} — modèle distant ({remote_type})")),
         hf_id=hf_id or None, vram_gb=0, ram_gb=0, is_downloaded=False,
         backend_ref=source, execution=EXECUTION_CLOUD, cost_tier=src.cost_tier,
         # Le MOTEUR est le fournisseur (inventaire `external_sources.llm_engine_inventory`).
@@ -319,17 +325,21 @@ def refresh_all_keys() -> dict:
 
     Chaque clé passe par `refresh_key` (même chaîne que le profil : liste, catalogue, retraits,
     provenance). Une erreur de fournisseur est gardée sur la ligne et la liste précédente
-    conservée : une panne d'une nuit ne ferme rien. Les fournisseurs sans liste (`claude_cli`)
-    sont sautés — il n'y a rien à y découvrir.
+    conservée : une panne d'une nuit ne ferme rien. Un fournisseur sans liste (`claude_cli`) n'est
+    PAS appelé : sa liste est DÉCLARÉE (`ExternalSource.declared_models`), et sa clé n'est
+    rafraîchie que si cette déclaration a changé depuis — c'est ce qui fait entrer un modèle
+    déclaré de plus chez les utilisateurs qui ont déjà posé leur jeton.
 
     Rend {'keys', 'added': {source: [...]}, 'removed': {source: [...]}, 'errors': {source: msg}}.
     """
     from wama.accounts.models import UserApiKey
 
-    listable = [s.key for s in external_sources.SOURCES
-                if s.kind == 'llm' and s.protocol not in UNLISTABLE_PROTOCOLS]
+    sources = {s.key: s for s in external_sources.SOURCES if s.kind == 'llm'}
     summary = {'keys': 0, 'added': {}, 'removed': {}, 'errors': {}}
-    for row in UserApiKey.objects.filter(source__in=listable).exclude(api_key='').order_by('source', 'pk'):
+    for row in UserApiKey.objects.filter(source__in=list(sources)).exclude(api_key='').order_by('source', 'pk'):
+        if (sources[row.source].protocol in UNLISTABLE_PROTOCOLS
+                and (row.remote_listing or []) == declared_listing(row.source)):
+            continue                      # déclaration inchangée : rien à relire, aucun appel
         before = set(row.open_models or [])
         _count, error = refresh_key(row)
         summary['keys'] += 1

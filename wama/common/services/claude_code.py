@@ -172,8 +172,15 @@ def _environnement(oauth_token: str | None = None) -> dict:
     return env
 
 
+def declared_model_ids() -> tuple:
+    """Identifiants de modèle que l'abonnement DÉCLARE (`ExternalSource.declared_models` de la
+    source `claude_code`) — les seuls que `demander(model=…)` transmet au CLI."""
+    from wama.common import external_sources
+    return tuple(m[0] for m in external_sources.get(SUBSCRIPTION_SOURCE).declared_models)
+
+
 def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
-             outils=OUTILS_LECTURE, ecriture: bool = False, user=None) -> dict:
+             outils=OUTILS_LECTURE, ecriture: bool = False, user=None, model: str = '') -> dict:
     """
     Soumet UNE tâche à Claude Code et rend son résultat.
 
@@ -186,11 +193,20 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
                   explicite : Claude Code peut alors modifier le dépôt.
         user:     l'utilisateur pour qui l'appel est fait — son jeton personnel est EXIGÉ
                   (cf. l'en-tête du module). `None` = appel sans utilisateur.
+        model:    modèle DÉCLARÉ de l'abonnement (`declared_model_ids` : `fable`, `opus`,
+                  `sonnet`…) → `--model`. Vide ou `default` : le CLI choisit, comme avant.
+                  Un identifiant NON déclaré est refusé : rien d'arbitraire ne part au CLI.
 
     Returns:
-        {'success': True, 'texte': str, 'cout_usd': float|None, 'duree_ms': int|None}
+        {'success': True, 'texte': str, 'cout_usd': float|None, 'duree_ms': int|None,
+         'modele': str}   # `modele` = le modèle RÉELLEMENT servi, lu dans la réponse du CLI
         {'success': False, 'error': str}
     """
+    model = (model or '').strip()
+    if model and model not in declared_model_ids():
+        return {'success': False,
+                'error': f"Modèle « {model} » non déclaré pour l'abonnement Claude Code "
+                         f"(déclarés : {', '.join(declared_model_ids())})."}
     oauth_token = None
     if user is not None and getattr(user, 'is_authenticated', False):
         from wama.model_manager.services.cloud_models import cloud_refusal
@@ -209,6 +225,9 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
     delai = max(10, min(int(delai or DELAI_DEFAUT), DELAI_MAX))
 
     commande = [cli, '-p', prompt, '--output-format', 'json']
+    if model and model != 'default':
+        # Un ALIAS du CLI (« the latest model ») : il suit les sorties de modèles tout seul.
+        commande += ['--model', model]
     if not ecriture:
         # Restriction de surface : les outils non listés déclenchent une demande de
         # permission, qui en non-interactif équivaut à un refus.
@@ -311,4 +330,28 @@ def _lire_sortie(brut: str) -> dict:
         'texte': str(charge.get('result') or charge.get('text') or brut),
         'cout_usd': charge.get('total_cost_usd'),
         'duree_ms': charge.get('duration_ms'),
+        'modele': _served_model(charge),
     }
+
+
+def _served_model(charge: dict) -> str:
+    """Le modèle qui a RÉELLEMENT répondu, lu dans `modelUsage` de la réponse du CLI — '' si la
+    réponse ne le dit pas (le format appartient à un outil tiers : on ne suppose rien).
+
+    `modelUsage` est indexé par identifiant de modèle ; une tâche peut en employer plusieurs
+    (un petit modèle pour ses outils, un grand pour la réponse) : on rend celui qui a PRODUIT
+    le plus de texte. C'est ce qui répond à « je ne sais même pas lequel » (Fabien, 04/10).
+    """
+    usage = charge.get('modelUsage')
+    if not isinstance(usage, dict) or not usage:
+        return ''
+
+    def produced(entry) -> float:
+        if not isinstance(entry, dict):
+            return 0.0
+        try:
+            return float(entry.get('outputTokens', entry.get('output_tokens')) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    return str(max(usage, key=lambda name: produced(usage[name])))
