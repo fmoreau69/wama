@@ -3642,9 +3642,16 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 > - **Nom de la partition** (remarque de la session partitions/MIDI) : une sortie d'une AUTRE
 >   nature que celle de l'app se nomme par sa nature — `compose_output_name(nature='score')` →
 >   `score<id>_<modèle>.abc`, plus `audio<id>_…` (brique commune, pas une exception du composer).
-> - ⏳ **Reste de 5.1** : ▶ par process (lancement borné `only=` + argument de tâche), ⚙ par
->   process (réglages générés de son schéma), case des process `optional`, « ▶ tout / compléter
->   manquant + périmé » en tête, génération du gabarit (5.2), studio (5.4) — lot (5.3) : ✅ ci-dessous.
+> - ✅ **▶ par process (2026-10-03, 2ᵉ et 4ᵉ pièces)** : `steps_to_run(only=)` (ce process + ses
+>   amonts périmés, jamais son aval), `run_item_task(only=)`, `ProcessSpec.outputs` +
+>   `reset_outputs` (seules les sorties du process relancé sont remplacées), un ▶ par ligne de la
+>   bande commune (`card_id`) ; composer : `compose_task(process=)`, vue `start_process`, route
+>   `start/<pk>/<process>/` (inconnu / sans objet → 400 qui le dit ; « auto » → la tâche
+>   tranche). « ▶ tout / compléter manquant + périmé » EST le ▶ de la card depuis P3
+>   (`steps_to_run` sans `only`) — pas de pièce à part.
+> - ⏳ **Reste de 5.1** : ⚙ par process (réglages générés de son schéma, filtrés sur `watched`),
+>   case des process `optional` (aucune app n'en déclare encore — transcriber à P6), génération
+>   du gabarit (5.2), studio (5.4) — lot (5.3) : ✅ ci-dessous.
 **5.3 Lot** : le pipeline se règle sur la mère ; une fille peut le surcharger ; **promouvoir ↑ /
 réaligner ↓** (`MODES_QUEUE_UX §5ter`) — la charge utile promue EST le pipeline (les réglages Médias
 en sont un cas), avec le garde-fou Data « entrées requises ⊆ ∩ des catalogues des filles », refus

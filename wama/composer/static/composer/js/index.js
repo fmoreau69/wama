@@ -463,13 +463,23 @@
         const q = document.getElementById('composerQueue');
         if (!window.WamaCycleButton || !q) return;
         WamaCycleButton.wire(q, {
-            start: async (id) => {
+            start: async (id, btn) => {
                 const card = q.querySelector(`.generation-card[data-id="${id}"]`);
                 if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') {
                     try { await fetch(WamaApp.getUrl(APP.stopUrlTemplate, id), { method: 'POST', headers: { 'X-CSRFToken': CSRF } }); } catch (e) {}
                 }
+                // ▶ d'UN process (bande des process, `data-process`) : lancement BORNÉ, route
+                // `start/<id>/<process>/` ; sans attribut, le ▶ de la card lance tout ce qui est dû.
+                const process = btn && btn.dataset ? btn.dataset.process : '';
+                const startUrl = WamaApp.getUrl(APP.startUrlTemplate, id) + (process ? process + '/' : '');
                 try {
-                    await fetch(WamaApp.getUrl(APP.startUrlTemplate, id), { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+                    const r = await fetch(startUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+                    if (!r.ok) {
+                        let why = 'lancement refusé';
+                        try { why = (await r.json()).error || why; } catch (e) {}
+                        if (window.WamaApp && WamaApp.toast) WamaApp.toast(why, 'error');
+                        return;
+                    }
                     if (card) card.dataset.status = 'RUNNING';
                     startPolling(parseInt(id));
                 } catch (e) {}

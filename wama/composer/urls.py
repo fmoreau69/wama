@@ -19,6 +19,8 @@ urlpatterns = [
     path('delete/<int:pk>/', views.delete, name='delete'),
     path('settings/<int:pk>/', views.update_settings, name='update_settings'),
     path('start/<int:pk>/', views.start, name='start'),
+    # ▶ d'UN process de la card (P5, lancement borné) — le ▶ de la bande des process.
+    path('start/<int:pk>/<str:process>/', views.start_process, name='start_process'),
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),
     path('download-all/', views.download_all, name='download_all'),
@@ -26,6 +28,8 @@ urlpatterns = [
     path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),
     path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
     path('batch/<int:pk>/download/', views.batch_download, name='batch_download'),
+    path('batch/<int:pk>/promote/', views.batch_promote, name='batch_promote'),
+    path('batch/<int:pk>/realign/', views.batch_realign, name='batch_realign'),
     # Manipulation directe (brique commune queue_manipulation, 2026-07-06)
     path('reorder/', views.reorder, name='reorder'),
     path('reorder-queue/', views.reorder_queue, name='reorder_queue'),

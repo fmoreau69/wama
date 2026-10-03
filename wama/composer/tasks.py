@@ -30,14 +30,19 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True)
-def compose_task(self, generation_id: int):
-    """Generate music or SFX for a ComposerGeneration instance."""
+def compose_task(self, generation_id: int, process: str | None = None):
+    """Generate music or SFX for a ComposerGeneration instance.
+
+    `process` (P5, ▶ par process) : lancement BORNÉ à ce process — lui, précédé des seuls amonts
+    périmés (`AppPipeline.steps_to_run(only=)`) ; son aval se périmera de lui-même. ⚠ Argument
+    de tâche NOUVEAU : les workers doivent être relancés pour le connaître."""
     from wama.common.utils.task_skeleton import run_item_task
     from .function_specs import PIPELINE
     try:
         run_item_task(self, app_id='composer', model=ComposerGeneration, item_id=generation_id,
                       pipeline=PIPELINE, processes={'plan': _plan, 'render': _render},
-                      vram_needed=_vram_needed, model_key=_model_key, notify_label='Composer')
+                      vram_needed=_vram_needed, model_key=_model_key, notify_label='Composer',
+                      only=process)
     finally:
         _release_backend(generation_id)
 
