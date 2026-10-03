@@ -212,6 +212,42 @@ class WhatALaunchReplaysTest(TestCase):
         (Path(self.tmp) / 'score.abc').unlink()
         self.assertEqual(['plan', 'render'], _keys(pipeline.steps_to_run(item)))
 
+    def test_one_process_alone_takes_its_stale_upstreams_and_never_its_downstream(self):
+        """▶ par process (P5) : the asked process always runs ; an upstream still valid is
+        resumed from, a stale one is replayed first ; the downstream is left alone — it will
+        turn stale by itself once its upstream output changed."""
+        pipeline, item = _two_steps(), _Element()
+        self._both_played(pipeline, item)
+        self.assertEqual(['render'], _keys(pipeline.steps_to_run(item, only='render')))
+        self.assertEqual(['plan'], _keys(pipeline.steps_to_run(item, only='plan')),
+                         'the downstream render must not be dragged along')
+        item.prompt = 'a fast drum solo'           # plan stale → render asked alone replays it first
+        self.assertEqual(['plan', 'render'], _keys(pipeline.steps_to_run(item, only='render')))
+
+    def test_a_process_asked_alone_must_exist_and_apply(self):
+        pipeline, item = _two_steps(applies=lambda item, model_key: False), _Element()
+        with self.assertRaisesMessage(ValueError, 'plan'):
+            pipeline.steps_to_run(item, only='plan')
+        with self.assertRaisesMessage(ValueError, 'master'):
+            pipeline.steps_to_run(item, only='master')
+
+    def test_resetting_the_outputs_of_one_process_leaves_the_others(self):
+        """Relaunching the score alone must not take the audio away."""
+        class _File:
+            def __init__(self, name):
+                self.name = name
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('plan', outputs=('score_file',)),
+            ProcessSpec('render', depends_on=('plan',), outputs=('audio_file',)),
+        ), label='Demo')
+        item = _Element(score_file=_File('s.abc'), audio_file=_File('a.wav'))
+        with mock.patch('wama.common.utils.queue_duplication.safe_delete_file',
+                        return_value=True) as deleted:
+            self.assertEqual(['score_file'], pipeline.reset_outputs(item, ['plan']))
+        deleted.assert_called_once_with(item, 'score_file')
+        self.assertIsNone(item.score_file)
+        self.assertEqual('a.wav', item.audio_file.name)
+
     def test_an_upstream_that_never_ran_makes_nobody_stale(self):
         """A process that did not apply (no line) is not a missing upstream."""
         pipeline, item = _two_steps(applies=lambda item, model_key: False), _Element()
@@ -459,6 +495,25 @@ class SkeletonRunsThePipelineTest(TestCase):
         item = self.model.objects.get(pk=item.pk)
         self.assertEqual('AWAITING_RESOURCES', item.status)
         self.assertFalse(process_runs.lines(item).exists())
+
+    def test_the_skeleton_can_be_bounded_to_one_process(self):
+        item = self._run(self._element('pipeline_bounded_first'))
+        self.calls.clear()
+        self.model.objects.filter(pk=item.pk).update(status='RUNNING')
+        from wama.common.utils.task_skeleton import run_item_task
+
+        def glue(key):
+            def inner(element, ctx):
+                self.calls.append(key)
+                return {}
+            return inner
+        with mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
+            run_item_task(_task(), app_id=self.app, model=self.model, item_id=item.pk,
+                          pipeline=self.pipeline, only='plan',
+                          processes={'plan': glue('plan'), 'render': glue('render')})
+        self.assertEqual(['plan'], self.calls)
+        self.assertEqual('SUCCESS', self.model.objects.get(pk=item.pk).status)
+        self.assertEqual(JOB_SUCCESS, process_runs.line(item, 'plan').status)
 
     def test_a_process_without_its_glue_fails_the_card_and_says_so(self):
         from wama.common.utils.task_skeleton import run_item_task
