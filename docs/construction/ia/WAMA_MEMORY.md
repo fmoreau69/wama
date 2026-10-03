@@ -877,3 +877,34 @@ les jalons 6/8/14 livrés depuis : appelants réels dans `assistant_engine.py`, 
 - **Anonymisation du texte avant écriture** (PII dans un souvenir partagé au labo) → `ROADMAP §16.4`,
   Presidio + GLiNER FR. À rebrancher ici quand ce composant existera : un `MemoryItem` de scope
   `unit` ou `public` devra passer la porte privacy.
+
+## 7quinquies. Corpus SYSTÈME — la doc de WAMA pour l'assistant ✅ (2026-10-03, décision de Fabien)
+
+Mesuré ce jour : l'assistant ne lisait AUCUN document de WAMA. Livré, sans brique neuve de
+classement ni second modèle de droits — `common/memory/docs_corpus.py` relie quatre pièces :
+
+- **liste et garde** : `docs_catalog.DOCS` et `visible_to` — le prédicat du lecteur `/common/docs/`,
+  appelé au rappel. Un membre n'atteint que la doc utilisateur, un administrateur tout, un
+  visiteur rien ; une doc cachée se lit comme une doc inconnue ;
+- **découpage** : `doc_sections.sections()` puis `split_text` ; chaque fragment garde la ligne et
+  le titre de sa section, et la marque `[intention ⏳]` quand la section se déclare ;
+- **substrat** : `RagChunk` (`source_kind='doc'`, `source_id='wama-doc:<clé>'`), SANS propriétaire
+  et privé — donc invisible de `scoped_visible_q` : hors de « Mon RAG », de `memory_recall` et du
+  contexte de laboratoire. Seul `recall(include_docs=True)` y mène ;
+- **accès** : outils `search_docs` (hybride) et `read_doc` (sommaire ou section), transverses.
+
+**Ce n'est pas le balayage retiré le 21/08** : la règle du GESTE protège le consentement sur ce
+qu'un utilisateur a produit ; ici rien n'appartient à un utilisateur. La phrase « aucune autre
+porte d'écriture » (§7ter) vaut donc pour le RAG DES UTILISATEURS, et reste entière.
+
+**Les journaux datés (`Doc.journal`) n'entrent pas** : lisibles en entier par `read_doc`, jamais
+rappelés par morceaux. Un extrait de doc de construction porte une mise en garde (trace datée).
+
+**Actualisation** : `sync_memory --docs`, et la tâche nocturne `common.sync_docs_corpus` (01:25),
+toutes deux SANS modèle ; un fragment inchangé garde son vecteur. Mesuré : 50 docs, 6 654
+fragments, projection 2 s, vecteurs 79 s. Éprouvé par deux tours réels d'assistant (recherche,
+lecture de section, réponse citée) ; 17 gardes dans `tests_docs_corpus.py`.
+
+⏳ Restes : les vecteurs des fragments NEUFS attendent `sync_memory --reindex` (geste explicite,
+§5bis) — à décider : les calculer aussi la nuit ; `WAMA_MECANISMES.md` et `docs/dev/briques.md` à
+régénérer (`doc_facts`), tenus par une autre instance ; la doc UTILISATEUR ne compte qu'un doc.

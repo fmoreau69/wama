@@ -4,6 +4,7 @@ Alimente la mémoire depuis les faits déjà en base. Doc : `WAMA_MEMORY.md §7`
     python manage.py sync_memory --dry-run          # ne montre que ce qui changerait
     python manage.py sync_memory                    # projette (ZÉRO appel de modèle)
     python manage.py sync_memory --depuis 2026-08-01
+    python manage.py sync_memory --docs             # projette la doc de WAMA (ZÉRO modèle)
     python manage.py sync_memory --reindex          # ⚠ SOLLICITE LE GPU (embeddings par lot)
 
 Deux étages volontairement SÉPARÉS, et c'est le point de conception : la projection est mécanique
@@ -29,6 +30,9 @@ class Command(BaseCommand):
                             help="(RETIRÉ 2026-08-21) L'entrée au RAG est un geste utilisateur.")
         parser.add_argument('--dev-ai', action='store_true',
                             help="Reprend wama-dev-ai/memory.json en souvenirs NON APPROUVÉS.")
+        parser.add_argument('--docs', action='store_true',
+                            help="Projette la doc DÉCLARÉE de WAMA vers le corpus système "
+                                 "(mécanique, sans modèle — WAMA_MEMORY §7quinquies).")
         parser.add_argument('--reindex', action='store_true',
                             help='⚠ Calcule les vecteurs manquants — CHARGE bge-m3 sur Ollama.')
         parser.add_argument('--modeles-obsoletes', action='store_true',
@@ -97,6 +101,22 @@ class Command(BaseCommand):
                         "  ⚠ NON APPROUVÉES, donc INVISIBLES au rappel : une revue humaine est "
                         "requise.\n    Le fichier date du "
                         f"{d['date_source']} — vérifier avant d'approuver."))
+
+        if opts['docs']:
+            from wama.common.memory.docs_corpus import corpus_state, index_docs
+            self.stdout.write('\n── Doc de WAMA → corpus système (aucun modèle appelé) ──')
+            d = index_docs(dry_run=opts['dry_run'])
+            state = corpus_state()
+            self.stdout.write(
+                f"  docs lus       : {d['docs']}   (fragments : {d['fragments']})\n"
+                f"  réécrits       : {len(d['written'])}\n"
+                f"  inchangés      : {d['unchanged']}\n"
+                f"  retirés        : {len(d['removed'])}\n"
+                f"  en base        : {state['fragments']} fragments, "
+                f"{state['vectorized']} vectorisés")
+            if d['missing']:
+                self.stdout.write(self.style.WARNING(
+                    f"  déclarés mais absents du disque : {', '.join(d['missing'])}"))
 
         if not opts['reindex']:
             self.stdout.write(

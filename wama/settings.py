@@ -869,6 +869,13 @@ if ENABLE_CELERY:
             'schedule': crontab(minute=20),
             'options': {'queue': 'default'},  # I/O disque, pas de GPU
         },
+        # Corpus système de l'assistant : la doc déclarée, reprojetée chaque nuit (lecture de
+        # fichiers, aucun modèle — `common/memory/docs_corpus.py`).
+        'docs-corpus-sync': {
+            'task': 'common.sync_docs_corpus',
+            'schedule': crontab(hour=1, minute=25),
+            'options': {'queue': 'default'},
+        },
         # Rétention : purge quotidienne des médias expirés (no-op si aucun user n'a de rétention).
         'purge-expired-media': {
             'task': 'common.purge_expired_media',

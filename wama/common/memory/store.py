@@ -63,7 +63,7 @@ class Hit:
 
     def __init__(self, obj, source, score, rangs):
         self.obj = obj
-        self.source = source        # 'memory' | 'rag'
+        self.source = source        # 'memory' | 'rag' | 'docs'
         self.score = score
         self.rangs = rangs          # {'vecteur': 3, 'lexical': 11} — traçabilité du classement
 
@@ -177,9 +177,15 @@ NIVEAUX_RAG = ('user', 'unit', 'project', 'public')
 
 
 def recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True,
-           include_memory=True, semantic=True, resident=True, rag_niveaux=None):
+           include_memory=True, semantic=True, resident=True, rag_niveaux=None,
+           include_docs=False):
     """
     Retrouve les `k` meilleurs éléments visibles par `user`.
+
+    `include_docs=True` ajoute le CORPUS SYSTÈME — la doc de WAMA (`docs_corpus.py`), gardée par
+    le prédicat du lecteur de docs. FAUX par défaut, et ce défaut compte : ces fragments ne sont
+    ni des souvenirs ni des documents d'utilisateur, ils ne se mêlent donc à un rappel que si
+    l'appelant les NOMME. `rag_niveaux` ne les concerne pas (ce n'est pas un niveau de partage).
 
     ⚠ `semantic=False` force le LEXICAL SEUL et ne touche pas au GPU (aucun embedding de la
     requête). Même motivation que `remember(embed=False)` : un test, ou un contexte où le GPU
@@ -220,6 +226,11 @@ def recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True,
         base = _visible_rag(user, rag_niveaux)
         cand_vect += [(d, 'rag', o) for d, o in _by_vector(base, vecteur)]
         cand_lex += [(r, 'rag', o) for r, o in _by_lexical(base, query)]
+    if include_docs:
+        from .docs_corpus import visible_chunks
+        base = visible_chunks(user)
+        cand_vect += [(d, 'docs', o) for d, o in _by_vector(base, vecteur)]
+        cand_lex += [(r, 'docs', o) for r, o in _by_lexical(base, query)]
 
     cand_vect.sort(key=lambda t: t[0])              # distance : plus PETIT = plus proche
     cand_lex.sort(key=lambda t: -t[0])              # rang lexical : plus GRAND = meilleur
