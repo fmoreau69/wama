@@ -8,6 +8,7 @@ urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
     path('create/', views.create, name='create'),
     path('start/<int:pk>/', views.start, name='start'),
+    path('start/<int:pk>/<str:process>/', views.start_process, name='start_process'),
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('global_progress/', views.global_progress, name='global_progress'),
