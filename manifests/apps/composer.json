@@ -790,8 +790,7 @@
           "icon": "fa-music",
           "id": "composition",
           "inputs": [
-            "prompt",
-            "reference_melody"
+            "prompt"
           ],
           "label": "Composition",
           "modes": []
@@ -1179,20 +1178,20 @@
           ]
         },
         {
-          "description": "Une mélodie qui ORIENTE la composition. Elle guide, elle n'est pas remixée.",
-          "group": "reference",
-          "id": "reference_melody",
-          "label": "Mélodie de référence",
-          "multi": false,
+          "description": "L'audio que l'app TRAITE : c'est de lui que part le résultat (transcrit, amélioré, animé, repris en cover…).",
+          "group": "travail",
+          "id": "work_audio",
+          "label": "Audio de travail",
+          "multi": true,
           "types": [
             "audio"
           ]
         },
         {
-          "description": "Une partition (ABC, MIDI ou MusicXML) que le modèle SUIT : mélodie, accords, structure. Il l'interprète, il ne la recopie pas.",
-          "group": "reference",
-          "id": "reference_score",
-          "label": "Partition",
+          "description": "La partition (ABC, MIDI ou MusicXML) du morceau à REPRENDRE : le modèle en rend la mélodie, les accords et la structure dans le style de la consigne (cover).",
+          "group": "travail",
+          "id": "work_score",
+          "label": "Partition de travail",
           "multi": false,
           "types": [
             "score"
@@ -1391,7 +1390,8 @@
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max)",
             "prompt": "textarea — Prompt (requis)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
-            "reference_score": "str"
+            "work_audio": "str",
+            "work_score": "str"
           },
           "description": "Ajoute un élément à la file d'attente de Composer (Génération de musique et effets sonores par IA) et renvoie son item_id."
         },

@@ -1863,7 +1863,11 @@ class ModelRegistry:
                         # la mélodie n'est OPTIONNELLE que pour melody — c'est cette
                         # distinction requis/optionnel que l'appariement exploite.
                         'inputs_required': ['prompt'],
-                        **({'inputs_optional': ['reference_melody']}
+                        # `work_audio` (2026-10-03, décision de Fabien) : MusicGen Melody fait
+                        # un COVER de l'audio fourni — sa mélodie (chroma, batterie et basse
+                        # retirées par DEMUCS) rejouée dans le style de la description. Le
+                        # morceau source est donc un fichier de TRAVAIL (ex-`reference_melody`).
+                        **({'inputs_optional': ['work_audio']}
                            if model_id == 'musicgen-melody' else {}),
                         # Durée maximale d'une sortie — lue par l'écran (`cap_from` du réglage
                         # Durée) et par la tâche, depuis la même déclaration.

@@ -109,12 +109,21 @@ def _derive_io_from_ports(app_id):
     # synthesizer) n'est PAS l'entrée principale : c'est le prompt qui l'est, et ce port arrive en
     # argument nommé (`port_arguments`). Sans cette lecture, ajouter le fichier de travail au nœud
     # aurait fait du synthesizer un nœud à DOCUMENT obligatoire (mesuré le 2026-09-30).
-    alternatives = {p['id'] for p in app_own_input_ports(app_id) + app_input_ports(app_id)
-                    if 'prompt' in (p.get('one_of') or [])}
+    known = app_own_input_ports(app_id) + app_input_ports(app_id)
+    alternatives = {p['id'] for p in known if 'prompt' in (p.get('one_of') or [])}
+    # Même règle pour un port de travail que AUCUN modèle n'exige, à côté d'un prompt que TOUS
+    # exigent (2026-10-03) : l'entrée principale est ce que les modèles EXIGENT. Cas réel : le
+    # morceau à reprendre du composer (`work_audio` de MusicGen Melody, `work_score` de YuE2),
+    # devenu port de TRAVAIL — sans cette lecture, le nœud composer exigeait un audio et une
+    # chaîne « Texte → Composer » échouait (mesuré sur le catalogue réel).
+    required = {p['id']: bool(p.get('required')) for p in known}
+    prompt_required = required.get('prompt', False)
     io = {}
     for p in ports.get('inputs', []):
         grp = p.get('group')
         if p.get('id') in alternatives:
+            continue
+        if grp == 'travail' and prompt_required and not required.get(p.get('id')):
             continue
         if grp == 'travail' and 'input_kinds' not in io:
             kinds = tuple(t for t in (p.get('types') or []) if t and t != 'prompt')
@@ -231,7 +240,8 @@ def unwired_ports(app_id) -> list:
 #: lu qui n'y figure pas fait échouer le geste nocturne `studio.node_ports_wired`.
 #: ⚠ Ne jamais AJOUTER une ligne pour faire passer un port neuf : c'est l'outil qu'on complète.
 UNWIRED_PORTS_BUDGET = {
-    'composer': ['reference_melody'],
+    # composer soldé le 2026-10-03 : l'audio du morceau à reprendre (`work_audio`, ex-`reference_melody`)
+    # est lu par `compose_music`, comme la partition (`work_score`).
     'imager': ['work_image'],
     'transcriber': ['reference_result', 'work_result'],
     'enhancer': ['work_audio'],

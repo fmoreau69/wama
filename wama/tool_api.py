@@ -972,7 +972,8 @@ def compose_music(
     prompt: str,
     model: str = 'musicgen-small',
     duration: float = 10.0,
-    reference_score: str = None,
+    work_score: str = None,
+    work_audio: str = None,
     **params,
 ) -> dict:
     """
@@ -986,8 +987,10 @@ def compose_music(
                   composer id ('musicgen-small'), or a group auto
                   ('auto:text-to-music', 'auto:text-to-audio')
         duration: Duration in seconds (1–30, default 10)
-        reference_score: Path (relative to MEDIA_ROOT) of a score to follow — ABC, MIDI or
-                  MusicXML (port `reference_score`); only for a model that declares it (YuE2)
+        work_score: Path (relative to MEDIA_ROOT) of the SCORE of a song to cover — ABC, MIDI
+                  or MusicXML (port `work_score`); only for a model that declares it (YuE2)
+        work_audio: Path (relative to MEDIA_ROOT) of the AUDIO of a song to cover — its melody
+                  is replayed in the prompt's style (port `work_audio`, MusicGen Melody)
 
     Returns:
         {"generation_id": int, "model": str, "generation_type": str,
@@ -1006,16 +1009,21 @@ def compose_music(
         return {'error': f"Modèle invalide '{model}' : il faut un modèle des tâches "
                          f"{' / '.join(TASKS)} (voir le catalogue), ou un « auto » de groupe."}
 
-    # Port `reference_score` (2026-10-01) : désigné par son chemin, comme les ports du synthesizer
-    # — refusé AVANT de créer quoi que ce soit si le modèle ne le prend pas (jamais ignoré en silence).
-    received_score = None
-    if reference_score:
-        if not consumes_input(model, 'reference_score'):
-            return {'error': f"Le modèle « {model} » ne suit pas de partition — choisir un modèle "
-                             f"qui la déclare (ex. 'huggingface:m-a-p/YuE2-3B') ou 'auto:text-to-music'."}
-        from wama.common.utils.media_paths import InputRefused, designate
+    # Ports du MORCEAU À REPRENDRE (cover) — `work_score` (partition) et `work_audio` (audio),
+    # ports de TRAVAIL depuis le 2026-10-03 : désignés par leur chemin, comme les ports du
+    # synthesizer, et refusés AVANT de créer quoi que ce soit si le modèle ne les prend pas
+    # (jamais ignorés en silence). Rangés dans leurs champs, qui gardent leur nom (données).
+    from wama.common.utils.media_paths import InputRefused, designate
+    received = []
+    for port, path, field, what in (('work_score', work_score, 'reference_score', 'de partition'),
+                                    ('work_audio', work_audio, 'melody_reference', "d'audio à reprendre")):
+        if not path:
+            continue
+        if not consumes_input(model, port):
+            return {'error': f"Le modèle « {model} » ne prend pas {what} — choisir un modèle qui "
+                             f"le déclare, ou un « auto » de groupe ('auto:text-to-music')."}
         try:
-            received_score = designate(reference_score, user, 'composer')
+            received.append((designate(path, user, 'composer'), field))
         except InputRefused as e:
             return {'error': str(e)}
 
@@ -1032,8 +1040,8 @@ def compose_music(
         duration=duration,
         **schema_model_kwargs('composer', params),
     )
-    if received_score is not None:
-        received_score.assign(gen, 'reference_score')
+    for item, field in received:
+        item.assign(gen, field)
 
     # Wrap in batch-of-1
     from wama.composer.views import _wrap_generation_in_batch

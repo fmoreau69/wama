@@ -451,6 +451,55 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
   chaîne outil → tirage → moteurs, conversion MIDI — accord réduit, batterie écartée —, port lu
   par le studio).
 
+### 6.10 Un COVER : le morceau source est un fichier de TRAVAIL (2026-10-03, décision B de Fabien)
+
+> Question de Fabien : *« le fichier de référence est un audio de guidage de style […] comment on
+> fournit le fichier de travail pour un cover ? »* — puis : *« il faut déjà savoir précisément ce
+> qu'acceptent les modèles et pour quoi faire »*. Mesuré dans le code, et non supposé :
+
+| modèle | ce qu'il fait du fichier | nature |
+|---|---|---|
+| MusicGen Melody | retire batterie et basse (DEMUCS), extrait le **chromagramme** (hauteurs au fil du temps) et génère un morceau qui en suit la mélodie et l'harmonie, dans le style du **texte** — `audiocraft/modules/conditioners.py:510-514`, `generate_with_chroma` (`audiocraft_backend.py`) | **cover** d'un audio, instrumental, ≤ 30 s |
+| YuE2 | rend une chanson complète (voix comprise) qui suit la mélodie, les accords et la structure de la partition, avec le style et les paroles de la consigne (`SongRequest.abc`) | **cover** d'une partition |
+
+La mélodie n'était donc pas un guide de style (ce que disait `reference_melody` : « elle guide, elle
+n'est pas remixée ») : dans un cover, le résultat **part** du morceau source — la définition d'un
+port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
+- `reference_melody` → **`work_audio`** (jeton existant ; « …repris en cover » ajouté à son énoncé) ;
+  `reference_score` → **`work_score`** (nouveau : travail × nature `score`). Les deux anciens retirés.
+- Les **champs** du modèle (`melody_reference`, `reference_score`) GARDENT leur nom — données
+  stockées (frontière des données, `AGENTS.md`) : aucune migration, et le pipeline de l'autre
+  session (`function_specs`, glu) qui les lit est inchangé. La vue et l'outil reçoivent chaque
+  fichier sous le nom de son PORT et le rangent dans son champ.
+- Le domaine du composer ne déclare plus que `prompt` au niveau APP : le morceau à reprendre vient
+  des MODÈLES qui le déclarent (catalogue corrigé : MusicGen Melody `work_audio`, YuE2 `work_score`).
+- Card : l'audio devient le port de TRAVAIL principal (ids historiques `melodyInput`/`melodySlot`/
+  `melodyUrlInput` par `file_input_id`/`drop_zone_id`/`url_input_id`). Card « attache » sans voie
+  d'import d'app : le gabarit gagne `primary_import_self` (déclaré par la page) pour que la brique
+  commune des ports câble la tuile principale. Plus de port de RÉFÉRENCE → la ligne d'appariement
+  est DÉCLARÉE (`match_status_id`), sinon elle aurait disparu. Les emplacements de `WamaInputMatch`
+  sont lus des ports de la card (la partition n'y avait jamais été déclarée).
+- Studio : `compose_music(work_audio=, work_score=)` — la ligne `composer` du budget des ports non
+  lus est SOLDÉE (l'audio est enfin lu). `composer.render` nomme ses entrées `work_score` /
+  `work_audio` (groupe travail).
+- 🔴 **Régression attrapée par un test, corrigée** : le studio dérive l'ENTRÉE PRINCIPALE d'un nœud
+  de ses ports, en préférant un port de TRAVAIL au prompt (`generic_runner._derive_io_from_ports`).
+  Avec `work_audio` au catalogue, le nœud composer exigeait un audio — « Texte → Composer »
+  échouait (mesuré sur la base réelle). Règle ajoutée, sœur de celle du synthesizer (`one_of`) :
+  **un port de travail qu'AUCUN modèle n'exige, à côté d'un prompt que TOUS exigent, n'est pas
+  l'entrée principale.** Mesuré sur les 10 nœuds : seul le composer change (retour au prompt) ;
+  l'imager déclare déjà son prompt. Gardes : `studio/tests_node_ports` (règle + contre-épreuve).
+- ⏳ **Limite connue, non tranchée** : la variante MANIFESTE de cette dérivation
+  (`projection.derive_io_from_ports`, lue par `manifest_roundtrip`) ne lit que la facette `ports`,
+  qui ne porte pas l'obligation (exclue à dessein : « un nœud du studio n'en porte pas »). Elle
+  classe donc le composer en `drift`, comme le synthesizer l'était déjà. Résorber = décider si la
+  facette `ports` porte l'obligation d'une entrée — décision de conception, hors de ce chantier.
+- 🔧 **Défaut corrigé en chemin** : `consumes_melody` répondait NON pour un « auto » — un audio joint
+  avec « auto » était ignoré à la création, alors que le tirage savait retenir MusicGen Melody. Il
+  suit désormais la règle de la partition (`consumes_input` : oui si un modèle de la tâche le déclare).
+- ⏳ **Cover depuis un audio par YuE2** : SheetSage2 (audio → partition, environnement séparé),
+  process `transcrire` au pipeline du composer, `cot="melody"` au backend — consigné, à faire.
+
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 
 **Demande de Fabien** : *« il faut que les paramètres modale/inspecteur tirent leurs infos des

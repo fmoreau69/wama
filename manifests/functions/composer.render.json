@@ -19,9 +19,19 @@
       {
         "cardinality": "one",
         "data_type": "score",
-        "description": "Partition à suivre, OPTIONNELLE : sans elle, le modèle compose librement.",
-        "group": "reference",
-        "key": "reference_score",
+        "description": "Partition du morceau à reprendre (cover), OPTIONNELLE : sans elle, le modèle compose librement.",
+        "group": "travail",
+        "key": "work_score",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Audio du morceau à reprendre (cover, MusicGen Melody) : sa mélodie est rejouée dans le style de la consigne.",
+        "group": "travail",
+        "key": "work_audio",
         "optional": true,
         "produced_fields": [],
         "required_fields": []

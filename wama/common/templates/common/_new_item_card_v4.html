@@ -147,7 +147,11 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                         {% comment %}IMPORTER = la dropzone (ids v3 : la brique s'y lie). Fichiers ET
                         dossiers, dépôt ET clic ; le lien dossier reste ici — contrainte de
                         l'<input> natif, jamais un choix d'interface (§11.11 B bis).{% endcomment %}
-                        <div class="drop-zone wama-mod wama-mod-import" id="{{ drop_zone_id }}" data-mod="import">
+                        {% comment %}`primary_import_self` (2026-10-03, composer) : une card en mode
+                        ATTACHE sans voie d'import d'app (ni `WamaImport` ni écouteur d'app sur sa zone)
+                        DÉCLARE que la brique commune des ports câble cette tuile, comme celle d'un port
+                        secondaire. Sans lui, la tuile Importer du port principal resterait muette.{% endcomment %}
+                        <div class="drop-zone wama-mod wama-mod-import" id="{{ drop_zone_id }}" data-mod="import"{% if primary_import_self %} data-port-import-self{% endif %}>
                             <i class="fas fa-cloud-upload-alt text-primary wama-mod-g"></i>
                             <span>Importer</span>
                             {% comment %}⚠ Le texte vient du JETON, pas d'un littéral d'app (2026-09-11,

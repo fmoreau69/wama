@@ -111,7 +111,7 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     # (app_modes.py). L'union sur les modèles d'une app DÉRIVE les slots de sa card d'entrée ;
     # une entrée fournie hors des inputs d'un modèle le DÉSACTIVE (avec raison, jamais caché).
     "inputs_required":     "list[str] — entrées REQUISES par le modèle (lancement gaté sinon)",
-    "inputs_optional":     "list[str] — entrées ACCEPTÉES en option (ex. reference_melody)",
+    "inputs_optional":     "list[str] — entrées ACCEPTÉES en option (ex. work_audio de MusicGen Melody)",
     #: Ce que le modèle exige des ATTRIBUTS d'une entrée (2026-09-30) — le rôle ne suffit pas
     #: toujours : TalkingHead prend un `work_object3d`, mais seulement riggé et au visage ARKit ;
     #: un maillage TripoSR (non riggé) a le bon rôle et ne fera jamais parler personne. Les

@@ -14,9 +14,9 @@
  * Usage :
  *   const m = WamaInputMatch.init({
  *     selectId: 'modelSelect',
- *     meta: { 'musicgen-melody': { inputs_optional: ['reference_melody'] }, … },
- *     inputLabels: { reference_melody: 'Mélodie de référence' },
- *     slots: { reference_melody: { inputId: 'melodyInput', chipId: 'melodyChip', zoneId: 'melodySlot' } },
+ *     meta: { 'composer:musicgen-melody': { inputs_optional: ['work_audio'] }, … },
+ *     inputLabels: { work_audio: 'Audio de travail' },
+ *     slots: { work_audio: { inputId: 'melodyInput', zoneId: 'melodySlot' } },   // chipId facultatif
  *     statusId: 'inputMatchStatus',
  *     onState: (st) => generateBtn.disabled = !st.launchable,
  *   });
@@ -67,6 +67,17 @@
       return new Set([].concat(m.inputs_required || [], m.inputs_optional || []));
     };
     const requiredOf = (mid) => (meta[mid] || {}).inputs_required || [];
+    // Une pièce jointe se RETIRE (✕) : une pastille déclarée (`chipId`), ou un input FICHIER — la
+    // card v4 pose un ✕ sur chaque fichier de sa face « fichiers » (`wama-input-slots`). Une valeur
+    // (la langue) se CHANGE. Avant le 2026-10-03, seul `chipId` comptait : un port de travail de la
+    // card v4, sans pastille, faisait dire « changez-la » d'un fichier.
+    const removable = (sid) => {
+      const s = slots[sid];
+      if (!s) return false;
+      if (s.chipId) return true;
+      const inp = document.getElementById(s.inputId);
+      return !!(inp && inp.type === 'file');
+    };
 
     // Capacités COMPLÈTES d'un modèle : `meta` (entrées, injectée par la vue) + le cache de
     // WamaModelCaps.init (`capsProvider`, le même catalogue que la direction modèle→choix).
@@ -150,7 +161,7 @@
         opt.disabled = !!serveur || bad.length > 0;
         // Le geste de réactivation dépend du slot : une pièce jointe se RETIRE (✕), une valeur
         // (la langue, toujours choisie) se CHANGE.
-        const geste = (ids) => ids.some((i) => slots[i] && slots[i].chipId)
+        const geste = (ids) => ids.some(removable)
           ? 'retirez la pièce (✕) ou changez la valeur pour réactiver'
           : 'changez la valeur pour réactiver';
         opt.title = serveur || (bad.length
@@ -193,8 +204,7 @@
       if (status) {
         const parts = [];
         Object.keys(causes).forEach((i) => {
-          const retour = slots[i] && slots[i].chipId ? '✕ pour les retrouver'
-                                                     : 'changez-la pour les retrouver';
+          const retour = removable(i) ? '✕ pour les retrouver' : 'changez-la pour les retrouver';
           parts.push(causes[i] + ' modèle(s) désactivé(s) par « ' + label(i) + ' » — ' + retour);
         });
         // Informatif : TOUTES les attentes du modèle (indépendant du gate ci-dessus).

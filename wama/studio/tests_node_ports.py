@@ -27,7 +27,7 @@ class NodePortsReachTheAppTest(TestCase):
         ok, detail = generic_runner.unwired_ports_report(grown)
         self.assertFalse(ok)
         self.assertIn('new_port', detail)
-        solved = lambda app: [] if app == 'composer' else exact(app)
+        solved = lambda app: [] if app == 'imager' else exact(app)
         ok, detail = generic_runner.unwired_ports_report(solved)
         self.assertFalse(ok)
         self.assertIn('retirer du budget', detail)
@@ -60,11 +60,48 @@ class NodePortsReachTheAppTest(TestCase):
             runner['create'](None, {'prompt': 'Bonjour'}, {})
         self.assertEqual('Bonjour', call.call_args[0][1]['text'])
 
+    @staticmethod
+    def _model(key, task, optional):
+        """Les ports dérivent des MODÈLES (la base de test n'en a pas) : le modèle qui ouvre le port."""
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key=key, name=key, model_type='diffusion', source=key.split(':')[0],
+                               vram_gb=1.0, is_available=True, is_downloaded=True,
+                               capabilities={'task': task, 'inputs_required': ['prompt'],
+                                             'inputs_optional': list(optional)})
+
     def test_a_link_on_an_unwired_port_is_an_error_not_a_silence(self):
-        runner = generic_runner.build_generic_runner('composer')
+        # L'imager garde un port non lu (`work_image`, au budget) ; le composer, qui servait
+        # d'exemple, lit son `work_audio` depuis le 2026-10-03.
+        self._model('imager:sdxl', 'image-to-image', ['work_image'])
+        runner = generic_runner.build_generic_runner('imager')
         with patch('wama.tool_api.execute_tool', return_value={'item_id': 7}):
             with self.assertRaisesMessage(ValueError, 'ne le lit pas encore'):
-                runner['create'](None, {'prompt': 'jazz', 'reference_melody': 'users/1/m.wav'}, {})
+                runner['create'](None, {'prompt': 'a cat', 'work_image': 'users/1/c.png'}, {})
+
+    def test_an_optional_work_port_beside_a_required_prompt_is_not_the_main_input(self):
+        """Le morceau à reprendre (cover) est un port de TRAVAIL qu'AUCUN modèle n'exige : le nœud
+        composer garde le prompt pour entrée principale (2026-10-03). Sans cette règle, il exigeait
+        un audio, et « Texte → Composer » échouait — mesuré sur le catalogue réel."""
+        self._model('composer:musicgen-melody', 'text-to-music', ['work_audio'])
+        io = generic_runner._derive_io_from_ports('composer')
+        self.assertEqual('prompt', io.get('primary_input'))
+        self.assertNotIn('input_kinds', io)
+
+    def test_a_required_work_port_stays_the_main_input(self):
+        """Contre-épreuve : un port de travail EXIGÉ (l'audio de l'avatarizer, du transcriber) reste
+        l'entrée principale."""
+        self._model('transcriber:whisper', 'transcription', [])
+        from wama.model_manager.models import AIModel
+        AIModel.objects.filter(model_key='transcriber:whisper').update(
+            capabilities={'task': 'transcription', 'inputs_required': ['work_audio']})
+        self.assertIn('audio', generic_runner._derive_io_from_ports('transcriber').get('input_kinds') or ())
+
+    def test_the_song_to_cover_reaches_the_composer_tool(self):
+        self._model('composer:musicgen-melody', 'text-to-music', ['work_audio'])
+        runner = generic_runner.build_generic_runner('composer')
+        with patch('wama.tool_api.execute_tool', return_value={'item_id': 7}) as call:
+            runner['create'](None, {'prompt': 'jazz', 'work_audio': 'users/1/m.wav'}, {})
+        self.assertEqual('users/1/m.wav', call.call_args[0][1]['work_audio'])
 
     def test_no_input_at_all_is_still_refused(self):
         runner = generic_runner.build_generic_runner('synthesizer')

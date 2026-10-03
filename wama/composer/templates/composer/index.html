@@ -48,9 +48,9 @@ Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. mel
 est une ENTRÉE (formalisation Fabien 2026-07-03), pas un réglage — le volet garde la config, la
 modale garde l'édition du prompt d'un item existant. Id promptInput conservé (JS inchangé).{% endcomment %}
 
-{% comment %}Mélodie de référence : le champ hardcodé (show/hide par modèle) est REMPLACÉ par le
-slot déclaré de la card d'entrée (_new_item_card show_reference) + l'appariement WamaInputMatch —
-id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.md.{% endcomment %}
+{% comment %}Morceau à reprendre (cover) : le champ hardcodé (show/hide par modèle) est REMPLACÉ par les
+ports déclarés de la card d'entrée + l'appariement WamaInputMatch — id melodyInput conservé.
+Cf. INPUT_MODEL_MATCHING.md.{% endcomment %}
 
 <!-- Reset Button -->
 </div>{# /composerPanelParams (inspecteur contextuel) #}
@@ -67,17 +67,17 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 
 {% block composer_content %}
 
-{% comment %}Card « Nouvel élément » v4 (2026-09-29, CARD_DESIGN §11.11) — 3ᵉ app, la 1ʳᵉ SANS port de
-travail : l'entrée principale est le PROMPT (au-dessus de la zone), puis deux onglets —
-« Mélodie de référence » (port `reference_melody`, dérivé des modèles Melody : importer,
-médiathèque, URL) et « Lot » (fichier de lot, `has_batch`). C'est pour ce cas que l'onglet Lot
-existe : sans port de travail, la v4 n'avait plus où recevoir un fichier de lot.
-Ids historiques conservés (index.js, WamaInputMatch) : `melodyInput`/`melodyChip`/`melodySlot`
-et `melodyUrlInput` (le champ URL du port, lu dans le payload `source_url`). Plus de
-`batchFileInput` ni de `composerBatchDrop` : c'étaient la zone de v3 qui recevait à la fois le
-lot et la mélodie ; chacun a désormais son onglet.{% endcomment %}
+{% comment %}Card « Nouvel élément » v4 (2026-09-29, CARD_DESIGN §11.11). L'entrée principale est le
+PROMPT (au-dessus de la zone) ; les onglets sont les ports DÉRIVÉS des modèles, puis « Lot ».
+Depuis le 2026-10-03 (décision de Fabien), le morceau à reprendre (COVER) est un port de TRAVAIL :
+« Audio de travail » (`work_audio`, MusicGen Melody) et « Partition de travail » (`work_score`,
+YuE2) — ils étaient des références (`reference_melody`, `reference_score`).
+Le 1er port de travail garde les ids historiques (index.js, WamaInputMatch) : `melodyInput`,
+`melodySlot` et `melodyUrlInput` (son champ URL, lu dans le payload `source_url`). Card en mode
+ATTACHE sans voie d'import d'app : `primary_import_self` fait câbler sa tuile Importer par la
+brique commune des ports, comme celle d'un port secondaire.{% endcomment %}
 {% url 'composer:batch_template' as composer_batch_template_url %}
-{% include 'common/_new_item_card_v4.html' with app_id='composer' card_id='composerNewCard' depot_cree=False batch_format='sortie|prompt|modèle|durée' batch_hint='En-têtes de colonnes ou balises -p/-o/--option acceptés (détection auto)' batch_template_url=composer_batch_template_url show_batch_bar=True reference_input_id='melodyInput' reference_chip_id='melodyChip' reference_zone_id='melodySlot' reference_url_id='melodyUrlInput' reference_hint='Audio 5 s – 5 min servant de ligne mélodique (modèle Melody)' show_prompt=True prompt_input_id='promptInput' prompt_rows=3 prompt_placeholder='Ex : upbeat jazz piano with soft drums… — VIDE = génération aléatoire (le modèle improvise)' prompt_hint='Anglais recommandé (traduction automatique sinon)' primary_btn_id='generateBtn' primary_btn_label='Ajouter à la file d’attente' primary_btn_icon='fa-plus' collapsible=True %}
+{% include 'common/_new_item_card_v4.html' with app_id='composer' card_id='composerNewCard' depot_cree=False batch_format='sortie|prompt|modèle|durée' batch_hint='En-têtes de colonnes ou balises -p/-o/--option acceptés (détection auto)' batch_template_url=composer_batch_template_url show_batch_bar=True file_input_id='melodyInput' drop_zone_id='melodySlot' url_input_id='melodyUrlInput' url_placeholder='https://… (audio du morceau à reprendre)' url_hint='téléchargée au lancement — un fichier joint prime' primary_import_self=True match_status_id='inputMatchStatus' show_prompt=True prompt_input_id='promptInput' prompt_rows=3 prompt_placeholder='Ex : upbeat jazz piano with soft drums… — VIDE = génération aléatoire (le modèle improvise)' prompt_hint='Anglais recommandé (traduction automatique sinon)' primary_btn_id='generateBtn' primary_btn_label='Ajouter à la file d’attente' primary_btn_icon='fa-plus' collapsible=True %}
 
 {# ── Barre de progression globale : brique COMMUNE (_global_progress + wama-global-progress.js #}
 {# + endpoint composer:global_progress au contrat {total,done,running,failed,overall_progress}). #}
@@ -314,7 +314,14 @@ window.COMPOSER_PARAMS_SCHEMA = {{ params_json|safe }};
             selectId: 'modelSelect',
             meta: {{ input_match_meta|default:"{}"|safe }},
             inputLabels: {{ input_labels|default:"{}"|safe }},
-            slots: { reference_melody: { inputId: 'melodyInput', chipId: 'melodyChip', zoneId: 'melodySlot' } },
+            // Les slots SONT les ports de la card (2026-10-03) : lus du DOM, jamais écrits ici —
+            // la partition de YuE2 n'était pas déclarée dans la liste écrite à la main.
+            slots: Array.from(document.querySelectorAll('#composerNewCard [data-port-pane]'))
+                .filter(function (p) { return p.dataset.portInput; })
+                .reduce(function (acc, p) {
+                    acc[p.dataset.portPane] = { inputId: p.dataset.portInput, zoneId: p.id || undefined };
+                    return acc;
+                }, {}),
             statusId: 'inputMatchStatus',
         });
     }
