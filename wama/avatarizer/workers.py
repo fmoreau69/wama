@@ -22,8 +22,6 @@ from pathlib import Path
 
 from celery import shared_task
 from django.conf import settings
-from django.core.cache import cache
-from django.db import close_old_connections
 
 from .models import AvatarJob
 from wama.common.services.resource_governor import vram_reservation
@@ -64,11 +62,6 @@ from wama.common.tts.service_client import TTSServiceLoadingError, tts_via_servi
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _set_progress(job: AvatarJob, value: int) -> None:
-    cache.set(f"avatarizer_progress_{job.id}", value, timeout=3600)
-    AvatarJob.objects.filter(pk=job.id).update(progress=value)
-
-
 def _console(user_id: int, message: str, level: str = 'info') -> None:
     try:
         push_console_line(user_id=user_id, line=message, app='avatarizer', level=level)
@@ -101,92 +94,107 @@ def _call_tts_service(job: AvatarJob) -> str:
 # ---------------------------------------------------------------------------
 
 @shared_task(bind=True, max_retries=60, default_retry_delay=10)
-def generate_avatar(self, job_id: int):
-    """
-    Tâche Celery (queue gpu) : génère une vidéo avatar animée.
+def generate_avatar(self, job_id: int, process: str = None):
+    """Tâche Celery (queue gpu) : génère une vidéo avatar animée — par le squelette COMMUN
+    (`run_item_task`, marche P6 du 2026-10-03) et le PIPELINE de l'app (`function_specs.PIPELINE`) :
 
-    Pipeline :
-      1. (mode pipeline) Synthèse audio via microservice TTS
-      2. Résolution de l'image avatar
-      3. MuseTalk : synchronisation labiale
-      4. (optionnel, use_enhancer=True) CodeFormer : amélioration faciale
-      5. Sauvegarde du résultat
-    """
-    close_old_connections()
+      • `speak`   (mode pipeline) : synthèse audio via le service TTS ;
+      • `animate` : résolution de l'avatar, MuseTalk ou TalkingHead, CodeFormer si demandé.
 
-    try:
-        job = AvatarJob.objects.get(id=job_id)
-    except AvatarJob.DoesNotExist:
-        logger.error(f"[avatarizer] AvatarJob #{job_id} introuvable")
-        return
+    Un lancement ne rejoue que ce qui n'est plus à jour (changer l'avatar ne re-synthétise pas la
+    voix) ; `process` le borne à UN process (⚠ argument de tâche nouveau : workers à relancer)."""
+    from wama.common.utils.task_skeleton import run_item_task
+    from .function_specs import PIPELINE
+    if not (getattr(self.request, 'retries', 0) or 0):
+        # « En cours » est posé par les LANCEURS (`begin_processing`). Un créateur qui envoie la
+        # tâche seule (l'outil de l'assistant) laissait sinon l'élément « en attente » pendant son
+        # traitement — geste gardé de l'ancienne tâche, à la PREMIÈRE livraison seulement (une
+        # re-livraison ne doit pas remettre en cours ce que l'utilisateur a arrêté).
+        AvatarJob.objects.filter(pk=job_id).exclude(status='RUNNING').update(
+            status='RUNNING', task_id=self.request.id or '')
+    run_item_task(self, app_id='avatarizer', model=AvatarJob, item_id=job_id,
+                  pipeline=PIPELINE, processes=PROCESSES, notify_label='Avatarizer', only=process)
 
-    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort
-    # sans acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué.
-    from wama.common.utils.process_control import refuse_crash_redelivery
-    if refuse_crash_redelivery(self, job, error_field='error_message'):
-        logger.warning(f"[avatarizer] AvatarJob #{job_id}: reprise après crash refusée — relancer manuellement.")
-        return
 
-    job.status = 'RUNNING'
-    job.task_id = self.request.id
-    job.save(update_fields=['status', 'task_id'])
-    _set_progress(job, 5)
-    _console(job.user_id, f"Démarrage génération avatar #{job_id}", 'info')
-
-    import time as _time
-    _t0 = _time.time()  # chrono pour le seeding ETA
-
+def _speak(job, ctx):
+    """Process `speak` : le texte de la card → son audio (service TTS). L'audio généré est un
+    ARTEFACT du job (l'entrée de l'animation), pas un temporaire : persisté dans `audio_input`,
+    il se vérifie, s'écoute et se reprend. Rejoué, il REMPLACE l'ancien (garde de partage : un
+    job dupliqué partage son fichier). Un service TTS qui charge encore fait re-livrer la tâche."""
+    _console(job.user_id, f"Démarrage génération avatar #{job.id}", 'info')
+    ctx.progress(10)
     tmp_audio_path = None
     try:
-        # ------------------------------------------------------------------
-        # Étape 1 : obtenir l'audio
-        # ------------------------------------------------------------------
-        if job.mode == 'pipeline':
-            _set_progress(job, 10)
-            # Choix AUTOMATIQUE du moteur TTS (brique commune `auto_model`, 2026-09-02) :
-            # résolu AU LANCEMENT, sur le domaine que le schéma déclare pour les options
-            # (`params.py` — le parc TTS par capacité, l'avatarizer n'en possède aucun).
-            from wama.common.utils.auto_model import is_auto, read_quality_intent, resolve_model_choice
-            if is_auto(job.tts_model):
-                quality = read_quality_intent(getattr(job, 'quality_intent', None))
-                # Voix clonée ⇒ le tirage exige `supports_cloning` (même règle que le synthesizer).
-                from wama.common.tts.voice_refs import is_cloned_voice
-                exigences = ['supports_cloning'] if is_cloned_voice(job.voice_preset) else None
-                job.tts_model = resolve_model_choice(
-                    job.tts_model, app_id='avatarizer', quality_intent=quality,
-                    requires=exigences,
-                    fallback=AvatarJob._meta.get_field('tts_model').get_default())
-                job.save(update_fields=['tts_model'])
-                _console(job.user_id,
-                         f"Choix automatique du moteur TTS → {job.get_tts_model_display()} "
-                         f"(capacités + VRAM libre au lancement, curseur qualité {quality}/100)", 'info')
-            _console(job.user_id, "Synthèse audio via service TTS…", 'info')
+        # Choix AUTOMATIQUE du moteur TTS (brique commune `auto_model`, 2026-09-02) :
+        # résolu AU LANCEMENT, sur le domaine que le schéma déclare pour les options
+        # (`params.py` — le parc TTS par capacité, l'avatarizer n'en possède aucun).
+        # Le modèle tiré n'est PAS écrit dans le réglage (contrat du squelette : « auto » reste
+        # « auto », et un réglage surveillé qui changerait pendant son propre process se
+        # périmerait lui-même) : il est dit dans la console et gardé sur la ligne d'exécution.
+        from wama.common.utils.auto_model import is_auto, read_quality_intent, resolve_model_choice
+        requested = job.tts_model
+        tts_model = requested
+        if is_auto(requested):
+            quality = read_quality_intent(getattr(job, 'quality_intent', None))
+            # Voix clonée ⇒ le tirage exige `supports_cloning` (même règle que le synthesizer).
+            from wama.common.tts.voice_refs import is_cloned_voice
+            exigences = ['supports_cloning'] if is_cloned_voice(job.voice_preset) else None
+            tts_model = resolve_model_choice(
+                requested, app_id='avatarizer', quality_intent=quality, requires=exigences,
+                fallback=AvatarJob._meta.get_field('tts_model').get_default())
+            _console(job.user_id,
+                     f"Choix automatique du moteur TTS → {tts_model} "
+                     f"(capacités + VRAM libre au lancement, curseur qualité {quality}/100)", 'info')
+        _console(job.user_id, "Synthèse audio via service TTS…", 'info')
+        job.tts_model = tts_model                  # le temps de l'appel : la brique lit le job
+        try:
             tmp_audio_path = _call_tts_service(job)
-            # L'audio généré est un ARTEFACT du job (l'entrée de l'étage animation), pas un
-            # temporaire : persisté dans `audio_input`, il se vérifie, s'écoute et se rejoue.
-            # Un re-run REGÉNÈRE (texte/voix ont pu changer) — l'ancien fichier est retiré
-            # d'abord, via la garde de partage (un job dupliqué partage son fichier).
-            from django.core.files import File
-            from wama.common.utils.queue_duplication import safe_delete_file
-            if job.audio_input:
-                safe_delete_file(job, 'audio_input')
-            with open(tmp_audio_path, 'rb') as fh:
-                job.audio_input.save(f"tts_job{job_id}.wav", File(fh), save=True)
-            audio_path = job.audio_input.path
-            _console(job.user_id, "Audio TTS généré.", 'info')
-        else:
-            # Import par URL : télécharger l'audio si pas encore de fichier local
-            # (mécanisme commun déclaratif ensure_local_input, spec WAMA_INGEST du modèle).
-            from wama.common.utils.source_ingest import ensure_local_input
-            ensure_local_input(job, console=lambda m: _console(job.user_id, m, 'info'))
-            if not job.audio_input:
-                raise ValueError("Mode Standalone : aucun fichier audio (ni URL) fourni.")
-            audio_path = job.audio_input.path
+        finally:
+            job.tts_model = requested
+        ctx.progress(80)
+        from django.core.files import File
+        from wama.common.utils.queue_duplication import safe_delete_file
+        if job.audio_input:
+            safe_delete_file(job, 'audio_input')
+        with open(tmp_audio_path, 'rb') as fh:
+            job.audio_input.save(f"tts_job{job.id}.wav", File(fh), save=True)
+        _console(job.user_id, "Audio TTS généré.", 'info')
+        return {'fields': {'audio_input': job.audio_input.name}, 'label': 'audio de la voix',
+                'console_success': "Audio TTS généré ✓",
+                'models': [tts_model] if tts_model else None,
+                'output_ref': job.audio_input.name}
+    except TTSServiceLoadingError as e:
+        # Service TTS en démarrage — rendre le worker GPU et revenir (politique du squelette
+        # commun : 60 × 10 s, puis échec dit).
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        raise ServiceNotReady(
+            "Service TTS en chargement", countdown=10, max_attempts=60,
+            gave_up="Service TTS non disponible après 10 minutes d'attente (60 tentatives)") from e
+    except Exception:
+        ctx.reset_progress()
+        raise
+    finally:
+        if tmp_audio_path and os.path.exists(tmp_audio_path):
+            try:
+                os.unlink(tmp_audio_path)
+            except Exception:
+                pass
 
-        _set_progress(job, 20)
+
+def _animate(job, ctx):
+    """Process `animate` : l'avatar + l'audio → la vidéo (MuseTalk ou TalkingHead, puis CodeFormer
+    si demandé). L'audio vient du process `speak` ou de la card (mode standalone — une URL est
+    rapatriée par le squelette avant cette glue, `WAMA_INGEST`)."""
+    import time as _time
+    job_id = job.id
+    try:
+        if not job.audio_input:
+            raise ValueError("Mode Standalone : aucun fichier audio (ni URL) fourni.")
+        audio_path = job.audio_input.path
+        ctx.progress(5)
 
         # ------------------------------------------------------------------
-        # Étape 2 : résoudre l'image avatar
+        # Résoudre l'image avatar
         # ------------------------------------------------------------------
         if job.avatar_source == 'gallery':
             if not job.avatar_gallery_name:
@@ -202,7 +210,7 @@ def generate_avatar(self, job_id: int):
                 raise ValueError("Upload : aucune image avatar fournie.")
             image_path = job.avatar_upload.path
 
-        _set_progress(job, 30)
+        ctx.progress(12)
 
         # ── Le MODÈLE D'ANIMATION se TIRE parmi ceux de l'avatarizer (2026-09-30) ──────────
         # Brique commune `resolve_model_choice` : les ENTRÉES fournies décident (une photo ne
@@ -273,9 +281,10 @@ def generate_avatar(self, job_id: int):
         import shutil as _shutil
 
         # ------------------------------------------------------------------
-        # Étape 3 : animation — TalkingHead (avatar 3D) ou MuseTalk (photo)
+        # Animation — TalkingHead (avatar 3D) ou MuseTalk (photo)
         # ------------------------------------------------------------------
-        _set_progress(job, 40)
+        ctx.progress(25)
+        _t_render = _time.time()
 
         with work_dir(f'avatarizer_job{job_id}') as travail:
             if avatar_3d:
@@ -300,7 +309,7 @@ def generate_avatar(self, job_id: int):
                     avatar_path=image_path, audio_path=audio_path,
                     output_path=str(travail / 'talkinghead.mp4'),
                     text=job.text_content, words=words, language=lang,
-                    progress=lambda f: _set_progress(job, 40 + int(f * 45)))
+                    progress=lambda f: ctx.progress(25 + int(f * 55)))
                 _console(job.user_id, "Rendu TalkingHead terminé.", 'info')
             else:
                 _console(job.user_id, "MuseTalk : synchronisation labiale en cours…", 'info')
@@ -312,10 +321,10 @@ def generate_avatar(self, job_id: int):
                 )
                 _console(job.user_id, "MuseTalk terminé.", 'info')
 
-            _set_progress(job, 85 if avatar_3d else 80)
+            ctx.progress(82 if avatar_3d else 78)
 
             # --------------------------------------------------------------
-            # Étape 4 (optionnelle) : CodeFormer — amélioration faciale
+            # (optionnel) CodeFormer — amélioration faciale
             # --------------------------------------------------------------
             final_video = animated_video
             if job.use_enhancer and avatar_3d:
@@ -323,7 +332,7 @@ def generate_avatar(self, job_id: int):
                 _console(job.user_id, "CodeFormer ignoré : sans objet sur un avatar 3D.", 'info')
             elif job.use_enhancer:
                 _console(job.user_id, "CodeFormer : amélioration faciale en cours…", 'info')
-                _set_progress(job, 85)
+                ctx.progress(82)
                 final_video = _backend('avatarizer:codeformer').process(animated_video, str(travail))
                 _console(job.user_id, "CodeFormer terminé.", 'info')
 
@@ -340,14 +349,13 @@ def generate_avatar(self, job_id: int):
                 source_name=audio_path, item_id=job_id, ext='.mp4')
             _shutil.move(str(final_video), str(cible))
 
-        _set_progress(job, 95)
+        ctx.progress(95)
 
         # ------------------------------------------------------------------
-        # Étape 5 : sauvegarder le résultat
+        # Le résultat
         # ------------------------------------------------------------------
-        rel_path = os.path.relpath(cible, settings.MEDIA_ROOT)
-        job.output_video.name = rel_path
-        job.status = 'SUCCESS'
+        rel_path = os.path.relpath(cible, settings.MEDIA_ROOT).replace('\\', '/')
+        fields = {'output_video': rel_path}
 
         # Durée du média (= durée audio) : métadonnée + taille pour le seeding ETA.
         _dur = 0.0
@@ -358,70 +366,24 @@ def generate_avatar(self, job_id: int):
         except Exception:
             _dur = 0.0
         if _dur > 0:
-            job.duration_seconds = _dur
-            job.save(update_fields=['output_video', 'status', 'duration_seconds'])
-        else:
-            job.save(update_fields=['output_video', 'status'])
+            fields['duration_seconds'] = _dur
 
-        _set_progress(job, 100)
-        _console(job.user_id, f"Vidéo générée : {os.path.basename(final_video)}", 'info')
+        # Seeding ETA : lip-sync → temps ∝ durée vidéo ; clé par qualité (CodeFormer ≫ rapide).
+        # Un rendu TalkingHead n'a pas le coût d'un lip-sync : clé à part, sinon il fausse
+        # l'ETA apprise de MuseTalk. La durée est celle de CE process (plus celle du TTS).
+        eta_key = 'avatarizer:talkinghead' if avatar_3d else f'avatarizer:{job.quality_mode}'
+        return {
+            'fields': fields,
+            'eta': (eta_key, _dur, 'video_sec') if _dur > 0 else None,
+            'label': getattr(job, 'name', '') or f"avatar #{job_id}",
+            'console_success': f"Vidéo générée : {os.path.basename(str(cible))}",
+            'models': [model_key],
+            'output_ref': rel_path,
+        }
+    except Exception:
+        ctx.reset_progress()
+        raise
 
-        # Seeding ETA : lip-sync → temps ∝ durée vidéo ; clé par qualité (CodeFormer ≫ rapide)
-        try:
-            from wama.model_manager.services.eta_estimator import record_run
-            # Un rendu TalkingHead n'a pas le coût d'un lip-sync : clé à part, sinon il fausse
-            # l'ETA apprise de MuseTalk.
-            record_run('avatarizer:talkinghead' if avatar_3d else f'avatarizer:{job.quality_mode}',
-                       size=_dur, unit='video_sec',
-                       process_seconds=_time.time() - _t0, load_seconds=None, user=job.user)
-        except Exception:
-            pass
-        try:
-            from wama.common.utils.notifications import notify_job, notify_job_collaborators
-            notify_job(getattr(job, 'user', None), 'Avatarizer',
-                       getattr(job, 'name', '') or f"avatar #{job_id}", True)
-            notify_job_collaborators(job, 'Avatarizer',
-                                     getattr(job, 'name', '') or f"avatar #{job_id}", True)   # E3
-        except Exception:
-            pass
 
-    except TTSServiceLoadingError as e:
-        # Service TTS en démarrage — libérer le worker GPU et réessayer (même politique
-        # que synthesize_voice : 60 × 10 s, puis échec franc).
-        retry_num = self.request.retries + 1
-        wait_msg = f"Service TTS en chargement, nouvelle tentative dans 10s ({retry_num}/60)..."
-        logger.info(f"[avatarizer] Job #{job_id}: {wait_msg}")
-        AvatarJob.objects.filter(pk=job_id).update(error_message=wait_msg)
-        _console(job.user_id, wait_msg, 'warning')
-        try:
-            raise self.retry(exc=e, countdown=10)
-        except self.MaxRetriesExceededError:
-            AvatarJob.objects.filter(pk=job_id).update(
-                status='FAILURE',
-                error_message="Service TTS non disponible après 10 minutes d'attente (60 tentatives)",
-            )
-            _set_progress(job, 0)
-            _console(job.user_id, "Erreur : service TTS non disponible après 10 minutes", 'error')
-
-    except Exception as e:
-        logger.error(f"[avatarizer] Job #{job_id} échoué : {e}", exc_info=True)
-        _console(job.user_id, f"Erreur : {e}", 'error')
-        AvatarJob.objects.filter(pk=job_id).update(
-            status='FAILURE',
-            error_message=str(e),
-        )
-        _set_progress(job, 0)
-        try:
-            from wama.common.utils.notifications import notify_job, notify_job_collaborators
-            notify_job(getattr(job, 'user', None), 'Avatarizer',
-                       getattr(job, 'name', '') or f"avatar #{job_id}", False, detail=str(e))
-            notify_job_collaborators(job, 'Avatarizer', getattr(job, 'name', '') or f"avatar #{job_id}",
-                                     False, detail=str(e))
-        except Exception:
-            pass
-    finally:
-        if tmp_audio_path and os.path.exists(tmp_audio_path):
-            try:
-                os.unlink(tmp_audio_path)
-            except Exception:
-                pass
+#: La glu de chaque process du pipeline (`function_specs.PIPELINE`).
+PROCESSES = {'speak': _speak, 'animate': _animate}

@@ -1,0 +1,57 @@
+{
+  "body": {
+    "app": "avatarizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "avatarizer.workers:generate_avatar",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "prompt",
+        "description": "Le texte à dire.",
+        "group": "travail",
+        "key": "prompt",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "avatarizer.speak",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "L'audio de la parole.",
+        "key": "audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "speech",
+      "tts"
+    ],
+    "visibility": "public"
+  },
+  "description": "Synthétise le texte de la card (service TTS, voix et langue de la card) : l'audio que l'avatar dira. Sans objet quand la card apporte son audio.",
+  "key": "avatarizer.speak",
+  "manifest_kind": "function",
+  "name": "Avatarizer — dire le texte",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:avatarizer.speak",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

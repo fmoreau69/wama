@@ -1,0 +1,64 @@
+{
+  "body": {
+    "layout": {},
+    "links": [
+      {
+        "from": "speak",
+        "to": "animate",
+        "to_port": null
+      }
+    ],
+    "nodes": [
+      {
+        "app": null,
+        "function": "avatarizer.speak",
+        "id": "speak",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "gpu": false,
+          "watched": [
+            "text_content",
+            "tts_model",
+            "voice_preset",
+            "language",
+            "quality_intent"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "avatarizer.animate",
+        "id": "animate",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "gpu": true,
+          "watched": [
+            "audio_input",
+            "avatar_source",
+            "avatar_gallery_name",
+            "avatar_upload",
+            "animation_model",
+            "bbox_shift",
+            "use_enhancer",
+            "quality_mode"
+          ]
+        }
+      }
+    ]
+  },
+  "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
+  "key": "avatarizer",
+  "manifest_kind": "pipeline",
+  "name": "Avatarizer — voix puis animation (2 process)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "avatarizer.function_specs:PIPELINE",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

@@ -1,0 +1,77 @@
+{
+  "body": {
+    "app": "avatarizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "avatarizer.workers:generate_avatar",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "La parole à animer.",
+        "group": "travail",
+        "key": "work_audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "La photo de l'avatar (MuseTalk).",
+        "group": "travail",
+        "key": "work_image",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "3d",
+        "description": "L'avatar 3D riggé (TalkingHead).",
+        "group": "travail",
+        "key": "work_object3d",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "avatarizer.animate",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "La vidéo de l'avatar parlant.",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "video",
+      "lip-sync",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Anime l'avatar sur l'audio : synchronisation labiale d'une photo (MuseTalk) ou rendu d'un avatar 3D riggé (TalkingHead), puis amélioration faciale si demandée.",
+  "key": "avatarizer.animate",
+  "manifest_kind": "function",
+  "name": "Avatarizer — animer l'avatar",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:avatarizer.animate",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}
