@@ -56,6 +56,18 @@ def register_cloud_key_task(key_id: int):
     return {'registered': True, 'source': row.source, 'open_models': len(row.open_models or [])}
 
 
+@shared_task(name='model_manager.refresh_cloud_keys')
+def refresh_cloud_keys_task():
+    """Sonde NOCTURNE des fournisseurs cloud : relit les modèles ouverts à chaque clé d'API posée
+    (`cloud_models.refresh_all_keys`). Sans elle, un modèle publié après l'enregistrement de la
+    clé n'existait jamais pour WAMA (2026-10-04 : listes figées au 18/09, Claude Opus 5.5 absent)."""
+    from .services.cloud_models import refresh_all_keys
+    summary = refresh_all_keys()
+    if summary['added'] or summary['removed'] or summary['errors']:
+        logger.info("[cloud_models] sonde nocturne : %s", summary)
+    return summary
+
+
 @shared_task(name='model_manager.sync_ollama')
 def sync_ollama_models():
     """

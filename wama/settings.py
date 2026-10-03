@@ -824,6 +824,14 @@ if ENABLE_CELERY:
             'kwargs': {'clean': False},
             'options': {'queue': 'default'},  # tâche CPU (scan disque), jamais sur la queue GPU
         },
+        # Fournisseurs CLOUD (2026-10-04) : relire chaque nuit les modèles que les clés d'API
+        # ouvrent — la liste n'était relue qu'au geste « Enregistrer » du profil, donc figée.
+        # Un appel HTTP par clé, aucun modèle chargé ; avant la plage des tests nocturnes.
+        'cloud-models-refresh': {
+            'task': 'model_manager.refresh_cloud_keys',
+            'schedule': crontab(hour=1, minute=10),
+            'options': {'queue': 'default'},
+        },
         # Résidence de l'Ollama HÔTE au gouverneur (2026-09-14) : la synchro ci-dessus tourne
         # toutes les 2 h, une ligne du registre VRAM expire en 1 h. `/api/ps` seul, aucun modèle.
         'ollama-residency-refresh': {

@@ -308,6 +308,44 @@ def refresh_key(row, background: bool = False) -> tuple:
     return len(row.open_models), ''
 
 
+def refresh_all_keys() -> dict:
+    """Relit chez CHAQUE fournisseur les modèles ouverts à CHAQUE clé posée — la sonde nocturne.
+
+    POURQUOI (constat de Fabien, 2026-10-04) : la liste d'un fournisseur n'était relue qu'au
+    geste « Enregistrer » du profil. Mesuré ce jour : toutes les clés du parc dataient leur
+    découverte du 18/09 — un modèle publié depuis (Claude Opus 5.5) n'existait pas pour WAMA, et
+    un modèle retiré y restait proposé. L'intention « à l'enregistrement, puis PÉRIODIQUEMENT »
+    était écrite (`ROADMAP §8d`) ; seule la première moitié était câblée.
+
+    Chaque clé passe par `refresh_key` (même chaîne que le profil : liste, catalogue, retraits,
+    provenance). Une erreur de fournisseur est gardée sur la ligne et la liste précédente
+    conservée : une panne d'une nuit ne ferme rien. Les fournisseurs sans liste (`claude_cli`)
+    sont sautés — il n'y a rien à y découvrir.
+
+    Rend {'keys', 'added': {source: [...]}, 'removed': {source: [...]}, 'errors': {source: msg}}.
+    """
+    from wama.accounts.models import UserApiKey
+
+    listable = [s.key for s in external_sources.SOURCES
+                if s.kind == 'llm' and s.protocol not in UNLISTABLE_PROTOCOLS]
+    summary = {'keys': 0, 'added': {}, 'removed': {}, 'errors': {}}
+    for row in UserApiKey.objects.filter(source__in=listable).exclude(api_key='').order_by('source', 'pk'):
+        before = set(row.open_models or [])
+        _count, error = refresh_key(row)
+        summary['keys'] += 1
+        if error:
+            summary['errors'][row.source] = error
+            continue
+        after = set(row.open_models or [])
+        if after - before:
+            summary['added'].setdefault(row.source, set()).update(after - before)
+        if before - after:
+            summary['removed'].setdefault(row.source, set()).update(before - after)
+    for field in ('added', 'removed'):
+        summary[field] = {source: sorted(keys) for source, keys in summary[field].items()}
+    return summary
+
+
 def register_open_models(row) -> None:
     """Le CATALOGUE suit la liste gardée sur la clé `row` : la partie LONGUE de `refresh_key`
     (synchronisation complète, retraits, provenance), lancée en tâche de fond depuis le profil."""

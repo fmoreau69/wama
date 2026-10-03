@@ -28,6 +28,12 @@ PARAMS = [
         options_source='catalog',
         options_query={'model_type': 'llm'},
         options_auto=True, options_cloud=True, options_abilities=True,
+        # Aide CONTEXTUELLE sous le sélecteur (2026-10-04) : la description du modèle choisi et
+        # son ORIGINE — local, cloud souverain (Albert), cloud commercial, et à quel prix. Lue du
+        # catalogue sur le domaine du select, par la brique commune `WamaModelHelp`.
+        help_source='assistant',
+        help_fallback={AUTO: "Choisi au lancement : le curseur, la mémoire GPU libre et ce que "
+                             "votre profil autorise comme cloud."},
         help="« Automatique » choisit au lancement selon le curseur, la mémoire GPU libre et "
              "les clés d'API que vous avez enregistrées.",
     ),

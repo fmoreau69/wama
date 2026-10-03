@@ -67,6 +67,10 @@
       const m = (rawMeta && typeof rawMeta === 'object') ? rawMeta
                 : (typeof fallback[sel.value] === 'object' ? fallback[sel.value] : {});
       let txt = m.description || fb || (typeof rawMeta === 'string' ? rawMeta : '');
+      // ORIGINE (2026-10-04) : où le modèle tourne — « Cloud souverain · Albert API (DINUM) ·
+      // gratuit », « Local · Ollama »… Dérivée par le catalogue (`AIModel.origin_label`), posée
+      // en TÊTE : c'est la première chose à savoir quand une liste mêle local et distant.
+      if (m.origin) txt = txt ? (m.origin + ' — ' + txt) : m.origin;
       const vram = m.recommended_vram_gb || m.vram_gb;
       if (txt && vram) txt += ' · ' + vram + ' Go VRAM';
       const facts = capabilityFacts(m.capabilities);
@@ -116,6 +120,10 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         const meta = {};
+        // L'origine ne se dit que si elle APPREND quelque chose : toujours pour un modèle
+        // distant ; pour un modèle local, seulement quand la liste en propose aussi des
+        // distants. Un sélecteur d'app tout local n'affiche pas « Local » sur chaque ligne.
+        const mixed = (data.models || []).some(function (m) { return m.execution === 'cloud'; });
         (data.models || []).forEach(function (m) {
           const key = m[keyBy];
           if (key == null) return;
@@ -124,6 +132,7 @@
             description_long: m.description || '',
             vram_gb: m.vram_gb,
             capabilities: m.capabilities || null,
+            origin: (m.execution === 'cloud' || mixed) ? (m.origin || '') : '',
           };
           // La meta s'indexe sous la clé ENTIÈRE et sous l'id NU (2026-09-29) : un select peuplé
           // du catalogue porte des clés entières (`synthesizer:kokoro`, `huggingface:org/nom`),

@@ -88,6 +88,14 @@ HOSTING = {'private': 'privé', 'sovereign': 'souverain', 'third_party': 'héber
 #: ceux qui le précèdent (`hosting_within`). Décision de Fabien, 2026-10-03.
 HOSTING_SCALE = ('private', 'sovereign', 'third_party')
 
+#: Comment on DIT à l'utilisateur où tourne un modèle distant (aide sous un sélecteur de modèle,
+#: `AIModel.origin_label`) — un libellé par niveau de l'échelle.
+CLOUD_ORIGIN_LABELS = {
+    'private': 'Cloud privé',
+    'sovereign': 'Cloud souverain',
+    'third_party': 'Cloud commercial',
+}
+
 #: Plafond par défaut d'un profil : les clouds commerciaux « seulement si on les choisit,
 #: jamais par défaut » (même diapositive).
 HOSTING_CEILING_DEFAULT = 'sovereign'
