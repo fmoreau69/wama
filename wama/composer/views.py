@@ -668,50 +668,46 @@ def update_settings(request, pk):
 # Progress
 # ---------------------------------------------------------------------------
 
-@require_GET
-def progress(request, pk):
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
-    gen = visible_or_404(ComposerGeneration, user, id=pk)
-    cached = cache.get(f'composer_progress_{pk}')
-    pct = cached if cached is not None else gen.progress
+def _eta_triplet(gen):
+    """Le triplet d'ETA du composer — la clé que `record_run` apprend (le modèle normalisé)."""
+    return normalize(gen.model), float(gen.duration or 0), 'audio_sec', False
 
-    processes, shown_state, _label = _pipeline_view(gen)
-    data = {
-        'status': gen.status,
-        'progress': pct,
-        'error': gen.error_message,
-        # P5 : les lignes de process et l'état déduit — ce que la card montre pendant le
-        # traitement (`WamaApp.updateProcessRows`), le re-rendu complet n'arrivant qu'à la fin.
-        'processes': processes,
-        'shown_state': shown_state,
-    }
 
-    # Seed ETA (audit B4-13) : estimation a priori puis APPRISE — record_run tourne déjà en fin
-    # de tâche (clé 'composer:<modèle>'), mais personne ne LISAIT les stats. Affichée par WamaEta.
-    if gen.status in ('PENDING', 'RUNNING'):
-        try:
-            from wama.model_manager.services.eta_estimator import estimate
-            from .utils.model_choice import config
-            cfg = config(gen.model)
-            dur = float(gen.duration or 0)
-            est = estimate(normalize(gen.model), size=dur, unit='audio_sec',
-                           model_loaded=False)
-            if not est:
-                # Repli a-priori déclaré au catalogue (temps ≈ durée × gen_factor + overhead).
-                est = dur * cfg.get('gen_factor', 1.5) + cfg.get('overhead_s', 15)
-            if est > 0:
-                data['estimated_seconds'] = round(est, 1)
-        except Exception:
-            pass
+def _eta_prior(gen):
+    """Repli a-priori DÉCLARÉ au catalogue : temps ≈ durée × `gen_factor` + surcoût."""
+    from .utils.model_choice import config
+    cfg = config(gen.model)
+    return float(gen.duration or 0) * cfg.get('gen_factor', 1.5) + cfg.get('overhead_s', 15)
 
-    if gen.status == 'SUCCESS' and gen.audio_output:
-        from django.urls import reverse
-        data['download_url'] = reverse('composer:download', args=[gen.id])
-        data['audio_url'] = gen.audio_output.url
-        data['exported'] = gen.exported_to_library
 
-    return JsonResponse(data)
+def _pipeline_model(gen):
+    """Le modèle passé à la bande des process (comme `_pipeline_view`) : sous « auto », aucun."""
+    from wama.common.utils.auto_model import is_auto
+    return None if is_auto(gen.model) else normalize(gen.model)
+
+
+def _progress_extra(gen):
+    """Les clés PROPRES que le JS du composer lit : le résultat, une fois produit."""
+    if gen.status != 'SUCCESS' or not gen.audio_output:
+        return {}
+    from django.urls import reverse
+    return {'download_url': reverse('composer:download', args=[gen.id]),
+            'audio_url': gen.audio_output.url, 'exported': gen.exported_to_library}
+
+
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
+# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA et son a-priori, ses
+# clés propres et le modèle de sa bande de process.
+from wama.common.utils.progress_views import make_progress_views  # noqa: E402
+
+_pv = make_progress_views(
+    work_model=ComposerGeneration,
+    get_user=lambda request: (request.user if request.user.is_authenticated
+                              else get_or_create_anonymous_user()),
+    app_id='composer', eta_for=_eta_triplet, eta_fallback=_eta_prior,
+    extra=_progress_extra, pipeline_model=_pipeline_model)
+progress = require_GET(_pv['progress'])
+global_progress = _pv['global_progress']
 
 
 # ---------------------------------------------------------------------------
@@ -915,31 +911,3 @@ def card_html(request, pk):
     return HttpResponse(html)
 
 
-def global_progress(request):
-    """Agrégat pour la barre globale COMMUNE (contrat wama-global-progress.js) :
-    {total, done, running, failed, overall_progress}. Remplace l'ancienne forme
-    {'items': [...]} que plus aucun JS n'appelait (endpoint mort, audit B1-3)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gens = ComposerGeneration.objects.filter(user=user)
-
-    total = gens.count()
-    done = gens.filter(status='SUCCESS').count()
-    failed = gens.filter(status='FAILURE').count()
-    active = list(gens.filter(status__in=('PENDING', 'RUNNING')))
-
-    if total:
-        acc = (done + failed) * 100.0
-        for gen in active:
-            cached = cache.get(f'composer_progress_{gen.id}')
-            acc += cached if cached is not None else (gen.progress or 0)
-        overall = int(acc / total)
-    else:
-        overall = 0
-
-    return JsonResponse({
-        'total': total,
-        'done': done,
-        'running': len(active),
-        'failed': failed,
-        'overall_progress': overall,
-    })

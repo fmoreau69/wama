@@ -327,6 +327,27 @@
             },
             {
               "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('composer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "extracted_score"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "default": {
@@ -1217,6 +1238,8 @@
         "batch_download",
         "batch_duplicate",
         "batch_preview",
+        "batch_promote",
+        "batch_realign",
         "batch_start",
         "batch_template",
         "batch_update",
@@ -1241,6 +1264,7 @@
         "reorder_queue",
         "start",
         "start_all",
+        "start_process",
         "stop",
         "update_settings"
       ],
@@ -1279,6 +1303,11 @@
           "name": "start",
           "pattern": "start/<int:pk>/",
           "view": "views.start"
+        },
+        {
+          "name": "start_process",
+          "pattern": "start/<int:pk>/<str:process>/",
+          "view": "views.start_process"
         },
         {
           "name": "stop",
