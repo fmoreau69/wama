@@ -153,6 +153,15 @@ côté WAMA** est la voie — pas renoncer.
 quel ») est une CONTRE-ÉPREUVE qu'aucune des trois autres n'imposait — sans elle, un `model=None`
 en dur les satisfaisait toutes en cassant la sélection par catalogue.
 
+🔴 **UNE GARDE SE PROUVE PAR UNE MUTATION — verte sur le code sain ne suffit pas** (ajouté le
+2026-10-03). Vécu : la garde « la lecture groupée des droits décide comme `accessible()` » était
+verte… et le restait quand on cassait la lecture groupée (propriétaires de jumelles oubliés) : la
+jumelle du test n'avait aucune politique, donc tout le monde y entrait, créateur ou non. Elle ne
+testait RIEN. ✅ Le geste, pour toute garde d'une décision qui ne se voit pas à l'usage (accès,
+mesure, routage) : casser volontairement le code gardé (`sed` sur un fichier PROPRE, puis
+`git checkout -- <fichier>`), relancer la garde, exiger le ROUGE, restaurer, vérifier
+`git status`. Une garde qui reste verte sur la mutation se corrige avant le commit.
+
 ### 2a ter. 🔴 `check_redundancy` — A-T-ON RÉINVENTÉ ? (inconditionnel dès que la session écrit du code)
 
 > **Ajouté le 2026-09-26, au prix d'une mesure.** Session assistant/passerelle/sélection :
