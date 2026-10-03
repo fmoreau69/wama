@@ -21102,3 +21102,26 @@ Restes déclarés :
 - l'imager écrit encore le modèle tiré dans le réglage `model` (comme le synthesizer) ;
 - la durée de traitement d'une IMAGE est désormais celle de la tâche (chargement compris) ;
 - rouges PRÉEXISTANTS, pas de cette session : budgets de langue des identifiants.
+
+## §PALIER — 2026-10-03 (soir), « LE VISITEUR SANS SESSION NE PEUT PLUS RIEN LANCER + vérification sur le live » — ✅ commit ci-dessous, non poussé — 🔴 RECHARGER gunicorn (la garde n'est pas en service tant qu'il ne l'a pas prise) — 🔚 ouvrir le converter au visiteur (décision : où vivent ses fichiers)
+
+- **Vérifié sur le serveur EN SERVICE, relancé par Fabien** (compte de test, tout nettoyé) :
+  select du modèle d'animation servi avec ses trois options et sans prévision ; profil avec le
+  plafond d'hébergement et la case des modèles facturés ; voix — même texte, 2,24 s en ligne,
+  2,24 s sans balises de langue, 2,65 s avec (le correctif est en service) ; avatar 3D par le
+  WORKER avec `talkinghead` nommé : SUCCESS en 20 s (job #594) ; MuseTalk nommé sur le même GLB :
+  refusé avec sa raison. Assistant : 3 réponses justes sur 3 fil vidé (« oui, j'ai une voix… le
+  bouton 🔊 ») — ⚠ et 1 refus au tout premier essai, cause non établie. Un fil qui PORTE déjà
+  l'ancien refus le resservira : « Effacer » avant de juger.
+- **Garde du visiteur** (rappel de Fabien : l'anonyme ne lance rien, sauf dans le converter) :
+  `AppAccessMiddleware` refuse tout geste sans session sur une app non publique (403 + rappel
+  « Connectez-vous »), les pages restent visibles. Détail : `PROFILES_PERMISSIONS §1.4`.
+  Mesure : `common.rights_anonymous` passe de 1 refus sur 10 à 10 sur 10 ; un ajout puis un
+  lancement d'avatar sans session → 403, 0 job. Gardes : `VisitorActionGuardTests`.
+  `media_library/tests_login_required` accepte désormais ce 403 pour un POST (les deux refusent).
+- ⏳ Le converter refuse TOUJOURS le visiteur (`@login_required`, `public` non déclaré) : le
+  scénario reste rouge sur ce seul point. L'ouvrir = décision sur la persistance (compte
+  `anonymous` unique → fichiers visibles de tous les visiteurs).
+- Fichiers : `accounts/middleware.py`, `accounts/tests_access_points.py`,
+  `common/services/rights_matrix.py`, `media_library/tests/tests_login_required.py`,
+  `PROFILES_PERMISSIONS.md`.

@@ -37,6 +37,13 @@ class NoRouteServesAnAnonymousVisitorTest(TestCase):
             for method in ('get', 'post'):
                 with self.subTest(route=name, method=method):
                     response = getattr(self.client, method)(path)
+                    if method == 'post' and response.status_code == 403:
+                        # Depuis le 2026-10-03 la garde COMMUNE du visiteur (`AppAccessMiddleware`)
+                        # répond avant la vue pour tout geste sans session : refus dit, pas de
+                        # redirection (le geste vient d'un `fetch`). Les deux refusent.
+                        self.assertTrue(response.json().get('login_required'),
+                                        f'{name} : 403 qui ne vient pas de la garde du visiteur')
+                        continue
                     self.assertEqual(302, response.status_code,
                                      f'{name} ({method.upper()}) répond {response.status_code} à un anonyme')
                     self.assertTrue(re.search(re.escape(login), response['Location']),

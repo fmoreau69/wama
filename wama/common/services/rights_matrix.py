@@ -490,9 +490,13 @@ def run_rights_anonymous(ctx):
         visiteur muni d'un vrai fichier AGIRAIT.
     Attendu de la décision : refusé PARTOUT **sauf le converter** (app d'essai sans GPU) —
     l'exception est mesurée dans les DEUX sens : un converter gardé serait aussi un écart.
-    ⚠ La garde serveur s'exécute avec le chantier avatar/accueil (APRÈS portage) : ce
-    scénario code le contrat CIBLE et reste rouge d'ici là — rouge ASSUMÉ, documenté
-    (`PROJECT_STATUS` : « l'échec attendu tant que la garde n'est pas construite »).
+    ✅ La garde serveur EXISTE depuis le 2026-10-03 (`accounts.middleware.AppAccessMiddleware` :
+    tout geste sans session sur une app non publique → 403) : mesuré, 10 refus sur 10 routes
+    (1 sur 10 la veille). ⏳ Reste la SECONDE moitié du contrat : le converter doit s'ouvrir au
+    visiteur. Il le refuse encore (`@login_required` sur toutes ses vues, politique `public`
+    non déclarée) — l'ouvrir demande de trancher où vivent les fichiers d'un visiteur : le
+    compte `anonymous` est UNIQUE, ses éléments seraient vus de tous les visiteurs. Le scénario
+    reste donc rouge sur ce seul point, et le dit.
     """
     from django.urls import NoReverseMatch, reverse
     from wama.accounts.permissions import all_gated_apps
@@ -566,8 +570,10 @@ def run_rights_anonymous(ctx):
         if converter_garde:
             morceaux.append("le CONVERTER refuse le visiteur — l'app d'essai de la décision "
                             "n'est plus une exception")
-        return False, f"❌ {base} — " + ' | '.join(morceaux) + \
-            " (garde serveur planifiée avec le chantier avatar/accueil — rouge attendu d'ici là)"
+        return False, f"❌ {base} — " + ' | '.join(morceaux) + (
+            " (la garde serveur du visiteur doit refuser partout : `AppAccessMiddleware`)" if ecarts
+            else " (reste à ouvrir le converter au visiteur — décision sur la persistance, "
+                 "`PROFILES_PERMISSIONS §1.4`)")
     return True, base + " — contrat « visiteur guidé » TENU : refus partout, converter seul ouvert"
 
 
