@@ -600,13 +600,19 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
                     <small class="d-block text-muted">Une fiche décrit, la plateforme se construit</small>
                   </a>
                 </li>
+                {% if reports %}
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Rapports</h6></li>
+                {% for r in reports %}
                 <li>
-                  <a class="dropdown-item py-2" href="{% url 'transcription_report' %}">
+                  <a class="dropdown-item py-2" href="{% url 'report' r.slug %}">
                     <i class="fas fa-chart-bar fa-fw me-2 text-primary"></i>
-                    <span class="fw-semibold">Évaluation des moteurs de transcription</span>
-                    <small class="d-block text-muted">Rapport mesuré dans WAMA, octobre 2026</small>
+                    <span class="fw-semibold">{{ r.label }}</span>
+                    <small class="d-block text-muted">{{ r.detail }}</small>
                   </a>
                 </li>
+                {% endfor %}
+                {% endif %}
                 {% if archived_presentations %}
                 <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Archives</h6></li>
