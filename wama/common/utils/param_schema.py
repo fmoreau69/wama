@@ -175,9 +175,49 @@ class Param:
                                                 # le curseur est BORNÉ à la capacité. Modèle « auto » ou sans
                                                 # capacité → curseur du schéma, inchangé. Serveur : la tâche
                                                 # lit les MÊMES capacités (ex. `video_caps_from_declaration`).
+    display_format: str = ""                    # FORMAT d'affichage de la valeur (2026-10-04) : "duration"
+                                                # (secondes → « 3:30 ») | "size" (octets → « 3,8 Go »).
+                                                # Remplace le suffixe nu `unit` partout où la valeur se LIT :
+                                                # libellé du curseur, bornes, chip de card. Formateurs
+                                                # COMMUNS (`WamaApp.formatDuration`/`formatSize`, Python
+                                                # `DISPLAY_FORMATS`) — jamais une copie par app.
+    default_from: Optional[dict] = None         # Valeur PROPOSÉE d'après une ENTRÉE de la card (2026-10-04,
+                                                # Fabien : la durée du composer reprend celle de la chanson
+                                                # à reprendre) : {"port": "<id du port>", "property":
+                                                # "duration"}. Au dépôt (ou à la désignation) d'un fichier sur
+                                                # ce port, la propriété est lue — chez le client pour un
+                                                # fichier téléversé, par `common:api_media_probe` pour un
+                                                # fichier désigné — et posée dans le champ, BORNÉE par son
+                                                # max (y compris celui de `cap_from`). Une valeur que
+                                                # l'utilisateur change ensuite reste la sienne.
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def _format_size(value) -> str:
+    """Octets → « 3,8 Go » — jumeau Python de `WamaApp.formatSize` (base 1024, unités FR)."""
+    units, v, i = ('o', 'Ko', 'Mo', 'Go', 'To'), abs(float(value)), 0
+    while v >= 1024 and i < len(units) - 1:
+        v, i = v / 1024, i + 1
+    text = f"{v:.0f}" if (v >= 100 or i == 0) else f"{v:.1f}".replace('.', ',')
+    if text.endswith(',0'):
+        text = text[:-2]
+    return f"{'-' if float(value) < 0 else ''}{text} {units[i]}"
+
+
+def format_display(value, display_format: str) -> Optional[str]:
+    """La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
+    ou la valeur illisible — l'appelant garde alors son affichage d'avant."""
+    try:
+        if display_format == 'duration':
+            from wama.common.utils.media_probe import format_duration
+            return format_duration(float(value)) or None
+        if display_format == 'size':
+            return _format_size(value)
+    except (TypeError, ValueError):
+        return None
+    return None
 
 
 # ── Dérivation depuis un modèle Django ───────────────────────────────────────

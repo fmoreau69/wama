@@ -903,6 +903,46 @@
       + ' ' + SIZE_UNITS[i];
   }
 
+  /** Durée LISIBLE : « 0:45 », « 3:30 », « 1:02:30 » — le format de WAMA (cards, lecteur audio,
+   *  jumeau Python `media_probe.format_duration`). `from` dit l'unité de la valeur reçue
+   *  ('s' par défaut, 'ms', 'min'). Ajouté à côté de `formatSize` le 2026-10-04 (Fabien). */
+  const DURATION_FACTORS = { ms: 0.001, s: 1, min: 60, h: 3600 };
+  function formatDuration(value, from) {
+    const n = Number(value) * (DURATION_FACTORS[String(from || 's')] || 1);
+    if (value == null || value === '' || !isFinite(n) || n <= 0) return '—';
+    const total = Math.round(n);
+    const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    const pad = function (x) { return String(x).padStart(2, '0'); };
+    return h ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
+  }
+
+  /** DURÉE (secondes) du fichier d'un input — Promise<number|null>. Téléversé : lue par le
+   *  navigateur (métadonnées audio/vidéo, rien n'est envoyé) ; DÉSIGNÉ (`designateInto`) : sonde
+   *  serveur `common:api_media_probe` (la garde de la désignation). null si illisible. */
+  function mediaDuration(input) {
+    const designated = designationOf(input);
+    if (designated) {
+      return fetch('/common/api/media-probe/?path=' + encodeURIComponent(designated.path),
+                   { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : {}; })
+        .then(function (d) { return Number(d.duration) > 0 ? Number(d.duration) : null; })
+        .catch(function () { return null; });
+    }
+    const file = input && input.files && input.files[0];
+    if (!file) return Promise.resolve(null);
+    return new Promise(function (resolve) {
+      const media = document.createElement(/^video\//.test(file.type) ? 'video' : 'audio');
+      const url = URL.createObjectURL(file);
+      const done = function (v) { URL.revokeObjectURL(url); resolve(v); };
+      media.preload = 'metadata';
+      media.onloadedmetadata = function () {
+        done(isFinite(media.duration) && media.duration > 0 ? media.duration : null);
+      };
+      media.onerror = function () { done(null); };
+      media.src = url;
+    });
+  }
+
   /** Les PROCESS d'une card (bande `common/_card_processes.html`, ROUTE §10.6 5.1) mis à jour
    *  EN PLACE pendant le traitement, depuis les `processes` que la vue de progression renvoie
    *  (`[{key, status, duration_s, …}]`). Le re-rendu serveur complet n'arrive qu'en fin de tâche :
@@ -965,6 +1005,8 @@
 
   global.WamaApp = {
     formatSize: formatSize,
+    formatDuration: formatDuration,
+    mediaDuration: mediaDuration,
     updateProcessRows: updateProcessRows,
     escapeHtml: escapeHtml,
     getUrl: getUrl,

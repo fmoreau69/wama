@@ -25,12 +25,17 @@ from wama.common.app_registry import normalize_types
 
 
 def format_duration(seconds: float) -> str:
-    """``95.4 -> '1:35'`` — affichage court pour les cards ('' si inconnu/zéro)."""
+    """``95.4 -> '1:35'``, ``3750 -> '1:02:30'`` — affichage court ('' si inconnu/zéro).
+
+    LE format de durée de WAMA, côté serveur : celui des cards, du lecteur audio
+    (`wama-audio-player.js`) et de `WamaApp.formatDuration` (son jumeau JS, 2026-10-04).
+    Les heures apparaissent au-delà de 59:59 (« 62:30 » ne se lit pas)."""
     if not seconds or seconds <= 0:
         return ''
-    minutes = int(seconds // 60)
-    secs = int(seconds % 60)
-    return f"{minutes}:{secs:02d}"
+    total = int(seconds)
+    hours, rest = divmod(total, 3600)
+    minutes, secs = divmod(rest, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
 
 
 def probe_audio(path: str) -> dict:

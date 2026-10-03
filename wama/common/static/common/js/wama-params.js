@@ -315,24 +315,35 @@
       api.idAttr + ' value="' + esc(api.value) + '" ' + attrs + '>';
   });
 
+  /** Libellé d'une VALEUR de réglage : le FORMAT déclaré (`display_format` : « duration » →
+   *  « 3:30 », « size » → « 3,8 Go », formateurs communs de `WamaApp`), sinon la valeur suivie
+   *  de son unité — l'affichage d'avant, inchangé pour tout réglage qui ne déclare rien. */
+  function valueLabel(value, fmt, unit) {
+    var A = global.WamaApp;
+    if (fmt === 'duration' && A && A.formatDuration) return A.formatDuration(value);
+    if (fmt === 'size' && A && A.formatSize) return A.formatSize(value);
+    return String(value) + (unit || '');
+  }
+
   registerRenderer('range', function (p, api) {
     const id = api.id, idA = api.idAttr, v = api.value;
     const rattrs = [p.min != null ? 'min="' + p.min + '"' : '',
                     p.max != null ? 'max="' + p.max + '"' : '',
                     p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
-    // Valeur courante (+ unité déclarée) à droite + bornes SOUS le slider — libellés FORMATÉS
-    // min_label/max_label prioritaires sur min/max bruts (P2-bis, cf. volet composer 10s/10min).
-    const unit = p.unit || '';
+    // Valeur courante à droite + bornes SOUS le slider — libellés FORMATÉS : min_label/max_label
+    // déclarés priment (P2-bis), sinon le format déclaré (`display_format`), sinon valeur + unité.
+    const unit = p.unit || '', fmt = p.display_format || '';
     return '<div class="wama-range">' +
       '<div class="d-flex align-items-center gap-2">' +
       '<input type="range" class="form-range" id="' + id + '" ' + idA + ' value="' + esc(v) + '" ' + rattrs +
-      ' data-unit="' + esc(unit) + '"' +
-      ' oninput="this.parentNode.querySelector(\'.wama-range-val\').textContent=this.value+(this.dataset.unit||\'\')">' +
-      '<span class="wama-range-val small text-muted">' + esc(v) + esc(unit) + '</span></div>' +
+      ' data-unit="' + esc(unit) + '" data-display-format="' + esc(fmt) + '"' +
+      ' oninput="this.parentNode.querySelector(\'.wama-range-val\').textContent=' +
+      'WamaParams.valueLabel(this.value,this.dataset.displayFormat,this.dataset.unit)">' +
+      '<span class="wama-range-val small text-muted">' + esc(valueLabel(v, fmt, unit)) + '</span></div>' +
       ((p.min != null || p.max != null || p.min_label || p.max_label)
         ? '<div class="d-flex justify-content-between small text-muted" style="margin-top:-4px;opacity:.7">' +
-          '<span>' + esc(p.min_label || (p.min != null ? String(p.min) + unit : '')) + '</span>' +
-          '<span>' + esc(p.max_label || (p.max != null ? String(p.max) + unit : '')) + '</span></div>'
+          '<span>' + esc(p.min_label || (p.min != null ? valueLabel(p.min, fmt, unit) : '')) + '</span>' +
+          '<span>' + esc(p.max_label || (p.max != null ? valueLabel(p.max, fmt, unit) : '')) + '</span></div>'
         : '') +
       '</div>';
   });
@@ -537,6 +548,7 @@
     _bindConditional(container);
     _bindModelHelp(container, schema, ctx);
     _bindCapFrom(container, schema, ctx);
+    _bindDefaultFrom(container, schema, ctx);
     _bindOptionSources(container, schema, ctx, null, values);
     _avertirSourcesNonResolues(container, params, ctx);
   }
@@ -882,6 +894,60 @@
     return (Math.round(n * 10) / 10).toString().replace('.', ',');
   }
 
+  /** Valeur PROPOSÉE d'après une ENTRÉE de la card (`default_from`, 2026-10-04 — la durée du
+   *  composer reprend celle de la chanson à reprendre). Le port déclaré est retrouvé par la card
+   *  d'entrée elle-même (`[data-port-pane=<port>][data-port-input]`) : aucune app ne nomme son
+   *  input. Au dépôt OU à la désignation (`designateInto` émet le même `change`), la propriété est
+   *  lue (`WamaApp.mediaDuration`) puis posée — arrondie au pas, BORNÉE par le max du moment
+   *  (celui que `cap_from` a posé pour le modèle choisi). Contexte : la surface de CRÉATION
+   *  (`panel`, là où vit la card d'entrée) — une modale d'élément existant ne suit pas le fichier
+   *  de la prochaine card. Un écouteur par input, qui relit ses cibles au moment du geste. */
+  var DEFAULT_FROM_PROPERTIES = { duration: function (input) { return global.WamaApp.mediaDuration(input); } };
+
+  function _proposedValue(target, raw) {
+    var step = Number(target.step) || 1, min = Number(target.min), max = Number(target.max);
+    var v = Math.round(raw / step) * step;
+    if (isFinite(max) && target.max !== '') v = Math.min(v, max);
+    if (isFinite(min) && target.min !== '') v = Math.max(v, min);
+    return v;
+  }
+
+  function _bindDefaultFrom(container, schema, ctx) {
+    (schema || []).forEach(function (p) {
+      var df = p.default_from;
+      if (!df || !df.port || !DEFAULT_FROM_PROPERTIES[df.property]) return;
+      if ((df.contexts || ['panel']).indexOf(ctx) === -1) return;
+      if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
+      var targetId = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
+      if (!container.querySelector('#' + CSS.escape(targetId))) return;
+      var pane = document.querySelector('[data-port-pane="' + CSS.escape(df.port) + '"][data-port-input]');
+      var input = pane && document.getElementById(pane.dataset.portInput);
+      if (!input) return;                    // pas de card d'entrée portant ce port sur la page
+      input._wpDefaultFrom = input._wpDefaultFrom || {};
+      var already = Object.keys(input._wpDefaultFrom).length > 0;
+      input._wpDefaultFrom[targetId] = df.property;
+      if (already) return;
+      input.addEventListener('change', function () {
+        if (!global.WamaApp || !global.WamaApp.mediaDuration) return;
+        Object.keys(input._wpDefaultFrom).forEach(function (id) {
+          DEFAULT_FROM_PROPERTIES[input._wpDefaultFrom[id]](input).then(function (raw) {
+            var target = document.getElementById(id);
+            if (!target || !(Number(raw) > 0)) return;
+            target.value = _proposedValue(target, Number(raw));
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+            target.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+        });
+      });
+    });
+  }
+
+  /** Libellé d'une CAPACITÉ (borne de modèle) : le format déclaré du réglage, sinon le nombre
+   *  arrondi suivi de l'unité (l'affichage d'avant). */
+  function _capLabel(cap, p, unit) {
+    return p && p.display_format ? valueLabel(cap, p.display_format, unit) : _fmtNum(cap) + unit;
+  }
+
   function _applyCap(el, note, row, p, cf, caps) {
     var cap = caps ? caps[cf.capability] : null;
     var unit = cf.unit || p.unit || '';
@@ -927,7 +993,7 @@
         el.value = bound;
         el.dispatchEvent(new Event('input', { bubbles: true }));
       }
-      note.textContent = 'Limite du modèle : ' + _fmtNum(cap) + unit;
+      note.textContent = 'Limite du modèle : ' + _capLabel(cap, p, unit);
       return;
     }
     var pct = Math.max(0, Math.min(100, (Number(cap) - min) / ((max - min) || 1) * 100));
@@ -944,7 +1010,7 @@
       if (row) row.classList.toggle(c, beyond && c === level);
       note.classList.toggle(c, beyond && c === level);
     });
-    var limit = esc(_fmtNum(cap) + unit);
+    var limit = esc(_capLabel(cap, p, unit));
     note.innerHTML = beyond
       ? (continuation
           ? '<i class="fas fa-link me-1"></i>Au-delà de ' + limit + ' : continué par segments ' +
@@ -1338,6 +1404,12 @@
                         // …et son CÂBLAGE (champ modèle absent du rendu → dit ; valeurs posées
                         // par `apply` → borne rejouée), pour la même garde.
                         bindCapFrom: _bindCapFrom,
+                        // Libellé d'une valeur (`display_format`) — appelé par l'`oninput` du
+                        // curseur rendu ; `proposedValue`/`bindDefaultFrom` : la règle de
+                        // `default_from`, exposée pour sa garde V8.
+                        valueLabel: valueLabel,
+                        proposedValue: _proposedValue,
+                        bindDefaultFrom: _bindDefaultFrom,
                         renderSettingsModal: renderSettingsModal,
                         settingsModal: settingsModal,
                         // Portée d'une modale au ⚙ d'un process (P5) : posée par la brique des
