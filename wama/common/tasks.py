@@ -163,6 +163,20 @@ def purge_visitors_task(dry_run=False):
     return summary
 
 
+@shared_task(name='common.sync_docs_corpus')
+def sync_docs_corpus_task(dry_run=False):
+    """Projection nocturne de la doc DÉCLARÉE vers le corpus système de l'assistant
+    (`common/memory/docs_corpus.py`, 2026-10-03). Mécanique : lecture des `.md`, découpage,
+    écriture — AUCUN modèle chargé. Les vecteurs des fragments neufs restent à calculer par
+    `sync_memory --reindex`, geste explicite (règle GPU, `WAMA_MEMORY §5bis`) ; entre-temps ces
+    fragments se retrouvent en lexical."""
+    from wama.common.memory.docs_corpus import index_docs
+    summary = index_docs(dry_run=dry_run)
+    if summary['written'] or summary['removed']:
+        logger.info("[docs] %s", {k: summary[k] for k in ('written', 'removed', 'fragments')})
+    return summary
+
+
 @shared_task(name='common.purge_expired_media')
 def purge_expired_media_task(dry_run=False):
     """

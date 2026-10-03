@@ -401,6 +401,13 @@ MECHANISMS = (
     Mechanism('memory_project', 'Projection des faits en souvenirs',
               "RunOutcome → MemoryItem par OBJET (mécanique, sans modèle, idempotente)",
               'wama/common/memory/project.py', 'docs/construction/ia/WAMA_MEMORY.md §7'),
+    # Mécanisme À PART, et non annexe de `memory` : il a sa propre GARDE (le prédicat du lecteur
+    # de docs) et sa propre porte d'écriture (projection déclarée, pas le geste d'un utilisateur).
+    Mechanism('docs_corpus', "Corpus système — la doc de WAMA pour l'assistant",
+              "Projette la doc DÉCLARÉE (`docs_catalog`) en fragments rappelables, découpés par "
+              "section ; qui lit quoi = le prédicat du lecteur de docs ; hors du RAG des "
+              "utilisateurs par construction ; outils `search_docs` / `read_doc`",
+              'wama/common/memory/docs_corpus.py', 'docs/construction/ia/WAMA_MEMORY.md §7quinquies'),
     Mechanism('library_export', 'Sortie d’app → médiathèque',
               "Range le RÉSULTAT d'un élément comme asset, lu au schéma canonique du détail : "
               "toute app qui déclare son adapter a le geste sans une ligne. Le RÔLE est FOURNI "

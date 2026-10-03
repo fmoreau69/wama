@@ -2560,6 +2560,70 @@ def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
     return {"results": resultats, "count": len(resultats)}
 
 
+def search_docs(user, query: str, k: int = 5) -> dict:
+    """
+    Search WAMA's OWN documentation — how an app is used, what a setting means, and (for
+    administrators) the architecture, conventions and decisions of the platform.
+
+    Call it BEFORE answering a "how do I… in WAMA" or "how does WAMA…" question from memory,
+    and cite the `label` and `section` of what you use. It only searches documents this user
+    is allowed to read; the user's own files and the lab corpus are `memory_recall`, not this.
+
+    Args:
+        query: what is being asked, in natural language (French works best: the docs are in
+               French).
+        k:     maximum number of excerpts (1-10, default 5).
+
+    Returns:
+        {"results": [{"doc", "label", "section", "audience", "location", "url", "modified",
+                      "content", "score", "caution"?}], "count"}
+        An excerpt is a fragment: call `read_doc` with its `doc` and `section` for the whole
+        section. A `caution` means the document is a dated construction record — do not state
+        what it says as the present state without checking.
+    """
+    # ⚠ Outil TRANSVERSE (`TOOL_APP_OVERRIDE` : None), donc autorisé à tous par
+    # `tool_accessible` : le refus des non-identifiés est écrit ICI, et qui lit QUOI est décidé
+    # par `docs_catalog.visible_to` — le prédicat du lecteur `/common/docs/`, appelé au rappel.
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Lecture réservée aux utilisateurs identifiés.", 'results': [], 'count': 0}
+    if not (query or '').strip():
+        return {'error': "query vide", 'results': [], 'count': 0}
+    try:
+        from wama.common.memory import recall
+        from wama.common.memory.docs_corpus import describe_hit
+        hits = recall(query, user=user, k=max(1, min(int(k or 5), 10)),
+                      include_rag=False, include_memory=False, include_docs=True, semantic=True)
+    except Exception as e:
+        return {'error': f"Documentation indisponible : {e}", 'results': [], 'count': 0}
+    results = []
+    for h in hits:
+        row = describe_hit(h.obj)
+        row['score'] = round(h.score, 5)
+        results.append(row)
+    return {'results': results, 'count': len(results)}
+
+
+def read_doc(user, doc: str, section: str = '') -> dict:
+    """
+    Read one of WAMA's documents: its outline, or one section with its sub-sections.
+
+    Use it after `search_docs`, when an excerpt is not enough to answer.
+
+    Args:
+        doc:     the document key returned by `search_docs` (`doc`).
+        section: a section title, or part of it. Empty = the outline (titles and lines), from
+                 which to pick a section.
+
+    Returns:
+        {"doc", "label", "description", "outline": [{"title","level","line"}]} without a section,
+        {"doc", "label", "section", "line", "content", "truncated"} with one, or {"error"}.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    from wama.common.memory.docs_corpus import read
+    return read(user, doc, section)
+
+
 def charger_competence(user, domaine: str, question: str = '') -> dict:
     """
     Load a specialised competence (role skill) and the matching laboratory context.
@@ -3219,6 +3283,10 @@ TOOL_REGISTRY = {
     # Mémoire & RAG — LECTURE SEULE et scopée (jalon 8, WAMA_MEMORY.md). Transverse : ce que
     # l'assistant retrouve, c'est ce que SON utilisateur possède, dans n'importe quelle app.
     'memory_recall':  memory_recall,
+    # La doc de WAMA elle-même (corpus SYSTÈME, WAMA_MEMORY §7quinquies) — LECTURE SEULE,
+    # gardée par le prédicat du lecteur de docs. Jamais les fichiers de l'utilisateur.
+    'search_docs':    search_docs,
+    'read_doc':       read_doc,
     # model_manager — LECTURE SEULE (trou #18 : « lister modèles/capacités, utile à l'assistant »)
     'list_ai_models': list_ai_models,
     'get_ai_model':   get_ai_model,
@@ -3319,6 +3387,10 @@ TOOL_APP_OVERRIDE = {
     # Mémoire : transverse par nature (elle agrège les 12 apps) et LECTURE SEULE, scopée par
     # `scoped_visible_q`. La garder derrière une app la rendrait inutile depuis les autres.
     'memory_recall':       None,
+    # Doc de WAMA : transverse et LECTURE SEULE. `None` = autorisé à tous par le registre ; le
+    # refus des non-identifiés et la garde par audience sont dans les CORPS (`visible_keys`).
+    'search_docs':         None,
+    'read_doc':            None,
     # Catalogue de modèles : LECTURE SEULE, transverse (tout connecté) — alignée sur
     # l'ouverture du méta-catalogue côté UI (WamaModelHelp le sert à tous les selects
     # d'app). L'app model_manager reste dev-gated pour la GESTION ; une future action
