@@ -3671,9 +3671,13 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   tenait pas la promesse dont le registre dépend : placer un recalage avant le tracking sans
 >   en faire un amont) —, `recompute_stale` délègue la règle à `process_runs.stale_nodes` (un
 >   nœud par ligne type × caméra). Rien ne change pour les données ni pour l'interface.
-> - ⏳ **Ce qui n'est PAS fait, à décider** : `AnalysisPass` → `ProcessRun` (migration de
->   données du Lab) et les statuts minuscules → vocabulaire `JOB_*` ; l'exécuteur du studio ne
->   produit toujours ni `AWAITING_RESOURCES` ni `STALE`.
+> - 🔄 **`AnalysisPass` → `ProcessRun`, en trois étapes** (session cam_analyzer, à la demande de
+>   Fabien) : **étape 1/3 faite le 2026-10-03** (`bf271cea`) — chaque écrivain de passe du Lab
+>   écrit AUSSI sa ligne commune (élément = la session d'analyse, nœud = la passe,
+>   `instance_key` = la caméra, statuts traduits à l'écriture) ; restent les LECTEURS (vue des
+>   passes, péremption, file, ETA) puis la reprise de l'historique et le retrait de l'ancienne
+>   table, sur décision. ⏳ L'exécuteur du studio ne produit toujours ni `AWAITING_RESOURCES`
+>   ni `STALE`.
 >
 > 🔄 **P6 ENGAGÉE le 2026-10-03 — les apps hors squelette y entrent, une par une** :
 > - **synthesizer** (`e456c711`) : `synthesize_voice` → `run_item_task`, un seul process. Le
@@ -3698,10 +3702,14 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   ▶ ultérieur ne ré-importe pas un document inchangé) et retire celle de `transcribe`. La
 >   tâche `import_existing_result_task` et sa route Celery disparaissent. Locuteurs d'une card
 >   importée : l'interrupteur décide seul ; un document sans heures n'a rien à attribuer.
->   ⏳ L'étage B de l'alignement reste une tâche à part, lancée APRÈS le dernier process (il
->   réécrit les segments que locuteurs et cohérence écrivent aussi) — en faire un process
->   `align` est une décision ouverte. ⚠ ▶ sur une card importée passe désormais par la file
->   GPU (la tâche du pipeline), plus par `default`.
+>   ✅ **L'étage B de l'alignement est le process `align`** (`d465ba4e`, décisions de Fabien du
+>   03/10) : optionnel sans interrupteur, après `import`, AVANT les locuteurs (pyannote
+>   attribue par le temps) et la cohérence (qui écrit ses marques sur les segments que
+>   l'aligneur réécrit) ; il a lieu pour un document SANS heures (propriété du document : pas
+>   SRT ni VTT) et **ne part qu'au lancement de la card, jamais au dépôt** — un document posé
+>   sur une card jamais lancée ne mobilise pas le GPU. Joué en réel : dépôt sans GPU, puis ▶ →
+>   import, alignement (Whisper pour les repères, aligneur du catalogue), 133 s. ⚠ ▶ sur une
+>   card importée passe par la file GPU (la tâche du pipeline), plus par `default`.
 > - **anonymizer** (`91e161d9`) : `process_single_media` → `run_item_task`, un seul process. L'app
 >   garde ce qui lui est propre (verrou de dédoublonnage, arrêt demandé, simulation de
 >   progression, aperçu « pendant », couverture multi-modèles — inchangée). La ligne nomme le
@@ -3714,15 +3722,41 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   max : le défaut du squelette (30 min) aurait arrêté une vidéo réelle de 74,7 min et une image
 >   de 39,2 min — `TASK_MAX_MINUTES['imager'] = 120`, mesuré ; un modèle plus lent se règle au
 >   model manager.
-> - ✅ **Plus aucune app Médias hors squelette** (les dix passent par `run_item_task`). ⏳ Ce
->   que P6 ne fait pas encore : déclarer un PIPELINE pour les apps à un seul process là où il y
->   en a réellement plusieurs (imager : génération → agrandissement → format ; anonymizer :
->   détection → floutage ; synthesizer : texte → voix → format) — chaque découpage se décide sur
->   ce qu'il permet de ne PAS rejouer, comme pour le composer, le transcriber et l'avatarizer.
->   ⚠ Mesuré le 03/10 pour l'imager : agrandissement et conversion se font EN PLACE sur le
->   fichier natif (`output_formats.apply_output_settings`). Séparer « génération » de « sortie »
->   demande donc de GARDER le natif de chaque génération (décision n°2 : sortie persistée d'un
->   process d'app) — un champ, une migration et du stockage en plus : décision de Fabien.
+> - ✅ **Plus aucune app Médias hors squelette** (les dix passent par `run_item_task`).
+> - ✅ **Le process « SORTIE », commun aux cinq apps qui rendent un fichier** (décision de
+>   Fabien du 03/10 : « garder l'image d'origine dans la brique de sortie, pour les cinq apps à
+>   la fois ») — imager, composer, synthesizer, anonymizer, enhancer (ses deux files). Chaque
+>   card joue « <moteur> → Sortie » ; **changer le format, la qualité ou l'agrandissement ne
+>   rejoue plus le moteur**.
+>   - La brique : `common/services/output_process.py` (`output_spec`, `output_step`, et pour la
+>     glu du moteur `drop_previous_outputs`, `generated`, `forget_lost_generation`) sur
+>     `output_formats.render_outputs`. Tant que la sortie TRANSFORME le fichier, l'original est
+>     gardé à côté du rendu (`<nom>.native<ext>`, champ `native_outputs` du mixin
+>     `NativeOutputsMixin`, déclaré à la rétention) ; sans transformation, UN seul fichier.
+>     `output` a TOUJOURS lieu : c'est en revenant au format d'origine qu'il rend l'original.
+>   - Ce que la glu d'un moteur déclare : une EMPREINTE (`output_fingerprint`), plus
+>     d'`output_ref` — la sortie déplace son fichier, un chemin se perdrait et ferait rejouer.
+>     Des originaux disparus font rejouer le moteur (sa ligne est oubliée avant le squelette).
+>   - Ce qui a changé de comportement : les LANCEURS ne retirent plus la sortie au clic
+>     (composer, synthesizer) — c'est la glu du moteur qui remplace ; le modèle tiré par
+>     « auto » n'est plus ÉCRIT dans le réglage (imager, synthesizer — il se lit sur la ligne
+>     du moteur) : un réglage surveillé qui changerait pendant son propre process se périmerait
+>     lui-même ; une copie de card repart sans originaux gardés.
+>   - ⚠ **Trois défauts trouvés par les essais RÉELS**, invisibles aux tests à doublures :
+>     l'agrandissement de sortie échouait toujours en service (temporaire dans `/tmp`, sortie
+>     sur un autre système de fichiers) ; un échec en cours de sortie laissait un original
+>     orphelin ; et, dans le MOTEUR COMMUN, une glu qui AJUSTE un réglage qu'elle surveille (le
+>     composer plafonne la durée : 5 s → 10 s) rendait son process périmé par son propre
+>     résultat — la photo des réglages est désormais prise à la FIN du process
+>     (`process_runs.succeed(settings_snapshot=)`).
+>   - Joué en réel : imager (SDXL 153 s ; WebP + ×2 → sortie seule 56 s ; retour 0,02 s),
+>     composer (rendu 144 s ; MP3 1,2 s ; retour 0,6 s), anonymizer (3,1 s ; WebP 0,7 s),
+>     enhancer image (14 s ; WebP 0,6 s) et audio (3,3 s ; MP3 0,6 s). ⚠ Le synthesizer n'a PAS
+>     été joué en réel avec ce découpage (service TTS arrêté au moment de l'essai).
+>   - ⏳ Restes : dans la modale ⚙ « Sortie », l'imager et l'anonymizer montrent encore des
+>     champs hors périmètre (consigne et taille ; classes) — ce sont des champs que l'app pose
+>     hors schéma ; détection → floutage de l'anonymizer et CodeFormer de l'avatarizer restent
+>     dans leur process moteur (les séparer demande de garder les détections / la vidéo animée).
 > - ✅ **Joué par la chaîne EN SERVICE après relance (03/10 soir, compte de test)** : anonymizer
 >   (3,1 s, modèle tiré nommé), transcriber `import` + résumé (18,2 s, aucun moteur ASR), image
 >   en « auto » (98,7 s), **vidéo en « auto »** (LTX fp8, 273 s — jamais jouée avant par le
@@ -4178,7 +4212,7 @@ possible **sans aucun process**.
 | **P3** | moteur commun + ligne d'exécution, **extraits de cam_analyzer** (1er utilisateur : sémantique complète et testée) et de l'exécuteur du studio ; type de nœud `pipeline` ; pipeline sans process accepté | P2 |
 | **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») ; génération réelle JOUÉE le soir même sur le moteur (plan → render, puis render seul) — rejouée par le worker en service le 03/10 (dont ▶ du rendu seul). ✅ Le **transcriber** en 4 process livré le 03/10, A/B objectif fait (point 4, bloc « P4, 2ᵉ pilote ») | P3 |
 | **P5** ✅ 03/10 | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) — livré en six pièces le 03/10 (point 5 : bande des process, état montré, ▶ / ⚙ / case à cocher par process, gabarit généré, promotion fille ↔ mère, catalogue du studio) | P3 (le renommage et le glisser-déposer : à tout moment) |
-| **P6** 🔄 03/10 | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les apps qui ne l'ont pas. ✅ Les dix apps passent par `run_item_task` (synthesizer, avatarizer, anonymizer, imager portés le 03/10 — point 4, bloc « P6 ENGAGÉE ») ; pipelines déclarés : composer, transcriber (5 process dont `import`), avatarizer. ⏳ Reste : la bande des process sur les cards qui n'en ont pas, et le découpage en process des apps à une seule glu | P4 |
+| **P6** ✅ 03/10 | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les apps qui ne l'ont pas. ✅ Les dix apps passent par `run_item_task` ; SEPT déclarent un pipeline et le montrent sur leur card : transcriber (6 process dont `import` et `align`), avatarizer, et les cinq apps du process « Sortie » commun (imager, composer, synthesizer, anonymizer, enhancer) — point 4, bloc « P6 ENGAGÉE ». Restent à un seul process : describer, reader, converter (rien à ne pas rejouer) | P4 |
 | **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script | P3, P5, décisions 5-7 |
 | **P8** | rôle assistant → manifeste `pipeline` / `dataset` | P3 |
 

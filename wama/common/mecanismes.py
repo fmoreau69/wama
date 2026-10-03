@@ -1150,9 +1150,20 @@ MECHANISMS = (
               "`render_outputs` (2026-10-03) GARDE le fichier d'origine (`<nom>.native<ext>`, champ "
               "`native_outputs` du mixin `NativeOutputsMixin`, déclaré à la rétention) tant que ces "
               "réglages le transforment : le process « sortie » d'une app se rejoue SEUL, sans "
-              "regénérer — adopté par l'imager, à porter aux apps qui recopient leur conversion",
+              "regénérer",
               'wama/common/utils/output_formats.py',
               'docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.4'),
+    Mechanism('output_process', 'Process « Sortie » d\'une card',
+              "Le second temps de toute app qui rend un fichier, en process À PART : "
+              "`output_spec` (le `ProcessSpec`, qui surveille format / qualité / agrandissement) "
+              "et `output_step` (la glu, au contrat du squelette). La glu du MOTEUR n'a que "
+              "trois gestes : `drop_previous_outputs`, `generated(...)`, et l'enveloppe de tâche "
+              "appelle `forget_lost_generation`. Changer de format ne rejoue plus le moteur "
+              "(2026-10-03) — imager, composer, synthesizer, anonymizer, enhancer ×2. Un fichier "
+              "qu'une autre card désigne encore n'est jamais retiré",
+              'wama/common/services/output_process.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
+              annexes=('wama/common/utils/output_formats.py',)),
     Mechanism('license_audit', 'Audit des licences',
               "Vue dérivée : licences+auteurs des 4 registres, traversée par app. "
               "Ne voit PAS le code vendorisé (`static/vendors/`, codeformer) — inventorié à "
