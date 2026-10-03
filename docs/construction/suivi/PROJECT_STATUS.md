@@ -20670,3 +20670,63 @@ Après la génération réelle par la vraie file (bloc précédent), GO de Fabie
   GÉNÉRÉ avec la bande (5.2) ; studio (5.4). « ▶ tout / compléter manquant + périmé » : c'est déjà
   ce que fait le ▶ de la card depuis P3 (`steps_to_run` sans `only`), le libellé du bouton de cycle
   le dit (« Recalculer ce qui est périmé ») — pas de pièce à part.
+
+## §CLÔTURE — 2026-10-03 (nuit), « PORTAGE DES APPLICATIONS : vues de lot, bornes par capacité, détail déclaratif, dédoublonnage du volet » — ✅ 12 commits (`60d047b4` → `2c510b96`), NON poussés — 🔚 POINT D'ENTRÉE : `ROUTE §11 #37` — la fabrique COMMUNE des vues de PROGRESSION (`progress` + `global_progress`, 10 apps), plan mesuré, à faire d'un bloc quand les `views.py` sont libres
+
+**Ce que la session a livré** (tout est dans les paliers du 02/10 soir et du 03/10 nuit, ci-dessus) :
+B — plus aucune vue de lot locale (`batch_views_common` 10/10) ; D — durée du composer bornée par
+la capacité du modèle (`cap_from`), critère `model_caps_ui` remis à l'heure, deux défauts de
+brique trouvés au navigateur et corrigés ; C — détail déclaratif 9/10 (quatre formes génériques,
+cinq adapters retirés) ; puis « un fait rendu une fois » au volet (`02df9c45`) ; scénario
+`composer.settings` indifférent à une card en cours (`33a130f1`). Grille **908 → 917/939**.
+
+**🔚 FILE DES CHANTIERS OUVERTS, dans l'ordre**
+1. `ROUTE §11 #37` — fabrique des vues de progression (`make_progress_views`), portage 0/10 :
+   brique + critère `progress_views_common` + équivalence mesurée par app + contrat générique.
+   ⚠ Attend des `views.py` LIBRES (sept sur dix tenus par d'autres sessions le 03/10).
+2. Jumelles du bac à sable à régénérer (`REMOVAL_LEDGER` R90 : elles passent encore `file_fields=`).
+3. Synthesizer : ouvrir le contexte `batch` du format/qualité de sortie (`params.py`, condition du
+   17/08 levée) — avec vérification navigateur.
+4. Imager : `detail_spec` reste en adapter code DÉCLARÉ (collection de résultats, schéma par
+   élément) — pas un reste, une exception tenue par `tests_detail_spec.CODE_ADAPTERS`.
+
+**Pendings SYSTÈME**
+- `git push` : 12 commits de cette session (plus ceux des autres) — push sur demande seulement.
+- Le live a été relancé à 01:03 (HEAD `02df9c45`) ; un WIP non commité d'une autre session
+  (`wama/common/urls.py` + trois JS communs, route `/common/api/notifications/recent/`) fait
+  rougir sur le live tout scénario qui compte les requêtes en échec, jusqu'à son commit + rechargement.
+- Arbre : 18 manifestes de MODÈLES régénérés par `manifest_export` (il écrit tout le corpus périmé),
+  NON commités — ils projettent le catalogue et du WIP d'autres sessions ; seuls les cinq du
+  composer (`max_duration_s`) sont partis (`2c510b96`). `manifests/apps/composer.json` : seuls mes
+  deux hunks commités, le reste projette les ports de travail d'une autre session.
+- Base de test PRIVÉE de la session (`test_wama_db_reprise_portage`) : jetable, détruite par le
+  dernier run ; les sessions forgées pour les observations ont été retirées (`_drop_new_sessions`).
+- Rapports de scénarios de la session dans `logs/nightly_tests/` (02/10 22:30 → 03/10 01:19).
+- Scripts de mesure (équivalence des specs, observation du volet et des bornes, index temporaires)
+  dans le scratchpad de session — jetables, aucun dans le dépôt.
+
+**Contrôles attendus au prochain /reprise (tous MESURÉS cette nuit)**
+- Tests des modules de la session : **98 OK** (`tests_detail_spec`, `tests_cap_from_declared`,
+  `tests_cap_from_js`, `tests_batch_views`, `tests_item_settings_contract`). Suite complète (avant
+  `02df9c45`) : **4946 tests, 16 rouges**, aucun dans mes fichiers — docs générées de l'arbre (2 :
+  `tests_doc_plans`, `tests_docs_catalog`), notifications (3), budgets de langue (5 : +3/+1/+7 venus
+  d'ailleurs), `tests_tool_api_lectures` candidats, `tests_picker_list` audio/x-wav,
+  `ItemEditRouteAliasTest` (stub imager), `tests_settings_surfaces` (`quality_intent` du
+  transcriber), `cam_analyzer` ×2 (`OrthoPerPassMeasureTest`, `SelfCorrectionTest`, fichiers en
+  cours de modification par une autre session).
+- Grille : **917/939**, 100 critères — `batch_views_common` 10/10, `release_card_file` 10/10,
+  `model_caps_ui` 8/8 applicables, `detail_spec` 9/10, `task_skeleton` 6/10.
+- `check_docs` : **6 cassées, 1 périmée sur 2538** — **5 cibles distinctes**, aucune de cette session
+  (deux dans des lignes non commitées ou d'autres sessions, trois anciennes) ; l'attendu du
+  `/reprise` est 0 : à solder par qui les a écrites.
+- `manifest_export --check` : corpus périmé — avatarizer, composer (ports), enhancer, transcriber,
+  `composer.render` : projections du WIP d'autres sessions, pas de cette session.
+- `doc_facts --check` : 5 blocs périmés (`conformite`, `mecanismes`, `modeles`, `outils`,
+  `dev-briques`) — `mecanismes.py` est en WIP d'une autre session dans l'arbre.
+- `check_redundancy` : **77 trouvailles, 0 dans les fichiers de cette session** (la seule ligne de
+  `conformity_checker.py` signalée, `_model_help`, est antérieure).
+- `check_skills` : 0 défaut, 2 candidats, 3 promus sur 17.
+
+**Leçons posées là où elles agissent** : `/smoke` (serveur jetable CÔTÉ WSL dès qu'un moteur est en
+jeu ; `pkill -f` à crochet ; compte de test qui a des cards) ; `/commit-partiel` inchangé ; mémoire :
+heredocs de l'outil Bash qui mangent les antislashs, `python -m unittest` nu interdit.
