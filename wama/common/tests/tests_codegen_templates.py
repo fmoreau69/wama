@@ -13,6 +13,7 @@ du câblage passait des variables de template au partial sans les définir, ce q
 exactement la même barre inerte — avec la sous-chaîne présente.
 """
 import re
+import unittest
 
 from django.template.loader import render_to_string
 from django.test import SimpleTestCase
@@ -427,19 +428,29 @@ class SlotDeReferenceGenereTest(SimpleTestCase):
         inc = self._include_card(self._rendu(_manifeste(SOURCE)))
         self.assertNotIn('show_reference', inc)
 
-    def test_la_chaine_complete_declare_derive_emet_sur_le_composer(self):
-        """Bout en bout SUR LE VIVANT : domaine sans switch → port → émission.
+    @unittest.expectedFailure
+    def test_a_prompt_first_app_with_optional_cover_ports_stays_in_attach_mode(self):
+        """TROU NOMMÉ (2026-10-03, décision B de Fabien) — remplace le test « la chaîne complète
+        sur le composer », dont le prémisse est devenu faux : la mélodie n'est plus une RÉFÉRENCE
+        déclarée par `APP_MODES['composer']`, mais le morceau à reprendre (cover), un port de
+        TRAVAIL facultatif déclaré par les MODÈLES (`work_audio`, `work_score`).
 
-        C'est le test qui était structurellement rouge avant le chantier (b) : le composer
-        offrait `reference_accept='audio/*'` en littéral de gabarit, sa déclaration
-        l'excluait (`input_extensions = TEXT` seul), et son manifeste n'avait aucun port
-        `reference`. La mélodie a désormais UNE source : `APP_MODES['composer']`,
-        `inputs` du domaine `composition`.
-        """
-        inc = self._include_card(self._rendu(_manifeste('composer')))
-        self.assertIn('show_reference=True', inc)
-        self.assertEqual({'audio'}, self._reference_natures(inc))
-        self.assertIn("reference_label='Mélodie de référence'", inc)
+        Ce qui DEVRAIT tenir : une app à consigne d'abord (prompt exigé par tous ses modèles) reste
+        en mode ATTACHE même avec des ports de travail FACULTATIFS. Ce qui échoue aujourd'hui :
+        `views_gen.prompt_entry` décide « attache = aucun port de travail », faute de connaître
+        l'obligation — la facette `ports` du manifeste ne porte pas `required` (son docstring le
+        nomme déjà). La jumelle générée du composer CRÉERAIT un élément au dépôt d'un fichier.
+        Même lacune que `projection.derive_io_from_ports` (`INPUT_MODEL_MATCHING §6.10`). Le jour
+        où la facette porte l'obligation, ce test passe : retirer alors `expectedFailure`."""
+        from copy import deepcopy
+        manifest = deepcopy(_manifeste('composer'))
+        inputs = (manifest['body'].setdefault('ports', {})).setdefault('inputs', [])
+        inputs += [{'id': 'work_audio', 'label': 'Audio de travail', 'group': 'travail',
+                    'types': ['audio'], 'multi': True},
+                   {'id': 'work_score', 'label': 'Partition de travail', 'group': 'travail',
+                    'types': ['score'], 'multi': False}]
+        inc = self._include_card(self._rendu(manifest))
+        self.assertIn('depot_cree=False', inc)
 
     def test_le_slot_travail_est_retreci_aux_categories_du_port(self):
         """Moitié TRAVAIL de §S2bis.6 (b), débloquée par le retrait de l'homonyme `text`.
