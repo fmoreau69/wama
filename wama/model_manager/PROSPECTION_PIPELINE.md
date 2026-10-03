@@ -2132,6 +2132,12 @@ cataloguait `m-a-p/YuE2-Vae` et `m-a-p/MERT-v2-FullSong` comme des modèles — 
 du composer retenait le VAE de YuE2 pour une musique au curseur rapide. Le formalisme le disait
 déjà (`repo` : « sans existence propre pour l'usage ») ; la découverte et la synchro le lisent
 désormais (`model_locations.declared_component_repos`, sauf un modèle qui se déclare lui-même) —
-2 lignes retirées, poids intacts à côté de leur parent. ⏳ **Pas encore** : la 1ʳᵉ reprise réelle sur GPU ;
+2 lignes retirées, poids intacts à côté de leur parent.
+✅ **1ʳᵉ reprise RÉELLE sur GPU** (#314, compte de test, chaîne EN SERVICE : outil de l'assistant →
+workers) : extraction 104 s (SheetSage2 chargé puis DÉCHARGÉ), rendu 145 s (YuE2, `cot=melody`
+lu au journal du worker), 29,3 s d'audio stéréo non silencieux. **Fidélité MESURÉE** : la
+partition ré-extraite du cover ressemble à celle de la source à 84 % (contre-épreuve aléatoire :
+19 %), même tempo (♩=129), même tonalité, même mesure. A priori de qualité de la musique :
+`WAMA_QUALITE.md` (étage a priori). ⏳ **Pas encore** : la 1ʳᵉ reprise réelle sur GPU ;
 rechargement des workers pour importer le backend et le process. ⚠ Relevé au passage, hors de ce périmètre : `$HOME/.cache/huggingface/hub` porte 13 Go de
 dépôts déposés hors `AI-models` (Supra2-IMG, LinTO, MuseTalk, Higgs, Kokoro…).

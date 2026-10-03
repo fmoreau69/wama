@@ -103,6 +103,47 @@ def apriori_quality_index(*, params_b: float | None, context_length: int | None 
     return round(score, 2)
 
 
+#: A PRIORI DÉCLARÉS, AVEC LEUR SOURCE (2026-10-03, décision de Fabien) — pour les modèles que
+#: l'a priori STRUCTUREL ne sait pas noter (des paramètres ne disent rien d'un modèle de musique
+#: face à un autre d'une autre architecture) et qu'aucun banc tiers lisible par machine ne couvre.
+#: Mesuré ce jour-là : aucun des six modèles de musique ne portait de signal de qualité, le tirage
+#: classait donc par VRAM — MiniMax-Music3 (13 Go) devant YuE2 (8,8 Go).
+#:
+#: ⚠ LES VALEURS NE SE LISENT QU'ENTRE MODÈLES D'UNE MÊME TÂCHE (le tirage borne son lot par
+#: tâche) ; un modèle NON NOTÉ du lot est écarté du classement par la sélection, d'où une table
+#: qui couvre la tâche ENTIÈRE ou rien. Une mesure (banc tiers confronté, mesure interne) PRIME
+#: dès qu'elle existe : cette table est l'étage le plus bas de l'échelle des signaux.
+#: Clé = `model_key` du catalogue ; valeur = (indice, source DATÉE).
+_SONGBENCH = ("SongBench Avg ×10, WildSongBench 192 prompts — fiche m-a-p/YuE2-3B du 2026-09-12 "
+              "(AUTO-ÉVALUATION des auteurs de YuE2)")
+DECLARED_PRIORS = {
+    # text-to-music — chansons : le banc publié les mesure sur UNE échelle.
+    'huggingface:m-a-p/YuE2-3B': (67.32, f"{_SONGBENCH} : 6,7316"),
+    'composer:minimax-music3': (62.83, f"{_SONGBENCH} : MiniMax Music 3 6,2830 — mesuré sur le "
+                                       f"modèle d'origine, servi ici en GGUF Q8 (borne haute)"),
+    'huggingface:ACE-Step/Ace-Step1.5': (60.12, f"{_SONGBENCH} : ACE-Step 1.5 6,0118"),
+    # text-to-music — MusicGen : INSTRUMENTAL, hors de SongBench (qui juge des chansons). Seul
+    # appui comparatif lisible : les votes humains de Music Arena (CC-BY-4.0, parquet converti,
+    # lu le 2026-10-03 ; les mois 2026-04 à 07 n'étaient pas lisibles). PEU de duels : ce sont des
+    # RANGS, pas des mesures — à remplacer dès qu'un banc couvre ces modèles.
+    'composer:musicgen-medium': (60.12, "Music Arena 2026-03 : 22 duels contre acestep-1.5-turbo, "
+                                        "8 victoires contre 6 (8 « mauvais tous deux ») — aucune "
+                                        "différence mesurable : même rang qu'ACE-Step 1.5 (lu le "
+                                        "2026-10-03)"),
+    'composer:musicgen-melody': (60.12, "variante 1,5 B de musicgen-medium conditionnée par la "
+                                        "mélodie — même rang (2026-10-03, pas de duel publié)"),
+    'composer:musicgen-small': (57.62, "Music Arena 2025-09 → 2026-02 : 51 duels contre "
+                                       "musicgen-medium, 5 victoires contre 10 — rang INFÉRIEUR ; "
+                                       "l'écart (−2,5) est un CHOIX, non mesuré (2026-10-03)"),
+}
+
+
+def declared_prior(model_key: str) -> float | None:
+    """L'indice a priori DÉCLARÉ pour ce modèle (`DECLARED_PRIORS`), None sinon."""
+    entry = DECLARED_PRIORS.get(model_key or '')
+    return entry[0] if entry else None
+
+
 def active_params_b(params_b: float | None, total_experts, active_experts) -> float | None:
     """
     Paramètres réellement activés par jeton, en milliards — axe de COÛT, pas de qualité.

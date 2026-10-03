@@ -186,12 +186,6 @@ class AppPipeline:
     # déclarations : les types des ports viennent des `FunctionSpec`, la disponibilité
     # d'`available` — aucune app ne réécrit la règle.
 
-    def _terminal(self) -> ProcessSpec:
-        """Le process dont aucun autre ne dépend — celui que sert le modèle de la card."""
-        upstream = {d for spec in self.specs for d in spec.depends_on}
-        terminals = [spec for spec in self.specs if spec.key not in upstream]
-        return terminals[-1] if terminals else self.specs[-1]
-
     def _ports(self, spec: ProcessSpec):
         """(entrées, sorties) du `FunctionSpec` du process — listes de `PortSpec`, vides s'il
         n'est pas déclaré au catalogue."""
@@ -202,36 +196,44 @@ class AppPipeline:
         return list(declared.inputs or []), list(declared.outputs or [])
 
     def _bridges(self):
-        """`[(ports d'entrée de l'amont, types de sortie)]` des process AMONT disponibles ICI."""
-        terminal = self._terminal()
+        """`[(ports que l'amont PREND, ports de l'aval qu'il ALIMENTE)]` des process disponibles
+        ICI : un process alimente, chez ses process DIRECTEMENT en aval (`depends_on`), les
+        entrées du TYPE de l'une de ses sorties.
+
+        Aucune notion de process « terminal » : elle désignait le dernier process comme celui du
+        modèle, ce qu'un process de SORTIE en aval du rendu (format, qualité) aurait faussé —
+        relevé le jour même, avant qu'il n'arrive. Seule la structure DÉCLARÉE compte."""
         out = []
         for spec in self.specs:
-            if spec is terminal or not self.can_run(spec):
+            if not self.can_run(spec):
                 continue
             inputs, outputs = self._ports(spec)
-            out.append(({p.key for p in inputs}, {p.data_type for p in outputs}))
+            gives = {p.data_type for p in outputs}
+            fed = set()
+            for downstream in self.specs:
+                if spec.key in downstream.depends_on:
+                    fed |= {p.key for p in self._ports(downstream)[0] if p.data_type in gives}
+            if fed:
+                out.append(({p.key for p in inputs}, fed))
         return out
 
     def covering_inputs(self, port: str) -> set:
-        """Les ports du process TERMINAL par lesquels un modèle accepte `port` au sein du
-        pipeline : `port` lui-même, plus tout port alimenté par un amont disponible qui PREND
-        `port` et rend une sortie de son TYPE. Un modèle qui consomme l'un d'eux accepte `port`."""
-        terminal_inputs, _ = self._ports(self._terminal())
+        """Les ports par lesquels un modèle accepte `port` au sein du pipeline : `port` lui-même,
+        plus toute entrée qu'alimente un amont disponible qui PREND `port`. Un modèle qui
+        consomme l'un d'eux accepte `port`."""
         covering = {port}
-        for takes, gives in self._bridges():
+        for takes, fed in self._bridges():
             if port in takes:
-                covering |= {p.key for p in terminal_inputs if p.data_type in gives}
+                covering |= fed
         return covering
 
     def extended_inputs(self, ports) -> set:
         """Ce qu'accepte, au sein du pipeline, un modèle qui consomme `ports` : ses ports, plus
-        les entrées de tout amont disponible dont une sortie a le TYPE d'un port qu'il consomme."""
-        terminal_inputs, _ = self._ports(self._terminal())
+        ce que PREND tout amont disponible qui alimente l'un d'eux."""
         consumed = set(ports or ())
-        types = {p.data_type for p in terminal_inputs if p.key in consumed}
         accepted = set(consumed)
-        for takes, gives in self._bridges():
-            if types & gives:
+        for takes, fed in self._bridges():
+            if fed & consumed:
                 accepted |= takes
         return accepted
 

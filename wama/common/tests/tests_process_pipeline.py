@@ -711,7 +711,7 @@ class InputsThePipelineBringsTest(SimpleTestCase):
     rewritten by an app. A fictitious pipeline: extract (audio → score), plan (prompt → score),
     render (prompt + score)."""
 
-    KEYS = ('demo_bridge.extract', 'demo_bridge.plan', 'demo_bridge.render')
+    KEYS = ('demo_bridge.extract', 'demo_bridge.plan', 'demo_bridge.render', 'demo_bridge.output')
 
     def setUp(self):
         from wama.common.catalog.function_catalog import (FUNCTION_CATALOG, Binding, FunctionSpec,
@@ -725,16 +725,29 @@ class InputsThePipelineBringsTest(SimpleTestCase):
         declare(self.KEYS[0], [('work_audio', 'audio')], [('score', 'score')])
         declare(self.KEYS[1], [('prompt', 'prompt')], [('score', 'score')])
         declare(self.KEYS[2], [('prompt', 'prompt'), ('work_score', 'score')], [('audio', 'audio')])
+        declare(self.KEYS[3], [('rendered', 'audio')], [('audio', 'audio')])
         self.addCleanup(lambda: [FUNCTION_CATALOG.pop(k, None) for k in self.KEYS])
         self.installed = True
 
-    def _pipeline(self, extract_function='demo_bridge.extract'):
-        return AppPipeline('demo_bridge', (
+    def _pipeline(self, extract_function='demo_bridge.extract', with_output=False):
+        specs = [
             ProcessSpec('extract', function=extract_function, available=lambda: self.installed,
                         applies=lambda item, model: True),
             ProcessSpec('plan', function='demo_bridge.plan'),
             ProcessSpec('render', function='demo_bridge.render', depends_on=('extract', 'plan')),
-        ), label='Demo')
+        ]
+        if with_output:
+            specs.append(ProcessSpec('output', function='demo_bridge.output',
+                                     depends_on=('render',)))
+        return AppPipeline('demo_bridge', tuple(specs), label='Demo')
+
+    def test_a_process_downstream_of_the_model_s_one_changes_nothing(self):
+        """The composer's `output` process (format, quality) comes after the render: the model's
+        process is no longer the last one, and the extended inputs must not move."""
+        pipeline = self._pipeline(with_output=True)
+        self.assertTrue({'work_audio', 'work_score'} <= pipeline.covering_inputs('work_audio'))
+        self.assertEqual({'prompt', 'work_score', 'work_audio'},
+                         pipeline.extended_inputs({'prompt', 'work_score'}))
 
     def test_a_model_that_follows_a_score_takes_the_audio_the_score_is_extracted_from(self):
         pipeline = self._pipeline()
