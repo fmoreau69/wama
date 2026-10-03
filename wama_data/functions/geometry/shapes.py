@@ -105,3 +105,24 @@ def point_traj_to_shape(traj, length_m, width_m, min_speed=1e-6):
         out[:, 1 + 2 * k] = world[:, 0]
         out[:, 2 + 2 * k] = world[:, 1]
     return out
+
+
+def visible_face_to_center(x, y, length_m, width_m, axis_deg):
+    """Centre d'un véhicule depuis le point mesuré sur sa FACE VISIBLE.
+
+    Une caméra place un objet par le bas-centre de sa boîte : le point de contact au sol de la
+    face qu'elle VOIT, pas le centre du véhicule — un véhicule vu de profil est placé une
+    demi-largeur trop près, vu de dos une demi-longueur. (x, y) : ce point dans un repère dont
+    l'ORIGINE est la caméra (x à droite, y en avant, mètres) ; `axis_deg` : axe long du véhicule
+    dans ce repère (horaire depuis +y, le sens n'importe pas). Le centre est repoussé le long de
+    la ligne de visée de la distance centre → bord du rectangle dans cette direction. Rend (x, y)."""
+    import math
+    r = math.hypot(x, y)
+    if r < 1e-6:
+        return x, y
+    ux, uy = x / r, y / r
+    phi = math.atan2(ux, uy) - math.radians(axis_deg)        # visée par rapport à l'axe long
+    c, s = abs(math.cos(phi)), abs(math.sin(phi))
+    hl, hw = length_m / 2.0, width_m / 2.0
+    t = min(hl / c if c > 1e-9 else float('inf'), hw / s if s > 1e-9 else float('inf'))
+    return x + ux * t, y + uy * t
