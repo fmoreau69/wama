@@ -1,0 +1,67 @@
+{
+  "body": {
+    "app": "transcriber",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {},
+    "impl": "transcriber.workers:transcribe",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La transcription à attribuer.",
+        "group": "travail",
+        "key": "transcript",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "L'audio dont les voix sont séparées.",
+        "group": "travail",
+        "key": "work_audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "transcriber.diarize",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La transcription, par locuteur.",
+        "key": "transcript",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "speech",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Attribue chaque segment de la transcription à son locuteur (pyannote). Sans objet pour un moteur qui diarise lui-même.",
+  "key": "transcriber.diarize",
+  "manifest_kind": "function",
+  "name": "Transcriber — attribuer les locuteurs",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:transcriber.diarize",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

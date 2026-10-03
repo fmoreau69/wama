@@ -198,6 +198,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // classes processing/success/error posées ici recopiaient l'information — retirées le
     // 2026-09-18. ⚠ Le filet ci-dessus reste : il concerne `wama-card`, pas l'état.
     card.dataset.status = status;
+    card.dataset.elementStatus = status;   // l'état de l'ÉLÉMENT (le suivi s'y fie, cf. initExistingCards)
 
     // Propriétés fichier (codec • kHz • canaux) : la ligne n'est remplie qu'à la création de card et
     // n'était jamais rafraîchie → certaines cards la perdaient (calcul différé après upload, ou rebuild).
@@ -222,6 +223,9 @@ document.addEventListener('DOMContentLoaded', function () {
       else if (status === 'FAILURE') { st.className = 'card-state text-danger'; st.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Échec'; }
       else { st.className = 'card-state'; st.textContent = ''; }
     }
+
+    // Les PROCESS de la card (bande commune) suivent le traitement en place.
+    if (window.WamaApp && WamaApp.updateProcessRows) WamaApp.updateProcessRows(card, data.processes);
 
     // Update live transcription display
     updateLiveTranscriptionFromQueue(id, status, data.partial_text);
@@ -264,7 +268,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Bouton de cycle commun (délégué, lié une fois par card ; survit aux rebuilds d'actions).
     if (window.WamaCycleButton) {
-      WamaCycleButton.wire(root, { start: (id) => handleStart(id), stop: (id) => handleStop(id) });
+      // `btn.dataset.process` : le ▶ d'UN process de la bande → lancement borné (route
+      // `start/<id>/<process>/`) ; sans lui, le ▶ de la card lance tout ce qui est dû.
+      WamaCycleButton.wire(root, {
+        start: (id, btn) => handleStart(id, btn && btn.dataset ? btn.dataset.process : ''),
+        stop: (id) => handleStop(id),
+      });
     }
     // Repli legacy si la brique n'est pas chargée.
     root.querySelectorAll('.start-btn').forEach(btn => {
@@ -298,7 +307,7 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => {});
   }
 
-  function handleStart(id) {
+  function handleStart(id, process) {
     const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
     // Relance PENDANT le traitement (modale « Enregistrer & démarrer ») : on stoppe d'abord pour
     // éviter le 409 « déjà en cours », puis on relance avec les params à jour.
@@ -306,14 +315,14 @@ document.addEventListener('DOMContentLoaded', function () {
       card.dataset.status = 'PENDING';   // évite la récursion + reflète l'arrêt imminent
       fetch(getUrl(config.stopUrlTemplate, id), {
         method: 'POST', headers: csrfHeaders({ 'Content-Type': 'application/json' }), body: '{}',
-      }).then(() => doStart(id, card)).catch(() => doStart(id, card));
+      }).then(() => doStart(id, card, process)).catch(() => doStart(id, card, process));
       return;
     }
-    doStart(id, card);
+    doStart(id, card, process);
   }
 
-  function doStart(id, card) {
-    const url = getUrl(config.startUrlTemplate, id);
+  function doStart(id, card, process) {
+    const url = getUrl(config.startUrlTemplate, id) + (process ? process + '/' : '');
     if (!card) card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
 
     fetch(url, {
@@ -785,7 +794,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function updateDownloadAllState() {
     if (!downloadAllBtn || !queueContainer) return;
-    const hasSuccess = !!queueContainer.querySelector('.synthesis-card[data-status="SUCCESS"]');
+    // Un résultat existe dès que l'ÉLÉMENT a réussi — même si la card se montre « périmée » ou
+    // « à compléter » (état déduit de ses process).
+    const hasSuccess = !!queueContainer.querySelector(
+      '.synthesis-card[data-element-status="SUCCESS"], .synthesis-card[data-status="SUCCESS"]');
     downloadAllBtn.disabled = !hasSuccess;
   }
 
@@ -1027,7 +1039,10 @@ document.addEventListener('DOMContentLoaded', function () {
   function initExistingCards() {
     if (!queueContainer) return;
     queueContainer.querySelectorAll('.synthesis-card[data-id]').forEach(card => {
-      const status = (card.dataset.status || '').toUpperCase();
+      // L'état de l'ÉLÉMENT décide du suivi, pas l'état MONTRÉ (déduit des process) : une card
+      // terminée dont un process optionnel reste à compléter se montre « en attente » — la
+      // suivre la ferait recharger la page en boucle (le serveur répond « terminé »).
+      const status = (card.dataset.elementStatus || card.dataset.status || '').toUpperCase();
       bindCardActions(card);
       if (['PENDING', 'RUNNING', 'STARTED'].includes(status)) {
         startPolling(card.dataset.id);

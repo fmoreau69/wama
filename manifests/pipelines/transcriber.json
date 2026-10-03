@@ -1,0 +1,105 @@
+{
+  "body": {
+    "layout": {},
+    "links": [
+      {
+        "from": "transcribe",
+        "to": "diarize",
+        "to_port": null
+      },
+      {
+        "from": "transcribe",
+        "to": "summarize",
+        "to_port": null
+      },
+      {
+        "from": "diarize",
+        "to": "summarize",
+        "to_port": null
+      },
+      {
+        "from": "transcribe",
+        "to": "coherence",
+        "to_port": null
+      },
+      {
+        "from": "diarize",
+        "to": "coherence",
+        "to_port": null
+      }
+    ],
+    "nodes": [
+      {
+        "app": null,
+        "function": "transcriber.transcribe",
+        "id": "transcribe",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "gpu": true,
+          "watched": [
+            "backend",
+            "hotwords",
+            "preprocess_audio",
+            "level_speech",
+            "vad_mode",
+            "language_mode"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "transcriber.diarize",
+        "id": "diarize",
+        "kind": "function",
+        "params": {
+          "degree": "optional",
+          "gpu": true,
+          "toggle": "enable_diarization",
+          "watched": [
+            "diarization_model"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "transcriber.summarize",
+        "id": "summarize",
+        "kind": "function",
+        "params": {
+          "degree": "optional",
+          "gpu": false,
+          "toggle": "generate_summary",
+          "watched": [
+            "summary_type"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "transcriber.coherence",
+        "id": "coherence",
+        "kind": "function",
+        "params": {
+          "degree": "optional",
+          "gpu": false,
+          "toggle": "verify_coherence",
+          "watched": []
+        }
+      }
+    ]
+  },
+  "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
+  "key": "transcriber",
+  "manifest_kind": "pipeline",
+  "name": "Transcriber — transcription, locuteurs, résumé, cohérence (4 process)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "transcriber.function_specs:PIPELINE",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

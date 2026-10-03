@@ -20881,3 +20881,43 @@ la card, fin notifiée aux deux ; verrou doux + trace ; retrait à effet immédi
 - ⚠ **Rectification du palier précédent** : `PresentationRoutesTests` compte **5** tests, pas 6.
 - Hors périmètre, vu en lisant le rapport de nuit du 03/10 : `wama.common` 44 rouges (20 échecs,
   24 erreurs), `media_library` 3, `model_manager` 2 — non examinés ici.
+
+## §PALIER — 2026-10-03 (après-midi), « PIPELINE — TOUT ALIGNER : live, studio, process optionnels, TRANSCRIBER en 4 process, cam_analyzer » — ✅ — 🔴 RELANCER gunicorn ET les workers — 🔚 P6 (4 apps hors squelette) · AnalysisPass → ProcessRun
+
+> Demande de Fabien après relance : *« tu peux tester et poursuivre. Il faut tout aligner »*.
+
+- **Essais sur le LIVE relancé** :
+  - 🔴 trouvé et corrigé (`pipeline_of` charge les déclarations, commit du matin) : la page du
+    composer répondait **500** sur un gunicorn frais — registre des pipelines vide tant qu'aucun
+    `function_specs` n'était importé ; rétabli sans rechargement par un appel bénin, puis smoke
+    P5 rejoué sur le live : bande, ⚙ réduit, promotion / réalignement, consignes des sœurs
+    gardées, 0 erreur console ;
+  - ▶ par process par le VRAI worker : composer #313 (compte de test) — plan 155 s + rendu 54 s,
+    puis ▶ du rendu SEUL : la partition n'est pas rejouée (ligne `plan` intacte), l'audio est
+    remplacé.
+- **Studio** (`6eac95fd`) : l'exécuteur écrit les lignes `ProcessRun` (une par nœud app ou
+  fonction, adressées par le run) ; le nœud fautif passe `FAILURE`.
+- **Process OPTIONNELS** (`4bddc3db`) : `ProcessSpec.toggle` + case à cocher de la bande ; un
+  optionnel en échec ne fait plus échouer la card ; `output_fingerprint` pour une sortie qui
+  n'est pas un fichier.
+- **TRANSCRIBER en quatre process** : `transcriber/function_specs.py` (transcribe requis →
+  diarize, summarize, coherence optionnels), glues `workers.PROCESSES`, `start_process`, bande
+  avec cases à cocher sur la card, `data-element-status` (le suivi JS se fie à l'élément — sans
+  cela une card « à compléter » rechargeait la page en boucle), effacement du résultat déplacé
+  du clic vers la glue, lignes d'une page lues en UNE requête (`process_pipeline.preload`).
+  **A/B sur 5 min d'audio réel** : texte, segments, locuteurs identiques à la tâche unique ;
+  résumé seul rejoué en 2,5 s ; ▶ locuteurs seuls 3,7 s puis résumé et cohérence périmés.
+- **cam_analyzer** (accord de sa session) : `Pass` = `ProcessSpec` étendu ; `topological_order`
+  et la règle de `recompute_stale` délèguent au commun (le tri commun a repris l'algorithme
+  STABLE du registre). Données et interface inchangées.
+- **Tests** : transcriber 14 neufs + suite du paquet ; cam_analyzer 254 + 4 neufs ; studio 58 ;
+  pipeline commun 128. Rouges qui ne sont PAS de ces pièces, inchangés : `tests_codegen_lot`
+  (imager `generation_settings`), budgets de noms de tests (133 > 132, 1317 > 1310), budget
+  code à descendre (2677 < 2678), `wama-inspector.css` ≠ staticfiles.
+- 🔚 **Restes déclarés** : P6 — anonymizer, avatarizer, imager, synthesizer ne sont pas sur le
+  squelette (à coordonner avec la session portage) ; `AnalysisPass` → `ProcessRun` et statuts
+  du Lab → `JOB_*` (migration de données, décision de Fabien) ; `enrich_transcript` à retirer ;
+  manifeste `app` du transcriber à régénérer (porte aussi le travail d'autres sessions) ;
+  ⚙ : la file a 15 transcriptions `PENDING` d'un autre compte (signalé par la session campagne).
+- 🔴 **Pour Fabien** : relancer **gunicorn et les workers** — `transcribe(process=)` est un
+  argument de tâche nouveau, et le worker en service joue encore l'ancienne glue du transcriber.

@@ -15,6 +15,8 @@ urlpatterns = [
     path('consolidate/', views.consolidate, name='consolidate'),
     path('upload_youtube/', views.upload_youtube, name='upload_youtube'),
     path('start/<int:pk>/', views.start, name='start'),
+    # ▶ d'UN process de la card (lancement borné) — le ▶ de la bande des process.
+    path('start/<int:pk>/<str:process>/', views.start_process, name='start_process'),
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('enrich/<int:pk>/', views.enrich, name='enrich'),
     path('progress/<int:pk>/', views.progress, name='progress'),

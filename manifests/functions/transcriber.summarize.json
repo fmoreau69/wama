@@ -1,0 +1,56 @@
+{
+  "body": {
+    "app": "transcriber",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {},
+    "impl": "transcriber.workers:transcribe",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La transcription à résumer.",
+        "group": "travail",
+        "key": "transcript",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "transcriber.summarize",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le résumé.",
+        "key": "summary",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "text",
+      "llm"
+    ],
+    "visibility": "public"
+  },
+  "description": "Résume la transcription : résumé structuré (points clés, actions) ou compte-rendu de réunion, selon le réglage de la card.",
+  "key": "transcriber.summarize",
+  "manifest_kind": "function",
+  "name": "Transcriber — résumer",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:transcriber.summarize",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

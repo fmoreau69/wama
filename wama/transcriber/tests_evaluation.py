@@ -279,17 +279,31 @@ class TranscriberEvaluationTest(TestCase):
         self.assertEqual(3, answer['item']['metrics'][0]['insertions'])
         self.assertIsNone(answer['item']['reading']['restricted'])
 
-    def test_a_relaunch_forgets_the_measure_and_keeps_the_reference(self):
+    def test_a_replayed_transcription_forgets_the_measure_and_keeps_the_reference(self):
+        """The measure described the result that is erased. Since the card carries a pipeline
+        (2026-10-03) the result is erased when the TRANSCRIPTION process is replayed — in its
+        glue — no longer at the launcher's click: a launch that only replays the summary keeps
+        the text AND its measure."""
+        from unittest import mock
         from wama.common.services.result_evaluation import item_evaluation
+        from wama.transcriber import workers
         from wama.transcriber.views import _reset_for_relaunch
         item = self._transcript()
         self._attach(item)
         item.refresh_from_db()
+        text = item.text
         _reset_for_relaunch(item)
         item.save()
+        self.assertEqual(text, item.text, 'the click erases nothing the launch may keep')
+        # The transcription process starts: its previous result goes, whatever happens next.
+        with mock.patch.object(workers, 'get_backend', side_effect=RuntimeError('stop here')), \
+                self.assertRaises(Exception):
+            workers._transcribe_step(item, mock.MagicMock())
+        workers._release_run(item.pk)
+        item.refresh_from_db()
         view = item_evaluation('transcriber', item)
         self.assertTrue(view['pending'], 'the reference waits for the new result')
-        self.assertEqual('', item.model_key)
+        self.assertEqual(('', ''), (item.model_key, item.text))
 
     def _import(self, item, content, name):
         return self.client.post(f'/common/api/result-import/transcriber/{item.pk}/',

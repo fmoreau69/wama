@@ -70,7 +70,9 @@ def settings_snapshot(app_id: str, item) -> dict:
     return snapshot
 
 
-def _text_fingerprint(value) -> str:
+def text_fingerprint(value) -> str:
+    """Empreinte d'une sortie qui est un TEXTE (pas un fichier) — celle des révisions, et celle
+    qu'un process déclare pour périmer son aval (`output_fingerprint`, `task_skeleton`)."""
     import hashlib
     return hashlib.sha256(str(value).encode('utf-8')).hexdigest()
 
@@ -95,7 +97,7 @@ def output_references(item, fields=None) -> list:
         if not isinstance(field, FileField):
             value = getattr(item, field.name, None)
             if fields is not None and value not in (None, ''):
-                refs.append({'field': field.name, 'path': '', 'sha256': _text_fingerprint(value)})
+                refs.append({'field': field.name, 'path': '', 'sha256': text_fingerprint(value)})
             continue
         value = getattr(item, field.name, None)
         name = getattr(value, 'name', '') or ''
@@ -198,7 +200,7 @@ def outputs_changed_since(revision, item=None) -> list:
         if not path:
             if item is not None:
                 value = getattr(item, ref.get('field') or '', None)
-                if value in (None, '') or _text_fingerprint(value) != recorded:
+                if value in (None, '') or text_fingerprint(value) != recorded:
                     changed.append(ref.get('field'))
             continue
         try:

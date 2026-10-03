@@ -50,10 +50,18 @@ def _describe_audio(transcript: Transcript) -> None:
 def _reset_for_relaunch(t):
     """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race
     (begin_processing). Reset UNIQUE pour start / start_all / batch_start
-    (avant 2026-07-06 : 3 copies divergentes, batch_start ne purgeait rien)."""
+    (avant 2026-07-06 : 3 copies divergentes, batch_start ne purgeait rien).
+
+    ⚠ Depuis le 2026-10-03 la card porte un PIPELINE (`function_specs.PIPELINE`) : un lancement
+    ne rejoue que ce qui n'est plus à jour. Le résultat d'un process s'efface donc QUAND CE
+    PROCESS EST REJOUÉ (dans sa glu, `workers._transcribe_step`), plus ici — sinon changer le
+    type de résumé effacerait la transcription qu'on voulait justement garder. Seule une card à
+    RÉSULTAT EXISTANT (ré-import, hors pipeline) garde l'effacement au clic."""
+    t.progress = 0
+    if not t.work_result:
+        return
     from .models import TranscriptSegment
     TranscriptSegment.objects.filter(transcript=t).delete()
-    t.progress = 0
     t.text = ''
     # Une card à RÉSULTAT EXISTANT garde ses segments : ce ne sont pas un résultat à recalculer
     # mais les ANCRES horodatées sur lesquelles son texte se ré-ancre (`workers._anchor_words_for`)
@@ -271,10 +279,13 @@ class IndexView(View):
 
         # Chips générés — MÊME point d'attache que card_html, sinon la card du chargement
         # diverge de celle que l'endpoint renvoie ensuite (leçon describer).
-        for _b in batches_list:
-            for _it in _b['items']:
-                if getattr(_it, 'transcript', None):
-                    _decorate_card(_it.transcript)
+        # Les lignes d'exécution de TOUTES les cards de la page en une requête (bande des process).
+        from wama.common.services.process_pipeline import preload
+        _shown = [_it.transcript for _b in batches_list for _it in _b['items']
+                  if getattr(_it, 'transcript', None)]
+        preload(_shown)
+        for _t in _shown:
+            _decorate_card(_t, preloaded=True)
         queue_count = sum(len(b['items']) for b in batches_list)
 
         # ── Tri + filtrage de la file — brique COMMUNE (extraite d'ici le 2026-07-03) ──
@@ -523,6 +534,39 @@ def start(request, pk: int):
         'task_id': task.id,
         'status': 'RUNNING',
     })
+
+
+@require_POST
+def start_process(request, pk: int, process: str):
+    """▶ d'UN process de la card (`ROUTE §10.6` 5.1) : lancement BORNÉ — ce process, précédé des
+    seuls amonts périmés, jamais son aval. C'est aussi le résumé ou la cohérence « à la demande »
+    sur une transcription déjà faite (point 4.7). Un process inconnu, désactivé ou sans objet pour
+    cette card est refusé en le disant ; une card à résultat existant ne joue pas le pipeline."""
+    from .function_specs import PIPELINE
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    if process not in {s.key for s in PIPELINE.specs}:
+        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
+    if t.work_result:
+        return JsonResponse({'error': "cette card reprend un résultat existant : elle ne joue "
+                                      "pas le pipeline de transcription"}, status=400)
+    from wama.transcriber.backends.manager import catalogue_value
+    if process not in {s.key for s in PIPELINE.applicable(t, catalogue_value(t.backend) or 'auto')}:
+        return JsonResponse({'error': f"« {PIPELINE.spec(process).label} » n'a pas lieu pour "
+                                      "cette card (désactivé, ou fait par le moteur)"}, status=400)
+
+    from wama.common.utils.process_control import begin_processing
+    t, err = begin_processing(Transcript, pk, user=user, reset=_reset_for_relaunch)
+    if err == 'not_found':
+        return JsonResponse({'error': 'Not found'}, status=404)
+    if err == 'already_running':
+        return JsonResponse({'error': 'Transcription déjà en cours'}, status=409)
+    cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
+    task = _task_for(t).apply_async(args=(t.id,), kwargs={'process': process})
+    t.task_id = task.id
+    t.save(update_fields=['task_id'])
+    return JsonResponse({'task_id': task.id, 'status': 'RUNNING', 'process': process})
 
 
 @require_POST
@@ -981,7 +1025,7 @@ def save_correction(request, pk: int):
     return JsonResponse({'status': 'saved', 'correction_status': t.correction_status})
 
 
-def _decorate_card(t):
+def _decorate_card(t, preloaded=False):
     """Attache les chips GÉNÉRÉS d'un transcript (CARD_DESIGN §11.4).
 
     Portage au commun : la card listait ses réglages à la main (une ligne + une condition par
@@ -1013,7 +1057,22 @@ def _decorate_card(t):
                 # long pour la colonne) ; une fois le run fait, le modèle RETENU.
                 chip['label'] = f"{chip.get('label')} (auto)" if t.model_key else 'auto'
             break
+    _pipeline_view(t, preloaded=preloaded)
     return t
+
+
+def _pipeline_view(t, preloaded=False):
+    """Les PROCESS de la card et son état MONTRÉ (`ROUTE §10.6` 5.1) — par la brique commune
+    (`process_pipeline.decorate`). Une card à RÉSULTAT EXISTANT ne joue pas le pipeline (elle
+    ré-importe son document) : rien n'est posé, la card lit `status`. Le modèle est passé tel
+    que la card le demande, « auto » compris : les quatre process se montrent AVANT le premier
+    lancement — c'est là que leurs cases à cocher servent."""
+    if t.work_result:
+        return None
+    from wama.common.services.process_pipeline import decorate
+    from wama.transcriber.backends.manager import catalogue_value
+    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
+    return decorate(t, catalogue_value(t.backend) or 'auto', preloaded=preloaded)
 
 
 def card_html(request, pk: int):
@@ -1078,6 +1137,12 @@ def progress(request, pk: int):
         response_data['coherence_score'] = t.coherence_score
         response_data['coherence_notes'] = t.coherence_notes or ''
         response_data['coherence_suggestion'] = t.coherence_suggestion or ''
+
+    # Les PROCESS de la card, mis à jour en place pendant le traitement (`WamaApp.updateProcessRows`),
+    # et l'état MONTRÉ. `status` reste celui de l'ÉLÉMENT : c'est lui qui dit « en vol » au front.
+    view = _pipeline_view(t)
+    if view is not None:
+        response_data['processes'], response_data['shown_state'] = view[0], view[1]
 
     return JsonResponse(response_data)
 

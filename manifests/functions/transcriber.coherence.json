@@ -1,0 +1,56 @@
+{
+  "body": {
+    "app": "transcriber",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {},
+    "impl": "transcriber.workers:transcribe",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La transcription à vérifier.",
+        "group": "travail",
+        "key": "transcript",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "transcriber.coherence",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Score, remarques et version proposée.",
+        "key": "report",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "text",
+      "llm"
+    ],
+    "visibility": "public"
+  },
+  "description": "Note la cohérence de la transcription, relève ses anomalies, propose une version corrigée et signale les segments douteux (heatmap de l'éditeur).",
+  "key": "transcriber.coherence",
+  "manifest_kind": "function",
+  "name": "Transcriber — vérifier la cohérence",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:transcriber.coherence",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

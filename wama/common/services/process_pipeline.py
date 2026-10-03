@@ -38,13 +38,30 @@ import os
 from dataclasses import dataclass
 from typing import Callable
 
-from wama.common.models import JOB_AWAITING_RESOURCES, JOB_PENDING, JOB_RUNNING, JOB_SUCCESS
+from wama.common.models import (JOB_AWAITING_RESOURCES, JOB_PENDING, JOB_RUNNING, JOB_STALE,
+                                JOB_SUCCESS)
 from wama.common.services import process_runs
 from wama.common.services.process_runs import OPTIONAL, REQUIRED
 
 #: Clé de la photo qui porte l'empreinte des sorties d'amont (« entrée remplacée », point 4.3).
 #: Le `@` l'écarte de tout nom de réglage.
 UPSTREAM_KEY = '@upstream'
+
+#: Attribut posé sur un élément par `preload` : ses lignes d'exécution, lues une fois.
+PRELOADED = '_process_rows'
+
+
+def preload(items) -> None:
+    """Lit en UNE requête les lignes d'exécution de tous ces éléments (même modèle) et les pose
+    sur chacun — ce que `AppPipeline.rows` lit ensuite sans retourner en base.
+
+    Pour les VUES seulement (une page de file : N cards, une requête) ; la tâche, elle, lit la
+    base à chaque question. Mesuré le 2026-10-03 : sans cela la bande des process coûtait six
+    requêtes par card (lignes relues par `refresh`, `card_rows` et `shown_state`)."""
+    items = [item for item in items if item is not None]
+    grouped = process_runs.lines_by_item(items)
+    for item in items:
+        setattr(item, PRELOADED, grouped.get(str(item.pk), []))
 
 
 @dataclass(frozen=True)
@@ -199,7 +216,13 @@ class AppPipeline:
 
     # ── Lecture des lignes ──────────────────────────────────────────────────────────────────
     def rows(self, item) -> dict:
-        """`{clé de process: ligne}` pour les process de CE pipeline qui ont déjà tourné."""
+        """`{clé de process: ligne}` pour les process de CE pipeline qui ont déjà tourné — lues
+        de ce que `preload` a posé sur l'élément (une requête pour toute une page), sinon de la
+        base."""
+        loaded = getattr(item, PRELOADED, None)
+        if loaded is not None:
+            return {row.node_id: row for row in loaded
+                    if row.instance_key == '' and row.node_id in self._by_key}
         return {row.node_id: row
                 for row in process_runs.lines(item).filter(instance_key='',
                                                            node_id__in=list(self._by_key))}
@@ -245,7 +268,10 @@ class AppPipeline:
             depends_on={spec.key: [d for d in spec.depends_on if d in rows] for spec in known},
             snapshots={spec.key: rows[spec.key].settings_snapshot or {} for spec in known},
             current={spec.key: self.snapshot(spec, item, rows) for spec in known})
-        process_runs.mark_stale(item, stale)
+        if stale:
+            process_runs.mark_stale(item, stale)
+            for key in stale:             # les lignes déjà lues (préchargées) disent la même chose
+                rows[key].status = JOB_STALE
         return stale
 
     def _enabled_rows(self, item) -> dict:
@@ -437,27 +463,38 @@ def pipeline_of(item) -> AppPipeline | None:
     return APP_PIPELINES.get(label)
 
 
-def card_view(item, model_key=None):
+def card_view(item, model_key=None, preloaded: bool = False):
     """Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
     `(lignes de process, état montré, libellé de cet état)` — par l'adaptateur unique
     (`AppPipeline.shown_state`), jamais `status` en dur. `model_key` : le réglage quand il est
     désigné ; sous « auto » None (on montre ce qui a tourné). `None` si l'app n'a pas de
-    pipeline : la card lit alors `status`, la bande ne se rend pas."""
+    pipeline : la card lit alors `status`, la bande ne se rend pas.
+
+    Les lignes sont lues UNE fois : ici pour un élément seul, ou par la page pour toutes ses
+    cards (`preload(items)` puis `preloaded=True`) — jamais relues à chaque question."""
     pipeline = pipeline_of(item)
     if pipeline is None:
         return None
     from wama.common.models import PROCESS_STATUS_CHOICES
-    rows = pipeline.card_rows(item, model_key)
-    state = pipeline.shown_state(item)
+    if not preloaded:
+        preload([item])
+    try:
+        rows = pipeline.card_rows(item, model_key)
+        state = pipeline.shown_state(item)
+    finally:
+        if not preloaded:
+            # Les lignes lues pour CETTE question ne restent pas sur l'élément : une instance
+            # gardée par l'appelant (un test, une vue qui écrit ensuite) relirait du périmé.
+            item.__dict__.pop(PRELOADED, None)
     return rows, state, dict(PROCESS_STATUS_CHOICES).get(state, state)
 
 
-def decorate(item, model_key=None):
+def decorate(item, model_key=None, preloaded: bool = False):
     """Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
     gabarits (`_card_processes.html`, `_cycle_button.html` via `elem.shown_state|default:
     elem.status`). Point d'attache des apps GÉNÉRÉES (`views_gen._decorer`) ; une app réelle
     l'appelle de sa propre décoration. Sans pipeline : ne pose rien, rend None."""
-    view = card_view(item, model_key)
+    view = card_view(item, model_key, preloaded=preloaded)
     if view is None:
         return None
     item.processes, item.shown_state, item.shown_state_label = view

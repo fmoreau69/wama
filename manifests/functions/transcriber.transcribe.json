@@ -1,0 +1,57 @@
+{
+  "body": {
+    "app": "transcriber",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "transcriber.workers:transcribe",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "L'audio (ou la vidéo) à transcrire.",
+        "group": "travail",
+        "key": "work_audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "transcriber.transcribe",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le texte et ses segments horodatés.",
+        "key": "transcript",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "speech",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Transcrit la parole d'un audio (ou de la piste son d'une vidéo) en texte horodaté, avec le modèle de la card ou le tirage automatique. Nivellement, débruitage, filtre de parole et choix de la langue en font partie.",
+  "key": "transcriber.transcribe",
+  "manifest_kind": "function",
+  "name": "Transcriber — transcrire",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:transcriber.transcribe",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}
