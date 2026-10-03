@@ -90,6 +90,12 @@ class ModelTask(models.TextChoices):
     # l'ecrire ici plutot que de s'aligner et de la perdre. (Fabien, 2026-08-05.)
     TEXT_TO_MUSIC = 'text-to-music', 'Texte → musique'
     TEXT_TO_AUDIO = 'text-to-audio', 'Texte → ambiance / bruitage'
+    # Transcription MUSICALE (2026-10-03) : un audio → sa partition (mélodie, accords, structure).
+    # Ni une transcription de parole (`transcription` rend du texte), ni une extraction de traits
+    # (étiquette HuggingFace de SheetSage2, qui ne dit pas ce qu'il PRODUIT). La cible `score` est
+    # la nature des partitions (`app_registry.MEDIA_CATEGORIES`) : le domaine de sortie se dérive
+    # du nom (`<source>-to-<cible>`). 1er modèle : SheetSage2, le maillon audio → partition du cover.
+    AUDIO_TO_SCORE = 'audio-to-score', 'Audio → partition'
     # video
     LIP_SYNC = 'lip-sync', 'Synchronisation labiale'
 
@@ -156,6 +162,9 @@ TASK_TO_PLATFORM_TAGS = {
     ModelTask.UPSCALE:            ('image-to-image',               None,        None,        None),
     ModelTask.TEXT_TO_MUSIC:      (None,                           None,        None,        None),
     ModelTask.TEXT_TO_AUDIO:      (None,                           None,        None,        None),
+    # HuggingFace n'a pas de tâche officielle « transcription musicale » (SheetSage2 se range en
+    # `feature-extraction`, ce qu'il n'est pas pour nous).
+    ModelTask.AUDIO_TO_SCORE:     (None,                           None,        None,        None),
     ModelTask.LIP_SYNC:           (None,                           None,        None,        None),
 }
 REFERENCE_PLATFORMS = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
@@ -200,6 +209,7 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.IMAGE_TO_VIDEO:     ModelType.DIFFUSION,
     ModelTask.TEXT_TO_MUSIC:      ModelType.MUSIC,
     ModelTask.TEXT_TO_AUDIO:      ModelType.MUSIC,
+    ModelTask.AUDIO_TO_SCORE:     ModelType.MUSIC,
     ModelTask.LIP_SYNC:           ModelType.LIPSYNC,
 }
 
@@ -259,6 +269,7 @@ TASK_DEFAULT_INPUTS = {
     ModelTask.IMAGE_TO_VIDEO:     (('video',),                     ('prompt', 'work_image'),  ()),
     ModelTask.TEXT_TO_MUSIC:      (('audio',),                     ('prompt',),               ()),
     ModelTask.TEXT_TO_AUDIO:      (('audio',),                     ('prompt',),               ()),
+    ModelTask.AUDIO_TO_SCORE:     (('audio',),                     ('work_audio',),           ()),
     ModelTask.LIP_SYNC:           (('image', 'audio', 'video'),    ('work_image', 'work_audio'), ()),
 }
 

@@ -660,6 +660,9 @@ TASK_CONTRACTS = {
     # 2026-10-01 : la signature que le composer appelle, enfin DÉCLARÉE (cf. music_generation_base).
     # Non liant, comme `detect` : il donne la forme d'un NOUVEAU backend sans en refuser un.
     'text-to-music': ('music_generation_base', 'MusicGenerationBackend', False),
+    # 2026-10-03 : l'audio → sa partition (SheetSage2), maillon du cover. Écrit AVANT le backend,
+    # pour que le rôle `backend` le reçoive. Non liant, comme `text-to-music`.
+    'audio-to-score': ('score_transcription_base', 'ScoreTranscriptionBackend', False),
     'transcription': ('speech_to_text_base', 'SpeechToTextBackend', True),
     'detect': ('detection_base', 'DetectionBackend', False),
 }

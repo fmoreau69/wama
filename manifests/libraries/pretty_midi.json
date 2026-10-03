@@ -1,0 +1,34 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "mido",
+      "numpy",
+      "six"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Colin Raffel",
+      "license": "MIT",
+      "repository": "https://github.com/craffel/pretty-midi",
+      "summary": "Functions and classes for handling MIDI data conveniently.",
+      "version": "0.2.10"
+    },
+    "install": {
+      "pip": "pretty_midi==0.2.10",
+      "requires_python": null
+    }
+  },
+  "description": "Functions and classes for handling MIDI data conveniently.",
+  "key": "pretty_midi",
+  "manifest_kind": "library",
+  "name": "pretty_midi",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:pretty_midi==0.2.10",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,34 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "decorator",
+      "numpy",
+      "scipy"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Colin Raffel",
+      "license": "MIT",
+      "repository": "https://github.com/mir-evaluation/mir_eval",
+      "summary": "Common metrics for common audio/music processing tasks.",
+      "version": "0.8.2"
+    },
+    "install": {
+      "pip": "mir_eval==0.8.2",
+      "requires_python": null
+    }
+  },
+  "description": "Common metrics for common audio/music processing tasks.",
+  "key": "mir_eval",
+  "manifest_kind": "library",
+  "name": "mir_eval",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:mir_eval==0.8.2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

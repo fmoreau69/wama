@@ -132,8 +132,14 @@ def transformers_architectures(hf_id):
         return [], "config.json sans architectures"
     reason = f"config.json nomme {architectures}"
     if config.get('auto_map'):
-        reason += " (code DISTANT déclaré par auto_map)"
+        reason += f" ({REMOTE_CODE_MARK})"
     return architectures, reason
+
+
+#: Marque, dans la raison de `transformers_architectures`, d'un dépôt qui déclare son code.
+REMOTE_CODE_MARK = 'code DISTANT déclaré par auto_map'
+#: Le moteur d'un modèle dont `transformers` exécute le code EMBARQUÉ (`trust_remote_code`).
+REMOTE_CODE_ENGINE = 'transformers-remote-code'
 
 
 #: Moteurs dont le dépôt PROUVE l'exécutabilité : lecteur du fait, test contre la lib installée,
@@ -299,6 +305,51 @@ def enforce_component_facts(manifest, hf_id, concerns, lister=repo_files):
     return manifest
 
 
+def adapter_parent(hf_id, loader=None):
+    """`(dépôt parent, révision)` qu'un `config.json` racine nomme par `base_model_name_or_path`,
+    ou `(None, None)` — un adaptateur ne s'exécute pas sans son parent."""
+    import json as _json
+
+    def _load():
+        from huggingface_hub import hf_hub_download
+        with open(hf_hub_download(hf_id, 'config.json'), encoding='utf-8') as f:
+            return _json.load(f)
+    try:
+        config = (loader or _load)() or {}
+    except Exception:
+        return None, None
+    parent = config.get('base_model_name_or_path') if isinstance(config, dict) else None
+    if not isinstance(parent, str) or not _HF_REPO_ID.match(parent) or parent.lower() == hf_id.lower():
+        return None, None
+    return parent, config.get('base_model_revision')
+
+
+def enforce_adapter_parent(manifest, hf_id, concerns, loader=None):
+    """Ajoute le PARENT d'un adaptateur à l'anatomie — un composant `base` = son dépôt.
+
+    Vécu le 2026-10-03 (SheetSage2) : le dépôt ne porte qu'un adaptateur ; son `config.json` nomme
+    `base_model_name_or_path: m-a-p/MERT-v2-FullSong` (2,5 Go, chargé par le code du modèle).
+    Le rôle rendait un seul composant `model` : le poids réel était sous-estimé et le parent
+    jamais téléchargé par `request_install`. Fait mécanique : le fichier le dit, on le pose."""
+    parent, revision = adapter_parent(hf_id, loader=loader)
+    if not parent:
+        return manifest
+    body = manifest.setdefault('body', {})
+    composition = body.get('composition') if isinstance(body.get('composition'), dict) else {}
+    components = list(composition.get('components') or [])
+    if any(isinstance(c, dict) and str(c.get('repo', '')).lower() == parent.lower()
+           for c in components):
+        return manifest
+    roles = {c.get('role') for c in components if isinstance(c, dict)}
+    role = 'base' if 'base' not in roles else 'base_model'
+    components.append({'role': role, 'repo': parent})
+    composition['components'] = components
+    body['composition'] = composition
+    concerns.append(f"parent d'adaptateur POSÉ (fait mécanique, config.json) : {role}={parent}"
+                    + (f" @ {revision[:12]}" if isinstance(revision, str) and revision else ''))
+    return manifest
+
+
 def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_files):
     """Retire `composition.runtime.engine` quand le dépôt ne le PROUVE pas, et dit ce qu'il porte.
 
@@ -334,6 +385,16 @@ def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_fil
     names, reason = (reader or read)(hf_id)
     names = [names] if isinstance(names, str) else list(names or [])
     if any(known(n) for n in names):
+        return manifest
+    if engine == 'transformers' and REMOTE_CODE_MARK in (reason or ''):
+        # Le dépôt déclare son code (`auto_map`) : c'est `transformers` qui l'exécute, par
+        # `trust_remote_code` — le moteur est PROUVÉ par le dépôt, pas retiré (2026-10-03,
+        # SheetSage2 ; même moteur qu'Audio8). Que ce code tourne avec NOTRE transformers reste
+        # à éprouver par le backend : c'est dit.
+        runtime['engine'] = REMOTE_CODE_ENGINE
+        concerns.append(f"engine 'transformers' → {REMOTE_CODE_ENGINE!r} (fait mécanique) : "
+                        f"{reason} — compatibilité du code embarqué avec le transformers "
+                        f"installé à éprouver par le backend")
         return manifest
     runtime.pop('engine', None)
     if not runtime:
@@ -565,6 +626,11 @@ def enforce_vendor_engine(manifest, hf_id, sources_text, concerns, libraries=Non
     README cite `github.com/multimodal-art-projection/YuE`, dépôt d'une librairie VENDORISÉE
     déclarée, et le code de celle-ci nomme ses dépôts par défaut. Deux faits, aucun jugement.
     Ne touche à rien si les sources ne citent aucune — ou plusieurs — librairie vendorisée.
+
+    ⚠ Une CITATION ne suffit pas (vécu le 2026-10-03, SheetSage2) : son README cite le dépôt de
+    YuE — le modèle vient du même labo —, et le rôle a reçu le moteur `yue`, qui ne sait pas le
+    charger. Le moteur n'est posé que si le code vendorisé CHARGE ce dépôt par défaut
+    (`vendor_loader_defaults` non vide) ; sinon la citation reste une piste, dite en souci.
     """
     libs = libraries if libraries is not None else vendored_libraries()
     cited = {m.lower().removesuffix('.git')
@@ -576,27 +642,28 @@ def enforce_vendor_engine(manifest, hf_id, sources_text, concerns, libraries=Non
                             f"({', '.join(m['engine'] for m in matches)}) — moteur laissé au jugement")
         return manifest
     lib = matches[0]
+    from django.conf import settings
+    root = Path(vendor_root or settings.BACKEND_VENDOR_DIR) / lib['engine']
+    defaults = vendor_loader_defaults(root, hf_id) if root.is_dir() else []
+    if not defaults:
+        concerns.append(f"les sources citent le dépôt vendorisé {lib['repo']}, mais son code "
+                        f"ne charge pas {hf_id} (aucun from_pretrained par défaut sous {root}) — "
+                        f"moteur {lib['engine']!r} NON posé")
+        return manifest
     body = manifest.setdefault('body', {})
     compo = body.get('composition') if isinstance(body.get('composition'), dict) else {}
     runtime = compo.setdefault('runtime', {})
     if runtime.get('engine') not in (None, '', lib['engine']):
-        concerns.append(f"engine {runtime['engine']!r} REMPLACÉ par {lib['engine']!r} : les "
-                        f"sources citent le dépôt vendorisé {lib['repo']}")
+        concerns.append(f"engine {runtime['engine']!r} REMPLACÉ par {lib['engine']!r} : le code "
+                        f"vendorisé {lib['repo']} charge ce modèle")
     runtime['engine'] = lib['engine']
     if not compo.get('components'):
-        from django.conf import settings
-        root = Path(vendor_root or settings.BACKEND_VENDOR_DIR) / lib['engine']
-        defaults = vendor_loader_defaults(root, hf_id) if root.is_dir() else []
-        if defaults:
-            compo['components'] = [
-                {'role': arg, 'pattern': '*.safetensors'} if repo.lower() == hf_id.lower()
-                else {'role': arg, 'repo': repo}
-                for arg, repo in defaults]
-            concerns.append(f"composants lus dans le code vendorisé ({lib['engine']}) : "
-                            + ', '.join(f'{a}={r}' for a, r in defaults))
-        else:
-            concerns.append(f"moteur vendorisé {lib['engine']!r} posé, composants NON lus "
-                            f"(code absent de {root} ou sans from_pretrained par défaut)")
+        compo['components'] = [
+            {'role': arg, 'pattern': '*.safetensors'} if repo.lower() == hf_id.lower()
+            else {'role': arg, 'repo': repo}
+            for arg, repo in defaults]
+        concerns.append(f"composants lus dans le code vendorisé ({lib['engine']}) : "
+                        + ', '.join(f'{a}={r}' for a, r in defaults))
     body['composition'] = compo
     return manifest
 

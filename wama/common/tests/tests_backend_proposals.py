@@ -162,6 +162,73 @@ class SpeechSmokeContractTest(SimpleTestCase):
                          res)
 
 
+SCORE = ('score_transcription_base', 'ScoreTranscriptionBackend')
+SCORING = '''
+"""Backend de test."""
+from .score_transcription_base import ScoreTranscriptionBackend
+
+SUPPORTED_MODELS = {"Org/Score": {}}
+
+
+class ScoreBackend(ScoreTranscriptionBackend):
+    ENGINE = "transformers-remote-code"
+    REQUIRED_PACKAGES = []
+    name = "score_smoke"
+
+    def load(self, model_name=None):
+        return True
+
+    def unload(self):
+        pass
+
+    def transcribe_score(self, model_id, audio_path, output_dir=None, melody_only=True,
+                         progress_callback=None):
+        return ABC
+'''
+#: What SheetSage2 really returned on the smoke melody (2026-10-03): 32 notes + one stray F.
+FAITHFUL_ABC = ('X:1\nM:4/4\nL:1/16\nQ:1/4=120\nV: Ins clef=treble name="Ins Melody"\nK:C\n'
+                '% intro\nV: Ins\nC4D4E4F4|G4A4B4c4|B4A4G4F4|E4D4C4C4|\n'
+                'C4D4E4F4|G4A4B4c4|B4A4G4F4|E4D4C4C4|\nF4z12|Z|\n')
+
+
+class ScoreSmokeContractTest(SimpleTestCase):
+    """The `audio-to-score` contract (2026-10-03) is judged on a SYNTHESIZED melody whose notes are
+    known — no music is shipped in the system library — like speech is judged on its reference."""
+
+    def _smoke(self, abc):
+        with tempfile.TemporaryDirectory() as out:
+            return bp.smoke(SCORING.replace('ABC', repr(abc)), module='score_smoke',
+                            model_key='huggingface:Org/Score', contract=SCORE, out_dir=Path(out))
+
+    def test_the_real_engine_output_passes(self):
+        res = self._smoke(FAITHFUL_ABC)
+        self.assertTrue(res['ok'], res)
+        self.assertEqual(33, res['notes'])
+        self.assertGreater(res['match'], 0.95)
+
+    def test_a_score_unrelated_to_the_melody_fails(self):
+        res = self._smoke('X:1\nK:C\nG8G8G8G8|G8G8G8G8|\n')
+        self.assertFalse(res['ok'])
+        self.assertIn('notes de la mélodie', res['error'])
+
+    def test_text_without_a_key_header_is_not_a_score(self):
+        res = self._smoke('C D E F G A B c')
+        self.assertFalse(res['ok'])
+        self.assertIn('K:', res['error'])
+
+    def test_note_names_skip_headers_comments_rests_annotations_and_octaves(self):
+        abc = 'X:1\nT:Titre\nK:G\n% commentaire\n"Am"A2 !trill!B,2 z4 ^c\'2|Z|\n'
+        self.assertEqual('ABC', bp.abc_note_names(abc))
+
+    def test_the_smoke_clip_names_the_notes_it_plays(self):
+        import soundfile as sf
+        with tempfile.TemporaryDirectory() as tmp:
+            expected = bp.smoke_score_clip(Path(tmp) / 'clip.wav')
+            info = sf.info(str(Path(tmp) / 'clip.wav'))
+        self.assertEqual('CDEFGABCBAGFEDCC' * 2, expected)
+        self.assertAlmostEqual(32 * 0.5 + bp.SMOKE_SCORE_TAIL_SECONDS, info.duration, places=1)
+
+
 class CheckSourceTest(SimpleTestCase):
 
     def _check(self, code, engine='onnxruntime'):

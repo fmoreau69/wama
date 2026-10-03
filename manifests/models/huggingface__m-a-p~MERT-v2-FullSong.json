@@ -1,0 +1,53 @@
+{
+  "body": {
+    "capabilities": {},
+    "composition": {},
+    "extra_info": {
+      "category": "music",
+      "family": "SheetSage2",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Snapshot HF MERT-v2-FullSong — installé, en attente d'intégration",
+      "hf_id": "m-a-p/MERT-v2-FullSong",
+      "license": null,
+      "model_type": "music",
+      "platform_ref": null,
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 2.356092139147222,
+      "ram_gb": 0.0,
+      "vram_gb": 3.0
+    }
+  },
+  "description": "Snapshot HuggingFace installé (music/SheetSage2) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:m-a-p/MERT-v2-FullSong",
+  "manifest_kind": "model",
+  "name": "MERT-v2-FullSong",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:m-a-p/MERT-v2-FullSong",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

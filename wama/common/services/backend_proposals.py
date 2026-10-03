@@ -448,8 +448,101 @@ def _smoke_speech(code: str, *, module: str, model_key: str, out_dir: Path) -> d
     return out
 
 
+#: La mélodie que transcrit le smoke de PARTITION (2026-10-03) : gamme de do majeur montante puis
+#: descendante, deux fois, en noires à `SMOKE_SCORE_BPM` — SYNTHÉTISÉE ici, donc ses notes sont
+#: connues sans aucun fichier versé (la médiathèque système n'a aucune musique). Mesuré sur
+#: SheetSage2 : tempo 120 et tonalité C retrouvés, les 32 notes exactes plus une parasite en fin.
+#: ⚠ Le silence final n'est pas décoratif : une note collée à la toute fin de l'audio fait lever
+#: le moteur (« cannot be represented on the decoded subbeat grid », mesuré le même jour).
+SMOKE_SCORE_MIDI = (60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60, 60) * 2
+SMOKE_SCORE_BPM = 120
+SMOKE_SCORE_TAIL_SECONDS = 2.0
+#: En deçà, les notes rendues n'ont plus de rapport avec la mélodie jouée : garde-fou contre
+#: l'absurde (audio mal lu, mauvais canal), pas critère de qualité.
+SMOKE_SCORE_MIN_MATCH = 0.75
+_NOTE_NAMES = 'C_D_EF_G_A_B'
+_ABC_HEADER = re.compile(r'^\s*(?:[A-Za-z]:|%)')
+_ABC_NOTE = re.compile(r'[_^=]*([A-Ga-g])[,\']*')
+
+
+def smoke_score_clip(path, rate: int = 22050) -> str:
+    """Écrit la mélodie du smoke dans `path` (WAV) et rend ses NOMS de notes attendus (`CDEF…`).
+
+    Timbre à harmoniques et grosse caisse sur chaque temps : un transcripteur de partition suit
+    la pulsation, une sinusoïde nue n'en donne aucune."""
+    import numpy as np
+    import soundfile as sf
+    beat = 60.0 / SMOKE_SCORE_BPM
+    t = np.arange(int(rate * beat)) / rate
+    kick = np.sin(2 * np.pi * (60 + 80 * np.exp(-30 * t)) * t) * np.exp(-12 * t)
+    envelope = np.minimum(1, t / 0.01) * np.exp(-1.5 * t)
+    notes = []
+    for midi in SMOKE_SCORE_MIDI:
+        f = 440.0 * 2 ** ((midi - 69) / 12)
+        tone = sum(a * np.sin(2 * np.pi * f * k * t) for k, a in ((1, 1.0), (2, .5), (3, .3), (4, .15)))
+        notes.append(0.25 * tone * envelope + 0.35 * kick)
+    audio = np.concatenate(notes + [np.zeros(int(rate * SMOKE_SCORE_TAIL_SECONDS))])
+    sf.write(str(path), (audio / np.abs(audio).max() * 0.8).astype('float32'), rate)
+    return ''.join(_NOTE_NAMES[m % 12] for m in SMOKE_SCORE_MIDI)
+
+
+def abc_note_names(abc: str) -> str:
+    """Noms des notes d'un texte ABC, dans l'ordre et sans octave (`C4D4|c2` → `CDC`) — en-têtes,
+    commentaires, annotations `"…"` et décorations `!…!` écartés ; les silences ne sont pas des
+    notes. Lecture MINIMALE, à la mesure du smoke : elle ne juge pas les altérations."""
+    names = []
+    for line in (abc or '').splitlines():
+        if _ABC_HEADER.match(line):
+            continue
+        line = re.sub(r'"[^"]*"|![^!]*!', '', line)
+        names += [m.group(1).upper() for m in _ABC_NOTE.finditer(line)]
+    return ''.join(names)
+
+
+def _smoke_score(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
+    """Chargement, puis transcription de la mélodie connue : un ABC à tonalité (`K:`), dont la
+    suite de notes ressemble à celle jouée."""
+    import difflib
+    import tempfile
+    from unittest import mock
+    started = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        clip = Path(tmp) / 'smoke_score.wav'
+        expected = smoke_score_clip(clip)
+        try:
+            backend = _proposed_backend(code, module, tmp, 'transcribe_score')
+            if not type(backend).is_available():
+                return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
+            # CPU, comme les autres smokes : le rôle ne dispute jamais le GPU au worker.
+            with mock.patch('torch.cuda.is_available', return_value=False):
+                if not backend.load(model_id_of(model_key)):
+                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                abc = backend.transcribe_score(model_id=model_id_of(model_key),
+                                               audio_path=str(clip),
+                                               output_dir=str(Path(tmp) / 'out'),
+                                               melody_only=True)
+            backend.unload()
+        except Exception as e:
+            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
+                    'seconds': round(time.time() - started, 1)}
+    seconds = round(time.time() - started, 1)
+    if not isinstance(abc, str) or not re.search(r'^\s*K:', abc, re.M):
+        return {'ran': True, 'ok': False, 'seconds': seconds,
+                'error': f'pas une partition ABC (aucun en-tête K:) : {str(abc)[:120]!r}'}
+    found = abc_note_names(abc)
+    match = difflib.SequenceMatcher(None, expected, found).ratio()
+    out = {'ran': True, 'ok': True, 'seconds': seconds, 'notes': len(found),
+           'match': round(match, 3), 'abc': abc[:200]}
+    if match < SMOKE_SCORE_MIN_MATCH:
+        out.update(ok=False, error=f'{match:.0%} des notes de la mélodie retrouvées (< '
+                                   f'{SMOKE_SCORE_MIN_MATCH:.0%}) : la partition n\'a pas de '
+                                   f'rapport avec ce qui est joué')
+    return out
+
+
 #: Un essai par CONTRAT — un contrat sans entrée le dit (`smoke`).
-SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_speech}
+SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_speech,
+          'ScoreTranscriptionBackend': _smoke_score}
 
 
 # ── Le geste : lister, valider (ÉCRIRE), rejeter ─────────────────────────────────────────────
