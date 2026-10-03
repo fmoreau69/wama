@@ -364,12 +364,40 @@ def register_app_pipeline(app: str, specs, *, label: str, description: str = '',
     return pipeline
 
 
-def pipeline_of(item) -> AppPipeline | None:
-    """Le pipeline déclaré par l'app de cet élément, ou None (app à un seul process)."""
+_declarations_loaded = False
+
+
+def _load_declarations() -> None:
+    """Importe les modules déclarants des apps installées (`function_specs` / `functions`) —
+    c'est LEUR import qui inscrit un pipeline. Une fois par processus.
+
+    ⚠ Défaut vécu le 2026-10-03, 500 sur la page du composer EN SERVICE : dans un processus web
+    qui n'a encore importé aucun `function_specs` (gunicorn frais), `APP_PIPELINES` est vide et
+    « pas de pipeline » était lu comme une réponse. Le serveur de dev et les tests l'importaient
+    par d'autres chemins — le défaut ne se voyait que sur le live."""
+    global _declarations_loaded
+    if _declarations_loaded:
+        return
+    _declarations_loaded = True
     try:
-        return APP_PIPELINES.get(item._meta.app_label)
+        from wama.common.catalog import function_catalog
+        function_catalog.load_all()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            "[process_pipeline] déclarations des apps non chargées", exc_info=True)
+
+
+def pipeline_of(item) -> AppPipeline | None:
+    """Le pipeline déclaré par l'app de cet élément, ou None (app à un seul process). Charge
+    les déclarations des apps si ce processus ne l'a pas encore fait."""
+    try:
+        label = item._meta.app_label
     except AttributeError:
         return None
+    if label not in APP_PIPELINES:
+        _load_declarations()
+    return APP_PIPELINES.get(label)
 
 
 def card_view(item, model_key=None):

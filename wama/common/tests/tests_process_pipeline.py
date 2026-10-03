@@ -327,6 +327,25 @@ class WhatTheCardShowsTest(TestCase):
         rows = {r['key']: r['watched'] for r in self.pipeline.card_rows(item)}
         self.assertEqual({'plan': ['prompt'], 'render': ['duration']}, rows)
 
+    def test_a_fresh_process_loads_the_declarations_before_saying_there_is_no_pipeline(self):
+        """Lived on 2026-10-03, 500 on the live composer page: a web process that had imported
+        no `function_specs` yet read an EMPTY registry as « this app has no pipeline ». An
+        unknown app makes the registry load the declarations of the installed apps, once."""
+        from wama.common.services import process_pipeline
+        item = _Element(status=JOB_SUCCESS)
+        APP_PIPELINES.pop('demo_pipeline', None)
+
+        def declare():
+            APP_PIPELINES['demo_pipeline'] = self.pipeline
+
+        self.addCleanup(APP_PIPELINES.pop, 'demo_pipeline', None)
+        with mock.patch.object(process_pipeline, '_declarations_loaded', False), \
+                mock.patch('wama.common.catalog.function_catalog.load_all',
+                           side_effect=declare) as loaded:
+            self.assertIs(process_pipeline.pipeline_of(item), self.pipeline)
+            process_pipeline.pipeline_of(item)
+        self.assertEqual(1, loaded.call_count, 'loaded once per process, not at every card')
+
     def test_the_common_decoration_poses_the_view_only_for_an_app_with_a_pipeline(self):
         """`decorate` is the single attachment point of the GENERATED apps (5.2) : nothing
         without a declared pipeline (the card reads `status`), the three attributes with one."""
