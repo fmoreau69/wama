@@ -21034,3 +21034,36 @@ générées depuis un worktree de HEAD). NON POUSSÉS.
      collaborateur n'y sont pas tracés (`save_media_settings`, `settings_route` FAUX connu) ;
   7. jumelles alignées sur disque seulement (non versionnées ; régénération R90) ;
   8. push (décision de Fabien).
+
+## §PALIER — 2026-10-03 (soir), « PIPELINE P6 : synthesizer, avatarizer, process IMPORT du transcriber » — non poussé — 🔚 imager, anonymizer · bande des process sur la card avatarizer · étage B en process `align` (décision)
+
+Suite de « il faut tout aligner » (`ROUTE §10.6`, bloc « P6 ENGAGÉE »).
+
+- ✅ **synthesizer** (`e456c711`) : tâche sur le squelette commun ; le squelette sait re-livrer
+  une tâche dont le SERVICE n'est pas prêt (`ServiceNotReady`). Synthèse kokoro réelle jouée.
+- ✅ **avatarizer** (`7545f2bd`) : pipeline `speak` → `animate`. Joué en réel sous le compte de
+  test : speak 2,0 s + animate 245 s ; cadrage changé → `animate` seul, voix et audio inchangés.
+  Tests : `wama.avatarizer` 50 verts (8 neufs, `tests_pipeline.py`).
+- ✅ **transcriber, process `import`** (demande de Fabien, relayée par une autre session) : une
+  card à document (`work_result`) joue le pipeline avec `import` à la place de `transcribe` ;
+  locuteurs, résumé et cohérence tournent sur le texte repris. Joué en réel : SRT posé → ligne
+  `import` écrite au dépôt ; ▶ avec résumé → résumé SEUL (11,7 s, LLM réel), aucun moteur de
+  transcription chargé. Tests : `tests_pipeline` + `tests_evaluation` 56 verts (8 neufs, 2 adaptés).
+  Retiré : la tâche `import_existing_result_task` et sa route Celery (`settings.py`).
+
+🔴 **À relancer par Fabien : gunicorn ET workers** (argument de tâche `process` pour
+l'avatarizer ; glu `import` et `_task_for` unique pour le transcriber — tant que ce n'est pas
+fait, le web en service envoie encore l'ancienne tâche d'import, qui existe toujours dans les
+workers en service : rien ne casse, rien de neuf ne joue).
+
+Restes déclarés :
+- **imager** (`tasks.py`, ~1100 lignes) et **anonymizer** (~700) : dernières apps hors squelette ;
+- la bande des process et le ▶ par process sur la card de l'avatarizer (le moteur les tient déjà) ;
+- étage B de l'alignement d'un document repris : tâche à part, lancée après le dernier process —
+  process `align` = décision de Fabien ; ⚠ l'aligneur réécrit les segments sans garder les
+  marques de cohérence par segment (`coh_*`) ;
+- ▶ sur une card importée passe par la file GPU (tâche du pipeline) et non plus `default` ;
+- le manifeste `app` du transcriber liste encore `import_existing_result_task` (fichier modifié
+  par d'autres sessions : à régénérer par qui le commitera) ;
+- rouges PRÉEXISTANTS, pas de cette session : budgets de langue des identifiants (code 2677 ≠
+  2678, classes de test 134 > 132, méthodes de test 1319 > 1310).

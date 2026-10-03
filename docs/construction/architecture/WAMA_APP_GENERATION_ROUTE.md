@@ -3653,6 +3653,34 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 > - ⏳ **Ce qui n'est PAS fait, à décider** : `AnalysisPass` → `ProcessRun` (migration de
 >   données du Lab) et les statuts minuscules → vocabulaire `JOB_*` ; l'exécuteur du studio ne
 >   produit toujours ni `AWAITING_RESOURCES` ni `STALE`.
+>
+> 🔄 **P6 ENGAGÉE le 2026-10-03 — les apps hors squelette y entrent, une par une** :
+> - **synthesizer** (`e456c711`) : `synthesize_voice` → `run_item_task`, un seul process. Le
+>   squelette a gagné `ServiceNotReady` : une glu qui dépend d'un SERVICE encore en chargement
+>   (le microservice TTS) le dit, et la tâche est re-livrée (60 × 10 s, puis un échec DIT) —
+>   la politique que deux apps tenaient à la main autour de `self.retry()`, dont l'épuisement
+>   laissait l'élément « en cours » pour toujours.
+> - **avatarizer** : pipeline de DEUX process, `speak` (texte → audio, mode pipeline seulement,
+>   sortie `audio_input`) → `animate` (MuseTalk / TalkingHead + CodeFormer). Changer l'avatar,
+>   le cadrage ou la qualité ne re-synthétise plus la voix ; une animation en échec se relance
+>   sans refaire l'audio. Le modèle TTS tiré par « auto » n'est plus écrit dans le réglage (il
+>   est sur la ligne `speak`). Joué en réel : speak 2,0 s + animate 245 s, puis cadrage changé →
+>   `animate` seul. ⏳ La bande des process n'est pas encore sur la card de l'avatarizer ;
+>   CodeFormer reste dans `animate` (sa vidéo d'entrée vit dans un dossier de travail).
+> - **transcriber, process `import`** (demande de Fabien) : une card qui porte un document
+>   (port `work_result`) joue le MÊME pipeline, `import` à la place de `transcribe` — deux
+>   process `required` qui s'excluent par `applies`, et dont dépendent locuteurs, résumé et
+>   cohérence (un amont sans objet est ignoré : rien à ajouter au moteur). Une transcription
+>   reprise d'un autre outil peut donc être résumée, vérifiée, attribuée à ses locuteurs —
+>   sans charger de moteur de transcription. Le dépôt du document écrit la ligne `import` (un
+>   ▶ ultérieur ne ré-importe pas un document inchangé) et retire celle de `transcribe`. La
+>   tâche `import_existing_result_task` et sa route Celery disparaissent. Locuteurs d'une card
+>   importée : l'interrupteur décide seul ; un document sans heures n'a rien à attribuer.
+>   ⏳ L'étage B de l'alignement reste une tâche à part, lancée APRÈS le dernier process (il
+>   réécrit les segments que locuteurs et cohérence écrivent aussi) — en faire un process
+>   `align` est une décision ouverte. ⚠ ▶ sur une card importée passe désormais par la file
+>   GPU (la tâche du pipeline), plus par `default`.
+> - ⏳ Restent hors squelette : **imager** et **anonymizer**.
 
 #### 5. Couche 3 — l'UI : la card affiche son pipeline, le studio affiche le même objet en graphe
 

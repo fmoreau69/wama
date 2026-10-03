@@ -420,7 +420,12 @@ def _run_transcription(task, transcript_id: int, process: str = None):
                       notify_label='Transcriber', only=process,
                       progress_fn=lambda item, pct, msg: _set_progress(item, int(pct), force=True))
     finally:
+        # ÉTAGE B d'un document repris (`_import_step`) : lancé APRÈS le dernier process de ce
+        # lancement — l'aligneur réécrit les segments, que locuteurs et cohérence écrivent aussi.
+        align = (_RUNS.get(transcript_id) or {}).get('align_after')
         _release_run(transcript_id)
+        if align:
+            align_existing_result.delay(transcript_id)
 
 
 @shared_task(bind=True)
@@ -534,6 +539,11 @@ def _model_key(t) -> str:
     brique commune — fait UNE fois par lancement (le squelette la demande avant de choisir les
     process : c'est elle qui dit si la diarisation a lieu, `function_specs._diarize_applies`)."""
     state = _run_state(t)
+    if t.work_result:
+        # Une card à RÉSULTAT EXISTANT ne charge aucun moteur de transcription : son « modèle »
+        # est son document (`external:<fichier>`), et rien n'est tiré.
+        state['drawn'] = False
+        return _external_key(t)
     if 'backend_name' not in state:
         from wama.transcriber.backends.manager import (catalogue_value, is_auto_value,
                                                        resolve_auto_key)
@@ -808,6 +818,9 @@ def _diarize_step(t, ctx):
     segments = _segments_in_memory(t)
     if not segments:              # rien à attribuer (silence, texte sans segment) : pas un échec
         return {'label': 'aucun segment à attribuer'}
+    if any(isinstance(s, dict) and s.get('start_time') is None for s in (t.segments_json or [])):
+        # Un document repris SANS heures (ni ancré) : pyannote attribue par le temps.
+        return {'label': 'document sans heures : rien à attribuer'}
     from wama.common.backends.pyannote_diarizer import is_available as pyannote_ok, diarize
     if not pyannote_ok():
         raise RuntimeError("pyannote non disponible")
@@ -905,8 +918,37 @@ def _coherence_step(t, ctx):
     return {'label': f"cohérence {t.coherence_score}/100"}
 
 
+def _import_step(t, ctx):
+    """Process `import` : le document posé sur la card (port `work_result`) TIENT LIEU de
+    transcription — il est relu, jamais retranscrit. Les segments que la card porte ne sont PAS
+    effacés avant : ce sont les ancres horodatées sur lesquelles un texte sans heures se ré-ancre
+    (étage A). L'étage B (aligneur acoustique) part après le dernier process du lancement."""
+    from django.utils import timezone
+    name = os.path.basename(t.work_result.name)
+    try:
+        # La mesure contre la référence décrivait l'ancien texte : le squelette la refait à la fin.
+        from wama.common.services.result_evaluation import clear
+        clear('transcriber', t)
+        ctx.progress(10)
+        unsure = _import_document(t)
+    except Exception as exc:
+        ctx.reset_progress()
+        raise ValueError(f"Résultat existant illisible : {exc}") from exc
+    state = _run_state(t)
+    state['segments'] = None              # les process suivants relisent ce qui vient d'être écrit
+    state['align_after'] = unsure
+    _set_partial_text(t.id, t.text)
+    return {
+        'fields': {'finished_at': timezone.now()},
+        'label': f"document repris ({name})",
+        'console_success': f"Résultat existant repris ({name}) ✓",
+        'models': [t.model_key],
+        'output_fingerprint': _transcript_fingerprint(t),
+    }
+
+
 #: La glu de chaque process du pipeline (`function_specs.PIPELINE`).
-PROCESSES = {'transcribe': _transcribe_step, 'diarize': _diarize_step,
+PROCESSES = {'transcribe': _transcribe_step, 'import': _import_step, 'diarize': _diarize_step,
              'summarize': _summarize_step, 'coherence': _coherence_step}
 
 
@@ -1016,12 +1058,17 @@ def _anchoring_said(report: dict, source: str, outside: int) -> str:
     return said
 
 
-def import_existing_result(t: Transcript) -> None:
-    """Fait d'une transcription produite AILLEURS (port `work_result`) le résultat de la card.
+def _external_key(t: Transcript) -> str:
+    """La clé du « modèle » d'un résultat repris : `external:<nom du fichier>`."""
+    from wama.common.services.result_evaluation import EXTERNAL_PREFIX
+    return EXTERNAL_PREFIX + os.path.splitext(os.path.basename(t.work_result.name))[0]
 
-    Déclaré à la brique commune (`register_evaluation(import_result=…)`) : c'est ce qu'elle appelle
-    quand on pose le fichier, et ce que relance ▶ (`import_existing_result_task`) — le résultat
-    existant TIENT LIEU de transcription, relancer ne doit donc pas lancer l'ASR à sa place.
+
+def _import_document(t: Transcript) -> bool:
+    """Fait d'une transcription produite AILLEURS (port `work_result`) le CONTENU de la card :
+    texte, segments, langue, clé du « modèle ». Ne touche ni au statut ni à la progression — c'est
+    l'affaire de qui l'appelle (le dépôt, ou le squelette pour la glu `_import_step`). Rend vrai
+    quand des heures restent à affiner (étage B).
 
     Même écriture que le moteur : un document HORODATÉ (SRT, VTT) passe par `_save_segments`,
     comme une sortie ASR (lignes de segments comprises, donc SRT et aperçus). Un document SANS
@@ -1030,9 +1077,7 @@ def import_existing_result(t: Transcript) -> None:
     La clé du « modèle » est `external:<nom du fichier>` : mesurable, jamais agrégée comme un
     modèle du parc. Lève si le document ne contient aucune parole.
     """
-    from django.db import transaction
-    from django.utils import timezone
-    from wama.common.services.result_evaluation import EXTERNAL_PREFIX
+    from wama.common.services import process_runs
     from wama.common.services.word_anchoring import anchor_turns
     from .utils.transcript_documents import read_transcript_document
 
@@ -1053,22 +1098,50 @@ def import_existing_result(t: Transcript) -> None:
             _console(t.user_id, _anchoring_said(report, source, _outside_windows(segments, doc)))
     t.text = doc.text
     t.used_backend = 'externe'
-    t.model_key = EXTERNAL_PREFIX + os.path.splitext(os.path.basename(t.work_result.name))[0]
+    t.model_key = _external_key(t)
     if timed:
         _save_turns(t, segments)
     else:
         TranscriptSegment.objects.filter(transcript=t).delete()
         t.segments_json = [{k: s[k] for k in ('speaker_id', 'start_time', 'end_time', 'text')}
                            for s in doc.segments]
+    t.save(update_fields=['text', 'language', 'used_backend', 'model_key', 'segments_json'])
+    # Le document REMPLACE la transcription du moteur : sa ligne d'exécution n'a plus d'objet (le
+    # process `transcribe` n'a pas lieu pour une card à résultat existant) — la garder la
+    # montrerait « réussie » sur la card à côté de « Import ».
+    process_runs.safely(lambda: process_runs.lines(t).filter(node_id='transcribe').delete())
+    return _needs_acoustic_alignment(t.segments_json)
+
+
+def import_existing_result(t: Transcript) -> None:
+    """Le geste du DÉPÔT (brique commune, `register_evaluation(import_result=…)`) : le document
+    posé devient tout de suite le résultat de la card, dans la requête, hors de tout lancement.
+    ▶ le rejoue par le pipeline (process `import`, `_import_step`) — jamais l'ASR à sa place.
+    Lève si le document ne contient aucune parole."""
+    from django.db import transaction
+    from django.utils import timezone
+    from wama.common.services import process_runs
+    from .function_specs import PIPELINE
+
+    unsure = _import_document(t)          # un document refusé lève ICI : aucune ligne n'est écrite
     t.progress = 100
     t.status = 'SUCCESS'
     t.error_message = ''
     t.finished_at = timezone.now()
-    t.save(update_fields=['text', 'language', 'used_backend', 'model_key', 'segments_json',
-                          'progress', 'status', 'error_message', 'finished_at'])
+    t.save(update_fields=['progress', 'status', 'error_message', 'finished_at'])
+    # La ligne du process `import` s'écrit ICI aussi : la card montre « Import ✓ » dès le dépôt,
+    # et un ▶ ultérieur (résumé, locuteurs) ne ré-importe pas un document inchangé.
+    spec = PIPELINE.spec('import')
+    process_runs.safely(process_runs.start, t, spec.key, process_key=PIPELINE.function_key(spec),
+                        kind='function', settings_snapshot=PIPELINE.snapshot(spec, t),
+                        model_key=t.model_key)
+    process_runs.safely(
+        process_runs.succeed, t, spec.key, model_key=t.model_key,
+        output_summary={'label': f"document repris ({os.path.basename(t.work_result.name)})",
+                        'fingerprint': _transcript_fingerprint(t)})
     # ÉTAGE B, APRÈS la validation de la transaction : l'aligneur acoustique reprend ce que l'étage A
     # n'a fait qu'estimer — sur la file GPU, jamais dans la requête. Le résultat est déjà utilisable.
-    if _needs_acoustic_alignment(t.segments_json):
+    if unsure:
         transaction.on_commit(lambda: align_existing_result.delay(t.pk))
 
 
@@ -1094,29 +1167,6 @@ def _needs_acoustic_alignment(segments) -> bool:
         if any(isinstance(w, dict) and w.get('timing') in UNSURE_TIMINGS for w in s.get('words') or []):
             return True
     return False
-
-
-@shared_task(name='wama.transcriber.import_existing_result')
-def import_existing_result_task(transcript_id: int):
-    """▶ sur une card qui porte un résultat existant : il est RE-importé, jamais retranscrit.
-    Tâche nommée, routée sur `default` (settings) : c'est de la lecture de texte, pas du GPU."""
-    close_old_connections()
-    try:
-        t = Transcript.objects.get(pk=transcript_id)
-    except Transcript.DoesNotExist:
-        return {'ok': False, 'error': f'Transcript {transcript_id} introuvable'}
-    try:
-        import_existing_result(t)
-        from wama.common.services.result_evaluation import evaluate
-        evaluate('transcriber', t)
-        _console(t.user_id, f"Résultat existant repris ({os.path.basename(t.work_result.name)}) ✓")
-        return {'ok': True}
-    except Exception as exc:
-        t.status = 'FAILURE'
-        t.error_message = f"Résultat existant illisible : {exc}"
-        t.save(update_fields=['status', 'error_message'])
-        _console(t.user_id, t.error_message, level='error')
-        return {'ok': False, 'error': str(exc)}
 
 
 def _aligner_model(language: str):

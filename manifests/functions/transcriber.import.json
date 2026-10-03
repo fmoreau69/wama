@@ -1,0 +1,56 @@
+{
+  "body": {
+    "app": "transcriber",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "transcriber.workers:transcribe",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La transcription à reprendre.",
+        "group": "travail",
+        "key": "work_result",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "transcriber.import",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le texte et ses segments.",
+        "key": "transcript",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "text",
+      "import"
+    ],
+    "visibility": "public"
+  },
+  "description": "Fait d'une transcription produite ailleurs (SRT, VTT, export Sonal, texte) le résultat de la card, sans moteur de transcription. Un texte sans heures est ancré sur les mots d'une transcription du même audio.",
+  "key": "transcriber.import",
+  "manifest_kind": "function",
+  "name": "Transcriber — reprendre un résultat existant",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:transcriber.import",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

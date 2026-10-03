@@ -350,21 +350,39 @@ class TranscriberEvaluationTest(TestCase):
         item.refresh_from_db()
         self.assertFalse(item.work_result.name)
 
+    def _relaunch(self, item):
+        """▶ on a card : the pipeline task, as the launcher sends it. The skeleton opens with
+        `close_old_connections()` (Celery hygiene) — it would close the TEST connection."""
+        from unittest.mock import patch
+        from wama.transcriber import workers
+        from wama.transcriber.models import Transcript
+        from wama.transcriber.views import _task_for
+        # No optional process : the card is up to date, so ▶ asks for its result AGAIN — the
+        # import is replayed (with an option pending, only that option would run).
+        Transcript.objects.filter(pk=item.pk).update(
+            status='RUNNING', enable_diarization=False, generate_summary=False,
+            verify_coherence=False)
+        with patch('wama.common.utils.task_skeleton.close_old_connections'), \
+                patch.object(workers, 'get_backend') as engine, \
+                patch.object(workers, '_import_document',
+                             side_effect=workers._import_document) as imported:
+            _task_for(item).run(item.pk)
+        item.refresh_from_db()
+        return engine, imported
+
     def test_relaunching_a_card_with_an_existing_result_REIMPORTS_it(self):
         from wama.transcriber.views import _task_for
-        from wama.transcriber.workers import (import_existing_result_task,
-                                              transcribe_without_preprocessing)
+        from wama.transcriber.workers import transcribe, transcribe_without_preprocessing
         item = self._transcript()
         self.assertIs(transcribe_without_preprocessing, _task_for(item))
         self._import(item, SRT_REFERENCE.encode(), 'autre.srt')
         item.refresh_from_db()
-        self.assertIs(import_existing_result_task, _task_for(item),
-                      '▶ must not run the ASR in place of the existing result')
-        # The task opens with `close_old_connections()` (Celery hygiene) — it would close the
-        # TEST connection; the gesture under test is the re-import, not the hygiene.
-        from unittest.mock import patch
-        with patch('wama.transcriber.workers.close_old_connections'):
-            self.assertEqual({'ok': True}, import_existing_result_task(item.pk))
+        self.assertIs(transcribe, _task_for(item), 'one task : the PIPELINE picks « import »')
+        engine, imported = self._relaunch(item)
+        self.assertEqual('SUCCESS', item.status, item.error_message)
+        self.assertEqual(1, imported.call_count, 'the import glue is played')
+        engine.assert_not_called()            # ▶ must not run the ASR in place of the existing result
+        self.assertTrue(item.model_key.startswith('external:'))
 
     @override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
                                            'LOCATION': 'transcriber-agreement-tests'}})
@@ -432,15 +450,16 @@ class TranscriberEvaluationTest(TestCase):
     def test_relaunching_keeps_the_anchors_and_reimports_with_times(self):
         from unittest.mock import patch
         from wama.transcriber.views import _reset_for_relaunch
-        from wama.transcriber.workers import import_existing_result_task
+        from wama.transcriber.workers import align_existing_result
         card = self._whisper_card()
         self._import(card, self.SONAL.encode(), 'export_sonal.txt')
         card.refresh_from_db()
         _reset_for_relaunch(card)
         card.save()
-        with patch('wama.transcriber.workers.close_old_connections'):
-            self.assertEqual({'ok': True}, import_existing_result_task(card.pk))
-        card.refresh_from_db()
+        with patch.object(align_existing_result, 'delay') as aligned:
+            self._relaunch(card)
+        self.assertEqual('SUCCESS', card.status, card.error_message)
+        aligned.assert_called_once_with(card.pk)      # stage B, after the last process
         self.assertEqual((2.0, 3.0), (card.segments_json[1]['start_time'],
                                       card.segments_json[1]['end_time']))
 
