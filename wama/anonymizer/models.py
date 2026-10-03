@@ -4,7 +4,8 @@ from django.contrib.auth.models import User
 from django.template.defaulttags import register
 
 from wama.settings import BASE_DIR, AI_MODELS_DIR
-from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager, JOB_STATUS_CHOICES
+from wama.common.models import (JOB_STATUS_CHOICES, NativeOutputsMixin, ProcessingTimeMixin,
+                                ScopedManager, ScopedVisibility)
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 import os
 
@@ -24,7 +25,7 @@ def default_classes2blur():
     return ["face"]
 
 
-class Media(ProcessingTimeMixin, ScopedVisibility):
+class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # Partage F7 (PROFILES_PERMISSIONS §7.4bis) : lectures via visible_to()/visible_or_404,
     # mutations inchangées (filtrées par user) → lecture seule par construction.
     objects = ScopedManager()

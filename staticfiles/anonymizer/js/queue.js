@@ -61,7 +61,8 @@
         stopPolling(id);
         return;
       }
-      const prev = card.dataset.status;
+      // L'état de l'ÉLÉMENT : `data-status` porte l'état MONTRÉ (« périmé » sous un élément terminé).
+      const prev = card.dataset.elementStatus || card.dataset.status;
       if (window.WamaEta) {
         WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(id, {
           progress: d.progress,
@@ -90,16 +91,18 @@
 
   function pollAllCards() {
     queue.querySelectorAll('.anon-card[data-id]').forEach(c => {
-      if (c.dataset.status !== 'SUCCESS') startPolling(parseInt(c.dataset.id, 10));
+      if ((c.dataset.elementStatus || c.dataset.status) !== 'SUCCESS') startPolling(parseInt(c.dataset.id, 10));
     });
   }
 
   // ── Cycle ▶/⏹/↻ — brique commune, un seul listener sur la file ─────────
   if (window.WamaCycleButton) {
     WamaCycleButton.wire(queue, {
-      start: async (id) => {
+      start: async (id, btn) => {
         try {
-          const d = await (await fetch(getUrl(cfg.startUrlTemplate, id), {
+          // ▶ d'UN process (bande des process, `data-process`) : route `start/<id>/<process>/`.
+          const process = btn && btn.dataset ? btn.dataset.process : '';
+          const d = await (await fetch(getUrl(cfg.startUrlTemplate, id) + (process ? process + '/' : ''), {
             method: 'POST', headers: csrfHeaders(),
           })).json();
           if (d.error) {

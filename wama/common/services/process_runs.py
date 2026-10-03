@@ -144,8 +144,13 @@ def await_resources(item, node_id: str = MAIN_NODE, *, process_key: str = '',
 
 def succeed(item, node_id: str = MAIN_NODE, *, instance_key: str = '', output_ref: str = '',
             output_summary: dict | None = None, model_key: str | None = None,
-            process_key: str = ''):
-    """Le process a RENDU son résultat : `SUCCESS`, durée mesurée depuis `start`."""
+            process_key: str = '', settings_snapshot: dict | None = None):
+    """Le process a RENDU son résultat : `SUCCESS`, durée mesurée depuis `start`.
+
+    `settings_snapshot` : la photo des réglages surveillés À LA FIN du process, quand l'appelant
+    la donne — elle remplace celle du départ. Une glu peut AJUSTER un réglage qu'elle surveille
+    (le composer plafonne la durée à ce que le modèle sait rendre) : gardée telle qu'au départ,
+    la photo rendrait le process périmé par son propre résultat (mesuré le 2026-10-03)."""
     existing = line(item, node_id, instance_key)
     now = timezone.now()
     summary = dict((existing.output_summary or {}) if existing else {})
@@ -159,6 +164,8 @@ def succeed(item, node_id: str = MAIN_NODE, *, instance_key: str = '', output_re
         defaults.update({'process_key': process_key or item._meta.app_label, 'started_at': now})
     if model_key is not None:
         defaults['model_key'] = model_key
+    if settings_snapshot is not None:
+        defaults['settings_snapshot'] = dict(settings_snapshot)
     return _write(item, node_id, instance_key, defaults)
 
 

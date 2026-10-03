@@ -14,7 +14,6 @@ from wama.common.app_registry import normalize_types
 from wama.common.utils.media_paths import get_app_media_path
 from .utils.sam3_manager import check_sam3_installed, validate_sam3_prompt
 from wama.common.utils.console_utils import push_console_line
-from wama.common.utils.queue_duplication import safe_delete_file
 
 # Couverture multi-modèles : seule `needs_parallel_detection` survit au retrait du second
 # pipeline (2026-08-13) — elle ne fait que consulter la couverture, elle n'orchestre plus rien.
@@ -43,15 +42,16 @@ def _record_output(media, written):
     Avant : `_resolve_output_rel` DEVINAIT la sortie par `glob('<entrée>_blurred*')`, trié par
     ordre ALPHABÉTIQUE — donc des cards dupliquées (même entrée) se voyaient attribuer le même
     fichier, et un média passé de YOLO à SAM3 pouvait garder la sortie de l'autre moteur.
-    La sortie précédente de CETTE card part si elle n'est plus la même (moteur ou format
-    changé) — par `safe_delete_file`, qui la garde si une autre ligne la désigne encore.
+    La sortie précédente de CETTE card — et l'original que la brique de sortie en gardait — part
+    si elle n'est plus la même (moteur ou format changé) ; un fichier qu'une autre card désigne
+    encore est laissé (`output_process.drop_previous_outputs`).
     """
     from django.conf import settings
+    from wama.common.services.output_process import drop_previous_outputs
     rel = ''
     if written and os.path.exists(written):
         rel = os.path.relpath(written, settings.MEDIA_ROOT).replace(chr(92), '/')
-    if media.output_file and media.output_file.name != rel:
-        safe_delete_file(media, 'output_file')
+    drop_previous_outputs(media, 'output_file', keep=[written] if rel else [])
     media.output_file.name = rel
 
 
@@ -74,40 +74,39 @@ def _console(user_id: int, message: str, level: str = None) -> None:
         pass
 
 
-def _apply_anonymizer_output_format(media, written):
-    """Convert the blurred output to the chosen format (Phase 3 élargie); return the final path.
-
-    output_format:
-        'original' → keep whatever the pipeline produced (no-op)
-        'input'    → reconvert to the SOURCE file's format (e.g. pipeline
-                     produced .mp4 but the user uploaded .mov → back to .mov)
-        '<fmt>'    → explicit target format
-    Works on the file the engine WROTE (2026-09-27). It used to glob `<input>_blurred*`, which
-    converted the outputs of every card sharing the input — duplicates included.
-    """
+def _output_format_for(media, source) -> str:
+    """Le format de sortie DEMANDÉ pour ce média — résolu ici parce que le réglage de
+    l'anonymizer n'est pas toujours un format :
+        'original' → ce que le moteur a écrit (rien à faire) ;
+        'input'    → le format du fichier SOURCE (le moteur a écrit du .mp4, l'utilisateur avait
+                     déposé du .mov → retour au .mov) ;
+        '<fmt>'    → ce format.
+    Un format égal à celui du fichier d'origine ne demande rien non plus."""
     fmt = (getattr(media, 'output_format', '') or 'original').lower()
-    if fmt in ('', 'original') or not written or not os.path.exists(written):
-        return written
+    if fmt in ('', 'original'):
+        return 'original'
+    wanted = (media.file_ext or '').lower().lstrip('.') if fmt == 'input' else fmt
+    if not wanted or os.path.splitext(str(source))[1].lower().lstrip('.') == wanted:
+        return 'original'
+    return wanted
 
-    src_ext = (media.file_ext or '').lower().lstrip('.')
-    target = src_ext if fmt == 'input' else fmt
-    if not target or os.path.splitext(written)[1].lower().lstrip('.') == target:
-        return written
 
-    try:
-        from wama.converter.utils.inline_convert import apply_inline_conversion
-        preset = getattr(media, 'output_quality', 'balanced') or 'balanced'
-        return apply_inline_conversion(written, target, preset)
-    except Exception as exc:
-        logger.warning(f"[anonymizer] conversion format sortie échouée: {exc}")
-        return written
+def _output(media, ctx):
+    """GLU du process `output` : format et qualité de sortie, par la glu COMMUNE
+    (`output_process.output_step`) — le fichier flouté d'origine est gardé tant que la sortie le
+    transforme."""
+    from wama.common.services.output_process import output_step
+    video = normalize_types([media.file_ext]) == ['video']
+    return output_step('output_file', domain='video' if video else 'image', app_id='anonymizer',
+                       console=lambda item, message: _console(item.user_id, message),
+                       format_of=_output_format_for)(media, ctx)
 
 
 # ----------------------------------------------------------------------
 # Tâche principale pour traiter un média
 # ----------------------------------------------------------------------
 @shared_task(bind=True)
-def process_single_media(self, media_id, force_individual=False):
+def process_single_media(self, media_id, force_individual=False, process=None):
     """
     Traite un média unique en DB — avec SES réglages, et eux seuls — par le squelette COMMUN
     (`run_item_task`, marche P6 du 2026-10-03) : garde de redélivrance après crash, ingestion
@@ -120,8 +119,12 @@ def process_single_media(self, media_id, force_individual=False):
     `ROADMAP §23.2quater`) : la tâche ne lit plus que ses colonnes.
 
     force_individual : conservé pour les appelants existants ; il n'a plus d'effet.
+    process : lancement BORNÉ à ce process du pipeline (⚠ argument de tâche nouveau : workers à
+    relancer).
     """
+    from wama.common.services.output_process import forget_lost_generation
     from wama.common.utils.task_skeleton import run_item_task
+    from .function_specs import PIPELINE
 
     # Dedup: check if another task already owns this media
     owner_key = f"anon_task_owner:media:{media_id}"
@@ -147,8 +150,16 @@ def process_single_media(self, media_id, force_individual=False):
         # la file entière (`process_user_media_batch`) : la tâche ne bascule rien avant la garde
         # anti-re-livraison du squelette — sans quoi un message re-livré PÉRIMÉ remettait en
         # cours, pour toujours, un média terminé (2026-10-03).
+        # La card porte un PIPELINE de deux process (`function_specs.PIPELINE`) : `generate`
+        # (`_anonymize`, le floutage) puis `output` (`_output`, format et qualité). Un lancement
+        # ne rejoue que ce qui n'est plus à jour : changer le format ne re-floute pas. La sortie
+        # repart du fichier que le floutage a laissé : s'il n'est plus là, le floutage rejoue.
+        known = Media.objects.filter(pk=media_id).first()
+        if known is not None:
+            forget_lost_generation(known, 'output_file', 'generate')
         run_item_task(self, app_id='anonymizer', model=Media, item_id=media_id,
-                      process=_anonymize, notify_label='Anonymizer',
+                      pipeline=PIPELINE, processes={'generate': _anonymize, 'output': _output},
+                      notify_label='Anonymizer', only=process,
                       ingest_derive=_ingested_metadata,
                       progress_fn=lambda item, pct, msg: set_media_progress(item.pk, pct))
     finally:
@@ -456,9 +467,7 @@ def _anonymize(media, ctx):
             except OSError:
                 pass
 
-    # Conversion de format de sortie (Phase 3 élargie)
-    written = _apply_anonymizer_output_format(media, written)
-
+    # Le format et la qualité de sortie sont le process suivant, `output` (`_output`).
     # La sortie RÉELLEMENT écrite, posée sur le média (l'ancienne part si elle n'est plus la
     # même). Le statut, le chrono, l'ETA et la notification sont l'affaire du squelette.
     try:
@@ -467,14 +476,16 @@ def _anonymize(media, ctx):
         _console(user.id, f"Warning: Media {media_id} was deleted during processing")
         raise RuntimeError("Le média a été supprimé pendant son traitement.")
     _record_output(media, written)
-    return {
-        'fields': {'output_file': media.output_file.name},
-        'eta': (eta_key, eta_size, eta_unit),
-        'label': os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media_id}",
-        'console_success': f"Finished media {media_id} ✔",
-        'models': used_models or None,
-        'output_ref': media.output_file.name,
-    }
+    if not media.output_file.name:
+        raise RuntimeError("Le moteur n'a écrit aucun fichier.")
+    from wama.common.services.output_process import generated
+    return generated(
+        [written],
+        fields={'output_file': media.output_file.name},
+        eta=(eta_key, eta_size, eta_unit),
+        label=os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media_id}",
+        console_success=f"Finished media {media_id} ✔",
+        models=used_models or None)
 
 
 # ----------------------------------------------------------------------

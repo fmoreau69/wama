@@ -1,0 +1,56 @@
+{
+  "body": {
+    "app": "synthesizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "synthesizer.workers:synthesize_voice",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Le WAV synthétisé.",
+        "group": "travail",
+        "key": "native",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "synthesizer.output",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "La parole au format demandé.",
+        "key": "audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "format"
+    ],
+    "visibility": "public"
+  },
+  "description": "Applique le format et la qualité de sortie de la card au WAV synthétisé. Garde ce WAV tant que la sortie le transforme, pour se rejouer sans re-synthétiser.",
+  "key": "synthesizer.output",
+  "manifest_kind": "function",
+  "name": "Synthesizer — réglages de sortie",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:synthesizer.output",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

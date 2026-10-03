@@ -1,0 +1,57 @@
+{
+  "body": {
+    "app": "anonymizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "anonymizer.tasks:process_single_media",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "Le média flouté d'origine.",
+        "group": "travail",
+        "key": "native",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "anonymizer.output",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "Le média flouté au format demandé.",
+        "key": "result",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "image",
+      "video",
+      "format"
+    ],
+    "visibility": "public"
+  },
+  "description": "Applique le format et la qualité de sortie de la card au média flouté. Garde le fichier d'origine tant que la sortie le transforme, pour se rejouer sans re-flouter.",
+  "key": "anonymizer.output",
+  "manifest_kind": "function",
+  "name": "Anonymizer — réglages de sortie",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:anonymizer.output",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

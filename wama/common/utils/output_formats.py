@@ -214,8 +214,16 @@ def upscale_output_image(path: str, factor, *, item=None, app_id=None, denoise: 
     return size
 
 
+def wanted_format(item, output_format: str | None = None) -> str:
+    """Le format de sortie DEMANDÉ, en minuscules ('original' = inchangé). `output_format` : la
+    valeur qu'une app a RÉSOLUE elle-même quand son réglage n'est pas un format (l'anonymizer et
+    son « format de l'entrée ») — sinon le réglage de l'item."""
+    value = getattr(item, 'output_format', '') if output_format is None else output_format
+    return (value or 'original').lower()
+
+
 def apply_output_settings(paths, item, *, domain: str, app_id: str | None = None,
-                          console=None) -> list:
+                          console=None, output_format: str | None = None) -> list:
     """Les réglages de SORTIE de l'item appliqués aux fichiers produits, dans l'ordre du
     process : agrandissement (image) PUIS conversion de format. Rend les chemins finaux.
 
@@ -232,7 +240,7 @@ def apply_output_settings(paths, item, *, domain: str, app_id: str | None = None
         for p in paths:
             w, h = upscale_output_image(p, factor, item=item, app_id=app_id)
         say(f"Agrandissement terminé : {w}×{h}")
-    fmt = (getattr(item, 'output_format', '') or 'original').lower()
+    fmt = wanted_format(item, output_format)
     if fmt in ('', 'original'):
         return paths
     preset = getattr(item, 'output_quality', '') or 'balanced'
@@ -282,15 +290,15 @@ def final_name(path) -> str:
     return f'{stem[:-len(NATIVE_MARK)]}{ext}' if stem.endswith(NATIVE_MARK) else str(path)
 
 
-def transforms_output(item, domain: str) -> bool:
+def transforms_output(item, domain: str, output_format: str | None = None) -> bool:
     """Les réglages de sortie de l'item changent-ils le fichier que le moteur a écrit ?"""
     if domain == 'image' and upscale_factor(getattr(item, 'output_upscale', '')) > 1:
         return True
-    return (getattr(item, 'output_format', '') or 'original').lower() not in ('', 'original')
+    return wanted_format(item, output_format) not in ('', 'original')
 
 
 def render_outputs(sources, item, *, domain: str, app_id: str | None = None, console=None,
-                   previous=()) -> tuple:
+                   previous=(), output_format: str | None = None) -> tuple:
     """Les réglages de sortie appliqués en GARDANT le fichier d'origine ; rend
     `(rendus, originaux gardés)`, en chemins absolus.
 
@@ -306,7 +314,7 @@ def render_outputs(sources, item, *, domain: str, app_id: str | None = None, con
     import shutil
 
     finals, natives = [], []
-    transform = transforms_output(item, domain)
+    transform = transforms_output(item, domain, output_format)
     for source in list(sources or []):
         source = str(source)
         target = final_name(source)
@@ -321,7 +329,7 @@ def render_outputs(sources, item, *, domain: str, app_id: str | None = None, con
         shutil.copy2(kept, target)
         try:
             finals.extend(apply_output_settings([target], item, domain=domain, app_id=app_id,
-                                                console=console))
+                                                console=console, output_format=output_format))
         except Exception:
             # Un échec (agrandissement demandé, impossible) ne laisse rien derrière lui : l'original
             # reprend la place d'où il venait, comme si la sortie n'avait pas été tentée.

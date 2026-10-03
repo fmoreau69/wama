@@ -29,6 +29,7 @@ urlpatterns = [
     # `voice-preview-stream/` est retiré le 2026-09-28.
     path('voice-preview/', views.voice_preview, name='voice_preview'),
     path('start/<int:pk>/', views.start, name='start'),
+    path('start/<int:pk>/<str:process>/', views.start_process, name='start_process'),
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('card/<int:pk>/html/', views.card_html, name='card_html'),

@@ -1,11 +1,12 @@
 from django.db import models
-from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager, JOB_STATUS_CHOICES
+from wama.common.models import (JOB_STATUS_CHOICES, NativeOutputsMixin, ProcessingTimeMixin,
+                                ScopedManager, ScopedVisibility)
 from django.contrib.auth.models import User
 
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 
 
-class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
+class ComposerGeneration(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # Partage F7 (PROFILES_PERMISSIONS §7.4bis) : lectures via visible_to()/visible_or_404,
     # mutations inchangées (filtrées par user) → lecture seule par construction.
     objects = ScopedManager()
@@ -23,7 +24,8 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
     # What to generate
     generation_type = models.CharField(max_length=10, choices=GENERATION_TYPE_CHOICES, default='music')
     prompt = models.TextField()
-    duration = models.FloatField(default=10.0, help_text='Durée en secondes (10–600)')
+    # Défaut 3:30 (210 s), celui du schéma (`params.py`, 2026-10-03) — une chanson, pas un extrait.
+    duration = models.FloatField(default=210.0, help_text='Durée en secondes (10–600)')
     # Clé de CATALOGUE du modèle, ou un « auto » de groupe (`auto:text-to-music`…) — route F4b,
     # 2026-10-01 (`utils/model_choice`). 128 : une clé de dépôt HF dépasse vite 64 caractères.
     model = models.CharField(max_length=128, default='composer:musicgen-small')

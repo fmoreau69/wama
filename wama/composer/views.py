@@ -54,6 +54,10 @@ def _auto_wrap_orphans(user):
                       item_extra=_batch_item_extra)
 
 
+#: Durée d'une génération quand rien ne la précise : le défaut du CHAMP (un seul lieu).
+_DEFAULT_DURATION = float(ComposerGeneration._meta.get_field('duration').default)
+
+
 def _reset_for_relaunch(gen, only=None):
     """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race (begin_processing).
 
@@ -64,11 +68,11 @@ def _reset_for_relaunch(gen, only=None):
     sont remplacées (`PIPELINE.reset_outputs`) : relancer la partition seule n'emporte pas
     l'audio, qui se périmera de lui-même."""
     from .function_specs import PIPELINE
+    # ⚠ Un lancement COMPLET ne retire plus l'audio au clic (2026-10-03) : il ne rejoue que ce
+    # qui n'est plus à jour, et un format changé ne rejoue que la sortie — depuis l'audio que le
+    # rendu a laissé. C'est la glu du rendu qui remplace l'audio quand elle rejoue.
     if only:
         PIPELINE.reset_outputs(gen, (only,))
-    else:
-        safe_delete_file(gen, 'audio_output')
-        gen.audio_output = None
     gen.progress = 0
     gen.error_message = None
     gen.exported_to_library = False
@@ -407,10 +411,10 @@ def import_batch(request):
     if not is_valid(default_model):
         default_model = DEFAULT_MODEL
     try:
-        default_duration = float(request.POST.get('default_duration', 10))
+        default_duration = float(request.POST.get('default_duration', _DEFAULT_DURATION))
         default_duration = clamp_duration(default_duration)
     except (ValueError, TypeError):
-        default_duration = 10.0
+        default_duration = _DEFAULT_DURATION
 
     # Save batch file temporarily to parse it
     from django.conf import settings

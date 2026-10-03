@@ -36,12 +36,18 @@ def compose_task(self, generation_id: int, process: str | None = None):
     `process` (P5, ▶ par process) : lancement BORNÉ à ce process — lui, précédé des seuls amonts
     périmés (`AppPipeline.steps_to_run(only=)`) ; son aval se périmera de lui-même. ⚠ Argument
     de tâche NOUVEAU : les workers doivent être relancés pour le connaître."""
+    from wama.common.services.output_process import forget_lost_generation
     from wama.common.utils.task_skeleton import run_item_task
     from .function_specs import PIPELINE
+    # La sortie repart du fichier que le rendu a laissé : s'il n'est plus là, le rendu rejoue.
+    known = ComposerGeneration.objects.filter(pk=generation_id).first()
+    if known is not None:
+        forget_lost_generation(known, 'audio_output', 'render')
     try:
         run_item_task(self, app_id='composer', model=ComposerGeneration, item_id=generation_id,
                       pipeline=PIPELINE,
-                      processes={'extract_score': _extract_score, 'plan': _plan, 'render': _render},
+                      processes={'extract_score': _extract_score, 'plan': _plan, 'render': _render,
+                                 'output': _output},
                       vram_needed=_vram_needed, model_key=_model_key, notify_label='Composer',
                       only=process)
     finally:
@@ -310,6 +316,9 @@ def _render(gen, ctx):
                     f"(max du modèle {catalog_key})")
         if not auto:
             ComposerGeneration.objects.filter(pk=gen.pk).update(duration=duration)
+            # En mémoire AUSSI : la ligne d'exécution photographie les réglages tels que la glu
+            # les laisse — sans cela le rendu serait périmé par son propre plafonnement.
+            gen.duration = duration
     ctx.console(f"[Composer] Démarrage : {catalog_key} — {gen.prompt[:60]}…")
 
     output_rel_dir, output_filename, output_abs_path = _output_place(gen, ctx, catalog_key, '.wav')
@@ -346,24 +355,23 @@ def _render(gen, ctx):
         clear_partial(ctx.app_id, gen.id)   # la face SORTIE prend le relais (ou rien, à l'échec)
 
     output_rel = f'{output_rel_dir}/{output_filename}'
-    # Output-format conversion (Phase 3 élargie)
-    wanted = (gen.output_format or 'original').lower()
-    if wanted not in ('', 'original', 'wav'):
-        try:
-            from wama.converter.utils.inline_convert import apply_inline_conversion
-            converted = apply_inline_conversion(output_abs_path, wanted,
-                                                gen.output_quality or 'balanced')
-            output_rel = os.path.relpath(converted, settings.MEDIA_ROOT).replace('\\', '/')
-        except Exception as exc:
-            ctx.console(f"[Composer] conversion format échouée: {exc}", level='warning')
+    # Le format et la qualité de sortie sont le process suivant, `output` (brique commune) : ici
+    # la glu rend le WAV du modèle. Les rendus et l'original gardé de la fois d'avant partent.
+    from wama.common.services.output_process import drop_previous_outputs, generated
+    drop_previous_outputs(gen, 'audio_output', keep=[output_abs_path])
+    return generated(
+        [output_abs_path],
+        fields={'audio_output': output_rel},
+        eta=composer_eta_key_size(gen, model=catalog_key, duration=duration),
+        label=output_filename,
+        models=[catalog_key])
 
-    return {
-        'fields': {'audio_output': output_rel},
-        'output_ref': output_rel,
-        'eta': composer_eta_key_size(gen, model=catalog_key, duration=duration),
-        'label': output_filename,
-        'models': [catalog_key],
-    }
+
+def _output(gen, ctx):
+    """GLU du process `output` : format et qualité de sortie, par la glu COMMUNE
+    (`output_process.output_step`) — le WAV du rendu est gardé tant que la sortie le transforme."""
+    from wama.common.services.output_process import output_step
+    return output_step('audio_output', domain='audio', app_id='composer')(gen, ctx)
 
 
 def _score_to_follow(gen, catalog_key) -> str:

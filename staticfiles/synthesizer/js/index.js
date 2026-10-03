@@ -14,9 +14,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // re-rendues depuis le partial serveur au poll → l'icône suit le statut (pas besoin d'autoSync ici).
     if (window.WamaCycleButton) {
         WamaCycleButton.wire(document, {
-            start: async (id) => {
+            start: async (id, btn) => {
                 // POST : lancer une synthèse CHANGE l'état — la vue l'exige depuis le 2026-09-22.
-                try { await fetch(URLS.start + id + '/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } }); } catch (e) {}
+                // ▶ d'UN process (bande des process, `data-process`) : route `start/<id>/<process>/`.
+                const process = btn && btn.dataset ? btn.dataset.process : '';
+                try { await fetch(URLS.start + id + '/' + (process ? process + '/' : ''), { method: 'POST', headers: { 'X-CSRFToken': csrfToken } }); } catch (e) {}
                 window.location.reload();
             },
             stop: async (id) => {

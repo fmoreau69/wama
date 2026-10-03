@@ -171,20 +171,26 @@ class ListedFilesAreIndexedTest(TestCase):
         from wama.common.utils.file_references import direct_references, usage
         for account, model, field in self._declared():
             with self.subTest(model=model._meta.label):
-                el, (rel, other) = self._card_listing(model, account, field, 'a.png', 'b.png')
+                # Un nom PAR MODÈLE : plusieurs apps déclarent une liste (2026-10-03,
+                # `native_outputs`) et partagent le compte témoin — le même nom se compterait
+                # d'une app à l'autre.
+                own = model._meta.model_name
+                el, (rel, other) = self._card_listing(model, account, field,
+                                                      f'{own}_a.png', f'{own}_b.png')
                 self.assertEqual(1, usage(rel)['count'])
                 self.assertFalse(status_of(rel)['unused'])
                 self.assertEqual([(model._meta.label, el.pk, field, rel)],
                                  [(r['label'], r['pk'], r['field'], r['name'])
                                   for r in direct_references(rel)])
-                self.assertEqual(0, usage(f'users/{account.id}/temp/a.pn')['count'],
+                self.assertEqual(0, usage(rel[:-1])['count'],
                                  'contre-épreuve : une sous-chaîne n’est pas une désignation')
 
     def test_the_question_ignores_the_row_it_is_asked_for(self):
         from wama.common.utils.file_references import is_referenced_elsewhere
         for account, model, field in self._declared():
             with self.subTest(model=model._meta.label):
-                el, (rel,) = self._card_listing(model, account, field, 'seule.png')
+                el, (rel,) = self._card_listing(model, account, field,
+                                                f'{model._meta.model_name}_seule.png')
                 self.assertTrue(is_referenced_elsewhere(rel))
                 self.assertFalse(is_referenced_elsewhere(rel, label=model._meta.label,
                                                          pk=el.pk, field=field))
