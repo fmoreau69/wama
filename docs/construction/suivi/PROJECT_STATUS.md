@@ -20829,3 +20829,26 @@ heredocs de l'outil Bash qui mangent les antislashs, `python -m unittest` nu int
 - **Commits P5 du jour (non poussés)** : `921d059d` promotion fille ↔ mère · `30ead900` docs
   générées · `929c5a54` ▶ par process composer · `d2f637b9` ⚙ par process + gabarit généré ·
   `b71677d2` catalogue du studio · + ce correctif.
+
+## §PALIER — 2026-10-03, « MODE COLLABORATION (E1-E5) + MES PARTAGES » — ✅ `cc5e4240` — 🔚 relancer WAMA, puis jouer `common.collaboration_cycle` sur le live
+
+Fabien tranche E1-E5 (03/10, toutes sur la recommandation) : personnes nommées ; relance = celle de
+la card, fin notifiée aux deux ; verrou doux + trace ; retrait à effet immédiat. Domicile :
+`WAMA_COLLABORATION §3bis.2, §4.7, §5.3`.
+- Collaboration demandée par « Mon accès », accordée à l'ENTRÉE (le lot) ; `scoping.editable_or_404`
+  / `can_edit` adoptés par `begin_processing` (9 apps + générateur), `make_batch_views`, ~40 vues
+  d'app (réglages, arrêt, correction), le générateur et les jumelles. Suppression / partage /
+  transfert : propriétaire seul (E2). Notification de fin aux collaborateurs ; verrou doux
+  (`edit_lock`, Redis) ; réglages d'un collaborateur tracés (`regle`) ; « Mes partages »
+  (`/common/shares/`) avec « retirer ».
+- ⭐ Défaut ANTÉRIEUR trouvé par une sonde : le journal des gestes (`RunOutcome`, middleware) ne
+  captait RIEN pour reader, composer et transcriber (`app_name` pointé) — corrigé (`app_of`).
+- Gardes : `tests_access_requests` (collaboration + contrat de parc) ; suites voisines : rouges
+  restants = `writer_01.quality_intent` absente de la base de test (autre instance : calendrier,
+  journal, file globale, `tests_endpoints`) + `ItemEditRouteAliasTest` (imager, connu).
+- ⚠ Geste `common.collaboration_cycle` ÉCRIT mais pas joué : le 8011 tombe en 500 sur le champ
+  `cloud_hosting_max` d'une autre instance (migration `accounts/0024` présente, non appliquée — pas
+  à moi de l'appliquer). À jouer sur le live après la relance (qui migre tout).
+- Migrations à moi : `common/0024_objectgrant`, `common/0026` (états, signal) — appliquées WSL.
+- 🔚 Ouverts : mode MODIFICATION (variantes, marche 8b ; V2 / V3 / M3 à trancher) ; N1 (notifier un
+  partage reçu, proposition non validée) ; conflit MONTRÉ (attend les révisions sur tout le parc).
