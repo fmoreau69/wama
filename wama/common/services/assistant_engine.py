@@ -571,7 +571,7 @@ class _TokenGate:
         self._buffer = ''
 
 
-def _claude_code_call(messages: list, user=None) -> tuple:
+def _claude_code_call(messages: list, user=None, model: str = '') -> tuple:
     """
     Un tour SUR L'ABONNEMENT, via le CLI Claude Code headless.
 
@@ -611,8 +611,10 @@ def _claude_code_call(messages: list, user=None) -> tuple:
         else:
             morceaux.append(f"[Utilisateur] {contenu}")
 
+    # Le MODÈLE choisi au sélecteur (`claude_code:opus` → `opus`) part au CLI ; jusqu'au
+    # 2026-10-04 il était abandonné ici — « le modèle porte son moteur » s'arrêtait à la porte.
     try:
-        resultat = demander('\n\n'.join(morceaux), user=user)
+        resultat = demander('\n\n'.join(morceaux), user=user, model=model or '')
     except ClaudeCodeIndisponible as e:
         return None, {'error': str(e), 'status': 503}
 
@@ -622,8 +624,11 @@ def _claude_code_call(messages: list, user=None) -> tuple:
     # `cost_usd` est un ÉQUIVALENT-API rapporté par le CLI, PAS un débit : sur abonnement la
     # dépense s'impute au crédit inclus. Remonté quand même — c'est le bon indicateur
     # RELATIF pour comparer deux tâches, et le seul signal que ce chemin n'est pas gratuit.
+    # `model_used` : le modèle RÉELLEMENT servi (lu dans la réponse du CLI) — l'étiquette du
+    # tour le montre, un alias ou « défaut » ne disant pas quelle version a répondu.
     return resultat.get('texte', ''), {'input_tokens': 0, 'output_tokens': 0,
-                                       'cost_usd': resultat.get('cout_usd')}
+                                       'cost_usd': resultat.get('cout_usd'),
+                                       'model_used': resultat.get('modele') or ''}
 
 
 def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
@@ -653,7 +658,7 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
         return _ollama_call(messages, llm_model, think=think, on_delta=on_delta)
 
     if provider in _SUBSCRIPTION_PROVIDERS:
-        return _claude_code_call(messages, user=user)
+        return _claude_code_call(messages, user=user, model=llm_model or '')
 
     from wama.common import external_sources
     from wama.common.utils.llm_utils import chat_with_source, llm_chat
@@ -1049,8 +1054,13 @@ def run_assistant_turn(user, message: str, provider: str = None,
     quality = DEV_QUALITY_INTENT if development else assistant_settings(user).get('quality_intent')
     think = thinking_wanted(quality) if local else None
 
-    def _label(provider, llm_model, local):
-        base_label = f"wama-dev-ai ({llm_model})" if local else f"{provider} ({llm_model or 'défaut'})"
+    def _label(provider, llm_model, local, served=''):
+        # `served` : le modèle que le fournisseur dit avoir RÉELLEMENT employé (abonnement
+        # Claude Code : un alias ou « défaut » ne nomme pas la version) — montré à sa suite.
+        chosen = llm_model or 'défaut'
+        if served and served != chosen:
+            chosen = f"{chosen} → {served}"
+        base_label = f"wama-dev-ai ({llm_model})" if local else f"{provider} ({chosen})"
         # « · dev » : le bridage est VISIBLE — l'utilisateur voit que le tour est passé au
         # modèle de niveau développement (demande de Fabien : le rendre explicite).
         return f"{base_label} · dev" if development else base_label
@@ -1108,6 +1118,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
         total_usage['input_tokens']  += result.get('input_tokens', 0)
         total_usage['output_tokens'] += result.get('output_tokens', 0)
         total_usage['cost_usd']      += result.get('cost_usd') or 0.0
+        if result.get('model_used'):
+            etiquette = _label(provider, llm_model, local, served=result['model_used'])
 
         # Detect tool call in response
         tool_call = _parse_tool_call(text) if user else None

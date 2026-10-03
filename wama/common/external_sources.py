@@ -193,6 +193,12 @@ class ExternalSource:
     user_key: bool = False
     #: Réservé aux développeurs (abonnement Claude Code : accès au dépôt).
     developer_only: bool = False
+    #: Fournisseur LLM SANS liste de modèles (protocole `claude_cli`) : les modèles qu'il sert,
+    #: DÉCLARÉS ici — `(id, nom, description)`. `cloud_models.declared_listing` en fait les
+    #: lignes du catalogue (2026-09-16 : « l'abonnement = ligne DÉCLARÉE »). Vide = une seule
+    #: ligne `default`. ⚠ N'y écrire que des identifiants que le fournisseur ACCEPTE, vérifiés
+    #: sur lui : ils partent tels quels dans son appel.
+    declared_models: tuple = ()
     #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
     attribution: str = ''
     #: Document portant l'intention, quand elle est écrite quelque part.
@@ -264,6 +270,22 @@ SOURCES: tuple[ExternalSource, ...] = (
         user_key=True,
         hosting='third_party', cost_tier='subscription', protocol='claude_cli',
         default_remote_type='image-text-to-text', developer_only=True,
+        # Les modèles de l'abonnement (2026-10-04, question de Fabien : « je n'ai accès qu'à un
+        # seul modèle et je ne sais même pas lequel »). Ce sont les ALIAS du CLI, pas des
+        # versions : `claude --help` (2.1.286, lu le jour même) — « --model : Provide an alias
+        # for the latest model (e.g. 'fable', 'opus', or 'sonnet') ». Un alias suit la dernière
+        # version tout seul : rien à remettre à jour ici quand un modèle sort. Le modèle
+        # RÉELLEMENT servi est lu dans la réponse du CLI et affiché (`claude_code.demander`).
+        declared_models=(
+            ('default', 'Claude Code — modèle par défaut',
+             "Le modèle que Claude Code choisit lui-même pour votre abonnement."),
+            ('fable', 'Claude Code — Fable',
+             "Le plus récent Claude Fable, par l'alias « fable » de Claude Code."),
+            ('opus', 'Claude Code — Opus',
+             "Le plus récent Claude Opus, par l'alias « opus » de Claude Code."),
+            ('sonnet', 'Claude Code — Sonnet',
+             "Le plus récent Claude Sonnet, par l'alias « sonnet » de Claude Code."),
+        ),
         doc='docs/construction/suivi/ROADMAP.md'),
 
     # ── Catalogues de modèles ───────────────────────────────────────────────────────────

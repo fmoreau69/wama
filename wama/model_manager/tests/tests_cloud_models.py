@@ -228,13 +228,17 @@ class ProtocolesTest(TestCase):
         user = get_user_model().objects.create_user('abo_liste', password='x')
         row = UserApiKey.objects.create(user=user, source='claude_code', api_key='jeton')
         _sync_cloud_seul(self)
+        from wama.common import external_sources
+        declared = [f'claude_code:{m[0]}' for m in external_sources.get('claude_code').declared_models]
         with mock.patch('requests.get') as get:
-            self.assertEqual((1, ''), cloud_models.refresh_key(row))
+            self.assertEqual((len(declared), ''), cloud_models.refresh_key(row))
         get.assert_not_called()
-        # Une ligne DÉCLARÉE entre au catalogue : sans elle, l'abonnement n'existerait pas pour
-        # le sélecteur commun et demanderait un chemin à part.
+        # Les lignes DÉCLARÉES entrent au catalogue : sans elles, l'abonnement n'existerait pas
+        # pour le sélecteur commun et demanderait un chemin à part. Une seule (`default`)
+        # jusqu'au 2026-10-04 ; depuis, celles que la SOURCE déclare (les alias du CLI).
         row.refresh_from_db()
-        self.assertEqual(['claude_code:default'], row.open_models)
+        self.assertEqual(declared, row.open_models)
+        self.assertIn('claude_code:default', declared)
         declaree = AIModel.objects.get(model_key='claude_code:default')
         self.assertEqual(('cloud', 'subscription', True),
                          (declaree.execution, declaree.cost_tier, declaree.extra_info['declared']))
@@ -577,7 +581,9 @@ class NightlyRefreshTest(TestCase):
         with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS) as listing:
             summary = cloud_models.refresh_all_keys()
         self.albert.refresh_from_db()
-        self.assertEqual(1, summary['keys'])
+        # Deux clés relues : celle d'Albert (réseau), et celle de l'abonnement, dont la
+        # déclaration a grandi depuis qu'elle a été posée (aucun appel pour elle).
+        self.assertEqual(2, summary['keys'])
         self.assertIn('albert:whisper-large-v3', summary['added']['albert'])
         self.assertIn('albert:whisper-large-v3', self.albert.open_models)
         self.assertIsNotNone(self.albert.discovered_at)
@@ -591,12 +597,22 @@ class NightlyRefreshTest(TestCase):
         self.assertIn('albert:whisper-large-v3', shrunk['removed']['albert'])
         self.assertEqual(1, listing.call_count)
 
-    def test_a_provider_without_a_model_list_is_skipped(self):
+    def test_a_provider_without_a_model_list_is_never_called_but_follows_its_declaration(self):
+        """L'abonnement n'a pas de liste à relire : aucun appel réseau pour lui. Mais sa clé suit
+        la DÉCLARATION de la source — posée quand il n'y avait qu'une ligne, elle reçoit les
+        modèles déclarés depuis ; inchangée, elle n'est plus touchée."""
         with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS) as listing:
-            cloud_models.refresh_all_keys()
+            first = cloud_models.refresh_all_keys()
         self.assertEqual(['albert'], [call.args[0] for call in listing.call_args_list])
         self.subscription.refresh_from_db()
-        self.assertEqual(['claude_code:default'], self.subscription.open_models)
+        self.assertIn('claude_code:opus', self.subscription.open_models)
+        self.assertIn('claude_code:opus', first['added']['claude_code'])
+        stamp = self.subscription.discovered_at
+        with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS):
+            again = cloud_models.refresh_all_keys()
+        self.subscription.refresh_from_db()
+        self.assertEqual(stamp, self.subscription.discovered_at, 'déclaration inchangée : non relue')
+        self.assertNotIn('claude_code', again['added'])
 
     def test_a_provider_outage_keeps_the_previous_list_and_is_reported(self):
         with mock.patch.object(cloud_models, 'list_remote_models',

@@ -1515,11 +1515,20 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   (DINUM) · gratuit », « Local · Ollama »), servi par l'API du catalogue et affiché par
   `WamaModelHelp` — pour un distant toujours, pour un local quand la liste mêle les deux.
   L'assistant déclare désormais `help_source` : son sélecteur n'avait AUCUNE aide contextuelle.
-  ⏳ **Abonnement Claude Code : un seul modèle, et on ne sait pas lequel** — constat, à décider.
-  Le protocole `claude_cli` n'a pas de liste : une ligne DÉCLARÉE `default` (« le modèle est
-  choisi par le fournisseur »), l'appel ne passe aucun `--model` et ne lit pas, dans la réponse
-  du CLI, le modèle qui a servi. Piste : déclarer les alias du CLI comme lignes
-  (`claude_code:opus`, `:sonnet`, `:haiku`) passées en `--model`, et afficher le modèle réel.
+  ✅ **Abonnement Claude Code : le modèle se CHOISIT et se DIT** (2026-10-03, décision de Fabien).
+  Le protocole `claude_cli` n'a toujours pas de liste : c'est la ligne DÉCLARÉE qui s'étend, pas
+  un mécanisme neuf. La source déclare ses modèles (`ExternalSource.declared_models`) — `default`
+  plus les alias que le CLI documente (`--model` : « alias for the latest model », relevé sur
+  `claude --help` 2.1.286) : `fable`, `opus`, `sonnet`. `cloud_models.declared_listing` en fait
+  des lignes de catalogue (`claude_code:opus`…), `claude_code.demander(model=…)` refuse un
+  identifiant non déclaré et passe `--model` (rien pour `default`), et lit dans `modelUsage` le
+  modèle qui a RÉELLEMENT servi. Le tour le dit : `claude-abo (opus → claude-opus-5-5)`.
+  La sonde nocturne redéclare une source sans liste quand sa déclaration a changé — un alias
+  ajouté au registre entre donc au catalogue sans geste. Mesuré sur le compte réel : 3 lignes
+  ajoutées, appel `sonnet` → `claude-sonnet-5-5`. ⚠ « Auto » ne tire PAS l'abonnement tant que
+  le plafond du profil est « souverain » (Albert l'emporte) : c'est le second axe, voulu.
+  ⚠ Un alias suit le « plus récent » du fournisseur : la ligne ne porte donc aucune capacité
+  mesurée propre, et `haiku` n'est pas déclaré faute d'être documenté par le CLI.
 - **Clé d'instance (`.env`) : PAS de repli pour les utilisateurs** (Fabien, 15/09) — quotas
   répartis. Elle ne sert qu'aux usages SANS utilisateur (rôles wama-dev-ai en ligne de commande,
   tâches planifiées) ; lancé par le serveur MCP dev, un rôle utilise la clé du développeur qui le
