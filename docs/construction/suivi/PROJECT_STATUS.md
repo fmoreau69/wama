@@ -21198,7 +21198,7 @@ visiteur ne lance rien, sauf dans le converter ». Détail : `PROFILES_PERMISSIO
   `converter/{views,tasks}.py`, `converter/templates/converter/index.html`, `settings.py`,
   `avatarizer/tests_animation_model.py` (un nom de test), `PROFILES_PERMISSIONS.md`.
 
-## §PALIER — 2026-10-03 (soir), « PORTAGE : revue de la session Pipeline, deux lanceurs réalignés, FABRIQUE DES VUES DE PROGRESSION 9/10 (ROUTE §11 #37) » — ✅ `89e7a18` + commit ci-dessous, non poussés — 🔴 RECHARGER gunicorn ET les workers (tâche anonymizer, vues) — 🔚 composer sur la fabrique · relecture de Fabien sur les points ouverts de la revue
+## §PALIER — 2026-10-03 (soir), « PORTAGE : revue de la session Pipeline, deux lanceurs réalignés, FABRIQUE DES VUES DE PROGRESSION 10/10 (ROUTE §11 #37) » — ✅ `89e7a18`, `381e52ce` + commit du composer, non poussés — 🔴 RECHARGER gunicorn ET les workers (tâche anonymizer, vues) — 🔚 décisions de Fabien sur les points ouverts de la revue · docs générées à régénérer depuis HEAD
 
 **Revue de la session Pipeline (demande de Fabien)** — trois relectures d'agents, chaque défaut
 grave revérifié dans le code avant d'être retenu, puis confronté à la doc :
@@ -21246,7 +21246,9 @@ une réinvention, retirée). Équivalence mesurée sur 200 éléments réels ava
   (13, contre-épreuve : un échec compté 100 → 3 rouges), `tests_item_lifecycle_contract`
   (clés d'une card ET de la file, toutes les apps), `tests_eta_test_accounts` (plancher 8 → 6 :
   trois appels `record_run` rendus au squelette, qui nomme le propriétaire).
-- ⏳ **Composer** : `views.py` tenu par une autre session (cover YuE, 20:40) — exemption déclarée
-  `NOT_YET_ON_THE_FACTORY` (échoue dès qu'elle devient inutile). À porter quand le fichier est libre.
+- ✅ **Composer** (commit suivant, 21:40) : son `views.py`, tenu par la session cover YuE à 20:40,
+  a été libéré par `7c28de32` — porté dans la foulée, équivalence mesurée (sa barre comptait les
+  éléments en attente comme « en cours » : aligné), exemption vidée. **Grille 931/950,
+  `progress_views_common` VRAI 10/10.** Tests composer + contrat + pipeline : 137 OK.
 - ⏳ Manifestes `avatarizer`/`enhancer`/`transcriber` non régénérés (travail d'autres sessions
   dans le fichier) ; docs générées (`WAMA_MECANISMES`, `docs/dev/briques`) à régénérer depuis HEAD.

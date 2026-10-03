@@ -72,9 +72,8 @@ class ItemLifecycleContractTest(TestCase):
     #: Ce que rend le suivi d'UNE card, dans toutes les apps (fabrique `progress_views`, 2026-10-03).
     ITEM_KEYS = {'id', 'status', 'progress', 'error', 'error_message'}
     #: Apps pas encore passées sur la fabrique — une liste qui ne peut que DESCENDRE.
-    NOT_YET_ON_THE_FACTORY = {
-        'composer': "views.py tenu par une autre session le 2026-10-03 (cover YuE, extract_score)",
-    }
+    #: Vide depuis le 2026-10-03 (soir) : le composer, dernier exempté, est passé sur la fabrique.
+    NOT_YET_ON_THE_FACTORY = {}
     #: Le contrat de la barre de file (`wama-global-progress.js`), au vocabulaire COMPLET.
     QUEUE_KEYS = {'total', 'pending', 'running', 'success', 'failure', 'done', 'failed',
                   'overall_progress'}
