@@ -2185,11 +2185,18 @@
                 u.unused_days != null ? ` depuis ${u.unused_days} jour(s)` : ''} — vous pouvez le supprimer s'il ne vous sert plus
                 (<a href="/media-library/?tab=unused" class="link-light">fichiers inutilisés</a>)</td></tr>`
             : `<tr><td>Utilisation</td><td>Utilisé par ${u.cards} élément(s) (cards, médiathèque)</td></tr>`);
+        // Ce qu'est le MÉDIA (2026-10-04) : la sonde commune (`api_info` → `media`) — la durée
+        // par le formateur commun (« 3:30 »), le reste tel que la sonde le dit.
+        const m = data.media || {};
+        const mediaRows =
+            (m.duration ? `<tr><td>Durée</td><td>${WamaApp.formatDuration(m.duration)}</td></tr>` : '') +
+            (m.properties ? `<tr><td>Propriétés</td><td>${escapeHtml(m.properties)}</td></tr>` : '');
         table.innerHTML = `
             <tr><td>Nom</td><td>${escapeHtml(data.name)}</td></tr>
             <tr><td>Chemin</td><td>${escapeHtml(data.path)}</td></tr>
             <tr><td>Type</td><td>${escapeHtml(data.mime)}</td></tr>
             <tr><td>Taille</td><td>${formatFileSize(data.size)}</td></tr>
+            ${mediaRows}
             <tr><td>Modifié</td><td>${formatDate(data.modified)}</td></tr>
             ${usageRow}
         `;

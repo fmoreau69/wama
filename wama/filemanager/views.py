@@ -1074,6 +1074,17 @@ def api_info(request):
         if not file_path.startswith('mounts/'):
             from wama.common.services.released_files import status_of
             usage_status = status_of(file_path)
+        # Ce qu'est le MÉDIA (2026-10-04, demande de Fabien : « compléter les infos des médias
+        # depuis le filemanager ») : la sonde COMMUNE, déjà en cache par fichier — durée, codec,
+        # kHz et canaux d'un audio ; dimensions et images/s d'une vidéo ; dimensions d'une
+        # image ; pages d'un PDF ; entrées d'une archive ; maillages et rig d'un objet 3D.
+        # Fail-safe : un fichier que rien ne sait sonder rend `{}`, la fenêtre reste lisible.
+        media = {}
+        if full_path.is_file():
+            from wama.common.utils.media_probe import probe_media_cached
+            probed = probe_media_cached(str(full_path)) or {}
+            media = {k: probed.get(k) for k in ('media_type', 'duration', 'properties')
+                     if probed.get(k)}
 
         return JsonResponse({
             'name': full_path.name,
@@ -1083,6 +1094,7 @@ def api_info(request):
             'modified': stat.st_mtime,
             'created': stat.st_ctime,
             'usage': usage_status,
+            'media': media,
         })
     except Exception as e:
         logger.error(f"Error getting info for {file_path}: {e}")

@@ -164,3 +164,17 @@ class TheProbeOfADesignatedFileTest(TestCase):
     def test_a_path_outside_the_media_root_is_refused(self):
         response = self.client.get(reverse('common:api_media_probe'), {'path': '../../etc/passwd'})
         self.assertEqual(404, response.status_code)
+
+    def test_the_file_manager_properties_say_what_the_media_is(self):
+        """« Compléter les infos des médias depuis le filemanager » (Fabien, 2026-10-04) : la
+        fenêtre Propriétés reçoit la MÊME sonde (durée, codec • kHz • canaux)."""
+        from wama.common.utils.ffmpeg_utils import get_ffprobe_exe
+        if not get_ffprobe_exe():
+            self.skipTest('ffprobe absent')
+        response = self.client.get(reverse('filemanager:api_info'),
+                                   {'path': self._wav(self.me, 2.0)})
+        self.assertEqual(200, response.status_code)
+        media = response.json()['media']
+        self.assertAlmostEqual(2.0, media['duration'], places=1)
+        self.assertIn('16.0 kHz', media['properties'])
+        self.assertIn('mono', media['properties'])
