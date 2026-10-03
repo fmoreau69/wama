@@ -634,6 +634,13 @@
                 { confirmText: 'Supprimer ce lot et tous ses éléments ? Cette action est définitive.',
                   notifyFiles: true, removal: 'lot' });
     batchAction('batch-duplicate-btn', 'data-batch-duplicate-url', {});
+    // ↓ RÉALIGNER le lot (2026-10-03, MODES_QUEUE_UX §5ter) : la référence que la mère tient
+    // (sa ⚙, ou les réglages promus d'une fille) reposée sur toutes les filles. Même brique que
+    // ▶ ⧉ 🗑 ; sans référence le bouton est rendu désactivé, et le serveur le redit en 400.
+    // Le geste symétrique (↑ promouvoir) vit dans le menu « … » de la fille (`wama-card-menu.js`).
+    batchAction('batch-realign-btn', 'data-batch-realign-url',
+                { confirmText: 'Réaligner toutes les cards du lot sur ses réglages de référence ? '
+                             + 'Les réglages individuels seront remplacés.' });
 
     // ▶ LOT — la seule des trois qui ne soit PAS uniforme, et c'est MESURÉ (2026-08-23) :
     //   rechargent      : avatarizer, converter, transcriber

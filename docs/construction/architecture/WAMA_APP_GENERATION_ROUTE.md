@@ -3644,11 +3644,48 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >   `score<id>_<modèle>.abc`, plus `audio<id>_…` (brique commune, pas une exception du composer).
 > - ⏳ **Reste de 5.1** : ▶ par process (lancement borné `only=` + argument de tâche), ⚙ par
 >   process (réglages générés de son schéma), case des process `optional`, « ▶ tout / compléter
->   manquant + périmé » en tête, génération du gabarit (5.2), lot (5.3), studio (5.4).
+>   manquant + périmé » en tête, génération du gabarit (5.2), studio (5.4) — lot (5.3) : ✅ ci-dessous.
 **5.3 Lot** : le pipeline se règle sur la mère ; une fille peut le surcharger ; **promouvoir ↑ /
 réaligner ↓** (`MODES_QUEUE_UX §5ter`) — la charge utile promue EST le pipeline (les réglages Médias
 en sont un cas), avec le garde-fou Data « entrées requises ⊆ ∩ des catalogues des filles », refus
 qui DIT quelle fille manque de quoi (`WAMA_DATA_WORLD.md:2913-2916`).
+
+> ✅ **5.3 CONSTRUIT le 2026-10-03 (P5, 3ᵉ pièce — cas Médias ; le cas Data attend son
+> `promote_payload`).** La décision du 25/08 attendait une MÉMOIRE : aucun modèle de lot ne porte
+> de réglages, la ⚙ de la mère POSAIT et oubliait, donc « ↓ réaligner » n'avait rien à reposer.
+> - **Mémoire** : `BatchSettings` (`common/models.py`, UNE ligne par lot, adressée comme
+>   `ProcessRun` : app + type + id de lot ; migration `common.0025`, additive) + service
+>   `common/services/batch_settings.py` (`remember` / `stored` / `forget` / `references_for` /
+>   `settings_of`). Une table commune, pas une colonne sur dix modèles de lot.
+> - **Trois gestes, UN chemin d'écriture** (`batch_views._apply_to_elements`, extrait de
+>   `batch_update`) : la ⚙ de lot RETIENT désormais ce qu'elle pose ; `batch_promote` (POST
+>   `source=<fille>`) fait des réglages d'une fille la référence et les pose sur ses sœurs ;
+>   `batch_realign` repose la référence sur toutes les filles (400 qui DIT quoi faire si le lot
+>   n'en a pas). Deux temps, un refus n'écrit rien, une card EN COURS n'est pas touchée, la
+>   référence suit la duplication du lot et part avec sa suppression.
+> - **Charge utile DÉCLARÉE** : `make_batch_views(promote_payload=)` ; défaut = les réglages du
+>   SCHÉMA de l'app lus par la règle de la révision (`revisions.settings_snapshot`), bornés aux
+>   noms du schéma de lot — jamais une liste de champs écrite dans la fabrique. Le monde Data y
+>   déclarera son protocole et son garde-fou : même geste, deux charges (`§5ter`).
+> - **Surfaces** : bouton **↓** sur la card mère (`_batch_card.html`, après ⚙ ; désactivé ET
+>   titré « réglez le lot (⚙) ou promouvez une de ses cards » tant que `batch_info.reference`
+>   est vide — posé par `build_batches_list`, une requête par page) ; entrée **« Promouvoir ses
+>   réglages au lot »** dans le menu « … » d'une fille (`wama-card-menu.js`, lit
+>   `data-batch-promote-url` sur l'en-tête du lot — une app non câblée ne se voit rien proposer).
+>   Les deux URL se DÉRIVENT du nom d'app et du domaine, comme ▶ ⧉ 🗑.
+> - **Adoption** : routes `batch_promote` / `batch_realign` dans 9 apps + `ROUTE_TABLE` du
+>   générateur et ses corps conventionnels (`views_gen`) ; le composer suit avec son câblage
+>   pipeline (ses fichiers étaient réservés par la session partitions/MIDI au moment de la pièce).
+>   `batch_views_common` reconnaît les deux nouvelles graphies locales.
+> - **Gardes** : `tests_batch_views.PromotionBetweenChildAndMotherTest` (8 : écriture sur les
+>   sœurs + mémoire + lecture de page, charge utile par défaut du schéma, card hors lot refusée,
+>   réalignement sans référence refusé en le disant, ⚙ = référence puis écart effacé, EN COURS
+>   épargnée, refus → aucune référence, duplication / suppression) et
+>   `BatchCardReferenceRenderTest` (2 : ↓ désactivé et parlant sans référence, vivant avec).
+> - ⏳ **Restes déclarés** : la file AUDIO de l'enhancer (ses réglages voyagent avec son ▶, elle
+>   n'a pas de ⚙ de lot — ni promotion ni réalignement, à décider) ; la charge utile Data ;
+>   l'« override détache la fille » du §5ter n'est pas MARQUÉ sur la card (une fille réglée à part
+>   ne se distingue pas visuellement — c'est le volet des indicateurs de card, pas de la mémoire).
 **5.4 Studio.** Le canvas édite le même objet. Trois corrections relevées le 15/09 :
 - le **catalogue** de gauche s'intitule « Apps » (`studio/templates/studio/index.html:47`) → le
   renommer **« Catalogue »** (pas « Library » : ce mot désigne déjà les paquets pip, modèle `Library`

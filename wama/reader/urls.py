@@ -35,6 +35,8 @@ urlpatterns = [
     path('batch/<int:pk>/delete/',              views.batch_delete,     name='batch_delete'),
     path('batch/<int:pk>/duplicate/',           views.batch_duplicate,  name='batch_duplicate'),
     path('batch/<int:pk>/update/',              views.batch_update,     name='batch_update'),
+    path('batch/<int:pk>/promote/',             views.batch_promote,    name='batch_promote'),
+    path('batch/<int:pk>/realign/',             views.batch_realign,    name='batch_realign'),
     # Manipulation directe (brique commune queue_manipulation, 2026-07-06)
     path('reorder/',                            views.reorder,             name='reorder'),
     path('reorder-queue/',                      views.reorder_queue,       name='reorder_queue'),

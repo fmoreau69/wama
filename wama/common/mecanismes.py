@@ -1227,6 +1227,23 @@ MECHANISMS = (
               "Critère `batch_views_common` VRAI 10/10 ; garde générique "
               "`tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest`",
               'wama/common/utils/batch_views.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11'),
+    # Ajouté le 2026-10-03 (P5, 5.3) : la décision du 2026-08-25 (`MODES_QUEUE_UX §5ter`) enfin
+    # construite — elle attendait une MÉMOIRE que les modèles de lot n'avaient pas.
+    Mechanism('batch_settings', "Réglages de référence d'un lot (promotion fille ↔ mère)",
+              "UNE ligne par lot (`BatchSettings`, adressée comme `ProcessRun`) : ce que la mère "
+              "TIENT pour référence — posé par sa ⚙ (`batch_update` la retient désormais) ou PROMU "
+              "d'une fille (`batch_promote`, POST `source=`) ; « ↓ réaligner » (`batch_realign`) la "
+              "repose sur toutes les filles et efface les écarts individuels. La charge utile est "
+              "DÉCLARÉE (`promote_payload`), par défaut les réglages du SCHÉMA lus par la règle de "
+              "la révision ; le monde Data y mettra son protocole — même geste, deux charges. Les "
+              "trois gestes écrivent par le chemin de la ⚙ de lot (deux temps, un refus n'écrit "
+              "rien) ; la référence suit la duplication et part avec la suppression. Surfaces : "
+              "bouton ↓ de la card mère (désactivé et DISANT pourquoi sans référence), entrée "
+              "« Promouvoir ses réglages au lot » du menu « … » d'une fille. 9 apps câblées + le "
+              "générateur ; le composer suit avec son câblage pipeline",
+              'wama/common/services/batch_settings.py', 'docs/construction/ui/MODES_QUEUE_UX.md §5ter',
+              annexes=('wama/common/tests/tests_batch_views.py',),
+              depends_on=('batch_views', 'item_revisions')),
     Mechanism('queue_dnd', 'Glisser-déposer et sélection multiple de la file',
               "Les QUATRE gestes de manipulation directe, hérités par les 12 apps sans qu'aucune "
               "n'écrive une ligne : déposer SUR une card change l'APPARTENANCE (entrer dans un "

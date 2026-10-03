@@ -355,9 +355,10 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
 
     Returns:
         [{'obj', 'items', 'success_count', 'running_count', 'failure_count',
-          'awaiting_count', 'stale_count', 'has_success', 'evaluation', 'agreement'
-          [, **extra(batch, items, works)]}, …]   # `evaluation`/`agreement` : None hors
-                                                  # surface évaluable
+          'awaiting_count', 'stale_count', 'has_success', 'evaluation', 'agreement',
+          'reference'                             # {'source': id de la fille promue | ''}
+          [, **extra(batch, items, works)]}, …]   # ou None ; `evaluation`/`agreement` :
+                                                  # None hors surface évaluable
 
     Args:
         work_attr  : nom de la FK métier sur le modèle de liaison ('transcript', 'generation'…).
@@ -386,6 +387,12 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
     # manuel. Une requête par page (`reception.lines_for`), aucune pour qui n'a rien reçu.
     from wama.common.services.reception import entry_arrangement, lines_for
     received_lines = lines_for(user, batch_model)
+    # RÉFÉRENCE du lot (2026-10-03, `MODES_QUEUE_UX §5ter`) : les réglages que la mère tient —
+    # posés par sa ⚙ ou promus d'une fille. Une requête par page ; c'est ce qui dit à la card
+    # mère si « ↓ réaligner » a quelque chose à reposer.
+    from wama.common.services.batch_settings import references_for
+    batches = list(batches)
+    references = references_for(batch_model, [b.pk for b in batches])
     result = []
     for batch in batches:
         arrangement = entry_arrangement(user, batch, received_lines)
@@ -418,6 +425,8 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
                'evaluation': _batch_evaluation(works)}
         # Sans mesure contre une référence : l'accord ENTRE les moteurs du lot (M1/M6).
         row['agreement'] = None if row['evaluation'] else _batch_agreement(works)
+        row['reference'] = ({'source': references[batch.pk]} if batch.pk in references
+                            else None)
         if has_output is not None:
             row['has_success'] = any(s == 'SUCCESS' and has_output(w)
                                      for s, w in zip(statuses, works))

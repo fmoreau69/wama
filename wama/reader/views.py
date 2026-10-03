@@ -450,6 +450,8 @@ batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
 batch_download = _bv['batch_download']
 batch_status = _bv['batch_status']
+batch_promote = _bv['batch_promote']
+batch_realign = _bv['batch_realign']
 
 
 @app_access('reader')

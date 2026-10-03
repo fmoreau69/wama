@@ -43,6 +43,7 @@ from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
+from wama.common.services import batch_settings
 from wama.common.utils.batch_common import attach_to_batch, batch_elements
 from wama.common.utils.process_control import begin_processing
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
@@ -142,9 +143,19 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                      empty_is_value=(), task_for=None, start_only_pending=False,
                      after_update=None, item_extra=None, read_lookup=None,
                      output_name=None, start_reset_for=None, startable=None, output_text=None,
-                     apply_settings=None):
-    """Retourne les six vues de lot : {'batch_start', 'batch_update', 'batch_delete',
-    'batch_duplicate', 'batch_download', 'batch_status'} (vues Django, `pk` = id du lot).
+                     apply_settings=None, promote_payload=None):
+    """Retourne les huit vues de lot : {'batch_start', 'batch_update', 'batch_delete',
+    'batch_duplicate', 'batch_download', 'batch_status', 'batch_promote', 'batch_realign'}
+    (vues Django, `pk` = id du lot).
+
+    PROMOTION FILLE ↔ MÈRE (`MODES_QUEUE_UX §5ter`, `ROUTE §10.6` 5.3 — 2026-10-03) : la mère
+    RETIENT les réglages qu'elle pose (`batch_update`) comme référence du lot
+    (`common/services/batch_settings.py`, une ligne par lot) ; `batch_promote` (POST `source=<id
+    d'une fille>`) fait de SES réglages la référence et les pose sur ses sœurs ; `batch_realign`
+    repose la référence sur toutes les filles (400, en le disant, si le lot n'en a pas encore).
+    Les trois posent par la MÊME fonction que la ⚙ de lot (`apply_settings` / chemin déclaratif),
+    en deux temps, un refus n'écrivant rien. La référence suit la duplication du lot et part avec
+    sa suppression.
 
     Args:
         task            : tâche Celery de l'élément (`.delay(id)`) — sans elle, `batch_start` répond 400.
@@ -216,6 +227,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                           texte (`RESULT = {'kind': 'text', 'field': …}`, describer généré) —
                           une entrée `.txt` par élément, nommée par `compose_output_name` ;
                           prime sur `output_field`.
+        promote_payload : callable(élément)->dict — CE QU'UNE FILLE PROMEUT. Défaut : ses
+                          réglages lus du SCHÉMA de l'app (`revisions.settings_snapshot`, la
+                          règle de la révision — jamais une liste de champs écrite ici), bornés
+                          aux noms du schéma de lot. Le monde Data y déclarera son protocole :
+                          même geste, deux charges utiles (`§5ter`).
     ZIP D'UNE APP LATE-BINDING (2026-10-02) — rien à passer : la forme se lit des DÉCLARATIONS.
     Une app dont le format se choisit AU TÉLÉCHARGEMENT (`export_binding='late'` au catalogue —
     describer, reader, transcriber) reçoit un ZIP au format demandé (`?format=`, borné aux
@@ -295,23 +311,22 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                       if isinstance(p, dict) and p.get('name'))
         return read_settings_payload(request, item_schema, names, empty_is_value)
 
-    @require_POST
-    def batch_update(request, pk):
-        b = _batch(request, pk)
-        shared = (None if callable(schema)
-                  else read_settings_payload(request, schema, schema_names, empty_is_value))
-        # DEUX TEMPS — poser sur tous, PUIS sauver : un réglage refusé pour un élément n'en
-        # laisse aucun à moitié réglé.
+    def _apply_to_elements(b, data_for, *, skip=()):
+        """Pose `data_for(élément)` sur chaque élément du lot qui ne tourne pas (hors `skip`),
+        en DEUX TEMPS — poser sur tous, PUIS sauver : un réglage refusé pour un élément n'en
+        laisse aucun à moitié réglé. Rend `(nombre d'éléments écrits, None)`, ou
+        `(None, réponse 400)` sur un refus. Le SEUL chemin d'écriture des trois gestes de la
+        mère (⚙, ↑ promouvoir, ↓ réaligner) : ils ne peuvent pas diverger."""
         pending = []                              # (élément, champs touchés ; None = tous)
         for item in batch_elements(b, work_model):
-            if getattr(item, 'status', '') == 'RUNNING':
+            if item.pk in skip or getattr(item, 'status', '') == 'RUNNING':
                 continue
-            data = shared if shared is not None else _posted_settings(request, item)
+            data = data_for(item)
             if apply_settings is not None:
                 try:
                     touched = apply_settings(item, dict(data))
                 except ValueError as refusal:
-                    return JsonResponse({'error': str(refusal)}, status=400)
+                    return None, JsonResponse({'error': str(refusal)}, status=400)
                 if touched is None:
                     if after_update is not None:
                         after_update(item)
@@ -331,11 +346,85 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                 item.save()
             else:
                 item.save(update_fields=touched)
-        return JsonResponse({'success': True, 'updated': len(pending), 'batch_id': pk})
+        return len(pending), None
+
+    def _typed(item, data):
+        """Des réglages RETENUS (chaînes d'un formulaire, ou valeurs d'une fille) coercés au
+        schéma de CET élément quand le schéma en dépend — comme `_posted_settings` le fait
+        pour ce qui arrive de la requête."""
+        if not callable(schema):
+            return data
+        try:
+            from wama.common.utils.param_schema import coerce_schema_values
+            return {**data, **coerce_schema_values(schema(item), data)}
+        except Exception:
+            return data
+
+    def _payload_of(item):
+        """Ce que CETTE fille promeut — déclaré par l'app, sinon ses réglages selon le schéma."""
+        if promote_payload is not None:
+            return dict(promote_payload(item) or {})
+        return batch_settings.settings_of(item, schema(item) if callable(schema) else schema)
+
+    @require_POST
+    def batch_update(request, pk):
+        b = _batch(request, pk)
+        shared = (None if callable(schema)
+                  else read_settings_payload(request, schema, schema_names, empty_is_value))
+        written, refusal = _apply_to_elements(
+            b, lambda item: shared if shared is not None else _posted_settings(request, item))
+        if refusal is not None:
+            return refusal
+        # La mère RETIENT ce qu'elle vient de poser : c'est la référence que « ↓ réaligner »
+        # reposera (`§5ter`). Un schéma par élément : le posté brut, coercé à la relecture.
+        batch_settings.remember(b, shared if shared is not None else read_settings_payload(request))
+        return JsonResponse({'success': True, 'updated': written, 'batch_id': pk})
+
+    @require_POST
+    def batch_promote(request, pk):
+        """↑ PROMOUVOIR : les réglages d'UNE fille (`source`) deviennent la référence du lot et
+        sont posés sur ses sœurs — n'importe quelle card peut servir de référence (`§5ter`)."""
+        b = _batch(request, pk)
+        try:
+            source_id = int(read_settings_payload(request).get('source') or 0)
+        except (TypeError, ValueError):
+            source_id = 0
+        source = next((i for i in batch_elements(b, work_model) if i.pk == source_id), None)
+        if source is None:
+            return JsonResponse({'error': "la card de référence n'appartient pas à ce lot"},
+                                status=400)
+        payload = _payload_of(source)
+        if not payload:
+            return JsonResponse({'error': "cette card ne porte aucun réglage à promouvoir"},
+                                status=400)
+        written, refusal = _apply_to_elements(b, lambda item: _typed(item, payload),
+                                              skip={source.pk})
+        if refusal is not None:
+            return refusal
+        batch_settings.remember(b, payload, source_id=source.pk)
+        return JsonResponse({'success': True, 'updated': written, 'batch_id': pk,
+                             'source': source.pk, 'settings': payload})
+
+    @require_POST
+    def batch_realign(request, pk):
+        """↓ RÉALIGNER : la référence du lot reposée sur toutes ses filles — les réglages
+        individuels s'effacent. Sans référence, le refus le DIT (jamais un grisage muet)."""
+        b = _batch(request, pk)
+        reference = batch_settings.stored(b)
+        if reference is None:
+            return JsonResponse({'error': "ce lot n'a pas encore de réglages de référence — "
+                                          "réglez-le (⚙) ou promouvez une de ses cards"},
+                                status=400)
+        written, refusal = _apply_to_elements(b, lambda item: _typed(item, reference))
+        if refusal is not None:
+            return refusal
+        return JsonResponse({'success': True, 'updated': written, 'batch_id': pk,
+                             'settings': reference})
 
     @require_POST
     def batch_delete(request, pk):
         b = _batch(request, pk)
+        batch_settings.forget(b)                  # la référence part avec le lot
         for item in batch_elements(b, work_model):
             _revoke_quietly(item)
             if on_delete is not None:
@@ -364,6 +453,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             idx += 1
         new_b.total = idx
         new_b.save(update_fields=['total'])
+        reference = batch_settings.stored(src)
+        if reference is not None:                 # la copie hérite de la référence du lot
+            batch_settings.remember(new_b, reference)
         return JsonResponse({'success': True, 'id': new_b.id, 'batch_id': new_b.id})
 
     def _export_stem(item):
@@ -461,4 +553,6 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         'batch_duplicate': batch_duplicate,
         'batch_download': batch_download,
         'batch_status': batch_status,
+        'batch_promote': batch_promote,
+        'batch_realign': batch_realign,
     }

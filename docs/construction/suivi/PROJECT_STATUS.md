@@ -20601,3 +20601,40 @@ Après la génération réelle par la vraie file (bloc précédent), GO de Fabie
 - **Rouges vus, pas à moi** : `tests_catalogues` (carte v4, `_new_item_card_v4.html` en cours dans
   une autre instance) ; `tests_docs_catalog` 171 sections pour 179 mécanismes (`docs/dev/briques.md`
   en cours de régénération ailleurs) ; `check_docs` 5 références cassées, aucune de cette session.
+
+## §PALIER — 2026-10-03, « PIPELINE P5 — 3ᵉ pièce : PROMOTION FILLE ↔ MÈRE (5.3) » — ✅ cas Médias — 🔚 cas Data · composer · file audio enhancer
+
+> Session pipeline (`ROUTE §10.6`). Fabien, le matin : *« ça règlerait des décisions déjà prises
+> mais non implémentées comme faire remonter les réglages d'une card vers la mère et pouvoir
+> l'appliquer à toutes les cards filles depuis la mère »* — c'est le 5.3 de P5, décidé le
+> 2026-08-25 (`MODES_QUEUE_UX §5ter`) et jamais construit parce qu'aucun modèle de lot ne
+> portait de réglages : la ⚙ de la mère posait et oubliait.
+
+- **Mémoire** : `BatchSettings` (`common/models.py`, une ligne par lot, adressée comme
+  `ProcessRun` ; migration `common.0025`, additive, APPLIQUÉE sur la base) + service
+  `common/services/batch_settings.py`. Mécanisme `batch_settings` au registre.
+- **Fabrique** (`batch_views`) : `_apply_to_elements` extrait de `batch_update` = le seul chemin
+  d'écriture des trois gestes ; la ⚙ de lot retient ; `batch_promote` (POST `source=`) ;
+  `batch_realign` (400 parlant sans référence) ; `promote_payload=` déclaré (défaut : le
+  schéma de l'app, `revisions.settings_snapshot`) ; référence suivie à la duplication, retirée
+  à la suppression. Routes dans 9 apps + `ROUTE_TABLE`/`views_gen` ; `batch_views_common`
+  reconnaît les deux graphies.
+- **Surfaces** : ↓ sur la card mère (`_batch_card.html`, désactivé + titre explicite sans
+  référence ; `batch_info.reference` posé par `build_batches_list`, une requête par page) ;
+  « Promouvoir ses réglages au lot » dans le « … » d'une fille (`wama-card-menu.js`, URL lue
+  sur l'en-tête du lot). `queue-actions.js` tient le ↓ ; `.batch-realign-btn` dans
+  `OWNER_ONLY`. Statics synchronisés, parse V8 OK.
+- **Tests** : `tests_batch_views` 54 verts (dont 10 neufs) ; `tests_item_settings_contract`
+  vert ; `check_templates` 0 défaut. ⚠ **Deux rouges PRÉEXISTANTS, pas de cette pièce**,
+  mesurés : `tests_codegen_lot.ItemEditRouteAliasTest…conventional_body` (imager
+  `generation_settings` bouché 501 — rouge AUSSI avec mes trois fichiers remis à HEAD, rejoué
+  isolément) et `tests_codegen_templates.SlotDeReferenceGenereTest…composer` (`show_reference`
+  absent de la card d'entrée générée du composer : les ports `reference_*` sont devenus
+  `work_*` dans `6212e157`, session partitions/MIDI — signalé). Budgets de noms de tests
+  (classes 133 > 132, méthodes 1316 > 1310) et budget code (2677 < 2678, à DESCENDRE) : aucun
+  des noms listés par `--test-names` n'est de cette pièce — à recaler par qui les a introduits.
+- 🔚 **Restes déclarés** : charge utile Data (`promote_payload` + garde-fou « entrées requises
+  ⊆ ∩ des catalogues ») ; composer (routes + câblage pipeline, suit) ; file AUDIO de l'enhancer
+  (pas de ⚙ de lot : ni ↓ ni ↑, à décider) ; marquer sur la card une fille réglée à part.
+- **Pour Fabien** : relancer gunicorn ET les workers après la pièce composer (nouvel argument de
+  tâche) ; rien n'est poussé.
