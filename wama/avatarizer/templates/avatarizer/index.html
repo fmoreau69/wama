@@ -39,18 +39,28 @@ un dégât MESURABLE — le critère `_has_engine_select` cherchait un nom de mo
 gabarits, l'a trouvé ICI, dans une phrase qui NIAIT son existence, et a rendu un faux positif
 le 17/08 (gate durci depuis : un nom doit être en position d'ATTRIBUT, pas dans de la prose).
 *Un commentaire périmé n'est pas neutre : il se fait lire par les instruments.*{% endcomment %}
-<!-- Paramètres MuseTalk -->
+<!-- Paramètres d'animation -->
 <div class="mb-2">
-    <label class="form-label small fw-bold text-light"><i class="fas fa-sliders-h"></i> Paramètres MuseTalk</label>
+    <label class="form-label small fw-bold text-light"><i class="fas fa-sliders-h"></i> Paramètres d'animation</label>
 </div>
 
-<!-- Décalage bbox -->
+{% comment %}MODÈLE D'ANIMATION (2026-10-03). Le select est rendu ici avec « auto » seul : ses options viennent du CATALOGUE, posées par l'inspecteur (`WamaParams.bindOptionSources`, champ `animation_model` de params.py — `options_source='catalog'`). Aucun nom de modèle n'est écrit dans ce gabarit.{% endcomment %}
+<div class="mb-2">
+    <label for="animation_model" class="form-label small text-light">Modèle d'animation</label>
+    <select id="animation_model" class="form-select form-select-sm bg-dark text-light border-secondary">
+        <option value="auto" selected>Auto</option>
+    </select>
+    <div class="wama-model-help small text-muted mt-1" id="animation_model-help"></div>
+    <small class="text-muted">« Auto » choisit d'après l'avatar : une photo, ou un avatar 3D (.glb).</small>
+</div>
+
+<!-- Décalage bbox (photo animée) -->
 <div class="mb-2">
     <label for="bbox_shift" class="form-label small text-light">
         Décalage visage : <span id="bbox_shift_val">0</span>
     </label>
     <input type="range" class="form-range" id="bbox_shift" min="-10" max="10" step="1" value="0">
-    <small class="text-muted">Ajustez si la zone détectée est mal positionnée</small>
+    <small class="text-muted">Photo animée : ajustez si la zone détectée est mal positionnée</small>
 </div>
 
 {% comment %} Amélioration CodeFormer — SEUL contrôle de qualité (2026-08-03) : l'ancien
@@ -62,7 +72,7 @@ couple de modes rapide/qualité n'était qu'un alias de ce toggle (décision rou
             Amélioration CodeFormer
         </label>
     </div>
-    <small class="text-muted d-block">Restauration faciale haute qualité — légèrement plus lent</small>
+    <small class="text-muted d-block">Photo animée : restauration faciale haute qualité — légèrement plus lent</small>
 </div>
 </div>{# /avatarPanelParams (inspecteur contextuel) #}
 
@@ -163,24 +173,25 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
     <div class="mb-3">
         <h5>Fonctionnement</h5>
         <p class="text-light">Fournissez un <strong>fichier audio</strong> (ou une voix produite en amont
-        par le Synthesizer, via le Studio) et un <strong>avatar</strong> : MuseTalk anime le visage en
-        synchronisation labiale. La génération de la voix (texte → audio) relève du <strong>Synthesizer</strong> ;
-        l'enchaînement texte → voix → avatar se compose dans le <strong>Studio</strong>.</p>
+        par le Synthesizer, via le Studio) ou un <strong>texte à dire</strong>, et un <strong>avatar</strong> :
+        le modèle d'animation synchronise ses lèvres sur la voix. L'enchaînement texte → voix → avatar
+        se compose aussi dans le <strong>Studio</strong>.</p>
     </div>
     <div class="mb-3">
         <h5>Avatars</h5>
         <ul class="text-light">
-            <li><strong>Galerie partagée</strong> : avatars curatés par l'administrateur, rangés comme ressources système de la médiathèque</li>
-            <li><strong>Image personnalisée</strong> : importez n'importe quelle photo (JPG, PNG)</li>
+            <li><strong>Photo</strong> : importez un portrait (JPG, PNG, WebP), ou prenez un avatar de la médiathèque</li>
+            <li><strong>Avatar 3D</strong> : un fichier <code>.glb</code> riggé (visage ARKit), le même type d'avatar que celui de l'assistant — onglet <strong>Objet 3D</strong> de la card, ou médiathèque « Avatars 3D »</li>
         </ul>
     </div>
     <div class="mb-3">
-        <h5>Technologie</h5>
-        <p class="text-light">
-            Basé sur <strong>MuseTalk v1.5</strong> (Tencent Music, MIT) : synchronisation labiale
-            temps réel à partir d'une image portrait et d'un signal audio. Amélioration optionnelle
-            par <strong>CodeFormer</strong> (restauration faciale haute qualité).
-        </p>
+        <h5>Modèles d'animation</h5>
+        <ul class="text-light">
+            <li><strong>MuseTalk v1.5</strong> (Tencent Music, MIT) anime une <strong>photo</strong> : rendu photoréaliste, plus long. Amélioration optionnelle par <strong>CodeFormer</strong> (restauration faciale).</li>
+            <li><strong>TalkingHead</strong> (MIT) anime un <strong>avatar 3D</strong> : rendu rapide, non photoréaliste, visèmes français.</li>
+        </ul>
+        <p class="text-light">Le réglage <strong>Modèle d'animation</strong> vaut « Auto » par défaut : le modèle se choisit
+        d'après l'avatar fourni. Un modèle nommé doit accepter cet avatar, sinon le lancement le dit.</p>
     </div>
 </div>
 {% endblock %}
@@ -195,17 +206,16 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
         <h5>Générer un avatar parlant</h5>
         <ol class="text-light">
             <li>Glissez ou sélectionnez un fichier audio (WAV, MP3…) — la voix de l'avatar</li>
-            <li>Onglet <strong>Image de travail</strong> : importez une photo, ou choisissez un avatar dans la médiathèque (onglet Avatar)</li>
+            <li>Onglet <strong>Image de travail</strong> : importez une photo, ou choisissez un avatar dans la médiathèque (onglet Avatar) — ou onglet <strong>Objet 3D</strong> : un avatar 3D <code>.glb</code></li>
             <li>Cliquez sur <strong>Ajouter à la file d’attente</strong>, réglez l’élément si besoin (⚙ ou volet de droite), puis lancez-le par <strong>▶</strong></li>
         </ol>
     </div>
     <div class="mb-3">
-        <h5>Paramètres MuseTalk</h5>
+        <h5>Paramètres d'animation</h5>
         <ul class="text-light">
-            <li><strong>Mode Rapide</strong> : MuseTalk seul — temps réel, 6–8 GB VRAM</li>
-            <li><strong>Amélioration CodeFormer</strong> : MuseTalk + restauration faciale — meilleure netteté, légèrement plus lent</li>
-            <li><strong>Décalage visage</strong> : si la zone de la bouche est mal détectée, ajustez de ±1 à ±5</li>
-            <li><strong>Sans amélioration</strong> : MuseTalk seul — le plus rapide</li>
+            <li><strong>Modèle d'animation</strong> : « Auto » (d'après l'avatar), ou le modèle de votre choix</li>
+            <li><strong>Amélioration CodeFormer</strong> (photo animée) : restauration faciale — meilleure netteté, légèrement plus lent</li>
+            <li><strong>Décalage visage</strong> (photo animée) : si la zone de la bouche est mal détectée, ajustez de ±1 à ±5</li>
         </ul>
     </div>
 </div>

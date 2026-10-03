@@ -217,15 +217,35 @@ def generate_avatar(self, job_id: int):
         if avatar_token not in ANIMATION_FALLBACK:
             raise ValueError("Avatar : une photo (JPG, PNG, WebP) ou un objet 3D riggé (.glb) est attendu.")
         available = ['work_audio', avatar_token] + (['prompt'] if (job.text_content or '').strip() else [])
+        # Le job porte son CHOIX depuis le 2026-10-03 (`animation_model`) : « auto » tire comme
+        # avant, un modèle NOMMÉ est pris tel quel — `resolve_model_choice` le rend sans juger.
+        from wama.common.utils.auto_model import is_auto
+        requested = (job.animation_model or '').strip()
+        named = bool(requested) and not is_auto(requested)
         model_id = resolve_model_choice(
-            '', spec={'source': 'avatarizer', 'task': 'lip-sync'},
+            requested, spec={'source': 'avatarizer', 'task': 'lip-sync'},
             available_inputs=available, consumes=[avatar_token],
             fallback=ANIMATION_FALLBACK[avatar_token])
         model_key = model_id if ':' in model_id else f'avatarizer:{model_id}'
-        row = AIModel.objects.filter(model_key=model_key).values('capabilities', 'composition').first() or {}
+        chosen = AIModel.objects.filter(model_key=model_key).first()
+        if named:
+            # Un modèle NOMMÉ doit ANIMER l'avatar fourni : MuseTalk ne sait rien d'un GLB,
+            # TalkingHead rien d'une photo. Refus AVANT tout calcul, avec la raison et l'issue —
+            # jamais un repli silencieux sur un autre modèle que celui qui a été demandé.
+            from wama.model_manager.services.model_selector import matches_inputs
+            if chosen is None:
+                raise ValueError(f"Modèle d'animation inconnu du catalogue : {requested}.")
+            if not matches_inputs(chosen, task='lip-sync', consumes=[avatar_token]):
+                nature = "un avatar 3D (.glb)" if avatar_token == 'work_object3d' else "une photo"
+                raise ValueError(
+                    f"{chosen.name} n'anime pas {nature}. Choisissez « auto » dans les réglages "
+                    "de l'élément, ou le modèle qui accepte cet avatar.")
+        row = {'capabilities': chosen.capabilities, 'composition': chosen.composition} if chosen else {}
         engine = ((row.get('composition') or {}).get('runtime') or {}).get('engine') or ''
         avatar_3d = engine == 'talkinghead'
-        _console(job.user_id, f"Modèle d'animation → {model_key} (choisi d'après l'avatar fourni)", 'info')
+        _console(job.user_id, f"Modèle d'animation → {model_key} "
+                              + ("(choisi dans les réglages)" if named
+                                 else "(choisi d'après l'avatar fourni)"), 'info')
 
         # Le fichier a le bon RÔLE ; encore faut-il les ATTRIBUTS que le modèle exige (un objet 3D
         # doit être riggé, au visage ARKit). Jugé sur le FICHIER, avant tout rendu : un maillage

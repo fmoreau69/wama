@@ -1358,7 +1358,7 @@ def api_model_options(request):
         for g in groups:
             if g.get('task'):
                 g['options'].insert(0, [f"{AUTO_TASK_PREFIX}{g['task']}", AUTO_LABEL])
-    elif request.GET.get('auto') in ('1', 'true', 'group'):
+    elif request.GET.get('auto') in ('1', 'true', 'group', 'silent'):
         from wama.common.utils.auto_model import AUTO, AUTO_LABEL, predict_model_choice
         # « auto » en tête de la LISTE, jamais DANS un groupe nommé : il rejoint le premier
         # groupe s'il est anonyme (liste plate, ou modèles sans catégorie), sinon il ouvre le
@@ -1377,9 +1377,14 @@ def api_model_options(request):
         # classes de l'élément × le curseur). Une prévision par capacité seule annoncerait un
         # autre modèle que celui du lancement — la prévision doit dire la vérité ou se taire.
         multi_task = ',' in (task or '')
+        # `auto=silent` (2026-10-03) : le SCHÉMA déclare que la prévision ne peut pas dire vrai
+        # — le tirage dépend des entrées de CHAQUE élément, que cet appel ne connaît pas
+        # (avatarizer : une photo → MuseTalk, un GLB → TalkingHead). Même règle que la liste
+        # multi-tâches, déclarée par l'app au lieu d'être déduite.
+        silent = request.GET.get('auto') == 'silent'
         try:
-            if multi_task:
-                raise LookupError('liste multi-tâches : pas de prévision')
+            if multi_task or silent:
+                raise LookupError('pas de prévision : liste multi-tâches ou « auto » silencieux')
             # La prévision arbitre sur le lot du TIRAGE AUTOMATIQUE : les distants que le profil
             # ouvre à « auto » (`automatic=True`), pas ceux du choix manuel que le select liste.
             # Jusqu'au 2026-09-30 elle recevait ces derniers : pour un profil « cloud si
