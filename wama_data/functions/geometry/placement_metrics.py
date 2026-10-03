@@ -129,7 +129,7 @@ def camera_consistency(observations, *, min_obs=20):
 
 
 def tracking_continuity(observations, *, root=None, close_m=4.0, min_frames=12, chain_gap_frames=48,
-                        relay_frames=6, relay_iou=0.3):
+                        relay_frames=6, relay_iou=0.3, switchback_frames=60):
     """Cœur PUR de la métrique #3 (aucune dépendance Django/pandas).
 
     observations : itérable de (frame, camera, chain_id, track_id, x, y[, bbox]) — `chain_id`
@@ -141,8 +141,14 @@ def tracking_continuity(observations, *, root=None, close_m=4.0, min_frames=12, 
         RÉUTILISE ses numéros pour d'autres objets ; sans cette coupure, ces réutilisations comptaient
         comme des éclatements (63 % mesurés à tort le 2026-10-01).
 
+    switchback_frames : FAUSSES FUSIONS (2026-10-03) — un objet ne suit, dans une caméra, qu'UNE
+        chaîne de détecteur à la fois. Un identifiant qui REVIENT à une chaîne déjà quittée (A → B → A
+        en moins de `switchback_frames`) alors que la boîte de B est SÉPARÉE de celle de A (recouvrement
+        < `relay_iou` : pas un doublon de détecteur sur le même objet) porte au moins deux objets.
+        Les éclatements et les doublons ne le voyaient pas — une fusion abusive les fait même BAISSER.
+
     Rend {'chains', 'chain_splits', 'tracks', 'cross_camera_close_pairs', 'same_camera_close_pairs',
-    'relay_breaks'}.
+    'relay_breaks', 'switchbacks', 'tracks_mixing_objects'}.
     """
     from collections import defaultdict
     r = root or (lambda g: g)
@@ -150,11 +156,14 @@ def tracking_continuity(observations, *, root=None, close_m=4.0, min_frames=12, 
     by_frame = defaultdict(list)
     tracks = set()
     first_last = {}                     # (caméra, gid) -> [1re image, boîte, dernière image, boîte]
+    per_track_cam = defaultdict(list)   # (caméra, gid) -> [(image, chaîne, boîte)] — fausses fusions
     for ob in observations:
         fr, cam, chain_id, g, x, y = ob[:6]
         box = ob[6] if len(ob) > 6 else None
         g = r(g)
         tracks.add(g)
+        if chain_id is not None and box is not None:
+            per_track_cam[(cam, g)].append((fr, chain_id, box))
         if box is not None:
             fl = first_last.get((cam, g))
             if fl is None:
@@ -210,12 +219,28 @@ def tracking_continuity(observations, *, root=None, close_m=4.0, min_frames=12, 
                     relay_breaks += 1
                     break
                 i += 1
+    # fausses fusions : retour à une chaîne quittée, la chaîne intermédiaire étant un AUTRE objet
+    switchbacks, mixing = 0, set()
+    for (cam, g), seq in per_track_cam.items():
+        seq.sort(key=lambda s: s[0])
+        last = {}                        # chaîne -> (dernière image, dernière boîte)
+        prev = None
+        for fr, ch, box in seq:
+            if (prev is not None and ch != prev and ch in last
+                    and fr - last[ch][0] <= switchback_frames
+                    and _iou(last[prev][1], last[ch][1]) < relay_iou):
+                switchbacks += 1
+                mixing.add(g)
+            last[ch] = (fr, box)
+            prev = ch
     return {'chains': len(chains),
             'chain_splits': sum(1 for s in chains.values() if len(s) > 1),
             'tracks': len(tracks),
             'cross_camera_close_pairs': sum(1 for k in persistent if k not in together),
             'same_camera_close_pairs': sum(1 for k in persistent if k in together),
-            'relay_breaks': relay_breaks}
+            'relay_breaks': relay_breaks,
+            'switchbacks': switchbacks,
+            'tracks_mixing_objects': len(mixing)}
 
 
 def _iou(a, b):
@@ -261,7 +286,8 @@ TRACKING_CONTINUITY_SPEC = register(FunctionSpec(
     outputs=[
         PortSpec('counts', DataType.TABLE,
                  produced_fields=['chains', 'chain_splits', 'tracks', 'cross_camera_close_pairs',
-                                  'same_camera_close_pairs', 'relay_breaks'],
+                                  'same_camera_close_pairs', 'relay_breaks', 'switchbacks',
+                                  'tracks_mixing_objects'],
                  description='Une ligne de compteurs ; éclatements et paires entre caméras : plus '
                              'bas = meilleur.'),
     ],

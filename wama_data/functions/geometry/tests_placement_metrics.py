@@ -116,3 +116,28 @@ class TrackingContinuityTest(SimpleTestCase):
         obs = [(f, 'front', 1, 10, 0.0, 0.0, [100, 50, 160, 90]) for f in range(10)] + \
               [(f, 'front', 2, 11, 9.0, 0.0, [300, 50, 360, 90]) for f in range(12, 20)]
         self.assertEqual(tracking_continuity(obs)['relay_breaks'], 0)
+
+    def test_an_id_flickering_between_two_separate_objects_is_a_false_merge(self):
+        """Une caméra ne suit qu'UNE chaîne par objet : revenir à une chaîne quittée, l'autre boîte
+        étant ailleurs dans l'image, c'est porter deux objets sous un numéro (G2788, 2026-10-03)."""
+        from wama_data.functions.geometry.placement_metrics import tracking_continuity
+        a, b = [100, 50, 160, 90], [300, 50, 360, 90]
+        obs = [(f, 'front', 1 if f % 2 else 2, 10, 0.0, 0.0, a if f % 2 else b) for f in range(20)]
+        res = tracking_continuity(obs)
+        self.assertGreater(res['switchbacks'], 10)
+        self.assertEqual(res['tracks_mixing_objects'], 1)
+
+    def test_two_detector_boxes_on_one_object_are_not_a_false_merge(self):
+        """Le détecteur dédouble parfois un objet (deux boîtes presque identiques) : pas une fusion."""
+        from wama_data.functions.geometry.placement_metrics import tracking_continuity
+        a, b = [100, 50, 160, 90], [102, 51, 158, 91]
+        obs = [(f, 'front', 1 if f % 2 else 2, 10, 0.0, 0.0, a if f % 2 else b) for f in range(20)]
+        self.assertEqual(tracking_continuity(obs)['switchbacks'], 0)
+
+    def test_a_chain_number_reused_much_later_is_not_a_false_merge(self):
+        from wama_data.functions.geometry.placement_metrics import tracking_continuity
+        a, b = [100, 50, 160, 90], [300, 50, 360, 90]
+        obs = [(f, 'front', 1, 10, 0.0, 0.0, a) for f in range(10)] + \
+              [(f, 'front', 2, 10, 0.0, 0.0, b) for f in range(10, 20)] + \
+              [(f, 'front', 1, 10, 0.0, 0.0, a) for f in range(200, 210)]
+        self.assertEqual(tracking_continuity(obs)['switchbacks'], 0)
