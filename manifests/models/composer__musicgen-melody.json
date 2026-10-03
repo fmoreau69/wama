@@ -2,7 +2,7 @@
   "body": {
     "capabilities": {
       "inputs_optional": [
-        "reference_melody"
+        "work_audio"
       ],
       "inputs_required": [
         "prompt"
@@ -10,6 +10,7 @@
       "languages": [
         "en"
       ],
+      "max_duration_s": 30.0,
       "modalities": [
         "audio"
       ],

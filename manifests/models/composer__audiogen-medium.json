@@ -7,6 +7,7 @@
       "languages": [
         "en"
       ],
+      "max_duration_s": 30.0,
       "modalities": [
         "audio"
       ],

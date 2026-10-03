@@ -78,6 +78,14 @@ class ComposerDurationFollowsTheModelTest(TestCase):
         duration = next(p for p in PARAMS_JSON if p['name'] == 'duration')
         self.assertEqual({'field': 'model', 'capability': 'max_duration_s'}, duration['cap_from'])
 
+    def test_the_slider_starts_where_the_model_starts(self):
+        """Rendered without a value (new profile) the slider sat at the middle of its scale, 305 s,
+        with an empty label (seen in the browser, 2026-10-03): the schema default is the model's."""
+        from wama.composer.models import ComposerGeneration
+        from wama.composer.params import PARAMS_JSON
+        duration = next(p for p in PARAMS_JSON if p['name'] == 'duration')
+        self.assertEqual(ComposerGeneration._meta.get_field('duration').default, duration['default'])
+
     def test_the_catalogue_receives_the_capability_of_every_declared_model(self):
         from wama.common.utils.model_declarations import declarations
         from wama.model_manager.services.model_registry import ModelRegistry
