@@ -90,7 +90,7 @@ class ModelTask(models.TextChoices):
     # l'ecrire ici plutot que de s'aligner et de la perdre. (Fabien, 2026-08-05.)
     TEXT_TO_MUSIC = 'text-to-music', 'Texte → musique'
     TEXT_TO_AUDIO = 'text-to-audio', 'Texte → ambiance / bruitage'
-    # Transcription MUSICALE (2026-10-03) : un audio → sa partition (mélodie, accords, structure).
+    # Extraction de PARTITION (2026-10-03) : un audio → sa partition (mélodie, accords, structure).
     # Ni une transcription de parole (`transcription` rend du texte), ni une extraction de traits
     # (étiquette HuggingFace de SheetSage2, qui ne dit pas ce qu'il PRODUIT). La cible `score` est
     # la nature des partitions (`app_registry.MEDIA_CATEGORIES`) : le domaine de sortie se dérive

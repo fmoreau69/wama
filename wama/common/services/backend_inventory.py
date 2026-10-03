@@ -662,7 +662,7 @@ TASK_CONTRACTS = {
     'text-to-music': ('music_generation_base', 'MusicGenerationBackend', False),
     # 2026-10-03 : l'audio → sa partition (SheetSage2), maillon du cover. Écrit AVANT le backend,
     # pour que le rôle `backend` le reçoive. Non liant, comme `text-to-music`.
-    'audio-to-score': ('score_transcription_base', 'ScoreTranscriptionBackend', False),
+    'audio-to-score': ('score_extraction_base', 'ScoreExtractionBackend', False),
     'transcription': ('speech_to_text_base', 'SpeechToTextBackend', True),
     'detect': ('detection_base', 'DetectionBackend', False),
 }
