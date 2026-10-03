@@ -297,9 +297,16 @@ class ExistingResultPlaysTheImportProcessTest(_Pipeline):
         return self.item
 
     def _run(self, process=None):
-        with mock.patch.object(workers.align_existing_result, 'delay') as self.aligned, \
-                mock.patch.object(workers, 'transcribe_without_preprocessing', workers.transcribe):
+        with mock.patch.object(workers, 'transcribe_without_preprocessing', workers.transcribe), \
+                mock.patch.object(workers, '_align_document', side_effect=self._aligned) as self.align:
             return super()._run(process)
+
+    align_error = None
+
+    def _aligned(self, transcript):
+        if self.align_error:
+            raise self.align_error
+        return {'aligned': 3, 'failed': 0, 'too_long': 0, 'model_key': 'transcriber:fake-aligner'}
 
     def test_the_deposit_writes_the_import_line_and_forgets_the_engine_line(self):
         super()._run()                               # the card was first transcribed by an engine
@@ -328,7 +335,7 @@ class ExistingResultPlaysTheImportProcessTest(_Pipeline):
         self.assertEqual('ils se saluent', item.summary)
         self.assertEqual({'import': JOB_SUCCESS, 'summarize': JOB_SUCCESS}, self._states())
         self.assertTrue(item.model_key.startswith('external:'))
-        self.aligned.assert_not_called()
+        self.align.assert_not_called()        # a timed document (SRT) has nothing to align
 
     def test_an_unchanged_document_is_not_imported_again_for_a_summary(self):
         self._deposit()
@@ -355,9 +362,48 @@ class ExistingResultPlaysTheImportProcessTest(_Pipeline):
         self.assertEqual('SUCCESS', item.status, item.error_message)
         self.assertEqual(0, len(self.diarized))
         self.assertEqual(JOB_SUCCESS, self._states()['diarize'])
-        # The document was not imported again (unchanged) : stage B belongs to the DEPOSIT,
-        # which queued it once committed — this launch queues nothing more.
-        self.aligned.assert_not_called()
+
+    UNTIMED = 'Titre\nSpeaker 0:\nBonjour à tous.\n'
+
+    def test_the_deposit_of_an_untimed_document_never_starts_the_alignment(self):
+        """A card that is never launched must not use the GPU (Fabien, 2026-10-03)."""
+        with self.captureOnCommitCallbacks() as queued, \
+                mock.patch.object(workers, '_align_document') as align:
+            self._deposit(self.UNTIMED, 'tool.txt')
+        self.assertEqual([], queued)
+        align.assert_not_called()
+        self.assertEqual({'import': JOB_SUCCESS}, self._states())
+
+    def test_an_untimed_document_is_aligned_at_launch_before_the_speakers(self):
+        Transcript.objects.filter(pk=self.item.pk).update(enable_diarization=True)
+        self.item.refresh_from_db()
+        self._deposit(self.UNTIMED, 'tool.txt')
+        item = self._run()
+        self.assertEqual('SUCCESS', item.status, item.error_message)
+        self.assertEqual(1, self.align.call_count)
+        states = self._states()
+        self.assertEqual((JOB_SUCCESS, JOB_SUCCESS), (states['align'], states['diarize']))
+        self.assertEqual('transcriber:fake-aligner', process_runs.line(item, 'align').model_key)
+        played = [s.key for s in PIPELINE.ordered() if s.key in states]
+        self.assertLess(played.index('align'), played.index('diarize'))
+        self.assertLess(process_runs.line(item, 'align').finished_at,
+                        process_runs.line(item, 'diarize').started_at)
+
+    def test_an_alignment_that_fails_keeps_the_card_and_shows_on_its_line(self):
+        self._deposit(self.UNTIMED, 'tool.txt')
+        self.align_error = RuntimeError('aligner is down')
+        item = self._run()
+        self.assertEqual('SUCCESS', item.status, 'optional : the estimated times stay')
+        states = self._states()
+        self.assertEqual((JOB_FAILURE, JOB_SUCCESS), (states['align'], states['summarize']))
+        self.assertIn('aligner is down', process_runs.line(item, 'align').error_message)
+
+    def test_the_alignment_can_be_replayed_alone(self):
+        self._deposit(self.UNTIMED, 'tool.txt')
+        self._run()
+        self._run('align')
+        self.assertEqual(1, self.align.call_count, 'played again by the bounded launch')
+        self.assertEqual(1, len(self.summaries), 'its downstream is not replayed by a bounded launch')
 
     def test_an_unreadable_document_fails_the_card_and_says_why(self):
         self._deposit()
@@ -375,6 +421,7 @@ class ExistingResultPlaysTheImportProcessTest(_Pipeline):
                                 {'elem': _decorate_card(self.item), 'in_batch': False})
         self.assertIn('data-process="import"', html)
         self.assertNotIn('data-process="transcribe"', html)
+        self.assertNotIn('data-process="align"', html)       # a timed document : nothing to align
         self.assertIn('data-process="summarize"', html)
         self.assertIs(workers.transcribe, _task_for(self.item))
         self.assertFalse(Transcript.objects.get(pk=self.item.pk).preprocess_audio)
