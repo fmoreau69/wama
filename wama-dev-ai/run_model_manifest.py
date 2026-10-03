@@ -56,7 +56,8 @@ django.setup()
 
 from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, card_languages, enforce_component_facts, enforce_engine_facts,
+    add_llm_arguments, call_llm, card_languages, enforce_adapter_parent, enforce_component_facts,
+    enforce_engine_facts,
     enforce_identity,
     enforce_language_facts, enforce_resolution_facts,
     enforce_vendor_engine, extract_json,
@@ -239,6 +240,8 @@ def main():
         enforce_vendor_engine(manifest, hf_id, full_sources, concerns)
         # L'anatomie d'un modèle SIMPLE, APRÈS le moteur (le format retenu peut en dépendre).
         enforce_component_facts(manifest, hf_id, concerns)
+        # Le PARENT d'un adaptateur (2026-10-03, SheetSage2) : APRÈS l'anatomie, qu'il complète.
+        enforce_adapter_parent(manifest, hf_id, concerns)
         for c in concerns:
             print(f'[model] {c}')
 

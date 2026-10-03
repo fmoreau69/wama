@@ -39,6 +39,12 @@ SNAPSHOT_DIRNAME = 'models--Audio8--Audio8-TTS-Preview-0.6b'
 #: seulement au filtrage UI via cette liste.
 LANGUAGES = ['en', 'fr', 'de', 'es', 'it', 'nl', 'pl', 'ja', 'ko', 'zh-cn']
 
+#: Le moteur `transformers-remote-code` est PARTAGÉ depuis le 2026-10-03 (SheetSage2) : un
+#: moteur partagé se départage par le modèle nommé ici — littéral, l'inventaire le lit par AST.
+SUPPORTED_MODELS = {
+    'Audio8/Audio8-TTS-Preview-0.6b': {'name': 'Audio8 TTS Preview 0.6B'},
+}
+
 
 def _declared_path() -> Path | None:
     """Chemin du dépôt DÉCLARÉ au catalogue (extra_info['path'], posé par l'installeur) —

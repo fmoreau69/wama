@@ -238,6 +238,18 @@ class DiffusersEngineMustBeProvenTest(SimpleTestCase):
         self.assertNotIn('runtime', manifest['body']['composition'])
         self.assertIn('ParakeetForRNNT', concerns[0])
 
+    def test_a_repo_declaring_its_code_gets_the_remote_code_engine(self):
+        """Cas réel du 2026-10-03 : SheetSage2, `SheetSage2Model` déclaré par `auto_map`."""
+        concerns = []
+        manifest = self._manifest('transformers')
+        reader = lambda _hf: (['SheetSage2Model'], "config.json nomme ['SheetSage2Model'] "
+                                                   f"({self.role_utils.REMOTE_CODE_MARK})")
+        self.role_utils.enforce_engine_facts(manifest, 'org/repo', concerns, reader=reader,
+                                             lister=lambda _hf: [])
+        self.assertEqual('transformers-remote-code',
+                         manifest['body']['composition']['runtime']['engine'])
+        self.assertEqual(1, len(concerns))
+
     def test_an_installed_architecture_keeps_transformers(self):
         manifest, concerns = self._enforce(self._manifest('transformers'),
                                            ['WhisperForConditionalGeneration'])
@@ -613,6 +625,57 @@ class VendorEngineFromSourcesTest(SimpleTestCase):
         manifest, _ = self._enforce('github.com/multimodal-art-projection/YuE', manifest)
         self.assertEqual([{'role': 'x', 'pattern': 'a.bin'}],
                          manifest['body']['composition']['components'])
+
+    def test_a_cited_repo_whose_code_does_not_load_the_model_sets_no_engine(self):
+        """Cas réel du 2026-10-03 : la fiche de SheetSage2 cite le dépôt de YuE (même labo), mais
+        le code de YuE ne charge pas SheetSage2 — le moteur `yue` lui avait été posé."""
+        concerns = []
+        manifest = {'body': {'composition': {}}}
+        self.role_utils.enforce_vendor_engine(
+            manifest, 'm-a-p/SheetSage2', 'github.com/multimodal-art-projection/YuE', concerns,
+            libraries=self.LIBS, vendor_root=self.root)
+        self.assertEqual({}, manifest['body']['composition'])
+        self.assertTrue(any('NON posé' in c for c in concerns), concerns)
+
+
+class AdapterParentTest(SimpleTestCase):
+    """Le parent d'un ADAPTATEUR entre dans l'anatomie (2026-10-03, SheetSage2 → MERT)."""
+
+    CONFIG = {'base_model_name_or_path': 'm-a-p/MERT-v2-FullSong', 'base_model_revision': 'd8ba1c7' * 6}
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    def _enforce(self, manifest, config):
+        concerns = []
+        self.role_utils.enforce_adapter_parent(manifest, 'm-a-p/SheetSage2', concerns,
+                                               loader=lambda: config)
+        return manifest, concerns
+
+    def test_the_parent_named_by_the_config_becomes_a_repo_component(self):
+        manifest = {'body': {'composition': {'components': [
+            {'role': 'model', 'pattern': 'model.safetensors'}]}}}
+        manifest, concerns = self._enforce(manifest, self.CONFIG)
+        self.assertEqual([{'role': 'model', 'pattern': 'model.safetensors'},
+                          {'role': 'base', 'repo': 'm-a-p/MERT-v2-FullSong'}],
+                         manifest['body']['composition']['components'])
+        self.assertTrue(any('MERT-v2-FullSong' in c for c in concerns), concerns)
+
+    def test_an_already_declared_parent_is_not_added_twice(self):
+        manifest = {'body': {'composition': {'components': [
+            {'role': 'encoder', 'repo': 'm-a-p/MERT-v2-FullSong'}]}}}
+        manifest, concerns = self._enforce(manifest, self.CONFIG)
+        self.assertEqual(1, len(manifest['body']['composition']['components']))
+        self.assertEqual([], concerns)
+
+    def test_a_config_without_a_parent_changes_nothing(self):
+        """Contre-épreuve : un config.json ordinaire (architectures seules) ne pose rien."""
+        manifest = {'body': {'composition': {}}}
+        manifest, concerns = self._enforce(manifest, {'architectures': ['WhisperForConditionalGeneration']})
+        self.assertEqual({}, manifest['body']['composition'])
+        self.assertEqual([], concerns)
 
 
 class FournisseurDesRolesTest(SimpleTestCase):

@@ -459,7 +459,7 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
 
 | modèle | ce qu'il fait du fichier | nature |
 |---|---|---|
-| MusicGen Melody | retire batterie et basse (DEMUCS), extrait le **chromagramme** (hauteurs au fil du temps) et génère un morceau qui en suit la mélodie et l'harmonie, dans le style du **texte** — `audiocraft/modules/conditioners.py:510-514`, `generate_with_chroma` (`audiocraft_backend.py`) | **cover** d'un audio, instrumental, ≤ 30 s |
+| MusicGen Melody | retire batterie et basse (DEMUCS), extrait le **chromagramme** (hauteurs au fil du temps) et génère un morceau qui en suit la mélodie et l'harmonie, dans le style du **texte** — `venv_linux/lib/python3.12/site-packages/audiocraft/modules/conditioners.py:510-514`, `generate_with_chroma` (`audiocraft_backend.py`) | **cover** d'un audio, instrumental, ≤ 30 s |
 | YuE2 | rend une chanson complète (voix comprise) qui suit la mélodie, les accords et la structure de la partition, avec le style et les paroles de la consigne (`SongRequest.abc`) | **cover** d'une partition |
 
 La mélodie n'était donc pas un guide de style (ce que disait `reference_melody` : « elle guide, elle
@@ -497,8 +497,11 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
 - 🔧 **Défaut corrigé en chemin** : `consumes_melody` répondait NON pour un « auto » — un audio joint
   avec « auto » était ignoré à la création, alors que le tirage savait retenir MusicGen Melody. Il
   suit désormais la règle de la partition (`consumes_input` : oui si un modèle de la tâche le déclare).
-- ⏳ **Cover depuis un audio par YuE2** : SheetSage2 (audio → partition, environnement séparé),
-  process `transcrire` au pipeline du composer, `cot="melody"` au backend — consigné, à faire.
+- 🔄 **Cover depuis un audio par YuE2** : SheetSage2 (audio → partition) est ✅ **intégré le
+  2026-10-03** — tâche `audio-to-score`, contrat `ScoreTranscriptionBackend`, backend validé et
+  essayé (`PROSPECTION_PIPELINE.md §Session du 2026-10-03`). L'« environnement séparé » annoncé ici
+  était faux : il tourne dans le venv de référence (transformers 4.57.6, deux librairies ajoutées).
+  ⏳ Reste : process `transcrire` au pipeline du composer, `cot="melody"` au backend YuE2.
 
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 
