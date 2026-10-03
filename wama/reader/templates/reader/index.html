@@ -99,17 +99,12 @@ window.READER_APP = Object.assign({}, window.READER_APP || {}, {
     },
 });
 </script>
-<script src="{% static_v 'common/js/batch-import.js' %}"></script>
-<script src="{% static_v 'common/js/wama-import.js' %}"></script>  {# voie d'import COMMUNE (WamaImport), instanciée par reader.js — 6ᵉ app en place (2026-09-07) #}
-<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
+{% include 'common/_app_scripts.html' with with_input_match=True with_model_caps=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 {# wama-inspector.css + wama-params.css chargés globalement (base.html) — plus de link local ici #}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
-<script src="{% static_v 'common/js/wama-params.js' %}"></script>
 {% comment %}Aide moteur sous le select OCR : WamaParams la câble depuis le schéma (help_source +
-help_fallback du param backend) — SANS ce script la déclaration restait INERTE (14/08).{% endcomment %}
-<script src="{% static_v 'common/js/wama-model-help.js' %}"></script>
-<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
-<script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>  {# réglages grisés selon ce que le moteur LIT (capacité `params`, reader.js) #}
+help_fallback du param backend), rendue par wama-model-help.js, chargé GLOBALEMENT (base.html)
+— sans lui la déclaration restait INERTE (14/08).{% endcomment %}
 <script>
 window.WAMA_READER_SCHEMA = {{ params_json|safe }};  // exposé pour la modale ITEM construite en JS (reader.js)
 (function () {
@@ -140,7 +135,6 @@ window.WAMA_READER_SCHEMA = {{ params_json|safe }};  // exposé pour la modale I
   }
 })();
 </script>
-<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée repliable (auto-init) #}
 {% comment %}Pied de modale COMMUN (_settings_modal_footer), greffé par le cycle commun
 `WamaParams.settingsModal` (portage 2026-09-24) ; la classe `save-settings-btn` est celle que le
 cycle délègue. Pas de « Enregistrer & relancer » : la modale OCR n'en avait pas.{% endcomment %}
@@ -148,9 +142,8 @@ cycle délègue. Pas de « Enregistrer & relancer » : la modale OCR n'en avait 
     {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_label='Enregistrer' %}
 </template>
 <script src="{% static_v 'reader/js/reader.js' %}"></script>
-<!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
+<!-- Barre globale commune (balayage permanent + ETA agrégée) : son URL — le composant vient du socle (_app_scripts.html). -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'reader:global_progress' %}";</script>
-<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 {% comment %}Inspecteur contextuel : câblé dans reader.js (initInspector → WamaInspector.initFromSchema),
 où csrfFetch/upsertCard/urlFor sont accessibles. Plus d'init minimal ici (évite le double-init).{% endcomment %}
 <script>

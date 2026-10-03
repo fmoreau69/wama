@@ -299,7 +299,9 @@ def _url_ingest(f: _AppFiles):
 
 
 def _batch_import(f: _AppFiles):
-    js = f.find(TEMPLATES, r'batch-import\.js')
+    # Le script vient du socle JS d'app (`_app_scripts.html`, adopté 10/10 le 2026-10-03) :
+    # avant, chaque gabarit posait sa balise, et le critère ne lisait que celle-là.
+    js = f.find(TEMPLATES, r'batch-import\.js|_app_scripts\.html')
     srv = f.find(VIEWS + ['utils/*.py'], r'batch_parsers|parse_unified_batch|parse_media_list_batch')
     if js and srv:
         return True, f"{js} + {srv}"
@@ -904,6 +906,24 @@ def _batch_views_common(f: _AppFiles):
         return False, (f"vues de lot écrites à la main ({local}) — fabrique "
                        "`batch_views.make_batch_views`")
     return None, 'aucune vue de lot'
+
+
+def _app_scripts_common(f: _AppFiles):
+    """Le gabarit d'app charge le socle JS commun (`_app_scripts.html`, ROUTE §11 #25).
+
+    VRAI : socle inclus et aucune de ses briques reposée à la main ; PARTIEL : socle inclus,
+    une brique encore en balise propre ; FAUX : balises recopiées sans socle ; N/A : aucune.
+    """
+    core = r"common/js/(wama-params|wama-eta|batch-import|wama-import|wama-global-progress)\.js"
+    socle = f.find_code(TEMPLATES, r"_app_scripts\.html")
+    local = f.find_code(TEMPLATES, core)
+    if socle and local:
+        return 'partial', f"{socle} + brique du socle encore en balise ({local})"
+    if socle:
+        return True, socle
+    if local:
+        return False, f"balises du socle recopiées ({local}) — inclure `common/_app_scripts.html`"
+    return None, 'aucun script de page d’app'
 
 
 def _progress_views_common(f: _AppFiles):
@@ -1952,6 +1972,10 @@ CRITERIA: list[Criterion] = [
     Criterion('recursive_import', 'F2', 'Import de DOSSIER récursif (brique WamaFolderImport)',
               _recursive_import,
               mechanism='folder_import'),
+    # 2026-10-03 (ROUTE §11 #25) : le socle JS d'app, adopté 10/10 le jour où il a eu son
+    # mécanisme — il en était resté à l'annexe d'`import_front`, à 0/10 dans le parc réel.
+    Criterion('app_scripts_common', 'F3', "Socle JS d'app commun (_app_scripts.html)",
+              _app_scripts_common, mechanism='app_scripts'),
     # Trou #26 (route §11) : le seul critère qui regarde si le markup d'entrée est ÉCOUTÉ.
     # Les autres critères d'import constatent une présence ; celui-ci constate un chargement.
     Criterion('import_wired', 'F2', 'Voie d’import CHARGÉE par le gabarit (dépôt non inerte)',
@@ -2120,8 +2144,11 @@ CRITERIA: list[Criterion] = [
                                  r"common/_card_progress\.html|common/_card_state\.html"
                                  r"|wcv3-bar|wama-progress-track"),
               mechanism='progress_ui'),
+    # `.wama-eta` posé par l'app, OU par le partial commun `_card_progress.html` (l. 36) — un
+    # critère aveugle aux partials n'était vert, chez le transcriber, que par la balise
+    # `wama-eta.js` (partie au socle le 2026-10-03).
     Criterion('eta_individual', 'F5', 'ETA affichée par card (.wama-eta)',
-              lambda f: _present(f, TEMPLATES, r'wama-eta'),
+              lambda f: _present(f, TEMPLATES, r'wama-eta|common/_card_progress\.html'),
               mechanism='progress_ui'),
     Criterion('eta_queue', 'F5', 'Barre globale (_global_progress)',
               lambda f: _present(f, TEMPLATES, r"common/_global_progress\.html"),

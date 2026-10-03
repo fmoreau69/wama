@@ -243,21 +243,15 @@ window.CONVERTER_APP = {
 };
 window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
 </script>
-<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
+{% include 'common/_app_scripts.html' %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 {# wama-inspector.css chargé globalement (base.html) #}
-<script src="{% static_v 'common/js/batch-import.js' %}"></script>
-{# Voie d'import COMMUNE (WamaImport), AVANT converter.js qui l'instancie — 2ᵉ app en place à l'adopter (2026-09-07). #}
-<script src="{% static_v 'common/js/wama-import.js' %}"></script>
+{# Voie d'import COMMUNE (WamaImport) : chargée par le socle ci-dessus, AVANT converter.js qui l'instancie. #}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
-<script src="{% static_v 'common/js/wama-params.js' %}"></script>
 {% comment %}⚠ wama-app-base.js est chargé GLOBALEMENT par base.html:285 — ne JAMAIS le
 ré-inclure ici : la double exécution crée 2 BroadcastChannel('wama-media') + 2 TAB_ID et
 l'exclusivité inter-onglets fait taire SON PROPRE onglet ~2 ms après chaque play (bug
 « le player audio ne se lance pas », diagnostiqué par stack-trap le 18/08).{% endcomment %}
-<script src="{% static_v 'common/js/wama-model-help.js' %}"></script>
-<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée repliable (auto-init) #}
 <script src="{% static_v 'converter/js/converter.js' %}"></script>
-<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     // ── Import par URL (carte d'entrée) : réutilise le FORMALISME BATCH commun.

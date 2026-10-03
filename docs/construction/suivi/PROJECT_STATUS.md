@@ -21328,3 +21328,39 @@ Cinq questions de Fabien sur l'assistant, mesurées. Deux soldées, trois en con
   générées (`WAMA_MECANISMES`, `docs/dev/briques`) à régénérer depuis HEAD ; ④ manifestes
   avatarizer / enhancer / transcriber (travail d'autres sessions dans le fichier) ; ⑤ suite
   complète non rejouée depuis la fabrique (périmètre : 654 + contrats).
+
+## §PALIER — 2026-10-04 (nuit), « SOCLE JS D'APP ADOPTÉ 10/10 (ROUTE §11 #25) — 8 doubles du global retirés, mécanisme et critère » — ✅ commit ci-dessous, non poussé — 🔴 RECHARGER gunicorn (gabarits) — 🔚 jumelle `imager_01` (R90)
+
+> Demande de Fabien : *« On règle déjà le socle JS commun ? »* — le reste signalé au palier
+> précédent. Pas une invention : `ROUTE §11 #25` attendait ce portage depuis le 22/08.
+
+- **Mesuré avant** (script, 10 gabarits) : le socle `_app_scripts.html` à **0/10** ; chaque
+  `index.html` recopiait ses balises — 74 balises du socle et ses options — et **8 doubles** de
+  scripts que `base.html` / `app_modern_base.html` chargent déjà (exactement le relevé du 22/08 :
+  `wama-model-help` ×4, `wama-queue` ×2, `wama-cycle-button`, `console`).
+- **Fait** : dans chaque `index.html`, l'inclusion `{% include 'common/_app_scripts.html' with … %}`
+  à la place de la PREMIÈRE balise du socle (aucun script ne se charge plus tard qu'avant), options
+  mesurées par app ; les doubles retirés ; les commentaires qui expliquaient une balise retirée
+  reformulés (l'ordre qu'ils décrivaient reste vrai). Aucun `base.html` d'app ne chargeait de
+  script commun (vérifié).
+- **Doubles légitimes, DÉCLARÉS** (pas retirés) : `wama-new-item-card.js` et `wama-input-slots.js`
+  sont portés par la card d'entrée, qui vit aussi HORS des apps (médiathèque) — tous deux gardés
+  contre la double initialisation (`wama-new-item-card.js:21`, `wama-input-slots.js:253`).
+- **Mécanisme `app_scripts`** au registre (il n'était qu'une annexe d'`import_front`, donc ni
+  compté ni vérifié) et **critère `app_scripts_common`** (F3) : 10/10. Deux critères n'étaient verts
+  QUE par une balise partie au socle — `batch_import` (8 apps passées en partiel) et
+  `eta_individual` (transcriber : son `.wama-eta` vient du partial commun `_card_progress.html`) —
+  ils reconnaissent désormais la forme commune. **Grille 941/960** (102 critères).
+- **Gardes** : `tests_item_lifecycle_contract.test_every_app_page_loads_the_common_app_scripts_once`
+  (page rendue : socle présent, aucun script commun deux fois hors idempotents déclarés —
+  contre-épreuve : `wama-queue.js` remis au describer → rouge) ; `tests_queue_delete_contract`
+  (le critère : socle vert, balises rouges, les deux partiel, un commentaire ne compte pas).
+  `check_templates` 0 défaut. **Smoke 8011** : 10 pages, `WamaParams` / `WamaEta` / `WamaImport` /
+  `WamaBatchImport` / `WamaGlobalProgress` définis partout, barres de file au contrat, 0 erreur
+  console (témoin anonymizer retiré, vérifié absent).
+- Tests : 731 (10 apps + contrats de gabarits) → rouges qui ne sont PAS de ce palier : synthesizer
+  `tests_task` et anonymizer `tests_queue_dnd` (fichiers en cours de modification par la session
+  Pipeline, process « Sortie »), un libellé de module erroné de ma part (`tests_conformity`).
+- `WAMA_APP_CONVENTIONS §4.2` : les scripts communs viennent du socle — jamais reposés à la main.
+- 🔚 La jumelle `imager_01` porte encore ses balises (gabarit recopié, hors total) : à la
+  régénération des jumelles (R90).

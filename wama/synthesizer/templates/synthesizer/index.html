@@ -331,18 +331,11 @@ greffe, avec les classes qu'il délègue (`save-settings-btn` / `save-and-restar
     };
 </script>
 <link rel="stylesheet" href="{% static_v 'common/css/wama-inspector.css' %}">
-<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
-<script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>
-<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
+{% include 'common/_app_scripts.html' with with_input_match=True with_model_caps=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
-<script src="{% static_v 'common/js/wama-params.js' %}"></script>  {# modale item générée du schéma #}
-<script src="{% static_v 'common/js/batch-import.js' %}"></script>  {# import batch COMMUN #}
-<script src="{% static_v 'common/js/wama-import.js' %}"></script>  {# voie d'import COMMUNE (WamaImport), instanciée par index.js — 4ᵉ app en place (2026-09-07) #}
-<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée repliable (auto-init) #}
 <script src="{% static_v 'synthesizer/js/index.js' %}"></script>
-<!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
+<!-- Barre globale commune (balayage permanent + ETA agrégée) : son URL — le composant vient du socle (_app_scripts.html). -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'synthesizer:global_progress' %}";</script>
-<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 <script>
 // Schéma de paramètres = UNE déclaration pour toute la page (volet, modale d'item, modale de lot).
 window.SYNTH_PARAMS_SCHEMA = {{ params_json|safe }};

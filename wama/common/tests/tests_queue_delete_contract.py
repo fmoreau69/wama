@@ -1159,6 +1159,19 @@ class CriteresDeLaGrilleTest(SimpleTestCase):
     def test_les_mecanismes_de_ce_palier_ont_chacun_un_critere(self):
         from wama.common.services.mecanismes_scan import orphan_criteria, mechanisms_without_criterion
         sans = {m.key for m, _apps in mechanisms_without_criterion()}
-        for cle in ('queue_order', 'inspector', 'result_tabs'):
+        for cle in ('queue_order', 'inspector', 'result_tabs', 'app_scripts'):
             self.assertNotIn(cle, sans, f"mécanisme `{cle}` : aucun critère ne le vérifie")
         self.assertEqual(orphan_criteria(), [])
+
+    def test_app_scripts_the_socle_is_green_recopied_tags_red_both_partial(self):
+        """ROUTE §11 #25 (2026-10-03) : le socle JS d'app inclus, ou ses balises recopiées."""
+        page = 'templates/app_fictive/index.html'
+        socle = "{% include 'common/_app_scripts.html' with with_modes=True %}\n"
+        tag = "<script src=\"{% static_v 'common/js/wama-params.js' %}\"></script>\n"
+        crit = self._critere('app_scripts_common').fn
+        self.assertIs(crit(self._app({page: socle})[0])[0], True)
+        self.assertIs(crit(self._app({page: tag})[0])[0], False)
+        self.assertEqual(crit(self._app({page: socle + tag})[0])[0], 'partial')
+        self.assertIsNone(crit(self._app({page: '<div></div>\n'})[0])[0])
+        # Un COMMENTAIRE qui cite le socle ne l'inclut pas.
+        self.assertIs(crit(self._app({page: "{# _app_scripts.html #}\n" + tag})[0])[0], False)

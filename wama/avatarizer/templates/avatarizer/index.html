@@ -272,16 +272,13 @@ window.AVATARIZER_CONFIG = {
 };
 window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
 </script>
-<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
-<script src="{% static_v 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) #}
+{% include 'common/_app_scripts.html' with with_input_match=True with_model_caps=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 {% comment %}
-  ⚠ Ces deux briques n'étaient PAS chargées par cette page (mesuré 2026-09-13 : `typeof
+  ⚠ Ces deux briques (aujourd'hui options du socle ci-dessus) n'étaient PAS chargées par cette page (mesuré 2026-09-13 : `typeof
   window.WamaModelCaps` = undefined) : le bloc d'appariement ci-dessous, gardé par
   `if (window.WamaModelCaps)`, était MORT depuis son écriture (28/08, puis 12/09) — voix clonées
   jamais masquées, langues jamais restreintes, aucun moteur grisé, et rien ne le signalait.
 {% endcomment %}
-<script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>
-<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <!-- Batch Settings Modal (brique WamaParams context='batch' -> batch_update, miroir reader) -->
 <div class="modal fade" id="batchSettingsModal" tabindex="-1">
     <div class="modal-dialog">
@@ -325,10 +322,7 @@ window.AVATARIZER_MATCH = {
     // seul, dans la modale générée, à partir de `help_source="synthesizer"` déclaré au schéma.
 })();
 </script>
-<script src="{% static_v 'common/js/batch-import.js' %}"></script>
-<script src="{% static_v 'common/js/wama-import.js' %}"></script>  {# voie d'import COMMUNE (WamaImport, mode attache sur le slot audio) — 10ᵉ app en place (2026-09-08) #}
 <script src="{% static_v 'avatarizer/js/index.js' %}"></script>
-<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 <script>
 // Inspecteur CONTEXTUEL : la section params du volet (#avatarPanelParams) devient « Réglages de
