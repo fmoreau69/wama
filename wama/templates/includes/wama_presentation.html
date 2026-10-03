@@ -11,9 +11,10 @@
   frame parente, à petite échelle : la caméra y plonge (moteur : static/presentation/).
   L'ordre de parcours est l'ordre du DOM ; data-section marque le début d'une section.
 
-  ⚠ Les chiffres sont DATÉS et sourcés (pied de frame) : ce sont des relevés de la doc de
-  construction, pas des mesures en direct — sauf la scène des droits, calculée par
-  `accounts.permissions.access_cases()` sur la politique d'accès effective.
+  ⚠ Les chiffres sont DATÉS et sourcés (pied de frame) : ce sont des relevés, pas des mesures en
+  direct — sauf la scène des droits, calculée par `accounts.permissions.access_cases()` sur la
+  politique d'accès effective. Tous CONFRONTÉS AU CODE le 2026-10-03 (demande de Fabien) : une
+  affirmation périmée se corrige ici, à la mesure, jamais en recopiant une doc.
 {% endcomment %}
 <html lang="fr">
 <head>
@@ -110,14 +111,14 @@
             <h2 style="font-size:54px">La souveraineté, à plusieurs niveaux</h2>
             <ul>
               <li><b>Local par défaut</b>, via Ollama. Les données sensibles restent en local.</li>
-              <li><b>Clouds souverains</b> : l'API Albert de la DINUM (SecNumCloud) est branchée depuis le 15/09.
-                  Mistral est aussi disponible.</li>
-              <li><b>Clouds commerciaux</b> : seulement si on les choisit, jamais par défaut.</li>
-              <li><span class="st todo">⏳</span> Filtre de confidentialité avant tout envoi au cloud : décidé, pas encore construit.</li>
+              <li><b>Clouds souverains</b> : l'API Albert de la DINUM (SecNumCloud) est branchée depuis le 15/09.</li>
+              <li><b>Clouds commerciaux</b> : l'API Anthropic, avec la clé de l'utilisateur, seulement si on la choisit.</li>
+              <li>Chaque compte est <b>100 % local par défaut</b> ; le cloud s'ouvre par un choix explicite.</li>
+              <li><span class="st todo">⏳</span> Filtre de confidentialité qui examine le contenu avant tout envoi au cloud : décidé, pas encore construit.</li>
             </ul>
           </div>
         </div>
-        <div class="src">ROADMAP §mode hybride · WAMA_LLM.md (Albert) · VISION §sécurité · llm_utils.CLOUD_DEFAULT_MODELS</div>
+        <div class="src">external_sources.py (fournisseurs déclarés) · accounts.UserProfile.cloud_policy · WAMA_LLM.md (Albert) · relevé du 03/10</div>
       </section>
 
       <section class="frame boxed" id="constat-repro" data-x="-4840" data-y="110" data-s="0.36" data-title="Constat · Reproductibilité">
@@ -192,7 +193,7 @@
             <div class="card media"><p><b>Describer</b> : décrit un média avec un LLM multimodal</p></div>
             <div class="card media"><p><b>Reader</b> : lit le texte des scans et PDF (olmOCR, EasyOCR)</p></div>
             <div class="card media"><p><b>Imager</b> : génère images et vidéos (Hunyuan, Qwen, LTX…)</p></div>
-            <div class="card media"><p><b>Composer</b> : musique et bruitages (AudioCraft)</p></div>
+            <div class="card media"><p><b>Composer</b> : musique et bruitages (AudioCraft, ACE-Step, YuE)</p></div>
             <div class="card media"><p><b>Avatarizer</b> : avatar parlant (MuseTalk)</p></div>
             <div class="card media"><p><b>Enhancer</b> : améliore image, vidéo et audio</p></div>
             <div class="card media"><p><b>Converter</b> : convertit tous les formats</p></div>
@@ -207,9 +208,9 @@
         <div class="chain media">
           <div class="node"><span class="n">01</span><h3>Nettoyage</h3><p>débruitage de l'audio (DeepFilterNet)</p></div>
           <div class="arrow">→</div>
-          <div class="node"><span class="n">02</span><h3>Reconnaissance</h3><p>Whisper large-v3 par défaut, VibeVoice ; le moteur est choisi selon la VRAM</p></div>
+          <div class="node"><span class="n">02</span><h3>Reconnaissance</h3><p>Whisper large-v3 par défaut, et 7 autres moteurs (Qwen3-ASR, Canary, LinTO, Kyutai…) ; le moteur est choisi selon la VRAM</p></div>
           <div class="arrow">→</div>
-          <div class="node"><span class="n">03</span><h3>Qui parle ?</h3><p>séparation des locuteurs (pyannote 3.1)</p></div>
+          <div class="node"><span class="n">03</span><h3>Qui parle ?</h3><p>séparation des locuteurs (pyannote 3.1 ou community-1)</p></div>
           <div class="arrow">→</div>
           <div class="node"><span class="n">04</span><h3>Correction</h3><p>éditeur assisté par IA</p></div>
           <div class="arrow">→</div>
@@ -217,7 +218,7 @@
         </div>
         <p style="margin-top:28px"><b>Mode « Speak »</b> : transcription en direct dans le navigateur. Le texte est gardé
            et peut repasser ensuite dans la chaîne complète.</p>
-        <div class="src">TRANSCRIBER_CORRECTION.md · transcriber/utils/model_config.py · transcriber/views.py</div>
+        <div class="src">TRANSCRIBER_CORRECTION.md · catalogue AIModel (tâche transcription, 03/10) · pyannote_diarizer.py · transcriber/views.py</div>
       </section>
 
       <section class="frame boxed" id="transcriber-correction" data-x="-3185" data-y="3845" data-s="0.5" data-title="Médias · Correction assistée">
@@ -232,9 +233,10 @@
                (en un seul appel).</p></div>
           <div class="card media"><span class="st wip">🔄</span><h3>Le biais repéré</h3>
             <p>Un LLM juge la fluidité, pas la fidélité. Or, dans un entretien en sciences humaines, <b>une hésitation
-               est une donnée</b>. La parade : comparer deux moteurs de transcription. Cet outil est livré mais pas encore branché.</p></div>
+               est une donnée</b>. La parade : comparer deux moteurs de transcription. Elle sert déjà à évaluer les lots ;
+               elle ne guide pas encore la carte de chaleur.</p></div>
         </div>
-        <div class="src">TRANSCRIBER_CORRECTION.md §phases 1–2, §biais · common/services/divergence.py</div>
+        <div class="src">TRANSCRIBER_CORRECTION.md §phases 1–2, §8.3 · common/services/divergence.py · transcriber/apps.py (évaluation)</div>
       </section>
 
       <!-- ── Monde Data ───────────────────────────────────────── -->
@@ -248,13 +250,13 @@
                GPS 1 Hz, vidéo 25 i/s, regard 60 Hz, ECG 1 kHz</p></div>
             <div class="card data"><h3 style="font-size:21px">Lecteurs</h3><p>RTMaps <code>.rec</code>, bases <code>.trip</code>, format natif
                <code>.wdat</code> compatible BIND. Aucun format n'est privilégié.</p></div>
-            <div class="card data"><h3 style="font-size:21px">Fonctions typées</h3><p>55 fonctions au catalogue, qui ne s'enchaînent
+            <div class="card data"><h3 style="font-size:21px">Fonctions typées</h3><p>73 fonctions au catalogue, qui ne s'enchaînent
                que si leurs types sont compatibles</p></div>
-            <div class="card data"><h3 style="font-size:21px">État réel</h3><p>7 modules livrés mais pas encore utilisés, 3 à venir.
-               Le moteur est testé ; son interface reste à construire. <span class="st wip">🔄</span></p></div>
+            <div class="card data"><h3 style="font-size:21px">État réel</h3><p>7 modules livrés, dont un seul déjà utilisé hors du monde Data ;
+               3 à venir. Le moteur est testé ; son interface reste à construire. <span class="st wip">🔄</span></p></div>
           </div>
         </div>
-        <div class="src">WAMA_DATA_WORLD.md · wama_data/modules.py · wama_data/core/temporal.py</div>
+        <div class="src">wama_data/modules.measure() et function_catalog, relevés du 03/10 · WAMA_DATA_WORLD.md</div>
       </section>
 
       <section class="frame boxed" id="data-chaine" data-x="-3185" data-y="5255" data-s="0.5" data-title="Data · Une chaîne réelle">
@@ -325,21 +327,23 @@
           <div class="node"><span class="n">05</span><h3>Indicateurs</h3><p>conflits, TTC, PET, distance minimale</p></div>
         </div>
         <p style="margin-top:26px">La chaîne est complète ; sa validation dans le navigateur est en cours. C'est le premier pipeline
-           décrit dans le modèle commun : <b>13 étapes et 18 liens</b>.</p>
-        <div class="src">CAM_ANALYZER_CHAINE_TRAITEMENT.md · ROUTE §10.6</div>
+           décrit dans le modèle commun : <b>18 nœuds et 24 liens</b>.</p>
+        <div class="src">CAM_ANALYZER_CHAINE_TRAITEMENT.md · manifests/pipelines/cam_analyzer.json (03/10) · ROUTE §10.6</div>
       </section>
 
       <section class="frame boxed" id="cam-honnete" data-x="4515" data-y="4795" data-s="0.5" data-title="Lab · Ce qui tourne vraiment">
         <div class="kicker lab">Zoom — un état sans maquillage</div>
         <h2>Ce qui tourne, et ce qui ne tourne pas</h2>
         <div class="cards c3">
-          <div class="card lab"><span class="st ok">câblé</span><h3>Branché</h3><p>YOLO + BoTSORT, YOLOPv2 (zone roulable et voies), SAM3 (marquages)</p></div>
+          <div class="card lab"><span class="st ok">câblé</span><h3>Branché</h3><p>YOLO + BoTSORT, YOLOPv2 (zone roulable et voies), SAM3 (marquages),
+              ZoeDepth (profondeur, par défaut)</p></div>
           <div class="card lab"><span class="st wip">mesure</span><h3>En mesure</h3><p>SAM3 appliqué à l'orthophoto IGN ; recalage de la pose de la navette</p></div>
-          <div class="card lab"><span class="st todo">jamais</span><h3>Jamais exécuté</h3><p>Apple Depth Pro : il fait planter la machine hôte</p></div>
+          <div class="card lab"><span class="st todo">écarté</span><h3>Mesuré, écarté</h3><p>Apple Depth Pro : exécuté le 28/09, ses cartes de profondeur
+              sont inexploitables sur ces caméras</p></div>
         </div>
-        <p style="margin-top:24px">L'app a <b>11 bascules A/B</b> et une analyse incrémentale : quand une étape change, seules
+        <p style="margin-top:24px">L'app a <b>39 bascules A/B</b> et une analyse incrémentale : quand une étape change, seules
            les passes devenues obsolètes (<code>STALE</code>) sont recalculées.</p>
-        <div class="src">CAM_ANALYZER_CHAINE_TRAITEMENT.md (table des modèles) · cam_analyzer/README.md</div>
+        <div class="src">CAM_ANALYZER_CHAINE_TRAITEMENT.md §F (table des modèles) · cam_analyzer/utils/features.py (39, relevé du 03/10)</div>
       </section>
 
       <!-- ── Monde Transversal ───────────────────────────────── -->
@@ -365,7 +369,7 @@
       <section class="frame boxed" id="t-mediatheque" data-x="0" data-y="7460" data-s="0.4" data-title="Transversal · Médiathèque">
         <div class="kicker trans">Partager</div>
         <h2><i class="fas fa-photo-film c-trans"></i> Médiathèque</h2>
-        <p>Des ressources partagées : voix, images, sons, documents, avatars, objets 3D. <b>8 types</b> sont déclarés ;
+        <p>Des ressources partagées : voix, images, sons, documents, avatars, objets 3D, partitions. <b>10 types</b> sont déclarés ;
            en ajouter un demande une seule entrée, sans migration de base.</p>
         <ul>
           <li>Chaque média garde sa licence et son origine (Wikimedia, Pixabay, Freesound…).</li>
@@ -395,9 +399,10 @@
            identité, ports, paramètres, modèles, traitement, prompts, droits, Studio.</p>
         <ul>
           <li>Chaîne « dépôt GitHub → app » : 6 rôles d'agent, et un humain valide toujours.</li>
-          <li><span class="st todo">⏳</span> Maillon manquant : produire automatiquement la fiche de l'app.</li>
+          <li>La fiche d'une nouvelle app s'écrit <b>à la main, par choix</b> : un dépôt apporte une capacité, l'app est une
+              décision. Tout le reste se génère : Writer est née d'une fiche le 30/09, et ses traitements ont été écrits par un modèle local.</li>
         </ul>
-        <div class="src">WAMA_MANIFEST_SPEC.md · ROUTE F1–F8 · ROUTE §10.5</div>
+        <div class="src">WAMA_MANIFEST_SPEC.md · ROUTE F1–F8 · ROUTE §10.5 · manifests/app_drafts/writer.json</div>
       </section>
 
       <section class="frame boxed" id="t-capacites" data-x="0" data-y="7900" data-s="0.4" data-title="Transversal · Capacités & ports typés">
@@ -419,10 +424,11 @@
         <p>Une <b>seule chaîne de traitement des prompts</b>, sans rustine par app : on détecte la langue, on route,
            on traduit, on enrichit, on ajoute les documents de référence.</p>
         <ul>
-          <li>L'assistant : un seul cerveau pour plusieurs points d'accès (web, API, messageries), avec 71 outils au 19/09.</li>
-          <li>Écart repéré, le plus grave : l'assistant peut supprimer sans demander d'accord.</li>
+          <li>L'assistant : un seul cerveau pour plusieurs points d'accès (web, API, messageries), avec 71 outils au 03/10.</li>
+          <li>Vider une file exige un accord explicite. <span class="st todo">⏳</span> Supprimer un seul élément ne repose encore
+              que sur la consigne donnée au modèle : une confirmation dans l'interface reste à faire.</li>
         </ul>
-        <div class="src">WAMA_LLM.md · WAMA_HARNESS.md (14 axes)</div>
+        <div class="src">WAMA_LLM.md · WAMA_HARNESS.md §5 écart 1 (14 axes) · tool_api.py (delete_item, clear_my_queue)</div>
       </section>
 
       <section class="frame boxed" id="t-gouverneur" data-x="-720" data-y="8340" data-s="0.4" data-title="Transversal · Gouverneur de ressources">
@@ -456,7 +462,7 @@
         <p>Il tient le catalogue des modèles installés, leur place sur le disque et leur provenance.</p>
         <ul>
           <li>Chaque modèle est rangé par famille ; un contrôle vérifie qu'aucun fichier étranger ne s'y mêle.</li>
-          <li>Plusieurs fournisseurs : Ollama en local, Albert, Mistral et d'autres clouds, sur choix explicite.</li>
+          <li>Plusieurs fournisseurs : Ollama en local ; Albert (DINUM) et l'API Anthropic sur choix explicite, avec la clé de l'utilisateur.</li>
           <li>Un modèle proposé reste une proposition, qu'on peut refuser.</li>
         </ul>
         <div class="src">AGENTS.md §ajout d'un modèle · check_model_layout · llm_utils.py</div>
@@ -493,8 +499,8 @@
         </div>
         <div class="cards c4" style="margin-top:20px">
           <div class="card"><p><code>WAMA:FAIT(…)</code> : le chiffre est lu dans le registre, jamais recopié à la main.</p></div>
-          <div class="card"><p><code>doc_facts</code> régénère les tables ; la carte des 149 mécanismes est produite ainsi.</p></div>
-          <div class="card"><p><code>check_docs</code> : 2087 références vérifiées, <b>0 cassée</b> (18/09).</p></div>
+          <div class="card"><p><code>doc_facts</code> régénère les tables ; la carte des 180 mécanismes est produite ainsi.</p></div>
+          <div class="card"><p><code>check_docs</code> : 2 552 références vérifiées, <b>5 cassées</b> (03/10). Il les nomme une à une.</p></div>
           <div class="card"><p>Un chiffre sans source (commande, date ou bloc généré) est signalé.</p></div>
         </div>
         <div class="src">AGENTS.md §Trois docs, trois publics · ROADMAP §25 · docs_catalog.py · fact_tags.py</div>
@@ -506,27 +512,27 @@
         <div style="display:flex;gap:50px;align-items:flex-start">
           <div style="flex:1">
             <div class="stats">
-              <div class="stat"><div class="big grad">300</div><span>scénarios au 19/09</span></div>
-              <div class="stat"><div class="big">2769</div><span>tests Django</span></div>
-              <div class="stat"><div class="big">96</div><span>critères de conformité</span></div>
+              <div class="stat"><div class="big grad">431</div><span>scénarios au 03/10</span></div>
+              <div class="stat"><div class="big">5014</div><span>tests Django, nuit du 03/10</span></div>
+              <div class="stat"><div class="big">100</div><span>critères de conformité</span></div>
             </div>
             <ul style="margin-top:34px">
-              <li><b>02:30</b>, contrôles de cohérence : docs, conformité, manifestes, gabarits, redondance, vulnérabilités, secrets.
+              <li><b>04:15</b>, contrôles de cohérence : docs, conformité, manifestes, gabarits, redondance, vulnérabilités, secrets.
                   Tolérance : zéro.</li>
-              <li><b>03:00</b>, tests fonctionnels sur le GPU. Désactivés par défaut, car l'hôte est instable.</li>
+              <li><b>04:30</b>, tests fonctionnels sur le GPU, chaque nuit depuis le 28/09 : l'instabilité de l'hôte est résolue.</li>
               <li>Parcours d'interface avec Playwright : réponse HTTP 200, aucune erreur console, tous les onglets visités.</li>
             </ul>
           </div>
           <div style="flex:0 0 560px">
             <div class="card" style="margin-bottom:14px"><h3>Grille d'adoption</h3><p>Toutes les apps suivent-elles les mêmes règles ?
-               <b>863 / 906</b> au 18/09. Cette grille ne prouve pas que ça marche.</p></div>
+               <b>917 / 940</b> au 03/10. Cette grille ne prouve pas que ça marche.</p></div>
             <div class="card" style="margin-bottom:14px"><h3>Grille fonctionnelle</h3><p>Est-ce que ça marche vraiment ? Des scénarios
                rejouent les gestes (couverture 17,5 sur 19 au 07/09).</p></div>
             <div class="card"><h3>Budgets à sens unique</h3><p>Certains compteurs ne peuvent que baisser : noms en français dans le code,
                écritures sauvages dans le cache HF (0). Ajouter un défaut devient impossible.</p></div>
           </div>
         </div>
-        <div class="src">common/services/nightly_tests.py · settings.CELERY_BEAT_SCHEDULE · WAMA_VERIFICATION.md · check_app_conformity</div>
+        <div class="src">nightly_tests.REGISTRY · rapport nightly_20261003_084219 · settings.CELERY_BEAT_SCHEDULE · WAMA_VERIFICATION.md · check_app_conformity (03/10)</div>
       </section>
 
       <!-- ═════════════════════ 5 · CAP ═════════════════════ -->
@@ -539,9 +545,10 @@
                 <li>Socle mémoire et RAG (pgvector)</li><li>Doc confrontée au code, contrôles chaque nuit</li></ul></div>
           <div class="card"><h3><span class="st wip">🔄 en cours</span></h3>
             <ul><li>Docs développeur et utilisateur produites automatiquement</li><li>Cam Analyzer : validation</li>
-                <li>Adoption des briques communes par toutes les apps</li><li>Studio : traitement par lots</li></ul></div>
+                <li>Adoption des briques communes par toutes les apps</li><li>Studio : traitement par lots</li>
+                <li>Un moteur de pipeline commun à tous les mondes : une card d'app porte déjà ses étapes (pilote : Composer)</li></ul></div>
           <div class="card"><h3><span class="st todo">⏳ à venir</span></h3>
-            <ul><li>Data Analyzer, l'app du monde Data</li><li>Un moteur de pipeline commun à tous les mondes</li>
+            <ul><li>Data Analyzer, l'app du monde Data</li><li>Rapports d'évaluation des modèles générés automatiquement</li>
                 <li>Filtre de confidentialité avant le cloud</li><li>Rapport de sobriété, passage multi-GPU</li></ul></div>
         </div>
         <div class="src">PROJECT_STATUS.md · ROADMAP.md · VISION (marquage ✅/🔄/⏳)</div>
