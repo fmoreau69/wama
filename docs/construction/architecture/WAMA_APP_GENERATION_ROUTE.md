@@ -3686,7 +3686,11 @@ qui DIT quelle fille manque de quoi (`WAMA_DATA_WORLD.md:2913-2916`).
 >   référence suit la duplication du lot et part avec sa suppression.
 > - **Charge utile DÉCLARÉE** : `make_batch_views(promote_payload=)` ; défaut = les réglages du
 >   SCHÉMA de l'app lus par la règle de la révision (`revisions.settings_snapshot`), bornés aux
->   noms du schéma de lot — jamais une liste de champs écrite dans la fabrique. Le monde Data y
+>   réglages déclarés au contexte `batch` — ce que la ⚙ de lot poserait, rien de plus : ce qui
+>   appartient à la card seule ne se promeut pas (mesuré au smoke navigateur du 03/10 : le
+>   `prompt` du composer, contexte `item`, écrasait celui des sœurs ; corrigé le jour même,
+>   garde `test_what_belongs_to_the_card_alone_is_not_promoted`). Jamais une liste de champs
+>   écrite dans la fabrique. Le monde Data y
 >   déclarera son protocole et son garde-fou : même geste, deux charges (`§5ter`).
 > - **Surfaces** : bouton **↓** sur la card mère (`_batch_card.html`, après ⚙ ; désactivé ET
 >   titré « réglez le lot (⚙) ou promouvez une de ses cards » tant que `batch_info.reference`

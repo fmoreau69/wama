@@ -89,12 +89,23 @@ def references_for(batch_model, batch_ids) -> dict:
 
 
 def settings_of(item, schema=None) -> dict:
-    """Les réglages d'UNE fille, prêts à être promus : ceux de son schéma d'app (contexte
-    `item`), lus par la règle de la révision — restreints aux noms de `schema` quand il est
-    donné (la fabrique connaît le sien). `{}` sans schéma déclaré."""
+    """Les réglages d'UNE fille, prêts à être promus : ceux de son schéma d'app, lus par la
+    règle de la révision — restreints, quand `schema` est donné (la fabrique connaît le sien),
+    à ce qu'une MÈRE peut poser : les réglages déclarés au contexte `batch`.
+
+    ⚠ Ce qui appartient à la card SEULE ne se promeut pas (mesuré au smoke du 2026-10-03 : le
+    `prompt` du composer, contexte `item` seul, écrasait celui des sœurs — dans un lot de N
+    consignes, c'est exactement ce qui distingue les cards). La référence d'un lot est ce que
+    sa ⚙ poserait, rien de plus. Un schéma qui ne déclare AUCUN contexte de lot garde ses
+    réglages d'élément (comportement d'avant, plutôt qu'une promotion vide). `{}` sans schéma
+    déclaré."""
     from wama.common.services.revisions import settings_snapshot
+    from wama.common.utils.param_schema import _pget
     taken = settings_snapshot(item._meta.app_label, item)
     if schema:
-        names = {p.get('name') for p in schema if isinstance(p, dict) and p.get('name')}
+        declared = [(_pget(p, 'name'), tuple(_pget(p, 'contexts') or ())) for p in schema]
+        declared = [(name, contexts) for name, contexts in declared if name]
+        of_the_batch = {name for name, contexts in declared if 'batch' in contexts}
+        names = of_the_batch or {name for name, _contexts in declared}
         taken = {k: v for k, v in taken.items() if k in names}
     return taken

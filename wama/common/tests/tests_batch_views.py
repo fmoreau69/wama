@@ -365,6 +365,23 @@ class PromotionBetweenChildAndMotherTest(TestCase):
         self.a.refresh_from_db()
         self.assertEqual(self.a.output_format, 'webm')
 
+    def test_what_belongs_to_the_card_alone_is_not_promoted(self):
+        """Measured in the browser (2026-10-03): the composer `prompt` (context `item` only)
+        overwrote the sisters'. The baseline of a batch is what its ⚙ would set — the settings
+        declared for the `batch` context ; without any such declaration, the item ones stay."""
+        from wama.common.services import batch_settings
+        split = [{'name': 'output_format', 'contexts': ['item']},
+                 {'name': 'media_type', 'contexts': ['item', 'batch']}]
+        self.assertNotIn('output_format', batch_settings.settings_of(self.b, split))
+        flat = [{'name': 'output_format', 'contexts': ['item']}]
+        self.assertEqual(batch_settings.settings_of(self.b, flat), {'output_format': 'webm'})
+        from wama.composer.models import ComposerGeneration
+        from wama.composer.params import PARAMS_JSON
+        song = ComposerGeneration(user=self.u, prompt='only mine', duration=20)
+        promoted = batch_settings.settings_of(song, PARAMS_JSON)
+        self.assertNotIn('prompt', promoted, 'the prompt is what tells the cards of a batch apart')
+        self.assertEqual(promoted.get('duration'), 20)
+
     def test_a_card_outside_the_batch_cannot_be_promoted(self):
         from wama.common.services import batch_settings
         from wama.converter.models import ConversionJob
