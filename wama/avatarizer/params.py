@@ -25,9 +25,31 @@ PARAMS = derive_from_model(
     # Le couple de modes rapide/qualité est MORT (2026-08-03, décision route F2 enfin
     # appliquée à l'UI) : la « qualité » n'a jamais été qu'un alias du toggle CodeFormer —
     # le backend ne lit QUE use_enhancer. quality_mode survit en champ DÉRIVÉ (ETA/data).
+    # ⚠ ORDRE : `tts_model` reste le PREMIER select `catalog` — `auto_model.catalog_field`
+    # rend le premier, et le tirage du moteur TTS du worker (`app_id='avatarizer'`) lit SON
+    # domaine. `animation_model` vient après, et son tirage passe un `spec` explicite.
     include=["text_content", "tts_model", "quality_intent", "language", "voice_preset",
-             "use_enhancer", "bbox_shift"],
+             "animation_model", "use_enhancer", "bbox_shift"],
     overrides={
+        # MODÈLE D'ANIMATION (2026-10-03) : les modèles `lip-sync` de l'avatarizer, au
+        # catalogue — MuseTalk (photo), TalkingHead (avatar 3D riggé), et tout modèle qui s'y
+        # ajoutera, sans retoucher ce schéma. « auto » = le modèle se tire d'après l'avatar
+        # fourni (comportement d'avant, resté le défaut).
+        # `options_auto="silent"` : PAS de prévision sous le select. Le tirage dépend de
+        # l'avatar de CHAQUE élément, que la prévision ne connaît pas — elle annoncerait le
+        # modèle le plus léger (TalkingHead) à quelqu'un qui a posé une photo. *La prévision
+        # doit dire la vérité ou se taire* ; l'aide ci-dessous dit la règle à sa place.
+        "animation_model": dict(
+            type="select", label="Modèle d'animation", icon="fa-film", chip=True,
+            help_source="avatarizer",
+            help_fallback={"auto": "Choisi d'après l'avatar fourni : une photo est animée par "
+                                   "MuseTalk, un avatar 3D (.glb) par TalkingHead."},
+            options_source="catalog",
+            options_query={"source": "avatarizer", "task": "lip-sync"},
+            options_auto="silent",
+            dom_id={"panel": "animation_model", "item": "settingsAnimationModel",
+                    "batch": "batchSettingsAnimationModel"},
+            contexts=PANEL_ITEM_BATCH),
         "text_content": dict(type="textarea", label="Texte à dire", icon="fa-quote-left",
                              show_if="text_content",   # auto-porté : vide (standalone) = masqué
                              dom_id={"item": "settingsTextContent"}, contexts=("item",),
@@ -60,13 +82,15 @@ PARAMS = derive_from_model(
                              dom_id={"item": "settingsVoicePreset"}, contexts=("item",)),
         "use_enhancer": dict(type="toggle", label="Amélioration CodeFormer", chip=True,
                              icon="fa-wand-magic-sparkles",
-                             help="Restauration faciale haute qualité — légèrement plus lent.",
+                             help="Restauration faciale haute qualité — légèrement plus lent. "
+                                  "Photo animée seulement : sans effet sur un avatar 3D.",
                              dom_id={"panel": "use_enhancer", "item": "settingsUseEnhancer"},
                              contexts=PANEL_ITEM_BATCH),
         "bbox_shift":   dict(type="range", label="Bbox shift", icon="fa-arrows-up-down", chip=True,
                              dom_id={"panel": "bbox_shift", "item": "settingsBboxShift"},
                              min=-9, max=9, step=1, contexts=PANEL_ITEM_BATCH,
-                             help="Décalage vertical de la zone bouche (px). 0 = auto."),
+                             help="Décalage vertical de la zone bouche (px). 0 = auto. "
+                                  "Photo animée seulement : sans effet sur un avatar 3D."),
     },
 )
 

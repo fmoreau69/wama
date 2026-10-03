@@ -52,6 +52,25 @@ def _get_user(request):
     return get_or_create_anonymous_user()
 
 
+def _animation_model_or_auto(value) -> str:
+    """`value` s'il nomme un modèle d'animation du catalogue (id nu, comme le select le poste),
+    sinon « auto ». Le domaine est celui que DÉCLARE le schéma (`params.py`) : un seul inventaire
+    pour ce que le select propose et ce que la création accepte."""
+    from wama.common.utils.auto_model import AUTO, is_auto
+    value = (value or '').strip()
+    if not value or is_auto(value):
+        return AUTO
+    field = next((p for p in _AVATAR_PARAMS_JSON if p['name'] == 'animation_model'), {})
+    query = dict(field.get('options_query') or {})
+    try:
+        from wama.model_manager.services import get_registry_models
+        choices, _info = get_registry_models(query.pop('source', None), **query)
+        known = {c[0] for c in choices}
+    except Exception:
+        known = set()
+    return value if value in known else AUTO
+
+
 def _gallery_images():
     """Avatars de la galerie PARTAGÉE — `[{'name', 'url'}]`, lus à la médiathèque.
 
@@ -241,6 +260,12 @@ def create(request):
                                 status=400)
     job.avatar_source = 'upload'
     job.avatar_upload = avatar_file.value
+
+    # --- Modèle d'animation (2026-10-03) : « auto » ou un modèle `lip-sync` de l'app ---
+    # Validé contre le CATALOGUE (la même liste que sert le select) ; une valeur inconnue vaut
+    # « auto » — jamais une valeur brute au worker. Pas mémorisé comme dernier réglage : un
+    # modèle nommé ne convient qu'à UNE nature d'avatar, et le suivant peut en changer.
+    job.animation_model = _animation_model_or_auto(request.POST.get('animation_model'))
 
     # --- Paramètres pipeline MuseTalk ---
     job.use_enhancer = request.POST.get('use_enhancer', str(prefs['use_enhancer']).lower()) == 'true'

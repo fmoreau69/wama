@@ -223,6 +223,9 @@
                 fd.append('avatar_source', 'upload');
                 // Photo OU objet 3D : le serveur dérive le moteur de la nature du fichier.
                 WamaApp.appendInput(fd, chosenAvatar(), 'avatar_upload');
+                // Modèle d'animation du volet (« auto » par défaut ; le serveur valide au catalogue).
+                const animationModel = $('#animation_model');
+                fd.append('animation_model', animationModel ? animationModel.value : 'auto');
                 fd.append('bbox_shift', bboxSlider ? bboxSlider.value : '0');
                 fd.append('use_enhancer', $('#use_enhancer') && $('#use_enhancer').checked ? 'true' : 'false');
             },

@@ -20969,3 +20969,40 @@ Parti d'un échange réel de Fabien avec l'assistant (fil #16). Cinq constats me
   ⚙ : la file a 15 transcriptions `PENDING` d'un autre compte (signalé par la session campagne).
 - 🔴 **Pour Fabien** : relancer **gunicorn et les workers** — `transcribe(process=)` est un
   argument de tâche nouveau, et le worker en service joue encore l'ancienne glue du transcriber.
+
+## §PALIER — 2026-10-03 (suite), « AVATARIZER : LE MODÈLE D'ANIMATION SE CHOISIT » — ✅ commit ci-dessous, non poussé — 🔴 RELANCER gunicorn et les workers GPU — 🔚 option de lot et outil de l'assistant pour ce choix · réglages MuseTalk masqués pour un avatar 3D · anonyme qui lance un job
+
+Suite du palier « ASSISTANT : VOIX, AVATAR 3D, SECOND AXE DU CLOUD » (`89f9cf80`), qui laissait
+ce point en constat. Question de Fabien : « on a ajouté des modèles, mais je ne peux utiliser que
+MuseTalk + CodeFormer ».
+- **Le job porte son choix** : `AvatarJob.animation_model` (« auto » par défaut — comportement
+  inchangé —, ou l'id d'un modèle `lip-sync` de l'app). Migration `avatarizer/0020` écrite à la
+  main et **APPLIQUÉE AVANT** l'édition du modèle (`db_default`) — la leçon de l'incident du matin.
+- **Select au catalogue** (`params.py` : `options_source='catalog'`, domaine `source=avatarizer`,
+  `task=lip-sync`) dans le volet, la modale ⚙ et la modale de lot ; chip sur la card. Aucun nom
+  de modèle écrit dans le gabarit : un 3ᵉ modèle au catalogue entre au select sans rien retoucher.
+  ⚠ `tts_model` reste le PREMIER select `catalog` : `auto_model.catalog_field` rend le premier, et
+  le tirage du moteur TTS lit son domaine (garde `test_the_tts_select_stays_the_first_catalog_field`).
+- **`options_auto="silent"`** (commun : `param_schema`, `wama-params.js`, endpoint des options) :
+  « auto » SANS prévision. Le tirage dépend de l'avatar de chaque élément ; la prévision
+  ordinaire annonçait TalkingHead (le plus léger) à qui avait posé une photo. *Elle dit vrai ou
+  elle se tait* — même règle que la liste multi-tâches, déclarée par l'app.
+- **Un modèle NOMMÉ doit animer l'avatar fourni** : MuseTalk sur un GLB (ou TalkingHead sur une
+  photo) est REFUSÉ au lancement avec la raison et l'issue, jamais remplacé en silence
+  (`workers.py`, `model_selector.matches_inputs`). La création valide la valeur au catalogue.
+- **La page dit ce qu'elle fait** : volet « Paramètres d'animation », À-propos et aide nomment
+  les deux modèles et l'onglet « Objet 3D » ; CodeFormer et le décalage du visage sont dits
+  « photo animée ».
+- Vérifié au navigateur sur un serveur éphémère (8013, code du disque) : trois options, pas de
+  prévision, job créé avec `talkinghead`, chip, modale qui relit la valeur et l'aide du modèle,
+  0 erreur console. Tests : `avatarizer/tests_animation_model.py` (11, contre-épreuves comprises) ;
+  suite de l'app + suites communes qui lisent son schéma : 125 OK. Grille : avatarizer 90/94,
+  les 4 non-verts sont antérieurs (`during_preview`, `backend_routes`, `task_skeleton`,
+  `triad_specs`).
+- ⚠ **Précision sur l'incident du matin** : gunicorn ne recharge pas à l'édition, ses workers se
+  RECYCLENT (`max_requests = 1000`) et chargent alors le code du disque. Le live est donc un
+  MÉLANGE d'ancien et de neuf entre deux relances — mesuré ici : gabarit neuf servi avec
+  l'ancien schéma. Conséquence inchangée : un champ de modèle se migre AVANT de s'écrire.
+- 🔚 Restes : `--animation` dans le fichier de lot et paramètre de l'outil `add_to_avatarizer` ;
+  masquer `bbox_shift`/CodeFormer quand le modèle retenu est 3D (demande un `show_if` sur une
+  capacité de modèle) ; la clé d'ETA reste par mode de qualité.

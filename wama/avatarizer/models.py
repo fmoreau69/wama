@@ -141,6 +141,19 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
             return self.avatar_upload.name.rsplit('/', 1)[-1]
         return ''
 
+    # MODÈLE D'ANIMATION (2026-10-03) — « auto » ou l'id d'un modèle `lip-sync` de l'avatarizer
+    # (`musetalk-v1.5`, `talkinghead`…). Jusque-là le job ne portait AUCUN choix : le worker
+    # tirait toujours d'après la nature de l'avatar, et l'utilisateur ne voyait que « MuseTalk »
+    # (question de Fabien : « on a ajouté des modèles, mais je ne peux utiliser que MuseTalk »).
+    # « auto » reste le défaut et garde ce comportement ; un modèle NOMMÉ doit accepter l'avatar
+    # fourni, sinon le lancement le refuse avec sa raison. Sans `choices=` : les options sont
+    # celles du CATALOGUE (`params.py`, `options_source='catalog'`).
+    # `db_default` : la colonne est créée AVANT ce champ (migration 0020 appliquée d'abord).
+    animation_model = models.CharField(
+        max_length=128, default='auto', db_default='auto',
+        verbose_name="Modèle d'animation",
+    )
+
     # Paramètres pipeline MuseTalk
     # DÉRIVÉ de use_enhancer depuis 2026-08-03 (l'UI n'expose plus de mode) —
     # conservé pour les clés ETA (avatarizer:<mode>) et les données existantes.

@@ -98,6 +98,11 @@ class Param:
                                                 # (+ PRÉVISION du modèle retenu sous le select).
                                                 # "group" (2026-10-01) : un « auto:<tâche> » en tête
                                                 # de CHAQUE groupe de tâche (`options_group="task"`).
+                                                # "silent" (2026-10-03) : « auto » SANS prévision —
+                                                # quand le tirage dépend des entrées de chaque
+                                                # élément (avatarizer : la nature de l'avatar), la
+                                                # prévision annoncerait un autre modèle que celui
+                                                # du lancement. Elle dit vrai ou elle se tait.
                                                 # OPT-IN par app : ne le déclarer QUE si le chemin de
                                                 # lancement résout « auto » (brique commune
                                                 # `common/utils/auto_model.py`) — sinon la valeur

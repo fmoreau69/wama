@@ -622,8 +622,10 @@
       // retenu. Hors de `options_query` À DESSEIN : c'est un drapeau d'UI, pas une borne de
       // domaine — les consommateurs serveur du domaine (chips de card…) ne doivent pas le voir.
       // `options_auto: "group"` (2026-10-01) : un « auto:<tâche> » par groupe de tâche.
+      // `options_auto: "silent"` (2026-10-03) : « auto » SANS prévision — le tirage dépend des
+      // entrées de chaque élément, la prévision ne pourrait pas dire vrai (avatarizer).
       if (p.options_auto) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'auto=' +
-        (p.options_auto === 'group' ? 'group' : '1');
+        (p.options_auto === 'group' ? 'group' : (p.options_auto === 'silent' ? 'silent' : '1'));
       // `options_cloud` (2026-09-16) : même nature que `options_auto` — un drapeau d'UI, pas une
       // borne de domaine. Le serveur ajoute alors les modèles DISTANTS que les clés de CET
       // utilisateur ouvrent, selon son niveau cloud.
