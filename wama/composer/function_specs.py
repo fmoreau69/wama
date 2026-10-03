@@ -5,12 +5,16 @@ d'une app Médias se déclarent comme les passes du cam_analyzer — un registre
 chaque process un `FunctionSpec binding: app` (un nœud `function` du catalogue), le registre
 exporté en manifeste `pipeline`. `load_all()` importe ce module ; `tasks.py` en lit `PIPELINE`.
 
-DEUX process, et un seul est NORMAL :
+TROIS process, et un seul est NORMAL :
   • `render` — la consigne (et une partition, quand il y en a une) → l'audio. C'est le process
     de TOUS les modèles ; pour la plupart, c'est le seul.
   • `plan`   — la consigne → une partition ABC. N'a lieu que pour un modèle dont le moteur
     DÉCLARE `supports_score_planning` (YuE2 : sa chaîne « paroles → partition → audio » est déjà
     séparée dans son code), et seulement si l'utilisateur n'a pas fourni sa propre partition.
+  • `extract_score` (2026-10-03) — l'audio du morceau à reprendre → sa partition (SheetSage2,
+    tâche `audio-to-score`). N'a lieu que pour un COVER par un modèle qui suit une partition sans
+    prendre l'audio lui-même (YuE2) ; il REMPLACE alors `plan` — la partition vient de l'audio,
+    pas de la consigne. Jamais « transcribe » : ce verbe est celui du transcriber.
 
 Ce que la séparation apporte : changer un réglage du rendu (durée, format) ne rejoue pas la
 partition ; une partition corrigée à la main se rend sans être replanifiée ; un rendu qui
@@ -33,8 +37,20 @@ def plans_a_score(model_key) -> bool:
     return bool(getattr(backend_for_key(model_key), 'supports_score_planning', False))
 
 
+def _extract_applies(gen, model_key) -> bool:
+    """Un audio de cover est donné (fichier, ou URL qui le remplira au lancement), aucune
+    partition n'est fournie, et le modèle de rendu reprend l'audio PAR SA PARTITION."""
+    if not model_key or getattr(gen, 'reference_score', None):
+        return False
+    if not (getattr(gen, 'melody_reference', None) or getattr(gen, 'source_url', '')):
+        return False
+    from .utils.model_choice import extracts_score_for
+    return extracts_score_for(model_key)
+
+
 def _plan_applies(gen, model_key) -> bool:
-    return plans_a_score(model_key) and not getattr(gen, 'reference_score', None)
+    return (plans_a_score(model_key) and not getattr(gen, 'reference_score', None)
+            and not _extract_applies(gen, model_key))
 
 
 register(FunctionSpec(
@@ -46,6 +62,17 @@ register(FunctionSpec(
     tags=['audio', 'music', 'gpu'],
     inputs=[PortSpec('prompt', 'prompt', description="La consigne : style, puis paroles.")],
     outputs=[PortSpec('score', 'score', description="La partition ABC que le rendu suivra.")]))
+
+register(FunctionSpec(
+    key='composer.extract_score', name='Composer — extraire la partition',
+    description="Extrait la partition (ABC, mélodie seule) de l'audio du morceau à reprendre, pour "
+                "un modèle qui reprend un audio PAR SA PARTITION (YuE2). La partition est un "
+                "résultat de la card : lisible, corrigeable, rejouable.",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['audio', 'music', 'gpu'],
+    inputs=[PortSpec('work_audio', 'audio', group='travail',
+                     description="Audio du morceau à reprendre (cover).")],
+    outputs=[PortSpec('score', 'score', description="La partition que le rendu suivra.")]))
 
 register(FunctionSpec(
     key='composer.render', name='Composer — rendre le son',
@@ -72,10 +99,17 @@ _RENDER_WATCHED = ('prompt', 'model', 'quality_intent', 'duration', 'output_form
                    'output_quality', 'reference_score', 'melody_reference', 'source_url')
 
 PIPELINE = register_app_pipeline(_APP, (
+    # La partition EXTRAITE ne dépend que de l'audio (remarque d'ae, 2026-10-03) : changer le
+    # modèle de RENDU ne la périme pas — s'il cesse de suivre une partition, c'est `applies` qui
+    # écarte le process, pas la péremption. `source_url` remplit l'audio au lancement.
+    ProcessSpec('extract_score', label='Partition extraite',
+                watched=('melody_reference', 'source_url'),
+                gpu=True, share=1, applies=_extract_applies, outputs=('extracted_score',)),
     # La partition ne dépend que de la consigne et du modèle (le curseur pèse dans le tirage
     # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu.
     ProcessSpec('plan', label='Partition', watched=('prompt', 'model', 'quality_intent'),
                 gpu=True, share=1, applies=_plan_applies, outputs=('planned_score',)),
-    ProcessSpec('render', label='Rendu', depends_on=('plan',), watched=_RENDER_WATCHED,
-                gpu=True, share=3, outputs=('audio_output',)),
+    # Deux amonts ALTERNATIFS, exclusifs par `applies` : un amont sans objet est ignoré.
+    ProcessSpec('render', label='Rendu', depends_on=('extract_score', 'plan'),
+                watched=_RENDER_WATCHED, gpu=True, share=3, outputs=('audio_output',)),
 ), label='Composer — partition puis rendu', source_ref='composer.function_specs:PIPELINE')

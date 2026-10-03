@@ -3,12 +3,31 @@
     "layout": {},
     "links": [
       {
+        "from": "extract_score",
+        "to": "render",
+        "to_port": null
+      },
+      {
         "from": "plan",
         "to": "render",
         "to_port": null
       }
     ],
     "nodes": [
+      {
+        "app": null,
+        "function": "composer.extract_score",
+        "id": "extract_score",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "gpu": true,
+          "watched": [
+            "melody_reference",
+            "source_url"
+          ]
+        }
+      },
       {
         "app": null,
         "function": "composer.plan",
@@ -50,7 +69,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "composer",
   "manifest_kind": "pipeline",
-  "name": "Composer — partition puis rendu (2 process)",
+  "name": "Composer — partition puis rendu (3 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

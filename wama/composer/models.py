@@ -70,6 +70,14 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
         upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )
+    # Partition EXTRAITE de l'audio du cover par le process `extract_score` (2026-10-03,
+    # SheetSage2) : la mélodie du morceau à reprendre, que le rendu suit dans le style de la
+    # consigne. Même statut que `planned_score` (une sortie de la card) ; un seul des deux process
+    # a lieu pour une card. Nullable : sûr pour le code en service.
+    extracted_score = models.FileField(
+        upload_to=upload_to_user_output('composer'),
+        blank=True, null=True,
+    )
 
     # Format de sortie (conversion inline via Converter) — 'original' = WAV natif
     output_format = models.CharField(max_length=20, default='original')

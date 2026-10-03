@@ -1,0 +1,57 @@
+{
+  "body": {
+    "app": "composer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "composer.tasks:compose_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Audio du morceau à reprendre (cover).",
+        "group": "travail",
+        "key": "work_audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "composer.extract_score",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "score",
+        "description": "La partition que le rendu suivra.",
+        "key": "score",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "music",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Extrait la partition (ABC, mélodie seule) de l'audio du morceau à reprendre, pour un modèle qui reprend un audio PAR SA PARTITION (YuE2). La partition est un résultat de la card : lisible, corrigeable, rejouable.",
+  "key": "composer.extract_score",
+  "manifest_kind": "function",
+  "name": "Composer — extraire la partition",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:composer.extract_score",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

@@ -3442,6 +3442,21 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 >   les deux ; une partition corrigée à la main se rend sans être replanifiée ; sous « auto »,
 >   un rendu relancé seul emploie le modèle qui a écrit la partition qu'il reprend (réserve ③),
 >   une relance complète retire au sort.
+>   **3ᵉ process le 2026-10-03, `extract_score`** (coordonné avec l'instance du pipeline) :
+>   l'audio du morceau à reprendre → sa partition, mélodie seule (SheetSage2, tâche
+>   `audio-to-score`, contrat `ScoreExtractionBackend`). Il a lieu pour un COVER par un modèle
+>   qui suit une partition sans prendre l'audio (YuE2), quand un modèle d'extraction est
+>   installé, et REMPLACE alors `plan` : deux amonts ALTERNATIFS du rendu, exclusifs par
+>   `applies` (`render.depends_on=('extract_score', 'plan')`). Il emploie un AUTRE modèle que
+>   celui de la card — tiré par tâche, déchargé avant le rendu, nommé sur sa ligne (`models`) —
+>   et ne surveille que l'audio (`watched`) : changer le modèle de rendu ne le périme pas.
+>   Sortie `extracted_score` (`composer/0015`, additive). Le pipeline ÉTEND les entrées d'un
+>   modèle : `model_choice.accepts_input` dit à la card, à la création et à l'outil de
+>   l'assistant que YuE2 prend l'audio d'un cover ; YuE2 joue une partition sans accords en
+>   `cot="melody"`, avec accords en `full` (mesuré sur une partition planifiée réelle).
+>   ⏳ Généraliser : « les entrées d'un modèle au sein d'un pipeline » est calculé par l'app
+>   (`accepts_input`), pas encore par `AppPipeline` depuis ses déclarations.
+>   Tenu par `composer/tests_extract_score.py`.
 > - **Ajustement de la réserve ②** (dit à l'instance « portage ») : le lanceur pose toujours
 >   `RUNNING` sur l'ÉLÉMENT sous verrou ; c'est le moteur qui pose `RUNNING` sur la ligne de
 >   CHAQUE process, à son départ — sous « auto », le premier process à jouer n'est pas connu

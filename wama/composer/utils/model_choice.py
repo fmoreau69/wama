@@ -109,6 +109,36 @@ def consumes_input(value, token: str) -> bool:
         return False
 
 
+#: La tâche du modèle qui EXTRAIT la partition d'un audio (process `extract_score`, 2026-10-03).
+SCORE_EXTRACTION_TASK = 'audio-to-score'
+
+
+def score_extractor() -> str:
+    """Clé de catalogue du modèle qui extrait la partition d'un audio — tirée par le sélecteur
+    commun parmi les modèles INSTALLÉS de la tâche (VRAM du moment comprise), '' s'il n'y en a
+    aucun. Jamais un nom de modèle ici."""
+    from wama.model_manager.services.model_selector import select_model_id
+    return select_model_id(source=None, task=SCORE_EXTRACTION_TASK, fallback='') or ''
+
+
+def extracts_score_for(value) -> bool:
+    """Le modèle reprend-il un AUDIO par sa partition ? Oui s'il suit une partition (`work_score`)
+    sans prendre l'audio lui-même — YuE2 — et qu'un modèle d'extraction est installé. Le process
+    `extract_score` a lieu dans ce cas, et seulement dans celui-là."""
+    return (consumes_input(value, 'work_score') and not consumes_melody(value)
+            and bool(score_extractor()))
+
+
+def accepts_input(value, token: str) -> bool:
+    """Le modèle, AU SEIN DU PIPELINE du composer, accepte-t-il l'entrée `token` ? Ce qu'il
+    consomme lui-même, plus l'audio d'un cover quand le process `extract_score` en tire la
+    partition qu'il suit. C'est la question que posent la card (ses entrées par modèle), la vue de
+    création et l'outil de l'assistant — `consumes_input` reste celle du MODÈLE seul."""
+    if token == 'work_audio':
+        return consumes_melody(value) or extracts_score_for(value)
+    return consumes_input(value, token)
+
+
 def label_of(value) -> str:
     """Libellé lisible : la description de l'app, sinon le nom du catalogue, sinon la valeur."""
     key = normalize(value)

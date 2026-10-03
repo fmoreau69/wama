@@ -18,7 +18,7 @@ from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance, release_card_files
 from .models import ComposerBatch, ComposerBatchItem, ComposerGeneration
-from .utils.model_choice import (AUTO_MUSIC, AUTO_SFX, DEFAULT_MODEL, consumes_input, consumes_melody,
+from .utils.model_choice import (AUTO_MUSIC, AUTO_SFX, DEFAULT_MODEL, accepts_input, consumes_melody,
                                  is_valid, normalize)
 from .utils.model_config import COMPOSER_MODELS, clamp_duration
 
@@ -57,7 +57,7 @@ def _auto_wrap_orphans(user):
 def _reset_for_relaunch(gen, only=None):
     """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race (begin_processing).
 
-    ⚠ `planned_score` n'est PAS remis à zéro : c'est le résultat du process `plan`, qu'un
+    ⚠ `planned_score` (et `extracted_score`) n'est PAS remis à zéro : c'est le résultat du process `plan`, qu'un
     lancement REPREND quand il vaut encore (`function_specs.PIPELINE`) — le moteur le réécrit
     quand il rejoue ce process.
     `only` (P5, ▶ par process) : lancement BORNÉ — seules les sorties DÉCLARÉES de ce process
@@ -110,7 +110,7 @@ from wama.composer.params import PARAMS_JSON as _SETTINGS_SCHEMA  # noqa: E402
 _bv = make_batch_views(
     work_model=ComposerGeneration, batch_model=ComposerBatch, get_user=_get_user,
     task_for=_task_for, start_only_pending=True,
-    output_fields=('audio_output', 'planned_score'),
+    output_fields=('audio_output', 'planned_score', 'extracted_score'),
     item_model=ComposerBatchItem, fk_name='generation',
     reset_on_start=_reset_for_relaunch,
     reset_on_duplicate={'status': 'PENDING', 'progress': 0, 'task_id': None,
@@ -311,9 +311,12 @@ def generate(request):
     # leur nom (`melody_reference`, `reference_score`). Joint si le modèle le DÉCLARE (un « auto »
     # le fera tirer parmi ceux qui le consomment).
     from wama.common.utils.media_paths import received_inputs
-    for port, field, accepted in (('work_audio', 'melody_reference', consumes_melody(model_id)),
+    # « Le modèle le déclare » s'entend AU SEIN DU PIPELINE : l'audio d'un cover est aussi joint
+    # pour un modèle qui en suivra la partition extraite (`accepts_input`, 2026-10-03).
+    for port, field, accepted in (('work_audio', 'melody_reference',
+                                   accepts_input(model_id, 'work_audio')),
                                   ('work_score', 'reference_score',
-                                   consumes_input(model_id, 'work_score'))):
+                                   accepts_input(model_id, 'work_score'))):
         if not accepted:
             continue
         received = received_inputs(request, user, 'composer', field=port)
@@ -558,6 +561,16 @@ def _input_match_meta():
     meta = input_match_meta(task=','.join(TASKS), extra_caps=('task',))
     if not meta:
         return {}
+    # Ce que le PIPELINE ajoute (2026-10-03) : un modèle qui suit une partition sans prendre
+    # l'audio (YuE2) accepte l'audio d'un cover quand un modèle l'extrait (`extract_score`) — la
+    # même règle que la création et l'outil (`model_choice.accepts_input`), lue une fois ici.
+    from .utils.model_choice import score_extractor
+    if score_extractor():
+        for key, entry in meta.items():
+            accepted = set(entry['inputs_required']) | set(entry['inputs_optional'])
+            if 'work_score' in accepted and 'work_audio' not in accepted \
+                    and not consumes_melody(key):
+                entry['inputs_optional'] = sorted(set(entry['inputs_optional']) | {'work_audio'})
     unions = {AUTO_MUSIC: set(), AUTO_SFX: set()}
     for entry in meta.values():
         auto_id = AUTO_SFX if entry.pop('task', None) == SFX_TASK else AUTO_MUSIC
@@ -779,7 +792,7 @@ def duplicate(request, pk):
             'task_id': None, 'error_message': '',
             'exported_to_library': False,
         },
-        clear_fields=['audio_output', 'planned_score'],
+        clear_fields=['audio_output', 'planned_score', 'extracted_score'],
     )
     # Fille d'un VRAI batch (total > 1) : dupliquer en frère DANS le batch.
     # Card UNITAIRE (batch-de-1) : la copie devient une card indépendante (nouveau batch-de-1) —
