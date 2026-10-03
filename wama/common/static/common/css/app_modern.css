@@ -190,6 +190,26 @@ footer .container {
     background: #0d6efd;
 }
 
+/* Cases à cocher, boutons radio, interrupteurs : même palette sombre que les champs ci-dessus.
+   Seul l'état COCHÉ était stylé — une case non cochée gardait le fond BLANC de Bootstrap, seule
+   tache claire des formulaires (relevé par Fabien le 2026-10-03, sélection des passes du
+   cam_analyzer ; vrai pour toute app, la feuille est chargée par base.html). */
+.form-check-input {
+    background-color: #212529;
+    border-color: #6c757d;
+}
+
+.form-check-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Interrupteur non coché : la pastille par défaut est GRISE FONCÉE (invisible sur fond sombre) —
+   pastille claire, comme le thème sombre de Bootstrap. */
+.form-switch .form-check-input:not(:checked) {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='rgba%28255,255,255,0.45%29'/%3e%3c/svg%3e");
+}
+
 .form-check-input:checked {
     background-color: #0d6efd !important;
     border-color: #0d6efd !important;
