@@ -1046,13 +1046,16 @@ MECHANISMS = (
               "Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle "
               "installé ; ce module le JUGE (forme : contrat, ENGINE, SUPPORTED_MODELS au niveau "
               "module, interdits cache HF / téléchargement ; résolution SIMULÉE par le vivier ; "
-              "smoke CPU) puis, sur « Valider » au model manager, l'ÉCRIT dans "
-              "`wama/common/backends/` — contrôles REFAITS, jamais par-dessus un module, rien de "
-              "commité. Levée ciblée de la règle « l'agent n'écrit pas dans wama/ » (Fabien, "
-              "29/09). Aucun contrôle ne juge la QUALITÉ : le smoke dit qu'une image existe",
+              "smoke CPU PAR CONTRAT, `SMOKES`) puis, sur « Valider » au model manager, l'ÉCRIT "
+              "dans `wama/common/backends/` — contrôles REFAITS, jamais par-dessus un module, rien "
+              "de commité. Levée ciblée de la règle « l'agent n'écrit pas dans wama/ » (Fabien, "
+              "29/09). Smoke image : deux images DISTINCTES ; smoke parole (2026-10-02) : un extrait "
+              "réel des corpus d'évaluation, calé sur la référence, texte + segments ordonnés + WER "
+              "≤ 75 % (garde-fou contre l'absurde, pas un critère de qualité)",
               'wama/common/services/backend_proposals.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
-              depends_on=('backend_inventory', 'model_components'),
+              depends_on=('backend_inventory', 'model_components', 'result_evaluation',
+                          'audio_decode'),
               annexes=('wama/common/tests/tests_backend_proposals.py',)),
     Mechanism('model_components', 'Fichiers des composants DÉCLARÉS',
               "Une CLÉ de catalogue → `{rôle: Path}` des composants de `composition.components`, "
@@ -1754,7 +1757,10 @@ MECHANISMS = (
               "une parole lointaine. L'appelant décide (le transcriber transcrit alors sans filtre, "
               "réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25. "
               "`pause_windows` (2026-10-02) : fenêtres bornées couvrant TOUT l'audio, coupées au "
-              "creux d'énergie — pour un moteur à fenêtre fixe sans repères de temps (FrWhisper)",
+              "creux d'énergie — pour un moteur à fenêtre fixe sans repères de temps (FrWhisper) ; "
+              "`quietest_point` : la même coupe sur un extrait seul, qu'emploie le découpage des "
+              "audios longs du transcriber (`workers._split_audio_chunks`, plus de coupe à "
+              "intervalle fixe)",
               'wama/common/utils/speech_activity.py',
               'wama/transcriber/TRANSCRIBER_CORRECTION.md §8',
               annexes=('wama/common/tests/tests_speech_activity.py',)),
