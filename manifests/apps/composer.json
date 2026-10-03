@@ -970,7 +970,7 @@
               "item",
               "batch"
             ],
-            "default": null,
+            "default": 10,
             "dom_id": {
               "batch": "batchSettingsDuration",
               "item": "settingsDuration",
@@ -1385,7 +1385,7 @@
       "descriptions": {
         "add_to_composer": {
           "args": {
-            "duration": "range — Durée [10–600s] (défaut : 10.0)",
+            "duration": "range — Durée [10–600s] (défaut : 10)",
             "model": "select — Modèle (défaut : 'auto:text-to-music')",
             "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus)",
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max)",

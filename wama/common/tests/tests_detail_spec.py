@@ -171,6 +171,18 @@ class EveryRegisteredSpecIsSoundTest(SimpleTestCase):
                          'a code adapter appeared (use the spec) or a declared one is gone')
 
 
+class GeneratedModelsReadOnlyFieldNamesTest(SimpleTestCase):
+    """A computed form (list, presence) names no field to generate — `models_gen` ignores it."""
+
+    def test_a_computed_result_form_creates_no_field(self):
+        from wama.common.manifests.codegen.models_gen import declared_result_fields
+        body = {'inspector': {'detail_spec': {'result_file': ['output_video', 'output_image'],
+                                              'result_text': 'text'}}}
+        self.assertEqual([('text', 'text')], declared_result_fields(body))
+        body['inspector']['detail_spec']['result_file'] = 'output_file'
+        self.assertEqual([('output_file', 'file'), ('text', 'text')], declared_result_fields(body))
+
+
 class PortedAppsSayWhatTheirAdaptersSaidTest(SimpleTestCase):
     """The five apps switched on 2026-10-03 — what each adapter computed, said by the spec."""
 
