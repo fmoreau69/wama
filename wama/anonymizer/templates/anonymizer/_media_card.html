@@ -129,14 +129,13 @@ Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.
     Progression = blur_progress (champ propre à l'anonymizer).{% endcomment %}
-    {% if elem.status != 'PENDING' %}
+    {# barre TOUJOURS rendue, masquée en attente par la CSS commune (2026-10-04) #}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
         <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
              style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.blur_progress }}{% endif %}%"></div>
       </div>
     </div>
-    {% endif %}
 
   </div>{# /.wcv3 #}
 

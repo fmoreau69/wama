@@ -479,6 +479,10 @@
                         return;
                     }
                     if (card) card.dataset.status = 'RUNNING';
+                    // Re-rendu SERVEUR, comme au ⏹ : une card rendue en attente n'a pas de barre
+                    // (`_generation_card.html`, `status != 'PENDING'`) — le suivi n'avait rien à
+                    // remplir et la barre n'apparaissait qu'au rechargement (Fabien, 2026-10-04).
+                    insertRenderedCard(id);
                     startPolling(parseInt(id));
                 } catch (e) {}
             },

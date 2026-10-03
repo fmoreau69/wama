@@ -148,14 +148,13 @@ Contexte : elem = ReadingItem décoré par _decorate_card() (.chips, .input_prop
     ⚠ Commentaire dièse INTERDIT ici : Django ne gère pas les commentaires dièse multi-lignes,
     le texte serait rendu tel quel — et dans une GRILLE il crée en plus une boîte anonyme qui
     ajoute une ligne fantôme (mesuré ici : +168 px de vide). Toujours {% templatetag openblock %} comment {% templatetag closeblock %}.{% endcomment %}
-    {% if elem.status != 'PENDING' %}
+    {# barre TOUJOURS rendue, masquée en attente par la CSS commune (2026-10-04) #}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
         <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
              style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.progress }}{% endif %}%"></div>
       </div>
     </div>
-    {% endif %}
 
   </div>{# /.wcv3 #}
 

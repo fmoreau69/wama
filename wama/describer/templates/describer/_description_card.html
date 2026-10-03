@@ -119,14 +119,13 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
 
     {% comment %}Barre pleine largeur — VERTE sur tout le cycle (§11), en LIGNE 2 de la grille.
     En ÉCHEC : FIGÉE au % atteint. Jamais de commentaire dièse ici (boîte fantôme).{% endcomment %}
-    {% if elem.status != 'PENDING' %}
+    {# barre TOUJOURS rendue, masquée en attente par la CSS commune (2026-10-04) #}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
         <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
              style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.progress }}{% endif %}%"></div>
       </div>
     </div>
-    {% endif %}
 
   </div>{# /.wcv3 #}
 
