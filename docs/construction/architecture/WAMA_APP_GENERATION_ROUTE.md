@@ -2350,7 +2350,9 @@ passera alors en projetable.
 > génériques près, ajoutées au langage (premier champ non vide, valeur selon la présence, texte
 > tronqué, libellé d'un réglage lu au schéma ; un réglage vrai affiché « Oui » par l'inspecteur).
 > Équivalence MESURÉE avant bascule, vocabulaire et gardes : `INSPECTOR_DETAIL_FIELDS.md
-> §Le langage de la spec`. Restent en adapter code, DÉCLARÉS : `imager` et `audio_enhancer`.
+> §Le langage de la spec`. Restent À PORTER (pas une exception — Fabien : « on porte tout ») :
+> `imager` et `audio_enhancer`, trois formes de plus à la spec (collection de résultats, schéma
+> choisi ou nommé, premier élément d'une liste — `INSPECTOR_DETAIL_FIELDS §Le langage`, ⏳).
 > Critère `detail_spec` : 9/10 ; grille 912 → 917/939 ; facette `inspector` de cinq manifestes
 > d'app enrichie de leur `detail_spec` (fidélité de l'aller-retour inchangée, 10/10).
 

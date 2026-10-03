@@ -23,12 +23,16 @@ from django.test import SimpleTestCase
 
 from wama.common.utils.detail_registry import DetailRegistry, detail_from_spec, spec_value
 
-#: Code adapters that REMAIN, each with the reason the spec cannot say it. An app registering a
-#: code adapter without being declared here fails the test: the declarative way is the default.
+#: Code adapters STILL TO PORT — not exceptions (Fabien, 2026-10-03: « on uniformise et on porte
+#: tout »). Each names what the spec must still learn to say it; the list can only shrink. An app
+#: registering a code adapter without being listed here fails the test: the declarative way is
+#: the only way, and nothing new enters by the old door.
 CODE_ADAPTERS = {
-    'imager': 'schema chosen per element (image or video), a COLLECTION of results, a role that '
-              'depends on what came out',
-    'audio_enhancer': 'second domain of the enhancer: the spec reads ONE schema per app name',
+    'imager': 'needs three more forms: a COLLECTION of results (`result_files`), a schema chosen '
+              'per element (image or video) for `extra_from_params`, and « first element of a '
+              'list » in the first-non-empty form',
+    'audio_enhancer': 'needs the schema NAMED in `extra_from_params` (the spec reads one schema '
+                      'per app name; the audio one is not the main one)',
 }
 
 

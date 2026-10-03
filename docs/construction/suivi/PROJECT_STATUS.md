@@ -20750,3 +20750,17 @@ heredocs de l'outil Bash qui mangent les antislashs, `python -m unittest` nu int
   0 défaut ; statics synchronisés, parse V8 OK.
 - 🔚 **Reste de P5** : case à cocher des process `optional` (aucune app n'en déclare — le
   transcriber à P6 ; la bande sait déjà les distinguer, `wcv3-proc--optional`) ; studio (5.4).
+
+## §CLÔTURE (suite) — 2026-10-03 (nuit), « deux formulations corrigées après relecture de Fabien » — ✅ commit ci-dessous — 🔚 inchangé : `ROUTE §11 #37`, puis les deux derniers adapters de détail
+
+- **« L'imager reste en adapter code par choix déclaré » était FAUX.** Il n'y a pas de choix de ne
+  pas porter (Fabien : « on uniformise et on porte tout »). `imager` et `audio_enhancer` sont des
+  RESTES : trois formes manquent à la spec — collection de résultats (`result_files`), schéma
+  choisi par élément ou nommé pour `extra_from_params`, « premier élément d'une liste ». Le rôle
+  selon la sortie et le type selon l'élément sont déjà exprimables (`when_any`). Corrigé dans
+  `INSPECTOR_DETAIL_FIELDS` (table d'adoption + ⏳), `ROUTE` (note A3a du 03/10) et le test
+  (`CODE_ADAPTERS` = liste qui ne peut que descendre, plus « exceptions »). À faire dans la foulée
+  du #37, même méthode (équivalence mesurée avant bascule).
+- **« Décision déjà prise : pas de centralisation partielle de la progression »** désignait
+  seulement le choix de Fabien entre deux options : la fabrique des vues de progression se fait en
+  UNE passe, session dédiée, `views.py` libres — pas la brique + trois apps ce soir. Rien d'autre.
