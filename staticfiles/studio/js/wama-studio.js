@@ -21,6 +21,7 @@
 
     var canvas, svg, hint, paletteList;
     var apps = {};
+    var savedPipelines = [], declaredPipelines = [];   // la section « Pipelines » du catalogue
 
     // Nœuds-SOURCE intégrés (pas des apps) : produisent une sortie typée, sans entrée.
     // 1er maillon de la chaîne vidéo : un batch de prompts → port prompt de l'Imager.
@@ -90,28 +91,91 @@
             + ' ' + (p2.x - dx) + ' ' + p2.y + ' ' + p2.x + ' ' + p2.y;
     }
 
-    // ── Palette ──────────────────────────────────────────────────────────
-    function paletteItem(id, a) {
+    // ── Catalogue (palette) ──────────────────────────────────────────────
+    // « Catalogue », en SECTIONS repliables (ROUTE §10.6 5.4, 2026-10-03) : Entrées · Sorties ·
+    // Pipelines (les miens + ceux DÉCLARÉS par les apps, qui n'y figuraient pas : ils passaient
+    // par le seul sélecteur de la barre) · Apps · Fonctions par catégorie. Pas « Library » : le
+    // mot désigne déjà les paquets pip. Un nœud s'ajoute au CLIC (comme avant, empilé) ou se
+    // GLISSE à l'endroit voulu du canvas (drag natif HTML5, type MIME propre) ; un pipeline
+    // s'OUVRE — c'est un document, pas un nœud — par le même chemin que le sélecteur.
+    // Le repli de chaque section est retenu par navigateur (localStorage, tolérant).
+    var PALETTE_MIME = 'text/wama-node';
+
+    function paletteItem(id, a, onPick) {
         var item = el('div', 'studio-pal-item');
         item.style.setProperty('--app-c', a.color || '#6ea8fe');
         item.innerHTML = '<i class="' + (a.icon || 'fas fa-cube') + '"></i><span>' + a.label + '</span>';
-        item.title = 'Ajouter ' + a.label;
-        item.addEventListener('click', function () { addNode(id); });
+        item.title = a.title || ('Ajouter ' + a.label + ' (clic, ou glisser sur le canvas)');
+        item.addEventListener('click', function () { (onPick || addNode)(id); });
+        if (!onPick) {
+            item.draggable = true;
+            item.addEventListener('dragstart', function (e) {
+                e.dataTransfer.setData(PALETTE_MIME, id);
+                e.dataTransfer.effectAllowed = 'copy';
+            });
+        }
         return item;
     }
+
+    function paletteSection(key, label, count) {
+        var section = el('details', 'studio-pal-section');
+        section.dataset.section = key;
+        var remembered = null;
+        try { remembered = localStorage.getItem('wama_studio_palette_' + key); } catch (e) {}
+        section.open = remembered === null ? true : remembered === 'open';
+        section.appendChild(el('summary', 'studio-pal-group',
+                               label + (count != null ? ' (' + count + ')' : '')));
+        section.addEventListener('toggle', function () {
+            try { localStorage.setItem('wama_studio_palette_' + key, section.open ? 'open' : 'closed'); } catch (e) {}
+        });
+        return section;
+    }
+
     function renderPalette() {
+        if (!paletteList) return;
         paletteList.innerHTML = '';
-        // Sources (nœuds intégrés)
-        paletteList.appendChild(el('div', 'studio-pal-group', 'Sources'));
-        Object.keys(BUILTINS).forEach(function (id) { paletteList.appendChild(paletteItem(id, BUILTINS[id])); });
-        // Apps (catalogue) puis Fonctions (D13 : même palette, même typage par connexion)
+        var sources = Object.keys(BUILTINS).filter(function (id) { return BUILTINS[id].output !== false; });
+        var sinks = Object.keys(BUILTINS).filter(function (id) { return BUILTINS[id].output === false; });
         var appIds = Object.keys(apps).filter(function (id) { return apps[id].kind !== 'function'; });
         var fnIds = Object.keys(apps).filter(function (id) { return apps[id].kind === 'function'; });
-        paletteList.appendChild(el('div', 'studio-pal-group', 'Apps'));
-        appIds.forEach(function (id) { paletteList.appendChild(paletteItem(id, apps[id])); });
+
+        var inputs = paletteSection('inputs', 'Entrées');
+        sources.forEach(function (id) { inputs.appendChild(paletteItem(id, BUILTINS[id])); });
+        paletteList.appendChild(inputs);
+
+        var outputs = paletteSection('outputs', 'Sorties');
+        sinks.forEach(function (id) { outputs.appendChild(paletteItem(id, BUILTINS[id])); });
+        paletteList.appendChild(outputs);
+
+        var pipes = savedPipelines.map(function (p) {
+            return { value: String(p.id), label: p.name, icon: 'fas fa-diagram-project', color: '#f7c46c',
+                     title: 'Ouvrir « ' + p.name + ' » (' + p.nodes + ' nœuds · ' + p.updated_at + ')' };
+        }).concat(declaredPipelines.map(function (p) {
+            return { value: 'declared:' + p.key, label: p.name, icon: 'fas fa-diagram-project', color: '#9ad0ec',
+                     title: 'Ouvrir le pipeline déclaré par l\'app « ' + p.name
+                            + ' » — le sauvegarder en fait une copie personnelle' };
+        }));
+        var pipelines = paletteSection('pipelines', 'Pipelines', pipes.length);
+        if (!pipes.length) pipelines.appendChild(el('div', 'studio-pal-empty', 'Aucun pipeline sauvegardé.'));
+        pipes.forEach(function (p) { pipelines.appendChild(paletteItem(p.value, p, openPipeline)); });
+        paletteList.appendChild(pipelines);
+
+        var appsSection = paletteSection('apps', 'Apps', appIds.length);
+        appIds.forEach(function (id) { appsSection.appendChild(paletteItem(id, apps[id])); });
+        paletteList.appendChild(appsSection);
+
         if (fnIds.length) {
-            paletteList.appendChild(el('div', 'studio-pal-group', 'Fonctions (' + fnIds.length + ')'));
-            fnIds.forEach(function (id) { paletteList.appendChild(paletteItem(id, apps[id])); });
+            var functions = paletteSection('functions', 'Fonctions', fnIds.length);
+            var byCategory = {};
+            fnIds.forEach(function (id) {
+                var c = apps[id].category || 'autres';
+                (byCategory[c] = byCategory[c] || []).push(id);
+            });
+            Object.keys(byCategory).sort().forEach(function (c) {
+                functions.appendChild(el('div', 'studio-pal-subgroup', c));
+                byCategory[c].forEach(function (id) { functions.appendChild(paletteItem(id, apps[id])); });
+            });
+            paletteList.appendChild(functions);
         }
     }
 
@@ -594,6 +658,10 @@
                 declared.appendChild(o);
             });
             if (declared.children.length) sel.appendChild(declared);
+            // La section « Pipelines » du catalogue lit les MÊMES listes.
+            savedPipelines = res[0].pipelines || [];
+            declaredPipelines = res[1].pipelines || [];
+            renderPalette();
         })['catch'](function () {});
     }
 
@@ -611,11 +679,18 @@
 
     function loadSelectedPipeline() {
         var sel = document.getElementById('studioLoadSelect');
-        if (!sel || !sel.value) return;
-        var declared = sel.value.indexOf('declared:') === 0;
+        if (sel && sel.value) openPipeline(sel.value);
+    }
+
+    // Ouvre un pipeline — `<id>` (le mien) ou `declared:<clé>` (déclaré par une app). Même
+    // chemin pour le sélecteur de la barre et la section « Pipelines » du catalogue.
+    function openPipeline(value) {
+        value = String(value || '');
+        if (!value) return;
+        var declared = value.indexOf('declared:') === 0;
         var url = declared
-            ? '/studio/api/declared-pipelines/' + encodeURIComponent(sel.value.slice('declared:'.length)) + '/'
-            : '/studio/api/pipelines/' + sel.value + '/';
+            ? '/studio/api/declared-pipelines/' + encodeURIComponent(value.slice('declared:'.length)) + '/'
+            : '/studio/api/pipelines/' + value + '/';
         api(url).then(function (d) {
             // Ouvrir un pipeline, c'est changer de DOCUMENT : on ne doit pas pouvoir
             // « annuler » jusqu'au graphe precedent, qui n'a plus rien a voir.
@@ -673,17 +748,22 @@
         });
     }
 
+    // Les SIX états communs du modèle pipeline (ROUTE §10.6 point 4) — le canvas montre le même
+    // vocabulaire que la card : `run-<état>` (pending, awaiting_resources, running, success,
+    // failure, stale). Avant, trois seulement ; un nœud en attente de VRAM ou périmé ne se
+    // distinguait pas d'un nœud jamais lancé.
+    var RUN_STATES = ['PENDING', 'AWAITING_RESOURCES', 'RUNNING', 'SUCCESS', 'FAILURE', 'STALE'];
+    var RUN_CLASSES = RUN_STATES.map(function (s) { return 'run-' + s.toLowerCase(); });
+
     function setNodeRunState(nodeId, status) {
         var n = nodes.filter(function (x) { return x.id === nodeId; })[0];
         if (!n || !n.el) return;
-        n.el.classList.remove('run-running', 'run-success', 'run-failure');
-        if (status === 'RUNNING') n.el.classList.add('run-running');
-        else if (status === 'SUCCESS') n.el.classList.add('run-success');
-        else if (status === 'FAILURE') n.el.classList.add('run-failure');
+        RUN_CLASSES.forEach(function (c) { n.el.classList.remove(c); });
+        if (RUN_STATES.indexOf(status) !== -1) n.el.classList.add('run-' + status.toLowerCase());
     }
     function clearRunStates() {
         nodes.forEach(function (n) {
-            if (n.el) n.el.classList.remove('run-running', 'run-success', 'run-failure');
+            if (n.el) RUN_CLASSES.forEach(function (c) { n.el.classList.remove(c); });
         });
         clearAllFlows();
     }
@@ -783,6 +863,22 @@
         });
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cancelPending(); });
         window.addEventListener('resize', updateLinks);
+
+        // Dépôt d'un élément du catalogue À L'ENDROIT voulu (5.4) : seul notre type MIME est
+        // accepté — un fichier glissé depuis le bureau n'est pas un nœud.
+        canvas.addEventListener('dragover', function (e) {
+            var types = (e.dataTransfer && e.dataTransfer.types) || [];
+            if (Array.prototype.indexOf.call(types, PALETTE_MIME) === -1) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+        });
+        canvas.addEventListener('drop', function (e) {
+            var id = e.dataTransfer && e.dataTransfer.getData(PALETTE_MIME);
+            if (!id) return;
+            e.preventDefault();
+            var c = canvas.getBoundingClientRect();
+            addNode(id, { x: Math.max(0, e.clientX - c.left - 20), y: Math.max(0, e.clientY - c.top - 12) });
+        });
 
         var clear = document.getElementById('studioClear');
         if (clear) clear.addEventListener('click', function () {

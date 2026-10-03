@@ -20764,3 +20764,24 @@ heredocs de l'outil Bash qui mangent les antislashs, `python -m unittest` nu int
 - **« Décision déjà prise : pas de centralisation partielle de la progression »** désignait
   seulement le choix de Fabien entre deux options : la fabrique des vues de progression se fait en
   UNE passe, session dédiée, `views.py` libres — pas la brique + trois apps ce soir. Rien d'autre.
+
+## §PALIER — 2026-10-03, « PIPELINE P5 — 6ᵉ pièce : STUDIO (5.4) — catalogue en sections, pipelines dans la palette, glisser-déposer, six états » — ✅ P5 TERMINÉ (sauf case des process optionnels) — 🔚 validation navigateur par Fabien
+
+- `studio/index.html` : « Apps » → **« Catalogue »**, indice du canvas réécrit.
+- `wama-studio.js` : `renderPalette` en **sections repliables** (`paletteSection` : Entrées ·
+  Sorties · Pipelines · Apps · Fonctions par catégorie ; repli retenu en localStorage,
+  tolérant) ; la section Pipelines lit les listes de `refreshPipelineList` (les miens + déclarés
+  par les apps) et ouvre par `openPipeline(value)`, le chemin UNIQUE que le sélecteur de la
+  barre emprunte aussi ; **drag & drop** natif (`text/wama-node`, `dragover`/`drop` sur le
+  canvas → `addNode(id, {x, y})`) ; `RUN_STATES` = les **six états communs** (`run-<état>`).
+- `wama-studio.css` : sections (`<details>` + chevron), sous-groupes, curseur `grab`, trois
+  états de plus (`run-pending`, `run-awaiting_resources`, `run-stale`).
+- **Gardes** : `studio/tests_catalogue.py` (5 : sections décidées et plus de « Library »,
+  pipelines ouverts par le chemin du sélecteur, dépôt à la position, six états, copies servies =
+  sources) + parse V8. Statics synchronisés.
+- **P5 — bilan** : 5.1 ✅ (bande, état montré, ▶ et ⚙ par process, « compléter » = le ▶ de la
+  card) · 5.2 ✅ (gabarit généré) · 5.3 ✅ Médias (⏳ charge Data) · 5.4 ✅. Reste de P5 : la case
+  des process `optional` — aucune app n'en déclare, le transcriber à P6.
+- 🔚 **Pour Fabien** : relancer gunicorn + workers ; tester (retour attendu sur P5) : la bande
+  des process sur une card composer YuE2 (▶ et ⚙ par ligne), ↑/↓ sur un lot, le catalogue du
+  studio (sections, glisser un nœud, ouvrir un pipeline déclaré).
