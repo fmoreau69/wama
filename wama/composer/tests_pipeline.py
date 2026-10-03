@@ -103,9 +103,9 @@ class PlanThenRenderTest(TestCase):
         return ComposerGeneration.objects.create(user=self.user, prompt='a calm piano\n[verse]\nla',
                                                  status='RUNNING', **fields)
 
-    def _run(self, gen, drawn=SCORE_MODEL):
+    def _run(self, gen, drawn=SCORE_MODEL, process=None):
         """Runs the real task body on a FRESH instance (as a worker does) ; the draw, the prompt
-        pipeline, the engines and the ETA record are stand-ins."""
+        pipeline, the engines and the ETA record are stand-ins. `process` = a BOUNDED run."""
         ComposerGeneration.objects.filter(pk=gen.pk).update(status='RUNNING')
         with mock.patch('wama.common.utils.task_skeleton.close_old_connections'), \
                 mock.patch('wama.composer.utils.auto_model.resolve_auto_model',
@@ -118,7 +118,7 @@ class PlanThenRenderTest(TestCase):
                 mock.patch('wama.composer.utils.model_config.clamp_duration',
                            side_effect=lambda value, model_id=None: value), \
                 mock.patch('wama.model_manager.services.eta_estimator.record_run'):
-            tasks.compose_task.run.__func__(_celery_task(), gen.pk)
+            tasks.compose_task.run.__func__(_celery_task(), gen.pk, process)
         gen = ComposerGeneration.objects.get(pk=gen.pk)
         gen.draw, gen.routed = draw, routed
         return gen
@@ -385,6 +385,82 @@ class TheCardShowsItsProcessesTest(TestCase):
             payload = client.get(reverse('composer:progress', args=[gen.pk])).json()
         self.assertEqual(['plan', 'render'], [p['key'] for p in payload['processes']])
         self.assertEqual('SUCCESS', payload['shown_state'])
+
+
+class TheRunButtonPerProcessTest(TestCase):
+    """P5, ▶ par process on the pilot: the strip carries one ▶ per process, the route launches a
+    BOUNDED run (this process, its stale upstream only — never its downstream), and the reset
+    spares the outputs of the other processes."""
+
+    setUp = PlanThenRenderTest.setUp
+    _generation = PlanThenRenderTest._generation
+    _run = PlanThenRenderTest._run
+    _states = PlanThenRenderTest._states
+    _card = TheCardShowsItsProcessesTest._card
+
+    def _press(self, gen, process):
+        """Presses the ▶ of one process as the browser does (route + task sent, not run)."""
+        from types import SimpleNamespace
+        from django.contrib.auth.models import Group
+        from django.test import Client
+        from django.urls import reverse
+        from wama.accounts.permissions import GROUP_PREFIX
+        self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}communication')[0])
+        client = Client(HTTP_HOST='localhost')
+        client.force_login(self.user)
+        with mock.patch('wama.composer.tasks.compose_task.apply_async',
+                        return_value=SimpleNamespace(id='t-bounded')) as sent, \
+                mock.patch('wama.common.backends.manager.backend_for_key',
+                           side_effect=lambda key: ENGINES.get(key)):
+            r = client.post(reverse('composer:start_process', args=[gen.pk, process]))
+        gen.refresh_from_db()
+        return r, sent
+
+    def test_the_strip_carries_a_run_button_per_process(self):
+        gen = self._run(self._generation())
+        html = self._card(gen)
+        for key in ('plan', 'render'):
+            self.assertRegex(html, rf'wcv3-proc-run"[^>]*data-id="{gen.pk}"[^>]*data-process="{key}"')
+
+    def test_pressing_the_render_button_keeps_the_score_and_replays_only_the_render(self):
+        gen = self._run(self._generation())
+        self.assertTrue(gen.planned_score and gen.audio_output)
+        r, sent = self._press(gen, 'render')
+        self.assertEqual((r.status_code, r.json()['process']), (200, 'render'))
+        self.assertEqual(sent.call_args.kwargs.get('kwargs'), {'process': 'render'},
+                         'the task is sent BOUNDED to this process')
+        self.assertEqual(gen.status, 'RUNNING')
+        self.assertTrue(gen.planned_score, 'the score is NOT an output of the render: it stays')
+        self.assertFalse(gen.audio_output, 'the audio is replaced, like any relaunch')
+        gen = self._run(gen, process='render')
+        self.assertEqual((len(_ScoreEngine.plans), len(_ScoreEngine.renders)), (1, 2))
+        self.assertEqual(self._states(gen), {'plan': JOB_SUCCESS, 'render': JOB_SUCCESS})
+
+    def test_pressing_the_score_button_clears_the_score_but_keeps_the_audio(self):
+        gen = self._run(self._generation())
+        audio = gen.audio_output.name
+        r, _sent = self._press(gen, 'plan')
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(gen.planned_score, 'the output of the relaunched process is replaced')
+        self.assertEqual(gen.audio_output.name, audio, 'relaunching the score does not take the audio')
+        gen = self._run(gen, process='plan')
+        self.assertEqual((len(_ScoreEngine.plans), len(_ScoreEngine.renders)), (2, 1),
+                         'the downstream is NOT replayed by a bounded run')
+        self.assertEqual(gen.audio_output.name, audio)
+
+    def test_an_unknown_process_or_one_without_object_here_is_refused_and_nothing_is_sent(self):
+        gen = self._run(self._generation())
+        r, sent = self._press(gen, 'mix')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('inconnu', r.json()['error'])
+        sent.assert_not_called()
+        plain = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
+                                                  model=PLAIN_MODEL, status='PENDING')
+        r, sent = self._press(plain, 'plan')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("n'a pas lieu", r.json()['error'])
+        sent.assert_not_called()
+        self.assertEqual(plain.status, 'PENDING', 'a refused press changes nothing on the card')
 
 
 class ThePipelineIsInTheCatalogueTest(SimpleTestCase):

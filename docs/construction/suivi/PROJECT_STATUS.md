@@ -20638,3 +20638,35 @@ Après la génération réelle par la vraie file (bloc précédent), GO de Fabie
   (pas de ⚙ de lot : ni ↓ ni ↑, à décider) ; marquer sur la card une fille réglée à part.
 - **Pour Fabien** : relancer gunicorn ET les workers après la pièce composer (nouvel argument de
   tâche) ; rien n'est poussé.
+
+## §PALIER — 2026-10-03, « PIPELINE P5 — 4ᵉ pièce : ▶ PAR PROCESS CÂBLÉ SUR LE COMPOSER + ses routes de lot » — ✅ — 🔴 RELANCER gunicorn ET les workers (nouvel argument de tâche)
+
+> Suite de la 2ᵉ pièce (`d2fa0770`, partie commune), dont le câblage composer attendait le commit
+> B de la session partitions/MIDI (`6212e157`, reçu ce matin).
+
+- `compose_task(generation_id, process=None)` → `run_item_task(only=process)` : lancement BORNÉ
+  — ce process, ses amonts périmés, jamais son aval. ⚠ **Argument de tâche nouveau : les workers
+  en service ne le connaissent pas** (un ▶ de process AVANT relance = tâche refusée par le worker).
+- Vue `start_process(pk, process)` + route `start/<int:pk>/<str:process>/` : process inconnu →
+  400 « inconnu » ; process sans objet pour cette card (modèle qui n'écrit pas de partition) →
+  400 qui le dit ; sous « auto » la tâche tranche (le modèle n'est connu qu'au lancement). Même
+  verrou anti-course que `start` (`begin_processing`), remise à zéro BORNÉE :
+  `_reset_for_relaunch(gen, only=)` → `PIPELINE.reset_outputs` sur les sorties DÉCLARÉES du
+  process (`ProcessSpec.outputs` : plan → `planned_score`, render → `audio_output`) — relancer la
+  partition n'emporte pas l'audio, relancer le rendu garde la partition.
+- Card : `card_id=elem.id` passé à la bande commune → un ▶ par process ; `index.js` lit
+  `btn.dataset.process` et vise `start/<id>/<process>/`, un refus (400) est DIT en toast au lieu
+  d'être avalé. Statics synchronisés, parse V8 OK.
+- Lot : `batch_promote` / `batch_realign` routés sur le composer (10/10 avec la 3ᵉ pièce).
+- **Tests** : `composer.tests_pipeline.TheRunButtonPerProcessTest` (4 : un ▶ par process sur la
+  card ; ▶ rendu = partition gardée + audio remplacé + tâche envoyée bornée + rejoué, 1 plan /
+  2 rendus ; ▶ partition = partition remplacée + audio gardé + 2 plans / 1 rendu ; inconnu et
+  sans objet refusés sans rien envoyer). 113/114 verts sur composer.tests_pipeline + tests_task +
+  common tests_process_pipeline/status_ui/endpoints ; le rouge restant est
+  `tests_status_ui…test_staticfiles_sert_les_memes_fichiers` sur `wama-inspector.css` (source ≠
+  staticfiles — fichier de la session collaboration, pas de celle-ci). `check_templates` 0 défaut.
+- 🔚 **Reste de P5** : ⚙ par process (réglages générés du schéma, filtrés sur `watched`) ; case
+  des process optionnels (aucune app n'en déclare encore — le transcriber à P6) ; gabarit de card
+  GÉNÉRÉ avec la bande (5.2) ; studio (5.4). « ▶ tout / compléter manquant + périmé » : c'est déjà
+  ce que fait le ▶ de la card depuis P3 (`steps_to_run` sans `only`), le libellé du bouton de cycle
+  le dit (« Recalculer ce qui est périmé ») — pas de pièce à part.

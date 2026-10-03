@@ -75,7 +75,7 @@ PIPELINE = register_app_pipeline(_APP, (
     # La partition ne dépend que de la consigne et du modèle (le curseur pèse dans le tirage
     # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu.
     ProcessSpec('plan', label='Partition', watched=('prompt', 'model', 'quality_intent'),
-                gpu=True, share=1, applies=_plan_applies),
+                gpu=True, share=1, applies=_plan_applies, outputs=('planned_score',)),
     ProcessSpec('render', label='Rendu', depends_on=('plan',), watched=_RENDER_WATCHED,
-                gpu=True, share=3),
+                gpu=True, share=3, outputs=('audio_output',)),
 ), label='Composer — partition puis rendu', source_ref='composer.function_specs:PIPELINE')

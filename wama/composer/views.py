@@ -54,15 +54,22 @@ def _auto_wrap_orphans(user):
                       item_extra=_batch_item_extra)
 
 
-def _reset_for_relaunch(gen):
+def _reset_for_relaunch(gen, only=None):
     """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race (begin_processing).
 
     ⚠ `planned_score` n'est PAS remis à zéro : c'est le résultat du process `plan`, qu'un
     lancement REPREND quand il vaut encore (`function_specs.PIPELINE`) — le moteur le réécrit
-    quand il rejoue ce process."""
-    safe_delete_file(gen, 'audio_output')
+    quand il rejoue ce process.
+    `only` (P5, ▶ par process) : lancement BORNÉ — seules les sorties DÉCLARÉES de ce process
+    sont remplacées (`PIPELINE.reset_outputs`) : relancer la partition seule n'emporte pas
+    l'audio, qui se périmera de lui-même."""
+    from .function_specs import PIPELINE
+    if only:
+        PIPELINE.reset_outputs(gen, (only,))
+    else:
+        safe_delete_file(gen, 'audio_output')
+        gen.audio_output = None
     gen.progress = 0
-    gen.audio_output = None
     gen.error_message = None
     gen.exported_to_library = False
 
@@ -121,6 +128,8 @@ batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
 batch_download = _bv['batch_download']
 batch_update = _bv['batch_update']
+batch_promote = _bv['batch_promote']
+batch_realign = _bv['batch_realign']
 
 
 def _decorate_generation(g):
@@ -484,6 +493,37 @@ def start(request, pk):
     gen.task_id = task.id
     gen.save(update_fields=['task_id'])
     return JsonResponse({'id': gen.id, 'status': 'RUNNING'})
+
+
+@require_POST
+@app_access('composer')
+def start_process(request, pk, process):
+    """▶ d'UN process de la card (P5, `ROUTE §10.6` 5.1) : lancement BORNÉ — ce process, précédé
+    des seuls amonts périmés, jamais son aval. Un process inconnu est refusé en le disant ; un
+    process sans objet pour cette card (modèle qui n'écrit pas de partition) aussi."""
+    from .function_specs import PIPELINE
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    if process not in {s.key for s in PIPELINE.specs}:
+        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
+    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
+    # Sous « auto », le modèle — donc ce qui a lieu — n'est connu qu'au lancement : la tâche tranche.
+    from wama.common.utils.auto_model import is_auto
+    if not is_auto(gen.model) and \
+            process not in {s.key for s in PIPELINE.applicable(gen, gen.model or None)}:
+        return JsonResponse({'error': f"« {PIPELINE.spec(process).label} » n'a pas lieu pour "
+                                      "cette card"}, status=400)
+    from wama.common.utils.process_control import begin_processing
+    gen, err = begin_processing(ComposerGeneration, pk, user=user,
+                                reset=lambda g: _reset_for_relaunch(g, only=process))
+    if err == 'not_found':
+        return JsonResponse({'error': 'Not found'}, status=404)
+    if err == 'already_running':
+        return JsonResponse({'error': 'Déjà en cours'}, status=400)
+    from .tasks import compose_task
+    task = compose_task.apply_async(args=(gen.id,), kwargs={'process': process})
+    gen.task_id = task.id
+    gen.save(update_fields=['task_id'])
+    return JsonResponse({'id': gen.id, 'status': 'RUNNING', 'process': process})
 
 
 @require_POST
