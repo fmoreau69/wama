@@ -132,17 +132,17 @@ batch_promote = _bv['batch_promote']
 batch_realign = _bv['batch_realign']
 
 
-def _decorate_generation(g):
+def _decorate_generation(g, preloaded=False):
     """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips ;
     PROCESS de la card et état MONTRÉ, générés des lignes d'exécution (P5, `_pipeline_view`)."""
     from wama.common.utils.card_chips import chips_by_section
     from wama.composer.params import PARAMS_JSON
     g.chips = chips_by_section(g, PARAMS_JSON)
-    g.processes, g.shown_state, g.shown_state_label = _pipeline_view(g)
+    g.processes, g.shown_state, g.shown_state_label = _pipeline_view(g, preloaded=preloaded)
     return g
 
 
-def _pipeline_view(gen):
+def _pipeline_view(gen, preloaded=False):
     """Ce que la card et la vue de progression montrent du PIPELINE de l'élément (ROUTE §10.6
     5.1) : ses lignes de process et l'état déduit — par l'adaptateur unique
     (`AppPipeline.shown_state`), jamais `status` en dur. Sous « auto » le modèle du prochain
@@ -150,7 +150,8 @@ def _pipeline_view(gen):
     from wama.common.services.process_pipeline import card_view
     from wama.common.utils.auto_model import is_auto
     from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
-    return card_view(gen, None if is_auto(gen.model) else normalize(gen.model))
+    return card_view(gen, None if is_auto(gen.model) else normalize(gen.model),
+                     preloaded=preloaded)
 
 
 def _get_batches_list(user):
@@ -168,11 +169,13 @@ def _get_batches_list(user):
                                      'eta_ids': ','.join(str(g.id) for g in gens),
                                      'common_chips': common_chips_for_items(
                                          gens, _COMPOSER_PARAMS_JSON)})
-    # Chips de card GÉNÉRÉS du schéma — même décoration que card_html.
-    for b in batches:
-        for link in b['items']:
-            if link.generation:
-                _decorate_generation(link.generation)
+    # Chips de card GÉNÉRÉS du schéma — même décoration que card_html. Les lignes d'exécution de
+    # TOUTES les cards de la page sont lues en une requête (bande des process).
+    from wama.common.services.process_pipeline import preload
+    shown = [link.generation for b in batches for link in b['items'] if link.generation]
+    preload(shown)
+    for generation in shown:
+        _decorate_generation(generation, preloaded=True)
     return batches
 
 

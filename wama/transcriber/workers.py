@@ -4,6 +4,7 @@ Transcriber Celery Workers
 Background tasks for audio transcription using pluggable backends.
 """
 
+import logging
 import os
 import torch
 from celery import shared_task
@@ -27,6 +28,8 @@ except Exception:
     AudioPreprocessor = None
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+logger = logging.getLogger(__name__)
 
 
 def _set_progress(transcript: Transcript, value: int, *, force: bool = False) -> None:
@@ -254,18 +257,18 @@ def _save_output_files(transcript: Transcript, backend_name: str) -> None:
         _console(transcript.user_id, f"Avertissement: sauvegarde fichiers de sortie échouée ({e})")
 
 
-def _save_segments(transcript: Transcript, result: 'TranscriptionResult') -> int:
+def _save_segments(transcript: Transcript, segments) -> int:
     """
     Save transcription segments to database.
 
     Args:
         transcript: Transcript instance
-        result: TranscriptionResult with segments
+        segments: list of `TranscriptionSegment` (the ASR output, or the same after diarization)
 
     Returns:
         Number of segments saved
     """
-    if not result.segments:
+    if not segments:
         return 0
 
     # Delete existing segments
@@ -273,7 +276,7 @@ def _save_segments(transcript: Transcript, result: 'TranscriptionResult') -> int
 
     # Create new segments
     segments_to_create = []
-    for i, seg in enumerate(result.segments):
+    for i, seg in enumerate(segments):
         segments_to_create.append(TranscriptSegment(
             transcript=transcript,
             speaker_id=seg.speaker_id,
@@ -287,7 +290,7 @@ def _save_segments(transcript: Transcript, result: 'TranscriptionResult') -> int
     TranscriptSegment.objects.bulk_create(segments_to_create)
 
     # Also save segments as JSON backup
-    transcript.segments_json = [s.to_dict() for s in result.segments]
+    transcript.segments_json = [s.to_dict() for s in segments]
     transcript.save(update_fields=['segments_json'])
 
     return len(segments_to_create)
@@ -398,30 +401,41 @@ def _transcribe_maybe_chunked(backend, audio_path: str, duration: float, kwargs:
 
 
 
-def _run_transcription(task, transcript_id: int):
+def _run_transcription(task, transcript_id: int, process: str = None):
     """La tâche d'item du transcriber passe par le squelette COMMUN (`run_item_task`, 2026-09-25) :
     gardes (redélivrance après crash), ingestion d'une source distante, statuts canoniques, durée
     max, chrono, console, notifications et signal d'exécution — l'app ne fournit que sa GLU.
     La progression reste écrite par `_set_progress` (clé et champ que lit le front), déclarée au
-    squelette par `progress_fn` : une seule main écrit la progression."""
+    squelette par `progress_fn` : une seule main écrit la progression.
+
+    Depuis le 2026-10-03 la card porte un PIPELINE de quatre process (`function_specs.PIPELINE`,
+    glues `PROCESSES` plus bas) : le squelette joue ceux que le lancement retient — un résultat
+    encore valable n'est pas rejoué. `process` borne le lancement à UN process et à ses amonts
+    périmés (▶ de la bande de la card)."""
     from wama.common.utils.task_skeleton import run_item_task
-    run_item_task(task, app_id='transcriber', model=Transcript, item_id=transcript_id,
-                  process=_transcribe_item, notify_label='Transcriber',
-                  progress_fn=lambda item, pct, msg: _set_progress(item, pct, force=True))
+    from .function_specs import PIPELINE
+    try:
+        run_item_task(task, app_id='transcriber', model=Transcript, item_id=transcript_id,
+                      pipeline=PIPELINE, processes=PROCESSES, model_key=_model_key,
+                      notify_label='Transcriber', only=process,
+                      progress_fn=lambda item, pct, msg: _set_progress(item, int(pct), force=True))
+    finally:
+        _release_run(transcript_id)
 
 
 @shared_task(bind=True)
-def transcribe(self, transcript_id: int):
-    """Transcription d'une card, prétraitement selon son réglage."""
-    return _run_transcription(self, transcript_id)
+def transcribe(self, transcript_id: int, process: str = None):
+    """Transcription d'une card, prétraitement selon son réglage. `process` : lancement borné à ce
+    process du pipeline (⚠ argument de tâche du 2026-10-03 : workers à relancer)."""
+    return _run_transcription(self, transcript_id, process)
 
 
 @shared_task(bind=True)
-def transcribe_without_preprocessing(self, transcript_id: int):
+def transcribe_without_preprocessing(self, transcript_id: int, process: str = None):
     """Transcription d'une card SANS prétraitement (le réglage est remis à faux d'abord). Même
     squelette, lancé avec CETTE tâche : la garde de redélivrance lit le drapeau de SON message."""
     Transcript.objects.filter(pk=transcript_id).update(preprocess_audio=False)
-    return _run_transcription(self, transcript_id)
+    return _run_transcription(self, transcript_id, process)
 
 
 def _vad_filter_for(t, audio_path: str) -> bool:
@@ -489,59 +503,146 @@ def _language_plan(t, audio_path: str, backend) -> tuple:
     return 'single', (fallback if in_passes else None), fallback
 
 
-def _transcribe_item(t, ctx):
-    """La GLU du squelette : prétraitement → ASR → diarisation → sauvegarde → résumé → cohérence,
-    puis mesure contre la référence, apprentissage ETA et forme d'onde. Le statut SUCCESS, la
-    progression 100, la durée et la notification sont posés par le squelette APRÈS ce retour ;
-    une exception le fait passer en FAILURE."""
+# ── LE PIPELINE DU TRANSCRIBER : quatre process, une tâche (ROUTE §10.6 P4 — 2026-10-03) ────
+# `function_specs.PIPELINE` déclare transcribe → diarize → summarize / coherence ; chaque process
+# a ICI sa glu, au contrat du squelette. Ce qu'un lancement partage entre ses process — le moteur
+# chargé, l'audio préparé, les segments encore en mémoire — vit dans `_RUNS`, par transcript, et
+# s'oublie en fin de tâche (`_release_run`). Un process relancé SEUL (▶ de la bande) ne trouve
+# rien en mémoire : il relit ce que l'élément a gardé (segments, texte) et re-prépare l'audio.
+_RUNS: dict = {}
+
+
+def _run_state(t) -> dict:
+    return _RUNS.setdefault(t.pk, {})
+
+
+def _release_run(transcript_id: int) -> None:
+    """Fin de tâche, succès comme échec : l'audio préparé (nivelé, débruité) est retiré —
+    l'original de la card, jamais — et le message d'étape s'efface."""
+    state = _RUNS.pop(transcript_id, None) or {}
+    prepared, original = state.get('audio'), state.get('original')
+    if prepared and prepared != original and os.path.exists(prepared):
+        try:
+            os.remove(prepared)
+        except OSError as e:
+            logger.warning("transcriber #%s : audio préparé non retiré (%s)", transcript_id, e)
+    cache.set(f"transcriber_status_msg_{transcript_id}", '', timeout=3600)
+
+
+def _model_key(t) -> str:
+    """Clé de catalogue du modèle de CE lancement : celui de la card, ou le tirage « auto » de la
+    brique commune — fait UNE fois par lancement (le squelette la demande avant de choisir les
+    process : c'est elle qui dit si la diarisation a lieu, `function_specs._diarize_applies`)."""
+    state = _run_state(t)
+    if 'backend_name' not in state:
+        from wama.transcriber.backends.manager import (catalogue_value, is_auto_value,
+                                                       resolve_auto_key)
+        name = catalogue_value(t.backend)
+        state['drawn'] = is_auto_value(name)
+        if state['drawn']:
+            name = resolve_auto_key(item=t)
+        state['backend_name'] = name
+    return state['backend_name']
+
+
+def _prepared_audio(t) -> str:
+    """L'audio que les process ÉCOUTENT : nivelé puis débruité selon les réglages de la card,
+    préparé une fois par lancement.
+
+    Ordre fixé par le banc des prétraitements du 2026-09-30/10-01 (`WAMA_QUALITE §9bis`,
+    décisions de Fabien) : (a) le nivellement passe AVANT le débruitage — il battait l'ordre
+    inverse sur 8 enregistrements sur 12 ; (b) on ne débruite JAMAIS un audio non nivelé :
+    DeepFilterNet efface une parole enregistrée bas (−54 dBFS → texte vide, 100 % d'erreur, sans
+    rien signaler) ; demander le débruitage nivelle donc d'abord, et la console le dit. Les deux
+    passent AVANT le filtre de parole et la sonde des langues, qui jugent l'audio que le moteur
+    entendra."""
+    state = _run_state(t)
+    if 'audio' in state:
+        return state['audio']
+    audio_path = t.audio.path
+    cleaned_path = audio_path
+    state['original'] = state['audio'] = audio_path
+    level_first = getattr(t, 'level_speech', False) or t.preprocess_audio
+    if level_first:
+        if t.preprocess_audio and not getattr(t, 'level_speech', False):
+            _console(t.user_id, "Débruitage demandé : la parole est d'abord nivelée "
+                                "(un audio enregistré bas serait effacé par le débruiteur).")
+        cleaned_path = _level_speech(t, audio_path, audio_path)
+        state['audio'] = cleaned_path
+    if t.preprocess_audio:
+        _set_status_message(t, "Prétraitement audio…")
+        _set_partial_text(t.id, "🔧 Prétraitement audio...\n")
+        denoised = _preprocess_audio(t, cleaned_path)
+        if denoised != cleaned_path and cleaned_path != audio_path and os.path.exists(cleaned_path):
+            os.remove(cleaned_path)          # le nivelé intermédiaire ; jamais l'original
+        cleaned_path = denoised
+        state['audio'] = cleaned_path
+    return cleaned_path
+
+
+def _segments_in_memory(t) -> list:
+    """Les segments de la transcription, en objets : ceux que l'ASR vient de rendre dans ce
+    lancement, sinon ceux que l'élément a gardés (`segments_json` — un process relancé seul)."""
+    state = _run_state(t)
+    if state.get('segments') is None:
+        from wama.common.backends.speech_to_text_base import TranscriptionSegment
+        state['segments'] = [
+            TranscriptionSegment(
+                speaker_id=s.get('speaker_id') or '', start_time=s.get('start_time') or 0.0,
+                end_time=(s.get('end_time') if s.get('end_time') is not None
+                          else s.get('start_time') or 0.0),
+                text=s.get('text') or '', confidence=s.get('confidence'),
+                words=s.get('words'), language=s.get('language'))
+            for s in (t.segments_json or []) if isinstance(s, dict)]
+    return state['segments']
+
+
+def _transcript_fingerprint(t) -> str:
+    """Empreinte de ce que la card porte comme transcription (texte + qui parle quand) : c'est
+    elle qui périme résumé et cohérence quand la transcription ou ses locuteurs changent."""
+    from wama.common.services.revisions import text_fingerprint
+    turns = [(s.get('speaker_id') or '', s.get('start_time'), s.get('text') or '')
+             for s in (t.segments_json or []) if isinstance(s, dict)]
+    return text_fingerprint(repr((t.text or '', turns)))
+
+
+def _transcribe_step(t, ctx):
+    """Process `transcribe` : prétraitement → chargement du moteur → ASR → sauvegarde du texte et
+    des segments. Une exception fait passer la card en FAILURE (process REQUIS)."""
     import time
     from django.utils import timezone
 
     _console(t.user_id, f"Transcription {t.id} démarrée.")
     _set_partial_text(t.id, "🎙️ Transcription en cours...\n")
-    audio_path = t.audio.path
-    cleaned_path = None
-
+    state = _run_state(t)
     try:
-        # Step 1: nivellement → débruitage → (filtre de parole, dans le moteur). Ordre fixé par le
-        # banc des prétraitements du 2026-09-30/10-01 (`WAMA_QUALITE §9bis`, décisions de Fabien) :
-        #   (a) le nivellement passe AVANT le débruitage — il battait l'ordre inverse sur 8
-        #       enregistrements sur 12 ;
-        #   (b) on ne débruite JAMAIS un audio non nivelé : DeepFilterNet efface une parole
-        #       enregistrée bas (−54 dBFS → texte vide, 100 % d'erreur, sans rien signaler) ;
-        #       demander le débruitage nivelle donc d'abord, et la console le dit.
-        # Les deux passent AVANT le filtre de parole et la sonde des langues, qui jugent l'audio
-        # que le moteur entendra.
-        cleaned_path = audio_path
-        level_first = getattr(t, 'level_speech', False) or t.preprocess_audio
-        if level_first:
-            if t.preprocess_audio and not getattr(t, 'level_speech', False):
-                _console(t.user_id, "Débruitage demandé : la parole est d'abord nivelée "
-                                    "(un audio enregistré bas serait effacé par le débruiteur).")
-            cleaned_path = _level_speech(t, audio_path, audio_path)
-        if t.preprocess_audio:
-            _set_status_message(t, "Prétraitement audio…")
-            _set_partial_text(t.id, "🔧 Prétraitement audio...\n")
-            denoised = _preprocess_audio(t, cleaned_path)
-            if denoised != cleaned_path and cleaned_path != audio_path and os.path.exists(cleaned_path):
-                os.remove(cleaned_path)          # le nivelé intermédiaire ; jamais l'original
-            cleaned_path = denoised
+        # Le résultat PRÉCÉDENT s'efface ICI, quand ce process est réellement rejoué — plus au
+        # clic de lancement (`views._reset_for_relaunch`) : un lancement qui ne rejoue que le
+        # résumé doit retrouver la transcription. La mesure contre la référence décrivait
+        # l'ancien texte : elle part avec lui (la référence, elle, reste et sera remesurée).
+        TranscriptSegment.objects.filter(transcript=t).delete()
+        t.text, t.language, t.used_backend, t.model_key = '', '', '', ''
+        t.segments_json = None
+        Transcript.objects.filter(pk=t.pk).update(text='', language='', used_backend='',
+                                                  model_key='', segments_json=None)
+        from wama.common.services.result_evaluation import clear
+        clear('transcriber', t)
 
-        # Step 2: Get backend
+        cleaned_path = _prepared_audio(t)
+
         if not BACKENDS_AVAILABLE:
             raise RuntimeError("Backend system not available")
 
         # Le MODÈLE, en clé de catalogue (route F4b ⑦) : celui de la card, ou le tirage « auto »
-        # de la brique commune, fait ICI pour lire le CURSEUR de cette card (et les distants que
-        # le profil ouvre à l'automatique). Le choix est dit dans la console.
-        from wama.transcriber.backends.manager import (
-            TranscriberBackendManager, catalogue_value, is_auto_value, resolve_auto_key)
-        backend_name = catalogue_value(t.backend)
-        if is_auto_value(backend_name):
-            backend_name = resolve_auto_key(item=t)
+        # de la brique commune (`_model_key`, lu avec le CURSEUR de cette card et les distants
+        # que le profil ouvre à l'automatique). Le choix est dit dans la console.
+        from wama.transcriber.backends.manager import TranscriberBackendManager
+        backend_name = _model_key(t)
+        if state.get('drawn'):
             _console(t.user_id, f"Modèle automatique retenu : {backend_name}")
         # L'utilisateur voyage : un modèle DISTANT s'appelle avec SES droits et SA clé.
         backend = get_backend(backend_name, user=t.user)
+        state['backend'] = backend
         # Le MODÈLE demandé, quand la demande en nomme un que ce moteur sert (`transcriber:
         # qwen3-asr-0.6b`) — sans lui, un moteur à plusieurs modèles chargeait son défaut.
         requested_model = TranscriberBackendManager.model_for_request(backend, backend_name)
@@ -558,11 +659,11 @@ def _transcribe_item(t, ctx):
             _set_status_message(t, f"« {backend_name} » indisponible → {backend.display_name}")
 
         _console(t.user_id, f"Utilisation de {backend.display_name}...")
-        _set_progress(t, 20)
+        ctx.progress(21)
         _set_status_message(t, f"Chargement du moteur {backend.display_name}…")
         _set_partial_text(t.id, f"📥 Chargement de {backend.display_name}...\n\n")
 
-        # Step 3: Load model (chronométré pour l'apprentissage du seed ETA : chargement à froid).
+        # Chargement (chronométré pour l'apprentissage du seed ETA : chargement à froid).
         _t_load0 = time.time()
         if not (backend.load(requested_model) if requested_model else backend.load()):
             raise RuntimeError(f"Failed to load {backend.display_name}")
@@ -570,18 +671,16 @@ def _transcribe_item(t, ctx):
         _t_proc0 = time.time()   # début du traitement réel (hors chargement)
 
         _console(t.user_id, f"{backend.display_name} chargé sur {DEVICE}")
-        _set_progress(t, 30)
+        ctx.progress(32)
         _set_partial_text(t.id, "🎯 Transcription en cours...\n\nCela peut prendre quelques instants selon la durée de l'audio.\n")
 
-        # Step 4: Transcribe
         _set_status_message(t, "Transcription en cours…")
         _console(t.user_id, "Transcription en cours...")
 
-        # Build kwargs for transcription.
         # NB : on NE passe PLUS temperature/max_tokens. En ASR on veut la REPRODUCTIBILITÉ
         # (décodage déterministe par défaut des moteurs), pas l'échantillonnage ; et le câblage
         # max_tokens était de toute façon inerte (clé attendue = max_new_tokens). Le découpage des
-        # audios longs se gère par chunking interne (cf. _maybe_chunk_transcribe), pas par un plafond.
+        # audios longs se gère par chunking interne (cf. _transcribe_maybe_chunked), pas par un plafond.
         transcribe_kwargs = {}
         if t.hotwords:
             transcribe_kwargs['hotwords'] = t.hotwords
@@ -597,9 +696,9 @@ def _transcribe_item(t, ctx):
         if backend.name == 'nemo' and fallback_language and not forced_language:
             transcribe_kwargs['fallback_language'] = fallback_language
 
-        # Progression intermédiaire pendant l'ASR (30 → 75 %) → l'ETA peut s'estimer.
+        # Progression intermédiaire pendant l'ASR (32 → 85 % du process) → l'ETA peut s'estimer.
         def _asr_progress(ratio: float) -> None:
-            _set_progress(t, 30 + int(round(ratio * 45)))
+            ctx.progress(32 + int(round(ratio * 53)))
         transcribe_kwargs['progress_callback'] = _asr_progress
 
         # Découpe automatiquement si l'audio dépasse la capacité du moteur (recolle les timestamps).
@@ -623,36 +722,10 @@ def _transcribe_item(t, ctx):
                 f"{lang} {100 * sec / total:.0f} %"
                 for lang, sec in sorted(shares.items(), key=lambda kv: -kv[1])))
 
-        _set_progress(t, 75)
+        ctx.progress(85)
 
-        # Step 4b: diarisation pyannote pour tout moteur qui ne la fait pas lui-même — lue sur la
-        # CAPACITÉ déclarée (`supports_diarization`), plus sur une liste de noms. La liste de mars
-        # (`whisper`, `qwen_asr`) avait laissé NeMo (Canary, Parakeet) sans diarisation alors que
-        # son backend la déclare « pyannote post-processing in workers.py » — et elle aurait
-        # écarté tout moteur distant (2026-09-30). VibeVoice diarise nativement.
-        if not backend.supports_diarization and t.enable_diarization and result.segments:
-            try:
-                from wama.common.backends.pyannote_diarizer import is_available as pyannote_ok, diarize
-                if pyannote_ok():
-                    _set_status_message(t, "Diarisation des locuteurs…")
-                    _console(t.user_id, "Diarisation des locuteurs (pyannote)…")
-                    _set_partial_text(t.id, "🔎 Identification des locuteurs…\n")
-                    # Le pipeline choisi sur la card (3.1 ou community-1, 2026-09-30).
-                    result.segments = diarize(cleaned_path, result.segments,
-                                              model=getattr(t, 'diarization_model', None))
-                    _console(t.user_id, "Diarisation terminée ✓")
-                else:
-                    _console(t.user_id, "pyannote non disponible, diarisation ignorée", level='warning')
-            except Exception as dia_err:
-                _console(t.user_id, f"Avertissement: diarisation échouée ({dia_err})", level='warning')
-
-        _set_progress(t, 80)
-
-        # Step 5: Save results
-        # NB : on NE passe PAS en SUCCESS ici — les étapes LLM (résumé, cohérence,
-        # cohérence par-segment) suivent. Sinon le front voit SUCCESS trop tôt et
-        # recharge avant la fin (barre figée + options/cohérence absentes).
-        # Le statut SUCCESS est posé à la toute fin (après _set_progress 100).
+        # Sauvegarde. Le statut SUCCESS n'est PAS posé ici : le squelette le pose quand le
+        # DERNIER process de la card a rendu (les process optionnels suivent).
         t.text = result.text
         t.language = result.language
         t.used_backend = backend.name
@@ -660,7 +733,6 @@ def _transcribe_item(t, ctx):
         # autre tâche) efface le modèle chargé. ⚠ Cette tâche-ci ne DÉCHARGE PAS en fin de card : le
         # modèle reste résident pour la suivante — d'où des modèles de moteurs différents qui
         # cohabitent sur le GPU (cause du « illegal memory access » NeMo du 2026-10-02).
-        from .backends.manager import TranscriberBackendManager
         # Un backend résolu POUR un modèle du catalogue (distant) connaît déjà sa clé exacte.
         resolved_for = getattr(backend, 'catalogue_key', '')
         t.model_key = (resolved_for if isinstance(resolved_for, str) and resolved_for
@@ -668,108 +740,23 @@ def _transcribe_item(t, ctx):
                            backend.name, getattr(backend, '_current_model', '') or '',
                            requested=backend_name))
 
-        # Save segments if available (diarization)
-        num_segments = _save_segments(t, result)
+        state['segments'] = list(result.segments)
+        num_segments = _save_segments(t, result.segments)
         if num_segments > 0:
-            _console(t.user_id, f"{num_segments} segments avec diarisation sauvegardés")
+            _console(t.user_id, f"{num_segments} segments sauvegardés")
 
         _set_partial_text(t.id, t.text)
-        _set_progress(t, 90)
-        t.save(update_fields=['text', 'language', 'used_backend', 'model_key', 'status',
-                              'segments_json'])
+        ctx.progress(92)
+        t.save(update_fields=['text', 'language', 'used_backend', 'model_key', 'segments_json'])
 
-        # Step 6: Save output files (TXT + SRT) to output folder
+        # Fichiers de sortie (TXT + SRT) — réécrits par chaque process qui change le contenu.
         _save_output_files(t, backend.name)
-        _set_progress(t, 95)
+        ctx.progress(97)
 
         # Le modèle ASR RESTE chargé (décision de Fabien, 2026-09-25 — la protection de juillet
         # contre les crashs n'a plus lieu d'être) : un lot au même moteur ne le recharge plus à
         # chaque card (12-16 s mesurés pour Whisper large-v3). La VRAM se partage par le
         # gouverneur commun : reclaim local avant un gros chargement, libération à la demande.
-
-        # Step 7: Optional LLM summary (structured or meeting compte-rendu)
-        if t.generate_summary and t.text:
-            _set_progress(t, 96)
-            _set_status_message(t, "Génération du résumé…")
-            try:
-                _set_partial_text(t.id, t.text + "\n\n⏳ Génération du résumé en cours…")
-                from wama.common.utils.llm_utils import (
-                    generate_structured_summary, generate_meeting_summary,
-                )
-                lang = t.language or 'fr'
-
-                if t.summary_type == 'meeting':
-                    _console(t.user_id, "Génération du compte-rendu de réunion (Ollama)…")
-                    # Collect identified speakers from diarized segments if available
-                    speakers = list(
-                        TranscriptSegment.objects.filter(transcript=t)
-                        .exclude(speaker_id='')
-                        .values_list('speaker_id', flat=True)
-                        .distinct()
-                    )
-                    t.summary = generate_meeting_summary(t.text, language=lang, speakers=speakers or None)
-                    t.key_points = []
-                    t.action_items = []
-                else:
-                    _console(t.user_id, "Génération du résumé LLM (Ollama)…")
-                    summary_data = generate_structured_summary(
-                        t.text, content_hint='transcription', language=lang,
-                    )
-                    t.summary = summary_data['summary']
-                    t.key_points = summary_data['key_points']
-                    t.action_items = summary_data['action_items']
-
-                t.save(update_fields=['summary', 'key_points', 'action_items'])
-                _console(t.user_id, "Résumé LLM généré ✓")
-            except Exception as llm_err:
-                _console(t.user_id, f"Avertissement: résumé LLM échoué ({llm_err})", level='warning')
-
-        # Step 8: Optional coherence verification
-        if t.verify_coherence and t.text:
-            _set_progress(t, 98)
-            _set_status_message(t, "Vérification de la cohérence…")
-            try:
-                _console(t.user_id, "Vérification de cohérence (Ollama)…")
-                from wama.common.utils.llm_utils import verify_text_coherence
-                coherence = verify_text_coherence(t.text, 'transcription', t.language or 'fr')
-                t.coherence_score = coherence['score']
-                t.coherence_notes = '\n'.join(coherence['notes'])
-                t.coherence_suggestion = coherence['suggestion']
-                t.save(update_fields=['coherence_score', 'coherence_notes', 'coherence_suggestion'])
-                _console(t.user_id, f"Cohérence vérifiée — score: {coherence['score']}/100 ✓")
-            except Exception as coh_err:
-                _console(t.user_id, f"Avertissement: vérification cohérence échouée ({coh_err})", level='warning')
-
-            # Step 8b: cohérence PAR SEGMENT → heatmap de l'éditeur (1 appel LLM, défensif :
-            # en cas d'échec, segments_json reste sans coh → l'éditeur retombe sur la confiance).
-            try:
-                segs = t.segments_json or []
-                if segs:
-                    from wama.common.utils.llm_utils import analyze_segments_coherence
-                    issues = analyze_segments_coherence(
-                        [{'index': i, 'text': s.get('text', '')} for i, s in enumerate(segs)],
-                        t.language or 'fr',
-                    )
-                    for i, s in enumerate(segs):
-                        iss = issues.get(i)
-                        if iss:
-                            s['coh_severity'] = iss['severity']
-                            s['coh_note'] = iss['note']
-                        else:
-                            s.pop('coh_severity', None)
-                            s.pop('coh_note', None)
-                    t.segments_json = segs
-                    t.save(update_fields=['segments_json'])
-                    if issues:
-                        _console(t.user_id, f"Cohérence par segment : {len(issues)} segment(s) signalé(s)")
-            except Exception as seg_err:
-                _console(t.user_id, f"Avertissement: cohérence par-segment échouée ({seg_err})", level='warning')
-
-        _set_status_message(t, '')                            # plus d'action en cours
-
-        # La mesure contre la RÉFÉRENCE est faite par le squelette commun, APRÈS le SUCCESS
-        # (`task_skeleton._measure_against_reference`) : ici, l'item n'est pas encore terminé,
-        # et la lecture du résultat le refuse — elle ne mesurait plus rien depuis le 25/09.
 
         # Apprentissage ETA (eta_estimator) : durées RÉELLES (chargement à froid + traitement)
         # rapportées à la durée audio → affine le seed des prochains runs (par modèle × hardware).
@@ -792,24 +779,135 @@ def _transcribe_item(t, ctx):
         except Exception:
             pass
 
+        # La mesure contre la RÉFÉRENCE est faite par le squelette commun, APRÈS le SUCCESS
+        # (`task_skeleton._measure_against_reference`).
         return {
             'fields': {'finished_at': timezone.now()},
             'label': getattr(t, 'filename', '') or f"transcription #{t.id}",
             'console_success': f"Transcription {t.id} terminée ({backend.display_name}) ✓",
             'models': [t.model_key] if t.model_key else None,
+            'output_fingerprint': _transcript_fingerprint(t),
         }
     except Exception as e:
-        _set_progress(t, 0, force=True)
+        ctx.reset_progress()
         _set_partial_text(t.id, f"❌ Erreur lors de la transcription:\n\n{e}")
         raise
-    finally:
-        # Cleanup: remove preprocessed temporary file
-        if cleaned_path and cleaned_path != audio_path and os.path.exists(cleaned_path):
-            try:
-                os.remove(cleaned_path)
-                _console(t.user_id, "Fichier temporaire nettoyé")
-            except OSError as e:
-                _console(t.user_id, f"Avertissement: impossible de supprimer {cleaned_path}: {e}")
+
+
+def _diarize_step(t, ctx):
+    """Process `diarize` (optionnel) : pyannote attribue chaque segment à son locuteur — pour
+    tout moteur qui ne le fait pas lui-même, lu sur la CAPACITÉ déclarée (`supports_diarization`),
+    plus sur une liste de noms : la liste de mars (`whisper`, `qwen_asr`) avait laissé NeMo sans
+    diarisation et aurait écarté tout moteur distant (2026-09-30). VibeVoice diarise nativement.
+
+    Une exception ne fait pas échouer la card (process optionnel) : sa ligne le dit."""
+    backend = _run_state(t).get('backend')
+    if backend is not None and getattr(backend, 'supports_diarization', False):
+        return {'label': 'locuteurs attribués par le moteur',
+                'output_fingerprint': _transcript_fingerprint(t)}
+    segments = _segments_in_memory(t)
+    if not segments:              # rien à attribuer (silence, texte sans segment) : pas un échec
+        return {'label': 'aucun segment à attribuer'}
+    from wama.common.backends.pyannote_diarizer import is_available as pyannote_ok, diarize
+    if not pyannote_ok():
+        raise RuntimeError("pyannote non disponible")
+    _set_status_message(t, "Diarisation des locuteurs…")
+    _console(t.user_id, "Diarisation des locuteurs (pyannote)…")
+    _set_partial_text(t.id, "🔎 Identification des locuteurs…\n")
+    ctx.progress(5)
+    # Le pipeline choisi sur la card (3.1 ou community-1, 2026-09-30).
+    segments = diarize(_prepared_audio(t), segments, model=getattr(t, 'diarization_model', None))
+    _run_state(t)['segments'] = segments
+    _save_segments(t, segments)
+    _console(t.user_id, "Diarisation terminée ✓")
+    _set_partial_text(t.id, t.text)
+    _save_output_files(t, t.used_backend)
+    voices = len({s.speaker_id for s in segments if s.speaker_id})
+    return {'label': f"{voices} voix", 'output_fingerprint': _transcript_fingerprint(t)}
+
+
+def _summarize_step(t, ctx):
+    """Process `summarize` (optionnel) : résumé structuré, ou compte-rendu de réunion — sur le
+    texte que la card porte. Son échec (Ollama absent) se lit sur SA ligne ; avant, c'était un
+    avertissement en console sous une card « terminée »."""
+    if not t.text:                # une transcription vide (silence) n'a rien à résumer
+        return {'label': 'rien à résumer'}
+    _set_status_message(t, "Génération du résumé…")
+    _set_partial_text(t.id, t.text + "\n\n⏳ Génération du résumé en cours…")
+    from wama.common.utils.llm_utils import generate_structured_summary, generate_meeting_summary
+    lang = t.language or 'fr'
+    if t.summary_type == 'meeting':
+        _console(t.user_id, "Génération du compte-rendu de réunion (Ollama)…")
+        # Les locuteurs identifiés par la diarisation, s'il y en a.
+        speakers = list(
+            TranscriptSegment.objects.filter(transcript=t)
+            .exclude(speaker_id='')
+            .values_list('speaker_id', flat=True)
+            .distinct()
+        )
+        t.summary = generate_meeting_summary(t.text, language=lang, speakers=speakers or None)
+        t.key_points = []
+        t.action_items = []
+    else:
+        _console(t.user_id, "Génération du résumé LLM (Ollama)…")
+        summary_data = generate_structured_summary(
+            t.text, content_hint='transcription', language=lang,
+        )
+        t.summary = summary_data['summary']
+        t.key_points = summary_data['key_points']
+        t.action_items = summary_data['action_items']
+    t.save(update_fields=['summary', 'key_points', 'action_items'])
+    _console(t.user_id, "Résumé LLM généré ✓")
+    _set_partial_text(t.id, t.text)
+    _save_output_files(t, t.used_backend)
+    return {'label': 'compte-rendu' if t.summary_type == 'meeting' else 'résumé'}
+
+
+def _coherence_step(t, ctx):
+    """Process `coherence` (optionnel) : score, remarques et version proposée ; puis la cohérence
+    PAR SEGMENT (heatmap de l'éditeur), elle-même défensive — en cas d'échec, `segments_json`
+    reste sans `coh_*` et l'éditeur retombe sur la confiance."""
+    if not t.text:
+        return {'label': 'rien à vérifier'}
+    _set_status_message(t, "Vérification de la cohérence…")
+    _console(t.user_id, "Vérification de cohérence (Ollama)…")
+    from wama.common.utils.llm_utils import verify_text_coherence
+    coherence = verify_text_coherence(t.text, 'transcription', t.language or 'fr')
+    t.coherence_score = coherence['score']
+    t.coherence_notes = '\n'.join(coherence['notes'])
+    t.coherence_suggestion = coherence['suggestion']
+    t.save(update_fields=['coherence_score', 'coherence_notes', 'coherence_suggestion'])
+    _console(t.user_id, f"Cohérence vérifiée — score: {coherence['score']}/100 ✓")
+    ctx.progress(60)
+    try:
+        segs = t.segments_json or []
+        if segs:
+            from wama.common.utils.llm_utils import analyze_segments_coherence
+            issues = analyze_segments_coherence(
+                [{'index': i, 'text': s.get('text', '')} for i, s in enumerate(segs)],
+                t.language or 'fr',
+            )
+            for i, s in enumerate(segs):
+                iss = issues.get(i)
+                if iss:
+                    s['coh_severity'] = iss['severity']
+                    s['coh_note'] = iss['note']
+                else:
+                    s.pop('coh_severity', None)
+                    s.pop('coh_note', None)
+            t.segments_json = segs
+            t.save(update_fields=['segments_json'])
+            if issues:
+                _console(t.user_id, f"Cohérence par segment : {len(issues)} segment(s) signalé(s)")
+    except Exception as seg_err:
+        _console(t.user_id, f"Avertissement: cohérence par-segment échouée ({seg_err})", level='warning')
+    _save_output_files(t, t.used_backend)
+    return {'label': f"cohérence {t.coherence_score}/100"}
+
+
+#: La glu de chaque process du pipeline (`function_specs.PIPELINE`).
+PROCESSES = {'transcribe': _transcribe_step, 'diarize': _diarize_step,
+             'summarize': _summarize_step, 'coherence': _coherence_step}
 
 
 @shared_task(bind=True, name='wama.transcriber.enrich_transcript')
@@ -977,12 +1075,12 @@ def import_existing_result(t: Transcript) -> None:
 def _save_turns(t: Transcript, turns) -> int:
     """Écrit des tours horodatés (`{speaker_id, start_time, end_time, text, words}`) comme une
     sortie ASR — lignes de segments comprises : éditeur, SRT et comparaison entre moteurs les lisent."""
-    from wama.common.backends.speech_to_text_base import TranscriptionResult, TranscriptionSegment
-    return _save_segments(t, TranscriptionResult(success=True, text=t.text, segments=[
+    from wama.common.backends.speech_to_text_base import TranscriptionSegment
+    return _save_segments(t, [
         TranscriptionSegment(speaker_id=s.get('speaker_id') or '', start_time=s['start_time'],
                              end_time=s['end_time'] if s['end_time'] is not None else s['start_time'],
                              text=s['text'], words=s.get('words'))
-        for s in turns]))
+        for s in turns])
 
 
 def _needs_acoustic_alignment(segments) -> bool:

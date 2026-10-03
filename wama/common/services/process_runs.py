@@ -59,6 +59,21 @@ def lines(item):
     return ProcessRun.objects.filter(**address(item))
 
 
+def lines_by_item(items) -> dict:
+    """`{pk (texte): [lignes]}` des éléments d'UN même modèle — UNE requête pour toute une page
+    de file (la bande des process de chaque card ne doit pas coûter une requête par card)."""
+    items = [item for item in items if item is not None]
+    if not items:
+        return {}
+    from wama.common.models import ProcessRun
+    meta = items[0]._meta
+    grouped = {str(item.pk): [] for item in items}
+    for row in ProcessRun.objects.filter(app=meta.app_label, object_type=meta.object_name,
+                                         object_id__in=list(grouped)):
+        grouped[row.object_id].append(row)
+    return grouped
+
+
 def line(item, node_id: str = MAIN_NODE, instance_key: str = ''):
     """La ligne d'un nœud, ou None s'il n'a jamais été lancé."""
     return lines(item).filter(node_id=node_id, instance_key=instance_key).first()

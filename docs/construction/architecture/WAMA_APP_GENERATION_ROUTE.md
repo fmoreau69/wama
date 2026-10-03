@@ -3609,6 +3609,51 @@ posée à côté. L'anonymizer a eu une vraie chaîne Celery (détection × N �
 13/08 : elle avait perdu l'interpolation, le format de sortie, le statut RUNNING, l'ETA, la
 notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks.py:289-296`).
 
+> ✅ **P4, 2ᵉ pilote LIVRÉ le 2026-10-03 — le TRANSCRIBER en QUATRE process** (`transcriber/
+> function_specs.py`, glues `workers.PROCESSES`) : `transcribe` (requis) → `diarize`,
+> `summarize`, `coherence` (optionnels, interrupteurs `enable_diarization` / `generate_summary` /
+> `verify_coherence`). Ce que le pilote a demandé à la brique, et qu'elle sait désormais pour
+> toute app :
+> - **l'interrupteur d'un optionnel** (`ProcessSpec.toggle`, un champ booléen de l'élément) :
+>   désactivé, le process n'a pas lieu et ne pèse plus sur l'état de la card (règle 4.4) ; la
+>   bande en fait une **case à cocher** (`settings_url`, écrite par la route de réglages de la
+>   card) — le dernier reste de 5.1 ;
+> - **un optionnel qui échoue ne fait plus échouer la card** (squelette) : sa ligne passe en
+>   échec, la console le dit, la suite continue ; l'état déduit est « à compléter » et ▶ ne
+>   rejoue que lui. C'est le cas que le transcriber avalait (résumé en échec sous une card
+>   « terminée ») ;
+> - **l'empreinte d'une sortie qui n'est pas un fichier** (`output_fingerprint` au contrat de
+>   la glu) : le texte d'une transcription périme son aval quand il change ;
+> - **le résultat d'un process s'efface quand CE process est rejoué** (dans sa glu), plus au clic
+>   du lanceur : changer le type de résumé ne doit pas effacer la transcription ;
+> - **les lignes d'une page se lisent en UNE requête** (`process_pipeline.preload`) — la bande
+>   coûtait six requêtes par card.
+> **A/B objectif, 5 min d'audio réel, Whisper + locuteurs + résumé + cohérence** : texte,
+> segments et locuteurs IDENTIQUES entre la tâche unique (worker en service, 155,6 s, modèles
+> chauds) et les quatre process (207,7 s dans un process FROID : 86,8 + 104,8 + 11,8 + 3,6 s,
+> dont le premier chargement de Whisper et de pyannote) ; type de résumé changé → le résumé SEUL
+> est rejoué (2,5 s) ; ▶ des locuteurs seuls → 3,7 s, résumé et cohérence deviennent périmés.
+> Gardes : `transcriber/tests_pipeline.py` (14), `tests_process_pipeline` (interrupteur,
+> optionnel en échec, empreinte déclarée, une requête par page).
+> ⏳ Restes : `enrich_transcript` (résumé à la demande, hors contrat) est remplacé dans les faits
+> par le ▶ du process `summarize` mais sa route et sa tâche existent encore ; la CORRECTION
+> manuelle comme process (4.3, 4ᵉ cas) n'est pas engagée (décision à part) ; le manifeste `app`
+> du transcriber est à régénérer (il porte aussi le travail d'autres sessions).
+>
+> ✅ **ALIGNEMENTS du 2026-10-03 (étape ③ du brief)** :
+> - **l'exécuteur du studio écrit les lignes communes** (`ProcessRun`, adressées par le run, une
+>   par nœud app ou fonction) et le nœud fautif passe `FAILURE` — une table d'exécution pour les
+>   files ET le studio ; `node_states` reste ce que le canvas lit ;
+> - **le cam_analyzer UTILISE le moteur dont il était le modèle** : `Pass` est un `ProcessSpec`
+>   étendu (étage, par caméra, tâche, taille ETA), `topological_order` délègue au tri commun —
+>   qui a repris SON algorithme, stable par ordre de déclaration (le tri d'avant, par vague, ne
+>   tenait pas la promesse dont le registre dépend : placer un recalage avant le tracking sans
+>   en faire un amont) —, `recompute_stale` délègue la règle à `process_runs.stale_nodes` (un
+>   nœud par ligne type × caméra). Rien ne change pour les données ni pour l'interface.
+> - ⏳ **Ce qui n'est PAS fait, à décider** : `AnalysisPass` → `ProcessRun` (migration de
+>   données du Lab) et les statuts minuscules → vocabulaire `JOB_*` ; l'exécuteur du studio ne
+>   produit toujours ni `AWAITING_RESOURCES` ni `STALE`.
+
 #### 5. Couche 3 — l'UI : la card affiche son pipeline, le studio affiche le même objet en graphe
 
 **5.1 Anatomie de la card** (même ordre que `CARD_DESIGN §11.8` : Entrée / Réglages / Sortie) :
@@ -4057,8 +4102,8 @@ possible **sans aucun process**.
 | **P1** ✅ 02/10 | déclarer le monde (`world`) et dériver menus/accueil/pages/catalogues — quatre pièces livrées (point 6.1) : déclaration (catalogue ET hors catalogue), journal / calendrier / fonctions, groupage par monde du menu, de l'accueil et de `/apps/`, explorateur de fichiers | — (indépendant, petit) |
 | **P2** | vocabulaire d'états commun + `STALE` + brique d'agrégation ; studio et cam_analyzer alignés | — |
 | **P3** | moteur commun + ligne d'exécution, **extraits de cam_analyzer** (1er utilisateur : sémantique complète et testée) et de l'exécuteur du studio ; type de nœud `pipeline` ; pipeline sans process accepté | P2 |
-| **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») ; génération réelle JOUÉE le soir même sur le moteur (plan → render, puis render seul) — reste à la rejouer par le worker en service. Le **transcriber** en 4 process (étapes déjà numérotées, résultats déjà rangés à part) vient ensuite — A/B objectif (qualité, VRAM, durée) | P3 |
-| **P5** | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) — 🔄 **1ʳᵉ pièce livrée le 03/10** (point 5.2 : bande des process + état montré par l'adaptateur, composer) | P3 (le renommage et le glisser-déposer : à tout moment) |
+| **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») ; génération réelle JOUÉE le soir même sur le moteur (plan → render, puis render seul) — rejouée par le worker en service le 03/10 (dont ▶ du rendu seul). ✅ Le **transcriber** en 4 process livré le 03/10, A/B objectif fait (point 4, bloc « P4, 2ᵉ pilote ») | P3 |
+| **P5** ✅ 03/10 | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) — livré en six pièces le 03/10 (point 5 : bande des process, état montré, ▶ / ⚙ / case à cocher par process, gabarit généré, promotion fille ↔ mère, catalogue du studio) | P3 (le renommage et le glisser-déposer : à tout moment) |
 | **P6** | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les 7 apps qui ne l'ont pas | P4 |
 | **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script | P3, P5, décisions 5-7 |
 | **P8** | rôle assistant → manifeste `pipeline` / `dataset` | P3 |

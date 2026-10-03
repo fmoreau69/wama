@@ -391,6 +391,31 @@ class WhatTheCardShowsTest(TestCase):
         process_runs.succeed(item, 'render', output_summary={'fingerprint': 'text-v2'})
         self.assertEqual({'summary'}, pipeline.refresh(item))
 
+    def test_a_page_of_cards_reads_its_lines_in_one_query(self):
+        """Measured on 2026-10-03: the strip cost six queries PER CARD (the lines were read again
+        by `refresh`, `card_rows` and `shown_state`). A page preloads the lines of all its cards
+        at once ; a card asked alone reads them once and leaves nothing on the instance."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from wama.common.services.process_pipeline import PRELOADED, card_view, preload
+        APP_PIPELINES['demo_pipeline'] = self.pipeline
+        self.addCleanup(APP_PIPELINES.pop, 'demo_pipeline', None)
+        cards = [_Element(status=JOB_SUCCESS) for _ in range(3)]
+        for card in cards:
+            self._played(card, 'plan')
+            self._played(card, 'render')
+        with CaptureQueriesContext(connection) as page:
+            preload(cards)
+            views = [card_view(card, preloaded=True) for card in cards]
+        self.assertEqual(1, len(page), [q['sql'][:80] for q in page])
+        self.assertTrue(all(view[1] == JOB_SUCCESS and len(view[0]) == 2 for view in views))
+        alone = _Element(status=JOB_SUCCESS)
+        self._played(alone, 'render')
+        with CaptureQueriesContext(connection) as single:
+            card_view(alone)
+        self.assertEqual(1, len(single))
+        self.assertFalse(hasattr(alone, PRELOADED), 'nothing read stays on a kept instance')
+
     def test_a_fresh_process_loads_the_declarations_before_saying_there_is_no_pipeline(self):
         """Lived on 2026-10-03, 500 on the live composer page: a web process that had imported
         no `function_specs` yet read an EMPTY registry as « this app has no pipeline ». An
@@ -399,13 +424,13 @@ class WhatTheCardShowsTest(TestCase):
         item = _Element(status=JOB_SUCCESS)
         APP_PIPELINES.pop('demo_pipeline', None)
 
-        def declare():
+        def register_now():
             APP_PIPELINES['demo_pipeline'] = self.pipeline
 
         self.addCleanup(APP_PIPELINES.pop, 'demo_pipeline', None)
         with mock.patch.object(process_pipeline, '_declarations_loaded', False), \
                 mock.patch('wama.common.catalog.function_catalog.load_all',
-                           side_effect=declare) as loaded:
+                           side_effect=register_now) as loaded:
             self.assertIs(process_pipeline.pipeline_of(item), self.pipeline)
             process_pipeline.pipeline_of(item)
         self.assertEqual(1, loaded.call_count, 'loaded once per process, not at every card')

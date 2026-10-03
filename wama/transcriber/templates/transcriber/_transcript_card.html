@@ -9,7 +9,7 @@ La copie batch historique avait dérivé (pas de data-status, ni badge temps ré
 ni badges brouillon/corrigé) — l'unification lui redonne tout.
 {% endcomment %}
             <div class="synthesis-card wama-card"
-                 data-id="{{ elem.id }}" data-status="{{ elem.status }}"
+                 data-id="{{ elem.id }}" data-status="{{ elem.shown_state|default:elem.status }}" data-element-status="{{ elem.status }}"
                  {% comment %}L'URL d'aperçu est portée par la CARD, pas seulement par le bouton de
                  nom de fichier : la brique commune en DÉRIVE l'URL de détail (`fillDetail`,
                  `/preview/` → `/detail/`), et sans elle le volet Infos ET son ✕ n'existent pas.
@@ -130,9 +130,9 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                             {% endif %}
                             {# Bouton de cycle ▶/⏹/↻ — brique commune (toujours visible, ⏹ pendant RUNNING) #}
                             {% if elem.is_realtime %}
-                            {% include 'common/_cycle_button.html' with id=elem.id status=elem.status restart_title='Re-transcrire via le pipeline complet (diarisation, résumé…)' restart_icon='fa-rotate' %}
+                            {% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status restart_title='Re-transcrire via le pipeline complet (diarisation, résumé…)' restart_icon='fa-rotate' %}
                             {% else %}
-                            {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
+                            {% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}
                             {% endif %}
 
                             {% if elem.status == 'SUCCESS' %}
@@ -181,6 +181,14 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                             </button>
                         </div>
                     </div>
+                    {% comment %}PROCESS de la card (2026-10-03, `ROUTE §10.6` 5.1) : transcription,
+                    locuteurs, résumé, cohérence — une ligne chacun, générée des lignes d'exécution
+                    (`function_specs.PIPELINE`, `views._pipeline_view`). ▶ et ⚙ par process, et une
+                    CASE À COCHER pour les trois optionnels (leurs interrupteurs sont les réglages
+                    `enable_diarization` / `generate_summary` / `verify_coherence`, écrits par la
+                    route de réglages de la card). Absente d'une card à résultat existant.{% endcomment %}
+                    {% url 'transcriber:update_settings' elem.id as url_settings %}
+                    {% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id settings_url=url_settings %}
                     {% comment %}Barre en FIN de grille et pleine largeur, comme le reader.
                     Placée au milieu de l'ordre DOM (là où vivait sa colonne), un grid-column 1/-1
                     COUPE la première ligne : État restait en haut et les Actions basculaient sur une
