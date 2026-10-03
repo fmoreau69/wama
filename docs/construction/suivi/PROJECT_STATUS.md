@@ -20576,3 +20576,28 @@ Après la génération réelle par la vraie file (bloc précédent), GO de Fabie
 - Card 1277 (signalée par l'instance « pipeline ») : pas à moi, déjà SUCCESS — rien relancé.
 - Restes : inchangés depuis `6116a361` (transcriber 0,37 s, 1ᵉʳ appel après relance, dix
   `global_progress` à centraliser, budgets de langue d'autres chantiers, push).
+
+## §PALIER — 2026-10-03, « RAPPORT D'ÉVALUATION DANS WAMA + CATÉGORIE RAPPORTS » — ✅ commits ci-dessous — 🔚 rapports d'évaluation GÉNÉRÉS (plan consigné, rien de construit)
+
+> Fabien : *« Peux-tu compléter le rapport et l'ajouter dans la liste des présentations de wama
+> sur la page d'accueil ? »*, puis *« faire une catégorie rapports dans le menu déroulant »* et
+> *« consigner l'automatisation de la génération de rapports d'évaluation »*.
+
+- **Rapport complété** (Claude Docs `cf2a277f…`, rev 31) : « Quel réglage choisir », deux limites,
+  section Sources (adresse d'Albert vérifiée contre `external_sources.py`).
+- **Page WAMA** `/reports/transcription/` (`aba9294b`, `fa21e63`) : instantané du rapport, graphiques
+  redessinés en HTML/CSS (l'export les retire ; aucune bibliothèque de graphiques vendorisée), même
+  enveloppe que les fiches, vérifiée au navigateur (bureau, téléphone). Catégorie « Rapports » du menu
+  « Présentations & annexes » remplie depuis `wama.views.REPORTS`, comme les archives. Générateur au
+  dépôt (`scripts/reports/`), reproduit la page à l'octet près.
+- **Manque de mémoire de la campagne, vraie cause** (`17256a9`, signalée par une autre instance et
+  vérifiée au journal) : FrWhisper et Kyutai rechargeaient leur modèle à CHAQUE card sans libérer
+  le précédent. Corrigé (réutilisation, comme NeMo), worker GPU relancé.
+- **Revérification** (`70c5db5`) : test manquant du correctif Kyutai `inference_mode` ; carte des
+  mécanismes à jour (`backend_proposals` : smoke par contrat ; `speech_activity` : `quietest_point`).
+- **Plan consigné** : `WAMA_QUALITE` « Rapports d'évaluation GÉNÉRÉS » — briques à réutiliser, six
+  gestes manuels à transformer (agrégat de campagne, rapport sans réseau, brique de graphiques,
+  texte par la chaîne LLM avec chiffres injectés, déclaration hors code, déclenchement par P4).
+- **Rouges vus, pas à moi** : `tests_catalogues` (carte v4, `_new_item_card_v4.html` en cours dans
+  une autre instance) ; `tests_docs_catalog` 171 sections pour 179 mécanismes (`docs/dev/briques.md`
+  en cours de régénération ailleurs) ; `check_docs` 5 références cassées, aucune de cette session.
