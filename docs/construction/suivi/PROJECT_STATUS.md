@@ -20807,3 +20807,25 @@ heredocs de l'outil Bash qui mangent les antislashs, `python -m unittest` nu int
   déclarée et liée.
 - 🔚 **La présentation principale garde des chiffres datés** (tests de nuit à 02:30/03:00 pour
   04:15/04:30 mesurés, 55 fonctions pour 73…) : signalé, pas modifié sans demande.
+
+## §PALIER — 2026-10-03, « PIPELINE P5 — SMOKE NAVIGATEUR + correctif de la promotion » — ✅ — 🔚 retour de test de Fabien
+
+- **Smoke sur serveur de dev jetable (8011), compte de test, fixtures semées puis retirées**
+  (aucun fichier, aucune tâche) — 0 erreur console :
+  - studio : titre « Catalogue », 5 sections (Entrées 4 · Sorties 1 · Pipelines 4 · Apps 10 ·
+    Fonctions 73), un nœud GLISSÉ se pose à l'endroit du dépôt, le repli d'une section répond ;
+  - composer : bande à 2 process, 2 ▶ + 2 ⚙ ; le ⚙ du rendu ouvre « Paramètres de génération —
+    Rendu » avec les SEULS réglages surveillés ;
+  - lot : ↓ désactivé et titré sans référence → « Promouvoir ses réglages au lot » dans le menu
+    d'une fille → sœur alignée en base, référence retenue, ↓ actif → réalignement rejoué.
+- 🔴 **Défaut trouvé par ce smoke, corrigé** : la charge utile par défaut emportait le `prompt`
+  (contexte `item` seul) et écrasait la consigne des sœurs. `batch_settings.settings_of` ne
+  promeut plus que les réglages du contexte `batch` (ce que la ⚙ de lot poserait) ; un schéma
+  sans contexte de lot garde ses réglages d'élément. Garde :
+  `tests_batch_views…test_what_belongs_to_the_card_alone_is_not_promoted` (55 verts).
+- ⚠ Le correctif n'a PAS pu être rejoué au navigateur : le serveur de dev relancé répond 500
+  sur toute page (`accounts_userprofile.cloud_hosting_max does not exist` — colonne d'une
+  autre session, migration pas encore passée). Il est tenu par le test, pas par l'œil.
+- **Commits P5 du jour (non poussés)** : `921d059d` promotion fille ↔ mère · `30ead900` docs
+  générées · `929c5a54` ▶ par process composer · `d2f637b9` ⚙ par process + gabarit généré ·
+  `b71677d2` catalogue du studio · + ce correctif.
