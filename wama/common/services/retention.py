@@ -36,7 +36,9 @@ logger = logging.getLogger(__name__)
 # au profil ne valait rien, sans que rien ne le dise. `anonymizer.Media` date sa ligne par
 # `uploaded_at` (il n'a pas de `created_at`).
 RETENTION_MODELS = [
-    {'model': 'imager.ImageGeneration', 'path_lists': ['generated_images']},
+    # `native_outputs` : les fichiers d'origine gardés par la brique de sortie
+    # (`common.models.NativeOutputsMixin`) — une app qui hérite le champ le déclare ICI.
+    {'model': 'imager.ImageGeneration', 'path_lists': ['generated_images', 'native_outputs']},
     {'model': 'enhancer.Enhancement'},
     {'model': 'enhancer.AudioEnhancement'},
     {'model': 'composer.ComposerGeneration'},

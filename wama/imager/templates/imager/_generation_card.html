@@ -15,7 +15,8 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
 {% endcomment %}
 <div class="imager-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      data-id="{{ elem.id }}"
-     data-status="{{ elem.status }}"
+     data-status="{{ elem.shown_state|default:elem.status }}"
+     data-element-status="{{ elem.status }}"
      data-domain="{{ domain }}"
      {% comment %}data-preview-url : contrat de l'inspecteur commun (WamaInspector.fillDetail
      lit l'attribut et en DÉRIVE l'URL /detail/) — sans lui la card se sélectionne mais le
@@ -78,8 +79,8 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
       <span class="wcv3-lbl">État</span>
       <div class="wcv3-state">
         <span class="wcv3-state-line">
-          <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
-          <span>{{ elem.get_status_display }}</span>
+          <span class="wama-status-dot" data-s="{{ elem.shown_state|default:elem.status }}"></span>
+          <span>{{ elem.shown_state_label|default:elem.get_status_display }}</span>
         </span>
         {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
         {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.duration_display %}{% endif %}
@@ -99,7 +100,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
                 data-id="{{ elem.id }}" title="Configurer les paramètres">
           <i class="fas fa-cog"></i>
         </button>
-        {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
+        {% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}
         {% comment %}⬇ : brique commune (2026-08-23). Remplace un `<button>`+JS qui naviguait
         en JavaScript — contraire à §6.3 ET à la propre déclaration de l'imager
         (`export_binding='early'` ⇒ lien simple). Un téléchargement est une NAVIGATION : le faire
@@ -131,6 +132,9 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
         </button>
       </div>
     </div>
+
+    {# Les PROCESS de la card (génération → sortie) : bande commune, générée des lignes d'exécution. #}
+    {% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id %}
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.{% endcomment %}
     {% if elem.status != 'PENDING' %}

@@ -44,9 +44,11 @@
         onData: function (id, data) {
             const el = cardEl(id);
             if (!el) { poller.stop(id); return; }
-            const status = (data.status || el.dataset.status || '').toUpperCase();
+            // L'état de l'ÉLÉMENT (`data-element-status`) : `data-status` porte l'état MONTRÉ,
+            // qui peut être « périmé » sous un élément terminé — le suivre ferait interroger sans fin.
+            const status = (data.status || elementStatus(el)).toUpperCase();
             const prog = String(data.progress != null ? data.progress : '');
-            if (status !== el.dataset.status || prog !== el.dataset.lastProgress) {
+            if (status !== elementStatus(el) || prog !== el.dataset.lastProgress) {
                 el.dataset.lastProgress = prog;
                 refreshCard(id);
             }
@@ -57,10 +59,14 @@
     // Aligne l'ensemble des pollers sur le DOM (Poller.has garde de tout doublon).
     // [data-id] EXIGÉ : la card MÈRE de batch porte aussi .imager-card mais n'a pas d'id
     // d'item (data-status="batch") — sans ce filtre on pollait /progress/undefined/.
+    function elementStatus(el) {
+        return (el.dataset.elementStatus || el.dataset.status || '').toUpperCase();
+    }
+
     function sync() {
         document.querySelectorAll('.imager-card[data-id][data-status]').forEach(function (el) {
             const id = el.dataset.id;
-            if (TERMINAL.indexOf((el.dataset.status || '').toUpperCase()) === -1) poller.start(id);
+            if (TERMINAL.indexOf(elementStatus(el)) === -1) poller.start(id);
             else poller.stop(id);
         });
     }
@@ -77,8 +83,11 @@
         WamaCycleButton.wire(root, {
             start: function (id, btn) {
                 const action = btn.getAttribute('data-cycle-action');   // 'start' | 'restart'
-                const tpl = action === 'restart' ? cfg().urls.restart : cfg().urls.start;
-                post(WamaApp.getUrl(tpl, id)).then(function (res) {
+                // ▶ d'UN process (bande des process, `data-process`) : lancement BORNÉ, route
+                // `start/<id>/<process>/` ; sans attribut, le ▶ de la card lance ce qui est dû.
+                const process = btn.dataset ? btn.dataset.process : '';
+                const tpl = (action === 'restart' && !process) ? cfg().urls.restart : cfg().urls.start;
+                post(WamaApp.getUrl(tpl, id) + (process ? process + '/' : '')).then(function (res) {
                     if (!res.ok || res.j.error) WamaApp.toast(res.j.error || 'Lancement impossible', 'error');
                     refreshCard(id);
                 });

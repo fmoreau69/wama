@@ -8,7 +8,8 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
 from wama.common.models import (
     JOB_STATUS_CHOICES,
-    BatchMixin, ProcessingTimeMixin, PromptScoped, QueueOrderMixin, ScopedManager,
+    BatchMixin, NativeOutputsMixin, ProcessingTimeMixin, PromptScoped, QueueOrderMixin,
+    ScopedManager,
     ScopedVisibility,
 )
 from wama.common.utils.media_paths import UploadToUserPath
@@ -105,7 +106,7 @@ def get_recommended_resolutions(model_key: str) -> list:
     return [first] + rest
 
 
-class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
+class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, ScopedVisibility):
     """Model for an image generation task.
 
     `ScopedVisibility` (brique COMMUNE) : la card est privée par défaut et peut être partagée à

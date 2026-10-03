@@ -196,7 +196,11 @@ def upscale_output_image(path: str, factor, *, item=None, app_id=None, denoise: 
     if backend_class is None:
         raise RuntimeError(f"Upscaler « {key} » : aucun backend résolu depuis le catalogue")
     suffix = os.path.splitext(path)[1] or '.png'
-    fd, tmp = tempfile.mkstemp(prefix='wama_upscale_', suffix=suffix)
+    # Le temporaire naît DANS le dossier de la sortie : `os.replace` ne traverse pas deux systèmes
+    # de fichiers, et `/tmp` n'est pas celui de `media/` (mesuré le 2026-10-03, premier
+    # agrandissement de sortie joué en réel : « Invalid cross-device link »).
+    fd, tmp = tempfile.mkstemp(prefix='.wama_upscale_', suffix=suffix,
+                               dir=os.path.dirname(os.path.abspath(path)))
     os.close(fd)
     try:
         size = upscale_image_file(path, tmp, model_name=model_id(key), denoise=denoise,
@@ -315,8 +319,16 @@ def render_outputs(sources, item, *, domain: str, app_id: str | None = None, con
         if source != kept:
             os.replace(source, kept)
         shutil.copy2(kept, target)
-        finals.extend(apply_output_settings([target], item, domain=domain, app_id=app_id,
-                                            console=console))
+        try:
+            finals.extend(apply_output_settings([target], item, domain=domain, app_id=app_id,
+                                                console=console))
+        except Exception:
+            # Un échec (agrandissement demandé, impossible) ne laisse rien derrière lui : l'original
+            # reprend la place d'où il venait, comme si la sortie n'avait pas été tentée.
+            os.replace(kept, source)
+            if target != source and os.path.isfile(target):
+                os.remove(target)
+            raise
         natives.append(kept)
     keep = {os.path.abspath(p) for p in finals + natives}
     for old in previous or ():

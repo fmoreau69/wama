@@ -22,6 +22,7 @@ urlpatterns = [
     # Generation management
     path('create/', views.create_generation, name='create'),
     path('start/<int:generation_id>/', views.start_generation, name='start'),
+    path('start/<int:generation_id>/<str:process>/', views.start_process, name='start_process'),
     path('restart/<int:generation_id>/', views.restart_generation, name='restart'),
     path('start-all/', views.start_all_generations, name='start_all'),
     path('progress/<int:pk>/', views.progress, name='progress'),
