@@ -95,6 +95,8 @@ class ExtractThenRenderTest(TestCase):
                            side_effect=_consumes), \
                 mock.patch('wama.composer.utils.model_choice.score_extractor',
                            side_effect=lambda: self.extractor), \
+                mock.patch('wama.composer.utils.model_choice.score_extraction_available',
+                           side_effect=lambda: bool(self.extractor)), \
                 mock.patch('wama.common.utils.app_metadata.process_prompt_for',
                            side_effect=lambda app, field, text, **kw: text), \
                 mock.patch('wama.common.utils.model_readiness.warn_if_weights_missing'), \
@@ -181,22 +183,67 @@ class ExtractThenRenderTest(TestCase):
 
 
 class TheCoverAudioIsAcceptedTest(SimpleTestCase):
-    """`accepts_input`: the question the card, the creation view and the assistant tool ask."""
+    """`accepts_input`: the question the creation view and the assistant tool ask — answered by
+    the GENERIC rule of the pipeline (`AppPipeline.covering_inputs`), not by a composer rule."""
 
-    def _accepts(self, model, token, extractor=EXTRACTOR):
+    def _accepts(self, model, token, installed=True):
         from wama.composer.utils import model_choice as mc
         with mock.patch.object(mc, 'consumes_input', side_effect=_consumes), \
-                mock.patch.object(mc, 'score_extractor', return_value=extractor):
+                mock.patch.object(mc, 'score_extraction_available', return_value=installed):
             return mc.accepts_input(model, token)
 
     def test_a_score_model_takes_the_audio_of_a_cover_when_it_can_be_extracted(self):
         self.assertTrue(self._accepts(SCORE_MODEL, 'work_audio'))
-        self.assertFalse(self._accepts(SCORE_MODEL, 'work_audio', extractor=''))
+        self.assertFalse(self._accepts(SCORE_MODEL, 'work_audio', installed=False))
 
     def test_the_other_inputs_are_the_model_s_own(self):
         self.assertTrue(self._accepts(MELODY_MODEL, 'work_audio'))
         self.assertTrue(self._accepts(SCORE_MODEL, 'work_score'))
         self.assertFalse(self._accepts(PLAIN_MODEL, 'work_audio'))
+
+    def test_the_card_offers_the_cover_audio_to_a_score_model(self):
+        """The card's per-model inputs (`_input_match_meta`) gain what the pipeline brings."""
+        from wama.composer import views
+        meta = {SCORE_MODEL: {'inputs_required': ['prompt'], 'inputs_optional': ['work_score'],
+                              'task': 'text-to-music'},
+                PLAIN_MODEL: {'inputs_required': ['prompt'], 'inputs_optional': [],
+                              'task': 'text-to-music'}}
+        with mock.patch('wama.common.utils.input_match.input_match_meta', return_value=meta), \
+                mock.patch('wama.composer.utils.model_choice.score_extraction_available',
+                           return_value=True):
+            got = views._input_match_meta()
+        self.assertIn('work_audio', got[SCORE_MODEL]['inputs_optional'])
+        self.assertNotIn('work_audio', got[PLAIN_MODEL]['inputs_optional'])
+
+
+class AutoDrawsAmongWhatTakesTheCoverTest(TestCase):
+    """Under « auto », a cover audio used to keep only the models that take the audio THEMSELVES:
+    YuE2 was never a candidate, and with MusicGen Melody not installed the draw fell back on
+    `musicgen-small`, which ignores the audio. The candidates are now those that accept it within
+    the pipeline."""
+
+    def test_the_candidates_are_the_models_that_accept_the_audio_within_the_pipeline(self):
+        from wama.composer.utils import auto_model
+        gen = ComposerGeneration(model='auto:text-to-music', prompt='jazz')
+        gen.melody_reference.name = 'song.wav'
+        with mock.patch('wama.composer.utils.model_choice.models_accepting',
+                        return_value=[SCORE_MODEL, MELODY_MODEL]) as accepting, \
+                mock.patch.object(auto_model, 'resolve_model_choice',
+                                  return_value=SCORE_MODEL) as draw:
+            self.assertEqual(SCORE_MODEL, auto_model.resolve_auto_model(gen))
+        accepting.assert_called_once_with('work_audio', 'text-to-music')
+        self.assertEqual([SCORE_MODEL, MELODY_MODEL], draw.call_args.kwargs['spec']['candidates'])
+
+    def test_with_nobody_to_take_it_the_draw_says_so_through_the_model_filter(self):
+        from wama.composer.utils import auto_model
+        gen = ComposerGeneration(model='auto:text-to-music', prompt='jazz')
+        gen.melody_reference.name = 'song.wav'
+        with mock.patch('wama.composer.utils.model_choice.models_accepting', return_value=[]), \
+                mock.patch.object(auto_model, 'resolve_model_choice', return_value='x') as draw:
+            auto_model.resolve_auto_model(gen)
+        spec = draw.call_args.kwargs['spec']
+        self.assertNotIn('candidates', spec, 'an empty list would mean « no restriction »')
+        self.assertEqual(['work_audio'], spec['consumes'])
 
 
 class YuE2PlaysWhatTheScoreSaysTest(SimpleTestCase):

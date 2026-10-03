@@ -38,19 +38,32 @@ def plans_a_score(model_key) -> bool:
 
 
 def _extract_applies(gen, model_key) -> bool:
-    """Un audio de cover est donné (fichier, ou URL qui le remplira au lancement), aucune
-    partition n'est fournie, et le modèle de rendu reprend l'audio PAR SA PARTITION."""
+    """Juge l'ÉLÉMENT : un audio de cover est donné (fichier, ou URL qui le remplira au lancement),
+    aucune partition n'est fournie, et le modèle de rendu reprend l'audio PAR SA PARTITION.
+    Qu'un modèle d'extraction soit installé est la DISPONIBILITÉ du process (`available`), lue
+    par `AppPipeline.takes_place` — un seul lieu, jamais redemandé ici."""
     if not model_key or getattr(gen, 'reference_score', None):
         return False
     if not (getattr(gen, 'melody_reference', None) or getattr(gen, 'source_url', '')):
         return False
-    from .utils.model_choice import extracts_score_for
-    return extracts_score_for(model_key)
+    from .utils.model_choice import covers_audio_by_score
+    return covers_audio_by_score(model_key)
+
+
+def _extract_available() -> bool:
+    from .utils.model_choice import score_extraction_available
+    return score_extraction_available()
+
+
+def extracts_score(gen, model_key) -> bool:
+    """Le process `extract_score` a-t-il lieu pour cette card ? — la réponse de `takes_place`,
+    que posent aussi `plan` (son alternative) et le rendu (quelle partition suivre)."""
+    return PIPELINE.takes_place(PIPELINE.spec('extract_score'), gen, model_key)
 
 
 def _plan_applies(gen, model_key) -> bool:
     return (plans_a_score(model_key) and not getattr(gen, 'reference_score', None)
-            and not _extract_applies(gen, model_key))
+            and not extracts_score(gen, model_key))
 
 
 register(FunctionSpec(
@@ -104,7 +117,8 @@ PIPELINE = register_app_pipeline(_APP, (
     # écarte le process, pas la péremption. `source_url` remplit l'audio au lancement.
     ProcessSpec('extract_score', label='Partition extraite',
                 watched=('melody_reference', 'source_url'),
-                gpu=True, share=1, applies=_extract_applies, outputs=('extracted_score',)),
+                gpu=True, share=1, applies=_extract_applies, available=_extract_available,
+                outputs=('extracted_score',)),
     # La partition ne dépend que de la consigne et du modèle (le curseur pèse dans le tirage
     # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu.
     ProcessSpec('plan', label='Partition', watched=('prompt', 'model', 'quality_intent'),

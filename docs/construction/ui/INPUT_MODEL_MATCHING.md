@@ -504,8 +504,14 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
   ✅ **Câblé le jour même** : process `composer.extract_score` (audio → partition, mélodie
   seule), puis YuE2 en `cot="melody"` ; la card accepte l'audio d'un cover pour YuE2 dès qu'un
   modèle d'extraction est installé (`model_choice.accepts_input`, `ROUTE §10.6`). ⏳ Reste : la
-  1ʳᵉ reprise réelle sur GPU ; et sous « auto », un audio de cover tire toujours MusicGen
-  Melody (qui le prend directement) — YuE2 n'est employé que choisi.
+  1ʳᵉ reprise réelle sur GPU.
+  🔧 **Sous « auto », le soir même** : un audio de cover ne retenait que les modèles qui le
+  prennent EUX-MÊMES — et MusicGen Melody n'étant pas installé, le tirage tombait sur le repli
+  (MusicGen Small, qui IGNORE l'audio), sans le dire. Les candidats sont désormais ceux qui
+  l'acceptent au sein du pipeline (`models_accepting`, règle générique `AppPipeline.covering_inputs`)
+  — mesuré : YuE2 à 10, 50 et 90. ⚠ Hors cover, aucun modèle de musique ne porte de signal de
+  qualité (ni banc tiers, ni a priori) : le classement retombe sur la VRAM, d'où MiniMax-Music3
+  en « équilibré » et « qualité » — question de SOURCE ouverte (`WAMA_QUALITE`).
 
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 

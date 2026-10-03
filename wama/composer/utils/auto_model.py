@@ -37,11 +37,18 @@ def resolve_auto_model(gen):
     # (2026-10-02) le tirage se fait AVANT le téléchargement (`run_item_task` demande la clé du
     # modèle, puis ingère) : ne regarder que le fichier aurait tiré, pour une mélodie donnée par
     # URL, un modèle qui ne la prend pas.
-    spec = {}
+    # ⚠ Jusqu'au 2026-10-03 : `consumes=['work_audio']` — seuls les modèles qui prennent l'audio
+    # EUX-MÊMES. YuE2, qui reprend un audio par la partition qu'en tire `extract_score`, n'était
+    # jamais candidat ; et MusicGen Melody NON INSTALLÉ, le tirage n'avait plus personne et
+    # tombait sur le repli (`musicgen-small`, qui ignore l'audio). Les candidats sont désormais
+    # ceux qui acceptent l'audio AU SEIN DU PIPELINE (`models_accepting`).
+    from wama.composer.utils.model_choice import models_accepting
+    spec = {'task': task_of(gen.model)}
     if gen.melody_reference or getattr(gen, 'source_url', ''):
-        spec['consumes'] = ['work_audio']
-    else:
-        spec['task'] = task_of(gen.model)
+        accepting = models_accepting('work_audio', spec['task'])
+        # Personne : le filtre du modèle seul, qui ne trouvera rien non plus et rendra le repli
+        # (une liste vide de `candidates` vaudrait « aucune restriction » pour le sélecteur).
+        spec.update({'candidates': accepting} if accepting else {'consumes': ['work_audio']})
     # Partition jointe (2026-10-01) : seuls les modèles qui la DÉCLARENT (`work_score`,
     # YuE2) — sinon « auto » tirerait un MusicGen qui l'ignorerait en silence.
     if getattr(gen, 'reference_score', None):

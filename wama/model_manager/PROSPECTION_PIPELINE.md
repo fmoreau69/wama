@@ -2126,6 +2126,12 @@ sur la gamme, les 32 notes exactes + une parasite (98,5 %). Licence cc-by-nc-4.0
 MusicGen, `LICENSING.md`).
 
 ✅ **Le jour même** : process `composer.extract_score` et YuE2 `cot="melody"` câblés, coordonnés avec
-l'instance du pipeline (`ROUTE §10.6`). ⏳ **Pas encore** : la 1ʳᵉ reprise réelle sur GPU ;
+l'instance du pipeline (`ROUTE §10.6`).
+🔧 **Un dépôt COMPOSANT n'est pas un modèle** (le soir même) : le balayage générique des snapshots
+cataloguait `m-a-p/YuE2-Vae` et `m-a-p/MERT-v2-FullSong` comme des modèles — et le tirage « auto »
+du composer retenait le VAE de YuE2 pour une musique au curseur rapide. Le formalisme le disait
+déjà (`repo` : « sans existence propre pour l'usage ») ; la découverte et la synchro le lisent
+désormais (`model_locations.declared_component_repos`, sauf un modèle qui se déclare lui-même) —
+2 lignes retirées, poids intacts à côté de leur parent. ⏳ **Pas encore** : la 1ʳᵉ reprise réelle sur GPU ;
 rechargement des workers pour importer le backend et le process. ⚠ Relevé au passage, hors de ce périmètre : `$HOME/.cache/huggingface/hub` porte 13 Go de
 dépôts déposés hors `AI-models` (Supra2-IMG, LinTO, MuseTalk, Higgs, Kokoro…).

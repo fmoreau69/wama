@@ -113,6 +113,29 @@ def composants_declares(categorie: str, famille: str) -> list:
     return prefixes
 
 
+def declared_component_repos() -> set:
+    """Dépôts HF déclarés comme composant `repo` d'un AUTRE modèle du catalogue (2026-10-03).
+
+    Le formalisme le dit (`manifests/builtin/model.py`, `repo`) : un dépôt FRÈRE est « publié à
+    part, mais sans existence propre pour l'usage » — le VAE de YuE2, le parent MERT de
+    SheetSage2. Le balayage générique des snapshots en faisait pourtant des MODÈLES : vécu le
+    jour même, le tirage « auto » du composer retenait `m-a-p/YuE2-Vae` (un décodeur) pour une
+    génération de musique au curseur rapide. La découverte et la synchro lisent CE relevé ; un
+    modèle qui se déclare lui-même composant (codeformer) n'en fait pas partie.
+    Hors Django / base absente : ensemble vide (rien n'est écarté)."""
+    repos = set()
+    try:
+        from wama.model_manager.models import AIModel
+        for m in AIModel.objects.exclude(composition={}).only('hf_id', 'composition'):
+            for c in ((m.composition or {}).get('components') or []):
+                repo = (c or {}).get('repo') if isinstance(c, dict) else None
+                if repo and not c.get('pattern') and repo != m.hf_id:
+                    repos.add(repo)
+    except Exception as e:
+        logger.debug('[model_locations] composants non relevés : %s', e)
+    return repos
+
+
 # =============================================================================
 # OÙ SONT LES POIDS D'UN `hf_id` INSTALLÉ — l'index qu'aucune ligne d'app ne porte
 # =============================================================================
