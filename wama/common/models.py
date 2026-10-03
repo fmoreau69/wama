@@ -185,6 +185,23 @@ class ProcessingTimeMixin(models.Model):
         return (f"{m} min {sec:02d} s" if m else f"{sec} s")
 
 
+class NativeOutputsMixin(models.Model):
+    """Les fichiers D'ORIGINE d'une card dont les réglages de sortie transforment le rendu
+    (agrandissement, format) — gardés par la brique `output_formats.render_outputs` pour que la
+    sortie se rejoue SEULE, sans regénérer (2026-10-03, décision de Fabien).
+
+    Liste de chemins relatifs à MEDIA_ROOT ; vide (ou nulle) quand rien n'est transformé : le
+    rendu EST alors l'original. ⚠ Une app qui hérite ce champ le DÉCLARE à la rétention
+    (`RETENTION_MODELS[…]['path_lists']`) : c'est par là que le retrait d'une card, la purge et
+    l'index des références le voient. Nullable : une colonne ajoutée ne doit pas faire échouer
+    les insertions du code encore en service."""
+
+    native_outputs = models.JSONField(null=True, blank=True, default=list)
+
+    class Meta:
+        abstract = True
+
+
 class QueueOrderMixin(models.Model):
     """Position MANUELLE de l'entrée dans la file (CARD_DESIGN §3bis — manipulation directe).
 
