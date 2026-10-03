@@ -240,3 +240,87 @@ def apply_output_settings(paths, item, *, domain: str, app_id: str | None = None
         logger.warning("[output] conversion vers %s échouée : %s", fmt, exc)
         say(f"Conversion vers {fmt} échouée ({exc}) — fichier natif conservé")
         return paths
+
+
+# ── Garder le fichier D'ORIGINE (2026-10-03, décision de Fabien) ─────────────────────────────
+# Agrandissement et conversion se faisaient EN PLACE : changer de format après coup obligeait à
+# REGÉNÉRER (une image, une vidéo, une voix) pour un réglage qui ne touche que la sortie. La
+# brique garde donc le fichier que le moteur a écrit, à côté du rendu, tant que les réglages de
+# sortie le TRANSFORMENT ; le process « sortie » d'une app repart de lui. Sans transformation,
+# il n'y a qu'un fichier : le natif EST le rendu, rien n'est gardé en double.
+
+#: Marque du nom d'un fichier d'origine gardé : `gen12_sdxl.png` → `gen12_sdxl.native.png`. Le
+#: rendu garde le nom que l'app a toujours donné à sa sortie.
+NATIVE_MARK = '.native'
+
+#: Champ (liste de chemins relatifs à MEDIA_ROOT) où une card désigne ses fichiers d'origine —
+#: celui de `common.models.NativeOutputsMixin`, déclaré à la rétention (`path_lists`).
+NATIVE_FIELD = 'native_outputs'
+
+
+def is_native(path) -> bool:
+    """Ce chemin porte-t-il la marque d'un fichier d'origine gardé ?"""
+    import os
+    return os.path.splitext(os.path.basename(str(path)))[0].endswith(NATIVE_MARK)
+
+
+def native_name(path) -> str:
+    """Le nom sous lequel le fichier d'origine de `path` est gardé (idempotent)."""
+    import os
+    stem, ext = os.path.splitext(str(path))
+    return str(path) if stem.endswith(NATIVE_MARK) else f'{stem}{NATIVE_MARK}{ext}'
+
+
+def final_name(path) -> str:
+    """Le nom du rendu d'un fichier d'origine gardé, avant conversion (idempotent)."""
+    import os
+    stem, ext = os.path.splitext(str(path))
+    return f'{stem[:-len(NATIVE_MARK)]}{ext}' if stem.endswith(NATIVE_MARK) else str(path)
+
+
+def transforms_output(item, domain: str) -> bool:
+    """Les réglages de sortie de l'item changent-ils le fichier que le moteur a écrit ?"""
+    if domain == 'image' and upscale_factor(getattr(item, 'output_upscale', '')) > 1:
+        return True
+    return (getattr(item, 'output_format', '') or 'original').lower() not in ('', 'original')
+
+
+def render_outputs(sources, item, *, domain: str, app_id: str | None = None, console=None,
+                   previous=()) -> tuple:
+    """Les réglages de sortie appliqués en GARDANT le fichier d'origine ; rend
+    `(rendus, originaux gardés)`, en chemins absolus.
+
+    `sources` : ce dont on part — les fichiers que le moteur vient d'écrire, OU les originaux
+    gardés d'un rendu précédent (reconnus à leur marque) : c'est ce qui laisse rejouer la sortie
+    SEULE après un changement de format. `previous` : les rendus de la fois d'avant ; ceux que ce
+    rendu ne reprend pas sont retirés (un `.webp` quand on revient au PNG).
+
+    Sans transformation, l'original reprend son nom de rendu et rien n'est gardé en double.
+    Les règles d'`apply_output_settings` valent : un agrandissement demandé qui échoue LÈVE, une
+    conversion qui échoue garde le rendu au format d'origine et le dit."""
+    import os
+    import shutil
+
+    finals, natives = [], []
+    transform = transforms_output(item, domain)
+    for source in list(sources or []):
+        source = str(source)
+        target = final_name(source)
+        if not transform:
+            if source != target:
+                os.replace(source, target)
+            finals.append(target)
+            continue
+        kept = native_name(source)
+        if source != kept:
+            os.replace(source, kept)
+        shutil.copy2(kept, target)
+        finals.extend(apply_output_settings([target], item, domain=domain, app_id=app_id,
+                                            console=console))
+        natives.append(kept)
+    keep = {os.path.abspath(p) for p in finals + natives}
+    for old in previous or ():
+        old = str(old)
+        if os.path.abspath(old) not in keep and os.path.isfile(old):
+            os.remove(old)
+    return finals, natives

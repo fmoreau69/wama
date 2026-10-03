@@ -137,3 +137,85 @@ class ApplyOutputSettingsTest(SimpleTestCase):
                                            domain='image', console=said.append)
         self.assertEqual(['a.png'], out)
         self.assertTrue(any('webp' in s for s in said), 'the failure is SAID')
+
+
+class KeepTheOriginalTest(SimpleTestCase):
+    """`render_outputs` keeps the file the engine wrote next to the rendered one, as long as the
+    output settings transform it — so the output can be replayed ALONE, without generating again
+    (2026-10-03)."""
+
+    def setUp(self):
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__('shutil').rmtree(self.folder, True))
+        self.engine_file = os.path.join(self.folder, 'gen7_model.png')
+        with open(self.engine_file, 'wb') as out:
+            out.write(b'native')
+
+    def _item(self, **kw):
+        values = dict(output_format='original', output_quality='balanced', output_upscale='')
+        values.update(kw)
+        return SimpleNamespace(**values)
+
+    @staticmethod
+    def _convert(path, fmt, preset='balanced', **_kw):
+        """Stand-in for the converter : writes the target next to the source, removes the source."""
+        target = os.path.splitext(path)[0] + '.' + fmt
+        with open(path, 'rb') as src, open(target, 'wb') as out:
+            out.write(src.read() + b'>' + fmt.encode())
+        if target != path:
+            os.remove(path)
+        return target
+
+    def _render(self, sources, item, previous=()):
+        with mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+                        side_effect=self._convert):
+            return of.render_outputs(sources, item, domain='image', previous=previous)
+
+    def _names(self):
+        return sorted(os.listdir(self.folder))
+
+    def test_names_of_a_kept_original(self):
+        self.assertEqual('a/gen7.native.png', of.native_name('a/gen7.png'))
+        self.assertEqual('a/gen7.native.png', of.native_name('a/gen7.native.png'))
+        self.assertEqual('a/gen7.png', of.final_name('a/gen7.native.png'))
+        self.assertTrue(of.is_native('a/gen7.native.png'))
+        self.assertFalse(of.is_native('a/gen7.png'))
+
+    def test_without_any_transformation_there_is_a_single_file(self):
+        finals, natives = self._render([self.engine_file], self._item())
+        self.assertEqual(([self.engine_file], []), (finals, natives))
+        self.assertEqual(['gen7_model.png'], self._names())
+
+    def test_a_conversion_keeps_the_original_next_to_the_rendered_file(self):
+        finals, natives = self._render([self.engine_file], self._item(output_format='webp'))
+        self.assertEqual(['gen7_model.native.png', 'gen7_model.webp'], self._names())
+        self.assertEqual([os.path.join(self.folder, 'gen7_model.webp')], finals)
+        self.assertEqual([os.path.join(self.folder, 'gen7_model.native.png')], natives)
+        with open(natives[0], 'rb') as kept:
+            self.assertEqual(b'native', kept.read(), 'the original is never altered')
+
+    def test_the_output_is_replayed_from_the_kept_original_and_drops_the_previous_one(self):
+        finals, natives = self._render([self.engine_file], self._item(output_format='webp'))
+        again, kept = self._render(natives, self._item(output_format='jpg'), previous=finals)
+        self.assertEqual(['gen7_model.jpg', 'gen7_model.native.png'], self._names())
+        self.assertEqual(natives, kept)
+        with open(again[0], 'rb') as rendered:
+            self.assertEqual(b'native>jpg', rendered.read(), 'converted from the ORIGINAL, not from the webp')
+
+    def test_going_back_to_the_original_format_keeps_a_single_file_again(self):
+        finals, natives = self._render([self.engine_file], self._item(output_format='webp'))
+        back, kept = self._render(natives, self._item(), previous=finals)
+        self.assertEqual(([self.engine_file], []), (back, kept))
+        self.assertEqual(['gen7_model.png'], self._names())
+        with open(self.engine_file, 'rb') as restored:
+            self.assertEqual(b'native', restored.read())
+
+    def test_an_upscaling_counts_as_a_transformation_for_images_only(self):
+        self.assertTrue(of.transforms_output(self._item(output_upscale='x2'), 'image'))
+        self.assertFalse(of.transforms_output(self._item(output_upscale='x2'), 'video'))
+        self.assertFalse(of.transforms_output(self._item(), 'image'))
+
+    def test_the_shared_field_is_nullable_and_declared_once(self):
+        from wama.common.models import NativeOutputsMixin
+        field = NativeOutputsMixin._meta.get_field(of.NATIVE_FIELD)
+        self.assertTrue(field.null, 'a new column must not break the inserts of the code in service')
