@@ -124,14 +124,13 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
     {% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id %}
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.{% endcomment %}
-    {% if elem.status != 'PENDING' %}
+    {# barre TOUJOURS rendue, masquée en attente par la CSS commune (2026-10-04) #}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
         <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
              style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.progress }}{% endif %}%"></div>
       </div>
     </div>
-    {% endif %}
 
   </div>{# /.wcv3 #}
 

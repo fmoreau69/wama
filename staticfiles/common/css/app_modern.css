@@ -508,6 +508,14 @@ textarea {
     border-left: 4px solid #9b59b6 !important;
 }
 
+/* Barre de progression d'une card EN ATTENTE : rendue, mais masquée (2026-10-04). Le gabarit ne
+   la rendait qu'hors attente : une card créée puis lancée par ▶ n'avait AUCUNE barre à remplir —
+   elle n'apparaissait qu'au rechargement (constat de Fabien sur le composer, 10 apps concernées).
+   Le lanceur pose `data-status="RUNNING"` : la barre paraît, le suivi la remplit. */
+.wama-card[data-status="PENDING"] .wcv3-bar {
+    display: none;
+}
+
 /*  === TABLES === */
 .table-dark thead {
     background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%) !important;

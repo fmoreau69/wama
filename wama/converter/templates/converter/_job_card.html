@@ -143,14 +143,13 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
     {% comment %}Barre pleine largeur — VERTE sur tout le cycle (§11), en LIGNE 2 de la
     grille (jamais dans la piste État). En ÉCHEC : FIGÉE au % atteint, on voit OÙ le
     process est mort. Jamais de commentaire dièse ici (boîte fantôme dans la grille).{% endcomment %}
-    {% if elem.status != 'PENDING' %}
+    {# barre TOUJOURS rendue, masquée en attente par la CSS commune (2026-10-04) #}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
         <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
              style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.progress }}{% endif %}%"></div>
       </div>
     </div>
-    {% endif %}
 
   </div>{# /.wcv3 #}
 
