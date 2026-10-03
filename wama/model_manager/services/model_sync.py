@@ -222,8 +222,12 @@ class ModelSyncService:
         cette découverte ET dont le `hf_id` est désormais porté par une ligne découverte —
         l'entrée d'app fait autorité (cf. `_discover_installed_hf_snapshots`). Rend le compte."""
         from ..models import AIModel
+        from wama.common.utils.model_locations import declared_component_repos
         claimed = {info.hf_id for info in discovered_models.values()
                    if getattr(info, 'hf_id', None)}
+        # Relevé aussi par son PARENT : un dépôt déclaré composant d'un autre modèle (2026-10-03,
+        # le VAE de YuE2 tiré comme générateur de musique) — même geste, même garde.
+        claimed |= declared_component_repos()
         if not claimed:
             return 0
         stale = (AIModel.objects.filter(model_key__startswith='huggingface:',

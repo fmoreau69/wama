@@ -704,6 +704,69 @@ class SkeletonRunsThePipelineTest(TestCase):
         self.assertFalse(process_runs.lines(item).exists(), 'no process started, no line')
 
 
+class InputsThePipelineBringsTest(SimpleTestCase):
+    """EXTENDED inputs (2026-10-03): an upstream process can make one of the model's inputs out of
+    another — the composer's `extract_score` turns the audio of a cover into the score YuE2
+    follows. Derived from the declarations (port types of the `FunctionSpec`s, `available`), never
+    rewritten by an app. A fictitious pipeline: extract (audio → score), plan (prompt → score),
+    render (prompt + score)."""
+
+    KEYS = ('demo_bridge.extract', 'demo_bridge.plan', 'demo_bridge.render')
+
+    def setUp(self):
+        from wama.common.catalog.function_catalog import (FUNCTION_CATALOG, Binding, FunctionSpec,
+                                                          PortSpec)
+
+        def declare(key, inputs, outputs):
+            FUNCTION_CATALOG[key] = FunctionSpec(
+                key=key, name=key, description='', category='transform', binding=Binding.APP,
+                app='demo_bridge', inputs=[PortSpec(k, t, optional=True) for k, t in inputs],
+                outputs=[PortSpec(k, t) for k, t in outputs])
+        declare(self.KEYS[0], [('work_audio', 'audio')], [('score', 'score')])
+        declare(self.KEYS[1], [('prompt', 'prompt')], [('score', 'score')])
+        declare(self.KEYS[2], [('prompt', 'prompt'), ('work_score', 'score')], [('audio', 'audio')])
+        self.addCleanup(lambda: [FUNCTION_CATALOG.pop(k, None) for k in self.KEYS])
+        self.installed = True
+
+    def _pipeline(self, extract_function='demo_bridge.extract'):
+        return AppPipeline('demo_bridge', (
+            ProcessSpec('extract', function=extract_function, available=lambda: self.installed,
+                        applies=lambda item, model: True),
+            ProcessSpec('plan', function='demo_bridge.plan'),
+            ProcessSpec('render', function='demo_bridge.render', depends_on=('extract', 'plan')),
+        ), label='Demo')
+
+    def test_a_model_that_follows_a_score_takes_the_audio_the_score_is_extracted_from(self):
+        pipeline = self._pipeline()
+        self.assertEqual({'work_audio', 'work_score'}, pipeline.covering_inputs('work_audio'))
+        self.assertEqual({'prompt', 'work_score', 'work_audio'},
+                         pipeline.extended_inputs({'prompt', 'work_score'}))
+
+    def test_a_model_without_the_bridged_port_gains_nothing(self):
+        self.assertEqual({'prompt'}, self._pipeline().extended_inputs({'prompt'}))
+
+    def test_an_unavailable_upstream_extends_nothing_and_does_not_take_place(self):
+        self.installed = False
+        pipeline = self._pipeline()
+        self.assertEqual({'work_audio'}, pipeline.covering_inputs('work_audio'))
+        self.assertNotIn('work_audio', pipeline.extended_inputs({'prompt', 'work_score'}))
+        self.assertEqual(['plan', 'render'], _keys(pipeline.applicable(_Element(), 'any')))
+
+    def test_an_availability_that_cannot_be_read_counts_as_no(self):
+        def broken():
+            raise RuntimeError('catalogue down')
+        spec = ProcessSpec('extract', available=broken)
+        self.assertFalse(AppPipeline.can_run(spec))
+
+    def test_a_process_whose_function_is_not_declared_yields_the_port_alone(self):
+        pipeline = self._pipeline(extract_function='demo_bridge.nowhere')
+        self.assertEqual({'work_audio'}, pipeline.covering_inputs('work_audio'))
+
+    def test_availability_never_reaches_the_manifest(self):
+        params = [node['params'] for node in self._pipeline().graph()['nodes']]
+        self.assertTrue(all('available' not in p for p in params), params)
+
+
 class EveryAppPipelineTest(SimpleTestCase):
     """Generic guard over EVERY pipeline an app registers (`APP_PIPELINES`) — written once, it
     holds for the next app without a test per app. What the cam_analyzer guards for its own

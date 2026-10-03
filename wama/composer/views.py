@@ -18,8 +18,8 @@ from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance, release_card_files
 from .models import ComposerBatch, ComposerBatchItem, ComposerGeneration
-from .utils.model_choice import (AUTO_MUSIC, AUTO_SFX, DEFAULT_MODEL, accepts_input, consumes_melody,
-                                 is_valid, normalize)
+from .utils.model_choice import (AUTO_MUSIC, AUTO_SFX, DEFAULT_MODEL, accepts_input, is_valid,
+                                 normalize)
 from .utils.model_config import COMPOSER_MODELS, clamp_duration
 
 # Route F4b (2026-10-01) : le modèle est une CLÉ DE CATALOGUE (ou un « auto » de groupe), le type
@@ -561,16 +561,15 @@ def _input_match_meta():
     meta = input_match_meta(task=','.join(TASKS), extra_caps=('task',))
     if not meta:
         return {}
-    # Ce que le PIPELINE ajoute (2026-10-03) : un modèle qui suit une partition sans prendre
-    # l'audio (YuE2) accepte l'audio d'un cover quand un modèle l'extrait (`extract_score`) — la
-    # même règle que la création et l'outil (`model_choice.accepts_input`), lue une fois ici.
-    from .utils.model_choice import score_extractor
-    if score_extractor():
-        for key, entry in meta.items():
-            accepted = set(entry['inputs_required']) | set(entry['inputs_optional'])
-            if 'work_score' in accepted and 'work_audio' not in accepted \
-                    and not consumes_melody(key):
-                entry['inputs_optional'] = sorted(set(entry['inputs_optional']) | {'work_audio'})
+    # Ce que le PIPELINE ajoute (2026-10-03) : les entrées qu'un process amont fabrique pour le
+    # modèle (YuE2 suit une partition → il accepte l'audio d'un cover, dont `extract_score` la
+    # tire). Règle GÉNÉRIQUE, dérivée des déclarations (`AppPipeline.extended_inputs`).
+    from .function_specs import PIPELINE
+    for entry in meta.values():
+        accepted = set(entry['inputs_required']) | set(entry['inputs_optional'])
+        added = PIPELINE.extended_inputs(accepted) - accepted
+        if added:
+            entry['inputs_optional'] = sorted(set(entry['inputs_optional']) | added)
     unions = {AUTO_MUSIC: set(), AUTO_SFX: set()}
     for entry in meta.values():
         auto_id = AUTO_SFX if entry.pop('task', None) == SFX_TASK else AUTO_MUSIC

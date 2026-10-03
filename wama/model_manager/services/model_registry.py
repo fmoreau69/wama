@@ -1925,6 +1925,10 @@ class ModelRegistry:
             if not root.exists():
                 return
             deja_declares = {m.hf_id for m in self._models.values() if m.hf_id}
+            # Un dépôt déclaré COMPOSANT d'un autre modèle (VAE, encodeur parent) n'est pas un
+            # modèle : il se range à côté de son parent, qui le porte (2026-10-03).
+            from wama.common.utils.model_locations import declared_component_repos
+            deja_declares |= declared_component_repos()
             familles_declarees = self._familles_model_paths()
             for cat_dir in sorted(root.iterdir()):
                 if not cat_dir.is_dir():

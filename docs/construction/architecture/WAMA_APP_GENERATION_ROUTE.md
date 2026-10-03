@@ -3454,9 +3454,15 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 >   modèle : `model_choice.accepts_input` dit à la card, à la création et à l'outil de
 >   l'assistant que YuE2 prend l'audio d'un cover ; YuE2 joue une partition sans accords en
 >   `cot="melody"`, avec accords en `full` (mesuré sur une partition planifiée réelle).
->   ⏳ Généraliser : « les entrées d'un modèle au sein d'un pipeline » est calculé par l'app
->   (`accepts_input`), pas encore par `AppPipeline` depuis ses déclarations.
->   Tenu par `composer/tests_extract_score.py`.
+>   ✅ **Généralisé le soir même** (demande de Fabien) : les ENTRÉES ÉTENDUES se dérivent des
+>   déclarations — `ProcessSpec.available` (le process peut-il avoir lieu ICI : un modèle de sa
+>   tâche est installé), `AppPipeline.covering_inputs(port)` / `extended_inputs(ports)` (types
+>   des ports lus sur les `FunctionSpec`), et `AppPipeline.takes_place` comme LIEU UNIQUE où
+>   l'on décide qu'un process a lieu (activé, disponible, applicable — `applicable()` et le
+>   rival `plan` le lisent). Le composer n'écrit plus la règle : sa card, sa création, l'outil
+>   de l'assistant et son tirage « auto » (candidats = ceux qui acceptent l'audio AU SEIN DU
+>   PIPELINE) la lisent. Tenu par `tests_process_pipeline.InputsThePipelineBringsTest` (pipeline
+>   fictif) et `composer/tests_extract_score.py`.
 > - **Ajustement de la réserve ②** (dit à l'instance « portage ») : le lanceur pose toujours
 >   `RUNNING` sur l'ÉLÉMENT sous verrou ; c'est le moteur qui pose `RUNNING` sur la ligne de
 >   CHAQUE process, à son départ — sous « auto », le premier process à jouer n'est pas connu

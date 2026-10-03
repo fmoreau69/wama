@@ -90,6 +90,10 @@ class ProcessSpec:
                   et ne pèse plus sur l'état de la card (règle 4.4 : « les optional désactivés
                   sont ignorés ») ; la bande en fait une case à cocher. Distinct d'`applies`,
                   qui dit ce que le MODÈLE sait faire, pas ce que l'utilisateur veut.
+      available   `() -> bool` : le process PEUT-il avoir lieu ICI — typiquement, un modèle de sa
+                  tâche est installé (2026-10-03, `composer.extract_score`). Absent = toujours.
+                  Distinct d'`applies`, qui juge un élément : `available` juge l'installation, et
+                  c'est lui que lisent les ENTRÉES ÉTENDUES (`covering_inputs`).
     """
     key: str
     label: str = ''
@@ -102,6 +106,7 @@ class ProcessSpec:
     applies: Callable = None
     outputs: tuple = ()
     toggle: str = ''
+    available: Callable = None
 
 
 def output_fingerprint(ref: str) -> str:
@@ -171,6 +176,64 @@ class AppPipeline:
     def function_key(self, spec: ProcessSpec) -> str:
         """Clé `FUNCTION_CATALOG` du process — le nœud `function` qu'il devient au manifeste."""
         return spec.function or f'{self.app}.{spec.key}'
+
+    # ── Entrées ÉTENDUES par le pipeline (2026-10-03) ───────────────────────────────────────
+    # Un modèle déclare ce qu'IL consomme (catalogue). Au sein d'un pipeline, un process AMONT
+    # peut lui fabriquer l'une de ses entrées depuis une autre : `composer.extract_score` tire la
+    # partition (que YuE2 suit) de l'audio d'un cover (que YuE2 ne prend pas). La card, la
+    # création, l'outil de l'assistant et le tirage « auto » doivent alors savoir que ce modèle
+    # accepte l'audio. Écrit d'abord dans le composer (`accepts_input`), DÉRIVÉ ici des
+    # déclarations : les types des ports viennent des `FunctionSpec`, la disponibilité
+    # d'`available` — aucune app ne réécrit la règle.
+
+    def _terminal(self) -> ProcessSpec:
+        """Le process dont aucun autre ne dépend — celui que sert le modèle de la card."""
+        upstream = {d for spec in self.specs for d in spec.depends_on}
+        terminals = [spec for spec in self.specs if spec.key not in upstream]
+        return terminals[-1] if terminals else self.specs[-1]
+
+    def _ports(self, spec: ProcessSpec):
+        """(entrées, sorties) du `FunctionSpec` du process — listes de `PortSpec`, vides s'il
+        n'est pas déclaré au catalogue."""
+        from wama.common.catalog import function_catalog as fc
+        declared = fc.get(self.function_key(spec))
+        if declared is None:
+            return [], []
+        return list(declared.inputs or []), list(declared.outputs or [])
+
+    def _bridges(self):
+        """`[(ports d'entrée de l'amont, types de sortie)]` des process AMONT disponibles ICI."""
+        terminal = self._terminal()
+        out = []
+        for spec in self.specs:
+            if spec is terminal or not self.can_run(spec):
+                continue
+            inputs, outputs = self._ports(spec)
+            out.append(({p.key for p in inputs}, {p.data_type for p in outputs}))
+        return out
+
+    def covering_inputs(self, port: str) -> set:
+        """Les ports du process TERMINAL par lesquels un modèle accepte `port` au sein du
+        pipeline : `port` lui-même, plus tout port alimenté par un amont disponible qui PREND
+        `port` et rend une sortie de son TYPE. Un modèle qui consomme l'un d'eux accepte `port`."""
+        terminal_inputs, _ = self._ports(self._terminal())
+        covering = {port}
+        for takes, gives in self._bridges():
+            if port in takes:
+                covering |= {p.key for p in terminal_inputs if p.data_type in gives}
+        return covering
+
+    def extended_inputs(self, ports) -> set:
+        """Ce qu'accepte, au sein du pipeline, un modèle qui consomme `ports` : ses ports, plus
+        les entrées de tout amont disponible dont une sortie a le TYPE d'un port qu'il consomme."""
+        terminal_inputs, _ = self._ports(self._terminal())
+        consumed = set(ports or ())
+        types = {p.data_type for p in terminal_inputs if p.key in consumed}
+        accepted = set(consumed)
+        for takes, gives in self._bridges():
+            if types & gives:
+                accepted |= takes
+        return accepted
 
     def graph(self) -> dict:
         """Le registre sous la forme CANVAS du studio (`{nodes, links}`) — même forme que
@@ -244,12 +307,28 @@ class AppPipeline:
         l'interrupteur (`toggle`) est à faux."""
         return not spec.toggle or bool(getattr(item, spec.toggle, False))
 
+    @staticmethod
+    def can_run(spec: ProcessSpec) -> bool:
+        """Le process PEUT-il avoir lieu ici (`available`) ? Une disponibilité illisible vaut NON :
+        un process qui ne peut pas tourner ne doit pas être retenu au lancement."""
+        if spec.available is None:
+            return True
+        try:
+            return bool(spec.available())
+        except Exception:
+            return False
+
+    def takes_place(self, spec: ProcessSpec, item, model_key=None) -> bool:
+        """LE lieu où l'on décide qu'un process a lieu pour un élément : activé (`toggle`),
+        disponible ici (`available`) et servi par le modèle (`applies`). Un process ALTERNATIF
+        (le `plan` du composer face à `extract_score`) pose la question de son rival ICI, pour
+        qu'elle n'ait qu'une réponse."""
+        return (self.enabled(spec, item) and self.can_run(spec)
+                and (spec.applies is None or spec.applies(item, model_key)))
+
     def applicable(self, item, model_key=None) -> list:
-        """Les process qui ont lieu pour cet élément, dans l'ordre de lancement : activés (un
-        `optional` désactivé n'a pas lieu) et servis par le modèle (`applies`)."""
-        return [spec for spec in self.ordered()
-                if self.enabled(spec, item)
-                and (spec.applies is None or spec.applies(item, model_key))]
+        """Les process qui ont lieu pour cet élément, dans l'ordre de lancement (`takes_place`)."""
+        return [spec for spec in self.ordered() if self.takes_place(spec, item, model_key)]
 
     # ── Péremption, sélection, état ─────────────────────────────────────────────────────────
     def refresh(self, item) -> set:
@@ -387,8 +466,11 @@ class AppPipeline:
         out = []
         for spec in self.ordered():
             row = rows.get(spec.key)
-            if row is None and not (model_key and (spec.applies is None
-                                                  or spec.applies(item, model_key))):
+            # Une ligne jamais jouée : montrée si le process a lieu pour ce modèle et PEUT avoir
+            # lieu ici (`can_run`). L'interrupteur, lui, n'en retire pas : un optionnel désactivé
+            # reste visible, en case à cocher.
+            if row is None and not (model_key and self.can_run(spec)
+                                    and (spec.applies is None or spec.applies(item, model_key))):
                 continue
             summary = (row.output_summary or {}) if row is not None else {}
             out.append({

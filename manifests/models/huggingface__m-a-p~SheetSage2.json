@@ -31,6 +31,12 @@
     "extra_info": {
       "category": "music",
       "family": "SheetSage2",
+      "vram_measured": {
+        "at": "2026-10-03T18:21:21+00:00",
+        "last_gb": 2.52,
+        "max_gb": 2.52,
+        "n": 1
+      },
       "vram_provenance": "estimated"
     },
     "formats": {

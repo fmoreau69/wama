@@ -364,11 +364,11 @@ def _score_to_follow(gen, catalog_key) -> str:
     puis celle du process `plan`, suivie seulement par un modèle qui planifie : une card passée
     d'un modèle à partition à un modèle qui n'en prend pas garde son ancien `planned_score` en
     base — le lui donner le ferait refuser le rendu."""
-    from .function_specs import _extract_applies, plans_a_score
+    from .function_specs import extracts_score, plans_a_score
     if gen.reference_score:
         return gen.reference_score.name
     extracted = getattr(gen.extracted_score, 'name', gen.extracted_score) or ''
-    if extracted and _extract_applies(gen, catalog_key):
+    if extracted and extracts_score(gen, catalog_key):
         return extracted
     planned = getattr(gen.planned_score, 'name', gen.planned_score) or ''
     return planned if planned and plans_a_score(catalog_key) else ''

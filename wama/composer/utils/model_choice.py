@@ -121,22 +121,50 @@ def score_extractor() -> str:
     return select_model_id(source=None, task=SCORE_EXTRACTION_TASK, fallback='') or ''
 
 
-def extracts_score_for(value) -> bool:
-    """Le modèle reprend-il un AUDIO par sa partition ? Oui s'il suit une partition (`work_score`)
-    sans prendre l'audio lui-même — YuE2 — et qu'un modèle d'extraction est installé. Le process
-    `extract_score` a lieu dans ce cas, et seulement dans celui-là."""
-    return (consumes_input(value, 'work_score') and not consumes_melody(value)
-            and bool(score_extractor()))
+def score_extraction_available() -> bool:
+    """Un modèle d'extraction de partition est-il INSTALLÉ ? Requête simple, sans tirage : c'est la
+    disponibilité (`ProcessSpec.available`) du process `extract_score`, lue pour chaque card."""
+    try:
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.filter(capabilities__task=SCORE_EXTRACTION_TASK, is_downloaded=True,
+                                      is_available=True).exists()
+    except Exception:
+        return False
+
+
+def covers_audio_by_score(value) -> bool:
+    """Le modèle reprend-il un audio PAR SA PARTITION ? Il suit une partition (`work_score`) sans
+    prendre l'audio lui-même (YuE2). Jugement du MODÈLE seul — que le process ait lieu dépend aussi
+    de l'installation, ce que tranche `AppPipeline.takes_place`."""
+    return consumes_input(value, 'work_score') and not consumes_melody(value)
 
 
 def accepts_input(value, token: str) -> bool:
     """Le modèle, AU SEIN DU PIPELINE du composer, accepte-t-il l'entrée `token` ? Ce qu'il
-    consomme lui-même, plus l'audio d'un cover quand le process `extract_score` en tire la
-    partition qu'il suit. C'est la question que posent la card (ses entrées par modèle), la vue de
-    création et l'outil de l'assistant — `consumes_input` reste celle du MODÈLE seul."""
-    if token == 'work_audio':
-        return consumes_melody(value) or extracts_score_for(value)
-    return consumes_input(value, token)
+    consomme, ou tout port par lequel le pipeline la lui amène (`AppPipeline.covering_inputs` :
+    l'audio d'un cover, via la partition qu'en extrait `extract_score`). C'est la question que
+    posent la création et l'outil de l'assistant — `consumes_input` reste celle du MODÈLE seul."""
+    from wama.composer.function_specs import PIPELINE
+    if token == 'work_audio' and consumes_melody(value):
+        return True
+    return any(consumes_input(value, port) for port in PIPELINE.covering_inputs(token))
+
+
+def models_accepting(token: str, task: str) -> list:
+    """Clés des modèles de `task` qui acceptent `token` au sein du pipeline — les CANDIDATS du
+    tirage « auto » quand l'élément porte cette entrée. Le filtre `consumes` du sélecteur est un
+    ET ; « prend l'audio, OU suit une partition qu'on en extrait » est un OU : il se pose ici, sur
+    le jugement du sélecteur commun (`matches_inputs`), jamais en relisant les capacités."""
+    from wama.composer.function_specs import PIPELINE
+    try:
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.model_selector import matches_inputs
+        ports = PIPELINE.covering_inputs(token)
+        rows = AIModel.objects.filter(capabilities__task=task).only('model_key', 'capabilities')
+        return [m.model_key for m in rows
+                if any(matches_inputs(m, consumes=[port]) for port in ports)]
+    except Exception:
+        return []
 
 
 def label_of(value) -> str:
