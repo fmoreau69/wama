@@ -305,7 +305,10 @@ class ModelSyncService:
         # (`license` et `platform_ref` n'ont jamais été dans `defaults` — ils survivaient déjà.)
         if model_info.hf_id:
             defaults['hf_id'] = model_info.hf_id
-        _qualite = getattr(model_info, 'quality_index', None)
+        # A priori DÉCLARÉ avec sa source (`model_quality.DECLARED_PRIORS`, 2026-10-03) quand la
+        # découverte n'en dit rien — versionné, sourcé, au lieu d'une valeur posée à la main en base.
+        from .model_quality import declared_prior
+        _qualite = getattr(model_info, 'quality_index', None) or declared_prior(model_key)
         if _qualite:
             defaults['quality_index'] = _qualite
         # `capabilities` REJOINT cette famille (2026-08-31) — c'était le DERNIER champ que la

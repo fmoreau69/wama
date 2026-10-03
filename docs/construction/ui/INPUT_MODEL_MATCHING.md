@@ -503,15 +503,16 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
   était faux : il tourne dans le venv de référence (transformers 4.57.6, deux librairies ajoutées).
   ✅ **Câblé le jour même** : process `composer.extract_score` (audio → partition, mélodie
   seule), puis YuE2 en `cot="melody"` ; la card accepte l'audio d'un cover pour YuE2 dès qu'un
-  modèle d'extraction est installé (`model_choice.accepts_input`, `ROUTE §10.6`). ⏳ Reste : la
-  1ʳᵉ reprise réelle sur GPU.
+  modèle d'extraction est installé (`model_choice.accepts_input`, `ROUTE §10.6`). ✅ 1ʳᵉ reprise
+  réelle sur GPU le soir même (#314) : la partition du cover ressemble à celle de la source à
+  84 % (aléatoire : 19 %) — `PROSPECTION_PIPELINE.md §Session du 2026-10-03`.
   🔧 **Sous « auto », le soir même** : un audio de cover ne retenait que les modèles qui le
   prennent EUX-MÊMES — et MusicGen Melody n'étant pas installé, le tirage tombait sur le repli
   (MusicGen Small, qui IGNORE l'audio), sans le dire. Les candidats sont désormais ceux qui
   l'acceptent au sein du pipeline (`models_accepting`, règle générique `AppPipeline.covering_inputs`)
-  — mesuré : YuE2 à 10, 50 et 90. ⚠ Hors cover, aucun modèle de musique ne porte de signal de
-  qualité (ni banc tiers, ni a priori) : le classement retombe sur la VRAM, d'où MiniMax-Music3
-  en « équilibré » et « qualité » — question de SOURCE ouverte (`WAMA_QUALITE`).
+  — mesuré : YuE2 à 10, 50 et 90. Hors cover, les six modèles de musique portent depuis le
+  soir même un a priori DÉCLARÉ et sourcé (`WAMA_QUALITE`, étage a priori) : rapide → MusicGen
+  Small, équilibré et qualité → YuE2 (il retombait sur la VRAM : MiniMax-Music3).
 
 ## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
 

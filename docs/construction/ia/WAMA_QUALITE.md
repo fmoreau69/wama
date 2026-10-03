@@ -87,6 +87,19 @@ ne perd personne au passage (il est écrit en même temps que `benchmark_index`,
 le même sous-ensemble). ⚠ Ses deux réserves restent entières et se redisent partout où il
 sert : il est **ordinal**, et il dépend de la **population de son banc**.
 
+**L'étage a priori a désormais des valeurs DÉCLARÉES, avec leur source** (2026-10-03, décision de
+Fabien) : `model_quality.DECLARED_PRIORS`, lu par la synchro quand la découverte ne dit rien.
+Né de la musique : aucun des six modèles de `text-to-music` ne portait de signal, le tirage
+classait par VRAM (MiniMax-Music3, 13 Go, devant YuE2). Sources : la table WildSongBench de la
+fiche de YuE2 (AUTO-ÉVALUATION des auteurs) pour YuE2, MiniMax Music 3 et ACE-Step 1.5 ; les
+votes humains de Music Arena pour les MusicGen, instrumentaux et absents de SongBench — **peu
+de duels** (22 contre ACE-Step, 51 small contre medium), donc des RANGS, et l'écart de small est
+un choix écrit comme tel. ⚠ **Une table couvre une tâche ENTIÈRE ou rien** : la sélection ne
+classe que les notés, et une synchro d'une autre instance a appliqué la table à moitié écrite —
+pendant une heure, YuE2 a gagné même au curseur rapide. Mesuré après : rapide → MusicGen Small,
+équilibré et qualité → YuE2, cover → YuE2. ⏳ Un banc tiers qui couvre YuE2 et MusicGen, ou une
+mesure interne, PRIME dès qu'il existe.
+
 ⏳ **`AIModel.cost_tier` reste NON LU, et c'est délibéré** (question tranchée le 26/09,
 demande initiale de Fabien de « brancher l'arbitrage honnête », retirée après mesure). Le
 champ est bien renseigné par source (`external_sources` : albert `free` + souverain,
