@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAMA — Architecture & fonctionnement</title>
+    {% include 'includes/_presentation_style.html' %}
+</head>
+<body>
+    <div class="slide-container">
+
+        <!-- Slide 1 : Titre -->
+        <div class="slide active">
+            <h1>🧩 WAMA</h1>
+            <div class="subtitle">Architecture &amp; fonctionnement</div>
+            <div class="subtitle" style="font-size: 1.2em; margin-top: 40px;">
+                Comment c'est construit — expliqué simplement
+            </div>
+            <p style="margin-top: 40px;">
+                <a href="{% url 'presentation' %}" style="color: #fff; opacity: 0.85; text-decoration: underline;">
+                    ← Présentation générale
+                </a>
+            </p>
+        </div>
+
+        <!-- Slide 2 : Vue d'ensemble -->
+        <div class="slide">
+            <h2>🗺️ Vue d'ensemble</h2>
+            <div class="content">
+                <p style="font-size: 1.15em; margin-bottom: 25px;">
+                    WAMA, c'est <strong>une plateforme web</strong> qui regroupe plusieurs <strong>applications</strong>
+                    de traitement multimédia, toutes posées sur <strong>un socle commun</strong>, et qui s'appuient
+                    sur des <strong>modèles d'intelligence artificielle</strong>.
+                </p>
+                <div class="grid">
+                    <div class="card"><h4><span class="emoji">🧱</span>Un socle commun</h4>
+                        <p>Les mêmes briques pour toutes les apps : files d'attente, inspecteur, progression…</p></div>
+                    <div class="card"><h4><span class="emoji">🎛️</span>Des applications</h4>
+                        <p>Anonymizer, Transcriber, Imager, Reader… chacune sa spécialité</p></div>
+                    <div class="card"><h4><span class="emoji">🤖</span>Des modèles IA</h4>
+                        <p>Chargés à la demande, partageant une même carte graphique</p></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3 : Les 3 couches techniques -->
+        <div class="slide">
+            <h2>⚙️ Comment ça tourne : 3 rôles</h2>
+            <div class="content">
+                <div class="card" style="margin-bottom: 18px;">
+                    <h4><span class="emoji">🖥️</span>Le navigateur (ce que vous voyez)</h4>
+                    <p>Les pages, les boutons, le volet de droite. Il envoie vos demandes au serveur.</p>
+                </div>
+                <div class="card" style="margin-bottom: 18px;">
+                    <h4><span class="emoji">🗄️</span>Le serveur (le chef d'orchestre)</h4>
+                    <p>Reçoit les demandes, gère les comptes et les fichiers, et distribue le travail.</p>
+                </div>
+                <div class="card">
+                    <h4><span class="emoji">🛠️</span>Les « travailleurs » (le moteur)</h4>
+                    <p>En arrière-plan, ils exécutent les tâches lourdes (IA + carte graphique) sans bloquer la page.
+                       Vous suivez l'avancement en temps réel.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4 : LE principe clé — piloté par description -->
+        <div class="slide">
+            <h2>💡 Le principe clé : piloté par la description</h2>
+            <div class="content">
+                <p style="font-size: 1.15em; margin-bottom: 22px;">
+                    Plutôt que de tout coder à la main pour chaque application, WAMA fait en sorte que
+                    <strong>chaque app et chaque modèle se décrivent eux-mêmes</strong> — comme une
+                    <strong>fiche d'identité</strong> (méta-informations).
+                </p>
+                <div class="two-columns">
+                    <div>
+                        <h3>Ce que l'élément déclare</h3>
+                        <p>• ce qu'il sait faire (ses capacités)<br>
+                           • sa description, ses formats d'entrée/sortie<br>
+                           • ce dont il a besoin pour fonctionner</p>
+                    </div>
+                    <div>
+                        <h3>Ce qui se construit tout seul</h3>
+                        <p>• l'interface et les boutons<br>
+                           • le volet d'inspection à droite<br>
+                           • les tests automatiques</p>
+                    </div>
+                </div>
+                <p style="margin-top: 22px; opacity: 0.9; text-align:center;">
+                    Résultat : <strong>moins de code, plus d'homogénéité</strong>, et l'app « se documente » d'elle-même.
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 5 : Le volet droit auto-généré (exemple concret) -->
+        <div class="slide">
+            <h2>🪟 Exemple : le volet de droite qui se remplit seul</h2>
+            <div class="content">
+                <p style="margin-bottom: 20px;">
+                    Quand vous cliquez sur un élément (un fichier, un modèle…), le volet de droite
+                    affiche ses détails. Ce contenu n'est <strong>pas écrit à la main</strong> pour chaque app :
+                    il est <strong>généré à partir de la fiche d'identité</strong> de l'élément.
+                </p>
+                <div class="grid">
+                    <div class="card"><h4>Aucune sélection</h4><p>réglages généraux de la file</p></div>
+                    <div class="card"><h4>Un élément</h4><p>ses paramètres et infos</p></div>
+                    <div class="card"><h4>Un lot (batch)</h4><p>les paramètres du lot</p></div>
+                </div>
+                <p style="margin-top: 20px; opacity: 0.9;">
+                    Même logique partout → l'utilisateur retrouve <strong>les mêmes gestes</strong> dans chaque app.
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 6 : Briques communes -->
+        <div class="slide">
+            <h2>🧱 Des briques communes (zéro duplication)</h2>
+            <div class="content">
+                <p style="margin-bottom: 20px;">
+                    Les fonctions partagées sont écrites <strong>une seule fois</strong> et réutilisées par toutes les apps :
+                </p>
+                <div class="grid">
+                    <div class="card"><h4><span class="emoji">📋</span>File d'attente &amp; lots</h4><p>déposer, suivre, dupliquer, télécharger</p></div>
+                    <div class="card"><h4><span class="emoji">📊</span>Progression &amp; ETA</h4><p>avancement et temps restant estimé</p></div>
+                    <div class="card"><h4><span class="emoji">🔎</span>Inspecteur</h4><p>le volet de droite décrit plus haut</p></div>
+                    <div class="card"><h4><span class="emoji">📁</span>Gestion de fichiers</h4><p>entrées, sorties, médiathèque</p></div>
+                </div>
+                <p style="margin-top: 20px; opacity: 0.9; text-align:center;">
+                    Une app est <strong>la référence</strong> (le Transcriber) ; les autres s'alignent dessus.
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 7 : Modèles IA — un contrat commun -->
+        <div class="slide">
+            <h2>🤖 Les modèles IA : un cycle commun</h2>
+            <div class="content">
+                <p style="margin-bottom: 20px;">
+                    Les modèles sont très différents (image, son, texte…), mais WAMA leur impose
+                    <strong>le même cycle de vie</strong> :
+                </p>
+                <div class="grid">
+                    <div class="card"><h4>① Charger</h4><p>mettre le modèle en mémoire</p></div>
+                    <div class="card"><h4>② Utiliser</h4><p>faire le traitement</p></div>
+                    <div class="card"><h4>③ Décharger</h4><p>libérer la carte graphique</p></div>
+                </div>
+                <p style="margin-top: 20px;">
+                    La carte graphique étant <strong>partagée</strong>, WAMA charge/décharge intelligemment pour ne pas
+                    saturer la mémoire. Chaque modèle <strong>déclare aussi ses besoins</strong> (les librairies nécessaires).
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 8 : Gestion & prospection des modèles -->
+        <div class="slide">
+            <h2>🔭 Gérer et faire évoluer les modèles</h2>
+            <div class="content">
+                <div class="card" style="margin-bottom: 18px;">
+                    <h4><span class="emoji">🗂️</span>Gestionnaire de modèles</h4>
+                    <p>Voir tous les modèles, leur état (téléchargé, en mémoire), leur place disque/VRAM, et les libérer.</p>
+                </div>
+                <div class="card" style="margin-bottom: 18px;">
+                    <h4><span class="emoji">✨</span>Prospection automatique</h4>
+                    <p>WAMA détecte les <strong>mises à jour</strong> et propose de <strong>nouveaux modèles</strong>
+                       (avec un indice de confiance), à installer en un clic.</p>
+                </div>
+                <div class="card">
+                    <h4><span class="emoji">📦</span>Installation des dépendances</h4>
+                    <p>Si un nouveau modèle exige une librairie absente, WAMA sait la <strong>poser automatiquement</strong>
+                       (sur votre validation). C'est là que la « fiche des besoins » du modèle sert.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 9 : Tests nocturnes -->
+        <div class="slide">
+            <h2>🌙 WAMA se teste lui-même, la nuit</h2>
+            <div class="content">
+                <p style="font-size: 1.1em; margin-bottom: 22px;">
+                    Plutôt que d'attendre des bugs signalés par les utilisateurs, WAMA exécute des
+                    <strong>scénarios de test</strong> la nuit, quand rien ne tourne.
+                </p>
+                <div class="two-columns">
+                    <div>
+                        <h3>Comment</h3>
+                        <p>• un scénario à la fois (pas de surcharge mémoire)<br>
+                           • on libère la carte graphique entre chaque<br>
+                           • test partiel (jusqu'au chargement) ou complet</p>
+                    </div>
+                    <div>
+                        <h3>Pourquoi</h3>
+                        <p>• détecter les régressions tôt<br>
+                           • vérifier chaque app de bout en bout<br>
+                           • tester aussi les modèles fraîchement installés</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 10 : Assistant IA -->
+        <div class="slide">
+            <h2>💬 Un assistant qui pilote les apps</h2>
+            <div class="content">
+                <p style="font-size: 1.1em; margin-bottom: 20px;">
+                    Chaque application expose ses fonctions sous forme d'<strong>outils</strong>. Un
+                    <strong>assistant IA</strong> peut alors enchaîner ces outils <strong>en langage naturel</strong>.
+                </p>
+                <div class="card">
+                    <p style="font-style: italic;">
+                        « Transcris cette réunion, résume-la, puis génère une voix qui lit le résumé. »
+                    </p>
+                    <p style="margin-top: 12px; opacity: 0.9;">
+                        → l'assistant appelle le Transcriber, puis le résumé, puis le Synthesizer — sans que vous
+                        ouvriez chaque app.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 11 : Données & sécurité -->
+        <div class="slide">
+            <h2>🔐 Données, sécurité &amp; à venir</h2>
+            <div class="content">
+                <div class="grid">
+                    <div class="card"><h4><span class="emoji">🏛️</span>Données chez vous</h4>
+                        <p>Tout tourne sur le serveur du labo : les médias ne partent pas dans un cloud externe.</p></div>
+                    <div class="card"><h4><span class="emoji">🎭</span>Anonymisation</h4>
+                        <p>Floutage visages/plaques pour respecter la vie privée (RGPD).</p></div>
+                    <div class="card"><h4><span class="emoji">📚</span>RAG (à venir)</h4>
+                        <p>Une mémoire documentaire à plusieurs niveaux : université → labo → équipe → utilisateur.</p></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 12 : En résumé -->
+        <div class="slide">
+            <h2>🎯 En résumé</h2>
+            <div class="content">
+                <p style="font-size: 1.2em; margin-bottom: 25px;">
+                    L'architecture de WAMA vise <strong>l'évolutivité et l'homogénéité</strong> :
+                </p>
+                <div class="grid">
+                    <div class="card"><h4>Auto-descriptif</h4><p>apps et modèles se décrivent → l'UI se génère</p></div>
+                    <div class="card"><h4>Homogène</h4><p>mêmes briques, mêmes gestes partout</p></div>
+                    <div class="card"><h4>Peu de code</h4><p>une fois, en commun, réutilisé</p></div>
+                    <div class="card"><h4>Auto-testé</h4><p>scénarios nocturnes</p></div>
+                </div>
+                <p style="margin-top: 28px; text-align:center;">
+                    <a href="{% url 'presentation' %}" style="color:#fff; text-decoration: underline;">
+                        ← Revenir à la présentation générale
+                    </a>
+                </p>
+            </div>
+        </div>
+
+    </div>
+
+    {% include 'includes/_presentation_nav.html' %}
+</body>
+</html>

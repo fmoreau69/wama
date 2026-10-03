@@ -20,6 +20,11 @@
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const world = document.getElementById('world');
+  // Une ancre d'URL (#id) fait DÉFILER le conteneur jusqu'à la frame, overflow:hidden compris :
+  // tout le plan glissait alors sous la caméra (mesuré le 2026-10-03 : 69 px sur #titre).
+  // Seule la caméra déplace le plan.
+  const viewport = world.parentElement;
+  viewport.addEventListener('scroll', () => { viewport.scrollTop = 0; viewport.scrollLeft = 0; });
   const frames = Array.from(world.querySelectorAll('.frame'));
   const steps = frames.filter(f => !f.hasAttribute('data-nostep'));
 
@@ -189,6 +194,7 @@
   const h = decodeURIComponent(location.hash.slice(1));
   let start = steps.findIndex(f => f.id === h);
   if (start < 0 && /^\d+$/.test(h)) start = +h - 1;
+  viewport.scrollTop = 0; viewport.scrollLeft = 0;
   go(start >= 0 ? start : 0, { instant: true });
 
   // ── Fond : constellation en parallaxe (canvas 2D, sans dépendance) ─────

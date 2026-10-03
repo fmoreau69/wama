@@ -83,6 +83,28 @@ class PresentationRoutesTests(TestCase):
         self.assertIn("{% url 'report' r.slug %}", home)
         self.assertIn('Rapports</h6>', home)
 
+    def test_the_architecture_runs_on_the_canvas_engine_and_its_former_version_is_archived(self):
+        """Rewritten on 2026-10-03 in the style of the v2 presentation: same engine, same chrome.
+        The v1 slideshow is archived, never destroyed."""
+        import re
+
+        from wama.views import ARCHIVED_PRESENTATIONS
+        r = self.client.get(reverse('architecture'))
+        self.assertEqual(200, r.status_code)
+        page = r.content.decode()
+        self.assertIn('presentation/wama-presentation.js', page)
+        for element in ('id="viewport"', 'id="world"', 'id="hud-count"', 'id="btn-next"'):
+            self.assertIn(element, page, 'the engine needs its chrome')
+        frames = re.findall(r'<section class="frame[^"]*"[^>]*>', page)
+        self.assertGreaterEqual(len(frames), 15)
+        for frame in frames:
+            for attribute in ('data-x=', 'data-y=', 'data-s=', 'data-title='):
+                self.assertIn(attribute, frame, 'a frame without a position is skipped by the camera')
+        self.assertNotIn('{%', page, 'no template syntax may leak into the page')
+        self.assertIn(reverse('report', args=['transcription']), page)
+        self.assertIn('architecture-2026-v1', ARCHIVED_PRESENTATIONS)
+        self.assertIn(reverse('presentation_archive', args=['architecture-2026-v1']), page)
+
     def test_archived_presentations_stay_reachable(self):
         from wama.views import ARCHIVED_PRESENTATIONS
         self.assertTrue(ARCHIVED_PRESENTATIONS)
