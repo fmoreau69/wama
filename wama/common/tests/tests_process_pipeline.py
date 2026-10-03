@@ -327,6 +327,70 @@ class WhatTheCardShowsTest(TestCase):
         rows = {r['key']: r['watched'] for r in self.pipeline.card_rows(item)}
         self.assertEqual({'plan': ['prompt'], 'render': ['duration']}, rows)
 
+    # ── the switch of an optional process (3.2) and non-file outputs ───────────────────────────
+    def _with_an_option(self):
+        return AppPipeline('demo_pipeline', (
+            ProcessSpec('render', label='Rendu', watched=('duration',)),
+            ProcessSpec('summary', label='Résumé', depends_on=('render',), degree='optional',
+                        toggle='wants_summary'),
+        ), label='Demo')
+
+    def test_a_switch_belongs_to_an_optional_process_only(self):
+        with self.assertRaises(ValueError) as refused:
+            AppPipeline('demo_pipeline', (ProcessSpec('render', toggle='wants_it'),), label='Demo')
+        self.assertIn('optional', str(refused.exception))
+
+    def test_an_option_switched_off_does_not_take_place_and_no_longer_weighs_on_the_card(self):
+        """Rule 4.4: « les optional désactivés sont ignorés ». A failed summary keeps the card
+        « to be completed » ; switching the summary OFF makes the card successful again, and the
+        row stays in the strip — unchecked — so that it can be switched back on."""
+        pipeline = self._with_an_option()
+        item = _Element(status=JOB_SUCCESS, wants_summary=True)
+        process_runs.start(item, 'render', settings_snapshot=pipeline.snapshot(pipeline.spec('render'), item))
+        process_runs.succeed(item, 'render')
+        process_runs.start(item, 'summary')
+        process_runs.fail(item, 'summary', 'model down')
+        self.assertEqual(['render', 'summary'], _keys(pipeline.applicable(item)))
+        self.assertEqual(JOB_PENDING, pipeline.card_state(item))
+        item.wants_summary = False
+        self.assertEqual(['render'], _keys(pipeline.applicable(item)))
+        self.assertEqual(JOB_SUCCESS, pipeline.card_state(item))
+        self.assertEqual(JOB_SUCCESS, pipeline.shown_state(item))
+        rows = {r['key']: (r['toggle'], r['enabled']) for r in pipeline.card_rows(item)}
+        self.assertEqual({'render': ('', True), 'summary': ('wants_summary', False)}, rows)
+
+    def test_the_strip_gives_an_option_its_checkbox_and_dims_it_when_off(self):
+        from django.template.loader import render_to_string
+        pipeline = self._with_an_option()
+        item = _Element(status=JOB_SUCCESS, wants_summary=False)
+        for key in ('render', 'summary'):
+            process_runs.start(item, key)
+            process_runs.succeed(item, key)
+        html = render_to_string('common/_card_processes.html', {
+            'processes': pipeline.card_rows(item), 'card_id': 7, 'settings_url': '/demo/settings/7/'})
+        self.assertRegex(html, r'wcv3-proc--off"[^>]*data-process="summary"')
+        self.assertRegex(html, r'wcv3-proc-toggle"[^>]*data-toggle-field="wants_summary"'
+                               r'[^>]*data-settings-url="/demo/settings/7/"')
+        self.assertNotRegex(html, r'wcv3-proc-toggle"[^>]*\bchecked\b')
+        self.assertNotRegex(html, r'wcv3-proc-run"[^>]*data-process="summary"',
+                            'a process switched off has no ▶')
+        self.assertRegex(html, r'wcv3-proc-run"[^>]*data-process="render"')
+
+    def test_an_output_that_is_not_a_file_makes_its_downstream_stale_when_it_changes(self):
+        """A transcription is text in the base, not a file: its glue DECLARES a fingerprint
+        (`output_fingerprint`), kept on the line — replaced, the downstream goes stale."""
+        pipeline = self._with_an_option()
+        item = _Element(status=JOB_SUCCESS, wants_summary=True)
+        process_runs.start(item, 'render',
+                           settings_snapshot=pipeline.snapshot(pipeline.spec('render'), item))
+        process_runs.succeed(item, 'render', output_summary={'fingerprint': 'text-v1'})
+        process_runs.start(item, 'summary',
+                           settings_snapshot=pipeline.snapshot(pipeline.spec('summary'), item))
+        process_runs.succeed(item, 'summary')
+        self.assertEqual(set(), pipeline.refresh(item))
+        process_runs.succeed(item, 'render', output_summary={'fingerprint': 'text-v2'})
+        self.assertEqual({'summary'}, pipeline.refresh(item))
+
     def test_a_fresh_process_loads_the_declarations_before_saying_there_is_no_pipeline(self):
         """Lived on 2026-10-03, 500 on the live composer page: a web process that had imported
         no `function_specs` yet read an EMPTY registry as « this app has no pipeline ». An
@@ -431,7 +495,8 @@ class SkeletonRunsThePipelineTest(TestCase):
                 self.calls.append((key, ctx.step))
                 return {'models': [f'family:{key}'], 'label': f'{key}.out'}
             return glue
-        processes = {key: glues.get(key) or default(key) for key in ('plan', 'render')}
+        processes = {spec.key: glues.get(spec.key) or default(spec.key)
+                     for spec in self.pipeline.specs}
         with mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
             run_item_task(_task(), app_id=self.app, model=self.model, item_id=item.pk,
                           pipeline=self.pipeline, processes=processes,
@@ -466,6 +531,47 @@ class SkeletonRunsThePipelineTest(TestCase):
         self.assertEqual('FAILURE', item.status)
         self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_FAILURE}, self._states(item))
         self.assertIn('render is down', process_runs.line(item, 'render').error_message)
+
+    def test_an_optional_process_that_fails_does_not_fail_the_card(self):
+        """Rule 4.4: only a REQUIRED process in failure fails the card. An optional one says it
+        on its own line, the card ends in success for the element and « to be completed » for
+        the deduced state — what the transcriber used to swallow (summary failed, nothing shown)."""
+        self.pipeline = AppPipeline(self.app, (
+            ProcessSpec('plan'),
+            ProcessSpec('extra', depends_on=('plan',), degree='optional'),
+            ProcessSpec('render', depends_on=('plan',)),
+        ), label='Demo')
+
+        def broken(element, ctx):
+            raise RuntimeError('the summary model is down')
+        item = self._run(self._element('pipeline_optional_mid'), extra=broken)
+        self.assertEqual([('plan', 'plan'), ('render', 'render')], self.calls,
+                         'the processes after the failed option still run')
+        self.assertEqual('SUCCESS', item.status)
+        self.assertEqual({'plan': JOB_SUCCESS, 'extra': JOB_FAILURE, 'render': JOB_SUCCESS},
+                         self._states(item))
+        self.assertIn('summary model is down', process_runs.line(item, 'extra').error_message)
+        self.assertEqual(JOB_PENDING, self.pipeline.card_state(item), 'the card is to be completed')
+        # ▶ again replays ONLY what is missing.
+        self.calls.clear()
+        self.model.objects.filter(pk=item.pk).update(status='RUNNING')
+        item = self._run(item)
+        self.assertEqual([('extra', 'extra')], self.calls)
+        self.assertEqual(JOB_SUCCESS, self.pipeline.card_state(item))
+
+    def test_a_last_optional_process_that_fails_leaves_the_card_named_and_successful(self):
+        self.pipeline = AppPipeline(self.app, (
+            ProcessSpec('plan'), ProcessSpec('render', depends_on=('plan',), degree='optional'),
+        ), label='Demo')
+
+        def broken(element, ctx):
+            raise RuntimeError('render is down')
+        with mock.patch('wama.common.utils.task_skeleton._notify') as notify:
+            item = self._run(self._element('pipeline_optional_last'), render=broken)
+        self.assertEqual('SUCCESS', item.status)
+        self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_FAILURE}, self._states(item))
+        self.assertEqual(('plan.out', True), notify.call_args.args[2:4],
+                         'the card keeps the name its last SUCCESSFUL process gave')
 
     def test_the_relaunch_after_a_failure_does_not_replay_what_succeeded(self):
         def broken(element, ctx):

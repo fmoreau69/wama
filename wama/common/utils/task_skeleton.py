@@ -40,7 +40,12 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
               'console_success': ligne ✓ personnalisée (remplace « ✓ Terminé : <label> ») — optionnel,
               'output_ref': chemin (relatif à MEDIA_ROOT) de CE QUE LE PROCESS A RENDU — gardé sur
                             sa ligne d'exécution ; c'est ce qui permet à un aval de se savoir
-                            périmé quand cette sortie est remplacée (2026-10-02) ; optionnel}
+                            périmé quand cette sortie est remplacée (2026-10-02) ; optionnel,
+              'output_fingerprint': empreinte d'une sortie qui n'est PAS un fichier (texte, lignes
+                            en base) — même rôle qu'`output_ref` pour la péremption de l'aval
+                            (2026-10-03, transcriber) ; optionnel}
+  - Un process `optional` qui LÈVE ne fait pas échouer la card : sa ligne passe en échec, la
+    console le dit, les process suivants sont joués (règle d'agrégation 4.4).
   - `ctx.step` : clé du process en cours quand la card en porte plusieurs (None sinon) ;
     `ctx.reset_progress()` : barre de la card à zéro, hors de la part du process en cours.
     La glu peut retourner À TOUT MOMENT (ex. chemin court PDF natif du reader) : le retour
@@ -382,6 +387,18 @@ def _record_eta(eta, seconds: float, item) -> None:
         pass
 
 
+def _line_summary(res: dict):
+    """Ce que la ligne d'exécution retient du retour d'une glu : son nom lisible, et l'EMPREINTE
+    de sa sortie quand ce n'est pas un fichier (`output_fingerprint` — le texte d'une
+    transcription : c'est ce qui périme l'aval quand cette sortie est remplacée)."""
+    summary = {}
+    if res.get('label'):
+        summary['label'] = res['label']
+    if res.get('output_fingerprint'):
+        summary['fingerprint'] = str(res['output_fingerprint'])
+    return summary or None
+
+
 def _selected_steps(app_id, item, process, pipeline, processes, resolved_key, only=None) -> list:
     """Les process que CE lancement joue : `[(nœud, clé de process, glu, spec|None)]`.
 
@@ -524,7 +541,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
             steps = _selected_steps(app_id, item, process, pipeline, processes, resolved_key,
                                     only=only)
             total_share = sum(spec.share if spec is not None else 1 for *_x, spec in steps) or 1
-            done_share, written, used = 0, {}, []
+            done_share, written, used, carried_label = 0, {}, [], None
             for index, (node, process_key, glue, spec) in enumerate(steps):
                 share = spec.share if spec is not None else 1
                 if spec is not None:
@@ -536,9 +553,30 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                     settings_snapshot=pipeline.snapshot(spec, item) if spec is not None else None,
                     model_key=resolved_key or '', task_id=task_ref)
                 t_step = time.time()
-                res = glue(item, ctx) or {}
+                try:
+                    res = glue(item, ctx) or {}
+                except TaskTimeLimitExceeded:
+                    raise
+                except Exception as exc:
+                    if spec is None or spec.degree != process_runs.OPTIONAL:
+                        raise
+                    # Un process OPTIONNEL en échec ne fait pas échouer la card (règle 4.4) : sa
+                    # ligne le dit, la console aussi, et la suite continue. C'est ce que le
+                    # transcriber avalait (résumé en échec, élément en succès, aucune trace sur
+                    # la card) — la card « reste à compléter », ▶ ne rejouera que lui.
+                    logger.warning("[%s] item #%s : process optionnel « %s » en échec : %s",
+                                   app_id, item_id, spec.key, exc)
+                    process_runs.safely(process_runs.fail, item, node, str(exc)[:500],
+                                        process_key=process_key)
+                    ctx.console(f"Avertissement : « {spec.label or spec.key} » a échoué ({exc}) — "
+                                f"le reste du traitement continue.", level='warning')
+                    done_share += share
+                    res, node = {}, None      # rien à refermer en succès pour ce process
+                    continue
                 used += [k for k in (res.get('models') or []) if k and k not in used]
                 written.update(res.get('fields') or {})
+                if res.get('label'):
+                    carried_label = res['label']
                 if index == len(steps) - 1:
                     break             # le DERNIER process rend la card : flux de succès ci-dessous
                 # Un process INTERMÉDIAIRE a rendu : ses champs sont écrits tout de suite (la glu
@@ -552,14 +590,18 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                     process_runs.succeed, item, node, process_key=process_key,
                     output_ref=res.get('output_ref') or '',
                     model_key=(res.get('models') or [None])[0],
-                    output_summary={'label': res['label']} if res.get('label') else None)
+                    output_summary=_line_summary(res))
                 _record_eta(res.get('eta'), time.time() - t_step, item)
                 if res.get('label'):
                     ctx.console(res.get('console_success') or f"✓ {res['label']}", level='info')
                 done_share += share
         last_model = next((k for k in (res.get('models') or []) if k), None)
-        # Ce que la CARD a produit = ce que tous ses process joués ont écrit et employé.
+        last_summary = _line_summary(res)
+        # Ce que la CARD a produit = ce que tous ses process joués ont écrit et employé ; son nom
+        # lisible est le dernier qu'un process a donné (le dernier process peut ne rien nommer).
         res = dict(res, fields=written, models=used or res.get('models'))
+        if not res.get('label') and carried_label:
+            res['label'] = carried_label
         fields = dict(written)
         fields['status'] = 'SUCCESS'
         if _has_field(model, 'progress'):
@@ -567,10 +609,10 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         if _has_field(model, 'processing_seconds'):
             fields['processing_seconds'] = round(time.time() - t0, 1)
         model.objects.filter(pk=item_id).update(**fields)
-        process_runs.safely(process_runs.succeed, item, node, process_key=process_key,
-                            output_ref=res.get('output_ref') or '',
-                            model_key=last_model,
-                            output_summary={'label': res['label']} if res.get('label') else None)
+        if node is not None:          # None : le dernier process, optionnel, a échoué (ligne déjà dite)
+            process_runs.safely(process_runs.succeed, item, node, process_key=process_key,
+                                output_ref=res.get('output_ref') or '',
+                                model_key=last_model, output_summary=last_summary)
         ctx.enter_step(None, 0, 100)
         ctx.progress(100)
         _measure_against_reference(app_id, model, item_id, ctx)

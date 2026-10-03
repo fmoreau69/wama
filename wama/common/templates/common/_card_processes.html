@@ -22,6 +22,11 @@ Variables :
               `data-only` = les réglages que le process SURVEILLE (`ProcessSpec.watched`) : la
               brique `queue-actions.js` le passe à `WamaParams.scopeNextModal`, et la modale
               commune ne rend que ces champs — rien à écrire par app. Absent sans `watched`.
+  settings_url — (optionnel) route de réglages de la card (`<app>:update_settings`). Avec elle,
+              un process `optional` qui DÉCLARE son interrupteur (`ProcessSpec.toggle`, ligne
+              `toggle` / `enabled`) gagne sa CASE À COCHER : la cocher écrit ce champ par cette
+              route et la card se rafraîchit (`wama-app-base.js`). Décoché, le process est
+              estompé, sans ▶, et ne pèse plus sur l'état de la card (règle 4.4).
 Contrat JS : `[data-processes]` > `.wcv3-proc[data-process=<clé>]` > `.wama-status-dot[data-s]` +
 `.wcv3-proc-note` — mis à jour en place par `WamaApp.updateProcessRows(card, rows)` pendant le
 traitement (le re-rendu serveur complet n'arrive qu'en fin de tâche).
@@ -33,13 +38,14 @@ Usage : {% include 'common/_card_processes.html' with processes=elem.processes c
   <span class="wcv3-proc-flow">
   {% for p in processes %}
     {% if not forloop.first %}<i class="fas fa-arrow-right-long wcv3-proc-sep" aria-hidden="true"></i>{% endif %}
-    <span class="wcv3-proc{% if p.degree == 'optional' %} wcv3-proc--optional{% endif %}" data-process="{{ p.key }}"
+    <span class="wcv3-proc{% if p.degree == 'optional' %} wcv3-proc--optional{% endif %}{% if p.toggle and not p.enabled %} wcv3-proc--off{% endif %}" data-process="{{ p.key }}"
           title="{{ p.label }}{% if p.model_key %} · {{ p.model_key }}{% endif %}{% if p.output_label %} · {{ p.output_label }}{% endif %}{% if p.error %} · {{ p.error|truncatechars:160 }}{% endif %}">
+      {% if p.toggle and card_id and settings_url %}<input type="checkbox" class="form-check-input wcv3-proc-toggle" data-id="{{ card_id }}" data-toggle-field="{{ p.toggle }}" data-settings-url="{{ settings_url }}"{% if p.enabled %} checked{% endif %} title="{% if p.enabled %}Désactiver{% else %}Activer{% endif %} « {{ p.label }} » pour cette card">{% endif %}
       <span class="wama-status-dot" data-s="{{ p.status }}"></span>
       <span class="wcv3-proc-name">{{ p.label }}</span>
       <small class="wcv3-proc-note text-white-50">{% if p.status == 'SUCCESS' and p.duration_s %}{{ p.duration_s|floatformat:0 }} s{% elif p.status == 'STALE' %}périmé{% elif p.status == 'FAILURE' %}échec{% elif p.status == 'RUNNING' %}en cours{% elif p.status == 'AWAITING_RESOURCES' %}attend{% endif %}</small>
       {% if card_id and p.watched %}<button type="button" class="btn btn-sm btn-outline-secondary settings-btn wcv3-proc-settings" data-id="{{ card_id }}" data-process="{{ p.key }}" data-only="{{ p.watched|join:',' }}" data-scope-label="{{ p.label }}" title="Réglages de « {{ p.label }} »"><i class="fas fa-cog"></i></button>{% endif %}
-      {% if card_id %}<button type="button" class="btn btn-sm btn-outline-success wama-cycle-btn wcv3-proc-run" data-cycle-action="start" data-id="{{ card_id }}" data-process="{{ p.key }}" title="Lancer « {{ p.label }} » seul (ses amonts périmés d'abord)"><i class="fas fa-play"></i></button>{% endif %}
+      {% if card_id and p.enabled != False %}<button type="button" class="btn btn-sm btn-outline-success wama-cycle-btn wcv3-proc-run" data-cycle-action="start" data-id="{{ card_id }}" data-process="{{ p.key }}" title="Lancer « {{ p.label }} » seul (ses amonts périmés d'abord)"><i class="fas fa-play"></i></button>{% endif %}
     </span>
   {% endfor %}
   </span>

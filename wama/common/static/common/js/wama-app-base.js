@@ -926,6 +926,43 @@
     });
   }
 
+  /** CASE À COCHER d'un process OPTIONNEL (bande des process, ROUTE §10.6 3.2 / 5.1 — 2026-10-03) :
+   *  elle écrit l'interrupteur que le process DÉCLARE (`ProcessSpec.toggle`, un champ booléen de
+   *  l'élément) par la route de réglages de la card (`data-settings-url`, la même que sa ⚙), puis
+   *  redemande la card au serveur (`data-card-url` de l'entrée de file) — l'état montré dépend
+   *  des process activés. Un refus remet la case dans son état et le DIT. Aucune ligne par app. */
+  document.addEventListener('change', function (e) {
+    const box = e.target && e.target.closest ? e.target.closest('.wcv3-proc-toggle') : null;
+    if (!box) return;
+    const url = box.dataset.settingsUrl, field = box.dataset.toggleField;
+    if (!url || !field) return;
+    const body = new FormData();
+    body.append(field, box.checked ? 'true' : 'false');
+    box.disabled = true;
+    csrfFetch(url, csrfToken(), { method: 'POST', body: body })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; })
+          .then(function (d) { return { ok: r.ok, data: d || {} }; });
+      })
+      .then(function (res) {
+        if (!res.ok || res.data.error) {
+          box.checked = !box.checked;
+          toast(res.data.error || 'Réglage refusé par le serveur', 'error');
+          return;
+        }
+        const proc = box.closest('.wcv3-proc');
+        if (proc) proc.classList.toggle('wcv3-proc--off', !box.checked);
+        const entry = box.closest('[data-card-url]');
+        const card = box.closest('.wama-card[data-id]');
+        if (entry && card) {
+          fetchCard(entry.dataset.cardUrl, card.dataset.id)
+            .then(function (fresh) { if (fresh) card.replaceWith(fresh); });
+        }
+      })
+      .catch(function () { box.checked = !box.checked; toast('Erreur réseau', 'error'); })
+      .then(function () { box.disabled = false; });
+  });
+
   global.WamaApp = {
     formatSize: formatSize,
     updateProcessRows: updateProcessRows,
