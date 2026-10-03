@@ -21125,3 +21125,40 @@ Restes déclarés :
 - Fichiers : `accounts/middleware.py`, `accounts/tests_access_points.py`,
   `common/services/rights_matrix.py`, `media_library/tests/tests_login_required.py`,
   `PROFILES_PERMISSIONS.md`.
+
+## §PALIER — 2026-10-03 (soir, après relance), « PIPELINE P6 joué EN SERVICE + bande des process de l'avatarizer » — non poussé — 🔚 recharger gunicorn pour la bande avatarizer · découpage en process des apps à une glu (décision : garder le natif)
+
+**Joué par la chaîne en service** (gunicorn et workers relancés par Fabien ; cinq cards du compte
+de test envoyées comme le font les vues — `begin_processing` puis `.delay` —, suivies en base,
+retirées par leur pk) :
+
+| card | résultat | lignes d'exécution |
+|---|---|---|
+| anonymizer, image, classe « face » en auto | SUCCESS, 3,1 s | `main` · `anonymizer:yolo:yolov9s-face-lindevs.pt` |
+| transcriber, document repris + résumé | SUCCESS, 18,2 s | `import` 0,0 s · `summarize` 18,2 s — aucun moteur ASR |
+| imager, image en auto | SUCCESS, 98,7 s | `main` · `huggingface:Bartholomheow/Supra2-IMG-ONNX` |
+| imager, **vidéo** 2 s en auto | SUCCESS, 273 s | `main` · `imager:ltx-video-13b-0.9.8-distilled-fp8` |
+| avatarizer, texte + photo | SUCCESS, 341 s | `speak` 116 s · `animate` 225 s |
+
+La vidéo de l'imager n'avait jamais été jouée par le nouveau code : c'est fait. La voix de
+l'avatar a pris 116 s en service contre 2 s dans le process d'essai — la cause n'a pas été
+cherchée (service TTS occupé ou en rechargement après la relance : c'est le cas que
+`ServiceNotReady` re-livre) ; le résultat est juste.
+Pages des dix apps et du studio sur le serveur relancé : 200, bande des process présente sur
+transcriber et composer.
+
+**Livré ensuite** : la card de l'avatarizer montre « Voix → Animation » (`27d06d60`) — bande
+commune, ▶ et ⚙ par process, état montré par l'adaptateur unique, route `start/<pk>/<process>/`.
+Tests `wama.avatarizer` 47 verts ; smoke navigateur sur serveur de dev 8011 : deux lignes, deux
+▶, deux ⚙, modale réduite aux cinq réglages de la voix, 0 erreur console.
+
+🔴 **À recharger par Fabien : gunicorn** (vues, route et gabarit de l'avatarizer). Les workers
+portent déjà tout le reste.
+
+Restes déclarés :
+- découper imager / anonymizer / synthesizer en process : pour l'imager, agrandissement et
+  conversion se font EN PLACE sur le natif — séparer « génération » de « sortie » demande de
+  garder le natif (champ + migration + stockage) : décision de Fabien ;
+- étage B de l'alignement d'un document repris en process `align` (décision) ;
+- `AnalysisPass` → `ProcessRun` et statuts du Lab → `JOB_*` (décision, migration de données) ;
+- sous « auto », la ligne d'exécution ne porte le modèle qu'à la fin du process (vide pendant).

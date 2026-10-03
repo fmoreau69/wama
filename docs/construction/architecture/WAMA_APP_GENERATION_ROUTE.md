@@ -3665,8 +3665,9 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   le cadrage ou la qualité ne re-synthétise plus la voix ; une animation en échec se relance
 >   sans refaire l'audio. Le modèle TTS tiré par « auto » n'est plus écrit dans le réglage (il
 >   est sur la ligne `speak`). Joué en réel : speak 2,0 s + animate 245 s, puis cadrage changé →
->   `animate` seul. ⏳ La bande des process n'est pas encore sur la card de l'avatarizer ;
->   CodeFormer reste dans `animate` (sa vidéo d'entrée vit dans un dossier de travail).
+>   `animate` seul. ✅ La card montre sa bande « Voix → Animation » avec ▶ et ⚙ par process
+>   (`27d06d60`, smoke navigateur vert). ⏳ CodeFormer reste dans `animate` (sa vidéo d'entrée
+>   vit dans un dossier de travail).
 > - **transcriber, process `import`** (demande de Fabien) : une card qui porte un document
 >   (port `work_result`) joue le MÊME pipeline, `import` à la place de `transcribe` — deux
 >   process `required` qui s'excluent par `applies`, et dont dépendent locuteurs, résumé et
@@ -3697,6 +3698,14 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   en a réellement plusieurs (imager : génération → agrandissement → format ; anonymizer :
 >   détection → floutage ; synthesizer : texte → voix → format) — chaque découpage se décide sur
 >   ce qu'il permet de ne PAS rejouer, comme pour le composer, le transcriber et l'avatarizer.
+>   ⚠ Mesuré le 03/10 pour l'imager : agrandissement et conversion se font EN PLACE sur le
+>   fichier natif (`output_formats.apply_output_settings`). Séparer « génération » de « sortie »
+>   demande donc de GARDER le natif de chaque génération (décision n°2 : sortie persistée d'un
+>   process d'app) — un champ, une migration et du stockage en plus : décision de Fabien.
+> - ✅ **Joué par la chaîne EN SERVICE après relance (03/10 soir, compte de test)** : anonymizer
+>   (3,1 s, modèle tiré nommé), transcriber `import` + résumé (18,2 s, aucun moteur ASR), image
+>   en « auto » (98,7 s), **vidéo en « auto »** (LTX fp8, 273 s — jamais jouée avant par le
+>   nouveau code), avatar `speak` 116 s → `animate` 225 s (`PROJECT_STATUS §PALIER` du jour).
 
 #### 5. Couche 3 — l'UI : la card affiche son pipeline, le studio affiche le même objet en graphe
 
