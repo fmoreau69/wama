@@ -124,6 +124,12 @@ class LExecuteurDispatcheSurLeKindTest(TestCase):
                       {'from': 'n3', 'to': 'n4', 'to_port': 'work'}]})
         self.assertEqual(run.status, 'SUCCESS', run.error_message)
         etats = run.node_states
+        # LIGNES D'EXÉCUTION (ROUTE §10.6 4.1) : les deux nœuds qui SONT des process (fonctions)
+        # ont leur ligne `ProcessRun`, adressée par le run ; l'entrée et la sortie n'en ont pas.
+        from wama.common.services import process_runs
+        lines = {r.node_id: (r.process_kind, r.process_key, r.status) for r in process_runs.lines(run)}
+        self.assertEqual(lines, {'n2': ('function', 'ego_track_filter', 'SUCCESS'),
+                                 'n3': ('function', 'fuse_estimates', 'SUCCESS')})
         self.assertTrue(etats['n2']['output'].startswith('geo_track · 40 ligne(s)'), etats['n2'])
         self.assertIn('heading_f', etats['n2']['output'])
         self.assertTrue(etats['n3']['output'].startswith('timeseries · '), etats['n3'])
@@ -175,6 +181,11 @@ class LExecuteurDispatcheSurLeKindTest(TestCase):
         self.assertIn('road_map', run.error_message)
         self.assertIn('road_map', run.error_message)      # le port
         self.assertIn('non alimenté', run.error_message)
+        # Le nœud FAUTIF le dit, au canvas comme sur sa ligne d'exécution (il restait « en cours »).
+        from wama.common.services import process_runs
+        self.assertEqual(run.node_states['n2']['status'], 'FAILURE')
+        self.assertEqual([(r.node_id, r.status) for r in process_runs.lines(run)],
+                         [('n2', 'FAILURE')])
 
     def test_un_parametre_de_noeud_INCONVERTIBLE_est_refuse_par_son_nom(self):
         """Les params de nœud arrivent du formulaire en CHAÎNES. La coercition suit le
