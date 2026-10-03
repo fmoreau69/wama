@@ -20560,3 +20560,19 @@ Après la génération réelle par la vraie file (bloc précédent), GO de Fabie
   la péremption dit vrai ; mais une consigne IDENTIQUE renvoyée par un formulaire change de fins
   de ligne — à normaliser à l'enregistrement (`update_settings`, domaine du portage).
 - **Non fait** : ▶/⚙ par process ; gabarit généré ; les autres apps n'ont pas de pipeline.
+
+## §CLÔTURE — 2026-10-03 (fin), « GARDES DES COÛTS DE PAGE + LEÇON DE MUTATION » — ✅ `38056dd1`, `828412cc` — rien à relancer
+
+- ✅ Tous les commits de la session sont EN SERVICE (relance de 01:03 sur `02df9c45`, vérifié par
+  `git merge-base --is-ancestor`).
+- ✅ **Gardes manquantes ajoutées** (`common/tests/tests_page_cost`, 6) : lecture groupée des droits
+  = décision unitaire (créateur de jumelle compris) et ≤ 2 requêtes ; `static_v` voit une
+  modification après son délai ; registre des bacs à sable relu quand il change, copie
+  inaltérable ; progression du reader en une requête. Avec `transcriber/tests_queue_load`,
+  `tests_system_monitor` et `tests_cloud_models`, chaque livrable de perf a sa garde.
+- ⚠ **Contre-épreuve par mutation** : la garde des droits était VERTE À VIDE (jumelle de test sans
+  politique) — corrigée, puis rouge sur le code cassé. Leçon portée DANS le rituel
+  (`/cloture §2a bis`, `828412cc`), pas seulement ici.
+- Card 1277 (signalée par l'instance « pipeline ») : pas à moi, déjà SUCCESS — rien relancé.
+- Restes : inchangés depuis `6116a361` (transcriber 0,37 s, 1ᵉʳ appel après relance, dix
+  `global_progress` à centraliser, budgets de langue d'autres chantiers, push).
