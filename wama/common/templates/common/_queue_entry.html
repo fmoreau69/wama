@@ -82,7 +82,7 @@ rangée) se rend en card SEULE : la branche « lot » lui dessinait un en-tête 
   {% for item in batch_info.items %}{% if item.elem %}
     {% with elem=item.elem card_label=item.output_filename in_batch=False %}
       <div class="wama-queue-entry" style="display:contents{% if batch_info.share_label %}; --wama-share-label:'{{ batch_info.share_label }}'{% endif %}"
-           data-entry-batch-id="{{ batch_info.obj.id }}"{% if card_url %} data-card-url="{{ card_url }}"{% endif %}{% if batch_info.received_from %} data-received-from="{{ batch_info.received_from }}"{% elif batch_info.share_label %} data-shared{% endif %}>{% include card_template %}</div>
+           data-entry-batch-id="{{ batch_info.obj.id }}"{% if card_url %} data-card-url="{{ card_url }}"{% endif %}{% if batch_info.received_from %} data-received-from="{{ batch_info.received_from }}" data-share-mode="{{ batch_info.share_mode|default:'read' }}"{% elif batch_info.share_label %} data-shared{% if batch_info.collaborators %} data-collaborators="{{ batch_info.collaborators }}"{% endif %}{% endif %}>{% include card_template %}</div>
     {% endwith %}
   {% endif %}{% endfor %}
 {% else %}
@@ -97,7 +97,7 @@ rangée) se rend en card SEULE : la branche « lot » lui dessinait un en-tête 
   modèle de lot du dépôt qui groupe par nature (`ConversionBatch`, + sa jumelle de bac à
   sable) — les 9 autres n'ont pas le champ et ne rendent donc aucun attribut. La brique
   surface ce que le modèle DÉCLARE ; elle ne connaît aucune app.{% endcomment %}
-  <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}"{% if batch_info.obj.media_type %} data-media-type="{{ batch_info.obj.media_type }}"{% endif %}{% if card_url %} data-card-url="{{ card_url }}"{% endif %}{% if batch_info.received_from %} data-received-from="{{ batch_info.received_from }}"{% elif batch_info.share_label %} data-shared{% endif %}{% if batch_info.share_label %} style="--wama-share-label:'{{ batch_info.share_label }}'"{% endif %}>
+  <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}"{% if batch_info.obj.media_type %} data-media-type="{{ batch_info.obj.media_type }}"{% endif %}{% if card_url %} data-card-url="{{ card_url }}"{% endif %}{% if batch_info.received_from %} data-received-from="{{ batch_info.received_from }}" data-share-mode="{{ batch_info.share_mode|default:'read' }}"{% elif batch_info.share_label %} data-shared{% if batch_info.collaborators %} data-collaborators="{{ batch_info.collaborators }}"{% endif %}{% endif %}{% if batch_info.share_label %} style="--wama-share-label:'{{ batch_info.share_label }}'"{% endif %}>
     {% include 'common/_batch_card.html' %}
     <div class="collapse" id="{{ collapse_prefix|default:'batchItems' }}{{ batch_info.obj.id }}"
          data-wama-batch-key="{{ batch_key|default:app }}_{{ batch_info.obj.id }}"

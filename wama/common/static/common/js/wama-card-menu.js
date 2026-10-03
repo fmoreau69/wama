@@ -526,7 +526,11 @@
                     .then(function (d) {
                         if (!d) return [{ vide: true, libelle: 'Accès indisponible' }];
                         var pending = d.pending || {};
-                        var lignes = (d.modes || []).map(function (m) {
+                        // La LECTURE est comprise dans tout accès supérieur : elle ne se « demande »
+                        // pas quand on collabore déjà.
+                        var lignes = (d.modes || []).filter(function (m) {
+                            return !(m.key === 'read' && d.mode !== 'read');
+                        }).map(function (m) {
                             if (m.key === d.mode) {
                                 return { icone: 'fas fa-check wama-cm-coche', desactive: true,
                                          libelle: m.icon + ' ' + m.label + ' — votre accès' };
@@ -1312,7 +1316,14 @@
     // CONSULTATION (option 2). Le serveur refuse de toute façon ces gestes (`owned_or_404`) : ceci
     // dit POURQUOI au lieu de laisser un refus sec.
     var OWNER_ONLY = '.wama-cycle-btn, .delete-btn, .batch-start-btn, .batch-delete-btn, .batch-settings-btn, .batch-realign-btn';
+    // En COLLABORATION (E1-E5, 2026-10-03) le destinataire règle et relance : seule la SUPPRESSION
+    // reste au propriétaire (E2) — elle seule ouvre encore l'encart.
+    var OWNER_ONLY_COLLAB = '.delete-btn, .batch-delete-btn';
     var notice = null;
+
+    function enCollaboration(enveloppe) {
+        return !!enveloppe && enveloppe.getAttribute('data-share-mode') === 'collaborate';
+    }
 
     function fermerEncart() {
         if (notice) { notice.remove(); notice = null; }
@@ -1326,9 +1337,12 @@
         notice = document.createElement('div');
         notice.className = 'wama-readonly-notice';
         notice.setAttribute('role', 'dialog');
-        notice.innerHTML = '<div class="mb-1"><i class="fas fa-lock me-1"></i><b>Lecture seule</b> — '
-            + (estMere ? 'lot' : 'card') + ' de ' + echapperTexte(owner) + '.</div>'
-            + '<div class="mb-1">Pour la modifier : <button type="button" class="btn btn-link" '
+        var titre = enCollaboration(enveloppe)
+            ? '<b>Suppression réservée</b> — vous collaborez sur cette ' + (estMere ? 'série' : 'card')
+              + ' de ' + echapperTexte(owner) + ' : la supprimer reste à son propriétaire.'
+            : '<b>Lecture seule</b> — ' + (estMere ? 'lot' : 'card') + ' de ' + echapperTexte(owner) + '.';
+        notice.innerHTML = '<div class="mb-1"><i class="fas fa-lock me-1"></i>' + titre + '</div>'
+            + '<div class="mb-1">Pour en avoir une à vous : <button type="button" class="btn btn-link" '
             + 'data-ro-dup>⧉ la dupliquer</button> (la copie est à vous), ou '
             + '<button type="button" class="btn btn-link" data-ro-own>demander à en devenir '
             + 'propriétaire</button>.</div>';
@@ -1401,19 +1415,66 @@
         document.addEventListener('show.bs.modal', surOuverture, true);
     }
 
+    // VERROU DOUX (E4, décision de Fabien 2026-10-03) : quand les réglages d'une card EN
+    // COLLABORATION s'ouvrent (chez le collaborateur comme chez le propriétaire), la modale prend
+    // le verrou ; si quelqu'un d'autre le tient, un bandeau le dit — rien n'est refusé, le dernier
+    // enregistrement gagne (tracé au journal). Renouvelé tant que la modale est ouverte, rendu à
+    // la fermeture ; il expire seul si la page disparaît.
+    function armerVerrou(card) {
+        var c = global.WamaShare && WamaShare.coordonnees(card);
+        if (!c) return;
+        var champs = { surface: c.surface, pk: c.pk, nature: 'element' };
+        var expire = setTimeout(desarmer, 6000);
+        function desarmer() {
+            clearTimeout(expire);
+            document.removeEventListener('show.bs.modal', surOuverture, true);
+        }
+        function prendre(modal) {
+            return poster('/common/api/edit-lock/', Object.assign({ action: 'acquire' }, champs))
+                .then(function (res) {
+                    var body = modal.querySelector('.modal-body');
+                    var deja = modal.querySelector('[data-wama-lock-banner]');
+                    if (res && res.held_by_other && body && !deja) {
+                        body.insertAdjacentHTML('afterbegin', '<div class="alert alert-warning small '
+                            + 'py-2 mb-3" data-wama-lock-banner><i class="fas fa-user-pen me-1"></i>'
+                            + '<b>' + echapperTexte(res.name) + '</b> modifie ces réglages en ce '
+                            + 'moment. Le dernier enregistrement l’emporte.</div>');
+                    } else if (res && !res.held_by_other && deja) {
+                        deja.remove();
+                    }
+                });
+        }
+        function surOuverture(ev) {
+            var modal = ev.target;
+            desarmer();
+            prendre(modal);
+            var battement = setInterval(function () { prendre(modal); }, 60000);
+            modal.addEventListener('hidden.bs.modal', function () {
+                clearInterval(battement);
+                modal.querySelectorAll('[data-wama-lock-banner]').forEach(function (b) { b.remove(); });
+                poster('/common/api/edit-lock/', Object.assign({ action: 'release' }, champs));
+            }, { once: true });
+        }
+        document.addEventListener('show.bs.modal', surOuverture, true);
+    }
+
     window.addEventListener('click', function (ev) {
         if (!ev.target || !ev.target.closest) return;
         if (notice && !notice.contains(ev.target)) fermerEncart();
+        var reglages = ev.target.closest('.settings-btn[data-id]');
+        var enCommun = ev.target.closest('[data-collaborators], [data-share-mode="collaborate"]');
+        if (reglages && enCommun) armerVerrou(reglages.closest('.wama-card') || reglages);
         var enveloppe = ev.target.closest('[data-received-from]');
         if (!enveloppe) return;
-        var btn = ev.target.closest(OWNER_ONLY);
+        var collab = enCollaboration(enveloppe);
+        var btn = ev.target.closest(collab ? OWNER_ONLY_COLLAB : OWNER_ONLY);
         if (btn) {
             ev.preventDefault();
             ev.stopImmediatePropagation();
             readOnlyNotice(btn, enveloppe);
             return;
         }
-        if (ev.target.closest('.settings-btn[data-id]')) {
+        if (!collab && ev.target.closest('.settings-btn[data-id]')) {
             armerConsultation(enveloppe.getAttribute('data-received-from') || '');
         }
     }, true);

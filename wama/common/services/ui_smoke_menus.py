@@ -1157,6 +1157,142 @@ def check_received_card_readonly_and_request():
     return _bilan(verdicts)
 
 
+def check_collaboration_cycle():
+    """La COLLABORATION de bout en bout (2026-10-03, E1-E5 tranchées par Fabien). (ok, detail)
+
+    Destinataire (compte de test, describer) : « Mon accès » → « Demander : Collaboration ».
+    Propriétaire (compte DÉVELOPPEUR, pages communes) : la notification surgit, « Accepter ».
+    Destinataire : la pastille dit « Collaboration », ⚙ s'ouvre EN ÉDITION (pas de bandeau de
+    consultation, « Enregistrer » visible), 🗑 garde l'encart (la suppression reste au
+    propriétaire). Propriétaire : « Mes partages » → « retirer ». Destinataire : de nouveau en
+    lecture seule (E5 : effet immédiat).
+    """
+    from django.contrib.auth import get_user_model
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.models import Notification, ObjectGrant, ReceivedEntry
+    from wama.common.services.nightly_tests import SkipScenario, get_test_dev_user
+    from wama.common.services.sharing import partager
+    from wama.common.utils.media_paths import app_media_dir
+    from wama.describer.models import BatchDescription, Description
+    from wama.describer.views import _wrap_description_in_batch
+
+    page_path = '/describer/'
+    recipient_token, uid = _test_session_key('describer'), _test_account_id('describer')
+    owner_token = _test_session_key('describer_01')
+    owner = get_test_dev_user()
+    if not (recipient_token and owner_token and uid and owner) or owner.pk == uid:
+        raise SkipScenario('deux comptes de test distincts sont nécessaires')
+    requester = get_user_model().objects.get(pk=uid)
+    home = app_media_dir('describer', owner.pk, 'input')
+    folder = Path(settings.MEDIA_ROOT) / home
+    folder.mkdir(parents=True, exist_ok=True)
+    name = 'wama_temoin_collaboration.txt'
+    source = _temoin(folder, name, '.txt')
+    item = Description.objects.create(user=owner, filename=name)
+    item.input_file.name = f'{home}/{name}'
+    item.save(update_fields=['input_file'])
+    owner_batch = _wrap_description_in_batch(item)
+    partager(owner, item, 'public')
+    card = f".wama-card[data-id='{item.pk}']"
+    label_js = f"() => getComputedStyle(document.querySelector(\"{card}\"), '::before').content"
+    from django.utils import timezone
+    started = timezone.now()
+    before, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav, page, errors = _ouvrir(p, recipient_token)
+            try:
+                resp = page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                refused_page = _exiger_la_page(page, resp, page_path)
+                if refused_page:
+                    return refused_page
+                page.locator(card).first.click(button='right')
+                page.locator('.wama-card-menu .wama-cm-item:has-text("Mon accès")').first.click()
+                ask = page.locator('.wama-cm-sous .wama-cm-item:has-text("Demander : Collaboration")')
+                ask.first.wait_for(timeout=15000)
+                ask.first.click()
+                page.wait_for_timeout(1500)
+            finally:
+                nav.close()
+        grant = ObjectGrant.objects.filter(beneficiary=requester, level='collaborate',
+                                           object_id=owner_batch.pk).first()
+        verdicts.append((grant is not None and grant.state == 'requested',
+                         'la demande de collaboration vise le lot et attend'))
+        note = Notification.objects.filter(recipient=owner, kind='access_request').order_by('-pk').first()
+        if grant is not None and note is not None:
+            with sync_playwright() as p:
+                nav, page, errors = _ouvrir(p, owner_token)
+                try:
+                    page.add_init_script(
+                        f"localStorage.setItem('wama.notifications.lastSeen', '{note.pk - 1}')")
+                    page.goto(BASE_URL + '/common/notifications/', wait_until='networkidle', timeout=60000)
+                    popup = page.locator(f'.wama-notif-popup[data-notification-id="{note.pk}"]')
+                    popup.wait_for(timeout=15000)
+                    verdicts.append(('collaborer' in popup.inner_text(),
+                                     'le propriétaire est prévenu en bas à droite'))
+                    popup.locator('a:has-text("Ouvrir")').click()
+                    page.wait_for_selector('[data-request-answer="1"]', timeout=15000)
+                    page.click('[data-request-answer="1"]')
+                    page.wait_for_selector('[data-request-answer]', state='detached', timeout=20000)
+                finally:
+                    nav.close()
+            grant.refresh_from_db()
+            verdicts.append((grant.state == 'granted', 'la collaboration est accordée'))
+            with sync_playwright() as p:
+                nav, page, errors = _ouvrir(p, recipient_token)
+                try:
+                    page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                    verdicts.append(('Collaboration' in (page.evaluate(label_js) or ''),
+                                     'la pastille dit « Collaboration »'))
+                    page.locator(f'{card} .settings-btn').first.click()
+                    page.wait_for_selector('.modal.show', timeout=15000)
+                    page.wait_for_timeout(800)
+                    verdicts.append((page.locator('.modal.show [data-wama-ro-banner]').count() == 0
+                                     and page.locator('.modal.show .save-settings-btn:visible').count() >= 1,
+                                     '⚙ s’ouvre en ÉDITION (« Enregistrer » visible)'))
+                    page.locator('.modal.show [data-bs-dismiss="modal"]').first.click()
+                    page.wait_for_selector('.modal.show', state='detached', timeout=10000)
+                    page.locator(f'{card} .delete-btn').first.click()
+                    notice = page.locator('.wama-readonly-notice')
+                    verdicts.append((notice.count() == 1 and 'Suppression réservée' in notice.inner_text(),
+                                     '🗑 reste au propriétaire (encart)'))
+                    verdicts.append(_console(errors))
+                finally:
+                    nav.close()
+            with sync_playwright() as p:
+                nav, page, errors = _ouvrir(p, owner_token)
+                try:
+                    page.goto(BASE_URL + '/common/shares/', wait_until='networkidle', timeout=60000)
+                    page.click(f'[data-revoke="{grant.pk}"]')
+                    page.wait_for_selector(f'[data-collaborator="{grant.pk}"]', state='detached',
+                                           timeout=15000)
+                finally:
+                    nav.close()
+            grant.refresh_from_db()
+            verdicts.append((grant.state == 'revoked', '« Mes partages » : le droit est retiré'))
+            with sync_playwright() as p:
+                nav, page, errors = _ouvrir(p, recipient_token)
+                try:
+                    page.goto(BASE_URL + page_path, wait_until='networkidle', timeout=60000)
+                    verdicts.append(('Lecture seule' in (page.evaluate(label_js) or ''),
+                                     'retiré : de nouveau en lecture seule (effet immédiat)'))
+                finally:
+                    nav.close()
+    finally:
+        _drop_new_sessions(before)
+        partager(owner, item, 'private')
+        ObjectGrant.objects.filter(beneficiary=requester, object_id__in=[item.pk, owner_batch.pk]).delete()
+        Notification.objects.filter(recipient__in=[owner, requester], created_at__gte=started,
+                                    kind__in=['access_request', 'access_granted',
+                                              'access_revoked']).delete()
+        ReceivedEntry.objects.filter(recipient=requester, object_id=owner_batch.pk).delete()
+        Description.objects.filter(pk=item.pk).delete()
+        BatchDescription.objects.filter(pk=owner_batch.pk).delete()
+        source.unlink(missing_ok=True)
+    return _bilan(verdicts)
+
+
 def check_card_transfer():
     """« Transférer à… » par le VRAI chemin : clic droit sur une card → entrée du menu → saisie du
     destinataire → la card QUITTE la file sans rechargement ; en base, elle est au destinataire,
@@ -1369,6 +1505,10 @@ def register_menu_scenarios():
                          "accès ») puis demande de propriété : notification en bas à droite chez "
                          "le propriétaire, « Accepter » lui cède la card",
              run=lambda ctx: check_received_card_readonly_and_request(), timeout_s=300)
+    register(id='common.collaboration_cycle', app='common', stage='ui',
+             description="Collaboration de bout en bout : demandée par « Mon accès », acceptée par "
+                         "le propriétaire, ⚙ en édition, 🗑 réservée, retirée depuis « Mes partages »",
+             run=lambda ctx: check_collaboration_cycle(), timeout_s=360)
     register(id='common.card_transfer', app='common', stage='ui',
              description="« Transférer à… » depuis le menu de la card : elle quitte la file sans "
                          "rechargement, appartient au destinataire, son fichier déplacé chez lui",

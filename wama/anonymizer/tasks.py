@@ -467,8 +467,10 @@ def process_single_media(self, media_id, force_individual=False):
                 pass
             _console(user.id, f"Finished media {media.id} ✔")
             try:
-                from wama.common.utils.notifications import notify_job
-                notify_job(user, 'Anonymizer', os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media.id}", True)
+                from wama.common.utils.notifications import notify_job, notify_job_collaborators
+                _label = os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media.id}"
+                notify_job(user, 'Anonymizer', _label, True)
+                notify_job_collaborators(media, 'Anonymizer', _label, True)   # E3
             except Exception:
                 pass
         except media.__class__.DoesNotExist:
@@ -498,8 +500,9 @@ def process_single_media(self, media_id, force_individual=False):
         cache.delete(f"anon_lock:media:{media_id}")
         cache.delete(f"anon_task_owner:media:{media_id}")
         try:
-            from wama.common.utils.notifications import notify_job
+            from wama.common.utils.notifications import notify_job, notify_job_collaborators
             notify_job(user, 'Anonymizer', f"média #{media_id}", False, detail=str(e))
+            notify_job_collaborators(media, 'Anonymizer', f"média #{media_id}", False, detail=str(e))
         except Exception:
             pass
         return {"error": str(e), "media_id": media_id}

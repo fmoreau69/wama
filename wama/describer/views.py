@@ -441,7 +441,10 @@ def stop(request, pk):
     """
     user = get_user(request)
     try:
-        description = Description.objects.get(pk=pk, user=user)
+        from wama.common.utils.scoping import can_edit
+        description = Description.objects.get(pk=pk)
+        if not can_edit(user, description):     # le sien, ou en collaboration (E1)
+            raise Description.DoesNotExist
     except Description.DoesNotExist:
         return JsonResponse({'error': 'Not found'}, status=404)
     if description.status not in ('RUNNING', 'PENDING'):
@@ -739,7 +742,8 @@ def delete(request, pk):
 def preview(request, pk):
     """Get file preview."""
     user = get_user(request)
-    description = get_object_or_404(Description, pk=pk, user=user)
+    from wama.common.utils.scoping import visible_or_404
+    description = visible_or_404(Description, user, pk=pk)
 
     response = {
         'id': description.id,
@@ -1098,7 +1102,8 @@ def update_settings(request, pk):
     `batch_update` de la fabrique : `read_settings_payload` + `apply_item_settings`. L'ancien
     `_apply_description_options` typait à la main (`int`, `bool`) ce que le schéma déclare."""
     user = get_user(request)
-    description = get_object_or_404(Description, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    description = editable_or_404(Description, user, pk=pk)
 
     if description.status == 'RUNNING':
         return JsonResponse({'error': 'Cannot update while running'}, status=400)

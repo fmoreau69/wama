@@ -328,9 +328,11 @@ def start(request, pk):
     from .tasks import convert_media_task
 
     with transaction.atomic():
-        job = get_object_or_404(
-            ConversionJob.objects.select_for_update(), pk=pk, user=request.user
-        )
+        from django.http import Http404
+        from wama.common.utils.scoping import can_edit
+        job = get_object_or_404(ConversionJob.objects.select_for_update(), pk=pk)
+        if not can_edit(request.user, job):     # le sien, ou en collaboration (E1)
+            raise Http404
         if job.status == 'RUNNING':
             return JsonResponse({'error': 'Conversion déjà en cours'}, status=400)
         # Un job importé par lot ou par fichier NAÎT sans format (`output_format=''`) ; le lot le
@@ -445,7 +447,8 @@ def update_settings(request, pk):
     """Update a job's output_format and options (only when not RUNNING)."""
     import json as _json
 
-    job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
+    from wama.common.utils.scoping import editable_or_404
+    job = editable_or_404(ConversionJob, request.user, pk=pk)
     if job.status == 'RUNNING':
         return JsonResponse({'error': 'Impossible de modifier une conversion en cours'}, status=400)
 
@@ -959,7 +962,8 @@ def cancel(request, pk):
     PENDING so they can be restarted. The atomic-output design guarantees no
     partial file is left next to the source on a killed in-place conversion.
     """
-    job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
+    from wama.common.utils.scoping import editable_or_404
+    job = editable_or_404(ConversionJob, request.user, pk=pk)
     if job.task_id:
         try:
             from celery import current_app

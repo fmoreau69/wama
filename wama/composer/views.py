@@ -501,7 +501,8 @@ def start_process(request, pk, process):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     if process not in {s.key for s in PIPELINE.specs}:
         return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    gen = editable_or_404(ComposerGeneration, user, id=pk)
     # Sous « auto », le modèle — donc ce qui a lieu — n'est connu qu'au lancement : la tâche tranche.
     from wama.common.utils.auto_model import is_auto
     if not is_auto(gen.model) and \
@@ -530,7 +531,8 @@ def stop(request, pk):
     Brique commune : wama.common.utils.process_control.stop_instance.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    gen = editable_or_404(ComposerGeneration, user, id=pk)
     if gen.status not in ('RUNNING', 'PENDING'):
         return JsonResponse({'id': gen.id, 'status': gen.status})
     from wama.common.utils.process_control import stop_instance
@@ -605,7 +607,8 @@ def _apply_generation_settings(gen, data):
 def update_settings(request, pk):
     """Update model and/or duration on an existing generation, then re-run."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    gen = editable_or_404(ComposerGeneration, user, id=pk)
 
     if gen.status == 'RUNNING':
         return JsonResponse({'error': 'Impossible de modifier une génération en cours'}, status=400)

@@ -1589,7 +1589,8 @@ def update_settings(request, pk):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generation = owned_or_404(ImageGeneration, user, id=pk)   # MUTATION
+        from wama.common.utils.scoping import editable_or_404
+        generation = editable_or_404(ImageGeneration, user, id=pk)   # ÉDITION (sien ou collaboration)
 
         # Don't allow editing while running
         if generation.status == 'RUNNING':
@@ -1731,7 +1732,8 @@ def force_reset_generation(request, generation_id):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generation = owned_or_404(ImageGeneration, user, id=generation_id)   # MUTATION
+        from wama.common.utils.scoping import editable_or_404
+        generation = editable_or_404(ImageGeneration, user, id=generation_id)   # ÉDITION (sien ou collaboration)
 
         old_status = generation.status
         old_task_id = generation.task_id

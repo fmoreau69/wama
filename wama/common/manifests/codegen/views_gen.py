@@ -775,7 +775,8 @@ def start(request, pk):
         return f'''@require_POST
 def {nom}(request, pk):
     user = _user(request)
-    item = get_object_or_404({item}, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    item = editable_or_404({item}, user, pk=pk)   # le sien, ou en collaboration (E1)
     if item.status not in ('RUNNING', 'PENDING'):
         return JsonResponse({{'id': item.id, 'status': item.status}})
     new_status = stop_instance(item, error_field='error_message')
@@ -1049,7 +1050,8 @@ def clear_all(request):
         return f'''@require_POST
 def {nom}(request, pk):
     user = _user(request)
-    item = get_object_or_404({item}, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    item = editable_or_404({item}, user, pk=pk)   # le sien, ou en collaboration (E1)
     if item.status == 'RUNNING':
         return JsonResponse({{'error': 'Impossible de modifier un élément en cours'}}, status=400)
     donnees = read_settings_payload(request, _SCHEMA, {_noms_schema!r})

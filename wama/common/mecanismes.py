@@ -495,12 +495,16 @@ MECHANISMS = (
               "Depuis le 2026-10-03 : la card reçue en LECTURE SEULE (pastille des deux côtés, "
               "▶ 🗑 → encart, ⚙ en consultation), les MODES déclarés (`SHARE_MODES`, deux "
               "grisés) et les DEMANDES d'accès (`ObjectGrant` : la demande et le droit sont la "
-              "même ligne ; la propriété s'accorde, elle cède la card)",
+              "même ligne ; la propriété s'accorde, elle cède la card). Puis la COLLABORATION "
+              "(E1-E5) : `scoping.editable_or_404` / `can_edit` (lancement, réglages, arrêt, "
+              "correction — jamais la suppression), fin notifiée aux deux, verrou doux "
+              "(`edit_lock`), réglages tracés au journal, retrait depuis « Mes partages »",
               'wama/common/services/sharing.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/common/static/common/js/wama-share.js',
                        'wama/common/services/card_transfer.py',
                        'wama/common/services/reception.py',
-                       'wama/common/services/access_requests.py')),
+                       'wama/common/services/access_requests.py',
+                       'wama/common/services/edit_lock.py')),
     Mechanism('send_to', "Envoyer vers (chaînage progressif, hors studio)",
               "La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studio. "
               "RÉSOLVEUR en lecture seule : il rend les chemins de sortie (clé canonique "

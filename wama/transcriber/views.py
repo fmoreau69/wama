@@ -532,7 +532,8 @@ def stop(request, pk: int):
     (bouton de cycle ▶/⏹/↻). Brique commune : wama.common.utils.process_control.stop_instance.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
 
     if t.status not in ('RUNNING', 'PENDING'):
         return JsonResponse({'id': t.id, 'status': t.status})  # rien à stopper
@@ -645,7 +646,8 @@ def edit(request, pk: int):
     """Page éditeur de correction (forme d'onde + transcript synchronisé éditable)."""
     import json as _json
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
     if t.status != 'SUCCESS':
         from django.contrib import messages
         messages.warning(request, "La correction n'est disponible qu'après une transcription réussie.")
@@ -685,7 +687,8 @@ def waveform_peaks(request, pk: int):
     sinon {"status": "pending"|"failed"}. Lance le calcul si pas encore démarré.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
     from .utils.waveform import read_peaks
     if t.waveform_status == 'ready':
         data = read_peaks(t)
@@ -755,7 +758,8 @@ def suggest_speakers(request, pk: int):
     dans l'onglet Intervenants avant d'appliquer (rien n'est enregistré ici).
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
     segs = _editor_segments(t)  # libellés déjà normalisés (SPEAKER_NN)
     if not segs:
         return JsonResponse({'suggestions': {}})
@@ -777,7 +781,8 @@ def save_meta(request, pk: int):
     Le speaker_map est appliqué à l'affichage et à l'export sans toucher les segments bruts.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
     try:
         data = json.loads(request.body.decode('utf-8'))
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -836,7 +841,8 @@ def retime_segments(request, pk: int):
     import json as _json
     from wama.common.services.word_anchoring import move_boundary, replace_span, split_turn
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
     try:
         data = _json.loads(request.body or '{}')
         op, segs = data.get('op'), data.get('segments') or []
@@ -877,7 +883,8 @@ def write_cursor(request, pk: int):
     from wama.common.services.playhead_follow import post_cursor
     from .workers import WRITE_MODES, WRITE_TTL, live_write_task, write_channel
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
     try:
         body = _json.loads(request.body or '{}')
     except ValueError:
@@ -905,7 +912,8 @@ def write_results(request, pk: int):
     courant — une page qui s'ouvre ne rejoue pas les résultats d'une session précédente)."""
     from .workers import write_channel
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
     channel = write_channel(t.pk)
     results = cache.get(channel.key('results')) or []
     try:
@@ -921,7 +929,8 @@ def save_correction(request, pk: int):
     """Auto-save de la correction (segments corrigés). status: draft | done."""
     import json as _json
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
     try:
         data = _json.loads(request.body or '{}')
     except (ValueError, TypeError):
@@ -1254,7 +1263,8 @@ def enrich(request, pk: int):
     """Lance l'enrichissement LLM (résumé, points clés, actions) sur un transcript déjà transcrit."""
     import json
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
 
     if not t.text:
         return JsonResponse({'error': 'Pas de texte transcrit'}, status=400)
@@ -1605,7 +1615,8 @@ def get_segments(request, pk: int):
         JSON with segments array containing speaker_id, start_time, end_time, text.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
 
     # Try to get segments from database first
     from .models import TranscriptSegment
@@ -1652,7 +1663,8 @@ def download_srt(request, pk: int):
         SRT file with speaker labels and timestamps.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import visible_or_404
+    t = visible_or_404(Transcript, user, pk=pk)
 
     stem = _output_stem(t)
 
@@ -1699,7 +1711,8 @@ def update_settings(request, pk: int):
     schéma déclare. Corps JSON attendu : backend, hotwords, enable_diarization, preprocess_audio,
     generate_summary, summary_type, verify_coherence (clés absentes = inchangées)."""
     user = _get_user(request)
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    t = editable_or_404(Transcript, user, pk=pk)
 
     data = read_settings_payload(request, _SCHEMA, SETTINGS_FIELDS)
     touched = apply_item_settings(t, data, params_fields=SETTINGS_FIELDS)

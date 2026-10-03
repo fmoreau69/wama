@@ -317,9 +317,11 @@ def synthesize_voice(self, synthesis_id: int):
 
         _console(synthesis.user_id, f"Synthèse #{synthesis.id} terminée ✓")
         try:
-            from wama.common.utils.notifications import notify_job
+            from wama.common.utils.notifications import notify_job, notify_job_collaborators
             notify_job(getattr(synthesis, 'user', None), 'Synthesizer',
                        getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}", True)
+            notify_job_collaborators(synthesis, 'Synthesizer',
+                                     getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}", True)   # E3
         except Exception:
             pass
 
@@ -360,9 +362,12 @@ def synthesize_voice(self, synthesis_id: int):
         _set_progress(synthesis, 0)
         _console(synthesis.user_id, f"Erreur synthèse #{synthesis.id}: {e}")
         try:
-            from wama.common.utils.notifications import notify_job
+            from wama.common.utils.notifications import notify_job, notify_job_collaborators
             notify_job(getattr(synthesis, 'user', None), 'Synthesizer',
                        getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}", False, detail=str(e))
+            notify_job_collaborators(synthesis, 'Synthesizer',
+                                     getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}",
+                                     False, detail=str(e))
         except Exception:
             pass
 

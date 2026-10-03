@@ -277,7 +277,8 @@ def stop(request, pk):
     Brique commune : wama.common.utils.process_control.stop_instance.
     """
     user = _get_user(request)
-    job = get_object_or_404(AvatarJob, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    job = editable_or_404(AvatarJob, user, pk=pk)
     if job.status not in ('RUNNING', 'PENDING'):
         return JsonResponse({'id': job.id, 'status': job.status})
     from wama.common.utils.process_control import stop_instance
@@ -395,7 +396,8 @@ def global_progress(request):
 def update_settings(request, pk):
     """POST : Met à jour les paramètres d'un AvatarJob (avant relance)."""
     user = _get_user(request)
-    job = get_object_or_404(AvatarJob, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    job = editable_or_404(AvatarJob, user, pk=pk)
 
     if job.status == 'RUNNING':
         return JsonResponse({'error': 'Impossible de modifier un job en cours.'}, status=400)

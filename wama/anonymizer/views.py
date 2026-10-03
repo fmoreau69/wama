@@ -727,7 +727,8 @@ def start(request, pk):
 def stop(request, pk):
     """Arrête UN média (bouton de cycle ⏹) : revoke + libération des verrous."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    media = get_object_or_404(Media, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    media = editable_or_404(Media, user, pk=pk)
     if media.task_id:
         try:
             AsyncResult(media.task_id).revoke(terminate=False)
@@ -1264,7 +1265,10 @@ def save_media_settings(request):
             return JsonResponse({'success': False, 'error': 'No media_id provided'}, status=400)
 
         # Scope par UTILISATEUR : l'ancien get(pk=…) laissait éditer le média d'autrui.
-        media = Media.objects.get(pk=media_id, user=request.user)
+        from wama.common.utils.scoping import can_edit
+        media = Media.objects.get(pk=media_id)
+        if not can_edit(request.user, media):     # le sien, ou en collaboration (E1)
+            raise Media.DoesNotExist
 
         # Save classes2blur (checkboxes)
         classes2blur = request.POST.getlist('classes2blur')

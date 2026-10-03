@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% comment %}
+PARTAGES — WAMA_COLLABORATION §5.3 (2026-10-03) : « ce que j'ai partagé — avec qui, quel droit,
+depuis quand, et c'est ICI qu'on modifie ou retire les droits ; ce qu'on m'a partagé — qui, quel
+droit ». Un partage doit pouvoir être CONSTATÉ. L'unité est l'entrée de file (le lot, ou la card
+sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
+{% endcomment %}
+
+{% block title %}WAMA — Partages{% endblock %}
+
+{% block extra_css %}
+<style>
+    .shares-page { padding: 2rem 0; max-width: 64rem; }
+    .shares-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: .25rem; }
+    .shares-page .subtitle { color: #adb5bd; font-size: .9rem; margin-bottom: 1.25rem; }
+    .share-row { background: #1a1a2e; border: 1px solid #2d2d4e; border-radius: .5rem;
+                 padding: .7rem 1rem; margin-bottom: .5rem; color: #dee2e6; }
+    .share-row .share-label { font-weight: 600; color: #f8f9fa; }
+    .share-row .share-meta { color: #c4b5fd; font-size: .82rem; }
+    .share-pill { display: inline-block; font-size: .72rem; padding: 0 .45rem; border-radius: 999px;
+                  background: rgba(139,92,246,.18); border: 1px solid rgba(167,139,250,.45);
+                  color: #ddd6fe; margin-right: .25rem; }
+    .shares-empty { color: #adb5bd; padding: 1.5rem 0; }
+    .nav-tabs .nav-link { color: #c4b5fd; }
+    .nav-tabs .nav-link.active { color: #f8f9fa; background: #1a1a2e; border-color: #2d2d4e #2d2d4e #1a1a2e; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container shares-page">
+  <h1><i class="fas fa-share-nodes me-2" style="color:#c4b5fd;"></i>Partages</h1>
+  <p class="subtitle">Ce que vous partagez, avec qui, et ce qu'on vous partage. Retirer un partage ou
+    un droit prend effet tout de suite ; un traitement déjà lancé va à son terme.</p>
+
+  {% if incoming %}
+  <h2 class="h6 text-light mt-2">Demandes qui vous attendent</h2>
+  {% for r in incoming %}
+  <div class="share-row d-flex justify-content-between align-items-center gap-2" data-incoming="{{ r.id }}">
+    <span><b>{{ r.who }}</b> demande : {{ r.level }} — « {{ r.label }} » ({{ r.app }})</span>
+    <a class="btn btn-sm btn-outline-light" href="/common/requests/{{ r.id }}/">Répondre</a>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <ul class="nav nav-tabs mt-3" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#sharesMine" type="button">
+      Ce que j'ai partagé <span class="badge bg-secondary">{{ shared|length }}</span></button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sharesReceived" type="button">
+      Ce qu'on m'a partagé <span class="badge bg-secondary">{{ received|length }}</span></button></li>
+  </ul>
+  <div class="tab-content pt-3">
+    <div class="tab-pane fade show active" id="sharesMine" role="tabpanel">
+      {% for s in shared %}
+      <div class="share-row" data-shared-entry="{{ s.surface }}:{{ s.nature }}:{{ s.pk }}">
+        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+          <div>
+            <span class="share-label">{{ s.label }}</span> <span class="text-white-50 small">({{ s.app }})</span>
+            <div class="share-meta mt-1"><span class="share-pill">{{ s.scope }}</span>
+              <span class="share-pill">👁 Lecture seule</span>
+              {% for c in s.collaborators %}<span class="share-pill" data-collaborator="{{ c.grant }}">👥 {{ c.name }}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1" style="color:#fca5a5;font-size:.72rem;"
+                        data-revoke="{{ c.grant }}" title="Retirer la collaboration">retirer</button></span>{% endfor %}
+            </div>
+          </div>
+          <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-light" href="{{ s.url }}">Ouvrir l'app</a>
+            <button type="button" class="btn btn-sm btn-outline-danger" data-unshare
+                    data-surface="{{ s.surface }}" data-nature="{{ s.nature }}" data-pk="{{ s.pk }}">Retirer le partage</button>
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <p class="shares-empty">Vous ne partagez rien pour le moment.</p>
+      {% endfor %}
+    </div>
+    <div class="tab-pane fade" id="sharesReceived" role="tabpanel">
+      {% if outgoing %}
+      <h2 class="h6 text-light">Vos demandes en attente</h2>
+      {% for r in outgoing %}
+      <div class="share-row small">{{ r.level }} — « {{ r.label }} » ({{ r.app }}) · <a href="/common/requests/{{ r.id }}/">voir</a></div>
+      {% endfor %}
+      {% endif %}
+      {% for s in received %}
+      <div class="share-row d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <div>
+          <span class="share-label">{{ s.label }}</span> <span class="text-white-50 small">({{ s.app }})</span>
+          <div class="share-meta mt-1">de <b>{{ s.owner }}</b> · <span class="share-pill">{{ s.mode.icon }} {{ s.mode.label }}</span></div>
+        </div>
+        <a class="btn btn-sm btn-outline-light" href="{{ s.url }}">Ouvrir l'app</a>
+      </div>
+      {% empty %}
+      <p class="shares-empty">Personne ne vous partage rien pour le moment.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+  function post(url, fields) {
+    const fd = new FormData();
+    Object.keys(fields || {}).forEach(function (k) { fd.append(k, fields[k]); });
+    return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd })
+      .then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }); });
+  }
+  function say(msg, type) { if (window.WamaApp && WamaApp.toast) WamaApp.toast(msg, type || 'info'); }
+  document.querySelectorAll('[data-revoke]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      post('/common/api/grants/' + b.dataset.revoke + '/revoke/').then(function (res) {
+        if (res && res.done) { b.closest('[data-collaborator]').remove(); say('Collaboration retirée.', 'success'); }
+        else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
+      });
+    });
+  });
+  document.querySelectorAll('[data-unshare]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      const url = '/common/api/partage/' + encodeURIComponent(b.dataset.surface) + '/'
+        + encodeURIComponent(b.dataset.nature) + '/' + encodeURIComponent(b.dataset.pk) + '/';
+      post(url, { visibility: 'private' }).then(function (res) {
+        if (res && res.ok) { b.closest('.share-row').remove(); say('Partage retiré.', 'success'); }
+        else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}

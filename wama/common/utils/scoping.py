@@ -57,6 +57,40 @@ def owned_or_404(model, user, **kwargs):
     return get_object_or_404(model.objects.owned_by(user), **kwargs)
 
 
+def editable_or_404(model, user, *, trace: str = '', **kwargs):
+    """
+    Objet que `user` peut ÉDITER : le sien, ou un élément sur lequel il COLLABORE.
+
+    Décisions de Fabien (`WAMA_COLLABORATION §3bis`, E1-E5, 2026-10-03) : la collaboration
+    s'accorde à une PERSONNE nommée (`ObjectGrant` `collaborate` accordé, lu sur l'élément et sur
+    son lot) ; « éditer » = enregistrer les réglages, lancer/relancer/arrêter, corriger le résultat.
+    ⚠ La SUPPRESSION, le PARTAGE et le TRANSFERT restent à `owned_or_404` : ils ne passent jamais
+    ici (E2). Le droit est relu à CHAQUE appel — un retrait a effet immédiat (E5).
+
+    `trace` (signal du journal `RunOutcome`, ex. 'regle') : le geste d'un COLLABORATEUR y est noté
+    (E4 — « le dernier enregistrement gagne, tracé ») ; rien pour le propriétaire. À ne passer que
+    sur une ÉCRITURE (POST), pas sur une lecture de la même vue.
+    """
+    obj = get_object_or_404(listable_by(model.objects.all(), user), **kwargs)
+    if getattr(obj, 'user_id', None) == getattr(user, 'pk', None):
+        return obj
+    from wama.common.services.access_requests import collaboration_grant, trace_collaborator
+    if collaboration_grant(user, obj) is None:
+        from django.http import Http404
+        raise Http404('élément non modifiable')
+    if trace:
+        trace_collaborator(user, obj, trace)
+    return obj
+
+
+def can_edit(user, obj) -> bool:
+    """Même règle qu'`editable_or_404`, pour un objet déjà en main (cards, gabarits, tâches)."""
+    if getattr(obj, 'user_id', None) == getattr(user, 'pk', None):
+        return True
+    from wama.common.services.access_requests import collaboration_grant
+    return collaboration_grant(user, obj) is not None
+
+
 def duplicable_or_404(model, user, **kwargs):
     """
     Objet que `user` peut DUPLIQUER : tout ce qu'il peut voir (le sien, ou partagé avec lui).

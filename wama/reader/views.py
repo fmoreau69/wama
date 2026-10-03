@@ -376,7 +376,8 @@ def stop(request, pk: int):
     Brique commune : wama.common.utils.process_control.stop_instance.
     """
     user = _get_user(request)
-    item = get_object_or_404(ReadingItem, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    item = editable_or_404(ReadingItem, user, pk=pk)
     if item.status not in ('RUNNING', 'PENDING'):
         return JsonResponse({'id': item.id, 'status': item.status})
     from wama.common.utils.process_control import stop_instance
@@ -701,7 +702,8 @@ def clear_all(request):
 @require_POST
 def update_settings(request, pk: int):
     """Update per-item OCR settings (backend, mode, output_format, language)."""
-    item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
+    from wama.common.utils.scoping import editable_or_404
+    item = editable_or_404(ReadingItem, _get_user(request), pk=pk)
     # JSON (inspecteur) OU FormData (modale ⚙ par le cycle commun `WamaParams.settingsModal`,
     # portage 2026-09-24) : le lecteur COMMUN des réglages postés, coercé au schéma — `language`
     # vide EST une valeur (auto-détection), comme pour la vue de lot, qui appelle la même fonction.
@@ -717,7 +719,8 @@ def update_settings(request, pk: int):
 @require_POST
 def analyze(request, pk: int):
     """Lance une analyse LLM (résumé + points clés) sur le texte OCR extrait."""
-    item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
+    from wama.common.utils.scoping import editable_or_404
+    item = editable_or_404(ReadingItem, _get_user(request), pk=pk)
 
     if not item.result_text:
         return JsonResponse({'error': 'Pas encore de texte extrait'}, status=400)

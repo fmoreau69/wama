@@ -16,7 +16,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 #: Gestes déjà faits par l'utilisateur, dont on se contente (§16.7 : jamais de geste ajouté).
-SIGNALS = ('produit', 'echec', 'telecharge', 'corrige', 'relance', 'supprime')
+SIGNALS = ('produit', 'echec', 'telecharge', 'corrige', 'relance', 'supprime',
+           # Réglages enregistrés par un COLLABORATEUR (2026-10-03, E4) : une trace d'attribution,
+           # pas un signal de qualité — `memory.project` ne lui donne aucun poids.
+           'regle')
 
 
 def record(app: str, item, signal: str, *, model_keys=None, detail=None, user=None):

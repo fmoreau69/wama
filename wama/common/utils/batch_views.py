@@ -277,6 +277,12 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     def _batch(request, pk):
         return get_object_or_404(batch_model, pk=pk, user=get_user(request))
 
+    def _batch_edit(request, pk, trace=''):
+        # Lancer, régler, promouvoir : le propriétaire OU un COLLABORATEUR du lot (2026-10-03,
+        # E1-E5 — `scoping.editable_or_404`). Supprimer et dupliquer gardent `_batch` (E2).
+        from wama.common.utils.scoping import editable_or_404
+        return editable_or_404(batch_model, get_user(request), trace=trace, pk=pk)
+
     def _batch_read(request, pk):
         if read_lookup is not None:
             return read_lookup(get_user(request), pk)
@@ -285,7 +291,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     @require_POST
     def batch_start(request, pk):
         user = get_user(request)
-        b = _batch(request, pk)
+        b = _batch_edit(request, pk)
         if task is None and task_for is None:
             return JsonResponse({'error': 'aucune tâche déclarée pour ce lot'}, status=400)
         reset = start_reset_for(request) if start_reset_for is not None else start_reset
@@ -368,7 +374,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
 
     @require_POST
     def batch_update(request, pk):
-        b = _batch(request, pk)
+        b = _batch_edit(request, pk, trace='regle')
         shared = (None if callable(schema)
                   else read_settings_payload(request, schema, schema_names, empty_is_value))
         written, refusal = _apply_to_elements(
@@ -384,7 +390,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     def batch_promote(request, pk):
         """↑ PROMOUVOIR : les réglages d'UNE fille (`source`) deviennent la référence du lot et
         sont posés sur ses sœurs — n'importe quelle card peut servir de référence (`§5ter`)."""
-        b = _batch(request, pk)
+        b = _batch_edit(request, pk, trace='regle')
         try:
             source_id = int(read_settings_payload(request).get('source') or 0)
         except (TypeError, ValueError):
@@ -409,7 +415,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     def batch_realign(request, pk):
         """↓ RÉALIGNER : la référence du lot reposée sur toutes ses filles — les réglages
         individuels s'effacent. Sans référence, le refus le DIT (jamais un grisage muet)."""
-        b = _batch(request, pk)
+        b = _batch_edit(request, pk, trace='regle')
         reference = batch_settings.stored(b)
         if reference is None:
             return JsonResponse({'error': "ce lot n'a pas encore de réglages de référence — "

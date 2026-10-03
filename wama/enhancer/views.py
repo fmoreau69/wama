@@ -486,7 +486,8 @@ def _analyze_media(enhancement: Enhancement):
 def stop(request, pk: int):
     """Stoppe l'amélioration image/vidéo en cours → item relançable (↻). Brique commune process_control."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    enhancement = editable_or_404(Enhancement, user, pk=pk)
     if enhancement.status not in ('RUNNING', 'PENDING'):
         return JsonResponse({'id': enhancement.id, 'status': enhancement.status})
     from wama.common.utils.process_control import stop_instance
@@ -800,7 +801,8 @@ def _apply_enhancement_settings(e, data):
 def update_settings(request, pk: int):
     """Update enhancement settings."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    enhancement = editable_or_404(Enhancement, user, pk=pk)
 
     if enhancement.status == 'RUNNING':
         return JsonResponse({'error': 'Cannot update running enhancement'}, status=400)
@@ -1130,7 +1132,8 @@ def audio_upload(request):
 def audio_stop(request, pk: int):
     """Stoppe le débruitage audio en cours → item relançable (↻). Brique commune process_control."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    ae = editable_or_404(AudioEnhancement, user, pk=pk)
     if ae.status not in ('RUNNING', 'PENDING'):
         return JsonResponse({'id': ae.id, 'status': ae.status})
     from wama.common.utils.process_control import stop_instance
@@ -1142,7 +1145,8 @@ def audio_stop(request, pk: int):
 def audio_update(request, pk: int):
     """Met à jour les réglages d'un item audio (inspecteur/modale). Miroir de update_settings."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+    from wama.common.utils.scoping import editable_or_404
+    ae = editable_or_404(AudioEnhancement, user, pk=pk)
     if ae.status == 'RUNNING':
         return JsonResponse({'error': 'Cannot update running enhancement'}, status=400)
     P = request.POST

@@ -115,6 +115,31 @@ def notify_admins(kind, subject, body, url='', audiences=('admin', 'dev')):
     return created, sent
 
 
+def notify_job_collaborators(item, app_label, item_name, success, detail=''):
+    """La fin d'un traitement, aussi pour ceux qui COLLABORENT sur l'élément (E3, décision de
+    Fabien 2026-10-03 : *« la relance reste celle de la card, la fin est notifiée aux deux »*). Le
+    propriétaire l'est déjà par `notify_job` ; chaque collaborateur reçoit la notification dans
+    WAMA, et l'e-mail selon SES préférences. Fail-safe ; rend le nombre de collaborateurs prévenus."""
+    try:
+        from wama.common.services.access_requests import collaborators_of
+        people = [u for u in collaborators_of(item) if u.pk != getattr(item, 'user_id', None)]
+        if not people:
+            return 0
+        state = 'terminé' if success else 'a échoué'
+        app = item._meta.app_label
+        notify_in_app(people, 'job_done' if success else 'job_failed',
+                      f"{app_label} — « {item_name} » {state}",
+                      body=(detail or '') + ("\n" if detail else '') +
+                           "Card en collaboration : le résultat est aussi celui de son propriétaire.",
+                      url=f'/{app}/')
+        for person in people:
+            notify_job(person, app_label, item_name, success, detail=detail)
+        return len(people)
+    except Exception as e:  # pragma: no cover
+        logger.warning("notify_job_collaborators a échoué : %s", e)
+        return 0
+
+
 def notify_job(user, app_label, item_name, success, detail='', url=''):
     """
     Notifie la fin (ou l'échec) d'un traitement, en respectant les préférences du profil.
