@@ -136,6 +136,11 @@ ARCHIVED_PRESENTATIONS = {
         'template': 'includes/archive/wama_presentation_2026-v1.html',
         'label': 'Présentation v1 (diaporama, 2026)',
     },
+    # Remplacée le 2026-10-03 par l'architecture sur le moteur « canvas » de la présentation v2.
+    'architecture-2026-v1': {
+        'template': 'includes/archive/wama_architecture_2026-v1.html',
+        'label': 'Architecture v1 (diaporama, juin 2026)',
+    },
 }
 
 
