@@ -3680,7 +3680,23 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   réécrit les segments que locuteurs et cohérence écrivent aussi) — en faire un process
 >   `align` est une décision ouverte. ⚠ ▶ sur une card importée passe désormais par la file
 >   GPU (la tâche du pipeline), plus par `default`.
-> - ⏳ Restent hors squelette : **imager** et **anonymizer**.
+> - **anonymizer** (`91e161d9`) : `process_single_media` → `run_item_task`, un seul process. L'app
+>   garde ce qui lui est propre (verrou de dédoublonnage, arrêt demandé, simulation de
+>   progression, aperçu « pendant », couverture multi-modèles — inchangée). La ligne nomme le
+>   modèle EMPLOYÉ sous « auto ». Corrigé au passage : verrous non rendus quand la tâche sortait
+>   par l'arrêt ; média sans fichier qui sortait sans rien dire.
+> - **imager** : `generate_image_task` et `generate_video_task` → `run_item_task`, chacune sa
+>   glu ; onze échecs écrits à la main (`status='FAILURE'` + `save()` + `return`) deviennent des
+>   exceptions, neuf écritures de progression deviennent `ctx.progress`. L'app garde ses deux
+>   gardes (génération déjà terminée, tâche fantôme re-livrée). ⚠ L'imager n'avait AUCUNE durée
+>   max : le défaut du squelette (30 min) aurait arrêté une vidéo réelle de 74,7 min et une image
+>   de 39,2 min — `TASK_MAX_MINUTES['imager'] = 120`, mesuré ; un modèle plus lent se règle au
+>   model manager.
+> - ✅ **Plus aucune app Médias hors squelette** (les dix passent par `run_item_task`). ⏳ Ce
+>   que P6 ne fait pas encore : déclarer un PIPELINE pour les apps à un seul process là où il y
+>   en a réellement plusieurs (imager : génération → agrandissement → format ; anonymizer :
+>   détection → floutage ; synthesizer : texte → voix → format) — chaque découpage se décide sur
+>   ce qu'il permet de ne PAS rejouer, comme pour le composer, le transcriber et l'avatarizer.
 
 #### 5. Couche 3 — l'UI : la card affiche son pipeline, le studio affiche le même objet en graphe
 
@@ -4132,7 +4148,7 @@ possible **sans aucun process**.
 | **P3** | moteur commun + ligne d'exécution, **extraits de cam_analyzer** (1er utilisateur : sémantique complète et testée) et de l'exécuteur du studio ; type de nœud `pipeline` ; pipeline sans process accepté | P2 |
 | **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») ; génération réelle JOUÉE le soir même sur le moteur (plan → render, puis render seul) — rejouée par le worker en service le 03/10 (dont ▶ du rendu seul). ✅ Le **transcriber** en 4 process livré le 03/10, A/B objectif fait (point 4, bloc « P4, 2ᵉ pilote ») | P3 |
 | **P5** ✅ 03/10 | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) — livré en six pièces le 03/10 (point 5 : bande des process, état montré, ▶ / ⚙ / case à cocher par process, gabarit généré, promotion fille ↔ mère, catalogue du studio) | P3 (le renommage et le glisser-déposer : à tout moment) |
-| **P6** | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les 7 apps qui ne l'ont pas | P4 |
+| **P6** 🔄 03/10 | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les apps qui ne l'ont pas. ✅ Les dix apps passent par `run_item_task` (synthesizer, avatarizer, anonymizer, imager portés le 03/10 — point 4, bloc « P6 ENGAGÉE ») ; pipelines déclarés : composer, transcriber (5 process dont `import`), avatarizer. ⏳ Reste : la bande des process sur les cards qui n'en ont pas, et le découpage en process des apps à une seule glu | P4 |
 | **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script | P3, P5, décisions 5-7 |
 | **P8** | rôle assistant → manifeste `pipeline` / `dataset` | P3 |
 

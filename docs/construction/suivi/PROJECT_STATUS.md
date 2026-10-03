@@ -21067,3 +21067,38 @@ Restes déclarés :
   par d'autres sessions : à régénérer par qui le commitera) ;
 - rouges PRÉEXISTANTS, pas de cette session : budgets de langue des identifiants (code 2677 ≠
   2678, classes de test 134 > 132, méthodes de test 1319 > 1310).
+
+## §PALIER — 2026-10-03 (nuit), « PIPELINE P6 (suite) : anonymizer et imager — les DIX apps Médias passent par le squelette commun » — non poussé — 🔚 bande des process avatarizer · découpage en process des apps à une glu · vidéo imager à jouer en réel
+
+Suite du bloc précédent (`ROUTE §10.6`, bloc « P6 ENGAGÉE »).
+
+- ✅ **anonymizer** (`91e161d9`) : `process_single_media` → `run_item_task`. Joué en réel sous le
+  compte de test : visage flouté en 2,1 s, modèle tiré en « auto » nommé sur la ligne
+  (`anonymizer:yolo:yolov9s-face-lindevs.pt`). Corrigé au passage : verrous non rendus quand la
+  tâche sortait par l'arrêt ; média sans fichier qui sortait sans rien dire.
+- ✅ **imager** : `generate_image_task` et `generate_video_task` → `run_item_task`, chacune sa
+  glu. Joué en réel : image 512×512 en « auto » → SDXL tiré, SUCCESS en 188,9 s (chargement à
+  froid compris). ⚠ **La vidéo n'a PAS été jouée en réel** (tests à doublures seulement) : à
+  jouer par la file après relance des workers.
+- ✅ **Durée max de l'imager** : il n'en avait aucune ; le défaut du squelette (30 min) aurait
+  arrêté deux générations réussies relevées en base (vidéo 4 481 s, image 2 351 s) —
+  `TASK_MAX_MINUTES['imager'] = 120`. Valeur posée sur une mesure, à confirmer par Fabien.
+- ✅ Test rattrapé : `tests_vram_wait` attendait encore `max_retries=None` (périmé depuis
+  `3ce1f4d7`, attente de VRAM sans plafond) — rouge préexistant de cette session, soldé.
+
+Mesures : tests du périmètre 188 joués (imager, anonymizer, contrat du squelette, attente VRAM,
+pipeline, lanceurs de l'assistant, réconciliation) → verts après les deux corrections ci-dessus.
+⚠ La suite `wama.common.tests` ENTIÈRE n'a pas été rejouée jusqu'au bout (arrêtée à la limite de
+30 min de l'exécution de fond, sans échec de test jusque-là). Grille de conformité remesurée :
+**921/940** (917/939 avant), plus aucune app rouge sur `task_skeleton`.
+
+🔴 **À relancer par Fabien : gunicorn ET workers.**
+
+Restes déclarés :
+- la bande des process et le ▶ par process sur la card de l'avatarizer ;
+- déclarer un pipeline là où une glu unique cache plusieurs process (imager : génération →
+  agrandissement → format ; anonymizer : détection → floutage ; synthesizer) — à décider sur ce
+  que chaque découpage permet de ne pas rejouer ;
+- l'imager écrit encore le modèle tiré dans le réglage `model` (comme le synthesizer) ;
+- la durée de traitement d'une IMAGE est désormais celle de la tâche (chargement compris) ;
+- rouges PRÉEXISTANTS, pas de cette session : budgets de langue des identifiants.

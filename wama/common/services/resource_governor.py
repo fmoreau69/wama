@@ -1128,6 +1128,12 @@ TASK_MAX_MINUTES = {
     # soit 0,34 × la durée. Un entretien de 2 h 22 (lot #442) dépasserait donc le défaut et
     # serait ARRÊTÉ. 180 min couvrent ~8 h d'audio à ce rythme.
     'transcriber': 180,
+    # Mesuré le 2026-10-03 au passage de l'imager sur le squelette (il n'avait AUCUNE durée max
+    # jusque-là) : la plus longue vidéo réussie a pris 4 481 s (74,7 min, FastWan 2.2, 15 s
+    # prolongées par segments) et la plus longue image 2 351 s (39,2 min, premier lancement d'un
+    # LoRA FLUX, téléchargement compris). Le défaut de 30 min les aurait ARRÊTÉES toutes les
+    # deux. Un modèle plus lent se règle au model manager (`MODEL_INFO_MAX_TASK_MINUTES`).
+    'imager': 120,
 }
 #: Réglage utilisateur (brique `user_settings`, app `common`) : 0 / absent = le défaut de l'app.
 USER_SETTING_MAX_TASK_MINUTES = 'max_task_minutes'

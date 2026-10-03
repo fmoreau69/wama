@@ -8,7 +8,6 @@ Supports Diffusers (Python 3.12+) and ImaginAiry (legacy) with automatic fallbac
 from celery import shared_task
 from django.utils import timezone
 from django.conf import settings
-from django.core.cache import cache
 import os
 import logging
 
@@ -70,61 +69,85 @@ def _image_backend_for(model_key: str):
     return backend_class(), None
 
 
-@shared_task(bind=True)
-def generate_image_task(self, generation_id):
-    """
-    Celery task to generate images using the available backend.
+def _declared_model_key(generation):
+    """La clé de catalogue du modèle que la card DÉSIGNE, ou None sous « auto » (le tirage se
+    fait dans la glu, après l'ingestion) — ce que le squelette lit pour prévenir d'un
+    téléchargement de poids et pour la durée max posée sur le modèle."""
+    from wama.imager.utils.auto_model import AUTO
+    if (generation.model or AUTO).strip() in ('', AUTO):
+        return None
+    from wama.common.utils.model_keys import catalog_key
+    return catalog_key(generation.model, 'imager')
 
-    Automatically selects the best available backend:
-    1. Diffusers (recommended for Python 3.12+)
-    2. ImaginAiry (legacy fallback)
-    """
+
+def _run_generation(task, generation_id, glue):
+    """Les deux tâches de l'imager passent par le squelette COMMUN (`run_item_task`, marche P6
+    du 2026-10-03) : garde de redélivrance après crash, ingestion d'une URL de référence,
+    statuts canoniques, durée max, chrono, console, notifications, ligne d'exécution, révision.
+    L'app garde ses deux gardes propres (une génération déjà terminée, une tâche fantôme
+    re-livrée après une remise à zéro) et sa GLU."""
+    from wama.common.utils.task_skeleton import run_item_task
     from .models import ImageGeneration
 
     logger.info(f"[Imager] === Task received for generation #{generation_id} ===")
-
     try:
         generation = ImageGeneration.objects.get(id=generation_id)
+    except ImageGeneration.DoesNotExist:
+        logger.error(f"[Imager] Generation #{generation_id} introuvable")
+        return {'error': 'not_found', 'generation_id': generation_id}
 
-        # Check if already completed - skip if SUCCESS or FAILURE
-        if generation.status in ('SUCCESS', 'FAILURE'):
-            logger.warning(f"[Imager] Generation #{generation_id} already has status {generation.status}, skipping")
-            return {'skipped': True, 'reason': f'already_{generation.status.lower()}', 'generation_id': generation_id}
+    # Check if already completed - skip if SUCCESS or FAILURE
+    if generation.status in ('SUCCESS', 'FAILURE'):
+        logger.warning(f"[Imager] Generation #{generation_id} already has status {generation.status}, skipping")
+        return {'skipped': True, 'reason': f'already_{generation.status.lower()}', 'generation_id': generation_id}
 
-        # Guard against stale re-queued tasks: if the task_id in DB is empty or doesn't
-        # match this task's ID, this is a ghost task (e.g. re-queued after force_reset +
-        # server restart). Skip to avoid overwriting a fresh dispatch.
-        current_task_id = self.request.id
-        if current_task_id and generation.task_id and generation.task_id != current_task_id:
-            logger.warning(
-                f"[Imager] Generation #{generation_id}: task_id mismatch "
-                f"(DB={generation.task_id}, this={current_task_id}) — stale re-queued task, skipping"
-            )
-            return {'skipped': True, 'reason': 'stale_task', 'generation_id': generation_id}
+    # Guard against stale re-queued tasks: if the task_id in DB is empty or doesn't
+    # match this task's ID, this is a ghost task (e.g. re-queued after force_reset +
+    # server restart). Skip to avoid overwriting a fresh dispatch.
+    current_task_id = task.request.id
+    if current_task_id and generation.task_id and generation.task_id != current_task_id:
+        logger.warning(
+            f"[Imager] Generation #{generation_id}: task_id mismatch "
+            f"(DB={generation.task_id}, this={current_task_id}) — stale re-queued task, skipping"
+        )
+        return {'skipped': True, 'reason': 'stale_task', 'generation_id': generation_id}
 
-        # Garde anti-boucle-de-crash (brique COMMUNE) : un message `redelivered` vient
-        # d'un worker mort sans acquitter (freeze machine) — on refuse de rejouer
-        # l'exécution qui a tué le worker, l'item passe en échec relançable.
-        # Les deux gardes ci-dessus ne couvrent PAS ce cas (statut resté RUNNING ET
-        # task_id identique) — vécu 29/07/2026 : génération #42 (qwen-image-2) rejouée
-        # à CHAQUE démarrage du worker, 4 kernel panics WSL2 d'affilée.
-        from wama.common.utils.process_control import refuse_crash_redelivery
-        if refuse_crash_redelivery(self, generation, error_field='error_message'):
-            logger.warning(f"[Imager] Generation #{generation_id}: reprise après crash refusée — relancer manuellement.")
-            _console(generation.user_id, f"[Imager] Génération #{generation_id} : reprise après crash refusée.")
-            return {'skipped': True, 'reason': 'crash_redelivery', 'generation_id': generation_id}
+    if not (getattr(task.request, 'retries', 0) or 0):
+        # « En cours » est posé par les lanceurs (`begin_processing`). L'outil de l'assistant
+        # envoie la tâche PUIS écrit le statut : c'est ici qu'une génération encore « en
+        # attente » passe en cours — à la première livraison seulement.
+        ImageGeneration.objects.filter(pk=generation_id, status='PENDING').update(status='RUNNING')
 
-        # Entrée URL déclarative (WAMA_INGEST du modèle) : télécharge source_url →
-        # reference_image si la cible est vide. AVANT la résolution auto (la présence
-        # d'une référence peut orienter le choix du modèle) — contrat composer 307b9fb.
-        try:
-            from wama.common.utils.source_ingest import ensure_local_input
-            ensure_local_input(generation, console=lambda m: _console(generation.user_id, m))
-        except Exception as exc:
-            logger.warning(f"[Imager] ensure_local_input({generation_id}) : {exc}")
+    run_item_task(task, app_id='imager', model=ImageGeneration, item_id=generation_id,
+                  process=glue, notify_label='Imager', model_key=_declared_model_key)
+    return {'generation_id': generation_id}
 
+
+def _fail_stamp(generation, ctx):
+    """Un échec de la glu : l'heure de fin est posée, la barre revient à zéro — le statut, le
+    message, la console et la notification sont l'affaire du squelette."""
+    from .models import ImageGeneration
+    ImageGeneration.objects.filter(pk=generation.pk).update(completed_at=timezone.now())
+    ctx.reset_progress()
+
+
+@shared_task(bind=True)
+def generate_image_task(self, generation_id):
+    """
+    Celery task to generate images using the available backend — through the common skeleton
+    (`_run_generation`) ; the work itself is the glue `_generate_image`.
+    """
+    return _run_generation(self, generation_id, _generate_image)
+
+
+def _generate_image(generation, ctx):
+    """La GLU de la génération d'IMAGES : tirage « auto », backend résolu par le catalogue,
+    chargement, génération, enregistrement, réglages de sortie. Toute erreur LÈVE."""
+    generation_id = generation.id
+    try:
         # Tirage « auto » AU LANCEMENT (pas au dépôt) : le choix dépend de la VRAM libre, qui
-        # a pu changer pendant l'attente en file. Même moment que composer/tasks.py:50.
+        # a pu changer pendant l'attente en file. APRÈS l'ingestion d'une URL (faite par le
+        # squelette) : la présence d'une référence peut orienter le choix du modèle.
         from wama.imager.utils.auto_model import AUTO, resolve_auto_model
         if (generation.model or AUTO).strip() in ('', AUTO):
             generation.model = resolve_auto_model(generation)
@@ -133,10 +156,6 @@ def generate_image_task(self, generation_id):
             _console(generation.user_id,
                      f"[Imager] 🧠 Auto → {generation.model} (capacités + VRAM libre au lancement, "
                      f"curseur qualité {quality_intent_of(generation, 'imager')}/100)")
-
-        generation.status = 'RUNNING'
-        generation.progress = 0
-        generation.save()
 
         user_id = generation.user.id
         _console(user_id, f"[Imager] Starting generation #{generation_id}: {generation.prompt[:50]}...")
@@ -149,10 +168,7 @@ def generate_image_task(self, generation_id):
         except ImportError as e:
             error_msg = f"Backend system not available: {e}"
             logger.error(error_msg)
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            return {'error': error_msg}
+            raise RuntimeError(error_msg)
 
         # Check available backends
         available = get_available_backends()
@@ -167,11 +183,7 @@ def generate_image_task(self, generation_id):
         backend, error_msg = _image_backend_for(model_key)
         if backend is None:
             logger.error(error_msg)
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            _console(user_id, f"[Imager] Error: {error_msg}")
-            return {'error': error_msg}
+            raise RuntimeError(error_msg)
 
         _console(user_id, f"[Imager] Using backend: {backend.display_name}")
         logger.info(f"Using backend: {backend.name} ({backend.display_name})")
@@ -182,9 +194,7 @@ def generate_image_task(self, generation_id):
                                   app_media_dir('imager', generation.user.id, 'output'), 'image')
         os.makedirs(output_dir, exist_ok=True)
 
-        generation.progress = 10
-        generation.save()
-        cache.set(f"imager_progress_{generation_id}", 10, timeout=3600)
+        ctx.progress(10)
         _console(user_id, f"[Imager] Loading model: {model_key}")
         # Premier lancement d'un modèle jamais téléchargé : le DIRE (brique commune, 2026-09-08).
         # Sans elle, l'utilisateur voit une tâche figée le temps de récupérer des dizaines de Go.
@@ -199,19 +209,13 @@ def generate_image_task(self, generation_id):
         if not backend.load(backend_model):
             error_msg = f"Failed to load model: {model_key}"
             logger.error(error_msg)
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            _console(user_id, f"[Imager] Error: {error_msg}")
-            return {'error': error_msg}
+            raise RuntimeError(error_msg)
 
         logger.info(f"[Imager] <<< backend.load() completed successfully")
         _load_seconds = _time.time() - _load_start  # >2s ⇒ chargement à froid (seeding ETA)
         _console(user_id, f"[Imager] Model loaded on {backend.device}")
 
-        generation.progress = 20
-        generation.save()
-        cache.set(f"imager_progress_{generation_id}", 20, timeout=3600)
+        ctx.progress(20)
 
         # Log generation mode
         mode_desc = generation.generation_mode or 'txt2img'
@@ -264,9 +268,7 @@ def generate_image_task(self, generation_id):
         def progress_callback(progress: int):
             # Map 0-100 progress to 20-90 range
             mapped_progress = 20 + int(progress * 0.7)
-            generation.progress = mapped_progress
-            generation.save(update_fields=['progress'])
-            cache.set(f"imager_progress_{generation_id}", mapped_progress, timeout=3600)
+            ctx.progress(mapped_progress)
 
         # Generate images
         logger.info(f"[Imager] >>> Calling backend.generate() with {generation.num_images} image(s), model={model_key}")
@@ -282,15 +284,9 @@ def generate_image_task(self, generation_id):
         if not result.success:
             error_msg = result.error or "Unknown generation error"
             logger.error(f"Generation failed: {error_msg}")
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            _console(user_id, f"[Imager] Error: {error_msg}")
-            return {'error': error_msg}
+            raise RuntimeError(error_msg)
 
-        generation.progress = 90
-        generation.save()
-        cache.set(f"imager_progress_{generation_id}", 90, timeout=3600)
+        ctx.progress(90)
         _console(user_id, f"[Imager] Saving {len(result.images)} image(s)...")
 
         # Save generated images
@@ -316,11 +312,7 @@ def generate_image_task(self, generation_id):
         if not generated_paths:
             error_msg = "Failed to save any generated images"
             logger.error(error_msg)
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            _console(user_id, f"[Imager] Error: {error_msg}")
-            return {'error': error_msg}
+            raise RuntimeError(error_msg)
 
         # Réglages de SORTIE (brique commune, 2026-09-30) : agrandissement PUIS format, après
         # n'importe quel backend. Un agrandissement DEMANDÉ qui échoue arrête la génération en
@@ -333,44 +325,14 @@ def generate_image_task(self, generation_id):
         except Exception as out_err:
             error_msg = f"Agrandissement de sortie échoué : {out_err}"
             logger.error(error_msg)
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            _console(user_id, f"[Imager] Error: {error_msg}")
-            return {'error': error_msg}
-
-        # Update generation with results
-        try:
-            generation.refresh_from_db()
-            generation.generated_images = generated_paths
-            generation.status = 'SUCCESS'
-            generation.progress = 100
-            generation.completed_at = timezone.now()
-            # Durée RÉELLE de calcul (ProcessingTimeMixin) : la même mesure que celle passée
-            # au learner ETA plus bas — persistée pour rester affichée après rechargement.
-            # `completed_at - created_at` inclurait l'attente en file, ce n'est pas la durée.
-            generation.processing_seconds = gen_duration
-
-            # Store seed if available
-            if result.seed_used is not None and generation.seed is None:
-                # Store the used seed for reproducibility
-                pass  # Could add a field to store this
-
-            generation.save()
-            cache.set(f"imager_progress_{generation_id}", 100, timeout=3600)
-            _console(
-                user_id,
-                f"[Imager] \u2713 Generated {len(generated_paths)} image(s) for #{generation_id} "
-                f"(seed: {result.seed_used})"
-            )
-        except ImageGeneration.DoesNotExist:
-            logger.warning(f"Generation {generation_id} was deleted during processing")
-            return {'error': 'Generation was deleted during processing'}
+            raise RuntimeError(error_msg)
 
         logger.info(f"Successfully generated {len(generated_paths)} image(s) for generation #{generation_id}")
 
         # Seeding ETA : diffusion image → temps ∝ steps × nb images (clé par modèle) ;
         # chargement séparé (singleton keep_loaded) enregistré seulement à froid (>2s).
+        # Enregistré ICI (pas par le `eta` du squelette) : la mesure est celle du calcul SEUL,
+        # le chargement à part — le squelette ne connaît que la durée du process entier.
         try:
             from wama.model_manager.services.eta_estimator import record_run
             _steps = int(getattr(generation, 'steps', 0) or 0) * int(getattr(generation, 'num_images', 1) or 1)
@@ -383,38 +345,19 @@ def generate_image_task(self, generation_id):
         except Exception:
             pass
 
+        # Le statut, la progression à 100 et la durée de traitement sont posés par le squelette
+        # (la durée est désormais celle de la TÂCHE, chargement compris, comme pour la vidéo).
         return {
-            'success': True,
-            'generation_id': generation_id,
-            'images': generated_paths,
-            'seed': result.seed_used,
-            'backend': backend.name
+            'fields': {'generated_images': generated_paths, 'completed_at': timezone.now()},
+            'label': (generation.prompt or '')[:50] or f"génération #{generation_id}",
+            'console_success': (f"[Imager] \u2713 Generated {len(generated_paths)} image(s) for "
+                                f"#{generation_id} (seed: {result.seed_used})"),
+            'models': [model_key],
+            'output_ref': os.path.relpath(generated_paths[0], settings.MEDIA_ROOT).replace(os.sep, '/'),
         }
-
-    except Exception as e:
-        import traceback
-        error_traceback = traceback.format_exc()
-        error_msg = f"{type(e).__name__}: {str(e)}"
-        logger.error(f"Error in generate_image_task for generation #{generation_id}: {error_msg}")
-        logger.error(f"Full traceback:\n{error_traceback}")
-
-        try:
-            generation = ImageGeneration.objects.get(id=generation_id)
-            user_id = generation.user.id
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.completed_at = timezone.now()
-            generation.save()
-            cache.set(f"imager_progress_{generation_id}", 0, timeout=3600)
-            _console(user_id, f"[Imager] ✗ Generation #{generation_id} failed: {error_msg}")
-            # Log traceback to console for debugging
-            for line in error_traceback.split('\n')[-10:]:  # Last 10 lines of traceback
-                if line.strip():
-                    _console(user_id, f"[Imager] {line}")
-        except Exception as save_error:
-            logger.error(f"Failed to save error state: {str(save_error)}")
-
-        return {'error': error_msg}
+    except Exception:
+        _fail_stamp(generation, ctx)
+        raise
 
 
 def _segment_count(wanted_frames: int, segment_frames: int, overlap: int = 1) -> int:
@@ -550,53 +493,24 @@ def _report_effective_video_settings(user_id, generation, backend, params, expor
 @shared_task(bind=True)
 def generate_video_task(self, generation_id):
     """
-    Celery task to generate videos using Wan 2.2.
-
-    Supports:
-    - txt2vid: Text-to-Video generation
-    - img2vid: Image-to-Video generation
+    Celery task to generate videos (txt2vid, img2vid) — through the common skeleton
+    (`_run_generation`) ; the work itself is the glue `_generate_video`.
     """
+    return _run_generation(self, generation_id, _generate_video)
+
+
+def _generate_video(generation, ctx):
+    """La GLU de la génération de VIDÉOS : tirage « auto », backend résolu par le catalogue,
+    limites natives du modèle, génération (prolongée par segments au besoin), export, format de
+    sortie. Toute erreur LÈVE."""
     import time
-    import traceback
-    from .models import ImageGeneration
 
     task_start_time = time.time()
-
+    generation_id = generation.id
     try:
-        generation = ImageGeneration.objects.get(id=generation_id)
-
-        # Skip if already completed (e.g. re-queued after force_reset)
-        if generation.status in ('SUCCESS', 'FAILURE'):
-            logger.warning(f"[Imager Video] Generation #{generation_id} already has status {generation.status}, skipping")
-            return {'skipped': True, 'reason': f'already_{generation.status.lower()}', 'generation_id': generation_id}
-
-        # Guard against stale re-queued tasks (task_id mismatch after force_reset + restart)
-        current_task_id = self.request.id
-        if current_task_id and generation.task_id and generation.task_id != current_task_id:
-            logger.warning(
-                f"[Imager Video] Generation #{generation_id}: task_id mismatch "
-                f"(DB={generation.task_id}, this={current_task_id}) — stale re-queued task, skipping"
-            )
-            return {'skipped': True, 'reason': 'stale_task', 'generation_id': generation_id}
-
-        # Garde anti-boucle-de-crash (brique COMMUNE) — cf. generate_image_task.
-        from wama.common.utils.process_control import refuse_crash_redelivery
-        if refuse_crash_redelivery(self, generation, error_field='error_message'):
-            logger.warning(f"[Imager Video] Generation #{generation_id}: reprise après crash refusée — relancer manuellement.")
-            _console(generation.user_id, f"[Imager Video] Génération #{generation_id} : reprise après crash refusée.")
-            return {'skipped': True, 'reason': 'crash_redelivery', 'generation_id': generation_id}
-
-        # Entrée URL déclarative (WAMA_INGEST du modèle) : télécharge source_url →
-        # reference_image si la cible est vide. AVANT la résolution auto (la présence
-        # d'une référence peut orienter le choix du modèle) — contrat composer 307b9fb.
-        try:
-            from wama.common.utils.source_ingest import ensure_local_input
-            ensure_local_input(generation, console=lambda m: _console(generation.user_id, m))
-        except Exception as exc:
-            logger.warning(f"[Imager] ensure_local_input({generation_id}) : {exc}")
-
         # Tirage « auto » AU LANCEMENT (pas au dépôt) : le choix dépend de la VRAM libre, qui
-        # a pu changer pendant l'attente en file. Même moment que composer/tasks.py:50.
+        # a pu changer pendant l'attente en file. APRÈS l'ingestion d'une URL (faite par le
+        # squelette) : la présence d'une référence peut orienter le choix du modèle.
         from wama.imager.utils.auto_model import AUTO, resolve_auto_model
         if (generation.model or AUTO).strip() in ('', AUTO):
             generation.model = resolve_auto_model(generation)
@@ -605,10 +519,6 @@ def generate_video_task(self, generation_id):
             _console(generation.user_id,
                      f"[Imager] 🧠 Auto → {generation.model} (capacités + VRAM libre au lancement, "
                      f"curseur qualité {quality_intent_of(generation, 'imager')}/100)")
-
-        generation.status = 'RUNNING'
-        generation.progress = 0
-        generation.save()
 
         user_id = generation.user.id
         mode_label = "Text-to-Video" if generation.generation_mode == 'txt2vid' else "Image-to-Video"
@@ -668,21 +578,13 @@ def generate_video_task(self, generation_id):
             error_msg = (f"Modèle vidéo « {model_key} » : aucun backend résolu depuis le catalogue "
                          f"({model_key} absent, sans moteur déclaré, ou backend sans PARAMS)")
             logger.error(error_msg)
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-            return {'error': error_msg}
+            raise RuntimeError(error_msg)
         _console(user_id, f"[Imager Video] Backend résolu par le catalogue : {backend_class.__name__}")
         if not backend_class.is_available():
             error_msg = (f"{backend_class.__name__} indisponible pour « {model_name} » "
                          f"(CUDA/VRAM ou dépendances manquantes).")
             logger.error(error_msg)
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-            return {'error': error_msg}
+            raise RuntimeError(error_msg)
         _console(user_id, f"[Imager Video] ✓ {backend_class.__name__} disponible")
 
         # Create output directory (user-specific path)
@@ -692,9 +594,7 @@ def generate_video_task(self, generation_id):
         os.makedirs(output_dir, exist_ok=True)
         _console(user_id, f"[Imager Video] Output dir: {output_dir}")
 
-        generation.progress = 5
-        generation.save()
-        cache.set(f"imager_progress_{generation_id}", 5, timeout=7200)  # 2 hour timeout for videos
+        ctx.progress(5)
 
         # Initialize backend
         backend = backend_class()
@@ -713,9 +613,7 @@ def generate_video_task(self, generation_id):
         # Progress callback during load — maps backend stage (0-100) to task progress (5-18%)
         def _load_stage_cb(label: str, stage_pct: int):
             mapped = 5 + int(stage_pct * 0.13)  # 5% + up to 13% during load → max 18%
-            generation.progress = mapped
-            generation.save(update_fields=['progress'])
-            cache.set(f"imager_progress_{generation_id}", mapped, timeout=7200)
+            ctx.progress(mapped)
             _console(user_id, f"[Imager Video] {label}")
 
         # Load the model (pass stage callback for progress reporting)
@@ -726,18 +624,12 @@ def generate_video_task(self, generation_id):
         if not backend.load(model_name, **load_kwargs):
             error_msg = f"Failed to load video model: {model_key}"
             logger.error(error_msg)
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-            return {'error': error_msg}
+            raise RuntimeError(error_msg)
 
         model_load_time = time.time() - model_load_start
         _console(user_id, f"[Imager Video] ✓ Model loaded in {model_load_time:.1f}s")
 
-        generation.progress = 20
-        generation.save()
-        cache.set(f"imager_progress_{generation_id}", 20, timeout=7200)
+        ctx.progress(20)
 
         # Get resolution from generation
         width, height = generation.get_video_resolution()
@@ -934,9 +826,7 @@ def generate_video_task(self, generation_id):
             nonlocal last_progress_log
             # Map 0-100 progress to 20-85 range (save 15% for export)
             mapped_progress = 20 + int(progress * 0.65)
-            generation.progress = mapped_progress
-            generation.save(update_fields=['progress'])
-            cache.set(f"imager_progress_{generation_id}", mapped_progress, timeout=7200)
+            ctx.progress(mapped_progress)
 
             # Log every 10%
             if progress >= last_progress_log + 10:
@@ -979,18 +869,12 @@ def generate_video_task(self, generation_id):
         if not result.success:
             error_msg = result.error or "Unknown video generation error"
             logger.error(f"Video generation failed: {error_msg}")
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            _console(user_id, f"[Imager Video] ✗ Generation failed: {error_msg}")
-            return {'error': error_msg}
+            raise RuntimeError(error_msg)
 
         _console(user_id, f"[Imager Video] ✓ Generation complete in {generation_time:.1f}s")
         _console(user_id, f"[Imager Video] Seed used: {seed_used}")
 
-        generation.progress = 85
-        generation.save()
-        cache.set(f"imager_progress_{generation_id}", 85, timeout=7200)
+        ctx.progress(85)
         _console(user_id, f"[Imager Video] Exporting {len(video_frames)} frames to MP4...")
 
         # Export video to MP4
@@ -1004,11 +888,7 @@ def generate_video_task(self, generation_id):
         if not backend.export_video(video_frames, video_path, fps=export_fps):
             error_msg = "Failed to export video to MP4"
             logger.error(error_msg)
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            _console(user_id, f"[Imager Video] ✗ Export failed: {error_msg}")
-            return {'error': error_msg}
+            raise RuntimeError(error_msg)
 
         export_time = time.time() - export_start
         file_size_mb = os.path.getsize(video_path) / (1024 * 1024) if os.path.exists(video_path) else 0
@@ -1030,79 +910,41 @@ def generate_video_task(self, generation_id):
                 _console(user_id, f"[Imager Video] ⚠ Conversion vers {_fmt} échouée — "
                                   f"MP4 d'origine conservé", level='warning')
 
-        # Update generation with results
+        # Save video path relative to MEDIA_ROOT for FileField
+        relative_video_path = os.path.relpath(video_path, settings.MEDIA_ROOT).replace(os.sep, '/')
+
+        # Seeding ETA : génération vidéo → temps ∝ durée produite (clé par modèle) ;
+        # chargement séparé (model_load_time) enregistré seulement à froid (>2s). Enregistré
+        # ICI : calcul et chargement sont mesurés à part, le squelette ne connaît que le total.
         try:
-            generation.refresh_from_db()
+            from wama.model_manager.services.eta_estimator import record_run
+            # Clé par IDENTIFIANT : l'historique d'avant la route F4b reste le même.
+            record_run(f'imager:vid:{model_name}',
+                       size=float(getattr(generation, 'video_duration', 0) or 0),
+                       unit='video_sec',
+                       process_seconds=generation_time + export_time,
+                       load_seconds=(model_load_time if model_load_time and model_load_time >= 2 else None),
+                       user=generation.user)
+        except Exception:
+            pass
 
-            # Save video path relative to MEDIA_ROOT for FileField
-            relative_video_path = os.path.relpath(video_path, settings.MEDIA_ROOT)
-            generation.output_video.name = relative_video_path
-
-            generation.status = 'SUCCESS'
-            generation.progress = 100
-            generation.completed_at = timezone.now()
-            # Durée RÉELLE de calcul (ProcessingTimeMixin), hors attente en file. On prend le
-            # temps de TÂCHE (chargement du modèle + génération + export), c'est ce que
-            # l'utilisateur attend réellement une fois le travail lancé.
-            generation.processing_seconds = time.time() - task_start_time
-            generation.save()
-
-            cache.set(f"imager_progress_{generation_id}", 100, timeout=7200)
-
-            # Seeding ETA : génération vidéo → temps ∝ durée produite (clé par modèle) ;
-            # chargement séparé (model_load_time) enregistré seulement à froid (>2s).
-            try:
-                from wama.model_manager.services.eta_estimator import record_run
-                # Clé par IDENTIFIANT : l'historique d'avant la route F4b reste le même.
-                record_run(f'imager:vid:{model_name}',
-                           size=float(getattr(generation, 'video_duration', 0) or 0),
-                           unit='video_sec',
-                           process_seconds=generation_time + export_time,
-                           load_seconds=(model_load_time if model_load_time and model_load_time >= 2 else None),
-                           user=generation.user)
-            except Exception:
-                pass
-
-            total_time = time.time() - task_start_time
-            _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            _console(user_id, f"[Imager Video] ✓ SUCCESS! Generation #{generation_id}")
-            _console(user_id, f"[Imager Video]   Duration: {len(video_frames) / float(export_fps or 1):.1f}s "
-                              f"({len(video_frames)} frames @ {export_fps} fps)")
-            _console(user_id, f"[Imager Video]   Seed: {seed_used}")
-            _console(user_id, f"[Imager Video]   Total time: {total_time:.1f}s")
-            _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-        except ImageGeneration.DoesNotExist:
-            logger.warning(f"Generation {generation_id} was deleted during processing")
-            return {'error': 'Generation was deleted during processing'}
-
+        total_time = time.time() - task_start_time
+        _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        _console(user_id, f"[Imager Video]   Duration: {len(video_frames) / float(export_fps or 1):.1f}s "
+                          f"({len(video_frames)} frames @ {export_fps} fps)")
+        _console(user_id, f"[Imager Video]   Seed: {seed_used}")
+        _console(user_id, f"[Imager Video]   Total time: {total_time:.1f}s")
         logger.info(f"Successfully generated video for generation #{generation_id}")
 
+        # Le statut, la progression à 100 et la durée de traitement (celle de la TÂCHE :
+        # chargement + génération + export) sont posés par le squelette.
         return {
-            'success': True,
-            'generation_id': generation_id,
-            'video_path': video_path,
-            'seed': seed_used,
+            'fields': {'output_video': relative_video_path, 'completed_at': timezone.now()},
+            'label': (generation.prompt or '')[:50] or f"vidéo #{generation_id}",
+            'console_success': f"[Imager Video] ✓ SUCCESS! Generation #{generation_id}",
+            'models': [model_key],
+            'output_ref': relative_video_path,
         }
-
-    except Exception as e:
-        error_traceback = traceback.format_exc()
-        logger.error(f"Error in generate_video_task for generation #{generation_id}: {str(e)}")
-        logger.error(f"Traceback:\n{error_traceback}")
-
-        try:
-            generation = ImageGeneration.objects.get(id=generation_id)
-            user_id = generation.user.id
-            generation.status = 'FAILURE'
-            generation.error_message = str(e)
-            generation.completed_at = timezone.now()
-            generation.save()
-            cache.set(f"imager_progress_{generation_id}", 0, timeout=7200)
-            _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            _console(user_id, f"[Imager Video] ✗ FAILED! Generation #{generation_id}")
-            _console(user_id, f"[Imager Video] Error: {str(e)}")
-            _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        except Exception as save_error:
-            logger.error(f"Failed to save error state: {str(save_error)}")
-
-        return {'error': str(e)}
+    except Exception:
+        _fail_stamp(generation, ctx)
+        raise
