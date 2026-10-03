@@ -39,13 +39,13 @@ def resolve_auto_model(gen):
     # URL, un modèle qui ne la prend pas.
     spec = {}
     if gen.melody_reference or getattr(gen, 'source_url', ''):
-        spec['consumes'] = ['reference_melody']
+        spec['consumes'] = ['work_audio']
     else:
         spec['task'] = task_of(gen.model)
-    # Partition jointe (2026-10-01) : seuls les modèles qui la DÉCLARENT (`reference_score`,
+    # Partition jointe (2026-10-01) : seuls les modèles qui la DÉCLARENT (`work_score`,
     # YuE2) — sinon « auto » tirerait un MusicGen qui l'ignorerait en silence.
     if getattr(gen, 'reference_score', None):
-        spec['consumes'] = spec.get('consumes', []) + ['reference_score']
+        spec['consumes'] = spec.get('consumes', []) + ['work_score']
     # `item=gen` (chantier C, 2026-09-20) : le curseur rapide/qualité de l'item (sinon le réglage
     # d'app de l'utilisateur, sinon 50) pèse dans le score — la brique était appelée SANS intention.
     return resolve_model_choice(AUTO, spec=spec, fallback=_config_fallback(gen), item=gen)

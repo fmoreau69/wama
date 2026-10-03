@@ -140,7 +140,7 @@ class MelodyGivenByUrlTest(TestCase):
         return draw.call_args.kwargs['spec']
 
     def test_a_melody_url_asks_for_a_model_that_takes_a_melody(self):
-        self.assertEqual(['reference_melody'],
+        self.assertEqual(['work_audio'],
                          self._spec_for(source_url='https://example.org/m.mp3')['consumes'])
 
     def test_without_a_melody_the_draw_is_by_task(self):

@@ -213,14 +213,15 @@
     // Prompt VIDE autorisé = génération ALÉATOIRE (le placeholder de la card l'annonce ;
     // backend generate_unconditional / chroma-seule). Cf. INPUT_MODEL_MATCHING.md.
     if (generateBtn && window.WamaApp && WamaApp.addToQueue) {
-        // Partition (port `reference_score`, 2026-10-01) — onglet DÉRIVÉ des capacités (YuE2) :
-        // son <input> est celui que la card déclare pour le port, posté sous le nom du port.
-        const scorePane = document.querySelector('#composerNewCard [data-port-pane="reference_score"]');
-        const ports = [{ inputId: 'melodyInput', field: 'melody_reference',
-                         urlField: 'source_url', urlInputId: 'melodyUrlInput' }];
-        if (scorePane && scorePane.dataset.portInput) {
-            ports.push({ inputId: scorePane.dataset.portInput, field: 'reference_score' });
-        }
+        // Les ports de la card — le morceau à reprendre (cover) : audio `work_audio` (MusicGen
+        // Melody), partition `work_score` (YuE2) — sont DÉRIVÉS des capacités des modèles ; chacun
+        // est posté sous le nom de son PORT (2026-10-03). Seul le port principal a un champ URL.
+        const ports = Array.from(document.querySelectorAll('#composerNewCard [data-port-pane]'))
+            .filter((pane) => pane.dataset.portInput && pane.dataset.portPane !== 'lot')
+            .map((pane) => (pane.dataset.portInput === 'melodyInput'
+                ? { inputId: 'melodyInput', field: pane.dataset.portPane,
+                    urlField: 'source_url', urlInputId: 'melodyUrlInput' }
+                : { inputId: pane.dataset.portInput, field: pane.dataset.portPane }));
         WamaApp.addToQueue({
             url:       APP.generateUrl,
             csrfToken: CSRF,

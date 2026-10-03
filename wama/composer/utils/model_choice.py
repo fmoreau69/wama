@@ -80,12 +80,15 @@ def is_valid(value) -> bool:
 
 
 def consumes_melody(value) -> bool:
-    """Le modèle prend-il une mélodie de référence ? Capacité DÉCLARÉE (`reference_melody`),
-    plus le test d'un identifiant en dur (`musicgen-melody`)."""
+    """Le modèle prend-il l'AUDIO du morceau à reprendre (cover) ? Capacité DÉCLARÉE
+    (`work_audio`), plus le test d'un identifiant en dur (`musicgen-melody`, catalogue absent).
+
+    Un « auto » de groupe suit la règle de `consumes_input` : oui si un modèle de sa tâche le
+    déclare — le tirage choisira parmi eux (2026-10-03). Il répondait NON jusque-là : avec
+    « auto », un audio joint était ignoré en silence à la création, alors que le tirage savait
+    retenir MusicGen Melody pour une mélodie fournie."""
     key = normalize(value)
-    if auto_task(key):
-        return False
-    return consumes_input(key, 'reference_melody') or model_id(key) == 'musicgen-melody'
+    return consumes_input(key, 'work_audio') or model_id(key) == 'musicgen-melody'
 
 
 def consumes_input(value, token: str) -> bool:

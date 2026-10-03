@@ -295,20 +295,21 @@ def generate(request):
         'model': model_id, 'duration': duration,
         'output_format': gen.output_format, 'output_quality': gen.output_quality})
 
-    # Melody reference (musicgen-melody only) — téléversée ou DÉSIGNÉE (médiathèque, arbre),
-    # brique `received_inputs` (2026-09-28) : une désignation se POINTE.
-    if consumes_melody(model_id):
-        from wama.common.utils.media_paths import received_inputs
-        melody = received_inputs(request, user, 'composer', field='melody_reference')
-        if melody:
-            melody[0].assign(gen, 'melody_reference')
-    # Partition de référence (port `reference_score`, 2026-10-01) — même brique, même règle :
-    # jointe si le modèle la DÉCLARE (un « auto » la fera tirer parmi ceux qui la consomment).
-    if consumes_input(model_id, 'reference_score'):
-        from wama.common.utils.media_paths import received_inputs
-        score = received_inputs(request, user, 'composer', field='reference_score')
-        if score:
-            score[0].assign(gen, 'reference_score')
+    # Le MORCEAU À REPRENDRE (cover) — ports de TRAVAIL depuis le 2026-10-03 (décision de Fabien) :
+    # l'audio de MusicGen Melody (`work_audio`) et la partition de YuE2 (`work_score`). Chacun est
+    # reçu sous le nom de son PORT, téléversé ou DÉSIGNÉ (brique `received_inputs` : une
+    # désignation se POINTE), et rangé dans son champ — les champs, des données stockées, gardent
+    # leur nom (`melody_reference`, `reference_score`). Joint si le modèle le DÉCLARE (un « auto »
+    # le fera tirer parmi ceux qui le consomment).
+    from wama.common.utils.media_paths import received_inputs
+    for port, field, accepted in (('work_audio', 'melody_reference', consumes_melody(model_id)),
+                                  ('work_score', 'reference_score',
+                                   consumes_input(model_id, 'work_score'))):
+        if not accepted:
+            continue
+        received = received_inputs(request, user, 'composer', field=port)
+        if received:
+            received[0].assign(gen, field)
 
     # Wrap in batch-of-1
     _wrap_generation_in_batch(gen)

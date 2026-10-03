@@ -101,7 +101,7 @@ INPUT_TYPES = {
     'work_image':      {'label': 'Image de travail', 'kind': 'file', 'accept': 'image', 'multi': True, 'port': 'travail',
                         'description': "L'image à ÉDITER ou à animer : le modèle part d'elle (img2img, in/outpainting, image-to-video)."},
     'work_audio':      {'label': 'Audio de travail', 'kind': 'file', 'accept': 'audio', 'multi': True, 'port': 'travail',
-                        'description': "L'audio que l'app TRAITE : c'est de lui que part le résultat (transcrit, amélioré, animé…)."},
+                        'description': "L'audio que l'app TRAITE : c'est de lui que part le résultat (transcrit, amélioré, animé, repris en cover…)."},
     # Objets 3D (2026-09-30, décision de Fabien) : le vocabulaire des rôles suit les NATURES de
     # média (`MEDIA_CATEGORIES`, dont `3d`), jamais un usage d'app — pas de jeton « avatar ».
     # 1ᵉʳ consommateur : le moteur `talkinghead` de l'avatarizer (un avatar riggé est un objet 3D
@@ -109,14 +109,20 @@ INPUT_TYPES = {
     # déjà (TripoSR, port de sortie `3d`).
     'work_object3d':   {'label': 'Objet 3D de travail', 'kind': 'file', 'accept': '3d', 'multi': True, 'port': 'travail',
                         'description': "L'objet 3D que l'app TRAITE : c'est de lui que part le résultat (animé, rendu, converti…)."},
+    # Rôle « travail » × nature `score` (2026-10-03, décision de Fabien) — remplace
+    # `reference_score` (2026-10-01). Dans un COVER, la partition n'est pas un guide : c'est le
+    # morceau que le modèle REND, dans le style de la consigne (YuE2 : mélodie, accords, structure).
+    # Même correction que pour la mélodie de MusicGen Melody, passée de `reference_melody` à
+    # `work_audio` : la règle des rôles le dit — le résultat PART de ce fichier.
+    'work_score':      {'label': 'Partition de travail', 'kind': 'file', 'accept': 'score', 'multi': False, 'port': 'travail',
+                        'description': "La partition (ABC, MIDI ou MusicXML) du morceau à REPRENDRE : le modèle en "
+                                       "rend la mélodie, les accords et la structure dans le style de la consigne (cover)."},
     'reference_image': {'label': 'Image de référence (style)', 'kind': 'file', 'accept': 'image', 'multi': False, 'port': 'reference',
                         'description': "Une image qui GUIDE le rendu (style, apparence) sans être transformée."},
     'reference_file':  {'label': 'Fichier de référence', 'kind': 'file', 'multi': False, 'port': 'reference',
                         'description': "Un fichier qui CONDITIONNE le traitement sans être transformé."},
     'reference_voice': {'label': 'Voix de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference',
                         'description': "Un extrait de voix à IMITER. La voix produite lui ressemblera ; l'extrait n'est pas modifié."},
-    'reference_melody': {'label': 'Mélodie de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference',
-                        'description': "Une mélodie qui ORIENTE la composition. Elle guide, elle n'est pas remixée."},
     # Rôle « référence » × nature `document` (2026-10-01) — même règle que `work_object3d` : le
     # vocabulaire des rôles suit les NATURES. `reference_file` ne convenait pas à une app « consigne
     # d'abord » (le Writer) : sans `accept`, il prend les natures de l'APP, que la dérivation de
@@ -124,12 +130,6 @@ INPUT_TYPES = {
     # seul document. Premier consommateur : le Writer (ROADMAP §21.5).
     'reference_document': {'label': 'Document de référence', 'kind': 'file', 'accept': 'document', 'multi': False, 'port': 'reference',
                            'description': "Un document qui NOURRIT le contenu (faits, chiffres, termes) sans être recopié ni transformé."},
-    # Rôle « référence » × nature `score` (2026-10-01) — même règle : le rôle suit la NATURE. Une
-    # partition GUIDE la composition comme une mélodie de référence, mais par ses notes et non par
-    # un son. Premier consommateur : YuE2 (composer), qui suit une partition ABC.
-    'reference_score': {'label': 'Partition', 'kind': 'file', 'accept': 'score', 'multi': False, 'port': 'reference',
-                        'description': "Une partition (ABC, MIDI ou MusicXML) que le modèle SUIT : "
-                                       "mélodie, accords, structure. Il l'interprète, il ne la recopie pas."},
     # ── Entrées consommées par l'APP, jamais par un modèle (2026-09-23) ─────────────────
     # Les jetons ci-dessus sont lus par un MODÈLE (ils arrivent par ses `inputs_required`/
     # `inputs_optional`). Ces deux-là sont lus par l'app AUTOUR du modèle : aucun moteur ne les
@@ -189,7 +189,7 @@ INPUT_TYPES = {
 # RÈGLE D'APPARIEMENT (INPUT_MODEL_MATCHING.md) : les slots de la card d'entrée d'une app =
 # ses inputs déclarés ci-dessous (niveau APP : communs à tous les modèles, ex. `prompt`)
 # ∪ l'union des `inputs_required/optional` de ses MODÈLES (capabilities catalogue, ex.
-# reference_melody porté par musicgen-melody seul). La brique `wama-input-match.js` lie les deux :
+# work_audio porté par musicgen-melody seul). La brique `wama-input-match.js` lie les deux :
 # entrée fournie → modèles incompatibles DÉSACTIVÉS avec raison (jamais cachés) ; modèle choisi →
 # slots attendus mis en évidence. Réversible par retrait de la chip.
 
@@ -365,10 +365,10 @@ APP_MODES = {
     'composer': {'domains': [
         {'id': 'composition', 'label': 'Composition', 'icon': 'fa-music',
          'accepts': ('prompt',),
-         # Card réelle (index.html:78) : prompt primaire, mélodie de référence (le littéral
-         # `reference_accept='audio/*'` a enfin sa déclaration — c'est ELLE qui donne au
-         # composer son port audio, absent d'input_extensions), fichier de prompts batch.
-         'inputs': ['prompt', 'reference_melody'], 'modes': []},
+         # La consigne seule au niveau APP (2026-10-03) : le morceau à reprendre (cover) vient des
+         # MODÈLES qui le déclarent — `work_audio` (MusicGen Melody), `work_score` (YuE2) —, comme
+         # tout port (`app_registry.app_input_ports`). Il était déclaré ici en `reference_melody`.
+         'inputs': ['prompt'], 'modes': []},
     ]},
     # reader : un seul geste « lire » ; backend/mode/langue sont des PARAMS, pas des modes.
     'reader': {'domains': [

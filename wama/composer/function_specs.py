@@ -54,11 +54,16 @@ register(FunctionSpec(
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['audio', 'music', 'gpu'],
     inputs=[PortSpec('prompt', 'prompt', description="La consigne de génération."),
-            # Nommé comme l'ENTRÉE de l'app (`reference_score` : la card, `compose_music`, le
-            # nœud du studio) — un nom pour une même entrée ; `score` est son TYPE.
-            PortSpec('reference_score', 'score', optional=True, group='reference',
-                     description="Partition à suivre, OPTIONNELLE : sans elle, le modèle "
-                                 "compose librement.")],
+            # Nommés comme les ENTRÉES de l'app (la card, `compose_music`, le nœud du studio) — un
+            # nom pour une même entrée ; `score` / `audio` sont leurs TYPES. Ports de TRAVAIL depuis
+            # le 2026-10-03 (décision de Fabien) : dans un COVER, le morceau source est ce que le
+            # rendu transforme, pas un guide.
+            PortSpec('work_score', 'score', optional=True, group='travail',
+                     description="Partition du morceau à reprendre (cover), OPTIONNELLE : sans "
+                                 "elle, le modèle compose librement."),
+            PortSpec('work_audio', 'audio', optional=True, group='travail',
+                     description="Audio du morceau à reprendre (cover, MusicGen Melody) : sa "
+                                 "mélodie est rejouée dans le style de la consigne.")],
     outputs=[PortSpec('audio', 'audio', description="Le morceau ou le bruitage généré.")]))
 
 

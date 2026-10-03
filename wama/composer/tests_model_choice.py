@@ -60,7 +60,17 @@ class ModelChoiceTest(TestCase):
         self.assertEqual((YUE2, 'music'), (gen.model, gen.generation_type),
                          'saving the model alone also saves the type it implies')
 
-    def test_only_a_declared_melody_consumer_takes_the_reference(self):
+    def test_only_a_declared_consumer_takes_the_song_audio_to_cover(self):
         self.assertTrue(mc.consumes_melody('musicgen-melody'))
         self.assertFalse(mc.consumes_melody(YUE2))
-        self.assertFalse(mc.consumes_melody(mc.AUTO_MUSIC))
+        self.assertFalse(mc.consumes_melody(mc.AUTO_MUSIC), 'no model of the task declares work_audio yet')
+
+    def test_a_group_auto_takes_the_song_audio_when_one_of_its_models_does(self):
+        """2026-10-03 : avec « auto », un audio joint était ignoré à la création — le tirage, lui,
+        savait retenir MusicGen Melody. Même règle que la partition (`consumes_input`)."""
+        AIModel.objects.create(model_key='composer:musicgen-melody', name='MusicGen Melody',
+                               model_type='music', source='composer', vram_gb=4.0, is_available=True,
+                               capabilities={'task': 'text-to-music', 'inputs_required': ['prompt'],
+                                             'inputs_optional': ['work_audio']})
+        self.assertTrue(mc.consumes_melody(mc.AUTO_MUSIC))
+        self.assertFalse(mc.consumes_melody(mc.AUTO_SFX), 'no sound-effect model covers a song')

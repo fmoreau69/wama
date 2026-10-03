@@ -1363,7 +1363,7 @@ class UnionDesEntreesDeModelesTest(TestCase):
         from wama.common.app_registry import app_input_ports
         from wama.common.utils.app_modes import INPUT_TYPES
 
-        self._modele('m', requis=['prompt'], optionnels=['reference_melody'])
+        self._modele('m', requis=['prompt'], optionnels=['reference_voice'])
         ports = app_input_ports(self.APP)
         self.assertEqual(2, len(ports))
         for p in ports:
@@ -1698,7 +1698,15 @@ class MatchStatusLineOfTheV4CardTest(TestCase):
             'app_id': app, 'file_input_id': 'f', 'drop_zone_id': 'z', **extra})
 
     def test_with_a_reference_port_the_line_is_rendered_and_can_be_shown(self):
-        html = self._render('composer', reference_input_id='melodyInput')
+        # Un modèle qui déclare une RÉFÉRENCE (image de style) ouvre le port ; le composer, qui
+        # servait d'exemple, n'en a plus depuis le 2026-10-03 (cover = ports de TRAVAIL) et
+        # déclare sa ligne (`match_status_id`, cas couvert par le 3ᵉ test).
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='imager:style', name='style', model_type='diffusion',
+                               source='imager', vram_gb=1.0, is_available=True,
+                               capabilities={'task': 'text-to-image', 'inputs_required': ['prompt'],
+                                             'inputs_optional': ['reference_image']})
+        html = self._render('imager', reference_input_id='refInput')
         start = html.index('id="inputMatchStatus"')
         tag = html[html.rindex('<small', 0, start):html.index('>', start)]
         self.assertNotIn('d-none', tag, 'a d-none class cannot be lifted by style.display')
