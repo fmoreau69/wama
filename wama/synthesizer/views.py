@@ -160,10 +160,12 @@ class IndexView(View):
             user, batch_model=BatchSynthesis, work_attr='synthesis', extra=_extra)
 
         # Chips de card GÉNÉRÉS du schéma (brique card_chips) — même décoration que card_html.
-        for b in batches_list:
-            for link in b['items']:
-                if link.synthesis:
-                    _decorate_synthesis(link.synthesis)
+        # Les lignes d'exécution de TOUTES les cards de la page sont lues en une requête.
+        from wama.common.services.process_pipeline import preload
+        shown = [link.synthesis for b in batches_list for link in b['items'] if link.synthesis]
+        preload(shown)
+        for synthesis in shown:
+            _decorate_synthesis(synthesis, preloaded=True)
 
         # Multi-item batches first, then single-item batches
         # (« batchs d'abord » RETIRÉ le 2026-08-24 — écrasé par `apply_queue_sort_filter`
@@ -387,8 +389,9 @@ def _reset_synthesis_for_relaunch(s):
     """Reset partagé (start / start_all / batch_start) pour begin_processing."""
     s.progress = 0
     s.error_message = ''
-    # Supprimer l'ancien audio si présent
-    safe_delete_file(s, 'audio_output')
+    # ⚠ L'ancien audio n'est plus retiré au clic (2026-10-03) : un lancement ne rejoue que ce qui
+    # n'est plus à jour, et un format changé ne rejoue que la sortie — depuis l'audio que la
+    # synthèse a laissé. C'est la glu de la synthèse qui le remplace quand elle rejoue.
 
 
 @app_access('synthesizer')
@@ -420,11 +423,39 @@ def start(request, pk: int):
     })
 
 
-def _decorate_synthesis(s):
-    """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips."""
+@app_access('synthesizer')
+@require_POST
+def start_process(request, pk: int, process: str):
+    """▶ d'UN process de la card (`ROUTE §10.6` 5.1) : lancement BORNÉ — refaire la sortie seule
+    (format, qualité) sans re-synthétiser, ou re-synthétiser sans attendre qu'un réglage change."""
+    from .function_specs import PIPELINE
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    if process not in {s.key for s in PIPELINE.specs}:
+        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
+    from wama.common.utils.process_control import begin_processing
+    synthesis, err = begin_processing(VoiceSynthesis, pk, user=user,
+                                      reset=_reset_synthesis_for_relaunch)
+    if err:
+        msg = 'La synthèse est déjà en cours' if err == 'already_running' else err
+        return JsonResponse({'error': msg}, status=404 if err == 'not_found' else 400)
+    cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
+    _ensure_workers_imported()
+    task = synthesize_voice.apply_async(args=(synthesis.id,), kwargs={'process': process})
+    synthesis.task_id = task.id
+    synthesis.save(update_fields=['task_id'])
+    return JsonResponse({'task_id': task.id, 'status': 'started', 'process': process})
+
+
+def _decorate_synthesis(s, preloaded=False):
+    """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips ; et
+    les PROCESS de la card (« Synthèse → Sortie ») avec son état MONTRÉ, par la brique commune
+    (`process_pipeline.decorate`, `ROUTE §10.6` 5.1)."""
+    from wama.common.services.process_pipeline import decorate
     from wama.common.utils.card_chips import chips_by_section
     from wama.synthesizer.params import PARAMS_JSON
+    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
     s.chips = chips_by_section(s, PARAMS_JSON)
+    decorate(s, s.tts_model or 'auto', preloaded=preloaded)
     return s
 
 
@@ -467,7 +498,8 @@ def _progress_extra(synthesis):
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(work_model=VoiceSynthesis, app_id='synthesizer',
-                          eta_for=_eta_triplet, extra=_progress_extra)
+                          eta_for=_eta_triplet, extra=_progress_extra,
+                          pipeline_model=lambda synthesis: synthesis.tts_model or 'auto')
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 

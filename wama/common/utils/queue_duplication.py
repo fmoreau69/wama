@@ -298,6 +298,13 @@ def duplicate_instance(instance, reset_fields=None, clear_fields=None, *, for_us
                 except Exception:
                     pass
 
+    # Les fichiers d'ORIGINE gardés par la brique de sortie (`NativeOutputsMixin`) sont ceux du
+    # résultat de la card source : une copie repart sans résultat, donc sans eux — pour toute app
+    # qui hérite le champ, sans une ligne par app.
+    from wama.common.utils.output_formats import NATIVE_FIELD
+    if hasattr(obj, NATIVE_FIELD):
+        setattr(obj, NATIVE_FIELD, [])
+
     obj.save()
     if received:
         _copy_files_to(obj, for_user)

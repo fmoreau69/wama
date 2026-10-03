@@ -103,7 +103,7 @@ class PlanThenRenderTest(TestCase):
         return ComposerGeneration.objects.create(user=self.user, prompt='a calm piano\n[verse]\nla',
                                                  status='RUNNING', **fields)
 
-    def _run(self, gen, drawn=SCORE_MODEL, process=None):
+    def _run(self, gen, drawn=SCORE_MODEL, process=None, clamp=None):
         """Runs the real task body on a FRESH instance (as a worker does) ; the draw, the prompt
         pipeline, the engines and the ETA record are stand-ins. `process` = a BOUNDED run."""
         ComposerGeneration.objects.filter(pk=gen.pk).update(status='RUNNING')
@@ -116,7 +116,7 @@ class PlanThenRenderTest(TestCase):
                            side_effect=lambda app, field, text, **kw: text) as routed, \
                 mock.patch('wama.common.utils.model_readiness.warn_if_weights_missing'), \
                 mock.patch('wama.composer.utils.model_config.clamp_duration',
-                           side_effect=lambda value, model_id=None: value), \
+                           side_effect=clamp or (lambda value, model_id=None: value)), \
                 mock.patch('wama.model_manager.services.eta_estimator.record_run'):
             tasks.compose_task.run.__func__(_celery_task(), gen.pk, process)
         gen = ComposerGeneration.objects.get(pk=gen.pk)
@@ -130,7 +130,7 @@ class PlanThenRenderTest(TestCase):
     def test_a_model_that_writes_its_score_runs_plan_then_render(self):
         gen = self._run(self._generation())
         self.assertEqual('SUCCESS', gen.status, gen.error_message)
-        self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_SUCCESS}, self._states(gen))
+        self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_SUCCESS, 'output': JOB_SUCCESS}, self._states(gen))
         self.assertEqual((1, 1), (len(_ScoreEngine.plans), len(_ScoreEngine.renders)))
         self.assertEqual(1, _ScoreEngine.built, 'the engine loaded for the score serves the render')
         self.assertEqual(1, gen.routed.call_count, 'the prompt was routed once per process')
@@ -146,16 +146,17 @@ class PlanThenRenderTest(TestCase):
         written = Path(self.tmp) / gen.planned_score.name
         self.assertEqual(SCORE, written.read_text(encoding='utf-8'))
         self.assertEqual(str(written), str(Path(_ScoreEngine.renders[0]['score_path'])))
-        plan, render = (process_runs.line(gen, key) for key in ('plan', 'render'))
-        self.assertEqual((gen.planned_score.name, gen.audio_output.name),
-                         (plan.output_ref, render.output_ref))
+        plan, render, output = (process_runs.line(gen, key) for key in ('plan', 'render', 'output'))
+        # The render declares a FINGERPRINT, not a path : the output process may move its file.
+        self.assertEqual((gen.planned_score.name, '', gen.audio_output.name),
+                         (plan.output_ref, render.output_ref, output.output_ref))
         self.assertEqual(('composer.plan', 'composer.render'),
                          (plan.process_key, render.process_key))
 
     def test_a_model_with_a_single_step_keeps_a_single_process(self):
         gen = self._run(self._generation(model=PLAIN_MODEL))
         self.assertEqual('SUCCESS', gen.status, gen.error_message)
-        self.assertEqual({'render': JOB_SUCCESS}, self._states(gen))
+        self.assertEqual({'render': JOB_SUCCESS, 'output': JOB_SUCCESS}, self._states(gen))
         self.assertFalse(gen.planned_score)
         self.assertIsNone(_PlainEngine.renders[0]['score_path'])
 
@@ -163,7 +164,7 @@ class PlanThenRenderTest(TestCase):
         gen = self._generation()
         gen.reference_score.save('mine.abc', ContentFile(b'X:1\nK:G\nGABc|'))
         gen = self._run(gen)
-        self.assertEqual({'render': JOB_SUCCESS}, self._states(gen))
+        self.assertEqual({'render': JOB_SUCCESS, 'output': JOB_SUCCESS}, self._states(gen))
         self.assertEqual([], _ScoreEngine.plans)
         self.assertTrue(_ScoreEngine.renders[0]['score_path'].replace('\\', '/')
                         .endswith(gen.reference_score.name))
@@ -194,7 +195,8 @@ class PlanThenRenderTest(TestCase):
         ComposerGeneration.objects.filter(pk=gen.pk).update(duration=45)
         gen.refresh_from_db()
         self.assertEqual(JOB_STALE, PIPELINE.card_state(gen))
-        self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_STALE}, self._states(gen))
+        self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_STALE, 'output': JOB_STALE},
+                         self._states(gen))
         gen = self._run(gen)
         self.assertEqual((1, 2), (len(_ScoreEngine.plans), len(_ScoreEngine.renders)))
         self.assertEqual(45, _ScoreEngine.renders[1]['duration'])
@@ -263,7 +265,7 @@ class PlanThenRenderTest(TestCase):
         self.assertFalse(process_runs.lines(copy).exists(), 'a copy starts with no line')
         with mock.patch('wama.common.backends.manager.backend_for_key',
                         side_effect=lambda key: ENGINES.get(key)):
-            self.assertEqual(['plan', 'render'],
+            self.assertEqual(['plan', 'render', 'output'],
                              [spec.key for spec in PIPELINE.steps_to_run(copy, SCORE_MODEL)])
 
     def test_removing_the_card_frees_the_score_like_its_audio(self):
@@ -370,16 +372,20 @@ class TheCardShowsItsProcessesTest(TestCase):
         gen = self._run(self._generation())
         html = self._card(gen)
         gears = dict(re.findall(r'settings-btn wcv3-proc-settings"[^>]*data-process="(\w+)"[^>]*data-only="([^"]*)"', html))
-        self.assertEqual({'plan', 'render'}, set(gears))
+        self.assertEqual({'plan', 'render', 'output'}, set(gears))
+        self.assertIn('output_format', gears['output'].split(','))
+        self.assertNotIn('output_format', gears['render'].split(','))
         self.assertIn('duration', gears['render'].split(','))
         self.assertNotIn('duration', gears['plan'].split(','))
         self.assertIn('prompt', gears['plan'].split(','))
 
-    def test_a_single_step_model_has_no_strip_before_it_runs(self):
+    def test_a_single_step_model_shows_the_render_then_the_output_and_no_score(self):
         gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
                                                 model=PLAIN_MODEL, status='PENDING')
         html = self._card(gen)
-        self.assertNotIn('data-processes', html)
+        self.assertIn('data-process="render"', html)
+        self.assertIn('data-process="output"', html)
+        self.assertNotIn('data-process="plan"', html)
         self.assertIn('data-status="PENDING"', html)
 
     def test_the_progress_view_carries_the_processes(self):
@@ -395,7 +401,7 @@ class TheCardShowsItsProcessesTest(TestCase):
         with mock.patch('wama.common.backends.manager.backend_for_key',
                         side_effect=lambda key: ENGINES.get(key)):
             payload = client.get(reverse('composer:progress', args=[gen.pk])).json()
-        self.assertEqual(['plan', 'render'], [p['key'] for p in payload['processes']])
+        self.assertEqual(['plan', 'render', 'output'], [p['key'] for p in payload['processes']])
         self.assertEqual('SUCCESS', payload['shown_state'])
 
 
@@ -446,7 +452,9 @@ class TheRunButtonPerProcessTest(TestCase):
         self.assertFalse(gen.audio_output, 'the audio is replaced, like any relaunch')
         gen = self._run(gen, process='render')
         self.assertEqual((len(_ScoreEngine.plans), len(_ScoreEngine.renders)), (1, 2))
-        self.assertEqual(self._states(gen), {'plan': JOB_SUCCESS, 'render': JOB_SUCCESS})
+        self.assertEqual(self._states(gen), {'plan': JOB_SUCCESS, 'render': JOB_SUCCESS,
+                                             'output': JOB_STALE},
+                         'a bounded run never plays its downstream : the output goes stale')
 
     def test_pressing_the_score_button_clears_the_score_but_keeps_the_audio(self):
         gen = self._run(self._generation())
@@ -492,12 +500,13 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertEqual([], validate(manifest))
         self.assertEqual('media', manifest['world'])
         self.assertEqual([('extract_score', 'composer.extract_score'), ('plan', 'composer.plan'),
-                          ('render', 'composer.render')],
+                          ('render', 'composer.render'), ('output', 'composer.output')],
                          [(node['id'], node['function']) for node in manifest['body']['nodes']])
         # Two ALTERNATIVE upstreams of the render (2026-10-03): the score comes from the cover
         # audio, or from the prompt.
         self.assertEqual([{'from': 'extract_score', 'to': 'render', 'to_port': None},
-                          {'from': 'plan', 'to': 'render', 'to_port': None}],
+                          {'from': 'plan', 'to': 'render', 'to_port': None},
+                          {'from': 'render', 'to': 'output', 'to_port': None}],
                          manifest['body']['links'])
 
     def test_the_export_command_lists_it(self):
@@ -505,7 +514,8 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertIn('composer', _pipeline_keys())
 
     def test_the_task_has_a_glue_for_every_process(self):
-        self.assertEqual({'extract_score', 'plan', 'render'}, {spec.key for spec in PIPELINE.specs})
+        self.assertEqual({'extract_score', 'plan', 'render', 'output'},
+                         {spec.key for spec in PIPELINE.specs})
         for spec in PIPELINE.specs:
             self.assertTrue(callable(getattr(tasks, f'_{spec.key}')), spec.key)
 
@@ -608,3 +618,67 @@ class TheEngineSaysItPlansTest(SimpleTestCase):
         from wama.common.backends.music_generation_base import MusicGenerationBackend
         with self.assertRaisesMessage(NotImplementedError, 'supports_score_planning'):
             MusicGenerationBackend.plan_score(mock.Mock(), 'm', 'a prompt')
+
+
+class TheOutputProcessTest(TestCase):
+    """The composer's fourth process, « output » (common brick) : changing the format or the quality
+    replays the output ALONE, from the WAV the render left — measured for real on 2026-10-03."""
+
+    setUp = PlanThenRenderTest.setUp
+    _generation = PlanThenRenderTest._generation
+    _states = PlanThenRenderTest._states
+
+    @staticmethod
+    def _convert(path, fmt, preset='balanced', **_kw):
+        import os
+        converted = os.path.splitext(path)[0] + '.' + fmt
+        os.replace(path, converted)
+        return converted
+
+    def _run(self, gen, **settings):
+        ComposerGeneration.objects.filter(pk=gen.pk).update(**settings)
+        with mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+                        side_effect=self._convert):
+            return PlanThenRenderTest._run(self, gen, drawn=PLAIN_MODEL)
+
+    def _on_disk(self, gen):
+        import os
+        folder = os.path.dirname(os.path.join(self.tmp, gen.audio_output.name))
+        return sorted(os.listdir(folder))
+
+    def test_changing_the_format_replays_the_output_alone_and_keeps_the_wav(self):
+        gen = self._run(self._generation(model=PLAIN_MODEL))
+        self.assertEqual({'render': JOB_SUCCESS, 'output': JOB_SUCCESS}, self._states(gen))
+        gen = self._run(gen, output_format='mp3')
+        self.assertEqual('SUCCESS', gen.status, gen.error_message)
+        self.assertEqual(1, len(_PlainEngine.renders), 'the music was NOT rendered again')
+        self.assertTrue(gen.audio_output.name.endswith('.mp3'), gen.audio_output.name)
+        self.assertEqual(2, len(self._on_disk(gen)), self._on_disk(gen))
+        gen = self._run(gen, output_format='original')
+        self.assertEqual(1, len(_PlainEngine.renders))
+        self.assertTrue(gen.audio_output.name.endswith('.wav'))
+        self.assertEqual([], gen.native_outputs)
+        self.assertEqual(1, len(self._on_disk(gen)), self._on_disk(gen))
+
+    def test_a_duration_the_render_adjusts_itself_does_not_make_it_stale(self):
+        """Measured for real (2026-10-03) : the model's floor moved 5 s to 10 s, the render wrote
+        it into the setting it watches — and was « stale » the moment it succeeded, so the next
+        launch rendered again for a change of FORMAT."""
+        floor = lambda value, model_id=None: max(value, 10)   # noqa: E731
+        gen = self._generation(model=PLAIN_MODEL, duration=5)
+        gen = PlanThenRenderTest._run(self, gen, drawn=PLAIN_MODEL, clamp=floor)
+        self.assertEqual(10, gen.duration)
+        self.assertEqual({'render': JOB_SUCCESS, 'output': JOB_SUCCESS}, self._states(gen))
+        self.assertEqual(JOB_SUCCESS, PIPELINE.card_state(gen))
+        ComposerGeneration.objects.filter(pk=gen.pk).update(output_format='mp3')
+        with mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+                        side_effect=self._convert):
+            gen = PlanThenRenderTest._run(self, gen, drawn=PLAIN_MODEL, clamp=floor)
+        self.assertEqual(1, len(_PlainEngine.renders), 'only the output was played again')
+
+    def test_a_new_duration_renders_again_and_replaces_everything(self):
+        gen = self._run(self._generation(model=PLAIN_MODEL), output_format='mp3')
+        gen = self._run(gen, duration=45)
+        self.assertEqual(2, len(_PlainEngine.renders))
+        self.assertTrue(gen.audio_output.name.endswith('.mp3'))
+        self.assertEqual(2, len(self._on_disk(gen)), self._on_disk(gen))

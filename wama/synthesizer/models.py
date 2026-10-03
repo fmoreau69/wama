@@ -5,7 +5,8 @@ Gère la synthèse vocale (Text-to-Speech)
 
 from django.db import models
 from django.contrib.auth import get_user_model
-from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager, JOB_STATUS_CHOICES
+from wama.common.models import (JOB_STATUS_CHOICES, NativeOutputsMixin, ProcessingTimeMixin,
+                                ScopedManager, ScopedVisibility)
 from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 from wama.common.tts.constants import (
@@ -16,7 +17,7 @@ from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
 User = get_user_model()
 
 
-class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
+class VoiceSynthesis(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # Partage F7 : lectures via visible_to()/visible_or_404, mutations par user.
     objects = ScopedManager()
 

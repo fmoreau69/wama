@@ -20,6 +20,7 @@ urlpatterns = [
     path('queue_count/', views.queue_count, name='queue_count'),
     path('card/<int:pk>/html/', views.card_html, name='card_html'),
     path('start/<int:pk>/', views.start, name='start'),
+    path('start/<int:pk>/<str:process>/', views.start_process, name='start_process'),
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('start_all/', views.start_all, name='start_all'),
     # Réglages de l'UTILISATEUR (brique commune user_settings, 2026-09-27) — ex-`update_settings/`

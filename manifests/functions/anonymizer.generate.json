@@ -1,0 +1,57 @@
+{
+  "body": {
+    "app": "anonymizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "anonymizer.tasks:process_single_media",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "L'image ou la vidéo à anonymiser.",
+        "group": "travail",
+        "key": "work_media",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "anonymizer.generate",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "Le média flouté, tel que le moteur l'écrit.",
+        "key": "native",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "image",
+      "video",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Détecte et floute, dans une image ou une vidéo, les classes désignées (visages, plaques…) ou ce qu'une description nomme, avec le ou les modèles qui les couvrent.",
+  "key": "anonymizer.generate",
+  "manifest_kind": "function",
+  "name": "Anonymizer — flouter",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:anonymizer.generate",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

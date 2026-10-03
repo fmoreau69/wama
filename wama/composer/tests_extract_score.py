@@ -113,7 +113,7 @@ class ExtractThenRenderTest(TestCase):
     def test_a_cover_by_a_score_model_extracts_the_score_then_renders_it_instead_of_planning(self):
         gen = self._run(self._cover())
         self.assertEqual('SUCCESS', gen.status, gen.error_message)
-        self.assertEqual({'extract_score': JOB_SUCCESS, 'render': JOB_SUCCESS}, self._states(gen))
+        self.assertEqual({'extract_score': JOB_SUCCESS, 'render': JOB_SUCCESS, 'output': JOB_SUCCESS}, self._states(gen))
         self.assertEqual([], _ScoreEngine.plans, 'the score comes from the audio, not the prompt')
         self.assertTrue(_Extractor.calls[0]['melody_only'], 'a cover takes the melody only')
         self.assertTrue(_Extractor.calls[0]['audio_path'].replace('\\', '/')
@@ -137,7 +137,7 @@ class ExtractThenRenderTest(TestCase):
 
     def test_a_model_that_takes_the_audio_itself_keeps_its_direct_path(self):
         gen = self._run(self._cover(model=MELODY_MODEL))
-        self.assertEqual({'render': JOB_SUCCESS}, self._states(gen))
+        self.assertEqual({'render': JOB_SUCCESS, 'output': JOB_SUCCESS}, self._states(gen))
         self.assertEqual([], _Extractor.calls)
         self.assertTrue(_PlainEngine.renders[0]['melody_path'].replace('\\', '/')
                         .endswith(gen.melody_reference.name))
@@ -146,13 +146,13 @@ class ExtractThenRenderTest(TestCase):
         gen = self._cover()
         gen.reference_score.save('mine.abc', ContentFile(b'X:1\nK:G\nGABc|'))
         gen = self._run(gen)
-        self.assertEqual({'render': JOB_SUCCESS}, self._states(gen))
+        self.assertEqual({'render': JOB_SUCCESS, 'output': JOB_SUCCESS}, self._states(gen))
         self.assertEqual([], _Extractor.calls)
 
     def test_without_an_extraction_model_the_score_model_plans_as_before(self):
         self.extractor = ''
         gen = self._run(self._cover())
-        self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_SUCCESS}, self._states(gen))
+        self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_SUCCESS, 'output': JOB_SUCCESS}, self._states(gen))
         self.assertEqual([], _Extractor.calls)
 
     # ── failures and relaunches ─────────────────────────────────────────────────────────────

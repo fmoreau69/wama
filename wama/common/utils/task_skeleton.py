@@ -609,13 +609,16 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                     process_runs.succeed, item, node, process_key=process_key,
                     output_ref=res.get('output_ref') or '',
                     model_key=(res.get('models') or [None])[0],
-                    output_summary=_line_summary(res))
+                    output_summary=_line_summary(res),
+                    # La photo des réglages telle que la glu les LAISSE (elle a pu en ajuster un).
+                    settings_snapshot=pipeline.snapshot(spec, item) if spec is not None else None)
                 _record_eta(res.get('eta'), time.time() - t_step, item)
                 if res.get('label'):
                     ctx.console(res.get('console_success') or f"✓ {res['label']}", level='info')
                 done_share += share
         last_model = next((k for k in (res.get('models') or []) if k), None)
         last_summary = _line_summary(res)
+        last_fields = dict(res.get('fields') or {})
         # Ce que la CARD a produit = ce que tous ses process joués ont écrit et employé ; son nom
         # lisible est le dernier qu'un process a donné (le dernier process peut ne rien nommer).
         res = dict(res, fields=written, models=used or res.get('models'))
@@ -629,9 +632,15 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
             fields['processing_seconds'] = round(time.time() - t0, 1)
         model.objects.filter(pk=item_id).update(**fields)
         if node is not None:          # None : le dernier process, optionnel, a échoué (ligne déjà dite)
+            final_snapshot = None
+            if spec is not None:
+                for name, value in (last_fields or {}).items():
+                    setattr(item, name, value)
+                final_snapshot = pipeline.snapshot(spec, item)
             process_runs.safely(process_runs.succeed, item, node, process_key=process_key,
                                 output_ref=res.get('output_ref') or '',
-                                model_key=last_model, output_summary=last_summary)
+                                model_key=last_model, output_summary=last_summary,
+                                settings_snapshot=final_snapshot)
         ctx.enter_step(None, 0, 100)
         ctx.progress(100)
         _measure_against_reference(app_id, model, item_id, ctx)

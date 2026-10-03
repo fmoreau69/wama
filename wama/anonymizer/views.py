@@ -517,7 +517,8 @@ from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(work_model=Media, app_id='anonymizer',
                           progress_field='blur_progress', progress_of=_live_progress,
-                          eta_for=_eta_triplet)
+                          eta_for=_eta_triplet,
+                          pipeline_model=lambda media: media.model_to_use or 'auto')
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
@@ -660,6 +661,27 @@ def card_html(request, pk):
     from wama.common.utils.batch_common import is_batch_child
     return render(request, 'anonymizer/_media_card.html',
                   {'elem': media, 'in_batch': is_batch_child(media), 'user': user})
+
+
+@require_POST
+@app_access('anonymizer')
+def start_process(request, pk, process):
+    """▶ d'UN process de la card (`ROUTE §10.6` 5.1) : lancement BORNÉ — refaire la sortie seule
+    (format, qualité) sans re-flouter, ou re-flouter sans attendre qu'un réglage change."""
+    from .function_specs import PIPELINE
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    if process not in {s.key for s in PIPELINE.specs}:
+        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
+    from wama.common.utils.process_control import begin_processing
+    media, err = begin_processing(Media, pk, user=user, reset=_reset_for_relaunch)
+    if err:
+        return JsonResponse({'error': err}, status=404 if err == 'not_found' else 400)
+    cache.delete(f"media_progress_{media.id}")
+    task = process_single_media.apply_async(args=(media.id,), kwargs={'process': process})
+    media.task_id = task.id
+    media.save(update_fields=['task_id'])
+    return JsonResponse({'success': True, 'task_id': task.id, 'status': 'RUNNING',
+                         'process': process})
 
 
 def _reset_for_relaunch(media):
@@ -829,11 +851,15 @@ def _auto_wrap_orphans(user):
     )
 
 
-def _decorate_card(media):
-    """Attache les chips de card (générés du SCHÉMA, card_chips) à l'instance.
+def _decorate_card(media, preloaded=False):
+    """Attache les chips de card (générés du SCHÉMA, card_chips) à l'instance, et les PROCESS de
+    la card (« Floutage → Sortie ») avec son état MONTRÉ (`process_pipeline.decorate`).
     Point d'attache UNIQUE : appelé par IndexView ET par card_html — sinon la card
     rendue par l'endpoint diverge de celle du chargement (leçon describer)."""
+    from wama.common.services.process_pipeline import decorate
     from wama.common.utils.card_chips import chips_by_section
+    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
+    decorate(media, media.model_to_use or 'auto', preloaded=preloaded)
     from wama.anonymizer.params import PARAMS_JSON
     extra = []
     if media.target_mode == 'classes' and media.classes2blur:
@@ -859,8 +885,11 @@ def _queue_context(request, user):
         from wama.common.utils.card_chips import common_chips_for_items
         from wama.anonymizer.params import PARAMS_JSON
         success_count = sum(1 for m in medias if m.status == 'SUCCESS')
+        # Les lignes d'exécution des cards du lot sont lues en une requête.
+        from wama.common.services.process_pipeline import preload
+        preload(medias)
         for m in medias:
-            _decorate_card(m)
+            _decorate_card(m, preloaded=True)
         return {
             'success_pct': int(success_count / batch.total * 100) if batch.total else 0,
             # ETA agrégée de la card mère (brique _batch_card.html) — CSV, pas liste

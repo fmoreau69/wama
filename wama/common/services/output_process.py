@@ -136,7 +136,8 @@ def forget_lost_generation(item, field, node: str) -> bool:
     return True
 
 
-def output_step(field, *, domain, app_id: str, console=None, extra_fields=None):
+def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
+                format_of=None):
     """La GLU du process de sortie, au contrat du squelette (`glu(item, ctx) -> dict`).
 
     `field`  : le champ qui porte le rendu (nom, ou `callable(item) -> nom`) ;
@@ -144,7 +145,9 @@ def output_step(field, *, domain, app_id: str, console=None, extra_fields=None):
                `output_formats` pour savoir si l'agrandissement vaut ;
     `console`: `callable(item, message)` pour dire ce qui est fait dans la console de l'app ;
     `extra_fields` : `callable(item, finals) -> dict` — champs propres que l'app pose avec son
-               rendu (une heure de fin, des dimensions relevées sur le fichier final).
+               rendu (une heure de fin, des dimensions relevées sur le fichier final) ;
+    `format_of` : `callable(item, source) -> format` quand le réglage de l'app n'est pas un
+               format à lui seul (l'anonymizer : « le format de l'entrée ») — elle le RÉSOUT.
 
     Un agrandissement DEMANDÉ qui échoue lève (la card s'arrête en le disant, le moteur n'est
     pas rejoué au ▶ suivant) ; une conversion ratée garde le format d'origine et le dit."""
@@ -161,6 +164,7 @@ def output_step(field, *, domain, app_id: str, console=None, extra_fields=None):
             finals, natives = render_outputs(
                 sources, item, domain=domain(item) if callable(domain) else domain,
                 app_id=app_id, console=say,
+                output_format=format_of(item, sources[0]) if format_of else None,
                 previous=[p for p in rendered_files(item, name) if not _shared(item, p, name)])
         except Exception as exc:
             ctx.reset_progress()

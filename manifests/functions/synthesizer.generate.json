@@ -1,0 +1,67 @@
+{
+  "body": {
+    "app": "synthesizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "synthesizer.workers:synthesize_voice",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le texte à dire.",
+        "group": "travail",
+        "key": "work_text",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "La voix de référence (clonage).",
+        "group": "travail",
+        "key": "reference_voice",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "synthesizer.generate",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "La parole synthétisée (WAV).",
+        "key": "native",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "speech",
+      "tts"
+    ],
+    "visibility": "public"
+  },
+  "description": "Synthétise le texte de la card avec le moteur TTS désigné ou tiré, la voix et la langue choisies, la vitesse et la hauteur demandées. Rend un WAV.",
+  "key": "synthesizer.generate",
+  "manifest_kind": "function",
+  "name": "Synthesizer — dire le texte",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:synthesizer.generate",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

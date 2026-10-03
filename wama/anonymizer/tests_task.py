@@ -46,8 +46,22 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         path.write_bytes(b'blurred')
         return str(path)
 
-    def _run(self, engine=None):
+    @staticmethod
+    def _convert(path, fmt, preset='balanced', **_kw):
+        """Stand-in for the converter : writes the target next to the source, removes the source."""
+        converted = os.path.splitext(path)[0] + '.' + fmt
+        os.replace(path, converted)
+        return converted
+
+    def _states(self):
+        return {line.node_id: line.status for line in process_runs.lines(self.media)}
+
+    def _run(self, engine=None, **settings):
+        if settings:
+            Media.objects.filter(pk=self.media.pk).update(status='RUNNING', **settings)
         with mock.patch.object(tasks, 'start_process', side_effect=engine or self._blurred) as started, \
+                mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+                           side_effect=self._convert), \
                 mock.patch.object(tasks, 'needs_parallel_detection',
                                   return_value={'parallel': False, 'models': []}), \
                 mock.patch('wama.anonymizer.utils.model_selector.select_model_by_precision',
@@ -67,8 +81,39 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.root, self.media.output_file.name)))
         self.assertIsNotNone(self.media.processing_seconds)
         self.assertEqual(['face'], self.engine_kwargs['classes2blur'])
-        line = process_runs.line(self.media)
-        self.assertEqual(('SUCCESS', self.media.output_file.name), (line.status, line.output_ref))
+        self.assertEqual({'generate': 'SUCCESS', 'output': 'SUCCESS'}, self._states())
+        self.assertEqual(self.media.output_file.name,
+                         process_runs.line(self.media, 'output').output_ref)
+        self.assertEqual([], self.media.native_outputs, 'nothing transformed : a single file')
+
+    def test_changing_the_format_replays_the_output_alone_and_keeps_the_blurred_original(self):
+        self._run()
+        outcome, started = self._run(output_format='webp')
+        self.assertEqual('SUCCESS', self.media.status, self.media.error_message)
+        started.assert_not_called()                      # the media was NOT blurred again
+        self.assertTrue(self.media.output_file.name.endswith('.webp'), self.media.output_file.name)
+        self.assertTrue(self.media.native_outputs[0].endswith('.native.png'))
+        outcome, started = self._run(output_format='original')
+        started.assert_not_called()
+        self.assertTrue(self.media.output_file.name.endswith('.png'))
+        self.assertEqual([], self.media.native_outputs)
+
+    def test_the_format_of_the_input_is_resolved_by_the_app(self):
+        """« input » is not a format : the app resolves it — here the engine already wrote a PNG
+        for a PNG source, so nothing is transformed and nothing is kept twice."""
+        self._run()
+        outcome, started = self._run(output_format='input')
+        started.assert_not_called()
+        self.assertTrue(self.media.output_file.name.endswith('.png'))
+        self.assertEqual([], self.media.native_outputs)
+        self.assertEqual('webp', tasks._output_format_for(
+            mock.Mock(output_format='input', file_ext='.webp'), '/x/street_blurred.png'))
+
+    def test_changing_a_blur_setting_blurs_again(self):
+        self._run()
+        outcome, started = self._run(blur_ratio=31)
+        started.assert_called_once()
+        self.assertEqual({'generate': 'SUCCESS', 'output': 'SUCCESS'}, self._states())
 
     def test_the_whole_queue_launcher_sets_running_and_the_task_id_before_sending(self):
         sent = mock.Mock(id='queue-task-1')
@@ -99,7 +144,7 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         outcome, _ = self._run(broken)
         self.assertEqual('FAILURE', self.media.status)
         self.assertIn('the detector crashed', self.media.error_message)
-        self.assertEqual('FAILURE', process_runs.line(self.media).status)
+        self.assertEqual({'generate': 'FAILURE'}, self._states())
         self.assertIsNone(cache.get(f'anon_task_owner:media:{self.media.pk}'))
         self.assertIsNone(cache.get(f'anon_lock:media:{self.media.pk}'))
 

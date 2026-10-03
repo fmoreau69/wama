@@ -22,6 +22,7 @@ partition ; une partition corrigée à la main se rend sans être replanifiée ;
 """
 from wama.common.catalog.function_catalog import (Binding, FunctionCategory as FC, FunctionSpec,
                                                   PortSpec, register)
+from wama.common.services.output_process import output_spec
 from wama.common.services.process_pipeline import ProcessSpec, register_app_pipeline
 
 _APP = 'composer'
@@ -88,6 +89,16 @@ register(FunctionSpec(
     outputs=[PortSpec('score', 'score', description="La partition que le rendu suivra.")]))
 
 register(FunctionSpec(
+    key='composer.output', name='Composer — réglages de sortie',
+    description="Applique le format et la qualité de sortie de la card au WAV que le modèle a "
+                "rendu. Garde ce WAV tant que la sortie le transforme, pour se rejouer sans "
+                "regénérer.",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['audio', 'format'],
+    inputs=[PortSpec('native', 'audio', description="Le WAV que le modèle a rendu.")],
+    outputs=[PortSpec('audio', 'audio', description="Le morceau au format demandé.")]))
+
+register(FunctionSpec(
     key='composer.render', name='Composer — rendre le son',
     description="Génère l'audio depuis la consigne — en suivant une partition quand le modèle en "
                 "prend une (celle que `composer.plan` a écrite, ou celle que l'utilisateur fournit).",
@@ -108,8 +119,10 @@ register(FunctionSpec(
 
 
 #: Réglages dont le changement périme le rendu : tout ce que la glu lit de l'élément.
-_RENDER_WATCHED = ('prompt', 'model', 'quality_intent', 'duration', 'output_format',
-                   'output_quality', 'reference_score', 'melody_reference', 'source_url')
+# ⚠ Le format et la qualité de sortie n'y sont plus (2026-10-03) : ils sont au process `output`,
+# qui se rejoue seul depuis le WAV d'origine gardé — changer de format ne rejoue pas le rendu.
+_RENDER_WATCHED = ('prompt', 'model', 'quality_intent', 'duration',
+                   'reference_score', 'melody_reference', 'source_url')
 
 PIPELINE = register_app_pipeline(_APP, (
     # La partition EXTRAITE ne dépend que de l'audio (remarque d'ae, 2026-10-03) : changer le
@@ -126,4 +139,6 @@ PIPELINE = register_app_pipeline(_APP, (
     # Deux amonts ALTERNATIFS, exclusifs par `applies` : un amont sans objet est ignoré.
     ProcessSpec('render', label='Rendu', depends_on=('extract_score', 'plan'),
                 watched=_RENDER_WATCHED, gpu=True, share=3, outputs=('audio_output',)),
-), label='Composer — partition puis rendu', source_ref='composer.function_specs:PIPELINE')
+    # Les réglages de SORTIE (format, qualité) : process COMMUN (`output_process`), toujours joué.
+    output_spec(depends_on=('render',)),
+), label='Composer — partition, rendu, sortie', source_ref='composer.function_specs:PIPELINE')

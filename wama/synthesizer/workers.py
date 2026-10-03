@@ -115,31 +115,6 @@ def _clear_during(synthesis):
             pass
 
 
-def _apply_output_format(synthesis):
-    """Convert the synthesized WAV to the user-chosen output format (Phase 3).
-
-    No-op when output_format is 'original'/empty or already WAV. Updates
-    audio_output to point at the converted file.
-    """
-    fmt = (getattr(synthesis, 'output_format', '') or 'original').lower()
-    if fmt in ('', 'original') or not synthesis.audio_output:
-        return
-    try:
-        import os as _os
-        from django.conf import settings as _settings
-        from wama.converter.utils.inline_convert import apply_inline_conversion
-        new_path = apply_inline_conversion(
-            synthesis.audio_output.path, fmt,
-            getattr(synthesis, 'output_quality', 'balanced') or 'balanced',
-        )
-        rel = _os.path.relpath(new_path, _settings.MEDIA_ROOT).replace('\\', '/')
-        if rel != synthesis.audio_output.name:
-            synthesis.audio_output.name = rel
-            synthesis.save(update_fields=['audio_output'])
-    except Exception as exc:
-        logger.warning(f"[synthesizer] conversion format sortie échouée: {exc}")
-
-
 def synthesizer_eta_key_size(synthesis):
     """(clé, taille, unité) de l'ETA d'une synthèse — durée ∝ longueur du texte, par modèle TTS ;
     None sans texte. UN lieu, partagé par la glu (`record_run`) et la vue de progression
@@ -150,14 +125,50 @@ def synthesizer_eta_key_size(synthesis):
 
 
 @shared_task(bind=True, max_retries=60, default_retry_delay=10)
-def synthesize_voice(self, synthesis_id: int):
+def synthesize_voice(self, synthesis_id: int, process: str = None):
     """Tâche principale de synthèse vocale — par le squelette COMMUN (`run_item_task`, marche P6
     du 2026-10-03) : gardes (redélivrance après crash), ingestion d'une voix de référence
     distante, statuts canoniques, durée max, chrono, ETA, console, notifications, ligne
-    d'exécution, révision. L'app ne fournit que sa GLU (`_synthesize`)."""
+    d'exécution, révision. L'app ne fournit que ses GLUS.
+
+    La card porte un PIPELINE de deux process (`function_specs.PIPELINE`) : `generate`
+    (`_synthesize`, le WAV) puis `output` (`_output`, format et qualité). Un lancement ne rejoue
+    que ce qui n'est plus à jour : changer le format ne re-synthétise pas. `process` borne le
+    lancement à UN process (⚠ argument de tâche nouveau : workers à relancer)."""
+    from wama.common.services.output_process import forget_lost_generation
     from wama.common.utils.task_skeleton import run_item_task
+    from .function_specs import PIPELINE
+    # La sortie repart du WAV que la synthèse a laissé : s'il n'est plus là, la synthèse rejoue.
+    known = VoiceSynthesis.objects.filter(pk=synthesis_id).first()
+    if known is not None:
+        forget_lost_generation(known, 'audio_output', 'generate')
     run_item_task(self, app_id='synthesizer', model=VoiceSynthesis, item_id=synthesis_id,
-                  process=_synthesize, notify_label='Synthesizer')
+                  pipeline=PIPELINE, processes={'generate': _synthesize, 'output': _output},
+                  notify_label='Synthesizer', only=process)
+
+
+def _output(synthesis, ctx):
+    """GLU du process `output` : format et qualité de sortie, par la glu COMMUNE
+    (`output_process.output_step`) — le WAV est gardé tant que la sortie le transforme. La
+    mention « généré par IA » et les propriétés audio sont celles du fichier FINAL : c'est lui que
+    l'utilisateur emporte."""
+    from wama.common.services import process_runs
+    from wama.common.services.output_process import output_step, relative
+
+    def finish(item, finals):
+        from wama.common.tts.voice_refs import is_cloned_voice
+        from wama.common.utils.generated_media import mark_as_generated
+        spoken = process_runs.line(item, 'generate')
+        mark_as_generated(finals[0], app='synthesizer',
+                          model=(spoken.model_key if spoken else '') or item.tts_model,
+                          detail='voix clonée' if is_cloned_voice(item.voice_preset) else '')
+        item.audio_output.name = relative(finals[0])
+        _update_audio_properties(item)
+        return {}
+
+    return output_step('audio_output', domain='audio', app_id='synthesizer',
+                       console=lambda item, message: _console(item.user_id, message),
+                       extra_fields=finish)(synthesis, ctx)
 
 
 def _synthesize(synthesis, ctx):
@@ -191,24 +202,24 @@ def _synthesize(synthesis, ctx):
         # tirage est CELUI que le schéma déclare pour les options (`params.py`) ; la
         # prévision affichée sous le select était une photo, on dit ici le choix réel.
         # Le tirage vit dans `speech_render.resolve_tts_model`, que l'APERÇU appelle aussi.
-        # ⚠ ÉCART DÉCLARÉ au contrat du squelette (« un réglage ne s'écrit pas ») : le modèle
-        # tiré est encore ÉCRIT dans le réglage `tts_model` — la card n'a pas d'autre endroit où
-        # le montrer. Comportement d'avant le portage, gardé tel quel ; à solder en lisant le
-        # modèle employé sur la ligne d'exécution (`ProcessRun.model_key`).
+        # Le modèle tiré vaut pour CE lancement et se lit sur la ligne d'exécution
+        # (`ProcessRun.model_key`) : il n'est plus ÉCRIT dans le réglage `tts_model` (écart
+        # soldé le 2026-10-03) — « auto » reste « auto », et un réglage surveillé qui changerait
+        # pendant son propre process se périmerait lui-même.
         from wama.common.utils.auto_model import is_auto, read_quality_intent
-        if is_auto(synthesis.tts_model):
+        tts_model = synthesis.tts_model
+        if is_auto(tts_model):
             quality_intent = getattr(synthesis, 'quality_intent', None)
-            synthesis.tts_model = resolve_tts_model(
-                synthesis.tts_model, synthesis.voice_preset, quality_intent,
+            tts_model = resolve_tts_model(
+                tts_model, synthesis.voice_preset, quality_intent,
                 fallback=VoiceSynthesis._meta.get_field('tts_model').get_default())
-            synthesis.save(update_fields=['tts_model'])
             _console(synthesis.user_id,
-                     f"Choix automatique du moteur → {synthesis.get_tts_model_display()} "
+                     f"Choix automatique du moteur → {tts_model} "
                      f"(capacités + VRAM libre au lancement, curseur qualité "
                      f"{read_quality_intent(quality_intent)}/100)")
 
         # Étape 2: Génération audio via le service TTS
-        _console(synthesis.user_id, f"Envoi au service TTS (modèle: {synthesis.tts_model})...")
+        _console(synthesis.user_id, f"Envoi au service TTS (modèle: {tts_model})...")
         ctx.progress(30)
 
         # Créer le fichier de sortie temporaire
@@ -226,7 +237,7 @@ def _synthesize(synthesis, ctx):
         # 13/09 tout `speaker_wav` est résolu ICI (MEDIA_STORAGE_TIERING §9.4, marche 2).
         from wama.common.tts.voice_refs import speaker_wav_for
         speaker_wav = speaker_wav_for(
-            synthesis.tts_model, synthesis.voice_preset, synthesis.user,
+            tts_model, synthesis.voice_preset, synthesis.user,
             reference_path=synthesis.voice_reference.path if synthesis.voice_reference else None,
             language=synthesis.language or '')
 
@@ -235,7 +246,7 @@ def _synthesize(synthesis, ctx):
         ctx.progress(40)
         final_output = render_speech(
             text_content, temp_output,
-            model=synthesis.tts_model, language=synthesis.language,
+            model=tts_model, language=synthesis.language,
             voice_preset=synthesis.voice_preset, speaker_wav=speaker_wav,
             multi_speaker=getattr(synthesis, 'multi_speaker', False),
             scene_description=getattr(synthesis, 'scene_description', ''),
@@ -262,21 +273,22 @@ def _synthesize(synthesis, ctx):
             # brique bascule d'elle-même sur la famille PROMPT au lieu de produire un nom vide.
             from wama.common.utils.output_naming import compose_output_name
             audio_filename = compose_output_name(
-                app='synthesizer', model=synthesis.tts_model,
+                app='synthesizer', model=tts_model,
                 source_name=(synthesis.text_file.name or ''),
                 item_id=synthesis.id, ext='.wav')
+            # Le rendu et l'original gardé de la fois d'avant partent d'abord : le lanceur ne
+            # retire plus l'audio au clic, et le stockage renommerait le nouveau fichier.
+            from wama.common.services.output_process import drop_previous_outputs, generated
+            drop_previous_outputs(synthesis, 'audio_output')
             synthesis.audio_output.save(audio_filename, ContentFile(f.read()))
 
-        # Conversion de format inline (Phase 3) — si l'utilisateur a choisi un
-        # format de sortie autre que WAV natif.
-        _apply_output_format(synthesis)
-
-        # La mention « généré par IA » dans les MÉTADONNÉES du fichier final (décision de Fabien,
-        # 2026-09-30 : usage recherche, métadonnée seule, pas de tampon audio). Après la
-        # conversion : c'est ce fichier-là que l'utilisateur emporte.
+        # Le format et la qualité de sortie sont le process suivant, `output` (`_output`).
+        # La mention « généré par IA » dans les MÉTADONNÉES (décision de Fabien, 2026-09-30 :
+        # usage recherche, métadonnée seule, pas de tampon audio) : posée ICI sur le WAV, et
+        # reposée par `output` sur le fichier final.
         from wama.common.tts.voice_refs import is_cloned_voice
         from wama.common.utils.generated_media import mark_as_generated
-        mark_as_generated(synthesis.audio_output.path, app='synthesizer', model=synthesis.tts_model,
+        mark_as_generated(synthesis.audio_output.path, app='synthesizer', model=tts_model,
                           detail='voix clonée' if is_cloned_voice(synthesis.voice_preset) else '')
 
         # Mettre à jour les propriétés audio
@@ -293,15 +305,14 @@ def _synthesize(synthesis, ctx):
         # Apprentissage ETA : durée réelle ∝ longueur du texte (unit='char'), par modèle TTS.
         # Service-based (chargement non séparable) → total dans per_unit, sans temps de
         # chargement : c'est le squelette qui l'enregistre (`eta` du retour).
-        return {
+        return generated(
+            [synthesis.audio_output.path],
             # La sortie de la card, pour sa RÉVISION (le fichier est déjà écrit et rattaché).
-            'fields': {'audio_output': synthesis.audio_output.name},
-            'eta': synthesizer_eta_key_size(synthesis),
-            'label': getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}",
-            'models': [synthesis.tts_model] if synthesis.tts_model else None,
-            'console_success': f"Synthèse #{synthesis.id} terminée ✓",
-            'output_ref': synthesis.audio_output.name,
-        }
+            fields={'audio_output': synthesis.audio_output.name},
+            eta=synthesizer_eta_key_size(synthesis),
+            label=getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}",
+            models=[tts_model] if tts_model else None,
+            console_success=f"Synthèse #{synthesis.id} terminée ✓")
 
     except TTSServiceLoadingError as e:
         # Le service TTS démarre encore : on rend le worker GPU et on reviendra — politique du

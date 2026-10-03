@@ -1,0 +1,56 @@
+{
+  "body": {
+    "app": "composer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "composer.tasks:compose_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Le WAV que le modèle a rendu.",
+        "group": "travail",
+        "key": "native",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "composer.output",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Le morceau au format demandé.",
+        "key": "audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "format"
+    ],
+    "visibility": "public"
+  },
+  "description": "Applique le format et la qualité de sortie de la card au WAV que le modèle a rendu. Garde ce WAV tant que la sortie le transforme, pour se rejouer sans regénérer.",
+  "key": "composer.output",
+  "manifest_kind": "function",
+  "name": "Composer — réglages de sortie",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:composer.output",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}
