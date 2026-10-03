@@ -20853,6 +20853,54 @@ la card, fin notifiée aux deux ; verrou doux + trace ; retrait à effet immédi
 - 🔚 Ouverts : mode MODIFICATION (variantes, marche 8b ; V2 / V3 / M3 à trancher) ; N1 (notifier un
   partage reçu, proposition non validée) ; conflit MONTRÉ (attend les révisions sur tout le parc).
 
+## §PALIER — 2026-10-03, « ASSISTANT : VOIX, AVATAR 3D, SECOND AXE DU CLOUD » — ✅ non commité (fichiers listés ci-dessous) — 🔴 RELANCER le service TTS et les workers GPU (gunicorn recharge seul) — 🔚 sélecteur du modèle d'animation de l'avatarizer · voix de l'assistant TIRÉE (auto + curseur) · lexique de prononciation
+
+Parti d'un échange réel de Fabien avec l'assistant (fil #16). Cinq constats mesurés, quatre soldés.
+- ✅ **L'assistant ne savait pas qu'il a une voix et un avatar** — consigne de surface web
+  (`assistant_engine.WEB_VOICE_PROMPT`, état voix/avatar compris). Détail : `WAMA_LLM §1bis`,
+  « La voix de l'assistant, trois constats ». Garde : `tests_assistant_surfaces.WebVoicePromptTest`.
+- ✅ **« WAMA » lu « WAMAfreu »** — balises de bascule de langue d'espeak passées au modèle par
+  `kokoro_onnx` ; le backend phonémise lui-même (`phonemes_without_language_flags`). Garde :
+  `tests_kokoro_onnx_phonemes`. 🔴 Le service TTS porte l'ancien code tant qu'il n'est pas relancé.
+- ✅ **Second axe du cloud** (décision Fabien) — plafond d'hébergement ordonné privé < souverain <
+  commercial + consentement aux modèles facturés à l'usage pour le tirage automatique. Détail :
+  `ROADMAP §8d`. Migration `accounts/0024` **APPLIQUÉE** en base (additive, `db_default`).
+  Gardes : `tests_cloud_models.HostingCeilingTest`, `tests_api_keys.NiveauCloudTest`.
+  ⚠⚠ **Incident, 09:28 → ~09:45** : gunicorn tourne avec rechargement automatique ; l'édition de
+  `accounts/models.py` a été servie AVANT la migration, et toute page lisant un profil rendait
+  `ProgrammingError: column accounts_userprofile.cloud_hosting_max does not exist`. Vu sur
+  `/avatarizer/`, corrigé en appliquant la migration. *Un champ de modèle ajouté sur ce poste
+  est EN SERVICE dès l'enregistrement du fichier : la migration s'applique dans le même geste,
+  avant l'édition du modèle ou dans la minute.* A aussi fait tomber le serveur éphémère d'une
+  autre instance (geste `common.collaboration_cycle`, à rejouer).
+- ✅ **L'avatar 3D (TalkingHead) n'avait JAMAIS abouti par le worker** — job réel #591 :
+  `SynchronousOnlyOperation` à la première tranche d'images (le rappel de progression écrit en
+  base pendant que `sync_playwright` tient une boucle d'événements). Les tests remplaçaient le
+  rendu par un double. Corrigé dans `talkinghead_backend` (rappel dans un fil à part) ; rejoué
+  avec le code du disque : 5,5 s de vidéo en 30 s. Garde : `tests_talkinghead_progress`
+  (contre-épreuve comprise). 🔴 Le worker GPU porte l'ancien code tant qu'il n'est pas relancé.
+- ⏳ **Avatarizer : pas de choix du modèle d'animation** — constat, rien de câblé. `AvatarJob`
+  n'a AUCUN champ de modèle d'animation : le worker tire toujours en « auto » d'après la nature
+  de l'avatar (`workers.py`, `resolve_model_choice('', …)`), et le catalogue n'a qu'UN modèle par
+  nature (photo → `musetalk-v1.5`, GLB → `talkinghead`). L'avatar 3D se choisit donc en déposant
+  un `.glb` dans l'onglet « Objet 3D » de la card ; la page, elle, ne nomme que MuseTalk (volet
+  « Paramètres MuseTalk », À-propos, aide) et montre `bbox_shift`/CodeFormer même pour un GLB.
+  Reste : champ + select au catalogue (`options_source='catalog'`, `options_auto`, borné par
+  l'entrée), textes de la page, réglages conditionnés au moteur.
+- ⚠ **Relevé en passant** : une requête SANS session crée et lance un job d'avatar (TTS + rendu
+  GPU) sous le compte `anonymous` — `app_access` laisse passer l'anonyme et `_get_user` retombe
+  sur ce compte. C'est le trou « apps sans garde sur l'ajout » de `PROFILES_PERMISSIONS §1.5`,
+  mesuré ici sur l'avatarizer. Non corrigé (décision d'accès).
+- Qwen3-TTS : le runtime `qwen-tts` EST installé et le moteur exécutable (docstring du backend
+  remise à l'heure). Candidats voix hors catalogue : Kyutai TTS 1.6B (EN/FR, texte en flux),
+  Voxtral TTS (CC BY-NC).
+- Fichiers : `common/backends/{kokoro_onnx,talkinghead,qwen3_tts}_backend.py`,
+  `common/services/{assistant_engine,claude_code}.py`, `common/external_sources.py`,
+  `model_manager/services/cloud_models.py`, `accounts/{models,views}.py`,
+  `accounts/templates/accounts/profile.html`, `accounts/migrations/0024_*`, tests
+  (`tests_kokoro_onnx_phonemes`, `tests_talkinghead_progress`, `tests_assistant_surfaces`,
+  `tests_cloud_models`, `tests_api_keys`, `tests_claude_subscription`), `ROADMAP`, `WAMA_LLM`.
+
 ## §PALIER — 2026-10-03, « PRÉSENTATION PRINCIPALE CONFRONTÉE AU CODE » — ✅ `44d8a440` — 🔚 rien
 
 > Fabien : *« corrige les chiffres de la présentation principale. Il y a des choses fausses comme

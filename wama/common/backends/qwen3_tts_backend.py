@@ -6,12 +6,13 @@ DashScope — vérifié sur le dépôt avant d'écrire).
 B2 (série « backends des modèles installés sans backend », 2026-09-03) — 3ᵉ adaptateur du
 motif « backend DÉCLARÉ » : chemin des poids depuis le CATALOGUE, repli Django-free.
 
-⚠ RUNTIME NON INSTALLÉ, et c'est VOULU : `qwen-tts==0.1.1` épingle `transformers==4.57.3`
-(le venv est en 4.57.6 — micro-rétrogradation) et monte `nvidia-nccl-cu12` — toucher au
-venv PARTAGÉ passe par la validation humaine (`ensure_backend_deps`, contrat de
-`pip_install_packages`). D'ici là, l'inventaire du grisage n'annonce que les moteurs
-EXÉCUTABLES (`missing_packages()`) : Qwen3-TTS reste GRISÉ avec sa raison, et
-l'installation du runtime le dé-grisera TOUTE SEULE — c'est le système du 02/09.
+RUNTIME : `qwen-tts==0.1.1` épingle `transformers==4.57.3` alors que le venv est en 4.57.6.
+Le paquet s'installe donc SANS ses dépendances (`PIP_NO_DEPS`, ci-dessous) — honorer le pin
+aurait rétrogradé transformers pour tout le dépôt. ✅ **Mesuré le 2026-10-03 : il EST
+installé** (`pip show qwen-tts` → 0.1.1, `import qwen_tts` et `sox` aboutissent,
+`missing_packages()` vide, `backend_missing` = None) : le moteur n'est plus grisé. Le seul
+reste du « souci de version » est un avertissement de `pip check` sur le pin, sans effet.
+⚠ Ce paragraphe disait « RUNTIME NON INSTALLÉ, et c'est VOULU » jusqu'à cette date.
 
 L'architecture (`Qwen3TTSForConditionalGeneration`) est absente de notre transformers et
 le snapshot n'embarque aucun remote code : le paquet officiel est la SEULE voie locale.

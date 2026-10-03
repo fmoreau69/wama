@@ -127,6 +127,30 @@ class NiveauCloudTest(TestCase):
                               content_type='application/json')
         self.assertEqual(400, ko.status_code)
 
+    def test_the_second_axis_starts_at_sovereign_without_metered_consent(self):
+        profile = UserProfile.objects.get(user=self.user)
+        self.assertEqual(('sovereign', False), (profile.cloud_hosting_max, profile.cloud_metered_auto))
+
+    def test_the_ceiling_and_the_metered_consent_are_saved_by_the_same_route(self):
+        url = reverse('accounts:profile-cloud-policy')
+        ok = self.client.post(url, data=json.dumps({'cloud_hosting_max': 'third_party',
+                                                    'cloud_metered_auto': True}),
+                              content_type='application/json')
+        self.assertEqual(200, ok.status_code)
+        profile = UserProfile.objects.get(user=self.user)
+        self.assertEqual(('third_party', True, 'local_only'),
+                         (profile.cloud_hosting_max, profile.cloud_metered_auto, profile.cloud_policy))
+
+    def test_an_invalid_ceiling_saves_nothing_at_all(self):
+        url = reverse('accounts:profile-cloud-policy')
+        ko = self.client.post(url, data=json.dumps({'cloud_policy': 'cloud_allowed',
+                                                    'cloud_hosting_max': 'the_moon'}),
+                              content_type='application/json')
+        self.assertEqual(400, ko.status_code)
+        self.assertEqual('local_only', UserProfile.objects.get(user=self.user).cloud_policy)
+        self.assertEqual(400, self.client.post(url, data='{}',
+                                               content_type='application/json').status_code)
+
 
 @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
 class ClesMediathequeTest(TestCase):

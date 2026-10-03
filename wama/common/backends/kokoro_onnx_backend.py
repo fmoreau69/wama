@@ -53,6 +53,39 @@ ESPEAK_LANG = {
 ESPEAK_FALLBACK = {'ja': 'ja', 'zh-cn': 'cmn'}
 
 
+def phonemes_without_language_flags(tokenizer, text: str, lang: str) -> str:
+    """Phonèmes de `text` SANS les balises de bascule de langue d'espeak.
+
+    POURQUOI NE PAS LAISSER `kokoro_onnx` PHONÉMISER (défaut entendu par Fabien le 2026-10-03 :
+    « WAMA » lu « WAMAfreu »). Devant un mot qu'il juge étranger, espeak-ng bascule de langue et
+    BALISE la bascule dans sa sortie : « assistant WAMA. » en `fr-fr` rend
+    `asistˈɑ̃ (en)wˈɑːmə(fr).`. Le tokenizer de `kokoro_onnx` appelle `phonemizer.phonemize`
+    avec le défaut `language_switch='keep-flags'`, et tous les caractères de ces balises sont à
+    son vocabulaire : elles arrivent TELLES QUELLES au modèle, qui prononce le « fr ». Le
+    jumeau `.pt` n'a pas ce défaut (misaki phonémise avec `remove-flags`) : il est né du
+    passage à l'ONNX, le 31/08.
+
+    On phonémise donc ici avec `remove-flags`, en reprenant du tokenizer ce qui est à lui
+    (normalisation, vocabulaire, verrou espeak) ; `Kokoro.create(is_phonemes=True)` reçoit le
+    résultat. `tokenizer` : un `kokoro_onnx.tokenizer.Tokenizer` (celui du modèle chargé).
+    ⚠ Le MOT étranger garde sa prononciation étrangère (« WAMA » → `wˈɑːmə`) : retirer la balise
+    ne francise pas le mot — c'est l'affaire d'un lexique (`common/utils/tts_text`), pas d'ici.
+    """
+    import threading
+
+    import phonemizer
+    from kokoro_onnx import tokenizer as kokoro_tokenizer
+
+    text = kokoro_tokenizer.Tokenizer.normalize_text(text)
+    # espeak-ng tient un état GLOBAL au process : même verrou que le tokenizer, sinon deux
+    # phonémisations concurrentes se mélangent. Verrou absent (autre version) → verrou local.
+    lock = getattr(kokoro_tokenizer, '_espeak_lock', None) or threading.Lock()
+    with lock:
+        phonemes = phonemizer.phonemize(text, lang, preserve_punctuation=True,
+                                        with_stress=True, language_switch='remove-flags')
+    return ''.join(p for p in phonemes if p in tokenizer.vocab).strip()
+
+
 def _declared_patterns() -> dict:
     """Motifs de composants DÉCLARÉS (AIModel.composition, projetée du manifeste) —
     repli sur les défauts de l'adaptateur quand Django n'est pas là (service TTS)."""
@@ -173,7 +206,9 @@ class KokoroOnnxBackend(TTSBackend):
             self.load()
         voice = voix_pour(language, voice_preset in ('male_1', 'male_2'))
         lang = ESPEAK_LANG.get(language) or ESPEAK_FALLBACK.get(language) or 'en-us'
-        samples, sr = self._kokoro.create(text, voice=voice, speed=1.0, lang=lang)
+        phonemes = phonemes_without_language_flags(self._kokoro.tokenizer, text, lang)
+        samples, sr = self._kokoro.create(phonemes, voice=voice, speed=1.0, lang=lang,
+                                          is_phonemes=True)
         if samples is None or not len(samples):
             raise RuntimeError("Kokoro-ONNX : aucun audio généré")
         return write_wav_int16(np.asarray(samples, dtype=np.float32), sr)

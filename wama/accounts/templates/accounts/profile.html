@@ -433,6 +433,31 @@
                             <option value="{{ value }}" {% if value == profile.cloud_policy %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
+                    </div>
+                    {% comment %}Second axe (2026-10-03) : le niveau ci-dessus dit QUAND WAMA peut sortir du local, ces deux réglages disent JUSQU'OÙ et À QUEL PRIX.{% endcomment %}
+                    <label for="cloudHostingSelect" class="form-label small text-white-50 mt-3 mb-1">
+                        Jusqu'où vos données peuvent partir
+                    </label>
+                    <div class="d-flex gap-2 align-items-center">
+                        <select id="cloudHostingSelect"
+                                class="form-select form-select-sm bg-dark text-white border-secondary"
+                                style="max-width: 360px;">
+                            {% for value, label in cloud_hostings %}
+                            <option value="{{ value }}" {% if value == profile.cloud_hosting_max %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="cloudMeteredAuto"
+                               {% if profile.cloud_metered_auto %}checked{% endif %}>
+                        <label class="form-check-label small text-white" for="cloudMeteredAuto">
+                            Le choix automatique peut retenir un modèle facturé à l'usage
+                        </label>
+                        <div class="text-white-50 small">
+                            Décoché, un modèle payant au jeton ne part que si vous le choisissez vous-même.
+                        </div>
+                    </div>
+                    <div class="mt-3">
                         <button id="saveCloudPolicyBtn" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-save me-1"></i> Enregistrer
                         </button>
@@ -793,7 +818,11 @@ document.getElementById('saveCloudPolicyBtn').addEventListener('click', async ()
     const cloud_policy = document.getElementById('cloudPolicySelect').value;
     const msg = document.getElementById('cloudPolicyMsg');
     try {
-        const data = await postJson(CLOUD_POLICY_URL, { cloud_policy });
+        const data = await postJson(CLOUD_POLICY_URL, {
+            cloud_policy,
+            cloud_hosting_max: document.getElementById('cloudHostingSelect').value,
+            cloud_metered_auto: document.getElementById('cloudMeteredAuto').checked,
+        });
         if (data.success) showMsg(msg, '✓ Préférence enregistrée');
         else showMsg(msg, data.error || 'Erreur', true);
     } catch(e) { showMsg(msg, 'Erreur réseau', true); }

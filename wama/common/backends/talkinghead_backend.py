@@ -217,6 +217,16 @@ class TalkingHeadBackend(BaseModelBackend):
                        '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart',
                        adapt_path_for_ffmpeg(output_path, ffmpeg)]
                 enc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+                # ⚠ Le rappel de progression part dans un FIL À PART. `sync_playwright` tient une
+                # boucle d'événements dans CE fil pendant tout le rendu, et Django refuse alors
+                # toute requête en base (`SynchronousOnlyOperation`). Or le rappel de
+                # l'avatarizer ÉCRIT la progression du job : mesuré le 2026-10-03 sur un job réel
+                # (#591), le rendu démarrait puis échouait à la première tranche d'images —
+                # l'avatar 3D n'avait jamais abouti par le worker. Les tests remplaçaient le
+                # rendu par un double : ni le moteur seul ni le worker seul ne portaient le défaut.
+                # Un seul fil, appels attendus dans l'ordre : une erreur du rappel remonte ici.
+                from concurrent.futures import ThreadPoolExecutor
+                reporter = ThreadPoolExecutor(max_workers=1, thread_name_prefix='talkinghead-progress')
                 try:
                     done = 0
                     while done < total:
@@ -225,12 +235,13 @@ class TalkingHeadBackend(BaseModelBackend):
                             enc.stdin.write(base64.b64decode(frame))
                         done += n
                         if progress:
-                            progress(done / total)
+                            reporter.submit(progress, done / total).result()
                     enc.stdin.close()
                     stderr = enc.stderr.read().decode('utf-8', 'replace')
                     if enc.wait(timeout=600) != 0:
                         raise RuntimeError(f"ffmpeg a échoué : {stderr[-1500:]}")
                 finally:
+                    reporter.shutdown(wait=True)
                     if enc.poll() is None:
                         enc.kill()
                 if errors:

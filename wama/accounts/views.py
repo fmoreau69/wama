@@ -15,6 +15,7 @@ from django.views.decorators.http import require_POST
 from functools import wraps
 
 from .models import LoginForm, UserRegistrationForm, UserProfile
+from ..common import external_sources
 from ..common.utils.secret_crypto import storage_available
 from ..common.utils.volet import VOLET_AUCUN, volet
 
@@ -231,6 +232,9 @@ def profile_view(request):
         'channel_links': liaisons,
         'rattachement': rattachement_institutionnel(profile),
         'cloud_policies': UserProfile.CLOUD_POLICIES,
+        # Plafond d'hébergement : l'échelle et ses libellés ont UN domicile (`external_sources`).
+        'cloud_hostings': [(level, external_sources.HOSTING_CEILING_LABELS[level])
+                           for level in external_sources.HOSTING_SCALE],
         'secret_storage_available': storage_available(),
         # Moteurs de recherche : l'inventaire vient du REGISTRE (sources `recherche` ayant un
         # adaptateur), jamais d'une liste écrite au gabarit — ajouter un moteur ne touche
@@ -303,18 +307,33 @@ def api_key_save(request, slug):
 @login_required
 @require_POST
 def cloud_policy_update(request):
-    """AJAX : enregistre le niveau d'usage des modèles cloud (100 % local par défaut)."""
+    """AJAX : enregistre l'usage des modèles cloud — le NIVEAU (100 % local par défaut) et,
+    depuis le 2026-10-03, le second axe : PLAFOND d'hébergement et modèles facturés à l'usage
+    au tirage automatique. Seuls les réglages PRÉSENTS dans la requête sont écrits ; un seul
+    invalide refuse le tout (rien n'est enregistré à moitié)."""
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON invalide'}, status=400)
-    policy = data.get('cloud_policy', '')
-    if policy not in dict(UserProfile.CLOUD_POLICIES):
-        return JsonResponse({'error': f"Niveau invalide : '{policy}'"}, status=400)
+    values = {}
+    if 'cloud_policy' in data:
+        if data['cloud_policy'] not in dict(UserProfile.CLOUD_POLICIES):
+            return JsonResponse({'error': f"Niveau invalide : '{data['cloud_policy']}'"}, status=400)
+        values['cloud_policy'] = data['cloud_policy']
+    if 'cloud_hosting_max' in data:
+        if data['cloud_hosting_max'] not in external_sources.HOSTING_SCALE:
+            return JsonResponse({'error': f"Hébergement invalide : '{data['cloud_hosting_max']}'"},
+                                status=400)
+        values['cloud_hosting_max'] = data['cloud_hosting_max']
+    if 'cloud_metered_auto' in data:
+        values['cloud_metered_auto'] = bool(data['cloud_metered_auto'])
+    if not values:
+        return JsonResponse({'error': 'Aucun réglage cloud dans la requête'}, status=400)
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    profile.cloud_policy = policy
-    profile.save(update_fields=['cloud_policy'])
-    return JsonResponse({'success': True, 'cloud_policy': policy})
+    for name, value in values.items():
+        setattr(profile, name, value)
+    profile.save(update_fields=list(values))
+    return JsonResponse({'success': True, **values})
 
 
 def rattachement_institutionnel(profile):

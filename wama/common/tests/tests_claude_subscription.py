@@ -113,6 +113,9 @@ class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
         from wama.accounts.models import UserApiKey
         from wama.model_manager.services.cloud_models import refresh_key
         user.profile.cloud_policy = niveau
+        # L'abonnement est un hébergeur TIERS : « ouvrir » le cloud à ce compte, c'est aussi
+        # relever son plafond d'hébergement (second axe, 2026-10-03).
+        user.profile.cloud_hosting_max = 'third_party'
         user.profile.save()
         if jeton:
             # `refresh_key` passe par la synchronisation commune (2026-09-18) : découverte

@@ -146,6 +146,7 @@ class ChoixDuModeleTest(TestCase):
                                source='anthropic', execution='cloud',
                                capabilities={'completion': True})
         self.user.profile.cloud_policy = 'cloud_allowed'
+        self.user.profile.cloud_hosting_max = 'third_party'    # Anthropic = hébergeur tiers
         self.user.profile.save()
         with mock.patch('wama.common.utils.secret_crypto.storage_available', return_value=True):
             UserApiKey.objects.create(user=self.user, source='anthropic', api_key='sk',
@@ -353,6 +354,51 @@ class LatencyLeversTest(TestCase):
         tools_at = system.index('Available tools:')
         queue_at = max(system.find('files WAMA'), system.find('Toutes les files'))
         self.assertGreater(queue_at, tools_at, "l'état des files (dynamique) doit suivre le bloc d'outils (fixe)")
+
+
+class WebVoicePromptTest(TestCase):
+    """L'assistant SAIT qu'il a une voix et un avatar sur le web (2026-10-03).
+
+    Mesuré sur un échange réel : à « je n'entends pas ta vocalisation » il répondait « je
+    communique uniquement par écrit » et proposait le Synthesizer. Rien dans son prompt ne
+    décrivait la surface. La consigne est posée sur la surface web SEULE, avec l'état courant.
+    """
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('web_voice', password='x')
+
+    def _system(self, surface='web', **settings_values):
+        from wama.common.services import assistant_engine
+        from wama.common.utils.user_settings import save_user_app_settings
+        if settings_values:
+            save_user_app_settings(self.user, 'assistant', settings_values)
+        with mock.patch.object(assistant_engine, '_llm_call',
+                               return_value=('réponse', {'input_tokens': 0, 'output_tokens': 0})) as call:
+            assistant_engine.run_assistant_turn(self.user, 'tu m\'entends ?', provider='wama-dev-ai',
+                                                model='x', surface=surface)
+        return call.call_args.args[0][0]['content']
+
+    def test_the_web_surface_tells_the_assistant_it_is_read_aloud(self):
+        system = self._system()
+        self.assertIn('READ ALOUD', system)
+        self.assertIn('voice ON', system)
+        self.assertIn('avatar shown', system)
+
+    def test_the_state_follows_the_durable_settings(self):
+        system = self._system(voice=False, avatar=False)
+        self.assertIn('voice MUTED by the user', system)
+        self.assertIn('avatar hidden by the user', system)
+
+    def test_another_surface_is_not_told_it_has_a_voice(self):
+        """Contre-épreuve : l'API rend du JSON, un canal du texte — aucune voix à annoncer."""
+        self.assertNotIn('READ ALOUD', self._system(surface='api'))
+        self.assertNotIn('READ ALOUD', self._system(surface='discord'))
+
+    def test_the_voice_block_stays_in_the_fixed_part_of_the_prompt(self):
+        """Avant l'état des files (dynamique) : le cache de préfixe d'Ollama doit tenir."""
+        system = self._system()
+        queue_at = max(system.find('files WAMA'), system.find('Toutes les files'))
+        self.assertGreater(queue_at, system.index('READ ALOUD'))
 
 
 class ChargementDeCompetenceTest(TestCase):
