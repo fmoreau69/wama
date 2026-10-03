@@ -143,24 +143,31 @@ def topo_order(graph):
 
     Écrit dans l'exécuteur du studio (`studio/tasks.py`), remonté ici le 2026-10-02 : le moteur
     à plusieurs process d'une app (`common/services/process_pipeline.py`) ordonne ses process
-    par le MÊME graphe — un seul tri pour le canvas et pour les registres de code."""
+    par le MÊME graphe — un seul tri pour le canvas et pour les registres de code.
+
+    STABLE (2026-10-03, alignement du cam_analyzer) : à égalité, l'ordre de DÉCLARATION des
+    nœuds. C'est l'algorithme de `pass_tracking.topological_order`, repris tel quel — on balaie
+    les nœuds dans l'ordre déclaré et on retient ceux dont les amonts sont faits, jusqu'à
+    épuisement. Un registre s'en sert pour dire un ordre SANS déclarer une dépendance (le
+    cam_analyzer place ses recalages avant le tracking par leur seule position : en faire des
+    amonts périmerait le tracking de toute session qui ne les a jamais joués). Le tri d'avant —
+    par vague de disponibilité — rendait un ordre valide mais ne tenait pas cette promesse."""
     nodes = {n['id']: n for n in graph.get('nodes', [])}
     incoming = {nid: set() for nid in nodes}
     for l in graph.get('links', []):
         if l['from'] in nodes and l['to'] in nodes:
             incoming[l['to']].add(l['from'])
-    order, ready = [], [nid for nid, deps in incoming.items() if not deps]
-    pending = {nid: set(deps) for nid, deps in incoming.items() if deps}
-    while ready:
-        nid = ready.pop(0)
-        order.append(nid)
-        for other, deps in list(pending.items()):
-            deps.discard(nid)
-            if not deps:
-                del pending[other]
-                ready.append(other)
-    if pending:
-        raise ValueError('Le graphe contient un cycle — exécution impossible.')
+    order, done, remaining = [], set(), list(nodes)
+    while remaining:
+        progressed = False
+        for nid in list(remaining):
+            if incoming[nid] <= done:
+                order.append(nid)
+                done.add(nid)
+                remaining.remove(nid)
+                progressed = True
+        if not progressed:
+            raise ValueError('Le graphe contient un cycle — exécution impossible.')
     return [nodes[nid] for nid in order]
 
 

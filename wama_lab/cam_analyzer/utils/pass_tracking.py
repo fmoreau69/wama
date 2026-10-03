@@ -54,17 +54,19 @@ logger = logging.getLogger(__name__)
 #               (ROUTE §10.6, 4.5 — ce registre est une des pièces du moteur commun).
 from dataclasses import dataclass, field as _field
 
+from wama.common.services.process_pipeline import ProcessSpec
+
 
 @dataclass(frozen=True)
-class Pass:
-    key: str
-    stage: str
-    depends_on: tuple = ()
-    watched: tuple = ()
+class Pass(ProcessSpec):
+    """Une passe EST un `ProcessSpec` du moteur commun (`common/services/process_pipeline.py`) —
+    aligné le 2026-10-03, ROUTE §10.6 étape ③ : ce registre en était le MODÈLE, il en devient un
+    utilisateur. `key`, `depends_on`, `watched`, `gpu` et `function` sont les champs communs ;
+    s'y ajoutent ceux qui sont propres au cam_analyzer (étage, passe par caméra, tâche Celery
+    dispatchée seule, taille pour l'ETA)."""
+    stage: str = 'analyse'
     per_camera: bool = False
     task: str = ''
-    gpu: bool = False
-    function: str = ''
     eta_size: str = 'analysed'
 
     @property
@@ -74,59 +76,59 @@ class Pass:
 
 PASSES: tuple = (
     # ── ANALYSE (perception) ────────────────────────────────────────────────────
-    Pass('extraction', 'analyse', eta_size='video'),
-    Pass('intersection_windows', 'analyse', depends_on=('extraction',), watched=('intersections',),
+    Pass('extraction', stage='analyse', eta_size='video'),
+    Pass('intersection_windows', stage='analyse', depends_on=('extraction',), watched=('intersections',),
          eta_size='video'),
-    Pass('yolo_detect', 'analyse', depends_on=('extraction',),
+    Pass('yolo_detect', stage='analyse', depends_on=('extraction',),
          watched=('model_path', 'iou_threshold', 'tracker'), per_camera=True, gpu=True),
-    Pass('yolopv2_lanes', 'analyse', depends_on=('extraction',),
+    Pass('yolopv2_lanes', stage='analyse', depends_on=('extraction',),
          watched=('road_model_path',), per_camera=True, gpu=True),
-    Pass('sam3_markings', 'analyse', depends_on=('extraction', 'intersection_windows'),
+    Pass('sam3_markings', stage='analyse', depends_on=('extraction', 'intersection_windows'),
          watched=('sam3_markings_enabled', 'sam3_markings_prompts', 'sam3_as_road_fallback'),
          per_camera=True, task='analyze_sam3_only_task', gpu=True, eta_size='windows'),
     # Profondeur (Depth Pro) : lit les bbox (profondeur de contact) → dépend de la détection.
-    Pass('depth', 'analyse', depends_on=('yolo_detect',), task='compute_depth_task', gpu=True,
+    Pass('depth', stage='analyse', depends_on=('yolo_detect',), task='compute_depth_task', gpu=True,
          function='cam_analyzer.depth_analysis'),
     # Recalage ortho 2b (2026-09-28, ex-bouton du panneau Calibration seul) : REGARDE l'orthophoto
     # (SAM3, GPU + réseau) et l'apparie aux passages piétons caméra agrégés en monde
     # (`marking_world`). Elle les agrège ELLE-MÊME depuis le 2026-09-29 : elle dépendait de
     # `global_tracking` pour cela seul, et cette dépendance d'une ANALYSE envers un CALCUL
     # empêchait de chaîner les deux étages en sous-pipelines (ROUTE §10.6 3.4).
-    Pass('ortho_recalage', 'analyse', depends_on=('sam3_markings', 'intersection_windows'),
+    Pass('ortho_recalage', stage='analyse', depends_on=('sam3_markings', 'intersection_windows'),
          task='compute_ortho_recalage_task', gpu=True, eta_size='windows'),
     # ── CALCUL (dérivation, CPU, rejouable) ─────────────────────────────────────
-    Pass('lane_events', 'calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
+    Pass('lane_events', stage='calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
          task='compute_lane_events_task'),
-    Pass('temporal_segments', 'calcul', depends_on=('yolo_detect', 'intersection_windows'),
+    Pass('temporal_segments', stage='calcul', depends_on=('yolo_detect', 'intersection_windows'),
          watched=('target_classes', 'confidence'), task='compute_temporal_segments_task'),
-    Pass('distance', 'calcul', depends_on=('lane_events',), task='compute_distance_task'),
-    Pass('depth_calc', 'calcul', depends_on=('depth',), task='compute_depth_calc_task'),
+    Pass('distance', stage='calcul', depends_on=('lane_events',), task='compute_distance_task'),
+    Pass('depth_calc', stage='calcul', depends_on=('depth',), task='compute_depth_calc_task'),
     # Recalage voie + carte (2026-09-28) : lit les lignes YOLOPv2 et la BD TOPO (réseau IGN),
     # écrit une correction de POSE navette — déclarée AVANT le tracking pour que le ▶ Calculs
     # la joue avant lui (ordre topologique stable). Pas de dépendance déclarée du tracking vers
     # elle : son effet passe par ⚑ lane_map_recalage (OFF par défaut) ; en faire une amont
     # rendrait PÉRIMÉ le tracking de toute session qui ne l'a jamais jouée.
-    Pass('lane_map_recalage', 'calcul', depends_on=('yolopv2_lanes',),
+    Pass('lane_map_recalage', stage='calcul', depends_on=('yolopv2_lanes',),
          task='compute_lane_map_recalage_task'),
     # Champ des caméras MESURÉ (2026-09-30) : relit les VIDÉOS avant/arrière (CPU, OpenCV) aux
     # virages de la trace. Appliqué sous ⚑ measured_camera_fov (défaut OFF) — pas de dépendance
     # déclarée depuis l'aval, même raison que `lane_map_recalage`.
-    Pass('camera_intrinsics', 'calcul', depends_on=('extraction',),
+    Pass('camera_intrinsics', stage='calcul', depends_on=('extraction',),
          task='compute_camera_intrinsics_task', eta_size='video'),
     # Cap VISUEL (2026-09-30) : rotation vue par la caméra avant quand la navette roule — exige la
     # focale mesurée. Appliquée au filtre navette sous ⚑ visual_heading (défaut OFF).
-    Pass('visual_yaw', 'calcul', depends_on=('camera_intrinsics',), task='compute_visual_yaw_task',
+    Pass('visual_yaw', stage='calcul', depends_on=('camera_intrinsics',), task='compute_visual_yaw_task',
          eta_size='video'),
     # Correction ortho (calcul pur + masque satellite BD TOPO) : ancres tirées de la MESURE
     # `ortho_recalage`, appliquées par ⚑ ortho_correction. Avant le tracking, même raison que
     # `lane_map_recalage` (et même absence de dépendance déclarée du tracking vers elle).
-    Pass('ortho_correction', 'calcul', depends_on=('ortho_recalage',),
+    Pass('ortho_correction', stage='calcul', depends_on=('ortho_recalage',),
          task='compute_ortho_correction_task', eta_size='windows'),
-    Pass('global_tracking', 'calcul', depends_on=('yolo_detect', 'distance'),
+    Pass('global_tracking', stage='calcul', depends_on=('yolo_detect', 'distance'),
          task='compute_global_tracking_task'),
-    Pass('indicators', 'calcul', depends_on=('global_tracking', 'distance'),
+    Pass('indicators', stage='calcul', depends_on=('global_tracking', 'distance'),
          task='compute_indicators_task'),
-    Pass('conflicts', 'calcul', depends_on=('lane_events', 'distance'),
+    Pass('conflicts', stage='calcul', depends_on=('lane_events', 'distance'),
          task='compute_conflict_events_task'),
 )
 
@@ -234,18 +236,17 @@ def topological_order(keys) -> list:
     `.delay()` chacune) alors que `_DEPENDS_ON` les ordonne — `conflicts` pouvait partir avant
     `distance`. Une chaîne Celery bâtie sur cet ordre corrige ça pour tous les appelants.
     """
+    # Le tri est celui du COMMUN (`manifests.builtin.pipeline.topo_order`, qui a repris cet
+    # algorithme le 2026-10-03) : un seul tri stable pour le canvas, les apps et ce registre.
+    from wama.common.manifests.builtin.pipeline import topo_order
     wanted = [k for k in ORDER if k in set(keys)]
-    remaining = list(wanted)
-    done, out = set(), []
-    while remaining:
-        progressed = False
-        for k in list(remaining):
-            deps = [d for d in _DEPENDS_ON.get(k, []) if d in wanted]
-            if all(d in done for d in deps):
-                out.append(k); done.add(k); remaining.remove(k); progressed = True
-        if not progressed:                      # cycle : impossible par construction, mais on
-            out.extend(remaining); break        # préfère un ordre dégradé à une boucle infinie
-    return out
+    graph = {'nodes': [{'id': k} for k in wanted],
+             'links': [{'from': d, 'to': k} for k in wanted
+                       for d in _DEPENDS_ON.get(k, []) if d in wanted]}
+    try:
+        return [node['id'] for node in topo_order(graph)]
+    except ValueError:                          # cycle : impossible par construction, mais on
+        return wanted                           # préfère un ordre dégradé à un lancement refusé
 
 
 def _profile_snapshot(profile, watched_keys: list[str]) -> dict:
@@ -719,38 +720,35 @@ def recompute_stale(session) -> int:
         if cur is None or p.status == AnalysisPass.Status.COMPLETED:
             by_type_any_completed[p.pass_type] = p
 
-    flipped = 0
+    # La RÈGLE est celle du commun (`process_runs.stale_nodes`, qui l'a reprise d'ici le
+    # 2026-10-02) : (1) un réglage surveillé a changé depuis le lancement, (2) cascade — un amont
+    # périmé, en échec ou jamais lancé périme son aval, jusqu'à point fixe. Ce module ne garde
+    # que ce qui est propre au cam_analyzer : un nœud par LIGNE (type × caméra), et l'amont d'un
+    # type par caméra = sa ligne terminée s'il y en a une (`by_type_any_completed`).
+    from wama.common.models import JOB_FAILURE, JOB_STALE, JOB_SUCCESS
+    from wama.common.services.process_runs import stale_nodes
+    common_state = {AnalysisPass.Status.COMPLETED: JOB_SUCCESS,
+                    AnalysisPass.Status.STALE: JOB_STALE,
+                    AnalysisPass.Status.FAILED: JOB_FAILURE}
+    node_of = {id(p): f'row:{index}' for index, p in enumerate(passes)}
 
-    # First pass: direct snapshot mismatch on watched params.
+    def upstream_node(dep_type):
+        dep = by_type_any_completed.get(dep_type)
+        return node_of[id(dep)] if dep is not None else f'missing:{dep_type}'
+
+    stale = stale_nodes(
+        states={node_of[id(p)]: common_state.get(p.status, p.status) for p in passes},
+        depends_on={node_of[id(p)]: [upstream_node(d) for d in _DEPENDS_ON.get(p.pass_type, [])]
+                    for p in passes},
+        snapshots={node_of[id(p)]: p.parameters or {} for p in passes},
+        current={node_of[id(p)]: _profile_snapshot(profile, _WATCHED[p.pass_type])
+                 for p in passes if _WATCHED.get(p.pass_type)})
+    flipped = 0
     for p in passes:
-        if p.status != AnalysisPass.Status.COMPLETED:
-            continue
-        watched = _WATCHED.get(p.pass_type, [])
-        if not watched:
-            continue
-        current = _profile_snapshot(profile, watched)
-        if current != (p.parameters or {}):
+        if node_of[id(p)] in stale:
             p.status = AnalysisPass.Status.STALE
             p.save(update_fields=['status'])
             flipped += 1
-
-    # Cascade: if upstream is STALE/FAILED/missing, downstream becomes stale.
-    # Iterate until fixpoint (graph is small, max ~5 levels).
-    changed = True
-    while changed:
-        changed = False
-        for p in passes:
-            if p.status != AnalysisPass.Status.COMPLETED:
-                continue
-            for dep_type in _DEPENDS_ON.get(p.pass_type, []):
-                dep = by_type_any_completed.get(dep_type)
-                if dep is None or dep.status in (AnalysisPass.Status.STALE,
-                                                   AnalysisPass.Status.FAILED):
-                    p.status = AnalysisPass.Status.STALE
-                    p.save(update_fields=['status'])
-                    flipped += 1
-                    changed = True
-                    break
     return flipped
 
 
