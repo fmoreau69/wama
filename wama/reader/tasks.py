@@ -234,6 +234,14 @@ def _format_as_markdown(text: str, language: str = '') -> str:
     return result.strip()
 
 
+def reader_eta_key_size(item, backend: str = None) -> tuple[str, float, str]:
+    """(clé, taille, unité) de l'ETA d'une lecture — temps ∝ nombre de pages, clé par moteur. UN
+    lieu, partagé par la glu (moteur RÉSOLU) et la vue de progression (le moteur employé, sinon
+    celui de la card : « auto » y est sa propre famille d'estimation) — ROUTE §11 #37."""
+    backend = backend or item.used_backend or item.backend
+    return f'reader:{backend}', max(int(item.page_count or 0), 1), 'page'
+
+
 @shared_task(bind=True, name='wama.reader.tasks.read_document_task')
 def read_document_task(self, item_id: int):
     """Squelette = brique commune task_skeleton (gardes, ingest, chrono, statuts, ETA,
@@ -266,8 +274,6 @@ def _read(item, ctx):
                 item.page_count = n
                 item.save(update_fields=['page_count'])
 
-        pages = max(int(item.page_count or 0), 1)
-
         # For PDFs: try native text extraction first (digital/vector PDFs)
         if item.input_file.name.lower().endswith('.pdf'):
             ctx.progress(8, "Extraction native (texte vectoriel)…")
@@ -277,7 +283,7 @@ def _read(item, ctx):
                 return {
                     'fields': {'result_text': direct_text, 'raw_result': direct_text,
                                'used_backend': 'fitz_direct'},
-                    'eta': ('reader:fitz_direct', pages, 'page'),
+                    'eta': reader_eta_key_size(item, backend='fitz_direct'),
                     'label': item.filename,
                     'console_success': f"[Reader] ✓ {item.filename} — "
                                        f"{len(direct_text)} caractères (PDF natif)",
@@ -339,7 +345,7 @@ def _read(item, ctx):
         return {
             'fields': {'result_text': result_text, 'raw_result': raw_text,
                        'used_backend': backend},
-            'eta': (f'reader:{backend}', pages, 'page'),
+            'eta': reader_eta_key_size(item, backend=backend),
             'label': item.filename,
             'console_success': f"[Reader] ✓ {item.filename} — "
                                f"{len(result_text)} caractères extraits",

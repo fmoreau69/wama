@@ -1070,16 +1070,11 @@ def card_html(request, pk: int):
 
 
 def _eta_triplet(t):
-    """Le triplet d'ETA du transcriber : l'estimation apprend sous le NOM DU MOTEUR (`workers`) ;
-    la demande est une clé de modèle depuis la route F4b ⑦ — traduite, sans résolution à chaque
-    rafraîchissement. Sans moteur ni durée connus, aucune estimation."""
-    from wama.model_manager.services.eta_estimator import make_key
-    from wama.transcriber.backends.manager import engine_name_for
-    mdl = t.used_backend or engine_name_for(t.backend)
-    dur = float(t.duration_seconds or 0)
-    if not mdl or dur <= 0:
-        return None
-    return make_key('transcriber', mdl), dur, 'audio_sec', False
+    """Le triplet d'ETA, celui que le worker apprend (`workers.transcriber_eta_key_size`) —
+    chargement mesuré à part, modèle réputé NON chargé."""
+    from .workers import transcriber_eta_key_size
+    triplet = transcriber_eta_key_size(t)
+    return (*triplet, False) if triplet else None
 
 
 def _pipeline_model(t):
@@ -1115,13 +1110,13 @@ def _progress_extra(t):
     return data
 
 
-# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
-# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et le modèle de sa bande de process.
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
+# 2026-10-03) — l'app n'y déclare que son triplet d'ETA, ses clés propres et le modèle de sa bande
+# de process.
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=Transcript, get_user=lambda request: request.user if request.user.is_authenticated else get_or_create_anonymous_user(),
-                          app_id='transcriber', eta_for=_eta_triplet, extra=_progress_extra,
-                          pipeline_model=_pipeline_model)
+_pv = make_progress_views(work_model=Transcript, app_id='transcriber', eta_for=_eta_triplet,
+                          extra=_progress_extra, pipeline_model=_pipeline_model)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 

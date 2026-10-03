@@ -144,6 +144,31 @@ class AvatarPipelineTest(TestCase):
         self.assertEqual([], FakeRender.calls)
 
 
+class OneEtaKeyForTheTaskAndTheViewTest(TestCase):
+    """The ETA triplet lives in ONE place (`workers.avatarizer_eta_key_size`, ROUTE §11 #37). The
+    view used to estimate a 3D avatar under the quality key, while the task learned it under
+    `avatarizer:talkinghead` : the estimate never read what was learned."""
+
+    def _job(self, avatar):
+        user = User.objects.create_user(f'eta_{Path(avatar).suffix[1:]}', password='x')
+        return AvatarJob.objects.create(user=user, mode='pipeline', text_content='x' * 150,
+                                        quality_mode='fast', avatar_source='upload',
+                                        avatar_upload=avatar)
+
+    def test_a_3d_avatar_is_estimated_under_the_key_its_render_learns(self):
+        key, size, unit = workers.avatarizer_eta_key_size(self._job('x/head.glb'))
+        self.assertEqual(('avatarizer:talkinghead', 10.0, 'video_sec'), (key, size, unit))
+
+    def test_a_photo_is_estimated_under_its_quality(self):
+        self.assertEqual('avatarizer:fast',
+                         workers.avatarizer_eta_key_size(self._job('x/face.png'))[0])
+
+    def test_the_view_reads_the_same_triplet(self):
+        from wama.avatarizer.views import _eta_triplet
+        job = self._job('x/head.glb')
+        self.assertEqual((*workers.avatarizer_eta_key_size(job), True), _eta_triplet(job))
+
+
 class TheCardShowsItsProcessesTest(TestCase):
     """The card of a text job shows « Voix → Animation » (common strip), each with its ▶ ; a job
     that brings its audio has a single process, and no strip."""

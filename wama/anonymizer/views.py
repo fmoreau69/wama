@@ -510,13 +510,14 @@ def _eta_triplet(media):
     return anonymizer_eta_key_size(media)
 
 
-# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
-# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que sa progression vivante (`media_progress_<id>`, `blur_progress`) et son triplet d'ETA.
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
+# 2026-10-03) — l'app n'y déclare que sa progression vivante (`media_progress_<id>`,
+# `blur_progress`) et son triplet d'ETA.
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=Media, get_user=lambda request: request.user if request.user.is_authenticated else get_or_create_anonymous_user(),
-                          app_id='anonymizer', progress_field='blur_progress',
-                          progress_of=_live_progress, eta_for=_eta_triplet)
+_pv = make_progress_views(work_model=Media, app_id='anonymizer',
+                          progress_field='blur_progress', progress_of=_live_progress,
+                          eta_for=_eta_triplet)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 

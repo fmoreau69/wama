@@ -39,6 +39,36 @@ class QueueFormulaTest(SimpleTestCase):
         self.assertEqual(0, out['total'])
 
 
+class OneEtaPlacePerAppTest(SimpleTestCase):
+    """The ETA triplet an app's progress view estimates with is the one its task LEARNS — declared
+    ONCE, in the task module, and read by the view (ROUTE §11 #37). Written twice, it diverged :
+    the avatarizer view estimated a 3D avatar under a key the task never fed (2026-10-03)."""
+
+    APPS = ('anonymizer', 'avatarizer', 'composer', 'converter', 'describer', 'enhancer',
+            'imager', 'reader', 'synthesizer', 'transcriber')
+
+    def test_every_eta_hook_of_a_view_delegates_to_the_task_module(self):
+        import ast
+        from pathlib import Path
+        from django.conf import settings
+        for app in self.APPS:
+            with self.subTest(app=app):
+                src = (Path(settings.BASE_DIR) / 'wama' / app / 'views.py').read_text(
+                    encoding='utf-8')
+                tree = ast.parse(src)
+                hooks = {kw.value.id for node in ast.walk(tree) if isinstance(node, ast.Call)
+                         and getattr(node.func, 'id', '') == 'make_progress_views'
+                         for kw in node.keywords
+                         if kw.arg == 'eta_for' and isinstance(kw.value, ast.Name)}
+                self.assertTrue(hooks, f'{app} : aucun `eta_for` déclaré à la fabrique')
+                for fn in (n for n in tree.body if isinstance(n, ast.FunctionDef)
+                           and n.name in hooks):
+                    body = ast.get_source_segment(src, fn)
+                    self.assertRegex(body, r'from \.(tasks|workers|eta) import',
+                                     f'{app}.{fn.name} recalcule le triplet au lieu de le lire')
+                    self.assertNotIn('make_key(', body, f'{app}.{fn.name} écrit sa propre clé')
+
+
 @override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
                                        'LOCATION': 'progress-views-tests'}})
 class FactoryViewsTest(TestCase):

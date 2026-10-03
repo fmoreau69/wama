@@ -93,6 +93,30 @@ class ItemLifecycleContractTest(TestCase):
                         else {'progress', 'status'})
                 self.assertLessEqual(keys, set(data), data)
 
+    def test_a_page_that_shows_the_queue_bar_loads_the_component_that_feeds_it(self):
+        """Le partial `_global_progress.html` sans `wama-global-progress.js` est une barre MORTE,
+        sans aucune erreur : l'anonymizer est resté figé à « 0/0 terminé » jusqu'au 2026-10-03
+        (trouvé au smoke navigateur des vues de progression, pas par un test)."""
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.sandbox import twins_with_copied_views
+        copied, seen = twins_with_copied_views(), []
+        for app, spec in APP_CATALOG.items():
+            if app in copied or (spec or {}).get('sandbox'):
+                continue
+            try:
+                url = reverse(f'{app}:index')
+            except NoReverseMatch:
+                continue
+            with self.subTest(app=app):
+                self._login_for(app)
+                html = self.client.get(url).content.decode(errors='replace')
+                if 'id="globalProgressBar"' not in html:
+                    continue
+                self.assertIn('common/js/wama-global-progress.js', html,
+                              f'{app} montre la barre de file sans charger son composant')
+                seen.append(app)
+        self.assertGreaterEqual(len(seen), 10, seen)
+
     def test_an_exemption_from_the_factory_is_still_needed(self):
         from pathlib import Path
         from django.conf import settings

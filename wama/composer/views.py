@@ -669,8 +669,10 @@ def update_settings(request, pk):
 # ---------------------------------------------------------------------------
 
 def _eta_triplet(gen):
-    """Le triplet d'ETA du composer — la clé que `record_run` apprend (le modèle normalisé)."""
-    return normalize(gen.model), float(gen.duration or 0), 'audio_sec', False
+    """Le triplet d'ETA, celui que la glu apprend (`tasks.composer_eta_key_size`) — modèle
+    réputé NON chargé."""
+    from .tasks import composer_eta_key_size
+    return (*composer_eta_key_size(gen), False)
 
 
 def _eta_prior(gen):
@@ -695,15 +697,13 @@ def _progress_extra(gen):
             'audio_url': gen.audio_output.url, 'exported': gen.exported_to_library}
 
 
-# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
-# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA et son a-priori, ses
-# clés propres et le modèle de sa bande de process.
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
+# 2026-10-03) — l'app n'y déclare que son triplet d'ETA et son a-priori, ses clés propres et le
+# modèle de sa bande de process.
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(
     work_model=ComposerGeneration,
-    get_user=lambda request: (request.user if request.user.is_authenticated
-                              else get_or_create_anonymous_user()),
     app_id='composer', eta_for=_eta_triplet, eta_fallback=_eta_prior,
     extra=_progress_extra, pipeline_model=_pipeline_model)
 progress = require_GET(_pv['progress'])

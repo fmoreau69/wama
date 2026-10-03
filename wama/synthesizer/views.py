@@ -449,11 +449,11 @@ def card_html(request, pk: int):
 
 
 def _eta_triplet(synthesis):
-    """Le triplet d'ETA du synthesizer (∝ longueur du texte) — sans texte, aucune estimation."""
-    if not synthesis.text_content:
-        return None
-    from wama.model_manager.services.eta_estimator import make_key
-    return make_key('synthesizer', synthesis.tts_model), len(synthesis.text_content), 'char', True
+    """Le triplet d'ETA, celui que la glu apprend (`workers.synthesizer_eta_key_size`) — service
+    chargé à la demande, modèle réputé chargé."""
+    from .workers import synthesizer_eta_key_size
+    triplet = synthesizer_eta_key_size(synthesis)
+    return (*triplet, True) if triplet else None
 
 
 def _progress_extra(synthesis):
@@ -462,12 +462,12 @@ def _progress_extra(synthesis):
             'duration_display': synthesis.duration_display}
 
 
-# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
-# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que son triplet d'ETA et ses clés propres.
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
+# 2026-10-03) — l'app n'y déclare que son triplet d'ETA et ses clés propres.
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=VoiceSynthesis, get_user=lambda request: request.user if request.user.is_authenticated else get_or_create_anonymous_user(),
-                          app_id='synthesizer', eta_for=_eta_triplet, extra=_progress_extra)
+_pv = make_progress_views(work_model=VoiceSynthesis, app_id='synthesizer',
+                          eta_for=_eta_triplet, extra=_progress_extra)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 

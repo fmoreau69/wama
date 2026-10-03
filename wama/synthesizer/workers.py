@@ -140,6 +140,15 @@ def _apply_output_format(synthesis):
         logger.warning(f"[synthesizer] conversion format sortie échouée: {exc}")
 
 
+def synthesizer_eta_key_size(synthesis):
+    """(clé, taille, unité) de l'ETA d'une synthèse — durée ∝ longueur du texte, par modèle TTS ;
+    None sans texte. UN lieu, partagé par la glu (`record_run`) et la vue de progression
+    (`estimate`) : les deux l'écrivaient chacune (ROUTE §11 #37)."""
+    from wama.model_manager.services.eta_estimator import make_key
+    text = synthesis.text_content or ''
+    return (make_key('synthesizer', synthesis.tts_model), len(text), 'char') if text else None
+
+
 @shared_task(bind=True, max_retries=60, default_retry_delay=10)
 def synthesize_voice(self, synthesis_id: int):
     """Tâche principale de synthèse vocale — par le squelette COMMUN (`run_item_task`, marche P6
@@ -284,12 +293,10 @@ def _synthesize(synthesis, ctx):
         # Apprentissage ETA : durée réelle ∝ longueur du texte (unit='char'), par modèle TTS.
         # Service-based (chargement non séparable) → total dans per_unit, sans temps de
         # chargement : c'est le squelette qui l'enregistre (`eta` du retour).
-        from wama.model_manager.services.eta_estimator import make_key
-        text = synthesis.text_content or ''
         return {
             # La sortie de la card, pour sa RÉVISION (le fichier est déjà écrit et rattaché).
             'fields': {'audio_output': synthesis.audio_output.name},
-            'eta': (make_key('synthesizer', synthesis.tts_model), len(text), 'char') if text else None,
+            'eta': synthesizer_eta_key_size(synthesis),
             'label': getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}",
             'models': [synthesis.tts_model] if synthesis.tts_model else None,
             'console_success': f"Synthèse #{synthesis.id} terminée ✓",

@@ -68,7 +68,17 @@ def queue_progress(rows) -> dict:
     }
 
 
-def make_progress_views(*, work_model, get_user, app_id: str, progress_field: str = 'progress',
+def request_user(request):
+    """L'utilisateur d'une requête de file : le compte connecté, sinon le compte anonyme partagé
+    — la règle des dix apps (chacune la réécrivait dans son `_get_user`) et du générateur."""
+    if request.user.is_authenticated:
+        return request.user
+    from wama.accounts.views import get_or_create_anonymous_user
+    return get_or_create_anonymous_user()
+
+
+def make_progress_views(*, work_model, app_id: str, get_user=request_user,
+                        progress_field: str = 'progress',
                         progress_of=None, error_field: str = 'error_message', eta_for=None,
                         eta_fallback=None, extra=None, pipeline_model=None, queryset=None,
                         domains=None, read_lookup=None):
@@ -77,7 +87,8 @@ def make_progress_views(*, work_model, get_user, app_id: str, progress_field: st
 
     Args:
         work_model     : le modèle de l'élément de file (porte `status`, la progression, l'erreur).
-        get_user       : callable(request) -> utilisateur (celui de l'app : anonyme compris).
+        get_user       : callable(request) -> utilisateur ; défaut `request_user` (connecté, sinon
+                         anonyme). Le converter passe `request.user` (vues `@login_required`).
         app_id         : préfixe de la clé de cache publiée par le squelette de tâche
                          (`<app>_progress_<pk>`, `task_skeleton.TaskContext.progress`).
         progress_field : champ de progression ENREGISTRÉE (anonymizer : `blur_progress`).

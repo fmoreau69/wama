@@ -80,10 +80,9 @@ def _progress_extra(item: ReadingItem) -> dict:
 
 
 def _eta_triplet(item: ReadingItem):
-    """Le triplet d'ETA du reader : par moteur (« auto » avant résolution a sa propre moyenne),
-    proportionnel au nombre de pages."""
-    bk = item.used_backend or item.backend
-    return f'reader:{bk}', max(int(item.page_count or 0), 1), 'page', True
+    """Le triplet d'ETA, celui que la glu apprend (`tasks.reader_eta_key_size`)."""
+    from .tasks import reader_eta_key_size
+    return (*reader_eta_key_size(item), True)
 
 
 def _item_to_dict(item: ReadingItem) -> dict:
@@ -494,11 +493,12 @@ def card_html(request, pk: int):
                   {'elem': item, 'in_batch': is_batch_child(item)})
 
 
-# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`,
-# ROUTE §11 #37, 2026-10-03) — l'app n'y déclare que sa progression vivante (un dict au cache), son triplet d'ETA et ses clés propres.
+# Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
+# 2026-10-03) — l'app n'y déclare que sa progression vivante (un dict au cache), son triplet d'ETA
+# et ses clés propres.
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=ReadingItem, get_user=_get_user, app_id='reader',
+_pv = make_progress_views(work_model=ReadingItem, app_id='reader',
                           progress_of=_live_progress, eta_for=_eta_triplet,
                           extra=_progress_extra)
 progress, global_progress = _pv['progress'], _pv['global_progress']
