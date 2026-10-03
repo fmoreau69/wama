@@ -116,6 +116,9 @@ def home(request):
         # Menu « Présentations & annexes » : les archives se listent depuis leur déclaration.
         'archived_presentations': [{'slug': k, 'label': v['label']}
                                    for k, v in ARCHIVED_PRESENTATIONS.items()],
+        # … et les rapports, depuis LEUR déclaration (même geste).
+        'reports': [{'slug': k, 'label': v['label'], 'detail': v['detail']}
+                    for k, v in REPORTS.items()],
     }
     return render(request, 'home.html', context)
 
@@ -170,10 +173,27 @@ def fiches(request):
     return render(request, 'includes/wama_fiches.html')
 
 
-def transcription_report(request):
-    """Rapport d'évaluation des moteurs de transcription — instantané du 2 octobre 2026, mesuré
-    dans WAMA (page générée depuis le rapport, cf. l'en-tête du gabarit)."""
-    return render(request, 'includes/wama_rapport_transcription.html')
+# RAPPORTS servis depuis l'accueil (« Présentations & annexes », catégorie Rapports) : slug →
+# gabarit, titre, ligne de détail. Le menu les liste depuis cette déclaration, comme les archives :
+# un rapport s'AJOUTE par sa ligne, jamais par une entrée de menu écrite à la main. La génération
+# automatique des rapports d'évaluation (WAMA_QUALITE, « Rapports d'évaluation générés ») y
+# déclarera les siens.
+REPORTS = {
+    'transcription': {
+        'template': 'includes/wama_rapport_transcription.html',
+        'label': 'Évaluation des moteurs de transcription',
+        'detail': 'Mesuré dans WAMA, octobre 2026',
+    },
+}
+
+
+def report(request, slug):
+    """Un rapport déclaré dans `REPORTS`, servi tel quel."""
+    from django.http import Http404
+    entry = REPORTS.get(slug)
+    if entry is None:
+        raise Http404(f"Rapport inconnu : {slug}")
+    return render(request, entry['template'])
 
 
 #: Ce que l'assistant répond pendant qu'une libération de la carte est en cours — un message

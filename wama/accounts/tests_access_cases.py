@@ -59,19 +59,29 @@ class PresentationRoutesTests(TestCase):
     def test_the_transcription_report_is_served_with_its_three_charts(self):
         """Added to « Présentations & annexes » on 2026-10-02: a generated snapshot of the report,
         whose three charts the export had dropped — they are redrawn, none may be missing."""
-        r = self.client.get(reverse('transcription_report'))
+        r = self.client.get(reverse('report', args=['transcription']))
         self.assertEqual(200, r.status_code)
         page = r.content.decode()
         self.assertEqual(3, page.count('<figure class="chart">'))
         self.assertNotIn('embedded content', page)
         self.assertNotIn('{%', page, 'no template syntax may leak into the page')
+        self.assertEqual('/reports/transcription/', reverse('report', args=['transcription']),
+                         'the address given out on 2026-10-02 stays valid')
 
-    def test_the_home_menu_links_the_report(self):
+    def test_every_declared_report_is_served_and_listed_by_the_home_menu(self):
+        """The « Rapports » category is filled from the `REPORTS` declaration, like the archives:
+        a report is added by its line, never by a hand-written menu entry."""
         from pathlib import Path
 
         from django.conf import settings
+        from wama.views import REPORTS
+        self.assertTrue(REPORTS)
+        for slug in REPORTS:
+            self.assertEqual(200, self.client.get(reverse('report', args=[slug])).status_code)
+        self.assertEqual(404, self.client.get(reverse('report', args=['unknown'])).status_code)
         home = (Path(settings.BASE_DIR) / 'wama' / 'templates' / 'home.html').read_text(encoding='utf-8')
-        self.assertIn("{% url 'transcription_report' %}", home)
+        self.assertIn("{% url 'report' r.slug %}", home)
+        self.assertIn('Rapports</h6>', home)
 
     def test_archived_presentations_stay_reachable(self):
         from wama.views import ARCHIVED_PRESENTATIONS
