@@ -2,7 +2,7 @@ import os
 import logging
 import threading
 import time
-from celery import shared_task, chord, group
+from celery import shared_task
 from django.db import close_old_connections
 from django.core.cache import cache
 from django.contrib.auth import get_user_model
@@ -109,19 +109,19 @@ def _apply_anonymizer_output_format(media, written):
 @shared_task(bind=True)
 def process_single_media(self, media_id, force_individual=False):
     """
-    Traite un média unique en DB — avec SES réglages, et eux seuls.
+    Traite un média unique en DB — avec SES réglages, et eux seuls — par le squelette COMMUN
+    (`run_item_task`, marche P6 du 2026-10-03) : garde de redélivrance après crash, ingestion
+    d'une source distante, statuts canoniques, durée max, chrono, ETA, console, notifications,
+    ligne d'exécution, révision. L'app ne garde que sa GLU (`_anonymize`) et ce qui lui est
+    propre : le verrou de dédoublonnage (deux tâches pour un même média) et l'arrêt demandé par
+    l'utilisateur.
 
     Depuis le 2026-09-27 un média NAÎT avec les réglages de son auteur (brique `user_settings`,
-    `ROADMAP §23.2quater`) : la tâche ne lit plus que ses colonnes. Avant, elle relisait au
-    LANCEMENT les réglages courants de l'utilisateur (table `UserSettings`) sauf si le média avait
-    été « personnalisé » — un réglage changé entre le dépôt et le lancement changeait donc le
-    traitement d'un média déjà en file, et les options d'affichage venaient toujours de
-    l'utilisateur, jamais du média.
+    `ROADMAP §23.2quater`) : la tâche ne lit plus que ses colonnes.
 
     force_individual : conservé pour les appelants existants ; il n'a plus d'effet.
     """
-
-    close_old_connections()
+    from wama.common.utils.task_skeleton import run_item_task
 
     # Dedup: check if another task already owns this media
     owner_key = f"anon_task_owner:media:{media_id}"
@@ -137,375 +137,348 @@ def process_single_media(self, media_id, force_individual=False):
     cache.set(f"anon_lock:media:{media_id}", True, timeout=7200)
 
     try:
-        media = Media.objects.get(pk=media_id)
+        # Vérifie si un stop a été demandé (avant tout traitement).
+        user_id = Media.objects.filter(pk=media_id).values_list('user_id', flat=True).first()
+        if user_id is not None and cache.get(f"stop_process_{user_id}", False):
+            cache.delete(f"stop_process_{user_id}")
+            return {"stopped": media_id}
 
-        # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker
-        # mort sans acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui
-        # l'a tué. Le dedup par cache ci-dessus ne couvre PAS ce cas (cache Redis vidé
-        # ou TTL expiré au reboot, et le propriétaire enregistré est ce même task_id).
-        from wama.common.utils.process_control import refuse_crash_redelivery
-        if refuse_crash_redelivery(self, media, error_field='error_message'):
-            logger.warning(f"[anonymizer] Media #{media_id}: reprise après crash refusée — relancer manuellement.")
-            return {"skipped": True, "media_id": media_id, "reason": "crash_redelivery"}
+        if not (getattr(self.request, 'retries', 0) or 0):
+            # « En cours » est posé par les lanceurs d'UN média (`begin_processing`). Le lanceur
+            # de TOUTE la file (`process_user_media_batch`) remet les médias « en attente » et
+            # envoie les tâches : c'est ici qu'ils passent en cours — à la première livraison
+            # seulement (une re-livraison ne remet pas en cours ce que l'utilisateur a arrêté).
+            Media.objects.filter(pk=media_id).exclude(status='RUNNING').update(
+                status='RUNNING', error_message='')
 
-        user = media.user
-
-        # ── Ingest commun (WAMA_INGEST sur le modèle, brique source_ingest) :
-        # télécharge source_url vers le FileField si pas encore local — idempotent. ──
-        try:
-            from wama.common.utils.source_ingest import ensure_local_input
-
-            def _derive(inst, save_path, fname):
-                # Métadonnées relevées sur le fichier téléchargé (mêmes champs que l'upload)
-                from wama.anonymizer.views import add_media_to_db
-                add_media_to_db(inst, save_path)
-                inst.file_ext = os.path.splitext(save_path)[1].lstrip('.').lower()
-                return ['file_ext', 'width', 'height', 'fps',
-                        'duration_inSec', 'duration_inMinSec', 'media_type']
-
-            ensure_local_input(media, console=lambda m: _console(user.id, m), derive=_derive)
-        except Exception as dl_err:
-            _console(user.id, f"[Batch] Erreur téléchargement : {dl_err}", level='error')
-            logger.error(f"[Batch] Download failed for media {media_id}: {dl_err}")
-            return {"error": "download_failed", "media_id": media_id}
-        if not media.file:
-            _console(user.id, f"[Batch] Média {media_id} sans fichier — ignoré", level='error')
-            return {"error": "no_file", "media_id": media_id}
-        # ────────────────────────────────────────────────────────────────────
-
-        precision_level = media.precision_level
-        use_segmentation = media.use_segmentation
-        # Mode DESCRIPTION (`app_modes`) : la seule désignation par texte branchée au moteur de
-        # floutage est SAM3 — LocateAnything, au catalogue, n'y est pas encore relié.
-        use_sam3 = media.target_mode == 'description'
-        sam3_prompt = media.sam3_prompt
-
-        # SAM3 = concepts EN → pipeline commune (§16.6) ; KIND déclaré dans app_metadata.
-        # Bug d'origine : « Floute les visages » (FR) → 0 masque. process_prompt_for est fail-safe.
-        if use_sam3 and sam3_prompt and sam3_prompt.strip():
-            from wama.common.utils.app_metadata import process_prompt_for
-            sam3_prompt = process_prompt_for('anonymizer', 'sam3_prompt', sam3_prompt,
-                                             instance=media, user=user,
-                                             console=lambda m: _console(user.id, f"[SAM3] {m}"))
-
-        _console(user.id, f"[DEBUG] SAM3 settings: use_sam3={use_sam3}, prompt='{sam3_prompt[:30] if sam3_prompt else ''}'")
-
-        # Determine if this is an image (interpolation doesn't apply to images)
-        image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif']
-        is_image = media.file_ext and media.file_ext.lower() in image_extensions
-
-        # Get interpolation setting (disabled for images)
-        interpolate_detections = False if is_image else media.interpolate_detections
-
-        kwargs = {
-            'media_path': get_input_media_path(media.file.name, user.id),
-            'file_ext': media.file_ext,
-            # Assaini : un vieux chemin de sauvegarde a injecté le BOOLÉEN sérialisé 'false'
-            # dans des listes de classes (médias 220/221/225 constatés le 2026-08-17) — une
-            # classe est un nom, jamais true/false/none/vide.
-            'classes2blur': _classes_saines(media.classes2blur),
-            'blur_ratio': media.blur_ratio,
-            'roi_enlargement': media.roi_enlargement,
-            'progressive_blur': media.progressive_blur,
-            'detection_threshold': media.detection_threshold,
-            'interpolate_detections': interpolate_detections,
-            'max_interpolation_frames': media.max_interpolation_frames,
-            'show_preview': media.show_preview,
-            'show_boxes': media.show_boxes,
-            'show_labels': media.show_labels,
-            'show_conf': media.show_conf,
-            'precision_level': precision_level,
-            'use_segmentation': use_segmentation,
-            # SAM3 parameters
-            'use_sam3': use_sam3,
-            'sam3_prompt': sam3_prompt,
-            'user_id': user.id,  # For console logging
-            # Nom de sortie PROPRE à la card (`compose_output_name(item_id=…)`) : des cards
-            # dupliquées partagent leur entrée, jamais leur sortie.
-            'item_id': media.id,
-        }
-
-        # ======================================================================
-        # PARALLEL DETECTION: Check if multiple models are needed
-        # ======================================================================
-        # Determine user's specified model (if any)
-        # Identifiant du catalogue, chemin d'avant, ou « auto » → '' (`catalogue_id_for`).
-        from .utils.yolo_utils import catalogue_id_for, model_path_for
-        user_specified_model = '' if use_sam3 else catalogue_id_for(media.model_to_use)
-
-        # Check if specialty classes (face, plate) are requested
-        # These often require dedicated models even if user has a default COCO model
-        specialty_classes_set = {'face', 'plate', 'license_plate', 'license plate'}
-        specialty_classes_requested = any(
-            c.lower() in specialty_classes_set for c in kwargs['classes2blur']
-        )
-
-        # Enable parallel detection check if:
-        # - SAM3 is not being used AND
-        # - Either no user model is specified OR specialty classes are requested
-        #   (specialty classes need dedicated models, can't rely on user's COCO model)
-        should_check_parallel = not use_sam3 and (not user_specified_model or specialty_classes_requested)
-
-        # Debug: Log parallel detection decision
-        logger.info(f"[ParallelCheck] use_sam3={use_sam3}, user_specified_model={user_specified_model}")
-        logger.info(f"[ParallelCheck] specialty_classes_requested={specialty_classes_requested}, should_check_parallel={should_check_parallel}")
-        logger.info(f"[ParallelCheck] classes2blur={kwargs['classes2blur']}, precision_level={precision_level}")
-        _console(user.id, f"[Parallel Check] SAM3={use_sam3}, user_model={user_specified_model}, specialty={specialty_classes_requested}")
-
-        if should_check_parallel:
-            parallel_info = needs_parallel_detection(kwargs['classes2blur'], precision_level)
-
-            logger.info(f"[ParallelCheck] parallel_info: parallel={parallel_info.get('parallel')}, "
-                        f"models={len(parallel_info.get('models', []))}, coverage={parallel_info.get('coverage')}")
-            _console(user.id, f"[Parallel Check] parallel={parallel_info.get('parallel')}, "
-                              f"models={len(parallel_info.get('models', []))}")
-
-            if parallel_info.get('unsupported_classes'):
-                _console(user.id, f"[Parallel Check] Unsupported classes: {parallel_info['unsupported_classes']}")
-
-            if parallel_info['parallel'] and len(parallel_info['models']) > 1:
-                # ── MULTI-MODÈLES : UNE SEULE TÂCHE (2026-08-13) ──────────────────────────
-                # Auparavant : une chaîne Celery `detect_with_model` × N + `merge_and_blur`,
-                # avec les masques sérialisés en base64 dans Redis. Ce second pipeline avait
-                # PERDU l'interpolation, le format de sortie, le statut RUNNING, l'ETA, la
-                # notification et l'annulation — et décodait la vidéo N+1 fois.
-                # Désormais on reste dans CETTE tâche : `Anonymize` sait charger N modèles et
-                # unir leurs zones frame par frame. Tout ce qui suit (statut, ETA, format,
-                # notification, verrous) s'applique donc au multi-modèles comme au reste.
-                _console(user.id, f"[Multi] {len(parallel_info['models'])} modèles retenus")
-                for m in parallel_info['models']:
-                    _console(user.id, f"  - {m['id']} : {m['classes']}")
-                kwargs['models'] = [
-                    {'path': m['path'], 'name': m.get('name'), 'classes': m.get('classes')}
-                    for m in parallel_info['models']
-                ]
-
-            elif not parallel_info['parallel'] and len(parallel_info['models']) == 1:
-                # Single model selected by ModelSelector.
-                # The override is only legitimate when the user's model does NOT
-                # support the requested classes (e.g. user has yolo11n.pt but needs
-                # face detection). If the user EXPLICITLY chose a model that already
-                # covers the requested classes (e.g. yolov9s-face-lindevs.pt for
-                # 'face'), respect that choice instead of forcing another model.
-                selected = parallel_info['models'][0]
-                from .utils.yolo_utils import get_model_path as _gmp
-
-                keep_user_model = False
-                if user_specified_model:
-                    try:
-                        from .utils.model_selector import get_model_classes
-                        user_model_abs = model_path_for(user_specified_model)
-                        user_classes = set(get_model_classes(user_model_abs).values())
-                        requested = {c.lower() for c in kwargs['classes2blur']}
-                        if requested and requested.issubset(user_classes):
-                            keep_user_model = True
-                    except Exception as e:
-                        logger.warning(f"[ModelSelection] Could not verify user model classes: {e}")
-
-                if keep_user_model:
-                    kwargs['model_path'] = model_path_for(user_specified_model)
-                    _console(user.id, f"Respecting user-specified model: {user_specified_model}")
-                    logger.info(f"[ModelSelection] Keeping user-specified model {user_specified_model} "
-                                f"(already covers {kwargs['classes2blur']}) — no override")
-                else:
-                    # La couverture rend déjà le chemin disque du catalogue : le re-résoudre
-                    # depuis l'identifiant rouvrirait une seconde route (et échouerait pour un
-                    # modèle rangé hors de l'arborescence historique). `_gmp` reste le repli.
-                    kwargs['model_path'] = selected.get('path') or _gmp(selected['id'])
-                    _console(user.id, f"Auto-selected model: {selected['id']} for classes {selected['classes']}")
-                    logger.info(f"[ModelSelection] Using ModelSelector result: {selected['id']} (overriding user default)")
-
-        # ======================================================================
-        # SINGLE MODEL PATH: Standard processing (existing flow)
-        # ======================================================================
-        # Model selection (only if not already set by parallel check above).
-        # `models` (multi-modèles) court-circuite : la couverture a déjà tranché, refaire une
-        # sélection mono-modèle ici ne servirait à rien et brouillerait la trace console.
-        if 'model_path' not in kwargs and 'models' not in kwargs:
-            try:
-                from .utils.yolo_utils import get_model_path as _gmp
-                from .utils.model_selector import select_model_by_precision
-
-                # Le modèle du média s'il en porte un, sinon la sélection automatique.
-                model_to_use = user_specified_model or None
-                if model_to_use:
-                    _console(user.id, f"Using media-specific model: {model_to_use}")
-
-                if model_to_use:
-                    kwargs['model_path'] = model_path_for(model_to_use)
-                else:
-                    # Auto-select model based on precision level and classes
-                    selected_model = select_model_by_precision(
-                        classes_to_blur=kwargs['classes2blur'],
-                        precision_level=precision_level
-                    )
-
-                    if selected_model:
-                        kwargs['model_path'] = _gmp(selected_model)
-                        _console(user.id, f"Auto-selected model (precision {precision_level}): {selected_model}")
-                    # Fallback to custom face/plate model if needed
-                    elif any(c in kwargs['classes2blur'] for c in ['face', 'plate']):
-                        kwargs['model_path'] = _gmp("yolov8m_faces&plates_720p.pt")
-                        _console(user.id, f"Using custom face/plate model")
-            except Exception as e:
-                _console(user.id, f"Warning: Model selection failed ({e}), using default")
-                pass
-
-        # Vérifie si un stop a été demandé
-        if cache.get(f"stop_process_{user.id}", False):
-            cache.delete(f"stop_process_{user.id}")
-            return {"stopped": media.id}
-
-        # Reset progress at start + statut canonique (audit 2026-07-11)
-        media.status = 'RUNNING'
-        media.error_message = ''
-        media.save(update_fields=['status', 'error_message'])
-        _proc_t0 = time.time()
-        set_media_progress(media.id, 0)
-        _console(user.id, f"Start processing media {media.id} ...")
-
-        # Load model (early progress)
-        try:
-            cache.set(f"media_stage_{media.id}", "loading_model", timeout=3600)
-            set_media_progress(media.id, 5)
-            _console(user.id, f"Loading model for media {media.id} ...")
-        except Exception:
-            pass
-
-        # Run process with simulated progress
-        set_media_progress(media.id, 10)
-        _console(user.id, f"Running anonymization for media {media.id} ...")
-
-        # Durée estimée pour la simulation de progression : ETA apprise (EMA par
-        # clé modèle/taille) avec repli sur l'a-priori historique 60 s vidéo / 10 s image.
-        is_video = normalize_types([media.file_ext]) == ['video']
-        estimated_duration = 60 if is_video else 10
-        try:
-            from wama.model_manager.services.eta_estimator import estimate
-            _k, _s, _u = anonymizer_eta_key_size(media)
-            _est = estimate(_k, size=_s, unit=_u, model_loaded=True,
-                            fallback_seconds=estimated_duration)
-            if _est:
-                estimated_duration = max(3, int(_est))
-        except Exception:
-            pass
-
-        # Start progress simulation in background thread (10% -> 90%)
-        stop_flag = f"stop_progress_sim_{media.id}"
-        cache.delete(stop_flag)  # Ensure it's clear
-        progress_thread = threading.Thread(
-            target=simulate_progress,
-            args=(media.id, 10, 90, estimated_duration, stop_flag),
-            daemon=True
-        )
-        progress_thread.start()
-
-        # Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`) : la frame floutée
-        # COURANTE publiée ~toutes les 2 s (vidéo seulement — une image n'a qu'une frame).
-        # Le hook `on_frame` traverse kwargs jusqu'à la boucle de floutage (anonymize.py),
-        # qui ne connaît ni pk ni URLs ; le throttle et l'écriture JPEG vivent ICI.
-        from wama.common.utils.preview_utils import clear_partial, publish_partial
-        _partial_abs = None
-        if is_video:
-            import cv2 as _cv2
-            from django.conf import settings as _settings
-            _pdir = os.path.join(get_app_media_path('anonymizer', user.id, 'output'), 'partials')
-            os.makedirs(_pdir, exist_ok=True)
-            _partial_abs = os.path.join(_pdir, f'during_{media.id}.jpg')
-            _partial_url = (_settings.MEDIA_URL
-                            + os.path.relpath(_partial_abs, _settings.MEDIA_ROOT).replace('\\', '/'))
-            _last_emit = [0.0]
-
-            def _on_frame(idx, img):
-                now = time.time()
-                if now - _last_emit[0] < 2.0:
-                    return
-                _last_emit[0] = now
-                try:
-                    _cv2.imwrite(_partial_abs, img)
-                    publish_partial('anonymizer', media.id, f'{_partial_url}?v={idx}')
-                except Exception:
-                    pass
-
-            kwargs['on_frame'] = _on_frame
-
-        written = None
-        try:
-            # Run the actual processing
-            written = start_process(**kwargs)
-        finally:
-            # Stop the progress simulation
-            cache.set(stop_flag, True, timeout=10)
-            progress_thread.join(timeout=2)  # Wait max 2 seconds for thread to finish
-            # Fin du « pendant » : la face SORTIE prend le relais ; fichier partiel retiré.
-            clear_partial('anonymizer', media.id)
-            if _partial_abs:
-                try:
-                    os.remove(_partial_abs)
-                except OSError:
-                    pass
-
-        # Conversion de format de sortie (Phase 3 élargie)
-        written = _apply_anonymizer_output_format(media, written)
-
-        # Marque le média comme traité
-        try:
-            media.refresh_from_db()
-            media.status = 'SUCCESS'
-            media.processing_seconds = time.time() - _proc_t0
-            _record_output(media, written)
-            media.save(update_fields=["status", "processing_seconds", "output_file"])
-            set_media_progress(media.id, 100)
-            # ETA auto-apprenante : consigne le temps réel (même clé que estimate)
-            try:
-                from wama.model_manager.services.eta_estimator import record_run
-                _k, _s, _u = anonymizer_eta_key_size(media)
-                record_run(_k, size=_s, unit=_u,
-                           process_seconds=media.processing_seconds, load_seconds=None,
-                           user=media.user)
-            except Exception:
-                pass
-            _console(user.id, f"Finished media {media.id} ✔")
-            try:
-                from wama.common.utils.notifications import notify_job, notify_job_collaborators
-                _label = os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media.id}"
-                notify_job(user, 'Anonymizer', _label, True)
-                notify_job_collaborators(media, 'Anonymizer', _label, True)   # E3
-            except Exception:
-                pass
-        except media.__class__.DoesNotExist:
-            _console(user.id, f"Warning: Media {media.id} was deleted during processing")
-            return {"error": "Media was deleted", "media_id": media_id}
-        finally:
-            # Release dedup locks
-            cache.delete(f"anon_lock:media:{media_id}")
-            cache.delete(f"anon_task_owner:media:{media_id}")
-
-        return {"processed": media.id}
-
-    except Exception as e:
-        print(f"Erreur sur media {media_id}: {e}")
-        try:
-            media.refresh_from_db()
-            media.status = 'FAILURE'
-            media.error_message = str(e)[:2000]
-            media.save(update_fields=['status', 'error_message'])
-        except Exception:
-            pass
-        try:
-            _console(user.id, f"Error on media {media_id}: {e}")
-        except Exception:
-            pass
-        # Release dedup locks on error
+        run_item_task(self, app_id='anonymizer', model=Media, item_id=media_id,
+                      process=_anonymize, notify_label='Anonymizer',
+                      ingest_derive=_ingested_metadata,
+                      progress_fn=lambda item, pct, msg: set_media_progress(item.pk, pct))
+    finally:
+        # Release dedup locks — succès, échec, arrêt : dans tous les cas.
         cache.delete(f"anon_lock:media:{media_id}")
         cache.delete(f"anon_task_owner:media:{media_id}")
+    return {"processed": media_id}
+
+
+def _ingested_metadata(inst, save_path, fname):
+    """Métadonnées relevées sur le fichier téléchargé (mêmes champs que l'upload) — déclaré à
+    l'ingestion commune (`source_ingest.ensure_local_input`, `derive=`)."""
+    from wama.anonymizer.views import add_media_to_db
+    add_media_to_db(inst, save_path)
+    inst.file_ext = os.path.splitext(save_path)[1].lstrip('.').lower()
+    return ['file_ext', 'width', 'height', 'fps',
+            'duration_inSec', 'duration_inMinSec', 'media_type']
+
+
+def _catalogue_key(value):
+    """La clé de catalogue (`anonymizer:<id>`) d'un modèle désigné par son identifiant, son
+    fichier ou son chemin — None s'il n'est pas au catalogue (on ne nomme pas ce qu'on ignore)."""
+    from .utils.yolo_utils import catalogue_id_for
+    try:
+        found = catalogue_id_for(os.path.basename(str(value))) or catalogue_id_for(value)
+    except Exception:
+        return None
+    return f'anonymizer:{found}' if found else None
+
+
+def _anonymize(media, ctx):
+    """La GLU de l'anonymizer : choix du ou des modèles (couverture des classes demandées),
+    floutage (YOLO ou SAM3), conversion au format de sortie, sortie posée sur le média."""
+    if not media.file:
+        raise ValueError("Média sans fichier (ni URL rapatriée) : rien à traiter.")
+    user = media.user
+    media_id = media.id
+
+    precision_level = media.precision_level
+    use_segmentation = media.use_segmentation
+    # Mode DESCRIPTION (`app_modes`) : la seule désignation par texte branchée au moteur de
+    # floutage est SAM3 — LocateAnything, au catalogue, n'y est pas encore relié.
+    use_sam3 = media.target_mode == 'description'
+    sam3_prompt = media.sam3_prompt
+
+    # SAM3 = concepts EN → pipeline commune (§16.6) ; KIND déclaré dans app_metadata.
+    # Bug d'origine : « Floute les visages » (FR) → 0 masque. process_prompt_for est fail-safe.
+    if use_sam3 and sam3_prompt and sam3_prompt.strip():
+        from wama.common.utils.app_metadata import process_prompt_for
+        sam3_prompt = process_prompt_for('anonymizer', 'sam3_prompt', sam3_prompt,
+                                         instance=media, user=user,
+                                         console=lambda m: _console(user.id, f"[SAM3] {m}"))
+
+    _console(user.id, f"[DEBUG] SAM3 settings: use_sam3={use_sam3}, prompt='{sam3_prompt[:30] if sam3_prompt else ''}'")
+
+    # Determine if this is an image (interpolation doesn't apply to images)
+    image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif']
+    is_image = media.file_ext and media.file_ext.lower() in image_extensions
+
+    # Get interpolation setting (disabled for images)
+    interpolate_detections = False if is_image else media.interpolate_detections
+
+    kwargs = {
+        'media_path': get_input_media_path(media.file.name, user.id),
+        'file_ext': media.file_ext,
+        # Assaini : un vieux chemin de sauvegarde a injecté le BOOLÉEN sérialisé 'false'
+        # dans des listes de classes (médias 220/221/225 constatés le 2026-08-17) — une
+        # classe est un nom, jamais true/false/none/vide.
+        'classes2blur': _classes_saines(media.classes2blur),
+        'blur_ratio': media.blur_ratio,
+        'roi_enlargement': media.roi_enlargement,
+        'progressive_blur': media.progressive_blur,
+        'detection_threshold': media.detection_threshold,
+        'interpolate_detections': interpolate_detections,
+        'max_interpolation_frames': media.max_interpolation_frames,
+        'show_preview': media.show_preview,
+        'show_boxes': media.show_boxes,
+        'show_labels': media.show_labels,
+        'show_conf': media.show_conf,
+        'precision_level': precision_level,
+        'use_segmentation': use_segmentation,
+        # SAM3 parameters
+        'use_sam3': use_sam3,
+        'sam3_prompt': sam3_prompt,
+        'user_id': user.id,  # For console logging
+        # Nom de sortie PROPRE à la card (`compose_output_name(item_id=…)`) : des cards
+        # dupliquées partagent leur entrée, jamais leur sortie.
+        'item_id': media.id,
+    }
+
+    # ======================================================================
+    # PARALLEL DETECTION: Check if multiple models are needed
+    # ======================================================================
+    # Determine user's specified model (if any)
+    # Identifiant du catalogue, chemin d'avant, ou « auto » → '' (`catalogue_id_for`).
+    from .utils.yolo_utils import catalogue_id_for, model_path_for
+    user_specified_model = '' if use_sam3 else catalogue_id_for(media.model_to_use)
+
+    # Check if specialty classes (face, plate) are requested
+    # These often require dedicated models even if user has a default COCO model
+    specialty_classes_set = {'face', 'plate', 'license_plate', 'license plate'}
+    specialty_classes_requested = any(
+        c.lower() in specialty_classes_set for c in kwargs['classes2blur']
+    )
+
+    # Enable parallel detection check if:
+    # - SAM3 is not being used AND
+    # - Either no user model is specified OR specialty classes are requested
+    #   (specialty classes need dedicated models, can't rely on user's COCO model)
+    should_check_parallel = not use_sam3 and (not user_specified_model or specialty_classes_requested)
+
+    # Debug: Log parallel detection decision
+    logger.info(f"[ParallelCheck] use_sam3={use_sam3}, user_specified_model={user_specified_model}")
+    logger.info(f"[ParallelCheck] specialty_classes_requested={specialty_classes_requested}, should_check_parallel={should_check_parallel}")
+    logger.info(f"[ParallelCheck] classes2blur={kwargs['classes2blur']}, precision_level={precision_level}")
+    _console(user.id, f"[Parallel Check] SAM3={use_sam3}, user_model={user_specified_model}, specialty={specialty_classes_requested}")
+
+    if should_check_parallel:
+        parallel_info = needs_parallel_detection(kwargs['classes2blur'], precision_level)
+
+        logger.info(f"[ParallelCheck] parallel_info: parallel={parallel_info.get('parallel')}, "
+                    f"models={len(parallel_info.get('models', []))}, coverage={parallel_info.get('coverage')}")
+        _console(user.id, f"[Parallel Check] parallel={parallel_info.get('parallel')}, "
+                          f"models={len(parallel_info.get('models', []))}")
+
+        if parallel_info.get('unsupported_classes'):
+            _console(user.id, f"[Parallel Check] Unsupported classes: {parallel_info['unsupported_classes']}")
+
+        if parallel_info['parallel'] and len(parallel_info['models']) > 1:
+            # ── MULTI-MODÈLES : UNE SEULE TÂCHE (2026-08-13) ──────────────────────────
+            # Auparavant : une chaîne Celery `detect_with_model` × N + `merge_and_blur`,
+            # avec les masques sérialisés en base64 dans Redis. Ce second pipeline avait
+            # PERDU l'interpolation, le format de sortie, le statut RUNNING, l'ETA, la
+            # notification et l'annulation — et décodait la vidéo N+1 fois.
+            # Désormais on reste dans CETTE tâche : `Anonymize` sait charger N modèles et
+            # unir leurs zones frame par frame. Tout ce qui suit (statut, ETA, format,
+            # notification, verrous) s'applique donc au multi-modèles comme au reste.
+            _console(user.id, f"[Multi] {len(parallel_info['models'])} modèles retenus")
+            for m in parallel_info['models']:
+                _console(user.id, f"  - {m['id']} : {m['classes']}")
+            kwargs['models'] = [
+                {'path': m['path'], 'name': m.get('name'), 'classes': m.get('classes')}
+                for m in parallel_info['models']
+            ]
+
+        elif not parallel_info['parallel'] and len(parallel_info['models']) == 1:
+            # Single model selected by ModelSelector.
+            # The override is only legitimate when the user's model does NOT
+            # support the requested classes (e.g. user has yolo11n.pt but needs
+            # face detection). If the user EXPLICITLY chose a model that already
+            # covers the requested classes (e.g. yolov9s-face-lindevs.pt for
+            # 'face'), respect that choice instead of forcing another model.
+            selected = parallel_info['models'][0]
+            from .utils.yolo_utils import get_model_path as _gmp
+
+            keep_user_model = False
+            if user_specified_model:
+                try:
+                    from .utils.model_selector import get_model_classes
+                    user_model_abs = model_path_for(user_specified_model)
+                    user_classes = set(get_model_classes(user_model_abs).values())
+                    requested = {c.lower() for c in kwargs['classes2blur']}
+                    if requested and requested.issubset(user_classes):
+                        keep_user_model = True
+                except Exception as e:
+                    logger.warning(f"[ModelSelection] Could not verify user model classes: {e}")
+
+            if keep_user_model:
+                kwargs['model_path'] = model_path_for(user_specified_model)
+                _console(user.id, f"Respecting user-specified model: {user_specified_model}")
+                logger.info(f"[ModelSelection] Keeping user-specified model {user_specified_model} "
+                            f"(already covers {kwargs['classes2blur']}) — no override")
+            else:
+                # La couverture rend déjà le chemin disque du catalogue : le re-résoudre
+                # depuis l'identifiant rouvrirait une seconde route (et échouerait pour un
+                # modèle rangé hors de l'arborescence historique). `_gmp` reste le repli.
+                kwargs['model_path'] = selected.get('path') or _gmp(selected['id'])
+                _console(user.id, f"Auto-selected model: {selected['id']} for classes {selected['classes']}")
+                logger.info(f"[ModelSelection] Using ModelSelector result: {selected['id']} (overriding user default)")
+
+    # ======================================================================
+    # SINGLE MODEL PATH: Standard processing (existing flow)
+    # ======================================================================
+    # Model selection (only if not already set by parallel check above).
+    # `models` (multi-modèles) court-circuite : la couverture a déjà tranché, refaire une
+    # sélection mono-modèle ici ne servirait à rien et brouillerait la trace console.
+    if 'model_path' not in kwargs and 'models' not in kwargs:
         try:
-            from wama.common.utils.notifications import notify_job, notify_job_collaborators
-            notify_job(user, 'Anonymizer', f"média #{media_id}", False, detail=str(e))
-            notify_job_collaborators(media, 'Anonymizer', f"média #{media_id}", False, detail=str(e))
-        except Exception:
+            from .utils.yolo_utils import get_model_path as _gmp
+            from .utils.model_selector import select_model_by_precision
+
+            # Le modèle du média s'il en porte un, sinon la sélection automatique.
+            model_to_use = user_specified_model or None
+            if model_to_use:
+                _console(user.id, f"Using media-specific model: {model_to_use}")
+
+            if model_to_use:
+                kwargs['model_path'] = model_path_for(model_to_use)
+            else:
+                # Auto-select model based on precision level and classes
+                selected_model = select_model_by_precision(
+                    classes_to_blur=kwargs['classes2blur'],
+                    precision_level=precision_level
+                )
+
+                if selected_model:
+                    kwargs['model_path'] = _gmp(selected_model)
+                    _console(user.id, f"Auto-selected model (precision {precision_level}): {selected_model}")
+                # Fallback to custom face/plate model if needed
+                elif any(c in kwargs['classes2blur'] for c in ['face', 'plate']):
+                    kwargs['model_path'] = _gmp("yolov8m_faces&plates_720p.pt")
+                    _console(user.id, f"Using custom face/plate model")
+        except Exception as e:
+            _console(user.id, f"Warning: Model selection failed ({e}), using default")
             pass
-        return {"error": str(e), "media_id": media_id}
+
+    # Les modèles EMPLOYÉS, en clés de catalogue, pour la ligne d'exécution — ce que le réglage
+    # ne dit pas quand il est resté « auto ». SAM3 n'est pas nommé : `start_process` peut se
+    # replier sur YOLO sans le rendre, et une ligne ne nomme pas un modèle qui n'a pas tourné.
+    used_models = []
+    if not use_sam3:
+        paths = [m['path'] for m in kwargs.get('models') or []] or [kwargs.get('model_path')]
+        used_models = [key for key in (_catalogue_key(p) for p in paths if p) if key]
+
+    _console(user.id, f"Start processing media {media.id} ...")
+
+    # Load model (early progress)
+    try:
+        cache.set(f"media_stage_{media.id}", "loading_model", timeout=3600)
+        ctx.progress(5)
+        _console(user.id, f"Loading model for media {media.id} ...")
+    except Exception:
+        pass
+
+    # Run process with simulated progress
+    ctx.progress(10)
+    _console(user.id, f"Running anonymization for media {media.id} ...")
+
+    # Durée estimée pour la simulation de progression : ETA apprise (EMA par
+    # clé modèle/taille) avec repli sur l'a-priori historique 60 s vidéo / 10 s image.
+    is_video = normalize_types([media.file_ext]) == ['video']
+    estimated_duration = 60 if is_video else 10
+    eta_key, eta_size, eta_unit = anonymizer_eta_key_size(media)
+    try:
+        from wama.model_manager.services.eta_estimator import estimate
+        _est = estimate(eta_key, size=eta_size, unit=eta_unit, model_loaded=True,
+                        fallback_seconds=estimated_duration)
+        if _est:
+            estimated_duration = max(3, int(_est))
+    except Exception:
+        pass
+
+    # Start progress simulation in background thread (10% -> 90%)
+    stop_flag = f"stop_progress_sim_{media.id}"
+    cache.delete(stop_flag)  # Ensure it's clear
+    progress_thread = threading.Thread(
+        target=simulate_progress,
+        args=(media.id, 10, 90, estimated_duration, stop_flag),
+        daemon=True
+    )
+    progress_thread.start()
+
+    # Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`) : la frame floutée
+    # COURANTE publiée ~toutes les 2 s (vidéo seulement — une image n'a qu'une frame).
+    # Le hook `on_frame` traverse kwargs jusqu'à la boucle de floutage (anonymize.py),
+    # qui ne connaît ni pk ni URLs ; le throttle et l'écriture JPEG vivent ICI.
+    from wama.common.utils.preview_utils import clear_partial, publish_partial
+    _partial_abs = None
+    if is_video:
+        import cv2 as _cv2
+        from django.conf import settings as _settings
+        _pdir = os.path.join(get_app_media_path('anonymizer', user.id, 'output'), 'partials')
+        os.makedirs(_pdir, exist_ok=True)
+        _partial_abs = os.path.join(_pdir, f'during_{media.id}.jpg')
+        _partial_url = (_settings.MEDIA_URL
+                        + os.path.relpath(_partial_abs, _settings.MEDIA_ROOT).replace('\\', '/'))
+        _last_emit = [0.0]
+
+        def _on_frame(idx, img):
+            now = time.time()
+            if now - _last_emit[0] < 2.0:
+                return
+            _last_emit[0] = now
+            try:
+                _cv2.imwrite(_partial_abs, img)
+                publish_partial('anonymizer', media.id, f'{_partial_url}?v={idx}')
+            except Exception:
+                pass
+
+        kwargs['on_frame'] = _on_frame
+
+    written = None
+    try:
+        # Run the actual processing
+        written = start_process(**kwargs)
+    finally:
+        # Stop the progress simulation
+        cache.set(stop_flag, True, timeout=10)
+        progress_thread.join(timeout=2)  # Wait max 2 seconds for thread to finish
+        # Fin du « pendant » : la face SORTIE prend le relais ; fichier partiel retiré.
+        clear_partial('anonymizer', media.id)
+        if _partial_abs:
+            try:
+                os.remove(_partial_abs)
+            except OSError:
+                pass
+
+    # Conversion de format de sortie (Phase 3 élargie)
+    written = _apply_anonymizer_output_format(media, written)
+
+    # La sortie RÉELLEMENT écrite, posée sur le média (l'ancienne part si elle n'est plus la
+    # même). Le statut, le chrono, l'ETA et la notification sont l'affaire du squelette.
+    try:
+        media.refresh_from_db(fields=['output_file'])
+    except media.__class__.DoesNotExist:
+        _console(user.id, f"Warning: Media {media_id} was deleted during processing")
+        raise RuntimeError("Le média a été supprimé pendant son traitement.")
+    _record_output(media, written)
+    return {
+        'fields': {'output_file': media.output_file.name},
+        'eta': (eta_key, eta_size, eta_unit),
+        'label': os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media_id}",
+        'console_success': f"Finished media {media_id} ✔",
+        'models': used_models or None,
+        'output_ref': media.output_file.name,
+    }
 
 
 # ----------------------------------------------------------------------
