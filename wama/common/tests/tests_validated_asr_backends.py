@@ -126,6 +126,45 @@ class KyutaiTimedWordsTest(SimpleTestCase):
         self.assertEqual([{'word': 'On', 'start': 0.0, 'end': 0.08}], words)
 
 
+class KyutaiGeneratesInInferenceModeTest(SimpleTestCase):
+    """2026-10-02 campaign: in the GPU worker, the first Kyutai card after LinTO and FrWhisper died
+    on « Inplace update to inference tensor outside InferenceMode ». Generation runs inside
+    `torch.inference_mode()`, where such an update is allowed."""
+
+    def test_generation_happens_in_inference_mode(self):
+        import torch
+        seen = {}
+
+        class Tensor:
+            def to(self, device):
+                return self
+
+        class Tokens(list):
+            def tolist(self):
+                return list(self)
+
+        def generate(**inputs):
+            seen['inference_mode'] = torch.is_inference_mode_enabled()
+            return [Tokens([48000, 10])]
+
+        backend = KyutaiSttBackend()
+        backend._loaded, backend._device = True, 'cpu'
+        backend._processor = mock.Mock(
+            return_value={'input_values': Tensor()},
+            feature_extractor=SimpleNamespace(sampling_rate=24000, audio_delay_seconds=0.5),
+            tokenizer=_Tokenizer(), batch_decode=lambda out, **k: ['On'])
+        backend._model = SimpleNamespace(
+            generate=generate,
+            config=SimpleNamespace(pad_token_id=3, bos_token_id=48000,
+                                   codec_config=SimpleNamespace(frame_size=1920)))
+        with mock.patch('wama.common.utils.audio_decode.decode_audio_at',
+                        return_value=([0.0] * 24000, 24000)):
+            result = backend.transcribe('x.wav', language='fr')
+        self.assertTrue(result.success, result.error)
+        self.assertTrue(seen['inference_mode'])
+        self.assertFalse(torch.is_inference_mode_enabled(), 'the mode does not leak out')
+
+
 class _Inputs(dict):
     """What `WhisperProcessor(...)` returns: a mapping with `input_features` and `.to()`."""
 

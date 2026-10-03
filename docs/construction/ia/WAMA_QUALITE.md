@@ -1046,6 +1046,47 @@ langue « Auto », VAD auto, sans débruitage ; WER moyen par enregistrement :
   rien d'une file de modèles différents : seule une campagne mélangée l'éprouve.*
 - Non mesuré : CFPP (LinTO biaisé, et les entretiens longs coûtent ~1 h de GPU par card Kyutai).
 
+#### ⏳ Rapports d'évaluation GÉNÉRÉS — à construire sur l'exemple de la transcription (demande de Fabien, 2026-10-03)
+
+Le rapport « Évaluation des moteurs de transcription » a été fait À LA MAIN du 29/09 au 02/10 :
+rédigé dans Claude Docs, chiffres relevés en base par des scripts de session, puis figé en page
+WAMA (`/reports/transcription/`, menu « Présentations & annexes » › Rapports). La demande : que
+WAMA le **génère** à chaque campagne. C'est la SORTIE LISIBLE du tableau corpus × modèles × réglages
+de P4 (ci-dessus) : une case recalculée la nuit → le rapport se régénère.
+
+**Ce qui existe et se réutilise (ne pas réécrire)** :
+| brique | ce qu'elle apporte |
+|---|---|
+| `result_evaluation` (`ResultEvaluation`, `batch_evaluation`, configurations `config_params`) | les mesures par card, rangées par modèle et par configuration, à l'échelle d'UN lot |
+| `asr_eval_corpus` (`--user wama_evaluation`, un lot par enregistrement) | la campagne elle-même ; son `--report` donne déjà un tableau texte |
+| `docs_catalog.render_markdown` | Markdown → HTML neutralisé |
+| `fact_tags` (`WAMA:FAIT`) | le principe : un CHIFFRE s'injecte depuis la source, il ne se recopie pas |
+| `wama.views.REPORTS` + `/reports/<slug>/` | le lieu de publication : un rapport s'ajoute par sa déclaration, le menu le liste |
+| `scripts/reports/` (générateur + enveloppe de la page) | la GRAINE : rendu, graphiques HTML/CSS, enveloppe |
+
+**Ce qui a été fait à la main, et qu'il faut transformer en briques** :
+1. **Agrégat d'une CAMPAGNE** (plusieurs lots) : moyenne par enregistrement, par corpus × modèle ×
+   configuration, et décomposition omis / mal reconnus / ajoutés (`detail` des mesures). N'existe
+   qu'à l'échelle d'un lot (`batch_evaluation`) → `campaign_evaluation(surface, lots)` dans
+   `result_evaluation`, mêmes configurations. ⚠ Piège vécu : filtrer par NOM de référence emporte les
+   variantes dégradées (même référence) et l'enregistrement écarté (008a) — filtrer par l'AUDIO.
+2. **Rapport sans réseau** : `asr_eval_corpus --report` replanifie le corpus sur Hugging Face avant
+   de lire la base (échec le 02/10, proxy en 503) → le rapport ne lit QUE la base.
+3. **Graphiques** : aucune bibliothèque de graphiques n'est vendorisée ; ceux du rapport sont dessinés
+   en HTML/CSS (étendue + moyenne, barres groupées, barres par condition, lisibles sur téléphone et en
+   thème sombre) → une brique COMMUNE de graphiques (gabarits partiels), pas un dessin par rapport.
+4. **Texte** : résumé, « quel réglage choisir », limites — écrit par Claude. Génération : par la
+   chaîne LLM de WAMA, chiffres injectés mécaniquement (jamais écrits par le modèle), relecture
+   humaine avant publication — même geste que « Valider » des propositions de modèle.
+5. **Publication** : aujourd'hui `REPORTS` est un dict dans le code ; un rapport GÉNÉRÉ doit se déclarer
+   sans éditer le code (enregistrement en base ou manifeste), daté, versionné, l'ancien gardé.
+6. **Déclenchement** : à la fin d'une campagne, puis par la nocturne de P4 (cases périmées seules).
+
+**Où vivent les rapports** : pour l'instant une catégorie « Rapports » dans le menu « Présentations &
+annexes » de l'accueil (2026-10-03). Quand ils seront générés et nombreux, une page dédiée qui les
+liste depuis la même déclaration (filtre par domaine, date, modèle), le menu ne gardant que les
+derniers — décision à prendre à ce moment-là, pas avant.
+
 ---
 
 ## Voir aussi
