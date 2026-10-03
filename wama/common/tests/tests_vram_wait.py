@@ -77,7 +77,10 @@ class ThreeCasesTest(_Base):
         gov.reserve_vram('wama.x.Big:1#imager:qwen-image-2', 18.0)
         with self.assertRaises(_Retry) as cm:
             self._defer(20.0, essais=999)
-        self.assertIn("'max_retries': None", str(cm.exception))
+        # Pas `None` : pour Celery, `max_retries=None` vaut « le défaut de la tâche » (3), pas
+        # « sans plafond » — la première vraie attente est morte à la 3ᵉ re-livraison (03/10).
+        from wama.common.utils.task_skeleton import WAIT_RETRIES_UNLIMITED
+        self.assertIn(f"'max_retries': {WAIT_RETRIES_UNLIMITED}", str(cm.exception))
         self.assertEqual(self._status(), 'AWAITING_RESOURCES')
         self.assertEqual(self.item.error_message, '')
 
@@ -238,10 +241,11 @@ class TaskTimeLimitSettingTest(TestCase):
     def test_the_default_is_thirty_minutes_and_the_user_can_raise_it(self):
         from wama.common.utils.user_settings import save_user_app_settings
         u = get_user_model().objects.create_user('b1_limit', password='x')
-        self.assertEqual(gov.task_time_limit_s('imager', None), 1800)
-        self.assertEqual(gov.task_time_limit_s('imager', u), 1800)
+        # Une app SANS durée propre (l'imager a la sienne depuis le 2026-10-03, mesurée).
+        self.assertEqual(gov.task_time_limit_s('describer', None), 1800)
+        self.assertEqual(gov.task_time_limit_s('describer', u), 1800)
         save_user_app_settings(u, 'common', {gov.USER_SETTING_MAX_TASK_MINUTES: 90})
-        self.assertEqual(gov.task_time_limit_s('imager', u), 5400)
+        self.assertEqual(gov.task_time_limit_s('describer', u), 5400)
         with mock.patch.dict(gov.TASK_MAX_MINUTES, {'composer': 45}):
             self.assertEqual(gov.task_time_limit_s('composer', None), 2700)
             self.assertEqual(gov.task_time_limit_s('composer', u), 5400)
