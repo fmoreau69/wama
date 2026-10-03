@@ -335,6 +335,45 @@ def start(request, pk):
     return JsonResponse({'task_id': task.id, 'status': 'started'})
 
 
+@require_POST
+def start_process(request, pk, process):
+    """▶ d'UN process de la card (`ROUTE §10.6` 5.1) : lancement BORNÉ — ce process, précédé des
+    seuls amonts périmés, jamais son aval. Refaire la voix seule, ou l'animation seule sur la voix
+    déjà synthétisée. Un process inconnu, ou sans objet pour cette card (la voix d'une card qui
+    apporte son audio), est refusé en le disant."""
+    from .function_specs import PIPELINE
+    user = _get_user(request)
+    if process not in {s.key for s in PIPELINE.specs}:
+        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
+    from wama.common.utils.scoping import editable_or_404
+    job = editable_or_404(AvatarJob, user, pk=pk)
+    if process not in {s.key for s in PIPELINE.applicable(job, job.animation_model or 'auto')}:
+        return JsonResponse({'error': f"« {PIPELINE.spec(process).label} » n'a pas lieu pour "
+                                      "cette card"}, status=400)
+    from wama.common.utils.process_control import begin_processing
+    job, err = begin_processing(AvatarJob, pk, user=user,
+                                reset={'progress': 0, 'error_message': ''})
+    if err == 'not_found':
+        return JsonResponse({'error': 'Job introuvable.'}, status=404)
+    if err == 'already_running':
+        return JsonResponse({'error': 'Job déjà en cours.'}, status=400)
+    _ensure_workers_imported()
+    task = _generate_avatar.apply_async(args=(job.id,), kwargs={'process': process})
+    job.task_id = task.id
+    job.save(update_fields=['task_id'])
+    return JsonResponse({'task_id': task.id, 'status': 'started', 'process': process})
+
+
+def _decorate_card(job, preloaded=False):
+    """Les PROCESS de la card et son état MONTRÉ (`ROUTE §10.6` 5.1) — par la brique commune
+    (`process_pipeline.decorate`). Une card texte montre « Voix → Animation » ; une card qui
+    apporte son audio n'a qu'un process, la bande ne se rend pas."""
+    from wama.common.services.process_pipeline import decorate
+    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
+    decorate(job, job.animation_model or 'auto', preloaded=preloaded)
+    return job
+
+
 def progress(request, pk):
     """GET : Retourne l'état de progression d'un AvatarJob (lecture → objets partagés inclus)."""
     user = _get_user(request)
@@ -362,9 +401,13 @@ def progress(request, pk):
         except Exception:
             pass
 
+    _decorate_card(job)
     return JsonResponse({
         'progress': prog,
         'status': job.status,
+        # Les PROCESS de la card bougent pendant le traitement (`WamaApp.updateProcessRows`).
+        'processes': getattr(job, 'processes', None),
+        'shown_state': getattr(job, 'shown_state', job.status),
         'estimated_seconds': estimated_seconds,
         'video_url': video_url,
         'error': job.error_message,
@@ -527,6 +570,7 @@ def card_html(request, pk):
     # par l'index : une card rendue avec une variable inexistante ne lève AUCUNE erreur côté
     # Django — elle sortirait simplement vide, et seul le polling s'en apercevrait.
     from wama.common.utils.batch_common import is_batch_child
+    _decorate_card(job)
     html = render_to_string('avatarizer/_avatar_card.html',
                             {'elem': job, 'media_url': dj_settings.MEDIA_URL,
                              'in_batch': is_batch_child(job)}, request=request)
@@ -764,6 +808,12 @@ def _get_batches_list(user):
     # défaut `recent`, donc ce tri était écrasé juste après. 4ᵉ exemplaire de ce que `c9408354`
     # a retiré d'enhancer ×2 et de synthesizer ; « batchs d'abord » n'est plus qu'une OPTION de la
     # barre (`batches_first`). Ne pas trier en dur avant l'appel.)
+    # Les lignes d'exécution de TOUTES les cards de la page sont lues en une requête.
+    from wama.common.services.process_pipeline import preload
+    shown = [link.job for b in batches for link in b['items'] if link.job]
+    preload(shown)
+    for job in shown:
+        _decorate_card(job, preloaded=True)
     return batches
 
 

@@ -142,3 +142,71 @@ class AvatarPipelineTest(TestCase):
         self.assertEqual({'countdown': 10, 'max_retries': 60}, asked)
         self.assertEqual('RUNNING', job.status)
         self.assertEqual([], FakeRender.calls)
+
+
+class TheCardShowsItsProcessesTest(TestCase):
+    """The card of a text job shows « Voix → Animation » (common strip), each with its ▶ ; a job
+    that brings its audio has a single process, and no strip."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        _register_models()
+        self.user = User.objects.create_user('avatar_strip_user', password='x')
+        for role in (DEFAULT_APP_ACCESS.get('avatarizer') or {}).get('roles', []):
+            self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(self.user)
+
+    def _job(self, **kw):
+        values = dict(user=self.user, mode='pipeline', text_content='Bonjour.',
+                      tts_model='synthesizer:kokoro', avatar_source='upload',
+                      avatar_upload='x/face.png')
+        values.update(kw)
+        return AvatarJob.objects.create(**values)
+
+    def _card(self, job):
+        from django.urls import reverse
+        return self.client.get(reverse('avatarizer:card_html', args=[job.pk])).content.decode()
+
+    def test_a_text_card_shows_both_processes_with_their_buttons(self):
+        job = self._job()
+        html = self._card(job)
+        for key in ('speak', 'animate'):
+            self.assertRegex(html, rf'wcv3-proc-run"[^>]*data-id="{job.pk}"[^>]*data-process="{key}"')
+        self.assertIn('data-status="PENDING"', html)
+
+    def test_a_card_that_brings_its_audio_has_no_strip(self):
+        html = self._card(self._job(mode='standalone', text_content='', audio_input='x/voice.wav'))
+        self.assertNotIn('data-processes', html)
+
+    def test_the_button_of_a_process_sends_a_bounded_task(self):
+        from types import SimpleNamespace
+        from django.urls import reverse
+        job = self._job()
+        task = SimpleNamespace(apply_async=lambda **kw: sent.update(kw) or SimpleNamespace(id='t-1'))
+        sent = {}
+        with patch('wama.avatarizer.views._ensure_workers_imported'), \
+                patch('wama.avatarizer.views._generate_avatar', task, create=True):
+            r = self.client.post(reverse('avatarizer:start_process', args=[job.pk, 'animate']))
+        self.assertEqual((200, 'animate'), (r.status_code, r.json().get('process')))
+        self.assertEqual({'process': 'animate'}, sent.get('kwargs'))
+        job.refresh_from_db()
+        self.assertEqual(('RUNNING', 't-1'), (job.status, job.task_id))
+
+    def test_an_unknown_process_or_one_without_object_is_refused(self):
+        from django.urls import reverse
+        job = self._job(mode='standalone', text_content='', audio_input='x/voice.wav')
+        r = self.client.post(reverse('avatarizer:start_process', args=[job.pk, 'mix']))
+        self.assertEqual(400, r.status_code)
+        r = self.client.post(reverse('avatarizer:start_process', args=[job.pk, 'speak']))
+        self.assertEqual(400, r.status_code)
+        self.assertIn("n'a pas lieu", r.json()['error'])
+        job.refresh_from_db()
+        self.assertEqual('PENDING', job.status)
+
+    def test_the_progress_view_carries_the_processes(self):
+        from django.urls import reverse
+        job = self._job()
+        payload = self.client.get(reverse('avatarizer:progress', args=[job.pk])).json()
+        self.assertEqual(['speak', 'animate'], [p['key'] for p in payload['processes']])
+        self.assertEqual('PENDING', payload['shown_state'])

@@ -300,10 +300,11 @@
     // -----------------------------------------------------------------------
     // Start job (POST /avatarizer/start/<pk>/)
     // -----------------------------------------------------------------------
-    async function startJob(jobId) {
+    async function startJob(jobId, process) {
         // POST : la vue l'exige depuis le 2026-09-22 — un GET (le défaut de `fetch`) lançait la
         // génération, qu'un préchargement de lien pouvait déclencher sans jeton CSRF.
-        const resp = await fetch(`${cfg.urls.start}${jobId}/`, {
+        // `process` : ▶ d'UN process de la bande (route `start/<id>/<process>/`, lancement borné).
+        const resp = await fetch(`${cfg.urls.start}${jobId}/` + (process ? process + '/' : ''), {
             method: 'POST',
             headers: { 'X-CSRFToken': csrf },
         });
@@ -381,10 +382,11 @@
         const c = $('#jobs-container');
         if (!window.WamaCycleButton || !c) return;
         WamaCycleButton.wire(c, {
-            start: async (id) => {
+            start: async (id, btn) => {
                 const card = $(`.synthesis-card[data-job-id="${id}"]`);
                 if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') await stopJob(id);
-                try { await startJob(id); if (card) card.dataset.status = 'RUNNING'; startPolling(id); }
+                const process = btn && btn.dataset ? btn.dataset.process : '';
+                try { await startJob(id, process); if (card) card.dataset.status = 'RUNNING'; startPolling(id); }
                 catch (e) { WamaApp.toast(e.message || 'Erreur', 'error'); }
             },
             stop: (id) => stopJob(id),
@@ -427,6 +429,9 @@
             refreshCard(jobId);
             return;
         }
+
+        // PROCESS de la card : les lignes bougent pendant le traitement — brique commune.
+        if (window.WamaApp && WamaApp.updateProcessRows) WamaApp.updateProcessRows(card, data.processes);
 
         // Meme etat : progression/ETA/etape mises a jour en place (pas de re-fetch a chaque poll)
         // ⚠ .wama-progress-fill (brique commune) — l'ancien selecteur .progress-fill ne matchait
