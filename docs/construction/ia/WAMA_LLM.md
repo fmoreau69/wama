@@ -462,6 +462,31 @@ n'y en avait **aucune** — le défaut ne se voit qu'à l'oreille, le serveur r�
    de `qwen-tts` n'est qu'un avertissement de `pip check`) ; Kyutai TTS 1.6B (EN/FR, entrée
    texte en flux) et Voxtral TTS (CC BY-NC) sont hors catalogue.
 
+**Remesuré le 2026-10-04 — « encore lent, même par Albert » (Fabien). RIEN de câblé, cinq
+constats.** Mesures faites dans un processus neuf (script de mesure du scratchpad de session :
+tour instrumenté, appels directs en flux, service de voix), jamais dans gunicorn.
+
+| maillon | mesure | ce que ça dit |
+|---|---|---|
+| **Albert lui-même** | prompt RÉEL (19 534 car.) en flux : 1ᵉʳ texte 0,3 à 0,8 s, fin 0,6 à 1,9 s selon le modèle (`deepseek-v4-flash` 0,5 / 1,2 s) | le fournisseur n'est PAS le poste lent |
+| **1ᵉʳ tour cloud d'un processus** | `import litellm` = **19,5 s** (venv sur `/mnt/d`) ; tour instrumenté : 29,7 s au 1ᵉʳ, **1,4 s** au 2ᵉ | chaque worker gunicorn (4) paie cet import à son premier tour cloud, donc après CHAQUE relance et à chaque recyclage (`max_requests`) |
+| **pas de flux sur le chemin cloud** | `_llm_call` : le flux n'existe que pour Ollama | la voix attend la réponse entière ; gain = durée de génération (0,7 s ici, plus sur une réponse longue) |
+| **voix : Kokoro ONNX sur le CPU** | `onnxruntime` n'offre que `CPUExecutionProvider` ; 1,3 s de calcul pour 3,1 s de son, 4 à 5 s pour 11 s ; 1ʳᵉ phonémisation 1,1 s | c'est le poste dominant de l'attente AVANT la première parole, et il croît avec la longueur de la phrase |
+| **modèle local froid** | `qwen3.5:4b` : 6,5 puis 16,9 s au 1ᵉʳ texte, 0,1 s une fois chaud | chargement puis évaluation du prompt (levier 3) |
+
+Deux défauts de mesure relevés au passage : la **durée d'un tour n'est écrite nulle part**
+(`ConversationTurn` : question et réponse portent le même horodatage — on ne peut pas dire ce
+que l'utilisateur a attendu) ; et hors avatar, `speakStream` ne demande la phrase suivante
+qu'APRÈS la lecture de la précédente (chaîne séquentielle), donc une pause égale au temps de
+calcul entre deux phrases — la ligne « demandée PENDANT la lecture » du levier 4 n'est vraie
+qu'avec l'avatar, qui met en file.
+
+⏳ **Leviers proposés, par gain mesuré décroissant** (à décider) : ① ne plus payer l'import —
+appeler les fournisseurs compatibles OpenAI (Albert) sans `litellm`, ou le charger au démarrage
+du worker ; ② voix sur le GPU (fournisseur CUDA d'`onnxruntime`) ou variante quantifiée du
+même export, déjà sur le disque — à mesurer avant de choisir ; ③ flux sur le chemin cloud ;
+④ pré-demander la phrase suivante hors avatar ; ⑤ écrire la durée du tour.
+
 #### 1ter. L'assistant agit sur le CODE — pour les développeurs et administrateurs (22/09)
 
 Demande de Fabien : *« utiliser un modèle local ou cloud souverain, performant en code, pour

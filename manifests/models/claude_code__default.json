@@ -29,7 +29,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Claude Code (abonnement) — le modèle est choisi par le fournisseur",
+      "description_short": "Le modèle que Claude Code choisit lui-même pour votre abonnement.",
       "hf_id": null,
       "license": null,
       "model_type": "llm",
@@ -52,10 +52,10 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Claude Code (abonnement) — le modèle est choisi par le fournisseur",
+  "description": "Le modèle que Claude Code choisit lui-même pour votre abonnement.",
   "key": "claude_code:default",
   "manifest_kind": "model",
-  "name": "Claude Code (abonnement)",
+  "name": "Claude Code — modèle par défaut",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",
