@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**185 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**186 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1524,13 +1524,12 @@ Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la
 
 ### Process « Sortie » d'une card
 
-Le second temps de toute app qui rend un fichier, en process À PART : `output_spec` (le `ProcessSpec`, qui surveille format / qualité / agrandissement) et `output_step` (la glu, au contrat du squelette). La glu du MOTEUR n'a que trois gestes : `drop_previous_outputs`, `generated(...)`, et l'enveloppe de tâche appelle `forget_lost_generation`. Changer de format ne rejoue plus le moteur (2026-10-03) — imager, composer, synthesizer, anonymizer, enhancer ×2. Un fichier qu'une autre card désigne encore n'est jamais retiré
+Le second temps de toute app qui rend un fichier, en process À PART : `output_spec` (le `ProcessSpec`, qui surveille format / qualité / agrandissement) et `output_step` (la glu, au contrat du squelette). La glu du MOTEUR n'a que trois gestes : `drop_previous_outputs`, `generated(...)`, et l'enveloppe de tâche appelle `forget_lost_generation`. Changer de format ne rejoue plus le moteur (2026-10-03) — imager, composer, synthesizer, anonymizer, enhancer ×2. Un ancien rendu n'est retiré que sous les deux règles de `safe_delete_file` : il vit chez l'app de la card (`owns_file`) et aucune autre card ne le désigne
 
 - **Domicile** : `wama/common/services/output_process.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Le process « SORTIE » d'une card — commun à toutes les apps qui rendent un fichier.
-- **API publique** (9) :
+- **API publique** (8) :
   - `output_spec(depends_on, *, key: str=OUTPUT_KEY, label: str=OUTPUT_LABEL, share: int=1)` — Le `ProcessSpec` du process de sortie : il surveille les réglages de sortie communs
-  - `relative(path) -> str` — Chemin relatif à MEDIA_ROOT, à barres obliques (la forme d'un `FileField`).
   - `rendered_files(item, field) -> list` — Les rendus que la card porte aujourd'hui dans `field`, en chemins absolus — un champ
   - `output_sources(item, field) -> list` — Ce dont le process de sortie REPART : les originaux gardés quand il y en a (le rendu a
   - `files_fingerprint(paths) -> str` — Empreinte de ce que le moteur a écrit — DÉCLARÉE à la ligne d'exécution (`output_fingerprint`
@@ -1622,6 +1621,15 @@ Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations `
   - `resolve_backend(engine: str, model_id: str='', entries=None, task: str='')` — Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
   - `app_backend_entries(app: str) -> List[BackendEntry]` — Backends que `app` RÉSOUT réellement, par le lien du catalogue — STATIQUE, dédoublonnés
   - `app_backend_paths(app: str) -> List[Path]` — Fichiers source des backends résolus par `app` (cf. `app_backend_entries`), n'existant
+
+### ▶ d'un process (fabrique commune)
+
+La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_view` (2026-10-04) : process connu, ayant lieu pour cette card (`AppPipeline.applicable`), anti-course (`begin_processing`), tâche lancée bornée à ce process. Écrite à la main dans six apps avec trois formes de refus ; mêmes crochets que `make_batch_views` (`task_for`, `reset_on_start`). Le pipeline se lit de l'app de l'élément (`pipeline_of`), il n'est pas un argument
+
+- **Domicile** : `wama/common/utils/process_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : WAMA Common — La vue « ▶ d'UN process » d'une card : fabrique commune (`make_process_start_view`).
+- **API publique** (1) :
+  - `make_process_start_view(*, work_model, task_for, get_user=request_user, reset_on_start=None, reset_for_process=None, model_key=None)` — La vue `start_process(request, pk, process)` d'une app à pipeline.
 
 ## File d'attente & lots
 
