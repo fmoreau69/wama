@@ -258,7 +258,7 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   moderne, accès indirect au contenu/preview, diverge du modèle concis↔étendu.
 - **Héritage des réglages batch→item** : règle « override + héritage » (conventions **§9.9**) — un item
   hérite des réglages du batch SAUF ceux modifiés au niveau item (y compris fichier de référence).
-  Implémenté dans le Transcriber (`transcriber/views.py:1768`) — **À CENTRALISER dans `common/`** (aujourd'hui per-app).
+  Implémenté dans le Transcriber (`transcriber/views.py`) — **À CENTRALISER dans `common/`** (aujourd'hui per-app).
 
 ## 3bis. Manipulation directe de la file : réorganiser, batcher, filtrer/trier
 

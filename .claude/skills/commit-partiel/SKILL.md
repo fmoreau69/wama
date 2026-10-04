@@ -240,6 +240,14 @@ checkout a effacé sa régénération (projection pure, donc rattrapable par `do
 une chance, pas une règle). Après le commit, `git reset -q HEAD -- <f>` réaligne l'INDEX et suffit ;
 l'arbre ne se touche pas — ce qui y reste modifié est à quelqu'un d'autre.
 
+🔴 **Des MANIFESTES régénérés dans un worktree de HEAD se jouent depuis WSL (`venv_linux`)**
+(2026-10-04). Le worktree règle « ne projeter que du commité » ; il ne règle pas « avec quel
+venv ». Vécu : `manifest_export --kind app` joué par venv_win dans le worktree a SORTI trois
+librairies des manifestes d'app (audiocraft, resemble-enhance — absentes du venv Windows), commité
+tel quel, rattrapé au commit suivant par un ré-export WSL. Le signe : des lignes `"kind":
+"library"` SUPPRIMÉES dans `git show --stat` d'un commit de régénération. Les docs (`doc_facts`)
+ne sont pas concernées ; tout ce qui lit `importlib.metadata` l'est.
+
 ## 5. Avant de livrer le commit
 
 - `git diff --cached --stat` relu **à voix haute** : chaque fichier, chaque nombre de lignes, est
