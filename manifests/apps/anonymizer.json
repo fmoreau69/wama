@@ -40,6 +40,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "native_outputs"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
@@ -1151,6 +1170,8 @@
               "panel"
             ],
             "default": "classes",
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "mode",
             "help": "Classes : une liste d'objets à flouter. Description : ce qu'il faut flouter, décrit en texte.",
@@ -1196,6 +1217,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "panel": "user_setting_sam3_prompt"
             },
@@ -1246,6 +1269,8 @@
               "panel"
             ],
             "default": "auto",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "panel": "user_setting_model_to_use"
             },
@@ -1300,6 +1325,8 @@
               "panel"
             ],
             "default": 50,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "panel": "user_setting_precision_level"
             },
@@ -1347,6 +1374,8 @@
               "panel"
             ],
             "default": 0.25,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "panel": "user_setting_detection_threshold"
             },
@@ -1394,6 +1423,8 @@
               "panel"
             ],
             "default": 75,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "panel": "user_setting_blur_ratio"
             },
@@ -1441,6 +1472,8 @@
               "panel"
             ],
             "default": 5,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "",
             "help": "",
@@ -1486,6 +1519,8 @@
               "panel"
             ],
             "default": 1.05,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "panel": "user_setting_roi_enlargement"
             },
@@ -1533,6 +1568,8 @@
               "panel"
             ],
             "default": 25,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "panel": "user_setting_progressive_blur"
             },
@@ -1580,6 +1617,8 @@
               "panel"
             ],
             "default": true,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "",
             "help": "",
@@ -1625,6 +1664,8 @@
               "panel"
             ],
             "default": 15,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "",
             "help": "",
@@ -1673,6 +1714,8 @@
               "panel"
             ],
             "default": true,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "",
             "help": "Masque au contour de l'objet plutôt qu'au rectangle détecté.",
@@ -1718,6 +1761,8 @@
               "panel"
             ],
             "default": true,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "afficher",
             "help": "",
@@ -1763,6 +1808,8 @@
               "panel"
             ],
             "default": true,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "afficher",
             "help": "",
@@ -1808,6 +1855,8 @@
               "panel"
             ],
             "default": true,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "afficher",
             "help": "",
@@ -1853,6 +1902,8 @@
               "panel"
             ],
             "default": true,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "afficher",
             "help": "",
@@ -1898,6 +1949,8 @@
               "panel"
             ],
             "default": "original",
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "sortie",
             "help": "Conversion inline après floutage (brique converter). « Original » = format produit par le pipeline.",
@@ -2036,6 +2089,8 @@
               "panel"
             ],
             "default": "balanced",
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "sortie",
             "help": "",
@@ -2156,6 +2211,7 @@
         "save_user_settings",
         "start",
         "start_all",
+        "start_process",
         "stop",
         "stop_process",
         "upload",
@@ -2181,6 +2237,11 @@
           "name": "start",
           "pattern": "start/<int:pk>/",
           "view": "views.start"
+        },
+        {
+          "name": "start_process",
+          "pattern": "start/<int:pk>/<str:process>/",
+          "view": "views.start_process"
         },
         {
           "name": "stop",

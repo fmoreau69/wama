@@ -38,6 +38,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "native_outputs"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
@@ -533,6 +552,25 @@
                 }
               },
               "name": "processing_seconds"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "native_outputs"
             },
             {
               "args": [],
@@ -1701,6 +1739,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsAudioEngine",
               "panel": "audioEngine"
@@ -1762,6 +1802,8 @@
               "item"
             ],
             "default": 50,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsAudioQualityIntent",
               "panel": "audioQualityIntent"
@@ -1825,6 +1867,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsAudioMode",
               "panel": "audioMode"
@@ -1875,6 +1919,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsAudioStrength",
               "panel": "audioDenoisingStrength"
@@ -1938,6 +1984,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsAudioQuality",
               "panel": "audioQuality"
@@ -2020,6 +2068,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsAudioOutputFormat"
             },
@@ -2078,6 +2128,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsAudioOutputQuality"
             },
@@ -2170,6 +2222,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsAiModel",
               "panel": "defaultAiModel"
@@ -2265,6 +2319,8 @@
               "item"
             ],
             "default": "4",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsUpscaleFactor",
               "panel": "mediaUpscaleFactor"
@@ -2315,6 +2371,8 @@
               "item"
             ],
             "default": 50,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsQualityIntent",
               "panel": "mediaQualityIntent"
@@ -2365,6 +2423,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsDenoise",
               "panel": "defaultDenoise"
@@ -2412,6 +2472,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsBlendFactor",
               "panel": "defaultBlendFactor"
@@ -2459,6 +2521,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsOutputFormat",
               "panel": "output_format"
@@ -2595,6 +2659,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsOutputQuality",
               "panel": "output_quality"
@@ -2637,7 +2703,7 @@
     "ports": {
       "inputs": [
         {
-          "description": "L'audio que l'app TRAITE : c'est de lui que part le résultat (transcrit, amélioré, animé…).",
+          "description": "L'audio que l'app TRAITE : c'est de lui que part le résultat (transcrit, amélioré, animé, repris en cover…).",
           "group": "travail",
           "id": "work_audio",
           "label": "Audio de travail",
@@ -2706,6 +2772,7 @@
         "audio_reorder_queue",
         "audio_start",
         "audio_start_all",
+        "audio_start_process",
         "audio_stop",
         "audio_update",
         "audio_upload",
@@ -2715,6 +2782,8 @@
         "batch_duplicate",
         "batch_list",
         "batch_preview",
+        "batch_promote",
+        "batch_realign",
         "batch_start",
         "batch_status",
         "batch_template",
@@ -2738,6 +2807,7 @@
         "reorder_queue",
         "start",
         "start_all",
+        "start_process",
         "stop",
         "update_settings",
         "upload"
@@ -2747,6 +2817,11 @@
           "name": "start",
           "pattern": "start/<int:pk>/",
           "view": "views.start"
+        },
+        {
+          "name": "start_process",
+          "pattern": "start/<int:pk>/<str:process>/",
+          "view": "views.start_process"
         },
         {
           "name": "stop",
@@ -2817,6 +2892,11 @@
           "name": "audio_start",
           "pattern": "audio/start/<int:pk>/",
           "view": "views.audio_start"
+        },
+        {
+          "name": "audio_start_process",
+          "pattern": "audio/start/<int:pk>/<str:process>/",
+          "view": "views.audio_start_process"
         },
         {
           "name": "audio_stop",
@@ -3087,10 +3167,6 @@
     },
     {
       "key": "onnxruntime-gpu",
-      "kind": "library"
-    },
-    {
-      "key": "resemble-enhance",
       "kind": "library"
     },
     {
