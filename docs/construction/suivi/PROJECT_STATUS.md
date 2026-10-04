@@ -21623,3 +21623,42 @@ Suite du palier de l'après-midi (`ROUTE §11 #38`, mis à jour).
 ⚠ **Arbre de travail** : `docs/dev/briques.md` et `WAMA_MECANISMES.md` y sont plus ANCIENS que HEAD (171 sections contre 186 — `DocDeveloppeurTest.test_chaque_mecanisme_a_sa_section` rouge sur l'arbre, vert sur HEAD) ; non touchés : ce ne sont pas mes fichiers de travail, `git checkout` les remettrait à HEAD.
 
 **Restes.** Aide `_convert` recopiée dans cinq fichiers de tests · anonymizer détection→flou et CodeFormer de l'avatarizer encore dans le process moteur · exécuteur du studio sans `AWAITING_RESOURCES`/`STALE` · `AnalysisPass`→`ProcessRun` étape 3 (décision de Fabien).
+
+## §PALIER — 2026-10-04 (après-midi), « ASSISTANT : LES CINQ LEVIERS DE LATENCE CÂBLÉS (préchauffage, voix sur la carte graphique, flux cloud, phrase suivante, décompte) » — ✅ `3e5bde12`, `bbcab4a0`, `60f605f8`, `221b4c7a`, non poussés — 🔴 RECHARGER gunicorn, RELANCER le service de voix et les workers — 🔚 écoute de Fabien · prompt d'outils (levier ③ du 22/09)
+
+> Fabien : *« l'assistant est encore lent à répondre et à vocaliser… en passant par Albert, je
+> pensais qu'il serait plus rapide »*, puis *« tu peux réparer la voix sur la carte graphique et
+> dérouler jusqu'au bout »*. Détail et mesures : `WAMA_LLM §1bis`, bloc « Remesuré le 2026-10-04 »
+> (domicile unique) ; la réparation du venv : `INFRA_WSL_VS_WINDOWS §onnxruntime`.
+
+- **Le diagnostic** : Albert n'était pas lent (premier texte à 0,5 s avec le vrai prompt). Le
+  lent venait de l'import de `litellm` (≈ 20 s au premier tour cloud de CHAQUE worker, donc
+  après chaque relance), de la voix calculée sur le processeur, et de l'absence de flux cloud.
+- **① Préchauffage** (`3e5bde12`) : `assistant_engine.warm_up()` en arrière-plan dans chaque
+  worker gunicorn. Premier tour réel par Albert, processus neuf : 29,7 s → 2,9 s.
+- **② Voix sur la carte graphique** (`bbcab4a0`) : `onnxruntime` (processeur) masquait
+  `onnxruntime-gpu` dans le venv Linux — désinstallé, GPU réinstallé. 1,3 s → 0,18 s par phrase
+  courte, 4,5 s → 0,53 s pour 11 s de son. ⚠ L'agrandisseur de l'Enhancer tournait sur le
+  processeur lui aussi (même moteur) — non remesuré. `pip check` signale désormais 4 lignes
+  ATTENDUES ; garde `tests_onnx_runtime`.
+- **③ Flux cloud + ④ phrase suivante** (`60f605f8`) : `llm_chat(on_delta=…)`, portier commun.
+  Deux défauts trouvés en vérifiant : le portier laissait passer le JSON d'un appel d'outil
+  annoncé par une phrase ; et, plus grave, chaque fragment du flux était nettoyé séparément —
+  les mots arrivaient COLLÉS au service de voix, aucune fin de phrase n'était reconnue, la voix
+  ne partait qu'à la fin du tour (tout tour en flux, donc le modèle local depuis le 26/09).
+- **⑤ Durée du tour et décompte** (`221b4c7a`, idée de Fabien) : mesurée, écrite sur le tour,
+  apprise par l'ETA commune sous la clé `assistant-turn:<modèle>`, décomptée par le chat.
+  Aucun a priori, rien sous 2 s : Albert (1,1 à 1,9 s) n'affiche donc PAS de décompte.
+  Migration `common/0027` (deux colonnes nullables) appliquée AVANT l'édition du modèle ;
+  `wama/common/models.py` étant co-édité, commit par index temporaire, seul mon hunk.
+- **Tests** : 398 sur le périmètre (assistant, flux, voix en V8, moteur ONNX, LLM, cloud,
+  abonnement, passerelle, corpus, partages réseau, calendrier, synthesizer, enhancer) — 8
+  erreurs transitoires de `tests_task` (synthesizer, enhancer) pendant qu'une autre session
+  éditait ces fichiers, vertes au rejeu ; un fichier du composer ne compilait plus dans l'arbre
+  pendant une minute (édition d'autrui, HEAD sain).
+- **NON vérifié** : rien n'a été écouté ni vu au navigateur — les mesures sont faites dans des
+  processus neufs, pas dans gunicorn ni dans le service de voix en service, qui tournent encore
+  sur l'ancien code. C'est le premier geste après la relance.
+- **Effets de bord** : venv Linux modifié (une distribution retirée, une réinstallée) ;
+  apprentissage réel de l'ETA pour `assistant-turn:albert:deepseek-v4-flash-0731` (2 mesures,
+  1,69 s) ; fil de mesure créé puis supprimé sous le compte de Fabien ; `bge-m3` non sollicité.
