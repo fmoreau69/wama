@@ -21663,7 +21663,6 @@ Suite du palier de l'après-midi (`ROUTE §11 #38`, mis à jour).
   apprentissage réel de l'ETA pour `assistant-turn:albert:deepseek-v4-flash-0731` (2 mesures,
   1,69 s) ; fil de mesure créé puis supprimé sous le compte de Fabien ; `bge-m3` non sollicité.
 
-
 ## §PALIER — 2026-10-04 (fin de journée), « PIPELINE : CodeFormer en process « Visage », le studio relaie l'attente de ressources, doublure de test mutualisée » — ✅ commit de ce bloc, non poussé — 🔴 RECHARGER gunicorn ET workers (pipeline de l'avatarizer à trois process) — 🔚 décision : détection → floutage de l'anonymizer
 
 Fin des restes nommés aux deux paliers du jour (demande de Fabien : « tu peux terminer »).
@@ -21675,3 +21674,32 @@ Fin des restes nommés aux deux paliers du jour (demande de Fabien : « tu peux 
 **Mesures.** Essai RÉEL sur le GPU (compte de test, card #633 retirée) : voix 108 s + animation 255 s ; amélioration demandée → CodeFormer seul, 112 s, vidéo animée gardée ; retirée → 0,4 s, un seul fichier sur disque. Tests (WSL, base isolée) : avatarizer + pipeline commun + sortie + enhancer 139 OK ; studio (dont `tests_node_states`) joué. Rouges ANTÉRIEURS et hors de ce palier : budgets de noms de tests ; `composer.tests_pipeline` en erreur sur la base de test partagée (`column "lyrics"` — champ d'une autre session, migration absente de cette base).
 
 **Restes.** ⭐ Détection → floutage de l'anonymizer : demande de persister les détections image par image (format à choisir, cœur du moteur à réécrire) — chantier à DÉCIDER. · ETA d'une card d'avatar « qualité » : lue sous `avatarizer:quality`, que plus aucun process n'apprend (chaque process apprend la sienne ; la vue n'en additionne pas deux). · Studio : `STALE`.
+
+## §CLÔTURE — 2026-10-04, « PIPELINE porté par la card : P6 fini, relecture "a-t-on réinventé ?" soldée, CodeFormer en process, studio » — session du 03→04/10 — non poussé — 🔴 RECHARGER gunicorn ET workers — 🔚 décider : détection → floutage de l'anonymizer (persister les détections)
+
+**Périmètre de la session** : `ROUTE §10.6` (marches P6 et suites) — paliers du jour ci-dessus (`§PALIER 2026-10-04` nuit, après-midi, soir, fin de journée). Commits de la session, du plus ancien au plus récent : `7545f2bd` `d516cecf` `91e161d9` `948a94f9` `27d06d60` `bd85643b` `d465ba4e` `e41b39e1` `1510d912` `ffc980c8` `6181ce63` `86001f4d` `4c24d57f` `22ba04af` `498c9d4c` `c62d7c84` `c804a70d` `cf498eb0` `da201574` `a684eeee` `2459520e` `8b8831b6` `6af1a1e6`, plus le commit de ce bloc.
+
+**🔚 Point d'entrée de la session suivante** : recharger gunicorn et les workers, puis jouer sur le live une card d'avatar photo (▶, puis cocher l'amélioration faciale : seul « Visage » doit tourner).
+
+**File des chantiers ouverts, dans l'ordre.**
+1. ⭐ DÉCISION de Fabien — anonymizer, détection → floutage en deux process : demande de persister les détections image par image (format à choisir, cœur du moteur à réécrire). Rien n'est commencé.
+2. ETA d'une card d'avatar « qualité » : la vue lit `avatarizer:quality`, que plus aucun process n'apprend (chaque process apprend sa clé). À reprendre avec une ETA par process, pour toutes les cards à pipeline.
+3. Studio : `STALE` (rejouer un run nœud par nœud — décision ouverte n°4).
+4. Retour de test de Fabien sur les bandes de process (sept apps).
+
+**Pendings système.** Recharger gunicorn ET workers (vues de sept apps, JS communs, pipeline de l'avatarizer à trois process). Migration `avatarizer 0021` (additive) déjà appliquée sur la base. Rien n'est poussé.
+
+**Contrôles attendus au prochain /reprise (MESURÉS ce jour).**
+- Tests du périmètre (WSL, base isolée de la session) : **430 joués**, seuls rouges = budgets de noms de TESTS (`tests_identifier_language` : classes 134 > 132, méthodes > 1310) — antérieurs à la session, d'autres sessions. 1 skip (inchangé).
+- `composer.tests_pipeline` : en erreur sur la base de test ISOLÉE de cette session tant qu'elle n'a pas la colonne `lyrics` (champ d'une autre session) ; non rejoué en clôture.
+- Grille : **948/967**, 103 critères ; `process_start_common` VRAI 7/7, non applicable à converter, describer, reader.
+- `check_docs` : 5 cassées (aucune de cette session : lignes anciennes de `ROUTE` et `PROJECT_STATUS`), 0 périmée après correction d'une référence de ligne dans `CARD_DESIGN`.
+- `check_redundancy` : 90 trouvailles au total ; dans les fichiers de la session, quatre rapprochements PAR NOM de glus qui APPELLENT la brique (`_output`, `_render`) — pas des recopies.
+- `check_skills` : 0 défaut franc.
+- Manifestes : apps ré-exportées depuis HEAD (WSL) ; restent périmés dans le corpus des manifestes `model` (dépendent de la base, d'autres chantiers).
+
+**Gardes ajoutées par la session (derniers lots).** `make_process_start_view` → tests de route des sept apps (`tests_pipeline` / `tests_task`) ; `model_of` / `decorate_cards` → `tests_process_pipeline` ; process `enhance` → `avatarizer/tests_pipeline` (4 tests) ; relais d'attente du studio → `studio/tests_node_states` (dont une contre-épreuve de délai) ; modale à portée et câblage JS → vérifiés au NAVIGATEUR seulement (non gardés par un test : le harnais V8 des tests JS ne couvre pas `settingsModal`).
+
+**Artefacts et effets de bord.** Scripts de la session (essais réels, sondes navigateur, commits par index temporaire) : dans le scratchpad de session, jetables. Cards de test semées sous le compte de test nocturne : toutes retirées par leur pk. Le worktree de régénération est supprimé. Serveur de dev jetable (port 8011) arrêté. Une erreur rattrapée : un export de manifestes d'app joué par le venv Windows (`8b8831b6`) retirait des librairies — corrigé par `6af1a1e6`, leçon écrite dans le skill `commit-partiel §4`.
+
+⚠ Dans l'arbre de travail, `docs/dev/briques.md` et la carte des mécanismes sont plus anciens que HEAD (copies d'une autre session) : `DocDeveloppeurTest.test_chaque_mecanisme_a_sa_section` y est rouge, vert sur HEAD.
