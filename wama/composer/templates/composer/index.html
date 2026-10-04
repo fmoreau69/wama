@@ -323,6 +323,10 @@ window.COMPOSER_PARAMS_SCHEMA = {{ params_json|safe }};
             app: 'composer',
             domain: 'music',
             csrf: '{{ csrf_token }}',
+            // Déclencheur ✨ de la brique (2026-10-04 : la card n'en avait aucun) ; le modèle
+            // choisi apporte son contrat de prompt (YuE2 : style + paroles balisées).
+            trigger: true,
+            modelSelect: '#modelSelect',
         });
     }
     // Estimation (~20s) : placée à côté de la valeur du slider Durée (comme le volet).

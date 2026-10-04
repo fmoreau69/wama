@@ -18,7 +18,9 @@
  * Usage :
  *   WamaPromptEnrich.attach('#id_prompt', {
  *       app: 'imager', domain: 'image', csrf: token,
- *       original: '...', processed: '...', keywords: ['clair-obscur']
+ *       original: '...', processed: '...', keywords: ['clair-obscur'],
+ *       trigger: true,              // affiche « ✨ Traduire et enrichir » (sinon : l'app a le sien)
+ *       modelSelect: '#modelSelect' // modèle visé → son contrat de prompt s'applique
  *   });
  */
 (function (global) {
@@ -100,8 +102,13 @@
         this.field.value = st === 'processed' ? this.processed : this.original;
         this._autosize();
 
-        if (st !== 'processed') {           // rien à dire → silence complet
-            this.bar.innerHTML = '';
+        if (st !== 'processed') {           // rien à dire → silence complet…
+            // …sauf le DÉCLENCHEUR, quand l'app le demande (`trigger`, 2026-10-04 — le composer
+            // n'avait aucun moyen d'enrichir à la demande : le bouton ✨ était écrit dans l'imager).
+            this.bar.innerHTML = this.cfg.trigger
+                ? '<a href="#" data-act="redo" class="text-info" title="Le texte original est '
+                  + 'conservé">&#10024; Traduire et enrichir le prompt</a>'
+                : '';
             this.panel.style.display = 'none';
             return;
         }
@@ -147,12 +154,16 @@
         // enrichir un enrichi empile les couches de style et finit par noyer le sujet.
         var kws = (window.WamaPromptChips ? WamaPromptChips.activeFor(this.field) : null)
                   || this.keywords;
+        // Le MODÈLE visé (`modelSelect`, 2026-10-04) : son contrat de prompt (déclaré au catalogue)
+        // s'applique à l'enrichi — celui de YuE2 n'est pas celui de MusicGen.
+        var sel = this.cfg.modelSelect ? document.querySelector(this.cfg.modelSelect) : null;
         fetch(this.cfg.endpoint || ENDPOINT, {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-CSRFToken': this.cfg.csrf},
             body: JSON.stringify({
                 prompt: this.original, app: this.cfg.app,
-                domain: this.cfg.domain, keywords: kws
+                domain: this.cfg.domain, keywords: kws,
+                target_model: sel ? sel.value : ''
             })
         })
         .then(function (r) { return r.json(); })

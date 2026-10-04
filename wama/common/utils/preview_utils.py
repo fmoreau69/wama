@@ -101,6 +101,54 @@ def _versioned(url):
         return url
 
 
+#: Au-delà de ce poids, le lecteur commun ne décode pas l'audio pour en dessiner l'onde
+#: (`wama-audio-player.js`, MAX_DECODE_BYTES — même valeur) : il n'affichait qu'une ligne de temps.
+CLIENT_DECODE_LIMIT_BYTES = 30 * 1024 * 1024
+
+
+def _local_media_path(url):
+    """Chemin disque d'une URL de MEDIA (absolue ou non, `?v=` toléré), ou None."""
+    from urllib.parse import unquote, urlparse
+    from django.conf import settings
+    media_url = settings.MEDIA_URL or '/media/'
+    path = urlparse(str(url or '')).path
+    if not path.startswith(media_url):
+        return None
+    local = os.path.join(str(settings.MEDIA_ROOT), unquote(path[len(media_url):]))
+    return local if os.path.isfile(local) else None
+
+
+def _add_server_peaks(data):
+    """PICS d'onde calculés SERVEUR pour un audio trop lourd pour le navigateur (2026-10-04).
+
+    Constat de Fabien : la card YuE2 n'affichait pas son onde, les plus anciennes si. Une chanson
+    de 3:52 en flottant 32 bits à 48 kHz pèse 89 Mo — au-delà de la borne de décodage du lecteur,
+    qui se rabattait sur une simple ligne de temps ; les sorties de 30 s (5 Mo) passaient.
+    Le front DESSINAIT déjà des pics fournis (`wama-inspector.js`, `setPeaks`) : seule la face
+    « pendant » en publiait. Brique de calcul commune (`waveform.compute_peaks`, ffmpeg, uint8),
+    mise en cache par (fichier, date). Additif : un petit fichier reste décodé par le navigateur."""
+    if not data or data.get('peaks') or not str(data.get('mime_type') or '').startswith('audio/'):
+        return
+    path = _local_media_path(data.get('url'))
+    try:
+        if not path or os.path.getsize(path) <= CLIENT_DECODE_LIMIT_BYTES:
+            return
+        key = f'wama_preview_peaks:{path}:{int(os.path.getmtime(path))}'
+    except OSError:
+        return
+    from django.core.cache import cache
+    entry = cache.get(key)
+    if entry is None:
+        from .waveform import compute_peaks
+        peaks, duration = compute_peaks(path, buckets=800, dtype='uint8', with_duration=True)
+        entry = {'peaks': list(peaks or []), 'duration': duration}
+        if entry['peaks']:
+            cache.set(key, entry, 86400)
+    if entry.get('peaks'):
+        data['peaks'] = entry['peaks']
+        data.setdefault('duration', entry.get('duration'))
+
+
 def _input_port_group(app_name):
     """Groupe du port d'ENTRÉE de l'app, lu par l'UNIQUE accesseur de ports `studio_node_ports`.
 
@@ -332,6 +380,7 @@ def unified_preview(request, app_name: str, pk: int):
             data['side'] = 'output'
         else:
             data = {'error': "Aucun aperçu disponible pour cet élément", 'side': side}
+        _add_server_peaks(data)
         data['sides'] = sides
         return JsonResponse(data)
     except Exception as e:
