@@ -259,15 +259,16 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
-- **API publique** (8) :
+- **API publique** (9) :
   - `preload(items) -> None` — Lit en UNE requête les lignes d'exécution de tous ces éléments (même modèle) et les pose
   - `class ProcessSpec` — Un process d'un pipeline d'app — les champs de `pass_tracking.Pass` qui ne sont pas
   - `output_fingerprint(ref: str) -> str` — Empreinte de la sortie d'un process (chemin relatif à MEDIA_ROOT) : celle de la brique
   - `class AppPipeline` — Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive.
-  - `register_app_pipeline(app: str, specs, *, label: str, description: str='', source_ref: str='') -> AppPipeline` — Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
+  - `register_app_pipeline(app: str, specs, *, label: str, description: str='', source_ref: str='', model_of=None) -> AppPipeline` — Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
   - `pipeline_of(item) -> AppPipeline | None` — Le pipeline déclaré par l'app de cet élément, ou None (app à un seul process). Charge
-  - `card_view(item, model_key=None, preloaded: bool=False)` — Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
-  - `decorate(item, model_key=None, preloaded: bool=False)` — Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
+  - `card_view(item, model_key=DECLARED, preloaded: bool=False)` — Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
+  - `decorate(item, model_key=DECLARED, preloaded: bool=False)` — Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
+  - `decorate_cards(items, each=None) -> list` — Les cards d'une PAGE : leurs lignes d'exécution lues en UNE requête (`preload`), puis
 
 ### Progression de tâche longue
 
@@ -1300,12 +1301,15 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
 
 - **Domicile** : `wama/common/services/assistant_engine.py`
 - **Module** : Moteur de l'assistant IA — boucle agentique multi-surface (chantier « passerelle de canaux », étape 0).
-- **API publique** (7) :
+- **API publique** (10) :
   - `web_voice_prompt(user, surface: str) -> str` — La consigne de voix et d'avatar de la surface web, avec l'état de CET utilisateur —
   - `surface_attaches_files(surface: str) -> bool` — La réponse de cette surface est-elle publiée par un ADAPTATEUR qui joint les fichiers ?
+  - `turn_model_key(provider, llm_model) -> str` — Clé de CATALOGUE du modèle d'un tour (`albert:…`, `ollama:…`) — '' sans modèle nommé.
+  - `expected_wait(model_key: str) -> float` — Attente APPRISE avant le premier texte d'un tour par ce modèle, en secondes — 0 tant
   - `assistant_settings(user) -> dict` — Réglages DURABLES de l'assistant pour `user` (brique commune `user_settings`, app
   - `resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple` — (fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
   - `thinking_wanted(quality_intent) -> bool` — La réflexion du modèle est-elle demandée pour ce réglage de curseur ?
+  - `warm_up() -> dict` — Remplit les caches de processus du tour d'assistant — `{étape: secondes | 'erreur : …'}`.
   - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str=None, model: str=None, domain: str=None, on_event=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
   - `run_assistant_turn(user, message: str, provider: str=None, model: str=None, history: list=None, domain: str=None, surface: str='web', on_event=None, escalated_…` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
 
@@ -1524,7 +1528,7 @@ Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la
 
 ### Process « Sortie » d'une card
 
-Le second temps de toute app qui rend un fichier, en process À PART : `output_spec` (le `ProcessSpec`, qui surveille format / qualité / agrandissement) et `output_step` (la glu, au contrat du squelette). La glu du MOTEUR n'a que trois gestes : `drop_previous_outputs`, `generated(...)`, et l'enveloppe de tâche appelle `forget_lost_generation`. Changer de format ne rejoue plus le moteur (2026-10-03) — imager, composer, synthesizer, anonymizer, enhancer ×2. Un ancien rendu n'est retiré que sous les deux règles de `safe_delete_file` : il vit chez l'app de la card (`owns_file`) et aucune autre card ne le désigne
+Le second temps de toute app qui rend un fichier, en process À PART : `output_spec` (le `ProcessSpec`, qui surveille format / qualité / agrandissement) et `output_step` (la glu, au contrat du squelette). La glu du MOTEUR n'a que trois gestes : `drop_previous_outputs`, `generated(...)`, et l'enveloppe de tâche appelle `forget_lost_generation`. Changer de format ne rejoue plus le moteur (2026-10-03) — imager, composer, synthesizer, anonymizer, enhancer ×2. Un ancien rendu n'est retiré que sous les deux règles de `safe_delete_file` : il vit chez l'app de la card (`owns_file`) et aucune autre card ne le désigne. `output_step(transform=, apply=)` : le même process pour une transformation PROPRE à l'app — l'amélioration faciale de l'avatarizer (process « Visage », 2026-10-04)
 
 - **Domicile** : `wama/common/services/output_process.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Le process « SORTIE » d'une card — commun à toutes les apps qui rendent un fichier.
@@ -1536,7 +1540,7 @@ Le second temps de toute app qui rend un fichier, en process À PART : `output_s
   - `drop_previous_outputs(item, field, keep=()) -> None` — Le moteur REJOUE : les originaux gardés et les rendus de la fois d'avant qu'il n'a pas
   - `generated(paths, **result) -> dict` — Le retour d'une glu de MOTEUR, complété de ce que la brique attend d'elle : plus aucun
   - `forget_lost_generation(item, field, node: str) -> bool` — La sortie repart des fichiers que le moteur a laissés. S'ils ne sont plus là (retirés,
-  - `output_step(field, *, domain, app_id: str, console=None, extra_fields=None, format_of=None)` — La GLU du process de sortie, au contrat du squelette (`glu(item, ctx) -> dict`).
+  - `output_step(field, *, domain, app_id: str, console=None, extra_fields=None, format_of=None, transform=None, apply=None, what: str='Réglages de sortie')` — La GLU du process de sortie, au contrat du squelette (`glu(item, ctx) -> dict`).
 
 ### Propositions de manifestes (geste « Valider »)
 
@@ -1580,7 +1584,7 @@ Source commune des formats+qualités de fichier par domaine (réutilise le vocab
   - `native_name(path) -> str` — Le nom sous lequel le fichier d'origine de `path` est gardé (idempotent).
   - `final_name(path) -> str` — Le nom du rendu d'un fichier d'origine gardé, avant conversion (idempotent).
   - `transforms_output(item, domain: str, output_format: str | None=None) -> bool` — Les réglages de sortie de l'item changent-ils le fichier que le moteur a écrit ?
-  - `render_outputs(sources, item, *, domain: str, app_id: str | None=None, console=None, previous=(), output_format: str | None=None) -> tuple` — Les réglages de sortie appliqués en GARDANT le fichier d'origine ; rend
+  - `render_outputs(sources, item, *, domain: str, app_id: str | None=None, console=None, previous=(), output_format: str | None=None, transform=None, apply=None) -…` — Les réglages de sortie appliqués en GARDANT le fichier d'origine ; rend
 
 ### Résolution de backend par DÉCLARATION
 
@@ -1588,7 +1592,7 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
 
 - **Domicile** : `wama/common/backends/manager.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Manager de backends COMMUN — extrait du pattern Transcriber/Imager.
-- **API publique** (12) :
+- **API publique** (13) :
   - `register_engine_inventory(fn) -> None` — Enregistre un inventaire de moteurs. Le callable rend soit un MAPPING
   - `engine_backends() -> dict` — {moteur: classe de backend} pour tous les inventaires qui exposent leurs classes.
   - `invalidate_engine_cache() -> None` — À appeler après une installation de librairie : le prochain `known_engines()`
@@ -1597,6 +1601,7 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
   - `backend_for_model(model, entries=None)` — Classe de backend qui sait exécuter `model`, ou None.
   - `backend_for_key(model_key: str, entries=None)` — La MÊME porte que `backend_for_model`, adressée par la CLÉ de catalogue (`<source>:<id>`).
   - `invalidate_catalog_index() -> None` — Le prochain `catalog_keys_for_owner` relit le catalogue (après une synchro, un test).
+  - `prime_catalog_index() -> int` — Remplit l'index du catalogue (et, par lui, importe les modules de backends) — rend le
   - `match_local_name(rows, name: str) -> list` — Clés, parmi les lignes `(clé, hf_id)` d'une classe, que désigne le nom local `name`.
   - `catalog_keys_for_owner(owner: str) -> list` — Clés catalogue désignées par une clé d'owner du registre VRAM — [] si rien ne se résout.
   - `backend_missing(model) -> Optional[str]` — Raison si `model` est POSITIVEMENT sans backend, sinon None.
@@ -1629,7 +1634,7 @@ La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_vie
 - **Domicile** : `wama/common/utils/process_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — La vue « ▶ d'UN process » d'une card : fabrique commune (`make_process_start_view`).
 - **API publique** (1) :
-  - `make_process_start_view(*, work_model, task_for, get_user=request_user, reset_on_start=None, reset_for_process=None, model_key=None)` — La vue `start_process(request, pk, process)` d'une app à pipeline.
+  - `make_process_start_view(*, work_model, task_for, get_user=request_user, reset_on_start=None, reset_for_process=None)` — La vue `start_process(request, pk, process)` d'une app à pipeline.
 
 ## File d'attente & lots
 
