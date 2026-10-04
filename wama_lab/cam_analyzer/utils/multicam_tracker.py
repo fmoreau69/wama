@@ -420,6 +420,83 @@ def one_to_one_stitches(pairs, spans, overlap_tolerance_s=0.25):
     return links, refused
 
 
+#: ⚑ duplicate_chain_merge : au-delà de cette distance monde, deux boîtes qui se recouvrent dans une
+#: même image ne sont PAS le même véhicule (deux véhicules distincts ne tiennent pas à moins de 2 m
+#: l'un de l'autre, centre à centre : deux garés voisins sont à ≈ 2,3 m).
+DUPLICATE_MERGE_M = 2.0
+#: …et seul un identifiant COURT (au plus ~1 s d'observations à 12 images/s) est fondu : le levier vise
+#: la chaîne parasite de quelques images (G459 : 2). Fondre aussi les longs (A/B du 2026-10-04 : 64
+#: fusions, jusqu'à 220 observations) a réuni une voiture et le passager d'une moto suivis par une même
+#: chaîne instable du détecteur (G3174) — traces mêlées 248 → 259.
+DUPLICATE_MERGE_MAX_OBS = 12
+
+
+def duplicate_chain_merges(observations, *, iou_min=DUPLICATE_BOX_IOU, close_m=DUPLICATE_MERGE_M,
+                           max_obs=DUPLICATE_MERGE_MAX_OBS):
+    """⚑ duplicate_chain_merge (2026-10-04) : quels identifiants ne sont qu'un DOUBLON de détecteur
+    d'un autre ? Rend {identifiant fondu: identifiant gardé}.
+
+    `observations` : (image, caméra, chaîne, identifiant, e, n, boîte) — celles de la métrique de
+    continuité. Deux identifiants sont un même véhicule quand, dans une même image d'une même
+    caméra, leurs boîtes se RECOUVRENT (`iou_min`, la règle du doublon de `claims_distinct_box`) et
+    leurs positions monde sont à moins de `close_m`. Garde-fous : deux identifiants qui portent, une
+    seule fois, deux boîtes SÉPARÉES dans une même image sont deux objets — jamais fondus ; et seul un
+    identifiant COURT (au plus `max_obs` observations) est fondu, dans le plus long des deux — un
+    doublon long relève d'un autre défaut (chaîne du détecteur qui change d'objet), pas de ce levier.
+
+    Constat de Fabien, 525,1 s (session 4da52df3) : « G459, un fantôme qui ne correspond à aucun
+    véhicule ». G459 naissait d'une seconde chaîne de l'avant sur la voiture G449, deux images,
+    boîtes superposées ; sa fin a ensuite été RECOLLÉE à une autre voiture vue 5,7 s plus tard à
+    l'arrière, et le comblement a tracé une trajectoire inventée entre les deux."""
+    from collections import Counter
+    by_image = defaultdict(list)
+    size = Counter()
+    for fr, cam, _chain, gid, e, n, *rest in observations:
+        if gid is None:
+            continue
+        size[gid] += 1
+        box = rest[0] if rest else None
+        if box is not None:
+            by_image[(fr, cam)].append((gid, e, n, box))
+    same, apart = Counter(), set()
+    for rows in by_image.values():
+        for i in range(len(rows)):
+            gi, ei, ni, bi = rows[i]
+            for j in range(i + 1, len(rows)):
+                gj, ej, nj, bj = rows[j]
+                if gi == gj:
+                    continue
+                key = (gi, gj) if gi < gj else (gj, gi)
+                if box_iou(bi, bj) < iou_min:
+                    apart.add(key)
+                elif math.hypot(ei - ej, ni - nj) <= close_m:
+                    same[key] += 1
+    parent, members = {}, {}
+    short = {g for g, n in size.items() if n <= max_obs}     # tailles d'ORIGINE, avant toute fusion
+
+    def root(g):
+        while g in parent:
+            g = parent[g]
+        return g
+    for (a, b), _count in sorted(same.items(), key=lambda kv: (-kv[1], kv[0])):
+        ra, rb = root(a), root(b)
+        if ra == rb:
+            continue
+        # Le garde-fou vaut pour les GROUPES : A doublon de B et C doublon de B ne réunissent pas A et
+        # C s'ils ont été vus séparés.
+        ga, gb = members.get(ra, {ra}), members.get(rb, {rb})
+        if any(((x, y) if x < y else (y, x)) in apart for x in ga for y in gb):
+            continue
+        keep, drop = (ra, rb) if size[ra] > size[rb] or (size[ra] == size[rb] and ra < rb) else (rb, ra)
+        if drop not in short:
+            continue
+        parent[drop] = keep
+        size[keep] += size[drop]
+        members[keep] = ga | gb
+        members.pop(drop, None)
+    return {g: root(g) for g in parent}
+
+
 def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                            frame_range=None, spread_max_m=6.0, path_ratio_max=None):
     """
@@ -776,6 +853,26 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             g = alias[g]
         return g
 
+    # ⚑ duplicate_chain_merge (2026-10-04) : un identifiant qui n'est qu'un DOUBLON de détecteur d'un
+    # autre (boîtes superposées dans une même image, à moins de 2 m) y est fondu AVANT le recollement —
+    # sinon sa fin reste une fin de trajectoire, que le recollement peut prolonger vers un autre
+    # véhicule (G459 à 525,1 s, `duplicate_chain_merges`). Historiques et votes de classe sont
+    # regroupés tout de suite : le recollement ne doit plus voir le doublon comme un morceau à part.
+    _dup_merges = {}
+    if _feat.get('duplicate_chain_merge', False):
+        _dup_merges = duplicate_chain_merges(_continuity_obs)
+        if _dup_merges:
+            alias.update(_dup_merges)
+            _mh = defaultdict(list)
+            for gid, h in track_hist.items():
+                _mh[_root(gid)].extend(h)
+            track_hist = _mh
+            _mv = defaultdict(lambda: defaultdict(float))
+            for gid, votes in cls_votes.items():
+                for c, w in votes.items():
+                    _mv[_root(gid)][c] += w
+            cls_votes = _mv
+
     # État de FIN robuste par tracklet : ajustement linéaire (t → e, n) sur la queue
     # SAINE de l'historique — fenêtre 2,5 s finissant 0,5 s AVANT la vraie fin. Les
     # toutes dernières mesures d'un track qui sort du champ (bbox tronquée, portée
@@ -1129,7 +1226,11 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # convertit en repère véhicule et on insère une détection "fantôme" (predicted) dans
     # la frame front manquante. Bornes : trou ≤ max_gap_frames.
     front_frames = per_cam.get('front', (None, None, {}))[2]
-    max_gap_frames = int(6.0 * fps)   # aligné stitching : INTERPOLATION entre 2 mesures réelles   # ~1,2 s max
+    # Trou comblé jusqu'à 6 s (2026-07-17, « boucher les trous d'affichage » des dépassements ;
+    # 1,2 s avant), aligné sur le recollement — INTERPOLATION entre 2 mesures réelles du même track.
+    # ⚠ Un recollement FAUX se voit donc ici : une ligne droite inventée entre deux véhicules (G459,
+    # 525,1 s — ⚑ duplicate_chain_merge).
+    max_gap_frames = int(6.0 * fps)
     ghosts = 0
     ghost_links = []   # (frame, détection, gid, f0, f1, a, fn) — repris après le lissage
     if front_frames:
@@ -1281,6 +1382,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         from wama_data.functions.geometry.placement_metrics import tracking_continuity
         continuity = tracking_continuity(_continuity_obs, root=_root)
         continuity['stitch'] = dict(_stitch_diag)
+        continuity['duplicate_merges'] = len(_dup_merges)   # ⚑ duplicate_chain_merge
         continuity['chain_switch'] = dict(_chain_switch)
         logger.info('[tracking 360°] continuité : %s', continuity)
     except Exception:

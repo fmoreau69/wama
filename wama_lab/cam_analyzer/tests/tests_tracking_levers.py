@@ -79,6 +79,62 @@ class StitchOneToOneTest(SimpleTestCase):
         self.assertIn('one_to_one_stitches(_pairs, _span)', inspect.getsource(mt.annotate_global_tracks))
 
 
+class DuplicateChainMergeTest(SimpleTestCase):
+    """⚑ duplicate_chain_merge (2026-10-04) : G459 à 525,1 s — deux images d'une seconde chaîne sur la
+    voiture G449, recollées 5,7 s plus tard à une autre voiture, d'où un fantôme. Observations :
+    (image, caméra, chaîne, identifiant, e, n, boîte)."""
+    CAR = [100, 80, 150, 115]
+    SAME_CAR = [102, 82, 152, 113]          # recouvrement ≈ 0,86 : le même véhicule vu deux fois
+    OTHER = [200, 80, 250, 115]             # séparée : un autre véhicule
+
+    def test_a_short_twin_chain_is_merged_into_the_long_one(self):
+        obs = [(f, 'front', 569, 449, 0.0, -float(f), self.CAR) for f in range(10)]
+        obs += [(f, 'front', 577, 459, 0.8, -float(f), self.SAME_CAR) for f in (4, 5)]
+        self.assertEqual(mt.duplicate_chain_merges(obs), {459: 449})
+
+    def test_only_a_short_duplicate_is_merged(self):
+        """A/B du 2026-10-04 : fondre aussi des doublons LONGS réunissait une voiture et le passager
+        d'une moto suivis par une même chaîne instable (G3174) — le levier vise la chaîne de
+        quelques images."""
+        obs = [(f, 'front', 1, 1, 0.0, -float(f), self.CAR) for f in range(40)]
+        obs += [(f, 'front', 2, 2, 0.5, -float(f), self.SAME_CAR) for f in range(20)]
+        self.assertEqual(mt.duplicate_chain_merges(obs), {}, '20 observations : pas un doublon court')
+        self.assertEqual(mt.duplicate_chain_merges(obs, max_obs=20), {2: 1})
+
+    def test_overlapping_boxes_of_two_cars_two_metres_apart_stay_two(self):
+        """Une voiture masquée par une autre recouvre sa boîte, mais elle est À DISTANCE."""
+        obs = [(0, 'front', 1, 1, 0.0, 0.0, self.CAR), (0, 'front', 2, 2, 0.0, -5.0, self.SAME_CAR)]
+        self.assertEqual(mt.duplicate_chain_merges(obs), {})
+
+    def test_two_ids_ever_seen_apart_in_one_image_are_never_merged(self):
+        obs = [(0, 'front', 1, 1, 0.0, 0.0, self.CAR), (0, 'front', 2, 2, 0.5, 0.0, self.SAME_CAR),
+               (3, 'front', 1, 1, 0.0, 0.0, self.CAR), (3, 'front', 2, 2, 3.0, 0.0, self.OTHER)]
+        self.assertEqual(mt.duplicate_chain_merges(obs), {})
+
+    def test_the_guard_holds_for_groups_not_only_pairs(self):
+        """A doublon de B, C doublon de B, mais A et C vus séparés : on ne réunit pas A et C."""
+        obs = [(f, 'front', 9, 'B', 0.0, 0.0, self.CAR) for f in range(20)]
+        obs += [(1, 'front', 1, 'A', 0.3, 0.0, self.SAME_CAR), (2, 'front', 1, 'A', 0.3, 0.0, self.SAME_CAR),
+                (1, 'left', 3, 'C', 0.2, 0.0, self.CAR), (1, 'left', 1, 'A', 0.1, 0.0, self.OTHER)]
+        obs += [(5, 'front', 3, 'C', 0.4, 0.0, self.SAME_CAR)]
+        merges = mt.duplicate_chain_merges(obs)
+        self.assertEqual(merges.get('A'), 'B')
+        self.assertNotIn('C', merges, "C a été vu séparé de A, déjà fondu dans B")
+
+    def test_different_cameras_are_not_duplicates_of_a_detector(self):
+        """La règle est celle d'un doublon de DÉTECTEUR : une même image d'une même caméra."""
+        obs = [(0, 'front', 1, 1, 0.0, 0.0, self.CAR), (0, 'left', 7, 2, 0.5, 0.0, self.SAME_CAR)]
+        self.assertEqual(mt.duplicate_chain_merges(obs), {})
+
+    def test_the_switch_is_declared_off_and_wired_before_the_stitch(self):
+        f = {x.key: x for x in FEATURES}['duplicate_chain_merge']
+        self.assertFalse(f.default, 'défaut OFF tant que l’A/B sur données réelles ne l’a pas tranché')
+        self.assertEqual(f.scope, 'compute')
+        src = inspect.getsource(mt.annotate_global_tracks)
+        self.assertLess(src.index('duplicate_chain_merges(_continuity_obs)'), src.index('_endfit = {}'),
+                        "fondre AVANT le recollement : la fin du doublon ne doit plus être un morceau")
+
+
 class ServerHeadingTest(SimpleTestCase):
     """Le cap d'un véhicule qui roule vient de la vitesse LISSÉE du serveur (2026-10-02) : la trace
     de la page, vidée à chaque saut, faisait dessiner un véhicule qui traverse dans l'axe de la route."""

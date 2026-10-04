@@ -167,6 +167,16 @@ FEATURES = [
             "allers-retours entre objets distincts sous un même numéro, 581 avec la bascule ; doublons "
             "et relais ratés inchangés). ON par défaut : c'est la correction d'un défaut, pas une option.",
             default=True, scope='compute'),
+    Feature('duplicate_chain_merge', 'Doublons de détection fondus',
+            "Le détecteur suit parfois UNE voiture par deux chaînes (deux boîtes superposées dans la même "
+            "image) : la seconde recevait son propre numéro de véhicule, puis le recollement pouvait la "
+            "prolonger vers une autre voiture, et le comblement traçait entre les deux une trajectoire "
+            "inventée. Constat du 2026-10-04, 525,1 s : G459, « un fantôme qui ne correspond à aucun "
+            "véhicule » — deux images collées à G449, recollées 5,7 s plus tard à une voiture de l'arrière. "
+            "Un numéro COURT (au plus ~1 s d'observations) qui n'est qu'un doublon (boîtes superposées, "
+            "moins de 2 m) est fondu dans l'autre AVANT le recollement ; deux numéros vus une seule fois "
+            "séparés dans une même image ne le sont jamais. Tracking à rejouer après bascule.",
+            default=False, scope='compute'),
     Feature('measured_camera_yaw', 'Orientation des latérales MESURÉE',
             "Utilise l'orientation de montage des caméras latérales MESURÉE sur la session (passe "
             "« Champ des caméras » : le mouvement de la navette, tiré de la trace, contraint les "
