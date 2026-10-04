@@ -529,6 +529,13 @@ if EMAIL_USE_SSL:
 # d'autres services de l'université — un mail de WAMA doit se reconnaître comme tel.
 DEFAULT_FROM_EMAIL = _os.environ.get('WAMA_EMAIL_FROM', 'WAMA <wama-noreply@univ-eiffel.fr>')
 
+# Partages réseau (dossiers distants du gestionnaire de fichiers) — valeurs DE SITE, donc en
+# `.env`, jamais en dur : suffixes essayés pour un nom de serveur court (WSL2 n'a aucun
+# domaine de recherche) et domaine d'annuaire appliqué quand l'utilisateur n'en saisit pas.
+WAMA_SMB_DNS_SUFFIXES = [s.strip().strip('.') for s in
+                         os.environ.get('WAMA_SMB_DNS_SUFFIXES', '').split(',') if s.strip()]
+WAMA_SMB_DEFAULT_DOMAIN = os.environ.get('WAMA_SMB_DEFAULT_DOMAIN', '').strip()
+
 # Modération des nouveaux comptes (login LDAP = toute l'université → gate).
 WAMA_MODERATE_NEW_USERS = os.environ.get('WAMA_MODERATE_NEW_USERS', '1') == '1'
 WAMA_MODERATOR_EMAILS = [e for e in os.environ.get('WAMA_MODERATOR_EMAILS', '').split(',') if e.strip()]
