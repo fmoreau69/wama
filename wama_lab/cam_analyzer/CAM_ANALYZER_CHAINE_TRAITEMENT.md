@@ -433,7 +433,7 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 > 🧱 **DÉCOUPLAGE EN 3 ÉTAGES (2026-08-05, recadrage Fabien « analyse d'abord, calculs ensuite »).**
 > La profondeur n'est plus un bloc monolithique greffé dans `global_tracking` (invisible) mais une
 > chaîne de 3 étages indépendants, contrôlables séparément :
-> - **ÉTAGE 1 — ANALYSE** = la **passe `depth`** du volet droit (`PassType.DEPTH`, **session-wide**,
+> - **ÉTAGE 1 — ANALYSE** = la **passe `depth`** du volet droit (registre `PASSES`, **session-wide**,
 >   les 4 caméras en UNE ligne). GPU. Infère et **STOCKE la donnée brute** : cartes de profondeur
 >   downsamplées (float16 `.npz` sur disque, modèle `DepthFrame`) + profondeur de contact par
 >   détection (`depth_distance_m`, champ additif du JSON `detections`). **Indépendante du flag** —
@@ -619,7 +619,12 @@ homographie vs pinhole.
 > câblé mais aucun run réel (GPU interdit sur le poste) · **DÉCLARÉ-MORT** = champ/drapeau existant
 > sans aucun consommateur · **INEXISTANT** = cité par une doc, absent du code.
 
-### A. Chronologie d'exécution — les 13 passes (`AnalysisPass.PassType`) en trois étages
+### A. Chronologie d'exécution — les passes (`pass_tracking.PASSES`) en trois étages
+
+> ⚠ Recalé le 2026-10-04 : le titre disait « les 13 passes (`AnalysisPass.PassType`) » — le
+> registre en compte **18**, et `PassType` est retiré avec `AnalysisPass` (les libellés sont dans
+> le registre, l'état de chaque passe est une ligne commune `ProcessRun`). Le tableau ci-dessous
+> garde sa date.
 
 Depuis le 2026-09-07 le pipeline est déclaré **UNE fois** : `pass_tracking.PASSES` (patron
 `features.FEATURES`) — étage, dépendances, paramètres surveillés, granularité par caméra, tâche

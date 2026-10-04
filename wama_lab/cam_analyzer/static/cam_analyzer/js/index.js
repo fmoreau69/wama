@@ -834,27 +834,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const POSITION_LABELS = { front: 'Avant', rear: 'Arrière', left: 'Gauche', right: 'Droite' };
 
     // ── Pipeline panel ───────────────────────────────────────────────────
-    // Renders the AnalysisPass list with status icons and 2 main CTAs.
+    // Renders the passes (their common execution lines) and 2 main CTAs.
     // Called after loadSession + after any pass-changing operation.
-    const STATUS_ICONS = {
-        completed: '<i class="fas fa-check-circle text-success"></i>',
-        running:   '<i class="fas fa-spinner fa-spin text-info"></i>',
-        stale:     '<i class="fas fa-exclamation-triangle text-warning"></i>',
-        failed:    '<i class="fas fa-times-circle text-danger"></i>',
-        pending:   '<i class="far fa-circle text-secondary"></i>',
-        never:     '<i class="far fa-circle text-secondary"></i>',
-    };
-    const STATUS_LABELS = {
-        completed: 'OK',
-        running:   'En cours',
-        stale:     'Périmé',
-        failed:    'Échec',
-        pending:   'En attente',
-        never:     'Jamais',
-    };
+    // L'état d'une passe est celui de sa ligne d'exécution COMMUNE (`ProcessRun`), dans le
+    // vocabulaire commun (`PENDING` / `RUNNING` / `SUCCESS` / `FAILURE` / `STALE`) depuis le
+    // 2026-10-04 : point d'état et libellé viennent de la présentation commune
+    // (`.wama-status-dot`, `WamaApp.statusLabel`, `window.WAMA_STATES`), comme dans la bande des
+    // process d'une card — plus de table d'icônes ni de libellés propre au Lab. Une passe jamais
+    // jouée est `PENDING` (l'ancien état d'affichage « Jamais »).
+    const passStatus = (p) => (window.WamaApp ? WamaApp.normalizeStatus(p.status)
+                                              : String(p.status || '').toUpperCase());
+    const passStatusLabel = (p) => (window.WamaApp ? WamaApp.statusLabel(p.status) : p.status);
 
     function _formatPassTooltip(p) {
-        const lines = [`État : ${STATUS_LABELS[p.status] || p.status}`];
+        const lines = [`État : ${passStatusLabel(p)}`];
         if (p.completed_at) lines.push(`Terminé : ${new Date(p.completed_at).toLocaleString()}`);
         if (p.duration_s != null) lines.push(`Durée : ${p.duration_s.toFixed(1)} s`);
         if (p.error_message) lines.push(`Erreur : ${p.error_message.slice(0, 200)}`);
@@ -922,7 +915,8 @@ document.addEventListener('DOMContentLoaded', function () {
             // Passes de calcul EN FILE derrière la chaîne en cours (elles s'empilent, 2026-09-30).
             const _queued = new Set(data.queued_passes || []);
             const _rowHtml = (p) => {
-                const icon = STATUS_ICONS[p.status] || STATUS_ICONS.never;
+                const _status = passStatus(p);
+                const icon = `<span class="wama-status-dot" data-s="${_status}"></span>`;
                 const tip = _formatPassTooltip(p).replace(/"/g, '&quot;');
                 // Per-camera passes get a "[front]" / "[rear]" suffix (Prop A)
                 const camSuffix = p.camera ? ` <span class="text-secondary" style="font-size:0.7rem;">[${p.camera}]</span>` : '';
@@ -933,16 +927,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Bouton de CYCLE (décision 2026-06-30) : ▶ jamais lancée, ⏳ en cours (pas d'arrêt
                 // par passe côté serveur, d'où un sablier désactivé plutôt qu'un ⏹), ↻ sinon.
                 const _inQueue = _queued.has(p.pass_type);
-                const _running = p.status === 'running';
+                const _running = _status === 'RUNNING';
                 const _busy = _running || _inQueue;
-                const _cycle = _busy ? '⏳' : (p.status === 'never' ? '▶' : '↻');
+                const _cycle = _busy ? '⏳' : (_status === 'PENDING' ? '▶' : '↻');
                 // ETA (2026-10-01) : restant d'une passe en cours, durée d'une passe en file — format
                 // commun `WamaEta` (≈, arrondi grossier : une estimation apprise, pas une mesure).
                 const _etaS = _running ? p.eta_remaining_s : (_inQueue ? p.eta_seconds : null);
                 const _eta = (_etaS != null && window.WamaEta) ? WamaEta.format(_etaS, 'low') : null;
                 const _cycleTip = _running ? 'En cours…'
                     : (_inQueue ? 'En file — démarrera après la chaîne en cours'
-                        : (p.status === 'never' ? 'Lancer ce passage seul' : 'Relancer ce passage seul'));
+                        : (_status === 'PENDING' ? 'Lancer ce passage seul' : 'Relancer ce passage seul'));
                 // Sélection multiple (Analyse ET Calculs, 2026-09-30) : la case survit aux re-rendus
                 // du suivi. L'extraction n'a pas de tâche propre : rien à cocher.
                 const _sel = (p.pass_type !== 'extraction')
@@ -970,8 +964,8 @@ document.addEventListener('DOMContentLoaded', function () {
             _lastPipelinePasses = _passes;
             // ▶ d'ÉTAGE (2026-09-07) : lancer TOUTE l'analyse, ou TOUS les calculs. Le gating
             // du ▶ Calculs dérive du graphe : un calcul dérive des détections → grisé tant
-            // qu'aucune détection YOLO n'est `completed` (le serveur refuse aussi, 409).
-            const _analyseDone = _passes.some(p => p.pass_type === 'yolo_detect' && p.status === 'completed');
+            // qu'aucune détection YOLO n'est terminée (le serveur refuse aussi, 409).
+            const _analyseDone = _passes.some(p => p.pass_type === 'yolo_detect' && passStatus(p) === 'SUCCESS');
             const rows = _stageDefs.map(([key, title, sub]) => {
                 const group = _passes.filter(p => (p.stage || 'analyse') === key);
                 if (!group.length) return '';
@@ -1107,7 +1101,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Des passes tournent (ou une chaîne attend en file) sans que CETTE page les suive —
             // page rechargée en cours de chaîne, lancement depuis un autre onglet : suivre. Sans
             // cela le panneau restait sur l'instantané du chargement jusqu'au rafraîchissement.
-            if (!passesPollTimer && (calcChainQueued || _passes.some(p => p.status === 'running'))) {
+            if (!passesPollTimer && (calcChainQueued || _passes.some(p => passStatus(p) === 'RUNNING'))) {
                 startPassesPolling();
             }
             return data.passes || [];
@@ -1143,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Une chaîne encore EN FILE (derrière une autre tâche du worker GPU) n'a aucune passe
             // « running » : sans ce test, le suivi s'arrêtait au bout de ~10 s et le panneau
             // invitait à relancer — d'où deux chaînes entrelacées (2026-09-29).
-            if (passes.some(p => p.status === 'running') || calcChainQueued) { seenRunning = true; idleTicks = 0; return; }
+            if (passes.some(p => passStatus(p) === 'RUNNING') || calcChainQueued) { seenRunning = true; idleTicks = 0; return; }
             // Entre deux passes d'une chaîne, AUCUNE n'est « running » le temps que la suivante
             // démarre : un seul relevé inactif arrêtait le suivi en pleine chaîne. On en exige 3
             // consécutifs (~7,5 s).

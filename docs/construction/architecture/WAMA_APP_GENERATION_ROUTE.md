@@ -333,13 +333,6 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     l'éditeur du transcriber. Elle dépend AUSSI du chantier PIPELINE (`§10.6`, brief « état au
     2026-10-01 ») pour ses deux process. **`§13` devient la décision à prendre en ouverture de
     session** : archétypes déclarés oui/non, et lesquels.
-    - **Données que la page de YuE2 lira — posées le 2026-10-04, sans la page** (Fabien : *« ne
-      faudra-t-il pas prévoir l'édition des paroles via le bouton edit ? partition + paroles »*) :
-      la partition est un résultat de la card (`planned_score` / `extracted_score`, ABC) ; les
-      PAROLES sont un champ de la card (`ComposerGeneration.lyrics`, réglage « Voix »,
-      `WAMA_LLM.md §Paroles et contrat`), éditable dès aujourd'hui dans la modale ⚙ et surveillé
-      par `plan` et `render` — l'éditer périme la partition puis le rendu. La page n'aura donc
-      qu'à MONTRER et ÉDITER ces deux données ; ses gestes réutilisent la péremption existante.
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,
@@ -3212,8 +3205,9 @@ n°11, tranchée le 2026-10-02 (point 9) ; 1ᵉʳ cas hors Lab : `manifests/pipe
 
 #### 4. Couche 2 — l'EXÉCUTION : une ligne par process, un vocabulaire d'états, un moteur
 
-**4.1 La ligne d'exécution d'un process** — généralisation d'`AnalysisPass`
-(`cam_analyzer/models.py:458-482`), qui remplace aussi `StudioRun.node_states` et le couple
+**4.1 La ligne d'exécution d'un process** — généralisation d'`AnalysisPass` (le suivi de passes
+du cam_analyzer ; ses passes sont passées sur cette ligne et le modèle est retiré le 2026-10-04),
+qui remplace aussi `StudioRun.node_states` et le couple
 `status`/`progress` porté aujourd'hui par chaque modèle d'item :
 instance de pipeline (la card) · identifiant du nœud · process référencé (type + clé + version) ·
 **clé d'instance** (généralise la colonne `camera` : un process exécuté N fois dans la même card,
@@ -3234,7 +3228,9 @@ Nom anglais de l'objet : décision ouverte n°1.
 
 Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sans
 `AWAITING_RESOURCES`), son JS (3 couleurs, `wama-studio.js:653-655`) et cam_analyzer
-(`pending/running/completed/failed/stale`, `models.py:451-456`) s'alignent sur ce vocabulaire.
+(`pending/running/completed/failed/stale`, ex-`AnalysisPass.Status`) s'alignent sur ce
+vocabulaire — ✅ cam_analyzer aligné le 2026-10-04 (ses passes sont des lignes `ProcessRun`, son
+panneau parle `JOB_*`).
 
 > ✅ **P2, 1ʳᵉ pièce LIVRÉE le 2026-09-17** — le vocabulaire commun porte enfin les SIX états.
 > `JOB_STALE` + `PROCESS_STATUS_CHOICES` sont déclarés dans `common/models.py` ; gardes dans
@@ -3350,6 +3346,11 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 > (décision de Fabien) : le Lab s'alignera quand il adoptera le fonctionnement commun, à **P3** —
 > les y câbler ce soir serait du travail à refaire. La brique existe : leur adoption sera une
 > ligne par site.
+> ✅ **cam_analyzer : adoptée le 2026-10-04** (étape 3 du passage à `ProcessRun`) — le panneau des
+> passes a perdu ses tables d'icônes et de libellés (il n'en restait que DEUX) : point d'état
+> `.wama-status-dot` et `WamaApp.statusLabel`, comme la bande des process d'une card ; `never`
+> n'a pas été dérivé mais RENDU à ce qu'il est dans le modèle commun — une passe sans ligne est
+> `PENDING` (`AppPipeline.card_rows`). ⏳ Reste la table de `face_analyzer`.
 >
 > ⏳ **RESTE de P2 — DEUX morceaux, tous deux suspendus à P3** (rectifié le 17/09 au soir : la
 > première rédaction disait « la brique d'agrégation seule », ce qui omettait le second) :
@@ -3558,7 +3559,7 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 >   apprise (sa glu ne rend pas de taille).
 > ⏳ **Restent de P3** : les entrées rapatriées avant de résoudre modèle et VRAM, l'adoption par
 > le cam_analyzer (`Pass` → `ProcessSpec`, `AnalysisPass` → `ProcessRun`, coordonnée avec
-> l'instance qui y travaille) et par l'exécuteur du studio (`node_states`), le type de nœud
+> l'instance qui y travaille — ✅ faites les 2026-10-03 et 04, cf. « ALIGNEMENTS » plus bas) et par l'exécuteur du studio (`node_states`), le type de nœud
 > `pipeline`, le pipeline sans process (§11 #35).
 
 **4.3 `STALE` — ce que c'est exactement** (repris de cam_analyzer, décision du 07/05,
@@ -3685,8 +3686,12 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   2026-10-04** — l'historique repris (`manage.py backfill_pass_lines` : 77 lignes créées,
 >   79/79 passes concordantes) PUIS les LECTEURS basculés sur `process_runs.lines` (panneau,
 >   péremption par ligne, réutilisation du tracking, ETA, calcul interrompu ; le panneau garde
->   son vocabulaire par `lab_status`) ; reste l'étape 3 — retrait de l'ancienne table et
->   panneau en `JOB_*` —, sur décision. ⏳ L'exécuteur du studio ne produit toujours ni `AWAITING_RESOURCES`
+>   son vocabulaire par `lab_status`) ; **étape 3/3 le 2026-10-04 (GO de Fabien)** — `ProcessRun`
+>   est la SEULE trace des passes (écrite directement, plus sous `safely`) ; libellés dans le
+>   registre (`Pass.label`) ; panneau, « compléter les passes » et ETA en `JOB_*` ;
+>   `process_runs.start` garde la taille de la durée précédente (`eta_size_s`), que l'étape 2
+>   avait perdue ; modèle `AnalysisPass` retiré (`REMOVAL_LEDGER` R97-R99). ⏳ Sa TABLE est
+>   supprimée après le redémarrage de WAMA et une sauvegarde. ⏳ L'exécuteur du studio ne produit toujours ni `AWAITING_RESOURCES`
 >   ni `STALE`.
 >
 > 🔄 **P6 ENGAGÉE le 2026-10-03 — les apps hors squelette y entrent, une par une** :

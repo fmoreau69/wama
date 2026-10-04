@@ -9,16 +9,16 @@ from unittest import mock
 
 from django.test import SimpleTestCase
 
+from wama.common.models import JOB_FAILURE, JOB_STALE, JOB_SUCCESS
 from wama_lab.cam_analyzer.utils import pass_tracking as pt
 
 T0 = datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc)
 FEATURES = {'lane_map_recalage': True, 'measured_camera_fov': True}
 
 
-def row(pass_type, status='completed', at=T0, summary=None):
-    """Une LIGNE COMMUNE (`ProcessRun`) — lue depuis le 2026-10-04 ; l'état s'écrit dans le
-    vocabulaire du Lab pour rester lisible, traduit par `common_status`."""
-    return SimpleNamespace(node_id=pass_type, instance_key='', status=pt.common_status(status),
+def row(pass_type, status=JOB_SUCCESS, at=T0, summary=None):
+    """Une LIGNE COMMUNE (`ProcessRun`) — l'état d'une passe depuis le 2026-10-04."""
+    return SimpleNamespace(node_id=pass_type, instance_key='', status=status,
                            finished_at=at, output_summary=summary)
 
 
@@ -39,8 +39,8 @@ class TrackingIsCurrentTest(SimpleTestCase):
 
     def test_no_tracking_or_a_stale_one_is_recomputed(self):
         self.assertFalse(self._check([])[0])
-        self.assertFalse(self._check([tracking(status='stale')])[0])
-        self.assertFalse(self._check([tracking(status='failed')])[0])
+        self.assertFalse(self._check([tracking(status=JOB_STALE)])[0])
+        self.assertFalse(self._check([tracking(status=JOB_FAILURE)])[0])
 
     def test_a_tracking_without_a_switch_snapshot_is_recomputed(self):
         ok, why, _ = self._check([row('global_tracking', summary={'tracks': 1})])
@@ -70,6 +70,6 @@ class ComputeSnapshotTest(SimpleTestCase):
 class FailedSideInputTest(TrackingIsCurrentTest):
     def test_a_side_input_that_failed_after_the_tracking_does_not_invalidate_it(self):
         """Une correction ortho ÉCHOUÉE n'a rien changé à ce que lit le tracking (2026-10-01)."""
-        ok, why, _ = self._check([tracking(), row('ortho_correction', status='failed',
+        ok, why, _ = self._check([tracking(), row('ortho_correction', status=JOB_FAILURE,
                                                   at=T0 + timedelta(minutes=5))])
         self.assertTrue(ok, why)

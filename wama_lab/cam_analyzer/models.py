@@ -424,88 +424,11 @@ def depth_output_dir(camera) -> str:
     return relative_dir
 
 
-class AnalysisPass(models.Model):
-    """
-    Per-session record of every distinct processing step (extraction, YOLO,
-    YOLOPv2, SAM3, lane events, distance, conflicts...). Lets the UI show
-    which passes are done, missing, or stale (= profile parameter has
-    changed since the pass was run), and lets the orchestrator decide what
-    to re-run incrementally.
-
-    Granularity: ONE row per (session, pass_type, camera) — camera is null for
-    session-wide passes (corrigé le 2026-09-15 : cf. la UniqueConstraint
-    ci-dessous ; l'ancienne mention « per (session, pass_type) » était périmée).
-    Per-class detail goes into output_summary JSON.
-    Statuts en minuscules (pending/running/completed/failed/stale) : à aligner
-    sur le vocabulaire commun JOB_* + STALE (WAMA_APP_GENERATION_ROUTE.md §10.6 4.2).
-    """
-
-    class PassType(models.TextChoices):
-        EXTRACTION = 'extraction', 'Extraction RTMaps'
-        INTERSECTION_WINDOWS = 'intersection_windows', "Fenêtres d'intersection"
-        YOLO_DETECT = 'yolo_detect', 'Détection YOLO'
-        YOLOPV2_LANES = 'yolopv2_lanes', 'Drivable + lanes (YOLOPv2)'
-        SAM3_MARKINGS = 'sam3_markings', 'Marquages SAM3'
-        LANE_EVENTS = 'lane_events', 'Évènements de voie'
-        TEMPORAL_SEGMENTS = 'temporal_segments', 'Segments temporels'
-        DISTANCE = 'distance', 'Distance / vitesse / TTC'
-        DEPTH = 'depth', 'Profondeur (monoculaire)'
-        DEPTH_CALC = 'depth_calc', 'Calculs profondeur (plan de sol / distances)'
-        LANE_MAP_RECALAGE = 'lane_map_recalage', 'Recalage voie + carte (latéral + cap navette)'
-        CAMERA_INTRINSICS = 'camera_intrinsics', 'Champ et orientation des caméras (mesurés)'
-        VISUAL_YAW = 'visual_yaw', 'Cap visuel (rotation vue par la caméra avant)'
-        ORTHO_RECALAGE = 'ortho_recalage', 'Recalage ortho (passages piétons IGN, mesure)'
-        ORTHO_CORRECTION = 'ortho_correction', 'Correction de trajectoire ortho (ancres)'
-        GLOBAL_TRACKING = 'global_tracking', 'Tracking 360° (gids + trajectoires)'
-        INDICATORS = 'indicators', 'Indicateurs (TTC/PET + insertions)'
-        CONFLICTS = 'conflicts', 'Conflits'
-
-    class Status(models.TextChoices):
-        PENDING = 'pending', 'En attente'
-        RUNNING = 'running', 'En cours'
-        COMPLETED = 'completed', 'Terminé'
-        FAILED = 'failed', 'Échec'
-        STALE = 'stale', 'Périmé (profil modifié)'
-
-    session = models.ForeignKey(
-        AnalysisSession,
-        on_delete=models.CASCADE,
-        related_name='passes',
-    )
-    # Proposition A — Per-camera granularity for YOLO/YOLOPv2/SAM3 passes.
-    # Null for session-wide passes (intersection_windows, temporal_segments,
-    # conflicts, extraction) which apply to the whole session.
-    camera = models.ForeignKey(
-        CameraView,
-        null=True, blank=True,
-        on_delete=models.CASCADE,
-        related_name='passes',
-    )
-    pass_type = models.CharField(max_length=30, choices=PassType.choices)
-    status = models.CharField(max_length=15, choices=Status.choices, default=Status.PENDING)
-    # Snapshot of the watched profile parameters at the moment the pass ran.
-    # Used to compute STALE by comparison with the current profile.
-    parameters = models.JSONField(default=dict, blank=True)
-    # Free-form summary: by_camera, by_class, counts, etc.
-    output_summary = models.JSONField(default=dict, blank=True)
-    started_at = models.DateTimeField(null=True, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    duration_s = models.FloatField(null=True, blank=True)
-    error_message = models.TextField(blank=True)
-
-    class Meta:
-        ordering = ['session', 'pass_type', 'camera']
-        constraints = [
-            models.UniqueConstraint(
-                fields=['session', 'pass_type', 'camera'],
-                name='unique_pass_per_session_type_camera',
-            ),
-        ]
-        indexes = [models.Index(fields=['session', 'status'])]
-
-    def __str__(self):
-        cam_str = f" [{self.camera.position}]" if self.camera_id else ""
-        return f"{self.get_pass_type_display()}{cam_str} [{self.status}] — {self.session_id}"
+# Les PASSES d'une session n'ont plus de modèle propre depuis le 2026-10-04 : leur état est la
+# ligne d'exécution COMMUNE (`common.ProcessRun`, une par passe × caméra), écrite et lue par
+# `utils/pass_tracking.py` ; leurs libellés vivent dans son registre `PASSES`. L'ex-`AnalysisPass`
+# en a été le modèle (ROUTE §10.6 4.1) — retiré en trois étapes, table sauvegardée avant sa
+# suppression (CAM_ANALYZER_CHANGELOG, 2026-10-04).
 
 
 class LaneEvent(models.Model):

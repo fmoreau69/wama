@@ -137,7 +137,9 @@ def job_status_values() -> list:
 # (`data_types.LEGACY_TYPE_ALIASES`, `content_analyzer.LEGACY_DETECTED_TYPE_ALIASES`) : on
 # normalise À LA LECTURE, et la base ne bouge pas.
 JOB_STATUS_ALIASES = {
-    # monde LAB (`AnalysisPass.Status`, minuscules) — `stale` est celui d'où vient `STALE`
+    # monde LAB (minuscules) — `stale` est celui d'où vient `STALE` ; l'ex-`AnalysisPass.Status`
+    # est retiré le 2026-10-04 (passes → `ProcessRun`), les états de session du Lab parlent encore
+    # `completed` / `failed`
     'COMPLETED': JOB_SUCCESS, 'FAILED': JOB_FAILURE, 'STALE': JOB_STALE,
     # ⚠ `DONE`/`ERROR` RETIRÉS le 2026-09-18 (décision de Fabien : « ils dupliquent sans raison »).
     # Mesuré AVANT de retirer : **zéro ligne** en base sur les 18 modèles portant un `status`, les

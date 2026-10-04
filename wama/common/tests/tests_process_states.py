@@ -135,20 +135,19 @@ class AlignementDuMondeLabTest(SimpleTestCase):
     """Le Lab avait `stale` AVANT le commun — c'est de lui que le modèle le reprend (§10.6 4.3)."""
 
     def test_les_cinq_etats_du_Lab_ont_leur_correspondant_au_commun(self):
-        from wama_lab.cam_analyzer.models import AnalysisPass
-        correspondance = {
-            AnalysisPass.Status.PENDING: JOB_PENDING,
-            AnalysisPass.Status.RUNNING: JOB_RUNNING,
-            AnalysisPass.Status.COMPLETED: 'SUCCESS',
-            AnalysisPass.Status.FAILED: JOB_FAILURE,
-            AnalysisPass.Status.STALE: JOB_STALE,
-        }
+        """Depuis le 2026-10-04 les passes du Lab n'ont plus de vocabulaire propre : leur état est
+        une ligne `ProcessRun`, en `JOB_*` (l'ex-`AnalysisPass.Status` est retiré). Une partie de
+        ces valeurs minuscules reste portée par d'autres objets du Lab (états de session :
+        `pending`, `completed`, `failed`) : toutes se TRADUISENT, à la lecture, par la table
+        d'alias commune."""
+        from wama.common.models import normalize_job_status
+        correspondance = {'pending': JOB_PENDING, 'running': JOB_RUNNING, 'completed': JOB_SUCCESS,
+                          'failed': JOB_FAILURE, 'stale': JOB_STALE}
         valeurs_communes = {v for v, _ in PROCESS_STATUS_CHOICES}
         for etat_lab, etat_commun in correspondance.items():
             self.assertIn(etat_commun, valeurs_communes,
                           f'{etat_lab} (Lab) sans correspondant au vocabulaire commun')
-        self.assertEqual(len(AnalysisPass.Status.choices), 5,
-                         "le Lab a gagné un état : l'alignement est à refaire")
+            self.assertEqual(normalize_job_status(etat_lab), etat_commun, etat_lab)
 
 
 def _generated_status_choices(src: str):

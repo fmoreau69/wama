@@ -1,17 +1,15 @@
 """
-AnalysisPass helpers — register, complete, fail, and detect stale passes.
+Le registre des passes du cam_analyzer et leur suivi — sur les LIGNES D'EXÉCUTION COMMUNES
+(`common.ProcessRun`, `common/services/process_runs.py`, ROUTE §10.6 4.1) depuis le 2026-10-04.
 
-A pass is "stale" when its parameter snapshot no longer matches the
-profile's current value of the watched parameters. When a pass becomes
-stale, downstream passes (per the dependency graph) are also flipped to
-stale so the UI shows the cascade clearly.
+Une passe est PÉRIMÉE (`STALE`) quand la photo des réglages prise à son lancement ne correspond
+plus au profil, ou qu'un amont est périmé, en échec ou absent : la péremption descend en cascade
+vers l'aval, ligne par ligne (passe × caméra).
 """
 from __future__ import annotations
 
 import logging
 from typing import Iterable, Optional
-
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +18,19 @@ logger = logging.getLogger(__name__)
 # `_WATCHED`, `_STAGE`, `_DEPENDS_ON`, `_PER_CAMERA_PASSES` (ici), la liste `order` en dur de
 # `get_passes_status`, et `views.run_passes.dispatch_map`. Six copies qui ne pouvaient que
 # diverger (`depth`/`depth_calc` avaient un étage mais aucune dépendance déclarée). Patron :
-# `features.FEATURES` — un registre, des dérivés. `PassType` reste la source des LIBELLÉS et
-# des valeurs persistées ; `tests_pass_registry` atteste que les deux ensembles coïncident.
+# `features.FEATURES` — un registre, des dérivés. Les LIBELLÉS y sont aussi depuis le 2026-10-04
+# (`label`, le champ du `ProcessSpec` commun) : `PassType` est parti avec `AnalysisPass`.
 #
 # C'est aussi la marche ① vers D13 (`WAMA_DATA_WORLD §9undecies.2`, tranchée le 24/08) : les
 # passes sont déjà des `FunctionSpec` app-bound (`function_specs.py`) ; ce registre S'EXPORTE en
 # manifeste `pipeline` à nœuds `function` depuis le 2026-09-09 (`pipeline_manifest()` ci-dessous —
 # corrigé le 2026-09-15, la mention « quand le kind les acceptera » était périmée).
-# ⏳ Ce registre et `AnalysisPass` sont le MODÈLE du moteur commun de pipeline (photo des réglages,
-# péremption STALE, cascade, lancement ciblé) — WAMA_APP_GENERATION_ROUTE.md §10.6, marche P3.
+# Ce registre et l'ex-`AnalysisPass` ont été le MODÈLE du moteur commun de pipeline (photo des
+# réglages, péremption STALE, cascade, lancement ciblé) — WAMA_APP_GENERATION_ROUTE.md §10.6 ; ils
+# en sont devenus des UTILISATEURS (`Pass` = `ProcessSpec`, lignes = `ProcessRun`).
 #
-# Champs :
+# Champs (outre `key`, `label`, `depends_on`, `watched`, `gpu`, `function` du `ProcessSpec`) :
+#   label       libellé du panneau (ex-`AnalysisPass.PassType`, repris mot pour mot) ;
 #   stage       'analyse' (perception : REGARDE les images, GPU) | 'calcul' (DÉRIVE des données
 #               stockées, CPU, rejouable) — scinde le volet droit et pilote les ▶ d'étage ;
 #   depends_on  amont dont la péremption (STALE/FAILED/absent) se propage à cette passe, et
@@ -76,59 +76,59 @@ class Pass(ProcessSpec):
 
 PASSES: tuple = (
     # ── ANALYSE (perception) ────────────────────────────────────────────────────
-    Pass('extraction', stage='analyse', eta_size='video'),
-    Pass('intersection_windows', stage='analyse', depends_on=('extraction',), watched=('intersections',),
+    Pass('extraction', label='Extraction RTMaps', stage='analyse', eta_size='video'),
+    Pass('intersection_windows', label="Fenêtres d'intersection", stage='analyse', depends_on=('extraction',), watched=('intersections',),
          eta_size='video'),
-    Pass('yolo_detect', stage='analyse', depends_on=('extraction',),
+    Pass('yolo_detect', label='Détection YOLO', stage='analyse', depends_on=('extraction',),
          watched=('model_path', 'iou_threshold', 'tracker'), per_camera=True, gpu=True),
-    Pass('yolopv2_lanes', stage='analyse', depends_on=('extraction',),
+    Pass('yolopv2_lanes', label='Drivable + lanes (YOLOPv2)', stage='analyse', depends_on=('extraction',),
          watched=('road_model_path',), per_camera=True, gpu=True),
-    Pass('sam3_markings', stage='analyse', depends_on=('extraction', 'intersection_windows'),
+    Pass('sam3_markings', label='Marquages SAM3', stage='analyse', depends_on=('extraction', 'intersection_windows'),
          watched=('sam3_markings_enabled', 'sam3_markings_prompts', 'sam3_as_road_fallback'),
          per_camera=True, task='analyze_sam3_only_task', gpu=True, eta_size='windows'),
     # Profondeur (Depth Pro) : lit les bbox (profondeur de contact) → dépend de la détection.
-    Pass('depth', stage='analyse', depends_on=('yolo_detect',), task='compute_depth_task', gpu=True,
+    Pass('depth', label='Profondeur (monoculaire)', stage='analyse', depends_on=('yolo_detect',), task='compute_depth_task', gpu=True,
          function='cam_analyzer.depth_analysis'),
     # Recalage ortho 2b (2026-09-28, ex-bouton du panneau Calibration seul) : REGARDE l'orthophoto
     # (SAM3, GPU + réseau) et l'apparie aux passages piétons caméra agrégés en monde
     # (`marking_world`). Elle les agrège ELLE-MÊME depuis le 2026-09-29 : elle dépendait de
     # `global_tracking` pour cela seul, et cette dépendance d'une ANALYSE envers un CALCUL
     # empêchait de chaîner les deux étages en sous-pipelines (ROUTE §10.6 3.4).
-    Pass('ortho_recalage', stage='analyse', depends_on=('sam3_markings', 'intersection_windows'),
+    Pass('ortho_recalage', label='Recalage ortho (passages piétons IGN, mesure)', stage='analyse', depends_on=('sam3_markings', 'intersection_windows'),
          task='compute_ortho_recalage_task', gpu=True, eta_size='windows'),
     # ── CALCUL (dérivation, CPU, rejouable) ─────────────────────────────────────
-    Pass('lane_events', stage='calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
+    Pass('lane_events', label='Évènements de voie', stage='calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
          task='compute_lane_events_task'),
-    Pass('temporal_segments', stage='calcul', depends_on=('yolo_detect', 'intersection_windows'),
+    Pass('temporal_segments', label='Segments temporels', stage='calcul', depends_on=('yolo_detect', 'intersection_windows'),
          watched=('target_classes', 'confidence'), task='compute_temporal_segments_task'),
-    Pass('distance', stage='calcul', depends_on=('lane_events',), task='compute_distance_task'),
-    Pass('depth_calc', stage='calcul', depends_on=('depth',), task='compute_depth_calc_task'),
+    Pass('distance', label='Distance / vitesse / TTC', stage='calcul', depends_on=('lane_events',), task='compute_distance_task'),
+    Pass('depth_calc', label='Calculs profondeur (plan de sol / distances)', stage='calcul', depends_on=('depth',), task='compute_depth_calc_task'),
     # Recalage voie + carte (2026-09-28) : lit les lignes YOLOPv2 et la BD TOPO (réseau IGN),
     # écrit une correction de POSE navette — déclarée AVANT le tracking pour que le ▶ Calculs
     # la joue avant lui (ordre topologique stable). Pas de dépendance déclarée du tracking vers
     # elle : son effet passe par ⚑ lane_map_recalage (OFF par défaut) ; en faire une amont
     # rendrait PÉRIMÉ le tracking de toute session qui ne l'a jamais jouée.
-    Pass('lane_map_recalage', stage='calcul', depends_on=('yolopv2_lanes',),
+    Pass('lane_map_recalage', label='Recalage voie + carte (latéral + cap navette)', stage='calcul', depends_on=('yolopv2_lanes',),
          task='compute_lane_map_recalage_task'),
     # Champ des caméras MESURÉ (2026-09-30) : relit les VIDÉOS avant/arrière (CPU, OpenCV) aux
     # virages de la trace. Appliqué sous ⚑ measured_camera_fov (défaut OFF) — pas de dépendance
     # déclarée depuis l'aval, même raison que `lane_map_recalage`.
-    Pass('camera_intrinsics', stage='calcul', depends_on=('extraction',),
+    Pass('camera_intrinsics', label='Champ et orientation des caméras (mesurés)', stage='calcul', depends_on=('extraction',),
          task='compute_camera_intrinsics_task', eta_size='video'),
     # Cap VISUEL (2026-09-30) : rotation vue par la caméra avant quand la navette roule — exige la
     # focale mesurée. Appliquée au filtre navette sous ⚑ visual_heading (défaut OFF).
-    Pass('visual_yaw', stage='calcul', depends_on=('camera_intrinsics',), task='compute_visual_yaw_task',
+    Pass('visual_yaw', label='Cap visuel (rotation vue par la caméra avant)', stage='calcul', depends_on=('camera_intrinsics',), task='compute_visual_yaw_task',
          eta_size='video'),
     # Correction ortho (calcul pur + masque satellite BD TOPO) : ancres tirées de la MESURE
     # `ortho_recalage`, appliquées par ⚑ ortho_correction. Avant le tracking, même raison que
     # `lane_map_recalage` (et même absence de dépendance déclarée du tracking vers elle).
-    Pass('ortho_correction', stage='calcul', depends_on=('ortho_recalage',),
+    Pass('ortho_correction', label='Correction de trajectoire ortho (ancres)', stage='calcul', depends_on=('ortho_recalage',),
          task='compute_ortho_correction_task', eta_size='windows'),
-    Pass('global_tracking', stage='calcul', depends_on=('yolo_detect', 'distance'),
+    Pass('global_tracking', label='Tracking 360° (gids + trajectoires)', stage='calcul', depends_on=('yolo_detect', 'distance'),
          task='compute_global_tracking_task'),
-    Pass('indicators', stage='calcul', depends_on=('global_tracking', 'distance'),
+    Pass('indicators', label='Indicateurs (TTC/PET + insertions)', stage='calcul', depends_on=('global_tracking', 'distance'),
          task='compute_indicators_task'),
-    Pass('conflicts', stage='calcul', depends_on=('lane_events', 'distance'),
+    Pass('conflicts', label='Conflits', stage='calcul', depends_on=('lane_events', 'distance'),
          task='compute_conflict_events_task'),
 )
 
@@ -256,25 +256,16 @@ def _profile_snapshot(profile, watched_keys: list[str]) -> dict:
     return {k: getattr(profile, k, None) for k in watched_keys}
 
 
-# ── LIGNES D'EXÉCUTION COMMUNES (`ProcessRun`) — étape 1 : ÉCRITURE EN DOUBLE (2026-10-03) ─────
+# ── LIGNES D'EXÉCUTION COMMUNES (`ProcessRun`) — la SEULE trace des passes depuis le 2026-10-04 ──
 # `AnalysisPass` a été le MODÈLE de la ligne d'exécution commune (`common.ProcessRun`,
-# `common/services/process_runs.py`, ROUTE §10.6 4.1) ; les passes du Lab y passent PAR ÉTAPES
-# (décision de Fabien) : (1) chaque écriture d'une passe écrit AUSSI sa ligne commune — c'est ici ;
-# (2) les lecteurs basculent sur la ligne commune ; (3) l'historique est repris et `AnalysisPass`
-# retiré. Correspondance : élément = la SESSION, nœud = la passe, clé d'instance = la caméra
-# (vide pour une passe de niveau session), process = sa fonction du catalogue
-# (`Pass.function_key`), photo des réglages = `parameters`. Les statuts minuscules du Lab se
-# TRADUISENT à l'écriture (`COMMON_STATUS`) — la table commune ne porte que le vocabulaire `JOB_*`.
-# Toutes les écritures communes passent par `process_runs.safely` : une ligne commune qui ne
-# s'écrit pas ne fait JAMAIS échouer une passe (elle se dit au journal).
-
-def common_status(status: str) -> str:
-    """Statut du Lab → vocabulaire commun (`pending/running/completed/failed/stale` →
-    `PENDING/RUNNING/SUCCESS/FAILURE/STALE`)."""
-    from wama.common.models import JOB_FAILURE, JOB_PENDING, JOB_RUNNING, JOB_STALE, JOB_SUCCESS
-    return {'pending': JOB_PENDING, 'running': JOB_RUNNING, 'completed': JOB_SUCCESS,
-            'failed': JOB_FAILURE, 'stale': JOB_STALE}.get(status, status)
-
+# `common/services/process_runs.py`, ROUTE §10.6 4.1) ; les passes du Lab y sont passées PAR ÉTAPES
+# (décision de Fabien) : (1) écriture en double, 2026-10-03 ; (2) historique repris puis lecteurs
+# basculés, 2026-10-04 ; (3) `AnalysisPass` retiré et panneau au vocabulaire commun, 2026-10-04 —
+# table sauvegardée avant sa suppression (CHANGELOG). Correspondance : élément = la SESSION, nœud =
+# la passe, clé d'instance = la position de la caméra (vide pour une passe de niveau session),
+# process = sa fonction du catalogue (`Pass.function_key`), photo des réglages = `settings_snapshot`.
+# Les écritures sont DIRECTES (pas de `process_runs.safely`) : la ligne n'est plus une copie mais
+# l'état même de la passe — une ligne qui ne s'écrit pas est une passe qui ne s'enregistre pas.
 
 def instance_key(camera) -> str:
     """Clé d'instance d'une passe : la position de sa caméra, vide pour une passe de session."""
@@ -292,106 +283,30 @@ def _common_runs():
     return process_runs
 
 
-def lab_status(status: str) -> str:
-    """Vocabulaire commun → statut du PANNEAU du Lab (inverse de `common_status`) — l'étape 2 lit
-    les lignes communes mais garde, à la sortie, le vocabulaire que le panneau et `run_passes`
-    comprennent ; le passage du panneau au vocabulaire commun est l'étape 3."""
-    return {'PENDING': 'pending', 'RUNNING': 'running', 'AWAITING_RESOURCES': 'running',
-            'SUCCESS': 'completed', 'FAILURE': 'failed', 'STALE': 'stale'}.get(status, status)
-
-
-def backfill_common_lines(sessions=None) -> int:
-    """Étape 2a : chaque passe du Lab SANS ligne commune en reçoit une, à son image (état traduit,
-    photo, résumé, dates, erreur). Les lignes existantes — écrites en double depuis l'étape 1 —
-    font foi et ne sont pas touchées ; rien n'est effacé. Rejouable. Rend le nombre de lignes
-    créées. `sessions` : un itérable de sessions, toutes par défaut."""
-    from wama.common.models import ProcessRun
-    from wama_lab.cam_analyzer.models import AnalysisPass
-    pr = _common_runs()
-    qs = AnalysisPass.objects.select_related('session', 'camera')
-    if sessions is not None:
-        qs = qs.filter(session__in=list(sessions))
-    created = 0
-    for row in qs.iterator():
-        addr = pr.address(row.session)
-        _run, made = ProcessRun.objects.get_or_create(
-            **addr, node_id=row.pass_type, instance_key=instance_key(row.camera),
-            defaults={'process_kind': 'function', 'process_key': process_key(row.pass_type),
-                      'status': common_status(row.status),
-                      'settings_snapshot': row.parameters or {},
-                      'output_summary': row.output_summary or {},
-                      'started_at': row.started_at, 'finished_at': row.completed_at,
-                      'duration_s': row.duration_s, 'error_message': row.error_message or ''})
-        created += made
-    return created
-
-
 def mark_started(session, pass_type: str, profile=None, camera=None) -> None:
-    """Insert/update the pass row at status RUNNING and reset any prior error.
+    """La passe PART : sa ligne passe `RUNNING`, avec la photo des réglages qu'elle surveille.
 
-    camera : when provided, the pass is scoped to that camera (per-camera
-    granularity, e.g. yolo_detect_front). When None, the pass is session-wide
-    (e.g. intersection_windows, temporal_segments).
-    """
-    from wama_lab.cam_analyzer.models import AnalysisPass
-
+    `camera` : la passe est propre à cette caméra (détection, voies, SAM3) ; None = passe de
+    session. La durée du run précédent survit au lancement (`previous_duration_s`, avec la taille
+    sur laquelle elle a été mesurée) : c'est `process_runs.start` qui la garde."""
     snapshot = _profile_snapshot(profile, _WATCHED.get(pass_type, []))
-    # La durée du run PRÉCÉDENT survit au lancement (ETA de la passe en cours, 2026-10-01) :
-    # `duration_s` repasse à None, la valeur reste lisible sous `previous_duration_s`.
-    prev = AnalysisPass.objects.filter(session=session, pass_type=pass_type, camera=camera) \
-        .only('duration_s', 'output_summary').first()
-    summary = dict((prev.output_summary or {}) if prev else {})
-    if prev is not None and prev.duration_s:
-        summary['previous_duration_s'] = prev.duration_s
-    obj, _ = AnalysisPass.objects.update_or_create(
-        session=session,
-        pass_type=pass_type,
-        camera=camera,
-        defaults={
-            'status': AnalysisPass.Status.RUNNING,
-            'parameters': snapshot,
-            'started_at': timezone.now(),
-            'completed_at': None,
-            'duration_s': None,
-            'error_message': '',
-            'output_summary': summary,
-        },
-    )
-    pr = _common_runs()
-    pr.safely(pr.start, session, pass_type, process_key=process_key(pass_type), kind='function',
-              instance_key=instance_key(camera), settings_snapshot=snapshot)
-    return obj
+    _common_runs().start(session, pass_type, process_key=process_key(pass_type), kind='function',
+                         instance_key=instance_key(camera), settings_snapshot=snapshot)
 
 
 def mark_completed(session, pass_type: str, *, output_summary: dict | None = None,
                    camera=None) -> None:
-    from wama_lab.cam_analyzer.models import AnalysisPass
-
-    try:
-        obj = AnalysisPass.objects.get(session=session, pass_type=pass_type, camera=camera)
-    except AnalysisPass.DoesNotExist:
-        # mark_started may not have been called (e.g. legacy task path) —
-        # create the row directly with whatever we have.
-        obj = AnalysisPass(session=session, pass_type=pass_type, camera=camera)
-        obj.started_at = timezone.now()
-    now = timezone.now()
-    obj.status = AnalysisPass.Status.COMPLETED
-    obj.completed_at = now
-    if obj.started_at:
-        obj.duration_s = round((now - obj.started_at).total_seconds(), 2)
-    if output_summary is not None:
-        obj.output_summary = output_summary
-    obj.error_message = ''
+    """La passe a RENDU : `SUCCESS`, durée mesurée depuis son départ (une passe terminée sans
+    départ noté — chemin d'exécution ancien — naît terminée, comme le fait `process_runs`)."""
     # ETA (2026-10-01) : la taille du run voyage avec sa durée — c'est ce qui permet de RÉUTILISER
     # cette durée à la prochaine relance, à l'échelle si la taille a changé.
     size = pass_size_s(session, pass_type, camera.position if camera is not None else None)
+    summary = dict(output_summary or {})
     if size:
-        obj.output_summary = {**(obj.output_summary or {}), 'eta_size_s': round(size, 1)}
-    obj.save()
-    pr = _common_runs()
-    pr.safely(pr.succeed, session, pass_type, instance_key=instance_key(camera),
-              output_summary=obj.output_summary, process_key=process_key(pass_type))
-    _record_pass_eta(session, pass_type, size, obj.duration_s)
+        summary['eta_size_s'] = round(size, 1)
+    run = _common_runs().succeed(session, pass_type, instance_key=instance_key(camera),
+                                 output_summary=summary, process_key=process_key(pass_type))
+    _record_pass_eta(session, pass_type, size, run.duration_s)
 
 
 # ── ETA par process (2026-10-01, demande de Fabien) ──────────────────────────────────────
@@ -486,7 +401,7 @@ def annotate_eta(session, rows) -> None:
         eta = row_eta_seconds(size, last, summ.get('eta_size_s'), learned)
         r['eta_seconds'] = round(eta, 1) if eta else None
         t0 = started.get((pt, pos)) or started.get((pt, None))
-        if r.get('status') == 'running' and eta and t0:
+        if r.get('status') == JOB_RUNNING and eta and t0:
             r['eta_remaining_s'] = round(max(0.0, eta - (now - t0).total_seconds()), 1)
 
 
@@ -501,6 +416,7 @@ def chain_eta_remaining(session, rows, queued=()):
     la chaîne = 0. None quand rien n'est en cours ni en file, ou qu'aucune durée n'est connue."""
     from datetime import datetime, timezone as _dtz
     from django.core.cache import cache
+    from wama.common.models import JOB_RUNNING, JOB_SUCCESS
     info = cache.get(chain_passes_key(session.id)) or {}
     keys = list(dict.fromkeys(list(info.get('passes') or []) + list(queued or [])))
     if not keys:
@@ -510,12 +426,12 @@ def chain_eta_remaining(session, rows, queued=()):
     for r in rows:
         if r.get('pass_type') not in keys:
             continue
-        if r.get('status') == 'running':
+        if r.get('status') == JOB_RUNNING:
             rem = r.get('eta_remaining_s')
         else:
             done_at = r.get('completed_at')
             fresh = False
-            if done_at and t_chain and r.get('status') == 'completed':
+            if done_at and t_chain and r.get('status') == JOB_SUCCESS:
                 try:
                     fresh = datetime.fromisoformat(done_at).astimezone(_dtz.utc).timestamp() >= t_chain
                 except ValueError:
@@ -528,46 +444,25 @@ def chain_eta_remaining(session, rows, queued=()):
 
 
 def mark_failed(session, pass_type: str, error_message: str, camera=None) -> None:
-    from wama_lab.cam_analyzer.models import AnalysisPass
-
-    AnalysisPass.objects.update_or_create(
-        session=session,
-        pass_type=pass_type,
-        camera=camera,
-        defaults={
-            'status': AnalysisPass.Status.FAILED,
-            'error_message': str(error_message)[:2000],
-            'completed_at': timezone.now(),
-        },
-    )
-    pr = _common_runs()
-    pr.safely(pr.fail, session, pass_type, str(error_message), instance_key=instance_key(camera),
-              process_key=process_key(pass_type))
+    """La passe a ÉCHOUÉ : le message est gardé sur sa ligne, son résultat précédent n'est pas
+    effacé (un échec ne détruit rien)."""
+    _common_runs().fail(session, pass_type, str(error_message), instance_key=instance_key(camera),
+                        process_key=process_key(pass_type))
 
 
 def fail_running(session, pass_type: str, error_message: str = '') -> int:
     """Passe(s) d'un type restées EN COURS → en échec (annulation, plantage de la tâche qui les
-    portait) — lignes du Lab ET lignes communes. Rend le nombre de lignes du Lab changées.
+    portait). Rend le nombre de lignes changées.
 
     Remplace deux `update(status='failed')` écrits à la main dans `tasks.py` (SAM3 annulé /
-    planté) : ils ne passaient pas par ce module, donc la ligne commune serait restée « en cours »."""
+    planté), qui ne passaient pas par ce module."""
     from wama.common.models import JOB_RUNNING
     pr = _common_runs()
     open_lines = [l for l in pr.lines(session) if l.node_id == pass_type and l.status == JOB_RUNNING]
     for l in open_lines:
         pr.fail(session, pass_type, str(error_message), instance_key=l.instance_key,
                 process_key=process_key(pass_type))
-        _lab_rows(session, pass_type, l.instance_key).filter(status='running').update(
-            status='failed', error_message=str(error_message)[:2000], completed_at=timezone.now())
     return len(open_lines)
-
-
-def _lab_rows(session, pass_type: str, inst: str):
-    """Les lignes du Lab d'une ligne commune (passe, clé d'instance) — pour le report, tant
-    qu'`AnalysisPass` est écrite en double (jusqu'à l'étape 3)."""
-    from wama_lab.cam_analyzer.models import AnalysisPass
-    qs = AnalysisPass.objects.filter(session=session, pass_type=pass_type)
-    return qs.filter(camera__position=inst) if inst else qs.filter(camera__isnull=True)
 
 
 #: Passes jouées par `process_session_task` (la DÉTECTION : YOLO + YOLOPv2, toutes vues)…
@@ -752,7 +647,6 @@ def reconcile_interrupted_calc_passes(session) -> int:
     bloqué — la relance était impossible depuis le panneau.
     Les passes d'ANALYSE (GPU) ne sont pas concernées : elles n'ont pas cette preuve."""
     from django.core.cache import cache
-    from django.utils import timezone
     if cache.get(calc_chain_key(session.id)):
         return 0
     from wama.common.models import JOB_RUNNING
@@ -762,8 +656,6 @@ def reconcile_interrupted_calc_passes(session) -> int:
     for l in open_lines:
         pr.fail(session, l.node_id, INTERRUPTED_MESSAGE, instance_key=l.instance_key,
                 process_key=process_key(l.node_id))
-        _lab_rows(session, l.node_id, l.instance_key).filter(status='running').update(
-            status='failed', error_message=INTERRUPTED_MESSAGE, completed_at=timezone.now())
     return len(open_lines)
 
 
@@ -818,10 +710,9 @@ def recompute_stale(session) -> int:
 
     Returns the number of passes flipped (for logging).
 
-    Lu sur les LIGNES COMMUNES depuis le 2026-10-04 (étape 2 du passage à `ProcessRun`) ; le
-    résultat est reporté sur `AnalysisPass`, encore écrite en double jusqu'à l'étape 3.
+    Lu et écrit sur les LIGNES COMMUNES (`ProcessRun`) depuis le 2026-10-04.
     """
-    from wama.common.models import JOB_STALE, JOB_SUCCESS
+    from wama.common.models import JOB_SUCCESS
     from wama.common.services.process_runs import stale_nodes
     profile = session.profile
     rows = list(_common_runs().lines(session))
@@ -858,8 +749,6 @@ def recompute_stale(session) -> int:
     pairs = [(r.node_id, r.instance_key) for r in rows if node_of[id(r)] in stale]
     if pairs:
         _stale_common_lines(session, pairs)
-        for node, inst in pairs:
-            _lab_rows(session, node, inst).filter(status='completed').update(status='stale')
     return len(pairs)
 
 
@@ -875,31 +764,28 @@ def _stale_common_lines(session, pairs) -> int:
 _PER_CAMERA_PASSES = {p.key for p in PASSES if p.per_camera}
 
 
-def _panel_row(line, label_map, camera) -> dict:
-    """Ligne du panneau d'une ligne commune — mêmes clés qu'avant l'étape 2, statut retraduit."""
+def _panel_row(spec, camera, line=None) -> dict:
+    """Ligne du panneau d'une passe (et d'une caméra pour une passe par caméra) : l'état est
+    celui de sa ligne commune, dans le vocabulaire commun (`JOB_*`) ; sans ligne, `PENDING` —
+    jamais jouée, comme la bande des process commune la montre (`AppPipeline.card_rows`)."""
+    from wama.common.models import JOB_PENDING
     return {
-        'pass_type': line.node_id,
-        'label': label_map.get(line.node_id, line.node_id),
+        'pass_type': spec.key,
+        'label': spec.label or spec.key,
         'camera': camera,
-        'status': lab_status(line.status),
-        'parameters': line.settings_snapshot or {},
-        'output_summary': line.output_summary or {},
-        'completed_at': line.finished_at.isoformat() if line.finished_at else None,
-        'duration_s': line.duration_s,
-        'error_message': line.error_message or '',
+        'status': line.status if line is not None else JOB_PENDING,
+        'parameters': (line.settings_snapshot or {}) if line is not None else {},
+        'output_summary': (line.output_summary or {}) if line is not None else {},
+        'completed_at': line.finished_at.isoformat() if line is not None and line.finished_at else None,
+        'duration_s': line.duration_s if line is not None else None,
+        'error_message': (line.error_message or '') if line is not None else '',
     }
 
 
 def get_passes_status(session) -> list[dict]:
-    """Return a serialisable list of pass status dicts for the UI.
-
-    For per-camera pass types, one entry is emitted per active camera (the
-    UI groups them under the same label with sub-rows). Session-wide passes
-    get a single entry."""
-    from wama_lab.cam_analyzer.models import AnalysisPass
-
-    # Lu sur les LIGNES COMMUNES depuis le 2026-10-04 (étape 2) : (nœud, clé d'instance ou None)
-    # → ligne ; statut retraduit pour le panneau (`lab_status`).
+    """Les passes de la session pour le panneau, dans l'ordre du registre : une ligne par passe
+    de session, une par caméra concernée pour une passe par caméra. Lu sur les LIGNES COMMUNES."""
+    # (nœud, clé d'instance ou None) → ligne commune
     by_key = {(l.node_id, l.instance_key or None): l for l in _common_runs().lines(session)}
 
     cameras = list(session.cameras.all().order_by('position'))
@@ -913,13 +799,11 @@ def get_passes_status(session) -> list[dict]:
     _yolopv2_all = bool(getattr(getattr(session, 'profile', None), 'yolopv2_all_views', False))
     out = []
     # Ordre d'affichage = ordre de déclaration du registre (plus de liste en dur ici).
-    order = [AnalysisPass.PassType(k) for k in ORDER]
-    label_map = dict(AnalysisPass.PassType.choices)
-    for pt in order:
-        if pt.value in _PER_CAMERA_PASSES:
-            if pt.value == 'sam3_markings':
+    for spec in PASSES:
+        if spec.per_camera:
+            if spec.key == 'sam3_markings':
                 relevant = [c for c in cameras if c.position in _SAM3_POSITIONS]
-            elif pt.value == 'yolopv2_lanes' and not _yolopv2_all:
+            elif spec.key == 'yolopv2_lanes' and not _yolopv2_all:
                 # yolopv2 front-only par défaut (toggle OFF).
                 relevant = [c for c in cameras if c.position == 'front']
             else:
@@ -927,42 +811,15 @@ def get_passes_status(session) -> list[dict]:
                 # « non faite » (+ bouton lancer) conservée pour left/right.
                 relevant = cameras
             for cam in relevant:
-                p = by_key.get((pt.value, cam.position))
+                line = by_key.get((spec.key, cam.position))
                 # Repli sur la passe de NIVEAU SESSION (camera=None) UNIQUEMENT pour les
                 # caméras réellement traitées (analyzed_positions) — compat des analyses
                 # enregistrées avant le suivi par caméra, sans cocher left/right à tort.
-                if p is None and cam.position in analyzed:
-                    p = by_key.get((pt.value, None))
-                if p is None:
-                    out.append({
-                        'pass_type': pt.value,
-                        'label': pt.label,
-                        'camera': cam.position,
-                        'status': 'never',
-                        'parameters': {},
-                        'output_summary': {},
-                        'completed_at': None,
-                        'duration_s': None,
-                        'error_message': '',
-                    })
-                else:
-                    out.append(_panel_row(p, label_map, cam.position))
+                if line is None and cam.position in analyzed:
+                    line = by_key.get((spec.key, None))
+                out.append(_panel_row(spec, cam.position, line))
         else:
-            p = by_key.get((pt.value, None))
-            if p is None:
-                out.append({
-                    'pass_type': pt.value,
-                    'label': pt.label,
-                    'camera': None,
-                    'status': 'never',
-                    'parameters': {},
-                    'output_summary': {},
-                    'completed_at': None,
-                    'duration_s': None,
-                    'error_message': '',
-                })
-            else:
-                out.append(_panel_row(p, label_map, None))
+            out.append(_panel_row(spec, None, by_key.get((spec.key, None))))
     # Étage d'affichage (analyse / calcul) — scinde visuellement le pipeline dans le volet droit.
     for d in out:
         d['stage'] = _STAGE.get(d.get('pass_type'), 'analyse')
