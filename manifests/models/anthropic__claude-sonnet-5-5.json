@@ -14,7 +14,7 @@
     },
     "composition": {
       "runtime": {
-        "engine": "claude_code"
+        "engine": "anthropic"
       }
     },
     "extra_info": {
@@ -29,18 +29,18 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Le modèle que Claude Code choisit lui-même pour votre abonnement.",
+      "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
       "hf_id": null,
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
-      "source": "claude_code"
+      "source": "anthropic"
     },
     "prompts": {
       "contract": null
     },
     "provenance": {
-      "backend_ref": "claude_code",
+      "backend_ref": "anthropic",
       "confidence": null,
       "is_proposed": false,
       "proposal_kind": null,
@@ -52,15 +52,15 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Le modèle que Claude Code choisit lui-même pour votre abonnement.",
-  "key": "claude_code:default",
+  "description": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+  "key": "anthropic:claude-sonnet-5-5",
   "manifest_kind": "model",
-  "name": "Claude Code — modèle par défaut",
+  "name": "Claude Sonnet 5.5",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "AIModel:claude_code:default",
+    "ref": "AIModel:anthropic:claude-sonnet-5-5",
     "type": "extract"
   },
   "visibility": "public",

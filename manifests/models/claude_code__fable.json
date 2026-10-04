@@ -29,7 +29,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Le modèle que Claude Code choisit lui-même pour votre abonnement.",
+      "description_short": "Le plus récent Claude Fable, par l'alias « fable » de Claude Code.",
       "hf_id": null,
       "license": null,
       "model_type": "llm",
@@ -52,15 +52,15 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Le modèle que Claude Code choisit lui-même pour votre abonnement.",
-  "key": "claude_code:default",
+  "description": "Le plus récent Claude Fable, par l'alias « fable » de Claude Code.",
+  "key": "claude_code:fable",
   "manifest_kind": "model",
-  "name": "Claude Code — modèle par défaut",
+  "name": "Claude Code — Fable",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "AIModel:claude_code:default",
+    "ref": "AIModel:claude_code:fable",
     "type": "extract"
   },
   "visibility": "public",

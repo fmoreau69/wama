@@ -21469,3 +21469,82 @@ Restes déclarés :
 - la bande s'affiche désormais sur TOUTE card de ces cinq apps (deux process au moins) ;
 - docs GÉNÉRÉES des mécanismes à régénérer (entrée `output_process` ajoutée au registre) ;
 - rouges PRÉEXISTANTS, pas de cette session : budgets de langue des identifiants.
+
+## §CLÔTURE — 2026-10-04, « ASSISTANT (voix, cloud, visiteur, abonnement, corpus système) + PARTAGES RÉSEAU + LATENCE MESURÉE » — session du 03→04/10 — non poussé — 🔚 leviers de latence à décider · journal des connexions (2 décisions)
+
+**Périmètre** : `common/services/assistant_engine.py`, `claude_code.py`, `external_sources.py`,
+`model_manager/services/cloud_models.py`, `common/memory/` (corpus système), `accounts/`
+(visiteur, second axe cloud), `avatarizer` (modèle d'animation), `filemanager` (partages réseau).
+Paliers de la session, dans l'ordre : `§PALIER 2026-10-03 « ASSISTANT : VOIX… »`, `(suite)`,
+`(soir) « LE VISITEUR SANS SESSION… »`, `2026-10-04 « LE CONVERTER OUVERT AU VISITEUR »`,
+`2026-10-04 (suite) « MODÈLES CLOUD »`, `2026-10-04 « ASSISTANT : MODÈLES DE L'ABONNEMENT +
+CORPUS SYSTÈME »`.
+
+**Commits** (neuf à ce point, plus celui de cette clôture) : `89f9cf80` voix / avatar 3D / second
+axe cloud · `ecae5d7b` modèle d'animation · `ff8ee866` garde du visiteur · `1f1e53b5` converter
+ouvert au visiteur · `cc8c41dd` sonde cloud + origine · `73845ff1` modèles de l'abonnement ·
+`34c80b4a` corpus système · `e0f82f48` purge des visiteurs en intervalle + gardes · `66ec0757`
+partages réseau.
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : décider les leviers de latence de l'assistant
+(`WAMA_LLM §1bis`, bloc « Remesuré le 2026-10-04 ») — le premier, ne plus payer les 19,5 s
+d'`import litellm` au premier tour cloud de chaque worker, explique à lui seul le « encore lent
+par Albert » ressenti après chaque relance.
+
+**File des chantiers ouverts** (ordre proposé) :
+1. Latence de l'assistant — cinq leviers mesurés, RIEN de câblé (décision de Fabien).
+2. Journal des connexions — `accounts.AccessLog` existe mais n'est pas exploitable ; proposition
+   faite ; ⛔ deux décisions attendues : durée de conservation, comptes de test exclus ou marqués.
+3. Corpus système — vecteurs des fragments neufs la nuit (décision, règle GPU `WAMA_MEMORY §5bis`) ;
+   doc UTILISATEUR à étoffer (un seul doc : pour un membre le corpus est presque vide).
+4. Voix de l'assistant TIRÉE (auto + curseur + manuel), voix française masculine (autre moteur
+   que Kokoro), lexique de prononciation ; `--animation` au lot et à l'outil de l'assistant.
+5. Partages réseau : Kerberos non géré ; un partage à identifiants se reconnecte à la main après
+   un redémarrage (`INFRA_WSL_VS_WINDOWS §Partages réseau`).
+
+**Pendings système** : 🔴 recharger gunicorn (partages réseau `66ec0757` + les deux réglages
+ajoutés au `.env` local, lus au démarrage) et relancer beat (`purge-visitors` en intervalle,
+`docs-corpus-sync`) ; pousser ; parcours visiteur NON rejoué sur le live ; le geste « connecter
+un dossier distant » NON rejoué au navigateur après la correction (mot de passe requis).
+
+**Annoncé puis non fait, nommément** : régénérer `WAMA_MECANISMES.md` et la doc développeur des
+briques (`doc_facts`) — tous deux modifiés dans l'arbre par une autre instance, donc laissés ;
+mon mécanisme `docs_corpus` y manque (`tests_docs_catalog.test_chaque_mecanisme_a_sa_section`
+rouge, 171 ≠ 184). Compaction de l'index de mémoire partagé (au-dessus de sa taille cible).
+
+**Effets de bord sur le terrain partagé, DÉCLARÉS** :
+- base réelle : 6 654 `RagChunk` sans propriétaire (corpus système, re-dérivables, vectorisés) ;
+  3 lignes de catalogue `claude_code:*` et 2 `anthropic:*` ajoutées par la sonde ; migrations
+  `accounts/0024`, `0025`, `avatarizer/0020` appliquées ;
+- `.env` local : deux lignes `WAMA_SMB_*` (suffixe et domaine du site) ;
+- appels réels sous le compte de Fabien : un appel à l'abonnement Claude (alias `sonnet`), deux
+  tours d'assistant sans historique, six modèles Albert chronométrés — aucun fil de conversation
+  écrit ; `bge-m3` chargé 79 s puis déchargé (résidence accordée par le gouverneur) ;
+- scripts de mesure et de vérification dans le scratchpad de session, jetables ; serveur
+  éphémère de vérification arrêté ; aucun compte de test semé en base réelle.
+
+**Gardes ajoutées, par livrable** : phonèmes sans balises → `tests_kokoro_onnx_phonemes` ·
+prompt de surface vocale → `WebVoicePromptTest` · progression TalkingHead →
+`tests_talkinghead_progress` · plafond d'hébergement → `HostingCeilingTest`, `NiveauCloudTest` ·
+modèle d'animation → `tests_animation_model` · garde du visiteur → `VisitorActionGuardTests` ·
+identité de visiteur → `tests_visitors` · sonde et origine → `NightlyRefreshTest`,
+`OriginLabelTest` · modèles de l'abonnement → `SubscriptionModelsTests` · corpus système →
+`tests_docs_corpus` (garde d'audience PROUVÉE par mutation : prédicat neutralisé → 3 rouges) ·
+entrées planifiées → `tests_calendar` (dont la garde générique) · partages réseau →
+`NetworkShareMountTests`, `NetworkShareScreenTests`.
+NON gardés, avec leur raison : les deux branches d'écran en JS (message de refus du partage,
+origine sous le sélecteur) — validées par V8 au parse seulement, pas de banc DOM ici ; les deux
+consignes ajoutées aux skills de rôle de l'assistant — du texte de prompt, éprouvé par deux
+tours réels, pas par un test.
+
+**Contrôles attendus au prochain `/reprise`** (MESURÉS le 2026-10-04) :
+- tests du périmètre : **289 OK** (13 modules, liste au message de commit de la clôture) ;
+- `check_redundancy` : 89 trouvailles au total, **0 dans les fichiers de cette session** ;
+- `check_docs` : 5 références cassées, 1 périmée — aucune écrite par cette session ;
+- `manifest_export --check` : 23 périmés avant la clôture, dont 6 de cette session RÉGÉNÉRÉS
+  (les 4 `claude_code:*`, les 2 `anthropic:*` de la sonde) ; reste 17, d'autres instances
+  (10 apps, 7 modèles) — non régénérés pour ne pas figer leur travail en cours ;
+- rouges NON de cette session : colonne absente d'une jumelle du bac à sable en base de test
+  (`tests_tool_api_lectures`, 9 tests de `tests_calendar`), budgets de langue des identifiants,
+  `tests_docs_catalog` (docs générées), un test de rôles candidats de la médiathèque (cause non
+  cherchée).
