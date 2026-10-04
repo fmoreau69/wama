@@ -33,6 +33,15 @@ def onnx_providers(device_id: int = 0, cpu_only: bool = False) -> list:
     available = ort.get_available_providers()
     providers = []
     if 'CUDAExecutionProvider' in available:
+        # Les bibliothèques CUDA/cuDNN viennent des paquets pip `nvidia-*` (ceux de torch), hors
+        # du chemin du chargeur : sans ce préchargement, un processus qui n'a pas importé torch
+        # (le service de voix) crée la session… sur le CPU, EN SILENCE.
+        preload = getattr(ort, 'preload_dlls', None)
+        if preload is not None:
+            try:
+                preload()
+            except Exception as e:
+                logger.warning("[onnx] préchargement des bibliothèques CUDA impossible : %s", e)
         providers.append(('CUDAExecutionProvider', {'device_id': device_id}))
     if 'DmlExecutionProvider' in available:
         providers.append(('DmlExecutionProvider', {'device_id': device_id}))
