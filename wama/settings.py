@@ -866,7 +866,9 @@ if ENABLE_CELERY:
         # fichiers partent après `WAMA_VISITOR_TTL_HOURS` sans geste (`accounts/visitors.py`).
         'purge-visitors': {
             'task': 'common.purge_visitors',
-            'schedule': crontab(minute=20),
+            # INTERVALLE, pas un rendez-vous : un `crontab(minute=20)` tombait chaque nuit dans
+            # la plage réservée aux tests nocturnes (`tests_calendar`, corrigé le 2026-10-04).
+            'schedule': 3600.0,
             'options': {'queue': 'default'},  # I/O disque, pas de GPU
         },
         # Corpus système de l'assistant : la doc déclarée, reprojetée chaque nuit (lecture de

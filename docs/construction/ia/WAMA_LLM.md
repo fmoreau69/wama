@@ -279,7 +279,7 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
    routage langue seul, pas d'enrichissement]
 ```
 
-**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **69 outils** *(mesuré 2026-09-12 ;
+**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **73 outils** *(mesuré 2026-10-04 — dont `search_docs` / `read_doc`, la doc de WAMA elle-même, `WAMA_MEMORY §7quinquies` ; 69 au 2026-09-12 ;
 disait **51**, périmé — le compte vit ICI, c'est donc ici qu'il se re-mesure : `len(tool_descriptions())`)*
 — dont **6 LECTURES TRANSVERSES** livrées le 2026-09-11 (`list_my_items`, `get_item_detail`,
 `get_item_preview`, `list_registries`, `get_my_access`, `list_my_memories`), **3 VERBES DE

@@ -105,6 +105,18 @@ class ReservedNightlyWindowTest(TestCase):
             with self.subTest(entry=name):
                 self.assertIn(name, beat, 'déclaration orpheline : aucune entrée beat de ce nom')
 
+    def test_every_beat_entry_names_a_registered_task(self):
+        # Une entrée planifiée dont la tâche n'existe pas échoue chaque nuit en silence, côté
+        # worker (« Received unregistered task ») : rien ne le dit à l'écran. GÉNÉRIQUE — toute
+        # entrée ajoutée est couverte sans y penser (2026-10-04, après trois ajouts en un jour).
+        from celery import current_app
+        current_app.loader.import_default_modules()
+        registered = set(current_app.tasks)
+        for name, entry in (getattr(settings, 'CELERY_BEAT_SCHEDULE', {}) or {}).items():
+            with self.subTest(entry=name):
+                self.assertIn(entry.get('task'), registered,
+                              'tâche inconnue de Celery : nom mal écrit ou module non importé')
+
     def test_the_nightly_tests_reserve_their_window(self):
         reserved = cal.reserved_windows(*_week())
         self.assertTrue(any(w.extra['beatEntry'] == 'nightly-consistency' for w in reserved))
