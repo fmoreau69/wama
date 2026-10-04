@@ -173,8 +173,15 @@ def _routed_prompt(gen, ctx) -> str:
         # chante pas) ou ÉCRITES (« Chanson » sans paroles) — la pipeline traite ensuite la
         # description et garde les paroles telles quelles.
         model_key = _model_key(gen)
-        text = prepare_prompt(getattr(gen, 'vocals', None), effective_prompt(gen, 'prompt'),
-                              model_key, user=gen.user, console=ctx.console)
+        text, written = prepare_prompt(getattr(gen, 'vocals', None), effective_prompt(gen, 'prompt'),
+                                       model_key, stored_lyrics=getattr(gen, 'lyrics', ''),
+                                       user=gen.user, console=ctx.console)
+        if written:
+            # Paroles ÉCRITES : gardées sur la card — relues, corrigées dans ⚙, rejouées telles
+            # quelles. En mémoire AUSSI : la ligne d'exécution photographie les réglages tels que
+            # la glu les laisse — sans cela la card serait périmée par ses propres paroles.
+            ComposerGeneration.objects.filter(pk=gen.pk).update(lyrics=written)
+            gen.lyrics = written
         gen._routed_prompt = process_prompt_for(
             ctx.app_id, 'prompt', text,
             instance=gen, user=gen.user, console=ctx.console, model_id=_model_key(gen),
