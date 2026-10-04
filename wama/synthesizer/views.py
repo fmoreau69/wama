@@ -423,29 +423,6 @@ def start(request, pk: int):
     })
 
 
-@app_access('synthesizer')
-@require_POST
-def start_process(request, pk: int, process: str):
-    """▶ d'UN process de la card (`ROUTE §10.6` 5.1) : lancement BORNÉ — refaire la sortie seule
-    (format, qualité) sans re-synthétiser, ou re-synthétiser sans attendre qu'un réglage change."""
-    from .function_specs import PIPELINE
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    if process not in {s.key for s in PIPELINE.specs}:
-        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
-    from wama.common.utils.process_control import begin_processing
-    synthesis, err = begin_processing(VoiceSynthesis, pk, user=user,
-                                      reset=_reset_synthesis_for_relaunch)
-    if err:
-        msg = 'La synthèse est déjà en cours' if err == 'already_running' else err
-        return JsonResponse({'error': msg}, status=404 if err == 'not_found' else 400)
-    cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
-    _ensure_workers_imported()
-    task = synthesize_voice.apply_async(args=(synthesis.id,), kwargs={'process': process})
-    synthesis.task_id = task.id
-    synthesis.save(update_fields=['task_id'])
-    return JsonResponse({'task_id': task.id, 'status': 'started', 'process': process})
-
-
 def _decorate_synthesis(s, preloaded=False):
     """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips ; et
     les PROCESS de la card (« Synthèse → Sortie ») avec son état MONTRÉ, par la brique commune
@@ -1097,6 +1074,15 @@ def _task_for(_synthesis):
 def _reset_and_seed_progress(s):
     _reset_synthesis_for_relaunch(s)
     cache.set(f"synthesizer_progress_{s.id}", 0, timeout=3600)
+
+
+from wama.common.utils.process_views import make_process_start_view  # noqa: E402
+
+
+# ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — refaire la sortie seule
+# (format, qualité) sans re-synthétiser, ou re-synthétiser sans attendre qu'un réglage change.
+start_process = app_access('synthesizer')(make_process_start_view(
+    work_model=VoiceSynthesis, task_for=_task_for, reset_on_start=_reset_and_seed_progress))
 
 
 def _shared_batch_file(batch):

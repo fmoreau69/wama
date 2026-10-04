@@ -1159,11 +1159,22 @@ MECHANISMS = (
               "et `output_step` (la glu, au contrat du squelette). La glu du MOTEUR n'a que "
               "trois gestes : `drop_previous_outputs`, `generated(...)`, et l'enveloppe de tâche "
               "appelle `forget_lost_generation`. Changer de format ne rejoue plus le moteur "
-              "(2026-10-03) — imager, composer, synthesizer, anonymizer, enhancer ×2. Un fichier "
-              "qu'une autre card désigne encore n'est jamais retiré",
+              "(2026-10-03) — imager, composer, synthesizer, anonymizer, enhancer ×2. Un ancien "
+              "rendu n'est retiré que sous les deux règles de `safe_delete_file` : il vit chez "
+              "l'app de la card (`owns_file`) et aucune autre card ne le désigne",
               'wama/common/services/output_process.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/utils/output_formats.py',)),
+    Mechanism('process_start_view', "▶ d'un process (fabrique commune)",
+              "La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_view` "
+              "(2026-10-04) : process connu, ayant lieu pour cette card (`AppPipeline.applicable`), "
+              "anti-course (`begin_processing`), tâche lancée bornée à ce process. Écrite à la main "
+              "dans six apps avec trois formes de refus ; mêmes crochets que `make_batch_views` "
+              "(`task_for`, `reset_on_start`). Le pipeline se lit de l'app de l'élément "
+              "(`pipeline_of`), il n'est pas un argument",
+              'wama/common/utils/process_views.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
+              depends_on=('process_pipeline',)),
     Mechanism('license_audit', 'Audit des licences',
               "Vue dérivée : licences+auteurs des 4 registres, traversée par app. "
               "Ne voit PAS le code vendorisé (`static/vendors/`, codeformer) — inventorié à "

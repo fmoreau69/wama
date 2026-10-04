@@ -520,35 +520,18 @@ def start(request, pk: int):
     })
 
 
-@require_POST
-def start_process(request, pk: int, process: str):
-    """▶ d'UN process de la card (`ROUTE §10.6` 5.1) : lancement BORNÉ — ce process, précédé des
-    seuls amonts périmés, jamais son aval. C'est aussi le résumé ou la cohérence « à la demande »
-    sur une transcription déjà faite (point 4.7) ou REPRISE d'un document. Un process inconnu,
-    désactivé ou sans objet pour cette card est refusé en le disant."""
-    from .function_specs import PIPELINE
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    if process not in {s.key for s in PIPELINE.specs}:
-        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
-    from wama.common.utils.scoping import editable_or_404
-    t = editable_or_404(Transcript, user, pk=pk)
-    from wama.transcriber.backends.manager import catalogue_value
-    if process not in {s.key for s in PIPELINE.applicable(t, catalogue_value(t.backend) or 'auto')}:
-        return JsonResponse({'error': f"« {PIPELINE.spec(process).label} » n'a pas lieu pour "
-                                      "cette card (désactivé, fait par le moteur, ou remplacé "
-                                      "par le document repris)"}, status=400)
+from wama.common.utils.process_views import make_process_start_view  # noqa: E402
 
-    from wama.common.utils.process_control import begin_processing
-    t, err = begin_processing(Transcript, pk, user=user, reset=_reset_for_relaunch)
-    if err == 'not_found':
-        return JsonResponse({'error': 'Not found'}, status=404)
-    if err == 'already_running':
-        return JsonResponse({'error': 'Transcription déjà en cours'}, status=409)
-    cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
-    task = _task_for(t).apply_async(args=(t.id,), kwargs={'process': process})
-    t.task_id = task.id
-    t.save(update_fields=['task_id'])
-    return JsonResponse({'task_id': task.id, 'status': 'RUNNING', 'process': process})
+# ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE. C'est aussi le résumé ou la
+# cohérence « à la demande » sur une transcription déjà faite, ou REPRISE d'un document.
+def _pipeline_model(t):
+    from wama.transcriber.backends.manager import catalogue_value
+    return catalogue_value(t.backend) or 'auto'
+
+
+start_process = make_process_start_view(
+    work_model=Transcript, task_for=_task_for, reset_on_start=_reset_and_clear_progress,
+    model_key=_pipeline_model)
 
 
 @require_POST
