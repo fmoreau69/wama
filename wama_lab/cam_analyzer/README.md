@@ -79,7 +79,10 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 - **LaneEvent** — passage d'un objet dans une voie (`lane_id`, `in_shuttle_lane`, t_enter/t_exit).
 - **ConflictEvent** — conflit consolidé par objet (type, navette passée avant/après, Δt, distance min,
   TTC, sévérité).
-- **AnalysisPass** — traçabilité incrémentale (type de passe, statut + `STALE`, snapshot des paramètres).
+- *(passes)* — pas de modèle propre depuis le 2026-10-04 : l'état d'une passe est sa **ligne
+  d'exécution commune** (`common.ProcessRun`, une par passe × caméra : statut dont `STALE`, photo
+  des paramètres surveillés, résumé, durée), écrite et lue par `utils/pass_tracking.py` — l'ex-
+  `AnalysisPass`, qui en a été le modèle, est retiré.
 
 ### Pipeline (`utils/`)
 | Module | Rôle |

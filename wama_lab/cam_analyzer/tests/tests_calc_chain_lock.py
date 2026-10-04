@@ -165,8 +165,8 @@ class InterruptedCalcPassTest(SimpleTestCase):
         cache.clear()
 
     def _reconcile(self):
-        """Lignes COMMUNES (lues depuis le 2026-10-04) : un calcul en cours, une analyse GPU en
-        cours, un calcul terminé — seul le premier a la preuve qu'il a perdu son exécutant."""
+        """Lignes COMMUNES (l'état des passes depuis le 2026-10-04) : un calcul en cours, une analyse
+        GPU en cours, un calcul terminé — seul le premier a la preuve qu'il a perdu son exécutant."""
         from wama.common.models import JOB_RUNNING, JOB_SUCCESS
         from wama_lab.cam_analyzer.utils import pass_tracking as pt
         lines = [SimpleNamespace(node_id='distance', instance_key='', status=JOB_RUNNING),
@@ -174,29 +174,24 @@ class InterruptedCalcPassTest(SimpleTestCase):
                  SimpleNamespace(node_id='conflicts', instance_key='', status=JOB_SUCCESS)]
         runs = mock.MagicMock()
         runs.lines.return_value = lines
-        with mock.patch.object(pt, '_common_runs', return_value=runs), \
-                mock.patch.object(pt, '_lab_rows') as lab:
+        with mock.patch.object(pt, '_common_runs', return_value=runs):
             n = pt.reconcile_interrupted_calc_passes(SimpleNamespace(id=SID))
-        return n, runs, lab
+        return n, runs
 
     def test_while_a_chain_runs_nothing_is_touched(self):
         cache.set(calc_chain_key(SID), ['compute_indicators_task'], 60)
-        n, runs, lab = self._reconcile()
+        n, runs = self._reconcile()
         self.assertEqual(n, 0)
         runs.lines.assert_not_called()
-        lab.assert_not_called()
+        runs.fail.assert_not_called()
 
     def test_without_a_chain_running_calc_passes_become_relaunchable(self):
         from wama_lab.cam_analyzer.utils.pass_tracking import INTERRUPTED_MESSAGE
-        n, runs, lab = self._reconcile()
+        n, runs = self._reconcile()
         self.assertEqual(n, 1)
-        runs.fail.assert_called_once()
+        runs.fail.assert_called_once()                              # sam3 (ANALYSE) : pas de preuve
         args, kw = runs.fail.call_args
         self.assertEqual((args[1], args[2], kw['instance_key']), ('distance', INTERRUPTED_MESSAGE, ''))
-        lab.assert_called_once()                                    # sam3 (ANALYSE) : pas de preuve
-        self.assertEqual(lab.call_args.args[1:], ('distance', ''))
-        upd = lab.return_value.filter.return_value.update.call_args.kwargs
-        self.assertEqual((upd['status'], upd['error_message']), ('failed', INTERRUPTED_MESSAGE))
 
     def test_every_calc_entry_point_takes_the_chain_lock(self):
         """La preuve ne vaut que si AUCUN calcul ne tourne hors verrou."""

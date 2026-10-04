@@ -1,22 +1,26 @@
 """Le registre des passes (`pass_tracking.PASSES`) — déclaration UNIQUE du pipeline (2026-09-07).
 
-Le test qui compte est `test_PassType_et_PASSES_declarent_le_MEME_ensemble` : `PassType` reste la
-source des libellés et des valeurs persistées, le registre celle du graphe ; s'ils divergent, une
-passe existe pour la base et pas pour le panneau (ou l'inverse) — exactement la dérive que six
-copies du même graphe rendaient possible sans qu'aucun test ne la voie.
+Le registre porte le graphe ET, depuis le 2026-10-04, les libellés du panneau (`Pass.label`, le
+champ du `ProcessSpec` commun) : `AnalysisPass.PassType`, qui les portait à côté de lui — et qu'un
+test devait tenir aligné —, est retiré avec la table. Les passes sont des lignes `ProcessRun`.
 
     python manage.py test wama_lab.cam_analyzer.tests.tests_pass_registry
 """
 import unittest
 
+from wama.common.models import JOB_SUCCESS as SUCCESS
 from wama_lab.cam_analyzer.utils import pass_tracking as pt
 
 
 class RegistreTest(unittest.TestCase):
 
-    def test_PassType_et_PASSES_declarent_le_MEME_ensemble(self):
-        from wama_lab.cam_analyzer.models import AnalysisPass
-        self.assertEqual(set(AnalysisPass.PassType.values), set(pt.ORDER))
+    def test_every_pass_carries_its_panel_label(self):
+        """Repris mot pour mot de l'ex-`AnalysisPass.PassType` : le panneau n'a plus d'autre source."""
+        for p in pt.PASSES:
+            with self.subTest(passe=p.key):
+                self.assertTrue(p.label and p.label != p.key)
+        self.assertEqual(pt._BY_KEY['global_tracking'].label, 'Tracking 360° (gids + trajectoires)')
+        self.assertEqual(pt._BY_KEY['intersection_windows'].label, "Fenêtres d'intersection")
 
     def test_cles_uniques_et_etages_connus(self):
         self.assertEqual(len(set(pt.ORDER)), len(pt.ORDER))
@@ -112,65 +116,64 @@ class AlignedOnTheCommonEngineTest(unittest.TestCase):
         self.assertEqual([spec.key for spec in pipeline.ordered()], list(pt.ORDER))
 
     def _stale(self, profile, rows):
-        """Rejoue `recompute_stale` sur des LIGNES COMMUNES (lues depuis le 2026-10-04) : chaque
-        `Row` du test devient une ligne (passe → nœud, caméra → clé d'instance, état traduit), et
-        les couples périmés reviennent dans le vocabulaire du Lab pour garder les attendus."""
+        """Rejoue `recompute_stale` sur des LIGNES COMMUNES (`Row` : passe → nœud, caméra → clé
+        d'instance) ; rend le nombre de lignes périmées et l'état de chaque ligne après coup."""
         from types import SimpleNamespace
         from unittest import mock
+        from wama.common.models import JOB_STALE
         lines = [SimpleNamespace(node_id=r.pass_type, instance_key=r.camera or '',
-                                 status=pt.common_status(r.status), settings_snapshot=r.parameters)
-                 for r in rows]
+                                 status=r.status, settings_snapshot=r.parameters) for r in rows]
         staled = []
         runs = SimpleNamespace(lines=lambda session: lines)
         with mock.patch.object(pt, '_common_runs', return_value=runs), \
                 mock.patch.object(pt, '_stale_common_lines',
-                                  side_effect=lambda session, pairs: staled.extend(pairs)), \
-                mock.patch.object(pt, '_lab_rows'):
+                                  side_effect=lambda session, pairs: staled.extend(pairs)):
             flipped = pt.recompute_stale(SimpleNamespace(profile=profile))
         states = {}
         for r in rows:
-            gone = (r.pass_type, r.camera or '') in staled and r.status == 'completed'
-            states[(r.pass_type, r.camera)] = 'stale' if gone else r.status
+            gone = (r.pass_type, r.camera or '') in staled and r.status == SUCCESS
+            states[(r.pass_type, r.camera)] = JOB_STALE if gone else r.status
         return flipped, states
 
     def test_the_stale_rule_is_the_common_one_with_one_node_per_camera_row(self):
         from types import SimpleNamespace as Row
+        from wama.common.models import JOB_FAILURE, JOB_RUNNING, JOB_STALE
         profile = Row(model_path='new.pt', iou_threshold=0.5, tracker='bytetrack')
         kept = {'model_path': 'new.pt', 'iou_threshold': 0.5, 'tracker': 'bytetrack'}
         rows = [
-            Row(pass_type='extraction', camera=None, status='completed', parameters={}),
-            Row(pass_type='yolo_detect', camera='front', status='completed',
+            Row(pass_type='extraction', camera=None, status=SUCCESS, parameters={}),
+            Row(pass_type='yolo_detect', camera='front', status=SUCCESS,
                 parameters={**kept, 'model_path': 'old.pt'}),
-            Row(pass_type='yolo_detect', camera='rear', status='completed', parameters=dict(kept)),
-            Row(pass_type='yolopv2_lanes', camera='front', status='completed',
+            Row(pass_type='yolo_detect', camera='rear', status=SUCCESS, parameters=dict(kept)),
+            Row(pass_type='yolopv2_lanes', camera='front', status=SUCCESS,
                 parameters={'road_model_path': None}),
-            Row(pass_type='lane_events', camera=None, status='completed', parameters={}),
-            Row(pass_type='intersection_windows', camera=None, status='failed',
+            Row(pass_type='lane_events', camera=None, status=SUCCESS, parameters={}),
+            Row(pass_type='intersection_windows', camera=None, status=JOB_FAILURE,
                 parameters={'intersections': None}),
-            Row(pass_type='temporal_segments', camera=None, status='completed',
+            Row(pass_type='temporal_segments', camera=None, status=SUCCESS,
                 parameters={'target_classes': None, 'confidence': None}),
-            Row(pass_type='conflicts', camera=None, status='completed', parameters={}),
-            Row(pass_type='depth', camera=None, status='running', parameters={}),
+            Row(pass_type='conflicts', camera=None, status=SUCCESS, parameters={}),
+            Row(pass_type='depth', camera=None, status=JOB_RUNNING, parameters={}),
         ]
         flipped, states = self._stale(profile, rows)
         self.assertEqual(3, flipped)
         # 1. a watched setting changed — for THAT camera only ;
-        self.assertEqual(('stale', 'completed'),
+        self.assertEqual((JOB_STALE, SUCCESS),
                          (states[('yolo_detect', 'front')], states[('yolo_detect', 'rear')]))
-        # 2. an upstream by camera counts as available while ONE of its rows is completed ;
-        self.assertEqual('completed', states[('lane_events', None)])
+        # 2. an upstream by camera counts as available while ONE of its rows succeeded ;
+        self.assertEqual(SUCCESS, states[('lane_events', None)])
         # 3. cascade: an upstream in failure, or never played (`distance`), stales its downstream ;
-        self.assertEqual('stale', states[('temporal_segments', None)])
-        self.assertEqual('stale', states[('conflicts', None)])
+        self.assertEqual(JOB_STALE, states[('temporal_segments', None)])
+        self.assertEqual(JOB_STALE, states[('conflicts', None)])
         # 4. what did not return a result is never « stale ».
-        self.assertEqual(('failed', 'running'),
+        self.assertEqual((JOB_FAILURE, JOB_RUNNING),
                          (states[('intersection_windows', None)], states[('depth', None)]))
 
     def test_nothing_is_stale_when_nothing_changed(self):
         from types import SimpleNamespace as Row
         profile = Row(model_path='m.pt', iou_threshold=0.5, tracker='t')
-        rows = [Row(pass_type='extraction', camera=None, status='completed', parameters={}),
-                Row(pass_type='yolo_detect', camera='front', status='completed',
+        rows = [Row(pass_type='extraction', camera=None, status=SUCCESS, parameters={}),
+                Row(pass_type='yolo_detect', camera='front', status=SUCCESS,
                     parameters={'model_path': 'm.pt', 'iou_threshold': 0.5, 'tracker': 't'})]
         self.assertEqual(0, self._stale(profile, rows)[0])
 

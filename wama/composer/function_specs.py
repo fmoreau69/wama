@@ -121,12 +121,8 @@ register(FunctionSpec(
 #: Réglages dont le changement périme le rendu : tout ce que la glu lit de l'élément.
 # ⚠ Le format et la qualité de sortie n'y sont plus (2026-10-03) : ils sont au process `output`,
 # qui se rejoue seul depuis le WAV d'origine gardé — changer de format ne rejoue pas le rendu.
-# `prompt_processed` (l'enrichi, éditable dans la modale), `vocals` et `lyrics` (2026-10-04) : ce
-# que la consigne CHANTÉE devient — les ajouter ne périme pas les cards déjà rendues
-# (`process_runs._watched_changed` ne compare que ce qui était surveillé aux deux dates).
-_PROMPT_WATCHED = ('prompt', 'prompt_processed', 'vocals', 'lyrics')
-_RENDER_WATCHED = _PROMPT_WATCHED + ('model', 'quality_intent', 'duration',
-                                     'reference_score', 'melody_reference', 'source_url')
+_RENDER_WATCHED = ('prompt', 'model', 'quality_intent', 'duration',
+                   'reference_score', 'melody_reference', 'source_url')
 
 def _requested_model(gen):
     """Le modèle que la card demande. Sous « auto » il n'est connu qu'au lancement : `None` —
@@ -146,7 +142,7 @@ PIPELINE = register_app_pipeline(_APP, (
                 outputs=('extracted_score',)),
     # La partition ne dépend que de la consigne et du modèle (le curseur pèse dans le tirage
     # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu.
-    ProcessSpec('plan', label='Partition', watched=_PROMPT_WATCHED + ('model', 'quality_intent'),
+    ProcessSpec('plan', label='Partition', watched=('prompt', 'model', 'quality_intent'),
                 gpu=True, share=1, applies=_plan_applies, outputs=('planned_score',)),
     # Deux amonts ALTERNATIFS, exclusifs par `applies` : un amont sans objet est ignoré.
     ProcessSpec('render', label='Rendu', depends_on=('extract_score', 'plan'),

@@ -533,7 +533,7 @@ def duplicate_session(request, session_id):
     """
     import uuid
     from django.db import transaction
-    from .models import AnalysisPass, LaneEvent, ConflictEvent
+    from .models import LaneEvent, ConflictEvent
     src = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
     with transaction.atomic():
         # 1) Session (nouveau pk UUID).
@@ -587,8 +587,8 @@ def duplicate_session(request, session_id):
             buf.append(ev)
         _flush(LaneEvent, buf)
 
-        # 5) Événements liés session (+ camera éventuelle, None pour les passes session-level).
-        for Model in (AnalysisPass, ConflictEvent, TemporalSegment):
+        # 5) Événements liés session (+ camera éventuelle).
+        for Model in (ConflictEvent, TemporalSegment):
             buf = []
             for ev in Model.objects.filter(session=src).iterator():
                 ev.pk = None
@@ -600,8 +600,8 @@ def duplicate_session(request, session_id):
                 buf.append(ev)
             _flush(Model, buf)
 
-        # 6) Lignes d'exécution communes (`ProcessRun`) : la copie est « à l'identique », passes
-        # comprises — leurs lignes communes suivent, réadressées sur la nouvelle session.
+        # 6) Passes = lignes d'exécution communes (`ProcessRun`) : la copie est « à l'identique »,
+        # passes comprises — leurs lignes suivent, réadressées sur la nouvelle session.
         from wama.common.models import ProcessRun
         from wama.common.services import process_runs
         dst = process_runs.address(new)
@@ -936,8 +936,8 @@ def cancel_analysis(request, session_id):
 @require_http_methods(["GET"])
 def list_passes(request, session_id):
     """
-    Pipeline status: list of every AnalysisPass for this session, with
-    stale/missing detection computed on the fly so the UI badge is fresh.
+    Pipeline status: every pass of this session (its common execution line, `ProcessRun`),
+    with stale/missing detection computed on the fly so the UI badge is fresh.
     """
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
     from .utils.pass_tracking import (recompute_stale, get_passes_status,
@@ -1002,9 +1002,11 @@ def run_passes(request, session_id):
     elif requested:
         needs_run.update(requested)
     else:
-        # default: all missing or stale or failed
+        # default: all missing or stale or failed (vocabulaire commun : une passe jamais jouée
+        # est `PENDING`, comme dans la bande des process)
+        from wama.common.models import JOB_FAILURE, JOB_PENDING, JOB_STALE
         for s in statuses:
-            if s['status'] in ('never', 'stale', 'failed'):
+            if s['status'] in (JOB_PENDING, JOB_STALE, JOB_FAILURE):
                 needs_run.add(s['pass_type'])
 
     # Dispatch matrix : a request can mix derived computers + full passes.

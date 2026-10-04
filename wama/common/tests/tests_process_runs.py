@@ -65,6 +65,17 @@ class ProcessRunServiceTest(TestCase):
         self.assertEqual(again.output_summary, {'previous_duration_s': 12.5})
         self.assertEqual((again.output_ref, again.duration_s, again.error_message), ('', None, ''))
 
+    def test_a_relaunch_keeps_the_size_the_previous_duration_was_measured_on(self):
+        """The cam_analyzer scales the previous duration to the new run's size (`eta_size_s`):
+        without the size, a pass relaunched on a longer video announced the old duration."""
+        item = _studio_run()
+        process_runs.start(item, 'distance')
+        first = process_runs.succeed(item, 'distance', output_summary={'eta_size_s': 600.0,
+                                                                        'events': 3})
+        ProcessRun.objects.filter(pk=first.pk).update(duration_s=40.0)
+        again = process_runs.start(item, 'distance')
+        self.assertEqual(again.output_summary, {'previous_duration_s': 40.0, 'eta_size_s': 600.0})
+
     def test_a_failure_keeps_the_message_and_does_not_erase_the_previous_output(self):
         item = _studio_run()
         process_runs.start(item, 'plan')
@@ -140,23 +151,6 @@ class StaleNodesTest(SimpleTestCase):
         states = {'plan': JOB_FAILURE, 'render': JOB_RUNNING, 'master': JOB_PENDING}
         self.assertEqual(process_runs.stale_nodes(states, self.GRAPH, {}, {'plan': {'p': 2}}),
                          set())
-
-    def test_watching_one_more_setting_does_not_stale_what_was_already_rendered(self):
-        # 2026-10-04 : the composer started watching `vocals` and `lyrics` — every card already
-        # rendered would have turned stale although nothing in it had changed.
-        states = {'plan': JOB_SUCCESS, 'render': JOB_SUCCESS}
-        self.assertEqual(process_runs.stale_nodes(
-            states, self.GRAPH, snapshots={'plan': {'prompt': 'jazz'}},
-            current={'plan': {'prompt': 'jazz', 'lyrics': ''}}), set())
-        self.assertEqual(process_runs.stale_nodes(
-            states, self.GRAPH, snapshots={'plan': {'prompt': 'jazz', 'lyrics': 'la'}},
-            current={'plan': {'prompt': 'jazz', 'lyrics': 'lo'}}), {'plan', 'render'})
-
-    def test_an_upstream_fingerprint_is_always_compared(self):
-        states = {'plan': JOB_SUCCESS, 'render': JOB_SUCCESS}
-        self.assertEqual(process_runs.stale_nodes(
-            states, self.GRAPH, snapshots={'render': {'prompt': 'jazz'}},
-            current={'render': {'prompt': 'jazz', '@upstream': {'plan': 'f1'}}}), {'render'})
 
 
 class AggregateTest(SimpleTestCase):

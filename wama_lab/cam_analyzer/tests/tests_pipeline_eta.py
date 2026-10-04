@@ -3,7 +3,7 @@
 est `cam_analyzer:<passe>`, l'unité `video_sec`, l'apprentissage se fait en UN point, `mark_completed`.
 """
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest import mock
 
@@ -64,12 +64,12 @@ class ChainEtaTest(SimpleTestCase):
         cache.set(pt.chain_passes_key(s.id), {'passes': ['depth_calc', 'lane_map_recalage', 'indicators'],
                                               'started': t0}, 60)
         done = datetime.fromtimestamp(t0 + 5, tz=timezone.utc).isoformat()
-        rows = [
-            {'pass_type': 'depth_calc', 'status': 'completed', 'completed_at': done, 'eta_seconds': 90},
-            {'pass_type': 'lane_map_recalage', 'status': 'running', 'eta_remaining_s': 30, 'eta_seconds': 60},
-            {'pass_type': 'indicators', 'status': 'stale', 'completed_at': None, 'eta_seconds': 200},
-            {'pass_type': 'conflicts', 'status': 'stale', 'eta_seconds': 50},   # en file
-            {'pass_type': 'visual_yaw', 'status': 'completed', 'eta_seconds': 999},   # hors chaîne
+        rows = [   # le panneau parle le vocabulaire commun (lignes `ProcessRun`) depuis le 2026-10-04
+            {'pass_type': 'depth_calc', 'status': 'SUCCESS', 'completed_at': done, 'eta_seconds': 90},
+            {'pass_type': 'lane_map_recalage', 'status': 'RUNNING', 'eta_remaining_s': 30, 'eta_seconds': 60},
+            {'pass_type': 'indicators', 'status': 'STALE', 'completed_at': None, 'eta_seconds': 200},
+            {'pass_type': 'conflicts', 'status': 'STALE', 'eta_seconds': 50},   # en file
+            {'pass_type': 'visual_yaw', 'status': 'SUCCESS', 'eta_seconds': 999},   # hors chaîne
         ]
         self.assertEqual(pt.chain_eta_remaining(s, rows, queued=['conflicts']), 30 + 200 + 50)
 
@@ -80,15 +80,17 @@ class ChainEtaTest(SimpleTestCase):
 class LearningPointTest(SimpleTestCase):
     def test_mark_completed_feeds_the_common_estimator(self):
         s = session(ranges={'front': [[0, 600]]})
-        row = SimpleNamespace(started_at=None, output_summary={}, save=lambda: None, duration_s=None,
-                              status=None, completed_at=None, error_message='')
-        row.started_at = datetime.now(timezone.utc) - timedelta(seconds=42)
-        with mock.patch('wama_lab.cam_analyzer.models.AnalysisPass.objects.get', return_value=row), \
+        written = {}
+
+        def succeed(session, pass_type, **kw):          # la ligne commune mesure la durée
+            written.update(kw)
+            return SimpleNamespace(duration_s=42.0)
+        with mock.patch.object(pt, '_common_runs', return_value=SimpleNamespace(succeed=succeed)), \
                 mock.patch('wama.model_manager.services.eta_estimator.record_run') as rec:
             pt.mark_completed(s, 'global_tracking', output_summary={'tracks': 1})
         args, kw = rec.call_args
         self.assertEqual(args[0], 'cam_analyzer:global_tracking')
         self.assertEqual((kw['size'], kw['unit']), (600.0, 'video_sec'))
-        self.assertAlmostEqual(kw['process_seconds'], 42, delta=2)
-        self.assertEqual(row.output_summary, {'tracks': 1, 'eta_size_s': 600.0},
+        self.assertEqual(kw['process_seconds'], 42.0)
+        self.assertEqual(written['output_summary'], {'tracks': 1, 'eta_size_s': 600.0},
                          "la taille voyage avec la durée, pour la réutiliser à la relance")

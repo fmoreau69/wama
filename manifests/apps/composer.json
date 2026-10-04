@@ -38,25 +38,6 @@
             },
             {
               "args": [],
-              "class": "django.db.models.JSONField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "list",
-                  "imports": []
-                },
-                "null": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "native_outputs"
-            },
-            {
-              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
@@ -146,59 +127,6 @@
             },
             {
               "args": [],
-              "class": "django.db.models.TextField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "''",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'Prompt traité effectivement envoyé au modèle (vide = utiliser `prompt`)'",
-                  "imports": []
-                }
-              },
-              "name": "prompt_processed"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.JSONField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "dict",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'Trace PromptPipeline par champ : {enriched, source, language, keywords}'",
-                  "imports": []
-                }
-              },
-              "name": "prompt_trace"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.JSONField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "list",
-                  "imports": []
-                }
-              },
-              "name": "prompt_keywords"
-            },
-            {
-              "args": [],
               "class": "django.db.models.ForeignKey",
               "kwargs": {
                 "on_delete": {
@@ -250,7 +178,7 @@
               "class": "django.db.models.FloatField",
               "kwargs": {
                 "default": {
-                  "expr": "210.0",
+                  "expr": "10.0",
                   "imports": []
                 },
                 "help_text": {
@@ -293,56 +221,6 @@
                 }
               },
               "name": "quality_intent"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('auto', 'Auto'), ('instrumental', 'Instrumental'), ('song', 'Chanson')]",
-                  "imports": []
-                },
-                "db_default": {
-                  "expr": "'auto'",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'auto'",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'Voix : auto / instrumental / chanson'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "12",
-                  "imports": []
-                }
-              },
-              "name": "vocals"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.TextField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                },
-                "db_default": {
-                  "expr": "''",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "''",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'Paroles chantées, en sections balisées ([Verse], [Chorus]…)'",
-                  "imports": []
-                }
-              },
-              "name": "lyrics"
             },
             {
               "args": [],
@@ -954,8 +832,6 @@
               "item"
             ],
             "default": null,
-            "default_from": null,
-            "display_format": "",
             "dom_id": {
               "item": "settingsPrompt"
             },
@@ -1003,8 +879,6 @@
               "batch"
             ],
             "default": "auto:text-to-music",
-            "default_from": null,
-            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsModel",
               "item": "settingsModel",
@@ -1050,123 +924,6 @@
           {
             "advanced": false,
             "cap_from": null,
-            "chip": true,
-            "chip_label": "",
-            "choices": [
-              [
-                "auto",
-                "Auto"
-              ],
-              [
-                "instrumental",
-                "Instrumental"
-              ],
-              [
-                "song",
-                "Chanson"
-              ]
-            ],
-            "contexts": [
-              "panel",
-              "item",
-              "batch"
-            ],
-            "default": "auto",
-            "default_from": null,
-            "display_format": "",
-            "dom_id": {
-              "batch": "batchSettingsVocals",
-              "item": "settingsVocals",
-              "panel": "vocalsSelect"
-            },
-            "group": "",
-            "help": "« Auto » : chanté si le prompt porte des paroles balisées ([Verse], [Chorus]…) sous la description, instrumental sinon. « Chanson » sans paroles : elles sont écrites pour vous, dans une langue que le modèle chante. Seuls certains modèles chantent ; en automatique, le tirage les retient.",
-            "help_fallback": null,
-            "help_html": "",
-            "help_source": null,
-            "icon": "fa-microphone",
-            "inline": false,
-            "label": "Voix",
-            "max": null,
-            "max_label": "",
-            "min": null,
-            "min_label": "",
-            "name": "vocals",
-            "option_groups": null,
-            "options_abilities": false,
-            "options_auto": false,
-            "options_cloud": false,
-            "options_domain": null,
-            "options_group": "",
-            "options_mode": null,
-            "options_ports": false,
-            "options_query": null,
-            "options_resolution": null,
-            "options_source": null,
-            "pills": [],
-            "radio_name": "",
-            "section": "settings",
-            "show_if": null,
-            "step": null,
-            "type": "select",
-            "unit": ""
-          },
-          {
-            "advanced": false,
-            "cap_from": null,
-            "chip": false,
-            "chip_label": "",
-            "choices": null,
-            "contexts": [
-              "item"
-            ],
-            "default": null,
-            "default_from": null,
-            "display_format": "",
-            "dom_id": {
-              "item": "settingsLyrics"
-            },
-            "group": "",
-            "help": "Paroles chantées, en sections balisées ([Verse], [Chorus]…). Écrites pour vous si vous demandez une chanson sans en donner ; modifiez-les puis relancez. Des paroles écrites dans le prompt, sous la description, priment.",
-            "help_fallback": null,
-            "help_html": "",
-            "help_source": null,
-            "icon": "fa-music",
-            "inline": false,
-            "label": "Paroles",
-            "max": null,
-            "max_label": "",
-            "min": null,
-            "min_label": "",
-            "name": "lyrics",
-            "option_groups": null,
-            "options_abilities": false,
-            "options_auto": false,
-            "options_cloud": false,
-            "options_domain": null,
-            "options_group": "",
-            "options_mode": null,
-            "options_ports": false,
-            "options_query": null,
-            "options_resolution": null,
-            "options_source": null,
-            "pills": [],
-            "radio_name": "",
-            "section": "settings",
-            "show_if": {
-              "field": "vocals",
-              "in": [
-                "auto",
-                "song"
-              ]
-            },
-            "step": null,
-            "type": "textarea",
-            "unit": ""
-          },
-          {
-            "advanced": false,
-            "cap_from": null,
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1176,8 +933,6 @@
               "batch"
             ],
             "default": 50,
-            "default_from": null,
-            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsQualityIntent",
               "item": "settingsQualityIntent",
@@ -1235,12 +990,7 @@
               "item",
               "batch"
             ],
-            "default": 210,
-            "default_from": {
-              "port": "work_audio",
-              "property": "duration"
-            },
-            "display_format": "duration",
+            "default": 10,
             "dom_id": {
               "batch": "batchSettingsDuration",
               "item": "settingsDuration",
@@ -1255,9 +1005,9 @@
             "inline": false,
             "label": "Durée",
             "max": 600,
-            "max_label": "",
+            "max_label": "10min",
             "min": 10,
-            "min_label": "",
+            "min_label": "10s",
             "name": "duration",
             "option_groups": null,
             "options_abilities": false,
@@ -1323,8 +1073,6 @@
               "batch"
             ],
             "default": null,
-            "default_from": null,
-            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsOutputFormat",
               "item": "settingsOutputFormat",
@@ -1387,8 +1135,6 @@
               "batch"
             ],
             "default": null,
-            "default_from": null,
-            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsOutputQuality",
               "item": "settingsOutputQuality",
@@ -1616,8 +1362,6 @@
           "params_fields": [
             "prompt",
             "model",
-            "vocals",
-            "lyrics",
             "quality_intent",
             "duration",
             "output_format",
@@ -1645,7 +1389,6 @@
     },
     "prompts": {
       "skills": [
-        "composer-lyrics.md",
         "composer-music.md"
       ],
       "targets": [
@@ -1655,8 +1398,6 @@
           "enrich": true,
           "field": "prompt",
           "kind": "generative",
-          "lyrics": true,
-          "model": "composer.ComposerGeneration",
           "model_field": "model",
           "source": "composer"
         }
@@ -1672,14 +1413,12 @@
       "descriptions": {
         "add_to_composer": {
           "args": {
-            "duration": "range — Durée [10–600s] (défaut : 210)",
-            "lyrics": "textarea — Paroles chantées, en sections balisées ([Verse], [Chorus]…). Écrites pour vous si vous demandez une chanson sans en donner ; modifiez-les puis relancez. Des paroles écrites dans le prompt, sous la description, priment.",
+            "duration": "range — Durée [10–600s] (défaut : 10)",
             "model": "select — Modèle (défaut : 'auto:text-to-music')",
             "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus)",
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max)",
             "prompt": "textarea — Prompt (requis)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
-            "vocals": "select — « Auto » : chanté si le prompt porte des paroles balisées ([Verse], [Chorus]…) sous la description, instrumental sinon. « Chanson » sans paroles : elles sont écrites pour vous, dans une langue que le modèle chante. Seuls certains modèles chantent ; en automatique, le tirage les retient. (choix : auto | instrumental | song) (défaut : 'auto')",
             "work_audio": "str",
             "work_score": "str"
           },

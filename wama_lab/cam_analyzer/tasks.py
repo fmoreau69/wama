@@ -2915,7 +2915,7 @@ def compute_indicators_task(self, session_id: str):
     """Passe INDICATEURS (CALCUL, CPU, re-jouable) : DÉRIVE les indicateurs de trafic des données
     déjà stockées, sans re-détecter — (a) tracks globaux 360° (continuité + hand-off), (b) TTC/PET
     par trajectoire annotés sur les détections (prediction_ttc/pet). Nommée `compute_*_task` comme
-    la famille des passes ; déclarée `indicators` dans PassType/pass_tracking. Aucun import
+    la famille des passes ; déclarée `indicators` dans le registre `pass_tracking.PASSES`. Aucun import
     torch/cv2 → sûr sous WSL2. Session-wide."""
     close_old_connections()
     from .models import AnalysisSession

@@ -491,7 +491,7 @@ _spec('conflicts', 'Conflits', "Détecte les conflits (approche frontale, suivi 
                         description="Un événement daté par conflit détecté, gradué par "
                                     "`severity`. C'est la sortie MÉTIER de la chaîne.")])
 
-# `indicators` = la clé de la PASSE (`PassType.INDICATORS`, `compute_indicators_task`) ; la
+# `indicators` = la clé de la PASSE (registre `pass_tracking.PASSES`, `compute_indicators_task`) ; la
 # fonction s'appelait `prediction` jusqu'au 2026-09-09 — un nom pour trois objets (passe, tâche,
 # fonction), sinon le registre des passes ne peut pas dériver son nœud sans table de traduction.
 _spec('indicators', 'Indicateurs prédiction (TTC/PET)', "TTC/PET par prédiction de trajectoire (ré-annotation "
