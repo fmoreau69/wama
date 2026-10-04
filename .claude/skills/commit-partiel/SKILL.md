@@ -32,6 +32,12 @@ VÉRIFIÉ**, et c'est la vérification qui rend le commit sans pathspec légitim
   les co-édités par le patch.
 - JAMAIS : `git add -A` / `git add .`, `git commit <fichier co-édité>`, `git stash` (il emporte
   aussi les modifications d'autrui), `git add -p` (interactif, non supporté ici).
+- 🔴 **RELIRE CE FICHIER AU MOMENT DU GESTE — jamais d'après une copie chargée plus tôt dans la
+  session** (vécu le 2026-10-04). Une session longue a suivi le §1 tel qu'il était quand elle
+  l'avait lu — `git commit` sur index temporaire —, alors que le fichier portait depuis six jours
+  la forme `commit-tree -p $BASE` : son commit a ANNULÉ deux commits d'autres sessions
+  (`3e24dfa2`, `df124fbb`), rétablis ensuite. Ce skill grandit à chaque piège vécu par une
+  instance ; *la version que l'on a en tête est celle d'avant le dernier piège*.
 
 ## 1. Le geste, dans l'ordre
 
