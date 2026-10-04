@@ -53,6 +53,18 @@ def resolve_auto_model(gen):
     # YuE2) — sinon « auto » tirerait un MusicGen qui l'ignorerait en silence.
     if getattr(gen, 'reference_score', None):
         spec['consumes'] = spec.get('consumes', []) + ['work_score']
+    # Voix VOULUE (réglage `vocals`, 2026-10-04) : seuls les modèles qui CHANTENT (capacité
+    # `supports_vocals` du catalogue) — sinon « auto » tirerait un MusicGen qui jouerait les paroles
+    # comme une description. Croisé avec les candidats déjà posés (un cover) ; si le croisement
+    # est vide, la contrainte de l'entrée fournie l'emporte, et le lancement dira que ça ne chante pas.
+    from wama.common.utils.app_metadata import effective_prompt
+    from wama.composer.utils.vocals import singing_models, wants_vocals
+    if wants_vocals(getattr(gen, 'vocals', None), effective_prompt(gen, 'prompt')):
+        singers = singing_models(spec['task'])
+        if 'candidates' in spec:
+            singers = [k for k in spec['candidates'] if k in singers]
+        if singers:
+            spec['candidates'] = singers
     # `item=gen` (chantier C, 2026-09-20) : le curseur rapide/qualité de l'item (sinon le réglage
     # d'app de l'utilisateur, sinon 50) pèse dans le score — la brique était appelée SANS intention.
     return resolve_model_choice(AUTO, spec=spec, fallback=_config_fallback(gen), item=gen)

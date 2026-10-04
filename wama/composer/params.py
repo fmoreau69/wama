@@ -10,6 +10,7 @@ from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import Param, schema_to_dicts
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.composer.utils.model_choice import AUTO_MUSIC, AUTO_SFX, TASKS
+from wama.composer.utils.vocals import AUTO as VOCALS_AUTO, CHOICES as VOCALS_CHOICES
 
 PANEL = ("panel",)
 PANEL_ITEM = ("panel", "item")
@@ -44,6 +45,18 @@ PARAMS = [
           # (la partition de YuE2, 2026-10-01) — `app_registry.app_input_ports`.
           options_ports=True,
           default=AUTO_MUSIC),
+    # Voix (2026-10-04, question de Fabien : « chant ou pas, dans le prompt ou par un réglage ? »).
+    # Le prompt le dit par sa FORME (paroles balisées) — « auto » le lit ; le réglage tranche quand
+    # la forme ne suffit pas. Lu au LANCEMENT (`utils/vocals.prepare_prompt`) et par le tirage
+    # « auto » (seuls les modèles qui CHANTENT quand la voix est voulue).
+    Param(name="vocals", type="select", label="Voix", icon="fa-microphone", chip=True,
+          choices=VOCALS_CHOICES, default=VOCALS_AUTO,
+          help="« Auto » : chanté si le prompt porte des paroles balisées ([Verse], [Chorus]…) "
+               "sous la description, instrumental sinon. « Chanson » sans paroles : elles sont "
+               "écrites pour vous, dans une langue que le modèle chante. Seuls certains modèles "
+               "chantent ; en automatique, le tirage les retient.",
+          dom_id={"panel": "vocalsSelect", "item": "settingsVocals", "batch": "batchSettingsVocals"},
+          contexts=PANEL_ITEM_BATCH),
     # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur les « auto », lu au
     # LANCEMENT par le tirage (`resolve_auto_model` → `item=gen`). Rendu par le renderer commun
     # (volet : même hôte que le modèle ; modale/lot : lu génériquement par WamaParams.read).

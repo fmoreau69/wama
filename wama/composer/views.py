@@ -21,6 +21,7 @@ from .models import ComposerBatch, ComposerBatchItem, ComposerGeneration
 from .utils.model_choice import (AUTO_MUSIC, AUTO_SFX, DEFAULT_MODEL, accepts_input, is_valid,
                                  normalize)
 from .utils.model_config import COMPOSER_MODELS, clamp_duration
+from .utils import vocals
 
 # Route F4b (2026-10-01) : le modèle est une CLÉ DE CATALOGUE (ou un « auto » de groupe), le type
 # musique/bruitage s'en DÉRIVE au `save()` (utils/model_choice) — plus de pseudo-modèles propres
@@ -278,7 +279,7 @@ def generate(request):
     # (tool_api/studio) hérite ainsi du modèle préféré au lieu d'un défaut codé en dur.
     from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
     last = get_user_app_settings(user, 'composer', {
-        'model': DEFAULT_MODEL, 'duration': 10.0,
+        'model': DEFAULT_MODEL, 'duration': 10.0, 'vocals': vocals.AUTO,
         'output_format': 'original', 'output_quality': 'balanced'})
 
     model_id = normalize(request.POST.get('model') or last['model'])
@@ -297,6 +298,7 @@ def generate(request):
         model=model_id,
         quality_intent=_intent_posted(request.POST),
         duration=duration,
+        vocals=vocals.normalize(request.POST.get('vocals') or last.get('vocals')),
         output_format=request.POST.get('output_format') or last['output_format'],
         output_quality=request.POST.get('output_quality') or last['output_quality'],
         # Mélodie par URL (WAMA_INGEST) : téléchargée en tête de tâche par ensure_local_input.
@@ -305,7 +307,7 @@ def generate(request):
 
     # Re-persiste les choix comme défauts de la prochaine génération.
     save_user_app_settings(user, 'composer', {
-        'model': model_id, 'duration': duration,
+        'model': model_id, 'duration': duration, 'vocals': gen.vocals,
         'output_format': gen.output_format, 'output_quality': gen.output_quality})
 
     # Le MORCEAU À REPRENDRE (cover) — ports de TRAVAIL depuis le 2026-10-03 (décision de Fabien) :
@@ -594,6 +596,10 @@ def _apply_generation_settings(gen, data):
         pass                    # durée illisible : celle de l'élément reste
     if str(data.get('quality_intent', '')) != '':
         gen.quality_intent = _intent_posted(data)
+    # Voix : une valeur hors de ses choix est IGNORÉE (contrat commun des routes de réglages,
+    # `tests_item_settings_contract`) — jamais écrite.
+    if data.get('vocals') in vocals.VALUES:
+        gen.vocals = data['vocals']
     # Prompt éditable (modale complète P1) — on ne l'écrase pas s'il est vide. Champ à DEUX ÉTATS
     # (2026-10-04, la route de l'imager) : `apply_prompt_state` dit dans quel champ écrire — éditer
     # l'enrichi garde l'original ; reprendre son prompt rend l'enrichi périmé, donc vidé.

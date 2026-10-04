@@ -204,6 +204,15 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   contrat du modèle TIRÉ.
 - Les contrats musicaux en découlent : le LLM n'écrit **jamais** de paroles (MiniMax-Music3 et
   YuE2 : la description seule ; sans paroles fournies, la pièce est instrumentale).
+- **Réglage « Voix »** du composer (`vocals`, même jour — `composer/utils/vocals.py`) :
+  `auto` (chanté si le prompt porte des paroles balisées), `instrumental` (paroles retirées),
+  `song` (chanté ; sans paroles fournies, elles sont **écrites** — `write_lyrics_for`, skill
+  `composer-lyrics`, dans une langue que le modèle chante : celle du profil, sinon l'anglais).
+  C'est le SEUL chemin où un LLM écrit des paroles, et il faut le demander. Qui chante : la
+  capacité `supports_vocals` du MODÈLE, déclarée par son manifeste (YuE2, MiniMax-Music3) ;
+  sous « auto », le tirage ne retient que ceux-là quand la voix est voulue ; un modèle choisi qui
+  ne chante pas reçoit la description seule, et la console le dit. Les paroles écrites sont
+  dites en console (pas encore persistées sur la card).
 
 ## PROMPT + SKILLS + RAG + MÉMOIRE — la chaîne complète par surface (état MESURÉ au 2026-08-22)
 

@@ -4,6 +4,7 @@ from wama.common.models import (JOB_STATUS_CHOICES, NativeOutputsMixin, Processi
 from django.contrib.auth.models import User
 
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
+from wama.composer.utils.vocals import AUTO as VOCALS_AUTO, CHOICES as VOCALS_CHOICES
 
 
 # `PromptScoped` (2026-10-04, la route de l'imager) : `prompt` reste ce que l'utilisateur a tapé,
@@ -35,6 +36,12 @@ class ComposerGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, 
     # LANCEMENT (`resolve_model_choice(item=…)`). Null = équilibré (50).
     quality_intent = models.IntegerField(null=True, blank=True,
                                          help_text='Curseur rapide/qualité 0-100 du tirage auto')
+    # Voix (2026-10-04, `utils/vocals`) : auto (chanté si le prompt porte des paroles balisées) /
+    # instrumental / chanson (paroles écrites si absentes). `db_default` : le code en service crée
+    # des générations sans connaître la colonne jusqu'au rechargement.
+    vocals = models.CharField(max_length=12, choices=VOCALS_CHOICES, default=VOCALS_AUTO,
+                              db_default=VOCALS_AUTO,
+                              help_text='Voix : auto / instrumental / chanson')
 
     # Optional melody reference (MusicGen Melody only)
     melody_reference = models.FileField(

@@ -238,6 +238,31 @@ def enrich_prompt_value(app, field, value, **kwargs):
     return _with_lyrics(enrich_on_demand(caption, app=app, **kwargs), lyrics)
 
 
+def write_lyrics_for(app, field, description, *, language='en', timeout=90):
+    """Les PAROLES d'une chanson décrite par `description`, balisées (`[Verse]`, `[Chorus]`…), ou
+    '' — le SEUL lieu où un LLM écrit des paroles, et seulement quand on les DEMANDE (réglage de
+    voix « Chanson » sans paroles fournies, composer, 2026-10-04). Skill `<app>-lyrics` ; une cible
+    qui ne déclare pas `lyrics` n'en reçoit jamais. Ne lève jamais."""
+    tgt = _target(app, field)
+    if not tgt or not tgt.get('lyrics'):
+        return ''
+    try:
+        from wama.common.backends.music_generation_base import tagged_lyrics
+        from .prompt_enrichment import enrich_generative
+        from .prompt_skills import resolve_skill
+        name, text = resolve_skill(app=app, domain='lyrics', kind=None)
+        if not text:
+            return ''
+        brief = str(description or '').strip() or 'A song.'
+        out = enrich_generative(brief, language=language, skill_name=name, skill_text=text,
+                                timeout=timeout, allow_shorter=True)
+        _caption, lyrics = tagged_lyrics(out if out != brief else '')
+        return lyrics
+    except Exception as exc:
+        logger.debug(f"[app_metadata] paroles {app}.{field} non écrites ({exc})")
+        return ''
+
+
 def _contract_decided_at_launch(model_value) -> bool:
     """Un « auto » borné à une tâche dont un candidat déclare un CONTRAT de prompt : le modèle —
     donc la forme attendue de l'enrichi — n'est connu qu'au tirage. Enrichir à l'ingestion sans

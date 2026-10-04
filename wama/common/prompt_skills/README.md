@@ -132,3 +132,7 @@ et sans paroles fournies **aucune** n'est écrite. Le contrat de MiniMax (« 250
 les paroles sous tags ») a été réécrit en ce sens par son manifeste (`write_back`, puis export).
 L'ingestion reçoit aussi le contrat du modèle choisi ; sous un « auto » dont un candidat en
 porte un, elle s'abstient — le lancement enrichit avec le contrat du modèle tiré.
+
+**`composer-lyrics.md` — le seul skill qui ÉCRIT des paroles** (réglage « Voix » = Chanson,
+sans paroles fournies ; `app_metadata.write_lyrics_for`). Résolu par `(app, 'lyrics')` SANS
+repli générique : son absence veut dire « pas de paroles », jamais celles d'un autre skill.

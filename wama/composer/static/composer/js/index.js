@@ -255,6 +255,8 @@
             extraFields: function (fd) {
                 fd.append('model', modelSelect?.value || 'auto:text-to-music');
                 fd.append('duration', getSelectedDuration());
+                // Voix du volet (2026-10-04) : auto / instrumental / chanson.
+                fd.append('vocals', (document.getElementById('vocalsSelect') || {}).value || 'auto');
                 // Curseur rapide/qualité du volet (chantier C) — lu au lancement si le modèle est auto-*.
                 fd.append('quality_intent', document.getElementById('qualityIntent')?.value || '');
                 fd.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
