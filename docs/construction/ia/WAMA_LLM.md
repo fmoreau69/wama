@@ -212,7 +212,15 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   capacité `supports_vocals` du MODÈLE, déclarée par son manifeste (YuE2, MiniMax-Music3) ;
   sous « auto », le tirage ne retient que ceux-là quand la voix est voulue ; un modèle choisi qui
   ne chante pas reçoit la description seule, et la console le dit. Les paroles écrites sont
-  dites en console (pas encore persistées sur la card).
+  **gardées sur la card** (champ `lyrics`, même jour) : éditables dans la modale ⚙ (« Paroles »,
+  masqué en instrumental), rejouées telles quelles, jamais réécrites. Ordre de lecture : paroles
+  balisées du prompt (priment, c'est dit), sinon celles de la card, sinon écrites (« Chanson »).
+  `plan` et `render` surveillent `vocals`, `lyrics` et `prompt_processed` — et ajouter un réglage
+  surveillé ne périme plus les cards déjà rendues (`process_runs._watched_changed`).
+  ⚠ Revers assumé (relevé par la session pipeline) : sur une card rendue AVANT le 2026-10-04,
+  poser des paroles ou changer la voix ne l'affiche pas périmée — sa photo ne portait pas ces
+  réglages. Le ▶ de la card rejoue alors tout (`steps_to_run` : « tous à jour → tous ») et
+  repose la photo ; seul le badge « périmé » manque.
 
 ## PROMPT + SKILLS + RAG + MÉMOIRE — la chaîne complète par surface (état MESURÉ au 2026-08-22)
 
