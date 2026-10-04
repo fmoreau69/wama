@@ -2366,7 +2366,7 @@
       "descriptions": {
         "add_to_transcriber": {
           "args": {
-            "backend": "select — Modèle de transcription (choix : auto | transcriber:vibevoice-asr | huggingface:aihpi/FrWhisper | transcriber:qwen3-asr-1.7b | huggingface:kyutai/stt-1b-en_fr-trfs | transcriber:whisper | transcriber:qwen3-asr-0.6b | albert:whisper-large-v3 …) (défaut : 'auto')",
+            "backend": "select — Modèle de transcription (choix : auto | transcriber:vibevoice-asr | transcriber:canary-1b-v2 | huggingface:aihpi/FrWhisper | transcriber:qwen3-asr-1.7b | huggingface:kyutai/stt-1b-en_fr-trfs | transcriber:parakeet-tdt-0.6b-v3 | transcriber:whisper …) (défaut : 'auto')",
             "diarization_model": "select — community-1 succède à 3.1 (mêmes auteurs). En cours d'évaluation sur des réunions annotées : le meilleur des deux n'est pas encore établi. (choix : speaker-diarization-3.1 | speaker-diarization-community-1) (défaut : 'speaker-diarization-3.1')",
             "enable_diarization": "toggle — Séparation des locuteurs (pyannote) (défaut : True)",
             "file_path": "str (requis)",
