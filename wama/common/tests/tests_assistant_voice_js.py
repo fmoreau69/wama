@@ -97,3 +97,20 @@ class NextSentenceIsRequestedDuringPlaybackTest(SimpleTestCase):
         self.assertEqual(1, ctx.eval("asked.length"))
         ctx.eval("pending[0]({ json: function () { return Promise.resolve({ audio_b64: 'AA==' }); } });")
         self.assertEqual(2, ctx.eval("asked.length"))
+
+
+class ChatScriptParsesTest(SimpleTestCase):
+    """Le script du chat (décompte d'attente, 2026-10-04) touche au DOM : on ne l'exécute pas,
+    on vérifie que V8 l'ANALYSE — un script qui ne s'analyse plus casse le chat de toutes les
+    pages sans qu'aucun test Python ne le voie."""
+
+    def test_the_served_chat_script_is_valid_javascript(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8')
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                  / 'wama-assistant-chat.js').read_text(encoding='utf-8')
+        MiniRacer().eval('(function(){' + source + '\n})')
+        self.assertIn("evt.type === 'eta'", source)
+        self.assertIn('showCountdown', source)
