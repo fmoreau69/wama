@@ -293,6 +293,7 @@ def llm_chat(
     api_base: Optional[str] = None,
     keep_alive: Optional[str] = None,
     temperature: Optional[float] = None,
+    on_delta=None,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Unified LLM chat function — provider-agnostic entry point.
@@ -318,6 +319,11 @@ def llm_chat(
         timeout:    HTTP timeout in seconds.
         api_key:    Cloud API key (required for non-Ollama providers).
         api_base:   Override API base URL (e.g. custom Ollama host).
+        on_delta:   Cloud only. Si fourni, la réponse est demandée EN FLUX et chaque fragment
+                    de TEXTE part à `on_delta(fragment)` au fil de l'eau ; le retour reste le
+                    texte entier. La réflexion d'un modèle de raisonnement arrive par un
+                    autre champ et n'est jamais transmise. Ignoré sur le chemin Ollama, qui
+                    a son propre flux côté assistant (`assistant_engine._ollama_stream`).
 
     Returns:
         (text, None) on success · (None, error_string) on failure
@@ -394,6 +400,21 @@ def llm_chat(
         kwargs['api_base'] = api_base
 
     try:
+        if on_delta is not None:
+            # FLUX (2026-10-04) : le fournisseur rend son premier texte en ~0,5 s et sa fin en
+            # 1 à 2 s (mesuré sur Albert) — sans flux, l'écran et la voix attendaient la fin.
+            pieces = []
+            for chunk in litellm.completion(stream=True, **kwargs):
+                choices = getattr(chunk, 'choices', None) or []
+                fragment = getattr(getattr(choices[0], 'delta', None), 'content', None) \
+                    if choices else None
+                if fragment:
+                    pieces.append(fragment)
+                    on_delta(fragment)
+            text = ''.join(pieces)
+            if not text.strip():
+                return None, "LLM returned empty response"
+            return text.strip(), None
         response = litellm.completion(**kwargs)
         text = response.choices[0].message.content or ''
         if not text.strip():
@@ -481,7 +502,7 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
 def chat_with_source(source: str, model_id: Optional[str], messages: list, *, user=None,
                      num_predict: Optional[int] = None, think: bool = False,
                      timeout: Optional[float] = None, temperature: Optional[float] = None,
-                     ) -> tuple[Optional[str], Optional[str]]:
+                     on_delta=None) -> tuple[Optional[str], Optional[str]]:
     """Un appel à un fournisseur LLM DÉCLARÉ (`external_sources`, type `llm` : Albert, API
     Anthropic…), avec la clé de l'UTILISATEUR quand il est connecté — `(texte, None)` ou
     `(None, erreur)` de `llm_chat`. Le nom du fournisseur EST le nom de la source.
@@ -501,7 +522,7 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
         api_key = cloud_access(user, source, model_id or '')
     return llm_chat(messages, model=model_id or None, provider=source, api_key=api_key,
                     num_predict=num_predict, think=think, timeout=timeout,
-                    temperature=temperature)
+                    temperature=temperature, on_delta=on_delta)
 
 
 def extract_json_from_llm(text: str) -> Optional[dict]:

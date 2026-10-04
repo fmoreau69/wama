@@ -561,8 +561,32 @@ class _TokenGate:
             self._buffer = rest
         if self._muted or not self._buffer:
             return
-        self._emit(self._buffer)
-        self._buffer = ''
+        # Robinet OUVERT — mais un appel d'outil peut encore SUIVRE une phrase d'annonce
+        # (« Je vérifie vos fichiers. {"tool": …} » — mesuré le 2026-10-04 sur un modèle
+        # distant : le JSON partait à l'écran, et la voix l'aurait lu). On laisse donc passer le
+        # texte jusqu'à une accolade, et l'on retient celle-ci le temps de savoir : dès que ce
+        # qui la suit est l'ouverture d'un appel d'outil, le reste de l'itération est muet.
+        while self._buffer:
+            brace = self._buffer.find('{')
+            if brace < 0:
+                self._emit(self._buffer)
+                self._buffer = ''
+                return
+            if brace > 0:
+                self._emit(self._buffer[:brace])
+                self._buffer = self._buffer[brace:]
+            compact = ''.join(self._buffer.split())
+            if compact.startswith(self.TOOL_CALL_OPENING):
+                self._muted = True
+                self._buffer = ''
+                return
+            if self.TOOL_CALL_OPENING.startswith(compact):
+                return                      # pas encore assez de caractères pour trancher
+            self._emit(self._buffer[0])     # une accolade ordinaire : elle passe
+            self._buffer = self._buffer[1:]
+
+    #: Ouverture d'un appel d'outil, blancs retirés (`_parse_tool_call` lit ce format).
+    TOOL_CALL_OPENING = '{"tool"'
 
     def close(self) -> None:
         """Fin d'itération : ce qui restait en attente part, sauf si l'itération était muette."""
@@ -652,9 +676,10 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
         (text, usage_dict) on success · (None, error_dict) on failure
     """
     if provider in _LOCAL_PROVIDERS:
-        # ⚠ Le FLUX n'existe que sur le chemin LOCAL : `llm_chat` (LiteLLM) rend un texte
-        # entier, et l'abonnement Claude Code lance un process qui finit avant de parler. Un
-        # tour cloud reste donc synchrone, et la surface le sait (elle affiche son attente).
+        # Flux LOCAL : `_ollama_stream`. Le flux d'un fournisseur DÉCLARÉ (Albert, API
+        # Anthropic) passe plus bas par `chat_with_source(on_delta=…)` depuis le 2026-10-04.
+        # Seul l'abonnement Claude Code reste synchrone : il lance un process qui finit avant
+        # de parler.
         return _ollama_call(messages, llm_model, think=think, on_delta=on_delta)
 
     if provider in _SUBSCRIPTION_PROVIDERS:
@@ -679,7 +704,7 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
         from wama.model_manager.services.cloud_models import CloudAccessRefused
         try:
             text, err = chat_with_source(source.key, llm_model, messages, user=user,
-                                         num_predict=4096, timeout=180.0)
+                                         num_predict=4096, timeout=180.0, on_delta=on_delta)
         except CloudAccessRefused as e:
             return None, {'error': str(e), 'status': e.status}
     else:
@@ -1174,8 +1199,10 @@ def run_assistant_turn(user, message: str, provider: str = None,
     for _ in range(MAX_TOOL_ITERATIONS):
         # FLUX (levier 5) : un portier par itération — il ne laisse passer ni la réflexion du
         # modèle ni un appel d'outil, qui arrivent par le même canal que la réponse.
+        # Le portier vaut pour TOUT fournisseur qui diffuse (local et distant déclaré) : un
+        # chemin sans flux (abonnement) ne l'alimente simplement pas.
         gate = None
-        if on_event is not None and local:
+        if on_event is not None:
             gate = _TokenGate(lambda fragment: on_event({'type': 'delta', 'text': fragment}))
         text, result = _llm_call(messages, llm_model, provider, user=user, think=think,
                                  on_delta=(gate.feed if gate else None))

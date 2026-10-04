@@ -59,6 +59,19 @@ class TokenGateTest(SimpleTestCase):
         d'avoir vu le `{` d'un appel d'outil."""
         self.assertEqual('', _gate_output(['\n  ', '{"tool": "x", "args": {}}']))
 
+    def test_a_tool_call_announced_by_a_sentence_is_cut_at_the_call(self):
+        """Mesuré le 2026-10-04 sur un modèle distant : il écrit une phrase PUIS l'appel. La
+        phrase passe, le JSON non — y compris coupé au milieu de son ouverture."""
+        output = _gate_output(['Je vérifie vos fichiers. ', '{"to', 'ol": "list_user_files"',
+                               ', "args": {}}'])
+        self.assertEqual('Je vérifie vos fichiers. ', output)
+        self.assertEqual('Un instant.\n', _gate_output(['Un instant.\n{ "tool" : "x", "args": {}}']))
+
+    def test_an_ordinary_brace_in_an_answer_still_goes_through(self):
+        """Contre-épreuve : une accolade n'est pas un appel d'outil."""
+        text = 'En JSON : {"clef": 1} ou {x}. Fin {'
+        self.assertEqual(text, _gate_output(list(text)))
+
 
 class OllamaStreamTest(SimpleTestCase):
 
@@ -111,6 +124,59 @@ class OllamaStreamTest(SimpleTestCase):
         self.assertIs(False, sent['stream'])
 
 
+class CloudStreamTest(SimpleTestCase):
+    """Le flux d'un fournisseur DÉCLARÉ (Albert) — 2026-10-04. Mesuré : premier texte à ~0,5 s,
+    fin à 1 à 2 s ; sans flux l'écran et la voix attendaient la fin."""
+
+    @staticmethod
+    def _chunk(content=None, reasoning=None):
+        delta = mock.Mock(content=content, reasoning_content=reasoning)
+        return mock.Mock(choices=[mock.Mock(delta=delta)])
+
+    def _fake_litellm(self, chunks, sent):
+        def completion(**kwargs):
+            sent.update(kwargs)
+            if kwargs.get('stream'):
+                return iter(chunks)
+            message = mock.Mock(content='entier')
+            return mock.Mock(choices=[mock.Mock(message=message)])
+        return mock.Mock(completion=completion)
+
+    def test_text_fragments_are_handed_over_and_the_reflection_is_not(self):
+        import sys
+        from wama.common.utils import llm_utils
+        sent, seen = {}, []
+        chunks = [self._chunk(reasoning='je pèse le pour'), self._chunk('Bon'),
+                  self._chunk('jour'), mock.Mock(choices=[])]
+        with mock.patch.dict(sys.modules, {'litellm': self._fake_litellm(chunks, sent)}):
+            text, error = llm_utils.llm_chat([{'role': 'user', 'content': 'x'}], model='m',
+                                             provider='anthropic', api_key='k',
+                                             on_delta=seen.append)
+        self.assertIsNone(error)
+        self.assertEqual('Bonjour', text)
+        self.assertEqual(['Bon', 'jour'], seen)
+        self.assertIs(True, sent['stream'])
+
+    def test_without_a_callback_no_stream_is_asked_of_the_provider(self):
+        """Contre-épreuve : les apps et les rôles qui appellent `llm_chat` ne changent pas."""
+        import sys
+        from wama.common.utils import llm_utils
+        sent = {}
+        with mock.patch.dict(sys.modules, {'litellm': self._fake_litellm([], sent)}):
+            text, _ = llm_utils.llm_chat([{'role': 'user', 'content': 'x'}], model='m',
+                                         provider='anthropic', api_key='k')
+        self.assertEqual('entier', text)
+        self.assertNotIn('stream', sent)
+
+    def test_the_turn_hands_its_gate_to_a_declared_provider(self):
+        seen = []
+        with mock.patch('wama.common.utils.llm_utils.chat_with_source',
+                        return_value=('ok', None)) as chat:
+            assistant_engine._llm_call([{'role': 'user', 'content': 'x'}], 'm', 'albert',
+                                       user=None, on_delta=seen.append)
+        self.assertIs(chat.call_args.kwargs['on_delta'].__self__, seen)
+
+
 class TurnEventsTest(TestCase):
 
     def setUp(self):
@@ -143,6 +209,22 @@ class TurnEventsTest(TestCase):
         # L'appel d'outil de la 1ʳᵉ itération n'a PAS été montré : seul le texte final passe.
         self.assertEqual('Vos fichiers.', ''.join(e['text'] for e in events if e['type'] == 'delta'))
         self.assertEqual('Vos fichiers.', result['response'])
+
+    def test_a_remote_turn_streams_through_the_same_gate(self):
+        """Le portier n'est plus réservé au local : un fournisseur distant qui diffuse voit son
+        appel d'outil filtré de la même façon."""
+        def fake_llm(messages, llm_model, provider, user=None, think=None, on_delta=None):
+            self.assertIsNotNone(on_delta)
+            on_delta('Réponse ')
+            on_delta('distante.')
+            return 'Réponse distante.', dict(USAGE)
+
+        events = []
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=fake_llm):
+            assistant_engine.run_assistant_turn(self.user, 'x', provider='albert', model='m',
+                                                history=[], on_event=events.append)
+        self.assertEqual('Réponse distante.',
+                         ''.join(e['text'] for e in events if e['type'] == 'delta'))
 
     def test_without_a_listener_the_turn_is_the_one_that_already_existed(self):
         with mock.patch.object(assistant_engine, '_llm_call',

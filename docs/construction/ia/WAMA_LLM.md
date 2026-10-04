@@ -526,7 +526,29 @@ importe TOUS les modules de backends (index du catalogue) — un coût de proces
 
 ✅ **Levier ② CÂBLÉ le 2026-10-04 — la voix sur la carte graphique.** Ce n'était pas un choix : deux distributions du moteur ONNX cohabitaient et la version processeur masquait l'autre (`INFRA_WSL_VS_WINDOWS §onnxruntime`). Réparé, session construite avec la liste commune de fournisseurs, premier appel amorcé au chargement : 1,3 s → 0,18 s pour une phrase courte, 4,5 s → 0,53 s pour 11 s de son. Gardes : `tests_onnx_runtime`. 🔴 relancer le service de voix et les workers.
 
-⏳ **Leviers restants, dans l'ordre validé par Fabien** : ① ~~ne plus payer l'import~~ ; ② voix sur le GPU (fournisseur CUDA d'`onnxruntime`) ou variante quantifiée du
+✅ **Levier ③ CÂBLÉ le 2026-10-04 — le flux sur le chemin cloud.** `llm_chat(on_delta=…)`
+demande le flux au fournisseur (LiteLLM, `stream=True`) et `chat_with_source` le relaie ; le
+portier `_TokenGate` vaut désormais pour tout fournisseur qui diffuse. Seul l'abonnement Claude
+Code reste synchrone. Sans rappel, aucun flux n'est demandé : les apps et les rôles qui
+appellent `llm_chat` ne changent pas (contre-épreuve). Mesuré sur deux tours réels par Albert,
+processus préchauffé : premier fragment à 1,3 s et 2,1 s.
+⚠ **Défaut trouvé par le tour à outil réel** : ce modèle écrit une phrase d'annonce PUIS
+l'appel (« Je vérifie vos fichiers. {"tool": …} »), et le portier, qui décidait sur le premier
+caractère, laissait partir le JSON à l'écran. Il retient maintenant toute accolade le temps de
+savoir si elle ouvre un appel d'outil. Gardes : `tests_assistant_stream` (portier, flux cloud,
+relais).
+
+✅ **Levier ④ CÂBLÉ le 2026-10-04 — la phrase suivante demandée pendant la lecture.**
+`speakStream` tient deux files : les demandes au service de voix partent l'une après l'autre
+dès qu'une phrase est prête, la lecture suit la sienne.
+⚠⚠ **Et un défaut plus grave, trouvé en écrivant le test** : chaque fragment du flux était
+nettoyé séparément (`stripMarkdown`, qui retire les blancs de tête) — les mots arrivaient donc
+COLLÉS, aucune fin de phrase n'était plus reconnue, et la voix ne partait qu'à la fin du tour,
+sur un texte sans espaces. Tout tour en flux était touché (le modèle local depuis le 26/09).
+Le nettoyage se fait maintenant sur la phrase prête. Gardes : `tests_assistant_voice_js`
+(le script exécuté dans V8 ; la garde des mots collés est prouvée par mutation).
+
+⏳ **Levier restant** : ① ~~ne plus payer l'import~~ ; ②③④ ~~faits~~ ; ② voix sur le GPU (fournisseur CUDA d'`onnxruntime`) ou variante quantifiée du
 même export, déjà sur le disque — à mesurer avant de choisir ; ③ flux sur le chemin cloud ;
 ④ pré-demander la phrase suivante hors avatar ; ⑤ écrire la durée du tour.
 
