@@ -195,17 +195,6 @@ def _decorate_audio_card(ae):
     return ae
 
 
-def _bounded(process):
-    """`process` d'une route `start/<pk>/<process>/` : None (lancement complet), la clé d'un
-    process du pipeline, ou une `JsonResponse` de refus."""
-    if not process:
-        return None
-    from .function_specs import PIPELINE
-    if process not in {s.key for s in PIPELINE.specs}:
-        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
-    return process
-
-
 def _input_match_meta_enhancer():
     """Meta de la brique COMMUNE — clés catalogue = valeurs d'option DEPUIS l'alignement
     18/08 (l'artefact _fp16 des model_key est retiré à la découverte) : plus de re-clé."""
@@ -517,13 +506,9 @@ def stop(request, pk: int):
 
 
 @require_POST
-def start(request, pk: int, process: str = None):
-    """Start enhancement processing. `process` (route `start/<pk>/<process>/`) : lancement BORNÉ
-    à ce process — refaire la sortie seule (format, qualité) sans relancer l'amélioration."""
+def start(request, pk: int):
+    """Start enhancement processing."""
     logger.info(f"=== START ENHANCEMENT {pk} ===")
-    process = _bounded(process)
-    if isinstance(process, JsonResponse):
-        return process
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
@@ -554,8 +539,7 @@ def start(request, pk: int, process: str = None):
 
     from .tasks import enhance_media
     try:
-        task = (enhance_media.apply_async(args=(pk,), kwargs={'process': process})
-                if process else enhance_media.delay(pk))
+        task = enhance_media.delay(pk)
         enhancement.task_id = task.id
         enhancement.save(update_fields=['task_id'])
         return JsonResponse({'task_id': task.id, 'status': 'RUNNING'})
@@ -1010,6 +994,15 @@ def _reset_media_and_clear_progress(e):
     cache.set(f"enhancer_progress_{e.id}", 0, timeout=3600)
 
 
+# ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — refaire la sortie seule
+# (format, qualité) sans relancer l'amélioration. Le lancement lit les réglages STOCKÉS.
+from wama.common.utils.process_views import make_process_start_view  # noqa: E402
+
+start_process = make_process_start_view(
+    work_model=Enhancement, task_for=_media_task,
+    reset_on_start=_reset_media_and_clear_progress)
+
+
 _bv = make_batch_views(
     work_model=Enhancement, batch_model=BatchEnhancement, get_user=_get_user,
     task_for=_media_task,
@@ -1203,12 +1196,9 @@ def audio_update(request, pk: int):
 
 
 @require_POST
-def audio_start(request, pk: int, process: str = None):
-    """Start audio enhancement processing. `process` : lancement BORNÉ à ce process."""
+def audio_start(request, pk: int):
+    """Start audio enhancement processing."""
     import json as _json
-    process = _bounded(process)
-    if isinstance(process, JsonResponse):
-        return process
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
@@ -1238,8 +1228,7 @@ def audio_start(request, pk: int, process: str = None):
 
     from .tasks import enhance_audio
     try:
-        task = (enhance_audio.apply_async(args=(pk,), kwargs={'process': process})
-                if process else enhance_audio.delay(pk))
+        task = enhance_audio.delay(pk)
         ae.task_id = task.id
         ae.save(update_fields=['task_id'])
         return JsonResponse({'task_id': task.id, 'status': 'RUNNING'})
@@ -1521,6 +1510,11 @@ def audio_batch_create(request):
 def _audio_task(ae):
     from .tasks import enhance_audio
     return enhance_audio
+
+
+audio_start_process = make_process_start_view(
+    work_model=AudioEnhancement, task_for=_audio_task,
+    reset_on_start={'progress': 0, 'error_message': ''})
 
 
 def _audio_reset_for(request):

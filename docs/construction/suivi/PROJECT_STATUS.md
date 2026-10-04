@@ -21595,3 +21595,16 @@ cam_analyzer (6 au total sur `dev` à cette heure) · effets de bord : 77 lignes
 créées par la reprise (voulues, inoffensives, rejouable sans effet) ; réglages de la session ENA_CASA
 changés (consignés au CHANGELOG avec leur annulation) ; scripts de mesure et de mutation dans le
 scratchpad de session, jetables.
+
+## §PALIER — 2026-10-04 (après-midi), « PIPELINE : relecture "a-t-on réinventé ?" — fabrique du ▶ par process, règle de propriété dans la brique de sortie, modale à portée » — ✅ `498c9d4c` + commit de ce bloc, non poussés — 🔴 RECHARGER gunicorn (vues de l'enhancer, JS commun) — 🔚 câblage JS du ▶ par process et décoration de card encore écrits par app
+
+**Question de Fabien : « Tout est aligné avec le fonctionnement de WAMA ? On n'a rien réinventé ? »** — relu contre le code, trois écarts trouvés et soldés (détail : `ROUTE §11 #38`).
+
+- **▶ d'un process** : la vue `start/<pk>/<process>/` était recopiée dans six apps et greffée sur `start` dans l'enhancer. → `common/utils/process_views.make_process_start_view` (crochets de `make_batch_views`), portée 7/7 ; déjà en cours = 409 partout. Critère de grille `process_start_common` (premier critère qui regarde le PIPELINE) : VRAI 7/7, non applicable à converter, describer, reader.
+- **Brique de sortie** (`output_process`) : un ancien rendu n'était retiré que sous la règle de PARTAGE ; elle pose maintenant les deux règles de `safe_delete_file` (propriété `owns_file` + partage). `relative()` retiré au profit de `file_references.relative_to_media`.
+- **Modale ⚙ à portée** (le ⚙ d'un process) : elle montrait les zones d'app hors schéma (prompt de l'imager, classes de l'anonymizer). Règle posée une fois dans `WamaParams.settingsModal` (`decorate` non appelé sous portée) ; `collect` reste appelé.
+- Cards du composer et de l'avatarizer : `data-element-status` posé (les sept cards à pipeline le portent).
+
+**Mesures.** Workers en service, six cards du compte de test (imager, anonymizer, enhancer image + audio, composer, synthesizer) : rendues, format changé, relancées — moteur rejoué dans AUCUNE, sortie seule < 1,5 s, original gardé. **Le synthesizer est donc joué en réel** (reste du palier précédent soldé). Serveur en service, fabrique : ▶ de card 200, process inconnu 400, sortie seule 200, double clic 409, moteur non rejoué. Tests (WSL, base isolée) : 249 + 151 + 300 joués ; rouges ANTÉRIEURS et hors de ce palier : budgets de noms de tests (classes 134 > 132, méthodes 1321 > 1310). Grille : **948/967** (103 critères).
+
+**Restes.** Câblage JS du ▶ par process (`btn.dataset.process` → URL) et décoration de card (`decorate` + `preload`) écrits par app · aide `_convert` recopiée dans cinq fichiers de tests · anonymizer détection→flou et CodeFormer de l'avatarizer encore dans le process moteur · exécuteur du studio sans `AWAITING_RESOURCES`/`STALE` · `AnalysisPass`→`ProcessRun` étape 3 (décision de Fabien, session cam ; étape 2 faite `8089d5a5`).
