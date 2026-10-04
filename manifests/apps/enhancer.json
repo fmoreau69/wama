@@ -3162,11 +3162,11 @@
       "kind": "library"
     },
     {
-      "key": "onnxruntime",
+      "key": "onnxruntime-gpu",
       "kind": "library"
     },
     {
-      "key": "onnxruntime-gpu",
+      "key": "resemble-enhance",
       "kind": "library"
     },
     {

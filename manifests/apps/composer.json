@@ -1727,6 +1727,10 @@
       "kind": "model"
     },
     {
+      "key": "audiocraft",
+      "kind": "library"
+    },
+    {
       "key": "soundfile",
       "kind": "library"
     },
