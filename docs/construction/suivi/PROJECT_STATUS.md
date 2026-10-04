@@ -21548,3 +21548,50 @@ tours réels, pas par un test.
   (`tests_tool_api_lectures`, 9 tests de `tests_calendar`), budgets de langue des identifiants,
   `tests_docs_catalog` (docs générées), un test de rôles candidats de la médiathèque (cause non
   cherchée).
+
+## §CLÔTURE — 2026-10-04, « CAM_ANALYZER : GÉOMÉTRIE DES LATÉRALES + PASSES DU LAB SUR LES LIGNES D'EXÉCUTION COMMUNES (étapes 1-2/3) » — session du 02→04/10 — ✅ `7ec82ec1`, `8089d5a5` non poussés (le reste de la session l'est) — 🔴 RELANCER WAMA (gunicorn + workers : les lecteurs des passes ont changé) — 🔚 décision sur l'étape 3 · relais ratés 26 → 54
+
+**Livré** (détail : `CAM_ANALYZER_CHANGELOG.md`, entrées de tête, et `ROUTE §10.6` 4.1) :
+- **Géométrie des caméras latérales** (02→03/10) : champ vertical cohérent avec l'image, orientation
+  de montage MESURÉE par le mouvement (et par période, diagnostic seul), distorsion (modèle radial
+  INVERSE, ⚑ lens_distortion), plancher de la calibration sol, véhicules placés par leur centre
+  (⚑ vehicle_center_placement), boîtes coupées par leur bord intérieur (⚑ cut_box_inner_edge),
+  recollement un pour un (⚑ stitch_one_to_one). **Session ENA_CASA passée sur la géométrie mesurée**
+  (décision de Fabien) ; tracking + indicateurs relancés par Fabien, résultats en base = le rejeu.
+- **Passes du Lab → `common.ProcessRun`** (mandat de Fabien, proposé par la session Portage) :
+  étape 1 écriture en double (`bf271cea`) + péremption PAR LIGNE passe × caméra (`7ec82ec1`) ;
+  étape 2 (`8089d5a5`) : historique repris sur la base réelle (`manage.py backfill_pass_lines` :
+  77 lignes créées, contrôle passe par passe 79/79 concordantes) PUIS lecteurs basculés sur
+  `process_runs.lines` (panneau via `lab_status`, péremption, réutilisation du tracking, ETA, calcul
+  interrompu, SAM3 annulé). Session pipeline (-ae) prévenue ; aucun changement à `process_runs.py`.
+
+**Contrôles mesurés à la clôture** : cam_analyzer **267 tests OK** · moteur commun (process_runs,
+process_pipeline, pipelines déclarés du studio) **89 OK** (1 skip) · `wama_data` **864 OK** (venv_win).
+Gardes neuves prouvées PAR MUTATION (reprise qui réécrit une ligne existante → rouge ; panneau qui
+ignore la ligne commune → rouge). `check_redundancy` : 1 trouvaille dans mes fichiers (`_queue` de
+`pass_tracking`, écrit le 30/09, rapproché par le NOM d'une vue de progression — faux positif, pas de
+cette session). `check_docs` : 5 cassées / 1 périmée, **aucune de cette session** (mon seul hunk du
+ROUTE est en 3677). `check_skills` : 0 défaut franc.
+⚠ **Non fait** : la suite sous WSL2 (sur le poste de dev, `django.setup()` y importe `torch.cuda`,
+cf. `/cam-analyzer §6`) ; le navigateur n'a pas été ouvert sur le panneau des passes après l'étape 2
+— à regarder au redémarrage (mêmes statuts attendus qu'avant : rien ne doit changer à l'écran).
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : après redémarrage de WAMA, ouvrir le panneau des passes
+d'ENA_CASA (aucune différence attendue), puis — sur décision de Fabien — l'étape 3.
+
+**File des chantiers ouverts (cam_analyzer)** :
+1. ⏳ **DÉCISION de Fabien — étape 3** : retrait d'`AnalysisPass` (sauvegarde de la table, migration de
+   données, lectures internes aux écrivains `mark_started`/`mark_completed` portées) + panneau et
+   `run_passes` au vocabulaire `JOB_*` (JS compris). Bloquant pour cette étape seulement.
+2. 🔄 **Relais ratés 26 → 54** avec la géométrie mesurée : tous des changements de chaîne YOLO au même
+   endroit de l'image ; la position estimée y saute de ~7 m (médiane) le plus souvent SANS changement
+   de méthode de placement — l'état du track dérive, pas la mesure.
+3. 🔄 Projection sol de l'avant/arrière qui COMPRESSE au-delà de ~15 m (rapport 0,6 à 30 m).
+4. 🔄 Centrage de l'avant par la demi-longueur qui dépasse (+2,4 m le long de la route contre la
+   droite) ; métrique « désaccord étiquette ↔ position » biaisée par le centrage, à adapter.
+
+**Pendings système** : 🔴 relancer gunicorn + workers (lecteurs des passes) · push de 2 commits
+cam_analyzer (6 au total sur `dev` à cette heure) · effets de bord : 77 lignes `common_processrun`
+créées par la reprise (voulues, inoffensives, rejouable sans effet) ; réglages de la session ENA_CASA
+changés (consignés au CHANGELOG avec leur annulation) ; scripts de mesure et de mutation dans le
+scratchpad de session, jetables.
