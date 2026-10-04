@@ -10,7 +10,8 @@ from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import Param, schema_to_dicts
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.composer.utils.model_choice import AUTO_MUSIC, AUTO_SFX, TASKS
-from wama.composer.utils.vocals import AUTO as VOCALS_AUTO, CHOICES as VOCALS_CHOICES
+from wama.composer.utils.vocals import (AUTO as VOCALS_AUTO, CHOICES as VOCALS_CHOICES,
+                                        SONG as VOCALS_SONG)
 
 PANEL = ("panel",)
 PANEL_ITEM = ("panel", "item")
@@ -57,6 +58,14 @@ PARAMS = [
                "chantent ; en automatique, le tirage les retient.",
           dom_id={"panel": "vocalsSelect", "item": "settingsVocals", "batch": "batchSettingsVocals"},
           contexts=PANEL_ITEM_BATCH),
+    # Paroles de l'ÉLÉMENT (2026-10-04) : écrites pour l'utilisateur quand il demande une chanson
+    # sans en donner, et éditables ici. Masquées en instrumental (elles ne seraient pas chantées).
+    Param(name="lyrics", type="textarea", label="Paroles", icon="fa-music",
+          help="Paroles chantées, en sections balisées ([Verse], [Chorus]…). Écrites pour vous "
+               "si vous demandez une chanson sans en donner ; modifiez-les puis relancez. Des "
+               "paroles écrites dans le prompt, sous la description, priment.",
+          show_if={"field": "vocals", "in": [VOCALS_AUTO, VOCALS_SONG]},
+          dom_id={"item": "settingsLyrics"}, contexts=("item",)),
     # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur les « auto », lu au
     # LANCEMENT par le tirage (`resolve_auto_model` → `item=gen`). Rendu par le renderer commun
     # (volet : même hôte que le modèle ; modale/lot : lu génériquement par WamaParams.read).

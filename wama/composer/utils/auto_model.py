@@ -59,7 +59,8 @@ def resolve_auto_model(gen):
     # est vide, la contrainte de l'entrée fournie l'emporte, et le lancement dira que ça ne chante pas.
     from wama.common.utils.app_metadata import effective_prompt
     from wama.composer.utils.vocals import singing_models, wants_vocals
-    if wants_vocals(getattr(gen, 'vocals', None), effective_prompt(gen, 'prompt')):
+    if wants_vocals(getattr(gen, 'vocals', None), effective_prompt(gen, 'prompt'),
+                    getattr(gen, 'lyrics', '')):
         singers = singing_models(spec['task'])
         if 'candidates' in spec:
             singers = [k for k in spec['candidates'] if k in singers]

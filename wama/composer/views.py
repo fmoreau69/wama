@@ -588,6 +588,10 @@ def _apply_generation_settings(gen, data):
     # `tests_item_settings_contract`) — jamais écrite.
     if data.get('vocals') in vocals.VALUES:
         gen.vocals = data['vocals']
+    # Paroles de la card (2026-10-04) : posées, corrigées ou EFFACÉES (le vide est une valeur —
+    # `empty_is_value` à la lecture). Non postées (lot, inspecteur) : intactes.
+    if 'lyrics' in data:
+        gen.lyrics = str(data.get('lyrics') or '').strip()
     # Prompt éditable (modale complète P1) — on ne l'écrase pas s'il est vide. Champ à DEUX ÉTATS
     # (2026-10-04, la route de l'imager) : `apply_prompt_state` dit dans quel champ écrire — éditer
     # l'enrichi garde l'original ; reprendre son prompt rend l'enrichi périmé, donc vidé.
@@ -617,7 +621,7 @@ def update_settings(request, pk):
     # `request.POST` seul (contrat générique `tests_item_settings_contract`, 2026-09-26).
     from wama.common.utils.batch_views import read_settings_payload
     data = read_settings_payload(request, _SETTINGS_SCHEMA,
-                                 [p['name'] for p in _SETTINGS_SCHEMA])
+                                 [p['name'] for p in _SETTINGS_SCHEMA], empty_is_value=('lyrics',))
 
     try:
         _apply_generation_settings(gen, data)
