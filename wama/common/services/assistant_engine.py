@@ -207,8 +207,11 @@ def turn_model_key(provider, llm_model) -> str:
     """Clé de CATALOGUE du modèle d'un tour (`albert:…`, `ollama:…`) — '' sans modèle nommé."""
     if not llm_model:
         return ''
+    # La conversion est celle de la brique commune (`model_keys.catalog_key`) : un modèle déjà
+    # donné en clé entière est rendu tel quel, un identifiant nu reçoit sa source.
+    from wama.common.utils.model_keys import catalog_key
     source = 'ollama' if provider in _LOCAL_PROVIDERS else PROVIDER_SOURCES.get(provider, provider)
-    return f'{source}:{llm_model}'
+    return catalog_key(llm_model, source)
 
 
 #: Préfixe de la clé d'ESTIMATION d'un tour d'assistant dans l'ETA commune

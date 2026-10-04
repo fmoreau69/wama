@@ -528,4 +528,33 @@ else:
     )
 print()
 
+# =============================================================================
+# PATCH 10 — onnxruntime : la distribution PROCESSEUR ne doit pas cohabiter avec
+#            la distribution GPU  (venv Linux — VÉRIFICATION SEULEMENT)
+#            Les deux fournissent le MÊME module ; installées ensemble, la
+#            version processeur masque l'autre et tout moteur ONNX (voix Kokoro,
+#            agrandisseur de l'Enhancer) retombe sur le processeur EN SILENCE
+#            (mesuré le 2026-10-04 : 1,3 s par phrase au lieu de 0,18 s).
+#            pip la réinstalle dès qu'une librairie dépendant du nom
+#            `onnxruntime` est installée (faster-whisper, kokoro-onnx, qwen-tts).
+#            Pas de réparation automatique : elle touche des paquets que des
+#            services en marche ont chargés — on DIT la commande.
+#            Garde côté tests : wama/common/tests/tests_onnx_runtime.py.
+# =============================================================================
+
+print("=== onnxruntime (processeur vs GPU — vérification seulement) ===")
+ort_cpu = sorted(site.glob("onnxruntime-[0-9]*.dist-info"))
+ort_gpu = sorted(site.glob("onnxruntime_gpu-[0-9]*.dist-info"))
+if ort_gpu and ort_cpu:
+    gpu_version = ort_gpu[-1].name[len("onnxruntime_gpu-"):-len(".dist-info")]
+    print("  [CONFLIT] onnxruntime (processeur) masque onnxruntime-gpu : le moteur ONNX tourne sur le processeur")
+    print("            Réparer (services arrêtés ou relancés ensuite) :")
+    print("              pip uninstall -y onnxruntime")
+    print(f"              pip install --force-reinstall --no-deps onnxruntime-gpu=={gpu_version}")
+elif ort_gpu:
+    print("  [OK] onnxruntime-gpu seul (`pip check` signale 4 dépendances « onnxruntime » : attendu)")
+else:
+    print("  [SKIP] pas de onnxruntime-gpu dans ce venv")
+print()
+
 print("Done.")

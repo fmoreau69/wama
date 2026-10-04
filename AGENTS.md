@@ -249,6 +249,7 @@ apply_patch(
 | 7 | `site-packages/qwen_asr/inference/qwen3_forced_aligner.py` | `import nagisa` (tokenizer japonais) en tête : `qwen-asr` s'installe en `--no-deps`, l'import paresseux suffit (2026-09-28) |
 | 8 | `site-packages/nv_one_logger/training_telemetry/integration/pytorch_lightning.py` | `save_checkpoint(weights_only: bool)` refusé par `overrides` face à Lightning 2.6 (`Optional[bool]`) : bloquait `import nemo.collections.asr` ; NeMo en `--no-deps` pour ne pas rétrograder lightning/protobuf/fsspec (2026-09-28) |
 | 9 | `site-packages/diffusers/utils/import_utils.py` | `packages_distributions()` appelé À L'IMPORT : 68,5 s sur ce venv (lecture des `RECORD` à travers `/mnt/d`), payés par CHAQUE processus qui importe diffusers ; table module → distribution construite à la demande depuis les `top_level.txt` (2026-09-30, lenteur de MuseTalk) |
+| 10 | `site-packages` : distributions `onnxruntime` + `onnxruntime-gpu` | Vérification seulement — installées ENSEMBLE, la version processeur masque la version GPU et tout moteur ONNX (voix, agrandisseur) retombe sur le processeur en silence ; pip la réinstalle à chaque librairie qui dépend du nom `onnxruntime`. Le script dit la commande de réparation ; garde `tests_onnx_runtime` (2026-10-04) |
 
 ---
 
