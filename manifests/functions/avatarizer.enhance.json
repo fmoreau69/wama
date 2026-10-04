@@ -1,0 +1,57 @@
+{
+  "body": {
+    "app": "avatarizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "avatarizer.workers:generate_avatar",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "La vidéo animée.",
+        "group": "travail",
+        "key": "animated",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "avatarizer.enhance",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "La vidéo au visage amélioré.",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "video",
+      "face",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Amélioration faciale (CodeFormer) de la vidéo animée d'une photo. La vidéo animée est gardée : retirer l'amélioration la rend telle quelle, sans réanimer.",
+  "key": "avatarizer.enhance",
+  "manifest_kind": "function",
+  "name": "Avatarizer — améliorer le visage",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:avatarizer.enhance",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

@@ -7,7 +7,8 @@ Pipeline : MuseTalk (lip sync) + CodeFormer (amélioration faciale optionnelle)
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
-from wama.common.models import QueueOrderMixin, BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
+from wama.common.models import (QueueOrderMixin, BatchMixin, NativeOutputsMixin, ProcessingTimeMixin,
+                                ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES)
 from wama.common.utils.media_paths import UploadToUserPath
 from wama.common.tts.constants import (
     DEFAULT_TTS_MODEL, TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES,
@@ -22,7 +23,7 @@ User = get_user_model()
 AVATAR_FILE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'glb']
 
 
-class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
+class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     """Représente une tâche de génération d'avatar animé (pipeline MuseTalk)."""
 
     WAMA_INGEST = {

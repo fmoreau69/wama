@@ -17,6 +17,7 @@ from wama.anonymizer import tasks
 from wama.anonymizer.models import Media
 from wama.common.services import process_runs
 from wama.common.utils.media_paths import app_media_dir, get_app_media_path
+from wama.common.tests.helpers import INLINE_CONVERSION, stand_in_conversion
 
 
 @override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -46,12 +47,7 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         path.write_bytes(b'blurred')
         return str(path)
 
-    @staticmethod
-    def _convert(path, fmt, preset='balanced', **_kw):
-        """Stand-in for the converter : writes the target next to the source, removes the source."""
-        converted = os.path.splitext(path)[0] + '.' + fmt
-        os.replace(path, converted)
-        return converted
+    _convert = staticmethod(stand_in_conversion)
 
     def _states(self):
         return {line.node_id: line.status for line in process_runs.lines(self.media)}
@@ -60,7 +56,7 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         if settings:
             Media.objects.filter(pk=self.media.pk).update(status='RUNNING', **settings)
         with mock.patch.object(tasks, 'start_process', side_effect=engine or self._blurred) as started, \
-                mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+                mock.patch(INLINE_CONVERSION,
                            side_effect=self._convert), \
                 mock.patch.object(tasks, 'needs_parallel_detection',
                                   return_value={'parallel': False, 'models': []}), \

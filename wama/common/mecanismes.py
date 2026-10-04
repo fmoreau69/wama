@@ -1161,7 +1161,9 @@ MECHANISMS = (
               "appelle `forget_lost_generation`. Changer de format ne rejoue plus le moteur "
               "(2026-10-03) — imager, composer, synthesizer, anonymizer, enhancer ×2. Un ancien "
               "rendu n'est retiré que sous les deux règles de `safe_delete_file` : il vit chez "
-              "l'app de la card (`owns_file`) et aucune autre card ne le désigne",
+              "l'app de la card (`owns_file`) et aucune autre card ne le désigne. `output_step("
+              "transform=, apply=)` : le même process pour une transformation PROPRE à l'app — "
+              "l'amélioration faciale de l'avatarizer (process « Visage », 2026-10-04)",
               'wama/common/services/output_process.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/utils/output_formats.py',)),

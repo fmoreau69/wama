@@ -16,6 +16,7 @@ from django.test import TestCase, override_settings
 from wama.common.services import process_runs
 from wama.synthesizer import workers
 from wama.synthesizer.models import VoiceSynthesis
+from wama.common.tests.helpers import INLINE_CONVERSION, stand_in_conversion
 
 MODEL = 'synthesizer:kokoro'
 
@@ -44,20 +45,14 @@ class SynthesisTaskOnSkeletonTest(TestCase):
                 mock.patch.object(workers, '_update_audio_properties'), \
                 mock.patch('wama.common.utils.generated_media.mark_as_generated') as self.marked, \
                 mock.patch('wama.common.tts.voice_refs.speaker_wav_for', return_value=None), \
-                mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+                mock.patch(INLINE_CONVERSION,
                            side_effect=self._convert), \
                 mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
             workers.synthesize_voice.run(self.item.pk)
         self.item.refresh_from_db()
         return self.item
 
-    @staticmethod
-    def _convert(path, fmt, preset='balanced', **_kw):
-        """Stand-in for the converter : writes the target next to the source, removes the source."""
-        import os
-        converted = os.path.splitext(path)[0] + '.' + fmt
-        os.replace(path, converted)
-        return converted
+    _convert = staticmethod(stand_in_conversion)
 
     def _states(self):
         return {line.node_id: line.status for line in process_runs.lines(self.item)}

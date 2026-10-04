@@ -140,7 +140,7 @@ def forget_lost_generation(item, field, node: str) -> bool:
 
 
 def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
-                format_of=None):
+                format_of=None, transform=None, apply=None, what: str = 'Réglages de sortie'):
     """La GLU du process de sortie, au contrat du squelette (`glu(item, ctx) -> dict`).
 
     `field`  : le champ qui porte le rendu (nom, ou `callable(item) -> nom`) ;
@@ -152,6 +152,12 @@ def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
     `format_of` : `callable(item, source) -> format` quand le réglage de l'app n'est pas un
                format à lui seul (l'anonymizer : « le format de l'entrée ») — elle le RÉSOUT.
 
+    `transform` / `apply` / `what` : le MÊME process pour une transformation PROPRE à l'app
+               (l'amélioration faciale de l'avatarizer, process « Visage ») — `transform(item)`
+               dit si elle a lieu, `apply(item, copie, ctx) -> chemin` la joue sur la copie de
+               l'original, `what` nomme le process dans ses messages. L'original est gardé et
+               rendu exactement comme pour les réglages de sortie.
+
     Un agrandissement DEMANDÉ qui échoue lève (la card s'arrête en le disant, le moteur n'est
     pas rejoué au ▶ suivant) ; une conversion ratée garde le format d'origine et le dit."""
 
@@ -159,7 +165,7 @@ def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
         name = _field_of(item, field)
         sources = output_sources(item, name)
         if not sources or not all(os.path.isfile(p) for p in sources):
-            raise RuntimeError("Réglages de sortie : fichier d'origine introuvable — relancer "
+            raise RuntimeError(f"{what} : fichier d'origine introuvable — relancer "
                                "le traitement.")
         ctx.progress(10)
         say = (lambda message: console(item, message)) if console else ctx.console
@@ -168,10 +174,12 @@ def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
                 sources, item, domain=domain(item) if callable(domain) else domain,
                 app_id=app_id, console=say,
                 output_format=format_of(item, sources[0]) if format_of else None,
+                transform=transform(item) if transform is not None else None,
+                apply=(lambda copy: apply(item, copy, ctx)) if apply is not None else None,
                 previous=[p for p in rendered_files(item, name) if _replaceable(item, p, name)])
         except Exception as exc:
             ctx.reset_progress()
-            raise RuntimeError(f"Réglages de sortie : {exc}") from exc
+            raise RuntimeError(f"{what} : {exc}") from exc
         listed = isinstance(getattr(item, name, None), (list, tuple))
         fields = {NATIVE_FIELD: [relative_to_media(p) for p in natives],
                   name: list(finals) if listed else relative_to_media(finals[0])}

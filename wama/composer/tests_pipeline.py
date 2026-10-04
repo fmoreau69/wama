@@ -30,6 +30,7 @@ from wama.composer import tasks
 from wama.composer.function_specs import PIPELINE
 from wama.composer.models import ComposerGeneration
 from wama.composer.tests_task import _celery_task
+from wama.common.tests.helpers import INLINE_CONVERSION, stand_in_conversion
 
 AUTO = 'auto:text-to-music'
 SCORE_MODEL = 'huggingface:m-a-p/YuE2-3B'
@@ -628,16 +629,11 @@ class TheOutputProcessTest(TestCase):
     _generation = PlanThenRenderTest._generation
     _states = PlanThenRenderTest._states
 
-    @staticmethod
-    def _convert(path, fmt, preset='balanced', **_kw):
-        import os
-        converted = os.path.splitext(path)[0] + '.' + fmt
-        os.replace(path, converted)
-        return converted
+    _convert = staticmethod(stand_in_conversion)
 
     def _run(self, gen, **settings):
         ComposerGeneration.objects.filter(pk=gen.pk).update(**settings)
-        with mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+        with mock.patch(INLINE_CONVERSION,
                         side_effect=self._convert):
             return PlanThenRenderTest._run(self, gen, drawn=PLAIN_MODEL)
 
@@ -671,7 +667,7 @@ class TheOutputProcessTest(TestCase):
         self.assertEqual({'render': JOB_SUCCESS, 'output': JOB_SUCCESS}, self._states(gen))
         self.assertEqual(JOB_SUCCESS, PIPELINE.card_state(gen))
         ComposerGeneration.objects.filter(pk=gen.pk).update(output_format='mp3')
-        with mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+        with mock.patch(INLINE_CONVERSION,
                         side_effect=self._convert):
             gen = PlanThenRenderTest._run(self, gen, drawn=PLAIN_MODEL, clamp=floor)
         self.assertEqual(1, len(_PlainEngine.renders), 'only the output was played again')

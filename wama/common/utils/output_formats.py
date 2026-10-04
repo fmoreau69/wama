@@ -298,7 +298,8 @@ def transforms_output(item, domain: str, output_format: str | None = None) -> bo
 
 
 def render_outputs(sources, item, *, domain: str, app_id: str | None = None, console=None,
-                   previous=(), output_format: str | None = None) -> tuple:
+                   previous=(), output_format: str | None = None, transform=None,
+                   apply=None) -> tuple:
     """Les réglages de sortie appliqués en GARDANT le fichier d'origine ; rend
     `(rendus, originaux gardés)`, en chemins absolus.
 
@@ -308,13 +309,17 @@ def render_outputs(sources, item, *, domain: str, app_id: str | None = None, con
     rendu ne reprend pas sont retirés (un `.webp` quand on revient au PNG).
 
     Sans transformation, l'original reprend son nom de rendu et rien n'est gardé en double.
+    `transform` / `apply` : une transformation PROPRE à l'app, à la place des réglages de sortie
+    communs (l'amélioration faciale de l'avatarizer) — `transform` dit si elle a lieu,
+    `apply(copie) -> chemin(s)` la joue sur la COPIE de l'original et rend ce qu'elle a écrit.
     Les règles d'`apply_output_settings` valent : un agrandissement demandé qui échoue LÈVE, une
     conversion qui échoue garde le rendu au format d'origine et le dit."""
     import os
     import shutil
 
     finals, natives = [], []
-    transform = transforms_output(item, domain, output_format)
+    if transform is None:
+        transform = transforms_output(item, domain, output_format)
     for source in list(sources or []):
         source = str(source)
         target = final_name(source)
@@ -328,8 +333,12 @@ def render_outputs(sources, item, *, domain: str, app_id: str | None = None, con
             os.replace(source, kept)
         shutil.copy2(kept, target)
         try:
-            finals.extend(apply_output_settings([target], item, domain=domain, app_id=app_id,
-                                                console=console, output_format=output_format))
+            if apply is not None:
+                produced = apply(target)
+                finals.extend([produced] if isinstance(produced, str) else list(produced))
+            else:
+                finals.extend(apply_output_settings([target], item, domain=domain, app_id=app_id,
+                                                    console=console, output_format=output_format))
         except Exception:
             # Un échec (agrandissement demandé, impossible) ne laisse rien derrière lui : l'original
             # reprend la place d'où il venait, comme si la sortie n'avait pas été tentée.
