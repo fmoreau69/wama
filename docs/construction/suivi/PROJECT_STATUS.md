@@ -21608,3 +21608,18 @@ scratchpad de session, jetables.
 **Mesures.** Workers en service, six cards du compte de test (imager, anonymizer, enhancer image + audio, composer, synthesizer) : rendues, format changé, relancées — moteur rejoué dans AUCUNE, sortie seule < 1,5 s, original gardé. **Le synthesizer est donc joué en réel** (reste du palier précédent soldé). Serveur en service, fabrique : ▶ de card 200, process inconnu 400, sortie seule 200, double clic 409, moteur non rejoué. Tests (WSL, base isolée) : 249 + 151 + 300 joués ; rouges ANTÉRIEURS et hors de ce palier : budgets de noms de tests (classes 134 > 132, méthodes 1321 > 1310). Grille : **948/967** (103 critères).
 
 **Restes.** Câblage JS du ▶ par process (`btn.dataset.process` → URL) et décoration de card (`decorate` + `preload`) écrits par app · aide `_convert` recopiée dans cinq fichiers de tests · anonymizer détection→flou et CodeFormer de l'avatarizer encore dans le process moteur · exécuteur du studio sans `AWAITING_RESOURCES`/`STALE` · `AnalysisPass`→`ProcessRun` étape 3 (décision de Fabien, session cam ; étape 2 faite `8089d5a5`).
+
+## §PALIER — 2026-10-04 (soir), « PIPELINE : les deux restes de la relecture soldés — modèle demandé déclaré une fois, câblage JS et décoration de page en commun » — ✅ `cf498eb0` + commit de ce bloc, non poussés — 🔴 RECHARGER gunicorn — 🔚 retour de test de Fabien
+
+Suite du palier de l'après-midi (`ROUTE §11 #38`, mis à jour).
+
+- **« Le modèle que la card demande »** : déclaré UNE fois par app (`register_app_pipeline(model_of=…)`), lu par la bande des process, la vue de progression et le ▶ d'un process. Il était redit à trois endroits de chaque `views.py`, et le composer en avait deux versions.
+- **Décoration d'une page de cards** : `process_pipeline.decorate_cards(items, each)` remplace la boucle « preload puis décorer » recopiée dans six vues.
+- **Câblage JS du ▶ par process** : `WamaCycleButton.processOf` / `processUrl`, `wire` passe le process au handler — huit fichiers d'app ne recomposent plus l'adresse.
+- Enhancer : un refus du serveur s'affiche avec son message (le JS lisait `message`, la vue rend `error`).
+
+**Mesures.** Tests (WSL, base isolée) : 320 joués ; rouges ANTÉRIEURS : budgets de noms de tests (classes 134 > 132, méthodes 1319 > 1310). Navigateur (serveur de dev jetable, six cards semées puis retirées, aucune tâche lancée, requête du ▶ interceptée) : modale ⚙ « Sortie » = `output_format`, `output_quality` (+ `output_upscale` pour l'imager) dans les six files ; ▶ « Sortie » poste sur `start/<id>/output/` partout.
+
+⚠ **Arbre de travail** : `docs/dev/briques.md` et `WAMA_MECANISMES.md` y sont plus ANCIENS que HEAD (171 sections contre 186 — `DocDeveloppeurTest.test_chaque_mecanisme_a_sa_section` rouge sur l'arbre, vert sur HEAD) ; non touchés : ce ne sont pas mes fichiers de travail, `git checkout` les remettrait à HEAD.
+
+**Restes.** Aide `_convert` recopiée dans cinq fichiers de tests · anonymizer détection→flou et CodeFormer de l'avatarizer encore dans le process moteur · exécuteur du studio sans `AWAITING_RESOURCES`/`STALE` · `AnalysisPass`→`ProcessRun` étape 3 (décision de Fabien).
