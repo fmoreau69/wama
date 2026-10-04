@@ -203,6 +203,51 @@ SOURCE_PROVIDERS = {'ollama': 'ollama',
 
 
 
+def turn_model_key(provider, llm_model) -> str:
+    """Clé de CATALOGUE du modèle d'un tour (`albert:…`, `ollama:…`) — '' sans modèle nommé."""
+    if not llm_model:
+        return ''
+    source = 'ollama' if provider in _LOCAL_PROVIDERS else PROVIDER_SOURCES.get(provider, provider)
+    return f'{source}:{llm_model}'
+
+
+#: Préfixe de la clé d'ESTIMATION d'un tour d'assistant dans l'ETA commune
+#: (`eta_estimator`, une ligne par clé et par matériel). Distincte de la clé du modèle :
+#: celle-ci porte déjà son débit au JETON (banc), qu'une durée de tour écraserait.
+TURN_ETA_PREFIX = 'assistant-turn:'
+
+#: En dessous, pas de décompte : la réponse arrive avant qu'on ait le temps de le lire.
+TURN_ETA_MIN_SECONDS = 2.0
+
+
+def expected_wait(model_key: str) -> float:
+    """Attente APPRISE avant le premier texte d'un tour par ce modèle, en secondes — 0 tant
+    que rien n'a été mesuré (aucun a priori : un décompte inventé serait pire que pas de
+    décompte) ou quand elle est trop courte pour être annoncée."""
+    if not model_key:
+        return 0.0
+    try:
+        from wama.model_manager.services.eta_estimator import estimate
+        seconds = estimate(TURN_ETA_PREFIX + model_key, size=1, unit='item',
+                           model_loaded=True, fallback_seconds=0)
+    except Exception:
+        return 0.0
+    return seconds if seconds >= TURN_ETA_MIN_SECONDS else 0.0
+
+
+def _learn_wait(model_key: str, seconds: float, user) -> None:
+    """Verse l'attente MESURÉE d'un tour à l'ETA commune (moyenne mobile, par matériel ;
+    un compte de test n'apprend rien — c'est `record_run` qui l'écarte)."""
+    if not model_key or seconds is None:
+        return
+    try:
+        from wama.model_manager.services.eta_estimator import record_run
+        record_run(TURN_ETA_PREFIX + model_key, size=1, unit='item',
+                   process_seconds=seconds, load_seconds=None, user=user)
+    except Exception:
+        logger.debug('[ai_chat] attente du tour non apprise', exc_info=True)
+
+
 def assistant_settings(user) -> dict:
     """Réglages DURABLES de l'assistant pour `user` (brique commune `user_settings`, app
     `assistant`), complétés par les défauts DÉRIVÉS de son schéma."""
@@ -998,9 +1043,40 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
     except Exception:
         logger.exception("[ai_chat] store de conversation indisponible — tour sans historique")
 
+    # MESURE ET ANNONCE DE L'ATTENTE (2026-10-04, idée de Fabien : un décompte tiré du temps
+    # moyen par modèle, par l'ETA commune). Le moteur dit quel modèle il a retenu ; on
+    # annonce alors l'attente apprise, et l'on mesure celle de CE tour pour l'apprendre.
+    # ⚠ Sans écouteur, rien n'est branché : brancher un écouteur demanderait le flux au
+    # modèle pour une surface qui ne l'affiche pas.
+    import time
+    started = time.monotonic()
+    watch = {'model_key': '', 'first_text': None}
+    listener = on_event
+    if on_event is not None:
+        def listener(event):
+            kind = event.get('type')
+            if kind == 'model':
+                # Événement INTERNE : la surface reçoit l'attente, pas la clé.
+                watch['model_key'] = event.get('model_key') or ''
+                wait = expected_wait(watch['model_key']) if watch['first_text'] is None else 0
+                if wait:
+                    on_event({'type': 'eta', 'seconds': round(wait, 1)})
+                return
+            if kind == 'delta' and watch['first_text'] is None:
+                watch['first_text'] = time.monotonic() - started
+            on_event(event)
+
     resultat = run_assistant_turn(user, message, provider=provider, model=model,
                                   history=historique, domain=domain, surface=surface,
-                                  on_event=on_event)
+                                  on_event=listener)
+
+    total = time.monotonic() - started
+    if 'error' not in resultat:
+        # Sans fragment (abonnement) le premier texte EST la fin du tour.
+        first_text = watch['first_text'] if watch['first_text'] is not None else total
+        resultat['timing'] = {'first_text': round(first_text, 2), 'total': round(total, 2)}
+        if on_event is not None:
+            _learn_wait(watch['model_key'], first_text, user)
 
     if fil is not None and 'error' not in resultat:
         try:
@@ -1188,6 +1264,11 @@ def run_assistant_turn(user, message: str, provider: str = None,
             pass
 
     etiquette = _label(provider, llm_model, local)
+    # Le modèle RETENU, dit à qui écoute dès qu'il est connu : c'est ce qui permet d'annoncer
+    # une attente (`conversation_turn`) avant que le premier mot n'arrive.
+    if on_event is not None:
+        on_event({'type': 'model', 'model_key': turn_model_key(provider, llm_model),
+                  'label': etiquette})
     tool_steps = []
     # `cost_usd` accumulé aussi : sans lui, l'équivalent-API rendu par le chemin abonnement
     # était calculé puis JETÉ (mesuré le 31/08 en revérification) — la docstring de

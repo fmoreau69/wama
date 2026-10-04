@@ -548,9 +548,28 @@ sur un texte sans espaces. Tout tour en flux était touché (le modèle local de
 Le nettoyage se fait maintenant sur la phrase prête. Gardes : `tests_assistant_voice_js`
 (le script exécuté dans V8 ; la garde des mots collés est prouvée par mutation).
 
-⏳ **Levier restant** : ① ~~ne plus payer l'import~~ ; ②③④ ~~faits~~ ; ② voix sur le GPU (fournisseur CUDA d'`onnxruntime`) ou variante quantifiée du
-même export, déjà sur le disque — à mesurer avant de choisir ; ③ flux sur le chemin cloud ;
-④ pré-demander la phrase suivante hors avatar ; ⑤ écrire la durée du tour.
+✅ **Levier ⑤ CÂBLÉ le 2026-10-04 — la durée du tour MESURÉE, apprise, puis décomptée** (idée
+de Fabien : un décompte tiré du temps moyen par modèle, par l'ETA commune). `conversation_turn`
+mesure l'attente jusqu'au premier texte visible et jusqu'à la fin, les écrit sur le tour
+(`ConversationTurn.seconds_to_first_text`, `seconds_total`) et verse la première à l'ETA commune
+(`eta_estimator.record_run`, moyenne mobile par modèle et par matériel, comptes de test
+écartés). Au tour suivant, le moteur dit quel modèle il a retenu (événement interne `model`) et
+la surface reçoit un événement `eta` que le chat décompte à la place du mot d'attente.
+- **Clé d'estimation `assistant-turn:<clé du modèle>`**, distincte de la clé du modèle : celle-ci
+  porte déjà son débit AU JETON (banc), qu'une durée de tour écraserait (une ligne par clé).
+- **Aucun a priori** : rien n'est annoncé tant que rien n'a été mesuré, ni sous 2 s — un
+  décompte inventé serait pire que pas de décompte. Mesuré par deux tours réels : Albert rend
+  son premier texte en 1,1 à 1,9 s, donc AUCUN décompte ne s'affiche pour lui aujourd'hui ; il
+  apparaîtra pour un modèle local froid ou un tour à outils.
+- **Sans écouteur, rien n'est branché** (API, passerelle) : un écouteur demanderait le flux au
+  modèle pour une surface qui ne l'affiche pas. Leur durée totale est écrite, pas apprise.
+- ⏳ Une seule moyenne par modèle mêle réponse directe et tour à outils — à séparer si l'écart
+  se voit. Le décompte est écrit dans le script du chat, pas par le composant `WamaEta` (pensé
+  pour une progression en pourcentage, et chargé sur les seules pages d'app).
+Gardes : `tests_assistant_stream.TurnWaitTest`, `tests_assistant_voice_js.ChatScriptParsesTest`.
+
+✅ **Les cinq leviers du 2026-10-04 sont câblés.** Levier ANTÉRIEUR toujours ouvert : le ③
+du 22/09 (réduire le prompt d'outils — 19 534 caractères de prompt par tour, mesuré ce jour).
 
 #### 1ter. L'assistant agit sur le CODE — pour les développeurs et administrateurs (22/09)
 

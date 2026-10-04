@@ -204,8 +204,11 @@ class TurnEventsTest(TestCase):
                 on_event=events.append)
 
         types = [e['type'] for e in events]
-        self.assertEqual(['step', 'delta', 'delta'], types)
-        self.assertEqual('list_user_files', events[0]['step']['tool'])
+        # `model` ouvre le tour depuis le 2026-10-04 : le moteur dit quel modèle il a retenu
+        # (`conversation_turn` s'en sert pour annoncer l'attente, et ne le relaie pas).
+        self.assertEqual(['model', 'step', 'delta', 'delta'], types)
+        self.assertEqual('ollama:m', events[0]['model_key'])
+        self.assertEqual('list_user_files', events[1]['step']['tool'])
         # L'appel d'outil de la 1ʳᵉ itération n'a PAS été montré : seul le texte final passe.
         self.assertEqual('Vos fichiers.', ''.join(e['text'] for e in events if e['type'] == 'delta'))
         self.assertEqual('Vos fichiers.', result['response'])
@@ -233,6 +236,91 @@ class TurnEventsTest(TestCase):
                 self.user, 'x', provider='wama-dev-ai', model='m', history=[])
         self.assertIsNone(call.call_args.kwargs['on_delta'])
         self.assertEqual('réponse', result['response'])
+
+
+class TurnWaitTest(TestCase):
+    """La durée d'un tour : MESURÉE, écrite, apprise par l'ETA commune, puis ANNONCÉE au tour
+    suivant (2026-10-04 — idée de Fabien : un décompte tiré du temps moyen par modèle)."""
+
+    KEY = 'albert:some-model'
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('turn_wait', password='x')
+
+    def _turn(self, user=None, listen=True, deltas=('Bon', 'jour')):
+        def fake_engine(u, message, on_event=None, **kwargs):
+            if on_event is not None:
+                on_event({'type': 'model', 'model_key': self.KEY, 'label': 'albert (some-model)'})
+                for piece in deltas:
+                    on_event({'type': 'delta', 'text': piece})
+            return {'success': True, 'response': 'Bonjour', 'model': 'albert (some-model)',
+                    'tool_steps': []}
+        events = []
+        with mock.patch.object(assistant_engine, 'run_assistant_turn', side_effect=fake_engine):
+            result = assistant_engine.conversation_turn(
+                user or self.user, 'salut', on_event=(events.append if listen else None))
+        return result, events
+
+    def test_nothing_is_announced_before_anything_was_measured(self):
+        self.assertEqual(0.0, assistant_engine.expected_wait(self.KEY))
+        _, events = self._turn()
+        self.assertEqual(['delta', 'delta'], [e['type'] for e in events])
+
+    def test_the_internal_model_event_never_reaches_the_surface(self):
+        _, events = self._turn()
+        self.assertNotIn('model', [e['type'] for e in events])
+
+    def test_the_measured_wait_is_written_on_the_turn_and_learnt(self):
+        from wama.common.models import ConversationTurn
+        from wama.model_manager.models import ModelRuntimeStat
+        result, _ = self._turn()
+        turn = ConversationTurn.objects.filter(role='assistant').latest('pk')
+        self.assertIsNotNone(turn.seconds_to_first_text)
+        self.assertGreaterEqual(turn.seconds_total, turn.seconds_to_first_text)
+        self.assertEqual(result['timing']['total'], turn.seconds_total)
+        stat = ModelRuntimeStat.objects.get(model_key=assistant_engine.TURN_ETA_PREFIX + self.KEY)
+        self.assertEqual(1, stat.samples)
+        # La clé du MODÈLE (son débit au jeton, appris par le banc) n'est pas touchée.
+        self.assertFalse(ModelRuntimeStat.objects.filter(model_key=self.KEY).exists())
+
+    def test_a_learnt_wait_is_announced_as_a_countdown_before_the_text(self):
+        assistant_engine._learn_wait(self.KEY, 6.0, self.user)
+        self.assertAlmostEqual(6.0, assistant_engine.expected_wait(self.KEY))
+        _, events = self._turn()
+        self.assertEqual(['eta', 'delta', 'delta'], [e['type'] for e in events])
+        self.assertEqual(6.0, events[0]['seconds'])
+
+    def test_a_wait_too_short_to_read_is_not_announced(self):
+        assistant_engine._learn_wait(self.KEY, 0.8, self.user)
+        self.assertEqual(0.0, assistant_engine.expected_wait(self.KEY))
+
+    def test_a_test_account_teaches_nothing(self):
+        from wama.common.services.nightly_tests import TEST_USERNAME
+        from wama.model_manager.models import ModelRuntimeStat
+        tester = get_user_model().objects.create_user(TEST_USERNAME, password='x')
+        self._turn(user=tester)
+        self.assertFalse(ModelRuntimeStat.objects.filter(
+            model_key=assistant_engine.TURN_ETA_PREFIX + self.KEY).exists())
+
+    def test_without_a_listener_nothing_is_plugged_into_the_engine(self):
+        """Contre-épreuve : un écouteur demanderait le flux au modèle pour une surface (API,
+        passerelle) qui ne l'affiche pas."""
+        from wama.common.models import ConversationTurn
+        with mock.patch.object(assistant_engine, 'run_assistant_turn',
+                               return_value={'success': True, 'response': 'ok', 'model': 'm',
+                                             'tool_steps': []}) as engine:
+            assistant_engine.conversation_turn(self.user, 'salut')
+        self.assertIsNone(engine.call_args.kwargs['on_event'])
+        turn = ConversationTurn.objects.filter(role='assistant').latest('pk')
+        self.assertEqual(turn.seconds_total, turn.seconds_to_first_text)
+
+    def test_the_catalogue_key_of_a_turn(self):
+        key = assistant_engine.turn_model_key
+        self.assertEqual('ollama:qwen3.5:4b', key('wama-dev-ai', 'qwen3.5:4b'))
+        self.assertEqual('albert:some-model', key('albert', 'some-model'))
+        self.assertEqual('anthropic:claude-x', key('claude', 'claude-x'))
+        self.assertEqual('claude_code:opus', key('claude-abo', 'opus'))
+        self.assertEqual('', key('albert', None))
 
 
 class ChatStreamViewTest(TestCase):

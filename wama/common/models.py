@@ -1710,6 +1710,12 @@ class ConversationTurn(models.Model):
     tool_steps = models.JSONField(default=list, blank=True)
     #: Modèle ayant produit la réponse — permet de comparer deux moteurs a posteriori.
     model = models.CharField(max_length=120, blank=True, default='')
+    #: Ce que l'utilisateur a ATTENDU (2026-10-04) : jusqu'au premier texte visible, puis
+    #: jusqu'à la fin du tour. Avant, question et réponse portaient le même horodatage — on
+    #: ne pouvait pas dire si un tour avait duré une seconde ou trente. NULL = non mesuré
+    #: (tour utilisateur, tours antérieurs).
+    seconds_to_first_text = models.FloatField(null=True, blank=True)
+    seconds_total = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

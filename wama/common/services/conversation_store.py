@@ -78,6 +78,9 @@ def record_exchange(conversation, message: str, resultat: dict) -> None:
         content=resultat.get('response', '') or '',
         tool_steps=resultat.get('tool_steps') or [],
         model=(resultat.get('model') or '')[:120],
+        # Durées mesurées par `conversation_turn` — absentes d'un résultat venu d'ailleurs.
+        seconds_to_first_text=(resultat.get('timing') or {}).get('first_text'),
+        seconds_total=(resultat.get('timing') or {}).get('total'),
     )
     conversation.titre_auto(message)
     # `updated_at` porte l'ordre d'affichage de la liste des conversations : le toucher
