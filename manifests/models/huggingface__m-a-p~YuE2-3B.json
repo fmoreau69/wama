@@ -51,7 +51,7 @@
       "source": "huggingface"
     },
     "prompts": {
-      "contract": null
+      "contract": "Style caption + tagged lyrics (YuE2-3B — full songs, vocals included):\n- First the STYLE, one paragraph WITHOUT tags: comma-separated descriptors — the language sung, genre, instruments, vocal character (voice type, timbre), mood, melody and phrasing, intended tempo in BPM. Engine's own example: \"English, warm piano pop, expressive female voice, acoustic piano, rounded bass and light drums, lyrical memorable melody, unhurried phrasing, 88 BPM\".\n- Then the LYRICS, each section on its own lines under its tag: [Verse], [Chorus], [Bridge], [Outro]... The sung words only — no implementation notes inside the lyrics.\n- Never rewrite, translate or extend the user's lyrics: enrich the STYLE only, and keep their words, language and sections exactly.\n- Without lyrics, the style alone (the model then improvises or plays instrumental)."
     },
     "provenance": {
       "backend_ref": null,

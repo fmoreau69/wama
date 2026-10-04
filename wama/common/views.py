@@ -52,6 +52,7 @@ def api_enrich_prompt(request):
         # CHOISIS, pas de la prose — ils partent en glossaire pour être préservés VERBATIM par
         # l'enrichissement. Sans ça le LLM les reformule/absorbe et le chip s'éteint tout seul.
         keywords = [str(k).strip() for k in (body.get('keywords') or []) if str(k).strip()]
+        target_model = (body.get('target_model') or '').strip()
     except Exception:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
@@ -60,10 +61,19 @@ def api_enrich_prompt(request):
     if len(prompt) > 2000:
         return JsonResponse({'error': 'Prompt trop long (max 2000 caractères)'}, status=400)
 
+    # CONTRAT du modèle visé (2026-10-04) : `enrich_on_demand` savait le recevoir, la vue ne le
+    # passait jamais — l'enrichi à la demande ignorait la forme qu'attend le modèle choisi (celle
+    # de YuE2 : style + paroles balisées). Un « auto » ne désigne aucun modèle : pas de contrat.
+    contract = None
+    if target_model and not target_model.startswith('auto'):
+        from wama.model_manager.models import AIModel
+        contract = (AIModel.objects.filter(model_key=target_model)
+                    .values_list('prompt_contract', flat=True).first()) or None
+
     lang = (getattr(getattr(request.user, 'profile', None), 'preferred_language', None) or 'en')
     try:
         enhanced = enrich_on_demand(prompt, app=app, domain=domain, language=lang,
-                                    glossary=keywords or None)
+                                    glossary=keywords or None, contract=contract)
         return JsonResponse({'original': prompt, 'enhanced': enhanced,
                              'keywords': keywords})
     except RuntimeError as e:

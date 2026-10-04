@@ -154,11 +154,17 @@ def _routed_prompt(gen, ctx) -> str:
     """PromptPipeline (§16.6) : MusicGen/AudioCraft est entraîné en anglais → un prompt FR est
     traduit avant génération (métadonnée PROMPT_TARGETS['composer'], KIND generative).
     Résource-safe : passthrough si déjà EN / modèle multilingue. Traduit UNE fois par
-    lancement : la partition et le rendu lisent la même consigne."""
+    lancement : la partition et le rendu lisent la même consigne.
+
+    ⚠ Le modèle passé au pipeline est celui de CE LANCEMENT (`_model_key` : le choix, ou le
+    tirage d'un « auto ») — 2026-10-04. Le pipeline lisait le champ `model` de la card : sous
+    « auto », `auto:text-to-music` ne désigne aucun modèle, donc ni ses langues (traduction par
+    défaut en anglais) ni son CONTRAT de prompt (celui de YuE2 : style + paroles balisées)."""
     if getattr(gen, '_routed_prompt', None) is None:
         from wama.common.utils.app_metadata import process_prompt_for
         gen._routed_prompt = process_prompt_for(ctx.app_id, 'prompt', gen.prompt,
-                                                instance=gen, user=gen.user, console=ctx.console)
+                                                instance=gen, user=gen.user, console=ctx.console,
+                                                model_id=_model_key(gen))
     return gen._routed_prompt
 
 
