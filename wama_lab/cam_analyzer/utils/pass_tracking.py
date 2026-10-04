@@ -814,19 +814,29 @@ def recompute_stale(session) -> int:
         current={node_of[id(p)]: _profile_snapshot(profile, _WATCHED[p.pass_type])
                  for p in passes if _WATCHED.get(p.pass_type)})
     flipped = 0
-    stale_types = set()
+    stale_lines = []
     for p in passes:
         if node_of[id(p)] in stale:
             p.status = AnalysisPass.Status.STALE
             p.save(update_fields=['status'])
             flipped += 1
-            stale_types.add(p.pass_type)
-    if stale_types:
-        # Toutes les lignes TERMINÉES d'un type périment ensemble : la péremption d'une ligne ne
-        # dépend que de son type (réglages surveillés du profil, amont « au moins une caméra »).
+            stale_lines.append((p.pass_type, instance_key(p.camera)))
+    if stale_lines:
+        # PAR LIGNE (passe × caméra), pas par passe : chaque caméra a sa photo de réglages — la
+        # détection relancée à l'arrière avec le nouveau modèle n'est pas périmée parce que l'avant
+        # l'est (`tests_pass_registry`, « for THAT camera only »). `process_runs.mark_stale` périme
+        # TOUTES les instances d'un nœud : il ne convient pas ici.
         pr = _common_runs()
-        pr.safely(pr.mark_stale, session, sorted(stale_types))
+        pr.safely(_stale_common_lines, session, stale_lines)
     return flipped
+
+
+def _stale_common_lines(session, pairs) -> int:
+    """Passe `STALE` les lignes communes `SUCCESS` des couples (passe, clé d'instance) donnés."""
+    from wama.common.models import JOB_STALE, JOB_SUCCESS
+    pr = _common_runs()
+    return sum(pr.lines(session).filter(node_id=node, instance_key=inst, status=JOB_SUCCESS)
+               .update(status=JOB_STALE) for node, inst in pairs)
 
 
 # Passes that are *per-camera* (one row per camera). Others are session-wide. Dérivé du registre.

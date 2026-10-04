@@ -80,6 +80,25 @@ class ProcessRunMirrorTest(TestCase):
         self.assertEqual(self.line('extraction').status, 'SUCCESS', "l'amont n'est pas touché")
         self.assert_mirrored()
 
+    def test_staleness_is_decided_per_camera_line(self):
+        """L'avant détecté avec l'ancien modèle est périmé, l'arrière relancé avec le nouveau ne l'est
+        pas — ligne par ligne, comme le Lab (la 1ʳᵉ version périmait toutes les caméras d'un coup)."""
+        rear = CameraView.objects.create(session=self.session, position='rear',
+                                         video_file='cam_analyzer/test/rear.mp4')
+        pt.mark_started(self.session, 'extraction', self.profile)
+        pt.mark_completed(self.session, 'extraction')
+        pt.mark_started(self.session, 'yolo_detect', self.profile, camera=self.front)
+        pt.mark_completed(self.session, 'yolo_detect', camera=self.front)
+        self.profile.model_path = 'yolo11x.pt'
+        self.profile.save()
+        pt.mark_started(self.session, 'yolo_detect', self.profile, camera=rear)
+        pt.mark_completed(self.session, 'yolo_detect', camera=rear)
+        self.session.refresh_from_db()
+        pt.recompute_stale(self.session)
+        self.assertEqual((self.line('yolo_detect', self.front).status, self.line('yolo_detect', rear).status),
+                         ('STALE', 'SUCCESS'))
+        self.assert_mirrored()
+
     def test_an_interrupted_calculation_and_a_cancelled_sam3_close_both_lines(self):
         pt.mark_started(self.session, 'distance', self.profile)
         self.assertEqual(pt.reconcile_interrupted_calc_passes(self.session), 1)   # aucune chaîne
