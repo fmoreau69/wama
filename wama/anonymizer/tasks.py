@@ -1,7 +1,5 @@
 import os
 import logging
-import threading
-import time
 from celery import shared_task
 from django.db import close_old_connections
 from django.core.cache import cache
@@ -34,6 +32,17 @@ def anonymizer_eta_key_size(media):
         return (f'anonymizer:vid:{engine}', float(media.duration_inSec or 1.0), 'video_sec')
     mpx = (media.width or 0) * (media.height or 0) / 1_000_000.0 or 1.0
     return (f'anonymizer:img:{engine}', mpx, 'megapixel')
+
+
+def anonymizer_blur_eta_key_size(media):
+    """Clé + taille ETA du FLOUTAGE (process à part depuis le 2026-10-04) : décoder, flouter,
+    réencoder — le coût suit la durée de la vidéo ou la surface de l'image, pas le détecteur."""
+    is_video = (media.media_type == 'video' or
+                normalize_types([media.file_ext]) == ['video'])
+    if is_video:
+        return ('anonymizer:blur:vid', float(media.duration_inSec or 1.0), 'video_sec')
+    mpx = (media.width or 0) * (media.height or 0) / 1_000_000.0 or 1.0
+    return ('anonymizer:blur:img', mpx, 'megapixel')
 
 
 def _record_output(media, written):
@@ -111,8 +120,8 @@ def process_single_media(self, media_id, force_individual=False, process=None):
     Traite un média unique en DB — avec SES réglages, et eux seuls — par le squelette COMMUN
     (`run_item_task`, marche P6 du 2026-10-03) : garde de redélivrance après crash, ingestion
     d'une source distante, statuts canoniques, durée max, chrono, ETA, console, notifications,
-    ligne d'exécution, révision. L'app ne garde que sa GLU (`_anonymize`) et ce qui lui est
-    propre : le verrou de dédoublonnage (deux tâches pour un même média) et l'arrêt demandé par
+    ligne d'exécution, révision. L'app ne garde que ses GLUS (`_detect`, `_blur`, `_output`) et
+    ce qui lui est propre : le verrou de dédoublonnage (deux tâches pour un même média) et l'arrêt demandé par
     l'utilisateur.
 
     Depuis le 2026-09-27 un média NAÎT avec les réglages de son auteur (brique `user_settings`,
@@ -150,15 +159,18 @@ def process_single_media(self, media_id, force_individual=False, process=None):
         # la file entière (`process_user_media_batch`) : la tâche ne bascule rien avant la garde
         # anti-re-livraison du squelette — sans quoi un message re-livré PÉRIMÉ remettait en
         # cours, pour toujours, un média terminé (2026-10-03).
-        # La card porte un PIPELINE de deux process (`function_specs.PIPELINE`) : `generate`
-        # (`_anonymize`, le floutage) puis `output` (`_output`, format et qualité). Un lancement
-        # ne rejoue que ce qui n'est plus à jour : changer le format ne re-floute pas. La sortie
-        # repart du fichier que le floutage a laissé : s'il n'est plus là, le floutage rejoue.
+        # La card porte un PIPELINE de trois process (`function_specs.PIPELINE`) : `detect`
+        # (`_detect`, les détections du média), `blur` (`_blur`, le floutage depuis elles) puis
+        # `output` (`_output`, format et qualité). Un lancement ne rejoue que ce qui n'est plus à
+        # jour : changer l'intensité du flou ne redétecte pas, changer le format ne re-floute
+        # pas. La sortie repart du fichier que le floutage a laissé : s'il n'est plus là, le
+        # floutage rejoue (un document de détections disparu, lui, se voit à sa ligne).
         known = Media.objects.filter(pk=media_id).first()
         if known is not None:
-            forget_lost_generation(known, 'output_file', 'generate')
+            forget_lost_generation(known, 'output_file', 'blur')
         run_item_task(self, app_id='anonymizer', model=Media, item_id=media_id,
-                      pipeline=PIPELINE, processes={'generate': _anonymize, 'output': _output},
+                      pipeline=PIPELINE,
+                      processes={'detect': _detect, 'blur': _blur, 'output': _output},
                       notify_label='Anonymizer', only=process,
                       ingest_derive=_ingested_metadata,
                       progress_fn=lambda item, pct, msg: set_media_progress(item.pk, pct))
@@ -190,14 +202,9 @@ def _catalogue_key(value):
     return f'anonymizer:{found}' if found else None
 
 
-def _anonymize(media, ctx):
-    """La GLU de l'anonymizer : choix du ou des modèles (couverture des classes demandées),
-    floutage (YOLO ou SAM3), conversion au format de sortie, sortie posée sur le média."""
-    if not media.file:
-        raise ValueError("Média sans fichier (ni URL rapatriée) : rien à traiter.")
-    user = media.user
-    media_id = media.id
-
+def _detection_kwargs(media, user):
+    """Ce que le détecteur reçoit, et les modèles qu'il emploiera (clés de catalogue) : choix du
+    ou des modèles par la couverture des classes demandées, ou SAM3 pour une description."""
     precision_level = media.precision_level
     use_segmentation = media.use_segmentation
     # Mode DESCRIPTION (`app_modes`) : la seule désignation par texte branchée au moteur de
@@ -215,13 +222,6 @@ def _anonymize(media, ctx):
 
     _console(user.id, f"[DEBUG] SAM3 settings: use_sam3={use_sam3}, prompt='{sam3_prompt[:30] if sam3_prompt else ''}'")
 
-    # Determine if this is an image (interpolation doesn't apply to images)
-    image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif']
-    is_image = media.file_ext and media.file_ext.lower() in image_extensions
-
-    # Get interpolation setting (disabled for images)
-    interpolate_detections = False if is_image else media.interpolate_detections
-
     kwargs = {
         'media_path': get_input_media_path(media.file.name, user.id),
         'file_ext': media.file_ext,
@@ -229,25 +229,13 @@ def _anonymize(media, ctx):
         # dans des listes de classes (médias 220/221/225 constatés le 2026-08-17) — une
         # classe est un nom, jamais true/false/none/vide.
         'classes2blur': _classes_saines(media.classes2blur),
-        'blur_ratio': media.blur_ratio,
-        'roi_enlargement': media.roi_enlargement,
-        'progressive_blur': media.progressive_blur,
         'detection_threshold': media.detection_threshold,
-        'interpolate_detections': interpolate_detections,
-        'max_interpolation_frames': media.max_interpolation_frames,
-        'show_preview': media.show_preview,
-        'show_boxes': media.show_boxes,
-        'show_labels': media.show_labels,
-        'show_conf': media.show_conf,
         'precision_level': precision_level,
         'use_segmentation': use_segmentation,
         # SAM3 parameters
         'use_sam3': use_sam3,
         'sam3_prompt': sam3_prompt,
         'user_id': user.id,  # For console logging
-        # Nom de sortie PROPRE à la card (`compose_output_name(item_id=…)`) : des cards
-        # dupliquées partagent leur entrée, jamais leur sortie.
-        'item_id': media.id,
     }
 
     # ======================================================================
@@ -377,221 +365,213 @@ def _anonymize(media, ctx):
             pass
 
     # Les modèles EMPLOYÉS, en clés de catalogue, pour la ligne d'exécution — ce que le réglage
-    # ne dit pas quand il est resté « auto ». SAM3 n'est pas nommé : `start_process` peut se
+    # ne dit pas quand il est resté « auto ». SAM3 n'est pas nommé : `detect_media` peut se
     # replier sur YOLO sans le rendre, et une ligne ne nomme pas un modèle qui n'a pas tourné.
     used_models = []
     if not use_sam3:
         paths = [m['path'] for m in kwargs.get('models') or []] or [kwargs.get('model_path')]
         used_models = [key for key in (_catalogue_key(p) for p in paths if p) if key]
+    return kwargs, used_models
 
-    _console(user.id, f"Start processing media {media.id} ...")
 
-    # Load model (early progress)
+def _partial_frames(media):
+    """L'aperçu « pendant » d'une VIDÉO (une image n'a qu'une frame), si la card le demande
+    (`show_preview`) — brique commune `preview_utils.PartialFrames`."""
+    if normalize_types([media.file_ext]) != ['video'] or not media.show_preview:
+        return None
+    from wama.common.utils.preview_utils import PartialFrames
+    folder = os.path.join(get_app_media_path('anonymizer', media.user_id, 'output'), 'partials')
+    return PartialFrames('anonymizer', media.id, folder)
+
+
+def _drawn(media, image, found):
+    """La vue « Détection » d'une frame : ce que la card demande d'afficher (`show_boxes`,
+    `show_labels`, `show_conf`) — ces réglages pilotaient une fenêtre OpenCV côté serveur
+    (`track(show=…)`), que personne ne voyait ; ils pilotent désormais l'aperçu."""
+    from wama.common.utils.detections import draw
+    return draw(image, found, boxes=media.show_boxes, labels=media.show_labels,
+                confidence=media.show_conf)
+
+
+def _detect(media, ctx):
+    """GLU du process `detect` (« Détection », 2026-10-04) : choix du ou des modèles, détection
+    (YOLO ou SAM3), document `detections` écrit dans la sortie de l'app et posé sur la card
+    (`detections_file`). Rien n'est flouté ici : c'est le process suivant, qui le relit.
+
+    Pendant une vidéo, l'aperçu montre la frame courante avec ses détections dessinées."""
+    from django.conf import settings
+    from wama.common.services.output_process import drop_previous_outputs
+    from wama.common.utils import detections
+    from wama.common.utils.output_naming import compose_output_name
+    if not media.file:
+        raise ValueError("Média sans fichier (ni URL rapatriée) : rien à traiter.")
+    user = media.user
+    kwargs, used_models = _detection_kwargs(media, user)
+    _console(user.id, f"Détection — média {media.id}…")
+    ctx.progress(2)
+
+    frames = _partial_frames(media)
+
+    def on_frame(index, image, found):
+        if frames is not None and frames.due():
+            frames.publish({'detection': ('Détection', _drawn(media, image, found))}, index=index)
+
+    kwargs['on_frame'] = on_frame
+    kwargs['progress'] = lambda done, total: ctx.progress(min(99, int(done * 100 / max(total, 1))))
     try:
-        cache.set(f"media_stage_{media.id}", "loading_model", timeout=3600)
-        ctx.progress(5)
-        _console(user.id, f"Loading model for media {media.id} ...")
-    except Exception:
-        pass
-
-    # Run process with simulated progress
-    ctx.progress(10)
-    _console(user.id, f"Running anonymization for media {media.id} ...")
-
-    # Durée estimée pour la simulation de progression : ETA apprise (EMA par
-    # clé modèle/taille) avec repli sur l'a-priori historique 60 s vidéo / 10 s image.
-    is_video = normalize_types([media.file_ext]) == ['video']
-    estimated_duration = 60 if is_video else 10
-    eta_key, eta_size, eta_unit = anonymizer_eta_key_size(media)
-    try:
-        from wama.model_manager.services.eta_estimator import estimate
-        _est = estimate(eta_key, size=eta_size, unit=eta_unit, model_loaded=True,
-                        fallback_seconds=estimated_duration)
-        if _est:
-            estimated_duration = max(3, int(_est))
-    except Exception:
-        pass
-
-    # Start progress simulation in background thread (10% -> 90%)
-    stop_flag = f"stop_progress_sim_{media.id}"
-    cache.delete(stop_flag)  # Ensure it's clear
-    progress_thread = threading.Thread(
-        target=simulate_progress,
-        args=(media.id, 10, 90, estimated_duration, stop_flag),
-        daemon=True
-    )
-    progress_thread.start()
-
-    # Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`) : la frame floutée
-    # COURANTE publiée ~toutes les 2 s (vidéo seulement — une image n'a qu'une frame).
-    # Le hook `on_frame` traverse kwargs jusqu'à la boucle de floutage (anonymize.py),
-    # qui ne connaît ni pk ni URLs ; le throttle et l'écriture JPEG vivent ICI.
-    from wama.common.utils.preview_utils import clear_partial, publish_partial
-    _partial_abs = None
-    if is_video:
-        import cv2 as _cv2
-        from django.conf import settings as _settings
-        _pdir = os.path.join(get_app_media_path('anonymizer', user.id, 'output'), 'partials')
-        os.makedirs(_pdir, exist_ok=True)
-        _partial_abs = os.path.join(_pdir, f'during_{media.id}.jpg')
-        _partial_url = (_settings.MEDIA_URL
-                        + os.path.relpath(_partial_abs, _settings.MEDIA_ROOT).replace('\\', '/'))
-        _last_emit = [0.0]
-
-        def _on_frame(idx, img):
-            now = time.time()
-            if now - _last_emit[0] < 2.0:
-                return
-            _last_emit[0] = now
-            try:
-                _cv2.imwrite(_partial_abs, img)
-                publish_partial('anonymizer', media.id, f'{_partial_url}?v={idx}')
-            except Exception:
-                pass
-
-        kwargs['on_frame'] = _on_frame
-
-    written = None
-    try:
-        # Run the actual processing
-        written = start_process(**kwargs)
+        doc = detect_media(**kwargs)
     finally:
-        # Stop the progress simulation
-        cache.set(stop_flag, True, timeout=10)
-        progress_thread.join(timeout=2)  # Wait max 2 seconds for thread to finish
-        # Fin du « pendant » : la face SORTIE prend le relais ; fichier partiel retiré.
-        clear_partial('anonymizer', media.id)
-        if _partial_abs:
-            try:
-                os.remove(_partial_abs)
-            except OSError:
-                pass
+        if frames is not None:
+            frames.close()
 
-    # Le format et la qualité de sortie sont le process suivant, `output` (`_output`).
+    folder = get_app_media_path('anonymizer', user.id, 'output')
+    os.makedirs(folder, exist_ok=True)
+    target = os.path.join(folder, compose_output_name(
+        app='anonymizer', model=doc.get('tag') or doc.get('engine') or 'yolo',
+        source_name=kwargs['media_path'], item_id=media.id, nature='detections', ext='.json'))
+    detections.write(target, doc)
+    # Le document d'avant part s'il n'a plus le même nom (moteur changé) ; l'original que garde
+    # la SORTIE n'est pas le sien : il reste (`natives=False`).
+    drop_previous_outputs(media, 'detections_file', keep=[target], natives=False)
+    rel = os.path.relpath(target, settings.MEDIA_ROOT).replace(chr(92), '/')
+    media.detections_file.name = rel
+    found = detections.count(doc)
+    shown = len(doc.get('frames') or [])
+    _console(user.id, f"Détection : {found} objet(s) sur {shown} image(s)"
+             + ("" if found else " — rien ne sera flouté"), 'info' if found else 'warning')
+    return {
+        'fields': {'detections_file': rel},
+        'output_ref': rel,
+        'eta': anonymizer_eta_key_size(media),
+        'label': os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media.id}",
+        'console_success': f"Détection : {found} objet(s) ✔",
+        'models': used_models or None,
+    }
+
+
+def _blur(media, ctx):
+    """GLU du process `blur` (« Floutage », 2026-10-04) : le média réécrit depuis son document de
+    détections — intensité, contour progressif, agrandissement de la zone, interpolation des
+    trous d'une piste. Aucun modèle n'est chargé : changer un réglage de flou ne redétecte pas.
+
+    Pendant une vidéo, l'aperçu offre DEUX vues de la frame courante — détections dessinées,
+    frame floutée — entre lesquelles l'inspecteur bascule (variantes de `preview_utils`)."""
+    from wama.common.utils import detections
+    from wama.common.utils.blur_utils import blur_detections
+    from wama.common.utils.output_naming import compose_output_name
+    if not media.file:
+        raise ValueError("Média sans fichier (ni URL rapatriée) : rien à traiter.")
+    if not media.detections_file:
+        raise RuntimeError("Floutage : aucune détection — relancer la détection.")
+    try:
+        doc = detections.read(media.detections_file.path)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"Floutage : détections illisibles ({exc}) — relancer la "
+                           "détection.") from exc
+    user = media.user
+    source = get_input_media_path(media.file.name, user.id)
+    video = doc.get('media') == 'video'
+    frames_map = detections.by_frame(
+        doc, interpolate=video and media.interpolate_detections,
+        max_gap=detections.max_gap_for(doc.get('fps'), media.max_interpolation_frames))
+    settings_ = {'blur_ratio': media.blur_ratio, 'rounded_edges': media.rounded_edges,
+                 'progressive_blur': media.progressive_blur,
+                 'roi_enlargement': media.roi_enlargement}
+
+    def paint(image, found):
+        return blur_detections(image, found, **settings_)
+
+    folder = get_app_media_path('anonymizer', user.id, 'output')
+    os.makedirs(folder, exist_ok=True)
+    target = os.path.join(folder, compose_output_name(
+        app='anonymizer', model=doc.get('tag') or doc.get('engine') or 'yolo',
+        source_name=source, item_id=media.id))
+    preview = _partial_frames(media)
+
+    def on_frame(index, original, painted, found):
+        if preview is not None and preview.due():
+            preview.publish({'detection': ('Détection', _drawn(media, original, found)),
+                             'blur': ('Floutage', painted)}, index=index)
+
+    _console(user.id, f"Floutage — média {media.id}…")
+    ctx.progress(2)
+    try:
+        written = detections.render_media(
+            source, frames_map, paint, target, on_frame=on_frame,
+            progress=lambda done, total: ctx.progress(min(99, int(done * 100 / max(total, 1)))))
+    finally:
+        if preview is not None:
+            preview.close()
+
     # La sortie RÉELLEMENT écrite, posée sur le média (l'ancienne part si elle n'est plus la
-    # même). Le statut, le chrono, l'ETA et la notification sont l'affaire du squelette.
+    # même). Le format et la qualité de sortie sont le process suivant, `output` (`_output`).
     try:
         media.refresh_from_db(fields=['output_file'])
     except media.__class__.DoesNotExist:
-        _console(user.id, f"Warning: Media {media_id} was deleted during processing")
         raise RuntimeError("Le média a été supprimé pendant son traitement.")
     _record_output(media, written)
     if not media.output_file.name:
-        raise RuntimeError("Le moteur n'a écrit aucun fichier.")
+        raise RuntimeError("Le floutage n'a écrit aucun fichier.")
     from wama.common.services.output_process import generated
     return generated(
         [written],
         fields={'output_file': media.output_file.name},
-        eta=(eta_key, eta_size, eta_unit),
-        label=os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media_id}",
-        console_success=f"Finished media {media_id} ✔",
-        models=used_models or None)
+        eta=anonymizer_blur_eta_key_size(media),
+        label=os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media.id}",
+        console_success=f"Floutage ✔ ({detections.count(doc)} objet(s))")
 
 
 # ----------------------------------------------------------------------
 # Fonction pour lancer le traitement du média
 # ----------------------------------------------------------------------
-def start_process(**kwargs):
-    """
-    Route processing to SAM3 or YOLO based on settings.
-
-    If use_sam3=True and sam3_prompt is provided, uses SAM3 for segmentation.
-    Otherwise, uses the standard YOLO-based Anonymize class.
-
-    Returns the path the engine ACTUALLY wrote (2026-09-27) — the task records it on the
-    media; nothing is guessed from the input's name any more.
-    """
-    media_path = kwargs.get('media_path', 'unknown')
+def detect_media(**kwargs):
+    """Les DÉTECTIONS d'un média, en document `detections` (`common/utils/detections`) : SAM3
+    quand la card décrit en texte ce qu'il faut flouter (et que SAM3 est là, et le prompt
+    valide), sinon le détecteur YOLO (un ou plusieurs modèles). Rien n'est écrit ni flouté :
+    la tâche range le document, le process « Floutage » le relit (2026-10-04)."""
     use_sam3 = kwargs.get('use_sam3', False)
     sam3_prompt = kwargs.get('sam3_prompt', '')
     user_id = kwargs.get('user_id')
-
-    # Debug: Log SAM3 routing decision
-    print(f"[start_process] DEBUG: use_sam3={use_sam3} (type={type(use_sam3)})")
-    print(f"[start_process] DEBUG: sam3_prompt='{sam3_prompt}' (type={type(sam3_prompt)})")
-    print(f"[start_process] DEBUG: Condition check: use_sam3={bool(use_sam3)}, sam3_prompt={bool(sam3_prompt)}, strip={bool(sam3_prompt and sam3_prompt.strip())}")
-    if user_id:
-        _console(user_id, f"[DEBUG] use_sam3={use_sam3}, sam3_prompt='{sam3_prompt[:30] if sam3_prompt else ''}'...")
-
-    # Route to SAM3 if enabled and prompt provided
-    if use_sam3 and sam3_prompt and sam3_prompt.strip():
-        print(f"[SAM3] Process started for media: {media_path} ...")
-
-        # Validate SAM3 is available
-        if not check_sam3_installed():
-            error_msg = "SAM3 not installed. Falling back to YOLO."
-            print(f"Warning: {error_msg}")
-            if user_id:
-                _console(user_id, f"Warning: {error_msg}")
-            # Fall through to YOLO
-        else:
-            # Validate prompt
-            is_valid, error = validate_sam3_prompt(sam3_prompt)
-            if not is_valid:
-                error_msg = f"Invalid SAM3 prompt: {error}. Falling back to YOLO."
-                print(f"Warning: {error_msg}")
-                if user_id:
-                    _console(user_id, f"Warning: {error_msg}")
-                # Fall through to YOLO
-            else:
-                # Use SAM3 processor
-                try:
-                    # Le MODÈLE porte son moteur ; le backend s'en dérive (2026-09-07). La
-                    # bascule SAM3/YOLO reste une option utilisateur ; ce qu'elle désigne est
-                    # le modèle `anonymizer:sam3`, et c'est lui qui donne sa classe.
-                    from wama.common.backends.manager import backend_for_key
-                    SAM3Processor = backend_for_key('anonymizer:sam3')
-                    if SAM3Processor is None:
-                        raise ImportError("anonymizer:sam3 : aucun backend résolu depuis le "
-                                          "catalogue (ligne absente, ou sans moteur déclaré)")
-
-                    if user_id:
-                        _console(user_id, f"Using SAM3 with prompt: {sam3_prompt[:50]}...")
-
-                    # Get user-specific paths for SAM3
-                    source_dir = get_app_media_path('anonymizer', user_id, 'input') if user_id else None
-                    dest_dir = get_app_media_path('anonymizer', user_id, 'output') if user_id else None
-
-                    processor = SAM3Processor(source_dir=source_dir, destination_dir=dest_dir)
-                    processor.load_model('auto')
-
-                    # Progress callback → console (throttled to every 10%)
-                    _last_pct = [0]
-                    def _sam3_progress(pct):
-                        if user_id and (pct - _last_pct[0] >= 10 or pct >= 100):
-                            _last_pct[0] = pct
-                            _console(user_id, f"SAM3 progress: {pct}%")
-
-                    kwargs['progress_callback'] = _sam3_progress
-                    processor.process(**kwargs)
-
-                    if user_id:
-                        _console(user_id, f"SAM3 processing complete")
-                    return processor.output_path
-                except ImportError as e:
-                    error_msg = f"SAM3 import error: {e}. Falling back to YOLO."
-                    print(f"Warning: {error_msg}")
-                    if user_id:
-                        _console(user_id, f"Warning: {error_msg}")
-                except Exception as e:
-                    error_msg = f"SAM3 processing error: {e}. Falling back to YOLO."
-                    print(f"Warning: {error_msg}")
-                    if user_id:
-                        _console(user_id, f"Warning: {error_msg}")
-
-    # Default: Use YOLO-based Anonymize
-    print(f"[YOLO] Process started for media: {media_path} ...")
-    if user_id:
-        _console(user_id, f"Using YOLO with classes: {kwargs.get('classes2blur', [])}")
-
-    # Get user-specific paths for YOLO
     source_dir = get_app_media_path('anonymizer', user_id, 'input') if user_id else None
     dest_dir = get_app_media_path('anonymizer', user_id, 'output') if user_id else None
 
+    if use_sam3 and sam3_prompt and sam3_prompt.strip():
+        reason = None
+        if not check_sam3_installed():
+            reason = "SAM3 not installed"
+        else:
+            is_valid, error = validate_sam3_prompt(sam3_prompt)
+            if not is_valid:
+                reason = f"Invalid SAM3 prompt: {error}"
+        if reason is None:
+            try:
+                # Le MODÈLE porte son moteur ; le backend s'en dérive (2026-09-07).
+                from wama.common.backends.manager import backend_for_key
+                SAM3Processor = backend_for_key('anonymizer:sam3')
+                if SAM3Processor is None:
+                    raise ImportError("anonymizer:sam3 : aucun backend résolu depuis le "
+                                      "catalogue (ligne absente, ou sans moteur déclaré)")
+                if user_id:
+                    _console(user_id, f"Using SAM3 with prompt: {sam3_prompt[:50]}...")
+                processor = SAM3Processor(source_dir=source_dir, destination_dir=dest_dir)
+                processor.load_model('auto')
+                _last_pct = [0]
+
+                def _sam3_progress(pct):
+                    if user_id and (pct - _last_pct[0] >= 10 or pct >= 100):
+                        _last_pct[0] = pct
+                        _console(user_id, f"SAM3 progress: {pct}%")
+                return processor.detect(progress_callback=_sam3_progress, **kwargs)
+            except Exception as e:
+                reason = f"SAM3 error: {e}"
+        if user_id:
+            _console(user_id, f"Warning: {reason}. Falling back to YOLO.")
+
+    if user_id:
+        _console(user_id, f"Using YOLO with classes: {kwargs.get('classes2blur', [])}")
     model = anonymize.Anonymize(source_dir=source_dir, destination_dir=dest_dir)
-    anonymize.Anonymize.load_model(model, **kwargs)
-    anonymize.Anonymize.process(model, **kwargs)
-    return model.output_path
+    model.load_model(**kwargs)
+    return model.detect(**kwargs)
 
 
 # ----------------------------------------------------------------------
@@ -678,24 +658,3 @@ def set_media_progress(media_id: int, percent: int) -> None:
     except Exception:
         # best effort only
         pass
-
-
-def simulate_progress(media_id: int, start_pct: int, end_pct: int, duration_seconds: int, stop_flag_key: str):
-    """
-    Simule une progression graduelle de start_pct à end_pct sur duration_seconds.
-    S'arrête si le flag stop_flag_key est détecté dans le cache.
-    """
-    if duration_seconds <= 0 or start_pct >= end_pct:
-        return
-
-    steps = min(duration_seconds, end_pct - start_pct)  # Max 1 step per second
-    interval = duration_seconds / steps
-    increment = (end_pct - start_pct) / steps
-
-    current = start_pct
-    for _ in range(steps):
-        if cache.get(stop_flag_key, False):
-            break
-        time.sleep(interval)
-        current += increment
-        set_media_progress(media_id, int(current))

@@ -3,7 +3,12 @@
     "layout": {},
     "links": [
       {
-        "from": "generate",
+        "from": "detect",
+        "to": "blur",
+        "to_port": null
+      },
+      {
+        "from": "blur",
         "to": "output",
         "to_port": null
       }
@@ -11,8 +16,8 @@
     "nodes": [
       {
         "app": null,
-        "function": "anonymizer.generate",
-        "id": "generate",
+        "function": "anonymizer.detect",
+        "id": "detect",
         "kind": "function",
         "params": {
           "degree": "required",
@@ -25,16 +30,25 @@
             "model_to_use",
             "precision_level",
             "use_segmentation",
+            "detection_threshold"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "anonymizer.blur",
+        "id": "blur",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "gpu": false,
+          "watched": [
             "blur_ratio",
+            "rounded_edges",
             "roi_enlargement",
             "progressive_blur",
-            "detection_threshold",
             "interpolate_detections",
-            "max_interpolation_frames",
-            "show_preview",
-            "show_boxes",
-            "show_labels",
-            "show_conf"
+            "max_interpolation_frames"
           ]
         }
       },
@@ -58,7 +72,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "anonymizer",
   "manifest_kind": "pipeline",
-  "name": "Anonymizer — floutage puis réglages de sortie (2 process)",
+  "name": "Anonymizer — détection, floutage, réglages de sortie (3 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

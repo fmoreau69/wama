@@ -24,29 +24,21 @@ User = get_user_model()
 
 
 class EngineOutputNameTest(SimpleTestCase):
-    """Both engines name their output through the common brick, WITH the card id."""
+    """The blurred output and the detection document are named through the common brick, WITH
+    the card id — by the TASK since 2026-10-04 (the engines only detect)."""
 
-    def test_two_cards_on_the_same_input_get_two_yolo_outputs(self):
-        from wama.common.backends.anonymize import Anonymize
-        written = []
-        for card in (215, 217):
-            engine = Anonymize.__new__(Anonymize)
-            engine.model, engine.models, engine.model_name = object(), [object()], 'yolo11n.pt'
-            engine.destination, engine.input_path, engine.source = '/out', None, '/in'
-            with mock.patch.object(Anonymize, 'process_image',
-                                   lambda self, i, o, **k: written.append(o)):
-                engine.process(media_path='/in/shared.png', item_id=card)
-        self.assertEqual(2, len(set(written)), written)
-        self.assertTrue(all(os.path.basename(p).startswith('shared_blurred_yolo11n_') for p in written))
-
-    def test_two_cards_on_the_same_input_get_two_sam3_outputs(self):
-        from wama.common.backends.sam3_processor import SAM3Processor
+    def test_two_cards_on_the_same_input_get_their_own_output_and_document(self):
+        from wama.common.utils.output_naming import compose_output_name
         names = set()
         for card in (215, 217):
-            engine = SAM3Processor.__new__(SAM3Processor)
-            engine.destination, engine.item_id = '/out', card
-            names.add(os.path.basename(engine._get_output_path('/in/shared.png')))
-        self.assertEqual({'shared_blurred_sam3_215.png', 'shared_blurred_sam3_217.png'}, names)
+            names.add(compose_output_name(app='anonymizer', model='sam3',
+                                          source_name='/in/shared.png', item_id=card))
+            names.add(compose_output_name(app='anonymizer', model='sam3',
+                                          source_name='/in/shared.png', item_id=card,
+                                          nature='detections', ext='.json'))
+        self.assertEqual({'shared_blurred_sam3_215.png', 'shared_blurred_sam3_217.png',
+                          'shared_detections_sam3_215.json', 'shared_detections_sam3_217.json'},
+                         names)
 
 
 class PreviewVersionTest(SimpleTestCase):

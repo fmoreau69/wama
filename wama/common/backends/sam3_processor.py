@@ -15,12 +15,7 @@ import torch
 import numpy as np
 import logging
 
-from tqdm import tqdm
-from pathlib import Path
 from PIL import Image
-
-from wama.common.utils.blur_utils import blur_segmentation, normalize_blur_ratio
-from wama.common.utils.video_utils import copy_audio_to_video
 
 from .detection_base import DetectionBackend
 from wama.common.utils.video_utils import is_image
@@ -94,14 +89,10 @@ class SAM3Processor(DetectionBackend):
         source_dir: Custom input directory (defaults to MEDIA_INPUT_ROOT)
         destination_dir: Custom output directory (defaults to MEDIA_OUTPUT_ROOT)
 
-    Usage:
-        processor = SAM3Processor(source_dir='/path/to/input', destination_dir='/path/to/output')
-        processor.process(
-            media_path='/path/to/video.mp4',
-            sam3_prompt='blur all faces and license plates',
-            blur_ratio=25,
-            progressive_blur=15
-        )
+    Usage (détection seule depuis le 2026-10-04 — le floutage se joue depuis le document) :
+        processor = SAM3Processor()
+        processor.load_model('auto')
+        doc = processor.detect(media_path='/path/to/video.mp4', sam3_prompt='face, license plate')
     """
 
     def __init__(self, source_dir=None, destination_dir=None):
@@ -116,8 +107,6 @@ class SAM3Processor(DetectionBackend):
         os.makedirs(self.destination, exist_ok=True)
 
         self.input_path = None
-        self.output_path = None
-        self.temp_video_path = None
 
         # Model instances (lazy loaded)
         self.image_model = None
@@ -127,13 +116,8 @@ class SAM3Processor(DetectionBackend):
 
         # Processing settings
         self.text_prompt = ""
-        self.blur_ratio = 25
-        self.progressive_blur = 15
         self.confidence_threshold = 0.3
 
-        # Video processing
-        self.meta_data = None
-        self.vid_writer = None
 
     # ── Contrat commun (BaseModelBackend) ────────────────────────────────────
     # Repli d'empreinte si la mesure autour du chargement n'est pas concluante.
@@ -281,8 +265,9 @@ class SAM3Processor(DetectionBackend):
         return [p.strip().strip('.') for p in parts if p and p.strip().strip('.')]
 
     def _segment(self, pil_image):
-        """Masques de TOUS les concepts du prompt sur une image — un appel SAM3 par concept."""
-        masks, scores = [], []
+        """Masques de TOUS les concepts du prompt sur une image — un appel SAM3 par concept.
+        Rend `(masques, scores, concepts)` : le concept est le libellé de la détection."""
+        masks, scores, labels = [], [], []
         for concept in self.concepts():
             state = self.image_processor.set_image(pil_image)
             output = self.image_processor.set_text_prompt(state=state, prompt=concept)
@@ -292,230 +277,106 @@ class SAM3Processor(DetectionBackend):
             for i, mask in enumerate(found):
                 masks.append(mask)
                 scores.append(values[i] if i < len(values) else 1.0)
-        return masks, scores
+                labels.append(concept)
+        return masks, scores, labels
 
-    def process(self, **kwargs):
+    def detect(self, **kwargs) -> dict:
+        """Le process « DÉTECTION » par SAM3 (2026-10-04) : les contours de ce que le prompt
+        nomme, frame par frame, en document `detections` (`common/utils/detections`) — que le
+        process « Floutage » relit. Rien n'est flouté, rien n'est écrit ici.
+
+        SAM3 segmente image par image (le prédicteur vidéo exige triton) : les détections n'ont
+        donc pas de PISTE, et le floutage ne les interpole pas.
+
+        kwargs : `media_path`, `sam3_prompt`, `on_frame(i, image, détections)`,
+        `progress(faites, total)` ; `progress_callback(pourcentage)` (console) reste lu.
         """
-        Main processing entry point.
-        Routes to image or video processing based on input file type.
-
-        Args:
-            **kwargs: Processing parameters including:
-                - media_path: Path to input file
-                - sam3_prompt: Text prompt for segmentation
-                - blur_ratio: Blur kernel size (default: 25)
-                - progressive_blur: Progressive blur strength (default: 15)
-                - output_path: Optional custom output path
-
-        Raises:
-            ValueError: If no prompt is provided
-            FileNotFoundError: If input file doesn't exist
-        """
-        # Get parameters
+        from wama.common.utils import detections as dets
         self.text_prompt = kwargs.get('sam3_prompt', self.text_prompt)
         if not self.text_prompt or not self.text_prompt.strip():
             raise ValueError("SAM3 requires a text prompt. Please provide 'sam3_prompt' parameter.")
-
         self.input_path = kwargs.get('media_path', self.input_path)
         if not self.input_path or not os.path.exists(self.input_path):
             raise FileNotFoundError(f"Input file not found: {self.input_path}")
-
-        self.item_id = kwargs.get('item_id')
-        self.blur_ratio = normalize_blur_ratio(kwargs.get('blur_ratio', self.blur_ratio))
-        self.progressive_blur = int(kwargs.get('progressive_blur', self.progressive_blur))
-
-        logger.info(f"[SAM3] Processing with prompt: {self.text_prompt[:50]}...")
-        print(f"[SAM3] Processing with prompt: {self.text_prompt[:50]}...")
-
-        # Route to appropriate processing method
-        if is_image(self.input_path):
-            self._ensure_image_model()
-            self.process_image(**kwargs)
-        else:
-            self._ensure_video_model()
-            self.process_video(**kwargs)
-
-    def process_image(self, **kwargs):
-        """
-        Process a single image using SAM3.
-
-        Args:
-            **kwargs: Processing parameters
-        """
-        logger.info(f"[SAM3] Processing image: {self.input_path}")
-        print(f"[SAM3] Processing image: {self.input_path}")
-
-        # Load image
-        pil_image = Image.open(self.input_path).convert('RGB')
-        cv_image = cv2.imread(self.input_path)
-
-        if cv_image is None:
-            raise RuntimeError(f"Could not load image: {self.input_path}")
-
-        # Get output path
-        self.output_path = kwargs.get('output_path', self._get_output_path(self.input_path))
-
-        try:
-            # UN appel SAM3 PAR CONCEPT (cf. `concepts()`) : le modèle n'ancre pas une
-            # conjonction. Les masques de tous les concepts sont réunis ici.
-            masks, scores = self._segment(pil_image)
-
-            concepts = self.concepts()
-            logger.info(f"[SAM3] Found {len(masks)} masks for {len(concepts)} concept(s): {concepts}")
-            print(f"[SAM3] Found {len(masks)} masks for {len(concepts)} concept(s): {concepts}")
-            if not masks:
-                # Un prompt que SAM3 n'ancre pas rend 0 masque SANS erreur, et la sortie est
-                # alors identique à l'entrée : le dire, sinon l'échec est invisible.
-                logger.warning(f"[SAM3] AUCUN masque — rien ne sera flouté. Concepts: {concepts}")
-                print(f"[SAM3] AUCUN masque — rien ne sera flouté. Concepts: {concepts}")
-
-            # Apply blur to detected regions
-            blurred_image = cv_image.copy()
-            for i, mask in enumerate(masks):
-                score = scores[i] if i < len(scores) else 1.0
-                if score >= self.confidence_threshold:
-                    # Convert mask to numpy array
-                    mask_np = self._convert_mask_to_numpy(mask, cv_image.shape[:2])
-
-                    # Apply blur
-                    blurred_image = blur_segmentation(
-                        blurred_image, mask_np,
-                        self.blur_ratio,
-                        self.progressive_blur
-                    )
-
-            # Save output
-            os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
-            cv2.imwrite(self.output_path, blurred_image)
-
-            logger.info(f"[SAM3] Image processed successfully: {self.output_path}")
-            print(f"[SAM3] Image processed successfully: {self.output_path}")
-
-        except Exception as e:
-            logger.error(f"[SAM3] Error processing image: {e}")
-            raise
-        finally:
-            # Clean up
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-    def process_video(self, **kwargs):
-        """
-        Process a video using SAM3 image processor frame-by-frame.
-
-        Since SAM3's video predictor requires 'triton' which is not available on Windows,
-        we process each frame independently using the image processor with text prompts.
-
-        Args:
-            **kwargs: Processing parameters
-        """
-        logger.info(f"[SAM3] Processing video: {self.input_path}")
-        print(f"[SAM3] Processing video: {self.input_path}")
-
-        # Ensure image model is loaded (we use it for frame-by-frame processing)
+        on_frame, progress = kwargs.get('on_frame'), kwargs.get('progress')
+        console_progress = kwargs.get('progress_callback')
         self._ensure_image_model()
+        concepts = self.concepts()
+        logger.info(f"[SAM3] Detecting with concept(s): {concepts}")
 
-        # Get output path
-        self.output_path = kwargs.get('output_path', self._get_output_path(self.input_path))
-
-        # Progress callback
-        progress_callback = kwargs.get('progress_callback', None)
-
-        cap = None
+        def _frame(index, bgr):
+            """Les détections d'UNE frame (BGR OpenCV) au format du document."""
+            masks, scores, labels = self._segment(Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)))
+            found = []
+            for i, mask in enumerate(masks):
+                score = float(scores[i]) if i < len(scores) else 1.0
+                if score < self.confidence_threshold:
+                    continue
+                polygons = dets.mask_to_polygons(self._convert_mask_to_numpy(mask, bgr.shape[:2]))
+                if not polygons:
+                    continue
+                found.append(dets.detection(box=dets.box_of_polygons(polygons), label=labels[i],
+                                            conf=score, polygons=polygons))
+            return found
 
         try:
-            # Get video properties
-            cap = cv2.VideoCapture(self.input_path)
-            if not cap.isOpened():
-                raise RuntimeError(f"Could not open video: {self.input_path}")
-
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-            self.meta_data = {'fps': fps, 'size': (width, height), 'total_frames': total_frames}
-
-            # Setup video writer
-            self._setup_video_writer()
-
-            logger.info(f"[SAM3] Video: {width}x{height}, {fps}fps, {total_frames} frames")
-            print(f"[SAM3] Video: {width}x{height}, {fps}fps, {total_frames} frames")
-            logger.info(f"[SAM3] Using frame-by-frame processing with prompt: {self.text_prompt}")
-            print(f"[SAM3] Using frame-by-frame processing with prompt: {self.text_prompt}")
-
-            # Process each frame using image processor
-            for frame_idx in tqdm(range(total_frames), desc='[SAM3] Processing video'):
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
-                # Convert BGR (OpenCV) to RGB (PIL)
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                pil_frame = Image.fromarray(frame_rgb)
-
+            if is_image(self.input_path):
+                image = cv2.imread(self.input_path)
+                if image is None:
+                    raise RuntimeError(f"Could not load image: {self.input_path}")
+                height, width = image.shape[:2]
+                doc = dets.new_document(media='image', width=width, height=height, engine='sam3',
+                                        models=['sam3'], prompt=self.text_prompt)
+                found = _frame(0, image)
+                dets.add(doc, 0, found)
+                if on_frame:
+                    on_frame(0, image, found)
+                if progress:
+                    progress(1, 1)
+            else:
+                capture = cv2.VideoCapture(self.input_path)
+                if not capture.isOpened():
+                    raise RuntimeError(f"Could not open video: {self.input_path}")
+                total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+                doc = dets.new_document(
+                    media='video', width=int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                    height=int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                    fps=capture.get(cv2.CAP_PROP_FPS) or 25.0, frame_count=total,
+                    engine='sam3', models=['sam3'], prompt=self.text_prompt)
+                index = 0
                 try:
-                    # UN appel SAM3 PAR CONCEPT, comme pour l'image (cf. `concepts()`).
-                    masks, scores = self._segment(pil_frame)
-
-                    # Apply blur to detected regions
-                    blurred_frame = frame.copy()
-                    for i, mask in enumerate(masks):
-                        score = scores[i] if i < len(scores) else 1.0
-                        if score >= self.confidence_threshold:
-                            mask_np = self._convert_mask_to_numpy(mask, frame.shape[:2])
-                            blurred_frame = blur_segmentation(
-                                blurred_frame, mask_np,
-                                self.blur_ratio,
-                                self.progressive_blur
-                            )
-
-                    self.vid_writer.write(blurred_frame)
-
-                except Exception as frame_error:
-                    # If frame processing fails, write original frame
-                    logger.warning(f"[SAM3] Frame {frame_idx} error: {frame_error}, using original")
-                    self.vid_writer.write(frame)
-
-                # Report progress
-                if progress_callback:
-                    progress = int((frame_idx + 1) / total_frames * 100)
-                    progress_callback(progress)
-
-                # Periodic memory cleanup (every 100 frames)
-                if frame_idx % 100 == 0 and frame_idx > 0:
-                    gc.collect()
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-
-            cap.release()
-            self.vid_writer.release()
-
-            # Copy audio from original video
-            logger.info("[SAM3] Merging audio...")
-            print("[SAM3] Merging audio...")
-
-            final_output = self.output_path
-            if not final_output.endswith('.mp4'):
-                final_output = os.path.splitext(final_output)[0] + '.mp4'
-
-            copy_audio_to_video(self.input_path, self.temp_video_path, final_output)
-
-            self.output_path = final_output
-            logger.info(f"[SAM3] Video processed successfully: {final_output}")
-            print(f"[SAM3] Video processed successfully: {final_output}")
-
-        except Exception as e:
-            logger.error(f"[SAM3] Error processing video: {e}")
-            raise
+                    while True:
+                        ok, frame = capture.read()
+                        if not ok:
+                            break
+                        try:
+                            found = _frame(index, frame)
+                        except Exception as frame_error:
+                            # Une frame ratée n'arrête pas le média : elle reste sans détection,
+                            # et la console le dit (comme le floutage d'avant l'écrivait telle quelle).
+                            logger.warning(f"[SAM3] Frame {index} error: {frame_error}")
+                            found = []
+                        dets.add(doc, index, found)
+                        if on_frame:
+                            on_frame(index, frame, found)
+                        index += 1
+                        if progress:
+                            progress(index, total or index)
+                        if console_progress and total:
+                            console_progress(int(index / total * 100))
+                        if index % 100 == 0:
+                            gc.collect()
+                            if torch.cuda.is_available():
+                                torch.cuda.empty_cache()
+                finally:
+                    capture.release()
+            doc['tag'] = 'sam3'
+            if not doc['frames']:
+                # Un prompt que SAM3 n'ancre pas rend 0 masque SANS erreur : le dire, sinon
+                # l'échec est invisible (le floutage rendrait le média tel quel).
+                logger.warning(f"[SAM3] AUCUN masque — rien ne sera flouté. Concepts: {concepts}")
+            return doc
         finally:
-            # Release resources
-            if cap is not None:
-                cap.release()
-            if self.vid_writer is not None:
-                self.vid_writer.release()
-
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -554,77 +415,12 @@ class SAM3Processor(DetectionBackend):
 
         return mask
 
-    def _setup_video_writer(self):
-        """Setup video writer for output."""
-        if self.meta_data is None:
-            raise RuntimeError("Video metadata not set. Call process_video first.")
-
-        fps = self.meta_data['fps']
-        width, height = self.meta_data['size']
-
-        # Use AVI format with MJPG codec (same as Anonymize class)
-        suffix = '.avi'
-        fourcc = 'MJPG'
-        self.temp_video_path = str(Path(self.output_path).with_suffix(suffix))
-
-        self.vid_writer = cv2.VideoWriter(
-            self.temp_video_path,
-            cv2.VideoWriter_fourcc(*fourcc),
-            fps,
-            (width, height),
-            True
-        )
-
-        if not self.vid_writer.isOpened():
-            raise RuntimeError(f"Failed to open video writer for: {self.temp_video_path}")
-
-    def _get_output_path(self, input_path):
-        """
-        Generate output path from input path.
-
-        Args:
-            input_path: Path to input file
-
-        Returns:
-            Output path in destination directory with model suffix
-        """
-        # Brique COMMUNE de nommage, comme la branche YOLO (2026-09-27) — le `_blurred_sam3`
-        # écrit ici à la main ignorait l'identifiant de card : deux cards dupliquées
-        # écrivaient le même fichier (cf. `Anonymize.process`).
-        from wama.common.utils.output_naming import compose_output_name
-        return os.path.join(self.destination, compose_output_name(
-            app='anonymizer', model='sam3', source_name=input_path,
-            item_id=getattr(self, 'item_id', None)))
-
     def cleanup(self):
         """Release all resources and models."""
         logger.info("[SAM3] Cleaning up resources...")
-
-        if self.vid_writer is not None:
-            self.vid_writer.release()
-            self.vid_writer = None
 
         # Modèles + VRAM : passe par unload() (contrat commun) pour que la réservation
         # au gouverneur soit LIBÉRÉE, et pas seulement les références Python.
         self.unload()
 
         logger.info("[SAM3] Cleanup complete")
-
-
-def process_with_sam3(**kwargs):
-    """
-    Convenience function to process a file with SAM3.
-
-    Args:
-        **kwargs: Processing parameters (see SAM3Processor.process)
-
-    Returns:
-        str: Path to output file
-    """
-    processor = SAM3Processor()
-    try:
-        processor.load_model('auto')
-        processor.process(**kwargs)
-        return processor.output_path
-    finally:
-        processor.cleanup()

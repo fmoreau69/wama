@@ -21789,3 +21789,16 @@ main → `model_keys.catalog_key`) ; `check_docs` 5 références cassées, aucun
 `doc_facts --check` depuis HEAD : seule la carte des mécanismes était périmée, régénérée ; dans
 l'arbre de travail quatre blocs restent périmés par le travail NON commité d'autres sessions ;
 `manifest_export --check` : 19 périmés, aucun de la session ; `check_skills` : 0 défaut.
+
+## §PALIER — 2026-10-04 (soir), « ANONYMIZER : détection et floutage séparés — Détection → Floutage → Sortie, aperçu « pendant » à deux vues » — ✅ commit de ce bloc, non poussé — 🔴 RECHARGER gunicorn ET workers (pipeline à trois process, migration `anonymizer 0033` déjà appliquée) — 🔚 retour de test de Fabien
+
+Décision de Fabien : « on sépare détection/segmentation et floutage dans l'anonymizer. On aligne tout. Et ça nous permettra de faire un switch en during_preview entre détection et floutage. » Détail : `ROUTE §10.6` (bloc « ANONYMIZER — Détection → Floutage → Sortie »).
+
+- **Format** : le type de donnée commun `detections`, sur disque par la brique `common/utils/detections.py` (boîte, contour en polygones, piste). Champ `Media.detections_file` (migration 0033 additive avec `db_default`), vidé à la duplication.
+- **Moteurs** : YOLO et SAM3 ne font plus que DÉTECTER (`detect` → document) ; YOLO en flux, plus aucune vidéo gardée en mémoire. Le floutage se joue sans modèle (`blur_utils.blur_detections`, `detections.render_media`), l'interpolation à la lecture.
+- **Réglages** : flou et interpolation ne redétectent plus ; `show_*` ne périment rien et pilotent la vue « Détection ». Deux défauts trouvés : `roi_enlargement` jamais appliqué (1,05 en dur), `rounded_edges` jamais transmis.
+- **Aperçu « pendant » à plusieurs vues** (commun) : `publish_partial(variant=)`, `PartialFrames`, `?variant=`, bouton de bascule dans l'inspecteur (`variantToggle`).
+
+**Mesures.** Réel GPU (compte de test, cards retirées) : image YOLO détection 2,2 s + floutage 0,2 s, flou changé → floutage seul 0,4 s ; vidéo 6 s détection 8,1 s (150 détections, 1 piste) + floutage 5,3 s, aperçus 5 « Détection » + 2 « Floutage », interpolation coupée → floutage seul ; SAM3 un contour, flou au contour (vu). Navigateur (serveur de dev jetable côté WSL, même Redis que la sonde) : bande à trois process, bouton [Détection | Floutage], choix tenu, 0 erreur JS. Tests (WSL, base isolée) : 457 joués ; rouges = budgets de langue des identifiants (noms de tests 134 > 132, 1315 > 1310, antérieurs) et budget « code » qui peut DESCENDRE (2678 → 2670 mesuré sur l'arbre, qui porte aussi le travail en cours d'autres sessions : à recaler depuis HEAD). 0 garde ajoutée sans preuve : nouvelles gardes `tests_detections`, `tests_detection_engines`, `tests_preview_variants`, `anonymizer/tests_task` (réécrit), V8 `DuringVariantsOfThePreviewTest`.
+
+**Restes.** Face « Détection » APRÈS le traitement · ETA de la card = clé de la détection seule · budget « code » de langue à recaler depuis HEAD.

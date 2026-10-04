@@ -101,14 +101,19 @@ def _replaceable(item, path, holder: str) -> bool:
         return False
 
 
-def drop_previous_outputs(item, field, keep=()) -> None:
+def drop_previous_outputs(item, field, keep=(), natives: bool = True) -> None:
     """Le moteur REJOUE : les originaux gardés et les rendus de la fois d'avant qu'il n'a pas
     réécrits sont retirés (un `.webp` d'un ancien réglage). Un fichier qu'une AUTRE card désigne
     encore (duplication), ou qui ne vit pas chez l'app de la card, est laissé — les deux règles
-    de `queue_duplication.safe_delete_file`."""
+    de `queue_duplication.safe_delete_file`.
+
+    `natives=False` : ne retirer que le fichier de CE champ — pour un process AMONT qui écrit
+    un fichier de la card sans être celui que la sortie transforme (le document de détections
+    de l'anonymizer : le rejouer seul ne doit pas retirer l'original que garde la sortie)."""
     kept = {os.path.abspath(str(p)) for p in keep}
     name = _field_of(item, field)
-    previous = [(_absolute(p), NATIVE_FIELD) for p in (getattr(item, NATIVE_FIELD, None) or [])]
+    previous = ([(_absolute(p), NATIVE_FIELD) for p in (getattr(item, NATIVE_FIELD, None) or [])]
+                if natives else [])
     previous += [(path, name) for path in rendered_files(item, name)]
     for path, holder in previous:
         if os.path.abspath(path) in kept or not os.path.isfile(path):

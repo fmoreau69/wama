@@ -168,6 +168,29 @@
   // Rendu INLINE compact d'un aperçu média dans le volet (≠ modale plein écran de media-preview.js).
   // Données = JSON de common:unified_preview {name, url, mime_type, …}. autoplay gated par le profil
   // (jamais de génération : on n'affiche que l'existant — CARD_DESIGN §10.6 / décision Fabien).
+  // ── Aperçu « pendant » : ses VARIANTES (2026-10-04) ──────────────────────────────────────
+  // L'adresse de la face PENDANT, avec la vue choisie — pure (gardée en V8, `tests_cap_from_js`).
+  function duringUrl(baseUrl, variant) {
+    var u = baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'side=during';
+    return variant ? u + '&variant=' + encodeURIComponent(variant) : u;
+  }
+
+  // Le bouton [Détection | Floutage] : une entrée par vue publiée, l'active en plein.
+  function variantToggle(variants, active, onPick) {
+    var bar = document.createElement('div');
+    bar.className = 'btn-group btn-group-sm wama-preview-variants mt-1 w-100';
+    (variants || []).forEach(function (v) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn py-0 px-2 flex-fill ' + (v.key === active ? 'btn-info' : 'btn-outline-info');
+      b.textContent = v.label || v.key;
+      b.setAttribute('data-variant', v.key);
+      b.addEventListener('click', function () { onPick(v.key); });
+      bar.appendChild(b);
+    });
+    return bar;
+  }
+
   function renderInlinePreview(host, data, autoplay) {
     if (!host) return;
     // Collection AVANT l'aiguillage par mime : `files` décrit N sorties, `mime_type` ne décrit
@@ -665,6 +688,11 @@
                           // le lecteur toutes les 1,3 s et REDÉMARRAIT la lecture. L'onde
                           // (peaks) et le texte (content) grandissent → leur signature change
                           // à chaque tick, le comportement « qui se construit » est préservé.
+      // VARIANTES (2026-10-04) : plusieurs vues du même instant publiées par le worker
+      // (`preview_utils.publish_partial(variant=)` — l'anonymizer : détections dessinées /
+      // frame floutée). La vue CHOISIE par l'utilisateur est gardée d'un tick à l'autre ;
+      // sans choix, le serveur rend la dernière publiée.
+      var variant = null;
       var tick = function () {
         var st = card && card.dataset && card.dataset.status;
         if (st !== 'RUNNING' && st !== 'PROCESSING') {   // terminé → bascule sur la SORTIE
@@ -672,16 +700,24 @@
           _fetchPreviewSide(baseUrl, 'output', title);
           return;
         }
-        var u = baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'side=during';
+        var u = duringUrl(baseUrl, variant);
         fetch(u).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
           if (!d || !d.sides || !d.sides.during_capable) { _stopDuring(); return; }  // ne streame pas → stop
           if (!d.sides.has_during) return;
           var sig = JSON.stringify([d.url || '', d.mime_type || '',
                                     (d.peaks || []).length,
-                                    (typeof d.content === 'string') ? d.content.length : -1]);
+                                    (typeof d.content === 'string') ? d.content.length : -1,
+                                    d.variant || '', (d.variants || []).length]);
           if (sig === lastSig) return;
           lastSig = sig;
           renderInlinePreview(previewHost, d, false);
+          if (d.variants && d.variants.length > 1) {
+            previewHost.appendChild(variantToggle(d.variants, d.variant, function (key) {
+              variant = key;
+              lastSig = '';
+              tick();
+            }));
+          }
         }).catch(function () {});
       };
       _duringTimer = setInterval(tick, 1300);
@@ -1525,6 +1561,7 @@
                            detailDeriveDe: detailDeriveDe,
                            cloneBatchActions: cloneBatchActions,
                            renderInlinePreview: renderInlinePreview,
+                           duringUrl: duringUrl, variantToggle: variantToggle,
                            gearValues: gearValues, sharedGearValues: sharedGearValues,
                            hydrateCardPreviews: hydrateCardPreviews };
 })(window);

@@ -57,6 +57,14 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # briques communes. Même colonne (varchar 500) : aucune écriture en base à la migration.
     output_file = models.FileField(upload_to=upload_to_user_output('anonymizer'), max_length=500,
                                    blank=True, default='')
+    # Les DÉTECTIONS du média (document `detections`, `common/utils/detections.py`) — la sortie du
+    # process « Détection », que le process « Floutage » relit (2026-10-04, décision de Fabien :
+    # détection et floutage séparés). Un fichier de la card comme la sortie : servi, vidé à la
+    # duplication, libéré au retrait. `db_default` : le code d'AVANT le rechargement crée des
+    # médias sans connaître ce champ — sans défaut côté base, l'insertion échouerait sur NOT NULL
+    # (même précaution que `target_mode`).
+    detections_file = models.FileField(upload_to=upload_to_user_output('anonymizer'),
+                                       max_length=500, blank=True, default='', db_default='')
 
     @property
     def processed(self):

@@ -1,0 +1,58 @@
+{
+  "body": {
+    "app": "anonymizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "anonymizer.tasks:process_single_media",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "video",
+        "description": "L'image ou la vidéo à anonymiser.",
+        "group": "travail",
+        "key": "work_media",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "anonymizer.detect",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Les objets détectés, frame par frame (boîte, contour, piste).",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "image",
+      "video",
+      "detection",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Détecte, dans une image ou une vidéo, les classes désignées (visages, plaques…) ou ce qu'une description nomme, avec le ou les modèles qui les couvrent : boîtes, contours (segmentation) et pistes, frame par frame.",
+  "key": "anonymizer.detect",
+  "manifest_kind": "function",
+  "name": "Anonymizer — détecter",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:anonymizer.detect",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}
