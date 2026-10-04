@@ -1310,6 +1310,10 @@
                 // Show/hide SMB credentials section
                 _mountIsSMB = !!data.is_smb;
                 if (mountSmbSection) mountSmbSection.style.display = _mountIsSMB ? '' : 'none';
+                // Domaine d'annuaire DÉCLARÉ par le site : prérempli, jamais imposé.
+                if (_mountIsSMB && mountSmbDomain && !mountSmbDomain.value.trim() && data.smb_default_domain) {
+                    mountSmbDomain.value = data.smb_default_domain;
+                }
 
                 if (data.accessible) {
                     mountPathStatus.innerHTML = `<span class="text-success"><i class="fas fa-check-circle me-1"></i>Accessible</span>`;
@@ -1364,8 +1368,17 @@
                     // Show credentials section and ask user to fill in
                     if (mountSmbSection) mountSmbSection.style.display = '';
                     _mountIsSMB = true;
-                    mountPathStatus.innerHTML = `<span class="text-danger"><i class="fas fa-lock me-1"></i>Authentification requise — renseignez vos identifiants AD</span>`;
-                    mountSmbUser?.focus();
+                    // Deux refus DIFFÉRENTS : rien n'a été envoyé (accès invité refusé), ou
+                    // les identifiants envoyés ont été rejetés — le serveur dit lequel.
+                    const authText = data.auth_refused
+                        ? (data.error || 'Identifiants refusés par le serveur')
+                        : 'Ce partage n\u2019accepte pas l\u2019accès invité — renseignez vos identifiants';
+                    const authSpan = document.createElement('span');
+                    authSpan.className = 'text-danger';
+                    authSpan.innerHTML = '<i class="fas fa-lock me-1"></i>';
+                    authSpan.appendChild(document.createTextNode(authText));
+                    mountPathStatus.replaceChildren(authSpan);
+                    (data.auth_refused ? mountSmbPassword : mountSmbUser)?.focus();
                 } else {
                     mountPathStatus.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${data.error || 'Erreur'}</span>`;
                     showToast(data.error || 'Erreur', 'danger');

@@ -184,31 +184,48 @@
       return m[0];
     }
 
+    // ⚠ Un tour PÉRIMÉ n'a pas d'erreur à signaler : quitter la page ou relancer une question
+    // pendant que l'assistant parle abandonne la requête en vol. Le navigateur rend alors
+    // `AbortError` (notre propre annulation) ou `TypeError: Failed to fetch` (navigation), et
+    // les journaliser remplissait la console de faux défauts — mesuré au smoke du 2026-09-26
+    // en changeant de page pendant une vocalisation.
+    function report(e) {
+      if (!quitte && turn.valid() && e && e.name !== 'AbortError') {
+        console.error('[WamaAssistantVoice]', e);
+      }
+    }
+
+    // DEUX files, et c'est le point (2026-10-04) : les DEMANDES au service de voix partent
+    // l'une après l'autre dès qu'une phrase est prête, sans attendre la LECTURE de la
+    // précédente. Avant, une seule chaîne faisait « demander puis lire » : hors avatar, la
+    // phrase suivante n'était demandée qu'une fois la précédente entièrement lue, d'où un
+    // silence égal au temps de calcul entre deux phrases.
+    var requests = Promise.resolve();
+
     function enfiler(texte) {
-      var propre = texte.trim();
+      // Le Markdown se retire sur la PHRASE prête, jamais fragment par fragment : nettoyer
+      // chaque fragment retirait son espace de tête, donc les mots arrivaient COLLÉS au
+      // service de voix (« Bonjour » + « je » → « Bonjourje ») dès que la réponse venait en
+      // flux — et un marqueur coupé entre deux fragments n'était jamais reconnu.
+      var propre = stripMarkdown(texte);
       if (!propre) return;
+      var audio = requests.then(function () {
+        if (!turn.valid()) return null;
+        return fetchSpeech(propre, turn.signal);
+      }).catch(function (e) { report(e); return null; });
+      requests = audio;
       chaine = chaine.then(function () {
-        if (!turn.valid()) return;
-        return fetchSpeech(propre, turn.signal).then(function (blob) {
+        return audio.then(function (blob) {
           if (!turn.valid() || !blob) return;
           return playChunk(blob, propre, turn);
         });
-      }).catch(function (e) {
-        // ⚠ Un tour PÉRIMÉ n'a pas d'erreur à signaler : quitter la page ou relancer une
-        // question pendant que l'assistant parle abandonne la requête en vol. Le navigateur
-        // rend alors `AbortError` (notre propre annulation) ou `TypeError: Failed to fetch`
-        // (navigation), et les journaliser remplissait la console de faux défauts — mesuré au
-        // smoke du 2026-09-26 en changeant de page pendant une vocalisation.
-        if (!quitte && turn.valid() && e && e.name !== 'AbortError') {
-          console.error('[WamaAssistantVoice]', e);
-        }
-      });
+      }).catch(report);
     }
 
     return {
       push: function (fragment) {
         if (fini) return;
-        attente += stripMarkdown(fragment || '');
+        attente += (fragment || '');
         var pret = prendre(false);
         if (pret) enfiler(pret);
       },
