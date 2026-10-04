@@ -201,6 +201,10 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
   instance. Vécu 26/08 : 91 manifestes `model` périmés attribués au monde Data, alors qu'ils
   venaient du chantier « contrat de prompt » d'une autre instance.
 - La grille a pu bouger → `check_app_conformity` (rapport global, pas `--app`).
+- Une entrée de `CELERY_BEAT_SCHEDULE` a été ajoutée ou déplacée → `tests_calendar` (plage
+  RÉSERVÉE des tests nocturnes, tâche connue de Celery). ⚠ Vécu 03→04/10 : une purge horaire
+  posée en `crontab(minute=20)` est restée rouge deux jours sans être vue — le contrôle
+  existait, la suite n'avait pas été lancée. Un battement fréquent se déclare en INTERVALLE.
 - Un REGISTRE NUMÉROTÉ partagé a reçu des entrées (décisions `D<n>` de `WAMA_DATA_WORLD`,
   trous, `R<n>` de `REMOVAL_LEDGER`) → **vérifier l'unicité des numéros** :
   `grep -o "^| ~*D[0-9]*~*" <fichier> | sort | uniq -d` doit être vide.
