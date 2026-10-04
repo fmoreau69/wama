@@ -112,15 +112,26 @@ class AlignedOnTheCommonEngineTest(unittest.TestCase):
         self.assertEqual([spec.key for spec in pipeline.ordered()], list(pt.ORDER))
 
     def _stale(self, profile, rows):
+        """Rejoue `recompute_stale` sur des LIGNES COMMUNES (lues depuis le 2026-10-04) : chaque
+        `Row` du test devient une ligne (passe → nœud, caméra → clé d'instance, état traduit), et
+        les couples périmés reviennent dans le vocabulaire du Lab pour garder les attendus."""
         from types import SimpleNamespace
         from unittest import mock
-        saved = []
-        for r in rows:
-            r.save = (lambda row: lambda **kw: saved.append(row.pass_type))(r)
-        with mock.patch('wama_lab.cam_analyzer.models.AnalysisPass.objects.filter',
-                        return_value=rows):
+        lines = [SimpleNamespace(node_id=r.pass_type, instance_key=r.camera or '',
+                                 status=pt.common_status(r.status), settings_snapshot=r.parameters)
+                 for r in rows]
+        staled = []
+        runs = SimpleNamespace(lines=lambda session: lines)
+        with mock.patch.object(pt, '_common_runs', return_value=runs), \
+                mock.patch.object(pt, '_stale_common_lines',
+                                  side_effect=lambda session, pairs: staled.extend(pairs)), \
+                mock.patch.object(pt, '_lab_rows'):
             flipped = pt.recompute_stale(SimpleNamespace(profile=profile))
-        return flipped, {(r.pass_type, r.camera): r.status for r in rows}
+        states = {}
+        for r in rows:
+            gone = (r.pass_type, r.camera or '') in staled and r.status == 'completed'
+            states[(r.pass_type, r.camera)] = 'stale' if gone else r.status
+        return flipped, states
 
     def test_the_stale_rule_is_the_common_one_with_one_node_per_camera_row(self):
         from types import SimpleNamespace as Row

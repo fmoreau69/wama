@@ -115,6 +115,35 @@ class ProcessRunMirrorTest(TestCase):
             pt.mark_started(self.session, 'depth', self.profile)
         self.assertEqual(AnalysisPass.objects.get(session=self.session, pass_type='depth').status, 'running')
 
+    def test_the_backfill_gives_a_line_to_an_older_pass_and_leaves_existing_lines_alone(self):
+        """Étape 2a : une passe jouée AVANT l'écriture en double n'a pas de ligne commune — les
+        lecteurs basculés la verraient « jamais jouée ». La reprise la crée ; une ligne déjà
+        écrite fait foi (son résumé n'est pas réécrit) ; rejouer ne crée rien."""
+        from django.utils import timezone
+        AnalysisPass.objects.create(session=self.session, pass_type='extraction', status='completed',
+                                    parameters={'fps': 10}, output_summary={'frames': 3},
+                                    completed_at=timezone.now(), duration_s=4.0)
+        pt.mark_started(self.session, 'yolo_detect', self.profile, camera=self.front)
+        pt.mark_completed(self.session, 'yolo_detect', camera=self.front)
+        ProcessRun.objects.filter(node_id='yolo_detect').update(output_summary={'kept': True})
+        self.assertEqual(pt.backfill_common_lines([self.session]), 1)
+        run = self.line('extraction')
+        self.assertEqual((run.status, run.output_summary, run.duration_s), ('SUCCESS', {'frames': 3}, 4.0))
+        self.assertEqual(self.line('yolo_detect', self.front).output_summary, {'kept': True})
+        self.assertEqual(pt.backfill_common_lines([self.session]), 0, 'rejouable')
+        self.assertEqual(process_runs.lines(self.session).count(), 2)
+
+    def test_the_panel_reads_the_common_lines(self):
+        """Étape 2b : l'état affiché vient de la ligne COMMUNE (retraduit pour le panneau) — une
+        ligne commune périmée seule suffit à afficher « stale »."""
+        pt.mark_started(self.session, 'yolo_detect', self.profile, camera=self.front)
+        pt.mark_completed(self.session, 'yolo_detect', camera=self.front)
+        ProcessRun.objects.filter(node_id='yolo_detect').update(status='STALE')
+        rows = [r for r in pt.get_passes_status(self.session) if r['pass_type'] == 'yolo_detect']
+        self.assertEqual([(r['camera'], r['status']) for r in rows], [('front', 'stale')])
+        extraction = next(r for r in pt.get_passes_status(self.session) if r['pass_type'] == 'extraction')
+        self.assertEqual(extraction['status'], 'never', 'une passe sans ligne reste « jamais jouée »')
+
     def test_duplicating_a_session_copies_its_lines_and_deleting_it_forgets_them(self):
         from wama_lab.cam_analyzer import views
         pt.mark_started(self.session, 'extraction', self.profile)

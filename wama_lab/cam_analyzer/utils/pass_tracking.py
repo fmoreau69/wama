@@ -292,6 +292,40 @@ def _common_runs():
     return process_runs
 
 
+def lab_status(status: str) -> str:
+    """Vocabulaire commun → statut du PANNEAU du Lab (inverse de `common_status`) — l'étape 2 lit
+    les lignes communes mais garde, à la sortie, le vocabulaire que le panneau et `run_passes`
+    comprennent ; le passage du panneau au vocabulaire commun est l'étape 3."""
+    return {'PENDING': 'pending', 'RUNNING': 'running', 'AWAITING_RESOURCES': 'running',
+            'SUCCESS': 'completed', 'FAILURE': 'failed', 'STALE': 'stale'}.get(status, status)
+
+
+def backfill_common_lines(sessions=None) -> int:
+    """Étape 2a : chaque passe du Lab SANS ligne commune en reçoit une, à son image (état traduit,
+    photo, résumé, dates, erreur). Les lignes existantes — écrites en double depuis l'étape 1 —
+    font foi et ne sont pas touchées ; rien n'est effacé. Rejouable. Rend le nombre de lignes
+    créées. `sessions` : un itérable de sessions, toutes par défaut."""
+    from wama.common.models import ProcessRun
+    from wama_lab.cam_analyzer.models import AnalysisPass
+    pr = _common_runs()
+    qs = AnalysisPass.objects.select_related('session', 'camera')
+    if sessions is not None:
+        qs = qs.filter(session__in=list(sessions))
+    created = 0
+    for row in qs.iterator():
+        addr = pr.address(row.session)
+        _run, made = ProcessRun.objects.get_or_create(
+            **addr, node_id=row.pass_type, instance_key=instance_key(row.camera),
+            defaults={'process_kind': 'function', 'process_key': process_key(row.pass_type),
+                      'status': common_status(row.status),
+                      'settings_snapshot': row.parameters or {},
+                      'output_summary': row.output_summary or {},
+                      'started_at': row.started_at, 'finished_at': row.completed_at,
+                      'duration_s': row.duration_s, 'error_message': row.error_message or ''})
+        created += made
+    return created
+
+
 def mark_started(session, pass_type: str, profile=None, camera=None) -> None:
     """Insert/update the pass row at status RUNNING and reset any prior error.
 
@@ -426,10 +460,9 @@ def annotate_eta(session, rows) -> None:
     """Ajoute à chaque ligne du panneau `eta_seconds` (durée estimée) et, pour une passe EN
     COURS, `eta_remaining_s` (estimée − écoulée, jamais négative)."""
     from django.utils import timezone as _tz
-    from wama_lab.cam_analyzer.models import AnalysisPass
-    started = {(p.pass_type, p.camera.position if p.camera_id else None): p.started_at
-               for p in AnalysisPass.objects.filter(session=session, status=AnalysisPass.Status.RUNNING)
-               .select_related('camera')}
+    from wama.common.models import JOB_RUNNING
+    started = {(l.node_id, l.instance_key or None): l.started_at
+               for l in _common_runs().lines(session) if l.status == JOB_RUNNING}
     learned_cache = {}
     try:
         from wama.model_manager.services.eta_estimator import estimate
@@ -518,17 +551,23 @@ def fail_running(session, pass_type: str, error_message: str = '') -> int:
 
     Remplace deux `update(status='failed')` écrits à la main dans `tasks.py` (SAM3 annulé /
     planté) : ils ne passaient pas par ce module, donc la ligne commune serait restée « en cours »."""
-    from wama_lab.cam_analyzer.models import AnalysisPass
-    rows = AnalysisPass.objects.filter(session=session, pass_type=pass_type,
-                                       status=AnalysisPass.Status.RUNNING)
-    cams = list(rows.values_list('camera__position', flat=True))
-    n = rows.update(status=AnalysisPass.Status.FAILED, error_message=str(error_message)[:2000],
-                    completed_at=timezone.now())
+    from wama.common.models import JOB_RUNNING
     pr = _common_runs()
-    for pos in cams:
-        pr.safely(pr.fail, session, pass_type, str(error_message), instance_key=pos or '',
-                  process_key=process_key(pass_type))
-    return n
+    open_lines = [l for l in pr.lines(session) if l.node_id == pass_type and l.status == JOB_RUNNING]
+    for l in open_lines:
+        pr.fail(session, pass_type, str(error_message), instance_key=l.instance_key,
+                process_key=process_key(pass_type))
+        _lab_rows(session, pass_type, l.instance_key).filter(status='running').update(
+            status='failed', error_message=str(error_message)[:2000], completed_at=timezone.now())
+    return len(open_lines)
+
+
+def _lab_rows(session, pass_type: str, inst: str):
+    """Les lignes du Lab d'une ligne commune (passe, clé d'instance) — pour le report, tant
+    qu'`AnalysisPass` est écrite en double (jusqu'à l'étape 3)."""
+    from wama_lab.cam_analyzer.models import AnalysisPass
+    qs = AnalysisPass.objects.filter(session=session, pass_type=pass_type)
+    return qs.filter(camera__position=inst) if inst else qs.filter(camera__isnull=True)
 
 
 #: Passes jouées par `process_session_task` (la DÉTECTION : YOLO + YOLOPv2, toutes vues)…
@@ -714,20 +753,18 @@ def reconcile_interrupted_calc_passes(session) -> int:
     Les passes d'ANALYSE (GPU) ne sont pas concernées : elles n'ont pas cette preuve."""
     from django.core.cache import cache
     from django.utils import timezone
-    from wama_lab.cam_analyzer.models import AnalysisPass
     if cache.get(calc_chain_key(session.id)):
         return 0
-    calc = [p.key for p in PASSES if p.stage == 'calcul']
-    rows = AnalysisPass.objects.filter(session=session, status=AnalysisPass.Status.RUNNING,
-                                       pass_type__in=calc)
-    lines = list(rows.values_list('pass_type', 'camera__position'))
-    n = rows.update(status=AnalysisPass.Status.FAILED, error_message=INTERRUPTED_MESSAGE,
-                    completed_at=timezone.now())
+    from wama.common.models import JOB_RUNNING
+    calc = {p.key for p in PASSES if p.stage == 'calcul'}
     pr = _common_runs()
-    for pass_type, pos in lines:
-        pr.safely(pr.fail, session, pass_type, INTERRUPTED_MESSAGE, instance_key=pos or '',
-                  process_key=process_key(pass_type))
-    return n
+    open_lines = [l for l in pr.lines(session) if l.node_id in calc and l.status == JOB_RUNNING]
+    for l in open_lines:
+        pr.fail(session, l.node_id, INTERRUPTED_MESSAGE, instance_key=l.instance_key,
+                process_key=process_key(l.node_id))
+        _lab_rows(session, l.node_id, l.instance_key).filter(status='running').update(
+            status='failed', error_message=INTERRUPTED_MESSAGE, completed_at=timezone.now())
+    return len(open_lines)
 
 
 #: Passes qui changent ce que LIT le tracking 360° (pose navette, géométrie des caméras, plan de
@@ -744,15 +781,17 @@ def tracking_is_current(session, features) -> tuple:
     calculée avec les MÊMES bascules de calcul (`features`, instantané rangé à sa fin), et plus
     récente que chacune des `TRACKING_SIDE_INPUTS`. Les Indicateurs le refaisaient à chaque fois
     (2026-09-30 : le même calcul de ~4 min joué deux fois quand on lançait les deux passes)."""
-    from wama_lab.cam_analyzer.models import AnalysisPass
+    from wama.common.models import JOB_SUCCESS
+    wanted = ('global_tracking',) + TRACKING_SIDE_INPUTS
     rows = {}
-    for p in AnalysisPass.objects.filter(session=session,
-                                         pass_type__in=('global_tracking',) + TRACKING_SIDE_INPUTS):
-        cur = rows.get(p.pass_type)
-        if cur is None or (p.completed_at and (not cur.completed_at or p.completed_at > cur.completed_at)):
-            rows[p.pass_type] = p
+    for p in _common_runs().lines(session):
+        if p.node_id not in wanted:
+            continue
+        cur = rows.get(p.node_id)
+        if cur is None or (p.finished_at and (not cur.finished_at or p.finished_at > cur.finished_at)):
+            rows[p.node_id] = p
     gt = rows.get('global_tracking')
-    if gt is None or gt.status != AnalysisPass.Status.COMPLETED or not gt.completed_at:
+    if gt is None or gt.status != JOB_SUCCESS or not gt.finished_at:
         return False, 'tracking absent, périmé ou en échec', None
     summary = gt.output_summary or {}
     seen = summary.get('features')
@@ -765,7 +804,8 @@ def tracking_is_current(session, features) -> tuple:
         r = rows.get(key)
         # seule une passe TERMINÉE a changé ce que lit le tracking — une passe en échec non
         # (2026-10-01 : une correction ortho échouée faisait refaire le tracking)
-        if r is not None and r.status == AnalysisPass.Status.COMPLETED and r.completed_at                 and r.completed_at > gt.completed_at:
+        if r is not None and r.status == JOB_SUCCESS and r.finished_at \
+                and r.finished_at > gt.finished_at:
             return False, f'« {key} » recalculé après le tracking', summary
     return True, 'à jour', summary
 
@@ -777,58 +817,50 @@ def recompute_stale(session) -> int:
     propagating staleness through the dependency graph.
 
     Returns the number of passes flipped (for logging).
-    """
-    from wama_lab.cam_analyzer.models import AnalysisPass
 
+    Lu sur les LIGNES COMMUNES depuis le 2026-10-04 (étape 2 du passage à `ProcessRun`) ; le
+    résultat est reporté sur `AnalysisPass`, encore écrite en double jusqu'à l'étape 3.
+    """
+    from wama.common.models import JOB_STALE, JOB_SUCCESS
+    from wama.common.services.process_runs import stale_nodes
     profile = session.profile
-    passes = list(AnalysisPass.objects.filter(session=session))
+    rows = list(_common_runs().lines(session))
     # Group by type — for per-camera types, the cascade considers a type
     # "available" if AT LEAST ONE camera-row is COMPLETED.
     by_type_any_completed: dict = {}
-    for p in passes:
-        cur = by_type_any_completed.get(p.pass_type)
-        if cur is None or p.status == AnalysisPass.Status.COMPLETED:
-            by_type_any_completed[p.pass_type] = p
+    for r in rows:
+        cur = by_type_any_completed.get(r.node_id)
+        if cur is None or r.status == JOB_SUCCESS:
+            by_type_any_completed[r.node_id] = r
 
     # La RÈGLE est celle du commun (`process_runs.stale_nodes`, qui l'a reprise d'ici le
     # 2026-10-02) : (1) un réglage surveillé a changé depuis le lancement, (2) cascade — un amont
     # périmé, en échec ou jamais lancé périme son aval, jusqu'à point fixe. Ce module ne garde
     # que ce qui est propre au cam_analyzer : un nœud par LIGNE (type × caméra), et l'amont d'un
     # type par caméra = sa ligne terminée s'il y en a une (`by_type_any_completed`).
-    from wama.common.models import JOB_FAILURE, JOB_STALE, JOB_SUCCESS
-    from wama.common.services.process_runs import stale_nodes
-    common_state = {AnalysisPass.Status.COMPLETED: JOB_SUCCESS,
-                    AnalysisPass.Status.STALE: JOB_STALE,
-                    AnalysisPass.Status.FAILED: JOB_FAILURE}
-    node_of = {id(p): f'row:{index}' for index, p in enumerate(passes)}
+    node_of = {id(r): f'row:{index}' for index, r in enumerate(rows)}
 
     def upstream_node(dep_type):
         dep = by_type_any_completed.get(dep_type)
         return node_of[id(dep)] if dep is not None else f'missing:{dep_type}'
 
     stale = stale_nodes(
-        states={node_of[id(p)]: common_state.get(p.status, p.status) for p in passes},
-        depends_on={node_of[id(p)]: [upstream_node(d) for d in _DEPENDS_ON.get(p.pass_type, [])]
-                    for p in passes},
-        snapshots={node_of[id(p)]: p.parameters or {} for p in passes},
-        current={node_of[id(p)]: _profile_snapshot(profile, _WATCHED[p.pass_type])
-                 for p in passes if _WATCHED.get(p.pass_type)})
-    flipped = 0
-    stale_lines = []
-    for p in passes:
-        if node_of[id(p)] in stale:
-            p.status = AnalysisPass.Status.STALE
-            p.save(update_fields=['status'])
-            flipped += 1
-            stale_lines.append((p.pass_type, instance_key(p.camera)))
-    if stale_lines:
-        # PAR LIGNE (passe × caméra), pas par passe : chaque caméra a sa photo de réglages — la
-        # détection relancée à l'arrière avec le nouveau modèle n'est pas périmée parce que l'avant
-        # l'est (`tests_pass_registry`, « for THAT camera only »). `process_runs.mark_stale` périme
-        # TOUTES les instances d'un nœud : il ne convient pas ici.
-        pr = _common_runs()
-        pr.safely(_stale_common_lines, session, stale_lines)
-    return flipped
+        states={node_of[id(r)]: r.status for r in rows},
+        depends_on={node_of[id(r)]: [upstream_node(d) for d in _DEPENDS_ON.get(r.node_id, [])]
+                    for r in rows},
+        snapshots={node_of[id(r)]: r.settings_snapshot or {} for r in rows},
+        current={node_of[id(r)]: _profile_snapshot(profile, _WATCHED[r.node_id])
+                 for r in rows if _WATCHED.get(r.node_id)})
+    # PAR LIGNE (passe × caméra), pas par passe : chaque caméra a sa photo de réglages — la
+    # détection relancée à l'arrière avec le nouveau modèle n'est pas périmée parce que l'avant
+    # l'est (`tests_pass_registry`, « for THAT camera only »). `process_runs.mark_stale` périme
+    # TOUTES les instances d'un nœud : il ne convient pas ici.
+    pairs = [(r.node_id, r.instance_key) for r in rows if node_of[id(r)] in stale]
+    if pairs:
+        _stale_common_lines(session, pairs)
+        for node, inst in pairs:
+            _lab_rows(session, node, inst).filter(status='completed').update(status='stale')
+    return len(pairs)
 
 
 def _stale_common_lines(session, pairs) -> int:
@@ -843,6 +875,21 @@ def _stale_common_lines(session, pairs) -> int:
 _PER_CAMERA_PASSES = {p.key for p in PASSES if p.per_camera}
 
 
+def _panel_row(line, label_map, camera) -> dict:
+    """Ligne du panneau d'une ligne commune — mêmes clés qu'avant l'étape 2, statut retraduit."""
+    return {
+        'pass_type': line.node_id,
+        'label': label_map.get(line.node_id, line.node_id),
+        'camera': camera,
+        'status': lab_status(line.status),
+        'parameters': line.settings_snapshot or {},
+        'output_summary': line.output_summary or {},
+        'completed_at': line.finished_at.isoformat() if line.finished_at else None,
+        'duration_s': line.duration_s,
+        'error_message': line.error_message or '',
+    }
+
+
 def get_passes_status(session) -> list[dict]:
     """Return a serialisable list of pass status dicts for the UI.
 
@@ -851,9 +898,9 @@ def get_passes_status(session) -> list[dict]:
     get a single entry."""
     from wama_lab.cam_analyzer.models import AnalysisPass
 
-    passes = list(AnalysisPass.objects.filter(session=session).select_related('camera'))
-    # Index: (pass_type, camera_position_or_None) → pass row
-    by_key = {(p.pass_type, p.camera.position if p.camera_id else None): p for p in passes}
+    # Lu sur les LIGNES COMMUNES depuis le 2026-10-04 (étape 2) : (nœud, clé d'instance ou None)
+    # → ligne ; statut retraduit pour le panneau (`lab_status`).
+    by_key = {(l.node_id, l.instance_key or None): l for l in _common_runs().lines(session)}
 
     cameras = list(session.cameras.all().order_by('position'))
     # Positions réellement traitées par le pipeline (les autres sont ignorées).
@@ -899,17 +946,7 @@ def get_passes_status(session) -> list[dict]:
                         'error_message': '',
                     })
                 else:
-                    out.append({
-                        'pass_type': p.pass_type,
-                        'label': label_map.get(p.pass_type, p.pass_type),
-                        'camera': cam.position,
-                        'status': p.status,
-                        'parameters': p.parameters or {},
-                        'output_summary': p.output_summary or {},
-                        'completed_at': p.completed_at.isoformat() if p.completed_at else None,
-                        'duration_s': p.duration_s,
-                        'error_message': p.error_message or '',
-                    })
+                    out.append(_panel_row(p, label_map, cam.position))
         else:
             p = by_key.get((pt.value, None))
             if p is None:
@@ -925,17 +962,7 @@ def get_passes_status(session) -> list[dict]:
                     'error_message': '',
                 })
             else:
-                out.append({
-                    'pass_type': p.pass_type,
-                    'label': label_map.get(p.pass_type, p.pass_type),
-                    'camera': None,
-                    'status': p.status,
-                    'parameters': p.parameters or {},
-                    'output_summary': p.output_summary or {},
-                    'completed_at': p.completed_at.isoformat() if p.completed_at else None,
-                    'duration_s': p.duration_s,
-                    'error_message': p.error_message or '',
-                })
+                out.append(_panel_row(p, label_map, None))
     # Étage d'affichage (analyse / calcul) — scinde visuellement le pipeline dans le volet droit.
     for d in out:
         d['stage'] = _STAGE.get(d.get('pass_type'), 'analyse')
