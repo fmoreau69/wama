@@ -318,6 +318,35 @@
             },
             {
               "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('anonymizer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "detections_file"
+            },
+            {
+              "args": [],
               "class": "django.db.models.BooleanField",
               "kwargs": {
                 "default": {
