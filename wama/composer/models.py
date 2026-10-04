@@ -42,6 +42,12 @@ class ComposerGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, 
     vocals = models.CharField(max_length=12, choices=VOCALS_CHOICES, default=VOCALS_AUTO,
                               db_default=VOCALS_AUTO,
                               help_text='Voix : auto / instrumental / chanson')
+    # Paroles CHANTÉES (2026-10-04) : celles que l'utilisateur pose ici, ou celles écrites pour lui
+    # au lancement (voix « Chanson » sans paroles) — persistées pour être relues, corrigées et
+    # rejouées. Des paroles balisées DANS le prompt priment. Donnée que lira la future page
+    # d'édition (partition + paroles, chantier SURFACES, `ROUTE §F3b`).
+    lyrics = models.TextField(blank=True, default='', db_default='',
+                              help_text='Paroles chantées, en sections balisées ([Verse], [Chorus]…)')
 
     # Optional melody reference (MusicGen Melody only)
     melody_reference = models.FileField(

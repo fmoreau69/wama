@@ -34,15 +34,17 @@ class TheVoiceIsReadFromTheSettingThenFromThePromptTest(SimpleTestCase):
 
 class ThePromptOfThisLaunchFollowsTheVoiceTest(SimpleTestCase):
 
-    def _prepare(self, mode, text, *, singer=True, written='[Verse]\nla mer revient'):
+    def _prepare(self, mode, text, *, singer=True, written='[Verse]\nla mer revient', stored='',
+                 with_new=False):
         said = []
         with mock.patch.object(vocals, 'sings', return_value=singer), \
                 mock.patch('wama.composer.utils.model_choice.label_of', return_value='MusicGen'), \
                 mock.patch.object(vocals, 'lyrics_language', return_value='fr'), \
                 mock.patch('wama.common.utils.app_metadata.write_lyrics_for',
                            return_value=written) as writer:
-            out = vocals.prepare_prompt(mode, text, 'composer:x', console=said.append)
-        return out, said, writer
+            out, new = vocals.prepare_prompt(mode, text, 'composer:x', stored_lyrics=stored,
+                                             console=said.append)
+        return (out, new, said, writer) if with_new else (out, said, writer)
 
     def test_instrumental_drops_the_lyrics_and_says_so(self):
         out, said, _ = self._prepare('instrumental', SONG)
@@ -66,15 +68,69 @@ class ThePromptOfThisLaunchFollowsTheVoiceTest(SimpleTestCase):
         writer.assert_not_called()
 
     def test_song_without_lyrics_has_them_written_in_a_language_the_model_sings(self):
-        out, said, writer = self._prepare('song', 'une chanson sur la mer')
+        out, new, said, writer = self._prepare('song', 'une chanson sur la mer', with_new=True)
         self.assertEqual('une chanson sur la mer\n\n[Verse]\nla mer revient', out)
+        self.assertEqual('[Verse]\nla mer revient', new, 'returned so that the card keeps them')
         self.assertEqual('fr', writer.call_args.kwargs['language'])
         self.assertIn('Paroles écrites', said[0])
 
     def test_lyrics_that_could_not_be_written_leave_the_piece_instrumental(self):
-        out, said, _ = self._prepare('song', 'une chanson sur la mer', written='')
-        self.assertEqual('une chanson sur la mer', out)
+        out, new, said, _ = self._prepare('song', 'une chanson sur la mer', written='',
+                                          with_new=True)
+        self.assertEqual(('une chanson sur la mer', ''), (out, new))
         self.assertIn('instrumental', said[0])
+
+    def test_the_card_s_lyrics_are_sung_and_never_rewritten(self):
+        out, new, _, writer = self._prepare('song', 'pop douce', stored='[Chorus]\nla la',
+                                            with_new=True)
+        self.assertEqual(('pop douce\n\n[Chorus]\nla la', ''), (out, new))
+        writer.assert_not_called()
+
+    def test_under_auto_the_card_s_lyrics_ask_for_a_voice(self):
+        out, _, _ = self._prepare('auto', 'pop douce', stored='la la')
+        self.assertEqual('pop douce\n\n[Verse]\nla la', out, 'untagged lyrics become a verse')
+
+    def test_lyrics_in_the_prompt_win_over_the_card_s_and_it_is_said(self):
+        out, said, _ = self._prepare('song', SONG, stored='[Chorus]\nautre')
+        self.assertEqual(SONG, out)
+        self.assertIn('celles de la card sont ignorées', said[0])
+
+    def test_instrumental_leaves_the_card_s_lyrics_unsung_but_kept(self):
+        out, new, said, _ = self._prepare('instrumental', 'pop douce', stored='[Verse]\nla',
+                                          with_new=True)
+        self.assertEqual(('pop douce', ''), (out, new))
+        self.assertIn('instrumental', said[0])
+
+
+class WrittenLyricsAreKeptOnTheCardTest(TestCase):
+    """Fabien, 2026-10-04: « persiste les paroles écrites sur la card »."""
+
+    def test_the_launch_writes_them_on_the_card_and_in_memory(self):
+        from wama.composer import tasks
+        from wama.composer.models import ComposerGeneration
+        user = get_user_model().objects.create_user('lyrics_kept', password='x')
+        gen = ComposerGeneration.objects.create(user=user, prompt='la mer', vocals='song',
+                                                model='huggingface:org/Singer')
+        ctx = SimpleNamespace(app_id='composer', console=lambda *a, **k: None)
+        with mock.patch.object(tasks, '_model_key', return_value='huggingface:org/Singer'), \
+                mock.patch.object(vocals, 'sings', return_value=True), \
+                mock.patch.object(vocals, 'lyrics_language', return_value='fr'), \
+                mock.patch('wama.common.utils.app_metadata.write_lyrics_for',
+                           return_value='[Verse]\nla mer revient'), \
+                mock.patch('wama.common.utils.app_metadata.process_prompt_for',
+                           side_effect=lambda app, field, text, **kw: text):
+            routed = tasks._routed_prompt(gen, ctx)
+        self.assertEqual('la mer\n\n[Verse]\nla mer revient', routed)
+        self.assertEqual('[Verse]\nla mer revient', gen.lyrics, 'in memory: the run snapshot')
+        gen.refresh_from_db()
+        self.assertEqual('[Verse]\nla mer revient', gen.lyrics)
+
+    def test_a_card_lyric_change_makes_the_score_and_the_render_stale(self):
+        from wama.composer.function_specs import PIPELINE
+        for key in ('plan', 'render'):
+            self.assertIn('lyrics', PIPELINE.spec(key).watched)
+            self.assertIn('vocals', PIPELINE.spec(key).watched)
+            self.assertIn('prompt_processed', PIPELINE.spec(key).watched)
 
 
 class WhoSingsIsDeclaredByTheCatalogueTest(TestCase):
@@ -167,3 +223,19 @@ class TheSettingTravelsThroughTheRoutesTest(TestCase):
         self.assertEqual(200, self.client.post(url, {'vocals': 'karaoke'}).status_code)
         gen.refresh_from_db()
         self.assertEqual('instrumental', gen.vocals)
+
+    def test_the_card_s_lyrics_are_edited_and_can_be_erased(self):
+        from wama.composer.models import ComposerGeneration
+        gen = ComposerGeneration.objects.create(user=get_user_model().objects.get(
+            username='voice_me'), prompt='la mer', model='composer:musicgen-small',
+            lyrics='[Verse]\nla mer')
+        url = reverse('composer:update_settings', args=[gen.id])
+        self.client.post(url, {'lyrics': '[Verse]\nla mer revient'})
+        gen.refresh_from_db()
+        self.assertEqual('[Verse]\nla mer revient', gen.lyrics)
+        self.client.post(url, {'vocals': 'song'})
+        gen.refresh_from_db()
+        self.assertEqual('[Verse]\nla mer revient', gen.lyrics, 'not posted: untouched')
+        self.client.post(url, {'lyrics': ''})
+        gen.refresh_from_db()
+        self.assertEqual('', gen.lyrics)

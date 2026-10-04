@@ -141,6 +141,23 @@ class StaleNodesTest(SimpleTestCase):
         self.assertEqual(process_runs.stale_nodes(states, self.GRAPH, {}, {'plan': {'p': 2}}),
                          set())
 
+    def test_watching_one_more_setting_does_not_stale_what_was_already_rendered(self):
+        # 2026-10-04 : the composer started watching `vocals` and `lyrics` — every card already
+        # rendered would have turned stale although nothing in it had changed.
+        states = {'plan': JOB_SUCCESS, 'render': JOB_SUCCESS}
+        self.assertEqual(process_runs.stale_nodes(
+            states, self.GRAPH, snapshots={'plan': {'prompt': 'jazz'}},
+            current={'plan': {'prompt': 'jazz', 'lyrics': ''}}), set())
+        self.assertEqual(process_runs.stale_nodes(
+            states, self.GRAPH, snapshots={'plan': {'prompt': 'jazz', 'lyrics': 'la'}},
+            current={'plan': {'prompt': 'jazz', 'lyrics': 'lo'}}), {'plan', 'render'})
+
+    def test_an_upstream_fingerprint_is_always_compared(self):
+        states = {'plan': JOB_SUCCESS, 'render': JOB_SUCCESS}
+        self.assertEqual(process_runs.stale_nodes(
+            states, self.GRAPH, snapshots={'render': {'prompt': 'jazz'}},
+            current={'render': {'prompt': 'jazz', '@upstream': {'plan': 'f1'}}}), {'render'})
+
 
 class AggregateTest(SimpleTestCase):
     """Point 4.4 — the rule validated as is on 2026-09-17."""
