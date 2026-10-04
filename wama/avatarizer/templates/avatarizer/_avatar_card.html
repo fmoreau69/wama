@@ -18,7 +18,7 @@ pas la variable de gabarit.
 {% endcomment %}
 <div class="wama-card synthesis-card card bg-dark border-secondary {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      id="job-{{ elem.id }}" data-id="{{ elem.id }}" data-job-id="{{ elem.id }}"
-     data-status="{{ elem.shown_state|default:elem.status }}" data-mode="standalone"
+     data-status="{{ elem.shown_state|default:elem.status }}" data-element-status="{{ elem.status }}" data-mode="standalone"
      data-preview-url="{% url 'common:unified_preview' 'avatarizer' elem.id %}">
 <div class="card-body py-2">
 

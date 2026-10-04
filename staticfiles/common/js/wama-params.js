@@ -1304,6 +1304,11 @@
         schema: scopedSchema(cfg.schema, scope.names),
         groups: scopedGroups(cfg.groups, scopedSchema(cfg.schema, scope.names)),
         title: (cfg.title || 'Paramètres') + (scope.label ? ' — ' + scope.label : ''),
+        // Les zones d'app HORS schéma (prompt, classes à flouter, résolution…) ne sont pas
+        // des réglages de CE process : une modale à portée ne rend que le schéma réduit.
+        // `collect` reste appelé — il ne poste que ce qu'il trouve, et porte le drapeau de
+        // relance de certaines apps.
+        decorate: null,
       });
     }
     const toast = function (m, t) {

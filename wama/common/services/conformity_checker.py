@@ -950,6 +950,28 @@ def _progress_views_common(f: _AppFiles):
     return None, 'aucune vue de progression'
 
 
+def _process_start_common(f: _AppFiles):
+    """Le ▶ d'UN process (`start/<pk>/<process>/`, `ROUTE §10.6` 5.1) vient de la fabrique commune
+    `process_views.make_process_start_view` (2026-10-04 : la vue était recopiée dans six apps).
+
+    VRAI : fabrique appelée, aucune vue de ce geste écrite à la main ; PARTIEL : les deux ;
+    FAUX : l'app déclare un pipeline (`register_app_pipeline`) et écrit la vue à la main, ou n'a
+    pas de ▶ par process ; N/A : l'app ne déclare pas de pipeline (un seul process)."""
+    declared = f.find_code(PY, r'\bregister_app_pipeline\(')
+    brique = f.find_code(VIEWS, r'\bmake_process_start_view\(')
+    local = f.find_code(VIEWS, r'(?m)^def \w*start\w*\([^)]*\bprocess\b')
+    if brique and local:
+        return 'partial', f"{brique} + ▶ de process encore local ({local})"
+    if brique:
+        return True, brique
+    if local:
+        return False, (f"▶ de process écrit à la main ({local}) — fabrique "
+                       "`process_views.make_process_start_view`")
+    if declared:
+        return False, f"pipeline déclaré ({declared}) sans ▶ par process"
+    return None, 'aucun pipeline déclaré (app à un seul process)'
+
+
 def _settings_route(f: _AppFiles):
     """La route qui enregistre les réglages d'UN élément suit `WAMA_APP_CONVENTIONS §3.1` :
     `settings/<int:pk>/`, nommée `update_settings` (2026-09-24).
@@ -2197,6 +2219,11 @@ CRITERIA: list[Criterion] = [
     Criterion('progress_views_common', 'F5',
               'Vues de progression par la fabrique commune (make_progress_views)',
               _progress_views_common, mechanism='progress_views'),
+    # 2026-10-04 : le ▶ d'un process, recopié dans six apps, extrait en fabrique — la grille
+    # suit le mécanisme. Premier critère qui regarde le PIPELINE d'une app.
+    Criterion('process_start_common', 'F5',
+              "▶ d'un process par la fabrique commune (make_process_start_view)",
+              _process_start_common, mechanism='process_start_view'),
     # Les deux contrats COMMUNS du modèle de lot. `batch_semantics` porte `is_unitary`, que lisent
     # `_queue_entry.html` ET `is_batch_child` — son absence (jumelle `converter_01`, 15/09) rendait
     # tout lot en lot de plusieurs cards, sans erreur. `queue_order` : le mécanisme de même nom
