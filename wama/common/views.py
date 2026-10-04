@@ -40,7 +40,7 @@ def api_enrich_prompt(request):
     langue de l'utilisateur (il doit pouvoir relire/éditer) — la traduction reste l'affaire de
     la pipeline au lancement de la tâche."""
     import json
-    from .utils.prompt_enrichment import enrich_on_demand
+    from .utils.app_metadata import enrich_prompt_value
 
     try:
         body = json.loads(request.body)
@@ -53,6 +53,7 @@ def api_enrich_prompt(request):
         # l'enrichissement. Sans ça le LLM les reformule/absorbe et le chip s'éteint tout seul.
         keywords = [str(k).strip() for k in (body.get('keywords') or []) if str(k).strip()]
         target_model = (body.get('target_model') or '').strip()
+        field = (body.get('field') or '').strip() or 'prompt'
     except Exception:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
@@ -72,8 +73,9 @@ def api_enrich_prompt(request):
 
     lang = (getattr(getattr(request.user, 'profile', None), 'preferred_language', None) or 'en')
     try:
-        enhanced = enrich_on_demand(prompt, app=app, domain=domain, language=lang,
-                                    glossary=keywords or None, contract=contract)
+        # Par la DÉCLARATION de la cible (2026-10-04) : des paroles balisées restent hors du LLM.
+        enhanced = enrich_prompt_value(app, field, prompt, domain=domain, language=lang,
+                                       glossary=keywords or None, contract=contract)
         return JsonResponse({'original': prompt, 'enhanced': enhanced,
                              'keywords': keywords})
     except RuntimeError as e:

@@ -15,6 +15,10 @@ Chaque target : {field, kind, [model_field, source, default_model_type, when, do
 - when              : ce qui conditionne le traitement — un attribut booléen de l'instance
                       (ex. 'use_sam3'), ou une condition de la grammaire `show_if` du schéma
                       ({'field': 'target_mode', 'equals': 'description'}, 2026-09-27).
+- lyrics            : le prompt peut porter des PAROLES balisées après sa description
+                      (`[Verse]`, `[Chorus]`… — `tagged_lyrics`). Traduction et enrichissement
+                      ne touchent que la DESCRIPTION ; les paroles sont rendues telles quelles
+                      (2026-10-04 : un LLM qui « améliore » ou traduit des paroles les détruit).
 - domain / domain_field : domaine média pour la sélection du SKILL d'enrichissement
   ([[prompt_skills]] : `<app>-<domain>.md`) — statique (`domain='music'`) ou lu sur l'instance
   (`domain_field='output_type'`, ex. imager image|video). Repli = model_type du modèle cible.
@@ -69,9 +73,12 @@ PROMPT_TARGETS = {
         # enrich activé 2026-07-08 : le blocage était les consignes visuelles uniques — levé par
         # le skill dédié `composer-music.md` ([[prompt_skills]]). Reste gaté par l'interrupteur
         # maître WAMA_PROMPT_ENRICH (OFF par défaut).
+        # `model` (2026-10-04, la route de l'imager) : `ComposerGeneration` hérite de
+        # `PromptScoped` — enrichi à l'ingestion, éditable à deux états, annulable.
         {'field': 'prompt', 'kind': 'generative', 'model_field': 'model',
          'source': 'composer', 'default_model_type': 'music', 'enrich': True,
-         'domain': 'music'},
+         'model': 'composer.ComposerGeneration',
+         'domain': 'music', 'lyrics': True},
     ],
     'assistant': [
         # Le message chat = intention pour un LLM. Modèle résolu dynamiquement (pas un champ
@@ -169,13 +176,82 @@ def process_prompt_for(app: str, field: str, value, instance=None, user=None, co
     from .prompt_pipeline import process_prompt
     caps, mtype, contract = _resolve_model(app, instance, tgt, model_id=model_id)
     domain = _domain_for(instance, tgt)
-    res = process_prompt(value, kind=tgt.get('kind', 'text'),
+    original, (value, lyrics) = value, _spared_lyrics(tgt, value)
+    res = process_prompt(value or '', kind=tgt.get('kind', 'text'),
                          model_capabilities=caps, model_type=mtype,
                          enrich=tgt.get('enrich', False) if enrich is None else enrich,
                          reference_files=_resolve_reference_files(instance, tgt),
                          user=user, console=console, glossary=glossary,
                          app=app, domain=domain, prompt_contract=contract)
+    if lyrics:
+        res = _rejoin_lyrics(res, original, lyrics, user, console)
     return res if full else res['prompt']
+
+
+def _spared_lyrics(tgt, value):
+    """(description, paroles) d'une cible qui déclare `lyrics` ; sinon (valeur, '')."""
+    if not tgt or not tgt.get('lyrics') or not value:
+        return value, ''
+    from wama.common.backends.music_generation_base import tagged_lyrics
+    caption, lyrics = tagged_lyrics(str(value))
+    return (caption, lyrics) if lyrics else (value, '')
+
+
+def _with_lyrics(head, lyrics):
+    head = str(head or '').strip()
+    return f"{head}\n\n{lyrics}" if head else lyrics
+
+
+def _rejoin_lyrics(res, original, lyrics, user, console):
+    """Les paroles reviennent INTACTES après la description traitée — et on prévient quand le
+    modèle ne déclare pas la langue dans laquelle elles sont (supposée : celle du profil, comme
+    pour la description ; aucune détection de langue du texte n'existe dans WAMA)."""
+    res = dict(res)
+    res['prompt'] = _with_lyrics(res.get('prompt'), lyrics)
+    res['original'] = original
+    res['lyrics_spared'] = True
+    routing = res.get('routing') or {}
+    if console:
+        if routing.get('input_translate'):
+            from .prompt_pipeline import _user_lang
+            langs = ', '.join(l for l in (routing.get('model_languages') or []) if l != '*')
+            console(f"🎤 Paroles gardées telles quelles (jamais traduites). Si elles sont en "
+                    f"« {_user_lang(user)} », ce modèle ne déclare pas cette langue"
+                    f"{f' ({langs})' if langs else ''} : il risque de mal les chanter.")
+        else:
+            console("🎤 Paroles gardées telles quelles : seule la description est traitée.")
+    return res
+
+
+def enrich_prompt_value(app, field, value, **kwargs):
+    """`enrich_on_demand` sur une valeur de champ-prompt, en suivant la DÉCLARATION de la cible :
+    des paroles balisées (`lyrics`) sont tenues hors du LLM et recollées telles quelles. Le ✨ et
+    l'ingestion passent ici — mêmes règles que la pipeline du lancement. Lève `RuntimeError`
+    comme `enrich_on_demand`."""
+    from .prompt_enrichment import enrich_on_demand
+    caption, lyrics = _spared_lyrics(_target(app, field), value)
+    if not lyrics:
+        return enrich_on_demand(value, app=app, **kwargs)
+    if not str(caption or '').strip():
+        raise RuntimeError("Rien à enrichir : le prompt ne porte que des paroles — décrivez le "
+                           "style avant elles (les paroles ne sont jamais réécrites).")
+    return _with_lyrics(enrich_on_demand(caption, app=app, **kwargs), lyrics)
+
+
+def _contract_decided_at_launch(model_value) -> bool:
+    """Un « auto » borné à une tâche dont un candidat déclare un CONTRAT de prompt : le modèle —
+    donc la forme attendue de l'enrichi — n'est connu qu'au tirage. Enrichir à l'ingestion sans
+    contrat produirait la forme d'un AUTRE modèle (2026-10-04 : 32 mots de MusicGen pour YuE2)."""
+    from wama.common.utils.model_keys import auto_task
+    task = auto_task(model_value)
+    if not task:
+        return False
+    try:
+        from wama.model_manager.models import AIModel
+        return (AIModel.objects.filter(capabilities__task=task)
+                .exclude(prompt_contract__isnull=True).exclude(prompt_contract='').exists())
+    except Exception:
+        return False
 
 
 def _domain_for(instance, tgt):
@@ -295,7 +371,7 @@ def enrich_instance_prompts(app, instance, user=None, glossary=None, source='ing
 
     Retourne la liste des champs effectivement enrichis.
     """
-    from .prompt_enrichment import KEEP_ALIVE_INGEST, enrich_on_demand, enrichment_enabled
+    from .prompt_enrichment import KEEP_ALIVE_INGEST, enrichment_enabled
 
     if instance is None or not enrichment_enabled(user):
         return []
@@ -319,13 +395,22 @@ def enrich_instance_prompts(app, instance, user=None, glossary=None, source='ing
         if not value or not str(value).strip():
             continue
 
+        # Le CONTRAT du modèle visé (2026-10-04) : l'ingestion enrichissait sans lui, donc à la
+        # forme du skill d'app — celle de MusicGen pour une card destinée à YuE2. Sous un « auto »
+        # dont un candidat porte un contrat, le modèle n'est connu qu'au tirage : on laisse la
+        # pipeline du LANCEMENT enrichir, avec le contrat du modèle tiré.
+        mfield = tgt.get('model_field')
+        if mfield and _contract_decided_at_launch(getattr(instance, mfield, None)):
+            continue
+        _caps, _mtype, contract = _resolve_model(app, instance, tgt)
+
         domain = _domain_for(instance, tgt)
         # Glossaire non fourni → on le DÉRIVE du prompt (cf. detected_keywords).
         gloss = list(glossary) if glossary else detected_keywords(value, user, domain)
         try:
-            enriched = enrich_on_demand(value, app=app, domain=domain,
-                                        language=lang, glossary=gloss or None,
-                                        keep_alive=KEEP_ALIVE_INGEST)
+            enriched = enrich_prompt_value(app, field, value, domain=domain,
+                                           language=lang, glossary=gloss or None,
+                                           keep_alive=KEEP_ALIVE_INGEST, contract=contract)
         except Exception as e:                           # LLM injoignable, timeout, réponse vide
             logger.debug(f"[app_metadata] enrichissement {app}.{field} ignoré ({e})")
             continue

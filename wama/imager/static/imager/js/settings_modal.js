@@ -147,13 +147,17 @@
                         if (!video) appendResolutionZone(host, d);
                     },
                     collect: function (fd, host) {
-                        // Prompt à deux états : poster l'ORIGINAL + l'état (apply_prompt_state arbitre).
+                        // Prompt à deux états : poster le texte AFFICHÉ + son état — c'est
+                        // `apply_prompt_state` qui choisit le champ (`processed` → l'enrichi).
+                        // ⚠ Posté jusqu'au 2026-10-04 : l'ORIGINAL sous l'état `processed`, que la
+                        // vue écrivait dans `prompt_processed` — enregistrer la modale d'une card
+                        // enrichie remplaçait l'enrichi par le texte tapé.
                         const p = host.querySelector('textarea[name="prompt"]');
                         if (p && window.WamaPromptEnrich) {
                             const ctrl = WamaPromptEnrich.get(p);
                             if (ctrl) {
                                 const snap = ctrl.snapshot();
-                                fd.set('prompt', snap.state === 'processed' ? snap.original : p.value);
+                                fd.set('prompt', p.value);
                                 fd.set('prompt_state', snap.state);
                             }
                         }

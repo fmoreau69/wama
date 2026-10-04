@@ -123,3 +123,12 @@ Data-gated : aucun modèle ne déclare de contrat → comportement d'avant À L'
 `build_system(skill, contract=None) == skill`). Reste : écrire le contrat dans le manifeste
 de chaque modèle au fil des adoptions — premier attendu : MiniMax-Music3 (chansons) aux côtés
 de MusicGen (instrumental) dans le composer.
+
+**Les PAROLES ne passent jamais par le LLM (2026-10-04).** La cible `composer` déclare
+`lyrics=True` : la pipeline (lancement, ✨, ingestion) n'enrichit et ne traduit que la
+DESCRIPTION, puis recolle les paroles balisées telles quelles (`WAMA_LLM.md §Paroles et contrat`).
+Les contrats musicaux le disent donc : MiniMax-Music3 et YuE2 demandent la description seule,
+et sans paroles fournies **aucune** n'est écrite. Le contrat de MiniMax (« 250-450 mots, puis
+les paroles sous tags ») a été réécrit en ce sens par son manifeste (`write_back`, puis export).
+L'ingestion reçoit aussi le contrat du modèle choisi ; sous un « auto » dont un candidat en
+porte un, elle s'abstient — le lancement enrichit avec le contrat du modèle tiré.

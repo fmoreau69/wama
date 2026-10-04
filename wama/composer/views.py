@@ -594,10 +594,13 @@ def _apply_generation_settings(gen, data):
         pass                    # durée illisible : celle de l'élément reste
     if str(data.get('quality_intent', '')) != '':
         gen.quality_intent = _intent_posted(data)
-    # Prompt éditable (modale complète P1) — on ne l'écrase pas s'il est vide.
+    # Prompt éditable (modale complète P1) — on ne l'écrase pas s'il est vide. Champ à DEUX ÉTATS
+    # (2026-10-04, la route de l'imager) : `apply_prompt_state` dit dans quel champ écrire — éditer
+    # l'enrichi garde l'original ; reprendre son prompt rend l'enrichi périmé, donc vidé.
     prompt = data.get('prompt')
     if prompt is not None and str(prompt).strip():
-        gen.prompt = str(prompt).strip()
+        from wama.common.utils.app_metadata import apply_prompt_state
+        apply_prompt_state(gen, 'prompt', str(prompt).strip(), data.get('prompt_state'))
     # Format/qualité de sortie (early-binding, per-item) si fournis
     if data.get('output_format'):
         gen.output_format = data['output_format']
