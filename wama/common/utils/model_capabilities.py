@@ -100,6 +100,9 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     "supports_cloning":     "bool — clonage de voix (TTS)",
     "supports_vad_filter":  "bool — filtre de parole (VAD) avant de transcrire, réglage `vad_mode` (ASR)",
     "supports_score_planning": "bool — le moteur écrit une partition AVANT de la jouer (`plan_score`), en un process séparé du rendu (musique)",
+    #: Fait du MODÈLE (pas du moteur : un même moteur peut servir un modèle qui chante et un qui
+    #: ne chante pas), déclaré par son manifeste — 2026-10-04, réglage « Voix » du composer.
+    "supports_vocals":     "bool — le modèle CHANTE des paroles balisées (musique) ; absent = instrumental seul",
     # Détection / segmentation
     "classes":             "list[str] — classes détectables (YOLO)",
     "text_promptable":     "bool — segmentation par prompt texte (SAM3)",

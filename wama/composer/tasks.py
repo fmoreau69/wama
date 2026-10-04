@@ -167,9 +167,16 @@ def _routed_prompt(gen, ctx) -> str:
     glossaire."""
     if getattr(gen, '_routed_prompt', None) is None:
         from wama.common.utils.app_metadata import effective_prompt, process_prompt_for
+        from .utils.vocals import prepare_prompt
         already = bool((getattr(gen, 'prompt_processed', '') or '').strip())
+        # La VOIX (2026-10-04) avant la pipeline : paroles retirées (instrumental, modèle qui ne
+        # chante pas) ou ÉCRITES (« Chanson » sans paroles) — la pipeline traite ensuite la
+        # description et garde les paroles telles quelles.
+        model_key = _model_key(gen)
+        text = prepare_prompt(getattr(gen, 'vocals', None), effective_prompt(gen, 'prompt'),
+                              model_key, user=gen.user, console=ctx.console)
         gen._routed_prompt = process_prompt_for(
-            ctx.app_id, 'prompt', effective_prompt(gen, 'prompt'),
+            ctx.app_id, 'prompt', text,
             instance=gen, user=gen.user, console=ctx.console, model_id=_model_key(gen),
             enrich=False if already else None,
             glossary=list(getattr(gen, 'prompt_keywords', None) or []) or None)

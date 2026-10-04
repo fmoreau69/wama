@@ -113,7 +113,7 @@ class TheLyricsNeverGoThroughTheLLMTest(SimpleTestCase):
         self.assertEqual(SONG, out['original'])
         self.assertTrue(out['lyrics_spared'])
 
-    def test_a_model_that_does_not_declare_the_language_is_said(self):
+    def test_a_model_without_that_language_is_said(self):
         from wama.common.utils.app_metadata import process_prompt_for
         said = []
         with self._pipeline({'input_translate': True, 'model_languages': ['en', 'zh']}), \
@@ -145,7 +145,7 @@ class TheLyricsNeverGoThroughTheLLMTest(SimpleTestCase):
         with self.assertRaisesRegex(RuntimeError, 'que des paroles'):
             enrich_prompt_value('composer', 'prompt', "[Verse]\nla la la", domain='music')
 
-    def test_an_app_that_does_not_declare_lyrics_is_untouched(self):
+    def test_an_app_without_lyrics_is_untouched(self):
         from wama.common.utils.app_metadata import enrich_prompt_value
         with mock.patch('wama.common.utils.prompt_enrichment.enrich_on_demand',
                         return_value='rich') as enrich:

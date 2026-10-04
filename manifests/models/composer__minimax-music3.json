@@ -11,6 +11,7 @@
       "modalities": [
         "audio"
       ],
+      "supports_vocals": true,
       "task": "text-to-music"
     },
     "composition": {
