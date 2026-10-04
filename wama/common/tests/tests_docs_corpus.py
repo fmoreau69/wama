@@ -200,6 +200,22 @@ class RederivationTests(TestCase):
         self.assertEqual(summary['missing'], [self.doc.key])
         self.assertEqual(len(self._rows()), 3)
 
+    def test_the_command_and_the_nightly_task_run_the_same_projection(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from wama.common.tasks import sync_docs_corpus_task
+
+        out = StringIO()
+        # `--dry-run` : la commande fait AUSSI la projection des gestes, qu'on ne veut pas ici.
+        call_command('sync_memory', '--docs', '--dry-run', stdout=out)
+        self.assertIn('corpus système', out.getvalue())
+        self.assertEqual(self._rows(), [])
+        summary = sync_docs_corpus_task()
+        self.assertEqual(summary['written'], [self.doc.key])
+        self.assertEqual(len(self._rows()), 3)
+
     def test_a_user_fragment_is_never_touched_by_the_projection(self):
         owner = User.objects.create_user('wama_docs_owner', password='x')
         RagChunk.objects.create(content='à moi', content_hash='h', source_kind='doc',

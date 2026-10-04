@@ -21365,6 +21365,52 @@ Cinq questions de Fabien sur l'assistant, mesurées. Deux soldées, trois en con
 - 🔚 La jumelle `imager_01` porte encore ses balises (gabarit recopié, hors total) : à la
   régénération des jumelles (R90).
 
+## §PALIER — 2026-10-04, « ASSISTANT : MODÈLES DE L'ABONNEMENT + CORPUS SYSTÈME (la doc de WAMA rappelable) » — ✅ `73845ff1`, `34c80b4a` + commit ci-dessous, non poussés — 🔴 RECHARGER gunicorn, relancer workers + beat — 🔚 vecteurs des fragments neufs la nuit (décision) · journal des connexions (décisions) · montage SMB (deux défauts) · docs générées
+
+> Demandes de Fabien : pourquoi un seul modèle, inconnu, par l'abonnement ; l'assistant a-t-il
+> accès à la doc ; puis *« rester bien aligné sur le fonctionnement de WAMA et ne rien réinventer »*.
+
+- **Abonnement Claude Code** (`73845ff1`) : la ligne DÉCLARÉE s'étend — `ExternalSource.declared_models`
+  (`default`, `fable`, `opus`, `sonnet`, alias documentés par le CLI), `--model` passé, modèle
+  réellement servi lu dans `modelUsage` et affiché au tour. Détail : `ROADMAP §8d`. Mesuré sur le
+  compte réel : 3 lignes ajoutées par la sonde, appel `sonnet` → `claude-sonnet-5-5`.
+- **Corpus système** (`34c80b4a`) : `common/memory/docs_corpus.py` + outils `search_docs` /
+  `read_doc`. Détail et raisons : `WAMA_MEMORY.md §7quinquies` (domicile unique). Mesuré : 50 docs,
+  6 654 fragments, projection 2 s, vecteurs 79 s ; deux tours RÉELS d'assistant (recherche →
+  lecture de section → réponse citée), `tool_steps` lus.
+- **Trouvé à la revérification de fin de session, corrigé ici** : `purge-visitors` (ajoutée le
+  03/10 en `crontab(minute=20)`) tombait chaque nuit dans la plage RÉSERVÉE des tests nocturnes —
+  `tests_calendar` était rouge depuis `1f1e53b5`, non rejoué alors. Passée en INTERVALLE (3600 s),
+  la forme des battements de fond. *Une entrée planifiée ajoutée sans rejouer `tests_calendar` :
+  le contrôle existait, il fallait le lancer.*
+- **Gardes ajoutées** : `tests_calendar.test_every_beat_entry_names_a_registered_task`
+  (GÉNÉRIQUE : toute entrée planifiée désigne une tâche connue de Celery — trois entrées
+  ajoutées en un jour n'étaient couvertes par rien) ; `tests_docs_corpus` 18 tests (garde par
+  audience, séparation d'avec le RAG des utilisateurs, re-dérivation, commande et tâche).
+- **Rouges qui ne sont PAS de ce palier** (mesurés le 04/10) : `tests_tool_api_lectures` et
+  9 tests de `tests_calendar` sur la colonne absente `writer_01_writerdocument.quality_intent`
+  (base de test, jumelle du bac à sable) ; budgets de langue des identifiants (+2 classes,
+  +8 méthodes, aucun de mes fichiers) ; `tests_docs_catalog.test_chaque_mecanisme_a_sa_section`
+  171 ≠ 184 — `docs/dev/briques.md` et `WAMA_MECANISMES.md` à régénérer (`doc_facts`), tous
+  deux modifiés dans l'arbre par une autre instance, donc non touchés ici ; mon mécanisme
+  `docs_corpus` est l'un des 13 manquants.
+- **Diagnostics de la journée, RIEN de modifié** :
+  - *Montage d'un dossier distant* — `could not resolve address for <nom court>` : WSL n'a aucun
+    domaine de recherche, un nom sans suffixe ne se résout pas (6 échecs sur 6 ; le nom complet
+    3 sur 3). Puis `STATUS_LOGON_FAILURE` (lu au `dmesg`) : le champ « Domaine », dit optionnel,
+    était nécessaire. Connecté par Fabien avec le nom complet et le domaine. 🔚 deux défauts de
+    `filemanager/views.py::_try_cifs_mount` : le même message pour « invité refusé » et
+    « identifiants refusés » ; ni suffixe de domaine ni domaine d'annuaire déclarés.
+  - *Journal des connexions* — il EXISTE (`accounts.AccessLog`, signaux dans `moderation.py`,
+    admin seul). Mesuré : 1 078 lignes, toutes « connexion », 0 déconnexion, 0 refus (le nom
+    tenté est jeté, `moderation.py:112`), 1 048 sans adresse ni navigateur, 29 des 30 adresses
+    = `127.0.0.1`, 229 lignes de comptes de test. 🔚 proposé, à décider : voie d'entrée, échecs
+    avec nom et motif, fin de session, adresse réelle, durée de conservation + purge, page de
+    consultation ; comptes de test exclus ou marqués.
+- 🔚 Restes du palier : calculer la nuit les vecteurs des fragments NEUFS (quelques secondes de
+  GPU, hors règle §5bis sans décision) ; doc UTILISATEUR à étoffer (un seul doc : pour un
+  membre le corpus est presque vide) ; compte d'outils de `WAMA_LLM.md` recalé à 73.
+
 ## §PALIER — 2026-10-04 (nuit du 03 au 04), « PIPELINE : process `align` + process « SORTIE » commun aux cinq apps » — non poussé — 🔚 synthesizer à jouer en réel (service TTS arrêté) · modale ⚙ « Sortie » de l'imager et de l'anonymizer à resserrer
 
 Deux décisions de Fabien du 03/10 au soir, exécutées (`ROUTE §10.6`, bloc « P6 ENGAGÉE »).
