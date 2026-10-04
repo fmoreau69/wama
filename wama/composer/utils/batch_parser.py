@@ -18,8 +18,8 @@ from wama.common.utils.batch_parsers import parse_composer_batch  # noqa: F401 (
 
 def parse_batch_file(
     file_path: str,
-    default_model: str = 'musicgen-small',
-    default_duration: float = 10.0,
+    default_model: str,
+    default_duration: float,
     source_name: str = None,
 ) -> Tuple[List[Dict], List[str]]:
     """
@@ -29,6 +29,8 @@ def parse_batch_file(
         file_path:        Path to the batch file
         default_model:    Model to use when column 3 is absent or empty
         default_duration: Duration (seconds) to use when column 4 is absent or empty
+                          (both REQUIRED since 2026-10-04: the views pass the field's default,
+                          3:30 — a default of 10 s written here had outlived it)
 
     Returns:
         (tasks, warnings)

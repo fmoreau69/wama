@@ -224,6 +224,27 @@ class TheModalWritesTheRightFaceTest(TestCase):
         self.assertEqual('', self.gen.prompt_processed)
 
 
+class TheModalsPostTheDisplayedFaceTest(SimpleTestCase):
+    """The imager's modal posted the ORIGINAL under the `processed` state, which
+    `apply_prompt_state` writes into `prompt_processed`: saving an enriched card replaced the
+    enriched text by the typed one (2026-08-05 → 2026-10-04). Nothing says so at run time — the
+    card simply leaves with the user's raw prompt. The modals post the DISPLAYED text."""
+
+    MODALS = ('wama/imager/static/imager/js/settings_modal.js',
+              'wama/composer/static/composer/js/index.js')
+
+    def test_the_prompt_posted_with_its_state_is_the_displayed_text(self):
+        import re
+        for path in self.MODALS:
+            for served in (path, 'staticfiles/' + path.split('/static/', 1)[1]):
+                with self.subTest(file=served):
+                    src = (Path(settings.BASE_DIR) / served).read_text(encoding='utf-8')
+                    posted = re.findall(r"fd\.set\('prompt',\s*([^;]+)\);", src)
+                    self.assertTrue(posted, 'the modal no longer posts the prompt')
+                    self.assertEqual([], [p for p in posted if 'original' in p])
+                    self.assertIn("fd.set('prompt_state'", src)
+
+
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class TheBrickOffersItsTriggerWhenAskedTest(SimpleTestCase):
 

@@ -274,7 +274,7 @@ def generate(request):
     # (tool_api/studio) hérite ainsi du modèle préféré au lieu d'un défaut codé en dur.
     from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
     last = get_user_app_settings(user, 'composer', {
-        'model': DEFAULT_MODEL, 'duration': 10.0, 'vocals': vocals.AUTO,
+        'model': DEFAULT_MODEL, 'duration': _DEFAULT_DURATION, 'vocals': vocals.AUTO,
         'output_format': 'original', 'output_quality': 'balanced'})
 
     model_id = normalize(request.POST.get('model') or last['model'])
@@ -285,7 +285,7 @@ def generate(request):
         duration = float(request.POST.get('duration') or last['duration'])
         duration = clamp_duration(duration)
     except (ValueError, TypeError):
-        duration = 10.0
+        duration = _DEFAULT_DURATION
 
     gen = ComposerGeneration.objects.create(
         user=user,
@@ -381,7 +381,7 @@ def batch_preview(request):
         tmp_path = tmp.name
     try:
         tasks, warnings = parse_batch_file(
-            tmp_path, 'musicgen-small', 10.0, source_name=batch_file.name)
+            tmp_path, DEFAULT_MODEL, _DEFAULT_DURATION, source_name=batch_file.name)
     except Exception as exc:
         return JsonResponse({'error': str(exc)}, status=400)
     finally:

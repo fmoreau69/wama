@@ -224,6 +224,16 @@ class TheSettingTravelsThroughTheRoutesTest(TestCase):
         gen.refresh_from_db()
         self.assertEqual('instrumental', gen.vocals)
 
+    def test_a_creation_without_duration_takes_the_field_s_default_not_ten_seconds(self):
+        # `d4a30c43` moved the default to 3:30 and left two fallbacks of 10 s in the view.
+        from wama.composer.models import ComposerGeneration
+        with mock.patch('wama.common.utils.user_settings.get_user_app_settings',
+                        side_effect=lambda user, app, defaults: dict(defaults)):
+            response = self.client.post(reverse('composer:generate'),
+                                        {'prompt': 'la mer', 'model': 'composer:minimax-music3'})
+        self.assertEqual(200, response.status_code, response.content[:200])
+        self.assertEqual(210.0, ComposerGeneration.objects.get(id=response.json()['id']).duration)
+
     def test_the_card_s_lyrics_are_edited_and_can_be_erased(self):
         from wama.composer.models import ComposerGeneration
         gen = ComposerGeneration.objects.create(user=get_user_model().objects.get(

@@ -50,7 +50,7 @@ class FormatInTheBrowserTest(SimpleTestCase):
             " return window.WamaApp.formatDuration(v, i === 4 ? 'min' : 's'); })"))
         self.assertEqual('3,8 Go', self._js("window.WamaApp.formatSize(3.8, 'GB')"))
 
-    def test_a_setting_that_declares_a_format_reads_in_it_and_the_others_do_not_move(self):
+    def test_a_setting_with_a_format_reads_in_it_and_the_others_do_not_move(self):
         self.assertEqual(['3:30', '3,8 Go', '85s', '0.5'], self._js(
             "[window.WamaParams.valueLabel(210, 'duration', 's'),"
             " window.WamaParams.valueLabel(3.8 * 1024 * 1024 * 1024, 'size', ''),"
@@ -115,7 +115,7 @@ class FormatOnTheServerTest(SimpleTestCase):
         self.assertEqual('210 s', chips_for(item, [field])[0]['label'], 'nothing declared: as before')
         self.assertEqual('3:30', chips_for(item, [dict(field, display_format='duration')])[0]['label'])
 
-    def test_the_composer_duration_declares_its_format_its_default_and_its_source(self):
+    def test_the_composer_duration_carries_its_format_its_default_and_its_source(self):
         from wama.composer.params import PARAMS
         duration = next(p for p in PARAMS if p.name == 'duration')
         self.assertEqual((210, 'duration', {'port': 'work_audio', 'property': 'duration'}),

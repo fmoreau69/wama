@@ -29,7 +29,7 @@ class ATaskIsRatedWholeOrNotAtAllTest(SimpleTestCase):
     statically (the composer's music models) ; the catalogue-wide check is a measure on the real
     base (`PROSPECTION_PIPELINE`, session of 2026-10-03)."""
 
-    def test_every_music_model_the_composer_declares_is_rated(self):
+    def test_every_music_model_of_the_composer_is_rated(self):
         from wama.composer.utils.model_config import COMPOSER_MODELS
         music = {f'composer:{k}' for k, v in COMPOSER_MODELS.items() if v.get('type') == 'music'}
         self.assertEqual(set(), music - set(DECLARED_PRIORS))
