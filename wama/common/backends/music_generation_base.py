@@ -14,6 +14,19 @@ from typing import Callable, Optional
 from .base import BaseModelBackend
 
 
+def tagged_lyrics(prompt: str) -> tuple[str, str]:
+    """(description, paroles) BRUTES : coupe à la première ligne qui ouvre un tag (`[Verse]`…).
+    Sans tag, les paroles sont VIDES — aucune convention de moteur ici (c'est le rôle de
+    `split_caption_lyrics`). Lue aussi par la route du prompt (`app_metadata.process_prompt_for`),
+    qui traduit et enrichit la description seule : les paroles de l'utilisateur ne passent jamais
+    par le LLM (2026-10-04)."""
+    lines = (prompt or '').splitlines()
+    for i, line in enumerate(lines):
+        if line.strip().startswith('['):
+            return '\n'.join(lines[:i]).strip(), '\n'.join(lines[i:]).strip()
+    return (prompt or '').strip(), ''
+
+
 def split_caption_lyrics(prompt: str) -> tuple[str, str]:
     """
     (caption, lyrics) depuis le prompt unique du composer. La convention de la TÂCHE met la
@@ -26,13 +39,10 @@ def split_caption_lyrics(prompt: str) -> tuple[str, str]:
     YuE2 attend la même forme (style + paroles en `[Verse]`/`[Chorus]`), et un second backend
     musical ne doit pas réinventer sa découpe.
     """
-    lines = (prompt or '').splitlines()
-    for i, line in enumerate(lines):
-        if line.strip().startswith('['):
-            caption = '\n'.join(lines[:i]).strip()
-            lyrics = '\n'.join(lines[i:]).strip()
-            return caption or 'A song.', lyrics
-    return (prompt or '').strip() or 'An instrumental piece.', '[instrumental]'
+    caption, lyrics = tagged_lyrics(prompt)
+    if lyrics:
+        return caption or 'A song.', lyrics
+    return caption or 'An instrumental piece.', '[instrumental]'
 
 
 class MusicGenerationBackend(BaseModelBackend):

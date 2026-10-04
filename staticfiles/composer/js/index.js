@@ -90,6 +90,22 @@
     // (Switch « Type » retiré — décision Fabien 2026-07-02 : le type est dérivé du modèle,
     //  la lisibilité vient des optgroups Musique/Bruitages du select.)
 
+    // Le prompt de la modale à DEUX ÉTATS (brique commune `WamaPromptEnrich`, la route de l'imager,
+    // 2026-10-04) : l'enrichi (`data-prompt-processed` du gear) est affiché s'il existe, l'original
+    // reste consultable et récupérable ; ✨ ré-enrichit selon le contrat du modèle choisi.
+    function _wireSettingsPrompt(host, card) {
+        const field = host.querySelector('#settingsPrompt');
+        if (!field || !window.WamaPromptEnrich) return;
+        const v = WamaInspector.gearValues(card, ['prompt', 'prompt_processed']);
+        const original = v.prompt != null ? v.prompt : field.value;
+        const processed = v.prompt_processed || '';
+        field.value = processed || original;
+        WamaPromptEnrich.attach(field, {
+            app: 'composer', domain: 'music', csrf: CSRF, trigger: true,
+            modelSelect: '#settingsModel', original: original, processed: processed,
+        });
+    }
+
     // Estimation (~20s) DANS la modale ⚙ : greffée à côté de la valeur du slider Durée du
     // formulaire GÉNÉRÉ (les champs n'existent qu'à l'ouverture — hook `decorate` du cycle commun).
     function _wireSettingsEstimate(host) {
@@ -164,8 +180,21 @@
             footerTplId: 'composerSettingsFooterTpl',
             saveUrl: WamaApp.getUrl(APP.settingsUrlTemplate, id),
             csrf: CSRF,
-            decorate: function (host) { _wireSettingsEstimate(host); },
-            collect: function (fd, host, data, restart) { fd.append('restart', restart ? '1' : '0'); },
+            decorate: function (host) {
+                _wireSettingsEstimate(host);
+                _wireSettingsPrompt(host, card);
+            },
+            collect: function (fd, host, data, restart) {
+                fd.append('restart', restart ? '1' : '0');
+                // Prompt à DEUX ÉTATS : le texte affiché + son état — `apply_prompt_state` (vue)
+                // l'écrit dans `prompt` (le sien) ou `prompt_processed` (l'enrichi).
+                const p = host.querySelector('#settingsPrompt');
+                const ctrl = p && window.WamaPromptEnrich && WamaPromptEnrich.get(p);
+                if (ctrl) {
+                    fd.set('prompt', p.value);
+                    fd.set('prompt_state', ctrl.snapshot().state);
+                }
+            },
             errorOf: function (resp) { return resp && resp.success ? null : ((resp && resp.error) || 'inconnue'); },
             onSaved: function (gid, restart, resp) {
                 // Re-rend la card serveur (SOURCE UNIQUE du markup) → data-* frais : modale ET

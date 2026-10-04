@@ -159,12 +159,20 @@ def _routed_prompt(gen, ctx) -> str:
     ⚠ Le modèle passé au pipeline est celui de CE LANCEMENT (`_model_key` : le choix, ou le
     tirage d'un « auto ») — 2026-10-04. Le pipeline lisait le champ `model` de la card : sous
     « auto », `auto:text-to-music` ne désigne aucun modèle, donc ni ses langues (traduction par
-    défaut en anglais) ni son CONTRAT de prompt (celui de YuE2 : style + paroles balisées)."""
+    défaut en anglais) ni son CONTRAT de prompt (celui de YuE2 : style + paroles balisées).
+
+    La route de l'imager (2026-10-04) : `effective_prompt` — l'enrichi de l'ingestion
+    (`prompt_processed`, éditable dans la modale) prime sur le texte tapé ; déjà enrichi, il n'est
+    plus que TRADUIT au besoin (pas de seconde passe LLM). Les mots-clés conservés servent de
+    glossaire."""
     if getattr(gen, '_routed_prompt', None) is None:
-        from wama.common.utils.app_metadata import process_prompt_for
-        gen._routed_prompt = process_prompt_for(ctx.app_id, 'prompt', gen.prompt,
-                                                instance=gen, user=gen.user, console=ctx.console,
-                                                model_id=_model_key(gen))
+        from wama.common.utils.app_metadata import effective_prompt, process_prompt_for
+        already = bool((getattr(gen, 'prompt_processed', '') or '').strip())
+        gen._routed_prompt = process_prompt_for(
+            ctx.app_id, 'prompt', effective_prompt(gen, 'prompt'),
+            instance=gen, user=gen.user, console=ctx.console, model_id=_model_key(gen),
+            enrich=False if already else None,
+            glossary=list(getattr(gen, 'prompt_keywords', None) or []) or None)
     return gen._routed_prompt
 
 

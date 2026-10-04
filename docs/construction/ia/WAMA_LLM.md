@@ -56,7 +56,7 @@ et la méta-app.
 | imager | `negative_prompt` | generative | pas d'enrich |
 | anonymizer | `sam3_prompt` | concept | `when={'field': 'target_mode', 'equals': 'description'}` (le mode de l'élément, 2026-09-27) |
 | cam_analyzer | `sam3_markings_prompts` | concept | `when='sam3_markings_enabled'` (corrigé le 2026-09-27 : `use_sam3` n'existe pas sur la session), `domain='transport'`, `list_item_field='prompt'` (liste `{label,prompt}`) |
-| composer | `prompt` | generative | `default_model_type='music'` (MusicGen EN) |
+| composer | `prompt` | generative | `default_model_type='music'` (MusicGen EN), `model='composer.ComposerGeneration'` et `lyrics=True` (2026-10-04 : paroles balisées jamais traduites ni enrichies) |
 | assistant | `message` | intent | `model_id=` dynamique (modèle Ollama résolu) |
 | synthesizer | — | — | **aucun target** : `text_content` = contenu à dire (jamais traduit) |
 
@@ -181,7 +181,29 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
 - **Mots-clés** ([[wama-prompt-chips]]) : `detected_keywords()` les RETROUVE en confrontant le prompt
   à la palette (dérivés, pas transmis) → aucun handler de création à patcher, et ils partent en
   glossaire donc sont préservés verbatim.
-- Adopté par imager (4 champs) ; prêt pour composer et le studio, sans code par app.
+- Adopté par imager (4 champs) et **composer** (2026-10-04 : mixin + migration `0018`, la modale
+  rend le prompt à deux états avec son ✨, la tâche envoie `effective_prompt` sans seconde passe) ;
+  prêt pour le studio, sans code par app.
+- ⚠ **Ce qui se poste depuis la modale = le texte AFFICHÉ + son état** — jamais l'original sous
+  l'état `processed` : `apply_prompt_state` l'écrirait dans l'enrichi. C'est ce que faisait la
+  modale de l'imager du 2026-08-05 au 2026-10-04 (enregistrer une card enrichie remplaçait
+  l'enrichi par le texte tapé). La CRÉATION, elle, poste bien l'original (`addToQueue`).
+
+### Paroles et contrat du modèle visé (2026-10-04)
+
+- **Paroles épargnées** : une cible qui déclare `'lyrics': True` (composer) coupe sa valeur à la
+  première ligne balisée (`[Verse]`, `[Chorus]`… — `tagged_lyrics`, la même découpe que les
+  backends musicaux). Traduction et enrichissement ne voient que la **description** ; les paroles
+  sont recollées **telles quelles**, au lancement (`process_prompt_for`), au ✨ et à l'ingestion
+  (`enrich_prompt_value`). Si le modèle ne déclare pas la langue du profil, la console le dit
+  (aucune détection de langue d'un texte n'existe dans WAMA : la langue supposée est celle du
+  profil, comme pour la description). Des paroles SEULES n'ont rien à enrichir, et c'est dit.
+- **Contrat à l'ingestion** : l'enrichissement à l'ingestion reçoit le contrat du modèle choisi
+  (avant : le skill seul — la forme MusicGen pour une card destinée à YuE2). Sous un « auto » dont
+  un candidat porte un contrat, l'ingestion **s'abstient** : le lancement enrichit avec le
+  contrat du modèle TIRÉ.
+- Les contrats musicaux en découlent : le LLM n'écrit **jamais** de paroles (MiniMax-Music3 et
+  YuE2 : la description seule ; sans paroles fournies, la pièce est instrumentale).
 
 ## PROMPT + SKILLS + RAG + MÉMOIRE — la chaîne complète par surface (état MESURÉ au 2026-08-22)
 
@@ -966,8 +988,8 @@ lancement, anti-double-passe), donc indépendant de la surface qui dépose la ca
    descente bornée (profondeur 4, 1er élément d'une liste de conteneurs = le job le plus
    récent, tri `-id`), et un test appelle désormais le VRAI `get_imager_status`.
    Contre-épreuve mesurée : ancienne version `[]`, nouvelle `['…/rendu.png']`.
-4. ⚠ `PROMPT_TARGETS['composer']` sans clé `'model'` → pas d'enrichissement à l'ingestion
-   (le lancement rattrape — asymétrie non documentée avec imager, sans effet fonctionnel).
+4. ✅ soldé 2026-10-04 : `PROMPT_TARGETS['composer']` nomme son modèle (`PromptScoped` adopté)
+   — l'ingestion enrichit, avec le contrat du modèle choisi (§« Paroles et contrat »).
 5. ✅ corrigé 29/08 : la docstring de `charger_competence` énumérait les domaines en dur
    (sans `investigation`) en contredisant l'annonce du même prompt — l'énumération est
    REMPLACÉE par un renvoi à l'annonce, qui ne peut plus dériver.
