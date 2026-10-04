@@ -333,6 +333,13 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     l'éditeur du transcriber. Elle dépend AUSSI du chantier PIPELINE (`§10.6`, brief « état au
     2026-10-01 ») pour ses deux process. **`§13` devient la décision à prendre en ouverture de
     session** : archétypes déclarés oui/non, et lesquels.
+    - **Données que la page de YuE2 lira — posées le 2026-10-04, sans la page** (Fabien : *« ne
+      faudra-t-il pas prévoir l'édition des paroles via le bouton edit ? partition + paroles »*) :
+      la partition est un résultat de la card (`planned_score` / `extracted_score`, ABC) ; les
+      PAROLES sont un champ de la card (`ComposerGeneration.lyrics`, réglage « Voix »,
+      `WAMA_LLM.md §Paroles et contrat`), éditable dès aujourd'hui dans la modale ⚙ et surveillé
+      par `plan` et `render` — l'éditer périme la partition puis le rendu. La page n'aura donc
+      qu'à MONTRER et ÉDITER ces deux données ; ses gestes réutilisent la péremption existante.
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,

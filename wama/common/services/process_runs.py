@@ -220,6 +220,21 @@ def safely(writer, *args, **kwargs):
 
 # ── Péremption (point 4.3) ───────────────────────────────────────────────────────────────────
 
+def _watched_changed(taken: dict, now: dict) -> bool:
+    """Un réglage surveillé a-t-il changé entre la photo du lancement et aujourd'hui ?
+
+    On compare les réglages surveillés AUX DEUX dates : un réglage ajouté à `watched` après le
+    lancement (ou retiré) ne périme rien — il n'a pas changé, c'est la surveillance qui a changé.
+    Sans cela, ajouter un réglage surveillé périmait d'un coup TOUTES les cards déjà rendues de
+    l'app (2026-10-04 : la voix et les paroles du composer). Les clés en `@` (empreintes d'amont,
+    `process_pipeline.UPSTREAM_KEY`) ne sont pas des réglages : elles se comparent toujours. Une
+    photo VIDE (ligne d'avant les photos) garde la règle d'origine."""
+    if not taken:
+        return taken != now
+    keys = (set(taken) & set(now)) | {k for k in set(taken) | set(now) if k.startswith('@')}
+    return any(taken.get(k) != now.get(k) for k in keys)
+
+
 def stale_nodes(states: dict, depends_on: dict, snapshots: dict | None = None,
                 current: dict | None = None) -> set:
     """Nœuds à passer `STALE`, parmi ceux qui sont en `SUCCESS`.
@@ -239,7 +254,8 @@ def stale_nodes(states: dict, depends_on: dict, snapshots: dict | None = None,
     live = dict(states)
     stale = set()
     for node, state in live.items():
-        if state == JOB_SUCCESS and node in current and current[node] != (snapshots.get(node) or {}):
+        if state == JOB_SUCCESS and node in current and _watched_changed(snapshots.get(node) or {},
+                                                                        current[node]):
             stale.add(node)
             live[node] = JOB_STALE
     changed = True
