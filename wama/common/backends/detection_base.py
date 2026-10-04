@@ -40,3 +40,12 @@ class DetectionBackend(BaseModelBackend):
         délégation via `self.load(...)` qui garantit que TOUS les chemins traversent l'enveloppe.
         """
         return self.load(*args, **kwargs)
+
+    def process(self, **kwargs):
+        """Le point d'entrée métier du contrat commun : pour un détecteur, la DÉTECTION — un
+        document `detections` (`common/utils/detections.py`). Depuis le 2026-10-04 les deux
+        moteurs ne floutent plus : le floutage se joue depuis le document, sans modèle."""
+        return self.detect(**kwargs)
+
+    def detect(self, **kwargs) -> dict:
+        raise NotImplementedError

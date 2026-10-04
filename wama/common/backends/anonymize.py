@@ -4,16 +4,12 @@ import cv2
 import torch
 import numpy as np
 
-from tqdm import tqdm
 from pathlib import Path
 
-from wama.common.utils.blur_utils import blur_detection, blur_segmentation, normalize_blur_ratio
-from wama.common.utils.video_utils import copy_audio_to_video
 from ultralytics import YOLO, settings
 from ultralytics.utils import MACOS, WINDOWS
 
 from .detection_base import DetectionBackend
-from wama.common.utils.video_utils import is_image
 from wama.settings import MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
 
 
@@ -286,614 +282,128 @@ class Anonymize(DetectionBackend):
         # e.g., "yolov8n-seg" -> "yolov8n-seg", "yolov8m" -> "yolov8m"
         return name.lower()
 
-    def process(self, **kwargs):
-        if not self.model:
-            print('❌ No model is loaded')
-            return
+    def detect(self, **kwargs) -> dict:
+        """Le process « DÉTECTION » (2026-10-04) : les objets des classes demandées, frame par
+        frame, TOUS MODÈLES RÉUNIS — rendus en document `detections` (`common/utils/detections`),
+        que le process « Floutage » relit. Rien n'est flouté, rien n'est écrit ici.
 
-        self.input_path = kwargs.get('media_path', self.input_path or self.source)
+        Une passe par modèle sur la même source, en FLUX (`stream=True`) : aucune frame n'est
+        gardée en mémoire — l'ancienne passe unique gardait la vidéo entière pour la flouter
+        ensuite. Chaque modèle ne détecte QUE les classes qui lui ont été confiées, selon SON
+        vocabulaire (les index de classe diffèrent d'un jeu de poids à l'autre).
 
-        # Get model suffix for output filename
-        model_suffix = self._get_model_suffix()
-
-        # Folder
-        if os.path.isdir(self.input_path):
-            for media in os.listdir(self.input_path):
-                media_path = os.path.join(self.input_path, media)
-                self.input_path = media_path
-                # Brique COMMUNE de nommage (2026-08-25) : `<stem>_<process>_<modèle><ext>`.
-                # Rendu IDENTIQUE à la graphie historique — le mot `blurred` est désormais
-                # DÉCLARÉ (`output_tag`) au lieu d'être écrit ici, donc changeable en un point.
-                from wama.common.utils.output_naming import compose_output_name
-                self.output_path = os.path.join(
-                    self.destination,
-                    compose_output_name(app='anonymizer', model=model_suffix, source_name=media),
-                )
-
-                if is_image(media_path):
-                    self.process_image(media_path, self.output_path, **kwargs)
-                else:
-                    self.setup_source(**kwargs)
-                    self.apply_process(**kwargs)
-        # TODO: File list
-        # File
-        else:
-            # `item_id` (2026-09-27) : l'identifiant de la card entre dans le nom. Sans lui,
-            # deux cards DUPLIQUÉES — qui partagent leur fichier d'entrée par contrat —
-            # écrivaient la MÊME sortie : la dernière lancée écrasait les autres, et toutes
-            # affichaient son résultat (« changer le flou ne change rien »). C'est le cas que
-            # la brique prévoit (`item_id`, famille FICHIER) ; l'anonymizer ne le lui passait pas.
-            from wama.common.utils.output_naming import compose_output_name
-            self.output_path = os.path.join(
-                self.destination,
-                compose_output_name(app='anonymizer', model=model_suffix,
-                                    source_name=self.input_path,
-                                    item_id=kwargs.get('item_id')),
-            )
-
-            if is_image(self.input_path):
-                self.process_image(self.input_path, self.output_path, **kwargs)
-            else:
-                self.setup_source(**kwargs)
-                self.apply_process(**kwargs)
-
-
-    def process_image(self, input_path, output_path, **kwargs):
-        img = cv2.imread(input_path)
-        if img is None:
-            print(f"❌ Could not load image: {input_path}")
-            return
-
+        kwargs : `media_path`, `classes2blur`, `detection_threshold`, `on_frame(i, image,
+        détections)` (aperçu « pendant », limité par la tâche), `progress(faites, total)`.
+        """
+        from wama.common.utils import detections as dets
+        from wama.common.utils.video_utils import is_image
+        if not self.models:
+            raise RuntimeError("Aucun modèle de détection chargé.")
+        source = kwargs.get('media_path') or self.input_path
+        self.input_path = source
         self.classes2blur = kwargs.get('classes2blur', self.classes2blur)
-        classes2blur_lower = [c.lower() for c in self.classes2blur]
+        wanted = [c.lower() for c in self.classes2blur]
+        threshold = float(kwargs.get('detection_threshold', self.conf))
+        on_frame, progress = kwargs.get('on_frame'), kwargs.get('progress')
 
-        # UNE prédiction par modèle sur LA MÊME image — même principe que la vidéo. Sans cette
-        # boucle, une image traitée en multi-modèles n'aurait été vue que par le premier modèle
-        # (les plaques floutées, les visages non, ou l'inverse).
-        self._resultats_par_modele = []
-        for entree in self.models:
-            voulues = entree['classes'] or classes2blur_lower
-            indices = self._indices_classes(entree['class_list'], voulues)
-            if not indices:
-                print(f"[Detection] {entree['name']} : aucune classe demandée en commun "
-                      f"({voulues}) — modèle ignoré pour cette image")
-                self._resultats_par_modele.append([])
-                continue
-            entree['indices'] = indices
-
-            def _predire(dev, _e=entree, _idx=indices):
-                return _e['yolo'].predict(
-                    source=img, task=self.task, device=dev, retina_masks=self.ret_mask,
-                    imgsz=max(img.shape[:2]), conf=kwargs.get('detection_threshold', self.conf),
-                    classes=_idx, verbose=False,
-                )
-
-            # Ici le repli CPU EST légitime : une image, c'est quelques secondes. Sur la vidéo
-            # (apply_process) il est volontairement absent — il durerait des heures.
-            self._resultats_par_modele.append(self._reessayer(
-                lambda: _predire(self.device),
-                replier_sur_cpu=lambda: _predire('cpu'),
-            ))
-
-        if any(self._resultats_par_modele):
-            self.results = next(r for r in self._resultats_par_modele if r)
-            self.plotted_img = self.results[0].plot(boxes=False, conf=False, labels=False)
-            self.blur_results(**kwargs)
+        image_mode = is_image(source)
+        if image_mode:
+            image = cv2.imread(source)
+            if image is None:
+                raise RuntimeError(f"Image illisible : {os.path.basename(source)}")
+            height, width = image.shape[:2]
+            fps, total = 0.0, 1
         else:
-            print("No detections found.")
-            cv2.imwrite(output_path, img)
+            capture = cv2.VideoCapture(source)
+            fps = capture.get(cv2.CAP_PROP_FPS) or 25.0
+            width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+            capture.release()
 
+        doc = dets.new_document(
+            media='image' if image_mode else 'video', width=width, height=height, fps=fps,
+            frame_count=total, engine='yolo', models=[m['name'] for m in self.models],
+            classes=wanted)
+        doc['tag'] = self._get_model_suffix()
 
-    def setup_source(self, **kwargs):
-        print(f'Setting up media: {self.input_path}')
-        cap = cv2.VideoCapture(self.input_path)
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        cap.release()
-
-        # Use a lossless/high-quality intermediate codec to preserve quality
-        # We'll re-encode with FFmpeg later to match input codec
-        suffix = '.avi'
-        # Use FFV1 (lossless) or MJPEG (high quality) for intermediate file
-        # FFV1 requires ffmpeg, so we use MJPEG which is widely supported
-        fourcc = 'MJPG'  # Motion JPEG - high quality, widely supported
-
-        save_path = str(Path(self.output_path).with_suffix(suffix))
-        self.temp_video_path = save_path  # Store temp video path for later use
-        self.meta_data = {'fps': fps, 'size': (width, height)}
-
-        # Try to create video writer with high quality settings
-        self.vid_writer = cv2.VideoWriter(
-            save_path,
-            cv2.VideoWriter_fourcc(*fourcc),
-            fps,
-            (width, height),
-            True  # isColor
-        )
-
-        if not self.vid_writer.isOpened():
-            # Fallback to mp4v if MJPEG fails
-            print("Warning: MJPEG codec not available, using mp4v")
-            suffix = '.mp4'
-            fourcc = 'mp4v'
-            save_path = str(Path(self.output_path).with_suffix(suffix))
-            self.temp_video_path = save_path  # Update temp path
-            self.vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*fourcc), fps, (width, height))
-
-    def apply_process(self, **kwargs):
-        self.classes2blur = kwargs.get('classes2blur', self.classes2blur)
-
-        # Normalize classes to lowercase for case-insensitive matching
-        classes2blur_lower = [c.lower() for c in self.classes2blur]
-        # Debug ALIAS-AWARE : l'ancien check comparait les libellés BRUTS ('plate' vs
-        # 'License_Plate') et hurlait « Blurring will not work » alors que l'appariement
-        # par MODÈLE (plus bas, _indices_classes) réussissait — fausse alerte qui a fait
-        # croire à un floutage à vide (constat Fabien, media 225, 2026-08-17).
-        classes2blur_by_index = self._indices_classes(self.class_list, self.classes2blur)
-        matched_classes = [self.class_list[i] for i in classes2blur_by_index]
-
-        print(f'[Detection] Classes requested: {self.classes2blur}')
-        print(f'[Detection] Classes found in model (alias compris): {matched_classes}')
-        if not classes2blur_by_index:
-            print(f"[Detection] NOTE: aucune classe commune avec le modèle PRINCIPAL "
-                  f"({self.class_list[:10]}…) — l'appariement PAR MODÈLE ci-dessous fait foi.")
-
-        source = kwargs.get('media_path', self.input_path)
-        imgsz = self.meta_data['size'][0] if 'size' in self.meta_data else self.meta_data['shape'][0]
-
-        # UNE PASSE PAR MODÈLE sur la MÊME source. Chaque passe garde ses frames en mémoire
-        # (ultralytics `track` sans `stream`), donc le floutage qui suit ne redécode rien : on
-        # reste à N décodages pour N modèles, contre N+1 dans la chaîne Celery qu'on remplace
-        # — et surtout sans aucun transport des masques par Redis.
-        self._resultats_par_modele = []
-        for entree in self.models:
-            # Chaque modèle ne détecte QUE les classes qui lui ont été confiées, et selon SON
-            # propre vocabulaire : les index de classe diffèrent d'un jeu de poids à l'autre.
-            voulues = entree['classes'] or classes2blur_lower
+        passes = []
+        for rang, entree in enumerate(self.models):
+            voulues = entree['classes'] or wanted
             indices = self._indices_classes(entree['class_list'], voulues)
             if not indices:
                 print(f"[Detection] {entree['name']} : aucune classe demandée en commun "
                       f"({voulues}) — modèle ignoré pour ce média")
-                self._resultats_par_modele.append([])
                 continue
             entree['indices'] = indices
-            # Seul le PREMIER modèle hérite des options d'affichage/sauvegarde : les rejouer
-            # pour chaque modèle ouvrirait N fenêtres et écrirait N fois les mêmes artefacts.
-            premier = entree is self.models[0]
+            passes.append((rang, entree, indices))
 
-            def _suivre(_e=entree, _p=premier, _idx=indices):
+        for n, (rang, entree, indices) in enumerate(passes):
+            def _results(dev, _e=entree, _idx=indices):
+                if image_mode:
+                    return _e['yolo'].predict(
+                        source=image, task=self.task, device=dev, retina_masks=self.ret_mask,
+                        imgsz=max(image.shape[:2]), conf=threshold, classes=_idx, verbose=False)
                 return _e['yolo'].track(
-                    source=source, task=self.task, mode=self.mode, device=self.device,
-                    retina_masks=self.ret_mask, imgsz=imgsz,
-                    classes=_idx, conf=kwargs.get('detection_threshold', self.conf),
-                    save=self.save if _p else False,
-                    save_txt=self.save_txt if _p else False,
-                    show=kwargs.get('show_preview', self.show) if _p else False,
-                    boxes=kwargs.get('show_boxes', self.boxes) if _p else False,
-                    show_labels=kwargs.get('show_labels', self.show_labels) if _p else False,
-                    show_conf=kwargs.get('show_conf', self.show_conf) if _p else False,
-                )
+                    source=source, task=self.task, device=dev, retina_masks=self.ret_mask,
+                    imgsz=width, classes=_idx, conf=threshold, stream=True, verbose=False)
 
-            # Erreur CUDA → libérer la VRAM des AUTRES modèles du process, puis réessayer.
-            # PAS de repli CPU ici : sur une vidéo il durerait des heures et donnerait
-            # l'illusion d'un blocage. Un échec net remonte en FAILURE avec son message.
-            self._resultats_par_modele.append(
-                self._reessayer(_suivre, replier_sur_cpu=None))
+            def _pass(dev, _rang=rang, _e=entree, _n=n):
+                # Collectées À PART puis réunies au document : une passe REJOUÉE après une
+                # erreur CUDA (`_reessayer`) n'ajoute pas deux fois ses détections.
+                local = []
+                for index, result in enumerate(_results(dev)):
+                    found = list(self._frame_detections(_rang, _e, result, wanted, threshold))
+                    if found:
+                        local.append((index, found))
+                    if on_frame:
+                        earlier = doc.get('_index', {}).get(index)
+                        shown = (doc['frames'][earlier]['d'] if earlier is not None else []) + found
+                        on_frame(index, result.orig_img, shown)
+                    if progress:
+                        done = _n * max(total, 1) + index + 1
+                        progress(done, len(passes) * max(total, 1))
+                return local
 
-        # Compat : tout le code historique lit `self.results` (frames du 1er modèle).
-        self.results = next((r for r in self._resultats_par_modele if r), [])
-        # Blur detections
-        if self.classes2blur:
-            self.blur_results(**kwargs)
-            if self.vid_writer:
-                self.vid_writer.release()
-                # Use the temp video path (e.g., .avi) that was actually created
-                self.copy_audio(self.temp_video_path)
-            print(f'✅ Process complete for media: {self.input_path}')
-        # if cv2.waitKey(1) & 0xFF == ord('q'):
-        #     break
-        # cv2.waitKey(0)
-        # print(results[0].boxes.data)
+            # Repli CPU sur une IMAGE seulement (quelques secondes) ; sur une vidéo il durerait
+            # des heures et donnerait l'illusion d'un blocage — l'échec remonte, dit.
+            found_frames = self._reessayer(
+                lambda: _pass(self.device),
+                replier_sur_cpu=(lambda: _pass('cpu')) if image_mode else None)
+            for index, found in found_frames:
+                dets.add(doc, index, found)
+        print(f"[Detection] {dets.count(doc)} détection(s) sur {len(doc['frames'])} frame(s)")
+        return doc
 
-    def validate_bbox(self, bbox, img_shape):
-        """
-        Validate and clamp bounding box to image boundaries.
-
-        Args:
-            bbox: Bounding box [x1, y1, x2, y2]
-            img_shape: Image shape (height, width, channels)
-
-        Returns:
-            Valid bbox [x1, y1, x2, y2] or None if invalid
-        """
-        if bbox is None or len(bbox) < 4:
-            return None
-
-        height, width = img_shape[:2]
-
-        # Clamp coordinates to image boundaries
-        x1 = max(0, min(bbox[0], width))
-        y1 = max(0, min(bbox[1], height))
-        x2 = max(0, min(bbox[2], width))
-        y2 = max(0, min(bbox[3], height))
-
-        # Ensure x2 > x1 and y2 > y1 (positive dimensions)
-        if x2 <= x1 or y2 <= y1:
-            return None
-
-        # Ensure minimum size (at least 5x5 pixels)
-        if (x2 - x1) < 5 or (y2 - y1) < 5:
-            return None
-
-        return [x1, y1, x2, y2]
-
-    def interpolate_bbox(self, bbox1, bbox2, ratio):
-        """
-        Linear interpolation between two bounding boxes.
-
-        Args:
-            bbox1: First bbox [x1, y1, x2, y2]
-            bbox2: Second bbox [x1, y1, x2, y2]
-            ratio: Interpolation ratio (0 = bbox1, 1 = bbox2)
-
-        Returns:
-            Interpolated bbox [x1, y1, x2, y2]
-        """
-        return [
-            bbox1[0] + (bbox2[0] - bbox1[0]) * ratio,
-            bbox1[1] + (bbox2[1] - bbox1[1]) * ratio,
-            bbox1[2] + (bbox2[2] - bbox1[2]) * ratio,
-            bbox1[3] + (bbox2[3] - bbox1[3]) * ratio,
-        ]
-
-    def get_interpolated_detections(self, frame_idx, track_id):
-        """
-        Get interpolated or extrapolated detection for a missing frame.
-
-        Args:
-            frame_idx: Current frame index
-            track_id: ID of the tracked object
-
-        Returns:
-            (bbox, label) if interpolation is possible, None otherwise
-        """
-        if track_id not in self.detection_buffer:
-            return None
-
-        detections = self.detection_buffer[track_id]
-        if len(detections) < 2:
-            return None
-
-        # Find the two nearest detections (before and after current frame)
-        before = None
-        after = None
-
-        for det_frame, bbox, label in detections:
-            if det_frame < frame_idx:
-                if before is None or det_frame > before[0]:
-                    before = (det_frame, bbox, label)
-            elif det_frame > frame_idx:
-                if after is None or det_frame < after[0]:
-                    after = (det_frame, bbox, label)
-
-        # Interpolation: we have detections before AND after
-        if before and after:
-            before_frame, before_bbox, before_label = before
-            after_frame, after_bbox, after_label = after
-
-            # Check if gap is not too large
-            gap = after_frame - before_frame
-            if gap > self.max_interpolation_frames * 2:
-                return None
-
-            # Linear interpolation
-            ratio = (frame_idx - before_frame) / gap
-            interpolated_bbox = self.interpolate_bbox(before_bbox, after_bbox, ratio)
-            return (interpolated_bbox, before_label)
-
-        # Extrapolation: we only have detections before (forward extrapolation)
-        elif before and not after:
-            before_frame, before_bbox, before_label = before
-            gap = frame_idx - before_frame
-
-            # Only extrapolate for a limited number of frames
-            if gap > self.max_interpolation_frames:
-                return None
-
-            # If we have at least 2 previous detections, use velocity estimation
-            if len(detections) >= 2:
-                # Get the two most recent detections
-                sorted_dets = sorted(detections, key=lambda x: x[0], reverse=True)
-                latest = sorted_dets[0]
-                previous = sorted_dets[1]
-
-                latest_frame, latest_bbox, _ = latest
-                prev_frame, prev_bbox, _ = previous
-
-                # Estimate velocity
-                frame_diff = latest_frame - prev_frame
-                if frame_diff > 0 and frame_diff <= self.max_interpolation_frames:
-                    velocity = [
-                        (latest_bbox[i] - prev_bbox[i]) / frame_diff
-                        for i in range(4)
-                    ]
-
-                    # Extrapolate using constant velocity
-                    extrapolated_bbox = [
-                        before_bbox[i] + velocity[i] * gap
-                        for i in range(4)
-                    ]
-                    return (extrapolated_bbox, before_label)
-
-            # Fallback: use last known position
-            return (before_bbox, before_label)
-
-        return None
-
-    def _par_frame(self):
-        """
-        Itère les frames en donnant, pour chacune, le résultat de CHAQUE modèle.
-
-        Rend `(frame_idx, resultat_principal, [(rang, entree_modele, resultat), …])`.
-        `resultat_principal` porte l'image (tous les modèles ont vu la même frame).
-
-        `zip` s'arrête au plus court : si deux passes rendaient un nombre de frames différent
-        (source illisible en cours de route), on floute ce qu'on peut plutôt que d'exploser.
-        """
-        listes = [r for r in (self._resultats_par_modele or []) if r]
-        if not listes:
-            listes = [self.results or []]
-        entrees = [e for e, r in zip(self.models, self._resultats_par_modele or []) if r] \
-            or self.models or [{'name': 'modele', 'seg': self._is_segmentation_model,
-                                'classes': None}]
-        for idx, groupe in enumerate(zip(*listes)):
-            yield idx, groupe[0], [(rang, entrees[rang], res) for rang, res in enumerate(groupe)]
-
-    def _detections_retenues(self, entree, result, classes2blur, detection_threshold):
-        """Détections de CE modèle sur CETTE frame qui doivent être floutées.
-
-        Rend `(indice, boite, label, masque_ou_None)`. Le masque n'est lu que si le modèle
-        segmente : un détecteur n'en produit pas, et `result.masks` y vaut None."""
+    def _frame_detections(self, rang, entree, result, classes, threshold):
+        """Détections de CE modèle sur CETTE frame, au format du document : classe demandée
+        (alias compris — le modèle rend `License_Plate` là où la demande dit `plate`), au-dessus
+        du seuil ; contour en polygones quand le modèle segmente ; piste préfixée du rang du
+        modèle (deux modèles numérotent leurs pistes indépendamment : sans préfixe, la piste 1
+        des visages et la piste 1 des plaques se confondraient à l'interpolation)."""
+        from wama.common.services.model_coverage import formes_equivalentes, normaliser_classe
+        from wama.common.utils import detections as dets
         if not result.boxes:
             return
-        from wama.common.services.model_coverage import (
-            formes_equivalentes, normaliser_classe,
-        )
-        voulues = entree.get('classes') or classes2blur
-        # Mêmes alias qu'à la sélection des index : le modèle rend `License_Plate` là où la
-        # demande dit `plate`. Comparer les libellés bruts rejetterait toutes ses détections
-        # APRÈS les avoir calculées — le pire des deux mondes.
         acceptees = set()
-        for v in (voulues or []):
+        for v in (entree.get('classes') or classes or []):
             acceptees |= formes_equivalentes(v)
-        avec_masques = (entree.get('seg') and getattr(result, 'masks', None) is not None)
+        contours = None
+        if entree.get('seg') and getattr(result, 'masks', None) is not None:
+            contours = result.masks.xy
         for i, d in enumerate(result.boxes):
             label = result.names[int(d.cls)]
-            if normaliser_classe(label) not in acceptees or float(d.conf) < detection_threshold:
+            confidence = float(d.conf)
+            if normaliser_classe(label) not in acceptees or confidence < threshold:
                 continue
-            masque = None
-            if avec_masques and i < len(result.masks.data):
-                masque = (result.masks.data[i].cpu().numpy() * 255).astype(np.uint8)
-            yield i, d, label, masque
-
-    def collect_all_detections(self, classes2blur, detection_threshold, use_segmentation):
-        """
-        PASS 1: Collect all detections from all frames, TOUS MODÈLES CONFONDUS.
-
-        Returns:
-            dict: {track_id: [(frame_idx, bbox, label, mask), ...]}
-
-        ⚠ Le `track_id` est PRÉFIXÉ DU RANG DU MODÈLE. Deux modèles numérotent leurs pistes
-        indépendamment : sans préfixe, la piste 1 du détecteur de visages et la piste 1 du
-        détecteur de plaques fusionneraient, et l'interpolation ferait glisser un floutage
-        d'un visage vers une plaque à l'autre bout de l'image.
-        """
-        detection_buffer = {}
-        print("[Interpolation] Pass 1/2: Collecting all detections...")
-
-        for frame_idx, _principal, par_modele in self._par_frame():
-            if not classes2blur:
-                continue
-            for rang, entree, result in par_modele:
-                for i, d, label, masque in self._detections_retenues(
-                        entree, result, classes2blur, detection_threshold):
-                    brut = int(d.id) if getattr(d, 'id', None) is not None else f"det_{i}"
-                    track_id = f"m{rang}:{brut}"
-                    detection_buffer.setdefault(track_id, []).append(
-                        (frame_idx, d.xyxy[0].cpu().numpy().tolist(), label, masque))
-
-        return detection_buffer
-
-    def fill_detection_gaps(self, detection_buffer, max_gap):
-        """
-        Identify gaps in detections and fill them with interpolated positions.
-        Only interpolates BETWEEN two known detections, never extrapolates.
-
-        Args:
-            detection_buffer: {track_id: [(frame_idx, bbox, label, mask), ...]}
-            max_gap: Maximum gap size to interpolate (in frames)
-
-        Returns:
-            dict: {frame_idx: {track_id: (bbox, label)}}
-        """
-        interpolated_detections = {}
-
-        print(f"[Interpolation] Pass 2/2: Filling detection gaps (max gap: {max_gap} frames)...")
-
-        for track_id, detections in detection_buffer.items():
-            if len(detections) < 2:
-                # Need at least 2 detections to interpolate
-                continue
-
-            # Sort by frame index
-            detections.sort(key=lambda x: x[0])
-
-            # Check for gaps between consecutive detections
-            for i in range(len(detections) - 1):
-                frame_start, bbox_start, label_start, _ = detections[i]
-                frame_end, bbox_end, label_end, _ = detections[i + 1]
-
-                gap = frame_end - frame_start - 1
-
-                if gap > 0 and gap <= max_gap:
-                    # Interpolate between these two detections
-                    print(f"[Interpolation] Track {track_id}: filling {gap} frames between frame {frame_start} and {frame_end}")
-
-                    for frame_idx in range(frame_start + 1, frame_end):
-                        # Linear interpolation
-                        ratio = (frame_idx - frame_start) / (frame_end - frame_start)
-                        interpolated_bbox = self.interpolate_bbox(bbox_start, bbox_end, ratio)
-
-                        # Store interpolated detection
-                        if frame_idx not in interpolated_detections:
-                            interpolated_detections[frame_idx] = {}
-                        interpolated_detections[frame_idx][track_id] = (interpolated_bbox, label_start)
-
-        return interpolated_detections
-
-    def blur_results(self, **kwargs):
-
-        # Settings
-        plot_args = {'line_width': None, 'boxes': False, 'conf': False, 'labels': False}
-        classes2blur = kwargs.get('classes2blur', self.classes2blur)
-        # Normalize to lowercase for case-insensitive matching
-        classes2blur_lower = [c.lower() for c in classes2blur]
-        blur_ratio = normalize_blur_ratio(kwargs.get('blur_ratio', self.blur_ratio))
-        rounded_edges = int(kwargs.get('rounded_edges', self.rounded_edges))  # Rounding corners
-        progressive_blur = int(kwargs.get('progressive_blur', self.progressive_blur))  # Progressive contours
-        roi_enlargement = kwargs.get('ROI_enlargement', self.ROI_enlargement)  # Enlarging the blurred area
-        detection_threshold = kwargs.get('detection_threshold', self.conf)  # Object detection threshold
-        interpolate_detections = kwargs.get('interpolate_detections', self.interpolate_detections)
-        # Aperçu « PENDANT » (hook déclaratif posé par la TÂCHE — la classe ne connaît ni pk ni
-        # URLs) : callback(frame_idx, im0_floutée) appelé après chaque frame, throttlé côté tâche.
-        on_frame = kwargs.get('on_frame')
-
-        # Calculate max interpolation frames based on FPS (0.5 seconds max)
-        fps = self.meta_data.get('fps', 30) if isinstance(self.meta_data, dict) else 30
-        max_interpolation_time = 0.5  # seconds
-        calculated_max_frames = int(fps * max_interpolation_time)
-
-        # Use the smaller of: user setting or calculated limit (0.5s)
-        user_max_frames = kwargs.get('max_interpolation_frames', self.max_interpolation_frames)
-        max_gap = min(user_max_frames, calculated_max_frames)
-
-        print(f"[Interpolation] FPS: {fps}, Max gap to fill: {max_gap} frames ({max_gap/fps:.2f}s)")
-
-        # Check if we're using segmentation
-        use_segmentation = self._is_segmentation_model if hasattr(self, '_is_segmentation_model') else False
-
-        # TWO-PASS APPROACH for interpolation
-        interpolated_detections = {}
-        if interpolate_detections:
-            # PASS 1: Collect all detections (use lowercase for matching)
-            detection_buffer = self.collect_all_detections(classes2blur_lower, detection_threshold, use_segmentation)
-
-            # PASS 2: Fill gaps with interpolation
-            interpolated_detections = self.fill_detection_gaps(detection_buffer, max_gap)
-
-            print(f"[Interpolation] Generated {sum(len(v) for v in interpolated_detections.values())} interpolated detections across {len(interpolated_detections)} frames")
-
-        # MAIN BLURRING LOOP — UNE passe, TOUS les modèles réunis par frame.
-        # L'union des zones se fait ici, en mémoire, sur la frame courante : c'est ce qui
-        # remplace la fusion via Redis de l'ancien chemin multi-modèles.
-        for frame_idx, principal, par_modele in tqdm(
-                self._par_frame(), desc='Blurring media', unit='frames', dynamic_ncols=True):
-            # On part TOUJOURS de l'image d'origine. `plot()` était utilisé pour les modèles de
-            # détection, mais `plot_args` désactive boîtes, libellés et confiance : il rendait
-            # donc déjà l'image nue. En multi-modèles il aurait en plus dessiné les masques
-            # colorés du premier modèle segmentant par-dessus la vidéo finale.
-            im0 = principal.orig_img.copy()
-
-            if classes2blur:
-                for _rang, entree, result in par_modele:
-                    for _i, d, label, masque in self._detections_retenues(
-                            entree, result, classes2blur_lower, detection_threshold):
-                        if masque is not None:
-                            im0 = blur_segmentation(im0, masque, blur_ratio, progressive_blur)
-                        else:
-                            im0 = blur_detection(
-                                im0, d.xyxy[0], label, blur_ratio,
-                                rounded_edges, progressive_blur, roi_enlargement,
-                            )
-
-            # Apply ONLY pre-calculated interpolated detections for this frame
-            if interpolate_detections and frame_idx in interpolated_detections:
-                for track_id, (bbox, label) in interpolated_detections[frame_idx].items():
-                    # Validate bbox before blurring
-                    validated_bbox = self.validate_bbox(bbox, im0.shape)
-                    if validated_bbox is None:
-                        continue  # Skip invalid bbox
-
-                    # Blur the interpolated detection
-                    try:
-                        im0 = blur_detection(
-                            im0,
-                            validated_bbox,
-                            label,
-                            blur_ratio,
-                            rounded_edges,
-                            progressive_blur,
-                            roi_enlargement
-                        )
-                    except Exception as e:
-                        print(f"[Interpolation] Error blurring interpolated bbox at frame {frame_idx}: {e}")
-                        continue
-
-            self.plotted_img = im0
-            if on_frame:
-                try:
-                    on_frame(frame_idx, im0)
-                except Exception:
-                    pass  # best-effort : un tick d'aperçu raté n'arrête pas le floutage
-            self.write_media()
-
-    def write_media(self):
-        if not isinstance(self.meta_data, dict):
-            self.meta_data = {}
-
-        if 'fps' not in self.meta_data:
-            self.meta_data['fps'] = 1
-            # Save image with high quality
-            # For JPEG: quality 95 (default is 95, max is 100)
-            # For PNG: compression level 3 (default is 3, 0=no compression, 9=max compression)
-            ext = os.path.splitext(self.output_path)[1].lower()
-            if ext in ['.jpg', '.jpeg']:
-                cv2.imwrite(self.output_path, self.plotted_img, [cv2.IMWRITE_JPEG_QUALITY, 95])
-            elif ext == '.png':
-                cv2.imwrite(self.output_path, self.plotted_img, [cv2.IMWRITE_PNG_COMPRESSION, 3])
-            else:
-                cv2.imwrite(self.output_path, self.plotted_img)
-        else:
-            self.vid_writer.write(self.plotted_img)
-
-    def copy_audio(self, temp_video_path):
-        """
-        Copy audio from original video to processed video.
-        Converts intermediate format (.avi) to final .mp4 format.
-        """
-        print(f"[copy_audio] Input video: {self.input_path}")
-        print(f"[copy_audio] Temp video (intermediate): {temp_video_path}")
-        print(f"[copy_audio] Temp video exists: {os.path.exists(temp_video_path)}")
-
-        # Final output should always be .mp4
-        final_output_path = os.path.splitext(self.output_path)[0] + '.mp4'
-        print(f"[copy_audio] Final output path: {final_output_path}")
-
-        copy_audio_to_video(self.input_path, temp_video_path, final_output_path)
-        # Le chemin RÉELLEMENT écrit (toujours .mp4) : c'est lui que la tâche enregistre.
-        self.output_path = final_output_path
+            polygons = None
+            if contours is not None and i < len(contours):
+                polygons = dets.points_to_polygons(contours[i]) or None
+            raw = getattr(d, 'id', None)
+            track = f"m{rang}:{int(raw)}" if raw is not None else None
+            yield dets.detection(box=d.xyxy[0].cpu().numpy().tolist(), label=label,
+                                 conf=confidence, track=track, polygons=polygons)
 
 
 def stop_process():
     print('Process stopped')
-    exit()
-
-
-if __name__ == '__main__':
-    print('CUDA available:', torch.cuda.is_available())
-    torch.cuda.empty_cache()
-    gc.collect()
-    model = Anonymize()
-    model.load_model()
-    model.process()

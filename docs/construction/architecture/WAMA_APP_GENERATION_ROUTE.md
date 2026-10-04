@@ -3789,10 +3789,49 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   - ⏳ Restes : dans la modale ⚙ « Sortie », l'imager et l'anonymizer montrent encore des
 >     champs hors périmètre (consigne et taille ; classes) — ce sont des champs que l'app pose
 >     hors schéma (✅ soldé le 04/10 : une modale à portée ne rend que le schéma, `§11 #38`) ;
->     CodeFormer de l'avatarizer est séparé (✅ 04/10, ci-dessus) ; **détection → floutage de
->     l'anonymizer reste dans son process moteur** : les séparer demande de PERSISTER les
->     détections image par image (un format à choisir, le cœur du moteur à réécrire) — chantier
->     à décider, pas un reste de portage.
+>     CodeFormer de l'avatarizer est séparé (✅ 04/10, ci-dessus) ; ✅ **détection et floutage de
+>     l'anonymizer séparés le 2026-10-04** (décision de Fabien, ci-dessous).
+> - ✅ **ANONYMIZER — « Détection » → « Floutage » → « Sortie » (2026-10-04, décision de
+>   Fabien : « on sépare détection/segmentation et floutage… et ça nous permettra de faire un
+>   switch en during_preview entre détection et floutage »).**
+>   - **Le format n'est pas neuf** : c'est le type de donnée commun `detections` (glu
+>     inter-mondes, `catalog/data_types`), écrit sur disque par la brique
+>     `common/utils/detections.py` — JSON, une ligne par frame qui a des détections (boîte,
+>     contour en polygones quand le modèle segmente, piste préfixée du rang du modèle). Champ
+>     fichier de la card `detections_file` (migration 0033 additive, `db_default`), vidé à la
+>     duplication, libéré au retrait comme la sortie.
+>   - **Les moteurs DÉTECTENT** : `Anonymize.detect` (YOLO, une passe par modèle EN FLUX — la
+>     passe unique d'avant gardait toute la vidéo en mémoire pour la flouter ensuite) et
+>     `SAM3Processor.detect` (masques → polygones, libellé = concept) rendent le document ;
+>     `DetectionBackend.process` = `detect` (point d'entrée du contrat commun). Ils n'écrivent et
+>     ne floutent plus rien.
+>   - **Le floutage se joue SANS MODÈLE** depuis le document : `blur_utils.blur_detections`
+>     (contour, sinon rectangle) et `detections.render_media` (image par image, audio recollé).
+>     L'interpolation des trous d'une piste se fait À LA LECTURE (`by_frame`) : la couper ou la
+>     régler ne redétecte pas. Réglages surveillés : détection = fichier, mode, classes, prompt,
+>     modèle, précision, segmentation, seuil ; floutage = intensité, bords, agrandissement,
+>     flou progressif, interpolation. Les réglages d'AFFICHAGE (`show_*`) ne périment rien :
+>     ils pilotaient une fenêtre OpenCV côté serveur que personne ne voyait, ils pilotent
+>     désormais la vue « Détection » de l'aperçu.
+>   - **Deux défauts trouvés en séparant** : l'agrandissement de la zone (`roi_enlargement`)
+>     de la card n'était JAMAIS appliqué (le moteur lisait `ROI_enlargement`, la tâche passait
+>     `roi_enlargement` — 1,05 en dur) ; les bords arrondis (`rounded_edges`) n'étaient pas
+>     transmis. Les deux suivent désormais la card.
+>   - **Aperçu « pendant » à plusieurs vues** (brique commune, pas un mécanisme d'app) :
+>     `preview_utils.publish_partial(variant=, label=)` + `PartialFrames` (frames JPEG limitées
+>     dans le temps) ; la face PENDANT liste les vues et sert celle demandée (`?variant=`) ;
+>     l'inspecteur affiche le bouton [Détection | Floutage] et garde le choix d'un tick à
+>     l'autre. Pendant la détection, la frame avec ses détections ; pendant le floutage, les
+>     deux vues de la même frame.
+>   - **Mesures** : en réel (GPU, compte de test) — image YOLO : détection 2,2 s, floutage
+>     0,2 s ; flou changé → floutage seul 0,4 s. Vidéo de 6 s : détection 8,1 s (150 détections,
+>     une piste), floutage 5,3 s, aperçus publiés 5 « Détection » + 2 « Floutage » ;
+>     interpolation coupée → floutage seul. SAM3 (« face ») : un contour, flou au contour (vu à
+>     l'écran). Navigateur (serveur de dev jetable WSL) : bande « Détection → Floutage →
+>     Sortie », bouton de bascule, vue par défaut = floutage, choix tenu, 0 erreur JS.
+>   - ⏳ Restes : une face « Détection » APRÈS le traitement (aujourd'hui l'aperçu ne la montre
+>     que pendant) ; l'ETA de la card lit la clé de la détection, le floutage apprend la sienne
+>     (`anonymizer:blur:…`) — même limite que l'avatarizer : la vue n'additionne pas deux clés.
 > - ✅ **Joué par la chaîne EN SERVICE après relance (03/10 soir, compte de test)** : anonymizer
 >   (3,1 s, modèle tiré nommé), transcriber `import` + résumé (18,2 s, aucun moteur ASR), image
 >   en « auto » (98,7 s), **vidéo en « auto »** (LTX fp8, 273 s — jamais jouée avant par le

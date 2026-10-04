@@ -326,3 +326,26 @@ def blur_detection(im0, detection_box, label, blur_ratio, rounded_edges, progres
         return im0
 
     return im0
+
+
+def blur_detections(im0, detections, *, blur_ratio, rounded_edges=5, progressive_blur=0,
+                    roi_enlargement=1.0):
+    """Floute, sur UNE image, les détections d'un document `detections` (`common/utils/
+    detections.py`) : au CONTOUR quand la détection en porte un (segmentation), au rectangle
+    sinon. Une détection DÉDUITE (interpolée) a son rectangle ramené dans l'image d'abord.
+
+    C'est le second temps de l'anonymisation depuis le 2026-10-04 : la détection est un process
+    à part, ce floutage repart de ce qu'elle a écrit."""
+    from .detections import polygons_to_mask, valid_box
+    blur_ratio = normalize_blur_ratio(blur_ratio)
+    for det in detections or []:
+        if det.get('polygons'):
+            im0 = blur_segmentation(im0, polygons_to_mask(det['polygons'], im0.shape),
+                                    blur_ratio, progressive_blur)
+            continue
+        box = valid_box(det.get('box'), im0.shape) if det.get('interpolated') else det.get('box')
+        if box is None:
+            continue
+        im0 = blur_detection(im0, box, det.get('label', ''), blur_ratio, rounded_edges,
+                             progressive_blur, roi_enlargement)
+    return im0

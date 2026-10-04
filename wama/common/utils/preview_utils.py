@@ -212,11 +212,75 @@ def _partial_peaks_key(app_name, pk):
     return f'wama_partial_peaks_{app_name}_{pk}'
 
 
-def publish_partial(app_name, pk, url_or_path):
+def _partial_variants_key(app_name, pk):
+    return f'wama_partial_variants_{app_name}_{pk}'
+
+
+def publish_partial(app_name, pk, url_or_path, variant=None, label=None):
     """Worker : publie l'URL (média) d'un aperçu PARTIEL courant, servi par `?side=during`.
-    TTL court (le partiel est éphémère). Appeler `clear_partial` à la fin du traitement."""
+    TTL court (le partiel est éphémère). Appeler `clear_partial` à la fin du traitement.
+
+    `variant` / `label` (2026-10-04) : PLUSIEURS vues du même instant — l'anonymizer publie la
+    frame avec ses détections dessinées ET la frame floutée ; l'aperçu offre de passer de l'une
+    à l'autre (`?side=during&variant=<clé>`). La dernière variante publiée est la vue par défaut."""
     from django.core.cache import cache
     cache.set(_partial_key(app_name, pk), str(url_or_path), 900)
+    if variant:
+        variants = cache.get(_partial_variants_key(app_name, pk)) or {}
+        variants.pop(variant, None)              # ré-insérée en DERNIER : la vue par défaut
+        variants[variant] = {'url': str(url_or_path), 'label': label or variant}
+        cache.set(_partial_variants_key(app_name, pk), variants, 900)
+
+
+class PartialFrames:
+    """L'aperçu « pendant » en IMAGES d'une vidéo en cours de traitement : une frame (ou
+    plusieurs variantes de la même frame) écrite en JPEG et publiée au plus toutes les `every`
+    secondes. Le traitement demande `due()` AVANT de calculer une vue coûteuse.
+
+        frames = PartialFrames('anonymizer', media.pk, folder)
+        if frames.due():
+            frames.publish({'detection': ('Détection', annotated), 'blur': ('Floutage', blurred)})
+        frames.close()          # fin du traitement : partiels retirés, la face SORTIE prend le relais
+
+    Écrit pour l'anonymizer (2026-10-04) — il tenait seul, dans sa tâche, le chemin, l'URL et
+    la cadence d'une frame partielle."""
+
+    def __init__(self, app_name, pk, folder, every: float = 2.0):
+        self.app_name, self.pk, self.folder, self.every = app_name, pk, str(folder), every
+        self._last = 0.0
+        self._written = set()
+
+    def due(self) -> bool:
+        import time
+        return time.time() - self._last >= self.every
+
+    def publish(self, views: dict, index=None) -> None:
+        """`views` : {variante: (libellé, image BGR)} ; `index` versionne l'URL (cache navigateur)."""
+        import time
+
+        import cv2
+        from django.conf import settings
+        self._last = time.time()
+        os.makedirs(self.folder, exist_ok=True)
+        stamp = index if index is not None else int(self._last * 1000)
+        for variant, (label, image) in views.items():
+            path = os.path.join(self.folder, f'during_{self.pk}_{variant}.jpg')
+            try:
+                cv2.imwrite(path, image)
+            except Exception:
+                continue
+            self._written.add(path)
+            url = settings.MEDIA_URL + os.path.relpath(path, settings.MEDIA_ROOT).replace('\\', '/')
+            publish_partial(self.app_name, self.pk, f'{url}?v={stamp}', variant=variant, label=label)
+
+    def close(self) -> None:
+        clear_partial(self.app_name, self.pk)
+        for path in self._written:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        self._written.clear()
 
 
 def publish_partial_peaks(app_name, pk, peaks, duration=None):
@@ -267,6 +331,7 @@ def clear_partial(app_name, pk):
     cache.delete(_partial_key(app_name, pk))
     cache.delete(_partial_peaks_key(app_name, pk))
     cache.delete(_partial_text_key(app_name, pk))
+    cache.delete(_partial_variants_key(app_name, pk))
 
 
 def _during_preview_data(app_name, instance, request):
@@ -281,6 +346,12 @@ def _during_preview_data(app_name, instance, request):
     url = cache.get(_partial_key(app_name, pk))
     peaks_entry = cache.get(_partial_peaks_key(app_name, pk))
     partial_text = cache.get(_partial_text_key(app_name, pk))
+    variants = cache.get(_partial_variants_key(app_name, pk)) or {}
+    if variants:
+        # La vue DEMANDÉE (`?variant=`), sinon la dernière publiée.
+        wanted = request.GET.get('variant') if request is not None else None
+        chosen = wanted if wanted in variants else list(variants)[-1]
+        url = variants[chosen]['url']
     if not url and not peaks_entry and not partial_text:
         return None
     if partial_text and not url and not peaks_entry:
@@ -295,6 +366,10 @@ def _during_preview_data(app_name, instance, request):
         data['name'] = os.path.basename(clean) or 'partiel'
         data['url'] = request.build_absolute_uri(url) if str(url).startswith('/') else str(url)
         data['mime_type'] = guess_mime_type(clean) or 'application/octet-stream'
+        if variants:
+            data['variant'] = chosen
+            data['variants'] = [{'key': key, 'label': entry['label']}
+                                for key, entry in variants.items()]
     else:
         # pics seuls (pas encore de fichier jouable) : onde qui se construit, mime audio générique
         data['name'] = 'partiel'

@@ -1167,6 +1167,25 @@ MECHANISMS = (
               'wama/common/services/output_process.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/utils/output_formats.py',)),
+    Mechanism('detections_document', "Document de détections (type `detections` sur disque)",
+              "Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) "
+              "— le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de "
+              "Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process "
+              "« Détection », relu par le floutage (`blur_utils.blur_detections`, rendu image par "
+              "image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'une "
+              "piste à la lecture (`by_frame`). Sans Django ni app : la Data et le Lab peuvent le lire",
+              'wama/common/utils/detections.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
+              annexes=('wama/common/utils/blur_utils.py',)),
+    Mechanism('during_preview_variants', "Aperçu « pendant » à plusieurs vues",
+              "Un worker publie plusieurs vues du même instant (`publish_partial(variant=, label=)`, "
+              "publieur de frames limité dans le temps `PartialFrames`) ; la face PENDANT de "
+              "l'aperçu les liste et sert celle demandée (`?variant=`), l'inspecteur affiche le "
+              "bouton de bascule (`WamaInspector.variantToggle`). Né le 2026-10-04 pour basculer "
+              "entre détection et floutage de l'anonymizer — toute app peut publier ses vues",
+              'wama/common/utils/preview_utils.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
+              annexes=('wama/common/static/common/js/wama-inspector.js',)),
     Mechanism('process_start_view', "▶ d'un process (fabrique commune)",
               "La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_view` "
               "(2026-10-04) : process connu, ayant lieu pour cette card (`AppPipeline.applicable`), "

@@ -327,3 +327,48 @@ class RunButtonOfAProcessTest(SimpleTestCase):
             return seen;
         })()""")
         self.assertEqual(['start:7:output', 'start:7:', 'stop:7'], list(out))
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class DuringVariantsOfThePreviewTest(SimpleTestCase):
+    """The « during » preview offers a switch between the views a worker publishes (2026-10-04 :
+    the anonymizer's detection and blur of the same frame). The address carries the chosen view ;
+    the toggle has one button per view, the active one filled, and says the key it picks."""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM + """
+        document.createElement = function (tag) {
+          var el = {tagName: tag, children: [], attrs: {}, listeners: {}, className: '', textContent: '',
+                    appendChild: function (c) { el.children.push(c); return c; },
+                    setAttribute: function (k, v) { el.attrs[k] = v; },
+                    addEventListener: function (t, fn) { el.listeners[t] = fn; }};
+          return el;
+        };""")
+        self.v8.eval((JS / 'wama-inspector.js').read_text(encoding='utf-8'))
+
+    def test_the_address_carries_the_chosen_view(self):
+        out = self.v8.eval("""(function () {
+            var I = window.WamaInspector;
+            return [I.duringUrl('/preview/anonymizer/4/', null),
+                    I.duringUrl('/preview/anonymizer/4/?x=1', 'blur'),
+                    I.duringUrl('/p/', 'a b')];
+        })()""")
+        self.assertEqual(['/preview/anonymizer/4/?side=during',
+                          '/preview/anonymizer/4/?x=1&side=during&variant=blur',
+                          '/p/?side=during&variant=a%20b'], list(out))
+
+    def test_the_toggle_has_one_button_per_view_and_says_the_one_picked(self):
+        out = self.v8.eval("""(function () {
+            var picked = [];
+            var bar = window.WamaInspector.variantToggle(
+                [{key: 'detection', label: 'Détection'}, {key: 'blur', label: 'Floutage'}],
+                'blur', function (k) { picked.push(k); });
+            bar.children[0].listeners.click();
+            return [bar.children.length, bar.children[0].textContent,
+                    bar.children[1].className.indexOf('btn-info ') >= 0
+                      || / btn-info$/.test(bar.children[1].className) || bar.children[1].className.indexOf(' btn-info') >= 0,
+                    bar.children[0].className.indexOf('btn-outline-info') >= 0, picked[0]];
+        })()""")
+        self.assertEqual([2, 'Détection', True, True, 'detection'], list(out))

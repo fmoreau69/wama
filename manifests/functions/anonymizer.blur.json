@@ -15,14 +15,24 @@
         "optional": false,
         "produced_fields": [],
         "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Ce qu'il faut flouter.",
+        "group": "travail",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
       }
     ],
-    "key": "anonymizer.generate",
+    "key": "anonymizer.blur",
     "outputs": [
       {
         "cardinality": "one",
         "data_type": "video",
-        "description": "Le média flouté, tel que le moteur l'écrit.",
+        "description": "Le média flouté, tel que le floutage l'écrit.",
         "key": "native",
         "optional": false,
         "produced_fields": [],
@@ -35,12 +45,12 @@
     "tags": [
       "image",
       "video",
-      "gpu"
+      "blur"
     ],
     "visibility": "public"
   },
-  "description": "Détecte et floute, dans une image ou une vidéo, les classes désignées (visages, plaques…) ou ce qu'une description nomme, avec le ou les modèles qui les couvrent.",
-  "key": "anonymizer.generate",
+  "description": "Floute le média selon ses détections : au contour quand elles en portent un, au rectangle sinon, trous d'une piste interpolés. Aucun modèle n'est chargé.",
+  "key": "anonymizer.blur",
   "manifest_kind": "function",
   "name": "Anonymizer — flouter",
   "owner": null,
@@ -49,7 +59,7 @@
   "scope_org_unit": null,
   "scope_project": null,
   "source": {
-    "ref": "FUNCTION_CATALOG:anonymizer.generate",
+    "ref": "FUNCTION_CATALOG:anonymizer.blur",
     "type": "extract"
   },
   "visibility": "public",

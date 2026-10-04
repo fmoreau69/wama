@@ -761,7 +761,7 @@ def _read_batch(user, pk):
 _bv = make_batch_views(
     work_model=Media, batch_model=BatchAnonymizer, get_user=_get_user,
     task=process_single_media, reset_on_start=_reset_and_forget_progress,
-    output_fields=('output_file',),
+    output_fields=('output_file', 'detections_file'),
     read_lookup=_read_batch,
     params_fields=tuple(p['name'] for p in _ANON_PARAMS_JSON if p.get('name')),
     schema=_ANON_PARAMS_JSON, after_update=_mark_customised,
@@ -1358,7 +1358,8 @@ def duplicate_media(request, media_id):
         media,
         for_user=user,
         reset_fields={'status': 'PENDING', 'blur_progress': 0},
-        clear_fields=['output_file'],   # l'entrée se partage, la sortie jamais (2026-09-27)
+        # L'entrée se partage, la sortie jamais (2026-09-27) — ni les détections (2026-10-04).
+        clear_fields=['output_file', 'detections_file'],
     )
     return JsonResponse({'duplicated': new_media.id})
 
