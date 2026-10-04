@@ -515,6 +515,8 @@ retardée de 20 s à chaque relance. Gardes : `tests_assistant_surfaces.WarmUpTe
 ⚠ Le profil a montré que le poste n'était pas le seul import : le premier tirage « auto »
 importe TOUS les modules de backends (index du catalogue) — un coût de processus, pas de tour.
 
+✅ **Levier ② CÂBLÉ le 2026-10-04 — la voix sur la carte graphique.** Ce n'était pas un choix : deux distributions du moteur ONNX cohabitaient et la version processeur masquait l'autre (`INFRA_WSL_VS_WINDOWS §onnxruntime`). Réparé, session construite avec la liste commune de fournisseurs, premier appel amorcé au chargement : 1,3 s → 0,18 s pour une phrase courte, 4,5 s → 0,53 s pour 11 s de son. Gardes : `tests_onnx_runtime`. 🔴 relancer le service de voix et les workers.
+
 ⏳ **Leviers restants, dans l'ordre validé par Fabien** : ① ~~ne plus payer l'import~~ ; ② voix sur le GPU (fournisseur CUDA d'`onnxruntime`) ou variante quantifiée du
 même export, déjà sur le disque — à mesurer avant de choisir ; ③ flux sur le chemin cloud ;
 ④ pré-demander la phrase suivante hors avatar ; ⑤ écrire la durée du tour.

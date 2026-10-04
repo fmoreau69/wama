@@ -154,12 +154,33 @@ class KokoroOnnxBackend(TTSBackend):
             raise RuntimeError(f"Kokoro-ONNX : composant acoustic_model absent ({model_path})")
         voices_npz = self._ensure_voices_npz(snapshot, motifs['voices'])
 
+        import onnxruntime as ort
         from kokoro_onnx import Kokoro
-        self._kokoro = Kokoro(str(model_path), str(voices_npz))
+
+        from wama.common.utils.onnx_utils import onnx_providers
+        # Session construite ICI, avec les fournisseurs de la brique commune (CUDA puis CPU) :
+        # `Kokoro(chemin)` ne demande le GPU que si une variable d'environnement le dit, donc la
+        # voix tournait sur le processeur — 1,3 s de calcul pour une phrase courte, 4 à 5 s pour
+        # 11 s de son (mesuré le 2026-10-04, `WAMA_LLM §1bis`).
+        options = ort.SessionOptions()
+        options.log_severity_level = 3      # les avertissements de placement du graphe : bruit
+        session = ort.InferenceSession(str(model_path), sess_options=options,
+                                       providers=onnx_providers())
+        self._kokoro = Kokoro.from_session(session, str(voices_npz))
+        self.execution_provider = session.get_providers()[0]
         self.loaded_model = "kokoro-onnx"
         self._current_model = "kokoro-onnx"
-        logger.info("[Kokoro-ONNX] chargé : %s (%d voix)",
-                    model_path.name, len(self._kokoro.get_voices()))
+        # AMORÇAGE : le premier appel COMPLET d'un processus paie ~1 s que les suivants ne
+        # paient plus (installation de la session CUDA, d'espeak, et 189 modules importés à la
+        # volée — mesuré : 1,14 s puis 0,18 s). On le paie au chargement, par le MÊME chemin que
+        # la vraie synthèse, pas sur la première phrase de quelqu'un.
+        try:
+            primed = self.process('a', language='fr')
+            os.unlink(primed)
+        except Exception as e:
+            logger.debug("[Kokoro-ONNX] amorçage ignoré : %s", e)
+        logger.info("[Kokoro-ONNX] chargé : %s (%d voix) sur %s",
+                    model_path.name, len(self._kokoro.get_voices()), self.execution_provider)
         return True
 
     def unload(self) -> None:
