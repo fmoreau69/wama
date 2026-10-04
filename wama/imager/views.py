@@ -188,11 +188,8 @@ def index(request):
                 else IMAGE_PARAMS_JSON)})
     # Chips schéma-driven sur chaque card ; les lignes d'exécution de TOUTES les cards de la page
     # sont lues en une requête (bande des process).
-    from wama.common.services.process_pipeline import preload
-    _shown = [_it.generation for _b in batches_all for _it in _b['items'] if _it.generation]
-    preload(_shown)
-    for _gen in _shown:
-        _decorate_card(_gen, preloaded=True)
+    from wama.common.services.process_pipeline import decorate_cards
+    decorate_cards([_it.generation for _b in batches_all for _it in _b['items']], _decorate_card)
 
     image_batches = [b for b in batches_all if b['obj'].domain != 'video']
     video_batches = [b for b in batches_all if b['obj'].domain == 'video']
@@ -1163,7 +1160,6 @@ from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 _pv = make_progress_views(
     work_model=ImageGeneration,
     app_id='imager', eta_for=_eta_triplet, extra=_progress_extra,
-    pipeline_model=lambda generation: generation.model or 'auto',
     domains={'image': lambda qs: qs.exclude(generation_mode__in=VIDEO_MODES),
              'video': lambda qs: qs.filter(generation_mode__in=VIDEO_MODES)})
 progress, global_progress = _pv['progress'], _pv['global_progress']
@@ -1333,10 +1329,9 @@ def _decorate_card(gen, preloaded=False):
     from wama.common.services.process_pipeline import decorate
     from wama.common.utils.card_chips import chips_by_section
     from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
-    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
     gen.chips = chips_by_section(
         gen, VIDEO_PARAMS_JSON if gen.is_video_generation else IMAGE_PARAMS_JSON)
-    decorate(gen, gen.model or 'auto', preloaded=preloaded)
+    decorate(gen, preloaded=preloaded)
     return gen
 
 

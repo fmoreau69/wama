@@ -106,9 +106,10 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
         extra          : callable(élément) -> dict — les clés PROPRES que le JS de l'app lit
                          (URLs de résultat, texte partiel, réglages affichés…). Fusionnées en
                          dernier : elles complètent le payload commun.
-        pipeline_model : callable(élément) -> clé de modèle passée à `process_pipeline.card_view`
-                         (« ce que la card demande ») — n'a d'effet que si l'app DÉCLARE un
-                         pipeline ; sans pipeline, ni `processes` ni `shown_state`.
+        pipeline_model : à ne passer que pour s'ÉCARTER du modèle déclaré par le pipeline de
+                         l'app (`register_app_pipeline(model_of=…)`, lu par défaut) :
+                         callable(élément) -> clé de modèle passée à `card_view`. Sans pipeline,
+                         ni `processes` ni `shown_state`.
         queryset       : callable(user) -> les éléments que compte la barre de file ; défaut :
                          ceux de l'utilisateur (`filter(user=user)`).
         domains        : dict `{nom: callable(queryset) -> queryset}` — barres PAR DOMAINE
@@ -153,12 +154,12 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
         from wama.common.services.process_pipeline import card_view, pipeline_of
         if pipeline_of(item) is None:
             return None
-        model_key = None
-        if pipeline_model is not None:
-            try:
-                model_key = pipeline_model(item)
-            except Exception:
-                model_key = None
+        if pipeline_model is None:
+            return card_view(item)          # le modèle DÉCLARÉ par le pipeline de l'app
+        try:
+            model_key = pipeline_model(item)
+        except Exception:
+            model_key = None
         return card_view(item, model_key)
 
     def _read(request, pk):

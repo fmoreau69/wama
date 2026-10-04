@@ -161,11 +161,9 @@ class IndexView(View):
 
         # Chips de card GÉNÉRÉS du schéma (brique card_chips) — même décoration que card_html.
         # Les lignes d'exécution de TOUTES les cards de la page sont lues en une requête.
-        from wama.common.services.process_pipeline import preload
-        shown = [link.synthesis for b in batches_list for link in b['items'] if link.synthesis]
-        preload(shown)
-        for synthesis in shown:
-            _decorate_synthesis(synthesis, preloaded=True)
+        from wama.common.services.process_pipeline import decorate_cards
+        decorate_cards([link.synthesis for b in batches_list for link in b['items']],
+                       _decorate_synthesis)
 
         # Multi-item batches first, then single-item batches
         # (« batchs d'abord » RETIRÉ le 2026-08-24 — écrasé par `apply_queue_sort_filter`
@@ -430,9 +428,8 @@ def _decorate_synthesis(s, preloaded=False):
     from wama.common.services.process_pipeline import decorate
     from wama.common.utils.card_chips import chips_by_section
     from wama.synthesizer.params import PARAMS_JSON
-    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
     s.chips = chips_by_section(s, PARAMS_JSON)
-    decorate(s, s.tts_model or 'auto', preloaded=preloaded)
+    decorate(s, preloaded=preloaded)
     return s
 
 
@@ -475,8 +472,7 @@ def _progress_extra(synthesis):
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(work_model=VoiceSynthesis, app_id='synthesizer',
-                          eta_for=_eta_triplet, extra=_progress_extra,
-                          pipeline_model=lambda synthesis: synthesis.tts_model or 'auto')
+                          eta_for=_eta_triplet, extra=_progress_extra)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 

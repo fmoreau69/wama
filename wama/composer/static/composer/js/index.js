@@ -499,8 +499,8 @@
                 }
                 // ▶ d'UN process (bande des process, `data-process`) : lancement BORNÉ, route
                 // `start/<id>/<process>/` ; sans attribut, le ▶ de la card lance tout ce qui est dû.
-                const process = btn && btn.dataset ? btn.dataset.process : '';
-                const startUrl = WamaApp.getUrl(APP.startUrlTemplate, id) + (process ? process + '/' : '');
+                const process = WamaCycleButton.processOf(btn);
+                const startUrl = WamaCycleButton.processUrl(WamaApp.getUrl(APP.startUrlTemplate, id), process);
                 try {
                     const r = await fetch(startUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
                     if (!r.ok) {

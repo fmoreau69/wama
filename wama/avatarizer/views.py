@@ -340,8 +340,7 @@ def _decorate_card(job, preloaded=False):
     (`process_pipeline.decorate`). Une card texte montre « Voix → Animation » ; une card qui
     apporte son audio n'a qu'un process, la bande ne se rend pas."""
     from wama.common.services.process_pipeline import decorate
-    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
-    decorate(job, job.animation_model or 'auto', preloaded=preloaded)
+    decorate(job, preloaded=preloaded)
     return job
 
 
@@ -375,8 +374,7 @@ def _progress_extra(job):
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(work_model=AvatarJob, app_id='avatarizer',
-                          eta_for=_eta_triplet, extra=_progress_extra,
-                          pipeline_model=lambda job: job.animation_model or 'auto')
+                          eta_for=_eta_triplet, extra=_progress_extra)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
@@ -730,11 +728,8 @@ def _get_batches_list(user):
     # a retiré d'enhancer ×2 et de synthesizer ; « batchs d'abord » n'est plus qu'une OPTION de la
     # barre (`batches_first`). Ne pas trier en dur avant l'appel.)
     # Les lignes d'exécution de TOUTES les cards de la page sont lues en une requête.
-    from wama.common.services.process_pipeline import preload
-    shown = [link.job for b in batches for link in b['items'] if link.job]
-    preload(shown)
-    for job in shown:
-        _decorate_card(job, preloaded=True)
+    from wama.common.services.process_pipeline import decorate_cards
+    decorate_cards([link.job for b in batches for link in b['items']], _decorate_card)
     return batches
 
 
@@ -985,8 +980,7 @@ from wama.common.utils.process_views import make_process_start_view  # noqa: E40
 # l'animation seule sur la voix déjà synthétisée.
 start_process = make_process_start_view(
     work_model=AvatarJob, task_for=_task_for,
-    reset_on_start={'progress': 0, 'error_message': ''},
-    model_key=lambda job: job.animation_model or 'auto')
+    reset_on_start={'progress': 0, 'error_message': ''})
 
 
 def _derive_quality_mode(job):

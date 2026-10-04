@@ -153,10 +153,7 @@ def _pipeline_view(gen, preloaded=False):
     (`AppPipeline.shown_state`), jamais `status` en dur. Sous « auto » le modèle du prochain
     lancement n'est pas connu : on montre ce qui a tourné."""
     from wama.common.services.process_pipeline import card_view
-    from wama.common.utils.auto_model import is_auto
-    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
-    return card_view(gen, None if is_auto(gen.model) else normalize(gen.model),
-                     preloaded=preloaded)
+    return card_view(gen, preloaded=preloaded)
 
 
 def _get_batches_list(user):
@@ -176,11 +173,9 @@ def _get_batches_list(user):
                                          gens, _COMPOSER_PARAMS_JSON)})
     # Chips de card GÉNÉRÉS du schéma — même décoration que card_html. Les lignes d'exécution de
     # TOUTES les cards de la page sont lues en une requête (bande des process).
-    from wama.common.services.process_pipeline import preload
-    shown = [link.generation for b in batches for link in b['items'] if link.generation]
-    preload(shown)
-    for generation in shown:
-        _decorate_generation(generation, preloaded=True)
+    from wama.common.services.process_pipeline import decorate_cards
+    decorate_cards([link.generation for b in batches for link in b['items']],
+                   _decorate_generation)
     return batches
 
 
@@ -504,19 +499,12 @@ def start(request, pk):
     return JsonResponse({'id': gen.id, 'status': 'RUNNING'})
 
 
-from wama.common.utils.process_views import DECIDED_AT_LAUNCH, make_process_start_view  # noqa: E402
+from wama.common.utils.process_views import make_process_start_view  # noqa: E402
 
 # ▶ d'UN process de la card (P5, `ROUTE §10.6` 5.1) : fabrique COMMUNE. Seules les sorties
 # DÉCLARÉES du process lancé sont remplacées (`_reset_for_relaunch(gen, only)`).
-def _pipeline_model(gen):
-    """Sous « auto », le modèle — donc ce qui a lieu — n'est connu qu'au lancement."""
-    from wama.common.utils.auto_model import is_auto
-    return DECIDED_AT_LAUNCH if is_auto(gen.model) else (gen.model or None)
-
-
 start_process = app_access('composer')(make_process_start_view(
-    work_model=ComposerGeneration, task_for=_task_for, reset_for_process=_reset_for_relaunch,
-    model_key=_pipeline_model))
+    work_model=ComposerGeneration, task_for=_task_for, reset_for_process=_reset_for_relaunch))
 
 
 @require_POST
@@ -678,12 +666,6 @@ def _eta_prior(gen):
     return float(gen.duration or 0) * cfg.get('gen_factor', 1.5) + cfg.get('overhead_s', 15)
 
 
-def _pipeline_model(gen):
-    """Le modèle passé à la bande des process (comme `_pipeline_view`) : sous « auto », aucun."""
-    from wama.common.utils.auto_model import is_auto
-    return None if is_auto(gen.model) else normalize(gen.model)
-
-
 def _progress_extra(gen):
     """Les clés PROPRES que le JS du composer lit : le résultat, une fois produit."""
     if gen.status != 'SUCCESS' or not gen.audio_output:
@@ -701,7 +683,7 @@ from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 _pv = make_progress_views(
     work_model=ComposerGeneration,
     app_id='composer', eta_for=_eta_triplet, eta_fallback=_eta_prior,
-    extra=_progress_extra, pipeline_model=_pipeline_model)
+    extra=_progress_extra)
 progress = require_GET(_pv['progress'])
 global_progress = _pv['global_progress']
 

@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // réglages STOCKÉS (le volet ne s'applique qu'au lancement complet).
     WamaCycleButton.wire(q, {
       start: (id, btn) => {
-        const process = btn && btn.dataset ? btn.dataset.process : '';
+        const process = WamaCycleButton.processOf(btn);
         return startAudio(id, process ? { useStored: true, process: process } : undefined);
       },
       stop: (id) => handleStopAudio(id),
@@ -250,8 +250,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // relire sur le gear. La card se re-rend du serveur au passage RUNNING (updateRow).
     try {
       const body = (opts && opts.useStored) ? {} : panelAudioBody();
-      const bounded = opts && opts.process ? opts.process + '/' : '';
-      const resp = await fetch(getUrl(cfg.audioStartUrlTemplate, id) + bounded, {
+      const resp = await fetch(WamaCycleButton.processUrl(
+        getUrl(cfg.audioStartUrlTemplate, id), opts && opts.process), {
         method: 'POST',
         headers: csrfHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),

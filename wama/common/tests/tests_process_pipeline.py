@@ -454,6 +454,30 @@ class WhatTheCardShowsTest(TestCase):
                          (rows, state, label))
         self.assertTrue(label)
 
+    def test_the_requested_model_is_declared_once_and_read_by_the_card(self):
+        """Each app told the strip, the progress view and the ▶ of a process which model the
+        card asks for (2026-10-04). It is declared ONCE (`model_of`) ; `card_view` reads it when
+        no key is passed, an explicit key still wins, a declaration that raises says « unknown »."""
+        from wama.common.services.process_pipeline import card_view, decorate_cards
+        declared = AppPipeline('demo_pipeline', self.pipeline.specs, label='Demo',
+                               model_of=lambda item: item.model)
+        APP_PIPELINES['demo_pipeline'] = declared
+        self.addCleanup(APP_PIPELINES.pop, 'demo_pipeline', None)
+        scored = _Element(status=JOB_SUCCESS, model='writes-scores')
+        plain = _Element(status=JOB_SUCCESS, model='plain')
+        self.assertEqual(['plan', 'render'], [r['key'] for r in card_view(scored)[0]])
+        self.assertEqual(['render'], [r['key'] for r in card_view(plain)[0]])
+        self.assertEqual(['plan', 'render'],
+                         [r['key'] for r in card_view(plain, 'writes-scores')[0]])
+        self.assertIsNone(declared.requested_model(_Element(status=JOB_SUCCESS)),
+                          'no `model` on the element : unknown, never an error')
+        seen = []
+        cards = decorate_cards([scored, None, plain],
+                               lambda item, preloaded: seen.append((item.pk, preloaded)))
+        self.assertEqual([(scored.pk, True), (plain.pk, True)], seen)
+        self.assertEqual([scored, plain], cards)
+        self.assertEqual(['render'], [r['key'] for r in decorate_cards([plain])[0].processes])
+
     def test_a_stale_render_is_shown_under_a_successful_element(self):
         item = _Element(status=JOB_SUCCESS)
         (Path(self.tmp) / 'score.abc').write_text('X:1', encoding='utf-8')

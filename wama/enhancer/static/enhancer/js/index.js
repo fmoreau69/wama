@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (window.WamaCycleButton && queueTable) {
     // ▶ d'UN process (bande des process, `data-process`) : route `start/<id>/<process>/`.
     WamaCycleButton.wire(queueTable, {
-      start: (id, btn) => handleRestartEnhancement(id, { process: btn && btn.dataset ? btn.dataset.process : '' }),
+      start: (id, btn) => handleRestartEnhancement(id, { process: WamaCycleButton.processOf(btn) }),
       stop: (id) => handleStopEnhancement(id),
     });
     WamaCycleButton.autoSync({ container: queueTable, cardSelector: '.synthesis-card' });
@@ -255,8 +255,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Corps VIDE : le lancement lit les réglages STOCKÉS de l'item (modale/volet écrivent
     // AVANT — modèle événementiel ; l'ancien corps relisait le formulaire d'une modale maison).
-    const bounded = opts && opts.process ? opts.process + '/' : '';
-    fetch(getUrl(config.startUrlTemplate, id) + bounded, {
+    fetch(WamaCycleButton.processUrl(getUrl(config.startUrlTemplate, id), opts && opts.process), {
       method: 'POST',
       headers: csrfHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({}),
@@ -264,7 +263,7 @@ document.addEventListener('DOMContentLoaded', function () {
       .then((response) => {
         if (!response.ok) {
           return response.json().then((err) => {
-            throw new Error(err.message || 'Erreur serveur');
+            throw new Error(err.error || err.message || 'Erreur serveur');
           });
         }
         return response.json();

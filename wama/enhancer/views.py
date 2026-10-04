@@ -169,21 +169,14 @@ def _auto_wrap_audio_orphans(user):
     )
 
 
-def _decorate_processes(item, model_key):
-    """Les PROCESS de la card (« Amélioration → Sortie ») et son état MONTRÉ, par la brique
-    commune (`process_pipeline.decorate`, `ROUTE §10.6` 5.1) — pour les deux files."""
-    from wama.common.services.process_pipeline import decorate
-    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
-    decorate(item, model_key or 'auto')
-
-
 def _decorate_media_card(e):
     """Chips de card générés du SCHÉMA (card_chips) — remplace les badges hand-built.
     Point d'attache UNIQUE : IndexView ET card_html."""
     from wama.common.utils.card_chips import chips_by_section
     from wama.enhancer.params import MEDIA_PARAMS_JSON
     e.chips = chips_by_section(e, MEDIA_PARAMS_JSON)
-    _decorate_processes(e, e.ai_model)
+    from wama.common.services.process_pipeline import decorate
+    decorate(e)        # « Amélioration → Sortie » et l'état MONTRÉ (`ROUTE §10.6` 5.1)
     return e
 
 
@@ -191,7 +184,8 @@ def _decorate_audio_card(ae):
     from wama.common.utils.card_chips import chips_by_section
     from wama.enhancer.params import AUDIO_PARAMS_JSON
     ae.chips = chips_by_section(ae, AUDIO_PARAMS_JSON)
-    _decorate_processes(ae, ae.engine)
+    from wama.common.services.process_pipeline import decorate
+    decorate(ae)
     return ae
 
 
@@ -567,12 +561,10 @@ def _audio_eta_triplet(ae):
 # 2026-10-03) — l'app n'y déclare que ses triplets d'ETA, pour ses DEUX files (média, audio).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=Enhancement, app_id='enhancer', eta_for=_eta_triplet,
-                          pipeline_model=lambda e: e.ai_model or 'auto')
+_pv = make_progress_views(work_model=Enhancement, app_id='enhancer', eta_for=_eta_triplet)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 _apv = make_progress_views(work_model=AudioEnhancement, app_id='audio_enhancer',
-                           eta_for=_audio_eta_triplet,
-                           pipeline_model=lambda a: a.engine or 'auto')
+                           eta_for=_audio_eta_triplet)
 audio_progress, audio_global_progress = _apv['progress'], _apv['global_progress']
 
 

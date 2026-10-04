@@ -101,8 +101,8 @@
       start: async (id, btn) => {
         try {
           // ▶ d'UN process (bande des process, `data-process`) : route `start/<id>/<process>/`.
-          const process = btn && btn.dataset ? btn.dataset.process : '';
-          const d = await (await fetch(getUrl(cfg.startUrlTemplate, id) + (process ? process + '/' : ''), {
+          const process = WamaCycleButton.processOf(btn);
+          const d = await (await fetch(WamaCycleButton.processUrl(getUrl(cfg.startUrlTemplate, id), process), {
             method: 'POST', headers: csrfHeaders(),
           })).json();
           if (d.error) {

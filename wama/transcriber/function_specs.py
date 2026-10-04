@@ -145,6 +145,13 @@ register(FunctionSpec(
 _TRANSCRIBE_WATCHED = ('backend', 'hotwords', 'preprocess_audio', 'level_speech', 'vad_mode',
                        'language_mode')
 
+def _requested_model(t):
+    """Le modèle que la card demande, « auto » compris : les process se montrent AVANT le
+    premier lancement — c'est là que leurs cases à cocher servent."""
+    from wama.transcriber.backends.manager import catalogue_value
+    return catalogue_value(t.backend) or 'auto'
+
+
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('transcribe', label='Transcription', watched=_TRANSCRIBE_WATCHED,
                 applies=_transcribes, gpu=True, share=17),
@@ -163,4 +170,5 @@ PIPELINE = register_app_pipeline(_APP, (
                 depends_on=('transcribe', 'import', 'align', 'diarize'),
                 degree=OPTIONAL, toggle='verify_coherence', share=1),
 ), label='Transcriber — transcription ou import, alignement, locuteurs, résumé, cohérence',
-   source_ref='transcriber.function_specs:PIPELINE')
+   source_ref='transcriber.function_specs:PIPELINE',
+   model_of=lambda t: _requested_model(t))

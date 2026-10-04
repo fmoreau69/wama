@@ -52,4 +52,7 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('generate', label='Amélioration', watched=GENERATE_WATCHED, gpu=True, share=9),
     output_spec(depends_on=('generate',)),
 ), label='Enhancer — amélioration puis réglages de sortie',
-   source_ref='enhancer.function_specs:PIPELINE')
+   source_ref='enhancer.function_specs:PIPELINE',
+   # Deux files, un pipeline : le modèle d'un média (`ai_model`), le moteur d'un audio.
+   model_of=lambda item: (getattr(item, 'ai_model', None)
+                          or getattr(item, 'engine', None) or 'auto'))
