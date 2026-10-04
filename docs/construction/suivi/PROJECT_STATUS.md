@@ -21802,3 +21802,76 @@ Décision de Fabien : « on sépare détection/segmentation et floutage dans l'a
 **Mesures.** Réel GPU (compte de test, cards retirées) : image YOLO détection 2,2 s + floutage 0,2 s, flou changé → floutage seul 0,4 s ; vidéo 6 s détection 8,1 s (150 détections, 1 piste) + floutage 5,3 s, aperçus 5 « Détection » + 2 « Floutage », interpolation coupée → floutage seul ; SAM3 un contour, flou au contour (vu). Navigateur (serveur de dev jetable côté WSL, même Redis que la sonde) : bande à trois process, bouton [Détection | Floutage], choix tenu, 0 erreur JS. Tests (WSL, base isolée) : 457 joués ; rouges = budgets de langue des identifiants (noms de tests 134 > 132, 1315 > 1310, antérieurs) et budget « code » qui peut DESCENDRE (2678 → 2670 mesuré sur l'arbre, qui porte aussi le travail en cours d'autres sessions : à recaler depuis HEAD). 0 garde ajoutée sans preuve : nouvelles gardes `tests_detections`, `tests_detection_engines`, `tests_preview_variants`, `anonymizer/tests_task` (réécrit), V8 `DuringVariantsOfThePreviewTest`.
 
 **Restes.** Face « Détection » APRÈS le traitement · ETA de la card = clé de la détection seule · budget « code » de langue à recaler depuis HEAD.
+
+## §CLÔTURE — 2026-10-04, « COMPOSER : SHEETSAGE2 et cover YuE2, a priori déclarés, durée 3:30, onde serveur, harnais LLM, route du prompt de l'imager, VOIX, PAROLES DE CARD » — session du 03→04/10 — non poussé — 🔴 RECHARGER gunicorn ET workers (migrations `composer 0018-0020` déjà appliquées, défauts posés EN BASE) — 🔚 essai réel YuE2 en voix « Chanson » sans paroles
+
+**Commits** (03/10) `d565a821` `b229ba72` `a57dbb17` SheetSage2 (tâche `audio-to-score`) · `b3a3defd`
+process `extract_score` · `7c28de32` entrées étendues du pipeline (`takes_place`, `covering_inputs`) ·
+(04/10) `62cbb6ed` 1ʳᵉ reprise GPU + `DECLARED_PRIORS` · `d4a30c43` `display_format` / `default_from`
+(durée 3:30, reprise de la durée de l'audio de travail) · `9bc3c090` barre de progression d'une card
+lancée par ▶ (10 apps + générateur) · `d508d44a` Propriétés média du gestionnaire de fichiers ·
+`0b36586d` onde d'un audio lourd par pics serveur + harnais LLM (modèle tiré, contrat, ✨ de la card) ·
+`bb5949dc` route du prompt de l'imager, paroles hors LLM, contrat à l'ingestion, MiniMax réaligné,
+modale de l'imager corrigée · `063af84b` réglage « Voix » · `df124fbb` paroles de card — **défait par
+`7cea5a30` (autre session, index construit sur un HEAD antérieur), RÉTABLI par `fce2f8d4`** ·
+`9be48926` revers de la règle de péremption · `d3669473` gardes de clôture + repli « 10 s » soldé.
+
+**Décisions de Fabien de la session** : « extract_score », jamais « transcribe » hors du transcriber ;
+le morceau à reprendre est un port de TRAVAIL ; durée par défaut 3:30 et reprise de celle de l'audio ;
+le composer prend la route du prompt de l'imager ; les paroles ne passent jamais par le LLM ; réglage
+**Voix** auto / instrumental / chanson ; paroles écrites **gardées sur la card** ; la page d'édition
+partition + paroles reste le pilote du chantier SURFACES (`ROUTE §F3b`, données posées, page non écrite).
+
+**Doc de référence** : `WAMA_LLM.md` (§« Paroles et contrat du modèle visé », réglage Voix, revers de
+la péremption, modale qui poste la face affichée) · `prompt_skills/README.md` (`composer-lyrics`) ·
+`ROUTE §F3b` (données de la future page d'édition) · `INPUT_MODEL_MATCHING §7bis` (durée).
+
+**🔚 POINT D'ENTRÉE** : après relance, une card YuE2, voix « Chanson », prompt sans paroles → la
+console dit « Paroles écrites… », la modale ⚙ les montre sous « Paroles » ; corriger une ligne →
+la bande montre Partition et Rendu périmés ; ▶ → rendu chanté avec les paroles corrigées.
+
+**Laissé de côté, nommément** (annoncé ou proposé, non fait) :
+1. Griser au sélecteur les modèles qui ne chantent pas quand « Chanson » est choisie (la console le
+   dit au lancement seulement).
+2. ✨ de la card de l'imager : bouton écrit DANS l'app (`imager/index.js`), à porter sur l'option
+   `trigger` de la brique `WamaPromptEnrich` (le composer l'utilise depuis le 04/10).
+3. ACE-Step chante mais ne déclare pas `supports_vocals` : aucun moteur exécutable dans WAMA.
+4. Langue des paroles supposée = celle du profil (aucune détection de langue d'un texte dans WAMA).
+5. `watched` des pipelines : listes recopiées des noms du schéma, dans les SIX pipelines
+   (`check_redundancy`) — proposition au chantier pipeline : un `Param` qui déclare les process
+   qu'il périme, `watched` dérivé ; non entrepris seul.
+6. Banc tiers couvrant YuE2 + MusicGen pour remplacer `DECLARED_PRIORS` (fiche
+   `project_sheetsage2_cover`) ; ligne de catalogue MERT, comportement préexistant non tranché.
+
+**Non prouvé, nommément** : aucun essai navigateur de la modale à deux faces du composer, des champs
+Voix / Paroles, ni de la modale corrigée de l'imager (parse V8 seulement) ; aucun rendu GPU en voix
+« Chanson » (les paroles écrites ne sont attestées que par des tests à LLM simulé).
+
+**Gardes** (une par livrable) : `tests_extract_score`, `tests_pipeline`, `tests_process_pipeline`,
+`tests_component_repos`, `tests_declared_priors`, `tests_display_format` (durée, sonde, Propriétés
+média), `tests_card_progress_bar` (neuf, générique), `tests_preview_peaks`, `tests_prompt_harness`
+(harnais, paroles hors LLM, contrat à l'ingestion, modale à deux faces, modales qui postent la face
+affichée), `tests_vocals` (Voix, paroles de card, persistance, tirage, langue, durée par défaut),
+`tests_process_runs` (`_watched_changed`). Trois gardes de clôture **prouvées par mutation** (barre,
+modale de l'imager, repli 10 s). Non gardés : les contrats de prompt et `supports_vocals` (données de
+manifeste), les migrations (non versionnées).
+
+**Contrôles MESURÉS à la clôture** : tests du périmètre 460 joués, rouges hors session seulement
+(`tests_endpoints` : colonne `writer_01.quality_intent` sans migration ; budgets de langue des noms
+de test 134 > 132 et 1315 > 1310 — ma part renommée, le reste d'autres sessions), puis **171 verts**
+après la dernière écriture ; `check_redundancy` 91, deux trouvailles dans mes fichiers, toutes deux
+la convention `watched` (point 5) ; `check_docs` 5 cassées / 4 périmées, aucune de la session ;
+`manifest_export --check` 16 périmés, aucun du composer (SheetSage2 : statistiques d'usage seules) ;
+`doc_facts --check` 4 blocs périmés (mécanismes, modèles, outils, briques) — « outils », « modèles »
+et « briques » en partie par cette session (Voix et Paroles au schéma, `supports_vocals`, fonctions
+neuves) : à régénérer DEPUIS UN WORKTREE DE HEAD, l'arbre porte le travail d'autres sessions ;
+`check_skills` 0 défaut.
+
+**Effets de bord DÉCLARÉS** : catalogue live — contrat de MiniMax-Music3 réécrit, `supports_vocals`
+posé sur MiniMax-Music3 et YuE2 (par `write_back` de leurs manifestes) ; migrations composer
+0018 (PromptScoped + défauts SQL), 0019 (`vocals`), 0020 (`lyrics`) appliquées, non versionnées.
+Aucune card créée sur le live par cette fin de session.
+
+**Leçons** : une garde de clôture se prouve par mutation (trois fois ce jour) ; un « reste » annoncé
+dans un message de commit se solde à la clôture ou se nomme ici — celui de `d4a30c43` avait attendu
+une journée ; ajouter un réglage surveillé ne doit pas périmer l'existant (règle commune posée).
