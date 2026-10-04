@@ -38,6 +38,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "native_outputs"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
@@ -426,6 +445,29 @@
                 }
               },
               "name": "avatar_upload"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "128",
+                  "imports": []
+                },
+                "verbose_name": {
+                  "expr": "\"Modèle d'animation\"",
+                  "imports": []
+                }
+              },
+              "name": "animation_model"
             },
             {
               "args": [],
@@ -882,6 +924,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsTextContent"
             },
@@ -927,6 +971,8 @@
               "item"
             ],
             "default": "synthesizer:coqui-xtts",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsTtsModel"
             },
@@ -974,6 +1020,8 @@
               "item"
             ],
             "default": 50,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsQualityIntent"
             },
@@ -1083,6 +1131,8 @@
               "item"
             ],
             "default": "fr",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsLanguage"
             },
@@ -1128,6 +1178,8 @@
               "item"
             ],
             "default": "default",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsVoicePreset"
             },
@@ -1174,13 +1226,71 @@
               "item",
               "batch"
             ],
+            "default": "auto",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsAnimationModel",
+              "item": "settingsAnimationModel",
+              "panel": "animation_model"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": {
+              "auto": "Choisi d'après l'avatar fourni : une photo est animée par MuseTalk, un avatar 3D (.glb) par TalkingHead."
+            },
+            "help_html": "",
+            "help_source": "avatarizer",
+            "icon": "fa-film",
+            "inline": false,
+            "label": "Modèle d'animation",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "animation_model",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": "silent",
+            "options_cloud": false,
+            "options_domain": null,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": {
+              "source": "avatarizer",
+              "task": "lip-sync"
+            },
+            "options_resolution": null,
+            "options_source": "catalog",
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": true,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
             "default": false,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsUseEnhancer",
               "panel": "use_enhancer"
             },
             "group": "",
-            "help": "Restauration faciale haute qualité — légèrement plus lent.",
+            "help": "Restauration faciale haute qualité — légèrement plus lent. Photo animée seulement : sans effet sur un avatar 3D.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1223,12 +1333,14 @@
               "batch"
             ],
             "default": 0,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsBboxShift",
               "panel": "bbox_shift"
             },
             "group": "",
-            "help": "Décalage vertical de la zone bouche (px). 0 = auto.",
+            "help": "Décalage vertical de la zone bouche (px). 0 = auto. Photo animée seulement : sans effet sur un avatar 3D.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1275,7 +1387,7 @@
           ]
         },
         {
-          "description": "L'audio que l'app TRAITE : c'est de lui que part le résultat (transcrit, amélioré, animé…).",
+          "description": "L'audio que l'app TRAITE : c'est de lui que part le résultat (transcrit, amélioré, animé, repris en cover…).",
           "group": "travail",
           "id": "work_audio",
           "label": "Audio de travail",
@@ -1325,6 +1437,8 @@
         "batch_download",
         "batch_duplicate",
         "batch_preview",
+        "batch_promote",
+        "batch_realign",
         "batch_start",
         "batch_template",
         "batch_update",
@@ -1350,6 +1464,7 @@
         "reorder_queue",
         "start",
         "start_all",
+        "start_process",
         "stop",
         "update_settings"
       ],
@@ -1363,6 +1478,11 @@
           "name": "start",
           "pattern": "start/<int:pk>/",
           "view": "views.start"
+        },
+        {
+          "name": "start_process",
+          "pattern": "start/<int:pk>/<str:process>/",
+          "view": "views.start_process"
         },
         {
           "name": "stop",
@@ -1445,6 +1565,7 @@
             "quality_intent",
             "language",
             "voice_preset",
+            "animation_model",
             "use_enhancer",
             "bbox_shift"
           ],
@@ -1498,13 +1619,13 @@
             "avatar_gallery_name": "str",
             "avatar_image_path": "str",
             "avatar_source": "str (défaut : 'gallery')",
-            "bbox_shift": "range — Décalage vertical de la zone bouche (px). 0 = auto. [-9–9] (défaut : 0)",
+            "bbox_shift": "range — Décalage vertical de la zone bouche (px). 0 = auto. Photo animée seulement : sans effet sur un avatar 3D. [-9–9] (défaut : 0)",
             "language": "select — Langue (choix : fr | en | es | de | it | pt | pl | tr …) (défaut : 'fr')",
             "mode": "str (défaut : 'pipeline')",
             "quality_mode": "str (défaut : 'fast')",
             "text_content": "textarea — La relance régénère la voix depuis ce texte.",
             "tts_model": "select — Modèle TTS (défaut : 'synthesizer:coqui-xtts')",
-            "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. (défaut : False)",
+            "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. Photo animée seulement : sans effet sur un avatar 3D. (défaut : False)",
             "voice_preset": "select — Voix (défaut : 'default')"
           },
           "description": "Ajoute un élément à la file d'attente de Avatarizer (Génération de vidéos d'avatars parlants : une photo animée par IA (MuseTalk + CodeFormer) ou un avatar 3D riggé rendu par TalkingHead) et renvoie son item_id."

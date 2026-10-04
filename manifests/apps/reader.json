@@ -828,6 +828,8 @@
               "panel"
             ],
             "default": "auto",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsBackend",
               "item": "rSettings_backend",
@@ -883,6 +885,8 @@
               "panel"
             ],
             "default": 50,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "panel": "qualityIntent"
             },
@@ -946,6 +950,8 @@
               "panel"
             ],
             "default": "auto",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsMode",
               "item": "rSettings_mode",
@@ -995,6 +1001,8 @@
               "panel"
             ],
             "default": "",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsLanguage",
               "item": "rSettings_language",
@@ -1053,6 +1061,8 @@
               "panel"
             ],
             "default": "txt",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsOutputFormat",
               "item": "rSettings_output_format",

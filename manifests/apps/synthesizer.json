@@ -38,6 +38,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "native_outputs"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
@@ -977,6 +996,8 @@
               "panel"
             ],
             "default": "synthesizer:coqui-xtts",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsTtsModel",
               "item": "settingsTtsModel",
@@ -1028,6 +1049,8 @@
               "panel"
             ],
             "default": 50,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsQualityIntent",
               "item": "settingsQualityIntent",
@@ -1141,6 +1164,8 @@
               "panel"
             ],
             "default": "fr",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsLanguage",
               "item": "settingsLanguage",
@@ -1190,6 +1215,8 @@
               "panel"
             ],
             "default": "default",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsVoicePreset",
               "item": "settingsVoicePreset",
@@ -1239,6 +1266,8 @@
               "panel"
             ],
             "default": 1.0,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsSpeed",
               "item": "settingsSpeed",
@@ -1288,6 +1317,8 @@
               "panel"
             ],
             "default": 1.0,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsPitch",
               "item": "settingsPitch",
@@ -1369,6 +1400,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsOutputFormat",
               "panel": "output_format"
@@ -1429,6 +1462,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settingsOutputQuality",
               "panel": "output_quality"
@@ -1560,6 +1595,7 @@
         "reorder_queue",
         "start",
         "start_all",
+        "start_process",
         "stop",
         "text_preview",
         "update_settings",
@@ -1587,6 +1623,11 @@
           "name": "start",
           "pattern": "start/<int:pk>/",
           "view": "views.start"
+        },
+        {
+          "name": "start_process",
+          "pattern": "start/<int:pk>/<str:process>/",
+          "view": "views.start_process"
         },
         {
           "name": "stop",

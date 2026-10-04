@@ -1167,6 +1167,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "",
             "help": "",
@@ -1212,6 +1214,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "sortie",
             "help": "",
@@ -1294,6 +1298,8 @@
               "panel"
             ],
             "default": 50,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "batch": "batchSettingsQualityIntent",
               "item": "settingsQualityIntent",
@@ -1349,6 +1355,8 @@
               "panel"
             ],
             "default": 85,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "image",
             "help": "Qualité d'encodage de l'image (1–100) — posée par le curseur, retouchable ici.",
@@ -1397,6 +1405,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "image",
             "help": "Vide = suit la hauteur (proportions gardées) ; les deux vides = inchangé.",
@@ -1445,6 +1455,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "image",
             "help": "Vide = suit la largeur (proportions gardées) ; les deux vides = inchangé.",
@@ -1510,6 +1522,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "transform",
             "help": "",
@@ -1561,6 +1575,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "transform",
             "help": "",
@@ -1612,6 +1628,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "transform",
             "help": "",
@@ -1663,6 +1681,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "video",
             "help": "0 = sans perte, 23 = défaut, 51 = pire qualité.",
@@ -1711,6 +1731,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "video",
             "help": "Vide = inchangé.",
@@ -1759,6 +1781,8 @@
               "panel"
             ],
             "default": 12,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "video",
             "help": "Sortie GIF uniquement.",
@@ -1807,6 +1831,8 @@
               "panel"
             ],
             "default": 480,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "video",
             "help": "Sortie GIF uniquement — hauteur calculée pour garder les proportions.",
@@ -1876,6 +1902,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "audio",
             "help": "",
@@ -1941,6 +1969,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "audio",
             "help": "",
@@ -2002,6 +2032,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "audio",
             "help": "",
@@ -2050,6 +2082,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "audio",
             "help": "",
@@ -2111,6 +2145,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "posttraitement",
             "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
@@ -2159,6 +2195,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "posttraitement",
             "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
@@ -2207,6 +2245,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": "",
             "group": "posttraitement",
             "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",

@@ -38,6 +38,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "native_outputs"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
@@ -1210,6 +1229,8 @@
               "panel"
             ],
             "default": "auto",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settings_model",
               "panel": "model"
@@ -1260,6 +1281,8 @@
               "panel"
             ],
             "default": 50,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settings_quality_intent",
               "panel": "quality_intent"
@@ -1311,6 +1334,8 @@
               "panel"
             ],
             "default": "",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settings_negative_prompt",
               "panel": "negative_prompt"
@@ -1376,6 +1401,8 @@
               "panel"
             ],
             "default": 1,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settings_num_images",
               "panel": "num_images"
@@ -1430,6 +1457,8 @@
               "panel"
             ],
             "default": 30,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settings_steps",
               "panel": "steps"
@@ -1483,6 +1512,8 @@
               "panel"
             ],
             "default": 7.5,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settings_guidance_scale",
               "panel": "guidance_scale"
@@ -1531,6 +1562,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settings_seed",
               "panel": "seed"
@@ -1579,6 +1612,8 @@
               "panel"
             ],
             "default": 0.75,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settings_image_strength"
             },
@@ -1638,6 +1673,8 @@
               "item"
             ],
             "default": "",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settings_output_upscale",
               "panel": "output_upscale"
@@ -1722,6 +1759,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settings_output_format",
               "panel": "output_format"
@@ -1782,6 +1821,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "settings_output_quality",
               "panel": "output_quality"
@@ -1844,6 +1885,8 @@
               "panel"
             ],
             "default": "auto",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "video_settings_model",
               "panel": "panel_video_model"
@@ -1894,6 +1937,8 @@
               "panel"
             ],
             "default": 50,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "video_settings_quality_intent",
               "panel": "panel_video_quality_intent"
@@ -1945,6 +1990,8 @@
               "panel"
             ],
             "default": "",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "video_settings_negative_prompt",
               "panel": "panel_video_negative_prompt"
@@ -2007,6 +2054,8 @@
               "panel"
             ],
             "default": "480p",
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "video_settings_resolution",
               "panel": "panel_video_resolution"
@@ -2060,6 +2109,8 @@
               "panel"
             ],
             "default": 5.0,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "video_settings_duration",
               "panel": "panel_video_duration"
@@ -2114,6 +2165,8 @@
               "panel"
             ],
             "default": 16,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "video_settings_fps",
               "panel": "panel_video_fps"
@@ -2162,6 +2215,8 @@
               "panel"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "video_settings_seed",
               "panel": "panel_video_seed"
@@ -2216,6 +2271,8 @@
               "panel"
             ],
             "default": 30,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "video_settings_steps",
               "panel": "panel_video_steps"
@@ -2269,6 +2326,8 @@
               "panel"
             ],
             "default": 7.5,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "video_settings_guidance",
               "panel": "panel_video_guidance"
@@ -2345,6 +2404,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "video_settings_output_format",
               "panel": "panel_video_output_format"
@@ -2405,6 +2466,8 @@
               "item"
             ],
             "default": null,
+            "default_from": null,
+            "display_format": "",
             "dom_id": {
               "item": "video_settings_output_quality",
               "panel": "panel_video_output_quality"
@@ -2529,6 +2592,7 @@
         "restart",
         "start",
         "start_all",
+        "start_process",
         "update_settings"
       ],
       "extra_routes": [
@@ -2546,6 +2610,11 @@
           "name": "start",
           "pattern": "start/<int:generation_id>/",
           "view": "views.start_generation"
+        },
+        {
+          "name": "start_process",
+          "pattern": "start/<int:pk>/<str:process>/",
+          "view": "views.start_process"
         },
         {
           "name": "restart",
