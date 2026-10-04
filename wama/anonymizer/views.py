@@ -663,27 +663,6 @@ def card_html(request, pk):
                   {'elem': media, 'in_batch': is_batch_child(media), 'user': user})
 
 
-@require_POST
-@app_access('anonymizer')
-def start_process(request, pk, process):
-    """▶ d'UN process de la card (`ROUTE §10.6` 5.1) : lancement BORNÉ — refaire la sortie seule
-    (format, qualité) sans re-flouter, ou re-flouter sans attendre qu'un réglage change."""
-    from .function_specs import PIPELINE
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    if process not in {s.key for s in PIPELINE.specs}:
-        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
-    from wama.common.utils.process_control import begin_processing
-    media, err = begin_processing(Media, pk, user=user, reset=_reset_for_relaunch)
-    if err:
-        return JsonResponse({'error': err}, status=404 if err == 'not_found' else 400)
-    cache.delete(f"media_progress_{media.id}")
-    task = process_single_media.apply_async(args=(media.id,), kwargs={'process': process})
-    media.task_id = task.id
-    media.save(update_fields=['task_id'])
-    return JsonResponse({'success': True, 'task_id': task.id, 'status': 'RUNNING',
-                         'process': process})
-
-
 def _reset_for_relaunch(media):
     """Remise à zéro d'un média AVANT relance (sous le verrou begin_processing)."""
     media.blur_progress = 0
@@ -749,6 +728,16 @@ def _get_user(request):
 def _reset_and_forget_progress(media):
     _reset_for_relaunch(media)
     cache.delete(f"media_progress_{media.id}")
+
+
+from wama.common.utils.process_views import make_process_start_view  # noqa: E402
+
+
+# ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — refaire la sortie seule
+# (format, qualité) sans re-flouter, ou re-flouter sans attendre qu'un réglage change.
+start_process = app_access('anonymizer')(make_process_start_view(
+    work_model=Media, task_for=lambda _media: process_single_media,
+    reset_on_start=_reset_and_forget_progress))
 
 
 def _mark_customised(media):

@@ -502,36 +502,19 @@ def start(request, pk):
     return JsonResponse({'id': gen.id, 'status': 'RUNNING'})
 
 
-@require_POST
-@app_access('composer')
-def start_process(request, pk, process):
-    """▶ d'UN process de la card (P5, `ROUTE §10.6` 5.1) : lancement BORNÉ — ce process, précédé
-    des seuls amonts périmés, jamais son aval. Un process inconnu est refusé en le disant ; un
-    process sans objet pour cette card (modèle qui n'écrit pas de partition) aussi."""
-    from .function_specs import PIPELINE
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    if process not in {s.key for s in PIPELINE.specs}:
-        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
-    from wama.common.utils.scoping import editable_or_404
-    gen = editable_or_404(ComposerGeneration, user, id=pk)
-    # Sous « auto », le modèle — donc ce qui a lieu — n'est connu qu'au lancement : la tâche tranche.
+from wama.common.utils.process_views import DECIDED_AT_LAUNCH, make_process_start_view  # noqa: E402
+
+# ▶ d'UN process de la card (P5, `ROUTE §10.6` 5.1) : fabrique COMMUNE. Seules les sorties
+# DÉCLARÉES du process lancé sont remplacées (`_reset_for_relaunch(gen, only)`).
+def _pipeline_model(gen):
+    """Sous « auto », le modèle — donc ce qui a lieu — n'est connu qu'au lancement."""
     from wama.common.utils.auto_model import is_auto
-    if not is_auto(gen.model) and \
-            process not in {s.key for s in PIPELINE.applicable(gen, gen.model or None)}:
-        return JsonResponse({'error': f"« {PIPELINE.spec(process).label} » n'a pas lieu pour "
-                                      "cette card"}, status=400)
-    from wama.common.utils.process_control import begin_processing
-    gen, err = begin_processing(ComposerGeneration, pk, user=user,
-                                reset=lambda g: _reset_for_relaunch(g, only=process))
-    if err == 'not_found':
-        return JsonResponse({'error': 'Not found'}, status=404)
-    if err == 'already_running':
-        return JsonResponse({'error': 'Déjà en cours'}, status=400)
-    from .tasks import compose_task
-    task = compose_task.apply_async(args=(gen.id,), kwargs={'process': process})
-    gen.task_id = task.id
-    gen.save(update_fields=['task_id'])
-    return JsonResponse({'id': gen.id, 'status': 'RUNNING', 'process': process})
+    return DECIDED_AT_LAUNCH if is_auto(gen.model) else (gen.model or None)
+
+
+start_process = app_access('composer')(make_process_start_view(
+    work_model=ComposerGeneration, task_for=_task_for, reset_for_process=_reset_for_relaunch,
+    model_key=_pipeline_model))
 
 
 @require_POST

@@ -153,7 +153,8 @@ def _output(synthesis, ctx):
     mention « généré par IA » et les propriétés audio sont celles du fichier FINAL : c'est lui que
     l'utilisateur emporte."""
     from wama.common.services import process_runs
-    from wama.common.services.output_process import output_step, relative
+    from wama.common.services.output_process import output_step
+    from wama.common.utils.file_references import relative_to_media
 
     def finish(item, finals):
         from wama.common.tts.voice_refs import is_cloned_voice
@@ -162,7 +163,7 @@ def _output(synthesis, ctx):
         mark_as_generated(finals[0], app='synthesizer',
                           model=(spoken.model_key if spoken else '') or item.tts_model,
                           detail='voix clonée' if is_cloned_voice(item.voice_preset) else '')
-        item.audio_output.name = relative(finals[0])
+        item.audio_output.name = relative_to_media(finals[0])
         _update_audio_properties(item)
         return {}
 

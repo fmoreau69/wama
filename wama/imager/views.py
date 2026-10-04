@@ -1019,27 +1019,12 @@ def start_generation(request, generation_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@require_http_methods(["POST"])
-def start_process(request, generation_id, process):
-    """▶ d'UN process de la card (`ROUTE §10.6` 5.1) : lancement BORNÉ — ce process, précédé des
-    seuls amonts périmés, jamais son aval. Refaire la sortie seule (format, agrandissement) sans
-    regénérer, ou regénérer sans attendre qu'un réglage ait changé."""
-    from .function_specs import PIPELINE
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    if process not in {s.key for s in PIPELINE.specs}:
-        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
-    from wama.common.utils.process_control import begin_processing
-    generation, err = begin_processing(
-        ImageGeneration, generation_id, user=user, reset={'progress': 0, 'error_message': ''})
-    if err == 'not_found':
-        return JsonResponse({'error': 'Generation not found'}, status=404)
-    if err == 'already_running':
-        return JsonResponse({'error': 'Generation already running'}, status=400)
-    cache.delete(f"imager_progress_{generation_id}")
-    task = _task_for(generation).apply_async(args=(generation.id,), kwargs={'process': process})
-    generation.task_id = task.id
-    generation.save(update_fields=['task_id'])
-    return JsonResponse({'success': True, 'task_id': task.id, 'process': process})
+from wama.common.utils.process_views import make_process_start_view  # noqa: E402
+
+# ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — refaire la sortie seule
+# (format, agrandissement) sans regénérer, ou regénérer sans attendre qu'un réglage ait changé.
+start_process = make_process_start_view(
+    work_model=ImageGeneration, task_for=_task_for, reset_on_start=_reset_and_forget_progress)
 
 
 @require_http_methods(["POST"])

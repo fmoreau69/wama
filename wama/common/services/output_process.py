@@ -27,6 +27,7 @@ import os
 
 from django.conf import settings
 
+from wama.common.utils.file_references import relative_to_media
 from wama.common.utils.output_formats import NATIVE_FIELD, OUTPUT_PARAM_NAMES, render_outputs
 
 #: Clé du process de sortie dans le pipeline d'une app, et libellé de sa ligne sur la card.
@@ -46,11 +47,6 @@ def output_spec(depends_on, *, key: str = OUTPUT_KEY, label: str = OUTPUT_LABEL,
 def _absolute(path) -> str:
     path = str(path)
     return path if os.path.isabs(path) else os.path.join(settings.MEDIA_ROOT, path)
-
-
-def relative(path) -> str:
-    """Chemin relatif à MEDIA_ROOT, à barres obliques (la forme d'un `FileField`)."""
-    return os.path.relpath(str(path), settings.MEDIA_ROOT).replace(os.sep, '/')
 
 
 def _field_of(item, field) -> str:
@@ -89,20 +85,27 @@ def files_fingerprint(paths) -> str:
     return text_fingerprint('|'.join(marks))
 
 
-def _shared(item, path, holder: str) -> bool:
-    """Une AUTRE card désigne-t-elle ce fichier ? Dans le doute, oui : rien ne se perd."""
+def _replaceable(item, path, holder: str) -> bool:
+    """Ce fichier peut-il être REMPLACÉ par sa card ? Les deux règles de
+    `queue_duplication.safe_delete_file`, appliquées à un chemin (il vaut aussi pour une liste
+    de chemins, qui n'est pas un `FileField`) : le fichier vit chez l'app de la card
+    (`owns_file`), et aucune autre ligne ne le désigne. Dans le doute, non : rien ne se perd."""
     from wama.common.utils.file_references import is_referenced_elsewhere
+    from wama.common.utils.queue_duplication import owns_file
     try:
-        return is_referenced_elsewhere(relative(path), label=item._meta.label, pk=item.pk,
-                                       field=holder)
+        name = relative_to_media(path)
+        return (owns_file(item, name)
+                and not is_referenced_elsewhere(name, label=item._meta.label, pk=item.pk,
+                                                field=holder))
     except Exception:
-        return True
+        return False
 
 
 def drop_previous_outputs(item, field, keep=()) -> None:
     """Le moteur REJOUE : les originaux gardés et les rendus de la fois d'avant qu'il n'a pas
     réécrits sont retirés (un `.webp` d'un ancien réglage). Un fichier qu'une AUTRE card désigne
-    encore (duplication) est laissé — la règle de `queue_duplication.safe_delete_file`."""
+    encore (duplication), ou qui ne vit pas chez l'app de la card, est laissé — les deux règles
+    de `queue_duplication.safe_delete_file`."""
     kept = {os.path.abspath(str(p)) for p in keep}
     name = _field_of(item, field)
     previous = [(_absolute(p), NATIVE_FIELD) for p in (getattr(item, NATIVE_FIELD, None) or [])]
@@ -110,7 +113,7 @@ def drop_previous_outputs(item, field, keep=()) -> None:
     for path, holder in previous:
         if os.path.abspath(path) in kept or not os.path.isfile(path):
             continue
-        if not _shared(item, path, holder):
+        if _replaceable(item, path, holder):
             os.remove(path)
 
 
@@ -165,19 +168,19 @@ def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
                 sources, item, domain=domain(item) if callable(domain) else domain,
                 app_id=app_id, console=say,
                 output_format=format_of(item, sources[0]) if format_of else None,
-                previous=[p for p in rendered_files(item, name) if not _shared(item, p, name)])
+                previous=[p for p in rendered_files(item, name) if _replaceable(item, p, name)])
         except Exception as exc:
             ctx.reset_progress()
             raise RuntimeError(f"Réglages de sortie : {exc}") from exc
         listed = isinstance(getattr(item, name, None), (list, tuple))
-        fields = {NATIVE_FIELD: [relative(p) for p in natives],
-                  name: list(finals) if listed else relative(finals[0])}
+        fields = {NATIVE_FIELD: [relative_to_media(p) for p in natives],
+                  name: list(finals) if listed else relative_to_media(finals[0])}
         if extra_fields is not None:
             fields.update(extra_fields(item, finals) or {})
         return {
             'fields': fields,
             'label': ', '.join(os.path.basename(p) for p in finals),
-            'output_ref': relative(finals[0]),
+            'output_ref': relative_to_media(finals[0]),
         }
 
     return step

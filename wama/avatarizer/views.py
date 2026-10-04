@@ -335,35 +335,6 @@ def start(request, pk):
     return JsonResponse({'task_id': task.id, 'status': 'started'})
 
 
-@require_POST
-def start_process(request, pk, process):
-    """▶ d'UN process de la card (`ROUTE §10.6` 5.1) : lancement BORNÉ — ce process, précédé des
-    seuls amonts périmés, jamais son aval. Refaire la voix seule, ou l'animation seule sur la voix
-    déjà synthétisée. Un process inconnu, ou sans objet pour cette card (la voix d'une card qui
-    apporte son audio), est refusé en le disant."""
-    from .function_specs import PIPELINE
-    user = _get_user(request)
-    if process not in {s.key for s in PIPELINE.specs}:
-        return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
-    from wama.common.utils.scoping import editable_or_404
-    job = editable_or_404(AvatarJob, user, pk=pk)
-    if process not in {s.key for s in PIPELINE.applicable(job, job.animation_model or 'auto')}:
-        return JsonResponse({'error': f"« {PIPELINE.spec(process).label} » n'a pas lieu pour "
-                                      "cette card"}, status=400)
-    from wama.common.utils.process_control import begin_processing
-    job, err = begin_processing(AvatarJob, pk, user=user,
-                                reset={'progress': 0, 'error_message': ''})
-    if err == 'not_found':
-        return JsonResponse({'error': 'Job introuvable.'}, status=404)
-    if err == 'already_running':
-        return JsonResponse({'error': 'Job déjà en cours.'}, status=400)
-    _ensure_workers_imported()
-    task = _generate_avatar.apply_async(args=(job.id,), kwargs={'process': process})
-    job.task_id = task.id
-    job.save(update_fields=['task_id'])
-    return JsonResponse({'task_id': task.id, 'status': 'started', 'process': process})
-
-
 def _decorate_card(job, preloaded=False):
     """Les PROCESS de la card et son état MONTRÉ (`ROUTE §10.6` 5.1) — par la brique commune
     (`process_pipeline.decorate`). Une card texte montre « Voix → Animation » ; une card qui
@@ -1006,6 +977,16 @@ SETTINGS_FIELDS = tuple(dict.fromkeys(
 def _task_for(job):
     _ensure_workers_imported()
     return _generate_avatar
+
+
+from wama.common.utils.process_views import make_process_start_view  # noqa: E402
+
+# ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — refaire la voix seule, ou
+# l'animation seule sur la voix déjà synthétisée.
+start_process = make_process_start_view(
+    work_model=AvatarJob, task_for=_task_for,
+    reset_on_start={'progress': 0, 'error_message': ''},
+    model_key=lambda job: job.animation_model or 'auto')
 
 
 def _derive_quality_mode(job):
