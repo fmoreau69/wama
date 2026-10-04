@@ -59,7 +59,7 @@
     ],
     "visibility": "public"
   },
-  "description": "Anime l'avatar sur l'audio : synchronisation labiale d'une photo (MuseTalk) ou rendu d'un avatar 3D riggé (TalkingHead), puis amélioration faciale si demandée.",
+  "description": "Anime l'avatar sur l'audio : synchronisation labiale d'une photo (MuseTalk) ou rendu d'un avatar 3D riggé (TalkingHead).",
   "key": "avatarizer.animate",
   "manifest_kind": "function",
   "name": "Avatarizer — animer l'avatar",

@@ -1,9 +1,11 @@
-"""The avatarizer task runs through the COMMON skeleton as a two-process pipeline (`speak` →
-`animate`) — step P6 of `WAMA_APP_GENERATION_ROUTE §10.6`, 2026-10-03.
+"""The avatarizer task runs through the COMMON skeleton as a pipeline (`speak` → `animate` →
+`enhance`) — step P6 of `WAMA_APP_GENERATION_ROUTE §10.6`, 2026-10-03 ; `enhance` (the face
+enhancement, « Visage ») is its own process since 2026-10-04.
 
 What is held here: a text card plays both processes and keeps one execution line each ; a card
 that brings its audio has no `speak` ; changing what only the animation watches does NOT call the
-TTS service again ; and a TTS service that is still LOADING is not a failure — the task is
+TTS service again ; asking for the face enhancement, or dropping it, does NOT animate again (the
+animated video is kept beside the enhanced one) ; and a TTS service that is still LOADING is not a failure — the task is
 delivered again (the policy the avatarizer held by hand around `self.retry()`).
 
 The engines are stand-ins (`FakeRender`) : the CHAINING is tested, not the render.
@@ -62,7 +64,7 @@ class AvatarPipelineTest(TestCase):
         return {line.node_id: line.status for line in process_runs.lines(job)}
 
     def test_the_pipeline_chains_the_voice_then_the_animation(self):
-        self.assertEqual(['speak', 'animate'], [p.key for p in PIPELINE.specs])
+        self.assertEqual(['speak', 'animate', 'enhance'], [p.key for p in PIPELINE.specs])
         self.assertEqual(set(workers.PROCESSES), {p.key for p in PIPELINE.specs})
 
     def test_a_text_card_plays_both_processes_and_keeps_a_line_for_each(self):
@@ -72,7 +74,50 @@ class AvatarPipelineTest(TestCase):
         self.assertEqual(['avatarizer:musetalk-v1.5'], engines)
         self.assertTrue(job.audio_input.name.endswith('.wav'), job.audio_input.name)
         self.assertTrue(job.output_video.name.endswith('.mp4'), job.output_video.name)
-        self.assertEqual({'speak': 'SUCCESS', 'animate': 'SUCCESS'}, self._states(job))
+        self.assertEqual({'speak': 'SUCCESS', 'animate': 'SUCCESS', 'enhance': 'SUCCESS'},
+                         self._states(job))
+        self.assertEqual([], job.native_outputs, 'no enhancement asked : nothing kept beside')
+
+    def test_asking_for_the_face_enhancement_does_not_animate_again(self):
+        job, _, _ = self._run(self._text_job())
+        animated = job.output_video.name
+        AvatarJob.objects.filter(pk=job.pk).update(use_enhancer=True, status='RUNNING')
+        job, spoken, engines = self._run(job)
+        self.assertEqual('SUCCESS', job.status, job.error_message)
+        self.assertEqual((0, ['avatarizer:codeformer']), (spoken, engines))
+        self.assertIn('codeformer', job.output_video.name)
+        self.assertEqual(1, len(job.native_outputs), 'the animated video is kept beside')
+        folder = Path(settings.MEDIA_ROOT) / Path(job.output_video.name).parent
+        mine = sorted(p.name for p in folder.iterdir() if f'_{job.id}' in p.name)
+        self.assertEqual(2, len(mine), mine)
+        # Dropped : the animated video takes its place back, nothing is computed.
+        AvatarJob.objects.filter(pk=job.pk).update(use_enhancer=False, status='RUNNING')
+        job, spoken, engines = self._run(job)
+        self.assertEqual('SUCCESS', job.status, job.error_message)
+        self.assertEqual((0, []), (spoken, engines))
+        self.assertEqual((animated, []), (job.output_video.name, job.native_outputs))
+        mine = sorted(p.name for p in folder.iterdir() if f'_{job.id}' in p.name)
+        self.assertEqual(1, len(mine), mine)
+
+    def test_animating_again_under_an_enhanced_video_replaces_both(self):
+        job = self._text_job()
+        AvatarJob.objects.filter(pk=job.pk).update(use_enhancer=True)
+        job, _, engines = self._run(job)
+        self.assertEqual(['avatarizer:musetalk-v1.5', 'avatarizer:codeformer'], engines)
+        AvatarJob.objects.filter(pk=job.pk).update(bbox_shift=9, status='RUNNING')
+        job, spoken, engines = self._run(job)
+        self.assertEqual('SUCCESS', job.status, job.error_message)
+        self.assertEqual((0, ['avatarizer:musetalk-v1.5', 'avatarizer:codeformer']),
+                         (spoken, engines))
+        folder = Path(settings.MEDIA_ROOT) / Path(job.output_video.name).parent
+        mine = sorted(p.name for p in folder.iterdir() if f'_{job.id}' in p.name)
+        self.assertEqual(2, len(mine), mine)
+
+    def test_a_3d_avatar_has_no_face_process(self):
+        job = self._text_job()
+        AvatarJob.objects.filter(pk=job.pk).update(avatar_upload='x/head.glb', use_enhancer=True)
+        job.refresh_from_db()
+        self.assertEqual(['speak', 'animate'], [p.key for p in PIPELINE.applicable(job, 'auto')])
 
     def test_the_drawn_tts_model_is_not_written_into_the_setting(self):
         job = self._text_job()
@@ -92,7 +137,7 @@ class AvatarPipelineTest(TestCase):
         job, spoken, engines = self._run(job)
         self.assertEqual('SUCCESS', job.status, job.error_message)
         self.assertEqual(0, spoken)
-        self.assertEqual({'animate': 'SUCCESS'}, self._states(job))
+        self.assertEqual({'animate': 'SUCCESS', 'enhance': 'SUCCESS'}, self._states(job))
 
     def test_changing_only_the_animation_does_not_speak_again(self):
         job, _, _ = self._run(self._text_job())
@@ -118,7 +163,8 @@ class AvatarPipelineTest(TestCase):
         job, spoken, engines = self._run(job)
         self.assertEqual(('FAILURE', 0), (job.status, job.progress))
         self.assertIn('inconnu du catalogue', job.error_message)
-        self.assertEqual({'speak': 'SUCCESS', 'animate': 'FAILURE'}, self._states(job))
+        self.assertEqual('FAILURE', self._states(job)['animate'])
+        self.assertEqual('SUCCESS', self._states(job)['speak'])
         AvatarJob.objects.filter(pk=job.pk).update(animation_model='auto', status='RUNNING')
         job, spoken, engines = self._run(job)
         self.assertEqual('SUCCESS', job.status, job.error_message)
@@ -170,8 +216,9 @@ class OneEtaKeyForTheTaskAndTheViewTest(TestCase):
 
 
 class TheCardShowsItsProcessesTest(TestCase):
-    """The card of a text job shows « Voix → Animation » (common strip), each with its ▶ ; a job
-    that brings its audio has a single process, and no strip."""
+    """The card of a text job shows « Voix → Animation → Visage » (common strip), each with its
+    ▶ ; a job that brings its audio shows « Animation → Visage » ; a 3D avatar with its own audio
+    has a single process, and no strip."""
 
     def setUp(self):
         from django.contrib.auth.models import Group
@@ -196,13 +243,18 @@ class TheCardShowsItsProcessesTest(TestCase):
     def test_a_text_card_shows_both_processes_with_their_buttons(self):
         job = self._job()
         html = self._card(job)
-        for key in ('speak', 'animate'):
+        for key in ('speak', 'animate', 'enhance'):
             self.assertRegex(html, rf'wcv3-proc-run"[^>]*data-id="{job.pk}"[^>]*data-process="{key}"')
         self.assertIn('data-status="PENDING"', html)
 
-    def test_a_card_that_brings_its_audio_has_no_strip(self):
-        html = self._card(self._job(mode='standalone', text_content='', audio_input='x/voice.wav'))
+    def test_a_card_with_a_single_process_has_no_strip(self):
+        html = self._card(self._job(mode='standalone', text_content='', audio_input='x/voice.wav',
+                                    avatar_upload='x/head.glb'))
         self.assertNotIn('data-processes', html)
+        photo = self._job(mode='standalone', text_content='', audio_input='x/voice.wav')
+        html = self._card(photo)
+        for key in ('animate', 'enhance'):
+            self.assertRegex(html, rf'wcv3-proc-run"[^>]*data-id="{photo.pk}"[^>]*data-process="{key}"')
 
     def test_the_button_of_a_process_sends_a_bounded_task(self):
         from types import SimpleNamespace
@@ -233,5 +285,6 @@ class TheCardShowsItsProcessesTest(TestCase):
         from django.urls import reverse
         job = self._job()
         payload = self.client.get(reverse('avatarizer:progress', args=[job.pk])).json()
-        self.assertEqual(['speak', 'animate'], [p['key'] for p in payload['processes']])
+        self.assertEqual(['speak', 'animate', 'enhance'],
+                         [p['key'] for p in payload['processes']])
         self.assertEqual('PENDING', payload['shown_state'])

@@ -31,9 +31,12 @@ l'état rendu par le runner de l'app cible est TRADUIT par la table d'alias uniq
 (`process_runs.start/succeed/fail`, adressée par le run), comme un process de card dans une file ;
 le nœud fautif passe `FAILURE` dans `node_states` (il restait « en cours »).
 
-⏳ Ce qui RESTE, et qui n'est pas un oubli : cet exécuteur ne PRODUIT toujours ni
-`AWAITING_RESOURCES` (il faudrait passer par le gouverneur de ressources — marche P3) ni `STALE`
-(il faudrait la règle de péremption du suivi de passes — 4.3). L'agrégation « état de la card
+✅ 2026-10-04 — `AWAITING_RESOURCES` : un nœud `app` MONTRE l'attente de son élément (c'est la
+tâche de l'app cible qui passe par le gouverneur de ressources ; le studio la RELAIE au canvas au
+lieu d'afficher « en cours »), et cette attente ne compte pas dans le délai du nœud.
+
+⏳ Ce qui RESTE, et qui n'est pas un oubli : cet exécuteur ne PRODUIT pas `STALE` (il faudrait
+rejouer un run nœud par nœud — la règle de péremption du suivi de passes, 4.3). L'agrégation « état de la card
 déduit de ses process » est la décision OUVERTE n°4. Cet exécuteur devient alors une pièce du
 MOTEUR COMMUN (avec le squelette de tâche et le suivi de passes de cam_analyzer), qui exécutera
 le pipeline porté par une card dans n'importe quelle file (4.5).
@@ -42,7 +45,7 @@ import time
 
 from celery import shared_task
 
-from wama.common.models import (JOB_FAILURE, JOB_RUNNING, JOB_SUCCESS,
+from wama.common.models import (JOB_AWAITING_RESOURCES, JOB_FAILURE, JOB_RUNNING, JOB_SUCCESS,
                                 normalize_job_status)
 from wama.common.utils.console_utils import push_console_line
 
@@ -535,6 +538,7 @@ def run_pipeline_task(self, run_id):
             runner['start'](user, item_id)
 
             deadline = time.time() + NODE_TIMEOUT_S
+            shown = JOB_RUNNING
             while True:
                 time.sleep(POLL_INTERVAL_S)
                 st = runner['poll'](user, item_id)
@@ -544,6 +548,16 @@ def run_pipeline_task(self, run_id):
                 # brute — une app qui répondrait `DONE`/`ERROR` faisait tourner cette boucle
                 # jusqu'au délai de 30 min sans que rien ne le dise.
                 state = normalize_job_status(st.get('status'))
+                # L'élément ATTEND des ressources (sa tâche a rendu le worker, le gouverneur la
+                # rappellera) : le canvas le dit, et l'attente ne compte pas dans le délai du
+                # nœud. La ligne d'exécution du nœud, elle, reste ouverte : il n'a pas échoué.
+                if state == JOB_AWAITING_RESOURCES:
+                    deadline += POLL_INTERVAL_S
+                if state in (JOB_AWAITING_RESOURCES, JOB_RUNNING) and state != shown:
+                    shown = state
+                    states[nid]['status'] = state
+                    run.node_states = states
+                    run.save(update_fields=['node_states'])
                 if state == JOB_SUCCESS:
                     if not st.get('output'):
                         raise ValueError(f"Nœud {app} : terminé mais aucune sortie.")

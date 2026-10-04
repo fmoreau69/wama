@@ -21623,3 +21623,16 @@ Suite du palier de l'après-midi (`ROUTE §11 #38`, mis à jour).
 ⚠ **Arbre de travail** : `docs/dev/briques.md` et `WAMA_MECANISMES.md` y sont plus ANCIENS que HEAD (171 sections contre 186 — `DocDeveloppeurTest.test_chaque_mecanisme_a_sa_section` rouge sur l'arbre, vert sur HEAD) ; non touchés : ce ne sont pas mes fichiers de travail, `git checkout` les remettrait à HEAD.
 
 **Restes.** Aide `_convert` recopiée dans cinq fichiers de tests · anonymizer détection→flou et CodeFormer de l'avatarizer encore dans le process moteur · exécuteur du studio sans `AWAITING_RESOURCES`/`STALE` · `AnalysisPass`→`ProcessRun` étape 3 (décision de Fabien).
+
+
+## §PALIER — 2026-10-04 (fin de journée), « PIPELINE : CodeFormer en process « Visage », le studio relaie l'attente de ressources, doublure de test mutualisée » — ✅ commit de ce bloc, non poussé — 🔴 RECHARGER gunicorn ET workers (pipeline de l'avatarizer à trois process) — 🔚 décision : détection → floutage de l'anonymizer
+
+Fin des restes nommés aux deux paliers du jour (demande de Fabien : « tu peux terminer »).
+
+- **Avatarizer, process `enhance` (« Visage »)** : CodeFormer sort du process d'animation. Demander ou retirer l'amélioration faciale ne réanime plus ; la vidéo animée est gardée à côté tant que l'amélioration la transforme (`native_outputs`, migration `avatarizer 0021` ADDITIVE, appliquée). Aucune seconde mécanique : c'est la glu du process de sortie avec une transformation d'app (`output_step(transform=, apply=)`, `render_outputs(transform=, apply=)`). Sans objet pour un avatar 3D. Manifestes `pipelines/avatarizer`, `functions/avatarizer.animate`, `functions/avatarizer.enhance` exportés.
+- **Studio** : un nœud `app` MONTRE l'attente de ressources de son élément (le canvas affichait « en cours »), et cette attente ne compte pas dans le délai du nœud. `STALE` reste à faire (décision ouverte n°4).
+- **Tests** : `common/tests/helpers.py` (`stand_in_conversion`, `INLINE_CONVERSION`) remplace la doublure recopiée dans six fichiers.
+
+**Mesures.** Essai RÉEL sur le GPU (compte de test, card #633 retirée) : voix 108 s + animation 255 s ; amélioration demandée → CodeFormer seul, 112 s, vidéo animée gardée ; retirée → 0,4 s, un seul fichier sur disque. Tests (WSL, base isolée) : avatarizer + pipeline commun + sortie + enhancer 139 OK ; studio (dont `tests_node_states`) joué. Rouges ANTÉRIEURS et hors de ce palier : budgets de noms de tests ; `composer.tests_pipeline` en erreur sur la base de test partagée (`column "lyrics"` — champ d'une autre session, migration absente de cette base).
+
+**Restes.** ⭐ Détection → floutage de l'anonymizer : demande de persister les détections image par image (format à choisir, cœur du moteur à réécrire) — chantier à DÉCIDER. · ETA d'une card d'avatar « qualité » : lue sous `avatarizer:quality`, que plus aucun process n'apprend (chaque process apprend la sienne ; la vue n'en additionne pas deux). · Studio : `STALE`.

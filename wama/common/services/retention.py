@@ -45,7 +45,7 @@ RETENTION_MODELS = [
     {'model': 'synthesizer.VoiceSynthesis', 'path_lists': ['native_outputs']},
     {'model': 'transcriber.Transcript'},
     {'model': 'anonymizer.Media', 'date': 'uploaded_at', 'path_lists': ['native_outputs']},
-    {'model': 'avatarizer.AvatarJob'},
+    {'model': 'avatarizer.AvatarJob', 'path_lists': ['native_outputs']},
     {'model': 'converter.ConversionJob'},
     {'model': 'describer.Description'},
     {'model': 'reader.ReadingItem'},

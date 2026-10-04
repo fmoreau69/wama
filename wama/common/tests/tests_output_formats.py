@@ -13,6 +13,7 @@ from django.test import SimpleTestCase, TestCase
 
 from wama.common.utils import output_formats as of
 from wama.model_manager.models import AIModel
+from wama.common.tests.helpers import INLINE_CONVERSION, stand_in_conversion
 
 
 def _upscaler(key, scale, task='upscale'):
@@ -107,7 +108,7 @@ class ApplyOutputSettingsTest(SimpleTestCase):
         order = []
         with mock.patch.object(of, 'upscale_output_image',
                                side_effect=lambda p, f, **k: order.append(('up', p, f)) or (1, 1)), \
-                mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+                mock.patch(INLINE_CONVERSION,
                            side_effect=lambda p, fmt, q: order.append(('conv', p, fmt)) or p + '.webp'):
             out = of.apply_output_settings(['a.png'], self._item(output_upscale='x2',
                                                                  output_format='webp'),
@@ -131,7 +132,7 @@ class ApplyOutputSettingsTest(SimpleTestCase):
             with self.assertRaises(RuntimeError):
                 of.apply_output_settings(['a.png'], self._item(output_upscale='x4'), domain='image')
         said = []
-        with mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+        with mock.patch(INLINE_CONVERSION,
                         side_effect=OSError('ffmpeg')):
             out = of.apply_output_settings(['a.png'], self._item(output_format='webp'),
                                            domain='image', console=said.append)
@@ -156,18 +157,10 @@ class KeepTheOriginalTest(SimpleTestCase):
         values.update(kw)
         return SimpleNamespace(**values)
 
-    @staticmethod
-    def _convert(path, fmt, preset='balanced', **_kw):
-        """Stand-in for the converter : writes the target next to the source, removes the source."""
-        target = os.path.splitext(path)[0] + '.' + fmt
-        with open(path, 'rb') as src, open(target, 'wb') as out:
-            out.write(src.read() + b'>' + fmt.encode())
-        if target != path:
-            os.remove(path)
-        return target
+    _convert = staticmethod(stand_in_conversion)
 
     def _render(self, sources, item, previous=()):
-        with mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+        with mock.patch(INLINE_CONVERSION,
                         side_effect=self._convert):
             return of.render_outputs(sources, item, domain='image', previous=previous)
 

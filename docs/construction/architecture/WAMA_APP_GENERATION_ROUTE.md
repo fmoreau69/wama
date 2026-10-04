@@ -3698,8 +3698,10 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   registre (`Pass.label`) ; panneau, « compléter les passes » et ETA en `JOB_*` ;
 >   `process_runs.start` garde la taille de la durée précédente (`eta_size_s`), que l'étape 2
 >   avait perdue ; modèle `AnalysisPass` retiré (`REMOVAL_LEDGER` R97-R99). ⏳ Sa TABLE est
->   supprimée après le redémarrage de WAMA et une sauvegarde. ⏳ L'exécuteur du studio ne produit toujours ni `AWAITING_RESOURCES`
->   ni `STALE`.
+>   supprimée après le redémarrage de WAMA et une sauvegarde. ✅ L'exécuteur du studio RELAIE `AWAITING_RESOURCES`
+>   depuis le 2026-10-04 (un nœud `app` montre l'attente de son élément, qui ne compte pas dans
+>   son délai — `studio/tests_node_states.py`) ; ⏳ il ne produit pas `STALE` (rejouer un run
+>   nœud par nœud : décision ouverte n°4).
 >
 > 🔄 **P6 ENGAGÉE le 2026-10-03 — les apps hors squelette y entrent, une par une** :
 > - **synthesizer** (`e456c711`) : `synthesize_voice` → `run_item_task`, un seul process. Le
@@ -3713,8 +3715,16 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   sans refaire l'audio. Le modèle TTS tiré par « auto » n'est plus écrit dans le réglage (il
 >   est sur la ligne `speak`). Joué en réel : speak 2,0 s + animate 245 s, puis cadrage changé →
 >   `animate` seul. ✅ La card montre sa bande « Voix → Animation » avec ▶ et ⚙ par process
->   (`27d06d60`, smoke navigateur vert). ⏳ CodeFormer reste dans `animate` (sa vidéo d'entrée
->   vit dans un dossier de travail).
+>   (`27d06d60`, smoke navigateur vert). ✅ **CodeFormer est le process `enhance`
+>   (« Visage ») depuis le 2026-10-04** : TROIS process pour une photo. Il a toujours lieu pour
+>   une photo, comme « Sortie » — demandée, l'amélioration garde la vidéo animée à côté
+>   (`native_outputs`) ; retirée, la vidéo animée reprend sa place sans rien recalculer ; sans
+>   objet pour un avatar 3D. C'est la glu du process de sortie avec une transformation d'app
+>   (`output_step(transform=, apply=)`) — aucune seconde mécanique. Joué en réel (compte de
+>   test) : voix 108 s + animation 255 s ; amélioration demandée → CodeFormer SEUL, 112 s ;
+>   retirée → 0,4 s. ⏳ L'ETA d'une card « qualité » reste lue sous une clé (`avatarizer:quality`)
+>   que plus aucun process n'apprend : chaque process apprend la sienne (`avatarizer:fast`,
+>   `avatarizer:codeformer`), la vue n'en additionne pas deux.
 > - **transcriber, process `import`** (demande de Fabien) : une card qui porte un document
 >   (port `work_result`) joue le MÊME pipeline, `import` à la place de `transcribe` — deux
 >   process `required` qui s'excluent par `applies`, et dont dépendent locuteurs, résumé et
@@ -3777,8 +3787,11 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >     été joué en réel avec ce découpage (service TTS arrêté au moment de l'essai).
 >   - ⏳ Restes : dans la modale ⚙ « Sortie », l'imager et l'anonymizer montrent encore des
 >     champs hors périmètre (consigne et taille ; classes) — ce sont des champs que l'app pose
->     hors schéma ; détection → floutage de l'anonymizer et CodeFormer de l'avatarizer restent
->     dans leur process moteur (les séparer demande de garder les détections / la vidéo animée).
+>     hors schéma (✅ soldé le 04/10 : une modale à portée ne rend que le schéma, `§11 #38`) ;
+>     CodeFormer de l'avatarizer est séparé (✅ 04/10, ci-dessus) ; **détection → floutage de
+>     l'anonymizer reste dans son process moteur** : les séparer demande de PERSISTER les
+>     détections image par image (un format à choisir, le cœur du moteur à réécrire) — chantier
+>     à décider, pas un reste de portage.
 > - ✅ **Joué par la chaîne EN SERVICE après relance (03/10 soir, compte de test)** : anonymizer
 >   (3,1 s, modèle tiré nommé), transcriber `import` + résumé (18,2 s, aucun moteur ASR), image
 >   en « auto » (98,7 s), **vidéo en « auto »** (LTX fp8, 273 s — jamais jouée avant par le

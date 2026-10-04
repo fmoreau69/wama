@@ -18,6 +18,7 @@ from wama.common.services import process_runs
 from wama.common.services import resource_governor as gov
 from wama.imager import tasks
 from wama.imager.models import ImageGeneration
+from wama.common.tests.helpers import INLINE_CONVERSION, stand_in_conversion
 
 MODEL = 'imager:stable-diffusion-xl'
 
@@ -79,7 +80,7 @@ class ImageTaskOnSkeletonTest(_OnSkeleton):
         patches = self._patches() + (
             mock.patch.object(tasks, '_image_backend_for', return_value=(_FakeImageBackend(), None)),
             mock.patch('wama.imager.backends.get_available_backends', return_value=['fake']),
-            mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+            mock.patch(INLINE_CONVERSION,
                        side_effect=self._convert))
         for p in patches:
             p.start()
@@ -91,14 +92,7 @@ class ImageTaskOnSkeletonTest(_OnSkeleton):
         generation.refresh_from_db()
         return outcome
 
-    @staticmethod
-    def _convert(path, fmt, preset='balanced', **_kw):
-        """Stand-in for the converter : writes the target next to the source, removes the source."""
-        converted = os.path.splitext(path)[0] + '.' + fmt
-        with open(path, 'rb') as src, open(converted, 'wb') as out:
-            out.write(src.read() + b'>' + fmt.encode())
-        os.remove(path)
-        return converted
+    _convert = staticmethod(stand_in_conversion)
 
     def _relaunch(self, generation, **settings):
         ImageGeneration.objects.filter(pk=generation.pk).update(status='RUNNING', **settings)
@@ -278,7 +272,7 @@ class VideoTaskOnSkeletonTest(_OnSkeleton):
             converted = os.path.splitext(path)[0] + '.' + fmt
             os.replace(path, converted)
             return converted
-        with mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion', side_effect=convert):
+        with mock.patch(INLINE_CONVERSION, side_effect=convert):
             tasks.generate_video_task.run(generation.pk)
         generation.refresh_from_db()
         self.assertEqual('SUCCESS', generation.status, generation.error_message)

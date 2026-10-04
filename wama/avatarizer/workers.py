@@ -101,10 +101,8 @@ def avatarizer_eta_key_size(job, duration: float = None, avatar_3d: bool = None)
     fichier, `input_match.work_token_for`, la brique du tirage) — ROUTE §11 #37. Jusque-là la vue
     estimait toujours sous la clé de qualité : un avatar 3D n'y lisait jamais ce qu'il apprenait."""
     if avatar_3d is None:
-        from wama.common.utils.input_match import work_token_for
-        name = (job.avatar_gallery_name if job.avatar_source == 'gallery'
-                else (job.avatar_upload.name if job.avatar_upload else '')) or ''
-        avatar_3d = work_token_for(name) == 'work_object3d'
+        from .function_specs import is_3d_avatar
+        avatar_3d = is_3d_avatar(job)
     if duration is None:
         duration = float(job.duration_seconds or 0)
         if not duration and job.mode == 'pipeline' and job.text_content:
@@ -119,12 +117,18 @@ def generate_avatar(self, job_id: int, process: str = None):
     (`run_item_task`, marche P6 du 2026-10-03) et le PIPELINE de l'app (`function_specs.PIPELINE`) :
 
       • `speak`   (mode pipeline) : synthèse audio via le service TTS ;
-      • `animate` : résolution de l'avatar, MuseTalk ou TalkingHead, CodeFormer si demandé.
+      • `animate` : résolution de l'avatar, MuseTalk ou TalkingHead ;
+      • `enhance` (photo) : CodeFormer si demandé, sinon la vidéo animée telle quelle.
 
     Un lancement ne rejoue que ce qui n'est plus à jour (changer l'avatar ne re-synthétise pas la
-    voix) ; `process` le borne à UN process (⚠ argument de tâche nouveau : workers à relancer)."""
+    voix, demander l'amélioration faciale ne réanime pas) ; `process` le borne à UN process."""
+    from wama.common.services.output_process import forget_lost_generation
     from wama.common.utils.task_skeleton import run_item_task
     from .function_specs import PIPELINE
+    # « Visage » repart de la vidéo que l'animation a laissée : si elle n'est plus là, on réanime.
+    known = AvatarJob.objects.filter(pk=job_id).first()
+    if known is not None and known.output_video:
+        forget_lost_generation(known, 'output_video', 'animate')
     if not (getattr(self.request, 'retries', 0) or 0):
         # « En cours » est posé par les LANCEURS (`begin_processing`). Un créateur qui envoie la
         # tâche seule (l'outil de l'assistant) laissait sinon l'élément « en attente » pendant son
@@ -202,9 +206,9 @@ def _speak(job, ctx):
 
 
 def _animate(job, ctx):
-    """Process `animate` : l'avatar + l'audio → la vidéo (MuseTalk ou TalkingHead, puis CodeFormer
-    si demandé). L'audio vient du process `speak` ou de la card (mode standalone — une URL est
-    rapatriée par le squelette avant cette glue, `WAMA_INGEST`)."""
+    """Process `animate` : l'avatar + l'audio → la vidéo (MuseTalk ou TalkingHead). L'audio vient
+    du process `speak` ou de la card (mode standalone — une URL est rapatriée par le squelette
+    avant cette glue, `WAMA_INGEST`). L'amélioration faciale est le process suivant (`_enhance`)."""
     import time as _time
     job_id = job.id
     try:
@@ -293,6 +297,10 @@ def _animate(job, ctx):
         sortie_app = Path(settings.MEDIA_ROOT) / app_media_dir('avatarizer', job.user_id, 'output')
         sortie_app.mkdir(parents=True, exist_ok=True)
 
+        # L'animation REJOUE : la vidéo d'avant (et l'animée gardée sous une améliorée) part.
+        from wama.common.services.output_process import drop_previous_outputs
+        drop_previous_outputs(job, 'output_video')
+
         # Le travail se fait HORS de `media/` (2026-08-25). Avant, MuseTalk et CodeFormer
         # écrivaient dans `output/job_<id>/` : la vidéo finissait dans un sous-dossier `v15/`
         # (ou pire, DANS `codeformer_out/final_results/`), et les frames intermédiaires
@@ -342,19 +350,9 @@ def _animate(job, ctx):
                 _console(job.user_id, "MuseTalk terminé.", 'info')
 
             ctx.progress(82 if avatar_3d else 78)
-
-            # --------------------------------------------------------------
-            # (optionnel) CodeFormer — amélioration faciale
-            # --------------------------------------------------------------
-            final_video = animated_video
             if job.use_enhancer and avatar_3d:
                 # CodeFormer restaure un visage PHOTO ; sur un rendu 3D il n'a rien à réparer.
                 _console(job.user_id, "CodeFormer ignoré : sans objet sur un avatar 3D.", 'info')
-            elif job.use_enhancer:
-                _console(job.user_id, "CodeFormer : amélioration faciale en cours…", 'info')
-                ctx.progress(82)
-                final_video = _backend('avatarizer:codeformer').process(animated_video, str(travail))
-                _console(job.user_id, "CodeFormer terminé.", 'info')
 
             # ⚠ SORTIR le livrable AVANT la fin du bloc — après, `travail` n'existe plus.
             # Brique COMMUNE de nommage : famille FICHIER, la source étant l'AUDIO (c'est lui
@@ -364,10 +362,9 @@ def _animate(job, ctx):
             # affiché deviendrait faux.
             from wama.common.utils.output_naming import compose_output_name
             cible = sortie_app / compose_output_name(
-                app='avatarizer',
-                model=('codeformer' if (job.use_enhancer and not avatar_3d) else model_key.split(':', 1)[-1]),
+                app='avatarizer', model=model_key.split(':', 1)[-1],
                 source_name=audio_path, item_id=job_id, ext='.mp4')
-            _shutil.move(str(final_video), str(cible))
+            _shutil.move(str(animated_video), str(cible))
 
         ctx.progress(95)
 
@@ -388,21 +385,63 @@ def _animate(job, ctx):
         if _dur > 0:
             fields['duration_seconds'] = _dur
 
-        # Seeding ETA : la durée est celle de CE process (plus celle du TTS) — clé et taille par
-        # `avatarizer_eta_key_size`, le lieu que lit aussi la vue de progression.
-        return {
-            'fields': fields,
-            'eta': (avatarizer_eta_key_size(job, duration=_dur, avatar_3d=avatar_3d)
-                    if _dur > 0 else None),
-            'label': getattr(job, 'name', '') or f"avatar #{job_id}",
-            'console_success': f"Vidéo générée : {os.path.basename(str(cible))}",
-            'models': [model_key],
-            'output_ref': rel_path,
-        }
+        # Seeding ETA : la durée est celle de CE process (l'animation seule — l'amélioration
+        # faciale apprend la sienne, `_enhance`) : clé du moteur, jamais celle de la qualité.
+        from wama.common.services.output_process import generated
+        eta_key = 'avatarizer:talkinghead' if avatar_3d else 'avatarizer:fast'
+        return generated(
+            [str(cible)],
+            fields=fields,
+            eta=(eta_key, _dur, 'video_sec') if _dur > 0 else None,
+            label=getattr(job, 'name', '') or f"avatar #{job_id}",
+            console_success=f"Vidéo animée : {os.path.basename(str(cible))}",
+            models=[model_key])
     except Exception:
         ctx.reset_progress()
         raise
 
 
+def _codeformer(job, animated_copy, ctx):
+    """L'amélioration faciale d'une vidéo animée (CodeFormer), jouée sur la COPIE que la brique
+    de sortie lui tend ; rend le chemin de la vidéo améliorée, rangée dans la sortie de l'app."""
+    import shutil as _shutil
+    import time as _time
+    from wama.common.utils.output_naming import compose_output_name
+    from wama.common.utils.work_dir import work_dir
+    _console(job.user_id, "CodeFormer : amélioration faciale en cours…", 'info')
+    ctx.progress(20)
+    started = _time.time()
+    with work_dir(f'avatarizer_face{job.id}') as travail:
+        enhanced = _backend('avatarizer:codeformer').process(animated_copy, str(travail))
+        target = Path(animated_copy).parent / compose_output_name(
+            app='avatarizer', model='codeformer',
+            source_name=job.audio_input.name if job.audio_input else animated_copy,
+            item_id=job.id, ext='.mp4')
+        _shutil.move(str(enhanced), str(target))
+    if os.path.abspath(str(target)) != os.path.abspath(str(animated_copy)) \
+            and os.path.isfile(animated_copy):
+        os.remove(animated_copy)
+    _console(job.user_id, f"CodeFormer terminé ({_time.time() - started:.0f} s).", 'info')
+    return str(target)
+
+
+def _enhance(job, ctx):
+    """Process `enhance` (« Visage ») : par la glu COMMUNE du process de sortie
+    (`output_process.output_step`) avec la transformation de l'app — demandée, la vidéo animée
+    est gardée à côté (`native_outputs`) et l'améliorée devient le rendu ; retirée, la vidéo
+    animée reprend sa place sans rien recalculer."""
+    from wama.common.services.output_process import output_step
+    step = output_step('output_video', domain='video', app_id='avatarizer',
+                       console=lambda item, message: _console(item.user_id, message),
+                       transform=lambda item: bool(item.use_enhancer), apply=_codeformer,
+                       what='Amélioration faciale')
+    result = step(job, ctx)
+    duration = float(job.duration_seconds or 0)
+    if job.use_enhancer and duration > 0:
+        result['eta'] = ('avatarizer:codeformer', duration, 'video_sec')
+        result['models'] = ['avatarizer:codeformer']
+    return result
+
+
 #: La glu de chaque process du pipeline (`function_specs.PIPELINE`).
-PROCESSES = {'speak': _speak, 'animate': _animate}
+PROCESSES = {'speak': _speak, 'animate': _animate, 'enhance': _enhance}

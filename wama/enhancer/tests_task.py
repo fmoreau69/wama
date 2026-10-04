@@ -18,6 +18,7 @@ from django.test import TestCase, override_settings
 from wama.common.services import process_runs
 from wama.enhancer import tasks
 from wama.enhancer.models import AudioEnhancement, Enhancement
+from wama.common.tests.helpers import INLINE_CONVERSION, stand_in_conversion
 
 
 class _TwoProcesses(TestCase):
@@ -38,12 +39,7 @@ class _TwoProcesses(TestCase):
             out.write(b'enhanced')
         return {'width': 8, 'height': 6}
 
-    @staticmethod
-    def _convert(path, fmt, preset='balanced', **_kw):
-        """Stand-in for the converter : writes the target next to the source, removes the source."""
-        converted = os.path.splitext(path)[0] + '.' + fmt
-        os.replace(path, converted)
-        return converted
+    _convert = staticmethod(stand_in_conversion)
 
     def _states(self, item):
         return {line.node_id: line.status for line in process_runs.lines(item)}
@@ -54,7 +50,7 @@ class _TwoProcesses(TestCase):
                 mock.patch(resolver, return_value=drawn), \
                 mock.patch('wama.enhancer.utils.auto_model.vram_needed_gb', return_value=None), \
                 mock.patch('wama.common.utils.model_readiness.warn_if_weights_missing'), \
-                mock.patch('wama.converter.utils.inline_convert.apply_inline_conversion',
+                mock.patch(INLINE_CONVERSION,
                            side_effect=self._convert), \
                 mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
             task.run(item.pk)
@@ -92,7 +88,7 @@ class MediaQueueTest(_TwoProcesses):
         self.assertEqual(1, self.calls, 'the image was NOT enhanced again')
         self.assertTrue(item.output_file.name.endswith('.webp'), item.output_file.name)
         self.assertTrue(item.native_outputs[0].endswith('.native.png'), item.native_outputs)
-        self.assertEqual(len(b'enhanced'), item.output_file_size)
+        self.assertEqual(len(b'enhanced>webp'), item.output_file_size, 'the size of the FINAL file')
         item = self._run(item, output_format='original')
         self.assertEqual(1, self.calls)
         self.assertEqual([], item.native_outputs)

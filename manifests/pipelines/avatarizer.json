@@ -6,6 +6,11 @@
         "from": "speak",
         "to": "animate",
         "to_port": null
+      },
+      {
+        "from": "animate",
+        "to": "enhance",
+        "to_port": null
       }
     ],
     "nodes": [
@@ -40,9 +45,20 @@
             "avatar_gallery_name",
             "avatar_upload",
             "animation_model",
-            "bbox_shift",
-            "use_enhancer",
-            "quality_mode"
+            "bbox_shift"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "avatarizer.enhance",
+        "id": "enhance",
+        "kind": "function",
+        "params": {
+          "degree": "required",
+          "gpu": true,
+          "watched": [
+            "use_enhancer"
           ]
         }
       }
@@ -51,7 +67,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "avatarizer",
   "manifest_kind": "pipeline",
-  "name": "Avatarizer — voix puis animation (2 process)",
+  "name": "Avatarizer — voix, animation, visage (3 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",
