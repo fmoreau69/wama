@@ -3674,9 +3674,12 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 > - 🔄 **`AnalysisPass` → `ProcessRun`, en trois étapes** (session cam_analyzer, à la demande de
 >   Fabien) : **étape 1/3 faite le 2026-10-03** (`bf271cea`) — chaque écrivain de passe du Lab
 >   écrit AUSSI sa ligne commune (élément = la session d'analyse, nœud = la passe,
->   `instance_key` = la caméra, statuts traduits à l'écriture) ; restent les LECTEURS (vue des
->   passes, péremption, file, ETA) puis la reprise de l'historique et le retrait de l'ancienne
->   table, sur décision. ⏳ L'exécuteur du studio ne produit toujours ni `AWAITING_RESOURCES`
+>   `instance_key` = la caméra, statuts traduits à l'écriture) ; **étape 2/3 faite le
+>   2026-10-04** — l'historique repris (`manage.py backfill_pass_lines` : 77 lignes créées,
+>   79/79 passes concordantes) PUIS les LECTEURS basculés sur `process_runs.lines` (panneau,
+>   péremption par ligne, réutilisation du tracking, ETA, calcul interrompu ; le panneau garde
+>   son vocabulaire par `lab_status`) ; reste l'étape 3 — retrait de l'ancienne table et
+>   panneau en `JOB_*` —, sur décision. ⏳ L'exécuteur du studio ne produit toujours ni `AWAITING_RESOURCES`
 >   ni `STALE`.
 >
 > 🔄 **P6 ENGAGÉE le 2026-10-03 — les apps hors squelette y entrent, une par une** :

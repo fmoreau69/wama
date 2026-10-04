@@ -16,8 +16,10 @@ FEATURES = {'lane_map_recalage': True, 'measured_camera_fov': True}
 
 
 def row(pass_type, status='completed', at=T0, summary=None):
-    return SimpleNamespace(pass_type=pass_type, status=status, completed_at=at,
-                           output_summary=summary)
+    """Une LIGNE COMMUNE (`ProcessRun`) — lue depuis le 2026-10-04 ; l'état s'écrit dans le
+    vocabulaire du Lab pour rester lisible, traduit par `common_status`."""
+    return SimpleNamespace(node_id=pass_type, instance_key='', status=pt.common_status(status),
+                           finished_at=at, output_summary=summary)
 
 
 def tracking(**kw):
@@ -26,7 +28,8 @@ def tracking(**kw):
 
 class TrackingIsCurrentTest(SimpleTestCase):
     def _check(self, rows, features=FEATURES):
-        with mock.patch('wama_lab.cam_analyzer.models.AnalysisPass.objects.filter', return_value=rows):
+        runs = SimpleNamespace(lines=lambda session: rows)
+        with mock.patch.object(pt, '_common_runs', return_value=runs):
             return pt.tracking_is_current(SimpleNamespace(id='s'), features)
 
     def test_a_fresh_tracking_with_the_same_switches_is_reused(self):
