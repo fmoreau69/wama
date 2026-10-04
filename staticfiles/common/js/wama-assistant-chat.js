@@ -273,8 +273,26 @@
     }
   };
 
+  // DÉCOMPTE (2026-10-04) : le serveur annonce l'attente APPRISE pour le modèle retenu (ETA
+  // commune, moyenne par modèle et par matériel) ; on la décompte à la place du mot d'attente.
+  // Rien n'est annoncé tant que rien n'a été mesuré, ni pour une attente trop courte.
+  Chat.prototype.showCountdown = function (seconds) {
+    var word = this.waitingEl && this.waitingEl.querySelector('.wama-assistant-wait-word');
+    if (!word || !(seconds > 0)) return;
+    clearTimeout(this.waitTimer);
+    clearInterval(this.countdownTimer);
+    var deadline = Date.now() + seconds * 1000;
+    function draw() {
+      var left = Math.ceil((deadline - Date.now()) / 1000);
+      word.textContent = left > 0 ? 'Réponse dans environ ' + left + ' s' : 'Encore un instant…';
+    }
+    draw();
+    this.countdownTimer = setInterval(draw, 1000);
+  };
+
   Chat.prototype.stopWaiting = function () {
     clearTimeout(this.waitTimer);
+    clearInterval(this.countdownTimer);
     if (this.waitingEl) { this.waitingEl.remove(); this.waitingEl = null; }
   };
 
@@ -391,6 +409,7 @@
         var evt;
         try { evt = JSON.parse(bloc.slice(5).trim()); } catch (e) { return; }
         if (evt.type === 'delta') { recu = true; ecrire(evt.text || ''); }
+        else if (evt.type === 'eta') { self.showCountdown(evt.seconds); }
         else if (evt.type === 'step') {
           self.stopWaiting();
           self.feed.insertBefore(self.toolSteps([evt.step]), bulle ? bulle.parentNode : null);
