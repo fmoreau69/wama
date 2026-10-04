@@ -160,6 +160,12 @@ le RENDU RÉEL, pas la structure du code.
 - ⚠ Arrêter le serveur 8011 en fin de mesure ; ne JAMAIS déclencher de tâche Celery depuis
   venv_win (deux Redis). Les scénarios sèment sous le compte de test nocturne et nettoient.
 - Mesuré : C 6/6, E 7/7, F 6/6 sur le chantier médiathèque du 18/09, contre un live en 404.
+- 🔴 **Une sonde qui ÉCRIT dans le cache (aperçu « pendant », progression) exige un serveur jetable
+  CÔTÉ WSL** (vécu le 2026-10-04) : un processus Windows hors tests a son cache EN MÉMOIRE
+  (`settings.py`, règle `runtime_side`) — le `runserver` venv_win et le script de sonde ont alors
+  chacun le leur, et la face lue reste vide sans erreur (`has_during: False`). Côté WSL, serveur
+  et sonde partagent le Redis : `venv_linux/bin/python manage.py runserver 127.0.0.1:8011` dans
+  le même script WSL que la sonde Playwright (Chromium est installé côté WSL), arrêté à la fin.
 - 🔴 **Dès que la mesure touche à un MOTEUR, le serveur jetable se lance CÔTÉ WSL** (vécu le
   2026-10-03) : sous venv_win, l'exécutabilité est jugée sur l'hôte Windows — MusicGen, AudioGen
   et YuE2 sortaient « moteur sans backend installé », donc **grisés** dans le select, et la borne
