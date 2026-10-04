@@ -1974,13 +1974,63 @@ def _parse_unc_path(path_str):
     }
 
 
+def _resolve_smb_host(server):
+    """`(host, error)` — le nom que `mount.cifs` saura résoudre.
+
+    Un nom COURT (`serveur`) ne se résout pas de façon fiable depuis WSL2 : aucun domaine de
+    recherche n'y est configuré, et la réponse dépend du relais de noms de Windows (mesuré le
+    2026-10-04 : six échecs sur six, après une réussite isolée). On essaie donc D'ABORD les
+    suffixes déclarés par le site (`WAMA_SMB_DNS_SUFFIXES`), puis le nom tel quel. Un nom qui
+    porte déjà un point (nom complet, adresse IP) n'est jamais réécrit.
+    """
+    import socket
+
+    def _known(name):
+        try:
+            socket.getaddrinfo(name, 445, type=socket.SOCK_STREAM)
+            return True
+        except OSError:
+            return False
+
+    candidates = [server]
+    if '.' not in server:
+        suffixes = list(getattr(settings, 'WAMA_SMB_DNS_SUFFIXES', []) or [])
+        candidates = [f'{server}.{s}' for s in suffixes] + [server]
+    for name in candidates:
+        if _known(name):
+            return name, None
+    if '.' in server:
+        return None, f"Serveur « {server} » introuvable sur le réseau (nom non résolu)."
+    return None, (f"Serveur « {server} » introuvable : un nom court ne se résout pas depuis le "
+                  f"serveur WAMA. Saisissez le nom complet (ex. {server}.mondomaine.fr).")
+
+
+def _smb_identity(username, domain):
+    """`(username, domain)` tels qu'ils partent au serveur.
+
+    `DOMAINE\\utilisateur` est séparé ; sans domaine saisi, celui du site s'applique
+    (`WAMA_SMB_DEFAULT_DOMAIN`) — un serveur rattaché à un annuaire refuse une session sans
+    domaine (`STATUS_LOGON_FAILURE`, mesuré le 2026-10-04). Un identifiant `nom@domaine` porte
+    déjà le sien : on n'y ajoute rien.
+    """
+    username = (username or '').strip()
+    domain = (domain or '').strip()
+    if '\\' in username:
+        typed_domain, _, username = username.partition('\\')
+        domain = domain or typed_domain.strip()
+    if username and not domain and '@' not in username:
+        domain = (getattr(settings, 'WAMA_SMB_DEFAULT_DOMAIN', '') or '').strip()
+    return username, domain
+
+
 def _try_cifs_mount(server, share, subpath='', username=None, password=None, domain=None):
     """
     Mount an SMB/CIFS share on Linux/WSL2 under /mnt/wama_mounts/<server>_<share>/.
     Tries guest access when no credentials are provided.
 
     Returns (success: bool, linux_path: str | None, error: str | None)
-    Special error value 'AUTH_REQUIRED' means credentials are needed.
+    Special error values: 'AUTH_REQUIRED' (no credentials were sent and the share refuses
+    guests) and 'AUTH_REFUSED' (credentials were sent and the server rejected them).
     """
     import subprocess, os, re, sys
 
@@ -2033,6 +2083,12 @@ def _try_cifs_mount(server, share, subpath='', username=None, password=None, dom
         linux_path = str(mount_point / subpath) if subpath else str(mount_point)
         return True, linux_path, None
 
+    # Le nom que mount.cifs saura résoudre (suffixe du site pour un nom court). Le point de
+    # montage, lui, reste nommé d'après le nom SAISI : il ne change pas d'un essai à l'autre.
+    host, host_error = _resolve_smb_host(server)
+    if host is None:
+        return False, None, host_error
+
     # Build CIFS options — identifiants via fichier credentials 0600 (jamais dans la
     # ligne de commande : elle est visible de tous dans `ps`)
     uid = os.getuid()
@@ -2056,7 +2112,7 @@ def _try_cifs_mount(server, share, subpath='', username=None, password=None, dom
     # sudo -n : échoue immédiatement si un mot de passe serait requis (un process web
     # ne doit JAMAIS attendre un prompt sudo)
     cmd = ['sudo', '-n', 'mount', '-t', 'cifs',
-           f'//{server}/{share}', str(mount_point),
+           f'//{host}/{share}', str(mount_point),
            '-o', ','.join(opts)]
 
     try:
@@ -2072,7 +2128,10 @@ def _try_cifs_mount(server, share, subpath='', username=None, password=None, dom
         # 2) Identifiants du partage refusés
         if any(k in err for k in ('Permission denied', 'NT_STATUS_LOGON_FAILURE',
                                    'NT_STATUS_ACCESS_DENIED', 'ERRDOS', 'Invalid argument')):
-            return False, None, 'AUTH_REQUIRED'
+            # Le serveur dit la même chose dans les deux cas ; ce qui les distingue est ce
+            # que NOUS avons envoyé. Sans cela l'écran répondait « renseignez vos
+            # identifiants » à qui venait de les renseigner.
+            return False, None, 'AUTH_REFUSED' if username else 'AUTH_REQUIRED'
         return False, None, err
     except subprocess.TimeoutExpired:
         return False, None, 'Timeout lors du montage CIFS (20 s).'
@@ -2262,6 +2321,9 @@ def api_validate_path(request):
             'smb_server':  unc['server'],
             'smb_share':   unc['share'],
             'smb_subpath': unc['subpath'],
+            # Le domaine d'annuaire du site, pour PRÉREMPLIR le champ : un utilisateur n'a
+            # pas à le connaître. Vide tant que le site ne le déclare pas.
+            'smb_default_domain': getattr(settings, 'WAMA_SMB_DEFAULT_DOMAIN', '') or '',
         })
         if not accessible and sys.platform.startswith('linux'):
             response['smb_hint'] = (
@@ -2358,6 +2420,7 @@ def api_mounts(request):
     smb_username = data.get('smb_username', '').strip()
     smb_password = data.get('smb_password', '').strip()
     smb_domain   = data.get('smb_domain',   '').strip()
+    smb_username, smb_domain = _smb_identity(smb_username, smb_domain)
 
     import sys, os
     unc = _parse_unc_path(local_path)
@@ -2372,6 +2435,14 @@ def api_mounts(request):
             domain=smb_domain or None,
         )
         if not success:
+            if error == 'AUTH_REFUSED':
+                tried = (f"{smb_domain}\\{smb_username}" if smb_domain else smb_username)
+                return JsonResponse(
+                    {'error': f"Identifiants refusés par le serveur pour « {tried} » — "
+                              "vérifiez le nom d'utilisateur, le mot de passe et le domaine.",
+                     'needs_auth': True, 'auth_refused': True},
+                    status=401,
+                )
             if error == 'AUTH_REQUIRED':
                 return JsonResponse(
                     {'error': 'Authentification requise pour ce partage.', 'needs_auth': True},

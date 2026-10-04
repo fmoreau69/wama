@@ -21398,7 +21398,7 @@ Cinq questions de Fabien sur l'assistant, mesurées. Deux soldées, trois en con
   - *Montage d'un dossier distant* — `could not resolve address for <nom court>` : WSL n'a aucun
     domaine de recherche, un nom sans suffixe ne se résout pas (6 échecs sur 6 ; le nom complet
     3 sur 3). Puis `STATUS_LOGON_FAILURE` (lu au `dmesg`) : le champ « Domaine », dit optionnel,
-    était nécessaire. Connecté par Fabien avec le nom complet et le domaine. 🔚 deux défauts de
+    était nécessaire. Connecté par Fabien avec le nom complet et le domaine. ✅ CORRIGÉS le même jour (demande de Fabien, commit suivant) : suffixes et domaine DÉCLARÉS par le site (`WAMA_SMB_DNS_SUFFIXES`, `WAMA_SMB_DEFAULT_DOMAIN`), refus distingués (`AUTH_REQUIRED` / `AUTH_REFUSED`) — `INFRA_WSL_VS_WINDOWS.md §Partages réseau`. Constat d'origine : deux défauts de
     `filemanager/views.py::_try_cifs_mount` : le même message pour « invité refusé » et
     « identifiants refusés » ; ni suffixe de domaine ni domaine d'annuaire déclarés.
   - *Journal des connexions* — il EXISTE (`accounts.AccessLog`, signaux dans `moderation.py`,

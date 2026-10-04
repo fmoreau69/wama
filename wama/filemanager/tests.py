@@ -413,3 +413,134 @@ class DerivedAppTreeTests(TestCase):
         self.assertIn('--wama-app-color', nodes['transcriber']['a_attr']['style'])
         self.assertTrue(nodes['world_lab']['world_node'])
         self.assertTrue(nodes['world_lab']['children'][0]['app_node'])
+
+
+class NetworkShareMountTests(SimpleTestCase):
+    """Montage d'un partage réseau : le nom du serveur, l'identité envoyée, et ce que l'écran dit
+    d'un refus (deux défauts mesurés le 2026-10-04 — nom court non résolu depuis WSL2, même
+    message pour « invité refusé » et « identifiants refusés »).
+
+    ⚠ Aucun montage réel : `subprocess.run` et la résolution de noms sont simulés, et les
+    points de montage vont dans un dossier temporaire.
+    """
+
+    KNOWN = {'files.lab.example.org', '10.0.0.7'}
+
+    def setUp(self):
+        import tempfile
+
+        from django.test import override_settings
+
+        self.base = tempfile.TemporaryDirectory()
+        self.addCleanup(self.base.cleanup)
+        tuned = override_settings(WAMA_MOUNT_BASE=self.base.name,
+                                  WAMA_SMB_DNS_SUFFIXES=['lab.example.org'],
+                                  WAMA_SMB_DEFAULT_DOMAIN='LABDOMAIN')
+        tuned.enable()
+        self.addCleanup(tuned.disable)
+
+        def lookup(name, *args, **kwargs):
+            if name not in self.KNOWN:
+                raise OSError('unknown host')
+            return [(2, 1, 6, '', ('10.0.0.7', 445))]
+
+        self.commands, self.credentials, self.stderr = [], [], ''
+
+        def run(cmd, **kwargs):
+            from types import SimpleNamespace
+            self.commands.append(cmd)
+            if cmd[0] == 'mountpoint':
+                return SimpleNamespace(returncode=1, stdout='', stderr='')
+            for option in cmd[-1].split(','):
+                if option.startswith('credentials='):
+                    self.credentials.append(Path(option.split('=', 1)[1]).read_text())
+            return SimpleNamespace(returncode=1 if self.stderr else 0, stdout='', stderr=self.stderr)
+
+        for target, replacement in (('socket.getaddrinfo', lookup), ('subprocess.run', run)):
+            patcher = patch(target, side_effect=replacement)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _mount_command(self):
+        return next(c for c in self.commands if 'cifs' in c)
+
+    def test_a_short_server_name_is_tried_with_the_site_suffix(self):
+        from wama.filemanager.views import _try_cifs_mount
+        ok, path, error = _try_cifs_mount('files', 'saves', 'sub')
+        self.assertTrue(ok, error)
+        self.assertIn('//files.lab.example.org/saves', self._mount_command())
+        # Le point de montage garde le nom SAISI : il ne change pas selon la résolution.
+        self.assertTrue(path.endswith('files_saves/sub'), path)
+
+    def test_a_full_name_or_an_address_is_never_rewritten(self):
+        from wama.filemanager.views import _resolve_smb_host
+        self.assertEqual(_resolve_smb_host('files.lab.example.org'), ('files.lab.example.org', None))
+        self.assertEqual(_resolve_smb_host('10.0.0.7'), ('10.0.0.7', None))
+
+    def test_an_unknown_short_name_says_to_type_the_full_name_and_mounts_nothing(self):
+        from wama.filemanager.views import _try_cifs_mount
+        ok, _, error = _try_cifs_mount('nowhere', 'saves')
+        self.assertFalse(ok)
+        self.assertIn('nom complet', error)
+        self.assertFalse([c for c in self.commands if 'cifs' in c])
+
+    def test_the_site_domain_applies_only_when_none_was_typed(self):
+        from wama.filemanager.views import _smb_identity
+        self.assertEqual(_smb_identity('jane', ''), ('jane', 'LABDOMAIN'))
+        self.assertEqual(_smb_identity('jane', 'OTHER'), ('jane', 'OTHER'))
+        self.assertEqual(_smb_identity('OTHER\\jane', ''), ('jane', 'OTHER'))
+        self.assertEqual(_smb_identity('jane@lab.example.org', ''), ('jane@lab.example.org', ''))
+        self.assertEqual(_smb_identity('', ''), ('', ''))
+
+    def test_a_guest_rejection_and_a_credentials_rejection_are_told_apart(self):
+        from wama.filemanager.views import _try_cifs_mount
+        self.stderr = 'mount error(13): Permission denied'
+        self.assertEqual(_try_cifs_mount('files', 'saves')[2], 'AUTH_REQUIRED')
+        self.assertEqual(_try_cifs_mount('files', 'saves', username='jane', password='x')[2],
+                         'AUTH_REFUSED')
+
+    def test_the_password_never_reaches_the_command_line(self):
+        from wama.filemanager.views import _try_cifs_mount
+        _try_cifs_mount('files', 'saves', username='jane', password='s3cret', domain='LABDOMAIN')
+        self.assertNotIn('s3cret', ' '.join(self._mount_command()))
+        self.assertIn('password=s3cret', self.credentials[0])
+        self.assertIn('domain=LABDOMAIN', self.credentials[0])
+
+
+class NetworkShareScreenTests(TestCase):
+    """Ce que les routes rendent à l'écran pour un partage réseau."""
+
+    def setUp(self):
+        from django.test import override_settings
+        tuned = override_settings(WAMA_SMB_DEFAULT_DOMAIN='LABDOMAIN')
+        tuned.enable()
+        self.addCleanup(tuned.disable)
+        self.user = get_user_model().objects.create_user('wama_share_user', password='x')
+        self.client.force_login(self.user)
+
+    def test_the_path_check_offers_the_site_domain(self):
+        r = self.client.get('/filemanager/api/validate-path/', {'path': r'\\files\saves'})
+        self.assertEqual(r.json().get('smb_default_domain'), 'LABDOMAIN')
+
+    def test_rejected_credentials_are_reported_as_such_with_the_identity_tried(self):
+        import json
+        with patch('wama.filemanager.views._try_cifs_mount',
+                   return_value=(False, None, 'AUTH_REFUSED')) as mount:
+            r = self.client.post('/filemanager/api/mounts/', json.dumps(
+                {'name': 'Saves', 'local_path': r'\\files\saves',
+                 'smb_username': 'jane', 'smb_password': 'x'}), content_type='application/json')
+        self.assertEqual(r.status_code, 401)
+        body = r.json()
+        self.assertTrue(body['needs_auth'] and body['auth_refused'])
+        self.assertIn('LABDOMAIN\\jane', body['error'])
+        self.assertEqual(mount.call_args.kwargs['domain'], 'LABDOMAIN')
+
+    def test_a_guest_rejection_still_only_asks_for_credentials(self):
+        import json
+        with patch('wama.filemanager.views._try_cifs_mount',
+                   return_value=(False, None, 'AUTH_REQUIRED')):
+            r = self.client.post('/filemanager/api/mounts/', json.dumps(
+                {'name': 'Saves', 'local_path': r'\\files\saves'}), content_type='application/json')
+        body = r.json()
+        self.assertTrue(body['needs_auth'])
+        self.assertNotIn('auth_refused', body)
