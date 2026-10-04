@@ -1296,21 +1296,23 @@
     return (groups || []).filter(function (g) { return used[g.key || g.id || g.group || g.name]; });
   }
 
+  // La configuration d'une modale SOUS PORTÉE — pure (testée en V8, `tests_cap_from_js`).
+  function scopedConfig(cfg, scope) {
+    if (!scope) return cfg;
+    return Object.assign({}, cfg, {
+      schema: scopedSchema(cfg.schema, scope.names),
+      groups: scopedGroups(cfg.groups, scopedSchema(cfg.schema, scope.names)),
+      title: (cfg.title || 'Paramètres') + (scope.label ? ' — ' + scope.label : ''),
+      // Les zones d'app HORS schéma (prompt, classes à flouter, résolution…) ne sont pas
+      // des réglages de CE process : une modale à portée ne rend que le schéma réduit.
+      // `collect` reste appelé — il ne poste que ce qu'il trouve, et porte le drapeau de
+      // relance de certaines apps.
+      decorate: null,
+    });
+  }
+
   function settingsModal(cfg) {
-    cfg = cfg || {};
-    const scope = takeScope();
-    if (scope) {
-      cfg = Object.assign({}, cfg, {
-        schema: scopedSchema(cfg.schema, scope.names),
-        groups: scopedGroups(cfg.groups, scopedSchema(cfg.schema, scope.names)),
-        title: (cfg.title || 'Paramètres') + (scope.label ? ' — ' + scope.label : ''),
-        // Les zones d'app HORS schéma (prompt, classes à flouter, résolution…) ne sont pas
-        // des réglages de CE process : une modale à portée ne rend que le schéma réduit.
-        // `collect` reste appelé — il ne poste que ce qu'il trouve, et porte le drapeau de
-        // relance de certaines apps.
-        decorate: null,
-      });
-    }
+    cfg = scopedConfig(cfg || {}, takeScope());
     const toast = function (m, t) {
       if (global.WamaApp && WamaApp.toast) WamaApp.toast(m, t || 'info');
     };
@@ -1422,6 +1424,7 @@
                         // est la règle pure, exposée pour sa garde V8.
                         scopeNextModal: scopeNextModal,
                         scopedSchema: scopedSchema,
+                        scopedConfig: scopedConfig,
                         takeModalScope: takeScope,
                         // Extension du vocabulaire de composants SANS toucher au moteur :
                         // un type absent du registry retombe sur le champ texte (jamais d'erreur).

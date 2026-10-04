@@ -266,3 +266,64 @@ class ScopedSettingsModalTest(SimpleTestCase):
             return [first ? first.names.join(',') + '|' + first.label : null, second, empty, late];
         })()""")
         self.assertEqual(['duration|Rendu', None, None, None], list(out))
+
+    def test_a_scoped_modal_renders_the_schema_only_and_still_collects(self):
+        """The gear of « Sortie » showed the prompt of the imager and the classes of the
+        anonymizer (2026-10-04) : the zones an app adds OUTSIDE the schema (`decorate`) are not
+        settings of that process. `collect` stays — it carries the relaunch flag of some apps."""
+        out = self.v8.eval(f"""(function () {{
+            var P = window.WamaParams;
+            var cfg = {{schema: {self.SCHEMA}, groups: [{{key: 'g1'}}, {{key: 'g2'}}],
+                       title: 'Paramètres', decorate: function () {{}}, collect: function () {{}}}};
+            var scoped = P.scopedConfig(cfg, {{names: ['duration'], label: 'Rendu'}});
+            var plain = P.scopedConfig(cfg, null);
+            return [scoped.schema.map(function (p) {{ return p.name; }}).join(','),
+                    scoped.groups.map(function (g) {{ return g.key; }}).join(','),
+                    scoped.title, scoped.decorate === null, typeof scoped.collect,
+                    plain === cfg, typeof plain.decorate];
+        }})()""")
+        self.assertEqual(['media_type,duration', 'g2', 'Paramètres — Rendu', True, 'function',
+                          True, 'function'], list(out))
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class RunButtonOfAProcessTest(SimpleTestCase):
+    """The ▶ of ONE process (`ROUTE §10.6` 5.1) : reading the process on the button and composing
+    `start/<id>/<process>/` lived in eight app files — they live in the cycle-button brick."""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval((JS / 'wama-cycle-button.js').read_text(encoding='utf-8'))
+
+    def test_the_process_is_read_from_the_button_and_appended_to_the_address(self):
+        out = self.v8.eval("""(function () {
+            var C = window.WamaCycleButton;
+            return [C.processOf({dataset: {process: 'output'}}), C.processOf({dataset: {}}),
+                    C.processOf(null), C.processUrl('/app/start/7/', 'output'),
+                    C.processUrl('/app/start/7/', ''), C.processUrl('/app/start/7/', undefined)];
+        })()""")
+        self.assertEqual(['output', '', '', '/app/start/7/output/', '/app/start/7/',
+                          '/app/start/7/'], list(out))
+
+    def test_the_wiring_hands_the_process_to_the_start_handler(self):
+        out = self.v8.eval("""(function () {
+            var listener = null, seen = [];
+            function button(action, process) {
+                var b = {dataset: process ? {process: process} : {},
+                         getAttribute: function (n) { return n === 'data-id' ? '7' : action; }};
+                b.closest = function () { return b; };
+                return b;
+            }
+            var root = {addEventListener: function (type, fn) { listener = fn; },
+                        contains: function () { return true; }};
+            window.WamaCycleButton.wire(root, {
+                start: function (id, btn, process) { seen.push('start:' + id + ':' + process); },
+                stop: function (id) { seen.push('stop:' + id); }});
+            listener({target: button('start', 'output')});
+            listener({target: button('restart', '')});
+            listener({target: button('stop', 'output')});
+            return seen;
+        })()""")
+        self.assertEqual(['start:7:output', 'start:7:', 'stop:7'], list(out))
