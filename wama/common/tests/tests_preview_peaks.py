@@ -7,8 +7,9 @@ The front already draws peaks it is given; the preview now gives them for such a
 """
 import shutil
 import tempfile
+import importlib.util
 from pathlib import Path
-from unittest import mock
+from unittest import mock, skipUnless
 
 from django.test import SimpleTestCase, override_settings
 
@@ -64,3 +65,33 @@ class AHeavyAudioGetsItsPeaksTest(SimpleTestCase):
               ).read_text(encoding='utf-8')
         self.assertIn('MAX_DECODE_BYTES = 30 * 1024 * 1024', js)
         self.assertEqual(30 * 1024 * 1024, preview_utils.CLIENT_DECODE_LIMIT_BYTES)
+
+
+@skipUnless(importlib.util.find_spec('py_mini_racer') is not None, 'py_mini_racer absent de ce venv')
+class TheWaveformReachesTheEndTest(SimpleTestCase):
+    """Fabien, 2026-10-04: « la forme d'onde ne s'affiche pas jusqu'au bout dans la preview ».
+    The player split the canvas by `ceil(len / W)` samples per column: harmless on decoded PCM,
+    wrong on 800 server PEAKS — at 500 px the step was 2 and the last 100 px stayed flat."""
+
+    def _bars(self, peaks, width):
+        import json
+        from django.conf import settings
+        from py_mini_racer import MiniRacer
+        v8 = MiniRacer()
+        v8.eval("var window = {}; var bars = [];"
+                "var document = {addEventListener: function () {}};"
+                "var canvas = {width: %d, height: 50, getContext: function () { return {"
+                "clearRect: function () {}, fillRect: function (x, y, w, h) {"
+                "if (w === 1 && h !== 50) bars.push([x, h]); }}; }};" % width)
+        src = (Path(settings.BASE_DIR) / 'staticfiles/common/js/wama-audio-player.js')
+        v8.eval(src.read_text(encoding='utf-8'))
+        v8.eval("window.WamaAudioPlayer.draw(canvas, %s, 0)" % json.dumps(peaks))
+        return v8.eval("JSON.stringify(bars)")
+
+    def test_every_column_of_the_canvas_carries_the_audio(self):
+        import json
+        for count, width in ((800, 500), (800, 1000), (300, 333)):
+            with self.subTest(peaks=count, width=width):
+                bars = json.loads(self._bars([1.0] * count, width))
+                self.assertEqual(width, len(bars))
+                self.assertEqual([], [x for x, h in bars if h < 40], 'flat columns: the wave stops early')

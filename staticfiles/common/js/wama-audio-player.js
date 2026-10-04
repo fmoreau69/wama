@@ -61,11 +61,16 @@
 
         ctx.clearRect(0, 0, W, H);
 
-        var step = Math.ceil(channelData.length / W);
+        // Chaque colonne lit SA part proportionnelle des données (comme l'éditeur du transcriber).
+        // Jusqu'au 2026-10-04 : un pas `ceil(longueur / W)` — négligeable sur un PCM décodé (des
+        // millions d'échantillons), faux sur 800 PICS serveur : à 500 px le pas valait 2, les pics
+        // tenaient sur 400 px et l'onde s'arrêtait avant la fin (constat de Fabien, composer).
+        var len = channelData.length;
         for (var i = 0; i < W; i++) {
             var max = 0;
-            var end = Math.min((i + 1) * step, channelData.length);
-            for (var j = i * step; j < end; j++) {
+            var start = Math.floor(i * len / W);
+            var end = Math.min(len, Math.max(start + 1, Math.floor((i + 1) * len / W)));
+            for (var j = start; j < end; j++) {
                 var v = Math.abs(channelData[j]);
                 if (v > max) max = v;
             }
@@ -323,6 +328,9 @@
     /* ── API publique ────────────────────────────────────────────────── */
 
     global.WamaAudioPlayer = {
+
+        /** Dessine des amplitudes [0..1] sur un canvas, la tête de lecture à `progress` (0..1). */
+        draw: drawWaveform,
 
         /** Crée un élément DOM player (non encore initialisé). */
         create: function(audioUrl, playerId, options) {
