@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**186 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**188 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1368,6 +1368,27 @@ Qui consomme quoi (imports + briques front), niveau APP vs infrastructure, et jo
   - `mechanisms_without_criterion(sources: dict[str, str] | None=None) -> list[tuple]` — LE contrôle de jonction : mécanismes de NIVEAU APP qu'AUCUN critère de grille ne vérifie.
   - `orphan_criteria() -> list[str]` — Garde-fou SYMÉTRIQUE : critère dont le `mechanism=` ne correspond à aucune clé du registre.
 
+### Aperçu « pendant » à plusieurs vues
+
+Un worker publie plusieurs vues du même instant (`publish_partial(variant=, label=)`, publieur de frames limité dans le temps `PartialFrames`) ; la face PENDANT de l'aperçu les liste et sert celle demandée (`?variant=`), l'inspecteur affiche le bouton de bascule (`WamaInspector.variantToggle`). Né le 2026-10-04 pour basculer entre détection et floutage de l'anonymizer — toute app peut publier ses vues
+
+- **Domicile** : `wama/common/utils/preview_utils.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : WAMA Common - Preview Utilities
+- **API publique** (13) :
+  - `get_or_create_anonymous_user()` — Get or create the anonymous user.
+  - `publish_partial(app_name, pk, url_or_path, variant=None, label=None)` — Worker : publie l'URL (média) d'un aperçu PARTIEL courant, servi par `?side=during`.
+  - `class PartialFrames` — L'aperçu « pendant » en IMAGES d'une vidéo en cours de traitement : une frame (ou
+  - `publish_partial_peaks(app_name, pk, peaks, duration=None)` — Worker : publie des PICS d'onde partiels (« waveform par parties », cf. `waveform.compute_peaks`)
+  - `emit_streaming_peaks(app_name, pk, pcm, sr, buckets=800)` — Worker de streaming (COMMUN, toute app) : calcule les pics uint8 d'une fenêtre PCM courante
+  - `publish_partial_text(app_name, pk, text)` — Worker : publie le TEXTE partiel courant (transcription/description qui se construit),
+  - `get_partial_text(app_name, pk)` — Lecture du texte partiel (endpoints de progression des apps + `?side=during`).
+  - `clear_partial(app_name, pk)` — Worker : retire l'aperçu partiel (fin de traitement — la face SORTIE prend le relais).
+  - `unified_preview(request, app_name: str, pk: int)` — Unified preview endpoint for any registered app.
+  - `register_app_preview(app_name: str, model_class, file_field: str='input_file', user_field: str='user', duration_field: str=None, width_field: str=None, height_…` — Convenience function to register an app with common field patterns.
+  - `anonymizer_preview_adapter(media, request)` — Custom adapter for Anonymizer Media model.
+  - `synthesizer_preview_adapter(synthesis, request)` — Custom adapter for Synthesizer VoiceSynthesis model - previews audio output.
+  - `transcriber_preview_adapter(transcript, request)` — Custom adapter for Transcriber Transcript model.
+
 ### Application du corpus de manifestes
 
 Le sens ENTRANT du corpus : `manifest_export` écrit les manifestes DEPUIS les registres, rien ne les appliquait DANS l'autre sens. Sur une installation neuve, les 16 manifestes de librairies restaient lettre morte. ⚠ Kind par kind, et le choix est de NATURE : `library` est une déclaration pure (aucune I/O) → appliquée à l'installation ; `model` NON, car le catalogue reflète le DISQUE et sa vérité est le balayage (déjà périodique) — l'appliquer créerait des lignes pour des poids absents. Dry-run par défaut
@@ -1431,6 +1452,29 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
   - `pending() -> list` — Propositions de backend en attente : `outputs/backend_*.json` au statut PENDING.
   - `apply(name: str, user=None) -> dict` — ÉCRIT le backend validé dans `wama/common/backends/<module>.py` — contrôles REFAITS,
   - `reject(name: str, user=None) -> bool`
+
+### Document de détections (type `detections` sur disque)
+
+Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) — le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de Fabien : détection et floutage séparés dans l'anonymizer). Écrit par un process « Détection », relu par le floutage (`blur_utils.blur_detections`, rendu image par image `render_media`) et par l'aperçu (`draw`) ; interpolation des trous d'une piste à la lecture (`by_frame`). Sans Django ni app : la Data et le Lab peuvent le lire
+
+- **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
+- **API publique** (15) :
+  - `new_document(*, media: str, width: int, height: int, fps: float=0.0, frame_count: int=1, engine: str='', models=(), classes=(), prompt: str='') -> dict` — Un document vide, prêt à recevoir ses frames (`add`).
+  - `detection(*, box, label: str='', conf: float=1.0, track=None, polygons=None) -> dict` — Une détection au format du document : entiers pour les pixels, confiance arrondie.
+  - `add(doc: dict, frame_index: int, detections) -> None` — Range les détections d'UNE frame (rien n'est écrit pour une frame vide). Deux appels
+  - `write(path: str, doc: dict) -> str` — Écrit le document (frames ordonnées) ; rend le chemin.
+  - `read(path: str) -> dict` — Lit un document ; lève `ValueError` si ce n'en est pas un.
+  - `count(doc: dict) -> int` — Le nombre de détections du document (toutes frames).
+  - `mask_to_polygons(mask, epsilon: float=1.0, min_area: float=4.0) -> list` — Contours d'un masque (H×W, 0-1 ou 0-255) en polygones entiers, simplifiés à `epsilon`
+  - `points_to_polygons(points, epsilon: float=1.0) -> list` — Un contour donné en points (ultralytics `masks.xy`) → polygones entiers simplifiés.
+  - `polygons_to_mask(polygons, shape) -> 'object'` — Le masque (uint8, 0/255) que dessinent des polygones sur une image de forme `shape`.
+  - `box_of_polygons(polygons) -> list` — Le rectangle englobant de polygones (x1, y1, x2, y2).
+  - `valid_box(box, shape, min_size: int=5)` — Le rectangle ramené dans l'image ; None s'il est vide ou plus petit que `min_size`.
+  - `by_frame(doc: dict, *, interpolate: bool=False, max_gap: int=0) -> dict` — {indice de frame: [détections]} — détections RELEVÉES, plus, si `interpolate`, celles que
+  - `max_gap_for(fps: float, wanted: int, seconds: float=0.5) -> int` — Le trou le plus long que l'on comble : le réglage, plafonné à `seconds` de vidéo — au-delà,
+  - `render_media(source: str, frames: dict, paint, output_path: str, *, on_frame=None, progress=None) -> str` — Réécrit le média `source` en peignant chaque frame avec SES détections :
+  - `draw(image, detections, *, boxes: bool=True, labels: bool=True, confidence: bool=True)` — Une COPIE de l'image avec les détections dessinées : contour plein translucide quand la
 
 ### Environnement d'exécution d'un backend
 
@@ -1537,7 +1581,7 @@ Le second temps de toute app qui rend un fichier, en process À PART : `output_s
   - `rendered_files(item, field) -> list` — Les rendus que la card porte aujourd'hui dans `field`, en chemins absolus — un champ
   - `output_sources(item, field) -> list` — Ce dont le process de sortie REPART : les originaux gardés quand il y en a (le rendu a
   - `files_fingerprint(paths) -> str` — Empreinte de ce que le moteur a écrit — DÉCLARÉE à la ligne d'exécution (`output_fingerprint`
-  - `drop_previous_outputs(item, field, keep=()) -> None` — Le moteur REJOUE : les originaux gardés et les rendus de la fois d'avant qu'il n'a pas
+  - `drop_previous_outputs(item, field, keep=(), natives: bool=True) -> None` — Le moteur REJOUE : les originaux gardés et les rendus de la fois d'avant qu'il n'a pas
   - `generated(paths, **result) -> dict` — Le retour d'une glu de MOTEUR, complété de ce que la brique attend d'elle : plus aucun
   - `forget_lost_generation(item, field, node: str) -> bool` — La sortie repart des fichiers que le moteur a laissés. S'ils ne sont plus là (retirés,
   - `output_step(field, *, domain, app_id: str, console=None, extra_fields=None, format_of=None, transform=None, apply=None, what: str='Réglages de sortie')` — La GLU du process de sortie, au contrat du squelette (`glu(item, ctx) -> dict`).
