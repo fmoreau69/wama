@@ -21875,3 +21875,10 @@ Aucune card créée sur le live par cette fin de session.
 **Leçons** : une garde de clôture se prouve par mutation (trois fois ce jour) ; un « reste » annoncé
 dans un message de commit se solde à la clôture ou se nomme ici — celui de `d4a30c43` avait attendu
 une journée ; ajouter un réglage surveillé ne doit pas périmer l'existant (règle commune posée).
+
+**Suite (même soir)** — « la forme d'onde ne s'affiche pas jusqu'au bout dans la preview » (Fabien) :
+`f6418731`. Le lecteur commun découpait le canvas par `ceil(longueur / largeur)` : sans effet sur un
+PCM décodé, faux sur les 800 PICS serveur branchés le matin (`0b36586d`) — à 500 px, l'onde tenait sur
+400 et la fin restait plate. Chaque colonne lit désormais sa part proportionnelle (comme l'éditeur du
+transcriber) ; garde V8 `tests_preview_peaks.TheWaveformReachesTheEndTest`, prouvée par mutation.
+Non vu au navigateur. 🔴 Un rechargement de page suffit (JS servi), aucun service à relancer pour ce point.
