@@ -21715,3 +21715,33 @@ Fabien, après la clôture : « peux-tu tout revérifier ? A-t-on bien tout cons
 - **Balayage mécanique** des marqueurs écrits par les commits du jour (`⏳`, « Restes », `🔚`) : chacun est soldé par un commit ultérieur ou figure dans la file des chantiers ouverts du bloc de clôture. Reste plus ANCIEN, absent de ce bloc et rappelé ici : la charge utile Data de la promotion fille ↔ mère (`promote_payload`, marche P5 5.3).
 
 **Ce qui n'est toujours pas gardé par un test** : le rendu DOM de la modale (`settingsModal` construit une modale Bootstrap : seule sa configuration est testée) et le geste complet au navigateur — vus par la sonde, non rejouables la nuit tant qu'elle n'est pas un scénario enregistré.
+
+### Revérification EN SERVICE après relance (2026-10-04, 15:22 → 15:45) — suite du palier des cinq leviers
+
+Mesuré à travers gunicorn (port 8000) avec le compte de test `wama_pw_smoke`, session créée
+puis supprimée ; scripts dans le scratchpad de session.
+
+- **Voix** : le service annonce `chargé … sur CUDAExecutionProvider` ; `/api/tts-kokoro/` rend
+  0,13 à 0,27 s par phrase (56 et 99 caractères).
+- **Préchauffage** : trois workers sur quatre l'ont journalisé (≈ 16 s chacun, 17 à 19 s après
+  leur démarrage). ⚠ Le quatrième n'a AUCUNE ligne, ni succès ni échec ; même mémoire résidente
+  et même nombre de fils que les autres, donc vraisemblablement fait — non prouvé (pas d'accès
+  à sa pile : `ptrace_scope=1`).
+- **Flux, durée, portier** : six tours par `/api/ai-chat/stream/` — événements `delta` puis
+  `done`, `timing` rendu et écrit en base, aucun JSON d'outil affiché. Scripts servis à jour
+  (décompte, deux files de la voix).
+- 🔴 **Ce que le chemin LOCAL coûte à qui n'a pas de clé cloud** (ce compte n'en a aucune) :
+  premier texte à **122 s** au premier tour (`qwen3.8:latest`, 17,7 Go, chargement à froid),
+  puis 3,3 s et 1,8 s ; au 4ᵉ tour le tirage est passé à `gemma4:12b` (la carte venait d'être
+  prise par un autre traitement : 16,3 Go occupés) — 18,6 s à froid, puis 1,1 à 1,4 s. Le
+  décompte ne peut pas l'annoncer la première fois (rien d'appris), et un compte de test
+  n'apprend pas. ⏳ Levier non traité : garder chaud le modèle local de l'assistant, ou
+  préférer au tirage un modèle déjà chargé.
+- **NON vérifié en service** : le chemin Albert (il faut la session de Fabien, et un tour
+  écrirait dans son fil) — aucun tour réel de son compte depuis la relance ; l'écoute de la
+  voix et la vue du décompte au navigateur.
+- **Autres points du jour, en service** : domaine du partage réseau prérempli
+  (`smb_default_domain`) ; un membre ne voit que la doc utilisateur (lecteur : 404 sur une doc
+  réservée) ; le visiteur ouvre le converter et reçoit 403 en lançant l'avatarizer ; la purge
+  des visiteurs part bien en intervalle (journal de beat). Tests : 154 sur les suites
+  principales, tous verts.
