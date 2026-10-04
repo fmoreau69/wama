@@ -3697,8 +3697,9 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   est la SEULE trace des passes (écrite directement, plus sous `safely`) ; libellés dans le
 >   registre (`Pass.label`) ; panneau, « compléter les passes » et ETA en `JOB_*` ;
 >   `process_runs.start` garde la taille de la durée précédente (`eta_size_s`), que l'étape 2
->   avait perdue ; modèle `AnalysisPass` retiré (`REMOVAL_LEDGER` R97-R99). ⏳ Sa TABLE est
->   supprimée après le redémarrage de WAMA et une sauvegarde. ✅ L'exécuteur du studio RELAIE `AWAITING_RESOURCES`
+>   avait perdue ; modèle `AnalysisPass` retiré (`REMOVAL_LEDGER` R97-R99) ; sa TABLE est
+>   supprimée (`cam_analyzer/0032`, 2026-10-04) et sauvegardée — **`AnalysisPass` → `ProcessRun` :
+>   ✅ CLOS**. ✅ L'exécuteur du studio RELAIE `AWAITING_RESOURCES`
 >   depuis le 2026-10-04 (un nœud `app` montre l'attente de son élément, qui ne compte pas dans
 >   son délai — `studio/tests_node_states.py`) ; ⏳ il ne produit pas `STALE` (rejouer un run
 >   nœud par nœud : décision ouverte n°4).
