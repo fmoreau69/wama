@@ -455,3 +455,69 @@ class CacheDesTestsTest(TestCase):
 
     def test_les_tests_n_ecrivent_pas_dans_le_vrai_cache(self):
         self.assertTrue(settings.CACHES['default']['BACKEND'].endswith('LocMemCache'))
+
+
+class WarmUpTest(TestCase):
+    """Préchauffage du tour d'assistant (`warm_up`, 2026-10-04) : le premier tour d'un worker
+    payait ~20 s d'import puis ~10 s de caches de processus.
+
+    ⚠ Les étapes RÉELLES ne sont pas jouées ici (l'une importe une librairie pendant 20 s) :
+    on garde le CONTRAT — tout est tenté, rien ne lève, le worker le lance sans attendre.
+    """
+
+    def test_every_step_runs_and_a_failing_one_stops_nothing(self):
+        from wama.common.services import assistant_engine as engine
+        done = []
+
+        def broken():
+            raise RuntimeError('boom')
+
+        steps = (('first', lambda: done.append('first')), ('broken', broken),
+                 ('last', lambda: done.append('last')))
+        with mock.patch.object(engine, 'WARM_UP_STEPS', steps):
+            summary = engine.warm_up()
+        self.assertEqual(done, ['first', 'last'])
+        self.assertIsInstance(summary['first'], float)
+        self.assertIn('boom', summary['broken'])
+
+    def test_each_step_names_something_that_exists(self):
+        # Un préchauffage qui vise un symbole renommé échoue EN SILENCE (il ne lève jamais) :
+        # le premier tour redevient lent sans que rien ne le dise. On résout donc les cibles.
+        from wama.common.backends import manager
+        from wama import tool_api
+        from wama.common.services import assistant_engine as engine
+        self.assertTrue(callable(manager.prime_catalog_index))
+        self.assertTrue(callable(tool_api.build_tools_list))
+        self.assertEqual([name for name, _ in engine.WARM_UP_STEPS],
+                         ['litellm', 'backend_catalog', 'tools_prompt', 'dev_client'])
+
+    def test_the_catalogue_step_fills_the_process_cache(self):
+        from wama.common.backends import manager
+        manager._CATALOG_INDEX.clear()
+        manager.prime_catalog_index()
+        self.assertIn('index', manager._CATALOG_INDEX)
+
+    def test_the_web_worker_starts_it_in_the_background_without_waiting(self):
+        import importlib.util
+        import threading
+        from pathlib import Path
+
+        spec = importlib.util.spec_from_file_location(
+            'gunicorn_conf_under_test', Path(settings.BASE_DIR) / 'gunicorn_conf.py')
+        conf = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(conf)
+        release, called = threading.Event(), threading.Event()
+
+        def slow_warm_up():
+            called.set()
+            release.wait(5)
+            return {}
+
+        with mock.patch('wama.common.services.assistant_engine.warm_up', side_effect=slow_warm_up):
+            conf.post_worker_init(mock.Mock(pid=1))          # doit rendre la main tout de suite
+            self.assertTrue(called.wait(5), 'le préchauffage n’a pas été lancé')
+            self.assertFalse(release.is_set())
+            release.set()
+            for thread in threading.enumerate():
+                if thread.name == 'wama-assistant-warm-up':
+                    thread.join(5)

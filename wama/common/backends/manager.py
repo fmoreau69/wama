@@ -251,6 +251,13 @@ def _catalog_index() -> dict:
     return index
 
 
+def prime_catalog_index() -> int:
+    """Remplit l'index du catalogue (et, par lui, importe les modules de backends) — rend le
+    nombre de classes indexées. Porte PUBLIQUE du préchauffage de l'assistant
+    (`assistant_engine.warm_up`) : le premier tirage « auto » d'un processus payait ~5 s ici."""
+    return len(_catalog_index())
+
+
 def match_local_name(rows, name: str) -> list:
     """Clés, parmi les lignes `(clé, hf_id)` d'une classe, que désigne le nom local `name`.
 

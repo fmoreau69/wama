@@ -503,9 +503,19 @@ qu'APRÈS la lecture de la précédente (chaîne séquentielle), donc une pause 
 calcul entre deux phrases — la ligne « demandée PENDANT la lecture » du levier 4 n'est vraie
 qu'avec l'avatar, qui met en file.
 
-⏳ **Leviers proposés, par gain mesuré décroissant** (à décider) : ① ne plus payer l'import —
-appeler les fournisseurs compatibles OpenAI (Albert) sans `litellm`, ou le charger au démarrage
-du worker ; ② voix sur le GPU (fournisseur CUDA d'`onnxruntime`) ou variante quantifiée du
+✅ **Levier ① CÂBLÉ le 2026-10-04 (décision de Fabien : « on charge litellm au démarrage »)** —
+`assistant_engine.warm_up()`, lancé en ARRIÈRE-PLAN par chaque worker gunicorn
+(`gunicorn_conf.py`, `post_worker_init`) : `litellm` et le client OpenAI qu'il charge
+paresseusement (≈ 20 s), l'index du catalogue des backends (≈ 5 s), la liste d'outils (1 s), les
+imports du client MCP (1,5 s). Le site sert tout de suite ; un tour arrivé pendant le
+préchauffage attend au pire ce qu'il aurait attendu sans lui. Mesuré dans un processus neuf,
+premier tour RÉEL par Albert : **29,7 s avant, 2,9 s après** (1,3 s au tour suivant). Dans le
+worker et non dans le maître : Django n'y est pas chargé, et l'ouverture du port serait
+retardée de 20 s à chaque relance. Gardes : `tests_assistant_surfaces.WarmUpTest`.
+⚠ Le profil a montré que le poste n'était pas le seul import : le premier tirage « auto »
+importe TOUS les modules de backends (index du catalogue) — un coût de processus, pas de tour.
+
+⏳ **Leviers restants, dans l'ordre validé par Fabien** : ① ~~ne plus payer l'import~~ ; ② voix sur le GPU (fournisseur CUDA d'`onnxruntime`) ou variante quantifiée du
 même export, déjà sur le disque — à mesurer avant de choisir ; ③ flux sur le chemin cloud ;
 ④ pré-demander la phrase suivante hors avatar ; ⑤ écrire la durée du tour.
 

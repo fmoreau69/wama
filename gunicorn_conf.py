@@ -45,3 +45,27 @@ def post_worker_init(worker):
     """Called just after a worker has been initialized."""
     logger = logging.getLogger('gunicorn.error')
     logger.info(f"[Worker {worker.pid}] Worker initialized")
+
+    # Préchauffage de l'assistant, EN ARRIÈRE-PLAN (2026-10-04) : le premier tour d'un worker
+    # payait ~20 s d'`import litellm` puis ~10 s de caches de processus — après chaque relance
+    # et à chaque recyclage `max_requests`. Un fil démon : le worker sert tout de suite.
+    # Dans le WORKER et non dans le maître : Django n'est chargé qu'ici (pas de `preload_app`),
+    # et l'importer dans le maître retarderait de 20 s l'ouverture du port à chaque relance.
+    import threading
+
+    def _warm():
+        try:
+            from wama.common.services.assistant_engine import warm_up
+            logger.info(f"[Worker {worker.pid}] assistant préchauffé : {warm_up()}")
+        except Exception as e:
+            logger.warning(f"[Worker {worker.pid}] préchauffage de l'assistant impossible : {e}")
+        finally:
+            # La connexion ouverte par CE fil (lecture du catalogue) : hors du cycle
+            # requête/réponse, personne d'autre ne la rendrait.
+            try:
+                from django.db import connections
+                connections.close_all()
+            except Exception:
+                pass
+
+    threading.Thread(target=_warm, name='wama-assistant-warm-up', daemon=True).start()

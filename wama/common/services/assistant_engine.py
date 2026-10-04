@@ -692,6 +692,76 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
 
 
 # ---------------------------------------------------------------------------
+# Préchauffage — ce que le PREMIER tour d'un processus payait seul
+# ---------------------------------------------------------------------------
+#
+# Mesuré le 2026-10-04 dans un processus neuf (venv sur `/mnt/d`) : `import litellm` 17,8 à
+# 19,5 s, puis 8 à 10 s de plus au premier tour — l'index du catalogue des backends (5 s : il
+# importe les modules de backends), le client MCP de la surface dev (4 s) et la liste d'outils
+# (1 s). Le second tour du même processus : 0,6 s. Rien de tout cela ne dépend de l'utilisateur
+# ni de la question : ce sont des caches de PROCESSUS, que le premier venu remplissait à ses
+# frais — et chaque worker gunicorn recommençait après chaque relance ou recyclage.
+#
+# D'où ce geste, lancé EN ARRIÈRE-PLAN au démarrage de chaque worker (`gunicorn_conf.py`,
+# `post_worker_init`) : le site sert tout de suite, et un tour arrivé pendant le préchauffage
+# attend au pire ce qu'il aurait attendu sans lui (verrou d'import), jamais plus.
+
+def _warm_litellm():
+    import litellm  # noqa: F401
+    # `litellm` charge le client OpenAI PARESSEUSEMENT, au premier appel d'un fournisseur
+    # compatible (Albert) : 2,7 s de plus au premier tour, mesurées au profil après un import nu.
+    import openai.resources  # noqa: F401
+
+
+def _warm_backend_catalog():
+    from wama.common.backends.manager import prime_catalog_index
+    prime_catalog_index()
+
+
+def _warm_tools_prompt():
+    from wama.tool_api import build_tools_list
+    build_tools_list()
+
+
+def _warm_dev_client():
+    # Les seuls IMPORTS du client MCP (`mcp_client._run`) : aucune connexion n'est ouverte.
+    import anyio  # noqa: F401
+    from mcp import ClientSession  # noqa: F401
+    from mcp.client.streamable_http import streamablehttp_client  # noqa: F401
+
+
+#: Étapes du préchauffage, dans l'ordre du gain mesuré. Ajouter un cache de processus que le
+#: premier tour remplit = ajouter une ligne ici.
+WARM_UP_STEPS = (
+    ('litellm', _warm_litellm),
+    ('backend_catalog', _warm_backend_catalog),
+    ('tools_prompt', _warm_tools_prompt),
+    ('dev_client', _warm_dev_client),
+)
+
+
+def warm_up() -> dict:
+    """Remplit les caches de processus du tour d'assistant — `{étape: secondes | 'erreur : …'}`.
+
+    Ne lève JAMAIS : un préchauffage qui échoue laisse le premier tour payer comme avant, il ne
+    doit pas empêcher un worker de servir. ⚠ Il LIT la base (catalogue) : l'appelant qui le
+    lance dans un fil d'arrière-plan referme la connexion de ce fil (`gunicorn_conf.py`) — pas
+    ici, où la fermer couperait celle d'un appelant synchrone.
+    """
+    import time
+    summary = {}
+    for name, step in WARM_UP_STEPS:
+        started = time.monotonic()
+        try:
+            step()
+            summary[name] = round(time.monotonic() - started, 1)
+        except Exception as e:
+            summary[name] = f'erreur : {e}'
+            logger.warning('[assistant] préchauffage « %s » impossible : %s', name, e)
+    return summary
+
+
+# ---------------------------------------------------------------------------
 # Boucle agentique
 # ---------------------------------------------------------------------------
 
