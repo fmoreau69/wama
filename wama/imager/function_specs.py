@@ -62,4 +62,5 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('generate', label='Génération', watched=GENERATE_WATCHED, gpu=True, share=9),
     output_spec(depends_on=('generate',)),
 ), label='Imager — génération puis réglages de sortie',
-   source_ref='imager.function_specs:PIPELINE')
+   source_ref='imager.function_specs:PIPELINE',
+   model_of=lambda generation: generation.model or 'auto')

@@ -61,4 +61,5 @@ PIPELINE = register_app_pipeline(_APP, (
                 watched=('audio_input', 'avatar_source', 'avatar_gallery_name', 'avatar_upload',
                          'animation_model', 'bbox_shift', 'use_enhancer', 'quality_mode'),
                 gpu=True, share=4, outputs=('output_video',)),
-), label='Avatarizer — voix puis animation', source_ref='avatarizer.function_specs:PIPELINE')
+), label='Avatarizer — voix puis animation', source_ref='avatarizer.function_specs:PIPELINE',
+   model_of=lambda job: job.animation_model or 'auto')

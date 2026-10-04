@@ -148,8 +148,9 @@ class AppPipeline:
     """Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive."""
 
     def __init__(self, app: str, specs, *, label: str, description: str = '',
-                 source_ref: str = ''):
+                 source_ref: str = '', model_of=None):
         self.app = app
+        self.model_of = model_of
         self.specs = tuple(specs)
         self.label = label
         self.description = description
@@ -172,6 +173,17 @@ class AppPipeline:
     # ── Déclaration ─────────────────────────────────────────────────────────────────────────
     def spec(self, key: str) -> ProcessSpec:
         return self._by_key[key]
+
+    def requested_model(self, item):
+        """Le modèle que la card DEMANDE (`model_of`, déclaré une fois par l'app) — ce que
+        lisent la bande des process, la vue de progression et le ▶ d'un process. `None` : le
+        modèle n'est connu qu'au lancement (composer sous « auto »), ou l'app ne déclare rien."""
+        if self.model_of is None:
+            return None
+        try:
+            return self.model_of(item)
+        except Exception:
+            return None
 
     def function_key(self, spec: ProcessSpec) -> str:
         """Clé `FUNCTION_CATALOG` du process — le nœud `function` qu'il devient au manifeste."""
@@ -500,12 +512,16 @@ APP_PIPELINES: dict = {}
 
 
 def register_app_pipeline(app: str, specs, *, label: str, description: str = '',
-                          source_ref: str = '') -> AppPipeline:
+                          source_ref: str = '', model_of=None) -> AppPipeline:
     """Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
-    clé de l'app (idempotent : une seconde déclaration remplace la première)."""
+    clé de l'app (idempotent : une seconde déclaration remplace la première).
+
+    `model_of` : `callable(élément) -> clé de modèle` — « le modèle que la card demande », dit
+    UNE fois (`AppPipeline.requested_model`). Chaque app le redisait à la bande des process, à
+    la vue de progression et au ▶ d'un process (2026-10-04)."""
     from wama.common.manifests.builtin.pipeline import register_pipeline_source
     pipeline = AppPipeline(app, specs, label=label, description=description,
-                           source_ref=source_ref)
+                           source_ref=source_ref, model_of=model_of)
     APP_PIPELINES[app] = pipeline
     register_pipeline_source(app, pipeline.manifest)
     return pipeline
@@ -547,7 +563,11 @@ def pipeline_of(item) -> AppPipeline | None:
     return APP_PIPELINES.get(label)
 
 
-def card_view(item, model_key=None, preloaded: bool = False):
+#: Valeur par défaut de `model_key` : le modèle DÉCLARÉ par le pipeline (`requested_model`).
+DECLARED = object()
+
+
+def card_view(item, model_key=DECLARED, preloaded: bool = False):
     """Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
     `(lignes de process, état montré, libellé de cet état)` — par l'adaptateur unique
     (`AppPipeline.shown_state`), jamais `status` en dur. `model_key` : le réglage quand il est
@@ -559,6 +579,8 @@ def card_view(item, model_key=None, preloaded: bool = False):
     pipeline = pipeline_of(item)
     if pipeline is None:
         return None
+    if model_key is DECLARED:
+        model_key = pipeline.requested_model(item)
     from wama.common.models import PROCESS_STATUS_CHOICES
     if not preloaded:
         preload([item])
@@ -573,7 +595,7 @@ def card_view(item, model_key=None, preloaded: bool = False):
     return rows, state, dict(PROCESS_STATUS_CHOICES).get(state, state)
 
 
-def decorate(item, model_key=None, preloaded: bool = False):
+def decorate(item, model_key=DECLARED, preloaded: bool = False):
     """Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
     gabarits (`_card_processes.html`, `_cycle_button.html` via `elem.shown_state|default:
     elem.status`). Point d'attache des apps GÉNÉRÉES (`views_gen._decorer`) ; une app réelle
@@ -584,3 +606,16 @@ def decorate(item, model_key=None, preloaded: bool = False):
     item.processes, item.shown_state, item.shown_state_label = view
     return view
 
+
+def decorate_cards(items, each=None) -> list:
+    """Les cards d'une PAGE : leurs lignes d'exécution lues en UNE requête (`preload`), puis
+    chacune décorée — par `each(item, preloaded=True)` (la décoration de l'app : chips +
+    process) ou, sans elle, par `decorate`. Rend la liste des éléments."""
+    items = [item for item in items if item is not None]
+    preload(items)
+    for item in items:
+        if each is not None:
+            each(item, preloaded=True)
+        else:
+            decorate(item, preloaded=True)
+    return items

@@ -304,7 +304,7 @@
         // POST : la vue l'exige depuis le 2026-09-22 — un GET (le défaut de `fetch`) lançait la
         // génération, qu'un préchargement de lien pouvait déclencher sans jeton CSRF.
         // `process` : ▶ d'UN process de la bande (route `start/<id>/<process>/`, lancement borné).
-        const resp = await fetch(`${cfg.urls.start}${jobId}/` + (process ? process + '/' : ''), {
+        const resp = await fetch(WamaCycleButton.processUrl(`${cfg.urls.start}${jobId}/`, process), {
             method: 'POST',
             headers: { 'X-CSRFToken': csrf },
         });
@@ -385,7 +385,7 @@
             start: async (id, btn) => {
                 const card = $(`.synthesis-card[data-job-id="${id}"]`);
                 if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') await stopJob(id);
-                const process = btn && btn.dataset ? btn.dataset.process : '';
+                const process = WamaCycleButton.processOf(btn);
                 try { await startJob(id, process); if (card) card.dataset.status = 'RUNNING'; startPolling(id); }
                 catch (e) { WamaApp.toast(e.message || 'Erreur', 'error'); }
             },

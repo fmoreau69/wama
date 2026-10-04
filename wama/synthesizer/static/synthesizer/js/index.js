@@ -17,8 +17,8 @@ document.addEventListener('DOMContentLoaded', function() {
             start: async (id, btn) => {
                 // POST : lancer une synthèse CHANGE l'état — la vue l'exige depuis le 2026-09-22.
                 // ▶ d'UN process (bande des process, `data-process`) : route `start/<id>/<process>/`.
-                const process = btn && btn.dataset ? btn.dataset.process : '';
-                try { await fetch(URLS.start + id + '/' + (process ? process + '/' : ''), { method: 'POST', headers: { 'X-CSRFToken': csrfToken } }); } catch (e) {}
+                const process = WamaCycleButton.processOf(btn);
+                try { await fetch(WamaCycleButton.processUrl(URLS.start + id + '/', process), { method: 'POST', headers: { 'X-CSRFToken': csrfToken } }); } catch (e) {}
                 window.location.reload();
             },
             stop: async (id) => {

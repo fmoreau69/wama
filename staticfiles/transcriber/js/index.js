@@ -271,7 +271,7 @@ document.addEventListener('DOMContentLoaded', function () {
       // `btn.dataset.process` : le ▶ d'UN process de la bande → lancement borné (route
       // `start/<id>/<process>/`) ; sans lui, le ▶ de la card lance tout ce qui est dû.
       WamaCycleButton.wire(root, {
-        start: (id, btn) => handleStart(id, btn && btn.dataset ? btn.dataset.process : ''),
+        start: (id, btn, process) => handleStart(id, process),
         stop: (id) => handleStop(id),
       });
     }
@@ -322,7 +322,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function doStart(id, card, process) {
-    const url = getUrl(config.startUrlTemplate, id) + (process ? process + '/' : '');
+    const url = WamaCycleButton.processUrl(getUrl(config.startUrlTemplate, id), process);
     if (!card) card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
 
     fetch(url, {

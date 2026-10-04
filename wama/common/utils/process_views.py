@@ -8,26 +8,21 @@ seuls amonts périmés, jamais son aval : `AppPipeline.steps_to_run(only=)`). La
 avec trois formes de refus et quatre formes de réponse ; elle est ici UNE fois, sur le modèle
 de `make_batch_views` dont elle reprend les crochets (`task_for`, `reset_on_start`).
 
-Le pipeline n'est pas un argument : il se lit de l'app de l'élément (`pipeline_of`).
+Ni le pipeline ni le modèle ne sont des arguments : le pipeline se lit de l'app de l'élément
+(`pipeline_of`), et « le modèle que la card demande » de sa déclaration (`requested_model`).
 
 Usage (views.py de l'app) :
     from wama.common.utils.process_views import make_process_start_view
     start_process = make_process_start_view(
-        work_model=Transcript, task_for=_task_for, reset_on_start=_reset_and_clear_progress,
-        model_key=lambda t: catalogue_value(t.backend) or 'auto')
+        work_model=Transcript, task_for=_task_for, reset_on_start=_reset_and_clear_progress)
 """
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
 from wama.common.utils.progress_views import request_user
 
-#: Rendu par `model_key` quand ce qui a lieu n'est connu qu'AU LANCEMENT (modèle « auto » tiré
-#: par la tâche) : la vue ne tranche pas, la tâche le fera (`steps_to_run` refuse en le disant).
-DECIDED_AT_LAUNCH = object()
-
-
 def make_process_start_view(*, work_model, task_for, get_user=request_user,
-                            reset_on_start=None, reset_for_process=None, model_key=None):
+                            reset_on_start=None, reset_for_process=None):
     """La vue `start_process(request, pk, process)` d'une app à pipeline.
 
     Args:
@@ -40,9 +35,10 @@ def make_process_start_view(*, work_model, task_for, get_user=request_user,
         reset_for_process : callable(élément, process) — à la place de `reset_on_start` quand
                             la remise à zéro dépend du process lancé (composer : seules les
                             sorties DÉCLARÉES de ce process sont remplacées).
-        model_key         : callable(élément) -> clé de modèle passée à `AppPipeline.applicable`
-                            (un process que ce modèle ne sert pas est refusé), ou
-                            `DECIDED_AT_LAUNCH`. Absent : aucun modèle n'entre dans la question.
+
+    Un process que le modèle demandé ne sert pas est refusé (`AppPipeline.applicable`). Quand
+    ce modèle n'est connu qu'AU LANCEMENT (`requested_model` rend `None` : « auto » tiré par la
+    tâche), la vue ne tranche pas — la tâche le fera (`steps_to_run` refuse en le disant).
     """
 
     @require_POST
@@ -56,9 +52,8 @@ def make_process_start_view(*, work_model, task_for, get_user=request_user,
         pipeline = pipeline_of(item)
         if pipeline is None or process not in {s.key for s in pipeline.specs}:
             return JsonResponse({'error': f"process inconnu : {process}"}, status=400)
-        key = model_key(item) if model_key is not None else None
-        if key is not DECIDED_AT_LAUNCH and \
-                process not in {s.key for s in pipeline.applicable(item, key)}:
+        key = pipeline.requested_model(item)
+        if key is not None and process not in {s.key for s in pipeline.applicable(item, key)}:
             return JsonResponse({'error': f"« {pipeline.spec(process).label} » n'a pas lieu "
                                           "pour cette card"}, status=400)
 

@@ -517,8 +517,7 @@ from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(work_model=Media, app_id='anonymizer',
                           progress_field='blur_progress', progress_of=_live_progress,
-                          eta_for=_eta_triplet,
-                          pipeline_model=lambda media: media.model_to_use or 'auto')
+                          eta_for=_eta_triplet)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
@@ -847,8 +846,7 @@ def _decorate_card(media, preloaded=False):
     rendue par l'endpoint diverge de celle du chargement (leçon describer)."""
     from wama.common.services.process_pipeline import decorate
     from wama.common.utils.card_chips import chips_by_section
-    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
-    decorate(media, media.model_to_use or 'auto', preloaded=preloaded)
+    decorate(media, preloaded=preloaded)
     from wama.anonymizer.params import PARAMS_JSON
     extra = []
     if media.target_mode == 'classes' and media.classes2blur:
@@ -875,10 +873,8 @@ def _queue_context(request, user):
         from wama.anonymizer.params import PARAMS_JSON
         success_count = sum(1 for m in medias if m.status == 'SUCCESS')
         # Les lignes d'exécution des cards du lot sont lues en une requête.
-        from wama.common.services.process_pipeline import preload
-        preload(medias)
-        for m in medias:
-            _decorate_card(m, preloaded=True)
+        from wama.common.services.process_pipeline import decorate_cards
+        decorate_cards(medias, _decorate_card)
         return {
             'success_pct': int(success_count / batch.total * 100) if batch.total else 0,
             # ETA agrégée de la card mère (brique _batch_card.html) — CSV, pas liste

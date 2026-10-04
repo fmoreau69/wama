@@ -85,9 +85,9 @@
                 const action = btn.getAttribute('data-cycle-action');   // 'start' | 'restart'
                 // ▶ d'UN process (bande des process, `data-process`) : lancement BORNÉ, route
                 // `start/<id>/<process>/` ; sans attribut, le ▶ de la card lance ce qui est dû.
-                const process = btn.dataset ? btn.dataset.process : '';
+                const process = WamaCycleButton.processOf(btn);
                 const tpl = (action === 'restart' && !process) ? cfg().urls.restart : cfg().urls.start;
-                post(WamaApp.getUrl(tpl, id) + (process ? process + '/' : '')).then(function (res) {
+                post(WamaCycleButton.processUrl(WamaApp.getUrl(tpl, id), process)).then(function (res) {
                     if (!res.ok || res.j.error) WamaApp.toast(res.j.error || 'Lancement impossible', 'error');
                     refreshCard(id);
                 });

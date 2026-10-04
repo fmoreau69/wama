@@ -53,4 +53,5 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('generate', label='Floutage', watched=GENERATE_WATCHED, gpu=True, share=9),
     output_spec(depends_on=('generate',)),
 ), label='Anonymizer — floutage puis réglages de sortie',
-   source_ref='anonymizer.function_specs:PIPELINE')
+   source_ref='anonymizer.function_specs:PIPELINE',
+   model_of=lambda media: media.model_to_use or 'auto')

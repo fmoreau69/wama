@@ -264,12 +264,9 @@ class IndexView(View):
         # Chips générés — MÊME point d'attache que card_html, sinon la card du chargement
         # diverge de celle que l'endpoint renvoie ensuite (leçon describer).
         # Les lignes d'exécution de TOUTES les cards de la page en une requête (bande des process).
-        from wama.common.services.process_pipeline import preload
-        _shown = [_it.transcript for _b in batches_list for _it in _b['items']
-                  if getattr(_it, 'transcript', None)]
-        preload(_shown)
-        for _t in _shown:
-            _decorate_card(_t, preloaded=True)
+        from wama.common.services.process_pipeline import decorate_cards
+        decorate_cards([getattr(_it, 'transcript', None)
+                        for _b in batches_list for _it in _b['items']], _decorate_card)
         queue_count = sum(len(b['items']) for b in batches_list)
 
         # ── Tri + filtrage de la file — brique COMMUNE (extraite d'ici le 2026-07-03) ──
@@ -524,14 +521,8 @@ from wama.common.utils.process_views import make_process_start_view  # noqa: E40
 
 # ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE. C'est aussi le résumé ou la
 # cohérence « à la demande » sur une transcription déjà faite, ou REPRISE d'un document.
-def _pipeline_model(t):
-    from wama.transcriber.backends.manager import catalogue_value
-    return catalogue_value(t.backend) or 'auto'
-
-
 start_process = make_process_start_view(
-    work_model=Transcript, task_for=_task_for, reset_on_start=_reset_and_clear_progress,
-    model_key=_pipeline_model)
+    work_model=Transcript, task_for=_task_for, reset_on_start=_reset_and_clear_progress)
 
 
 @require_POST
@@ -1032,9 +1023,7 @@ def _pipeline_view(t, preloaded=False):
     « Transcription ». Le modèle est passé tel que la card le demande, « auto » compris : les
     process se montrent AVANT le premier lancement — c'est là que leurs cases à cocher servent."""
     from wama.common.services.process_pipeline import decorate
-    from wama.transcriber.backends.manager import catalogue_value
-    from . import function_specs  # noqa: F401 — c'est cet import qui INSCRIT le pipeline de l'app
-    return decorate(t, catalogue_value(t.backend) or 'auto', preloaded=preloaded)
+    return decorate(t, preloaded=preloaded)
 
 
 def card_html(request, pk: int):
@@ -1058,13 +1047,6 @@ def _eta_triplet(t):
     from .workers import transcriber_eta_key_size
     triplet = transcriber_eta_key_size(t)
     return (*triplet, False) if triplet else None
-
-
-def _pipeline_model(t):
-    """Le modèle passé à la bande des process — celui que la card demande, « auto » compris
-    (`_pipeline_view`)."""
-    from wama.transcriber.backends.manager import catalogue_value
-    return catalogue_value(t.backend) or 'auto'
 
 
 def _progress_extra(t):
@@ -1099,7 +1081,7 @@ def _progress_extra(t):
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(work_model=Transcript, app_id='transcriber', eta_for=_eta_triplet,
-                          extra=_progress_extra, pipeline_model=_pipeline_model)
+                          extra=_progress_extra)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 

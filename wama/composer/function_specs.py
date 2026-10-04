@@ -124,6 +124,14 @@ register(FunctionSpec(
 _RENDER_WATCHED = ('prompt', 'model', 'quality_intent', 'duration',
                    'reference_score', 'melody_reference', 'source_url')
 
+def _requested_model(gen):
+    """Le modèle que la card demande. Sous « auto » il n'est connu qu'au lancement : `None` —
+    la bande montre ce qui a tourné, le ▶ d'un process laisse la tâche trancher."""
+    from wama.common.utils.auto_model import is_auto
+    from wama.composer.utils.model_choice import normalize
+    return None if is_auto(gen.model) else normalize(gen.model)
+
+
 PIPELINE = register_app_pipeline(_APP, (
     # La partition EXTRAITE ne dépend que de l'audio (remarque d'ae, 2026-10-03) : changer le
     # modèle de RENDU ne la périme pas — s'il cesse de suivre une partition, c'est `applies` qui
@@ -141,4 +149,5 @@ PIPELINE = register_app_pipeline(_APP, (
                 watched=_RENDER_WATCHED, gpu=True, share=3, outputs=('audio_output',)),
     # Les réglages de SORTIE (format, qualité) : process COMMUN (`output_process`), toujours joué.
     output_spec(depends_on=('render',)),
-), label='Composer — partition, rendu, sortie', source_ref='composer.function_specs:PIPELINE')
+), label='Composer — partition, rendu, sortie', source_ref='composer.function_specs:PIPELINE',
+   model_of=lambda gen: _requested_model(gen))

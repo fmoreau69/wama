@@ -50,4 +50,5 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('generate', label='Synthèse', watched=GENERATE_WATCHED, gpu=True, share=9),
     output_spec(depends_on=('generate',)),
 ), label='Synthesizer — synthèse puis réglages de sortie',
-   source_ref='synthesizer.function_specs:PIPELINE')
+   source_ref='synthesizer.function_specs:PIPELINE',
+   model_of=lambda synthesis: synthesis.tts_model or 'auto')

@@ -44,8 +44,21 @@
       '" data-id="' + id + '" title="' + st.title + '"><i class="fas ' + st.icon + '"></i></button>';
   }
 
+  // Le ▶ d'UN process (bande des process, `_card_processes.html`) est un bouton de cycle qui
+  // porte `data-process` : lancement BORNÉ, route `start/<id>/<process>/` (ROUTE §10.6 5.1).
+  // Les deux gestes que chaque app réécrivait vivent ici : lire le process du bouton
+  // (`wire` le passe au handler), composer l'adresse (`processUrl`).
+  function processOf(btn) {
+    return (btn && btn.dataset && btn.dataset.process) || '';
+  }
+
+  function processUrl(startUrl, process) {
+    return startUrl + (process ? process + '/' : '');
+  }
+
   // Câblage délégué (un seul listener par root). handlers.start gère start ET restart (même endpoint),
   // handlers.stop gère l'arrêt. Lié UNE fois par root (pas d'accumulation au re-render).
+  // `handlers.start(id, btn, process)` : `process` = '' pour le ▶ de la card.
   function wire(root, handlers) {
     if (!root || root._wamaCycleBound) return;
     root._wamaCycleBound = true;
@@ -55,7 +68,7 @@
       var action = btn.getAttribute('data-cycle-action');
       var id = btn.getAttribute('data-id');
       if (action === 'stop') { if (handlers.stop) handlers.stop(id, btn); }
-      else { if (handlers.start) handlers.start(id, btn); }   // start + restart
+      else { if (handlers.start) handlers.start(id, btn, processOf(btn)); }   // start + restart
     });
   }
 
@@ -97,5 +110,6 @@
     container.querySelectorAll(cardSelector).forEach(refresh);  // état initial
   }
 
-  global.WamaCycleButton = { stateFor: stateFor, html: html, wire: wire, refresh: refresh, autoSync: autoSync };
+  global.WamaCycleButton = { stateFor: stateFor, html: html, wire: wire, refresh: refresh, autoSync: autoSync,
+                             processOf: processOf, processUrl: processUrl };
 })(window);
