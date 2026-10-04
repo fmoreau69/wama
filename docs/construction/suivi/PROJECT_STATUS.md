@@ -4792,7 +4792,7 @@ son témoin retombait sur `.txt` pour les apps à images.
 > avec retour arrière possible. **Rien n'est modifié à ce stade** (le floutage est la fonction de
 > conformité RGPD de l'app : on ne change pas sa sortie en passant).
 
-**LES TROIS CHEMINS** (`backends/anonymize.py:792-798`, `common/utils/blur_utils.py`) :
+**LES TROIS CHEMINS** (`backends/anonymize.py` d'avant le 2026-10-04, `common/utils/blur_utils.py`) :
 - **P1 — boîte simple** : `blur_detection` → `apply_simple_blur` (label ∉ {face, person} **ou**
   `progressive_blur = 0`) ;
 - **P2 — boîte progressive** : `blur_detection` → `apply_progressive_blur` (label ∈ {face, person}
@@ -4813,7 +4813,7 @@ Trois autres faits mesurés, tous producteurs d'hétérogénéité :
 - **Mixité dans UNE MÊME frame** : le moteur boucle sur plusieurs modèles (`par_modele`), chacun
   avec son propre drapeau `seg` — un visage détecté par un modèle segmentant sort en P3 pendant
   qu'une plaque détectée par un modèle non segmentant sort en P1, sur la même image ;
-- **Interpolation** : les détections interpolées (`anonymize.py:810`) repassent **toujours** par
+- **Interpolation** : les détections interpolées (`anonymize.py` d'avant le 2026-10-04) repassent **toujours** par
   `blur_detection` (P1/P2), même quand la détection d'origine était un masque → dans une vidéo,
   le même objet alterne entre flou-masque (frames détectées) et flou-boîte (frames interpolées),
   ce qui se voit comme une **pulsation** de la zone floutée ;
@@ -4821,7 +4821,7 @@ Trois autres faits mesurés, tous producteurs d'hétérogénéité :
   directement : `roi_enlargement` et `rounded_edges` ne lui sont **même pas passés**.
 
 ⚠ **Paramètre INERTE trouvé au passage** : `use_segmentation` est stocké (`models.py:101`),
-transmis par la tâche (`tasks.py:242`)… et **jamais lu** par le moteur — `anonymize.py:764` le
+transmis par la tâche (`tasks.py:242`)… et **jamais lu** par le moteur — `anonymize.py` (avant le 2026-10-04) le
 RE-DÉRIVE de `self._is_segmentation_model` (le modèle chargé). Un réglage déclaré au schéma dont
 la valeur n'a aucun effet.
 

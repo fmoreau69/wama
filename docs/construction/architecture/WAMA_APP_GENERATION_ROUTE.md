@@ -3631,8 +3631,9 @@ périmé** (les deux boutons de `ROADMAP §9.2.bis`, généralisés).
 sortie d'un process qui alimente un autre est donc **persistée** ou **recalculable à la demande**
 (le monde Data a déjà posé « on persiste la DÉCLARATION, les valeurs sont un cache »,
 `WAMA_DATA_WORLD.md:1529-1538`). Aujourd'hui un `TypedFrame` ne vit qu'en mémoire entre deux nœuds
-fonction d'un même run (`studio/tasks.py:17`) et l'anonymizer ne garde aucune détection
-(`common/backends/anonymize.py:749-843`). Choix par process : décision ouverte n°2.
+fonction d'un même run (`studio/tasks.py:17`). L'anonymizer, lui, PERSISTE ses détections
+depuis le 2026-10-04 (document `detections`, `common/utils/detections.py` — corrigé ce jour-là :
+cette ligne disait qu'il n'en gardait aucune). Choix par process : décision ouverte n°2.
 
 **4.7 Les enrichissements deviennent des process optionnels.** Le résumé à la demande du
 transcriber (`enrich_transcript`) et l'analyse du reader sont aujourd'hui **hors contrat** du
