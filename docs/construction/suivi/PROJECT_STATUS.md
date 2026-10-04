@@ -21745,3 +21745,47 @@ puis supprimée ; scripts dans le scratchpad de session.
   réservée) ; le visiteur ouvre le converter et reçoit 403 en lançant l'avatarizer ; la purge
   des visiteurs part bien en intervalle (journal de beat). Tests : 154 sur les suites
   principales, tous verts.
+
+## §CLÔTURE — 2026-10-04 (soir), « ASSISTANT : cinq leviers de latence, voix sur la carte graphique, partages réseau » — clôture DÉFINITIVE de la session du 03→04/10 (elle complète la `§CLÔTURE — 2026-10-04` du matin) — non poussé — 🔚 un tour de Fabien par Albert, à écouter, puis lire sa durée en base
+
+**Commits de l'après-midi** : `66ec0757` partages réseau · `3e5bde12` préchauffage · `bbcab4a0`
+voix sur la carte graphique · `60f605f8` flux cloud + phrase suivante · `221b4c7a` durée du tour
+et décompte · `b6ba9265` copies servies · `a0accab6` entrée 10 du script des patches + clé de
+catalogue par la brique commune · `f07426b1` carte des mécanismes régénérée depuis HEAD.
+Détail : `§PALIER 2026-10-04 (après-midi)` et sa « Revérification EN SERVICE », ci-dessus.
+
+**🔚 POINT D'ENTRÉE** : Fabien envoie un message à l'assistant (réponse de plusieurs phrases, par
+Albert) ; lire ensuite `ConversationTurn.seconds_to_first_text` / `seconds_total` de ce tour —
+c'est la seule mesure qui manque : le chemin Albert À TRAVERS gunicorn, et l'écoute.
+
+**File des chantiers ouverts** (ordre proposé) :
+1. Chemin LOCAL à froid : 122 s au premier texte sans clé cloud (modèle de 17,7 Go chargé à la
+   demande) — garder chaud le modèle local de l'assistant, ou préférer au tirage un modèle chargé.
+2. Prompt d'outils (≈ 19 500 caractères par tour) — levier ③ du 22/09, seul levier de latence restant.
+3. Journal des connexions — ⛔ deux décisions de Fabien : durée de conservation, comptes de test.
+4. Corpus système : vecteurs des fragments neufs la nuit (décision) ; doc utilisateur à étoffer.
+5. Voix : moteur TIRÉ, voix française masculine, lexique de prononciation ; agrandisseur de
+   l'Enhancer à remesurer (il tournait sur le processeur par le même défaut de venv).
+
+**Non prouvé, nommément** : le préchauffage du 4ᵉ worker gunicorn (aucune ligne au journal ;
+mémoire et fils identiques aux trois autres) ; l'écoute de la voix et la vue du décompte au
+navigateur ; le geste « connecter un dossier distant » rejoué après la correction.
+
+**Non gardé par un test, avec la raison** : le décompte à l'écran et le message de refus du
+partage (scripts qui touchent au DOM : analysés par V8, pas exécutés) ; les consignes ajoutées
+aux skills de rôle (texte de prompt, éprouvé par des tours réels) ; l'amorçage du moteur de voix
+au chargement (mesuré : 1,14 s → 0,17 s, pas de test).
+
+**Effets de bord DÉCLARÉS** : venv Linux (`onnxruntime` retiré, `onnxruntime-gpu` réinstallé —
+entrée 10 du script des patches, vérification seule) ; migration `common/0027` appliquée, NON
+versionnée comme toutes les migrations numérotées ; `.env` local : deux lignes `WAMA_SMB_*` ;
+ETA apprise pour `assistant-turn:albert:deepseek-v4-flash-0731` ; six tours et quatre demandes
+de voix du compte de test `wama_pw_smoke` (son fil web porte ces tours) ; rien d'autre en base.
+
+**Contrôles MESURÉS à la clôture** : tests du périmètre **434 verts** (22 modules) puis 121 après
+la dernière écriture de code ; `check_redundancy` 90 au total, **0 dans les fichiers de la
+session** — une réinvention trouvée par relecture et corrigée (clé de catalogue reconstruite à la
+main → `model_keys.catalog_key`) ; `check_docs` 5 références cassées, aucune de la session ;
+`doc_facts --check` depuis HEAD : seule la carte des mécanismes était périmée, régénérée ; dans
+l'arbre de travail quatre blocs restent périmés par le travail NON commité d'autres sessions ;
+`manifest_export --check` : 19 périmés, aucun de la session ; `check_skills` : 0 défaut.
