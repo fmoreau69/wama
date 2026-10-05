@@ -1002,6 +1002,19 @@ def _parse_tool_call(text: str) -> dict | None:
     return None
 
 
+#: Appels d'outils dans UN tour. 5 jusqu'au 2026-10-05 : le parcours ordinaire d'une demande
+#: (inspection → ajout → lancement → statut) en prend 4, une seule correction de réglage refusé
+#: par le schéma épuisait la boucle avant la réponse (Discord, card #1036).
+MAX_TOOL_ITERATIONS = 8
+#: Le dernier tour, quand la limite est atteinte : répondre, plus d'outil.
+_TOOL_LIMIT_PROMPT = (
+    "Limite d'appels d'outils atteinte pour ce tour. N'appelle plus aucun outil : réponds "
+    "maintenant à l'utilisateur à partir des résultats ci-dessus — ce qui a été fait, ce qui "
+    "reste en cours.")
+#: Si le modèle veut ENCORE un outil : la trace de ce qui a été exécuté, jamais l'appel brut.
+_TOOL_LIMIT_NOTICE = (
+    "⚠ J'ai atteint la limite d'actions pour ce tour sans pouvoir conclure. Actions exécutées : "
+    "{done}. Demandez-moi « quel est le statut ? » pour la suite.")
 #: Longueur d'un résultat d'outil d'un tour PASSÉ dans l'historique resservi : assez pour que le
 #: modèle voie que la réponse venait d'un outil, pas assez pour noyer la fenêtre.
 _HISTORY_RESULT_CHARS = 600
@@ -1331,7 +1344,6 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # `_claude_code_call` promettait de le remonter, aucune surface ne pouvait l'afficher.
     # Reste à 0 pour les autres fournisseurs, qui ne rapportent pas de coût.
     total_usage = {'input_tokens': 0, 'output_tokens': 0, 'cost_usd': 0.0}
-    MAX_TOOL_ITERATIONS = 5
 
     for _ in range(MAX_TOOL_ITERATIONS):
         # FLUX (levier 5) : un portier par itération — il ne laisse passer ni la réflexion du
@@ -1433,12 +1445,33 @@ def run_assistant_turn(user, message: str, provider: str = None,
         messages.append({"role": "assistant", "content": text})
         messages.append(_tool_result_message(tool_name, tool_result))
 
-    # Reached iteration limit — return last LLM text as-is
+    # LIMITE ATTEINTE : un dernier tour SANS outil, pour répondre de ce qui a été fait.
+    # ⚠ Jusqu'au 2026-10-05 la boucle rendait ici `messages[-2]` — le texte de l'assistant qui
+    # venait d'APPELER un outil, c'est-à-dire l'appel brut : Discord a affiché
+    # `{"tool": "get_anonymizer_status", "args": {}}` comme réponse (inspection → ajout refusé
+    # par le schéma → ajout → lancement → statut : cinq outils, plus de tour pour répondre).
     logger.warning("[ai_chat] tool-calling iteration limit reached")
-    last_text = messages[-2].get("content", "") if len(messages) >= 2 else ""
+    messages.append({"role": "user", "content": _TOOL_LIMIT_PROMPT})
+    gate = None
+    if on_event is not None:
+        gate = _TokenGate(lambda fragment: on_event({'type': 'delta', 'text': fragment}))
+    text, result = _llm_call(messages, llm_model, provider, user=user, think=think,
+                             on_delta=(gate.feed if gate else None))
+    if gate is not None:
+        gate.close()
+    if text is not None:
+        total_usage['input_tokens'] += result.get('input_tokens', 0)
+        total_usage['output_tokens'] += result.get('output_tokens', 0)
+        total_usage['cost_usd'] += result.get('cost_usd') or 0.0
+    final = _strip_think_tags(text or '')
+    if not final or _parse_tool_call(final):
+        # Le modèle veut encore un outil, ou n'a rien rendu : on dit ce qui a été EXÉCUTÉ —
+        # la trace, pas un récit, et jamais l'appel brut.
+        done = ', '.join(dict.fromkeys(step['tool'] for step in tool_steps))
+        final = _TOOL_LIMIT_NOTICE.format(done=done)
     return {
         'success': True,
-        'response': _strip_unsourced_urls(_strip_think_tags(last_text), tool_steps, message),
+        'response': _strip_unsourced_urls(final, tool_steps, message),
         'model': etiquette,
         'usage': total_usage,
         'tool_steps': tool_steps,
