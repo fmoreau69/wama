@@ -420,10 +420,8 @@ def ai_chat_clear(request):
     """« Effacer » du chat web : supprime le fil `web` de l'utilisateur (store commun)."""
     if not request.user.is_authenticated:
         return JsonResponse({'error': 'Authentification requise'}, status=401)
-    from wama.common.models import Conversation
     from wama.common.services import conversation_store
-    fil = Conversation.objects.filter(user=request.user, surface='web', thread_key='').first()
-    cleared = conversation_store.clear(request.user, fil.pk) if fil else False
+    cleared = conversation_store.clear_thread(request.user, surface='web', thread_key='')
     return JsonResponse({'success': True, 'cleared': cleared})
 
 

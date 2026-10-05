@@ -169,3 +169,19 @@ def clear(user, conversation_id: int) -> bool:
     """
     n, _ = Conversation.objects.filter(pk=conversation_id, user=user).delete()
     return n > 0
+
+
+def clear_thread(user, surface: str = 'web', thread_key: str = '') -> bool:
+    """
+    Supprime le fil NOMMÉ `(user, surface, thread_key)` — le geste « Effacer » du chat web et
+    « !oublier » d'un canal (2026-10-05), un seul domicile pour les deux.
+
+    POURQUOI UN TEL GESTE : un fil dans lequel une fabrication est entrée la resservait au
+    modèle à chaque tour (fil Discord n° 11, `WAMA_LLM.md` §2026-10-05). L'historique assaini
+    rend la récidive improbable ; repartir d'un fil vierge reste le remède sûr, et il doit être
+    à la portée de l'utilisateur, pas seulement d'un administrateur en base.
+    ⚠ La trace part avec le fil : c'est ce que fait déjà « Effacer » côté web.
+    """
+    n, _ = Conversation.objects.filter(
+        user=user, surface=surface, thread_key=(thread_key or '')[:255]).delete()
+    return n > 0

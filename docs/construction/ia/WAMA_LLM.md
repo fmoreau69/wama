@@ -1241,6 +1241,11 @@ filet. Gardes : `tests_conversation.HistoryCarriesToolStepsTests`,
 chacune prouvée par mutation (4 mutations, 4 rouges).
 ⚠ Reste : un « je lance » SANS outil et SANS mention n'est toujours attrapé par aucun contrôle
 de sortie — seul l'historique assaini le rend improbable.
+**Et le remède sûr est à la portée de l'utilisateur** : `!oublier` (alias `!forget`, annoncé
+dans `!aide`) efface le fil courant d'un canal — le « Effacer » du chat web, par la MÊME brique
+`conversation_store.clear_thread` (la vue web y est ralliée : elle cherchait le fil puis
+l'effaçait elle-même). Seul ce fil part ; garde d'identité d'abord. ⚠ La trace part avec lui,
+comme côté web. Gardes : `gateway.tests.ForgetGestureTests` (2 mutations, 2 rouges).
 
 **Chaîne prouvée de bout en bout le 23/09 sur l'item réel 647** : `start_anonymizer` →
 `RUNNING` → `SUCCESS` (`users/1/anonymizer/output/IMG-…_blurred_sam3.jpg`) →
