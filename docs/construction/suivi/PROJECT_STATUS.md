@@ -22047,3 +22047,24 @@ s'écartent de la droite de plus d'une demi-taille. Détail : `ROUTE §10.6` blo
 - ⏳ Décision de Fabien : l'EXTRAPOLATION aux bouts d'un objet (flouter avant sa première
   détection et après sa dernière), avec `extrapolate_speed_accel` — demande un réglage.
 - 🔴 Relancer les workers (le floutage lit la nouvelle interpolation).
+
+## §PALIER (suite) — 2026-10-05, « ETA PAR PROCESS : vérifié après la relance de WAMA » — ✅ commit de ce bloc, non poussé — 🔚 un vrai lancement d'une card à plusieurs process, pour voir le plan et l'apprentissage des clés neuves dans le worker
+
+WAMA relancé par Fabien (gunicorn 15:38, workers et beat 15:39, après `43c52df4`). Mesuré :
+- **journal d'erreurs vide** depuis la relance ; la palette du Studio (`/studio/api/run-options/`,
+  500 avant la relance) répond **200** ;
+- **vues de progression rejouées** sur six cards réelles (code et base du live, lecture seule,
+  transaction annulée, card passée « en cours » le temps de la requête) — toutes **200**, avec
+  `estimated_seconds` et la bande des process : anonymizer #1026 5,7 s (réel 5,8), composer #341
+  326,8 s (réel 327,7), imager #47 98,9 s (réel 98,9), transcriber #1309 175,7 s, synthesizer
+  #317 40,1 s, avatarizer #10 364,0 s ;
+- le transcriber #1309 n'est estimé qu'à sa transcription alors que locuteurs, résumé et
+  cohérence sont cochés : c'est la règle « clé de process = apprise seulement », rien n'est
+  encore appris sous `transcriber:diarize|summarize|coherence` — leurs glus l'apprennent au
+  premier lancement ;
+- suite sur l'arbre actuel, par-dessus `b03b221b` (`watched` dérivés) et `3055f0d7` (Writer) :
+  `tests_process_eta`, `tests_progress_views`, `tests_process_pipeline`, ETA du cam_analyzer —
+  103 tests **OK**.
+
+Non vérifié : un vrai lancement par le worker (plan `PENDING` écrit par la tâche, apprentissage
+des clés neuves) — il rejoue le résultat d'une card réelle, il attend l'accord de Fabien.
