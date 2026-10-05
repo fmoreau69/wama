@@ -57,7 +57,8 @@
             "roi_enlargement",
             "progressive_blur",
             "interpolate_detections",
-            "max_interpolation_frames"
+            "max_interpolation_frames",
+            "max_extrapolation_frames"
           ]
         }
       },

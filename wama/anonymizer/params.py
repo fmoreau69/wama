@@ -71,7 +71,7 @@ PARAMS = derive_from_model(
         # ── Comment flouter ──
         "blur_ratio", "rounded_edges", "roi_enlargement", "progressive_blur",
         # ── Temporel (vidéo) ──
-        "interpolate_detections", "max_interpolation_frames",
+        "interpolate_detections", "max_interpolation_frames", "max_extrapolation_frames",
         # ── Segmentation ── (consommé par save_media_settings/tasks : le schéma est la
         # source, un champ consommé mais non déclaré y était invisible — leçon converter)
         "use_segmentation",
@@ -179,6 +179,16 @@ PARAMS = derive_from_model(
             help="Un trou de détection d'au plus ce nombre d'images est comblé, entre deux "
                  "détections du même objet (même piste, ou même place).",
             show_if={"field": "interpolate_detections", "equals": True}, stales=("blur",),
+        ),
+        # SÉPARÉ de l'interpolation (2026-10-05, décision de Fabien) : encadrée par deux
+        # détections, elle comble 50 images sans inventer ; prolonger n'a qu'un côté et ne vaut
+        # que pour quelques images. Un seul nombre aurait forcé à mal régler l'un des deux.
+        "max_extrapolation_frames": dict(
+            type="number", label="Frames à prolonger avant/après", icon="fa-arrows-left-right",
+            min=0, max=30, step=1, advanced=True,
+            help="Un objet reste flouté ce nombre d'images avant sa première détection et après "
+                 "sa dernière (il entre ou sort du champ), à sa vitesse. 0 : jamais.",
+            stales=("blur",),
         ),
         "use_segmentation": dict(
             type="toggle", label="Segmentation fine (contours)", icon="fa-draw-polygon",

@@ -155,6 +155,17 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self.assertIn('blur', stale, 'counter-proof : a blur setting does')
         self.assertNotIn('detect', stale)
 
+    def test_the_prolonging_setting_replays_the_blur_not_the_detection(self):
+        """`max_extrapolation_frames` (2026-10-05) is read when blurring, from the detections
+        already found : changing it never re-detects."""
+        from wama.anonymizer.function_specs import PIPELINE
+        self._run()
+        Media.objects.filter(pk=self.media.pk).update(max_extrapolation_frames=12)
+        self.media.refresh_from_db()
+        stale = PIPELINE.refresh(self.media)
+        self.assertIn('blur', stale)
+        self.assertNotIn('detect', stale)
+
     def test_changing_the_format_replays_the_output_alone_and_keeps_the_blurred_original(self):
         self._run()
         before = self._started()
