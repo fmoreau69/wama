@@ -21,7 +21,12 @@
         "kind": "function",
         "params": {
           "degree": "required",
+          "eta": "avatarizer.workers:speak_eta_key_size",
           "gpu": false,
+          "label": "Voix",
+          "outputs": [
+            "audio_input"
+          ],
           "watched": [
             "text_content",
             "tts_model",
@@ -38,7 +43,13 @@
         "kind": "function",
         "params": {
           "degree": "required",
+          "eta": "avatarizer.workers:avatarizer_eta_key_size",
           "gpu": true,
+          "label": "Animation",
+          "outputs": [
+            "output_video"
+          ],
+          "share": 4,
           "watched": [
             "audio_input",
             "avatar_source",
@@ -56,7 +67,10 @@
         "kind": "function",
         "params": {
           "degree": "required",
+          "eta": "avatarizer.workers:enhance_eta_key_size",
           "gpu": true,
+          "label": "Visage",
+          "share": 3,
           "watched": [
             "use_enhancer"
           ]

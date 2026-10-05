@@ -656,20 +656,6 @@ def update_settings(request, pk):
 # Progress
 # ---------------------------------------------------------------------------
 
-def _eta_triplet(gen):
-    """Le triplet d'ETA, celui que la glu apprend (`tasks.composer_eta_key_size`) — modèle
-    réputé NON chargé."""
-    from .tasks import composer_eta_key_size
-    return (*composer_eta_key_size(gen), False)
-
-
-def _eta_prior(gen):
-    """Repli a-priori DÉCLARÉ au catalogue : temps ≈ durée × `gen_factor` + surcoût."""
-    from .utils.model_choice import config
-    cfg = config(gen.model)
-    return float(gen.duration or 0) * cfg.get('gen_factor', 1.5) + cfg.get('overhead_s', 15)
-
-
 def _progress_extra(gen):
     """Les clés PROPRES que le JS du composer lit : le résultat, une fois produit."""
     if gen.status != 'SUCCESS' or not gen.audio_output:
@@ -680,14 +666,12 @@ def _progress_extra(gen):
 
 
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
-# 2026-10-03) — l'app n'y déclare que son triplet d'ETA et son a-priori, ses clés propres et le
-# modèle de sa bande de process.
+# 2026-10-03) — l'app n'y déclare que ses clés propres. L'ETA est celle de ses PROCESS, a priori
+# du catalogue compris (`function_specs.PIPELINE`, 2026-10-05).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(
-    work_model=ComposerGeneration,
-    app_id='composer', eta_for=_eta_triplet, eta_fallback=_eta_prior,
-    extra=_progress_extra)
+_pv = make_progress_views(work_model=ComposerGeneration, app_id='composer',
+                          extra=_progress_extra)
 progress = require_GET(_pv['progress'])
 global_progress = _pv['global_progress']
 

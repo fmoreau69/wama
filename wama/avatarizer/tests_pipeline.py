@@ -205,14 +205,34 @@ class OneEtaKeyForTheTaskAndTheViewTest(TestCase):
         key, size, unit = workers.avatarizer_eta_key_size(self._job('x/head.glb'))
         self.assertEqual(('avatarizer:talkinghead', 10.0, 'video_sec'), (key, size, unit))
 
-    def test_a_photo_is_estimated_under_its_quality(self):
-        self.assertEqual('avatarizer:fast',
-                         workers.avatarizer_eta_key_size(self._job('x/face.png'))[0])
+    def test_a_photo_animation_is_estimated_under_the_key_its_render_learns_whatever_the_quality(
+            self):
+        """Since « Visage » is a process of its own (CodeFormer, `avatarizer:codeformer`), the
+        animation learns under `avatarizer:fast` in BOTH qualities ; the view estimated a quality
+        photo under `avatarizer:quality`, a key nothing learned any more (2026-10-05)."""
+        job = self._job('x/face.png')
+        job.quality_mode, job.use_enhancer = 'quality', True
+        self.assertEqual('avatarizer:fast', workers.avatarizer_eta_key_size(job)[0])
+        self.assertEqual(('avatarizer:codeformer', 10.0, 'video_sec'),
+                         workers.enhance_eta_key_size(job))
 
-    def test_the_view_reads_the_same_triplet(self):
-        from wama.avatarizer.views import _eta_triplet
-        job = self._job('x/head.glb')
-        self.assertEqual((*workers.avatarizer_eta_key_size(job), True), _eta_triplet(job))
+    def test_each_process_names_the_triplet_its_glue_learns(self):
+        from wama.avatarizer.function_specs import PIPELINE
+        from wama.common.services.process_runs import process_eta
+        job = self._job('x/face.png')
+        job.use_enhancer = True
+        for key, fn in (('speak', workers.speak_eta_key_size),
+                        ('animate', workers.avatarizer_eta_key_size),
+                        ('enhance', workers.enhance_eta_key_size)):
+            with self.subTest(process=key):
+                self.assertEqual(fn(job), process_eta(PIPELINE.spec(key), job)[:3])
+
+    def test_the_voice_is_learned_under_the_common_tts_key(self):
+        """« Voix » calls the same TTS service as the synthesizer : same key, same learning."""
+        from wama.common.tts.service_client import tts_eta_key_size
+        job = self._job('x/face.png')
+        self.assertEqual(tts_eta_key_size(job.text_content, job.tts_model),
+                         workers.speak_eta_key_size(job))
 
 
 class TheCardShowsItsProcessesTest(TestCase):

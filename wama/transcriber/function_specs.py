@@ -154,21 +154,24 @@ def _requested_model(t):
 
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('transcribe', label='Transcription', watched=_TRANSCRIBE_WATCHED,
-                applies=_transcribes, gpu=True, share=17),
+                applies=_transcribes, gpu=True, share=17, eta='transcriber.workers:transcribe_eta'),
+    # L'import relit un document (quelques secondes) : pas d'ETA propre, sa dernière durée suffit.
     ProcessSpec('import', label='Import', watched=('work_result',),
                 applies=_has_existing_result, share=1),
     ProcessSpec('align', label='Alignement', depends_on=('import',), degree=OPTIONAL,
-                applies=_align_applies, gpu=True, share=2),
+                applies=_align_applies, gpu=True, share=2, eta='transcriber.workers:align_eta'),
     ProcessSpec('diarize', label='Locuteurs', depends_on=('transcribe', 'import', 'align'),
                 watched=('diarization_model',), degree=OPTIONAL, toggle='enable_diarization',
-                applies=_diarize_applies, gpu=True, share=1),
+                applies=_diarize_applies, gpu=True, share=1, eta='transcriber.workers:diarize_eta'),
     # Résumé et cohérence lisent le texte ET ses locuteurs (le compte-rendu de réunion les cite,
     # la cohérence par segment s'écrit sur les segments que la diarisation réécrit).
     ProcessSpec('summarize', label='Résumé', depends_on=('transcribe', 'import', 'diarize'),
-                watched=('summary_type',), degree=OPTIONAL, toggle='generate_summary', share=1),
+                watched=('summary_type',), degree=OPTIONAL, toggle='generate_summary', share=1,
+                eta='transcriber.workers:summarize_eta'),
     ProcessSpec('coherence', label='Cohérence',
                 depends_on=('transcribe', 'import', 'align', 'diarize'),
-                degree=OPTIONAL, toggle='verify_coherence', share=1),
+                degree=OPTIONAL, toggle='verify_coherence', share=1,
+                eta='transcriber.workers:coherence_eta'),
 ), label='Transcriber — transcription ou import, alignement, locuteurs, résumé, cohérence',
    source_ref='transcriber.function_specs:PIPELINE',
    model_of=lambda t: _requested_model(t))

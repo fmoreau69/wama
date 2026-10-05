@@ -143,14 +143,16 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('extract_score', label='Partition extraite',
                 watched=('melody_reference', 'source_url'),
                 gpu=True, share=1, applies=_extract_applies, available=_extract_available,
-                outputs=('extracted_score',)),
+                outputs=('extracted_score',), eta='composer.tasks:extract_score_eta'),
     # La partition ne dépend que de la consigne et du modèle (le curseur pèse dans le tirage
     # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu.
     ProcessSpec('plan', label='Partition', watched=_PROMPT_WATCHED + ('model', 'quality_intent'),
-                gpu=True, share=1, applies=_plan_applies, outputs=('planned_score',)),
+                gpu=True, share=1, applies=_plan_applies, outputs=('planned_score',),
+                eta='composer.tasks:plan_eta'),
     # Deux amonts ALTERNATIFS, exclusifs par `applies` : un amont sans objet est ignoré.
     ProcessSpec('render', label='Rendu', depends_on=('extract_score', 'plan'),
-                watched=_RENDER_WATCHED, gpu=True, share=3, outputs=('audio_output',)),
+                watched=_RENDER_WATCHED, gpu=True, share=3, outputs=('audio_output',),
+                eta='composer.tasks:render_eta'),
     # Les réglages de SORTIE (format, qualité) : process COMMUN (`output_process`), toujours joué.
     output_spec(depends_on=('render',)),
 ), label='Composer — partition, rendu, sortie', source_ref='composer.function_specs:PIPELINE',

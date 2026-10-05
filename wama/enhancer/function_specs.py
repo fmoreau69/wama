@@ -49,7 +49,8 @@ GENERATE_WATCHED = ('input_file', 'quality_intent',
                     'engine', 'mode', 'denoising_strength', 'quality')
 
 PIPELINE = register_app_pipeline(_APP, (
-    ProcessSpec('generate', label='Amélioration', watched=GENERATE_WATCHED, gpu=True, share=9),
+    ProcessSpec('generate', label='Amélioration', watched=GENERATE_WATCHED, gpu=True, share=9,
+                eta='enhancer.tasks:generate_eta_key_size'),
     output_spec(depends_on=('generate',)),
 ), label='Enhancer — amélioration puis réglages de sortie',
    source_ref='enhancer.function_specs:PIPELINE',

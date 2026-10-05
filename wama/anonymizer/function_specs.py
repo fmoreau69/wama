@@ -67,8 +67,9 @@ BLUR_WATCHED = ('blur_ratio', 'rounded_edges', 'roi_enlargement', 'progressive_b
 
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('detect', label='Détection', watched=DETECT_WATCHED, gpu=True, share=7,
-                outputs=('detections_file',)),
-    ProcessSpec('blur', label='Floutage', depends_on=('detect',), watched=BLUR_WATCHED, share=3),
+                outputs=('detections_file',), eta='anonymizer.tasks:anonymizer_eta_key_size'),
+    ProcessSpec('blur', label='Floutage', depends_on=('detect',), watched=BLUR_WATCHED, share=3,
+                eta='anonymizer.tasks:blur_eta'),
     output_spec(depends_on=('blur',)),
 ), label='Anonymizer — détection, floutage, réglages de sortie',
    source_ref='anonymizer.function_specs:PIPELINE',

@@ -210,17 +210,10 @@ def _run_pure_function(spec, frames_by_port: dict, params: dict):
 
 
 def _impl_callable(impl: str):
-    """`module.chemin:attribut` → objet (tâche Celery ou fonction)."""
-    import importlib
-    if ':' not in impl:
-        raise ValueError(f"impl `{impl}` : forme attendue `module:attribut`")
-    mod, attr = impl.split(':', 1)
-    for candidate in (mod, f'wama_lab.{mod}', f'wama.{mod}'):
-        try:
-            return getattr(importlib.import_module(candidate), attr)
-        except (ImportError, AttributeError):
-            continue
-    raise ValueError(f"impl `{impl}` introuvable")
+    """`module.chemin:attribut` → objet — par le résolveur COMMUN du catalogue (écrit ici, remonté
+    le 2026-10-05 : les process d'app désignent leur ETA par la même forme)."""
+    from wama.common.catalog.function_catalog import resolve_impl
+    return resolve_impl(impl)
 
 
 def app_function_job_kwargs(impl: str) -> list:

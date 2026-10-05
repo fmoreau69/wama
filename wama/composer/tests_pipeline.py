@@ -24,7 +24,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.test import SimpleTestCase, TestCase, override_settings
 
-from wama.common.models import JOB_FAILURE, JOB_STALE, JOB_SUCCESS
+from wama.common.models import JOB_FAILURE, JOB_PENDING, JOB_STALE, JOB_SUCCESS
 from wama.common.services import process_runs
 from wama.composer import tasks
 from wama.composer.function_specs import PIPELINE
@@ -184,7 +184,9 @@ class PlanThenRenderTest(TestCase):
         _ScoreEngine.error = RuntimeError('engine down')
         gen = self._run(self._generation())
         self.assertEqual(('FAILURE', 0), (gen.status, gen.progress))
-        self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_FAILURE}, self._states(gen))
+        # La sortie, PRÉVUE par le lancement, n'a pas joué : son tour n'est pas venu (`plan`).
+        self.assertEqual({'plan': JOB_SUCCESS, 'render': JOB_FAILURE, 'output': JOB_PENDING},
+                         self._states(gen))
         self.assertTrue(gen.planned_score, 'the score of the process that succeeded was lost')
         _ScoreEngine.error = None
         gen = self._run(gen)

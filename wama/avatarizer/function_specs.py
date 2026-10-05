@@ -82,12 +82,15 @@ register(FunctionSpec(
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('speak', label='Voix',
                 watched=('text_content', 'tts_model', 'voice_preset', 'language', 'quality_intent'),
-                share=1, applies=_speak_applies, outputs=('audio_input',)),
+                share=1, applies=_speak_applies, outputs=('audio_input',),
+                eta='avatarizer.workers:speak_eta_key_size'),
     ProcessSpec('animate', label='Animation', depends_on=('speak',),
                 watched=('audio_input', 'avatar_source', 'avatar_gallery_name', 'avatar_upload',
                          'animation_model', 'bbox_shift'),
-                gpu=True, share=4, outputs=('output_video',)),
+                gpu=True, share=4, outputs=('output_video',),
+                eta='avatarizer.workers:avatarizer_eta_key_size'),
     ProcessSpec('enhance', label='Visage', depends_on=('animate',), watched=('use_enhancer',),
-                gpu=True, share=3, applies=_enhance_applies),
+                gpu=True, share=3, applies=_enhance_applies,
+                eta='avatarizer.workers:enhance_eta_key_size'),
 ), label='Avatarizer — voix, animation, visage', source_ref='avatarizer.function_specs:PIPELINE',
    model_of=lambda job: job.animation_model or 'auto')

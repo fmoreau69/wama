@@ -303,7 +303,8 @@ def mark_completed(session, pass_type: str, *, output_summary: dict | None = Non
     size = pass_size_s(session, pass_type, camera.position if camera is not None else None)
     summary = dict(output_summary or {})
     if size:
-        summary['eta_size_s'] = round(size, 1)
+        from wama.common.services.process_runs import ETA_SIZE_KEY
+        summary[ETA_SIZE_KEY] = round(size, 1)
     run = _common_runs().succeed(session, pass_type, instance_key=instance_key(camera),
                                  output_summary=summary, process_key=process_key(pass_type))
     _record_pass_eta(session, pass_type, size, run.duration_s)
@@ -361,14 +362,11 @@ def _record_pass_eta(session, pass_type, size, duration_s) -> None:
 
 
 def row_eta_seconds(size, last_duration, last_size, learned_seconds):
-    """Durée estimée d'une passe : sa DERNIÈRE durée sur cette session (le meilleur prédicteur
-    d'une relance), mise à l'échelle si la taille a changé ; sinon l'appris du service commun ;
-    sinon None — pas d'a priori générique, dont l'ordre de grandeur serait faux ici."""
-    if not size:
-        return None
-    if last_duration:
-        return float(last_duration) * (size / last_size) if last_size else float(last_duration)
-    return float(learned_seconds) if learned_seconds else None
+    """Durée estimée d'une passe — la règle est COMMUNE depuis le 2026-10-05
+    (`process_runs.row_eta_seconds`, écrite ici le 2026-10-01 et remontée quand les process des
+    apps ont eu besoin de la même) : la dernière durée sur cette session, à l'échelle ; sinon
+    l'appris ; sinon None."""
+    return _common_runs().row_eta_seconds(size, last_duration, last_size, learned_seconds)
 
 
 def annotate_eta(session, rows) -> None:
@@ -387,8 +385,7 @@ def annotate_eta(session, rows) -> None:
     for r in rows:
         pt, pos = r.get('pass_type'), r.get('camera')
         size = pass_size_s(session, pt, pos)
-        summ = r.get('output_summary') or {}
-        last = r.get('duration_s') or summ.get('previous_duration_s')
+        last, last_size = _common_runs().last_duration(r)
         learned = None
         if not last and size and estimate is not None:
             k = (pt, round(size))
@@ -398,7 +395,7 @@ def annotate_eta(session, rows) -> None:
                 learned_cache[k] = estimate(eta_key(pt), size, ETA_UNIT, model_loaded=True,
                                             fallback_seconds=0.0)
             learned = learned_cache[k]
-        eta = row_eta_seconds(size, last, summ.get('eta_size_s'), learned)
+        eta = row_eta_seconds(size, last, last_size, learned)
         r['eta_seconds'] = round(eta, 1) if eta else None
         t0 = started.get((pt, pos)) or started.get((pt, None))
         if r.get('status') == JOB_RUNNING and eta and t0:

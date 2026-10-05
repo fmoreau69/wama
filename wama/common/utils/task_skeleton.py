@@ -394,19 +394,20 @@ def _measure_against_reference(app_id: str, model, item_id: int, ctx) -> None:
 
 
 def _record_eta(eta, seconds: float, item) -> None:
-    """ETA d'UN process (`(clé, taille, unité)` rendu par sa glu), best-effort."""
+    """ETA d'UN process (`(clé, taille, unité[, modèle chargé])` rendu par sa glu — la forme que
+    lit aussi la vue de progression), best-effort."""
     if not eta:
         return
     try:
         from wama.model_manager.services.eta_estimator import record_run
-        key, size, unit = eta
+        key, size, unit = eta[:3]
         record_run(key, size=size, unit=unit, process_seconds=seconds, load_seconds=None,
                    user=getattr(item, 'user', None))
     except Exception:
         pass
 
 
-def _line_summary(res: dict):
+def _line_summary(res: dict, spec=None, item=None):
     """Ce que la ligne d'exécution retient du retour d'une glu : son nom lisible, et l'EMPREINTE
     de sa sortie quand ce n'est pas un fichier (`output_fingerprint` — le texte d'une
     transcription : c'est ce qui périme l'aval quand cette sortie est remplacée)."""
@@ -415,6 +416,17 @@ def _line_summary(res: dict):
         summary['label'] = res['label']
     if res.get('output_fingerprint'):
         summary['fingerprint'] = str(res['output_fingerprint'])
+    # La TAILLE sur laquelle la durée de la ligne est mesurée (2026-10-05) — celle de l'ETA que la
+    # glu apprend, sinon celle que DÉCLARE le process (`ProcessSpec.eta`, lue sur l'élément tel que
+    # la glu le laisse : une glu qui apprend elle-même, chargement à part, ne rend pas d'`eta`).
+    # C'est ce qui met cette durée à l'échelle quand le process est relancé sur une taille
+    # différente (`process_runs.row_eta_seconds`, règle des passes du cam_analyzer).
+    from wama.common.services import process_runs
+    eta = res.get('eta')
+    if not eta and spec is not None and item is not None:
+        eta = process_runs.process_eta(spec, item)
+    if eta and len(eta) >= 2 and eta[1]:
+        summary[process_runs.ETA_SIZE_KEY] = round(float(eta[1]), 3)
     return summary or None
 
 
@@ -559,6 +571,14 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         with _time_guard(limit_s):
             steps = _selected_steps(app_id, item, process, pipeline, processes, resolved_key,
                                     only=only)
+            if pipeline is not None:
+                # Le PLAN du lancement sur les lignes (2026-10-05) : chaque process retenu passe
+                # `PENDING` (« son tour n'est pas venu ») et porte cette tâche. C'est ce qui dit,
+                # pendant le traitement, ce que joue CE lancement — un ▶ borné n'en joue qu'une
+                # partie — et donc ce que la vue de progression additionne (ETA par process).
+                process_runs.safely(process_runs.plan, item,
+                                    [(node_, key_, 'function') for node_, key_, *_r in steps],
+                                    task_id=task_ref)
             total_share = sum(spec.share if spec is not None else 1 for *_x, spec in steps) or 1
             done_share, written, used, carried_label = 0, {}, [], None
             for index, (node, process_key, glue, spec) in enumerate(steps):
@@ -609,7 +629,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                     process_runs.succeed, item, node, process_key=process_key,
                     output_ref=res.get('output_ref') or '',
                     model_key=(res.get('models') or [None])[0],
-                    output_summary=_line_summary(res),
+                    output_summary=_line_summary(res, spec, item),
                     # La photo des réglages telle que la glu les LAISSE (elle a pu en ajuster un).
                     settings_snapshot=pipeline.snapshot(spec, item) if spec is not None else None)
                 _record_eta(res.get('eta'), time.time() - t_step, item)
@@ -617,7 +637,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                     ctx.console(res.get('console_success') or f"✓ {res['label']}", level='info')
                 done_share += share
         last_model = next((k for k in (res.get('models') or []) if k), None)
-        last_summary = _line_summary(res)
+        last_summary = _line_summary(res, spec, item)
         last_fields = dict(res.get('fields') or {})
         # Ce que la CARD a produit = ce que tous ses process joués ont écrit et employé ; son nom
         # lisible est le dernier qu'un process a donné (le dernier process peut ne rien nommer).

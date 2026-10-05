@@ -21,7 +21,13 @@
         "kind": "function",
         "params": {
           "degree": "required",
+          "eta": "anonymizer.tasks:anonymizer_eta_key_size",
           "gpu": true,
+          "label": "Détection",
+          "outputs": [
+            "detections_file"
+          ],
+          "share": 7,
           "watched": [
             "file",
             "target_mode",
@@ -41,7 +47,10 @@
         "kind": "function",
         "params": {
           "degree": "required",
+          "eta": "anonymizer.tasks:blur_eta",
           "gpu": false,
+          "label": "Floutage",
+          "share": 3,
           "watched": [
             "blur_ratio",
             "rounded_edges",
@@ -60,6 +69,7 @@
         "params": {
           "degree": "required",
           "gpu": false,
+          "label": "Sortie",
           "watched": [
             "output_format",
             "output_quality",

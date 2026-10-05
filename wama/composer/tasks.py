@@ -74,6 +74,42 @@ def composer_eta_key_size(gen, model: str = None, duration=None) -> tuple[str, f
     return model, float((gen.duration if duration is None else duration) or 0), 'audio_sec'
 
 
+def render_eta(gen):
+    """ETA déclarée du process `render` (`ProcessSpec.eta`) : le triplet que la glu apprend,
+    modèle réputé NON chargé, et l'a priori du catalogue de l'app (`model_config.estimate_seconds`
+    : durée × `gen_factor` + surcoût) tant que rien n'est appris."""
+    from wama.common.utils.model_keys import model_id
+    from .utils.model_config import estimate_seconds
+    key, size, unit = composer_eta_key_size(gen)
+    return key, size, unit, False, estimate_seconds(model_id(key), size)
+
+
+def plan_eta_key_size(gen, model: str = None) -> tuple[str, float, str]:
+    """(clé, taille, unité) de l'ETA du process `plan` : la partition écrite par le moteur du
+    modèle, ∝ durée demandée — clé du modèle suffixée du process (`<clé>:plan`)."""
+    key, size, unit = composer_eta_key_size(gen, model=model)
+    return f'{key}:plan', size, unit
+
+
+def plan_eta(gen):
+    """ETA déclarée du process `plan` : APPRISE seulement (a priori nul) — une clé de PROCESS n'a
+    pas d'a priori de domaine, l'estimateur n'en tient que pour des modèles (règle des passes du
+    cam_analyzer, `pass_tracking.row_eta_seconds`)."""
+    return (*plan_eta_key_size(gen), False, 0.0)
+
+
+def extract_score_eta_key_size(gen) -> tuple[str, float, str]:
+    """(clé, taille, unité) de l'ETA du process `extract_score`, PAR ÉLÉMENT : la durée de l'audio
+    du cover n'est pas sur la card, et la sonder (ffprobe) à chaque relevé de progression coûterait
+    plus que l'estimation ne rapporte. La relance d'une même card lit sa dernière durée."""
+    return 'composer:extract_score', 1.0, 'item'
+
+
+def extract_score_eta(gen):
+    """ETA déclarée du process `extract_score` : apprise seulement (clé de process, cf. `plan_eta`)."""
+    return (*extract_score_eta_key_size(gen), False, 0.0)
+
+
 def _vram_needed(gen):
     """Besoin VRAM du modèle de CE lancement (cascade commune du catalogue), None si inconnu."""
     from wama.common.utils.auto_model import vram_needed_gb
@@ -288,6 +324,7 @@ def _extract_score(gen, ctx):
         'label': name,
         'console_success': f"✓ Partition extraite : {name}",
         'models': [extractor_key],
+        'eta': extract_score_eta_key_size(gen),
     }
 
 
@@ -317,6 +354,7 @@ def _plan(gen, ctx):
         'label': name,
         'console_success': f"✓ Partition écrite : {name}",
         'models': [catalog_key],
+        'eta': plan_eta_key_size(gen, model=catalog_key),
     }
 
 

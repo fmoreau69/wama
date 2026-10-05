@@ -415,8 +415,11 @@ def _eta_seeded(f: _AppFiles):
     # L'estimation a deux formes : l'appel direct, ou le triplet DÉCLARÉ à la fabrique des vues de
     # progression (`make_progress_views(eta_for=…)`, 2026-10-03), qui fait l'appel elle-même. Sans
     # la seconde, le critère rougissait les huit apps portées — un critère en retard d'un
-    # mécanisme pousse vers l'ancienne forme.
-    est = f.find(VIEWS, r'\bestimate\(|\beta_for=')
+    # mécanisme pousse vers l'ancienne forme. Troisième forme (2026-10-05) : l'ETA DÉCLARÉE par
+    # chaque process du pipeline (`ProcessSpec(eta=…)`), que la vue additionne
+    # (`process_runs.launch_eta`) — les sept apps à pipeline n'ont plus de crochet dans la vue.
+    est = (f.find(VIEWS, r'\bestimate\(|\beta_for=')
+           or f.find(['function_specs.py'], r"\beta\s*=\s*'[\w.]+:\w+'"))
     if rec and est:
         return True, f"{rec} + {est}"
     if rec or est:

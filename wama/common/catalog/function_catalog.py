@@ -258,6 +258,24 @@ def get(key) -> Optional[FunctionSpec]:
     return FUNCTION_CATALOG.get(key)
 
 
+def resolve_impl(impl: str):
+    """`module.chemin:attribut` → l'objet désigné (tâche Celery, fonction) — la forme de
+    `FunctionSpec.impl`, résolue PARESSEUSEMENT : une déclaration ne charge pas le module qu'elle
+    désigne (un module de tâches importe ses moteurs). Le module se cherche tel quel, puis sous
+    `wama_lab.` et `wama.`. Écrit pour l'exécuteur du studio, commun depuis le 2026-10-05 : les
+    process d'app y désignent aussi leur ETA (`ProcessSpec.eta`)."""
+    import importlib
+    if ':' not in impl:
+        raise ValueError(f"impl `{impl}` : forme attendue `module:attribut`")
+    mod, attr = impl.split(':', 1)
+    for candidate in (mod, f'wama_lab.{mod}', f'wama.{mod}'):
+        try:
+            return getattr(importlib.import_module(candidate), attr)
+        except (ImportError, AttributeError):
+            continue
+    raise ValueError(f"impl `{impl}` introuvable")
+
+
 def by_category(category):
     return [s for s in FUNCTION_CATALOG.values() if s.category == category]
 

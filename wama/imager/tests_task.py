@@ -185,7 +185,8 @@ class ImageTaskOnSkeletonTest(_OnSkeleton):
         self.assertEqual(('FAILURE', 0), (generation.status, generation.progress))
         self.assertIn('out of memory', generation.error_message)
         self.assertIsNotNone(generation.completed_at)
-        self.assertEqual({'generate': 'FAILURE'}, self._states(generation))
+        # La sortie, PRÉVUE par le lancement, n'a pas joué : son tour n'est pas venu (`plan`).
+        self.assertEqual({'generate': 'FAILURE', 'output': 'PENDING'}, self._states(generation))
 
     def test_a_pending_generation_sent_without_a_launcher_goes_running(self):
         generation = self._generation(status='PENDING')

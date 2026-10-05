@@ -47,7 +47,8 @@ GENERATE_WATCHED = ('text_file', 'tts_model', 'quality_intent', 'voice_preset', 
                     'language', 'speed', 'pitch', 'multi_speaker', 'scene_description')
 
 PIPELINE = register_app_pipeline(_APP, (
-    ProcessSpec('generate', label='Synthèse', watched=GENERATE_WATCHED, gpu=True, share=9),
+    ProcessSpec('generate', label='Synthèse', watched=GENERATE_WATCHED, gpu=True, share=9,
+                eta='synthesizer.workers:synthesizer_eta_key_size'),
     output_spec(depends_on=('generate',)),
 ), label='Synthesizer — synthèse puis réglages de sortie',
    source_ref='synthesizer.function_specs:PIPELINE',

@@ -21937,3 +21937,70 @@ Trois retours de Fabien après une vidéo jouée (card #1026, compte réel, lue 
 - 🔴 recharger gunicorn pour la liste d'outils. 🔚 inchangés : chemin local à froid (122 s) ·
   journal des connexions (2 décisions) · vecteurs des fragments neufs la nuit (décision) ·
   outils chargés à la demande (décision) · écoute de la voix au navigateur.
+
+## §PALIER — 2026-10-05, « PIPELINE : ETA PAR PROCESS — plan du lancement sur les lignes, chaque process déclare son ETA, la card est estimée à la somme de ce que joue son lancement » — ✅ commit de ce bloc, non poussé — 🔴 RECHARGER gunicorn ET relancer les workers (squelette, glus, vues de progression) — 🔚 ETA propre de la sortie commune et de l'import (apprises d'une card à l'autre)
+
+**Demande** (Fabien) : « attaquer l'ETA, méticuleusement, en profondeur, sans rien réinventer » —
+option retenue « tout » : plan du lancement marqué `PENDING` sur les lignes, ETA déclarée par
+process, règle d'estimation du cam_analyzer remontée au commun. Domicile : `ROUTE §10.6` 4.5
+(bloc ✅ du 2026-10-05), conventions §3.3, registre `process_runs` / `progress_views`.
+
+**Mesuré avant** : UN triplet par app dans la vue (`make_progress_views(eta_for=…)`) ; 13 process
+sur 22 n'apprenaient aucune durée ; le rendu seul du composer estimé à partition + rendu ; la vue
+de l'avatarizer estimait une photo « qualité » sous `avatarizer:quality`, que plus rien
+n'apprenait depuis le process « Visage » ; la formule a priori du composer existait en TROIS
+copies (`model_config.estimate_seconds`, la vue, `ComposerGeneration.estimated_seconds`).
+
+**Ce qui est en place** (aucune pièce neuve, trois remontées) :
+- `process_runs.plan` — appelé par le squelette après `steps_to_run` : les process retenus passent
+  `PENDING` avec la tâche. ⚠ Conséquence VOULUE : un process prévu après un échec reste `PENDING`
+  (4 tests réalignés : composer, imager, synthesizer, anonymizer — ils figeaient l'absence de
+  ligne ; avant, une sortie d'un rendu antérieur restait « réussie » sous un amont en échec).
+- `ProcessSpec.eta` (posé par la session Writer, commité ici avec l'export `graph()` de
+  `label`/`outputs`/`share`/`eta`) : chemin `module:attr` (`function_catalog.resolve_impl`,
+  remonté du studio) vers la fonction que la glu rend aussi à `record_run`. 16 process sur 22
+  la déclarent ; 6 exemptés, raison dite (`output` ×5, `transcriber.import`).
+- `process_runs.row_eta_seconds` / `last_duration` / `ETA_SIZE_KEY` (règle de `pass_tracking`, qui
+  y délègue), `step_eta_seconds` (+ a priori de l'estimateur ; une clé de PROCESS déclare `0.0`),
+  `launch_eta` (somme ; un process rendu pendant le lancement compte sa durée MESURÉE ; avant le
+  départ, ce que `steps_to_run` retiendrait). La vue la lit en premier ; `eta_for`/`eta_fallback`
+  ont quitté les sept vues à pipeline.
+- La ligne garde la taille de sa mesure (de l'`eta` de la glu, sinon de la déclaration).
+- Clé TTS commune `tts.service_client.tts_eta_key_size` (synthesizer + voix de l'avatarizer).
+- Littéraux retirés des glus de l'avatarizer ; `ComposerGeneration.estimated_seconds` lit
+  `launch_eta`.
+- Critère `eta_seeded` : reconnaît la forme déclarée (`function_specs.py`) — sans elle il
+  rougissait les sept apps. Grille **948/967**.
+
+**Preuves** : `tests_process_eta` (17 tests) + factory test de `tests_progress_views` ; **six
+règles prouvées par mutation**, six tuées (somme d'un lancement en cours, ▶ borné, pas d'a priori
+pour une clé de process, plan écrit par le squelette, taille déclarée gardée, vue qui somme
+d'abord). **Écart mesuré sur les cards RÉELLES** (lecture seule, transaction annulée) : là où la
+durée réelle du dernier traitement existe, l'estimation la retrouve — composer 222,8 / 237,3 /
+327,7 / 307,6 / 158,0 s → 222 / 237 / 327 / 307 / 157 (l'ancienne : 194-198 partout) ; imager
+98,9 s → 99 (avant 73) ; anonymizer #1026 5,8 s → 25 (avant 736). Synthesizer, transcriber,
+enhancer : identiques sur 38 cards.
+
+**Mesuré en chemin, hors périmètre** : le jumeau `writer_01` avait une colonne absente de la base
+de test conservée, qui avortait la transaction de tout test touchant `is_referenced_elsewhere`
+(8 erreurs de l'avatarizer) — signalé à la session Writer, corrigé par elle (`app_sandbox
+remove` désapplique désormais aussi la base de test).
+
+**Suite complète** (WSL, 5580 tests) : 24 échecs, aucun dans le périmètre de ce palier après
+deux corrections — `pass_tracking.mark_completed` lisait `ETA_SIZE_KEY` sur le module simulé par
+le test de la session cam (import direct désormais), et quatre noms de tests + une classe
+relevés par la liste noire de langue (`declare` → `name`). Les 19 autres sont à d'autres
+chantiers en cours (docs générées à 189 mécanismes, `accounts` à 11 fichiers de test, adresses de
+notification, contrat d'import, `lyrics` du composer, budgets de langue dépassés par du code
+d'autres fichiers…).
+
+⚠ **500 constaté sur le live** (`/studio/api/run-options/`, relevé par la session Writer) : le
+gunicorn en service a chargé `function_catalog` AVANT `resolve_impl` et `studio/tasks` après —
+un mélange en mémoire, pas un défaut du code. Le rechargement de gunicorn le règle.
+
+**Docs générées non régénérées** (`WAMA_MECANISMES.md`, `docs/dev/briques.md`) : elles
+projetteraient le WIP de trois mécanismes d'autres sessions ; à faire depuis HEAD.
+
+**Restes** : 6 process sur 22 n'apprennent toujours rien d'une card à l'autre (sortie commune ×5,
+import du transcriber) — ils pèsent leur dernière durée sur la card ; la taille de l'entrée de la
+sortie n'existe pas avant le moteur.

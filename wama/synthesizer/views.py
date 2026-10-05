@@ -453,14 +453,6 @@ def card_html(request, pk: int):
     return HttpResponse(html)
 
 
-def _eta_triplet(synthesis):
-    """Le triplet d'ETA, celui que la glu apprend (`workers.synthesizer_eta_key_size`) — service
-    chargé à la demande, modèle réputé chargé."""
-    from .workers import synthesizer_eta_key_size
-    triplet = synthesizer_eta_key_size(synthesis)
-    return (*triplet, True) if triplet else None
-
-
 def _progress_extra(synthesis):
     """Les clés PROPRES que le JS du synthesizer lit."""
     return {'audio_url': iri_to_uri(synthesis.audio_output.url) if synthesis.audio_output else None,
@@ -468,11 +460,12 @@ def _progress_extra(synthesis):
 
 
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
-# 2026-10-03) — l'app n'y déclare que son triplet d'ETA et ses clés propres.
+# 2026-10-03) — l'app n'y déclare que ses clés propres. L'ETA est celle de ses PROCESS
+# (`function_specs.PIPELINE`, 2026-10-05).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
 _pv = make_progress_views(work_model=VoiceSynthesis, app_id='synthesizer',
-                          eta_for=_eta_triplet, extra=_progress_extra)
+                          extra=_progress_extra)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 

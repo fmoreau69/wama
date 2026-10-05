@@ -304,3 +304,11 @@ def audio_enhancer_eta_key_size(ae, engine: str = None) -> tuple[str, float, str
     return f'enhancer:audio:{engine}', float(getattr(ae, 'duration', 0) or 0), 'audio_sec'
 
 
+def generate_eta_key_size(item) -> tuple[str, float, str]:
+    """ETA déclarée du process `generate` (`ProcessSpec.eta`) — UN pipeline pour les deux files :
+    le triplet de la file de l'élément, celui que sa glu apprend."""
+    if isinstance(item, AudioEnhancement):
+        return audio_enhancer_eta_key_size(item)
+    return enhancer_eta_key_size(item)
+
+

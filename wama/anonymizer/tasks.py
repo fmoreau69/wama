@@ -45,6 +45,13 @@ def anonymizer_blur_eta_key_size(media):
     return ('anonymizer:blur:img', mpx, 'megapixel')
 
 
+def blur_eta(media):
+    """ETA déclarée du process `blur` (`ProcessSpec.eta`) : APPRISE seulement (a priori nul) — une
+    clé de PROCESS n'a pas d'a priori de domaine, ceux de l'estimateur décrivent des modèles
+    (6 s par seconde de vidéo produite : faux d'un ordre de grandeur pour un floutage)."""
+    return (*anonymizer_blur_eta_key_size(media), True, 0.0)
+
+
 def _record_output(media, written):
     """Pose sur le média le fichier que le moteur a RÉELLEMENT écrit (2026-09-27).
 
